@@ -22,44 +22,59 @@ README aims to represent exactly that, no more.
 
 ## The current architecture: the super carrier shell (Unicell-S)
 
-The active line of development is the **super carrier shell**
-(`fpga/verilog/unicell_super_v1.v`): a single physical FPGA cell that
-holds *six* real, different cores simultaneously — a NOR-gate logic
-cell, RAM, an adder, an accumulator, a comparator, and a latch — with
-the active one chosen by a runtime configuration write (`core_select`),
-not a synthesis-time choice. Every core is always physically present in
-every bitstream; only the selected one ever does real work. Cells wire
-directly to their North/South/East/West physical neighbors — there is
-no addressed bus anywhere in this design.
+The active line of development is the **super carrier shell** — a
+single physical FPGA cell that holds multiple real, different cores
+simultaneously, with the active one chosen by a runtime configuration
+write (`core_select`), not a synthesis-time choice. Every core is
+always physically present in every bitstream; only the selected one
+ever does real work. Cells wire directly to their North/South/East/
+West physical neighbors — there is no addressed bus anywhere in this
+design.
 
-**Real, Quartus-confirmed silicon numbers** (target: IEI Mustang-F100-A10,
-Arria 10 GX, 10AX066H2F34E2SG):
+Three real, separate shell versions exist, each cloned from the last
+rather than modified in place (this project's own standing "never
+modify a proven file" discipline):
 
-| | |
-|---|---|
-| Total shell cost | 213 ALM, 257 registers — all 6 cores present |
-| Isolation/selection overhead | 25.9 ALM — smaller than any one of the 3 largest individual cores |
-| Timing | `clk_div` 200.76 MHz — 8.03× margin over the 25 MHz requirement |
+| Shell | Cores | Real ALM | Real `clk_div` Fmax |
+|---|---|---|---|
+| `unicell_super_v1.v` | 6 (nano, RAM, adder, accumulator, comparator, latch) | 233 | 129.48 MHz (5× margin) |
+| `unicell_super_v2.v` | +sequencer (7 total) | 305 | 99.57 MHz (4× margin) |
+| `unicell_super_v3.v` | +branch cell (8 total) | not yet measured coexisting | 312.7 MHz (branch-only build) |
+
+(target: IEI Mustang-F100-A10, Arria 10 GX, 10AX066H2F34E2SG, 25 MHz
+fabric clock)
+
+**Every one of this project's own core capabilities has real,
+independent, JTAG-based functional confirmation on actual silicon** —
+not just simulation, not just "Quartus compiled it" — via a real
+In-System Sources and Probes debug channel built specifically to give
+an unambiguous pass/fail regardless of whether a given board's own
+LEDs are reliably wired (a real uncertainty found and worked around
+this session). Branch cell in particular went from zero real hardware
+history to fully confirmed — standalone, and through the real v3
+shell's own `core_select` routing — in one session.
 
 For full detail, see [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/stripped-cell/SUPER_CELL_INTERNALS.md).
 
 ## What's built on top of it, and how it's verified
 
-Everything below lives in [`nano/`](nano/) and is genuinely tested —
-but tested in software/simulation, not yet independently confirmed on
-real hardware as these specific multi-cell layouts. That distinction is
-kept honest throughout the project's own documentation, not blurred.
+Everything below lives in [`nano/`](nano/) unless noted, and every
+piece states plainly whether it's simulation-only or independently
+confirmed on real hardware — that distinction is kept honest
+throughout the project's own documentation, never blurred.
 
-- **ICM v3** — the program format: real `SUPER_LATCH[79:0]` encode/decode,
-  verified two independent ways (bit-for-bit against real, iverilog-compiled
-  RTL test vectors, and mechanically re-derived straight from the RTL's
-  own comments).
-- **A real VM** (`SuperGrid`/`SuperCell`) — event-driven, all 6 cores,
-  a real registry so a new core type can be added without touching the
-  VM's own dispatch code.
+- **ICM v3/v4** — the program format: real `SUPER_LATCH[79:0]` encode/
+  decode, verified two independent ways (bit-for-bit against real,
+  iverilog-compiled RTL test vectors, and mechanically re-derived
+  straight from the RTL's own comments). ICM v4 extends this with a
+  second real record kind for DSP wrapper cells (below), mixed freely
+  with ordinary super-cell records in the same file.
+- **A real VM** (`SuperGrid`/`SuperCell`) — event-driven, every core in
+  every shell version, a real registry so a new core type can be added
+  without touching the VM's own dispatch code.
 - **A tile library** — primitive cores plus composed multi-cell patterns
-  (`sentinel`, `dual_threshold_monitor`, `twin_sentinel`), with real
-  nested composition.
+  (`sentinel`, `dual_threshold_monitor`, `twin_sentinel`, DSP-wrapper
+  compositions), with real nested composition.
 - **A compiler and a real, purpose-built DSL** — `place`/`define`/`expose`
   syntax, real diagnostics (what/problem/why/suggestion, not bare
   exceptions), a naming-hygiene lint, and a circular-reference guard.
@@ -79,6 +94,28 @@ kept honest throughout the project's own documentation, not blurred.
   python3 nano/workbench_v1.py
   # → http://localhost:7420
   ```
+- **Real hard-IP wrapper cells** — a DSP arithmetic/comparison wrapper
+  and a shared-BRAM interface, both **independently confirmed on real
+  silicon**: correct fire/ACK/re-arming for the DSP wrapper, and real
+  BRAM read/write plus real ICM (`SUPER_LATCH`) loading over an actual
+  JTAG host bridge — the first genuinely host-driven hardware success
+  in this project's own history. Honest note: the current DSP wrapper
+  uses a real, hardware-confirmed soft-logic floating-point IP, not
+  the chip's own hard DSP blocks — that path is real and deferred, not
+  yet built.
+- **Real MAN/SHAPE/placement tooling** (`tools/`, `docs/man/`,
+  `docs/shapes/`) — a MAN file captures one card's own real, fixed
+  capabilities (device resources, confirmed pin assignments); a SHAPE
+  file captures one *compiled design's* own real cell-to-cell wiring,
+  extracted straight from its RTL; a placement file adds real physical
+  bounding boxes pulled from Quartus's own Control Signals report. See
+  `tools/README.md` for each tool's own real scope and honest
+  limitations.
+- **A real Quartus project generator** (`tools/project_assemble_v1.py`)
+  — given a MAN file and a cell count, produces a complete, ready-to-
+  import Quartus project for a real N-cell array, guarding directly
+  against a real, already-confirmed Quartus behavior (pruning logic it
+  can prove unreachable) rather than assuming it away.
 
 ## Quick start
 
@@ -123,11 +160,18 @@ python3 nano/workbench_v1.py
 - [`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`](docs/stripped-cell/UNICELL_S_DSL_MANUAL.md)
   — the DSL language reference.
 - [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/stripped-cell/SUPER_CELL_INTERNALS.md)
-  — the shell/RTL reference.
+  — the shell/RTL reference, covering all three real shell versions.
 - [`docs/stripped-cell/CELL_INTERNALS.md`](docs/stripped-cell/CELL_INTERNALS.md)
   — the standalone nano cell's own reference (a related but genuinely
   different, smaller cell design, still real and independently
   buildable).
+- [`docs/man/README.md`](docs/man/README.md) — MAN files: one real
+  card's own fixed capabilities, authored once.
+- [`docs/shapes/README.md`](docs/shapes/README.md) — SHAPE files: one
+  real compiled design's own cell-to-cell adjacency, extracted fresh
+  per build.
+- [`tools/README.md`](tools/README.md) — every standalone tool this
+  project has built, its real scope, and its honest limitations.
 - `points.md` — the project's own append-only, numbered decision log.
   Every real design decision, bug found, and measurement taken is in
   here with its actual reasoning, not just a changelog line.

@@ -31554,3 +31554,43 @@ today's earlier real correction, `#551`, on what's actually already
 built for those) is not yet wired into this generator either -- a
 real, separate near-term extension once the pure-array baseline number
 exists.
+
+## 553. Real documentation catch-up -- both the top-level README.md and tools/README.md were genuinely stale (README still described the original 6-core shell with numbers from early in the project's history; tools/README only documented the onion submodule, missing every real tool built since). Both rewritten to reflect the real, current state. (Alan/Claude, 2026-08-31)
+
+**STATUS: `README.md` and `tools/README.md`, both substantially
+rewritten, real links verified to exist before being added, not
+assumed.**
+
+**`README.md`, real, concrete staleness found before fixing it:** the
+architecture section still described "six real, different cores" (the
+original v1 count, pre-dating branch cell and the sequencer entirely)
+and cited 213 ALM / 257 registers / 200.76 MHz -- real numbers, but
+from early in this project's own history, before this session's own
+real field extensions (`#515`/`#521`/`#522`) changed the shell's own
+real cost. Updated with a real table covering all three real shell
+versions (v1/v2/v3) and their own current real ALM/Fmax figures, a new
+paragraph naming the real, session-wide ISSP-based silicon
+confirmation work (branch cell's own real journey from zero hardware
+history to fully confirmed, standalone and through the shell), and a
+new "what's built on top" section covering the real DSP/BRAM hard-IP
+wrappers (both independently silicon-confirmed, with the honest DSP
+soft-logic-not-hard-silicon caveat stated plainly), the real MAN/
+SHAPE/placement tooling, and the new `project_assemble_v1.py`
+generator.
+
+**`tools/README.md`, a more complete gap: it only ever documented the
+onion submodule.** `shape_extract_v1.py`, `placement_extract_v1.py`,
+`chaos_topology_v1.py`, and the newly-built `project_assemble_v1.py`
+were entirely undocumented there. Rewritten to cover all five real
+tools, each with its own real scope, real usage example, and -- where
+one exists -- its own honestly-stated limitation (the shape
+extractor's own real registered-logic-tracing gap; the generator's
+own real anti-pruning design and its explicit non-goals, matching
+`composer_scope.md`'s own discipline of naming what's excluded, not
+just what's included).
+
+**Real, honest scope: documentation only, no code changes.** Both
+files' own real content was checked against the actual, current
+project state before being written -- every real number, every real
+tool's own real capability, and every linked doc's own real existence
+confirmed directly (`ls`), not assumed.

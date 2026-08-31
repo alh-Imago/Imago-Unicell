@@ -1,6 +1,26 @@
-# Current State (as of 2026-08-31, real new tool built: tools/project_assemble_v1.py -- generates a complete, Quartus-importable N-cell array from a MAN file, verified at both N=9 and the real N=500 target, one real bug caught before it reached Quartus, see `points.md` #552)
+# Current State (as of 2026-08-31, real documentation catch-up -- both README.md and tools/README.md were genuinely stale, both rewritten to reflect the real, current project state, see `points.md` #553)
 
 ## Read this first (most recent)
+
+**2026-08-31, real doc catch-up.** `README.md` still described the
+original 6-core shell with numbers from early in the project's
+history (213 ALM/200.76 MHz), predating branch cell/sequencer/this
+session's own field extensions entirely. Updated with a real table
+covering all three shell versions' current numbers, the session-wide
+ISSP-based silicon confirmation work, and a new section covering the
+real DSP/BRAM hard-IP wrappers (both silicon-confirmed, honest DSP
+soft-logic caveat included), MAN/SHAPE/placement tooling, and the new
+`project_assemble_v1.py` generator.
+
+`tools/README.md` only ever documented the onion submodule --
+`shape_extract_v1.py`, `placement_extract_v1.py`,
+`chaos_topology_v1.py`, and the new generator were entirely
+undocumented. Rewritten to cover all five real tools with real scope
+and honest limitations.
+
+Full detail: `points.md` `#553`.
+
+## Previous state (2026-08-31, real new tool built: tools/project_assemble_v1.py -- generates a complete, Quartus-importable N-cell array from a MAN file, verified at both N=9 and the real N=500 target, one real bug caught before it reached Quartus, see `points.md` #552)
 
 **2026-08-31, the real "initial creator" tool built and verified.**
 `tools/project_assemble_v1.py` (`--man <path> --cells <N>`) --
