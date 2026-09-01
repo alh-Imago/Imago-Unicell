@@ -32684,3 +32684,44 @@ assumed) -- a real, separate, deliberately-not-attempted-here gap,
 since the VM's own `SuperCell` doesn't model per-core register sharing
 at all; whether it needs to is an open question for whenever the real
 Quartus numbers are in and the mechanism is confirmed worth keeping.
+
+## 574. Real Quartus result, v3 half of the comparative pair: top_unicell_super_test_v3 -- 479 ALM total (301.9 ALM for the real 8-core shell alone, the rest ISSP/JTAG bridge overhead), clk_div (the real 25 MHz fabric clock) closes at 107.05 MHz, a real ~4.3x margin. Per-core ALM breakdown recorded as the real "before" baseline. v4's own matching build is the actual, still-pending other half of this comparison. (Alan, 2026-09-01)
+
+**STATUS: real, Flow Status Successful. First of the two real, same-
+session comparative builds `#573` was built specifically to produce.**
+
+**Whole-design real numbers:** 479 ALM / 251,680 (<1%), 470 registers,
+0 block memory / 0 DSP / 0 PLL / 0 HSSI (all hardened silicon idle, as
+expected). `clk_div` (the real 25 MHz fabric clock) closes at real
+107.05 MHz -- a genuine ~4.3x margin. `CLK_100M`'s own reported
+1366.12/645.16 MHz figures are a real, expected tmin-limited artifact
+(just the input divider register), not a meaningful design constraint.
+
+**Real per-instance ALM breakdown, `unicell_super_v3:DUT` = 301.9 ALM
+(the shell + all 8 cores together, the real number that matters for
+this comparison) / 324.7 with registers included:**
+
+| Core | Real ALM |
+|---|---|
+| accumulator | 71.8 |
+| nano | 62.5 |
+| branch | 46.5 |
+| adder (incl. `adder_v1:ADD` 8.0) | 31.6 |
+| sequencer | 15.5 |
+| ram | 14.5 |
+| compare | 10.5 |
+| latch | 8.5 |
+
+**Real ISSP/JTAG bridge overhead:** 479 - 301.9 = 177.1 ALM -- the
+`sld_hub`/`altsource_probe`/`debug_issp_probe_v1` stack, matching this
+project's own already-established real overhead range for a single
+ISSP probe on a small design (`#549`'s comparator build showed the
+same ~90+ ALM class of overhead for a much smaller core).
+
+**Real, honest scope: this is HALF of the actual comparison.** The
+real point of `#573`'s own two-target build was always the DELTA
+against `top_unicell_super_test_v4` (the shared-storage version, same
+exact test sequence, same ISSP convention) -- that build is the real,
+immediate next step, still pending as of this entry. No conclusion
+about the shared-storage mechanism's own real cost can be drawn from
+this number alone.
