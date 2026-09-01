@@ -33176,3 +33176,68 @@ at N=500. v3 remains the real, cheaper, faster, higher-real-cell-count
 design of the two -- v4's own real register savings are genuine and
 substantial, but not (yet) enough to close the real ALM/Fmax gap that
 determines this card's actual cell-count ceiling.
+
+## 581. Real, single-variable isolation experiment built to find the actual reason a single cell is cheap and the same cell in an array is not -- top_unicell_super_v3_freeinput_v1.v. #579/#580's own real N=1-vs-N=10 comparison conflated two different real candidate causes (genuine cardinal connectivity vs genuinely-unconstrained config input) and couldn't tell them apart. This file changes ONLY the second one, holding everything else (N=1, no neighbors, addons still disabled) fixed. Sim-verified, real Quartus target built, not yet run -- the actual answer to Alan's own real "why" question. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, sim-verified isolation build. Real Quartus number still
+pending -- the actual point of this entry.**
+
+**The real, precise question this isolates, stated plainly:** every N=1
+self-test built so far (`top_unicell_super_test_v3`/`v4`/`v5`) presents
+`core_select`/`core_config` to the DUT as one of only 8 real, compile-
+time-KNOWN literal words -- each a genuine Verilog constant assigned at
+a specific FSM state, not a value that could ever be anything else.
+Quartus's own synthesis-time optimizer can trace an FSM with literal
+per-state outputs and specialize logic around the exact, small, finite
+value set that will ever reach a core. The array generator instead
+drives `core_select`/`core_config` straight from genuine top-level
+PRIMARY INPUTS (`CFG_SELECT`/`ENTRY_DATA`, `#554`) -- values Quartus
+must treat as capable of being ANYTHING, since a real host could load
+any pattern over JTAG. **This is a real, structurally different kind
+of "unconstrained" from genuine cardinal connectivity (real neighbor
+cells wired in) -- and `#579`/`#580`'s own real N=1-vs-N=10 numbers
+conflate both changes at once, with no way to tell which one is doing
+the real work.**
+
+**`top_unicell_super_v3_freeinput_v1.v` (new)** -- ONE real
+`unicell_super_v3` cell, held at N=1 with NO real neighbors (identical
+boundary tie-off to `top_unicell_super_test_v3.v`: `data_in_s/e/w`,
+`arrived_s/e/w`, all four `ack_in_*` tied to constants, matching
+exactly). `addon_config` stays a literal constant 0, identical to
+every prior self-test (`#579`'s own addon finding is deliberately
+NOT re-tested here -- one real variable at a time). **The one real
+change: `core_select` comes from a genuine, unconstrained `CFG_SELECT
+[4:0]` top-level input, `core_config` from a genuine, unconstrained
+`CFG_CONFIG[41:0]` top-level input** -- a full, independently-free 42
+bits, not even the array generator's own cruder single-bit-repeated
+broadcast (`{42{ENTRY_DATA}}`), the most general real case Quartus
+could ever be asked to handle. One real, genuinely free `ENTRY_DATA`
+drives the N-side data path, matching the self-test's own real single-
+active-input convention. No FSM, no fixed self-check (there's no known
+core to check against by design) -- a real, non-prunable XOR-reduce
+anti-pruning guard instead, the same convention the array generator
+itself already uses (`#554`).
+
+**Sim-verified clean:** elaborates against every real v1 core
+dependency, `status_core_select` correctly reflects the loaded
+`CFG_SELECT` value, no X-propagation issues over a real simulated run.
+
+**Real Quartus target built, matching the established template:**
+`top_unicell_super_v3_freeinput_v1.qsf`/`.sdc`. **Honest, practical
+note: `CFG_SELECT`/`CFG_CONFIG` (47 real I/O bits) are left WITHOUT
+real physical pin assignments** -- this build is a pure resource/
+timing experiment, not intended for actual hardware programming, so
+Quartus is left to auto-assign pins; the real ALM/Fmax numbers it
+reports are unaffected by this, but the design isn't meant to be
+flashed onto the card as-is.
+
+**How to read the real result once it's in, precisely:** compare its
+own real `DUT` ALM figure against `#574`'s own real N=1 baseline (479
+total / 301.9 `DUT`). If it lands CLOSE to 301.9, connectivity is the
+real, dominant driver of `#579`'s own real N=1-to-N=10 gap. If it lands
+CLOSE to `#579`'s own real N=10 non-addon per-cell average (650.50),
+genuinely-unconstrained config input is the real, dominant driver, and
+"connectivity" in the earlier framing was getting credit a different
+mechanism actually earned. A real result landing meaningfully BETWEEN
+the two would mean both genuinely contribute, in some real, then-
+measurable proportion.

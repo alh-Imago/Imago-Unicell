@@ -1,4 +1,31 @@
-# Current State (as of 2026-09-01, real, complete N=10 comparison -- the ALM gap narrows at scale (+26.9% vs N=1's +47.8%) and register savings compound far beyond linear (-66.2% vs N=1's -35.7%), but v4's shell-level glue cost is real, precisely localized, and dramatically amplified at scale (6.1x v3's, up from 7.6x at N=1) -- the decisive, consistent reason v3 remains cheaper at every scale measured, see `points.md` #580)
+# Current State (as of 2026-09-01, real single-variable isolation experiment built to find WHY the N=1-to-N=10 gap exists -- separates genuine connectivity from genuinely-unconstrained config input, real Quartus target built, awaiting the real number, see `points.md` #581)
+
+## Read this first (most recent)
+
+**2026-09-01, isolating the real cause: connectivity, or unconstrained
+config input?** `#579`/`#580`'s own real N=1-vs-N=10 comparison
+conflated two different real changes: (a) genuine cardinal
+connectivity (real neighbors vs tied-off boundaries), and (b) the
+self-test's own config coming from 8 compile-time-KNOWN literal words
+(an FSM Quartus can specialize around) vs the array's own genuinely
+unconstrained primary-input config. No way to tell which one was doing
+the real work from the existing data.
+
+`top_unicell_super_v3_freeinput_v1.v` (new): N=1, no real neighbors
+(identical tie-off to the self-test), addons still off -- but
+`core_select`/`core_config` now come from genuine, unconstrained
+top-level inputs instead of the FSM. One variable changed. Sim-verified
+clean, real Quartus target built (`top_unicell_super_v3_freeinput_v1.
+qsf`/`.sdc`), **not yet run**.
+
+**How to read the real result once in:** close to N=1's real 301.9 DUT
+ALM -> connectivity is the real driver. Close to N=10's real 650.50
+non-addon per-cell average -> unconstrained config input is the real
+driver. Somewhere between -> both genuinely contribute.
+
+Full detail: `points.md` `#581`.
+
+## Previous state (2026-09-01, real, complete N=10 comparison -- the ALM gap narrows at scale (+26.9% vs N=1's +47.8%) and register savings compound far beyond linear (-66.2% vs N=1's -35.7%), but v4's shell-level glue cost is real, precisely localized, and dramatically amplified at scale (6.1x v3's, up from 7.6x at N=1) -- the decisive, consistent reason v3 remains cheaper at every scale measured, see `points.md` #580)
 
 ## Read this first (most recent)
 
