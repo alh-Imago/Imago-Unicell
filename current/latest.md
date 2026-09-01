@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-01, project_assemble_v1.py gains a real --logiclock flag -- forces each cell's own logic into one contiguous placement region, direct fix for the cross-die scattering Alan found by hand in the Chip Planner on both shells, two real LogicLock N=10 projects generated, real Quartus comparison still pending, see `points.md` #582)
+# Current State (as of 2026-09-01, real LogicLock AUTO_SIZE result -- genuinely improved Fmax +9.7% for near-zero ALM cost, but reserves 3.1x more physical area than needed (32.2% avg utilization), dropping the real area-limited max cell count from ~244 to ~78. Generator extended with a real fixed-size mode to fix this; two real fixed-size N=10 projects generated, awaiting the real number, see `points.md` #583)
+
+## Read this first (most recent)
+
+**2026-09-01, real, mixed LogicLock result: Fmax genuinely improved,
+but area reservation is a real, more serious problem.** v3 N=10 with
+AUTO_SIZE LogicLock: 10,365 ALM (+0.35% vs unconstrained), 5,776
+registers (identical), `clk_div` **75.11 MHz (+9.71% vs the
+unconstrained 68.46 MHz, #579)** -- Alan's own diagnosis confirmed
+directly, a genuine win for near-zero cost.
+
+**But the same real result showed every one of the 10 regions running
+at only 31-37% utilization.** Summed: 10,343 real ALM used against
+32,090 ALM-equivalent capacity RESERVED -- a real 3.10x reservation
+ratio. Since LogicLock regions can't overlap, that's a hard area cost:
+the real area-limited max cell count drops to **~78**, WORSE than
+`#579`'s own ALM-only ~244 -- directly on point for Alan's own "restricts
+useful area" concern, and a real problem this fix needs to solve, not
+just the Fmax question.
+
+**Fix built and generated, not yet run:** `generate_logiclock_
+assignments()` gained a real fixed-size mode (`--ll-fixed-alm
+<real measured ALM/cell>`, e.g. 1030.52 for v3, 1307.42 for v4) --
+`LL_AUTO_SIZE OFF` with an explicit, computed square region sized to
+the real measured figure plus 25% headroom (deliberately far less than
+AUTO_SIZE's own ~3.1x), instead of trusting Quartus's own generous
+default. Two real fixed-size N=10 projects generated for both shells,
+elaborate cleanly, zero regression (361/361 Python tests).
+
+Full detail: `points.md` `#583`.
+
+**Real, honest scope: no real Quartus data yet for either fixed-size
+build.** The real test -- keeping most of the 9.7% Fmax win while
+recovering real usable area back toward the ~244-cell ALM-only
+ceiling -- is the actual, real next step.
+
+## Previous state (2026-09-01, project_assemble_v1.py gains a real --logiclock flag -- forces each cell's own logic into one contiguous placement region, direct fix for the cross-die scattering Alan found by hand in the Chip Planner on both shells, two real LogicLock N=10 projects generated, real Quartus comparison still pending, see `points.md` #582)
 
 ## Read this first (most recent)
 

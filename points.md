@@ -33315,3 +33315,83 @@ baseline (1030.52 ALM/cell, 68.46 MHz) and `#580`'s v4 baseline
 real test of whether Alan's own diagnosis (the fitter's own area-
 optimization spreading logic hurts timing, the same real pattern seen
 before) holds once cells are forced to stay physically compact.
+
+## 583. Real Quartus result, LogicLock (AUTO_SIZE) v3 N=10 -- genuinely improved Fmax (+9.7%) for near-zero real ALM cost, but AUTO_SIZE reserves 3.10x more physical die area than the real logic needs (32.2% average region utilization) -- a real, hard area cost since LogicLock regions cannot overlap, dropping the real area-limited max cell count from #579's own ~244 down to ~78. generate_logiclock_assignments() extended with a real FIXED-size mode (--ll-fixed-alm) to fix this directly. Two real fixed-size N=10 projects generated; the real test of whether fixed sizing keeps the Fmax win without the area cost is the next step. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, Flow Status Successful for the AUTO_SIZE build. Real,
+concrete generator fix built in response; the FIXED-size real Quartus
+number is the actual next step.**
+
+**Real whole-design numbers, AUTO_SIZE LogicLock, v3 N=10:** 10,365
+ALM / 251,680 (4%), 5,776 registers (IDENTICAL to the unconstrained
+baseline, `#579`), `clk_div` 75.11 MHz.
+
+**Real comparison against the unconstrained baseline (`#579`):**
+
+| | Unconstrained | LogicLock (AUTO_SIZE) | Delta |
+|---|---|---|---|
+| Total ALM | 10,329 | 10,365 | +0.35% |
+| Registers | 5,776 | 5,776 | 0% |
+| `clk_div` | 68.46 MHz | **75.11 MHz** | **+9.71%** |
+
+**Real, genuine win: Fmax improved 9.7% for essentially free.** Alan's
+own diagnosis (the fitter spreading logic for its own area-optimization
+reasons, at real cost to timing -- the same real pattern flagged before
+this session) is directly confirmed: forcing each cell's own logic to
+stay physically together recovered real timing margin, with no
+meaningful ALM or register cost.
+
+**But a second, real, more serious problem was found in the SAME real
+result -- directly on point for Alan's own "restricts useful area
+available" concern, not a separate tangent:** the real Regional
+Resource Usage table shows every one of the 10 real LogicLock regions
+running at only 31-37% utilization (`ALMs needed` vs `total ALMs in
+region`). Summed across all 10 real regions: **10,343 real ALM used
+against 32,090 ALM-equivalent LAB capacity RESERVED -- a real 3.10x
+reservation ratio, 32.2% average real utilization.** Because LogicLock
+regions cannot overlap (confirmed against Intel's own real
+documentation, `#582`), this is a real, HARD area cost, not a soft
+one -- unused capacity inside a claimed region is unusable by any
+other cell's region. **Real, honest consequence: the real, area-
+limited max cell count under AUTO_SIZE LogicLock is ~251,680 / 3,209
+(avg reserved ALM/cell) = ~78 cells -- WORSE than `#579`'s own ALM-
+count-only ~244, and worse than no LogicLock at all** for the specific
+question Alan raised. A real Fmax win that costs two-thirds of the
+card's own real usable area is not a net win for a design whose whole
+point is maximizing real cell count.
+
+**The persisting real cross-cell path is expected, not a failure of
+this fix:** the new fitter report (`C_0_1|ADDON_SL/ADDON_INV` ->
+`C_1_1|CORE_BRANCH`) is between genuinely adjacent logical neighbors
+(`C_0_1`'s real south neighbor is `C_1_1`) -- LogicLock only forces
+INTRA-cell contiguity; the real RTL wiring BETWEEN neighboring cells
+still has to cross a region boundary, and always will. That's real,
+necessary connectivity, not a bug.
+
+**`generate_logiclock_assignments()` extended with a real, second
+mode** -- when a real, empirically-measured per-cell ALM figure is
+given (`--ll-fixed-alm`, e.g. `#579`'s own real 1030.52 for v3 N=10,
+`#580`'s own real 1307.42 for v4 N=10), it emits `LL_AUTO_SIZE OFF`
+with an explicit, computed square `LL_WIDTH`/`LL_HEIGHT` sized to
+`fixed_alm_per_cell * headroom` (default `--ll-headroom 1.25`, 25%
+real slack over the measured figure -- deliberately far less than
+AUTO_SIZE's own real ~3.1x, but real slack is still needed since
+per-cell ALM cost genuinely varies cell-to-cell, `#579`'s own real
+per-cell range was 900-1189 for v3). The real ALM-per-LAB density used
+for the conversion (8.484) is itself derived directly from THIS same
+real build's own regional table -- real, but honestly flagged as a
+single-data-point calibration, not a device datasheet constant.
+
+**Two real fixed-size N=10 projects generated**
+(`--logiclock --ll-fixed-alm 1030.52` for v3, `1307.42` for v4),
+computed to 13x13 LAB regions (169 LABs, ~1434 ALM capacity per cell --
+close to the real 146-LAB/1288-ALM target, rounded up to a square
+region). Both elaborate cleanly (RTL unchanged, only the `.qsf`
+differs, same discipline as `#582`). Zero regression: 361/361 Python
+tests.
+
+**Real, honest scope: no real Quartus data yet for either fixed-size
+build.** The real, actual test -- whether tighter, computed sizing
+keeps most or all of the real 9.7% Fmax win while recovering real
+usable die area back toward `#579`'s own ~244-cell ALM-only ceiling --
+is the real, immediate next step.

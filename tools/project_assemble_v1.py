@@ -310,39 +310,70 @@ def load_man(path):
     }
 
 
-def generate_logiclock_assignments(positions):
-    """points.md #582: real, per-cell LogicLock regions -- one FIXED-
-    SIZE, FLOATING region per cell, with the cell's own top-level
-    instance (and everything under it: every core, every addon, the
-    shell's own write-arbitration logic) assigned as that region's
-    sole member. Deliberately NOT locked to a hand-picked absolute
-    X/Y origin -- this project doesn't have a verified-precise real
-    row/column map for this exact device, and an invalid hardcoded
-    origin is a real, avoidable risk. FLOATING + AUTO_SIZE lets
-    Quartus's own fitter choose both the size and the placement, but
-    -- unlike no constraint at all -- it is REQUIRED to keep each
-    region as one real, contiguous block on the die. This is the
-    direct, real fix for the exact failure mode Alan found in the
-    Chip Planner (#579-#581's own real fitter reports): one cell's
-    own logic -- its cores, its addons, its shell glue -- scattered
-    across a real ~40-column span of the die instead of sitting
-    together, forcing long, slow inter-region routing for paths that
-    are, in the RTL, entirely local to one cell.
-    Real, documented Quartus Standard Edition syntax (LL_ENABLED/
-    LL_AUTO_SIZE/LL_STATE/LL_RESERVED/LL_MEMBER_OF), confirmed against
-    Intel's own community documentation before use here, not guessed."""
+def generate_logiclock_assignments(positions, fixed_alm_per_cell=None, headroom=1.25, alm_per_lab=8.484):
+    """points.md #582/#583: real, per-cell LogicLock regions -- one
+    region per cell, with the cell's own top-level instance (and
+    everything under it: every core, every addon, the shell's own
+    write-arbitration logic) assigned as that region's sole member.
+
+    points.md #583: a real, honest finding from the FIRST real
+    LogicLock build (v3, N=10, #583) forced this function to grow a
+    second real mode. `LL_AUTO_SIZE ON` (the original, still the
+    default when fixed_alm_per_cell is None) genuinely improved real
+    Fmax (+9.7%) for near-zero real ALM cost -- but its own real,
+    measured region sizes reserved 3.10x more physical die area than
+    the real logic inside them needed (32,090 ALM-equivalent LAB
+    capacity reserved for 10,343 real ALM used, 32.2% average real
+    utilization). Since LogicLock regions cannot overlap, that's a
+    real, hard area cost, not a soft one -- it dropped the real,
+    area-limited max cell count from `#579`'s own ALM-only ~244 down
+    to a real ~78, WORSE than no LogicLock at all for Alan's own real
+    "useful area available" concern.
+
+    When fixed_alm_per_cell is given (a real, empirically-measured
+    per-cell ALM figure -- e.g. #579's own real 1030.52 for v3,
+    #580's own real 1307.42 for v4), this instead emits `LL_AUTO_SIZE
+    OFF` with an explicit, computed `LL_WIDTH`/`LL_HEIGHT` sized to
+    `fixed_alm_per_cell * headroom` ALM, converted to LAB units via
+    `alm_per_lab` -- a real, but ONLY SINGLE-DATA-POINT-CALIBRATED
+    (from this same #583 real build) ALM-per-LAB density, not a
+    device datasheet constant. `headroom` (default 1.25 = 25% real
+    slack over the measured figure) is a real, deliberately modest
+    choice compared to AUTO_SIZE's own real ~3.1x, not zero slack --
+    real per-cell ALM cost genuinely varies cell-to-cell (#579's own
+    real per-cell range was 900-1189 for v3), so SOME headroom over
+    the average is a real, honest necessity, not padding for its own
+    sake. Regions are made square (equal width/height) for simplicity,
+    real, honest, not claimed optimal -- a real next real-world result
+    is the only way to know if this specific choice is any good."""
     lines = []
     lines.append("")
-    lines.append("# points.md #582: real, per-cell LogicLock regions -- one fixed-")
-    lines.append("# size, floating region per cell, forcing every real instance under")
-    lines.append("# that cell (every core, every addon, the shell's own write logic)")
-    lines.append("# to be placed as one contiguous block, rather than scattered across")
-    lines.append("# the die the way the unconstrained baseline build showed.")
+    if fixed_alm_per_cell is not None:
+        target_alm = fixed_alm_per_cell * headroom
+        target_labs = target_alm / alm_per_lab
+        side = max(1, math.ceil(math.sqrt(target_labs)))
+        lines.append(f"# points.md #583: real, FIXED-size LogicLock regions -- {side}x{side}")
+        lines.append(f"# LABs each (~{target_labs:.0f} LABs, ~{target_alm:.0f} ALM at "
+                      f"~{alm_per_lab:.2f} ALM/LAB, {fixed_alm_per_cell:.2f} real measured")
+        lines.append(f"# ALM/cell x {headroom:.2f} headroom) -- NOT AUTO_SIZE, which #583's own")
+        lines.append("# real build showed reserves ~3.1x more physical area than needed,")
+        lines.append("# a real, hard area cost since LogicLock regions cannot overlap.")
+    else:
+        lines.append("# points.md #582: real, per-cell LogicLock regions -- one fixed-")
+        lines.append("# size, floating region per cell, forcing every real instance under")
+        lines.append("# that cell (every core, every addon, the shell's own write logic)")
+        lines.append("# to be placed as one contiguous block, rather than scattered across")
+        lines.append("# the die the way the unconstrained baseline build showed.")
     for (r, c) in positions:
         nm = inst_name(r, c)
         region = f"LL_{nm}"
         lines.append(f"set_global_assignment -name LL_ENABLED ON -section_id {region}")
-        lines.append(f"set_global_assignment -name LL_AUTO_SIZE ON -section_id {region}")
+        if fixed_alm_per_cell is not None:
+            lines.append(f"set_global_assignment -name LL_AUTO_SIZE OFF -section_id {region}")
+            lines.append(f"set_global_assignment -name LL_WIDTH {side} -section_id {region}")
+            lines.append(f"set_global_assignment -name LL_HEIGHT {side} -section_id {region}")
+        else:
+            lines.append(f"set_global_assignment -name LL_AUTO_SIZE ON -section_id {region}")
         lines.append(f"set_global_assignment -name LL_STATE FLOATING -section_id {region}")
         lines.append(f"set_global_assignment -name LL_RESERVED OFF -section_id {region}")
         lines.append(f"set_instance_assignment -name LL_MEMBER_OF {region} -to {nm} -section_id {region}")
@@ -548,7 +579,8 @@ def generate_sdc(man):
     )
 
 
-def generate_qsf(man, top_name, probe_name=None, shell="v3", logiclock=False, cell_positions_list=None):
+def generate_qsf(man, top_name, probe_name=None, shell="v3", logiclock=False, cell_positions_list=None,
+                  ll_fixed_alm=None, ll_headroom=1.25):
     dependencies = SHELL_REGISTRY[shell]["dependencies"]
     out = QSF_BOILERPLATE.format(
         family=man["family"], device=man["device"], top=top_name,
@@ -573,7 +605,7 @@ def generate_qsf(man, top_name, probe_name=None, shell="v3", logiclock=False, ce
         )
     out += f"set_global_assignment -name SDC_FILE {top_name}.sdc\n"
     if logiclock and cell_positions_list:
-        out += generate_logiclock_assignments(cell_positions_list)
+        out += generate_logiclock_assignments(cell_positions_list, fixed_alm_per_cell=ll_fixed_alm, headroom=ll_headroom)
     return out
 
 
@@ -600,7 +632,7 @@ def generate_single_core_qsf(man, top_name, resolved_filename, extra_deps, probe
     return out
 
 
-def assemble(man_path, cells, output, top=None, single_core=None, core_path=None, probe_name=None, shell="v3", logiclock=False):
+def assemble(man_path, cells, output, top=None, single_core=None, core_path=None, probe_name=None, shell="v3", logiclock=False, ll_fixed_alm=None, ll_headroom=1.25):
     """The real, single implementation of this tool's own job --
     both main() (CLI) and any other caller (e.g. the frontend,
     points.md #557) call this directly, so there is exactly one real
@@ -626,7 +658,14 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     contiguous block instead of left to the fitter's own unconstrained
     global optimization (the real cause found in #579-#581's own
     Chip Planner evidence of cross-die scattering). Ignored when
-    single_core is given."""
+    single_core is given.
+
+    points.md #583: ll_fixed_alm, when given alongside logiclock,
+    switches region sizing from AUTO_SIZE (found to reserve a real
+    ~3.1x more physical area than needed, #583's own real finding) to
+    an explicit, computed fixed size based on this real, empirically-
+    measured per-cell ALM figure plus ll_headroom (default 1.25 =
+    25% real slack)."""
     if cells < 1:
         raise ValueError("cells must be >= 1")
     if shell not in SHELL_REGISTRY:
@@ -674,7 +713,10 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
             "probe_name": probe_name,
         }
 
-    top_name = top or f"top_array_{shell}_{cells}cells{'_ll' if logiclock else ''}_v1"
+    ll_suffix = ""
+    if logiclock:
+        ll_suffix = "_llfix" if ll_fixed_alm is not None else "_ll"
+    top_name = top or f"top_array_{shell}_{cells}cells{ll_suffix}_v1"
 
     files_written = 0
     dependencies = SHELL_REGISTRY[shell]["dependencies"]
@@ -697,7 +739,8 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     positions = cell_positions(cells, rows, cols)
     with open(os.path.join(output, f"{top_name}.qsf"), "w") as f:
         f.write(generate_qsf(man, top_name, probe_name=probe_name, shell=shell,
-                              logiclock=logiclock, cell_positions_list=positions))
+                              logiclock=logiclock, cell_positions_list=positions,
+                              ll_fixed_alm=ll_fixed_alm, ll_headroom=ll_headroom))
 
     return {
         "card_id": man["card_id"], "family": man["family"], "device": man["device"],
@@ -723,11 +766,15 @@ def main():
     ap.add_argument("--shell", default="v3", choices=sorted(SHELL_REGISTRY),
                      help="points.md #578: which real 8-core shell to array (ignored with -S). 'v3' = each core's own separate storage (the original default). 'v4' = the shared external-storage shell (#573).")
     ap.add_argument("--logiclock", action="store_true",
-                     help="points.md #582: add a real per-cell LogicLock region (fixed-membership, auto-sized, floating) forcing each cell's own logic to place as one contiguous block, instead of the fitter's unconstrained global optimization. Ignored with -S. Real, direct fix for the cross-die scattering Alan found in the Chip Planner on the unconstrained N=10 builds (#579-#581).")
+                     help="points.md #582: add a real per-cell LogicLock region (fixed-membership) forcing each cell's own logic to place as one contiguous block, instead of the fitter's unconstrained global optimization. Ignored with -S. Real, direct fix for the cross-die scattering Alan found in the Chip Planner on the unconstrained N=10 builds (#579-#581).")
+    ap.add_argument("--ll-fixed-alm", type=float, default=None,
+                     help="points.md #583: real, measured per-cell ALM figure (e.g. 1030.52 for v3 N=10, #579; 1307.42 for v4 N=10, #580) to size FIXED LogicLock regions from, instead of AUTO_SIZE -- found to reserve ~3.1x more physical area than needed (#583). Only meaningful with --logiclock.")
+    ap.add_argument("--ll-headroom", type=float, default=1.25,
+                     help="points.md #583: real slack multiplier over --ll-fixed-alm (default 1.25 = 25%%) -- per-cell ALM cost genuinely varies cell-to-cell, so some real headroom is needed, deliberately far less than AUTO_SIZE's own real ~3.1x.")
     args = ap.parse_args()
 
     try:
-        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path, args.probe, args.shell, args.logiclock)
+        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path, args.probe, args.shell, args.logiclock, args.ll_fixed_alm, args.ll_headroom)
     except (ValueError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -739,7 +786,10 @@ def main():
     else:
         print(f"Shell:  {result['shell']}")
         if result.get("logiclock"):
-            print(f"LogicLock: ON -- one real per-cell region per cell (fixed-membership, auto-sized, floating)")
+            if args.ll_fixed_alm is not None:
+                print(f"LogicLock: ON -- real FIXED-size regions ({args.ll_fixed_alm:.2f} ALM/cell x {args.ll_headroom:.2f} headroom)")
+            else:
+                print(f"LogicLock: ON -- one real per-cell region per cell (fixed-membership, auto-sized, floating)")
     print(f"Output: {result['output']}")
     print(f"\nWrote {result['files_written']} real files (source + top-level RTL + .qsf + .sdc) to {result['output']}/")
     print(f"Import into Quartus using {result['top_name']}.qsf directly, matching #538's own proven flat-file template.")
