@@ -32886,3 +32886,52 @@ or whether Quartus's own optimizer doesn't prune as cleanly as
 reasoned above. Full regression clean throughout this entry: the v5
 shell testbench, the v5 top-level self-test, both v3 and v4 top-level
 self-tests unchanged, and the full 361-test Python suite.
+
+## 577. Real Quartus result, v5 -- the per-bit chip-enable bet did NOT pay off. v5 is essentially equivalent to v4 (marginally worse on every metric), confirming the real cost isn't the specific SHAPE of the write-select logic -- both approaches land in the same real cost range, well above v3's own plain separate-per-core storage. A real, honest, negative result closing this specific redesign attempt. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, Flow Status Successful. Third and (for now) final leg
+of the comparative pipeline.**
+
+**The real, complete three-way comparison:**
+
+| | v3 (separate storage) | v4 (wide value-mux) | v5 (per-bit mask) |
+|---|---|---|---|
+| Total ALM | 479 | 708 | **721** |
+| `DUT` ALM | 301.9 | 539.7 | **548.2** |
+| Total registers | 470 | 302 | **332** |
+| `clk_div` | 107.05 MHz | 96.95 MHz | **95.01 MHz** |
+
+**v5 is NOT cheaper than v4 -- marginally MORE expensive on every real
+metric** (+13 ALM total, +8.5 ALM `DUT`, +30 registers, -1.94 MHz).
+`#576`'s own real, stated bet -- that Quartus's boolean optimizer would
+prune a narrower core's dead contribution to a bit position it doesn't
+reach, collapsing the effective selector width per bit -- did NOT pay
+off in practice. The real per-core sum barely moved either (v4: 231.6,
+v5: 229.5, a negligible -0.9%), so the shell-level "glue" cost stayed
+essentially fixed regardless of which of the two write-path shapes was
+used (v4: 308.1 ALM shell overhead, v5: 318.7 ALM, actually slightly
+higher).
+
+**A real, honest re-diagnosis this result forces:** the earlier
+hypothesis in `#575` specifically named "the write-select mux" as the
+cost driver, implicitly suggesting a differently-SHAPED mux might cost
+less. This result says that's not the right level of explanation --
+changing the mux's own internal structure (whole-word case-select vs
+per-bit masked-hold) made essentially no difference. The real,
+remaining, more honest hypothesis: the cost is inherent to having 8
+structurally different cores' worth of real logic all compete to drive
+the SAME physical storage location at all, regardless of exactly how
+that competition is arbitrated -- not a specific, fixable inefficiency
+in any one write-path shape tried so far.
+
+**Real, honest conclusion for this specific redesign thread: closed,
+not extended further without new direction.** Both real attempts at
+sharing storage across all 8 cores (`#573`'s wide mux, `#576`'s per-bit
+mask) land in the same real cost class -- roughly 45-50% more ALM and
+~10% less Fmax than v3's own plain, separate-per-core storage, despite
+genuinely cutting register count by a third. `#565`'s own original
+question ("does sharing storage save anything real") now has a real,
+concrete, negative answer for both mechanisms actually tried. v3
+remains the real, cheaper, faster design of the three -- the honest
+baseline to build on unless a genuinely different sharing strategy
+(not just a different mux shape) is worth trying.

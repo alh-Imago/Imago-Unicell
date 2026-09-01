@@ -1,4 +1,38 @@
-# Current State (as of 2026-09-01, real, redesigned shared-storage write mechanism built and sim-verified -- unicell_super_v5.v, per-bit chip-enable write per Alan's own real bus framing, real Quartus target built, awaiting the real number, see `points.md` #576)
+# Current State (as of 2026-09-01, real, complete three-way comparative result -- both shared-storage attempts (wide mux, per-bit mask) land in the same real cost class, ~45-50% more ALM than v3's plain separate storage; the redesign thread is closed, not extended further without new direction, see `points.md` #577)
+
+## Read this first (most recent)
+
+**2026-09-01, the real, final number: v5's own per-bit "chip enable"
+bet did NOT pay off.** v5: 721 ALM total / 548.2 `DUT` / 332 registers
+/ `clk_div` 95.01 MHz -- marginally WORSE than v4 on every metric, not
+better. `#576`'s own stated bet (Quartus pruning a narrower core's dead
+per-bit contribution, collapsing the effective selector width) did not
+materialize in practice.
+
+**Real, complete three-way table:**
+
+| | v3 | v4 | v5 |
+|---|---|---|---|
+| Total ALM | 479 | 708 | 721 |
+| `DUT` ALM | 301.9 | 539.7 | 548.2 |
+| Registers | 470 | 302 | 332 |
+| `clk_div` | 107.05 MHz | 96.95 MHz | 95.01 MHz |
+
+**Real, honest re-diagnosis: the cost isn't a specific mux SHAPE --
+both real attempts (wide value-select, per-bit masked-hold) land in
+the same real cost class.** The more honest remaining hypothesis: 8
+structurally different cores all competing to drive the same physical
+storage costs roughly the same regardless of how that competition is
+arbitrated. v3's own plain, separate-per-core storage remains the real,
+cheaper, faster design of the three.
+
+Full detail: `points.md` `#577`.
+
+**This specific redesign thread is closed, not extended further
+without Alan's own new direction.** `#565`'s original question now has
+a real, concrete, negative answer for both mechanisms actually tried.
+
+## Previous state (2026-09-01, real, redesigned shared-storage write mechanism built and sim-verified -- unicell_super_v5.v, per-bit chip-enable write per Alan's own real bus framing, real Quartus target built, awaiting the real number, see `points.md` #576)
 
 ## Read this first (most recent)
 
