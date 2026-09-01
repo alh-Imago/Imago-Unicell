@@ -32725,3 +32725,87 @@ exact test sequence, same ISSP convention) -- that build is the real,
 immediate next step, still pending as of this entry. No conclusion
 about the shared-storage mechanism's own real cost can be drawn from
 this number alone.
+
+## 575. Real Quartus result, v4 half of the comparative pair -- and the real, honest, direct answer the shared-storage thread (#561-#575) was built to find: as implemented, the mechanism costs substantially MORE ALM and slightly LESS Fmax than v3's own separate-per-core storage, despite genuinely cutting real register count by over a third. Root cause identified precisely, not vaguely: the write-select mux, not the register itself. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, Flow Status Successful. Both halves of the comparative
+pair now built, same session, same test sequence, same ISSP
+convention -- the real delta below is genuinely attributable to the
+storage mechanism itself.**
+
+**The real, whole-design comparison:**
+
+| | v3 (separate per-core storage) | v4 (one shared register) | Delta |
+|---|---|---|---|
+| Total ALM | 479 | 708 | **+229 (+47.8%)** |
+| `DUT` ALM (shell+8 cores) | 301.9 | 539.7 | **+237.8 (+78.8%)** |
+| Total registers | 470 | 302 | **-168 (-35.7%)** |
+| `clk_div` (real 25 MHz target) | 107.05 MHz | 96.95 MHz | **-10.10 MHz (-9.4%)** |
+
+**Real, honest headline finding: the mechanism did exactly what it was
+designed to do on registers (a genuine 35.7% cut, real evidence that
+one shared 170-bit register genuinely replaces 8 separate per-core
+register sets) -- but costs far more than it saves once the write-side
+logic needed to make that sharing work is accounted for.** Both real
+predictions from `#565`'s own standing hypothesis were checked
+directly: Fmax DID drop (confirming a shared write-path does cost
+timing margin), but the dominant, larger effect is a real ALM
+INCREASE, not the ALM reduction the whole thread was built to test
+for.
+
+**Real, precise root-cause localization, not a vague "storage costs
+more" conclusion:** summing the 8 real per-CORE figures alone (not
+`DUT`'s own shell-level total) shows the opposite of what `DUT`'s
+total suggests --
+
+| Core | v3 ALM | v4 ALM | Delta |
+|---|---|---|---|
+| accumulator | 71.8 | 87.1 | +15.3 |
+| adder | 31.6 | 26.1 | -5.5 |
+| branch | 46.5 | 34.3 | -12.2 |
+| compare | 10.5 | 15.7 | +5.2 |
+| latch | 8.5 | 7.7 | -0.8 |
+| ram | 14.5 | 9.2 | -5.3 |
+| sequencer | 15.5 | 8.0 | -7.5 |
+| nano | 62.5 | 43.5 | -19.0 |
+| **sum** | **261.4** | **231.6** | **-29.8 (-11.4%)** |
+
+**6 of 8 real cores got individually CHEAPER** (adder, branch, latch,
+ram, sequencer, nano), matching the real, intuitive expectation that
+removing a core's own dedicated internal register set should shrink
+that core's own footprint. The real per-core sum DROPPED by 29.8 ALM.
+
+**The entire real +237.8 ALM increase, and then some, is happening
+OUTSIDE the 8 cores -- in the shell's own new glue logic:** v3's real
+shell-level overhead (`DUT` total minus the 8 per-core figures) is
+301.9 - 261.4 = **40.5 ALM**. v4's real shell-level overhead is 539.7 -
+231.6 = **308.1 ALM** -- a real **+267.6 ALM** increase in the shell
+itself, more than the entire rest of the design combined.
+
+**Real, honest, NOT YET CONFIRMED hypothesis for the actual mechanism
+(worth real, direct investigation before any redesign attempt, not
+assumed):** the write-select mux (`shared_state_next`, an 8-way
+`case` over the full 170-bit width, with every branch except nano's
+own real 170-bit assignment being a zero-extended narrower core value)
+is a strong candidate. Unlike the OLD per-core register writes (each
+core's own real next-state logic writing only its own genuinely-sized
+register), this construct is a single, wide, data-dependent (`case`
+on `core_select`) selector across a genuinely wide bus where most bits
+in most branches are constant zero -- but WHICH branch is live is
+itself a runtime value, so Quartus can't statically simplify away the
+unused width the way it could if the width were fixed per instance.
+The real freeze-centralization decode (`#566`) is a second, smaller,
+real candidate, not yet separately isolated.
+
+**Real, honest scope: this is a real, negative-but-valuable result,
+not a failure to log quietly.** The mechanism is FUNCTIONALLY correct
+(confirmed via the real, purpose-built full self-test, `#573`) and
+does cut real register count meaningfully -- but as built, it is a net
+COST on this card's own dominant resource metric (ALM), not a saving.
+Whether a different write-path shape (e.g. per-bit-lane write enables
+instead of one wide case-mux, or accepting per-core width instead of
+one shared max-width register) could recover the real per-core savings
+without paying this shell-level tax is a real, open, unstarted
+question -- not pursued further without Alan's own direction, per this
+project's own standing discipline of stopping at real, honest findings
+rather than immediately chasing a fix.

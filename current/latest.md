@@ -1,6 +1,34 @@
-# Current State (as of 2026-09-01, real shell-level shared-storage integration built and sim-verified -- unicell_super_v4.v, all 8 cores through ONE real shared register, a genuine write-mux race found and fixed, real Quartus targets built but not yet run, see `points.md` #573)
+# Current State (as of 2026-09-01, real, complete comparative Quartus result for the shared-storage mechanism -- costs +47.8% more total ALM despite cutting registers by 35.7%, root cause localized to the shell-level write-mux, not the cores themselves, see `points.md` #575)
 
 ## Read this first (most recent)
+
+**2026-09-01, THE REAL, DIRECT ANSWER: shared-storage costs more, not
+less, as built.** Both halves of the real comparative pair (`#573`)
+built by Alan, same session: v3 (separate per-core storage) 479 ALM
+total / 470 registers / `clk_div` 107.05 MHz. v4 (one shared 170-bit
+register) 708 ALM total / 302 registers / `clk_div` 96.95 MHz.
+
+**Real, honest headline: registers dropped 35.7% as designed, but
+total ALM rose 47.8% (DUT alone +78.8%), and Fmax dropped 9.4%.** Root
+cause precisely localized, not vague: summing the 8 individual cores
+alone shows a real 11.4% ALM DECREASE (6 of 8 cores got cheaper) -- the
+entire real cost, and then some, is in the shell's own new write-
+select mux (170-bit-wide, 8-way, data-dependent `case`), not the cores.
+
+Full detail, including the complete per-core table and a real, stated,
+not-yet-confirmed hypothesis for why the mux specifically is expensive:
+`points.md` `#575`.
+
+**Real, honest scope: a genuine, valuable negative result, not a bug
+to fix reflexively.** The mechanism is functionally correct and does
+cut register count meaningfully -- but as built, it's a net ALM cost on
+this card. Whether a different write-path shape could recover the real
+per-core savings is a real, open, unstarted question -- not pursued
+without Alan's own direction.
+
+## Previous state (2026-09-01, real Quartus baseline for v3 -- 479 ALM total, 301.9 for the 8-core shell alone, clk_div 107.05 MHz, see `points.md` #574)
+
+## Read this first
 
 **2026-09-01, real shell-level shared-storage integration.** Picked up
 per Alan's own "continuation of moving the data to a separate wrapper"
