@@ -32290,3 +32290,55 @@ as part of that same integration work), then a real, comparative
 Quartus round -- standalone cores (should match today's real numbers
 exactly) plus a couple of full shells, testing Alan's own real
 hypothesis that the cost shows up in Fmax more than raw ALM count.
+
+## 567. Two real extensions to `project_assemble_v1.py`, per Alan's own request: a version-agnostic core-source path (`-x`), and a genuinely simpler single-core-type generation mode (`-S <core_name>`) -- a card of one pure core type, no shell overhead, real baseline for comparison against the general 8-core array. A real, serious self-inflicted bug found and fixed immediately, before it went anywhere. Verified across all 8 real core types, not just one. (Alan/Claude, 2026-08-31)
+
+**STATUS: `tools/project_assemble_v1.py` extended, `tools/README.md`
+updated. Verified end to end: all 8 real core types generate and
+compile correctly in single-core mode (`ram_cell`, `adder_cell`,
+`accumulator_cell`, `compare_cell`, `latch_cell`, `sequencer_cell`,
+`branch_cell`, `unicell_stripped`), the existing full-shell mode
+confirmed unchanged (real backward-compatibility check), the
+`--core-path` override confirmed against a real, separate directory
+containing only `v1`, and unknown-core error handling confirmed
+correct. 361/361 Python tests still passing.**
+
+**Real, precise mechanism for `-x`/`--core-path`:** `resolve_core_file()`
+matches real files by base name only (`{base}_v<N>.v`), ignoring the
+version suffix, and picks the HIGHEST real version found -- confirmed
+directly, this means the tool now automatically prefers the `_v2`/
+`_v3` external-storage cores from `#563`/`#564`/`#566` over the
+original `v1` files, correctly, since they're proven byte-for-byte
+identical in default (internal-storage) mode.
+
+**Real, precise mechanism for `-S`/`--single-core`:** a genuinely
+simpler generation mode than the full shell -- no `core_select`, no
+`CFG_SELECT` broadcast, since there's only one real core type. Still
+carries the same real anti-pruning discipline from `#554`'s own
+lesson (a genuine one-shot config load from an unconstrained input,
+an XOR-tree output, the real ISSP probe) so Quartus can't prove the
+array's config is a known constant and collapse it. A real,
+per-core-type registry (`CORE_REGISTRY`) drives correct instantiation
+-- port lists taken directly from the already-verified differential
+testbenches (`#563`/`#564`/`#566`), not guessed at, including real,
+special handling for nano's own much larger port list (the
+programming channel, hold/reemit/self-update ports, all correctly
+tied to safe, inactive defaults).
+
+**A real, serious bug found and fixed immediately, worth being honest
+about rather than glossing over:** an early edit to insert the new
+`CORE_REGISTRY` accidentally deleted the `def load_man(path):`
+declaration line itself while its own function body stayed intact --
+a genuine, would-be-breaking mistake in a tool that generates files
+meant to go straight into Quartus. Caught immediately by re-running
+the existing real functional test right after the edit (not assumed
+safe), traced precisely via `grep`, and fixed before any further work
+built on top of it.
+
+**Real, honest scope: this proves the LOGIC and generation is sound,
+not yet a real Quartus number for any single-core-type array.** No
+build has been run yet comparing a pure-core-type array against the
+general 8-core array's own real ALM/Fmax cost -- a real, valuable next
+data point once Alan is ready to run it, directly answering the "what
+does a dedicated, single-purpose array cost" question this extension
+was built for.

@@ -16,6 +16,17 @@ flat-file-path template — see `points.md` #538).
 python3 tools/project_assemble_v1.py --man docs/man/mustang-f100-a10.man.json --cells 500
 ```
 
+**Two real extensions, `points.md` #567:**
+- `-S`/`--single-core <name>` — generate an array of ONE real core
+  type instead of the full 8-core shell (a card of pure RAM cells, or
+  pure nano cells, no shell overhead at all). Real options: `ram_cell`,
+  `adder_cell`, `accumulator_cell`, `compare_cell`, `latch_cell`,
+  `sequencer_cell`, `branch_cell`, `unicell_stripped`.
+- `-x`/`--core-path <dir>` — real, configurable source directory for
+  core files (default: `fpga/verilog`). Files are matched by base
+  name only, ignoring version suffixes (`_v1`/`_v2`/etc.) — the
+  highest real version found at that path wins automatically.
+
 This is deliberately NOT the Composer (a separate, visual placement-
 *review* tool for an already-compiled model — RTL generation is
 explicitly out of scope for it, see `docs/stripped-cell/design-notes/

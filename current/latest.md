@@ -1,4 +1,28 @@
-# Current State (as of 2026-08-31, MILESTONE: external-storage mechanism proven on ALL 8 real cores -- nano's own conversion completed, 41/41 real checks pass across all 8, see `points.md` #566)
+# Current State (as of 2026-08-31, project_assemble_v1.py extended: -S single-core-type generation mode + -x version-agnostic core path, all 8 core types verified, a real self-inflicted bug caught and fixed immediately, see `points.md` #567)
+
+## Read this first (most recent)
+
+**2026-08-31, two real generator extensions.** `-S <core_name>` --
+generate an array of ONE real core type (a card of pure RAM cells, or
+pure nano cells), no shell overhead, no core_select. `-x <path>` --
+version-agnostic core-source directory, automatically picks the
+highest real version found for a given base name. Verified across all
+8 real core types, the existing full-shell mode confirmed unchanged,
+and a real alternate-path test confirmed correct resolution.
+
+**A real, serious bug caught and fixed immediately:** an early edit
+accidentally deleted the `def load_man(path):` declaration line while
+its own body stayed intact -- caught right away by re-running the
+existing real functional test, not assumed safe.
+
+Full detail: `points.md` `#567`.
+
+**Real, honest scope: proves the logic, not yet a real Quartus
+number.** No build run yet comparing a pure-core-type array's real
+cost against the general 8-core array -- the real next data point once
+ready.
+
+## Previous state (2026-08-31, MILESTONE: external-storage mechanism proven on ALL 8 real cores -- nano's own conversion completed, 41/41 real checks pass across all 8, see `points.md` #566)
 
 ## Read this first (most recent)
 
