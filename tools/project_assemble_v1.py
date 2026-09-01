@@ -310,6 +310,45 @@ def load_man(path):
     }
 
 
+def generate_logiclock_assignments(positions):
+    """points.md #582: real, per-cell LogicLock regions -- one FIXED-
+    SIZE, FLOATING region per cell, with the cell's own top-level
+    instance (and everything under it: every core, every addon, the
+    shell's own write-arbitration logic) assigned as that region's
+    sole member. Deliberately NOT locked to a hand-picked absolute
+    X/Y origin -- this project doesn't have a verified-precise real
+    row/column map for this exact device, and an invalid hardcoded
+    origin is a real, avoidable risk. FLOATING + AUTO_SIZE lets
+    Quartus's own fitter choose both the size and the placement, but
+    -- unlike no constraint at all -- it is REQUIRED to keep each
+    region as one real, contiguous block on the die. This is the
+    direct, real fix for the exact failure mode Alan found in the
+    Chip Planner (#579-#581's own real fitter reports): one cell's
+    own logic -- its cores, its addons, its shell glue -- scattered
+    across a real ~40-column span of the die instead of sitting
+    together, forcing long, slow inter-region routing for paths that
+    are, in the RTL, entirely local to one cell.
+    Real, documented Quartus Standard Edition syntax (LL_ENABLED/
+    LL_AUTO_SIZE/LL_STATE/LL_RESERVED/LL_MEMBER_OF), confirmed against
+    Intel's own community documentation before use here, not guessed."""
+    lines = []
+    lines.append("")
+    lines.append("# points.md #582: real, per-cell LogicLock regions -- one fixed-")
+    lines.append("# size, floating region per cell, forcing every real instance under")
+    lines.append("# that cell (every core, every addon, the shell's own write logic)")
+    lines.append("# to be placed as one contiguous block, rather than scattered across")
+    lines.append("# the die the way the unconstrained baseline build showed.")
+    for (r, c) in positions:
+        nm = inst_name(r, c)
+        region = f"LL_{nm}"
+        lines.append(f"set_global_assignment -name LL_ENABLED ON -section_id {region}")
+        lines.append(f"set_global_assignment -name LL_AUTO_SIZE ON -section_id {region}")
+        lines.append(f"set_global_assignment -name LL_STATE FLOATING -section_id {region}")
+        lines.append(f"set_global_assignment -name LL_RESERVED OFF -section_id {region}")
+        lines.append(f"set_instance_assignment -name LL_MEMBER_OF {region} -to {nm} -section_id {region}")
+    return "\n".join(lines) + "\n"
+
+
 def grid_dims(n):
     """Real, simple row-major grid -- roughly square, no placement
     optimization attempted (that's the fitter's real job, and later
@@ -509,7 +548,7 @@ def generate_sdc(man):
     )
 
 
-def generate_qsf(man, top_name, probe_name=None, shell="v3"):
+def generate_qsf(man, top_name, probe_name=None, shell="v3", logiclock=False, cell_positions_list=None):
     dependencies = SHELL_REGISTRY[shell]["dependencies"]
     out = QSF_BOILERPLATE.format(
         family=man["family"], device=man["device"], top=top_name,
@@ -533,6 +572,8 @@ def generate_qsf(man, top_name, probe_name=None, shell="v3"):
             "# here unmodified -- the probe's own bit layout never changes.\n\n"
         )
     out += f"set_global_assignment -name SDC_FILE {top_name}.sdc\n"
+    if logiclock and cell_positions_list:
+        out += generate_logiclock_assignments(cell_positions_list)
     return out
 
 
@@ -559,7 +600,7 @@ def generate_single_core_qsf(man, top_name, resolved_filename, extra_deps, probe
     return out
 
 
-def assemble(man_path, cells, output, top=None, single_core=None, core_path=None, probe_name=None, shell="v3"):
+def assemble(man_path, cells, output, top=None, single_core=None, core_path=None, probe_name=None, shell="v3", logiclock=False):
     """The real, single implementation of this tool's own job --
     both main() (CLI) and any other caller (e.g. the frontend,
     points.md #557) call this directly, so there is exactly one real
@@ -576,7 +617,16 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     FULL-array path (single_core not given) generates -- "v3" (each
     core's own separate internal storage, the original default) or
     "v4" (the shared external-storage shell, #573). Ignored when
-    single_core is given (that path never touches the shell at all)."""
+    single_core is given (that path never touches the shell at all).
+
+    points.md #582: logiclock, when True, adds a real per-cell
+    LogicLock region (fixed-membership, auto-sized, floating -- see
+    generate_logiclock_assignments()) for every cell in a FULL-array
+    build, forcing each cell's own logic to be placed as one
+    contiguous block instead of left to the fitter's own unconstrained
+    global optimization (the real cause found in #579-#581's own
+    Chip Planner evidence of cross-die scattering). Ignored when
+    single_core is given."""
     if cells < 1:
         raise ValueError("cells must be >= 1")
     if shell not in SHELL_REGISTRY:
@@ -624,7 +674,7 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
             "probe_name": probe_name,
         }
 
-    top_name = top or f"top_array_{shell}_{cells}cells_v1"
+    top_name = top or f"top_array_{shell}_{cells}cells{'_ll' if logiclock else ''}_v1"
 
     files_written = 0
     dependencies = SHELL_REGISTRY[shell]["dependencies"]
@@ -644,15 +694,17 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     with open(os.path.join(output, f"{top_name}.sdc"), "w") as f:
         f.write(generate_sdc(man))
 
+    positions = cell_positions(cells, rows, cols)
     with open(os.path.join(output, f"{top_name}.qsf"), "w") as f:
-        f.write(generate_qsf(man, top_name, probe_name=probe_name, shell=shell))
+        f.write(generate_qsf(man, top_name, probe_name=probe_name, shell=shell,
+                              logiclock=logiclock, cell_positions_list=positions))
 
     return {
         "card_id": man["card_id"], "family": man["family"], "device": man["device"],
         "cells": cells, "rows": rows, "cols": cols, "alm_total": man["alm_total"],
         "output": output, "top_name": top_name,
         "files_written": files_written + 3,
-        "probe_name": probe_name, "shell": shell,
+        "probe_name": probe_name, "shell": shell, "logiclock": logiclock,
     }
 
 
@@ -670,10 +722,12 @@ def main():
                      help="points.md #569: include a real ISSP debug probe, optionally naming the instance (default name if -P given with no value: DEBUG_PROBE). Omitted by default -- the LED-based anti-pruning check works independently of the probe, so it's a real, optional extra for JTAG confirmation, not required for a pure resource/timing build.")
     ap.add_argument("--shell", default="v3", choices=sorted(SHELL_REGISTRY),
                      help="points.md #578: which real 8-core shell to array (ignored with -S). 'v3' = each core's own separate storage (the original default). 'v4' = the shared external-storage shell (#573).")
+    ap.add_argument("--logiclock", action="store_true",
+                     help="points.md #582: add a real per-cell LogicLock region (fixed-membership, auto-sized, floating) forcing each cell's own logic to place as one contiguous block, instead of the fitter's unconstrained global optimization. Ignored with -S. Real, direct fix for the cross-die scattering Alan found in the Chip Planner on the unconstrained N=10 builds (#579-#581).")
     args = ap.parse_args()
 
     try:
-        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path, args.probe, args.shell)
+        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path, args.probe, args.shell, args.logiclock)
     except (ValueError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -684,6 +738,8 @@ def main():
         print(f"Core:   {result['single_core']} (resolved to real file: {result['resolved_file']})")
     else:
         print(f"Shell:  {result['shell']}")
+        if result.get("logiclock"):
+            print(f"LogicLock: ON -- one real per-cell region per cell (fixed-membership, auto-sized, floating)")
     print(f"Output: {result['output']}")
     print(f"\nWrote {result['files_written']} real files (source + top-level RTL + .qsf + .sdc) to {result['output']}/")
     print(f"Import into Quartus using {result['top_name']}.qsf directly, matching #538's own proven flat-file template.")

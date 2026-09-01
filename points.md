@@ -33241,3 +33241,77 @@ genuinely-unconstrained config input is the real, dominant driver, and
 mechanism actually earned. A real result landing meaningfully BETWEEN
 the two would mean both genuinely contribute, in some real, then-
 measurable proportion.
+
+## 582. project_assemble_v1.py gains a real --logiclock flag -- one real per-cell LogicLock region (fixed-membership, auto-sized, floating) forcing each cell's own logic to be placed as one contiguous block. Direct, real fix for the exact failure mode Alan found by hand in the Chip Planner (#579-#581's own real screenshots): a cell's own logic scattered across a ~40-column span of the die, on BOTH shells, because the fitter has no idea the design is a regular tiled array and no reason to keep any one cell's logic together. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, generator extended, LogicLock-constrained N=10 projects
+generated for both shells. Real Quartus comparison against the
+already-real, unconstrained N=10 baselines (#579/#580) is the actual
+next step.**
+
+**Real, precise cause, confirmed by Alan's own real Chip Planner
+evidence, not assumed:** the array generator broadcasts `cfg_valid`/
+`cfg_data` identically to every cell (unchanged since `#554`), but
+gives Quartus's placer NO other hint that this is a regular, tiled,
+logically-local-only-connectivity design. Two real screenshots
+confirmed the SAME symptom on BOTH shells: `C_2_0`'s own logic (v4)
+spanning `X95`-`X135` to reach `C_1_0|shared_state[101]` -- a real,
+genuinely adjacent cell in the logical grid, not an arbitrary one --
+and `C_2_2`'s own addon chain (v3) reaching all the way to
+`C_2_1|CORE_BRANCH`, its own real logical west neighbor. **This ruled
+out an earlier hypothesis (v4-specific duplicate-logic sharing) --
+v3 shows the identical symptom with no shared storage at all to merge,
+so the real, correct diagnosis is a general placement-locality gap,
+not something specific to either shell's own mechanism.** Alan's own
+real TimeQuest evidence (`Extra Fitter Information`, path #1) ties this
+directly to the real Fmax ceiling: 17.056ns data delay -> ~58.6 MHz,
+matching v4's own real reported `clk_div` (58.64 MHz, `#580`) almost
+exactly.
+
+**`generate_logiclock_assignments()` (new)** in
+`tools/project_assemble_v1.py` -- for every real cell position, emits
+one real LogicLock region: `LL_ENABLED ON`, `LL_AUTO_SIZE ON`,
+`LL_STATE FLOATING`, `LL_RESERVED OFF`, and `LL_MEMBER_OF <region> -to
+<cell_instance>` assigning the CELL'S WHOLE TOP-LEVEL INSTANCE (every
+core, every addon, all the shell's own write/mux logic underneath it)
+as that region's sole member -- matching Alan's own real, direct
+request ("will have to set constraints for the entire cell, for each
+cell"). Deliberately NOT `LOCKED` with a hand-picked absolute X/Y
+origin -- this project has no verified-precise real row/column map for
+this exact device, and a wrong hardcoded origin is a real, avoidable
+risk (`LL_STATE LOCKED` combined with a bad origin either errors or
+gets silently auto-corrected by Quartus, neither of which is a real,
+trustworthy result). `FLOATING` + `AUTO_SIZE` instead lets Quartus's
+own fitter choose both the size and the placement of each region
+freely -- but, unlike no constraint at all, it is REQUIRED to keep
+every member of one region together as a single contiguous block.
+Real, documented Quartus Standard Edition syntax, confirmed against
+Intel's own community documentation before use here (`LL_ENABLED`/
+`LL_AUTO_SIZE`/`LL_STATE`/`LL_RESERVED`/`LL_MEMBER_OF` all real,
+current assignment names), not guessed.
+
+**New `--logiclock` CLI flag** (default off, zero behavior change for
+existing callers), threaded through `generate_qsf()`/`assemble()`.
+Top-level module name gets a real `_ll` suffix when the flag is set
+(e.g. `top_array_v3_10cells_ll_v1`), so a LogicLock build and its
+unconstrained baseline never collide as Quartus revisions.
+
+**Two real LogicLock-constrained N=10 projects generated** (`--cells
+10 --shell v3 --logiclock` / `--shell v4 --logiclock`), matching
+`#579`/`#580`'s own exact scale for a real, direct, apples-to-apples
+comparison. RTL is byte-identical to the unconstrained baseline (only
+the `.qsf` changed -- `generate_top()` itself untouched) -- both
+elaborate cleanly, unsurprising since nothing in the actual netlist
+changed. QSF content spot-checked directly: 10 real regions per
+project, one per real cell, correct real instance names.
+
+**Zero regression:** 361/361 Python tests.
+
+**Real, honest scope: no real Quartus data yet for either LogicLock
+build.** The real, direct comparison this enables -- same RTL, same
+scale, ONLY the placement constraint changed -- against `#579`'s v3
+baseline (1030.52 ALM/cell, 68.46 MHz) and `#580`'s v4 baseline
+(1307.42 ALM/cell, 58.64 MHz) is the actual, real next step, and the
+real test of whether Alan's own diagnosis (the fitter's own area-
+optimization spreading logic hurts timing, the same real pattern seen
+before) holds once cells are forced to stay physically compact.

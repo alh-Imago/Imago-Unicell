@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-01, real single-variable isolation experiment built to find WHY the N=1-to-N=10 gap exists -- separates genuine connectivity from genuinely-unconstrained config input, real Quartus target built, awaiting the real number, see `points.md` #581)
+# Current State (as of 2026-09-01, project_assemble_v1.py gains a real --logiclock flag -- forces each cell's own logic into one contiguous placement region, direct fix for the cross-die scattering Alan found by hand in the Chip Planner on both shells, two real LogicLock N=10 projects generated, real Quartus comparison still pending, see `points.md` #582)
+
+## Read this first (most recent)
+
+**2026-09-01, real fix for the real placement-scattering problem Alan
+found by hand.** Two real Chip Planner screenshots (fan-in cone /
+Extra Fitter Information) showed the SAME symptom on BOTH shells: a
+cell's own logic scattered across a real ~40-column span to reach a
+genuinely adjacent logical neighbor -- not an arbitrary one, and not
+specific to v4's shared storage (v3 shows it too, ruling out an
+earlier "duplicate logic merging" hypothesis). Alan's own real
+TimeQuest data tied this directly to the real Fmax ceiling: 17.056ns
+data delay on the worst path -> ~58.6 MHz, matching v4's own real
+`clk_div` (58.64 MHz, `#580`) almost exactly.
+
+Real, precise cause: the array generator has no way to tell Quartus's
+placer this is a regular tiled grid with local-only connectivity.
+`tools/project_assemble_v1.py` gained a new `--logiclock` flag: one
+real per-cell LogicLock region (fixed-membership -- the WHOLE cell
+instance, every core/addon/shell-glue underneath -- auto-sized,
+floating) per cell, forcing each cell's logic to place as one
+contiguous block. Real, documented Quartus syntax, confirmed against
+Intel's own docs before use. Deliberately not `LOCKED` to a hand-
+picked origin -- no verified-precise real device coordinate map exists
+for this exact part, so `FLOATING`+`AUTO_SIZE` lets Quartus pick size
+and placement while still enforcing contiguity.
+
+Two real LogicLock N=10 projects generated (`--shell v3/v4
+--logiclock`), same RTL as the unconstrained baselines (`#579`/`#580`),
+only the `.qsf` differs -- a real, clean, single-variable A/B test.
+
+Full detail: `points.md` `#582`.
+
+**Real, honest scope: no real Quartus data yet.** That comparison --
+against v3's real 68.46 MHz / v4's real 58.64 MHz unconstrained
+baselines -- is the actual, real next step and the real test of
+whether physical clustering recovers the Fmax lost at scale.
+
+## Previous state (2026-09-01, real single-variable isolation experiment built to find WHY the N=1-to-N=10 gap exists -- separates genuine connectivity from genuinely-unconstrained config input, real Quartus target built, awaiting the real number, see `points.md` #581)
 
 ## Read this first (most recent)
 
