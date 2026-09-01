@@ -32453,3 +32453,63 @@ Everything real about single-core-type generation, the core-path
 override, and the optional probe was already built and verified in
 `#567`/`#568`/`#569` -- this entry only makes those same real
 capabilities reachable from the browser, not just the command line.
+
+## 571. A real, precise design conflict identified for the future shell-generalization thread, before it's built rather than after: nano's own comparator-driven routing mechanism (#140), if generalized to the shell for all cores, genuinely conflicts with branch cell specifically -- two independent routing decisions on the same fire event. Scoped precisely (not comparator, not the other 6 cores), a simple, one-condition real fix identified, and a real, standing rule established for the whole future thread: check every nano function against all 7 other cores' existing behavior before generalizing, not just assume it's safe. (Alan/Claude, 2026-08-31)
+
+**THE REAL, PRECISE OVERLAP, checked directly against nano's own real
+RTL before concluding anything, not assumed:** nano's own comparator-
+based routing (`#140`) compares the live second arrival against the
+held first arrival (`second_val` vs `input_val` -- the two operands of
+that specific two-arrival fire), picks one of three real direction-
+sets (`pattern_low`/`equal`/`high`), and sends the SAME computed gate
+result there. Real, genuinely NARROWER than branch cell: no per-
+outcome suppression, no fixed-marker substitution, and the comparison
+re-happens fresh every fire rather than against a genuinely held
+reference surviving across many later arrivals. Not a duplicate of
+branch cell -- a real, cheaper, routing-only cousin of it.
+
+**Real, precise connection to an already-settled project precedent,
+not a new problem:** `#507`/`#508` already worked through the same
+shape of overlap once -- comparator (a plain threshold check) is fully
+subsumed by branch cell used simply, and the project's own real,
+deliberate decision was to keep both, since the cheap, narrow tool
+stays worth having even once a richer tool can do everything it does
+and more. Generalizing nano's own routing to the shell would create
+the same real relationship: a cheap "route by comparison" primitive
+sitting ALONGSIDE branch cell, genuinely useful when routing alone is
+all that's needed, without paying for branch cell's own richer
+machinery.
+
+**The real, scoped conflict, precisely bounded, not a blanket
+concern:** ONLY between the shell's own generalized routing and
+branch cell specifically -- if both applied to the same fire event
+while branch cell is the selected core, two independent, potentially
+disagreeing routing decisions would both try to apply to the same
+data, a real, genuine source of confusing, hard-to-diagnose behavior.
+**Comparator is NOT part of this conflict** -- it only ever produces a
+single boolean through the ordinary, static `downstream_mask`, never a
+per-outcome routing decision of its own, so there's nothing for
+generic routing to collide with there.
+
+**The real fix, once scoped this precisely, is simple, not a
+structural redesign:** a single, real gate at the shell level --
+generic routing only applies when `core_select != SEL_BRANCH`. One
+extra condition in front of an already-existing mechanism, not new
+complexity layered on top.
+
+**A real, standing rule established for the whole future shell-
+generalization thread, worth keeping regardless of which specific
+function gets tackled first:** every one of nano's own functions being
+considered for generalization needs to be checked against all 7 other
+cores' existing real behavior before being moved, not assumed safe by
+default. Branch cell is the one clear, real overlap found so far --
+worth actively looking for others (hold/reemit/programming/relay-
+consume/error-detection all remain unchecked against the other 7
+cores in this specific way) when that thread actually starts, rather
+than discovering conflicts mid-build.
+
+**Real, honest scope: still purely a design note.** No RTL touched --
+this documents a real, precise finding for the shell-generalization
+thread (`#566`'s own deliberately-deferred future work), which remains
+unstarted, gated on the current shared-buffer integration finishing
+first.

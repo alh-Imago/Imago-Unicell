@@ -1,4 +1,29 @@
-# Current State (as of 2026-08-31, front end updated to expose the real generator extensions -- single-core dropdown, core-path override, optional probe name, all threaded through Create Cells, see `points.md` #570)
+# Current State (as of 2026-08-31, real design conflict identified for the future shell-generalization thread -- nano's own comparator-routing genuinely conflicts with branch cell specifically, simple fix identified, a standing check-before-generalizing rule established, see `points.md` #571)
+
+## Read this first (most recent)
+
+**2026-08-31, real design note for the shell-generalization thread.**
+Nano's own comparator-driven routing (`#140`), if generalized to the
+shell, genuinely conflicts with branch cell specifically -- two
+independent routing decisions on the same fire event. Precisely
+scoped: NOT comparator (only ever produces a boolean, no routing
+decision to collide with), only branch cell. Real fix identified: one
+gate, `core_select != SEL_BRANCH`, not a structural redesign. Real,
+precise connection to an already-settled precedent (`#507`/`#508`,
+comparator subsumed by branch cell, kept anyway) -- same real
+relationship applies here.
+
+A real, standing rule established for the whole future thread: check
+every nano function against all 7 other cores' real behavior before
+generalizing, not assumed safe by default.
+
+Full detail: `points.md` `#571`.
+
+**Real, honest scope: pure design note, no RTL touched.** The shell-
+generalization thread itself remains unstarted, gated on the current
+shared-buffer integration finishing first.
+
+## Previous state (2026-08-31, front end updated to expose the real generator extensions -- single-core dropdown, core-path override, optional probe name, all threaded through Create Cells, see `points.md` #570)
 
 ## Read this first (most recent)
 
