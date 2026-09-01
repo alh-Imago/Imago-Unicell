@@ -32513,3 +32513,69 @@ this documents a real, precise finding for the shell-generalization
 thread (`#566`'s own deliberately-deferred future work), which remains
 unstarted, gated on the current shared-buffer integration finishing
 first.
+
+## 572. Real, complete dataset: all 8 single-core-type N=10 arrays measured on real hardware via Alan's own real Quartus batch, giving the first real, direct answer to "what does full runtime reconfigurability actually cost." A real 8-value outlier found and given an honest, unconfirmed hypothesis (branch cell), a real labeling mix-up caught and corrected, and a real, concrete comparison point for the shared-buffer work to measure itself against. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, complete N=10 single-core-type ALM data for all 8
+cores, via `tools/project_assemble_v1.py`'s own `-S` mode (`#567`).
+Every figure below is the real per-cell average across 10 genuinely
+cardinally-connected cells, JTAG/ISSP overhead excluded where present
+in the real report.**
+
+| Core | Avg ALM/cell (N=10) | Real N=1-in-shell ref (`#524`-`#526`) | Ratio |
+|---|---|---|---|
+| sequencer | 3.63 | 5.0 | 0.73x |
+| latch | 6.68 | 4.5 | 1.48x |
+| compare | 8.18 | 4.2 | 1.95x |
+| ram | 9.58 | 5.4 | 1.77x |
+| adder | 10.14 | 4.8 | 2.11x |
+| nano | 11.61 | 7.0 | 1.66x |
+| accumulator | 78.97 | 83.0 | 0.95x |
+| branch | 85.16 | 12.5 | **6.81x** |
+
+**A real, honest labeling mix-up caught, not glossed over:** the real
+Quartus report Alan initially labeled "Accumulator" was actually
+`adder_cell_v2`'s own real data (confirmed directly: the report's own
+real instance names read `adder_cell_v2:C_0_0` etc., and its own top-
+level entity was `top_adder_cell_10cells_v1`). Filed under adder
+above; accumulator's own real figure came from an earlier, separately
+reported real Quartus run.
+
+**The real, general pattern (roughly 1.5x-2.1x across 6 of 8 cores)
+is expected, not a red flag** -- confirmed directly, consistent with
+`#560`'s own earlier finding: every real N=1 reference figure came
+from a cell with genuinely ZERO real neighbors, every cardinal edge
+tied to a safe, constant default. Real, genuine cardinal connectivity
+at N=10 removes Quartus's own ability to optimize based on a known-
+constant input, so a real, moderate increase across the board is the
+honest, expected result.
+
+**Sequencer's own real 0.73x (a genuine DECREASE) makes real,
+structural sense, not noise:** confirmed directly against its own real
+RTL (`#564`) -- it has no capture role at all, never reads `arrived_X`/
+`data_in_X`, so genuine cardinal connectivity simply doesn't matter to
+its own real cost the way it does for every other core.
+
+**Branch cell's own real 6.81x is a genuine, real outlier -- 3-4x
+larger than every other core's own real increase, not explainable by
+the same general "genuine connectivity costs more" pattern alone.**
+Real, honest, NOT YET CONFIRMED hypothesis: branch cell carries far
+more real, data-dependent decision logic per fire than any other core
+here (three-way LOW/EQUAL/HIGH classification, independent per-
+outcome value/route/suppress selection) -- Quartus can heavily
+simplify that kind of branching logic when an input is provably
+constant, and has far less room to do so once the input is genuinely
+live and unpredictable. A real, plausible mechanism, not a confirmed
+one -- worth real, direct investigation once the shared-buffer
+integration reaches branch cell specifically.
+
+**The real, concrete, honest answer this whole batch was built to
+find:** summing all 8 real, separate, single-purpose cells gives
+**213.9 ALM** -- the real cost of one dedicated cell of each type,
+wired together. Compared against the already-measured real cost of
+ONE cell that can genuinely be ANY of the 8 (`#560`'s own real
+~950-1050 ALM/cell figure): **full runtime reconfigurability costs
+roughly 4.4x-4.9x more than eight fixed-purpose cells.** This is now
+the real, concrete number the shared-buffer work (`#561`-`#571`)
+exists to close the gap against -- not a theoretical target, a
+measured one.

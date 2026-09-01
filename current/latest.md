@@ -1,4 +1,35 @@
-# Current State (as of 2026-08-31, real design conflict identified for the future shell-generalization thread -- nano's own comparator-routing genuinely conflicts with branch cell specifically, simple fix identified, a standing check-before-generalizing rule established, see `points.md` #571)
+# Current State (as of 2026-09-01, real, complete N=10 single-core-type dataset for all 8 cores -- the real, direct answer to "what does full reconfigurability cost": ~4.4x-4.9x more than 8 separate dedicated cells, see `points.md` #572)
+
+## Read this first (most recent)
+
+**2026-09-01, complete real dataset, all 8 cores.** Real N=10 single-
+core-type ALM data via `-S` mode: sequencer 3.63/cell (0.73x its own
+N=1 ref -- never reads incoming data, connectivity genuinely doesn't
+matter to it), latch 6.68 (1.48x), compare 8.18 (1.95x), ram 9.58
+(1.77x), adder 10.14 (2.11x), nano 11.61 (1.66x), accumulator 78.97
+(0.95x), **branch 85.16 (6.81x -- a real, genuine outlier)**.
+
+A real labeling mix-up caught: Alan's own "Accumulator" report was
+actually adder_cell_v2's real data (confirmed via its own real
+instance names) -- corrected, filed under adder.
+
+**The real, concrete answer this batch was built to find: summing all
+8 real, dedicated cells gives 213.9 ALM. Against the already-measured
+real cost of one cell that can be ANY of the 8 (~950-1050 ALM/cell,
+`#560`), full runtime reconfigurability costs roughly 4.4x-4.9x more
+than eight fixed-purpose cells.** A real, measured number, not a
+theoretical estimate -- now the concrete target the shared-buffer work
+(`#561`-`#571`) exists to close the gap against.
+
+Branch cell's own real 6.81x outlier gets a real, honest, unconfirmed
+hypothesis: far more data-dependent per-fire decision logic than any
+other core, likely losing far more Quartus-side simplification once
+inputs are genuinely live rather than constant. Worth real,
+direct investigation once shared-buffer integration reaches it.
+
+Full detail: `points.md` `#572`.
+
+## Previous state (2026-08-31, real design conflict identified for the future shell-generalization thread -- nano's own comparator-routing genuinely conflicts with branch cell specifically, simple fix identified, a standing check-before-generalizing rule established, see `points.md` #571)
 
 ## Read this first (most recent)
 
