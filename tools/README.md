@@ -26,6 +26,17 @@ python3 tools/project_assemble_v1.py --man docs/man/mustang-f100-a10.man.json --
   core files (default: `fpga/verilog`). Files are matched by base
   name only, ignoring version suffixes (`_v1`/`_v2`/etc.) — the
   highest real version found at that path wins automatically.
+- `-P`/`--probe [NAME]` — include a real ISSP debug probe, optionally
+  naming the instance (default `DEBUG_PROBE` if `-P` given with no
+  value). **Omitted by default** — the LED-based anti-pruning check
+  works completely independently of the probe (confirmed: a no-probe
+  build compiles with genuinely zero errors, no `issp` reference
+  anywhere), so for a pure resource/timing measurement the probe is a
+  real, optional extra, not a requirement. When included, prints a
+  real reminder to generate the `issp` IP in Quartus before compiling
+  (same real `probe_width=2`/`source_width=1`/no-clock configuration
+  used throughout this project) -- without that step, Analysis &
+  Synthesis fails with `undefined entity "issp"`.
 
 This is deliberately NOT the Composer (a separate, visual placement-
 *review* tool for an already-compiled model — RTL generation is

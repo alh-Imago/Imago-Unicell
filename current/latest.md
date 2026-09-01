@@ -1,4 +1,24 @@
-# Current State (as of 2026-09-01, real bug found via Alan's actual Quartus run -- #567's single-core generator instantiated the wrong module name for every core type, own verification was flawed identically for all 8, not just accumulator -- fixed and re-verified strictly, see `points.md` #568)
+# Current State (as of 2026-09-01, ISSP probe made genuinely optional in project_assemble_v1.py -- -P/--probe, omitted by default, confirmed the LED-based check works with zero errors on its own, see `points.md` #569)
+
+## Read this first (most recent)
+
+**2026-09-01, probe made optional.** `-P`/`--probe [NAME]` -- omitted
+by default now. Confirmed directly: a no-probe build compiles with
+genuinely ZERO errors (not just the familiar, tolerated issp-only
+gap), since the real LED-based anti-pruning check already works
+completely independently. When included, prints a real, direct
+console reminder about the required Quartus-side IP generation step.
+Verified across all 4 combinations (single-core/shell x probe/no-
+probe) plus a full 8-core-type sweep. 361/361 Python tests passing.
+
+Full detail: `points.md` `#569`.
+
+**Real, practical note: regenerate the current batch of 8 with `-S
+<core> --output <dir>` (no `-P`) for the cleanest real numbers** --
+removes the ~90+ ALM of JTAG overhead that would otherwise dilute the
+real per-core-type comparison this batch is measuring.
+
+## Previous state (2026-09-01, real bug found via Alan's actual Quartus run -- #567's single-core generator instantiated the wrong module name for every core type, own verification was flawed identically for all 8, not just accumulator -- fixed and re-verified strictly, see `points.md` #568)
 
 ## Read this first (most recent)
 

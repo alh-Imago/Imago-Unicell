@@ -32389,3 +32389,38 @@ attempt.** Alan's own real accumulator run is the only one known to
 have hit this -- the fix applies uniformly, so regenerating any
 previously-attempted single-core build with the corrected tool
 resolves it.
+
+## 569. Real extension to `project_assemble_v1.py`: the ISSP probe is now genuinely optional (`-P`/`--probe [NAME]`, omitted by default), with a real, printed reminder to generate the Quartus IP when it's included. Confirmed the LED-based anti-pruning check works completely independently -- a no-probe build compiles with genuinely zero errors, not just the expected issp gap. Verified across all 8 core types and both generation modes. (Alan/Claude, 2026-08-31)
+
+**STATUS: `tools/project_assemble_v1.py` extended, `tools/README.md`
+updated. Verified across all four real combinations (single-core/
+shell mode x probe/no-probe), plus a full 8-core-type sweep in
+no-probe mode -- every one compiles with genuinely zero errors, not
+merely the expected `issp` gap tolerated as before. 361/361 Python
+tests still passing.**
+
+**Real, precise mechanism:** `-P`/`--probe [NAME]` (using `argparse`'s
+own `nargs="?"` with `const="DEBUG_PROBE"`) makes the probe genuinely
+optional -- omitted entirely by default. Confirmed directly, not
+assumed: the real LED-based anti-pruning check (`array_alive`/
+`heartbeat`, already independently assigned to `LED0_N`/`LED1_N`
+before the probe instantiation in the generated RTL) works completely
+on its own -- a no-probe build compiles with **zero real errors**,
+not just the familiar, tolerated `issp`-only gap every other build
+this session has shown. When a probe IS requested, both the `.v`
+source and the `.qsf` correctly include it under the given instance
+name, and the tool prints a real, direct reminder about the required
+Quartus-side IP generation step -- not just a comment buried in the
+generated `.qsf` file, an active console message naming the exact
+real steps (IP Catalog -> In-System Sources and Probes,
+`probe_width=2`/`source_width=1`/no source clock) and the real,
+specific error that results if it's skipped.
+
+**Real, honest scope: this is exactly the right optimization for the
+batch Alan is currently running** -- 8 real N=10 single-core-type
+builds purely for a resource/timing baseline, where the ISSP
+overhead (previously ~90+ ALM of pure JTAG infrastructure, confirmed
+earlier this session on the comparator build, `#549`) would have
+diluted the real, per-core-type comparison being sought. Every
+previously-generated build in this batch should be regenerated with
+`-S <core> --output <dir>` (no `-P`) for the cleanest real numbers.

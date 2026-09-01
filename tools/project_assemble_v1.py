@@ -124,7 +124,7 @@ def resolve_core_file(base_name, core_path):
     return candidates[-1][1]  # highest version wins
 
 
-def generate_single_core_top(top_name, module_name, base_name, n, rows, cols, cell_id_base=0x1000):
+def generate_single_core_top(top_name, module_name, base_name, n, rows, cols, cell_id_base=0x1000, probe_name=None):
     """points.md #567: a genuinely simpler generation mode than the
     full 8-core shell -- no core_select, no CFG_SELECT broadcast,
     since there's only ever one real core type here. Still needs the
@@ -242,11 +242,12 @@ def generate_single_core_top(top_name, module_name, base_name, n, rows, cols, ce
     lines.append("assign LED0_N = ~hb_cnt[23];")
     lines.append("assign LED1_N = ~array_alive;")
     lines.append("")
-    lines.append("debug_issp_probe_v1 DEBUG_PROBE (")
-    lines.append("    .err_sticky(array_alive),")
-    lines.append("    .heartbeat(hb_cnt[23])")
-    lines.append(");")
-    lines.append("")
+    if probe_name:
+        lines.append(f"debug_issp_probe_v1 {probe_name} (")
+        lines.append("    .err_sticky(array_alive),")
+        lines.append("    .heartbeat(hb_cnt[23])")
+        lines.append(");")
+        lines.append("")
     lines.append("endmodule")
     return "\n".join(lines) + "\n"
 
@@ -300,7 +301,7 @@ def inst_name(r, c):
     return f"C_{r}_{c}"
 
 
-def generate_top(top_name, n, rows, cols, cell_id_base=0x1000):
+def generate_top(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=None):
     positions = cell_positions(n, rows, cols)
     pos_set = set(positions)
 
@@ -442,18 +443,19 @@ def generate_top(top_name, n, rows, cols, cell_id_base=0x1000):
     lines.append("assign LED0_N = ~hb_cnt[23];")
     lines.append("assign LED1_N = ~array_alive;   // real, observable, non-prunable")
     lines.append("")
-    lines.append("// Real, JTAG-readable confirmation (points.md #529/#537's own proven")
-    lines.append("// pattern) -- added BEFORE the first real build, not after, so a real")
-    lines.append("// silicon check doesn't need a second ~2-hour rebuild just to add it.")
-    lines.append("// probe[0]=array_alive (a real snapshot of the array's own current")
-    lines.append("// state), probe[1]=heartbeat (continuously toggling, proves the design")
-    lines.append("// is genuinely clocking -- use debug_issp_poll.tcl, not the older fixed-")
-    lines.append("// gap script, per #537's own real aliasing finding).")
-    lines.append("debug_issp_probe_v1 DEBUG_PROBE (")
-    lines.append("    .err_sticky(array_alive),")
-    lines.append("    .heartbeat(hb_cnt[23])")
-    lines.append(");")
-    lines.append("")
+    if probe_name:
+        lines.append("// Real, JTAG-readable confirmation (points.md #529/#537's own proven")
+        lines.append("// pattern) -- added BEFORE the first real build, not after, so a real")
+        lines.append("// silicon check doesn't need a second ~2-hour rebuild just to add it.")
+        lines.append("// probe[0]=array_alive (a real snapshot of the array's own current")
+        lines.append("// state), probe[1]=heartbeat (continuously toggling, proves the design")
+        lines.append("// is genuinely clocking -- use debug_issp_poll.tcl, not the older fixed-")
+        lines.append("// gap script, per #537's own real aliasing finding).")
+        lines.append(f"debug_issp_probe_v1 {probe_name} (")
+        lines.append("    .err_sticky(array_alive),")
+        lines.append("    .heartbeat(hb_cnt[23])")
+        lines.append(");")
+        lines.append("")
     lines.append("endmodule")
     return "\n".join(lines) + "\n"
 
@@ -472,30 +474,33 @@ def generate_sdc(man):
     )
 
 
-def generate_qsf(man, top_name):
+def generate_qsf(man, top_name, probe_name=None):
     out = QSF_BOILERPLATE.format(
         family=man["family"], device=man["device"], top=top_name,
         clk_pin=man["clk_pin"], led0_pin=man["led0_pin"], led1_pin=man["led1_pin"],
     )
     for dep in V3_DEPENDENCIES:
+        if dep == "debug_issp_probe_v1.v" and not probe_name:
+            continue
         out += f"set_global_assignment -name VERILOG_FILE {dep}\n"
     out += f"set_global_assignment -name VERILOG_FILE {top_name}.v\n"
-    out += "set_global_assignment -name QSYS_FILE issp.qsys\n"
-    out += (
-        "\n# points.md #529/#554: this project also needs the real, locally-\n"
-        "# generated `issp` IP output (the actual .v/.qip Quartus produces from\n"
-        "# issp.qsys via IP Catalog \"Generate HDL\" -- NOT the .qsys config file\n"
-        "# alone). Add that generated .qip to this project before compiling --\n"
-        "# not tracked in this repo, environment-specific generated output,\n"
-        "# same convention issp.qsys itself already follows. The SAME already-\n"
-        "# generated issp files used for earlier real builds this session work\n"
-        "# here unmodified -- the probe's own bit layout never changes.\n\n"
-    )
+    if probe_name:
+        out += "set_global_assignment -name QSYS_FILE issp.qsys\n"
+        out += (
+            "\n# points.md #529/#554: this project also needs the real, locally-\n"
+            "# generated `issp` IP output (the actual .v/.qip Quartus produces from\n"
+            "# issp.qsys via IP Catalog \"Generate HDL\" -- NOT the .qsys config file\n"
+            "# alone). Add that generated .qip to this project before compiling --\n"
+            "# not tracked in this repo, environment-specific generated output,\n"
+            "# same convention issp.qsys itself already follows. The SAME already-\n"
+            "# generated issp files used for earlier real builds this session work\n"
+            "# here unmodified -- the probe's own bit layout never changes.\n\n"
+        )
     out += f"set_global_assignment -name SDC_FILE {top_name}.sdc\n"
     return out
 
 
-def generate_single_core_qsf(man, top_name, resolved_filename, extra_deps):
+def generate_single_core_qsf(man, top_name, resolved_filename, extra_deps, probe_name=None):
     out = QSF_BOILERPLATE.format(
         family=man["family"], device=man["device"], top=top_name,
         clk_pin=man["clk_pin"], led0_pin=man["led0_pin"], led1_pin=man["led1_pin"],
@@ -503,20 +508,22 @@ def generate_single_core_qsf(man, top_name, resolved_filename, extra_deps):
     out += f"set_global_assignment -name VERILOG_FILE {resolved_filename}\n"
     for dep in extra_deps:
         out += f"set_global_assignment -name VERILOG_FILE {dep}\n"
-    out += "set_global_assignment -name VERILOG_FILE debug_issp_probe_v1.v\n"
+    if probe_name:
+        out += "set_global_assignment -name VERILOG_FILE debug_issp_probe_v1.v\n"
     out += f"set_global_assignment -name VERILOG_FILE {top_name}.v\n"
-    out += "set_global_assignment -name QSYS_FILE issp.qsys\n"
-    out += (
-        "\n# points.md #529/#567: needs the real, locally-generated `issp`\n"
-        "# IP output added to this project before compiling -- same real,\n"
-        "# already-generated issp files used for every other build this\n"
-        "# session work here unmodified.\n\n"
-    )
+    if probe_name:
+        out += "set_global_assignment -name QSYS_FILE issp.qsys\n"
+        out += (
+            "\n# points.md #529/#567: needs the real, locally-generated `issp`\n"
+            "# IP output added to this project before compiling -- same real,\n"
+            "# already-generated issp files used for every other build this\n"
+            "# session work here unmodified.\n\n"
+        )
     out += f"set_global_assignment -name SDC_FILE {top_name}.sdc\n"
     return out
 
 
-def assemble(man_path, cells, output, top=None, single_core=None, core_path=None):
+def assemble(man_path, cells, output, top=None, single_core=None, core_path=None, probe_name=None):
     """The real, single implementation of this tool's own job --
     both main() (CLI) and any other caller (e.g. the frontend,
     points.md #557) call this directly, so there is exactly one real
@@ -549,35 +556,43 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
             if not os.path.exists(dep_src):
                 raise FileNotFoundError(f"missing real dependency {dep_src}")
             shutil.copy(dep_src, os.path.join(output, dep))
-        probe_src = os.path.join(VERILOG_DIR, "debug_issp_probe_v1.v")
-        shutil.copy(probe_src, os.path.join(output, "debug_issp_probe_v1.v"))
+        files_written = 1 + len(info["extra_deps"])
+        if probe_name:
+            probe_src = os.path.join(VERILOG_DIR, "debug_issp_probe_v1.v")
+            shutil.copy(probe_src, os.path.join(output, "debug_issp_probe_v1.v"))
+            files_written += 1
 
         resolved_module_name = resolved[:-2]  # strip real ".v" -- the actual module name inside includes the version suffix
-        top_rtl = generate_single_core_top(top_name, resolved_module_name, single_core, cells, rows, cols)
+        top_rtl = generate_single_core_top(top_name, resolved_module_name, single_core, cells, rows, cols, probe_name=probe_name)
         with open(os.path.join(output, f"{top_name}.v"), "w") as f:
             f.write(top_rtl)
         with open(os.path.join(output, f"{top_name}.sdc"), "w") as f:
             f.write(generate_sdc(man))
         with open(os.path.join(output, f"{top_name}.qsf"), "w") as f:
-            f.write(generate_single_core_qsf(man, top_name, resolved, info["extra_deps"]))
+            f.write(generate_single_core_qsf(man, top_name, resolved, info["extra_deps"], probe_name=probe_name))
 
         return {
             "card_id": man["card_id"], "family": man["family"], "device": man["device"],
             "cells": cells, "rows": rows, "cols": cols, "alm_total": man["alm_total"],
             "output": output, "top_name": top_name,
-            "files_written": 2 + len(info["extra_deps"]) + 3,
+            "files_written": files_written + 3,
             "single_core": single_core, "resolved_file": resolved,
+            "probe_name": probe_name,
         }
 
     top_name = top or f"top_array_{cells}cells_v1"
 
+    files_written = 0
     for dep in V3_DEPENDENCIES:
+        if dep == "debug_issp_probe_v1.v" and not probe_name:
+            continue
         src = os.path.join(src_dir, dep)
         if not os.path.exists(src):
             raise FileNotFoundError(f"missing real dependency {src}")
         shutil.copy(src, os.path.join(output, dep))
+        files_written += 1
 
-    top_rtl = generate_top(top_name, cells, rows, cols)
+    top_rtl = generate_top(top_name, cells, rows, cols, probe_name=probe_name)
     with open(os.path.join(output, f"{top_name}.v"), "w") as f:
         f.write(top_rtl)
 
@@ -585,13 +600,14 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
         f.write(generate_sdc(man))
 
     with open(os.path.join(output, f"{top_name}.qsf"), "w") as f:
-        f.write(generate_qsf(man, top_name))
+        f.write(generate_qsf(man, top_name, probe_name=probe_name))
 
     return {
         "card_id": man["card_id"], "family": man["family"], "device": man["device"],
         "cells": cells, "rows": rows, "cols": cols, "alm_total": man["alm_total"],
         "output": output, "top_name": top_name,
-        "files_written": len(V3_DEPENDENCIES) + 3,
+        "files_written": files_written + 3,
+        "probe_name": probe_name,
     }
 
 
@@ -605,10 +621,12 @@ def main():
                      help=f"Generate an array of ONE real core type instead of the full 8-core shell. Real options: {', '.join(CORE_REGISTRY)}")
     ap.add_argument("-x", "--core-path", default=None,
                      help="Real path to search for core source files (default: fpga/verilog). Files are matched by base name only, ignoring version suffixes -- the highest real version found wins.")
+    ap.add_argument("-P", "--probe", nargs="?", const="DEBUG_PROBE", default=None, metavar="NAME",
+                     help="points.md #569: include a real ISSP debug probe, optionally naming the instance (default name if -P given with no value: DEBUG_PROBE). Omitted by default -- the LED-based anti-pruning check works independently of the probe, so it's a real, optional extra for JTAG confirmation, not required for a pure resource/timing build.")
     args = ap.parse_args()
 
     try:
-        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path)
+        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path, args.probe)
     except (ValueError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -620,6 +638,16 @@ def main():
     print(f"Output: {result['output']}")
     print(f"\nWrote {result['files_written']} real files (source + top-level RTL + .qsf + .sdc) to {result['output']}/")
     print(f"Import into Quartus using {result['top_name']}.qsf directly, matching #538's own proven flat-file template.")
+    if result.get("probe_name"):
+        print(f"\nReal ISSP probe included, instance name: {result['probe_name']}")
+        print(f"REMINDER: generate the real issp IP in Quartus before compiling --")
+        print(f"IP Catalog -> In-System Sources and Probes, probe_width=2, source_width=1,")
+        print(f"no source clock (the same real configuration used throughout this project).")
+        print(f"Without this step, Analysis & Synthesis will fail with 'undefined entity \"issp\"'.")
+    else:
+        print(f"\nNo ISSP probe included (use -P [NAME] to add one). The real LED-based")
+        print(f"anti-pruning check (array_alive/heartbeat) works independently and needs")
+        print(f"no extra Quartus IP generation step.")
     return 0
 
 
