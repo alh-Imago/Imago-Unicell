@@ -1,6 +1,50 @@
-# Current State (as of 2026-09-01, real, complete N=10 single-core-type dataset for all 8 cores -- the real, direct answer to "what does full reconfigurability cost": ~4.4x-4.9x more than 8 separate dedicated cells, see `points.md` #572)
+# Current State (as of 2026-09-01, real shell-level shared-storage integration built and sim-verified -- unicell_super_v4.v, all 8 cores through ONE real shared register, a genuine write-mux race found and fixed, real Quartus targets built but not yet run, see `points.md` #573)
 
 ## Read this first (most recent)
+
+**2026-09-01, real shell-level shared-storage integration.** Picked up
+per Alan's own "continuation of moving the data to a separate wrapper"
+-- the actual "adapt the shell" step `#565`'s own real next-steps
+named. `unicell_super_v4.v` (new): all 8 real cores wired with
+`EXTERNAL_STORAGE=1` through ONE real 170-bit shared register (nano's
+own real width, the widest of the 8) instead of 8 separate internal
+register sets, plus Alan's own real freeze-centralization idea
+(`#566`) wired in as a genuine complementary correctness layer.
+
+**A real, genuine functional bug found and fixed, not assumed correct
+in advance:** the write-mux originally keyed off the REGISTERED
+`core_select`, which lags `cfg_valid_<core>`'s own `incoming_select`-
+gated enable by one evaluation on the exact cycle of a switch --
+silently discarding the newly-configured core's first real state
+write. Confirmed as a genuine failure (RAM's real config never reached
+`shared_state`) via a purpose-built full top-level self-test that the
+narrower shell testbench alone did NOT catch. Fixed: `write_select =
+cfg_valid ? incoming_select : core_select`. A second, related design
+idea (force-clearing `shared_state` on every switch) was tried, found
+to actively break the very next real config load for the same reason,
+and removed -- no shell-level reset is needed at all, since `cfg_valid`
+already resets everything each core cares about.
+
+**Real Quartus targets built for both sides of a genuine, same-session
+apples-to-apples comparative pair** -- `top_unicell_super_test_v3.v`
+(the full 8-core self-test v3 never actually had before, only the
+branch-only slice existed) and `top_unicell_super_test_v4.v` (the
+matching shared-storage version), both ISSP-probe-equipped, both
+sim-verified clean via a real top-level testbench.
+
+Full detail: `points.md` `#573`.
+
+**Real, honest scope: sim-verified only, no real Quartus ALM/Fmax
+number yet for either target.** That comparative build -- testing
+Alan's own real hypothesis that the cost shows up more in Fmax (a
+shared write-mux in the critical path) than raw ALM count -- is the
+actual, real next step and the whole point of this thread. Full
+regression clean throughout: 41/41 per-core checks, the unchanged v3
+shell testbench, 361/361 Python tests.
+
+## Previous state (2026-09-01, real, complete N=10 single-core-type dataset for all 8 cores -- the real, direct answer to "what does full reconfigurability cost": ~4.4x-4.9x more than 8 separate dedicated cells, see `points.md` #572)
+
+## Read this first
 
 **2026-09-01, complete real dataset, all 8 cores.** Real N=10 single-
 core-type ALM data via `-S` mode: sequencer 3.63/cell (0.73x its own

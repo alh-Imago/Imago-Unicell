@@ -32579,3 +32579,108 @@ roughly 4.4x-4.9x more than eight fixed-purpose cells.** This is now
 the real, concrete number the shared-buffer work (`#561`-`#571`)
 exists to close the gap against -- not a theoretical target, a
 measured one.
+
+## 573. Real shell-level integration of the shared-storage mechanism -- unicell_super_v4.v built, wiring all 8 real v2 cores (EXTERNAL_STORAGE=1) through ONE real 170-bit shared register instead of 8 separate internal register sets. A real, genuine functional bug found and fixed during sim verification (the write-mux raced against the registered core_select on the exact cycle of a core switch, silently discarding the newly-configured core's first real state write) -- confirmed as a real failure via a purpose-built full-8-core top-level self-test, not caught by the narrower differential testbenches alone. Zero regression: all 8 per-core checks (41/41), the full Python suite (361/361), and the pre-existing v3 shell testbench all still pass unchanged. Real Quartus targets built for both sides of the actual comparative pair, not yet run. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, sim-verified shell-level integration -- the actual "adapt the shell" step `#565`'s own real next-steps named, picked up per Alan's own "continuation of moving the data to a separate wrapper."**
+
+**`unicell_super_v4.v` (new)** -- cloned from `unicell_super_v3.v` per this
+project's own standing discipline. Every one of the 8 cores instantiated
+with `EXTERNAL_STORAGE=1`, reading/writing ONE real shared register
+(`shared_state[169:0]`, sized to nano's own real 170-bit width, the
+widest of the 8 -- branch 117, accumulator 107, adder 79, compare 77,
+sequencer 53, ram 46, latch 23). A real write-select mux picks which
+core's own computed `ext_state_out` gets registered back each cycle.
+Also adds Alan's own real freeze-centralization idea from `#566`
+(`freeze_in || (core_select != SEL_<core>)` per core) as a genuine,
+complementary correctness layer on top of the pre-existing arrived-
+gating, confirmed NOT a substitute for the write mux.
+
+**A real, genuine functional bug found and fixed, not assumed correct
+in advance:** the first draft's write-mux keyed the shared-register
+write purely off the REGISTERED `core_select` -- but every
+`cfg_valid_<core>` enable is (correctly) gated on `incoming_select`
+(the value about to settle), and `core_select` itself only updates on
+the SAME edge, one evaluation later than combinational logic can see
+it. On the exact cycle a switch's `cfg_valid` fires, the write-mux was
+therefore still pointing at the OLD core, silently discarding the
+newly-configured core's own first real state write -- confirmed as a
+genuine failure (RAM's real fixed-mode CAFEBEEF config never reached
+`shared_state` at all) via a purpose-built full top-level self-test,
+which the narrower `tb_unicell_super_v4.v` shell testbench alone did
+NOT catch (its own task-based timing happened to mask the race). Real
+fix: `write_select = cfg_valid ? incoming_select : core_select` --
+the write-mux now tracks the effective, about-to-settle select during
+a load, matching the same convention `cfg_valid_<core>` itself already
+uses.
+
+**A second real design question resolved by testing, not assumed:** an
+earlier draft also force-cleared `shared_state` to 0 on every genuine
+core switch, reasoning it should mirror each core's own real internal-
+register reset default. This was directly disproven by sim -- a switch
+and a config load for the newly-selected core are the SAME `cfg_valid`
+pulse in this project's own SUPER_LATCH protocol, so the "reset" branch
+fired on the identical cycle as the real config load and clobbered it
+before it could ever reach `shared_state`. Removed entirely: no shell-
+level reset is needed on top of what `cfg_valid` already does, since
+every core's own real next-state logic already overwrites (or, for
+runtime-only fields like `pending_ack`, force-clears) everything it
+cares about from `cfg_data` on `cfg_valid` -- the exact same behavior
+already proven correct for `EXTERNAL_STORAGE=0` mode's own reconfigure
+path in `#563`/`#564`'s differential testbenches.
+
+**`tb_unicell_super_v4.v` (new)** -- cloned from `tb_unicell_super_v3.v`,
+same 8-core sequence reused verbatim (proving the shared mechanism is
+TRANSPARENT to every already-proven behavior), plus two new, targeted
+checks exercising the shared register directly: confirming
+`shared_state` genuinely holds RAM's own real `ext_state` (not just
+that RAM's *output* looked right, which could pass even with a broken
+write-mux since a core's own output is combinational off its current
+`ext_state_in` regardless of what the shared register itself holds),
+and confirming RAM's old bit pattern does not leak into adder's own
+active field space after a switch. All 8 real checks pass, deterministic
+across repeat runs.
+
+**`top_unicell_super_test_v3.v` (new) + `top_unicell_super_test_v4.v`
+(new)** -- a real, same-session, apples-to-apples Quartus pair. v3's
+own full 8-core self-test top-level had never been built before (only
+the branch-only slice, `top_super_v3_branch_test_v1.v`, existed) --
+built now specifically so any real ALM/Fmax difference Quartus reports
+is genuinely attributable to the shared-storage mechanism itself, not
+to a difference in what's being tested. Both cloned from
+`top_unicell_super_test_v2.v`'s own proven SETTLE-counter FSM pattern,
+extended with the same real branch-cell round already proven through
+`core_select` on real silicon (`#530`) and through the shell
+(`tb_unicell_super_v3.v`, `#542`). Both wired with the established ISSP
+debug-probe pattern (`#528`/`#529`) rather than LED-dependent
+confirmation. Both sim-verified clean end to end (a real Verilog
+top-level testbench driving `CLK_100M`, confirming `err_sticky` never
+latches across the full sequence) -- the SAME real bug above was caught
+this way on v4's own first attempt, and fixed before it could waste a
+real Quartus cycle.
+
+**Real Quartus targets built, matching this project's own established
+QSF/SDC template exactly (real device, real pin assignments, real SDC
+clocking convention):** `top_unicell_super_test_v3.qsf`/`.sdc` and
+`top_unicell_super_test_v4.qsf`/`.sdc`. **Neither has been run through
+real Quartus yet** -- that comparative build (ALM/Fmax, one real
+internal register set per core vs. one real shared register, testing
+Alan's own real hypothesis that the cost shows up more in Fmax than
+raw ALM count) is the actual, real next step, and the actual point of
+this whole shared-storage thread (`#561`-`#573`) -- not yet obtained.
+
+**Full regression, zero failures:** all 8 per-core differential
+testbenches (41/41 real checks: latch 5/5, ram 4/4, adder 6/6, compare
+3/3, accumulator 8/8, sequencer 4/4, branch 4/4, nano 7/7), the
+pre-existing `tb_unicell_super_v3.v` (unchanged, still passes), and
+the full Python suite (361/361, `tests/fpga/`'s own pre-existing
+`pyserial` import gap excluded, matching `#370`'s own already-
+documented, confirmed-not-a-regression status).
+
+**Real, honest scope still open:** no real Quartus ALM/Fmax number for
+either target yet -- Alan's own next real step. The VM has zero
+representation of the shared-storage mechanism (checked directly, not
+assumed) -- a real, separate, deliberately-not-attempted-here gap,
+since the VM's own `SuperCell` doesn't model per-core register sharing
+at all; whether it needs to is an open question for whenever the real
+Quartus numbers are in and the mechanism is confirmed worth keeping.
