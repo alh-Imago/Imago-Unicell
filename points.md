@@ -33009,3 +33009,97 @@ expected, roughly-2x connectivity cost (not a runaway one), or whether
 either shell shows early signs of the kind of scale-dependent inflation
 `#559`/`#560` found once before -- is the actual, real next step, and
 the real point of extending this tool at all.
+
+## 579. Real Quartus result, v3 at real array scale (N=10) -- confirms Alan's own real, remembered ~250-cell historical ceiling almost exactly (251,680 / 1030.5 real ALM/cell = ~244 cells), but for a newly-identified, previously-invisible reason: the three output addons (nibble_mask/shift_lane/invert), structurally disabled in every N=1 self-test run so far, turn out to be a real, dominant cost once genuinely live -- shift_lane alone averages ~242 ALM/cell, more than nano or branch. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, Flow Status Successful. First half of the real N=10
+comparative pair Alan asked for (`#578`).**
+
+**Whole-design real numbers:** 10,329 ALM / 251,680 (4%), 5,776
+registers, `clk_div` 68.46 MHz (down from N=1's real 107.05 MHz,
+`#574` -- a genuine 36% Fmax drop at scale, still comfortably above
+the real 25 MHz target). Router estimated peak interconnect usage 24%
+in one region -- worth watching at higher N, not yet a real constraint
+at N=10.
+
+**Real per-cell average, computed directly from all 10 individual
+`unicell_super_v3:C_r_c` instance figures (not estimated): 1030.52
+ALM/cell** -- a real, direct **3.41x** increase over the real N=1
+baseline (301.9 ALM, `#574`).
+
+**A real, previously-unknown cost driver found and precisely
+localized, not vaguely attributed to "connectivity":** every real N=1
+self-test built so far (`top_unicell_super_test_v3`/`v4`/`v5`) uses
+`pack()`'s own literal `addon_config=20'h0` in every one of its real
+config words -- meaning the three output addons
+(`nibble_mask_addon_v1`, `shift_lane_addon_v1`, `invert_addon_v1`) were
+STRUCTURALLY DISABLED, provably-constant-off, in every real N=1 number
+logged so far. Quartus had every real reason to prune them down to
+near nothing at N=1 -- and evidently did, since they don't even appear
+as separate hierarchy lines in `#574`'s own real report. This array
+build's own generator broadcasts `addon_config` from a genuinely
+unconstrained `ENTRY_DATA`-derived value, so for the first time ALL
+THREE addons are genuinely live, and their real cost is fully exposed:
+
+| Addon | Real avg ALM/cell |
+|---|---|
+| `shift_lane_addon_v1` | **241.95** |
+| `invert_addon_v1` | 113.56 |
+| `nibble_mask_addon_v1` | 24.51 |
+| **addon total** | **380.02** |
+
+**`shift_lane_addon_v1` alone is the single most expensive line item in
+the entire per-cell breakdown** -- more than `unicell_stripped_v1`
+(nano, 181.06 avg) or `branch_cell_v1` (146.72 avg), the two most
+expensive real CORES. The three addons together are **36.9% of the
+real per-cell total** -- a real, substantial, previously entirely-hidden
+cost this project had never actually measured before this entry.
+
+**Real, honest breakdown of the full 1030.52 ALM/cell:**
+
+| Component | Real avg ALM/cell |
+|---|---|
+| 3 addons | 380.02 |
+| 8 cores (sum) | 593.03 |
+| shell-level glue (mux/decode) | 57.47 |
+| **total** | **1030.52** |
+
+**Real per-CORE averages vs the real N=1 baseline (addons excluded,
+comparing like-for-like):**
+
+| Core | N=1 (`#574`) | N=10 avg | Ratio |
+|---|---|---|---|
+| compare | 10.5 | 55.30 | **5.27x** |
+| branch | 46.5 | 146.72 | **3.15x** |
+| nano | 62.5 | 181.06 | 2.90x |
+| ram | 14.5 | 37.76 | 2.60x |
+| adder | 31.6 | 57.85 | 1.83x |
+| accumulator | 71.8 | 90.13 | 1.26x |
+| latch | 8.5 | 9.08 | 1.07x |
+| sequencer | 15.5 | 15.13 | 0.98x |
+
+**Real, honest pattern, consistent with `#572`'s own earlier single-
+core-type dataset finding (~2x real connectivity cost):** cores with a
+genuine, real per-outcome or per-direction routing table (compare,
+branch) show the largest real growth once actual cardinal neighbors
+replace N=1's tied-off boundary constants. Sequencer again shows
+essentially zero growth, matching `#564`'s own real finding that it has
+no capture role at all and genuinely doesn't care about connectivity.
+
+**The real, headline number Alan's own question was actually asking
+for: 251,680 / 1030.52 = ~244 cells** -- closely matching Alan's own
+real, remembered historical ceiling ("approximate max 250 cells") from
+the OLD, pre-redesign full-fat cell. **The real ceiling appears to be
+reproducing itself at almost the same real number, but for a
+DIFFERENT, now newly-identified reason** (addon cost + real
+connectivity cost on the current, redesigned v3 shell) rather than
+whatever drove the original historical figure -- a real, honest,
+striking coincidence worth flagging directly, not glossed over.
+
+**Real, honest scope: this is HALF of the real N=10 comparison.** v4's
+own matching N=10 build (same generator, `#578`, same real addon-
+exposure the whole array shares) is the real, immediate next step --
+including whether v4's own real per-cell register savings (`#575`:
+-168 registers/cell at N=1) compounds meaningfully at N=10 (a real
+potential ~1,680-register saving at this scale) even though its own
+real N=1 ALM cost was higher, not lower, than v3's.

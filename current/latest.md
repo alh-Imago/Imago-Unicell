@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-01, project_assemble_v1.py extended with a real --shell flag -- can now generate N-cell arrays of either unicell_super_v3 or unicell_super_v4, per Alan's own request to test the shared-storage finding at real array scale, not just N=1. Two real N=10 projects generated, elaborate cleanly; real Quartus builds still pending, see `points.md` #578)
+# Current State (as of 2026-09-01, real N=10 array result for v3 -- confirms Alan's own remembered ~250-cell historical ceiling almost exactly, but for a newly-found reason: the 3 output addons, silently disabled in every N=1 test run so far, cost ~380 ALM/cell once genuinely live -- shift_lane alone averages more than nano or branch, see `points.md` #579)
+
+## Read this first (most recent)
+
+**2026-09-01, the real N=10 answer for v3: ~1030.5 ALM/cell (3.41x the
+real N=1 baseline), and a real, previously-invisible cost found and
+precisely localized.** Every N=1 self-test built so far
+(`top_unicell_super_test_v3`/`v4`/`v5`) hardcodes `addon_config=0` in
+every real config word -- the three output addons (nibble_mask/
+shift_lane/invert) were structurally disabled, provably prunable, in
+EVERY real N=1 number logged before this entry. This array build's
+generator broadcasts a genuinely unconstrained `addon_config`, so for
+the first time all three are actually live: `shift_lane_addon_v1`
+alone averages **241.95 ALM/cell** -- more than nano (181.06) or
+branch (146.72), the two most expensive real CORES. All 3 addons
+together: 380.02 ALM/cell, 36.9% of the real per-cell total.
+
+**Real, honest headline: 251,680 / 1030.52 = ~244 cells** -- closely
+matching Alan's own real, remembered historical ceiling of ~250 cells
+from the OLD full-fat design, but for a newly-identified, different
+reason (addon cost + real connectivity cost on the CURRENT redesigned
+shell), not whatever drove the original figure.
+
+Per-core real growth (addons excluded) mostly tracks `#572`'s own
+earlier ~2x connectivity-cost finding, with compare (5.27x) and branch
+(3.15x) -- both genuine per-outcome/per-direction routing cores --
+showing the largest real jumps; sequencer again shows ~0 growth,
+matching `#564`'s own real "no capture role" finding.
+
+Full detail: `points.md` `#579`.
+
+**Real, honest scope: this is HALF the real N=10 comparison.** v4's
+own matching N=10 build is the real, immediate next step -- including
+whether its real per-cell register savings compound meaningfully at
+this scale despite its higher real N=1 ALM cost.
+
+## Previous state (2026-09-01, project_assemble_v1.py extended with a real --shell flag -- can now generate N-cell arrays of either unicell_super_v3 or unicell_super_v4, per Alan's own request to test the shared-storage finding at real array scale, not just N=1. Two real N=10 projects generated, elaborate cleanly; real Quartus builds still pending, see `points.md` #578)
 
 ## Read this first (most recent)
 
