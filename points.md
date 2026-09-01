@@ -32342,3 +32342,50 @@ general 8-core array's own real ALM/Fmax cost -- a real, valuable next
 data point once Alan is ready to run it, directly answering the "what
 does a dedicated, single-purpose array cost" question this extension
 was built for.
+
+## 568. Real bug found via Alan's own actual Quartus run: `#567`'s own single-core-type generator instantiated modules under the wrong name -- affected ALL 8 core types identically, not just the one that happened to fail first. A real, honest finding: `#567`'s own verification was flawed the same way for every core, not just accumulator -- a loose `grep -q` check confirmed the EXPECTED error was present without ruling out OTHER, real errors sitting alongside it. Fixed and re-verified with a genuinely strict check across all 8. (Alan/Claude, 2026-08-31)
+
+**STATUS: `tools/project_assemble_v1.py` fixed. All 8 core types
+re-verified with a real, strict check -- confirming ONLY the expected
+`issp`-related gap, not just its presence alongside other, unnoticed
+errors. 361/361 Python tests still passing.**
+
+**The real bug, found from Alan's own actual Quartus run, not caught
+in simulation first:** `Error (12006): Node instance "C_0_0"
+instantiates undefined entity "accumulator_cell"`. The generator's own
+`generate_single_core_top()` used the bare base name
+(`"accumulator_cell"`) for every instantiation, but the real module
+declared inside the resolved file is `accumulator_cell_v2` -- the
+version suffix is part of the real module name, not just the
+filename. Confirmed directly: `resolve_core_file()` correctly found
+the newest real version (exactly as designed), but the generator then
+threw away that information and instantiated the wrong name.
+
+**A real, honest, more serious finding underneath the fix: this
+affected all 8 core types identically, and #567's own verification
+missed it for all 8, not just accumulator.** Every one of the 8
+generation calls goes through the same shared code path, so the same
+bug existed everywhere a resolved file happened to carry a version
+suffix beyond `_v1` -- which, given `resolve_core_file()`'s own real
+"always prefer the newest" behavior, is every core now that `#563`/
+`#564`/`#566` gave 7 of them real `_v2` files and nano a real `_v3`.
+`#567`'s own "all 8 pass" claim was built on `grep -q "Unknown module
+type: issp"` -- checking that the EXPECTED error was present, without
+checking that it was the ONLY real error. Quartus reports every
+undefined entity in one pass, so the real "accumulator_cell" error sat
+right alongside the expected, harmless "issp" one in the same output,
+and the loose check couldn't tell them apart.
+
+**Real fix:** the resolved module name (the actual filename minus
+`.v`, version suffix included) is now passed through explicitly from
+where it's already computed, rather than re-derived incorrectly
+inside the generator. Re-verified with a genuinely strict check this
+time -- confirming no unexpected "Unknown module type" errors exist
+anywhere in the output, not just that the expected one does -- across
+all 8 real core types.
+
+**Real, honest scope: fixed before it cost more than one real Quartus
+attempt.** Alan's own real accumulator run is the only one known to
+have hit this -- the fix applies uniformly, so regenerating any
+previously-attempted single-core build with the corrected tool
+resolves it.

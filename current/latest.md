@@ -1,4 +1,28 @@
-# Current State (as of 2026-08-31, project_assemble_v1.py extended: -S single-core-type generation mode + -x version-agnostic core path, all 8 core types verified, a real self-inflicted bug caught and fixed immediately, see `points.md` #567)
+# Current State (as of 2026-09-01, real bug found via Alan's actual Quartus run -- #567's single-core generator instantiated the wrong module name for every core type, own verification was flawed identically for all 8, not just accumulator -- fixed and re-verified strictly, see `points.md` #568)
+
+## Read this first (most recent)
+
+**2026-09-01, real bug found and fixed.** Alan's real accumulator
+Quartus run failed: `undefined entity "accumulator_cell"`. Root cause:
+the generator used the bare base name for instantiation, but the real
+module inside the resolved file is `accumulator_cell_v2` -- version
+suffix included. **This affected all 8 core types identically**, and
+`#567`'s own "all 8 pass" verification was flawed the same way for
+every one -- a loose `grep -q "Unknown module type: issp"` confirmed
+the expected error was present without checking it was the *only*
+real error.
+
+Fixed: the real resolved module name now passes through explicitly.
+Re-verified with a genuinely strict check (no unexpected "Unknown
+module type" errors anywhere, not just presence of the expected one)
+across all 8 real core types. 361/361 Python tests still passing.
+
+Full detail: `points.md` `#568`.
+
+**Real, honest scope: regenerate any previously-attempted single-core
+build with the now-fixed tool** -- the fix applies uniformly.
+
+## Previous state (2026-08-31, project_assemble_v1.py extended: -S single-core-type generation mode + -x version-agnostic core path, all 8 core types verified, a real self-inflicted bug caught and fixed immediately, see `points.md` #567)
 
 ## Read this first (most recent)
 

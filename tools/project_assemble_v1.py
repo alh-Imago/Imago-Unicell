@@ -124,7 +124,7 @@ def resolve_core_file(base_name, core_path):
     return candidates[-1][1]  # highest version wins
 
 
-def generate_single_core_top(top_name, base_name, n, rows, cols, cell_id_base=0x1000):
+def generate_single_core_top(top_name, module_name, base_name, n, rows, cols, cell_id_base=0x1000):
     """points.md #567: a genuinely simpler generation mode than the
     full 8-core shell -- no core_select, no CFG_SELECT broadcast,
     since there's only ever one real core type here. Still needs the
@@ -133,7 +133,6 @@ def generate_single_core_top(top_name, base_name, n, rows, cols, cell_id_base=0x
     Quartus can't prove every cell's own config is a known constant
     and collapse the array."""
     info = CORE_REGISTRY[base_name]
-    module_name = base_name
     positions = cell_positions(n, rows, cols)
     pos_set = set(positions)
     cfg_width = info["cfg_width"]
@@ -553,7 +552,8 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
         probe_src = os.path.join(VERILOG_DIR, "debug_issp_probe_v1.v")
         shutil.copy(probe_src, os.path.join(output, "debug_issp_probe_v1.v"))
 
-        top_rtl = generate_single_core_top(top_name, single_core, cells, rows, cols)
+        resolved_module_name = resolved[:-2]  # strip real ".v" -- the actual module name inside includes the version suffix
+        top_rtl = generate_single_core_top(top_name, resolved_module_name, single_core, cells, rows, cols)
         with open(os.path.join(output, f"{top_name}.v"), "w") as f:
             f.write(top_rtl)
         with open(os.path.join(output, f"{top_name}.sdc"), "w") as f:
