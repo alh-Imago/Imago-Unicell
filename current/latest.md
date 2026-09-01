@@ -1,4 +1,46 @@
-# Current State (as of 2026-08-31, SESSION PAUSED at 81% usage -- real, resumable state below, see `points.md` #565)
+# Current State (as of 2026-08-31, MILESTONE: external-storage mechanism proven on ALL 8 real cores -- nano's own conversion completed, 41/41 real checks pass across all 8, see `points.md` #566)
+
+## Read this first (most recent)
+
+**2026-08-31, MILESTONE: all 8 cores done.** `unicell_stripped_v3.v`
+(new -- real naming note: NOT v2, which already existed as separate,
+real, pre-existing work, `#189`/`#190`) completes nano's own
+conversion, 7/7 real checks pass on the first attempt, covering
+capture/fire, hold+reemit, and the real programming channel. All 8
+cores re-verified together: **41/41 real checks pass**, 361/361
+Python tests.
+
+**A real near-miss caught and avoided:** the natural filename
+`unicell_stripped_v2.v` already existed as real, separate, pre-existing
+project work (a "256-bit unified-latch rebuild," not used by the
+actual shell). Confirmed directly before overwriting anything -- this
+work is `unicell_stripped_v3.v` instead, cloned from v1 (what the
+shell actually uses), lineage stated plainly in its own header.
+
+**A real technical clarification resolved:** Alan's own freeze-
+centralization idea (decode `core_select` into 8 individual freeze
+lines) is real and valuable, but confirmed precisely NOT a substitute
+for the real write-select mux the shared buffer still needs --
+complementary correctness mechanism, not a resource-saving
+replacement. Needs zero changes to any core file; pure, separate,
+future shell-level work.
+
+Full detail: `points.md` `#566`.
+
+**Real, honest scope: this proves the LOGIC is sound for all 8 cores,
+not yet the real ALM/Fmax savings.** The real next steps, now genuinely
+ready to start: adapt the actual shell to wire all 8 into one real
+shared buffer (folding in freeze-centralization), then a real,
+comparative Quartus round testing Alan's own hypothesis that the real
+cost shows up in Fmax more than raw ALM count.
+
+**A real, separate future thread, deliberately deferred, not
+started:** moving hold/reemit/programming/relay-consume/error-
+detection UP to the shell generically, leaving nano with only its
+topology computation -- named and discussed this session, correctly
+kept out of scope for this pass.
+
+## Previous state (2026-08-31, SESSION PAUSED at 81% usage -- real, resumable state below, see `points.md` #565)
 
 ## Read this first (most recent) -- session paused, resume here
 

@@ -32216,3 +32216,77 @@ different real widths, then five more cores -- each step built on the
 last, none reversed. The one genuine rework (`#563`'s own testbench
 race) was a real bug caught and fixed, which is exactly what
 differential verification exists to catch, not evidence of churn.
+
+## 566. MILESTONE: the optional external-storage mechanism now proven on all 8 real cores -- nano's own conversion completed, 7/7 real checks pass on the first attempt, covering capture/fire, hold+reemit, and the real programming channel. 41/41 real checks total across all 8 cores. A real, honest technical clarification on freeze-centralization resolved along the way (complementary to, not a substitute for, the write-select mux), and a real near-miss avoided (unicell_stripped_v2.v already existed, real pre-existing work with a different meaning). (Alan/Claude, 2026-08-31)
+
+**STATUS: `unicell_stripped_v3.v` (new -- NOT v2, see real naming note
+below), `tb_nano_v3_diff_v1.v` (new). 7/7 real checks pass, covering
+three structurally distinct real mechanisms: basic two-arrival
+capture/fire (the NOR-gate computation itself), hold + a_reemit (the
+memory-cell behavior), and the real programming channel (a field
+write via `PROG_ID_TOPOLOGY` followed by `COMPLETE` re-arming). All 8
+cores re-verified together: 41/41 real checks pass. 361/361 Python
+tests still passing.**
+
+**A real, important near-miss caught and avoided, not glossed over:**
+the natural filename for this work, `unicell_stripped_v2.v`, already
+existed -- real, pre-existing, documented project history (`#189`/
+`#190`, a completely different "256-bit unified-latch rebuild" folding
+`data_reg` into `cmd_latch`, with its own real, multiple testbenches).
+Confirmed directly, before overwriting anything: that real v2 is NOT
+used by the actual shell (`unicell_super_v3.v` instantiates v1
+directly) -- separate, real, standalone work that was never adopted
+into the current shell. This file is named `unicell_stripped_v3.v`
+instead, cloned from v1 specifically (what the shell actually uses),
+with the real lineage distinction stated plainly in its own header so
+this doesn't get confused with the unrelated v2 later.
+
+**Real, honest scale confirmation:** nano's own conversion needed real,
+careful handling that none of the other 7 cores required -- 7 mutually
+exclusive priority branches (programming, internal feedback, A-update,
+A-reemit, capture, fire, relay) where several write DIFFERENT,
+OVERLAPPING bit-slices of the same 128-bit `cmd_latch` rather than one
+clean value each. Built as a single combinational block computing the
+full next `cmd_latch` value bit-slice by bit-slice, defaulting to
+unchanged and then applying each branch's own real, specific write --
+matching v1's own real sequential priority order exactly, including
+the real final line (`cmd_latch[13] <= next_ready`) that always wins
+regardless of which branch fired above it.
+
+**A real, honest technical clarification worked through and resolved
+correctly, not left ambiguous:** Alan's own freeze-centralization idea
+(decode `core_select` into 8 individual freeze lines instead of wiring
+the same signal to all 8) is real and valuable, but confirmed
+precisely: it is NOT a substitute for the real write-select mux the
+shared buffer still needs. OR-combining a frozen core's own unchanged
+state with the selected core's own new value would NOT correctly
+implement selection in general (unlike `#544`'s own lane-split OR-
+trick, which only worked because each lane was masked to zero
+elsewhere first) -- a genuine `case (core_select)` still has to decide
+whose computed result actually gets registered. Freeze centralization
+remains real and worth building, but as a complementary correctness
+mechanism (a non-selected core mustn't wrongly consume an arrival),
+not a resource-saving replacement for the mux. Confirmed this needs
+ZERO changes to any `_v2`/`_v3` core file -- every core already takes
+`freeze_in` as its own independent port; centralizing it is pure,
+separate, future shell-level work.
+
+**Real, honest scope: the shell-generalization idea (moving hold/
+reemit/programming/relay-consume/error-detection UP to the shell,
+leaving nano with only its topology computation) remains a real,
+deliberately deferred, separate future thread** -- named and discussed
+this session but not started, correctly kept out of scope for this
+conversion pass per the agreed sequencing.
+
+**Real, honest scope for the whole 8-core effort now that it's
+complete: this proves the LOGIC is sound for every core, not yet the
+real ALM/Fmax savings.** No real Quartus data exists for any `_v2`/
+`_v3` core standalone, nor for a real shell wiring all 8 into one
+actual shared buffer. **The real next steps, unchanged from `#564`'s
+own stated plan, now genuinely ready to start:** adapt the actual
+super carrier shell to wire all 8 converted cores into one real shared
+buffer (folding in the freeze-centralization discussed this session
+as part of that same integration work), then a real, comparative
+Quartus round -- standalone cores (should match today's real numbers
+exactly) plus a couple of full shells, testing Alan's own real
+hypothesis that the cost shows up in Fmax more than raw ALM count.
