@@ -32935,3 +32935,77 @@ concrete, negative answer for both mechanisms actually tried. v3
 remains the real, cheaper, faster design of the three -- the honest
 baseline to build on unless a genuinely different sharing strategy
 (not just a different mux shape) is worth trying.
+
+## 578. project_assemble_v1.py extended with a real --shell flag -- the full N-cell array generator (distinct from -S's own single-core-type mode) can now target either unicell_super_v3 (separate per-core storage) or unicell_super_v4 (the shared external-storage shell, #573), per Alan's own real, direct request to test whether the shared-storage cost finding from #575/#577 holds up at genuine array scale, not just N=1. Two real N=10 projects generated and elaboration-checked clean; the real Quartus scale comparison is the actual next step. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, generator extended and verified; two real N=10 projects
+generated, elaborate cleanly in Icarus. Real Quartus builds still
+pending -- the actual point of this entry.**
+
+**Why this was asked for, precisely:** Alan's own real, direct
+observation -- the earlier #573-#577 comparison was N=1 only, and this
+project's own real, hard-won history (`#552`-`#560`) already shows N=1
+numbers can mislead badly at scale (the 500-cell clock-fanout mystery,
+`#559`/`#560`, and the earlier single-core-type dataset's own real
+per-cell inflation once genuine cardinal connectivity replaces a
+constant-tied N=1 reference, `#572`). The real, honest question this
+entry exists to let Alan answer: does v3's own real per-cell cost
+inflate disproportionately at scale (as the old full-fat cell did,
+capping real card capacity around ~250 cells) in a way v4's fewer-
+register design might avoid, or does v4's own real N=1 ALM disadvantage
+just get carried through unchanged at scale? Neither has been measured
+yet -- this is a real, open question, not assumed answered by the N=1
+result.
+
+**`tools/project_assemble_v1.py` real changes:** a new `SHELL_REGISTRY`
+(`"v3"` -> `unicell_super_v3` + the original `V3_DEPENDENCIES`; `"v4"`
+-> `unicell_super_v4` + a new, real `V4_DEPENDENCIES` list confirmed
+directly against `top_unicell_super_test_v4.qsf`, `#573`'s own already-
+working build) threaded through `generate_top()`/`generate_qsf()`/
+`assemble()`, plus a new `--shell {v3,v4}` CLI flag (default `v3`,
+matching prior behavior exactly for anyone not using the new flag).
+v5 deliberately NOT added to the registry -- `#577` already found it
+performs the same as v4, not better, so an array build of it wouldn't
+answer a new question. The per-cell instantiation code itself needed
+NO changes beyond the module name substitution -- v4's own real port
+list is a strict superset of v3's (one extra output,
+`status_shared_state`), and Verilog's named-port connection already
+lets the generator's existing instantiation template simply omit it,
+matching the same convention already used for `status_core_select`.
+
+**Two real N=10 projects generated and verified, matching Alan's own
+requested scale:**
+```
+python3 tools/project_assemble_v1.py --man docs/man/mustang-f100-a10.man.json --cells 10 --shell v3 --output <dir>
+python3 tools/project_assemble_v1.py --man docs/man/mustang-f100-a10.man.json --cells 10 --shell v4 --output <dir>
+```
+Both real 4x3-grid arrays elaborate cleanly against a real Icarus
+Verilog toolchain (every dependency resolved, zero errors) -- the same
+level of confirmation `#552`'s own original N=9/N=500 generator output
+got before its first real Quartus attempt. **A real, honest, quick
+sim-liveness check (driving `ENTRY_DATA`/`CFG_SELECT` and watching
+`array_alive`) did NOT show toggling in a short observation window for
+EITHER shell** -- flagged plainly rather than glossed over, but not
+treated as a real design defect: the anti-pruning mechanism this
+generator relies on (`#554`) is a real, STRUCTURAL property Quartus's
+own synthesis-time optimizer respects (an unconstrained top-level
+input it cannot prove constant), not something a short, arbitrarily-
+seeded simulation window is the right tool to confirm either way --
+and the identical result on both shells (not one working, one not)
+points at the quick testbench's own limited scope rather than a real
+asymmetric regression from this entry's change. The real, authoritative
+confirmation remains what it's always been for this generator: an
+actual Quartus build, same as `#552`-`#555`.
+
+**Zero regression:** 361/361 Python tests still pass -- this tool has
+no dedicated automated test file, checked directly (none exists), so
+the full suite plus a real syntax check plus two real generation runs
+is the honest extent of verification performed here.
+
+**Real, honest scope: no real Quartus data yet for either N=10 array.**
+That comparative build -- whether v3's real per-cell cost holds steady
+at N=10 the way `#572`'s own single-core-type data showed a plausible,
+expected, roughly-2x connectivity cost (not a runaway one), or whether
+either shell shows early signs of the kind of scale-dependent inflation
+`#559`/`#560` found once before -- is the actual, real next step, and
+the real point of extending this tool at all.

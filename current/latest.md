@@ -1,4 +1,32 @@
-# Current State (as of 2026-09-01, real, complete three-way comparative result -- both shared-storage attempts (wide mux, per-bit mask) land in the same real cost class, ~45-50% more ALM than v3's plain separate storage; the redesign thread is closed, not extended further without new direction, see `points.md` #577)
+# Current State (as of 2026-09-01, project_assemble_v1.py extended with a real --shell flag -- can now generate N-cell arrays of either unicell_super_v3 or unicell_super_v4, per Alan's own request to test the shared-storage finding at real array scale, not just N=1. Two real N=10 projects generated, elaborate cleanly; real Quartus builds still pending, see `points.md` #578)
+
+## Read this first (most recent)
+
+**2026-09-01, the real, remaining open question: does v3 vs v4's real
+N=1 cost gap hold, shrink, or invert at scale?** Alan's own real,
+direct point -- N=1 numbers have misled this project before (`#559`/
+`#560`'s clock-fanout mystery, `#572`'s own connectivity-cost dataset).
+`tools/project_assemble_v1.py` gained a real `--shell {v3,v4}` flag
+(default `v3`, zero behavior change for existing callers) so the
+already-proven N-cell array generator can target either shell. v5 not
+included -- `#577` already showed it ties v4, not worth a new array
+build.
+
+Two real N=10 projects generated (`--cells 10 --shell v3` / `v4`),
+both elaborate cleanly in Icarus. A quick sim-liveness spot check
+didn't show `array_alive` toggling in a short window for either shell
+-- flagged honestly, not treated as a defect (the real anti-pruning
+guard is a structural, synthesis-time property, and a real Quartus
+build -- the same authoritative confirmation this generator has always
+used, `#552`-`#555` -- is the actual next step, not a longer sim).
+
+Full detail, including the exact commands to regenerate: `points.md`
+`#578`.
+
+**Real, honest scope: no real Quartus data yet for either N=10 array.**
+That's the actual point of this entry and the real next step.
+
+## Previous state (2026-09-01, real, complete three-way comparative result -- both shared-storage attempts (wide mux, per-bit mask) land in the same real cost class, ~45-50% more ALM than v3's plain separate storage; the redesign thread is closed, not extended further without new direction, see `points.md` #577)
 
 ## Read this first (most recent)
 
