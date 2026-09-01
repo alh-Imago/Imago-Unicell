@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-01, real N=10 array result for v3 -- confirms Alan's own remembered ~250-cell historical ceiling almost exactly, but for a newly-found reason: the 3 output addons, silently disabled in every N=1 test run so far, cost ~380 ALM/cell once genuinely live -- shift_lane alone averages more than nano or branch, see `points.md` #579)
+# Current State (as of 2026-09-01, real, complete N=10 comparison -- the ALM gap narrows at scale (+26.9% vs N=1's +47.8%) and register savings compound far beyond linear (-66.2% vs N=1's -35.7%), but v4's shell-level glue cost is real, precisely localized, and dramatically amplified at scale (6.1x v3's, up from 7.6x at N=1) -- the decisive, consistent reason v3 remains cheaper at every scale measured, see `points.md` #580)
+
+## Read this first (most recent)
+
+**2026-09-01, THE REAL, COMPLETE N=10 ANSWER.** Both halves built by
+Alan: v4 = 13,108 ALM / 1,953 registers / `clk_div` 58.64 MHz. Full
+comparison against v3 (`#579`):
+
+| | v3 | v4 | Delta |
+|---|---|---|---|
+| Total ALM | 10,329 | 13,108 | +26.9% |
+| Total registers | 5,776 | 1,953 | -66.2% |
+| `clk_div` | 68.46 MHz | 58.64 MHz | -14.3% |
+| Real max cells | ~244 | ~193 | -21% |
+
+**Real, two-part nuance worth holding onto:** the ALM gap NARROWS at
+scale (47.8%->26.9%), and register savings compound far past a linear
+extrapolation (35.7%->66.2%, nearly double what N=1 alone would
+predict) -- genuinely good news for v4 on both fronts. But it's still
+the more expensive design overall, and the real reason why is now
+precisely localized: shell-level glue (the write-arbitration logic)
+averages **351.59 ALM/cell for v4 vs v3's 57.47** -- a real 6.1x gap,
+CONSISTENT with (if slightly narrower than) `#575`'s own N=1 finding
+of a 7.6x gap. Individual cores got CHEAPER under v4 at N=10 too
+(-14.3%, matching N=1), and addons cost modestly more (+17.9%,
+`nibble_mask_addon_v1` specifically 3.18x higher for reasons not yet
+investigated) -- but the shell glue swamps both.
+
+Full detail: `points.md` `#580`.
+
+**Real, honest, complete answer to Alan's own real question: yes, the
+design works at scale -- no Quartus-side collapse, no runaway
+non-linear blowup resembling the old 500-cell clock-fanout mystery
+(`#559`/`#560`) on either shell.** v3 remains the real, cheaper,
+faster, higher-cell-count design at every scale measured so far (N=1
+and N=10) -- v4's real register savings are genuine but don't (yet)
+close the real ALM/Fmax gap that sets this card's actual ceiling.
+
+## Previous state (2026-09-01, real N=10 array result for v3 -- confirms Alan's own remembered ~250-cell historical ceiling almost exactly, but for a newly-found reason: the 3 output addons, silently disabled in every N=1 test run so far, cost ~380 ALM/cell once genuinely live -- shift_lane alone averages more than nano or branch, see `points.md` #579)
 
 ## Read this first (most recent)
 

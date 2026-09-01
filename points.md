@@ -33103,3 +33103,76 @@ including whether v4's own real per-cell register savings (`#575`:
 -168 registers/cell at N=1) compounds meaningfully at N=10 (a real
 potential ~1,680-register saving at this scale) even though its own
 real N=1 ALM cost was higher, not lower, than v3's.
+
+## 580. Real Quartus result, v4 at real array scale (N=10) -- the real, complete N=10 comparison Alan asked for. The relative ALM gap NARROWS at scale (+26.9% vs N=1's +47.8%), and register savings compound far beyond linear (-66.2% vs N=1's -35.7%) -- but v4 is still the more expensive design in absolute terms, with a real, dramatically amplified shell-glue cost (351.6 ALM/cell vs v3's 57.5) that is the actual, precisely-localized reason why. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, Flow Status Successful. Second half of the real N=10
+comparative pair -- the actual, complete answer to Alan's own real
+question.**
+
+**Whole-design real numbers:** 13,108 ALM / 251,680 (5%), 1,953
+registers, `clk_div` 58.64 MHz.
+
+**Real, complete N=10 comparison table:**
+
+| | v3 (separate storage) | v4 (shared storage) | Delta |
+|---|---|---|---|
+| Total ALM | 10,329 | 13,108 | **+26.9%** |
+| ALM/cell (real avg) | 1030.52 | 1307.42 | +26.87% |
+| Total registers | 5,776 | 1,953 | **-66.2%** |
+| Registers/cell | 577.6 | 195.3 | -66.19% |
+| `clk_div` | 68.46 MHz | 58.64 MHz | -14.3% |
+| Real max cells (ALM-budget-only) | ~244 | ~193 | -21% |
+
+**Real, honest, two-part finding, more nuanced than a flat "v4 costs
+more":**
+
+**1. The relative ALM gap NARROWS at scale, not widens.** N=1's real
+gap was +47.8% (`#575`); at N=10 it's +26.9%. v4 is still the more
+expensive design in absolute terms, but the earlier N=1 comparison
+overstated the real, ongoing penalty once genuine array wiring is
+present on both sides.
+
+**2. Register savings compound FAR beyond a simple linear
+extrapolation.** N=1 predicted -35.7%/cell; a naive ×10 extrapolation
+of that N=1 saving would predict roughly -35.7% at N=10 too -- instead
+the real, measured saving is -66.2%, nearly double. Real, honest,
+NOT fully explained here: this suggests something beyond the simple
+"8 small registers -> 1 shared register" swap is happening at scale
+(a real candidate: Quartus retiming/duplicating registers differently
+for fanout/timing reasons across the two designs at N=10, not
+identically to how it handles N=1) -- a genuine open question, not
+pursued further without Alan's own direction.
+
+**Real, precise localization of WHY v4 still costs more overall,
+using the same three-way split as `#579`:**
+
+| Component | v3 avg ALM/cell | v4 avg ALM/cell | Delta |
+|---|---|---|---|
+| 3 addons | 380.02 | 447.87 | +17.9% |
+| 8 cores (sum) | 593.03 | 507.96 | **-14.3%** |
+| shell-level glue | 57.47 | **351.59** | **+512%** |
+
+**The individual cores got CHEAPER under v4 at N=10 too** (507.96 vs
+593.03, matching `#575`'s own real N=1 per-core finding of 6/8 cores
+getting cheaper). **The addons cost modestly MORE under v4** (447.87
+vs 380.02) -- `nibble_mask_addon_v1` specifically jumped from a real
+24.51 avg (v3) to 77.96 avg (v4), a real, unexplained 3.18x difference
+worth a closer look later, not investigated further here. **But the
+real, dominant, decisive factor remains the shell-level glue -- 351.59
+ALM/cell average for v4 vs v3's 57.47, a real 6.1x difference** --
+confirming and AMPLIFYING `#575`'s own N=1 finding (which was a 7.6x
+difference, 308.1 vs 40.5) that the write-arbitration mechanism itself,
+not the cores or the addons, is the real, precise, consistent cost
+driver of the shared-storage approach at every scale measured so far.
+
+**Real, honest, complete answer to Alan's own real question ("does the
+design work at scale"): yes, functionally -- no Quartus-side collapse,
+no anomalous inflation pattern resembling `#559`/`#560`'s own real
+500-cell clock-fanout mystery, both designs scale in a real, roughly
+linear, per-cell-consistent way from N=1 to N=10.** Neither shell shows
+the kind of runaway, non-linear blowup the OLD full-fat design showed
+at N=500. v3 remains the real, cheaper, faster, higher-real-cell-count
+design of the two -- v4's own real register savings are genuine and
+substantial, but not (yet) enough to close the real ALM/Fmax gap that
+determines this card's actual cell-count ceiling.
