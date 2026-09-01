@@ -32809,3 +32809,80 @@ without paying this shell-level tax is a real, open, unstarted
 question -- not pursued further without Alan's own direction, per this
 project's own standing discipline of stopping at real, honest findings
 rather than immediately chasing a fix.
+
+## 576. Real, redesigned shared-storage write mechanism -- unicell_super_v5.v, per-bit "chip-enable" write instead of v4's own wide value-select mux. Per Alan's own real, precise reframing: cores stay permanently wired to the shared register like chips on a bus, only the currently enabled core's own real bits get written, everything else holds. Sim-verified clean on the first real attempt (no repeat of v4's own write-mux race, a structurally different mechanism). Real Quartus target built, not yet run -- the actual test of whether this recovers v4's own real ALM cost. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, sim-verified, third leg of the comparative pipeline.
+Real Quartus number still pending.**
+
+**Alan's own real framing, direct quote paraphrased faithfully:**
+cores should stay wired to the shared register "like RAM chips on a
+bus... they are all connected all the time, the only control they
+have is a chip enable... they stay connected, they just ignore the
+signals unless told to look at them." This is a real, precise,
+different mechanism from `#573`'s own value-select mux, not a restated
+version of it.
+
+**`unicell_super_v5.v` (new)** -- cloned from `unicell_super_v4.v`.
+IDENTICAL in every respect except the one real mechanism this entry
+is about: v4 computed a full 170-bit `shared_state_next` via an 8-way
+`case` (each branch a real, different core's own output, zero-padded
+up to 170 bits), then registered the WHOLE word every cycle,
+regardless of the active core's own real width. v5 instead builds a
+per-core `write_mask[169:0]` (all-ones across that core's own real
+width, zero above) and does a genuine per-BIT masked write:
+`shared_state <= (shared_state & ~write_mask) | (shared_state_next &
+write_mask)`. Bits outside the active core's own real width simply
+HOLD, never force-zeroed by a narrower core's own zero-padding.
+
+**Real, precise reasoning for why this should cost less, stated as a
+real bet on Quartus's own optimizer, not a guarantee:** for any bit
+position only the WIDEST core (nano, 170 bits) ever reaches -- roughly
+the top third of the register, bits [169:117] -- every OTHER core's
+own `write_mask` bit at that position is a compile-time-constant 0.
+Since `shared_state_next[bit] & write_mask[bit]` is forced to 0
+whenever `write_mask[bit]` is 0 regardless of what `shared_state_next
+[bit]` computes, every real contribution to that bit from a core whose
+mask never reaches it is provably dead logic -- a real bet that
+Quartus's own boolean optimizer can find and prune this per bit,
+collapsing what was an 8-way selector everywhere in v4 down to a
+genuine tiered structure: full 8-way selection only for the lowest 23
+bits (every core reaches there), narrowing progressively as bit
+position rises, down to a plain 2-way "hold vs nano" select for the
+top 53 bits. **Not yet confirmed on real Quartus data -- the real,
+immediate next step.**
+
+**Real, honest functional check performed, not assumed:** does
+letting unrelated bits hold (rather than force-zeroing them) change
+any real behavior? No, confirmed directly -- every core's own
+`ext_state_in` only ever reads its OWN real width slice of
+`shared_state` (`shared_state[W-1:0]`, unchanged from v4), so a
+narrower core never sees bits beyond its own width regardless of what
+they hold. The one core that DOES read the full 170 bits (nano) is,
+like every other core, dominated by its own `cfg_valid`-driven reset on
+reselection (matching `#563`/`#564`'s own already-proven reconfigure
+behavior) -- stale held bits from a prior core's own activity don't
+survive a real reselect.
+
+**`tb_unicell_super_v5.v` (new)** -- cloned from `tb_unicell_super_v4.v`
+verbatim, same 8 real checks including the two shared-register-specific
+ones from `#573`. **All pass on the very first real attempt**, no
+repeat of v4's own genuine write-mux race (structurally impossible
+here -- the per-bit mask is itself keyed on `write_select`, the same
+already-correct effective select used everywhere else, and there's no
+separate "whole word vs one core's word" conflict to race against).
+
+**`top_unicell_super_test_v5.v` (new)** -- cloned from
+`top_unicell_super_test_v4.v`, same exact 8-core sequence, same ISSP
+convention, DUT swapped to `unicell_super_v5`. Sim-verified clean via
+a real top-level testbench, first attempt, deterministic across repeat
+runs.
+
+**Real Quartus target built, matching the established template exactly:**
+`top_unicell_super_test_v5.qsf`/`.sdc`. **Not yet run** -- the real
+test of whether this per-bit mechanism actually recovers v4's own real
++47.8% ALM cost (`#575`) while keeping its real -35.7% register saving,
+or whether Quartus's own optimizer doesn't prune as cleanly as
+reasoned above. Full regression clean throughout this entry: the v5
+shell testbench, the v5 top-level self-test, both v3 and v4 top-level
+self-tests unchanged, and the full 361-test Python suite.

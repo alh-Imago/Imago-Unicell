@@ -1,4 +1,35 @@
-# Current State (as of 2026-09-01, real, complete comparative Quartus result for the shared-storage mechanism -- costs +47.8% more total ALM despite cutting registers by 35.7%, root cause localized to the shell-level write-mux, not the cores themselves, see `points.md` #575)
+# Current State (as of 2026-09-01, real, redesigned shared-storage write mechanism built and sim-verified -- unicell_super_v5.v, per-bit chip-enable write per Alan's own real bus framing, real Quartus target built, awaiting the real number, see `points.md` #576)
+
+## Read this first (most recent)
+
+**2026-09-01, v5: per-bit "chip enable" write, replacing v4's own wide
+value-select mux.** Per Alan's own real, precise framing -- cores stay
+permanently wired to the shared register like chips on a bus, only the
+enabled one's own bits get written, everything else holds -- not a
+restatement of v4's mux, a structurally different mechanism.
+`unicell_super_v5.v`: same 170-bit shared register as v4, but written
+via `shared_state <= (shared_state & ~write_mask) | (shared_state_next
+& write_mask)`, `write_mask` all-ones across the active core's own
+real width, zero above. Bits only the widest core (nano) ever reaches
+should collapse to a plain 2-way hold-vs-nano select instead of an
+8-way one -- a real, stated bet on Quartus's own optimizer pruning
+dead per-bit logic, not yet confirmed.
+
+Sim-verified clean on the FIRST real attempt, both the shell testbench
+and a real full top-level self-test (`top_unicell_super_test_v5.v`) --
+no repeat of v4's own genuine write-mux race, since this mechanism has
+no separate "whole word vs one core" conflict to race against. Full
+regression clean: v3/v4 top-level self-tests unchanged, 361/361 Python
+tests. Real Quartus target built (`top_unicell_super_test_v5.qsf`/
+`.sdc`), **not yet run**.
+
+Full detail: `points.md` `#576`.
+
+**Real, honest scope: the actual test -- whether this recovers v4's
+own real +47.8% ALM cost while keeping its -35.7% register saving --
+is still pending Alan's own real Quartus build.**
+
+## Previous state (2026-09-01, real, complete comparative Quartus result for the shared-storage mechanism -- costs +47.8% more total ALM despite cutting registers by 35.7%, root cause localized to the shell-level write-mux, not the cores themselves, see `points.md` #575)
 
 ## Read this first (most recent)
 
