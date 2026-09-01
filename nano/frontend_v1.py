@@ -79,10 +79,14 @@ class FrontendController:
         missing = [k for k in required if not fields.get(k)]
         if missing:
             return {"ok": False, "error": f"missing required field(s): {', '.join(missing)}"}
+        single_core = fields.get("single_core") or None
+        core_path = fields.get("core_path") or None
+        probe_name = fields.get("probe_name") or None
         try:
             result = project_assemble_v1.assemble(
                 fields["man_path"], int(fields["cells"]), fields["output"],
                 top=fields.get("top") or None,
+                single_core=single_core, core_path=core_path, probe_name=probe_name,
             )
         except Exception as e:
             return {"ok": False, "error": str(e)}
@@ -90,6 +94,12 @@ class FrontendController:
         cli = f"python3 tools/project_assemble_v1.py --man {fields['man_path']} --cells {fields['cells']} --output {fields['output']}"
         if fields.get("top"):
             cli += f" --top {fields['top']}"
+        if single_core:
+            cli += f" -S {single_core}"
+        if core_path:
+            cli += f" -x {core_path}"
+        if probe_name:
+            cli += f" -P {probe_name}"
         result["ok"] = True
         result["cli_equivalent"] = cli
         return result
@@ -180,13 +190,17 @@ def page_cells(result: Optional[Dict[str, Any]] = None) -> str:
     if result is not None:
         cls = "ok" if result.get("ok") else "err"
         if result.get("ok"):
+            core_line = f'Core type: {result["single_core"]} (resolved to {result["resolved_file"]})<br>' if result.get("single_core") else ""
+            probe_line = f'ISSP probe: {result["probe_name"]} -- remember to generate the real issp IP in Quartus before compiling<br>' if result.get("probe_name") else "No ISSP probe (LED-based anti-pruning check works independently)<br>"
             result_html = (
                 f'<div class="result {cls}"><b>Wrote {result["files_written"]} files to:</b> {result["output"]}<br>'
-                f'Grid: {result["rows"]}x{result["cols"]}, real ALM budget: {result["alm_total"]:,}'
+                f'Grid: {result["rows"]}x{result["cols"]}, real ALM budget: {result["alm_total"]:,}<br>'
+                f'{core_line}{probe_line}'
                 f'<h2>Equivalent CLI</h2><pre>{result["cli_equivalent"]}</pre></div>'
             )
         else:
             result_html = f'<div class="result {cls}"><b>Error:</b> {result.get("error")}</div>'
+    core_options = "".join(f'<option value="{c}">{c}</option>' for c in project_assemble_v1.CORE_REGISTRY)
     return f"""<!doctype html><html><head><title>Create cells</title>{PAGE_CSS}</head><body>
 {NAV}
 <h1>Step 2: generate a real Quartus project{help_link('doc3-project-assemble-v1py-real-n-cell-quartus-project-generator')}</h1>
@@ -203,6 +217,10 @@ hit and fixed, #554).</div>
 <label>Cell count<input name="cells" type="number" required></label>
 <label>Output folder (outside this repo -- required, #556)<input name="output" required></label>
 <label>Top-level module name (optional)<input name="top"></label>
+<label>Single core type (optional -- leave blank for the full 8-core shell, #567)
+<select name="single_core"><option value="">(full 8-core shell)</option>{core_options}</select></label>
+<label>Core source path (optional, default fpga/verilog -- #567, matches by base name, newest version wins)<input name="core_path"></label>
+<label>ISSP probe name (optional -- omitted by default, #569; the LED-based check works without it)<input name="probe_name" placeholder="e.g. DEBUG_PROBE"></label>
 <button type="submit">Generate project</button>
 </form>
 {result_html}

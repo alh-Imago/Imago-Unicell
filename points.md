@@ -32424,3 +32424,32 @@ earlier this session on the comparator build, `#549`) would have
 diluted the real, per-core-type comparison being sought. Every
 previously-generated build in this batch should be regenerated with
 `-S <core> --output <dir>` (no `-P`) for the cleanest real numbers.
+
+## 570. Front end updated to reflect the real generator extensions (`#567`/`#569`) -- single-core-type dropdown, real core-path override, optional ISSP probe name, all threaded through the Create Cells page and its Controller, matching the exact real CLI flags. Verified both at the Controller level and via real HTTP requests, including the actual form fields rendering correctly. (Alan/Claude, 2026-08-31)
+
+**STATUS: `nano/frontend_v1.py` updated. `FrontendController.create_
+project()` now accepts and passes through `single_core`, `core_path`,
+`probe_name` -- calling `project_assemble_v1.assemble()`'s own real,
+already-extended signature directly, the same single source of truth
+this page has used since `#557`. The Create Cells page's own form
+gained three real fields: a dropdown for single-core-type selection
+(populated directly from `project_assemble_v1.CORE_REGISTRY`, so it
+can never drift out of sync with the real, available core types), a
+core-path override, and an optional probe name. The generated CLI-
+equivalent shown on the page correctly includes `-S`/`-x`/`-P` only
+when actually used.**
+
+**Verified two real ways, matching this page's own established
+discipline:** the Controller called directly (single-core-type +
+named probe, and full-shell + no-probe, both confirmed producing
+correct real results and correct CLI-equivalent strings); and the
+full real HTTP server, confirming the new form fields genuinely
+render on `GET /cells` and a real `POST` with all three new fields
+set produces the correct result end to end. 361/361 Python tests
+still passing.
+
+**Real, honest scope: pure UI wiring, no new generation logic.**
+Everything real about single-core-type generation, the core-path
+override, and the optional probe was already built and verified in
+`#567`/`#568`/`#569` -- this entry only makes those same real
+capabilities reachable from the browser, not just the command line.

@@ -1,4 +1,23 @@
-# Current State (as of 2026-09-01, ISSP probe made genuinely optional in project_assemble_v1.py -- -P/--probe, omitted by default, confirmed the LED-based check works with zero errors on its own, see `points.md` #569)
+# Current State (as of 2026-08-31, front end updated to expose the real generator extensions -- single-core dropdown, core-path override, optional probe name, all threaded through Create Cells, see `points.md` #570)
+
+## Read this first (most recent)
+
+**2026-08-31, front end brought in line with #567/#569.**
+`nano/frontend_v1.py`'s Create Cells page gained three real fields: a
+single-core-type dropdown (populated live from `project_assemble_v1.
+CORE_REGISTRY`, can't drift out of sync), a core-path override, and an
+optional ISSP probe name -- all threaded through the same Controller
+that already calls `assemble()` directly. Verified at the Controller
+level and via real HTTP requests, both single-core+probe and full-
+shell+no-probe scenarios. 361/361 Python tests passing.
+
+Full detail: `points.md` `#570`.
+
+**Real, honest scope: pure UI wiring.** All the real generation logic
+was already built and verified in `#567`-`#569` -- this just makes it
+reachable from the browser too.
+
+## Previous state (2026-09-01, ISSP probe made genuinely optional in project_assemble_v1.py -- -P/--probe, omitted by default, confirmed the LED-based check works with zero errors on its own, see `points.md` #569)
 
 ## Read this first (most recent)
 
