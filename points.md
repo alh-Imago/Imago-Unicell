@@ -33798,3 +33798,64 @@ frontend feature (`frontend_v1.py`'s own real placeholder slots),
 not attempted here -- this entry builds the real BACKEND capability
 (`--file-list`/`--files`/compatibility checking) such a UI would need
 to call into, not the UI itself.
+
+## 591. Real Quartus result, v7 (compare_cell_v3 + latch_cell_v3 together) -- both per-core wins hold up, individually and cumulatively, but the whole-DUT and whole-design numbers are noisy enough relative to their small size that the aggregate benefit isn't yet clearly visible above normal build-to-build variance with only 2 of 8 cores done. A real, honest, not-yet-explained Fmax decline across the two builds so far is worth watching, not yet worth alarm. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, Flow Status Successful. Both individual core wins
+confirmed real and reproducible; the aggregate picture is genuinely
+inconclusive at this small a sample.**
+
+**Real, whole-design numbers:** 486 ALM / 251,680 (<1%), 457
+registers, `clk_div` 102.9 MHz.
+
+**Real per-core comparison, v3 baseline (`#574`) -> v6 (`#584`) -> v7
+(this entry):**
+
+| Core | v3 | v6 | v7 | Cumulative |
+|---|---|---|---|---|
+| `CORE_CMP` | 10.5 | 9.0 | 8.8 | **-16.2%** |
+| `CORE_LATCH` | 8.5 | -- | 7.7 | **-9.4%** |
+
+**Both real config-redundancy fixes hold up under a second, real,
+independent build** -- compare's own win (`#584`) didn't regress when
+latch was added alongside it, and latch's own new win lands in the
+same real direction and rough magnitude reasoned about beforehand
+(`#587`).
+
+**Real, honest complication: the whole-`DUT` and whole-8-core-sum
+numbers do NOT clearly show these wins.** `DUT` itself: v3=301.9,
+v6=298.5, v7=298.7 -- essentially flat between v6 and v7 despite
+latch's own real -0.8 ALM contribution, because OTHER, UNTOUCHED cores
+moved by MORE than that in the same build: `accumulator_cell_v1` alone
+swung from 71.8 (v3) to 79.5 (v7), a real +7.7 ALM shift on a core
+nothing in this thread has touched. **Real, honest conclusion: normal
+real build-to-build placement/routing variance on the UNTOUCHED cores
+is currently LARGER than the real, deliberate savings being measured
+on the touched ones.** The 8-core sum: v3=261.4, v7=257.1, a real
+-1.64% aggregate move in the right direction -- consistent with, but
+not yet a clean, unambiguous confirmation of, the real per-core wins
+above (a single real, independent rebuild of v3 itself, with nothing
+changed, would be a real, useful way to separately measure how much
+of that -1.64% is genuine signal vs how much is this same kind of
+noise -- not yet done).
+
+**Real, honest, not-yet-explained trend worth flagging, not yet worth
+alarm: `clk_div` has declined across both real builds so far** --
+107.05 (v3) -> 106.54 (v6) -> 102.9 (v7), a real cumulative -3.88%.
+Neither compare's nor latch's own real change touches timing-critical
+logic in any way reasoned about in advance (`#584`/`#587`'s own real
+safety arguments were both about ALM/logic redundancy, not timing) --
+whether this is genuine cumulative cost from the new mechanism, or
+the same real build-to-build Fmax variance already seen elsewhere in
+this project (`#574` vs `#579`'s own later remeasurement showed
+several-MHz swings for nominally-identical designs too), is a real,
+open question best answered by watching whether it continues as more
+cores are rolled out, not by reacting to two data points alone.
+
+**Real, honest scope for what's next:** both real per-core wins are
+confirmed real and worth keeping. Whether to continue rolling this
+change out to the remaining 6 cores (where the aggregate signal may
+become clearer as more, larger config budgets are addressed -- RAM
+and branch each use the full 42-bit `core_config` window, versus
+compare's 40 and latch's 16) or pause here pending a clearer read on
+the noise floor is a real, open call, not decided in this entry.

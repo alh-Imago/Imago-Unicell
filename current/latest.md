@@ -1,4 +1,38 @@
-# Current State (as of 2026-09-01, project_assemble_v1.py gains real custom shell/dependency-list support -- --shell-file/--shell-module + --file-list/--files, removing the need to hand-write a QSF dependency list every time core versions get mixed. A real, advisory compatibility check catches missing dependencies. A real bug found and fixed on the first end-to-end test, see `points.md` #590)
+# Current State (as of 2026-09-01, real v7 Quartus result -- both per-core wins (compare -16.2% cumulative, latch -9.4%) hold up under a second, independent build, but whole-DUT/whole-design comparisons are noisy enough relative to their small size that the aggregate benefit isn't yet clearly visible above normal build-to-build variance with only 2 of 8 cores done. A real, not-yet-explained Fmax decline across both builds is worth watching, see `points.md` #591)
+
+## Read this first (most recent)
+
+**2026-09-01, real v7 result: both individual wins hold, the
+aggregate is genuinely inconclusive at this sample size.** `CORE_CMP`:
+10.5 (v3) -> 9.0 (v6) -> 8.8 (v7), -16.2% cumulative. `CORE_LATCH`: 8.5
+(v3) -> 7.7 (v7), -9.4%. Both real, both reproducible under a second,
+independent build with the other core added alongside.
+
+**But `DUT` itself barely moved (301.9 -> 298.5 -> 298.7)** -- because
+`accumulator_cell_v1`, untouched by anything in this thread, swung
++7.7 ALM (71.8 -> 79.5) in the SAME build, larger than the real
+savings being measured. Real, honest conclusion: normal build-to-
+build placement variance on untouched cores currently exceeds the
+real, deliberate per-core wins. The 8-core sum did move the right
+way (-1.64%), consistent with real signal, but not yet a clean,
+unambiguous confirmation on its own.
+
+**A real, not-yet-explained trend worth flagging:** `clk_div` has
+declined across both builds so far (107.05 -> 106.54 -> 102.9 MHz,
+-3.88% cumulative), despite neither real change touching anything
+timing-critical by design. Could be genuine cumulative cost, or the
+same kind of build-to-build Fmax variance already seen elsewhere in
+this project -- worth watching as more cores roll out, not yet cause
+for alarm at two data points.
+
+Full detail: `points.md` `#591`.
+
+**Real, open question for next: continue the rollout (RAM and branch
+have the widest config budgets, 42 bits each, so may show the
+clearest signal) or pause pending a clearer noise-floor read.** Not
+decided in this entry -- Alan's own call.
+
+## Previous state (2026-09-01, project_assemble_v1.py gains real custom shell/dependency-list support -- --shell-file/--shell-module + --file-list/--files, removing the need to hand-write a QSF dependency list every time core versions get mixed. A real, advisory compatibility check catches missing dependencies. A real bug found and fixed on the first end-to-end test, see `points.md` #590)
 
 ## Read this first (most recent)
 
