@@ -490,6 +490,14 @@ def page_menu() -> str:
 <h2>VM / Workbench -- real, working</h2>
 <div class="real">A real, already-working browser tool: compile a
 program, watch it run, drive individual cells.</div>
+<div class="real">points.md #605: the workbench's grid can now be a real,
+CHECKED reflection of an actual assembler config -- set a MAN file
+path + cell count in the "Real target" panel, and every program/region
+loaded from then on is validated against the exact real N-cell layout
+<code>tools/project_assemble_v1.py</code> would build for that card,
+via the same real mirroring /man, /cells, and /walker already use
+(<code>vm_mirror_v1.py</code>, #601). Leave it unset for free mode --
+no real card correspondence claimed, same as before this entry.</div>
 <pre>python3 nano/workbench_v1.py
 # -&gt; http://localhost:7420</pre>
 

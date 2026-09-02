@@ -427,6 +427,182 @@ def test_real_server_load_region_auto_placement_end_to_end():
         server.shutdown()
 
 
+# ── real target reflection (points.md #605) ────────────────────────────
+# "the VM is a reflection of the supplied file from the assembler, and
+# it's this the workbench connects to" -- Alan's own direct framing.
+# Uses the real, existing MAN file -- no mocking of the mirror machinery.
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REAL_MAN = os.path.join(REPO_ROOT, "docs", "man", "mustang-f100-a10.man.json")
+
+FITS_DSL = """
+program fits {
+    place r1 as ram_constant at (0, 0) {
+        out: e
+        init_data: 1
+    }
+    place r2 as ram_flowing at (0, 1) {
+        in: w
+        out: s
+    }
+}
+"""
+
+OUT_OF_BOUNDS_DSL = """
+program too_big {
+    place r1 as ram_constant at (5, 5) {
+        out: e
+        init_data: 1
+    }
+}
+"""
+
+
+def test_set_target_establishes_real_bounds():
+    ctrl = WorkbenchController()
+    result = ctrl.set_target(REAL_MAN, 4)
+    assert result["ok"], result.get("error")
+    assert result["target"]["card_id"] == "mustang-f100-a10-01"
+    assert result["target"]["rows"] == 2
+    assert result["target"]["cols"] == 2
+    assert ctrl.session.mirror_bounds is not None
+    assert ctrl.session.mirror_bounds.cells == 4
+
+
+def test_set_target_bad_man_path_errors_cleanly():
+    ctrl = WorkbenchController()
+    result = ctrl.set_target("/no/such/file.man.json", 4)
+    assert not result["ok"]
+    assert ctrl.session is None  # no partial state left behind
+
+
+def test_current_target_none_by_default():
+    ctrl = WorkbenchController()
+    result = ctrl.current_target()
+    assert result["ok"] is True
+    assert result["target"] is None
+
+
+def test_current_target_reflects_set_target():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)
+    result = ctrl.current_target()
+    assert result["target"]["card_id"] == "mustang-f100-a10-01"
+
+
+def test_compile_with_target_accepts_program_that_fits():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)
+    result = ctrl.compile(FITS_DSL, "dsl")
+    assert result["ok"], result.get("diagnostics")
+    assert (0, 0) in ctrl.session.grid.cells
+    assert ctrl.session.mirror_bounds is not None  # target survives a compile
+
+
+def test_compile_with_target_rejects_program_out_of_bounds():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)
+    result = ctrl.compile(OUT_OF_BOUNDS_DSL, "dsl")
+    assert not result["ok"]
+    assert "(5,5)" in result["error"]
+    assert "mustang-f100-a10-01" in result["error"]
+
+
+def test_compile_target_persists_across_multiple_compiles():
+    """Real, direct confirmation that the target survives a REPLACE,
+    not just the first compile after set_target()."""
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)
+    ctrl.compile(FITS_DSL, "dsl")
+    result = ctrl.compile(OUT_OF_BOUNDS_DSL, "dsl")
+    assert not result["ok"]  # still checked against the real target
+
+
+def test_clear_target_returns_to_free_mode():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)
+    result = ctrl.clear_target()
+    assert result["ok"] is True
+    assert ctrl.session.mirror_bounds is None
+    # a program that would never fit the real target now compiles fine
+    result = ctrl.compile(OUT_OF_BOUNDS_DSL, "dsl")
+    assert result["ok"] is True
+
+
+def test_compile_without_ever_setting_target_is_unaffected():
+    """Real, honest regression guard: free-mode behavior for anyone who
+    never calls set_target() at all must be byte-identical to before
+    #605 existed."""
+    ctrl = WorkbenchController()
+    result = ctrl.compile(OUT_OF_BOUNDS_DSL, "dsl")
+    assert result["ok"] is True
+    assert ctrl.session.mirror_bounds is None
+
+
+def test_load_region_with_target_accepts_region_that_fits():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)
+    result = ctrl.load_region("reg1", FITS_DSL, "dsl")
+    assert result["ok"], result.get("error")
+    assert "reg1" in ctrl.regions
+
+
+def test_load_region_with_target_rejects_region_out_of_bounds():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)
+    result = ctrl.load_region("bad_reg", OUT_OF_BOUNDS_DSL, "dsl")
+    assert not result["ok"]
+    assert "(5,5)" in result["error"]
+    assert "bad_reg" not in ctrl.regions  # never partially loaded
+
+
+def test_load_region_rejection_does_not_disturb_existing_regions():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)
+    ctrl.load_region("good_reg", FITS_DSL, "dsl")
+    ctrl.load_region("bad_reg", OUT_OF_BOUNDS_DSL, "dsl")
+    assert "good_reg" in ctrl.regions
+    assert "bad_reg" not in ctrl.regions
+    assert (0, 0) in ctrl.session.grid.cells  # good_reg's own cell survives
+
+
+def test_load_region_without_target_is_unaffected():
+    """Real, honest regression guard for load_region()'s own pre-#605
+    behavior -- an out-of-(5,5) placement is perfectly fine with no
+    real target set (nothing to be "out of bounds" of)."""
+    ctrl = WorkbenchController()
+    result = ctrl.load_region("reg1", OUT_OF_BOUNDS_DSL, "dsl")
+    assert result["ok"], result.get("error")
+
+
+def test_real_server_set_target_and_compile_end_to_end():
+    server = serve(port=7439, open_browser=False)
+    try:
+        time.sleep(0.3)
+
+        status, body = _http_get(7439, "/target")
+        assert body["target"] is None
+
+        status, body = _http_post(7439, "/set_target", {"man_path": REAL_MAN, "cells": 4})
+        assert body["ok"] is True
+        assert body["target"]["card_id"] == "mustang-f100-a10-01"
+
+        status, body = _http_get(7439, "/target")
+        assert body["target"]["cells"] == 4
+
+        status, body = _http_post(7439, "/compile", {"source": OUT_OF_BOUNDS_DSL, "language": "dsl"})
+        assert body["ok"] is False
+        assert "(5,5)" in body["error"]
+
+        status, body = _http_post(7439, "/clear_target", {})
+        assert body["ok"] is True
+
+        status, body = _http_get(7439, "/target")
+        assert body["target"] is None
+    finally:
+        server.shutdown()
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

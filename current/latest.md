@@ -1,4 +1,33 @@
-# Current State (as of 2026-09-02, session paused per Alan's own request -- usage reset, continue next time. Pipeline walkthrough at Step 3 of 4 done (Walker, real and working). Two real, queued ideas captured at pause: #603 (LLVM IR now has a place to be tested) and #604 (a card-decoupled virtual substrate, arbitrarily large, plus a 3D extension, connecting to already-standing #520/#510/#511 threads). A real, self-inflicted ledger-ordering mistake was also caught and fixed this same pause -- see #600's own editorial note.
+# Current State (as of 2026-09-02, Step 4 of the walkthrough (Other tools) real work done: the workbench's own live grid can now be a genuine, checked reflection of a real assembler config -- per Alan's own direct framing, "the VM is a reflection of the supplied file from the assembler." See `points/points_active.md` #605)
+
+## Read this first (most recent)
+
+**2026-09-02, Step 4 (Other tools) done.** Unlike Steps 1-3, the
+`/menu` page's own claims about the workbench and compiler CLI were
+already honest (both verified directly, real tests passing). The real
+gap was underneath: the workbench had zero awareness of this session's
+own new mirroring infrastructure (`vm_mirror_v1.py`/`VMSession.
+from_man()`, `#601`) -- `compile()`/`load_region()` only ever built
+free, unconstrained sessions. Alan's own framing named the fix
+precisely: the VM should reflect "the supplied file from the
+assembler," and it's that the workbench connects to. Added
+`set_target()`/`clear_target()`/`current_target()` to
+`WorkbenchController` -- a real target, once set, PERSISTS across
+`compile()`/`load_region()` calls, rejecting (not silently accepting)
+anything that doesn't fit the real card layout, with real UI (a new
+"Real target" panel, not just an API) and new HTTP endpoints. Free
+mode (never calling `set_target()`) confirmed byte-identical to
+before. 14 new tests, 439/439 passing, zero regression. Full detail:
+`points/points_active.md` `#605`.
+
+**Composer remains the one real placeholder left in the whole
+toolchain** -- the pipeline walkthrough (Steps 1-4, `#599`-`#602`,
+`#605`) is otherwise complete. Real, standing next-session items,
+unchanged from last pause: `#603` (LLVM IR now has a place to be
+tested) and `#604` (card-decoupled virtual substrate + 3D extension +
+training buckets), both captured, nothing built yet.
+
+## Previous state (as of 2026-09-02, session paused per Alan's own request -- usage reset, continue next time. Pipeline walkthrough at Step 3 of 4 done (Walker, real and working). Two real, queued ideas captured at pause: #603 (LLVM IR now has a place to be tested) and #604 (a card-decoupled virtual substrate, arbitrarily large, plus a 3D extension, connecting to already-standing #520/#510/#511 threads). A real, self-inflicted ledger-ordering mistake was also caught and fixed this same pause -- see #600's own editorial note.
 
 ## Read this first (most recent)
 

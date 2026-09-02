@@ -2165,3 +2165,76 @@ future directions -- worth remembering they could eventually connect
 rather than a real card's own small one), but that connection is
 speculative and not claimed here.
 
+## 605. Step 4 of the walkthrough (Other tools), real work done: the workbench's own live grid can now be a genuine, CHECKED reflection of a real assembler config, per Alan's own direct framing -- "the VM is a reflection of the supplied file from the assembler, and it's this the workbench connects to." (Alan/Claude, 2026-09-02)
+
+**The real gap, confirmed directly before fixing anything:** Step 4's
+page (`/menu`) pointed at two genuinely real, separately-working tools
+(`workbench_v1.py`, `dsl_cli_v1.py` -- both verified directly: the
+workbench's own 28-test suite passing, a fresh live smoke test of its
+`compile()`; the CLI run end-to-end against a real DSL file) -- so
+unlike Steps 1-3, the page's own claims were already honest. But the
+workbench itself, checked directly, had ZERO awareness of this
+session's own new mirroring infrastructure (`vm_mirror_v1.py`/
+`VMSession.from_man()`, `#601`): `compile()`/`load_region()` only ever
+built free, unconstrained sessions -- no way for the workbench's own
+live grid to correspond to any real card's real N-cell layout at all.
+Alan's own framing named the real fix precisely: the VM should be a
+reflection of "the supplied file from the assembler," and it's THAT
+the workbench connects to -- not an arbitrary, disconnected shape.
+
+**`nano/workbench_v1.py`, `WorkbenchController`:** three new methods.
+`set_target(man_path, cells)` -- establishes a real target via
+`vm_mirror_v1.load_mirror_bounds()` (the SAME real function
+`VMSession.from_man()` already uses, no separate logic), resets to a
+fresh, empty, mirror-bound session. `clear_target()` -- real, explicit
+return to free mode. `current_target()` -- read-only introspection.
+The target, once set, PERSISTS across calls -- a real, deliberate
+choice matching "the VM is a reflection of the supplied file" as an
+ongoing state, not a one-shot check: `compile()` now checks
+`self.session.mirror_bounds` and, when set, routes through
+`VMSession.from_man(target.man_path, target.cells, ...)` instead of
+the old unconstrained `from_dsl()`/`from_python()`, rejecting (not
+silently accepting) any program that doesn't fit with a clear error
+naming the real card and the exact offending position.
+`load_region()` gets the equivalent real check -- every newly-bound
+region's own records are validated against `session.mirror_bounds`
+via `vm_mirror_v1.check_records_fit()` BEFORE being written into the
+grid, so a rejected region never partially loads and never disturbs
+regions already there (confirmed by a real test). Free mode (nobody
+ever calls `set_target()`) is confirmed byte-identical to before this
+entry -- a real, explicit regression test for exactly that.
+
+**New HTTP endpoints**, matching the file's own established
+convention: `POST /set_target`, `POST /clear_target`, `GET /target`.
+**Real UI added, not just an API:** a new "Real target" panel at the
+top of the workbench page -- MAN path + cell count fields, Set/Clear
+buttons, a live status line -- plus a small, real, separately-found
+gap fixed along the way: `compileProgram()`'s own JS only ever
+rendered `result.diagnostics`, silently swallowing the new (and, it
+turns out, `load_region()`'s own pre-existing) error-only response
+shape; fixed to fall back to a synthetic diagnostic entry so a real
+"doesn't fit the target" error is now actually visible in the UI,
+not just returned by the API and dropped on the floor.
+
+**Real, honest verification:** 14 new tests appended to `tests/vm/
+test_workbench_v1.py` (matching its own established controller-level +
+real-HTTP-server-level dual pattern) -- covering `set_target()`'s own
+real success/failure paths, target persistence across multiple
+`compile()` calls, `clear_target()`'s real return to free mode,
+`load_region()`'s own real accept/reject/no-partial-load behavior with
+a target set, and a full real HTTP round-trip
+(`/set_target`->`/compile`->`/clear_target`->`/target`) against a live
+server. Two explicit, direct regression tests confirm free-mode
+behavior (both `compile()` and `load_region()`, never calling
+`set_target()` at all) is unchanged from before this entry. Full
+suite: 439/439 passing (425 prior + 14 new), zero regression.
+
+**`nano/frontend_v1.py`'s own `/menu` page updated** to state this real
+new capability plainly, alongside the pre-existing, already-honest
+claims about the workbench and compiler CLI.
+
+**Real, honest scope: Composer remains the one real placeholder left**
+in the whole toolchain -- untouched by this entry, per its own already-
+decided real scope (`docs/stripped-cell/design-notes/
+composer_scope.md`).
+

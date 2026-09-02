@@ -53,6 +53,17 @@ API, row/col-keyed throughout, never an address anywhere:
                                           plus dsp_columns for real DSP-
                                           column-aware auto-placement (#377).
     POST /clear_region                 -- {"name"}
+    POST /set_target                     -- {"man_path", "cells"} -- points.md
+                                             #605: establishes a real MAN-file
+                                             target (vm_mirror_v1.py, #601) --
+                                             the live grid becomes a genuine,
+                                             checked reflection of that real
+                                             card/cell-count config, persisting
+                                             across compile()/load_region()
+                                             calls until changed or cleared.
+    POST /clear_target                     -- returns to free mode (no real
+                                               card correspondence claimed)
+    GET  /target                             -- the current real target, if any
     POST /step                           -- {"n": 1}
     POST /deliver                          -- {"row", "col", "direction", "value", "injected"}
     POST /inject                             -- {"row", "col", "value"}
@@ -78,6 +89,7 @@ from unicell_super_automaton_v1 import SuperGrid
 from unicell_automaton_v1 import N, S, E, W
 from loader_v1 import bind_shape
 from host_registry_v1 import HostResourceRegistry
+import vm_mirror_v1
 
 _DIRS = {"n": N, "s": S, "e": E, "w": W}
 
@@ -217,16 +229,70 @@ class WorkbenchController:
         # without risking a regression in what already works.
         self.registry = HostResourceRegistry()
 
+    # ── real target reflection (points.md #605) ────────────────────
+    #
+    # "the VM is a reflection of the supplied file from the assembler,
+    # and it's this the workbench connects to" -- Alan's own direct
+    # framing. Establishes a real MAN-file target (matching what
+    # tools/project_assemble_v1.py would actually build for `cells`
+    # cells on that card, via vm_mirror_v1.py/#601) that PERSISTS
+    # across compile()/load_region() calls until changed or cleared --
+    # the workbench's live grid becomes a genuine, checked reflection
+    # of that real config, not an arbitrary unconstrained shape.
+
+    def set_target(self, man_path: str, cells: int) -> Dict[str, Any]:
+        """Real, honest reset: establishes the target and starts a
+        fresh, empty, mirror-bound session -- same "clean starting
+        point" semantics `compile()` already has for a single program.
+        Any program/region loaded from here on (via `compile()` or
+        `load_region()`) is checked against this real card layout."""
+        try:
+            bounds = vm_mirror_v1.load_mirror_bounds(man_path, cells)
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+        self.session = VMSession(SuperGrid([]))
+        self.session.mirror_bounds = bounds
+        self.regions = {}
+        self.registry = HostResourceRegistry()
+        return {
+            "ok": True,
+            "target": {"card_id": bounds.card_id, "man_path": bounds.man_path,
+                       "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols},
+            "state": self.session.describe(),
+        }
+
+    def clear_target(self) -> Dict[str, Any]:
+        """Real, explicit return to free mode -- no card correspondence
+        claimed, matching every pre-#605 session's own real behavior."""
+        self.session = VMSession(SuperGrid([]))
+        self.regions = {}
+        self.registry = HostResourceRegistry()
+        return {"ok": True, "state": self.session.describe()}
+
+    def current_target(self) -> Dict[str, Any]:
+        bounds = self.session.mirror_bounds if self.session is not None else None
+        if bounds is None:
+            return {"ok": True, "target": None}
+        return {"ok": True, "target": {"card_id": bounds.card_id, "man_path": bounds.man_path,
+                                        "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols}}
+
     # ── single-program mode (#362, unchanged) ──────────────────────
 
     def compile(self, source: str, language: str = "dsl") -> Dict[str, Any]:
+        target = self.session.mirror_bounds if self.session is not None else None
         try:
-            if language == "python":
+            if target is not None:
+                kwargs = {"python": source} if language == "python" else {"dsl": source}
+                session = VMSession.from_man(target.man_path, target.cells, **kwargs)
+            elif language == "python":
                 session = VMSession.from_python(source)
             else:
                 session = VMSession.from_dsl(source)
         except CompileFailure as e:
             return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in e.diagnostics]}
+        except vm_mirror_v1.MirrorFitError as e:
+            return {"ok": False, "error": "program doesn't fit the real target ("
+                                           f"{target.card_id}, {target.cells} cells): " + "; ".join(e.problems)}
         self.session = session
         self.regions = {}
         self.registry = HostResourceRegistry()
@@ -270,6 +336,24 @@ class WorkbenchController:
                                         what=f"loading region {name!r}")
         if bound is None:
             return {"ok": False, "error": bind_diags[0].problem}
+
+        # points.md #605: if a real target is set (set_target()), this
+        # region's own real placements are checked against it too --
+        # not just "doesn't collide with what's already loaded"
+        # (bind_shape's own real job above), but "corresponds to a
+        # position a real Quartus build of this card/cell-count would
+        # actually have." Checked BEFORE mutating the grid, so a
+        # rejected region never partially loads.
+        if self.session.mirror_bounds is not None:
+            fit_problems = vm_mirror_v1.check_records_fit(bound, self.session.mirror_bounds)
+            # a region's own records never collide with each other
+            # (bind_shape already guarantees that) -- only report real
+            # out-of-layout placements here, not the "collides" wording,
+            # which would be misleading for a single incoming region.
+            fit_problems = [p for p in fit_problems if "outside the real" in p]
+            if fit_problems:
+                return {"ok": False, "error": "region doesn't fit the real target ("
+                                               f"{self.session.mirror_bounds.card_id}): " + "; ".join(fit_problems)}
 
         from unicell_super_automaton_v1 import SuperCell
         positions = []
@@ -399,6 +483,19 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
 
 <div class="row">
   <div class="col">
+    <div class="panel">
+      <h3>Real target (points.md #605)</h3>
+      <div style="color:#999;font-size:12px;margin-bottom:6px;">Optional. Set this
+        to make the grid below a genuine, checked reflection of a real
+        card/cell-count -- exactly what <code>tools/project_assemble_v1.py</code>
+        would build. Leave unset for free mode (no real card correspondence).</div>
+      <label>MAN file path</label> <input type="text" id="manPath" value="docs/man/mustang-f100-a10.man.json" size="30">
+      <label>cells</label> <input type="number" id="targetCells" value="4" size="4">
+      <button onclick="setTarget()">Set target</button>
+      <button onclick="clearTarget()">Clear target (free mode)</button>
+      <div id="targetStatus" style="color:#9cf;font-size:12px;margin-top:4px;"></div>
+    </div>
+
     <div class="panel">
       <h3>Demos</h3>
       <select id="demoSelect"></select>
@@ -541,7 +638,7 @@ async function compileProgram() {
   const source = document.getElementById("source").value;
   const language = document.getElementById("language").value;
   const result = await post("/compile", {source: source, language: language});
-  renderDiagnostics(result.diagnostics);
+  renderDiagnostics(result.diagnostics || (result.error ? [{severity: "error", stage: "compile", problem: result.error}] : []));
   if (result.ok) { renderState(result.state); renderRegions(); }
 }
 
@@ -585,7 +682,41 @@ async function refresh() {
   if (result.ok) renderState(result.state);
 }
 
+async function setTarget() {
+  const man_path = document.getElementById("manPath").value;
+  const cells = parseInt(document.getElementById("targetCells").value);
+  const result = await post("/set_target", {man_path, cells});
+  if (result.ok) {
+    document.getElementById("targetStatus").textContent =
+      `Target set: ${result.target.card_id}, ${result.target.cells} cells (${result.target.rows}x${result.target.cols}) -- grid reset.`;
+    renderState(result.state);
+    renderRegions();
+  } else {
+    document.getElementById("targetStatus").textContent = "Error: " + result.error;
+  }
+}
+
+async function clearTarget() {
+  const result = await post("/clear_target", {});
+  if (result.ok) {
+    document.getElementById("targetStatus").textContent = "Free mode -- no real card target.";
+    renderState(result.state);
+    renderRegions();
+  }
+}
+
+async function refreshTargetStatus() {
+  const result = await get("/target");
+  if (result.ok && result.target) {
+    document.getElementById("targetStatus").textContent =
+      `Target: ${result.target.card_id}, ${result.target.cells} cells (${result.target.rows}x${result.target.cols})`;
+  } else {
+    document.getElementById("targetStatus").textContent = "Free mode -- no real card target.";
+  }
+}
+
 loadDemos();
+refreshTargetStatus();
 </script>
 </body>
 </html>
@@ -625,6 +756,8 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
             self._json_response(self.controller.list_demos())
         elif self.path == "/regions":
             self._json_response(self.controller.list_regions())
+        elif self.path == "/target":
+            self._json_response(self.controller.current_target())
         elif self.path in ("/", "/index.html"):
             self._html_response(WORKBENCH_HTML)
         else:
@@ -643,6 +776,10 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
                 body.get("row_offset"), body.get("col_offset"), body.get("dsp_columns")))
         elif self.path == "/clear_region":
             self._json_response(self.controller.clear_region(body.get("name", "")))
+        elif self.path == "/set_target":
+            self._json_response(self.controller.set_target(body.get("man_path", ""), body.get("cells", 0)))
+        elif self.path == "/clear_target":
+            self._json_response(self.controller.clear_target())
         elif self.path == "/step":
             self._json_response(self.controller.step(body.get("n", 1)))
         elif self.path == "/deliver":
