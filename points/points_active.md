@@ -1527,3 +1527,64 @@ through, same as every other standing discipline in this project
 (sim-first verification, never-modify-a-proven-file, the append-only
 ledger itself). Zero regression: 361/361 Python tests (docs-only
 change).
+
+## 595. Real Quartus result, moat tile (AUTO_SIZE LogicLock) -- CTR costs MORE than the N=10 array's own average, not less: 706.4 core-only ALM vs the array's real 593.0 average (7 of 8 individual cores higher, nano +31%), though Fmax genuinely improved (98.66 MHz, beating both N=10 array results outright). A real confound identified before drawing a conclusion: #579's own array baseline had NO LogicLock at all, while this test boxed CTR into its own AUTO_SIZE region -- a combination (LogicLock on a cell with no other super-cell competing for fabric) never tested in isolation before. A real, no-LogicLock control variant (top_moat_tile_v1_nolock.qsf) built to isolate whether the moat itself or LogicLock's own packing cost is the real driver. (Alan/Claude, 2026-09-02)
+
+**STATUS: real, Flow Status Successful for the AUTO_SIZE build. A real
+control variant built in response, not yet run -- the actual next
+step to draw a clean conclusion.**
+
+**Real whole-tile numbers:** 1,427 ALM / 251,680 (<1%), 977 registers,
+`clk_div` 98.66 MHz.
+
+**Real, complete three-way per-core comparison, CTR vs the real N=1
+isolated baseline (`#574`) vs the real N=10 array average (`#579`):**
+
+| Core | N=1 | N=10 avg | Moat CTR |
+|---|---|---|---|
+| accumulator | 71.8 | 90.1 | 103.2 |
+| adder | 31.6 | 57.9 | 70.0 |
+| branch | 46.5 | 146.7 | **126.0** (only one lower than avg) |
+| compare | 10.5 | 55.3 | 70.0 |
+| latch | 8.5 | 9.1 | 14.5 |
+| ram (internal shell slot) | 14.5 | 37.8 | 64.2 |
+| sequencer | 15.5 | 15.1 | 20.5 |
+| nano | 62.5 | 181.1 | **238.0** |
+
+**Real, honest headline: 7 of 8 cores cost MORE in the moat tile than
+the N=10 array's own real average** -- core-only sum 706.4 vs the
+array's real 593.0. Addons landed close to the array average (364.8
+vs 380.0, real, no notable divergence). **Not the outcome the moat
+idea was hoping for, stated plainly rather than reframed.**
+
+**Fmax IS a genuine, unambiguous win, regardless of the ALM result:**
+98.66 MHz beats BOTH real N=10 array results outright (unconstrained
+68.46 MHz, `#579`; AUTO_SIZE LogicLock 75.11 MHz, `#583`), and lands
+close to the pure real N=1 isolated baseline (107.05 MHz). The real
+placement-locality benefit LogicLock is meant to provide held up here
+too.
+
+**A real confound identified before treating the ALM result as
+conclusive:** every prior real LogicLock test (`#583`/`#585`) applied
+regions to EVERY cell in a full N=10 array, where multiple real
+super-cells were genuinely competing for nearby fabric. This moat
+test is the FIRST time a cell has been boxed into its own LogicLock
+region with NO other super-cell nearby to compete with -- a real,
+different situation `#583`/`#585`'s own data can't speak to. Two real,
+still-tangled explanations remain open: (1) real, small RAM neighbors
+are genuinely more expensive for CTR to interface with than another
+super-cell would be, or (2) LogicLock itself has a real packing cost
+even in the best case, independent of the moat concept entirely.
+
+**`top_moat_tile_v1_nolock.qsf`/`.sdc` (new)** -- the real control:
+identical RTL (`top_moat_tile_v1.v`, unchanged), identical file
+dependency list, with the entire `LL_*` block removed -- fully
+unconstrained placement, matching `#579`'s own real array-baseline
+methodology exactly. **Not yet run.** Reading the result: if CTR's
+own ALM drops back toward the real 593.0 array average, LogicLock was
+the real driver, not the moat. If it stays high, the moat's own real
+neighbor connectivity is the real driver, independent of LogicLock.
+
+**Real, honest scope: Alan is running the v8 (accumulator config-
+redundancy, `#592`) result in parallel with this one** -- both real
+Quartus numbers pending, separate threads, tracked separately.

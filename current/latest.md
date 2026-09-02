@@ -1,4 +1,34 @@
-# Current State (as of 2026-09-01, real, third and widest core rolled out on the config-off-shell axis -- accumulator_cell_v3.v joins compare_cell_v3.v and latch_cell_v3.v in unicell_super_v8.v, sim-verified clean including pulse mode, real Quartus target built, awaiting the real number, see `points.md` #592)
+# Current State (as of 2026-09-02, real moat-tile Quartus result -- CTR costs MORE than the N=10 array average (706.4 vs 593.0 core-only ALM), though Fmax genuinely improved (98.66 MHz, beating both array LogicLock results). A real confound found before concluding anything: LogicLock-on-a-lone-cell was never tested before this build. A real no-LogicLock control variant built to isolate the actual driver, see `points/points_active.md` #595)
+
+## Read this first (most recent)
+
+**2026-09-02, real moat result: not the ALM win hoped for, but a real,
+useful, honestly-confounded result.** CTR (the one real super-cell in
+the moat tile): 706.4 core-only ALM vs the N=10 array's own real 593.0
+average -- 7 of 8 cores individually cost MORE, nano worst (+31%).
+Fmax IS a genuine, unambiguous win regardless: 98.66 MHz beats both
+real N=10 array results outright.
+
+**A real confound found before treating this as conclusive:** every
+prior LogicLock test boxed EVERY cell in a full N=10 array, where
+multiple real super-cells competed for fabric. This is the FIRST time
+a cell got its own LogicLock region with NO other super-cell nearby to
+compete with -- untested territory. Two real explanations remain
+tangled: real small-RAM-neighbor connectivity costing more than
+another super-cell would, OR LogicLock's own real packing cost even
+in the best case.
+
+`top_moat_tile_v1_nolock.qsf` (new): the real control -- identical
+RTL, zero LogicLock, matching the array baseline's own methodology.
+Not yet run. If ALM drops back toward 593.0, LogicLock was the real
+driver; if it stays high, the moat's own connectivity is.
+
+Full detail: `points/points_active.md` `#595`.
+
+**Real, honest scope: v8's own accumulator config-redundancy result
+(`#592`) is running in parallel, a separate thread.**
+
+## Previous state (2026-09-01, real, third and widest core rolled out on the config-off-shell axis -- accumulator_cell_v3.v joins compare_cell_v3.v and latch_cell_v3.v in unicell_super_v8.v, sim-verified clean including pulse mode, real Quartus target built, awaiting the real number, see `points.md` #592)
 
 ## Read this first (most recent)
 
