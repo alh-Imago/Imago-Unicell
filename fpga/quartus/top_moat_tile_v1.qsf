@@ -1,0 +1,92 @@
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX066H2F34E2SG
+set_global_assignment -name TOP_LEVEL_ENTITY top_moat_tile_v1
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 25.1STD.0
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Standard Edition"
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+set_global_assignment -name DEVICE_FILTER_PIN_COUNT 1152
+set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 2
+
+set_location_assignment PIN_E23 -to CLK_100M
+set_location_assignment PIN_AE7 -to LED0_N
+set_location_assignment PIN_AH2 -to LED1_N
+
+set_global_assignment -name VERILOG_FILE adder_v1.v
+set_global_assignment -name VERILOG_FILE ram_cell_v1.v
+set_global_assignment -name VERILOG_FILE adder_cell_v1.v
+set_global_assignment -name VERILOG_FILE accumulator_cell_v1.v
+set_global_assignment -name VERILOG_FILE compare_cell_v1.v
+set_global_assignment -name VERILOG_FILE latch_cell_v1.v
+set_global_assignment -name VERILOG_FILE nibble_mask_addon_v1.v
+set_global_assignment -name VERILOG_FILE shift_lane_addon_v1.v
+set_global_assignment -name VERILOG_FILE invert_addon_v1.v
+set_global_assignment -name VERILOG_FILE unicell_stripped_v1.v
+set_global_assignment -name VERILOG_FILE sequencer_cell_v1.v
+set_global_assignment -name VERILOG_FILE branch_cell_v1.v
+set_global_assignment -name VERILOG_FILE unicell_super_v3.v
+set_global_assignment -name VERILOG_FILE top_moat_tile_v1.v
+set_global_assignment -name SDC_FILE top_moat_tile_v1.sdc
+
+# points.md #588: real, per-cell LogicLock regions -- pattern A
+# (Alan's own preferred first test): every one of the 9 real cells
+# gets its own separate region, AUTO_SIZE (the sizing mode that
+# showed a genuine, uncomplicated real Fmax win for a v3-style design
+# with no extra ALM cost, #583 -- this tile's own CTR cell is the
+# same real v3 shell). Only one super-cell exists in this test, so
+# pattern A vs B (shared moats between neighboring super-cells,
+# Alan's own real "new type of beast" idea) doesn't arise yet.
+set_global_assignment -name LL_ENABLED ON -section_id LL_CTR
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_CTR
+set_global_assignment -name LL_STATE FLOATING -section_id LL_CTR
+set_global_assignment -name LL_RESERVED OFF -section_id LL_CTR
+set_instance_assignment -name LL_MEMBER_OF LL_CTR -to CTR -section_id LL_CTR
+
+set_global_assignment -name LL_ENABLED ON -section_id LL_N
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_N
+set_global_assignment -name LL_STATE FLOATING -section_id LL_N
+set_global_assignment -name LL_RESERVED OFF -section_id LL_N
+set_instance_assignment -name LL_MEMBER_OF LL_N -to N -section_id LL_N
+
+set_global_assignment -name LL_ENABLED ON -section_id LL_S
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_S
+set_global_assignment -name LL_STATE FLOATING -section_id LL_S
+set_global_assignment -name LL_RESERVED OFF -section_id LL_S
+set_instance_assignment -name LL_MEMBER_OF LL_S -to S -section_id LL_S
+
+set_global_assignment -name LL_ENABLED ON -section_id LL_E
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_E
+set_global_assignment -name LL_STATE FLOATING -section_id LL_E
+set_global_assignment -name LL_RESERVED OFF -section_id LL_E
+set_instance_assignment -name LL_MEMBER_OF LL_E -to E -section_id LL_E
+
+set_global_assignment -name LL_ENABLED ON -section_id LL_W
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_W
+set_global_assignment -name LL_STATE FLOATING -section_id LL_W
+set_global_assignment -name LL_RESERVED OFF -section_id LL_W
+set_instance_assignment -name LL_MEMBER_OF LL_W -to W -section_id LL_W
+
+set_global_assignment -name LL_ENABLED ON -section_id LL_NE
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_NE
+set_global_assignment -name LL_STATE FLOATING -section_id LL_NE
+set_global_assignment -name LL_RESERVED OFF -section_id LL_NE
+set_instance_assignment -name LL_MEMBER_OF LL_NE -to NE -section_id LL_NE
+
+set_global_assignment -name LL_ENABLED ON -section_id LL_NW
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_NW
+set_global_assignment -name LL_STATE FLOATING -section_id LL_NW
+set_global_assignment -name LL_RESERVED OFF -section_id LL_NW
+set_instance_assignment -name LL_MEMBER_OF LL_NW -to NW -section_id LL_NW
+
+set_global_assignment -name LL_ENABLED ON -section_id LL_SE
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_SE
+set_global_assignment -name LL_STATE FLOATING -section_id LL_SE
+set_global_assignment -name LL_RESERVED OFF -section_id LL_SE
+set_instance_assignment -name LL_MEMBER_OF LL_SE -to SE -section_id LL_SE
+
+set_global_assignment -name LL_ENABLED ON -section_id LL_SW
+set_global_assignment -name LL_AUTO_SIZE ON -section_id LL_SW
+set_global_assignment -name LL_STATE FLOATING -section_id LL_SW
+set_global_assignment -name LL_RESERVED OFF -section_id LL_SW
+set_instance_assignment -name LL_MEMBER_OF LL_SW -to SW -section_id LL_SW

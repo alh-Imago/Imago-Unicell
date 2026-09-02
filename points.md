@@ -33601,3 +33601,83 @@ intermediate v6 number (487 total / 298.5 `DUT`).
 **Zero regression:** 361/361 Python tests, `tb_unicell_super_v6.v`
 (unchanged, still passes), `tb_compare_v3_diff_v1.v` (unchanged),
 `tb_latch_v2_diff_v1.v` (unchanged).
+
+## 588. Real, hand-built first test of Alan's own "moat" idea -- top_moat_tile_v1.v. Pattern A (constant, no sharing -- Alan's own preferred first test): one real unicell_super_v3 center cell surrounded by 8 real ram_cell_v1 moat cells, 4 edge (real dataflow to the center) + 4 corner (real ring, connected only to their own two adjacent edge cells -- no diagonal port exists or is needed, confirmed against real port lists before wiring anything). Each of the 9 cells gets its own LogicLock region. The real question: does fencing a super-cell in with small, separately-regioned buffer cells address the ROOT cause of the cross-die scattering (#579-#585), not just tune one region's own size. Sim-verified clean, real Quartus target built, not yet run. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, sim-verified, hand-built (not yet a generalized
+generator capability -- matching this project's own established
+precedent of hand-building a genuinely new experiment first, #581,
+before investing in generalizing it). Real Quartus number is the
+actual next step.**
+
+**The real layout, matching `project_assemble_v1.py`'s own exact
+neighbor-wiring convention (`dout_DIR` of a cell feeds `data_in_
+OPPOSITE(DIR)` of its real neighbor):**
+```
+    NW ── N ── NE
+     │    │    │
+     W ── CTR ─ E
+     │    │    │
+    SW ── S ── SE
+```
+`CTR` = `unicell_super_v3` (`#574`'s own real, proven, cheapest
+shell). All 8 real moat positions = `ram_cell_v1` (the simplest real
+core already used as moat material elsewhere).
+
+**Real, confirmed-before-building fact:** no diagonal port exists
+anywhere in this project's own real RTL (only N/S/E/W on every core
+and shell) -- `CTR` structurally cannot reach `NE`/`NW`/`SE`/`SW`
+directly, confirmed against real port lists, not just reasoned. The 4
+real corner cells instead form a genuine ring AROUND the center,
+connected only to their own two adjacent EDGE moat cells (e.g. `NE`'s
+own south port reaches `E`, `NE`'s own west port reaches `N`) -- a
+real, genuine 2D analogue of a 3D via-layer bypass, per Alan's own
+framing, using nothing but the cardinal ports that already exist.
+
+**Real, deliberate config-comparability decision:** `CTR` and all 8
+real moat cells share the SAME real `cfg_valid_bcast`/`cfg_data_bcast`
+construction the existing homogeneous array generator already uses
+(`{13'b0, {20{ENTRY_DATA}}, {42{ENTRY_DATA}}, CFG_SELECT}`) --
+deliberately, so this real ALM/Fmax number stays directly comparable
+to `#579`/`#580`'s own real N=10 array data (same real addon exposure,
+same genuinely-unconstrained config, not the N=1 self-test's own
+cheaper, compile-time-known literal config that `#581`'s own
+isolation experiment is separately investigating).
+
+**Real, per-cell LogicLock regions, pattern A (Alan's own preferred
+first test) -- 9 real regions, one per cell, `AUTO_SIZE` (the sizing
+mode that showed a genuine, uncomplicated real Fmax win for a v3-style
+design at no extra ALM cost, `#583`).** Only one real super-cell exists
+in this test, so the real "do neighboring super-cells SHARE moat
+cells" question (pattern B, Alan's own real "may prove a new type of
+beast altogether") does not arise yet -- a real, later, larger tiled
+test, not this one.
+
+**Sim-verified clean:** elaborates against every real v1 dependency,
+`status_core_select` correctly reflects the loaded `CFG_SELECT`. A
+quick liveness spot-check (matching the same methodology already used
+on the homogeneous array generator's own output, which showed the
+identical "no toggle in a short window" result on both shells there
+too, `#578`) showed no toggling -- not treated as a defect, for the
+same real reason as before: the real anti-pruning guard is a
+structural, synthesis-time property, not something a short arbitrary
+simulation window is the right tool to confirm.
+
+**Real Quartus target built:** `top_moat_tile_v1.qsf`/`.sdc`, matching
+the established template exactly. **Not yet run** -- the real test of
+whether surrounding a super-cell with small, separately-regioned
+buffer cells addresses the actual root cause of the real cross-die
+scattering seen in every prior real Chip Planner screenshot (`#579`-
+`#585`: a super-cell's own logic, or its addon chain, reaching into a
+genuinely adjacent logical neighbor SUPER-CELL) -- by ensuring that,
+once this pattern is eventually tiled at scale, a super-cell's real
+nearest neighbors are always small, cheap, boring RAM regions, never
+another super-cell's own large, complex region competing for the same
+placement territory.
+
+**Real, honest scope: single-tile-only.** This build measures ONE
+super-cell's own real cost with a moat, not yet a tiled, multi-super-
+cell card. Real per-cell area cost of this approach (1 super-cell +
+8 moat cells) is a real, separate, not-yet-measured trade-off against
+raw cell density -- worth a direct, honest look once this first real
+number is in, before committing to a larger tiled test.

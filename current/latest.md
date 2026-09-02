@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-01, real, second core rolled out on the config-off-shell axis -- latch_cell_v3.v joins compare_cell_v3.v in unicell_super_v7.v, sim-verified clean, real Quartus target built, awaiting the real number, see `points.md` #587)
+# Current State (as of 2026-09-01, real, hand-built first test of Alan's own "moat" idea -- one super-cell surrounded by 8 real RAM buffer cells (4 edge + 4 corner ring, pattern A/no sharing), each with its own LogicLock region, testing whether this fences the super-cell's own logic in and addresses the real root cause of cross-die scattering. Sim-verified clean, real Quartus target built, awaiting the real number, see `points.md` #588)
+
+## Read this first (most recent)
+
+**2026-09-01, real moat-tile test: does surrounding a super-cell with
+small buffer cells fence its own logic in?** Per Alan's own real idea:
+every prior real Chip Planner screenshot (`#579`-`#585`) showed a
+super-cell's own logic reaching into an ADJACENT SUPER-CELL -- the
+real, root-cause hypothesis this tests is that giving a super-cell
+only small, cheap, separately-regioned RAM cells as its real nearest
+neighbors (never another large, complex super-cell region) might
+prevent that scattering at the source, rather than just tuning one
+region's own size (`#583`/`#585`'s own real, mixed results).
+
+`top_moat_tile_v1.v` (new, hand-built): one real `unicell_super_v3`
+center, 8 real `ram_cell_v1` moat cells -- 4 edge (real dataflow to
+the center) + 4 corner (real ring, connected only to their own two
+adjacent edge cells; no diagonal port exists anywhere in this
+project's real RTL, confirmed before wiring anything). Pattern A
+(Alan's own preferred first test -- constant, no sharing; only one
+super-cell here, so the shared-moat "pattern B" question doesn't arise
+yet). Config matches the existing array generator's own real broadcast
+convention exactly, so the number stays comparable to `#579`/`#580`'s
+real N=10 data. 9 real LogicLock regions, `AUTO_SIZE` (the mode that
+helped v3 cleanly before, `#583`).
+
+Sim-verified clean. Real Quartus target built (`top_moat_tile_v1.qsf`/
+`.sdc`), **not yet run**.
+
+Full detail: `points.md` `#588`.
+
+**Real, honest scope: single-tile only, real per-cell area cost (1
+super-cell + 8 moat cells) not yet weighed against raw density.** Both
+are real, honest open questions for once the first real number is in.
+
+## Previous state (2026-09-01, real, second core rolled out on the config-off-shell axis -- latch_cell_v3.v joins compare_cell_v3.v in unicell_super_v7.v, sim-verified clean, real Quartus target built, awaiting the real number, see `points.md` #587)
 
 ## Read this first (most recent)
 
