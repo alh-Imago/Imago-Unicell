@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-01, real, third design axis prototyped on one core -- compare_cell_v3.v reads config continuously off the shell's own stable core_config instead of re-latching a private copy, per Alan's own real proposal. Sim-verified clean at core and shell level, real Quartus target built, awaiting the real number, see `points.md` #584)
+# Current State (as of 2026-09-01, real fixed-size LogicLock result for v4 -- unlike v3 (Fmax held flat under the same 25%-headroom sizing), v4's Fmax got WORSE (-13.8%) than even the unconstrained baseline. A real, fourth independent axis on which v3 is the sturdier design, see `points.md` #585)
+
+## Read this first (most recent)
+
+**2026-09-01, real, honest asymmetry: fixed-size LogicLock helps v3,
+hurts v4.** Same 25%-headroom sizing methodology (`#583`) applied to
+both shells at N=10. v3: Fmax held flat (68.46 -> 68.75 MHz). v4: Fmax
+got WORSE than not constraining placement at all (58.64 -> **50.53
+MHz, -13.8%**). ALM dropped modestly for v4 too (13,108 -> 12,750,
+-2.7%), registers unchanged (1,953).
+
+Real, honest read: the critical path is the same recurring shape as
+every prior real screenshot in this thread -- one cell's addon chain
+reaching into a genuinely adjacent logical neighbor. What differs is
+that v4's own real internal complexity (the write-arbitration logic,
+already precisely localized at 6.1-7.6x v3's equivalent cost,
+`#575`/`#580`) appears to need MORE placement freedom to route well,
+not less -- a tight box costs it room for both the internal write
+logic and the necessary cross-cell wire at once.
+
+This is a real, fourth independent axis (after ALM, Fmax, and register
+scaling) on which v3 is the sturdier design -- not just cheaper and
+faster in isolation, but more tolerant of real placement constraints.
+
+Full detail: `points.md` `#585`.
+
+## Previous state (2026-09-01, real, third design axis prototyped on one core -- compare_cell_v3.v reads config continuously off the shell's own stable core_config instead of re-latching a private copy, per Alan's own real proposal. Sim-verified clean at core and shell level, real Quartus target built, awaiting the real number, see `points.md` #584)
 
 ## Read this first (most recent)
 

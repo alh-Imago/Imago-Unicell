@@ -33490,3 +33490,57 @@ match here.
 **Zero regression:** 361/361 Python tests, `tb_unicell_super_v3.v`
 (unchanged, still passes), `tb_compare_v2_diff_v1.v` (unchanged, still
 passes).
+
+## 585. Real Quartus result, v4 fixed-size (25% headroom) LogicLock N=10 -- unlike v3 (Fmax stayed flat under the same tight sizing, #583), v4's Fmax got WORSE, not better: 58.64 -> 50.53 MHz, a real -13.8% regression versus even the unconstrained baseline. A real, fourth independent axis on which v3 is the sturdier design -- not just cheaper and faster in isolation, but more tolerant of real placement constraints too. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, Flow Status Successful. Completes the real fixed-size
+LogicLock pair for both shells at N=10.**
+
+**Real whole-design numbers:** 12,750 ALM / 251,680 (5%), 1,953
+registers (IDENTICAL to the unconstrained baseline, `#580`), `clk_div`
+50.53 MHz.
+
+**Real comparison against v4's own unconstrained N=10 baseline
+(`#580`):**
+
+| | Unconstrained | Fixed-LL (25% headroom) | Delta |
+|---|---|---|---|
+| Total ALM | 13,108 | 12,750 | -2.73% |
+| Registers | 1,953 | 1,953 | 0% |
+| `clk_div` | 58.64 MHz | **50.53 MHz** | **-13.83%** |
+
+**Real, honest asymmetry between the two shells, not seen before this
+entry:** v3's own fixed-LL result (`#583`) held Fmax essentially FLAT
+against its unconstrained baseline (68.46 -> 68.75 MHz, +0.4%). v4's
+own fixed-LL result here is a genuine REGRESSION, worse than not
+constraining placement at all. Same sizing methodology (25% headroom
+over each shell's own real measured per-cell ALM, `#583`'s own
+formula), opposite real real-world result.
+
+**The real critical path is the same recurring shape, confirmed again,
+not a new failure mode:** `C_2_1`'s own addon chain (`ADDON_NM`/
+`ADDON_SL`/`ADDON_INV`) reaching into `C_2_0` -- genuinely adjacent
+logical neighbors, matching every prior real Chip Planner screenshot
+in this thread (`#579`-`#583`). The tight box did NOT eliminate this
+inter-cell wire (it structurally can't -- real RTL connectivity between
+neighbors always has to cross a region boundary somewhere) -- what
+changed is that v4's own real per-cell internal complexity (the
+write-arbitration logic `#575`/`#580` already precisely localized as
+6.1-7.6x more expensive than v3's equivalent) appears to need MORE
+placement freedom to route efficiently, not less. Squeezing that
+already-more-tangled internal structure into a tight box seems to cost
+the placer room it needed for both the internal write logic AND the
+genuinely necessary cross-cell wire at once.
+
+**Real, honest conclusion: a fourth, independent axis on which v3 is
+the sturdier real design.** Prior real findings established v3 as
+cheaper (ALM, `#579`/`#580`) and faster (Fmax, `#579`/`#580`) in
+isolation. This entry adds: v3 also tolerates real, tight placement
+constraints gracefully (flat Fmax under a 25%-headroom box, `#583`),
+while v4 does NOT (a real -13.8% Fmax regression under the identical
+methodology). Real, honest scope: v4's own real AUTO_SIZE LogicLock
+number was never measured (only v3's was, `#583`) -- whether a looser
+headroom would recover v4's own real Fmax is a real, open, unpursued
+question, but given v3's own real superiority across every other
+dimension measured so far, not an obviously worthwhile one to chase
+further without a specific new reason to prefer v4.
