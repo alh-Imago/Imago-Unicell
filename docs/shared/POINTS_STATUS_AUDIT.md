@@ -1,5 +1,10 @@
 # points.md Status Audit — 2026-08-16
 
+**Covers entries #1-#330. For #331-#592 (everything since, including
+the whole current session's real hardware work), see
+[`POINTS_STATUS_AUDIT_2.md`](POINTS_STATUS_AUDIT_2.md), added
+2026-09-02.**
+
 **Purpose: a genuine sweep through all 330 numbered entries, organized
 by architectural era, flagging what's complete, what's architecturally
 superseded, and — the most valuable part — specific items that are

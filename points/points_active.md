@@ -1418,3 +1418,68 @@ real build-to-build noise `#591` found on the two smaller cores (the
 
 **Zero regression:** 361/361 Python tests, `tb_unicell_super_v7.v`
 (unchanged, still passes), `tb_accumulator_v2_diff_v1.v` (unchanged).
+
+## 593. Real status audit, part 2 -- docs/shared/POINTS_STATUS_AUDIT_2.md, covering entries #331-#592 (the original 2026-08-16 audit only covered #1-#330). Per Alan's own direct request for a real status index -- "what is done, what is pending, what is a thought direction" -- built while the moat tile (#588) Quartus build ran. Organized around status FIRST this time (a quick-reference section listing every currently-queued build and open thread), era second, matching the scale the ledger has actually grown to. (Alan/Claude, 2026-09-02)
+
+**STATUS: real, complete, written. Does not edit points.md/points/
+itself, same discipline as the original audit -- a curated map on top
+of the ledger, not a replacement for it.**
+
+**Method, matching the original audit's own precedent:** all 262
+entry titles in the #331-#592 range read in full (this project's own
+entry titles are consistently complete summary sentences, not short
+labels), grouped into 6 real eras by actual subject matter, several
+spot-checked in full text where the title alone left status
+ambiguous.
+
+**The real, most useful addition, per Alan's own specific ask:** a
+"Quick reference: what's actually pending or open RIGHT NOW" section
+at the top, pulled out of 262 entries rather than requiring anyone to
+scroll to find it -- 3 real Quartus builds currently queued (moat
+tile, v8's cumulative config-redundancy result, and a real, still-
+missing middle-headroom LogicLock test), 3 real named next steps not
+yet built (rolling the config fix out to the remaining 5 cores, moat
+pattern B, and `#581`'s own free-input isolation experiment -- flagged
+specifically because it was genuinely at risk of being lost track of
+under the LogicLock/moat/config-redundancy threads that came after
+it), and 4 real thought-directions on record with no build started
+(clockless/async model, LLVM IR compiler path, AI training buckets,
+multi-card PCIe backplane requirement).
+
+**Real, 6-era breakdown of #331-#592, each with an explicit status
+verdict:** VM/compiler/workbench build-out then real, deliberate
+archival following Alan's own project-scope recalibration (#331-#369,
+DONE + dead-ended simultaneously, both true at once); priority-list
+execution + DSP research (#370-#399, DONE, TRIX-not-viable and
+branching-has-real-cost both settled here); the RAM/collector/
+sentinel/shared-BRAM mechanism culminating in this project's first
+EVER host-driven real hardware confirmation (#400-#448, DONE); MAN/
+SHAPE/placement tooling + real DSP hardware confirmation, including a
+real, corrected wrong-IP-name mistake (#449-#480, DONE); the branch/
+comparator core's actual design and build, directly ancestral to
+every current shell version (#481-#519, DONE); the systematic per-
+core headroom review with the highest density of real silicon
+confirmations in the project (#520-#551, DONE); and `project_
+assemble_v1.py`'s own genesis plus the real single-core-type dataset
+this whole session's own comparative work builds on (#552-#572, DONE).
+
+**One real, connecting observation surfaced, easy to lose across 20
+dense entries:** the config-redundancy thread (`#584` onward) and the
+moat thread (`#588` onward) both started only AFTER the shared-
+storage thread (`#561`-`#585`) reached its own real, negative
+conclusion (v4/v5 costs more on every axis measured) -- worth staying
+precise that neither is an attempt to revive shared runtime storage;
+both are different real mechanisms, each with its own explicit reason
+for not sharing v4/v5's own specific failure mode.
+
+**Real, honest, structural observation closing the document:** this
+project's documentation-about-documentation has now needed splitting
+and auditing twice -- not a criticism, a real, direct signal of how
+much genuine progress has happened (592 entries, real silicon
+confirmed dozens of times, a five-tool pipeline built and used), but
+worth treating as a real data point on `#477`'s own still-open "per-
+file documentation" item and on how session catch-up itself scales
+from here.
+
+**Cross-linked from both `points/INDEX.md`** (new "Status" section)
+**and the original audit** (a forward-pointer added at its own top).

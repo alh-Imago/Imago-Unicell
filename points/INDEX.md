@@ -50,6 +50,14 @@ adjacent part first if a grep misses, given the two real anomalies above.
 Start with `points/points_active.md` — it holds the real, most recent
 work. Older parts are historical background, read as needed.
 
+## Status: what's done, pending, or just a thought direction
+
+For a genuine done/pending/thought-direction breakdown (not just
+where an entry lives, but what it actually means), see
+`docs/shared/POINTS_STATUS_AUDIT.md` (#1-#330) and
+`docs/shared/POINTS_STATUS_AUDIT_2.md` (#331-#592, includes a quick-
+reference of everything currently queued or open).
+
 ## Appending a new entry (for Claude, future sessions)
 
 ```bash
