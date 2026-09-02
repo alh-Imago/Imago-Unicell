@@ -1656,3 +1656,61 @@ investment or a future ASIC target.**
 polish work concretely (Claude to review current state and propose a
 real, scoped plan) before starting, rather than guess at what "tidy"
 means and risk wasted effort in the wrong direction.
+
+## 597. README.md rewritten to reflect the real, current state -- the shell architecture table extended from v1-v3 to the full real v1-v8 lineage (with v3 marked as the current, recommended baseline and v4-v8's own real findings summarized honestly, including the negative shared-storage result), and a genuinely new "Real scale ceiling, and why hardware work is closed for now" section added, directly reflecting #596's own real closure decision. First concrete step of the real VM/frontend/docs tidy-and-polish pass Alan asked for. (Alan/Claude, 2026-09-02)
+
+**STATUS: real, complete for README.md specifically. Other real, named
+"nits" (Walker/Composer scope, tools/README.md, frontend copy) remain
+explicitly deferred, per Alan's own real "we can get to those" --
+not forgotten, just not this entry's own scope.**
+
+**Real, precise changes made, every number checked against the actual
+ledger before writing it down, not estimated or remembered:**
+
+1. **Opening framing corrected** -- the old text tied the project's
+   own realistic best-case outcome to PCIe host-integration succeeding
+   or not. That framing is now stale regardless of PCIe's own real
+   status: `#596`'s own real ceiling finding applies either way. New
+   text states the real 200-250 cell ceiling and the closure decision
+   directly, in the very first real paragraph, matching the README's
+   own stated goal of representing things "no more" than they are.
+
+2. **The shell table extended from 3 rows to the full real lineage**
+   -- v1/v2/v3 unchanged (still accurate), v4/v5 (shared storage,
+   `#573`-`#577`, real numbers double-checked against `#579`/`#580`/
+   `#583` before writing), and v6/v7/v8 (config-off-shell, `#584`/
+   `#587`/`#591`/`#592`) added as real rows, each with an honest,
+   one-line real verdict (v4/v5: "costs more, not adopted" /"ties v4,
+   not adopted"; v6-v8: "one core shows a real, solid win... the
+   other two are inconclusive"). v3 explicitly marked as the current,
+   recommended baseline, with the real reasoning (four independent
+   real axes) stated, not just asserted.
+
+3. **New "Real scale ceiling" section** -- the real 200-250 cell / 
+   65-75 MHz figures, the real ~2.5-3x margin over the actual 25 MHz
+   requirement, the real multi-card/PCIe-backplane cost that
+   undermines its own premise, and the real, honest project-identity
+   conclusion (`#596`'s own words, condensed) -- all stated plainly,
+   matching the same real discipline the rest of this README already
+   held itself to.
+
+4. **The Quartus generator bullet, MAN/SHAPE bullet left alone (still
+   accurate), points.md reference fixed** -- now points to `points/`
+   (the real split, `#593`) and both status-audit docs (`#593`),
+   replacing a reference to a file that no longer holds the ledger
+   directly.
+
+**Real, honest verification performed before finalizing, not just
+written and trusted:** every real ALM/Fmax figure in the new table
+cross-checked directly against its own real source entry (`#574`,
+`#579`, `#580`, `#583`, `#591`, `#592`) rather than relied on from
+memory of the conversation. Zero regression: 361/361 Python tests
+(docs-only change).
+
+**Real, honest scope: this is the FIRST of several real, named "nits"
+still queued** -- Alan's own explicit "we can get to those" for
+`tools/README.md`, the Walker/Composer real scope question (now a
+genuinely live decision given `#596`'s own closure -- both were
+explicitly gated on real, at-scale hardware deployment that isn't
+happening), and a frontend copy pass, all deliberately deferred, not
+this entry's own scope.

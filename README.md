@@ -12,10 +12,13 @@ wire delay does.
 real, working pieces of a genuinely novel FPGA architecture, on real
 hardware, with real measured numbers. It is not a general-purpose
 computer, not commercially packaged, and not something you can `pip
-install` today. If the PCIe host-integration side of this project
-succeeds, the realistic best-case outcome is an FPGA accelerator card
-for specific spatial-dataflow workloads — not a CPU replacement. If it
-doesn't, what remains is still real, working architecture research. This
+install` today. **A real, deliberate architectural investigation
+(2026-09-01/02) established this card's own real ceiling — roughly
+200-250 cells, ~65-75 MHz Fmax at that scale — and hardware
+exploration is closed for now as a result** (see "Real scale ceiling"
+below for the full, honest reasoning). What remains is real, working
+architecture research and a genuinely novel design methodology, not a
+path to a competitive compute accelerator on this card alone. This
 README aims to represent exactly that, no more.
 
 ---
@@ -31,15 +34,30 @@ ever does real work. Cells wire directly to their North/South/East/
 West physical neighbors — there is no addressed bus anywhere in this
 design.
 
-Three real, separate shell versions exist, each cloned from the last
-rather than modified in place (this project's own standing "never
-modify a proven file" discipline):
+**`unicell_super_v3.v` is the current, recommended baseline** — the
+real, cheapest, fastest, and most placement-tolerant of every shell
+version built and measured, confirmed across four independent real
+axes (ALM, Fmax, register-scaling behavior at array scale, and
+tolerance of physical placement constraints). It holds 8 cores (nano,
+RAM, adder, accumulator, comparator, latch, sequencer, branch), each
+with its own separate, dedicated internal storage:
 
-| Shell | Cores | Real ALM | Real `clk_div` Fmax |
+| Shell | Real change from v3 | Real N=1 ALM / Fmax | Real N=10 array avg (ALM/cell) |
 |---|---|---|---|
-| `unicell_super_v1.v` | 6 (nano, RAM, adder, accumulator, comparator, latch) | 233 | 129.48 MHz (5× margin) |
-| `unicell_super_v2.v` | +sequencer (7 total) | 305 | 99.57 MHz (4× margin) |
-| `unicell_super_v3.v` | +branch cell (8 total) | not yet measured coexisting | 312.7 MHz (branch-only build) |
+| `unicell_super_v1.v` | 6 cores (original) | 233 ALM / 129.48 MHz | not measured at array scale |
+| `unicell_super_v2.v` | +sequencer (7 total) | 305 ALM / 99.57 MHz | not measured at array scale |
+| **`unicell_super_v3.v`** | **+branch cell (8 total) — current baseline** | **479 ALM / 107.05 MHz** | **1030.5 ALM/cell / 68.5-75.1 MHz** |
+| `unicell_super_v4.v` | shared external storage (1 register for all 8 cores) | 708 ALM / 96.9 MHz | 1307.4 ALM/cell / 58.6 MHz — **costs more, not adopted** |
+| `unicell_super_v5.v` | v4's storage, written per-bit instead of one wide mux | 721 ALM / 95.0 MHz | not measured — **ties v4, not adopted** |
+| `unicell_super_v6.v`/`v7.v`/`v8.v` | 3 cores' own config fields read live off the shell instead of re-latched locally | 483-487 ALM / 96-107 MHz | not measured — **one core (compare) shows a real, solid win; the other two are inconclusive against normal build variance** |
+
+**Real, honest summary of that exploration:** v4/v5's shared-storage
+idea was tried, measured, and found to cost more than it saves — a
+real, negative, useful result, not a dead end hidden from view. v6-v8
+found one small, real, confirmed win (the comparator core) and two
+inconclusive results, closed for now rather than chased further.
+Full detail, including every real Quartus number behind the table
+above, is in `points/points_active.md` and `points/INDEX.md`.
 
 (target: IEI Mustang-F100-A10, Arria 10 GX, 10AX066H2F34E2SG, 25 MHz
 fabric clock)
@@ -50,11 +68,45 @@ not just simulation, not just "Quartus compiled it" — via a real
 In-System Sources and Probes debug channel built specifically to give
 an unambiguous pass/fail regardless of whether a given board's own
 LEDs are reliably wired (a real uncertainty found and worked around
-this session). Branch cell in particular went from zero real hardware
-history to fully confirmed — standalone, and through the real v3
-shell's own `core_select` routing — in one session.
+early in this project). Branch cell in particular went from zero real
+hardware history to fully confirmed — standalone, and through the
+real v3 shell's own `core_select` routing — in one session.
 
 For full detail, see [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/stripped-cell/SUPER_CELL_INTERNALS.md).
+
+## Real scale ceiling, and why hardware work is closed for now
+
+**This card's own real, measured ceiling is roughly 200-250 cells,**
+at a real Fmax of 65-75 MHz at that scale (251,680 ALM / ~1030 ALM per
+real cell, `unicell_super_v3.v`'s own array-scale measurement — every
+alternative design tried costs more, not less, per cell). That Fmax
+is a genuine ~2.5-3x margin over the card's actual 25 MHz fabric-clock
+requirement — functionally comfortable — but 200-250 cells is not a
+large substrate by any real measure, and a systematic investigation
+(shared storage, config-sharing, physical placement constraints, a
+"moat" of small buffer cells around each super-cell) found no lever
+that moved this ceiling by more than a small amount, let alone an
+order of magnitude.
+
+Multi-card scaling remains real and possible in principle (a switched
+PCIe backplane, not the direct card-to-card link this device's own
+transceivers can't provide), but reaching a genuinely serious workload
+that way would need tens to hundreds of cards and the enterprise-class
+backplane infrastructure that implies — a real, honest cost that
+undercuts the point of a small, novel compute substrate rather than
+fulfilling it.
+
+**Real, honest conclusion: this project's near-term identity is a
+small, correctness-proven hardware platform, not a compute
+accelerator in any competitive sense.** Hardware exploration is
+closed for now as a deliberate result, not an open question left to
+drift. The genuinely promising path to real scale is a future custom
+ASIC (matching this project's own clockless/asynchronous architecture
+ideas, closest in spirit to Wave Computing's own DPU design) —
+confirmed as real and worth pursuing eventually, and confirmed as not
+a near-term undertaking. Ongoing work continues on the VM and
+tooling side, where scale and design exploration remain genuinely
+free of any real hardware ceiling.
 
 ## What's built on top of it, and how it's verified
 
@@ -115,7 +167,12 @@ throughout the project's own documentation, never blurred.
   — given a MAN file and a cell count, produces a complete, ready-to-
   import Quartus project for a real N-cell array, guarding directly
   against a real, already-confirmed Quartus behavior (pruning logic it
-  can prove unreachable) rather than assuming it away.
+  can prove unreachable) rather than assuming it away. Now also
+  supports targeting any real shell version (not just the built-in
+  ones), a real per-cell LogicLock placement mode, and a custom,
+  explicit dependency-file list (with a real, advisory compatibility
+  check) for mixing and matching core versions without hand-writing a
+  Quartus project file list each time.
 
 ## Quick start
 
@@ -172,9 +229,16 @@ python3 nano/workbench_v1.py
   per build.
 - [`tools/README.md`](tools/README.md) — every standalone tool this
   project has built, its real scope, and its honest limitations.
-- `points.md` — the project's own append-only, numbered decision log.
-  Every real design decision, bug found, and measurement taken is in
-  here with its actual reasoning, not just a changelog line.
+- `points/` — the project's own append-only, numbered decision log
+  (split across multiple files since it outgrew GitHub's own render
+  limit; start at [`points/INDEX.md`](points/INDEX.md)). Every real
+  design decision, bug found, and measurement taken is in here with
+  its actual reasoning, not just a changelog line.
+- [`docs/shared/POINTS_STATUS_AUDIT.md`](docs/shared/POINTS_STATUS_AUDIT.md)
+  and [`docs/shared/POINTS_STATUS_AUDIT_2.md`](docs/shared/POINTS_STATUS_AUDIT_2.md)
+  — a real, curated status map on top of the ledger above: what's
+  done, what's genuinely still pending, and what's an open thought-
+  direction with no build started.
 
 ## What's genuinely archived, and why
 
