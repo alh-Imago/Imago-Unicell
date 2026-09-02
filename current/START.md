@@ -38,7 +38,63 @@ from the FULL cell, and real zone-scale measurement up to 750 cells. Read
 `current/latest.md` for the compressed summary before diving into
 `points/points_active.md` (or `points/INDEX.md` for older entries).**
 
-## Onion archival tool — setup needed EVERY fresh session (2026-08-16, points.md #332-335)
+## Session close-out procedure — run through this before ending EVERY session (2026-09-02, points.md #593/#594)
+
+**Real, standing checklist, not aspirational — added because #593's own
+status-audit work made clear how much genuinely slips (a free-input
+Quartus target sitting unrun for over a dozen entries, a points.md that
+grew silently past GitHub's render limit) when close-out stays informal.
+Run through this before ending any session that did real work, however
+short:**
+
+1. **Every real change committed and pushed.** `git status` clean,
+   `git log` matches what actually happened this session. Nothing left
+   staged, nothing left un-pushed "for later."
+2. **`current/latest.md` rewritten fresh, most-recent-first.** The
+   new top entry is THIS session's own real summary; the old top entry
+   moves down to "Previous state," cascading — never delete older
+   entries, never leave a gap in the cascade (a real mistake made and
+   caught once already, mid-session, `#585`-adjacent work).
+3. **A real, closing gut-check on `points/points_active.md`:** did
+   every real decision, finding, and built artifact this session
+   actually get a numbered entry? Not just the successes — real,
+   honest negative results (a bet that didn't pay off, a build that
+   regressed) are exactly as valuable as wins and get logged the same
+   way, same discipline as always.
+4. **Check `points/points_active.md`'s own real size.** If it's
+   approaching ~350KB, seal it: rename to `points_NN_XXX-YYY.md` with
+   its real final entry range, start a fresh empty `points_active.md`,
+   add the sealed file's row to `points/INDEX.md`. See `points/
+   INDEX.md`'s own header for the full real convention.
+5. **Anything genuinely superseded or dead this session — archive it,
+   don't just leave it live.** The Onion tool (`archeology/onion/`,
+   setup instructions below) is the real, working mechanism for this,
+   not a delete.
+6. **Anything genuinely new and load-bearing — does it need adding to
+   the "Read these first" list above, or is `current/latest.md`
+   enough?** Most sessions: latest.md is enough. A new persistent tool,
+   a new standing convention, or a new authoritative reference doc
+   (matching the weight of things already in that list) is the real bar
+   for adding a permanent line here.
+7. **A real, honest queue for next session** — what's still queued,
+   pending, or genuinely open — stated explicitly (in `current/
+   latest.md` and/or `current/PLAN.md`), not left implicit in
+   whichever entry happens to be last. `docs/shared/
+   POINTS_STATUS_AUDIT_2.md`'s own "Quick reference" section is the
+   real model for this — a short, current, actionable list, not a
+   re-narration of the whole session.
+8. **Session archive, if the session was substantial** (matching the
+   existing real convention in `archeology/sessions/archive-YYYY-MM-
+   DD.md`) — a real narrative summary, not required every session but
+   worth doing for anything with real, multi-thread scope.
+
+This list itself is not exhaustive by design — the actual test is
+"would a fresh session, reading only `current/START.md` → `current/
+latest.md` → `points/points_active.md` → `current/PLAN.md`, have
+everything it needs, with nothing real left undiscoverable." If not,
+something above was skipped.
+
+
 Legacy/superseded material now gets packed into `.onion` archives in
 `archeology/onion/` instead of left scattered live or riskily deleted
 (real, working discipline, not aspirational — see `points.md` #332-333

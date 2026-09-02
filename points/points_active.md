@@ -1483,3 +1483,47 @@ from here.
 
 **Cross-linked from both `points/INDEX.md`** (new "Status" section)
 **and the original audit** (a forward-pointer added at its own top).
+
+## 594. Real, permanent session close-out procedure added to current/START.md -- an 8-item, standing checklist (commit/push, latest.md cascade rewrite, points.md gut-check, points_active.md size check, archival, START.md maintenance, next-session queue, session archive) run before ending any session that did real work. Per Alan's own direct request: "make note in the start or other permanent spot" -- motivated directly by #593's own real finding that things genuinely slip without an explicit checklist (#581's Quartus target sitting unrun for a dozen-plus entries, points.md silently growing past GitHub's own render limit). (Alan/Claude, 2026-09-02)
+
+**STATUS: real, written, permanent -- added to `current/START.md`
+itself (not a separate doc), matching Alan's own explicit real
+request for "the start or other permanent spot." Every fresh session
+now reads this as part of its own real catch-up sequence, not just
+discovers it if remembered.**
+
+**The real, concrete 8 items, each grounded in an actual real gap
+found this session, not invented preemptively:**
+1. Every real change committed and pushed -- `git status` clean.
+2. `current/latest.md` rewritten fresh, most-recent-first, cascade
+   never gapped -- a real mistake made and caught once already this
+   session (the #585 cascade-skip, fixed immediately when found).
+3. A real, closing gut-check that every real decision/finding/
+   artifact got a numbered entry -- explicitly including honest
+   negative results, not just wins.
+4. `points/points_active.md`'s own real size checked -- seal and
+   rotate per `points/INDEX.md`'s own convention (`#593`) if
+   approaching ~350KB.
+5. Genuinely superseded/dead material archived via the real Onion
+   tool, not left live or deleted.
+6. A real, deliberate check on whether anything new is load-bearing
+   enough to earn a permanent line in START.md's own "Read these
+   first" list, versus latest.md being sufficient.
+7. A real, explicit next-session queue -- `POINTS_STATUS_AUDIT_2.md`'s
+   own "Quick reference" section (`#593`) named directly as the real
+   model for this: short, current, actionable, not a re-narration.
+8. A real session archive to `archeology/sessions/`, for substantial
+   sessions, matching the already-existing real convention.
+
+**The real, honest test stated explicitly at the end, not left
+implicit:** would a fresh session, reading only START.md ->
+latest.md -> points_active.md -> PLAN.md, have everything it needs,
+with nothing real left undiscoverable? If not, something on the list
+above was skipped.
+
+**Real, honest scope: this is a checklist, not automation.** Nothing
+here is enforced mechanically -- it depends on actually being run
+through, same as every other standing discipline in this project
+(sim-first verification, never-modify-a-proven-file, the append-only
+ledger itself). Zero regression: 361/361 Python tests (docs-only
+change).
