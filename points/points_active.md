@@ -1989,6 +1989,51 @@ RAM/DSP wrappers having no `core_select`) don't apply yet since every
 cell in a mirrored VM session today is core-shaped. Both explicitly
 out of this entry's scope, not silently assumed done.
 
+## 603. Real, queued observation at session pause, per Alan's own direct point: this session's own new infrastructure (`#601`/`#602`) gives `#547`'s already-logged LLVM IR compiler intent a genuine, concrete environment to be built AND TESTED in, closing a real gap `#547` itself left explicitly open. Nothing built -- an honest connection between two already-real things, captured so it isn't lost. (Alan/Claude, 2026-09-02)
+
+**The real connection, stated precisely:** `#547` named a real, long-
+standing intent -- a future compiler stage lowering real LLVM IR (for
+a genuinely bounded program subset: static loop bounds, no recursion,
+no dynamic allocation) onto the substrate by pattern-matching against
+this project's own already-proven tile library, rather than
+synthesizing novel hardware from first principles per IR construct.
+`#547`'s own closing line stated the real gap honestly: "no design, no
+RTL, no VM code" -- a real, substantial future thread with prior art
+cited on both sides, but nowhere to actually RUN a candidate compiled
+program once one existed.
+
+**What changed this session, concretely:** `VMSession.from_man()`
+(`#601`) means any future LLVM-IR-derived `ProgramIR`/ICM output can be
+loaded into a session that genuinely, checkably corresponds to a real
+card's own real N-cell layout -- not a free-floating, unconstrained
+Python grid. The simulated Walker (`#602`) means that loaded design's
+own actual realized topology can then be independently discovered and
+inspected (via `walk()`/`to_shape()`), rather than trusted on faith
+from the compiler's own output -- directly useful for `#547`'s own
+named hardest open question (the bounded-loop/no-recursion scoping
+problem): a real place to load a candidate lowering, run it via
+`VMSession.tick()`/`run_to_quiescence()`, and independently verify via
+the Walker that what actually got placed matches what was intended,
+before ever touching real hardware.
+
+**Real, honest scope: nothing built here.** No LLVM IR parsing, no
+pattern-matching against the tile library, no new frontend -- this
+entry exists only to record the real, concrete infrastructure
+connection Alan pointed out at session pause, so `#547`'s own thread
+picks up from a stronger, already-connected starting point next time
+it's worked, rather than being re-derived from scratch. `#547`'s own
+real prior-art citations (HLS/binary-translation distinction, the
+already-proven "combinational tricks" tile catalog) remain the correct
+starting reference; nothing here supersedes them.
+
+**Session paused here, per Alan's own explicit request** ("let's
+continue when the usage resets"). Real, explicit next-session queue,
+in order: (1) continue the pipeline walkthrough at Step 4 (Other
+tools: VM/workbench, compiler, Composer); (2) this entry's own LLVM IR
+environment connection, whenever picked up, per `#547`'s own real
+scope. Full session narrative: `archeology/sessions/archive-2026-09-02.
+md`'s own addendum section.
+
 ## 600. Step 2 of the walkthrough (Create cells / `/cells`, `project_assemble_v1.py`): same real gap pattern as Step 1 -- the frontend exposed only 6 of `assemble()`'s real 14 parameters, silently dropping shell selection, LogicLock, and the custom-shell/dependency-override machinery (`#578`/`#582`/`#583`/`#590`) entirely. Closed, with a requirements table matching Step 1's own pattern. (Alan/Claude, 2026-09-02)
 
 **Real gap found, checked directly against `assemble()`'s own real
