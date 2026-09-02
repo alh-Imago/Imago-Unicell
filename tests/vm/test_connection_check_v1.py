@@ -88,18 +88,21 @@ def test_accumulator_wrong_dir_still_flagged():
 
 
 def test_check_connections_never_raises_on_unknown_core():
-    """Real, honest defensive handling -- an unrecognized core string
-    (e.g. sequencer, which has no real VM dispatch yet, #519) must
-    never crash this check, just be silently skipped as
-    not-statically-checkable."""
+    """Real, honest defensive handling -- a genuinely unrecognized core
+    string (some future core type not yet registered here) must never
+    crash this check, just be silently skipped as not-statically-
+    checkable. (points.md #609: sequencer no longer serves as this
+    example -- it's now a real, recognized core with real, checkable
+    behavior of its own; see test_sequencer_never_listens_real_
+    dispatch_now_exists below instead.)"""
     class Fake:
         def __init__(self, cell_id, row, col, core, core_config):
             self.cell_id, self.row, self.col = cell_id, row, col
             self.core, self.core_config = core, core_config
 
     records = [
-        Fake("s1", 0, 0, "sequencer", {"downstream_mask": ["e"]}),
-        Fake("s2", 0, 1, "sequencer", {}),
+        Fake("f1", 0, 0, "some_future_core", {"downstream_mask": ["e"]}),
+        Fake("f2", 0, 1, "some_future_core", {}),
     ]
     hints = cc.check_connections(records)  # must not raise
     assert hints == []
@@ -136,3 +139,41 @@ def test_comparator_uses_real_icm_core_name():
     hints = cc.check_connections(records)
     assert len(hints) == 1
     assert "c@0,1" in hints[0]
+
+
+def test_sequencer_never_listens_real_dispatch_now_exists():
+    """points.md #609: sequencer's real VM dispatch now exists --
+    genuinely different from nano's "no gate, always accepts": a
+    broadcast into a sequencer neighbor is a real mismatch, always,
+    confirmed directly against the real RTL (ack_out tied low on every
+    direction)."""
+    class Fake:
+        def __init__(self, cell_id, row, col, core, core_config):
+            self.cell_id, self.row, self.col = cell_id, row, col
+            self.core, self.core_config = core, core_config
+
+    records = [
+        Fake("r0", 0, 0, "ram", {"downstream_mask": ["e"]}),
+        Fake("s1", 0, 1, "sequencer", {}),
+    ]
+    hints = cc.check_connections(records)
+    assert len(hints) == 1
+    assert "s1" in hints[0]
+
+
+def test_sequencer_out_side_is_statically_checkable():
+    """Unlike branch, sequencer's own real output IS a static config
+    field (downstream_mask) -- confirmed it's checked as a real source
+    of a real mismatch, not silently excluded."""
+    class Fake:
+        def __init__(self, cell_id, row, col, core, core_config):
+            self.cell_id, self.row, self.col = cell_id, row, col
+            self.core, self.core_config = core, core_config
+
+    records = [
+        Fake("s1", 0, 0, "sequencer", {"downstream_mask": ["e"]}),
+        Fake("r1", 0, 1, "ram", {}),  # no upstream_mask -- won't listen
+    ]
+    hints = cc.check_connections(records)
+    assert len(hints) == 1
+    assert "s1" in hints[0] and "r1" in hints[0]

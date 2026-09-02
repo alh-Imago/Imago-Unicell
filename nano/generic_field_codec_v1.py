@@ -67,6 +67,9 @@ CORE_SELECT_TO_ROOT_KEY = {
     3: "accumulator",
     4: "comparator",
     5: "latch",
+    6: "sequencer",   # #609: real RTL slot since unicell_super_v2.v,
+                       # closing the SEL_SEQ=6 half of #519's own real
+                       # asymmetry -- real VM dispatch built alongside.
     7: "branch",   # #519: VM-provisional (icm_v3.py's own real flag on this
                     # -- no real RTL core_select slot exists yet), added so
                     # this core's own real, RTL-mechanically-extracted field

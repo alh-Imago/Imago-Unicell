@@ -346,6 +346,30 @@ super_tile_library.register(SuperTileSpec(
 ))
 
 super_tile_library.register(SuperTileSpec(
+    name="sequencer", core="sequencer",
+    description="A real, config-fixed cyclic sequence of up to 4 "
+                 "8-bit values (points.md #609), offered in order, "
+                 "advancing to the next value only once the current "
+                 "offer is genuinely acked -- wrapping after "
+                 "SEQUENCE_LEN+1 values. Genuinely no 'in' port at all "
+                 "(confirmed directly against the real RTL: this core "
+                 "never captures anything, ack_out is tied low on "
+                 "every direction). Real, deliberate choice, matching "
+                 "every other tile's own direct-field-value convention "
+                 "(no smoothing layer): param names and casing match "
+                 "the real, mechanically-extracted RTL field names "
+                 "exactly (VALUE_0.../SEQUENCE_LEN, uppercase -- this "
+                 "one core's own real RTL comment style, confirmed not "
+                 "an inconsistency to silently 'fix'). SEQUENCE_LEN is "
+                 "stored as the real sequence length MINUS ONE (0 means "
+                 "a length-1 sequence), matching the real hardware "
+                 "encoding directly, same as the RTL's own comment.",
+    ports=[TilePort("out", "out", "downstream_mask")],
+    param_names=["VALUE_0", "VALUE_1", "VALUE_2", "VALUE_3", "SEQUENCE_LEN"],
+    target="super-only",
+))
+
+super_tile_library.register(SuperTileSpec(
     name="branch", core="branch",
     description="A real, three-way held-reference router (points.md "
                  "#608): captures the FIRST arrived value as a real "

@@ -17,13 +17,12 @@ from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
 
 
 def test_library_has_all_seven_core_types_represented():
-    """points.md #608: branch added (real VM dispatch already existed,
-    #501/#519's own resolution; only the Tier-0 tile itself was
-    missing). sequencer remains genuinely absent -- it has no real VM
-    dispatch at all yet (#519), a real, separate, larger gap not closed
-    by this entry."""
+    """points.md #608/#609: branch and sequencer both added (real VM
+    dispatch already existed for branch, #501/#519's own resolution;
+    sequencer's own real VM dispatch was built fresh in #609, closing
+    #519's other half). Tier-0 now covers all 8 real core types."""
     cores = {super_tile_library.get(n).core for n in super_tile_library.names()}
-    assert cores == {"nano", "ram", "adder", "accumulator", "comparator", "latch", "branch"}
+    assert cores == {"nano", "ram", "adder", "accumulator", "comparator", "latch", "branch", "sequencer"}
 
 
 def test_place_rejects_missing_port_direction():
@@ -238,6 +237,70 @@ def test_branch_tile_shell_compatibility_reachable_via_real_dsl():
     assert result_v3["ok"], result_v3.get("error")
 
 
+# ── sequencer (points.md #609, new) ─────────────────────────────────
+
+def test_sequencer_tile_compiles_and_places():
+    tile = super_tile_library.get("sequencer")
+    rec = place(tile, 0, 0, {"out": "e"},
+                params={"VALUE_0": 10, "VALUE_1": 20, "VALUE_2": 30, "VALUE_3": 0, "SEQUENCE_LEN": 2},
+                cell_id="seq")
+    assert rec.core == "sequencer"
+    assert rec.core_config["downstream_mask"] == ["e"]
+    assert rec.core_config["VALUE_0"] == 10
+    assert rec.core_config["SEQUENCE_LEN"] == 2
+
+
+def test_sequencer_tile_real_cycling_through_a_real_grid():
+    tile = super_tile_library.get("sequencer")
+    seq_rec = place(tile, 0, 0, {"out": "e"},
+                     params={"VALUE_0": 1, "VALUE_1": 2, "VALUE_2": 0, "VALUE_3": 0, "SEQUENCE_LEN": 1},
+                     cell_id="seq")
+    ram_tile = super_tile_library.get("ram_flowing")
+    ram_rec = place(ram_tile, 0, 1, {"in": "w", "out": "n"}, cell_id="consumer")
+    grid = SuperGrid([seq_rec, ram_rec])
+    seq_cell = grid.cells[(0, 0)]
+    ram_cell = grid.cells[(0, 1)]
+    received = []
+    for _ in range(8):
+        grid.tick()
+        if ram_cell.ram_data_valid:
+            received.append(ram_cell.ram_data_reg)
+            ram_cell.ram_data_valid = False
+    assert received[:4] == [1, 2, 1, 2]
+
+
+def test_sequencer_tile_shell_compatibility_reachable_via_real_dsl():
+    """The real point of #609: confirms the shell-compat rejection
+    path is reachable end to end for sequencer too, not just branch --
+    v1 lacks sequencer, v2 has it."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
+    import workbench_v1
+    dsl = """
+    program seq_test {
+        place s as sequencer at (0, 0) {
+            out: e
+            VALUE_0: 10
+            VALUE_1: 20
+            VALUE_2: 0
+            VALUE_3: 0
+            SEQUENCE_LEN: 1
+        }
+    }
+    """
+    man_path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "man", "mustang-f100-a10.man.json")
+    ctrl_v1 = workbench_v1.WorkbenchController()
+    ctrl_v1.set_target(man_path, 4, shell="v1")
+    result_v1 = ctrl_v1.compile(dsl, "dsl")
+    assert not result_v1["ok"]
+    assert "sequencer" in result_v1["error"]
+
+    ctrl_v2 = workbench_v1.WorkbenchController()
+    ctrl_v2.set_target(man_path, 4, shell="v2")
+    result_v2 = ctrl_v2.compile(dsl, "dsl")
+    assert result_v2["ok"], result_v2.get("error")
+
+
 def test_registering_duplicate_name_raises():
     from super_tile_library_v1 import SuperTileLibrary
     lib = SuperTileLibrary()
@@ -258,7 +321,7 @@ def test_nano_gate_tagged_universal_others_super_only():
     from super_tile_library_v1 import TARGET_UNICELL_N, TARGET_UNICELL_S, valid_targets
     assert super_tile_library.get("nano_gate").target == "universal"
     assert valid_targets(super_tile_library.get("nano_gate")) == {TARGET_UNICELL_N, TARGET_UNICELL_S}
-    for name in ["ram_constant", "ram_flowing", "adder", "accumulator", "comparator", "latch", "branch"]:
+    for name in ["ram_constant", "ram_flowing", "adder", "accumulator", "comparator", "latch", "branch", "sequencer"]:
         tile = super_tile_library.get(name)
         assert tile.target == "super-only", name
         assert valid_targets(tile) == {TARGET_UNICELL_S}, name

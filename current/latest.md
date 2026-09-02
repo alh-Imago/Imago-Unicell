@@ -1,4 +1,58 @@
-# Current State (as of 2026-09-02, real ICM file save/load added to the workbench -- Alan asked directly whether Composer/the workbench could save and load .icm files; checked first (it couldn't), then built. See `points/points_active.md` #607)
+# Current State (as of 2026-09-02, real gap-plugging complete: both branch AND sequencer now have real Tier-0 DSL tiles, closing both halves of #519's own long-standing real asymmetry -- every one of the 8 real core types now has real RTL, real VM dispatch, and a real DSL tile. See `points/points_active.md` #608/#609)
+
+## Read this first (most recent)
+
+**2026-09-02, gap-plugging complete (#608/#609).** Per Alan's own
+direct request to plug the Composer gaps found last session:
+`branch` (#608) needed only a Tier-0 tile -- its real VM dispatch
+already existed. `sequencer` (#609) needed its full VM dispatch built
+from scratch (real RTL since `unicell_super_v2.v`, never had any VM
+dispatch at all) -- made tractable by the VM's own existing
+`CoreHandler` extensibility mechanism (`#358`), reusing the drain-
+detection hook for a genuinely different real purpose (advance a
+sequence index, not clear validity).
+
+**Five real, separate bugs found and fixed along the way, each caught
+by testing before shipping, not discovered later:**
+- `shell_compat_v1.py`/`connection_check_v1.py` both used `"compare"`
+  as a lookup key when the real ICM/VM core string is `"comparator"`
+  -- meant comparator cells were silently, always rejected by the
+  shell-compat check, on every shell. The SAME bug was also present in
+  `workbench_v1.py`'s own client-side JS mirror, found separately while
+  adding sequencer's JS entry.
+- `super_tile_library_v1.place()`'s generic direction-resolution
+  always produces a list, but branch's own real `upstream_dir` field
+  is a single value -- added a small, real `single_dir()` helper.
+- A first draft of the branch tile left `emit_low/equal/high` unset,
+  which would have shipped a tile that compiles but never actually
+  emits anything -- caught by a real functional test, not assumed
+  correct.
+- `_deliver_sequencer()`'s first draft always accepted arrivals --
+  wrong; the real RTL's `ack_out` is tied low, confirmed against
+  `_deliver_ram()`'s own established "nothing to capture" precedent.
+- `connection_check_v1.py` needed a genuinely new real distinction for
+  sequencer: nano's "no gate" means always-accepts; sequencer's "no
+  gate" means never-accepts -- opposite real meanings, given an
+  explicit `"never"` sentinel rather than conflated.
+
+Real, honest milestone: **every one of the 8 real core types now has
+real RTL, real VM dispatch, and a real Tier-0 DSL tile** -- both halves
+of `#519`'s own long-standing real asymmetry (branch: real VM, no RTL
+slot; sequencer: real RTL, no VM dispatch) are now fully closed.
+20 new tests across both entries (7 for branch, 13 for sequencer),
+499/499 passing, zero regression. Full detail: `points/points_active.
+md` `#608`, `#609`.
+
+**Real, standing next-session items, unchanged:** `#603` (LLVM IR now
+has a place to be tested) and `#604` (card-decoupled virtual substrate
++ 3D extension + training buckets), both captured, nothing built yet.
+Worth noting for `#604` specifically, per Alan's own observation at the
+time: the 3D extension will need 3D-aware cardinals on the OTHER 7
+cores too, not just nano (which alone has real reserved 6-bit
+`routing_mask`/`cardinal_edge` headroom) -- real, extra prerequisite
+work before that direction can start, not yet begun.
+
+## Previous state (as of 2026-09-02, real ICM file save/load added to the workbench -- Alan asked directly whether Composer/the workbench could save and load .icm files; checked first (it couldn't), then built. See `points/points_active.md` #607)
 
 ## Read this first (most recent)
 

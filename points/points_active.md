@@ -2491,3 +2491,114 @@ suite: 486/486 passing (479 prior + 7 new), zero regression.
 separate task (full VM dispatch, not just a tile) -- the session's own
 immediate next step, pending confirmation on how deep to build it.
 
+## 609. Real, full sequencer VM dispatch built from scratch, closing the SEL_SEQ=6 half of `#519`'s own long-standing real asymmetry (real RTL since `unicell_super_v2.v`, no VM dispatch at all until now). Tier-0 tile added on top, matching `#608`'s own real branch precedent. Four real, separate bugs found and fixed along the way, each caught by testing before being shipped. (Alan/Claude, 2026-09-02)
+
+**The real RTL read first, not assumed:** `sequencer_cell_v1.v` -- a
+config-fixed cyclic sequence of up to 4 real 8-bit values, offered in
+order, advancing to the next value only once the current offer is
+genuinely, fully acked, wrapping after `SEQUENCE_LEN+1` values.
+Genuinely no capture side at all -- `ack_out` tied low on every
+direction, confirmed directly in the RTL's own comment ("there is
+nothing to acknowledge").
+
+**The real, existing extensibility point that made this tractable,
+confirmed before starting, not assumed:** `unicell_super_automaton_v1.
+py`'s own `CoreHandler` registration mechanism (`#358`) -- a new core
+type registers its own `deliver`/`offer_state`/`continuously_live`/
+`clear_valid` callables without touching `SuperCell`'s own dispatch
+methods at all. The real, deliberate design choice this entry makes:
+`continuously_live=False` for a core that's actually ALWAYS valid --
+counter-intuitive, but necessary, since Pass 3's own drain-detection
+(the exact moment `pending_ack` fully empties) is the one real hook
+that fires at the correct time for sequencer's "advance to next value"
+transition; registering `continuously_live=True` would make Pass 3
+skip this core entirely and the sequence would never advance. The
+`clear_valid` hook is reused for a genuinely different real purpose
+here (advance an index, not clear a validity flag) -- a real, honest
+repurposing of an existing mechanism, not a new one invented.
+
+**Real infrastructure additions, each grounded in the actual RTL, not
+hand-typed and hoped correct:**
+- `icm_v3.py`: `SEL_SEQ=6`, `CORE_NAMES`/`CORE_IDS` entry, `_SEQ_FIELDS`
+  table. **Field names and casing matched EXACTLY to the real,
+  mechanically-extracted RTL comment** (`root_definition_extractor_v1.
+  py` run directly against `sequencer_cell_v1.v` before any table was
+  hand-typed) -- `VALUE_0`/`VALUE_1`/`VALUE_2`/`VALUE_3`/`SEQUENCE_LEN`,
+  UPPERCASE, this one core's own real, genuinely inconsistent RTL
+  comment style (every other core uses lowercase) -- kept exactly as
+  the real source has it rather than silently "corrected," since that
+  divergence is precisely what the extractor exists to catch.
+- `generic_field_codec_v1.py`: `CORE_SELECT_TO_ROOT_KEY[6] = "sequencer"`.
+- `root_definition.json`: a real `sequencer` entry, generated via the
+  real extractor against the real RTL file, not hand-edited JSON.
+- `unicell_super_automaton_v1.py`: new `SuperCell` fields
+  (`seq_value_0..3`/`seq_sequence_len_m1`/`seq_downstream_mask`/
+  `seq_index`/`seq_out_buffer`/`seq_data_valid`), a `from_record()`
+  dispatch branch, and the `CoreHandler` registration described above.
+
+**Four real, separate bugs found and fixed, each caught by testing
+BEFORE being shipped, not discovered later:**
+1. `vm_introspection_v1.py` had no `sequencer` branch at all --
+   `describe()`/`state()` crashed immediately on any sequencer cell.
+   Added, matching every other core's own real field exposure.
+2. `_deliver_sequencer()`'s own first draft unconditionally returned
+   `(True, None)` for any arrival -- WRONG, confirmed directly against
+   `_deliver_ram()`'s own established real precedent for "nothing to
+   capture" (`ram_fixed_mode`, which correctly returns `(False, None)`
+   when something arrives it can't take). Fixed: sequencer now
+   correctly REJECTS any real arrival, matching the RTL's own
+   `ack_out` tied low exactly -- a real sender wired into a sequencer
+   would see its own offer never ack, staying pending forever, same as
+   real hardware.
+3. `workbench_v1.py`'s own CLIENT-SIDE JS mirror of `connection_check_
+   v1.py`'s per-core field mapping had the SAME `"compare"`-vs-
+   `"comparator"` naming bug `#608` already fixed on the Python side --
+   found and fixed while adding sequencer's own JS entry, not a new
+   bug introduced by this entry.
+4. `connection_check_v1.py`'s own `sequencer` entry needed a genuinely
+   NEW real distinction, not a reuse of an existing one: `nano`'s "no
+   gate fields" means ALWAYS accepts (no real gate at all); sequencer's
+   "no gate fields" means NEVER accepts (a real capture side that
+   genuinely doesn't exist) -- opposite real meanings for the
+   same-shaped absence. Added an explicit `"never"` sentinel rather
+   than conflating the two, confirmed by a real test that a broadcast
+   INTO a sequencer neighbor is now correctly flagged (previously
+   silently unreachable, since sequencer had no real dispatch at all
+   before this entry).
+
+**`nano/super_tile_library_v1.py`:** new `sequencer` `SuperTileSpec` --
+one `out` port (`downstream_mask`), params matching the real field
+names exactly (`VALUE_0..3`/`SEQUENCE_LEN`, same "no smoothing layer,
+direct real hardware encoding" convention every other tile already
+uses -- `SEQUENCE_LEN` is documented plainly as length-MINUS-ONE,
+matching the real RTL). Tier-0's own catalog now covers all 8 real
+core types.
+
+**Real, honest verification:** 13 new tests total across this entry
+(`tests/vm/test_sequencer_core_v1.py`, 8 -- `from_record()` field
+correctness, `data_valid` never toggling off, `deliver()` correctly
+rejecting arrivals, a full real two-cell cycle through a real `ram`
+consumer confirming the 10/20/30 wraparound, single-length stability,
+zero-downstream silence, real pack/unpack round-trip of the uppercase
+field names, `minimum_shell_version()` requiring v2; 3 in `tests/vm/
+test_super_tile_library_v1.py` -- tile compile/place, real cycling
+through a grid, and a full DSL-to-workbench shell-rejection round trip
+confirming v1 rejects and v2 accepts, mirroring `#608`'s own branch
+test exactly; 2 new + 1 rewritten in `tests/vm/test_connection_check_
+v1.py` -- the real "never listens" semantics, the real "out side IS
+checkable" confirmation, and a rewrite of a pre-existing defensive test
+that had used sequencer as its "genuinely unrecognized core" example,
+now stale since sequencer is real and recognized). Two more pre-
+existing tests updated for the real, new 8-core-type count. Full
+suite: 499/499 passing (486 prior + 13 new), zero regression.
+
+**`docs/stripped-cell/SUPER_CELL_INTERNALS.md`** updated -- its own
+"sequencer's own mirror-image gap... remains open" note was now stale,
+corrected to point at this entry.
+
+**Real, honest scope closed:** both halves of `#519`'s own real
+asymmetry are now closed -- branch had real VM but no RTL slot (closed
+`#542`), sequencer had real RTL but no VM dispatch (closed here). Every
+one of the 8 real core types now has both a real RTL slot AND real VM
+dispatch AND a real Tier-0 DSL tile.
+

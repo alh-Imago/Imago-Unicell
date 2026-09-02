@@ -226,9 +226,12 @@ def test_super_grid_accumulator_heartbeat_never_quiesces():
 # be added by registration alone, without touching SuperCell's own
 # deliver()/_offer_state()/is_continuously_live() dispatch methods. ────
 
-def test_registry_holds_exactly_the_six_non_nano_cores():
+def test_registry_holds_exactly_the_seven_non_nano_cores():
+    """points.md #609: sequencer added, closing the SEL_SEQ=6 half of
+    #519's own real asymmetry (real RTL since unicell_super_v2.v, now
+    real VM dispatch too)."""
     from unicell_super_automaton_v1 import _CORE_HANDLERS
-    assert set(_CORE_HANDLERS.keys()) == {"ram", "adder", "accumulator", "comparator", "latch", "branch"}
+    assert set(_CORE_HANDLERS.keys()) == {"ram", "adder", "accumulator", "comparator", "latch", "sequencer", "branch"}
 
 
 def test_registering_duplicate_core_handler_raises():

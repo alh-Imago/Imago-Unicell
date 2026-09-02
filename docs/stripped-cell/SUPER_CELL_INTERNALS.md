@@ -39,7 +39,7 @@ target, never a modification of a proven one:**
 - **v3** — adds branch cell (`SEL_BRANCH=7`, `points.md` #542), closing
   the "real VM, no RTL slot" half of the asymmetry `#519` first named
   (the sequencer's own mirror-image gap -- real RTL, no VM dispatch --
-  remains open). Sim-verified (`tb_unicell_super_v3.v`, 12/12, including
+  closed separately, `points.md` #609). Sim-verified (`tb_unicell_super_v3.v`, 12/12, including
   a substantive real branch cell test through `core_select` routing),
   not yet Quartus/silicon-confirmed as an 8-core shell.
 

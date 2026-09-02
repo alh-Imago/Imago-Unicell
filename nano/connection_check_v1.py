@@ -22,9 +22,14 @@ REAL, HONEST SCOPE, stated plainly rather than silently wrong:
   runtime by comparing an arrived value against a reference) -- not a
   static config this module can check ahead of time. Excluded from
   the OUTGOING side of this check entirely, not silently mishandled.
-- `sequencer` has NO real VM dispatch at all yet (a real, pre-existing
-  gap, `#519`) -- can never actually appear in a live session today.
-  Handled defensively (skipped, not crashed on) in case that changes.
+- `sequencer` (points.md #609: real VM dispatch now exists, closing
+  the gap this note used to describe) genuinely NEVER captures
+  anything -- confirmed directly against the real RTL, `ack_out` tied
+  low on every direction -- the opposite real case from `nano`'s own
+  "no gate, always accepts": a broadcast INTO a sequencer neighbor is
+  ALWAYS a real mismatch, not a maybe. Modeled with its own explicit
+  `"never"` sentinel, not conflated with either the "always accepts"
+  or "not statically checkable" cases.
 - `nano` has no real upstream gate at all (`super_tile_library_v1.py`'s
   own documented finding) -- it accepts an arrival from ANY physically
   wired neighbor unconditionally, so it can never be the TARGET of a
@@ -56,7 +61,7 @@ CORE_DIRECTION_FIELDS: Dict[str, Dict[str, object]] = {
     "latch":       {"in_fields": ["set_dir", "clear_dir"], "out_field": "downstream_mask"},
     "nano":        {"in_fields": [], "out_field": "routing_mask"},
     "branch":      {"in_fields": None, "out_field": None},   # dynamic -- not statically checkable
-    "sequencer":   {"in_fields": None, "out_field": None},   # no real VM dispatch yet, #519
+    "sequencer":   {"in_fields": "never", "out_field": "downstream_mask"},   # #609: real VM dispatch now exists; genuinely never captures anything
 }
 
 
@@ -83,12 +88,19 @@ def _out_directions(core: str, config: dict) -> List[int]:
 
 def _listens(core: str, config: dict, direction: int) -> Optional[bool]:
     """True/False if this core type has a real, statically-checkable
-    listening gate; None if it doesn't (either because it has no gate
-    at all -- nano, always listens -- or because it's not statically
-    checkable -- branch/sequencer, real unknown, not a real "yes")."""
+    listening gate; None if it doesn't (not statically checkable --
+    branch, real unknown, not a real "yes"). Two real, deliberately
+    DIFFERENT "no gate fields at all" cases, not conflated: `nano` has
+    no gate because it accepts unconditionally (empty list ->
+    True); `sequencer` (#609) has no gate because it never captures
+    anything, ever (the `"never"` sentinel -> False) -- opposite real
+    meanings for the same-shaped absence, so they can't share a
+    representation."""
     spec = CORE_DIRECTION_FIELDS.get(core)
     if spec is None or spec["in_fields"] is None:
         return None
+    if spec["in_fields"] == "never":
+        return False
     if not spec["in_fields"]:
         return True  # nano: no real gate, always accepts
     combined: set = set()

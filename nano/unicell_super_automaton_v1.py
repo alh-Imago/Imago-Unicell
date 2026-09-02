@@ -265,6 +265,21 @@ class SuperCell:
                                   # latched at capture time (varies by outcome,
                                   # unlike every other core's static downstream_mask)
 
+    # ── sequencer: sequencer_cell_v1.v's own real registers exactly
+    # (points.md #609). No upstream field at all -- genuinely no
+    # capture side, confirmed directly against the RTL. ──
+    seq_value_0: int = 0
+    seq_value_1: int = 0
+    seq_value_2: int = 0
+    seq_value_3: int = 0
+    seq_sequence_len_m1: int = 0   # stored as length-1, matching the real RTL exactly
+    seq_downstream_mask: int = 0
+    seq_index: int = 0
+    seq_out_buffer: int = 0
+    seq_data_valid: bool = False   # live from config onward, never toggled off
+                                     # (this core has nothing to drain-and-reclose --
+                                     # it just advances to the next value on drain)
+
     freeze_in: bool = False
     _shell_pending_ack: int = 0   # non-nano cores' shared pending_ack mask
 
@@ -404,6 +419,16 @@ class SuperCell:
             cell.latch_set_dir = dm(cfg.get("set_dir", 0))
             cell.latch_clear_dir = dm(cfg.get("clear_dir", 0))
             cell.latch_toggle_dir = dm(cfg.get("toggle_dir", 0))
+        elif core == "sequencer":
+            cell.seq_value_0 = int(cfg.get("VALUE_0", 0)) & 0xFF
+            cell.seq_value_1 = int(cfg.get("VALUE_1", 0)) & 0xFF
+            cell.seq_value_2 = int(cfg.get("VALUE_2", 0)) & 0xFF
+            cell.seq_value_3 = int(cfg.get("VALUE_3", 0)) & 0xFF
+            cell.seq_sequence_len_m1 = int(cfg.get("SEQUENCE_LEN", 0)) & 0x3
+            cell.seq_downstream_mask = dm(cfg.get("downstream_mask", 0))
+            cell.seq_index = 0
+            cell.seq_out_buffer = cell.seq_value_0   # value_for_index(0), same real reset-time snapshot the RTL takes
+            cell.seq_data_valid = True                # live from the first cycle after config, matching the real RTL exactly
         elif core == "branch":
             cell.br_upstream_dir = single_dir(cfg.get("upstream_dir", 0))
             cell.br_value_source_low = bool(cfg.get("value_source_low", 0))
@@ -611,6 +636,42 @@ class SuperCell:
             self.br_ref_value = signed_val
         return (True, None)
 
+    # ── sequencer: sequencer_cell_v1.v's own real behavior exactly
+    # (points.md #609, closing the SEL_SEQ=6 half of #519's own real
+    # asymmetry -- the real RTL had existed since unicell_super_v2.v
+    # with no VM dispatch at all). No capture side whatsoever --
+    # confirmed directly against the RTL: ack_out is tied low on every
+    # direction, "there is nothing to acknowledge." ──
+    def _deliver_sequencer(self, arrivals, injected):
+        # Real RTL: ack_out is tied low on EVERY direction -- this core
+        # never genuinely acks an arrival, matching ram_fixed_mode's own
+        # established "nothing to capture -> (False, None) when
+        # something arrives" pattern exactly (not a free pass -- a real
+        # sender wired into a sequencer would see its own offer never
+        # ack, staying pending forever, same as real hardware would).
+        if arrivals or injected is not None:
+            return (False, None)
+        return (True, None)
+
+    def _offer_state_sequencer(self) -> Tuple[int, bool, int]:
+        return (self.seq_out_buffer, self.seq_data_valid, self.seq_downstream_mask)
+
+    def _clear_valid_sequencer(self) -> None:
+        """Called on drain completion via the same real hook every
+        other single-shot core uses -- but a REAL, deliberate
+        difference from all of them: this does NOT clear
+        seq_data_valid (this core is perpetually live, matching the
+        real RTL's `data_valid <= 1'b1` that's never toggled off after
+        config). Instead advances to the NEXT value in the real
+        config-fixed sequence, wrapping after `seq_sequence_len_m1+1`
+        values -- exactly the real RTL's own `offer_just_completed ->
+        seq_index <= next_seq_index` transition, reusing the drain-
+        detection mechanism this VM already has for a genuinely
+        different real purpose (advance, not clear)."""
+        self.seq_index = 0 if self.seq_index == self.seq_sequence_len_m1 else self.seq_index + 1
+        values = (self.seq_value_0, self.seq_value_1, self.seq_value_2, self.seq_value_3)
+        self.seq_out_buffer = values[self.seq_index]
+
     # ── generic offer-pass state, dispatch by core (points.md #358: via
     # the registry, not an if/elif chain -- see _CORE_HANDLERS below) ──
     def _offer_state(self) -> Tuple[int, bool, int]:
@@ -750,6 +811,17 @@ register_core_handler("comparator", CoreHandler(
 register_core_handler("latch", CoreHandler(
     deliver=SuperCell._deliver_latch, offer_state=SuperCell._offer_state_latch,
     continuously_live=True))
+register_core_handler("sequencer", CoreHandler(
+    deliver=SuperCell._deliver_sequencer, offer_state=SuperCell._offer_state_sequencer,
+    # points.md #609: continuously_live=False is a REAL, deliberate
+    # choice, not the "single-shot" label it looks like -- this core
+    # is genuinely always valid (never actually drained/reclosed), but
+    # it needs Pass 3's own drain-detection to fire every time so
+    # _clear_valid_sequencer's real advance-to-next-value step runs at
+    # the correct moment. Registering continuously_live=True instead
+    # would make Pass 3 skip this core entirely, and the sequence
+    # would never advance at all.
+    continuously_live=False, clear_valid=SuperCell._clear_valid_sequencer))
 register_core_handler("branch", CoreHandler(
     deliver=SuperCell._deliver_branch, offer_state=SuperCell._offer_state_branch,
     continuously_live=False, clear_valid=SuperCell._clear_valid_branch))

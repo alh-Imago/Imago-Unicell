@@ -221,6 +221,53 @@
       }
     ]
   },
+  "sequencer": {
+    "source_file": "/home/claude/repo/fpga/verilog/sequencer_cell_v1.v",
+    "fields": [
+      {
+        "name": "VALUE_0",
+        "hi": 7,
+        "lo": 0,
+        "description": ""
+      },
+      {
+        "name": "VALUE_1",
+        "hi": 15,
+        "lo": 8,
+        "description": ""
+      },
+      {
+        "name": "VALUE_2",
+        "hi": 23,
+        "lo": 16,
+        "description": ""
+      },
+      {
+        "name": "VALUE_3",
+        "hi": 31,
+        "lo": 24,
+        "description": ""
+      },
+      {
+        "name": "SEQUENCE_LEN",
+        "hi": 33,
+        "lo": 32,
+        "description": "how many of the 4 values are real (1-4, stored as 0-3 meaning length-1)"
+      },
+      {
+        "name": "downstream_mask",
+        "hi": 37,
+        "lo": 34,
+        "description": "where the sequence is offered"
+      },
+      {
+        "name": "reserved",
+        "hi": 63,
+        "lo": 38,
+        "description": ""
+      }
+    ]
+  },
   "branch": {
     "source_file": "/home/claude/Imago-Unicell/fpga/verilog/branch_cell_v1.v",
     "fields": [

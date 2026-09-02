@@ -111,6 +111,18 @@ def cell_to_dict(cell) -> Dict[str, Any]:
             "clear_dir": cell.latch_clear_dir,
             "state": cell.latch_state,
         }
+    elif cell.core == "sequencer":
+        base["sequencer"] = {
+            "downstream_mask": cell.seq_downstream_mask,
+            "value_0": cell.seq_value_0,
+            "value_1": cell.seq_value_1,
+            "value_2": cell.seq_value_2,
+            "value_3": cell.seq_value_3,
+            "sequence_len_m1": cell.seq_sequence_len_m1,
+            "index": cell.seq_index,
+            "out_buffer": cell.seq_out_buffer,
+            "data_valid": cell.seq_data_valid,
+        }
     elif cell.core == "branch":
         base["branch"] = {
             "upstream_dir": cell.br_upstream_dir,

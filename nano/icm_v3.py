@@ -86,10 +86,15 @@ def _set_field(value: int, lo: int, hi: int, field_value: int) -> int:
 # ── Core selector, unicell_super_v1.v localparams (line 118) ────────────
 SEL_NANO, SEL_RAM, SEL_ADDER, SEL_ACC, SEL_CMP, SEL_LATCH = range(6)
 
-# SEL_SEQ=6 is real RTL (unicell_super_v2.v, sequencer_cell_v1.v) but
-# has no VM dispatch yet -- deliberately not added here, out of scope
-# for this pass, the one remaining half of the asymmetry #519 first
-# named. SEL_BRANCH=7 was originally the OPPOSITE gap (real VM, no RTL
+# points.md #609: SEL_SEQ=6 -- real RTL since unicell_super_v2.v
+# (sequencer_cell_v1.v), real VM dispatch closed this same entry
+# (unicell_super_automaton_v1.py's own CoreHandler registration). This
+# comment previously said "no VM dispatch yet, deliberately out of
+# scope" (#519) -- now closed, the same real asymmetry SEL_BRANCH's own
+# comment below already tells the story of, mirror-imaged.
+SEL_SEQ = 6
+
+# SEL_BRANCH=7 was originally the OPPOSITE gap (real VM, no RTL
 # slot) -- now CLOSED (#542): unicell_super_v3.v gives branch_cell_v1
 # .v (#500/#504/#497) its own real, physically-instantiated RTL
 # core_select slot, sim-verified (`tb_unicell_super_v3.v`, 12/12).
@@ -105,6 +110,7 @@ CORE_NAMES = {
     SEL_ACC: "accumulator",
     SEL_CMP: "comparator",
     SEL_LATCH: "latch",
+    SEL_SEQ: "sequencer",
     SEL_BRANCH: "branch",
 }
 CORE_IDS = {name: sel for sel, name in CORE_NAMES.items()}
@@ -211,6 +217,29 @@ _LATCH_FIELDS = {
     "toggle_dir": (12, 15),
 }
 
+# Sequencer: sequencer_cell_v1.v's own "cfg_data field map" comment,
+# bit positions AND FIELD NAMES matched exactly as mechanically
+# extracted (points.md #609, real VM dispatch closing the SEL_SEQ=6
+# half of #519's own real asymmetry) -- confirmed via
+# root_definition_extractor_v1.py directly against the real RTL rather
+# than hand-typed: this ONE core's own real RTL comment uses
+# UPPERCASE field names (VALUE_0/SEQUENCE_LEN) unlike every other
+# core's lowercase convention -- kept exactly as the real source has
+# it, not silently "corrected" to match the others, since that would
+# be the exact kind of drift this project's own extractor exists to
+# catch. A short, config-fixed cyclic sequence of up to 4 real 8-bit
+# values -- no upstream field at all (genuinely no capture side,
+# confirmed directly against the RTL: ack_out is tied low on every
+# direction, "there is nothing to acknowledge").
+_SEQ_FIELDS = {
+    "VALUE_0": (0, 7),
+    "VALUE_1": (8, 15),
+    "VALUE_2": (16, 23),
+    "VALUE_3": (24, 31),
+    "SEQUENCE_LEN": (32, 33),
+    "downstream_mask": (34, 37),
+}
+
 # Branch: branch_cell_v1.v lines 53-93 (#500/#504/#497's own real,
 # final field table). REAL RTL SLOT since #542: unicell_super_v3.v
 # gives this core its own real, physically-instantiated SEL_BRANCH=7
@@ -248,6 +277,7 @@ CORE_FIELD_TABLES = {
     SEL_ACC: _ACC_FIELDS,
     SEL_CMP: _CMP_FIELDS,
     SEL_LATCH: _LATCH_FIELDS,
+    SEL_SEQ: _SEQ_FIELDS,
     SEL_BRANCH: _BRANCH_FIELDS,
 }
 
@@ -262,6 +292,7 @@ _DIR_FIELDS = {
     SEL_ACC: ("inc_dir", "dec_dir", "downstream_mask"),
     SEL_CMP: ("downstream_mask", "upstream_mask"),
     SEL_LATCH: ("set_dir", "clear_dir", "downstream_mask"),
+    SEL_SEQ: ("downstream_mask",),
     # route_low/equal/high are real, one-hot(s) N/S/E/W masks (#497's own
     # multi-direction fan-out) -- the same convention as every other
     # core's downstream_mask. upstream_dir is deliberately NOT here: a

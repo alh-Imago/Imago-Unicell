@@ -832,16 +832,19 @@ async function get(path) {
   return r.json();
 }
 
-// points.md #606: real, client-side mirror of connection_check_v1.py's
-// own per-core direction-field mapping -- display only (the real gate
-// lives server-side); kept in the same shape so it can't silently say
-// something different from what the server actually checked. branch/
-// sequencer deliberately omitted, same real reasons as the server side
-// (dynamic output; no real VM dispatch yet).
+// points.md #606/#609: real, client-side mirror of connection_check_v1.
+// py's own per-core direction-field mapping -- display only (the real
+// gate lives server-side); kept in the same shape so it can't silently
+// say something different from what the server actually checked.
+// branch deliberately omitted (dynamic output, not statically
+// checkable). sequencer has a real out (downstream_mask) but
+// genuinely no in field at all -- confirmed directly against the RTL.
 const CORE_OUT_FIELD = {ram: "downstream_mask", adder: "downstream_mask", accumulator: "downstream_mask",
-                         compare: "downstream_mask", latch: "downstream_mask", nano: "routing_mask"};
+                         comparator: "downstream_mask", latch: "downstream_mask", nano: "routing_mask",
+                         sequencer: "downstream_mask"};
 const CORE_IN_FIELDS = {ram: ["upstream_mask"], adder: ["upstream_mask"], accumulator: ["inc_dir", "dec_dir"],
-                         compare: ["upstream_mask"], latch: ["set_dir", "clear_dir"], nano: []};
+                         comparator: ["upstream_mask"], latch: ["set_dir", "clear_dir"], nano: [],
+                         sequencer: []};
 
 function activeDirs(mask) {
   const dirs = [];
