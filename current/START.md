@@ -27,7 +27,7 @@ cat docs/shared/TOOLCHAIN_SETUP.md                # NEW (2026-08-04): current Qu
 cat docs/full-cell/CELL_INTERNALS.md              # NEW (2026-08-04): the FULL cell's own field map, built by reading unicell64_v3.v directly -- flags the RTL's own known-stale header comment (wrong auth_mask position)
 cat current/VM_CORE_GAP_ANALYSIS.md               # NEW (2026-08-08): full sweep of all 77 root Python files vs the nano cell -- zero target it, 35 target the old format, 8 real gaps mapped against the VM-core rebuild plan (points.md #216/#217)
 cat current/latest.md                                 # current state + recent decisions (most recent at TOP) -- READ THE CRITICAL CORRECTION AT THE TOP FIRST (points.md #228)
-cat points.md                                         # the FULL detailed narrative, #1 onward -- #115-#157 is this session's entire body of work
+cat points/points_active.md                           # the FULL detailed narrative, currently-open tail (2026-09-02: points.md split across points/ -- see points/INDEX.md; GitHub stopped rendering it past ~2MB)
 cat current/PLAN.md                                   # what needs doing
 ```
 
@@ -36,7 +36,7 @@ STRIPPED cell almost entirely — memory/comparator mechanisms, a full
 command/programming redesign (twice), a branch/routing mechanism ported
 from the FULL cell, and real zone-scale measurement up to 750 cells. Read
 `current/latest.md` for the compressed summary before diving into
-`points.md`'s full narrative.**
+`points/points_active.md` (or `points/INDEX.md` for older entries).**
 
 ## Onion archival tool — setup needed EVERY fresh session (2026-08-16, points.md #332-335)
 Legacy/superseded material now gets packed into `.onion` archives in
