@@ -1,4 +1,31 @@
-# Current State (as of 2026-09-01, real fixed-size LogicLock result for v4 -- unlike v3 (Fmax held flat under the same 25%-headroom sizing), v4's Fmax got WORSE (-13.8%) than even the unconstrained baseline. A real, fourth independent axis on which v3 is the sturdier design, see `points.md` #585)
+# Current State (as of 2026-09-01, real, second core rolled out on the config-off-shell axis -- latch_cell_v3.v joins compare_cell_v3.v in unicell_super_v7.v, sim-verified clean, real Quartus target built, awaiting the real number, see `points.md` #587)
+
+## Read this first (most recent)
+
+**2026-09-01, real second core: latch, per Alan's own "try another
+small one first."** Same real change as compare (`#584`): `latch_
+cell_v1.v`'s own `set_dir`/`clear_dir`/`downstream_mask`/`toggle_dir`
+(16 bits) were re-latched locally on every `cfg_valid`, duplicating
+what the shell's own `core_config` already holds. `latch_cell_v3.v`
+reads them continuously instead. Genuine runtime state UNCHANGED,
+including a real, specific quirk (v1 sets `data_valid<=1` immediately
+on `cfg_valid`, unlike compare) -- confirmed preserved exactly, not
+just structurally copied.
+
+`tb_latch_v3_diff_v1.v`: 5/5 real checks vs v1, reusing v2's own
+already-proven stimulus sequence. `unicell_super_v7.v`: compare AND
+latch now both on the new axis, 6 of 8 cores remain v1, unchanged.
+All 8 real shell checks pass. Real Quartus target built (`top_
+unicell_super_test_v7.qsf`/`.sdc`), **not yet run**.
+
+Full detail: `points.md` `#587`.
+
+**Real, honest scope: cumulative, incremental rollout.** Once #587's
+own real number is in (against `#574`'s original 479/301.9 and
+`#584`'s intermediate 487/298.5), the next core to try is Alan's own
+call.
+
+## Previous state (2026-09-01, real fixed-size LogicLock result for v4 -- unlike v3 (Fmax held flat under the same 25%-headroom sizing), v4's Fmax got WORSE (-13.8%) than even the unconstrained baseline. A real, fourth independent axis on which v3 is the sturdier design, see `points.md` #585)
 
 ## Read this first (most recent)
 
@@ -22,9 +49,13 @@ This is a real, fourth independent axis (after ALM, Fmax, and register
 scaling) on which v3 is the sturdier design -- not just cheaper and
 faster in isolation, but more tolerant of real placement constraints.
 
-Full detail: `points.md` `#585`.
+Real build-time reference (`#586`, Alan's own real, measured figures):
+N=1 ~5 min, N=10 ~10 min, full-card ~2-3 hr -- bounds how freely
+further real Quartus experiments can be queued in one session.
 
-## Previous state (2026-09-01, real, third design axis prototyped on one core -- compare_cell_v3.v reads config continuously off the shell's own stable core_config instead of re-latching a private copy, per Alan's own real proposal. Sim-verified clean at core and shell level, real Quartus target built, awaiting the real number, see `points.md` #584)
+Full detail: `points.md` `#585`/`#586`.
+
+## Previous state (2026-09-01, real Quartus result for compare_cell_v3 -- CORE_CMP itself -14.3% ALM (10.5 -> 9.0), DUT -1.1%, confirming the config-redundancy fix works as reasoned. Real, deliberately minimal single-core prototype, see `points.md` #584)
 
 ## Read this first (most recent)
 

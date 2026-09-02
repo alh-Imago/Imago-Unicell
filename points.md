@@ -33554,3 +33554,50 @@ own real #573-#585 sequence did). A real full-card build is NOT --
 2-3 hours is a real, meaningful cost, so those should be queued
 deliberately, only once a specific real hypothesis is worth the real
 wall-clock time, not speculatively.
+
+## 587. Real, second core rolled out on the same axis -- latch_cell_v3.v + unicell_super_v7.v. Latch picked per Alan's own real request ("try another small one first") -- the smallest real core (8.5 ALM at N=1, #574). Same real change as compare (#584): config fields (set_dir/clear_dir/downstream_mask/toggle_dir) read continuously off the shell's own stable core_config, no local latch. Genuine runtime state, including v1's own real "data_valid goes live immediately on cfg_valid" quirk, preserved exactly. Sim-verified clean; real Quartus target built, not yet run. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, sim-verified. TWO of 8 real cores now on this axis
+(compare, latch). Real Quartus number is the actual next step.**
+
+**Real, confirmed redundancy, same shape as compare's own (`#584`):**
+`latch_cell_v1.v` re-latches `set_dir`/`clear_dir`/`downstream_mask`/
+`toggle_dir` (16 bits total) into private local registers on every
+`cfg_valid`, duplicating what the shell's own `core_config` already
+holds stable. Same real fix: read continuously instead.
+
+**`latch_cell_v3.v` (new)** -- identical to v1 except those 4 config
+fields are now plain combinational wires. Genuine runtime state
+(`latched`/`out_buffer`/`data_valid`/`pending_ack`) UNCHANGED,
+including a real, deliberate quirk specific to this core that had to
+be preserved exactly, not just copied structurally: v1 sets `data_
+valid <= 1'b1` immediately on `cfg_valid` (live from the first cycle
+after config, unlike compare which starts empty) -- confirmed
+preserved in v3 by direct comparison against v1's own real reset/
+reload block before finalizing the file.
+
+**`tb_latch_v3_diff_v1.v` (new)** -- real, differential proof against
+v1, reusing the SAME real stimulus sequence already proven for v2
+(`#563`: set, clear, second-set, reconfigure, toggle) rather than a
+new, unvetted one. 5/5 real checks, first attempt.
+
+**`unicell_super_v7.v` (new)** -- cloned from `unicell_super_v6.v`
+(compare already on this axis), latch slot now `latch_cell_v3` wired
+to `core_config`. 6 of 8 cores remain v1, unchanged, still wired to
+`incoming_config` -- a deliberate, incremental rollout, not a full
+redesign in one step.
+
+**`tb_unicell_super_v7.v` (new)** -- all 8 real checks pass, including
+latch's own real check (`data_out_e[0]=1` after set) with both
+compare and latch now on the new mechanism simultaneously.
+
+**`top_unicell_super_test_v7.v` (new)** + real Quartus target
+(`top_unicell_super_test_v7.qsf`/`.sdc`), matching the established
+template. Sim-verified clean, first attempt. **Not yet run** -- the
+real, cumulative test (compare + latch together) against `#574`'s own
+original v3 baseline (479 total / 301.9 `DUT`) and `#584`'s own
+intermediate v6 number (487 total / 298.5 `DUT`).
+
+**Zero regression:** 361/361 Python tests, `tb_unicell_super_v6.v`
+(unchanged, still passes), `tb_compare_v3_diff_v1.v` (unchanged),
+`tb_latch_v2_diff_v1.v` (unchanged).
