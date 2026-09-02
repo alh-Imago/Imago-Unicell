@@ -1841,6 +1841,154 @@ real, unused pin on the actual device (that remains `#28`/`#29`'s own
 canonical `.pin`-file-based method, still outstanding, deliberately
 not conflated with this feature).
 
+## 601. Real prerequisite for Step 3 (Walker), per Alan's own direct point: "make sure the VM is in place before it starts, or it has no target." Checked `#598`'s own claim that "VM mirror mode" is "already real and existing" directly against the code -- it was NOT. Built the real thing: `nano/vm_mirror_v1.py` + `VMSession.from_man()`. (Alan/Claude, 2026-09-02)
+
+**Real, honest correction to a prior ledger entry:** `#598` described
+VM mirror mode as already real and existing, "per the project's own
+established five-tool pipeline." Checked directly before building
+anything on top of it, per this project's own standing discipline
+("verify against actual RTL/code, not comments or memory") -- `#598`
+was wrong. `SuperGrid.__init__()` takes a flat list of ICM records at
+whatever `(row, col)` they happen to carry; nothing anywhere ties a
+grid to a real card's MAN file or to `project_assemble_v1.py`'s own
+real N-cell tiling convention. "Mirror mode" existed only as a
+docstring distinction from "free mode" (`dsp_wrapper_automaton_v1.py`'s
+own comment), never as enforced code. A simulated Walker built against
+that today would have had no honest target -- exactly Alan's own
+concern, confirmed correct on direct inspection.
+
+**`nano/vm_mirror_v1.py` (new):** `load_mirror_bounds(man_path, cells)`
+-- real, DIRECT reuse of `project_assemble_v1.load_man()`/
+`grid_dims()`/`cell_positions()` (not a reimplementation -- single
+source of truth, confirmed by a real cross-check test importing both
+and comparing results directly), returning a `MirrorBounds` (real
+card ID, rows/cols, the exact real set of row-major positions a
+Quartus build of that size would instantiate). `check_records_fit()`
+-- real, honest validation returning problem strings (out-of-layout
+placement, position collisions), never silently accepting a topology
+no real hardware build could produce.
+
+**`nano/vm_ai_port_v1.py`:** `VMSession` gains `mirror_bounds`
+(`None` by default -- only set by the new constructor, confirmed by a
+real regression test that `from_dsl()`/`from_python()`/
+`from_icm_file()` don't silently gain it) and a new
+`VMSession.from_man(man_path, cells, dsl=/python=/icm_path=)`
+classmethod -- compiles/loads a program the same way the existing
+`from_*()` methods already do (zero duplicated compile logic), then
+validates every real placed cell against `check_records_fit()`,
+raising `vm_mirror_v1.MirrorFitError` (not a silent accept) on any
+real mismatch.
+
+**Real, honest verification:** 9 new tests
+(`tests/vm/test_vm_mirror_v1.py`), including a genuine end-to-end
+real-DSL-program-through-`from_man()` test, and its own real failure
+case (a program placing a cell at `(5,5)` on a card sized for 2 cells,
+confirmed rejected with a clear message naming the exact offending
+position). One real, honest catch during test-writing itself, worth
+noting: my own first draft of the "fits" test assumed a 2-cell layout
+would be `1x2` -- `grid_dims()`'s real algorithm (`rows =
+ceil(sqrt(n))` first) actually produces `2x1` for `n=2`, confirmed by
+the test itself failing correctly before being fixed. Exactly the
+class of honest-topology bug this whole mechanism exists to catch.
+Full suite: 397/397 passing (388 prior + 9 new), zero regression.
+
+**Real, explicit scope boundary, stated plainly, not conflated with
+this entry:** this checks TOPOLOGY only (does a placement correspond
+to a real N-cell layout), not real ALM/DSP capacity -- per-cell ALM
+cost isn't a settled-enough figure across shell versions (`#574`-
+`#592`) to enforce a hard budget check here. A real, separate,
+still-open question if wanted later.
+
+**Next: the simulated Walker itself**, now that `VMSession.from_man()`
+gives it a real, honest target to discover topology against.
+
+## 602. The simulated Walker itself, built on #601's real prerequisite -- runs #501's own already-converged real ping protocol against a VM-mirrored grid, produces a real SHAPE file, and is wired into the frontend as a genuine working feature (Step 3), replacing the honest placeholder. (Alan/Claude, 2026-09-02)
+
+**`nano/walker_sim_v1.py` (new):** `ping(session, row, col, direction)`
+-- the real, minimal simulated version of `#501`'s own protocol.
+`"self"` answers directly with a real cell's own `cell_id`/`type` (or
+`None` if nothing's there); a real cardinal direction relays exactly
+one hop via `SuperGrid.neighbor_pos()` (the same real adjacency logic
+every other VM mechanism already uses) and returns THAT neighbor's own
+self-answer, matching `#501`'s "the cell does NOT answer, it relays"
+design exactly -- no neighbor there, `None`, matching a real timeout.
+`walk(session, start)` -- the real, host-side discovery algorithm,
+per `#501`'s own "all walk intelligence is host-side, cells are purely
+reactive": starts from ONE known origin, walks outward hop by hop via
+`ping()` calls only, builds a real discovered-cells map and a
+deduplicated real edge list. Raises `NoTargetError` -- not a silently
+empty map -- when the origin itself doesn't answer, the exact real
+failure mode for "the VM isn't in place, so there's nothing to
+discover" that motivated `#601`. `to_shape()` -- real, SHAPE-compatible
+output sharing the same top-level fields as `shape_extract_v1.py`'s
+own static-RTL-extracted SHAPE files (`shape_version`/`card_id`/
+`generated`/`cells`/`edges`), reusing `project_assemble_v1.inst_name()`
+directly for instance naming (not an invented scheme), with a new,
+honest `discovery_method: "simulated_walker_ping_protocol"` field so a
+reader can always tell which kind of SHAPE they're looking at.
+
+**Real, deliberate discipline, checked directly, not just claimed:**
+`walk()` never reads `session.grid.cells` itself -- confirmed by a real
+test inspecting `walk()`'s own source for any `.cells` access, plus a
+second test confirming every discovered identity is independently
+reproducible via a direct `ping()` call. This is what makes it an
+honest SIMULATION of the real protocol rather than a shortcut that
+happens to produce the same answer -- swapping `ping()`'s own body for
+a real JTAG round-trip later needs no change to `walk()` at all.
+
+**A real, necessary gap found and fixed along the way, caught by a
+real end-to-end smoke test before any test was written against a wrong
+assumption:** `SuperCell` was silently dropping `cell_id` on
+`from_record()` -- needed so a "self" ping has any real identity to
+answer with. Fixed (`unicell_super_automaton_v1.py`, backward-
+compatible default, `checkpoint()`/`restore()` already generic enough
+to need zero further changes). A second real correction, same smoke
+test: `icm_v3.IcmV3Record.cell_id` is a real, human-readable STRING
+(e.g. `"r1@0,0"`, the DSL compiler's own convention), NOT the 16-bit
+int `CELL_ID` real hardware carries (`#501`'s own confirmed field) --
+the first draft of `to_shape()`'s cell-id formatter assumed the
+hardware convention and crashed immediately on a real run; fixed to a
+plain, honest pass-through before any test was written against the
+wrong assumption.
+
+**`tools/walker_sim_cli_v1.py` (new):** the real CLI, matching this
+project's own established convention that every frontend action has a
+real, equivalent command-line tool -- MAN + cell count + (DSL file or
+existing `.icm`) -> real SHAPE file on disk.
+
+**`nano/frontend_v1.py`:** `/walker` (Step 3) is now a REAL, working
+page -- replacing the prior honest placeholder -- with the same
+requirements-table pattern as Steps 1/2, a real DSL textarea, and an
+explicit, prominent statement that this is the SIMULATED Walker (a
+VM-mirrored grid, not real silicon/JTAG); the real hardware discovery-
+mode RTL mechanism (`#501`'s own `core_select=31` sentinel) remains
+unbuilt and is named as such, not glossed over. The module's own
+top-of-file "REAL, HONEST SCOPE" note updated to match -- Walker moved
+from the placeholder list to the real list; Composer remains the one
+real, honest placeholder left.
+
+**Real, honest verification:** 28 new tests total across this entry
+(`tests/vm/test_walker_sim_v1.py` 17, `tests/tools/
+test_frontend_walker.py` 6, `tests/tools/test_walker_sim_cli_v1.py` 5)
+-- covering the ping protocol's own self/cardinal/no-neighbor/bad-
+direction cases, a real 2x2-grid discovery proving exactly 4 cells and
+4 deduplicated edges are found (not 8), the host-side-only discipline
+checks above, both `NoTargetError` real failure paths (a bad origin on
+a real mirrored session, and a completely empty free-mode session),
+SHAPE structural/JSON-serializability checks, a real DSL-vs-`.icm`
+round trip through the CLI, and the frontend controller's own error
+paths (missing fields, bad origin, compile failure) returning clean
+errors rather than raising. Full suite: 425/425 passing (397 from
+`#601`'s own already-confirmed baseline + 28 new here), zero
+regression.
+
+**Real, honest scope, stated plainly:** the hardware-discovery-mode RTL
+mechanism (`#501`'s own real next step for actual silicon) remains
+unbuilt; specialist-hardware header cells (`#501`'s own resolution for
+RAM/DSP wrappers having no `core_select`) don't apply yet since every
+cell in a mirrored VM session today is core-shaped. Both explicitly
+out of this entry's scope, not silently assumed done.
+
 ## 600. Step 2 of the walkthrough (Create cells / `/cells`, `project_assemble_v1.py`): same real gap pattern as Step 1 -- the frontend exposed only 6 of `assemble()`'s real 14 parameters, silently dropping shell selection, LogicLock, and the custom-shell/dependency-override machinery (`#578`/`#582`/`#583`/`#590`) entirely. Closed, with a requirements table matching Step 1's own pattern. (Alan/Claude, 2026-09-02)
 
 **Real gap found, checked directly against `assemble()`'s own real

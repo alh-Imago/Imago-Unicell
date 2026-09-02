@@ -169,6 +169,18 @@ class SuperCell:
     col: int
     core: str
     addon_config: dict = field(default_factory=dict)
+    #: points.md #602: the real ICM cell_id this instance was built
+    #: from, if any -- needed so a simulated Walker (or anything else
+    #: doing live identity discovery) can answer a real "self" ping
+    #: with the same identity a real hardware cell would carry.
+    #: Previously dropped entirely by from_record() -- a real gap,
+    #: found and fixed while building the discovery mechanism that
+    #: actually needed it. NOTE: icm_v3.IcmV3Record.cell_id is a real,
+    #: human-readable STRING (e.g. "r1@0,0", the DSL compiler's own
+    #: convention), NOT the 16-bit int CELL_ID real hardware carries
+    #: (#501's own confirmed field) -- kept as whatever type the
+    #: record actually has, no invented reformatting here.
+    cell_id: Optional[str] = None
 
     # ── nano: delegated entirely to a real CACell, composition not
     # reinvention. Only set when core=="nano". ──
@@ -306,7 +318,7 @@ class SuperCell:
         core = rec.core
         cfg = rec.core_config
         addon = rec.addon_config
-        cell = SuperCell(row=rec.row, col=rec.col, core=core, addon_config=addon)
+        cell = SuperCell(row=rec.row, col=rec.col, core=core, addon_config=addon, cell_id=rec.cell_id)
 
         # Real, root-definition-driven validation (points.md #358), not
         # a silent .get(key, default) that would let a typo'd field name

@@ -8,19 +8,19 @@ thin `http.server` Handler dispatching onto it.
 
 REAL, HONEST SCOPE, matching this project's own standing discipline of
 naming what's explicitly not built rather than faking it:
-- Welcome, MAN-file generation, and cell-creation pages are REAL --
-  they call directly into `tools/man_generate_v1.py` and
-  `tools/project_assemble_v1.py`'s own real functions, the same code
-  path the CLI itself uses (`assemble()`/`build_man()`), never a
-  separate, parallel implementation that could drift out of sync.
-- The Walker page and the Composer link are REAL, HONEST PLACEHOLDERS.
-  Neither has any real code behind it yet -- the Walker's own design is
-  fully converged (`points.md` #501) but unbuilt; Composer's own real
-  scope (`docs/stripped-cell/design-notes/composer_scope.md`) is a
-  visual placement-review tool with RTL generation explicitly excluded,
-  also unbuilt. These slots exist now, deliberately, so wiring in the
-  real thing later needs no restructuring -- but they say plainly
-  "not built yet" rather than pretending to work.
+- Welcome, MAN-file generation, cell-creation, and the Walker page are
+  all REAL -- they call directly into `tools/man_generate_v1.py`,
+  `tools/project_assemble_v1.py`, and `vm_ai_port_v1.py`/
+  `walker_sim_v1.py`'s own real functions, the same code paths their
+  CLIs use, never a separate, parallel implementation that could drift
+  out of sync. The Walker page is explicit that it's the SIMULATED
+  version (points.md #602) -- a VM-mirrored grid, not real silicon.
+- The Composer link is a REAL, HONEST PLACEHOLDER. No real code exists
+  behind it yet -- its own real scope (`docs/stripped-cell/design-
+  notes/composer_scope.md`) is a visual placement-review tool with RTL
+  generation explicitly excluded. This slot exists now, deliberately,
+  so wiring in the real thing later needs no restructuring -- but it
+  says plainly "not built yet" rather than pretending to work.
 - Every real, action-performing page ALSO shows the exact equivalent
   CLI command, per Alan's own explicit request -- some people will
   always prefer the command line.
@@ -39,6 +39,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import man_generate_v1  # noqa: E402
 import project_assemble_v1  # noqa: E402
 import manual_generate_v1  # noqa: E402
+import vm_ai_port_v1  # noqa: E402
+import walker_sim_v1  # noqa: E402
 
 
 class FrontendController:
@@ -179,6 +181,56 @@ class FrontendController:
         result["cli_equivalent"] = cli
         return result
 
+    def run_walker(self, fields: Dict[str, Any]) -> Dict[str, Any]:
+        """points.md #602: real, simulated Walker -- MAN -> mirrored VM
+        (#601) -> real ping-protocol discovery -> real SHAPE file.
+        Honest, explicit scope, matching the page's own wording: this
+        is the SIMULATED version (a VM-mirrored grid, not real
+        silicon/JTAG) -- the real hardware discovery-mode RTL mechanism
+        (#501's own core_select=31 sentinel) remains unbuilt."""
+        required = ["man_path", "cells", "dsl", "output"]
+        missing = [k for k in required if not fields.get(k)]
+        if missing:
+            return {"ok": False, "error": f"missing required field(s): {', '.join(missing)}"}
+        try:
+            cells = int(fields["cells"])
+            start_row = int(fields.get("start_row") or 0)
+            start_col = int(fields.get("start_col") or 0)
+        except ValueError as e:
+            return {"ok": False, "error": f"invalid number: {e}"}
+
+        try:
+            session = vm_ai_port_v1.VMSession.from_man(fields["man_path"], cells, dsl=fields["dsl"])
+        except vm_ai_port_v1.CompileFailure as e:
+            return {"ok": False, "error": f"program did not compile:\n{e.format()}"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+        try:
+            result = walker_sim_v1.walk(session, start=(start_row, start_col))
+        except walker_sim_v1.NoTargetError as e:
+            return {"ok": False, "error": str(e)}
+
+        shape = walker_sim_v1.to_shape(result, session.mirror_bounds.card_id)
+        try:
+            with open(fields["output"], "w") as f:
+                json.dump(shape, f, indent=2)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+
+        dsl_note = " (paste the same DSL into a --dsl-file first)" if "\n" in fields["dsl"] else ""
+        cli = (
+            f"python3 tools/walker_sim_cli_v1.py --man {fields['man_path']} --cells {cells} "
+            f"--dsl-file <path-to-your-dsl-source>{dsl_note} --start-row {start_row} --start-col {start_col} "
+            f"-o {fields['output']}"
+        )
+        return {
+            "ok": True, "card_id": session.mirror_bounds.card_id,
+            "cells_discovered": len(result.discovered), "edges_discovered": len(result.edges),
+            "ping_count": result.ping_count, "output": fields["output"],
+            "cli_equivalent": cli,
+        }
+
 
 # ── Real HTML, one block per page. Deliberately plain -- this is a
 # real, working tool, not a design showcase. ─────────────────────────
@@ -221,7 +273,7 @@ matching the order this project's own build process actually follows:</p>
 <ol>
 <li><b>Card / MAN file</b> -- describe your card's own real capabilities once.</li>
 <li><b>Create cells</b> -- generate a real, importable Quartus project for N cells.</li>
-<li><b>Walker</b> -- (not yet built) real, live discovery of a programmed chip's own topology.</li>
+<li><b>Walker</b> -- simulated, live discovery of a VM-mirrored design's own topology (real hardware discovery is a separate, later step).</li>
 <li><b>Other tools</b> -- the real VM/workbench, the compiler, and (not yet built) Composer.</li>
 </ol>
 <p>Every real, action-performing page here also shows the exact
@@ -375,29 +427,58 @@ hit and fixed, #554).</div>
 </body></html>"""
 
 
-def page_walker() -> str:
+def page_walker(result: Optional[Dict[str, Any]] = None) -> str:
+    result_html = ""
+    if result is not None:
+        cls = "ok" if result.get("ok") else "err"
+        if result.get("ok"):
+            result_html = (
+                f'<div class="result {cls}"><b>Wrote SHAPE file to:</b> {result["output"]}<br>'
+                f'Card: {result["card_id"]}<br>'
+                f'Cells discovered: {result["cells_discovered"]}, edges discovered: {result["edges_discovered"]}, '
+                f'real pings taken: {result["ping_count"]}<br>'
+                f'<h2>Equivalent CLI</h2><pre>{result["cli_equivalent"]}</pre></div>'
+            )
+        else:
+            result_html = f'<div class="result {cls}"><b>Error:</b><pre>{result.get("error")}</pre></div>'
     return f"""<!doctype html><html><head><title>Walker</title>{PAGE_CSS}</head><body>
 {NAV}
 <h1>Step 3: the Walker{help_link('doc3-tools')}</h1>
-<div class="placeholder"><b>Not built yet.</b> This slot exists so the
-real thing can be wired in later without restructuring this tool --
-what's below is the real, already fully-converged DESIGN
-(points.md #501), not a working feature.</div>
-<p>Once built, the Walker will be a real, live, host-driven discovery
-tool: starting at a known cell, it pings each real cardinal direction
-in turn -- a cell answers with its own real ID and type if the ping
-targets "self," or relays the ping unchanged out one physical port if
-it targets a direction. The host walks outward, one real hop at a
-time, building a genuine, live map of a PROGRAMMED chip's own actual
-topology -- deliberately not a static, RTL-source guess (see points.md
-#551 for why that distinction matters), and not fooled by a build that
-compiled clean while actually being the wrong design (points.md #535,
-#445 -- both real, lived examples of exactly that risk).</p>
-<p>Specialist hardware (BRAM, DSP) is never itself a ping-answering
-endpoint -- a real, dedicated header cell answers on its behalf, so
-the walk never needs to understand what's behind it.</p>
-<p>This build is explicitly gated on a real, full-card array existing
-first (Step 2) -- there's nothing meaningful to walk on a single cell.</p>
+<div class="real">Real, working -- the SIMULATED Walker (points.md #602):
+runs the exact same real ping protocol #501 designed for real hardware
+(self answers with its own identity; a cardinal ping relays exactly one
+hop to whatever's really, physically connected there; all walk
+intelligence stays host-side), but against a VM-mirrored grid instead
+of real silicon over JTAG. Starting at a known cell, it walks outward
+hop by hop, discovering only what pinging actually reveals -- never a
+static, RTL-source guess -- and writes a real SHAPE file.</div>
+<div class="placeholder"><b>Explicit, honest scope:</b> this is the
+SIMULATED version. The real hardware discovery-mode RTL mechanism
+(#501's own <code>core_select=31</code> sentinel, relay logic on the
+real <code>cmd_in</code>/<code>cmd_out</code> ports) remains unbuilt --
+a real, separate, later step once this VM-side methodology is
+confirmed useful.</div>
+
+<h2>What's actually needed, and why</h2>
+<table style="width:100%; border-collapse:collapse; font-size:0.9em;">
+<tr style="text-align:left; border-bottom:1px solid #ccc;"><th>Field</th><th>Required</th><th>Why</th></tr>
+<tr><td>MAN file path</td><td>Yes</td><td>the real card this session mirrors -- see Step 1</td></tr>
+<tr><td>Cell count</td><td>Yes</td><td>must match the real N-cell layout your program's own placements were written against</td></tr>
+<tr><td>Program (Unicell-S DSL)</td><td>Yes</td><td>the design to load and discover -- compiled fresh each run, same discipline as the manual page</td></tr>
+<tr><td>Start row/col</td><td>No (default 0,0)</td><td>the Walker's own known, trusted origin -- must have a real cell placed there or the walk fails immediately (#602's own honest NoTargetError, matching Alan's own "the VM has to be in place first" point)</td></tr>
+<tr><td>Output path</td><td>Yes</td><td>where the real SHAPE file is written</td></tr>
+</table>
+
+<form method="post" action="/walker">
+<label>MAN file path<input name="man_path" required></label>
+<label>Cell count<input name="cells" type="number" required></label>
+<label>Program (Unicell-S DSL source)<textarea name="dsl" rows="10" required style="width:100%; padding:6px; box-sizing:border-box; margin-top:2px; font-family:monospace;" placeholder="program my_design {{&#10;    place r1 as ram_constant at (0, 0) {{&#10;        out: e&#10;        init_data: 1&#10;    }}&#10;}}"></textarea></label>
+<label>Start row (optional, default 0)<input name="start_row" type="number" value="0"></label>
+<label>Start col (optional, default 0)<input name="start_col" type="number" value="0"></label>
+<label>Output SHAPE path (e.g. docs/shapes/my-design.shape.json)<input name="output" required></label>
+<button type="submit">Run simulated Walker</button>
+</form>
+{result_html}
 </body></html>"""
 
 
@@ -479,6 +560,9 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == "/cells":
             result = self.controller.create_project(fields)
             self._html_response(page_cells(result))
+        elif self.path == "/walker":
+            result = self.controller.run_walker(fields)
+            self._html_response(page_walker(result))
         else:
             self._html_response("<h1>404</h1>", status=404)
 

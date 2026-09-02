@@ -1,4 +1,32 @@
-# Current State (as of 2026-09-02, walkthrough continues: Step 2 (Create cells) reviewed and extended -- shell/LogicLock/custom-shell-file/dependency-override options wired through to the frontend, previously silently unreachable from the web UI, see `points/points_active.md` #600)
+# Current State (as of 2026-09-02, Step 3 (Walker) done: the simulated Walker is real and working, wired into the frontend as Step 3, replacing the honest placeholder. Built on a real prerequisite fix -- #598's "VM mirror mode already exists" claim was checked and found false, so that got built first. See `points/points_active.md` #601/#602)
+
+## Read this first (most recent)
+
+**2026-09-02, Step 3 (Walker) done, in two real parts.** Part 1
+(`#601`): checked `#598`'s own claim that "VM mirror mode" already
+existed -- it didn't. Built `nano/vm_mirror_v1.py` +
+`VMSession.from_man()`, reusing `project_assemble_v1`'s real
+`grid_dims()`/`cell_positions()` so a mirrored session's topology
+genuinely matches a real Quartus build. Part 2 (`#602`): the simulated
+Walker itself (`nano/walker_sim_v1.py`) -- runs `#501`'s own already-
+converged real ping protocol (self answers own identity; cardinal
+pings relay one hop; host-side-only intelligence, confirmed by testing
+that `walk()` never reads the grid directly) against that mirrored VM,
+producing a real SHAPE file. Found and fixed two real gaps along the
+way: `SuperCell` silently dropped `cell_id` on load; a first draft of
+the SHAPE cell-id formatter wrongly assumed the hardware int
+convention (caught by a real end-to-end smoke test before any test was
+written against the wrong assumption). Wired into the frontend as a
+real, working `/walker` page (Step 3), replacing the old honest
+placeholder -- Composer is now the only real placeholder left. 37 new
+tests total (`#601`: 9, `#602`: 28), 425/425 passing, zero regression.
+Full detail: `points/points_active.md` `#601`, `#602`.
+
+**Real, immediate next step:** continue the walkthrough -- Step 4
+(Other tools: the real VM/workbench, the compiler, and Composer). Same
+discipline: review what's real, what's missing, fix as found.
+
+## Previous state (as of 2026-09-02, walkthrough continues: Step 2 (Create cells) reviewed and extended -- shell/LogicLock/custom-shell-file/dependency-override options wired through to the frontend, previously silently unreachable from the web UI, see `points/points_active.md` #600)
 
 ## Read this first (most recent)
 

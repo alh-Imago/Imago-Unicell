@@ -46,6 +46,7 @@ from unicell_super_automaton_v1 import SuperGrid
 from dsl_diagnostics_v1 import CompileDiagnostic
 import vm_introspection_v1 as vi
 import icm_v3 as v3
+import vm_mirror_v1
 
 
 class CompileFailure(Exception):
@@ -77,6 +78,12 @@ class VMSession:
         #: compile (e.g. #350's naming-hygiene lint), kept here so an AI
         #: driving this port can see them without re-compiling.
         self.diagnostics: List[CompileDiagnostic] = []
+        #: points.md #601: set only by from_man() -- None means this is
+        #: a real, honest "free mode" session with no claimed card
+        #: correspondence. A simulated Walker (or anything else needing
+        #: to know "is this session mirroring a real card") should
+        #: check this rather than assume.
+        self.mirror_bounds: Optional["vm_mirror_v1.MirrorBounds"] = None
 
     # ── Construction ────────────────────────────────────────────────
 
@@ -109,6 +116,52 @@ class VMSession:
         """Load a previously-compiled, saved `.icm` file directly --
         no recompilation needed."""
         return cls(SuperGrid.from_icm(v3.IcmV3File.load(path)))
+
+    @classmethod
+    def from_man(cls, man_path: str, cells: int, *, dsl: Optional[str] = None,
+                 python: Optional[str] = None, icm_path: Optional[str] = None) -> "VMSession":
+        """points.md #601: the real MAN -> mirrored-VM construction --
+        the prerequisite a simulated Walker needs to have an honest
+        target. Exactly one of `dsl=`/`python=`/`icm_path=` must be
+        given (the program to load); it's compiled/loaded the same way
+        `from_dsl()`/`from_python()`/`from_icm_file()` already do -- no
+        new compile path, no duplicated logic.
+
+        Real, direct difference from those: every placed cell is
+        checked against `vm_mirror_v1.load_mirror_bounds()` -- the same
+        real row-major layout `project_assemble_v1.py` would use for an
+        ACTUAL Quartus build of `cells` cells on this MAN file's own
+        card. Raises `vm_mirror_v1.MirrorFitError` (not a silent
+        accept) if any real placed cell falls outside that layout or
+        collides with another. On success, `session.mirror_bounds` is
+        set, so a caller can see the real, honest card context this
+        session was actually built against."""
+        given = [x for x in (dsl, python, icm_path) if x is not None]
+        if len(given) != 1:
+            raise ValueError("from_man() needs exactly one of dsl=/python=/icm_path=")
+
+        bounds = vm_mirror_v1.load_mirror_bounds(man_path, cells)
+
+        diagnostics: List[CompileDiagnostic] = []
+        if dsl is not None:
+            icm, diagnostics = compile_source(dsl)
+            if icm is None:
+                raise CompileFailure(diagnostics)
+        elif python is not None:
+            icm, diagnostics = compile_python_source(python)
+            if icm is None:
+                raise CompileFailure(diagnostics)
+        else:
+            icm = v3.IcmV3File.load(icm_path)
+
+        problems = vm_mirror_v1.check_records_fit(icm.records, bounds)
+        if problems:
+            raise vm_mirror_v1.MirrorFitError(problems)
+
+        session = cls(SuperGrid.from_icm(icm))
+        session.diagnostics = diagnostics
+        session.mirror_bounds = bounds
+        return session
 
     # ── Driving the VM ──────────────────────────────────────────────
 
