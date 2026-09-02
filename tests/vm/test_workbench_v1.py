@@ -773,6 +773,165 @@ def test_real_server_shells_endpoint():
         server.shutdown()
 
 
+# ── real ICM file save/load (points.md #607) ────────────────────────
+
+GRID2_DSL = """
+program grid2 {
+    place a as ram_constant at (0, 0) {
+        out: e
+        init_data: 1
+    }
+    place b as ram_flowing at (0, 1) {
+        in: w
+        out: s
+    }
+}
+"""
+
+
+def test_save_icm_no_session_errors():
+    ctrl = WorkbenchController()
+    result = ctrl.save_icm("/tmp/unused.icm")
+    assert not result["ok"]
+
+
+def test_save_and_load_icm_round_trip(tmp_path):
+    ctrl = WorkbenchController()
+    ctrl.compile(GRID2_DSL, "dsl")
+    path = str(tmp_path / "saved.icm")
+    save_result = ctrl.save_icm(path, name="my_design")
+    assert save_result["ok"], save_result.get("error")
+    assert save_result["cell_count"] == 2
+
+    ctrl2 = WorkbenchController()
+    load_result = ctrl2.load_icm(path)
+    assert load_result["ok"], load_result.get("error")
+    assert load_result["name"] == "my_design"
+    assert set(ctrl2.session.grid.cells.keys()) == {(0, 0), (0, 1)}
+    assert set(ctrl2._records.keys()) == {(0, 0), (0, 1)}
+
+
+def test_load_icm_missing_file_errors_cleanly():
+    ctrl = WorkbenchController()
+    result = ctrl.load_icm("/no/such/file.icm")
+    assert not result["ok"]
+
+
+def test_load_icm_replaces_whole_session():
+    """Real, direct confirmation load_icm() REPLACES, mirroring
+    compile()'s own real semantics, not ADDS."""
+    ctrl = WorkbenchController()
+    ctrl.compile(GRID2_DSL, "dsl")
+    import tempfile
+    import os
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "x.icm")
+        ctrl.save_icm(path)
+        # Load a DIFFERENT, single-cell design over the top.
+        single = """
+        program one {
+            place a as ram_constant at (0, 0) {
+                out: e
+                init_data: 42
+            }
+        }
+        """
+        ctrl.compile(single, "dsl")
+        path2 = os.path.join(d, "single.icm")
+        ctrl.save_icm(path2)
+        ctrl.load_icm(path)  # back to the 2-cell design
+        assert set(ctrl.session.grid.cells.keys()) == {(0, 0), (0, 1)}
+        ctrl.load_icm(path2)  # replace with the 1-cell design
+        assert set(ctrl.session.grid.cells.keys()) == {(0, 0)}
+
+
+def test_load_icm_respects_real_target_topology():
+    ctrl = WorkbenchController()
+    ctrl.compile(GRID2_DSL, "dsl")
+    import tempfile
+    import os
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "x.icm")
+        ctrl.save_icm(path)
+        ctrl2 = WorkbenchController()
+        ctrl2.set_target(REAL_MAN, 1)  # only 1 cell -- grid2 needs 2 positions
+        result = ctrl2.load_icm(path)
+        assert not result["ok"]
+
+
+def test_load_icm_respects_shell_compatibility():
+    class Fake:
+        def __init__(self, cell_id, row, col, core, core_config):
+            self.cell_id, self.row, self.col = cell_id, row, col
+            self.core, self.core_config = core, core_config
+
+    ctrl = WorkbenchController()
+    ctrl.session = None
+    ctrl._records = {}
+    # build a synthetic session with a branch cell, save it directly via icm_v3
+    import icm_v3
+    import tempfile
+    import os
+    rec = icm_v3.IcmV3Record(cell_id="b1", row=0, col=0, core="branch", core_config={})
+    icm = icm_v3.IcmV3File(name="branchy", records=[rec])
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "branchy.icm")
+        icm.save(path)
+        ctrl2 = WorkbenchController()
+        ctrl2.set_target(REAL_MAN, 4, shell="v1")
+        result = ctrl2.load_icm(path)
+        assert not result["ok"]
+        assert "branch" in result["error"]
+
+
+def test_load_icm_region_adds_alongside_existing():
+    ctrl = WorkbenchController()
+    ctrl.compile(GRID2_DSL, "dsl")
+    import tempfile
+    import os
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "x.icm")
+        ctrl.save_icm(path)
+        ctrl2 = WorkbenchController()
+        ctrl2.load_region("first", GRID2_DSL, "dsl", row_offset=0, col_offset=0)
+        result = ctrl2.load_icm_region("second", path, row_offset=5, col_offset=0)
+        assert result["ok"], result.get("error")
+        assert set(ctrl2.regions.keys()) == {"first", "second"}
+        assert (5, 0) in ctrl2.session.grid.cells
+        assert (0, 0) in ctrl2.session.grid.cells  # first region untouched
+
+
+def test_load_icm_region_duplicate_name_rejected():
+    ctrl = WorkbenchController()
+    ctrl.load_region("reg1", GRID2_DSL, "dsl", row_offset=0, col_offset=0)
+    import tempfile
+    import os
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "x.icm")
+        ctrl.save_icm(path)
+        result = ctrl.load_icm_region("reg1", path, row_offset=5, col_offset=0)
+        assert not result["ok"]
+
+
+def test_real_server_save_load_icm_end_to_end(tmp_path):
+    server = serve(port=7442, open_browser=False)
+    try:
+        time.sleep(0.3)
+        status, body = _http_post(7442, "/compile", {"source": GRID2_DSL, "language": "dsl"})
+        assert body["ok"] is True
+
+        path = str(tmp_path / "server_saved.icm")
+        status, body = _http_post(7442, "/save_icm", {"path": path, "name": "http_test"})
+        assert body["ok"] is True
+        assert body["cell_count"] == 2
+
+        status, body = _http_post(7442, "/load_icm", {"path": path})
+        assert body["ok"] is True
+        assert body["name"] == "http_test"
+    finally:
+        server.shutdown()
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

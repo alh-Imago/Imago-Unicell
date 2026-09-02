@@ -508,6 +508,13 @@ branch/sequencer); every cell's own configured cardinal in/out
 directions are shown on the grid, and a real, non-blocking hint appears
 whenever a cell broadcasts toward a neighbor that isn't configured to
 listen for it.</div>
+<div class="real">points.md #607: the workbench can also now save the
+current live grid to a real, on-disk .icm file, and load an existing
+one back in -- either REPLACING the whole session (mirroring
+/compile's own semantics) or ADDING it as a named region (mirroring
+/load_region), both checked against the same real target/shell rules.
+The same .icm format the CLI tools, Walker, and Composer already read
+and write.</div>
 <pre>python3 nano/workbench_v1.py
 # -&gt; http://localhost:7420</pre>
 

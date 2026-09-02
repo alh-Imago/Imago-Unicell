@@ -70,6 +70,22 @@ API, row/col-keyed throughout, never an address anywhere:
                                                    RTL-derived shell/core
                                                    compatibility matrix
                                                    (shell_compat_v1.py)
+    POST /save_icm                       -- {"path", "name", "description"} --
+                                             points.md #607: real, on-disk
+                                             .icm file, written from every
+                                             cell currently in the live grid
+                                             (all regions, not just one)
+    POST /load_icm                         -- {"path"} -- REPLACES the whole
+                                               session from a real, existing
+                                               .icm file, mirroring /compile's
+                                               own real semantics; checked
+                                               against the real target (shell
+                                               + topology) exactly like /compile
+    POST /load_icm_region                    -- {"name", "path", "row_offset",
+                                                   "col_offset", "dsp_columns"} --
+                                                   ADDS a real .icm file's own
+                                                   records as a named region,
+                                                   mirroring /load_region
     POST /step                           -- {"n": 1}
     POST /deliver                          -- {"row", "col", "direction", "value", "injected"}
     POST /inject                             -- {"row", "col", "value"}
@@ -98,6 +114,7 @@ from host_registry_v1 import HostResourceRegistry
 import vm_mirror_v1
 import shell_compat_v1
 import connection_check_v1
+import icm_v3
 
 _DIRS = {"n": N, "s": S, "e": E, "w": W}
 
@@ -481,6 +498,122 @@ class WorkbenchController:
             "state": self.session.describe(),
         }
 
+    # ── real ICM file save/load (points.md #607) ────────────────────
+    #
+    # The workbench previously only ever compiled from DSL/Python
+    # SOURCE TEXT -- no way to save the live session out to a real
+    # .icm file, or load one back in. The underlying real capability
+    # already existed elsewhere (icm_v3.IcmV3File.save()/.load(),
+    # VMSession.from_icm_file()/from_man(icm_path=...), the CLI tools)
+    # -- this just threads it into the workbench's own real API,
+    # reusing all of it directly rather than reimplementing.
+
+    def save_icm(self, path: str, name: Optional[str] = None, description: str = "") -> Dict[str, Any]:
+        """Real, honest save: writes every real cell currently in the
+        live grid (self._records, tracked alongside self.regions since
+        #606) out to a real, loadable .icm file -- across ALL regions
+        and any single-program compile, not just one region."""
+        if self.session is None or not self._records:
+            return {"ok": False, "error": "no cells loaded -- nothing to save"}
+        icm = icm_v3.IcmV3File(
+            name=name or "workbench_session",
+            records=list(self._records.values()),
+            description=description,
+        )
+        try:
+            icm.save(path)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "path": path, "cell_count": len(self._records), "name": icm.name}
+
+    def load_icm(self, path: str) -> Dict[str, Any]:
+        """Real, honest load: REPLACES the whole session from an
+        existing .icm file, mirroring compile()'s own real "REPLACES
+        the whole session" semantics -- the ICM analog of compiling a
+        program from source, subject to the exact same real checks
+        (shell compatibility, topology fit if a real target is set)."""
+        try:
+            icm = icm_v3.IcmV3File.load(path)
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            return {"ok": False, "error": str(e)}
+
+        shell_error, connection_hints = self._check_shell_and_connections(icm.records)
+        if shell_error:
+            return {"ok": False, "error": f"shell incompatibility: {shell_error}"}
+
+        target = self.session.mirror_bounds if self.session is not None else None
+        try:
+            if target is not None:
+                session = VMSession.from_man(target.man_path, target.cells, icm_path=path)
+            else:
+                session = VMSession.from_icm_file(path)
+        except vm_mirror_v1.MirrorFitError as e:
+            return {"ok": False, "error": "loaded ICM doesn't fit the real target ("
+                                           f"{target.card_id}, {target.cells} cells): " + "; ".join(e.problems)}
+
+        self.session = session
+        self.regions = {}
+        self._records = {(r.row, r.col): r for r in icm.records}
+        self.registry = HostResourceRegistry()
+        return {
+            "ok": True,
+            "name": icm.name,
+            "connection_hints": connection_hints,
+            "state": session.describe(),
+        }
+
+    def load_icm_region(self, name: str, path: str, row_offset: Optional[int] = None,
+                         col_offset: Optional[int] = None, dsp_columns: Optional[List[int]] = None) -> Dict[str, Any]:
+        """Real, honest load: ADDS an existing .icm file's own real
+        records to the shared grid as a named region, mirroring
+        load_region()'s own real semantics -- the ICM analog of
+        loading a program from source as a region."""
+        if name in self.regions:
+            return {"ok": False, "error": f"region {name!r} is already loaded -- "
+                                           f"clear it first or choose a different name"}
+        try:
+            icm = icm_v3.IcmV3File.load(path)
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            return {"ok": False, "error": str(e)}
+
+        if self.session is None:
+            self.session = VMSession(SuperGrid([]))
+
+        bound, bind_diags = bind_shape(icm.records, self.session.grid.cells,
+                                        row_offset=row_offset, col_offset=col_offset,
+                                        dsp_columns=dsp_columns,
+                                        what=f"loading ICM region {name!r}")
+        if bound is None:
+            return {"ok": False, "error": bind_diags[0].problem}
+
+        if self.session.mirror_bounds is not None:
+            fit_problems = vm_mirror_v1.check_records_fit(bound, self.session.mirror_bounds)
+            fit_problems = [p for p in fit_problems if "outside the real" in p]
+            if fit_problems:
+                return {"ok": False, "error": "region doesn't fit the real target ("
+                                               f"{self.session.mirror_bounds.card_id}): " + "; ".join(fit_problems)}
+
+        shell_error, connection_hints = self._check_shell_and_connections(bound)
+        if shell_error:
+            return {"ok": False, "error": f"shell incompatibility: {shell_error}"}
+
+        from unicell_super_automaton_v1 import SuperCell
+        positions = []
+        for rec in bound:
+            self.session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
+            self._records[(rec.row, rec.col)] = rec
+            positions.append((rec.row, rec.col))
+        self.regions[name] = positions
+        self.registry.register_load(name, positions, metadata={"source": "icm", "path": path})
+
+        return {
+            "ok": True,
+            "name": icm.name,
+            "connection_hints": connection_hints,
+            "region": {"name": name, "positions": positions},
+            "state": self.session.describe(),
+        }
+
     def clear_region(self, name: str) -> Dict[str, Any]:
         if self.session is None or name not in self.regions:
             return {"ok": False, "error": f"no region named {name!r} is loaded -- "
@@ -632,6 +765,23 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
       <button onclick="loadRegion()">Load as region (adds to grid)</button>
       <div id="diagnostics"></div>
       <div id="connectionHints" style="color:#fc6;font-size:11px;white-space:pre-line;"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Save / load ICM file (points.md #607)</h3>
+      <div style="color:#999;font-size:12px;margin-bottom:6px;">Real,
+        on-disk .icm files -- the same format the CLI tools and
+        Walker/Composer already read and write.</div>
+      <label>Path</label> <input type="text" id="icmPath" value="workbench_session.icm" size="30">
+      <br>
+      <button onclick="saveIcm()">Save current grid to file</button>
+      <br><br>
+      <button onclick="loadIcm()">Load file (replaces everything)</button>
+      <label>as region</label> <input type="text" id="icmRegionName" value="r1" size="8">
+      <label>row offset</label> <input type="number" id="icmRowOffset" value="0" size="3" placeholder="auto">
+      <label>col offset</label> <input type="number" id="icmColOffset" value="0" size="3" placeholder="auto">
+      <button onclick="loadIcmRegion()">Load as region (adds to grid)</button>
+      <div id="icmStatus" style="color:#9cf;font-size:12px;margin-top:4px;"></div>
     </div>
 
     <div class="panel">
@@ -819,6 +969,45 @@ async function loadRegion() {
   if (result.ok) { renderState(result.state); renderRegions(); }
 }
 
+async function saveIcm() {
+  const path = document.getElementById("icmPath").value;
+  const result = await post("/save_icm", {path});
+  document.getElementById("icmStatus").textContent = result.ok
+    ? `Saved ${result.cell_count} cell(s) to ${result.path}`
+    : "Error: " + result.error;
+}
+
+async function loadIcm() {
+  const path = document.getElementById("icmPath").value;
+  const result = await post("/load_icm", {path});
+  renderConnectionHints(result.connection_hints);
+  if (result.ok) {
+    document.getElementById("icmStatus").textContent = `Loaded '${result.name}' from ${path} -- grid replaced.`;
+    renderState(result.state);
+    renderRegions();
+  } else {
+    document.getElementById("icmStatus").textContent = "Error: " + result.error;
+  }
+}
+
+async function loadIcmRegion() {
+  const path = document.getElementById("icmPath").value;
+  const name = document.getElementById("icmRegionName").value;
+  const rowRaw = document.getElementById("icmRowOffset").value.trim();
+  const colRaw = document.getElementById("icmColOffset").value.trim();
+  const rowOffset = rowRaw === "" ? null : parseInt(rowRaw);
+  const colOffset = colRaw === "" ? null : parseInt(colRaw);
+  const result = await post("/load_icm_region", {path, name, row_offset: rowOffset, col_offset: colOffset});
+  renderConnectionHints(result.connection_hints);
+  if (result.ok) {
+    document.getElementById("icmStatus").textContent = `Loaded '${result.name}' from ${path} as region '${name}'.`;
+    renderState(result.state);
+    renderRegions();
+  } else {
+    document.getElementById("icmStatus").textContent = "Error: " + result.error;
+  }
+}
+
 async function clearRegion(name) {
   const result = await post("/clear_region", {name: name});
   if (result.ok) { renderState(result.state); renderRegions(); }
@@ -967,6 +1156,15 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
                 body.get("row_offset"), body.get("col_offset"), body.get("dsp_columns")))
         elif self.path == "/clear_region":
             self._json_response(self.controller.clear_region(body.get("name", "")))
+        elif self.path == "/save_icm":
+            self._json_response(self.controller.save_icm(
+                body.get("path", ""), body.get("name"), body.get("description", "")))
+        elif self.path == "/load_icm":
+            self._json_response(self.controller.load_icm(body.get("path", "")))
+        elif self.path == "/load_icm_region":
+            self._json_response(self.controller.load_icm_region(
+                body.get("name", ""), body.get("path", ""),
+                body.get("row_offset"), body.get("col_offset"), body.get("dsp_columns")))
         elif self.path == "/set_target":
             self._json_response(self.controller.set_target(
                 body.get("man_path", ""), body.get("cells", 0), body.get("shell")))

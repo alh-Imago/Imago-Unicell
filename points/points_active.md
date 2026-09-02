@@ -2354,3 +2354,54 @@ requirements this session, no further. Full drag-and-drop placement/
 routing interaction remains real, larger future work, same as that
 scope doc always said.
 
+## 607. Real ICM file save/load added to the workbench, per Alan's own direct question ("can Composer/the workbench save and load ICM files?") -- checked directly first (it couldn't), then built. (Alan/Claude, 2026-09-02)
+
+**Real, honest finding, checked before building anything:** the
+workbench only ever compiled from DSL/Python SOURCE TEXT -- no path to
+save the live session to a real `.icm` file, or load one back in. The
+underlying real capability already existed elsewhere
+(`icm_v3.IcmV3File.save()`/`.load()`, `VMSession.from_icm_file()`/
+`from_man(icm_path=...)`, the CLI tools) -- just never threaded into
+the workbench's own real API. Confirmed by direct grep before
+answering, not assumed.
+
+**`WorkbenchController` gains three real methods, all reusing the
+existing real save/load primitives directly, no reimplementation:**
+`save_icm(path, name, description)` -- writes every real cell
+currently in the live grid (`self._records`, tracked alongside
+`self.regions` since `#606`) to a real, loadable `.icm` file, across
+ALL regions, not just one. `load_icm(path)` -- REPLACES the whole
+session, mirroring `compile()`'s own real "REPLACES" semantics; the
+exact same real checks apply (shell compatibility via `#606`'s own
+`_check_shell_and_connections()`, topology fit via `VMSession.
+from_man(icm_path=...)` if a real target is set) -- a genuinely
+incompatible or out-of-bounds `.icm` file is rejected exactly like an
+incompatible/out-of-bounds DSL program already was. `load_icm_region(
+name, path, row_offset, col_offset, dsp_columns)` -- ADDS a real
+`.icm` file's own records to the shared grid as a named region,
+mirroring `load_region()`'s own real semantics, including real
+auto-placement via the same `bind_shape()` call.
+
+**New HTTP endpoints**, matching the file's own established
+convention: `POST /save_icm`, `POST /load_icm`, `POST
+/load_icm_region`. **Real UI**, not just an API: a new "Save / load
+ICM file" panel with a path field, a save button, a "load (replaces
+everything)" button, and a "load as region" button with the same
+offset fields `load_region()`'s own panel already has.
+
+**Real, honest verification:** 9 new tests in `tests/vm/
+test_workbench_v1.py` -- a full save-then-load round trip confirming
+cell positions survive intact, `load_icm()`'s own real REPLACE
+semantics (loading a second, different design over the first actually
+replaces it, not merges), `load_icm()` correctly rejecting a
+real `.icm` file against BOTH real checks (topology -- a 2-cell design
+loaded against a real 1-cell target; shell compatibility -- a
+directly-constructed `branch`-core record loaded against a real v1
+shell target, since `branch` still has no DSL tile per `#606`'s own
+honest finding, so this had to be tested via direct `icm_v3.
+IcmV3Record` construction rather than DSL source, same real workaround
+`#606`'s own tests already used), `load_icm_region()`'s own real
+add-alongside-existing and duplicate-name-rejection behavior, and a
+full real HTTP round-trip (`/compile` -> `/save_icm` -> `/load_icm`).
+Full suite: 479/479 passing (470 prior + 9 new), zero regression.
+

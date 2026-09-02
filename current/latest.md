@@ -1,4 +1,32 @@
-# Current State (as of 2026-09-02, Composer's real first build done -- shell-version compatibility awareness, real connection hints, and cardinal-direction visibility, extending workbench_v1.py per Alan's own three stated requirements. See `points/points_active.md` #606)
+# Current State (as of 2026-09-02, real ICM file save/load added to the workbench -- Alan asked directly whether Composer/the workbench could save and load .icm files; checked first (it couldn't), then built. See `points/points_active.md` #607)
+
+## Read this first (most recent)
+
+**2026-09-02, real ICM save/load added (#607).** Alan asked directly:
+can Composer (the workbench) save/load `.icm` files? Checked first,
+not assumed -- it couldn't; the workbench only ever compiled from DSL/
+Python source text. The underlying real capability already existed
+elsewhere (`icm_v3.IcmV3File`, `VMSession.from_icm_file()`/
+`from_man(icm_path=...)`, the CLI tools) -- just never wired into the
+workbench's own API.
+
+Added three real `WorkbenchController` methods: `save_icm()` (writes
+every cell in the live grid, across all regions, to a real `.icm`
+file), `load_icm()` (REPLACES the session, mirroring `compile()`'s own
+semantics, subject to the exact same shell/topology checks `#606`
+already built), `load_icm_region()` (ADDS a file's records as a named
+region, mirroring `load_region()`). Real UI added too -- a "Save /
+load ICM file" panel. 9 new tests, including a full save-load round
+trip and both real rejection paths (topology, shell compatibility --
+the shell one needed a directly-constructed `branch` record again,
+since `branch` still has no DSL tile, same honest workaround `#606`
+already used). 479/479 passing, zero regression.
+
+**Real, standing next-session items, unchanged:** `#603` (LLVM IR now
+has a place to be tested) and `#604` (card-decoupled virtual substrate
++ 3D extension + training buckets), both captured, nothing built yet.
+
+## Previous state (as of 2026-09-02, Composer's real first build done -- shell-version compatibility awareness, real connection hints, and cardinal-direction visibility, extending workbench_v1.py per Alan's own three stated requirements. See `points/points_active.md` #606)
 
 ## Read this first (most recent)
 
