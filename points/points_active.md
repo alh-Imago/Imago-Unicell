@@ -1841,6 +1841,69 @@ real, unused pin on the actual device (that remains `#28`/`#29`'s own
 canonical `.pin`-file-based method, still outstanding, deliberately
 not conflated with this feature).
 
+**[Editorial note, added when reordering was caught: entry #600 was
+accidentally appended AFTER #601/#602/#603 in an earlier edit this
+same session -- a str_replace anchoring mistake on my own part (I
+matched onto #599's own closing paragraph a second time instead of
+#600's real closing paragraph), not a content error. No entry's own
+text was changed; #600 is moved here, to its correct numeric position,
+so the file reads sequentially again. Caught and fixed before #604 was
+added, same session.]**
+
+## 600. Step 2 of the walkthrough (Create cells / `/cells`, `project_assemble_v1.py`): same real gap pattern as Step 1 -- the frontend exposed only 6 of `assemble()`'s real 14 parameters, silently dropping shell selection, LogicLock, and the custom-shell/dependency-override machinery (`#578`/`#582`/`#583`/`#590`) entirely. Closed, with a requirements table matching Step 1's own pattern. (Alan/Claude, 2026-09-02)
+
+**Real gap found, checked directly against `assemble()`'s own real
+signature, not assumed:** the `/cells` form and
+`FrontendController.create_project()` only ever passed
+`man_path`/`cells`/`output`/`top`/`single_core`/`core_path`/
+`probe_name` through -- `shell`, `logiclock`, `ll_fixed_alm`,
+`ll_headroom`, `shell_file`, `shell_module`, `file_list`, and
+`files_string` had zero path from the web UI, even though the CLI
+(`main()`) has supported all of them since `#578`/`#582`/`#583`/`#590`.
+A real, silent behavioral gap, not just a missing convenience: anyone
+using the web UI could never reach `v4`, LogicLock, or a custom/mixed-
+version shell at all.
+
+**`nano/frontend_v1.py`:** `create_project()` now accepts and passes
+through all of the above, with two real, deliberate corrections found
+while building this:
+- `assemble()` itself does NOT enforce "`--shell-file` requires
+  `--shell-module`" -- only `main()` does, before calling `assemble()`.
+  Any real caller bypassing `main()` (this frontend included) must
+  replicate that check itself, or a mismatched/confusing downstream
+  result would follow instead of a clear error. Added directly,
+  confirmed by a real test that a genuine custom-shell-file build
+  without a module name fails cleanly, not silently wrong.
+- `compat_warnings` (the real, advisory heuristic scan from `#590`)
+  was already returned by `assemble()` but silently dropped by the web
+  UI's own result rendering -- the CLI prints it, the web page didn't.
+  Fixed: `page_cells()` now renders any real warnings in their own
+  `<div>`, worded identically to the CLI's own "advisory... NOT a
+  substitute for a real compile" framing.
+
+The `/cells` page gains the same real requirements table pattern as
+Step 1's `/man` page (`#599`) -- every field stated plainly as
+required/optional with a one-line real reason -- plus two new grouped
+sections: "Shell / placement options" (shell dropdown, LogicLock
+checkbox, fixed-ALM/headroom) and "Custom shell / dependency override"
+(shell file/module, file list, inline files), both explicitly noted as
+ignored when a single core type is selected, matching `assemble()`'s
+own real behavior exactly.
+
+**Real, honest verification:** 10 new tests
+(`tests/tools/test_frontend_create_project.py`), including a genuine
+end-to-end build using a REAL custom shell file already in this repo
+(`fpga/verilog/unicell_super_v7.v`) -- not a mock, the actual
+dependency-resolution and compatibility-check machinery running for
+real. Also covers: v3-vs-v4 shell selection, LogicLock checkbox
+semantics (HTML presence-means-on, absence-means-off, checked
+directly, not assumed), fixed-ALM/headroom pass-through, the new
+shell-file-without-module validation, and confirmed the single-core
+path's own CLI-equivalent string correctly omits every shell/LogicLock
+flag (sanity-checked directly, matching `assemble()`'s own real
+"ignored when single_core is given" semantics). Full suite:
+388/388 passing (378 prior + 10 new), zero regression.
+
 ## 601. Real prerequisite for Step 3 (Walker), per Alan's own direct point: "make sure the VM is in place before it starts, or it has no target." Checked `#598`'s own claim that "VM mirror mode" is "already real and existing" directly against the code -- it was NOT. Built the real thing: `nano/vm_mirror_v1.py` + `VMSession.from_man()`. (Alan/Claude, 2026-09-02)
 
 **Real, honest correction to a prior ledger entry:** `#598` described
@@ -2031,59 +2094,74 @@ continue when the usage resets"). Real, explicit next-session queue,
 in order: (1) continue the pipeline walkthrough at Step 4 (Other
 tools: VM/workbench, compiler, Composer); (2) this entry's own LLVM IR
 environment connection, whenever picked up, per `#547`'s own real
-scope. Full session narrative: `archeology/sessions/archive-2026-09-02.
-md`'s own addendum section.
+scope; (3) `#604`'s own real, exciting long-range direction, added
+right after this entry. Full session narrative: `archeology/sessions/
+archive-2026-09-02.md`'s own addendum section.
 
-## 600. Step 2 of the walkthrough (Create cells / `/cells`, `project_assemble_v1.py`): same real gap pattern as Step 1 -- the frontend exposed only 6 of `assemble()`'s real 14 parameters, silently dropping shell selection, LogicLock, and the custom-shell/dependency-override machinery (`#578`/`#582`/`#583`/`#590`) entirely. Closed, with a requirements table matching Step 1's own pattern. (Alan/Claude, 2026-09-02)
+## 604. Real, exciting long-range direction, captured at session pause per Alan's own words -- a virtual, card-decoupled substrate (arbitrarily large, "just data," not tied to any real MAN file) plus a 3D extension, connecting three already-real threads (`#520`, `#510`/`#511`, `#601`) that hadn't been named together before. Nothing built -- a real, honest capture, matching this project's own standing discipline for long-range ideas. (Alan/Claude, 2026-09-02)
 
-**Real gap found, checked directly against `assemble()`'s own real
-signature, not assumed:** the `/cells` form and
-`FrontendController.create_project()` only ever passed
-`man_path`/`cells`/`output`/`top`/`single_core`/`core_path`/
-`probe_name` through -- `shell`, `logiclock`, `ll_fixed_alm`,
-`ll_headroom`, `shell_file`, `shell_module`, `file_list`, and
-`files_string` had zero path from the web UI, even though the CLI
-(`main()`) has supported all of them since `#578`/`#582`/`#583`/`#590`.
-A real, silent behavioral gap, not just a missing convenience: anyone
-using the web UI could never reach `v4`, LogicLock, or a custom/mixed-
-version shell at all.
+**The real, concrete fact this whole idea rests on, checked directly
+before logging anything, not assumed:** `project_assemble_v1.
+generate_top(top_name, n, rows, cols, ...)` -- the actual Verilog
+topology generator -- takes NO MAN data at all. Cell count and grid
+dimensions are its only structural inputs. The MAN file is only ever
+consulted separately, in `assemble()`, for the `.qsf`/`.sdc` pin
+assignments and `alm_total`/`dsp_total` capacity figures -- real,
+physical-board concerns, genuinely separable from the topology itself.
+`#601`'s own `vm_mirror_v1.py` went one direction with this fact (tie a
+VM session TIGHTLY to a real card's own real layout, so a simulated
+Walker has an honest target); Alan's own real point here is the
+symmetric, opposite move -- deliberately DROP that tie, or replace a
+real MAN file with a description of a much larger, non-physical unit,
+and the exact same generator/VM machinery keeps working, because it
+never structurally needed a real card in the first place. "It's just
+data" is the precise, correct way to say this.
 
-**`nano/frontend_v1.py`:** `create_project()` now accepts and passes
-through all of the above, with two real, deliberate corrections found
-while building this:
-- `assemble()` itself does NOT enforce "`--shell-file` requires
-  `--shell-module`" -- only `main()` does, before calling `assemble()`.
-  Any real caller bypassing `main()` (this frontend included) must
-  replicate that check itself, or a mismatched/confusing downstream
-  result would follow instead of a clear error. Added directly,
-  confirmed by a real test that a genuine custom-shell-file build
-  without a module name fails cleanly, not silently wrong.
-- `compat_warnings` (the real, advisory heuristic scan from `#590`)
-  was already returned by `assemble()` but silently dropped by the web
-  UI's own result rendering -- the CLI prints it, the web page didn't.
-  Fixed: `page_cells()` now renders any real warnings in their own
-  `<div>`, worded identically to the CLI's own "advisory... NOT a
-  substitute for a real compile" framing.
+**What this concretely unlocks, connecting real, already-standing
+threads rather than starting fresh:**
+- **Arbitrarily large substrates, no real ceiling.** `#596`'s own real,
+  deliberate closure found this card's own real ceiling (~200-250
+  cells, ~65-75 MHz) and correctly closed further HARDWARE
+  optimization as a result. A card-decoupled virtual substrate is a
+  genuine, different axis entirely -- not a hardware workaround, a
+  real, honest VM-only exploration space with no card-shaped ceiling
+  at all, matching `#596`'s own already-decided "hardware closed,
+  VM/frontend continues" project shape exactly rather than reopening
+  it.
+- **The 3D extension has real, honest prior art already, not a fresh
+  idea:** `#520`'s own `experimental_3d_grid_v1.py` -- a genuinely
+  separate, VM-only 6-cardinal (N/S/E/W/U/D) toy model, explicitly,
+  honestly scoped as NOT grounded in any real RTL (`unicell_super_v1.
+  v`'s own real port list is strictly 4-cardinal, checked directly
+  before that file was written). Alan's own new framing extends
+  `#520`'s toy-cell exploration toward the SAME real assembler
+  machinery this session worked on (`project_assemble_v1.py`) --
+  since a card-decoupled substrate is never meant for real silicon
+  synthesis anyway, a 3D topology is equally "just data" to it, a real
+  and natural (not novelty-for-its-own-sake) extension once the
+  card-decoupling above is real.
+- **Training buckets, now on two real axes, not one:** `#510`/`#511`
+  already named "a real, structured knowledge substrate teaching a
+  future AI system the composition method" as a standing roadmap item,
+  built on `vm_ai_port_v1.py`'s own already-real two-layer port. A
+  virtual, unconstrained substrate generator (2D AND, per the point
+  above, potentially 3D) gives that training-data thread a genuinely
+  larger, richer generation space than any real card's own physical
+  ceiling could ever provide -- Alan's own direct words, "the training
+  buckets for an ai, for both models, 2d and 3d."
 
-The `/cells` page gains the same real requirements table pattern as
-Step 1's `/man` page (`#599`) -- every field stated plainly as
-required/optional with a one-line real reason -- plus two new grouped
-sections: "Shell / placement options" (shell dropdown, LogicLock
-checkbox, fixed-ALM/headroom) and "Custom shell / dependency override"
-(shell file/module, file list, inline files), both explicitly noted as
-ignored when a single core type is selected, matching `assemble()`'s
-own real behavior exactly.
+**Real, honest scope: nothing built, nothing scoped into concrete
+steps.** No new code, no new file, no design document -- this entry
+exists so the real, connected shape of the idea (card-decoupled
+generation -> arbitrarily large virtual substrates -> a real 3D
+extension building on `#520`'s already-honest groundwork -> richer
+training-bucket generation for `#510`/`#511`) survives intact until
+deliberately picked up, matching the exact same discipline already
+applied to `#502`/`#503` (hardware scaling) and `#351`-`#353`
+(general-purpose programming). `#547`'s own LLVM IR thread (`#603`,
+logged earlier this same pause) and this entry are real, separate
+future directions -- worth remembering they could eventually connect
+(an LLVM-IR-compiled program run against a large virtual substrate
+rather than a real card's own small one), but that connection is
+speculative and not claimed here.
 
-**Real, honest verification:** 10 new tests
-(`tests/tools/test_frontend_create_project.py`), including a genuine
-end-to-end build using a REAL custom shell file already in this repo
-(`fpga/verilog/unicell_super_v7.v`) -- not a mock, the actual
-dependency-resolution and compatibility-check machinery running for
-real. Also covers: v3-vs-v4 shell selection, LogicLock checkbox
-semantics (HTML presence-means-on, absence-means-off, checked
-directly, not assumed), fixed-ALM/headroom pass-through, the new
-shell-file-without-module validation, and confirmed the single-core
-path's own CLI-equivalent string correctly omits every shell/LogicLock
-flag (sanity-checked directly, matching `assemble()`'s own real
-"ignored when single_core is given" semantics). Full suite:
-388/388 passing (378 prior + 10 new), zero regression.

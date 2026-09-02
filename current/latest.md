@@ -1,4 +1,4 @@
-# Current State (as of 2026-09-02, session paused per Alan's own request -- usage reset, continue next time. Pipeline walkthrough at Step 3 of 4 done (Walker, real and working). A real, queued connection noted: this session's own VM-mirror + simulated-Walker infrastructure now gives #547's long-standing LLVM IR compiler intent a genuine place to be built and tested. See `points/points_active.md` #603)
+# Current State (as of 2026-09-02, session paused per Alan's own request -- usage reset, continue next time. Pipeline walkthrough at Step 3 of 4 done (Walker, real and working). Two real, queued ideas captured at pause: #603 (LLVM IR now has a place to be tested) and #604 (a card-decoupled virtual substrate, arbitrarily large, plus a 3D extension, connecting to already-standing #520/#510/#511 threads). A real, self-inflicted ledger-ordering mistake was also caught and fixed this same pause -- see #600's own editorial note.
 
 ## Read this first (most recent)
 
@@ -6,24 +6,43 @@
 session's real work: the pipeline walkthrough (`#599`-`#602`, MAN file
 -> Create cells -> Walker, each reviewed, gap-fixed, tested) --
 Composer is now the only real placeholder left in the whole toolchain.
-On pausing, Alan pointed out a real, concrete connection: the new
-`VMSession.from_man()` (mirrored VM, `#601`) + simulated Walker
-(`#602`) infrastructure gives `#547`'s already-logged LLVM IR compiler
-intent a genuine environment to actually be built AND TESTED in --
-`#547` itself had explicitly named "no design, no RTL, no VM code" as
-the real gap; that gap is now smaller. Captured as `#603`, nothing
-built.
+
+On pausing, Alan raised two real, exciting connections, both captured
+without building anything:
+- `#603`: the new `VMSession.from_man()` (mirrored VM, `#601`) +
+  simulated Walker (`#602`) infrastructure gives `#547`'s already-
+  logged LLVM IR compiler intent a genuine environment to actually be
+  built AND TESTED in -- `#547` itself had named "no design, no RTL,
+  no VM code" as the real gap; that gap is now smaller.
+- `#604`: confirmed directly that `project_assemble_v1.generate_top()`
+  never structurally needed a real MAN file at all -- cell count and
+  grid dims are its only real inputs. That means a card-decoupled,
+  arbitrarily large "virtual substrate" is genuinely buildable with
+  the same machinery, connecting real, already-standing threads:
+  `#520`'s own honest VM-only 3D (6-cardinal) toy-model exploration,
+  and `#510`/`#511`'s own AI training-bucket roadmap item, now on two
+  real axes (2D and 3D) instead of one.
+
+**A real, self-inflicted mistake also caught and fixed this same
+pause, worth naming plainly:** an earlier `str_replace` anchoring
+error had appended entry `#600` in the wrong file position (after
+`#601`/`#602`/`#603` instead of between `#599` and `#601`) --
+already pushed. Caught before `#604` was added, fixed by reordering
+(no entry's own text changed), with a real editorial note left in
+place explaining what happened, matching this project's own "honest
+accounting of failures" discipline rather than a silent rewrite.
 
 **Real, explicit next-session queue, in order:**
 1. Continue the pipeline walkthrough at **Step 4** (Other tools: the
    real VM/workbench, the compiler, and Composer) -- same discipline
    as Steps 1-3: review what's real, what's missing, fix as found.
 2. `#603`'s own LLVM IR environment connection, whenever picked up --
-   `#547` remains the correct starting reference (real prior art on
-   HLS vs. binary translation, the already-proven "combinational
-   tricks" tile catalog).
+   `#547` remains the correct starting reference.
+3. `#604`'s own card-decoupled virtual substrate + 3D extension idea,
+   whenever picked up -- `#520` (3D toy model) and `#510`/`#511`
+   (training buckets) are the correct starting references.
 
-Full detail: `points/points_active.md` `#599`-`#603`,
+Full detail: `points/points_active.md` `#599`-`#604`,
 `archeology/sessions/archive-2026-09-02.md`'s own addendum section.
 
 ## Previous state (as of 2026-09-02, Step 3 (Walker) done: the simulated Walker is real and working, wired into the frontend as Step 3, replacing the honest placeholder. Built on a real prerequisite fix -- #598's "VM mirror mode already exists" claim was checked and found false, so that got built first. See `points/points_active.md` #601/#602)
