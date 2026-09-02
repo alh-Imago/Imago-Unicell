@@ -33395,3 +33395,98 @@ build.** The real, actual test -- whether tighter, computed sizing
 keeps most or all of the real 9.7% Fmax win while recovering real
 usable die area back toward `#579`'s own ~244-cell ALM-only ceiling --
 is the real, immediate next step.
+
+## 584. Real, third design axis prototyped on one core -- compare_cell_v3.v + unicell_super_v6.v. Per Alan's own real, direct proposal: leave genuine runtime state exactly where v1 already keeps it (in the core, matching the cheapest real design measured so far, #579), but stop re-latching CONFIG fields into a private local copy when the shell's own super_latch already holds them stable and continuously. Confirmed as a real, genuine redundancy directly against compare_cell_v1.v's own RTL before building anything. Sim-verified clean at both the core and shell level; real Quartus target built, not yet run. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, sim-verified prototype on ONE core (compare, Alan's own
+choice, the simplest real candidate). Real Quartus number is the
+actual next step.**
+
+**The real, confirmed redundancy, checked against RTL before building
+anything (not assumed):** `compare_cell_v1.v` re-latches `downstream_
+mask`/`upstream_mask`/`threshold` into private local registers on
+every `cfg_valid`:
+```
+end else if (cfg_valid) begin
+    downstream_mask <= cfg_data[3:0];
+    upstream_mask   <= cfg_data[7:4];
+    threshold       <= cfg_data[39:8];
+```
+`unicell_super_v3.v`'s own shell ALREADY holds this exact same
+information, stable, continuously, in `core_config` (`super_latch
+[46:5]`), for as long as compare stays selected -- confirmed directly:
+the shell wires each core's `cfg_data` port to `incoming_config`
+(`cfg_data[46:5]`, the TRANSIENT one-shot top-level pulse), not
+`core_config` (the STABLE, registered value) -- which is WHY every
+core today is forced to latch its own private copy: the value it's
+given only exists for one real cycle. Alan's own real proposal: wire
+cores to the STABLE signal instead, and stop latching entirely.
+
+**Real, precise reason this is architecturally SAFE, confirmed against
+the shell's own real wiring, not assumed:** `arrived_n/s/e/w` are
+already AND-gated with `sel_active_cmp` at the shell level (unchanged,
+real, existing v3 wiring) -- so `any_upstream_arrived` is force-zero
+whenever compare isn't genuinely selected, regardless of what
+`core_config` happens to hold at that moment (another core's own real
+config, since bit positions are a shared, reused budget across all 8
+core types, `#315`). `capture_now` can therefore never fire on a
+misread config value while deselected.
+
+**Real, precise reason this is architecturally SAFER than v4/v5's own
+shared-storage attempts (found to cost far more than they saved,
+`#575`/`#577`/`#580`):** config is READ-ONLY from every core's own
+perspective. A single source (the host, via `cfg_valid` into
+`super_latch`) already writes it once -- there is NO write-side
+arbitration needed at all, the exact mechanism `#575`/`#580` precisely
+localized as the real, dominant cost of sharing RUNTIME state. This
+proposal shares nothing that gets written by more than one place.
+
+**`compare_cell_v3.v` (new)** -- identical to v1 except `downstream_
+mask`/`upstream_mask`/`threshold` are now plain combinational wires
+reading straight off a continuously-valid `cfg_data` input, no
+register, no load-vs-hold mux. Genuine runtime state (`out_buffer`/
+`data_valid`/`pending_ack`) UNCHANGED from v1 -- still real per-core
+registers, still reset via `cfg_valid`.
+
+**`tb_compare_v3_diff_v1.v` (new)** -- real, differential proof against
+v1, 5/5 real checks including a genuine reconfigure case (threshold
+8 -> 20), passing on the first attempt.
+
+**`unicell_super_v6.v` (new)** -- cloned from `unicell_super_v3.v`,
+EXACTLY ONE real change: the compare slot instantiates `compare_
+cell_v3` instead of `compare_cell_v1`, wired to `core_config` instead
+of `incoming_config`. Every other one of the 7 cores UNCHANGED, still
+v1, still wired to the transient pulse -- a deliberate, minimal,
+single-variable prototype, not a full redesign.
+
+**`tb_unicell_super_v6.v` (new)** -- cloned from `tb_unicell_super_v3.v`
+verbatim, same real 8-core sequence. All 8 real checks pass, including
+the comparator's own real check (`10>=8=1`) -- notably, by the time
+compare gets configured in this sequence, `core_config` has ALREADY
+held RAM's, adder's, and accumulator's own real bit patterns during
+compare's own deselected periods, and the real result is still
+correct -- an empirical confirmation of the real safety property
+above, not just a reasoned one.
+
+**`top_unicell_super_test_v6.v` (new)** -- cloned from `top_unicell_
+super_test_v3.v`, DUT swapped only. Sim-verified clean via a real
+top-level testbench, first attempt.
+
+**Real Quartus target built, matching the established template
+exactly:** `top_unicell_super_test_v6.qsf`/`.sdc`. **Not yet run** --
+the real test of whether this genuinely saves ALM, and how much,
+against `#574`'s own real v3 N=1 baseline (479 total / 301.9 `DUT`).
+
+**Real, honest scope on the real "config budget" question Alan also
+raised:** `core_config` is already a 42-bit UNION, reused (not summed)
+across all 8 core types, per this project's own existing, real design
+(`#315`) -- confirmed directly against `unicell_super_v3.v`'s own real
+header before writing this entry, already about as tight as it can be
+without a real per-core width audit. Whatever real figure Alan had in
+mind by "the current 166" wasn't identifiable from this session's own
+real, checked data -- worth a direct follow-up rather than a guessed
+match here.
+
+**Zero regression:** 361/361 Python tests, `tb_unicell_super_v3.v`
+(unchanged, still passes), `tb_compare_v2_diff_v1.v` (unchanged, still
+passes).

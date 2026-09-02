@@ -1,4 +1,47 @@
-# Current State (as of 2026-09-01, real LogicLock AUTO_SIZE result -- genuinely improved Fmax +9.7% for near-zero ALM cost, but reserves 3.1x more physical area than needed (32.2% avg utilization), dropping the real area-limited max cell count from ~244 to ~78. Generator extended with a real fixed-size mode to fix this; two real fixed-size N=10 projects generated, awaiting the real number, see `points.md` #583)
+# Current State (as of 2026-09-01, real, third design axis prototyped on one core -- compare_cell_v3.v reads config continuously off the shell's own stable core_config instead of re-latching a private copy, per Alan's own real proposal. Sim-verified clean at core and shell level, real Quartus target built, awaiting the real number, see `points.md` #584)
+
+## Read this first (most recent)
+
+**2026-09-01, real third axis: stop duplicating config storage, per
+Alan's own direct proposal.** Confirmed against RTL before building
+anything: `compare_cell_v1.v` re-latches `downstream_mask`/`upstream_
+mask`/`threshold` into private local registers on every `cfg_valid` --
+but the shell's own `core_config` (`super_latch[46:5]`) ALREADY holds
+this exact same information, stable, continuously, for as long as
+compare stays selected. The shell only ever wires cores to the
+TRANSIENT one-shot pulse (`incoming_config`), which is WHY every core
+is forced to latch locally today.
+
+`compare_cell_v3.v` (new): config fields now plain combinational wires
+reading straight off a continuously-valid `cfg_data`, no register, no
+load-vs-hold mux. Genuine runtime state (`out_buffer`/`data_valid`/
+`pending_ack`) UNCHANGED -- still real per-core registers, matching
+v3's own cheapest-measured design. Real, precise safety reasoning
+confirmed against the shell's own existing wiring (`arrived_*` already
+AND-gated with `sel_active_cmp`, so a misread config value while
+deselected can never trigger a genuine capture) AND empirically
+confirmed via the shell testbench (compare configured only after
+`core_config` had already held 3 other cores' own real bit patterns
+during compare's deselected periods -- still correct). Architecturally
+SAFER than v4/v5's own shared-storage attempts too: config is
+READ-ONLY per core, a single writer (the host), zero write-arbitration
+needed -- the exact mechanism that made v4/v5 expensive doesn't apply.
+
+`unicell_super_v6.v` (new): v3 cloned, ONE real change -- compare slot
+only, wired to `core_config` instead of `incoming_config`. All 8 real
+checks pass through the shell. Real Quartus target built (`top_
+unicell_super_test_v6.qsf`/`.sdc`), **not yet run**. Zero regression:
+361/361 Python tests, v3's own shell testbench and compare v1/v2 diff
+both unchanged and still passing.
+
+Full detail: `points.md` `#584`.
+
+**Real, honest scope: prototype on ONE core only, deliberately.** If
+this measures a real saving against `#574`'s own v3 N=1 baseline (479
+total / 301.9 `DUT`), the same change rolls out to the other 7 cores
+next.
+
+## Previous state (2026-09-01, real LogicLock AUTO_SIZE result -- genuinely improved Fmax +9.7% for near-zero ALM cost, but reserves 3.1x more physical area than needed (32.2% avg utilization), dropping the real area-limited max cell count from ~244 to ~78. Generator extended with a real fixed-size mode to fix this; two real fixed-size N=10 projects generated, awaiting the real number, see `points.md` #583)
 
 ## Read this first (most recent)
 
