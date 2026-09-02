@@ -33681,3 +33681,42 @@ cell card. Real per-cell area cost of this approach (1 super-cell +
 8 moat cells) is a real, separate, not-yet-measured trade-off against
 raw cell density -- worth a direct, honest look once this first real
 number is in, before committing to a larger tiled test.
+
+## 589. Real bug found and fixed: top_moat_tile_v1.v's own wire declarations used a `` token-pasting macro Icarus Verilog accepted but Quartus's own Verilog HDL compiler rejects outright -- a real, avoidable tool-compatibility mistake, caught only when Alan's own real Quartus build failed on it, not before. Fixed by writing the 9 real per-cell wire groups out explicitly instead of chasing a portable macro. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, fixed, re-verified clean in Icarus. Quartus is the
+real, remaining confirmation -- not yet re-attempted.**
+
+**Real, honest root cause:** `#588`'s own first draft used
+`` `define MOAT_WIRES(nm) wire [31:0] nm``_dout_n, ...`` -- a real
+token-pasting macro, relying on Icarus Verilog's own real acceptance
+of `` `` `` concatenation inside a macro body. Quartus's own real
+Verilog HDL compiler does not support this construct the same way
+(confirmed directly by Alan's own real build failure: `Error (10108):
+missing Compiler Directive`, `Error (10149): identifier "CTR" is
+already declared`) -- a real, genuine tool divergence between the two
+real toolchains this project uses (Icarus for sim-first verification,
+Quartus for the real, authoritative build), not a transient glitch.
+**This is exactly the kind of gap sim-first verification cannot catch
+by itself** -- the file elaborated and ran correctly in Icarus,
+appearing fully verified, while being genuinely broken for the one
+toolchain that actually matters for a real result.
+
+**Real fix:** removed the macro entirely, wrote all 9 real per-cell
+wire groups (`CTR`/`N`/`S`/`E`/`W`/`NE`/`NW`/`SE`/`SW`, each `dout_*`/
+`fire_*`/`ack_*`) out explicitly, plain Verilog, no preprocessor
+tricks. Re-verified clean in Icarus (identical real elaboration and
+liveness-check behavior to before the fix, confirming this was purely
+a portability issue, not a real logic change).
+
+**Real, honest process note, worth stating plainly rather than
+glossing over:** this project's own standing discipline is sim-first
+verification before any real Quartus attempt -- and that discipline
+was followed here. But sim-first verification is only as good as the
+TOOLCHAIN it runs against; a construct valid in Icarus but invalid in
+Quartus is a real, genuine blind spot sim-only verification cannot
+close by itself. Real, going-forward takeaway: avoid preprocessor
+macros for structural RTL (module/wire generation) in future hand-
+built files -- explicit, plain Verilog, even when more verbose, is
+the safer real default given this project uses two real, imperfectly-
+compatible toolchains.

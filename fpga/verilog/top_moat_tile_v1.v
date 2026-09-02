@@ -76,21 +76,49 @@ wire cfg_valid_bcast = !rst && cfg_pulse_sr[3] && !cfg_pulse_sr[2];
 wire [79:0] cfg_data_bcast = {13'b0, {20{ENTRY_DATA}}, {42{ENTRY_DATA}}, CFG_SELECT};
 wire [31:0] entry_data = {31'b0, ENTRY_DATA};
 
-// ── Per-cell output wires, one set per real position ──
-`define MOAT_WIRES(nm) \
-    wire [31:0] nm``_dout_n, nm``_dout_s, nm``_dout_e, nm``_dout_w; \
-    wire nm``_fire_n, nm``_fire_s, nm``_fire_e, nm``_fire_w; \
-    wire nm``_ack_n, nm``_ack_s, nm``_ack_e, nm``_ack_w;
+// ── Per-cell output wires, one set per real position. Written out
+// explicitly, not via a token-pasting macro -- an earlier draft used
+// a `` macro here, which Icarus Verilog accepted but Quartus's own
+// Verilog HDL compiler does not, a real, avoidable tool-compatibility
+// mistake caught only when Alan's own real build failed. Fixed by
+// removing the macro entirely rather than chasing a portable version
+// of it -- plain, explicit declarations are the safer real choice
+// here regardless. ──
+wire [31:0] CTR_dout_n, CTR_dout_s, CTR_dout_e, CTR_dout_w;
+wire        CTR_fire_n, CTR_fire_s, CTR_fire_e, CTR_fire_w;
+wire        CTR_ack_n,  CTR_ack_s,  CTR_ack_e,  CTR_ack_w;
 
-`MOAT_WIRES(CTR)
-`MOAT_WIRES(N)
-`MOAT_WIRES(S)
-`MOAT_WIRES(E)
-`MOAT_WIRES(W)
-`MOAT_WIRES(NE)
-`MOAT_WIRES(NW)
-`MOAT_WIRES(SE)
-`MOAT_WIRES(SW)
+wire [31:0] N_dout_n, N_dout_s, N_dout_e, N_dout_w;
+wire        N_fire_n, N_fire_s, N_fire_e, N_fire_w;
+wire        N_ack_n,  N_ack_s,  N_ack_e,  N_ack_w;
+
+wire [31:0] S_dout_n, S_dout_s, S_dout_e, S_dout_w;
+wire        S_fire_n, S_fire_s, S_fire_e, S_fire_w;
+wire        S_ack_n,  S_ack_s,  S_ack_e,  S_ack_w;
+
+wire [31:0] E_dout_n, E_dout_s, E_dout_e, E_dout_w;
+wire        E_fire_n, E_fire_s, E_fire_e, E_fire_w;
+wire        E_ack_n,  E_ack_s,  E_ack_e,  E_ack_w;
+
+wire [31:0] W_dout_n, W_dout_s, W_dout_e, W_dout_w;
+wire        W_fire_n, W_fire_s, W_fire_e, W_fire_w;
+wire        W_ack_n,  W_ack_s,  W_ack_e,  W_ack_w;
+
+wire [31:0] NE_dout_n, NE_dout_s, NE_dout_e, NE_dout_w;
+wire        NE_fire_n, NE_fire_s, NE_fire_e, NE_fire_w;
+wire        NE_ack_n,  NE_ack_s,  NE_ack_e,  NE_ack_w;
+
+wire [31:0] NW_dout_n, NW_dout_s, NW_dout_e, NW_dout_w;
+wire        NW_fire_n, NW_fire_s, NW_fire_e, NW_fire_w;
+wire        NW_ack_n,  NW_ack_s,  NW_ack_e,  NW_ack_w;
+
+wire [31:0] SE_dout_n, SE_dout_s, SE_dout_e, SE_dout_w;
+wire        SE_fire_n, SE_fire_s, SE_fire_e, SE_fire_w;
+wire        SE_ack_n,  SE_ack_s,  SE_ack_e,  SE_ack_w;
+
+wire [31:0] SW_dout_n, SW_dout_s, SW_dout_e, SW_dout_w;
+wire        SW_fire_n, SW_fire_s, SW_fire_e, SW_fire_w;
+wire        SW_ack_n,  SW_ack_s,  SW_ack_e,  SW_ack_w;
 
 wire [4:0] status_core_select;
 
