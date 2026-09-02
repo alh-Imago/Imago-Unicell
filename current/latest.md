@@ -1,4 +1,38 @@
-# Current State (as of 2026-09-01, real v7 Quartus result -- both per-core wins (compare -16.2% cumulative, latch -9.4%) hold up under a second, independent build, but whole-DUT/whole-design comparisons are noisy enough relative to their small size that the aggregate benefit isn't yet clearly visible above normal build-to-build variance with only 2 of 8 cores done. A real, not-yet-explained Fmax decline across both builds is worth watching, see `points.md` #591)
+# Current State (as of 2026-09-01, real, third and widest core rolled out on the config-off-shell axis -- accumulator_cell_v3.v joins compare_cell_v3.v and latch_cell_v3.v in unicell_super_v8.v, sim-verified clean including pulse mode, real Quartus target built, awaiting the real number, see `points.md` #592)
+
+## Read this first (most recent)
+
+**2026-09-01, real third core: accumulator, the widest config budget
+yet, per Alan's own "more complex, wider" request.** Same real change
+as compare/latch (`#584`/`#587`): `accumulator_cell_v1.v`'s own
+`inc_dir`/`dec_dir`/`downstream_mask`/`step_amount`/`pulse_mode`/
+`threshold` (37 bits, the widest touched so far) were re-latched
+locally on every `cfg_valid`, duplicating what the shell's own
+`core_config` already holds. `accumulator_cell_v3.v` reads them
+continuously instead. Genuine runtime state UNCHANGED, including the
+full real pulse-mode mechanism (threshold-crossing reset, discrete
+pulse offering) -- confirmed preserved exactly, not just structurally
+copied.
+
+`tb_accumulator_v3_diff_v1.v`: 8/8 real checks vs v1, reusing v2's own
+already-proven stimulus sequence (static mode, 3 increments,
+reconfigure to pulse mode, real threshold crossing). `unicell_super_
+v8.v`: compare, latch, AND accumulator now all three on the new axis,
+5 of 8 cores remain v1, unchanged. All 8 real shell checks pass. Real
+Quartus target built (`top_unicell_super_test_v8.qsf`/`.sdc`), **not
+yet run**.
+
+Full detail: `points.md` `#592`.
+
+**Real, honest point of this specific core choice:** `#591`'s own real
+finding was that compare's and latch's own real per-core wins are
+individually confirmed but too small to clearly show up in whole-DUT
+comparisons above normal build-to-build noise (a same-build +7.7 ALM
+swing on an untouched core). Accumulator's own real, wider config
+budget is the direct test of whether a bigger saving clears that noise
+floor.
+
+## Previous state (2026-09-01, real v7 Quartus result -- both per-core wins (compare -16.2% cumulative, latch -9.4%) hold up under a second, independent build, but whole-DUT/whole-design comparisons are noisy enough relative to their small size that the aggregate benefit isn't yet clearly visible above normal build-to-build variance with only 2 of 8 cores done. A real, not-yet-explained Fmax decline across both builds is worth watching, see `points.md` #591)
 
 ## Read this first (most recent)
 

@@ -33859,3 +33859,58 @@ become clearer as more, larger config budgets are addressed -- RAM
 and branch each use the full 42-bit `core_config` window, versus
 compare's 40 and latch's 16) or pause here pending a clearer read on
 the noise floor is a real, open call, not decided in this entry.
+
+## 592. Real, third and widest core rolled out on the config-off-shell axis -- accumulator_cell_v3.v + unicell_super_v8.v. Accumulator picked per Alan's own real request for "a more complex, wider" core next, specifically to test whether a bigger real config budget (37 bits -- inc_dir/dec_dir/downstream_mask/step_amount/pulse_mode/threshold, the widest touched by this thread so far) produces a saving large enough to clear the real build-to-build noise floor #591 found limiting the two smaller cores' own aggregate visibility. Sim-verified clean, including both static and pulse mode; real Quartus target built, not yet run. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, sim-verified. THREE of 8 real cores now on this axis
+(compare, latch, accumulator). Real Quartus number is the actual next
+step.**
+
+**Real, confirmed redundancy, same shape as compare's and latch's own
+(`#584`/`#587`), on the widest config budget yet:**
+`accumulator_cell_v1.v` re-latches `inc_dir`/`dec_dir`/`downstream_
+mask`/`step_amount`/`pulse_mode`/`threshold` (37 bits total, including
+a real 16-bit threshold field) into private local registers on every
+`cfg_valid`. Same real fix: read continuously off the shell's own
+stable `core_config` instead.
+
+**`accumulator_cell_v3.v` (new)** -- identical to v1 except those 6
+config fields are now plain combinational wires. Genuine runtime state
+(`accumulator`/`out_buffer`/`data_valid`/`pulse_pending`/`pending_
+ack`) UNCHANGED, including the real, deliberate "data_valid live
+immediately on cfg_valid" quirk (matching latch's own real precedent,
+`#587`) and the full real pulse-mode mechanism (threshold-crossing
+reset-to-0, discrete pulse offering) -- confirmed preserved exactly by
+direct comparison against v1's own real reset/reload block, not just
+structurally copied.
+
+**`tb_accumulator_v3_diff_v1.v` (new)** -- real, differential proof
+against v1, reusing the SAME real stimulus sequence already proven for
+v2 (`#564`: static-mode config, 3 increments, a genuine reconfigure to
+pulse mode, a real threshold crossing). 8/8 real checks, first
+attempt -- confirms the config-redundancy fix holds even through
+accumulator's own real, more complex pulse-mode logic, not just its
+simple static-mode path.
+
+**`unicell_super_v8.v` (new)** -- cloned from `unicell_super_v7.v`
+(compare + latch already on this axis), accumulator slot now
+`accumulator_cell_v3` wired to `core_config`. 5 of 8 cores remain v1,
+unchanged.
+
+**`tb_unicell_super_v8.v` (new)** -- all 8 real checks pass, including
+accumulator's own real check (3 increments -> 3), with all THREE
+converted cores active simultaneously in one shell.
+
+**`top_unicell_super_test_v8.v` (new)** + real Quartus target
+(`top_unicell_super_test_v8.qsf`/`.sdc`), matching the established
+template. Sim-verified clean, first attempt. **Not yet run** -- the
+real, cumulative test (compare + latch + accumulator together) against
+`#574`'s original v3 baseline (479 total / 301.9 `DUT`) and `#591`'s
+own intermediate v7 number (486 total / 298.7 `DUT`) -- and, per
+Alan's own real reasoning for picking this core, whether accumulator's
+own real per-core saving is large enough to show up clearly above the
+real build-to-build noise `#591` found on the two smaller cores (the
+~+7.7 ALM swing on an UNTOUCHED core in that same build).
+
+**Zero regression:** 361/361 Python tests, `tb_unicell_super_v7.v`
+(unchanged, still passes), `tb_accumulator_v2_diff_v1.v` (unchanged).
