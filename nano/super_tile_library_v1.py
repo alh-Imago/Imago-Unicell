@@ -345,6 +345,34 @@ super_tile_library.register(SuperTileSpec(
     target="super-only",
 ))
 
+super_tile_library.register(SuperTileSpec(
+    name="branch", core="branch",
+    description="A real, three-way held-reference router (points.md "
+                 "#608): captures the FIRST arrived value as a real "
+                 "reference (or continuously updates it if rolling_mode "
+                 "is set), then routes each subsequent arrival's own "
+                 "value out route_low/route_equal/route_high depending "
+                 "on how it compares against that reference. Real, "
+                 "necessary default, found while testing this tile, not "
+                 "assumed: the real RTL only ever offers a result "
+                 "downstream when emit_low/emit_equal/emit_high are set "
+                 "-- WITHOUT them, a branch cell classifies but never "
+                 "emits anything at all, silently. Fixed here to always "
+                 "emit on every real outcome (a genuine, useful "
+                 "always-route default), passing the real arrived value "
+                 "through rather than a fixed override (the "
+                 "value_source_*/fixed_value_* override isn't yet "
+                 "exposed via this tile, same real precedent as the "
+                 "accumulator tile's own deferred pulse_mode/threshold).",
+    ports=[TilePort("in", "in", "upstream_dir"),
+           TilePort("route_low", "out", "route_low"),
+           TilePort("route_equal", "out", "route_equal"),
+           TilePort("route_high", "out", "route_high")],
+    param_names=["rolling_mode"],
+    fixed_core_config={"emit_low": 1, "emit_equal": 1, "emit_high": 1},
+    target="super-only",
+))
+
 # ── Self-registration into the real, generic compiler hook
 # (points.md #485, tile_source_registry_v1.py) -- makes this,
 # pre-existing library the first real proof the hook covers what

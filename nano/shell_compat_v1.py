@@ -48,7 +48,7 @@ CORE_TYPE_PATTERNS: Dict[str, "re.Pattern"] = {
     "ram": re.compile(r"^ram_cell_v\d+$"),
     "adder": re.compile(r"^adder_cell_v\d+$"),
     "accumulator": re.compile(r"^accumulator_cell_v\d+$"),
-    "compare": re.compile(r"^compare_cell_v\d+$"),
+    "comparator": re.compile(r"^compare_cell_v\d+$"),
     "latch": re.compile(r"^latch_cell_v\d+$"),
     "sequencer": re.compile(r"^sequencer_cell_v\d+$"),
     "branch": re.compile(r"^branch_cell_v\d+$"),

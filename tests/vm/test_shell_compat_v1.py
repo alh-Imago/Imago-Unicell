@@ -81,3 +81,21 @@ def test_compatibility_matrix_covers_every_discovered_version():
     matrix = sc.compatibility_matrix()
     versions = sc.discover_shell_versions()
     assert set(matrix.keys()) == set(versions.keys())
+
+
+def test_comparator_uses_real_icm_core_name_not_rtl_module_prefix():
+    """Real regression guard: the real ICM/VM-level core string for
+    this tile is "comparator" (matching SuperCell.from_record()'s own
+    dispatch key and super_tile_library_v1.py's own tile registration
+    -- checked directly), NOT "compare" (the RTL module file's own
+    naming convention, compare_cell_v1.v). A real bug shipped in #606
+    used "compare" as the lookup key, which meant check_core_compatible
+    would ALWAYS reject a real "comparator" core, on every shell,
+    silently -- caught only when actually exercised, not by any test at
+    the time. This test exists so that exact mistake can't come back."""
+    versions = sc.discover_shell_versions()
+    ok, reason = sc.check_core_compatible(versions["v3"], "comparator")
+    assert ok is True
+    assert reason is None
+    ok2, reason2 = sc.check_core_compatible(versions["v3"], "compare")
+    assert ok2 is False  # "compare" is not a real core name at this layer

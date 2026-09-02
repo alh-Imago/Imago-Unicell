@@ -343,6 +343,24 @@ class SuperCell:
         def dm(val):
             return v3.pack_dirmask(val) if isinstance(val, (list, tuple, set)) else int(val)
 
+        def single_dir(val):
+            """points.md #608: branch's own real upstream_dir is a
+            SINGLE direction value (unlike every other core's masks),
+            confirmed directly against the real capture logic
+            (`d == self.br_upstream_dir`, not a bit test). The generic
+            tile-placement mechanism (`super_tile_library_v1.place()`)
+            always resolves a port's chosen direction into a
+            single-element LIST of letters (the same convention every
+            other port uses) -- accepted here and converted to the
+            real N/S/E/W index, alongside the pre-existing raw-int form
+            for direct core_config construction."""
+            if isinstance(val, (list, tuple, set)):
+                dirs = list(val)
+                if len(dirs) != 1:
+                    raise ValueError(f"upstream_dir must resolve to exactly one direction, got {dirs!r}")
+                return {"n": N, "s": S, "e": E, "w": W}[str(dirs[0]).lower()]
+            return int(val) & 0x3
+
         if core == "nano":
             cell._nano = CACell(
                 row=rec.row, col=rec.col,
@@ -387,7 +405,7 @@ class SuperCell:
             cell.latch_clear_dir = dm(cfg.get("clear_dir", 0))
             cell.latch_toggle_dir = dm(cfg.get("toggle_dir", 0))
         elif core == "branch":
-            cell.br_upstream_dir = int(cfg.get("upstream_dir", 0)) & 0x3
+            cell.br_upstream_dir = single_dir(cfg.get("upstream_dir", 0))
             cell.br_value_source_low = bool(cfg.get("value_source_low", 0))
             cell.br_value_source_equal = bool(cfg.get("value_source_equal", 0))
             cell.br_value_source_high = bool(cfg.get("value_source_high", 0))

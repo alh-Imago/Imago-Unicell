@@ -2405,3 +2405,89 @@ add-alongside-existing and duplicate-name-rejection behavior, and a
 full real HTTP round-trip (`/compile` -> `/save_icm` -> `/load_icm`).
 Full suite: 479/479 passing (470 prior + 9 new), zero regression.
 
+## 608. Real gap-plugging, per Alan's own direct request: the `branch` core gains a real Tier-0 DSL tile, making Composer's own shell-rejection path (`#606`) reachable end to end through real DSL source for the first time. A real, separate bug found and fixed along the way. (Alan/Claude, 2026-09-02)
+
+**A real, undiscovered correctness bug found and fixed FIRST, before
+any new tile was built:** `#606`'s own `shell_compat_v1.py` and
+`connection_check_v1.py` both used `"compare"` as the dictionary key
+for that core type -- but the REAL ICM/VM-level core string (confirmed
+directly against `super_tile_library_v1.py`'s own tile registration
+and `SuperCell.from_record()`'s own dispatch key) is `"comparator"`,
+not `"compare"` (that's only the RTL MODULE file's own naming
+convention, `compare_cell_v1.v`). The bug meant `check_core_compatible`
+would ALWAYS reject a real comparator cell, on every shell, silently
+-- and `connection_check_v1.py`'s own check would silently skip
+comparator cells entirely from connection-hint checking. Neither `#606`
+nor `#607`'s own tests ever happened to exercise a comparator core, so
+this shipped unnoticed. Fixed in both files; two new regression tests
+added (one per file) confirming `"comparator"` resolves correctly and
+`"compare"` does not, so this exact mistake can't come back silently.
+
+**The real, checked reason `branch` (not `sequencer`) was tractable to
+close today:** confirmed directly against `unicell_super_automaton_v1.
+py` that `branch`'s own real VM dispatch (`from_record()`, the full
+`_deliver_branch()` capture/compare/route logic, `_offer_state`) is
+COMPLETE and already correct -- `#519`'s own real resolution had
+already given branch full VM behavior; only the Tier-0 DSL TILE itself
+(the named-port placement recipe) was missing from `super_tile_library_
+v1.py`'s own catalog. `sequencer` is a genuinely different, larger gap
+-- confirmed it has NO real VM dispatch anywhere at all (`#519`'s own
+still-open half), so a real sequencer tile would need the full
+simulation behavior built first, not just a tile. Flagged, not
+attempted in this entry -- see the session's own next step.
+
+**A real, small, necessary VM-level fix, found while wiring the new
+tile through the existing generic mechanism, not a new feature:**
+`super_tile_library_v1.place()` always resolves a port's chosen
+direction into a single-element LIST of letters (e.g. `['w']`) -- the
+same convention every other directional field already uses. But
+`branch`'s own real `upstream_dir` field is a genuine SINGLE direction
+VALUE (confirmed earlier, `#606`), parsed via a plain `int(cfg.get(...))`
+that would have raised `TypeError` on a list. Added a small
+`single_dir()` helper (`unicell_super_automaton_v1.py`, alongside the
+existing `dm()` helper) accepting either form, converting a
+single-element list to the real N/S/E/W index -- the same flexible
+list-or-int convention `dm()` already established, applied to the one
+real field that needed it.
+
+**A second real, necessary finding, caught by a failing functional
+test before being shipped, not assumed correct:** the real RTL only
+ever offers/emits a routed result downstream when `emit_low`/
+`emit_equal`/`emit_high` are set -- WITHOUT them, a branch cell
+classifies every arrival against its reference but silently emits
+NOTHING, ever. A first draft of the new tile left these unset
+(deferring them like the accumulator tile's own deferred `pulse_mode`/
+`threshold`) -- but unlike those genuinely optional refinements,
+`emit_*` gates branch's entire real function. Caught by writing a real
+functional test (matching this test file's own "don't just check the
+format, run it" discipline) before considering the tile done. Fixed:
+the new tile's own `fixed_core_config` always sets all three `emit_*`
+to `1` -- a genuine, useful "always classify and route" default,
+passing the real arrived value through (the `value_source_*`/
+`fixed_value_*` fixed-override feature remains deferred, honestly, same
+real precedent as before).
+
+**`nano/super_tile_library_v1.py`:** new `branch` `SuperTileSpec` --
+ports `in` (`upstream_dir`), `route_low`/`route_equal`/`route_high`
+(each its own real field, genuinely separate, not shared like the
+adder's `in_a`/`in_b`); param `rolling_mode`. Tier-0's own catalog is
+now 7 of 8 real core types (`sequencer` the one real, explicitly
+flagged exception).
+
+**Real, honest verification:** 7 new tests total (5 in `tests/vm/
+test_super_tile_library_v1.py` -- compiling/placing, the real
+first-arrival-becomes-reference-no-emit behavior, all three real
+routing outcomes with correct masks and passthrough values, rolling-
+mode reference updates, and a full real end-to-end confirmation that
+`workbench_v1.py`'s own shell-compat rejection now genuinely triggers
+via real DSL source on v1 and succeeds on v3; 2 comparator-naming
+regression tests above). Two pre-existing tests updated for the real,
+new 7-core-type count (`test_library_has_all_six_core_types_
+represented` renamed/updated; `test_nano_gate_tagged_universal_
+others_super_only`'s own hardcoded tile-name list extended). Full
+suite: 486/486 passing (479 prior + 7 new), zero regression.
+
+**Real, honest scope: `sequencer` remains genuinely open**, a larger,
+separate task (full VM dispatch, not just a tile) -- the session's own
+immediate next step, pending confirmation on how deep to build it.
+

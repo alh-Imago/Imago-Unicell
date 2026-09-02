@@ -52,7 +52,7 @@ CORE_DIRECTION_FIELDS: Dict[str, Dict[str, object]] = {
     "ram":         {"in_fields": ["upstream_mask"], "out_field": "downstream_mask"},
     "adder":       {"in_fields": ["upstream_mask"], "out_field": "downstream_mask"},
     "accumulator": {"in_fields": ["inc_dir", "dec_dir"], "out_field": "downstream_mask"},
-    "compare":     {"in_fields": ["upstream_mask"], "out_field": "downstream_mask"},
+    "comparator":  {"in_fields": ["upstream_mask"], "out_field": "downstream_mask"},
     "latch":       {"in_fields": ["set_dir", "clear_dir"], "out_field": "downstream_mask"},
     "nano":        {"in_fields": [], "out_field": "routing_mask"},
     "branch":      {"in_fields": None, "out_field": None},   # dynamic -- not statically checkable

@@ -118,3 +118,21 @@ def test_branch_out_side_excluded_dynamic():
         Fake("r", 0, 1, "ram", {}),  # no upstream_mask at all
     ]
     assert cc.check_connections(records) == []
+
+
+def test_comparator_uses_real_icm_core_name():
+    """Real regression guard, same real mistake as shell_compat_v1.py's
+    own (#606's shipped bug): the real ICM/VM core string is
+    "comparator", not "compare" (the RTL module file's own naming) --
+    confirmed here that a comparator-to-ram mismatch is actually
+    detected, not silently skipped because the core name wasn't
+    recognized at all."""
+    records = _compile("""
+    program cmp_bad {
+        place a as ram_constant at (0, 0) { out: e; init_data: 1 }
+        place c as comparator at (0, 1) { in: n; out: e; threshold: 5 }
+    }
+    """.replace(";", "\n"))
+    hints = cc.check_connections(records)
+    assert len(hints) == 1
+    assert "c@0,1" in hints[0]

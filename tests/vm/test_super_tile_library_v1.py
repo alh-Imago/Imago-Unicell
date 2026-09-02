@@ -16,9 +16,14 @@ from super_tile_library_v1 import super_tile_library, place, SuperTileSpec, Tile
 from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
 
 
-def test_library_has_all_six_core_types_represented():
+def test_library_has_all_seven_core_types_represented():
+    """points.md #608: branch added (real VM dispatch already existed,
+    #501/#519's own resolution; only the Tier-0 tile itself was
+    missing). sequencer remains genuinely absent -- it has no real VM
+    dispatch at all yet (#519), a real, separate, larger gap not closed
+    by this entry."""
     cores = {super_tile_library.get(n).core for n in super_tile_library.names()}
-    assert cores == {"nano", "ram", "adder", "accumulator", "comparator", "latch"}
+    assert cores == {"nano", "ram", "adder", "accumulator", "comparator", "latch", "branch"}
 
 
 def test_place_rejects_missing_port_direction():
@@ -150,6 +155,89 @@ def test_placed_accumulator_and_comparator_chain_in_a_real_grid():
     assert cmp_cell.cmp_out_buffer == 1  # 3 >= 2
 
 
+# ── branch (points.md #608, new) ────────────────────────────────────
+
+def test_branch_tile_compiles_and_places():
+    tile = super_tile_library.get("branch")
+    rec = place(tile, 0, 0, {"in": "w", "route_low": "n", "route_equal": "e", "route_high": "s"},
+                params={"rolling_mode": 0}, cell_id="br")
+    assert rec.core == "branch"
+    assert rec.core_config["upstream_dir"] == ["w"]
+    assert rec.core_config["route_low"] == ["n"]
+    assert rec.core_config["emit_low"] == 1  # real, necessary default -- see tile's own docstring
+
+
+def test_branch_tile_first_arrival_becomes_reference_no_emit():
+    tile = super_tile_library.get("branch")
+    rec = place(tile, 0, 0, {"in": "w", "route_low": "n", "route_equal": "e", "route_high": "s"},
+                params={"rolling_mode": 0}, cell_id="br")
+    grid = SuperGrid([rec])
+    cell = grid.cells[(0, 0)]
+    cell.deliver({3: 5}, None)  # W=3
+    assert cell.br_ref_valid is True
+    assert cell.br_ref_value == 5
+    assert cell.br_data_valid is False  # real: capturing the reference itself never emits
+
+
+def test_branch_tile_routes_low_equal_high_correctly():
+    """Real, functional confirmation of the actual 3-way routing --
+    the whole real point of this core, not just that it compiles."""
+    tile = super_tile_library.get("branch")
+    for value, expected_mask, label in [(2, 1, "low->N"), (5, 4, "equal->E"), (9, 2, "high->S")]:
+        rec = place(tile, 0, 0, {"in": "w", "route_low": "n", "route_equal": "e", "route_high": "s"},
+                    params={"rolling_mode": 0}, cell_id="br")
+        grid = SuperGrid([rec])
+        cell = grid.cells[(0, 0)]
+        cell.deliver({3: 5}, None)  # reference = 5
+        cell.deliver({3: value}, None)
+        assert cell.br_data_valid is True, label
+        assert cell.br_active_route == expected_mask, label
+        assert cell.br_out_buffer == value, label  # real passthrough, not a fixed override
+
+
+def test_branch_tile_rolling_mode_updates_reference_each_time():
+    tile = super_tile_library.get("branch")
+    rec = place(tile, 0, 0, {"in": "w", "route_low": "n", "route_equal": "e", "route_high": "s"},
+                params={"rolling_mode": 1}, cell_id="br")
+    grid = SuperGrid([rec])
+    cell = grid.cells[(0, 0)]
+    cell.deliver({3: 5}, None)   # reference = 5
+    cell.deliver({3: 10}, None)  # 10 > 5 -> high; rolling -> reference becomes 10
+    assert cell.br_active_route == 2  # S (high)
+    assert cell.br_ref_value == 10    # real, rolling: this compared value is now the reference
+
+
+def test_branch_tile_shell_compatibility_reachable_via_real_dsl():
+    """The real point of #608: confirms the shell-compat rejection
+    path (workbench_v1.py, #606) is now reachable end to end through
+    real DSL source, not just synthetic records."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
+    import workbench_v1
+    dsl = """
+    program br_test {
+        place b as branch at (0, 0) {
+            in: w
+            route_low: n
+            route_equal: e
+            route_high: s
+            rolling_mode: 0
+        }
+    }
+    """
+    man_path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "man", "mustang-f100-a10.man.json")
+    ctrl_v1 = workbench_v1.WorkbenchController()
+    ctrl_v1.set_target(man_path, 4, shell="v1")
+    result_v1 = ctrl_v1.compile(dsl, "dsl")
+    assert not result_v1["ok"]
+    assert "branch" in result_v1["error"]
+
+    ctrl_v3 = workbench_v1.WorkbenchController()
+    ctrl_v3.set_target(man_path, 4, shell="v3")
+    result_v3 = ctrl_v3.compile(dsl, "dsl")
+    assert result_v3["ok"], result_v3.get("error")
+
+
 def test_registering_duplicate_name_raises():
     from super_tile_library_v1 import SuperTileLibrary
     lib = SuperTileLibrary()
@@ -170,7 +258,7 @@ def test_nano_gate_tagged_universal_others_super_only():
     from super_tile_library_v1 import TARGET_UNICELL_N, TARGET_UNICELL_S, valid_targets
     assert super_tile_library.get("nano_gate").target == "universal"
     assert valid_targets(super_tile_library.get("nano_gate")) == {TARGET_UNICELL_N, TARGET_UNICELL_S}
-    for name in ["ram_constant", "ram_flowing", "adder", "accumulator", "comparator", "latch"]:
+    for name in ["ram_constant", "ram_flowing", "adder", "accumulator", "comparator", "latch", "branch"]:
         tile = super_tile_library.get(name)
         assert tile.target == "super-only", name
         assert valid_targets(tile) == {TARGET_UNICELL_S}, name
