@@ -33720,3 +33720,81 @@ macros for structural RTL (module/wire generation) in future hand-
 built files -- explicit, plain Verilog, even when more verbose, is
 the safer real default given this project uses two real, imperfectly-
 compatible toolchains.
+
+## 590. project_assemble_v1.py gains real, custom shell/dependency-list support -- --shell-file/--shell-module (array any real shell sharing v3/v4's own port list, not just the two hardcoded in SHELL_REGISTRY) and --file-list/--files (a real, explicit dependency list, overriding SHELL_REGISTRY entirely). Per Alan's own direct request -- mixing core versions (compare_cell_v3, latch_cell_v3, the moat tile) had meant hand-writing a fresh QSF file list every time. A real, advisory compatibility check runs automatically whenever --shell-file is given. A real bug found and fixed during the very first end-to-end test. (Alan/Claude, 2026-09-01)
+
+**STATUS: real, tested, working. A real bug found and fixed on the
+first real attempt, not glossed over.**
+
+**The real, direct motivation, Alan's own words:** "if you can specify
+the file inclusion list rather than use a hard coded list, this would
+make the build a bit easier if we mix and match versions of cells."
+Confirmed as a real, genuine pain point against this session's own
+recent history -- `unicell_super_v6.v`/`v7.v` (`#584`/`#587`) and the
+moat tile (`#588`) each needed a hand-written QSF dependency list,
+duplicating real information already implicit in which files actually
+exist.
+
+**`--shell-file`/`--shell-module` (new)** -- point the array generator
+at ANY real shell file, not just the two entries in `SHELL_REGISTRY`.
+Works directly with zero template changes for any shell sharing v3/
+v4's own real port list (confirmed: `unicell_super_v6.v`/`v7.v` are
+both real clones of v3, so they already match exactly) -- `generate_
+top()`'s own existing instantiation template only needed the module
+NAME to become overridable, nothing else. The shell file is
+automatically added to the real dependency list if not already
+present.
+
+**`--file-list`/`--files` (new)** -- a real, explicit dependency list,
+either a plain text file (one real filename per line, `#`-comments
+and blank lines ignored) or an inline comma-separated string,
+overriding `SHELL_REGISTRY`'s own registered list entirely. Both
+tested directly, both work.
+
+**`check_dependency_compatibility()` (new)** -- a real, advisory,
+NOT-authoritative check, per Alan's own real acknowledgment that this
+"would have to check compatibility too." Confirmed the real module
+name is declared where expected, and heuristically scans the shell
+file's own body for module instantiations (a deliberately conservative
+regex, documented as advisory everywhere it surfaces -- Verilog
+instantiation syntax cannot be fully, reliably distinguished from
+other constructs by regex alone, and this is stated plainly rather
+than overclaiming precision). **Tested directly by deliberately
+omitting `latch_cell_v3.v` from a real file list -- correctly flagged:**
+`"the shell file appears to instantiate the following real module(s)
+not found declared in the real dependency list: latch_cell_v3"`.
+Never blocks generation on its own -- a real compile (iverilog or
+Quartus) remains the only real, authoritative confirmation, stated
+explicitly in the warning text itself.
+
+**A real bug found and fixed on the very first end-to-end test, not
+hidden:** the first real attempt (`--shell-file fpga/verilog/
+unicell_super_v7.v`, a natural, repo-relative path) failed with a
+doubled path (`fpga/verilog/fpga/verilog/unicell_super_v7.v`) --
+`shell_src_path`'s own resolution logic assumed a BARE filename (this
+tool's own established convention for every other dependency) and
+unconditionally joined it with `src_dir`, not accounting for a person
+naturally typing a fuller, already-qualified path. Real, honest fix:
+resolution now tries the path exactly as given first (absolute, or
+relative to the current working directory), and only falls back to
+resolving the bare filename against `src_dir` if that exact path
+doesn't exist -- handles both real, natural ways a person might type
+it, rather than demanding one specific format.
+
+**Real, end-to-end tests performed, not just unit-level:** a real
+N=10 array of `unicell_super_v7.v` (compare_cell_v3 + latch_cell_v3 +
+6 real v1 cores) generated via BOTH `--files` and `--file-list`,
+elaborates cleanly in Icarus against every real dependency. A real,
+deliberately incomplete dependency list correctly triggered the
+compatibility warning. **Zero regression on every EXISTING generator
+path**, tested directly: `--shell v3` (registry), `--shell v4
+--logiclock --ll-fixed-alm` (registry + LogicLock), `-S ram_cell`
+(single-core-type), and the full 361-test Python suite.
+
+**Real, honest scope on the rest of Alan's own real idea:** a GUI
+checkbox list of available real files (Alan's own "maybe have a list
+of files available, and check boxes") is a real, separate, future
+frontend feature (`frontend_v1.py`'s own real placeholder slots),
+not attempted here -- this entry builds the real BACKEND capability
+(`--file-list`/`--files`/compatibility checking) such a UI would need
+to call into, not the UI itself.

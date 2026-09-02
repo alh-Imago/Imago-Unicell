@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-01, real, hand-built first test of Alan's own "moat" idea -- one super-cell surrounded by 8 real RAM buffer cells (4 edge + 4 corner ring, pattern A/no sharing), each with its own LogicLock region, testing whether this fences the super-cell's own logic in and addresses the real root cause of cross-die scattering. Sim-verified clean, real Quartus target built, awaiting the real number, see `points.md` #588)
+# Current State (as of 2026-09-01, project_assemble_v1.py gains real custom shell/dependency-list support -- --shell-file/--shell-module + --file-list/--files, removing the need to hand-write a QSF dependency list every time core versions get mixed. A real, advisory compatibility check catches missing dependencies. A real bug found and fixed on the first end-to-end test, see `points.md` #590)
+
+## Read this first (most recent)
+
+**2026-09-01, real generator extension: custom shell + dependency
+list, per Alan's own direct request.** Mixing core versions
+(`unicell_super_v6.v`/`v7.v`, the moat tile) had meant hand-writing a
+fresh QSF file list every time. New: `--shell-file`/`--shell-module`
+points the array generator at ANY real shell sharing v3/v4's own port
+list (zero template changes needed -- confirmed against v6/v7
+directly). New: `--file-list`/`--files` supplies an explicit real
+dependency list, overriding `SHELL_REGISTRY` entirely.
+
+New: `check_dependency_compatibility()`, a real, advisory (never
+blocking) heuristic scan -- confirms the shell module is declared
+where expected, and flags any module the shell appears to instantiate
+that isn't in the given file list. **Tested directly by deliberately
+omitting a real dependency -- correctly caught it.**
+
+**A real bug found and fixed on the very first real end-to-end test:**
+a natural, repo-relative `--shell-file` path doubled against
+`src_dir`. Fixed with real, forgiving path resolution (try as-given
+first, fall back to bare-filename-against-src_dir).
+
+Real end-to-end tests: a real N=10 array of the v7 shell (compare_v3 +
+latch_v3 + 6 real v1 cores), both via `--files` and `--file-list`,
+elaborates cleanly in Icarus. Zero regression on every existing
+generator path (`--shell v3`/`v4`, LogicLock, single-core-type,
+361/361 Python tests).
+
+Full detail: `points.md` `#590`.
+
+**Real, honest scope: this is the backend only.** A GUI checkbox list
+of available files (Alan's own further idea) is real, separate,
+future frontend work, not attempted here.
+
+## Previous state (2026-09-01, real, hand-built first test of Alan's own "moat" idea -- one super-cell surrounded by 8 real RAM buffer cells (4 edge + 4 corner ring, pattern A/no sharing), each with its own LogicLock region, testing whether this fences the super-cell's own logic in and addresses the real root cause of cross-die scattering. Sim-verified clean, real Quartus target built, awaiting the real number, see `points.md` #588)
 
 ## Read this first (most recent)
 

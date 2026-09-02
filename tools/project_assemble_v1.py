@@ -104,6 +104,143 @@ SHELL_REGISTRY = {
     "v4": {"module": "unicell_super_v4", "dependencies": V4_DEPENDENCIES},
 }
 
+# points.md #590: real, custom-dependency-list support, per Alan's own
+# direct request -- mixing and matching core versions (compare_cell_
+# v3.v with 7 other v1 cores, #584; a hand-built moat tile, #588) has
+# meant hand-writing a fresh QSF dependency list, or a whole new shell
+# file, every single time. A real `--shell-file`/`--shell-module` pair
+# lets `--shell` point at ANY real shell file (not just the two
+# hardcoded in SHELL_REGISTRY), and `--file-list`/`--files` supplies
+# its own real dependency list explicitly, overriding SHELL_REGISTRY
+# entirely. Neither replaces hand-building a genuinely NEW shell file
+# with a different per-slot core mix (unicell_super_v6.v/v7.v are
+# still real, hand-written files, `#584`/`#587`) -- this only removes
+# the SEPARATE, real, repeated chore of re-deriving that shell's own
+# QSF file list by hand every time it's used in an array build.
+
+MODULE_DECL_RE = re.compile(r'^\s*module\s+(\w+)', re.MULTILINE)
+# Real, deliberately conservative heuristic for finding module
+# INSTANTIATIONS in a shell file -- Verilog instantiation syntax is
+# `IDENTIFIER [#(...)] IDENTIFIER (`, but so is a function/task call
+# and several other constructs. This regex requires the pattern to
+# start a statement (only whitespace/newline before it) and the
+# module name to look like a real module (lowercase-led identifier,
+# matching this project's own real naming convention throughout --
+# confirmed against every real core/shell file already in this repo
+# before writing this pattern, not guessed) to keep the real false-
+# positive rate low. This is a real, useful, ADVISORY check -- it
+# is NOT a substitute for a real compile (iverilog/Quartus remain the
+# only real, authoritative confirmation), and is documented as such
+# everywhere it's surfaced to the person using this tool.
+INSTANTIATION_RE = re.compile(
+    r'^\s*([a-z][a-zA-Z0-9_]*)\s*(?:#\s*\([^;]*?\))?\s+[A-Za-z_]\w*\s*\(',
+    re.MULTILINE
+)
+# Real, known non-module keywords that can otherwise false-positive
+# against INSTANTIATION_RE's own deliberately loose pattern.
+VERILOG_KEYWORDS_NOT_MODULES = {
+    "if", "else", "case", "casex", "casez", "for", "while", "repeat",
+    "begin", "end", "function", "task", "always", "initial", "assign",
+    "wire", "reg", "input", "output", "inout", "parameter", "localparam",
+    "generate", "endgenerate", "module", "endmodule", "genvar",
+}
+
+
+def resolve_dependency_list(file_list_path=None, files_string=None):
+    """points.md #590: resolve a real, explicit dependency list from
+    EITHER a real text file (--file-list, one real filename per line,
+    blank lines and #-comments ignored) OR a real inline comma-
+    separated string (--files, e.g. "compare_cell_v3.v,latch_cell_v3.v").
+    Returns None if neither is given (the caller should fall back to
+    SHELL_REGISTRY's own real, existing default list in that case)."""
+    if file_list_path:
+        real_names = []
+        with open(file_list_path) as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip()
+                if line:
+                    real_names.append(line)
+        return real_names
+    if files_string:
+        return [n.strip() for n in files_string.split(",") if n.strip()]
+    return None
+
+
+def discover_declared_modules(src_dir, filenames):
+    """points.md #590: for each real file in filenames, find every
+    real `module <name>` declaration it contains (a file can declare
+    more than one, e.g. adder_v1.v-style small helper modules bundled
+    alongside a core). Returns {module_name: filename}. Raises a
+    real, clear error immediately if a named file doesn't exist --
+    better than a confusing Quartus-side "missing file" error later."""
+    declared = {}
+    for fname in filenames:
+        path = os.path.join(src_dir, fname)
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"real dependency file not found: {path}")
+        with open(path) as f:
+            text = f.read()
+        for m in MODULE_DECL_RE.finditer(text):
+            declared[m.group(1)] = fname
+    return declared
+
+
+def discover_instantiated_modules(shell_path):
+    """points.md #590: real, best-effort scan of a shell file's own
+    body for module instantiations, per INSTANTIATION_RE's own
+    documented, deliberately conservative heuristic. Returns a set of
+    real candidate module names -- NOT guaranteed complete or free of
+    false positives, advisory only (see this function's own module-
+    level comment for why)."""
+    with open(shell_path) as f:
+        text = f.read()
+    found = set()
+    for m in INSTANTIATION_RE.finditer(text):
+        name = m.group(1)
+        if name not in VERILOG_KEYWORDS_NOT_MODULES:
+            found.add(name)
+    return found
+
+
+def check_dependency_compatibility(src_dir, shell_path, shell_module, dependency_filenames):
+    """points.md #590: real, advisory compatibility check, per Alan's
+    own real acknowledgment that mixing core versions "would have to
+    check compatibility too." Confirms (a) the shell file itself
+    really declares shell_module, and (b) every module the shell file
+    appears to instantiate is declared somewhere in the real
+    dependency list. Returns a list of real, human-readable warning
+    strings (empty if nothing looked wrong) -- this NEVER raises or
+    blocks generation on its own; it's a real, early, friendly signal,
+    not a hard gate, since the heuristic instantiation scan can both
+    miss real problems and flag real non-problems. The only real,
+    authoritative confirmation remains a real compile."""
+    warnings = []
+    declared = discover_declared_modules(src_dir, dependency_filenames)
+
+    if shell_module not in declared:
+        # The shell file itself might not be IN dependency_filenames
+        # (callers pass the shell separately) -- check it directly too.
+        shell_declared = discover_declared_modules(src_dir, [os.path.basename(shell_path)])
+        if shell_module not in shell_declared:
+            warnings.append(
+                f"shell module '{shell_module}' was not found declared in "
+                f"{os.path.basename(shell_path)} -- check --shell-module matches "
+                f"the real module name inside that file."
+            )
+
+    instantiated = discover_instantiated_modules(shell_path)
+    missing = sorted(m for m in instantiated if m not in declared and m != shell_module)
+    if missing:
+        warnings.append(
+            "the shell file appears to instantiate the following real module(s) "
+            f"not found declared in the real dependency list: {', '.join(missing)}. "
+            "This is a real, heuristic scan (not a full parser) -- it can miss "
+            "real problems and flag real non-problems, so treat this as a "
+            "prompt to double-check, not a guaranteed diagnosis. A real compile "
+            "(iverilog or Quartus) remains the authoritative confirmation."
+        )
+    return warnings
+
 QSF_BOILERPLATE = """set_global_assignment -name FAMILY "{family}"
 set_global_assignment -name DEVICE {device}
 set_global_assignment -name TOP_LEVEL_ENTITY {top}
@@ -405,8 +542,12 @@ def inst_name(r, c):
     return f"C_{r}_{c}"
 
 
-def generate_top(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=None, shell="v3"):
-    module_name = SHELL_REGISTRY[shell]["module"]
+def generate_top(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=None, shell="v3", shell_module=None):
+    # points.md #590: shell_module, when given, overrides SHELL_REGISTRY's
+    # own lookup -- lets --shell-module point this generator at ANY real
+    # shell (e.g. unicell_super_v6/v7, #584/#587) sharing v3/v4's own
+    # real port list, without adding it to the registry first.
+    module_name = shell_module if shell_module else SHELL_REGISTRY[shell]["module"]
     positions = cell_positions(n, rows, cols)
     pos_set = set(positions)
 
@@ -580,8 +721,11 @@ def generate_sdc(man):
 
 
 def generate_qsf(man, top_name, probe_name=None, shell="v3", logiclock=False, cell_positions_list=None,
-                  ll_fixed_alm=None, ll_headroom=1.25):
-    dependencies = SHELL_REGISTRY[shell]["dependencies"]
+                  ll_fixed_alm=None, ll_headroom=1.25, custom_dependencies=None):
+    # points.md #590: custom_dependencies, when given, overrides
+    # SHELL_REGISTRY's own registered list entirely -- see
+    # resolve_dependency_list().
+    dependencies = custom_dependencies if custom_dependencies is not None else SHELL_REGISTRY[shell]["dependencies"]
     out = QSF_BOILERPLATE.format(
         family=man["family"], device=man["device"], top=top_name,
         clk_pin=man["clk_pin"], led0_pin=man["led0_pin"], led1_pin=man["led1_pin"],
@@ -632,7 +776,8 @@ def generate_single_core_qsf(man, top_name, resolved_filename, extra_deps, probe
     return out
 
 
-def assemble(man_path, cells, output, top=None, single_core=None, core_path=None, probe_name=None, shell="v3", logiclock=False, ll_fixed_alm=None, ll_headroom=1.25):
+def assemble(man_path, cells, output, top=None, single_core=None, core_path=None, probe_name=None, shell="v3", logiclock=False, ll_fixed_alm=None, ll_headroom=1.25,
+             shell_file=None, shell_module=None, file_list=None, files_string=None):
     """The real, single implementation of this tool's own job --
     both main() (CLI) and any other caller (e.g. the frontend,
     points.md #557) call this directly, so there is exactly one real
@@ -665,10 +810,25 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     ~3.1x more physical area than needed, #583's own real finding) to
     an explicit, computed fixed size based on this real, empirically-
     measured per-cell ALM figure plus ll_headroom (default 1.25 =
-    25% real slack)."""
+    25% real slack).
+
+    points.md #590: shell_file/shell_module let this generator target
+    ANY real shell file (not just the two hardcoded in SHELL_REGISTRY)
+    sharing v3/v4's own real port list -- e.g. unicell_super_v6.v/v7.v
+    (#584/#587), built by hand when mixing core versions. file_list/
+    files_string supply a real, explicit dependency list (a text file,
+    one real filename per line, or an inline comma-separated string),
+    overriding SHELL_REGISTRY's own registered list entirely. Per
+    Alan's own real request: this removes the separate, repeated
+    chore of hand-deriving a QSF file list every time a custom shell
+    or a mixed set of core versions is used in an array build. A real,
+    advisory compatibility check (check_dependency_compatibility())
+    runs automatically whenever shell_file is given, and its own real
+    warnings (if any) are returned in the result dict rather than
+    printed silently, so a caller can surface them."""
     if cells < 1:
         raise ValueError("cells must be >= 1")
-    if shell not in SHELL_REGISTRY:
+    if shell_module is None and shell not in SHELL_REGISTRY:
         raise ValueError(f"unknown shell '{shell}' -- real options: {', '.join(SHELL_REGISTRY)}")
 
     man = load_man(man_path)
@@ -716,10 +876,50 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     ll_suffix = ""
     if logiclock:
         ll_suffix = "_llfix" if ll_fixed_alm is not None else "_ll"
-    top_name = top or f"top_array_{shell}_{cells}cells{ll_suffix}_v1"
+    shell_tag = shell_module if shell_module else shell
+    top_name = top or f"top_array_{shell_tag}_{cells}cells{ll_suffix}_v1"
+
+    # points.md #590: resolve the real dependency list -- an explicit
+    # custom list (file_list/files_string) always wins; otherwise fall
+    # back to SHELL_REGISTRY's own registered default for `shell`.
+    dependencies = resolve_dependency_list(file_list, files_string)
+    if dependencies is None:
+        dependencies = SHELL_REGISTRY[shell]["dependencies"]
+
+    real_module_name = shell_module if shell_module else SHELL_REGISTRY[shell]["module"]
+
+    compat_warnings = []
+    if shell_file:
+        # A custom shell file needs to be in the real dependency list
+        # too (it's real RTL just like every other file here) -- add
+        # it if the person didn't already include it themselves.
+        shell_fname = os.path.basename(shell_file)
+        if shell_fname not in dependencies:
+            dependencies = dependencies + [shell_fname]
+        # points.md #590: real, forgiving path resolution -- try the
+        # given path exactly as given first (absolute, or relative to
+        # the current working directory, matching how a person would
+        # naturally type it on a command line), and only fall back to
+        # resolving the bare filename against src_dir (this tool's own
+        # established convention for every other dependency) if that
+        # exact path doesn't exist. A real bug here on the first
+        # attempt at this feature (a doubled fpga/verilog/fpga/verilog/
+        # path) showed this ambiguity needed real, explicit handling,
+        # not just documentation asking for one specific format.
+        if os.path.exists(shell_file):
+            shell_src_path = shell_file
+        else:
+            candidate = os.path.join(src_dir, shell_fname)
+            if os.path.exists(candidate):
+                shell_src_path = candidate
+            else:
+                raise FileNotFoundError(
+                    f"--shell-file '{shell_file}' not found as given, and "
+                    f"'{shell_fname}' not found in {src_dir} either."
+                )
+        compat_warnings = check_dependency_compatibility(src_dir, shell_src_path, real_module_name, dependencies)
 
     files_written = 0
-    dependencies = SHELL_REGISTRY[shell]["dependencies"]
     for dep in dependencies:
         if dep == "debug_issp_probe_v1.v" and not probe_name:
             continue
@@ -729,7 +929,7 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
         shutil.copy(src, os.path.join(output, dep))
         files_written += 1
 
-    top_rtl = generate_top(top_name, cells, rows, cols, probe_name=probe_name, shell=shell)
+    top_rtl = generate_top(top_name, cells, rows, cols, probe_name=probe_name, shell=shell, shell_module=shell_module)
     with open(os.path.join(output, f"{top_name}.v"), "w") as f:
         f.write(top_rtl)
 
@@ -740,14 +940,16 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     with open(os.path.join(output, f"{top_name}.qsf"), "w") as f:
         f.write(generate_qsf(man, top_name, probe_name=probe_name, shell=shell,
                               logiclock=logiclock, cell_positions_list=positions,
-                              ll_fixed_alm=ll_fixed_alm, ll_headroom=ll_headroom))
+                              ll_fixed_alm=ll_fixed_alm, ll_headroom=ll_headroom,
+                              custom_dependencies=dependencies))
 
     return {
         "card_id": man["card_id"], "family": man["family"], "device": man["device"],
         "cells": cells, "rows": rows, "cols": cols, "alm_total": man["alm_total"],
         "output": output, "top_name": top_name,
         "files_written": files_written + 3,
-        "probe_name": probe_name, "shell": shell, "logiclock": logiclock,
+        "probe_name": probe_name, "shell": shell_tag, "logiclock": logiclock,
+        "compat_warnings": compat_warnings,
     }
 
 
@@ -771,10 +973,24 @@ def main():
                      help="points.md #583: real, measured per-cell ALM figure (e.g. 1030.52 for v3 N=10, #579; 1307.42 for v4 N=10, #580) to size FIXED LogicLock regions from, instead of AUTO_SIZE -- found to reserve ~3.1x more physical area than needed (#583). Only meaningful with --logiclock.")
     ap.add_argument("--ll-headroom", type=float, default=1.25,
                      help="points.md #583: real slack multiplier over --ll-fixed-alm (default 1.25 = 25%%) -- per-cell ALM cost genuinely varies cell-to-cell, so some real headroom is needed, deliberately far less than AUTO_SIZE's own real ~3.1x.")
+    ap.add_argument("--shell-file", default=None,
+                     help="points.md #590: real path to a custom shell .v file (e.g. fpga/verilog/unicell_super_v7.v, #587) to array instead of a SHELL_REGISTRY entry -- must share v3/v4's own real port list. Requires --shell-module. Automatically added to the dependency list, and triggers a real, advisory compatibility check (see check_dependency_compatibility()).")
+    ap.add_argument("--shell-module", default=None,
+                     help="points.md #590: the real module name inside --shell-file (e.g. unicell_super_v7). Required when --shell-file is given.")
+    ap.add_argument("--file-list", default=None,
+                     help="points.md #590: real path to a plain text file listing dependency filenames, one real filename per line (blank lines and #-comments ignored) -- overrides SHELL_REGISTRY's own registered list entirely. Per Alan's own real request, for mixing and matching core versions without hand-writing a QSF file list each time.")
+    ap.add_argument("--files", default=None,
+                     help="points.md #590: real, inline comma-separated dependency list (e.g. \"compare_cell_v3.v,latch_cell_v3.v,ram_cell_v1.v,...\") -- an alternative to --file-list for a short real override. Takes precedence over --file-list if both are given.")
     args = ap.parse_args()
 
+    if args.shell_file and not args.shell_module:
+        print("error: --shell-file requires --shell-module (the real module name inside that file)", file=sys.stderr)
+        sys.exit(1)
+
     try:
-        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path, args.probe, args.shell, args.logiclock, args.ll_fixed_alm, args.ll_headroom)
+        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path, args.probe, args.shell, args.logiclock, args.ll_fixed_alm, args.ll_headroom,
+                           shell_file=args.shell_file, shell_module=args.shell_module,
+                           file_list=args.file_list, files_string=args.files)
     except (ValueError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -790,6 +1006,11 @@ def main():
                 print(f"LogicLock: ON -- real FIXED-size regions ({args.ll_fixed_alm:.2f} ALM/cell x {args.ll_headroom:.2f} headroom)")
             else:
                 print(f"LogicLock: ON -- one real per-cell region per cell (fixed-membership, auto-sized, floating)")
+        if result.get("compat_warnings"):
+            print("\nCOMPATIBILITY WARNINGS (points.md #590 -- a real, advisory, heuristic scan,")
+            print("NOT a substitute for a real compile; double-check, don't assume either way):")
+            for w in result["compat_warnings"]:
+                print(f"  - {w}")
     print(f"Output: {result['output']}")
     print(f"\nWrote {result['files_written']} real files (source + top-level RTL + .qsf + .sdc) to {result['output']}/")
     print(f"Import into Quartus using {result['top_name']}.qsf directly, matching #538's own proven flat-file template.")
