@@ -33544,3 +33544,13 @@ headroom would recover v4's own real Fmax is a real, open, unpursued
 question, but given v3's own real superiority across every other
 dimension measured so far, not an obviously worthwhile one to chase
 further without a specific new reason to prefer v4.
+
+## 586. Real, measured Quartus build times on Alan's own real machine -- worth recording for real session planning, since it directly bounds how many real builds are practical in one sitting: N=1 (single-cell self-test) ~5 minutes. N=10 (array) ~10 minutes. Full-card (~244-cell real ceiling range, #579) ~2-3 hours. (Alan, 2026-09-01)
+
+**Real, practical consequence for how this project plans real Quartus
+work going forward:** N=1 and N=10 builds are cheap enough to run
+freely for real, single-variable comparisons (as this whole session's
+own real #573-#585 sequence did). A real full-card build is NOT --
+2-3 hours is a real, meaningful cost, so those should be queued
+deliberately, only once a specific real hypothesis is worth the real
+wall-clock time, not speculatively.
