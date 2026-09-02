@@ -1,4 +1,35 @@
-# Current State (as of 2026-09-02, real moat-tile Quartus result -- CTR costs MORE than the N=10 array average (706.4 vs 593.0 core-only ALM), though Fmax genuinely improved (98.66 MHz, beating both array LogicLock results). A real confound found before concluding anything: LogicLock-on-a-lone-cell was never tested before this build. A real no-LogicLock control variant built to isolate the actual driver, see `points/points_active.md` #595)
+# Current State (as of 2026-09-02, REAL, DELIBERATE CLOSURE of the hardware exploration track -- Alan's own direct decision based on this session's complete, converged evidence. Real ceiling accepted: ~200-250 cells/card, ~65-75 MHz at that scale. Project shape going forward: hardware closed, VM/frontend/docs continue as a real tidy-and-polish pass, not new deep development, see `points/points_active.md` #596)
+
+## Read this first (most recent)
+
+**2026-09-02, THE REAL, DELIBERATE CLOSURE.** Not a pause, not an open
+question -- Alan's own real, direct decision, reached after this
+session's own complete, converged evidence: every real lever tried
+(shared storage, config-off-shell, LogicLock, the moat) either cost
+more than it saved or moved the real ceiling by a small amount, not an
+order of magnitude. Real ceiling for this card: ~200-250 cells,
+~65-75 MHz Fmax at that scale (a real ~2.5-3x margin over the actual
+25 MHz requirement -- functionally fine, just not a "large substrate").
+Multi-card scaling confirmed to need real, enterprise-class PCIe
+backplane infrastructure at a scale that undermines its own premise.
+The real, remaining unlock is a future ASIC -- confirmed not near-term.
+
+**Real, going-forward project shape, Alan's own words:** hardware
+work is CLOSED for now. The VM and frontend/docs side continues, but
+explicitly scoped as "just POC work" -- a simple tidy and polish,
+correcting the frontend and docs, not new deep development. Real,
+honest identity right now: a small, correctness-proven hardware
+platform (real silicon confirmed dozens of times over) backed by a VM
+that can explore scale and design freely -- not a compute accelerator
+in any competitive sense.
+
+Full detail: `points/points_active.md` `#596`.
+
+**Real, immediate next step:** scope the VM/frontend/docs tidy-and-
+polish work concretely before starting -- a real plan, not a guess at
+what "tidy" means.
+
+## Previous state (2026-09-02, real moat-tile Quartus result -- CTR costs MORE than the N=10 array average (706.4 vs 593.0 core-only ALM), though Fmax genuinely improved (98.66 MHz, beating both array LogicLock results). A real confound found before concluding anything: LogicLock-on-a-lone-cell was never tested before this build. A real no-LogicLock control variant built to isolate the actual driver, see `points/points_active.md` #595)
 
 ## Read this first (most recent)
 

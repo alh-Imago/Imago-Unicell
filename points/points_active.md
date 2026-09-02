@@ -1588,3 +1588,71 @@ neighbor connectivity is the real driver, independent of LogicLock.
 **Real, honest scope: Alan is running the v8 (accumulator config-
 redundancy, `#592`) result in parallel with this one** -- both real
 Quartus numbers pending, separate threads, tracked separately.
+
+## 596. REAL, DELIBERATE CLOSURE of the hardware exploration track -- Alan's own direct decision, based on this session's own complete, converged real evidence, not a retreat or an open-ended pause. Real ceiling found and accepted: ~200-250 cells per card (251,680 / 1030.5 real ALM/cell, #579), real Fmax in the 65-75 MHz range at that scale (comfortably above the real 25 MHz requirement, but well below the "~100 MHz" figure only ever seen at N=1 or single-tile scale). Every real lever tried this session (shared storage v4/v5, config-off-shell v6/v7/v8, LogicLock, the moat) either cost more than it saved or moved the ceiling by a small, real amount, not an order of magnitude. Multi-card scaling confirmed to need real, enterprise-class PCIe backplane infrastructure at a scale (tens to hundreds of cards) that undermines its own premise. The real, honest, remaining unlock is a future ASIC -- confirmed NOT near-term. (Alan/Claude, 2026-09-02)
+
+**STATUS: real, deliberate, and definitive for now -- not "paused
+indefinitely," a real, named decision with real reasoning behind it,
+matching this project's own standing discipline of never leaving a
+real decision leaked into implicit assumption.**
+
+**The real, complete chain of evidence this decision rests on, all
+from this single session:**
+- v3 (separate per-core storage) is the real, cheapest, fastest, most
+  placement-tolerant design of every version tried -- confirmed across
+  FOUR independent real axes (ALM, Fmax, register-scaling behavior at
+  N=10, and LogicLock responsiveness, `#573`-`#585`).
+- Shared runtime storage (v4/v5) costs 27-48% more ALM and 9-14% less
+  Fmax than v3, at both N=1 and N=10, despite genuinely cutting
+  register count -- the write-arbitration mechanism itself is the
+  real, precisely-localized cost (`#575`/`#580`/`#585`).
+- Config-off-shell (compare/latch/accumulator, `#584`/`#587`/`#592`)
+  produced one real, solid, confirmed win (compare, -26.7% cumulative
+  across 4 builds) and inconclusive-to-negative results on the other
+  two, with real per-core noise (±10% swings on completely untouched
+  cores) large enough to mask small real effects.
+- LogicLock genuinely improves Fmax (+9.7% to +17.7% across different
+  real tests) but at a real, serious area cost (AUTO_SIZE reserves
+  ~3.1x more physical die area than needed, `#583`) -- no setting
+  tried found both benefits at once, and tightening the region back
+  down to recover area gave most of the Fmax back to the fitter
+  (`#583` vs the fixed-headroom result).
+- The moat idea (`#588`/`#595`) made a single super-cell's own real
+  per-core cost HIGHER than the N=10 array average, not lower --
+  genuinely small RAM neighbors cost more to interface with than
+  another super-cell would, an honest, real, negative result.
+- Real multi-card scaling requires enterprise-class PCIe switched
+  backplane infrastructure (Trenton/OSS-class, real, confirmed
+  hardware requirement, long-standing roadmap item) at a scale (tens
+  to hundreds of cards for a genuinely serious workload) that Alan
+  himself directly identified as undermining the whole substrate's own
+  premise as something small, novel, and its own thing.
+
+**Real, honest, accepted ceiling for THIS card, stated plainly:**
+~200-250 cells, real Fmax ~65-75 MHz at that scale (a real ~2.5-3x
+margin over the actual 25 MHz fabric-clock requirement -- functionally
+fine, just not a "large substrate" by any measure). Two real, small,
+untried levers were named as possibly moving this number further
+(fixed-purpose cells with no `core_select` overhead at all; making the
+three addons genuinely optional per-cell rather than baked into every
+instance, given they're ~37% of per-cell cost once exposed, `#579`) --
+explicitly NOT being pursued now, a real, deliberate stop, not an
+oversight.
+
+**Real, going-forward project shape, Alan's own words:** hardware
+work is CLOSED for now -- "without a lot of investment I am not going
+to be able to progress there at all." The VM and frontend/docs side
+continues as real, ongoing work, but explicitly scoped as "just POC
+work" -- a simple tidy and polish, correcting the frontend and docs,
+not new deep development. **Real, honest identity for this project
+right now: a small, correctness-proven hardware platform (real
+silicon confirmed dozens of times over this project's own history)
+backed by a VM that can explore scale and design freely -- not a
+compute accelerator in any competitive sense, and not currently on a
+path to become one without either a real, separate hardware
+investment or a future ASIC target.**
+
+**Real, immediate next step:** scope the VM/frontend/docs tidy-and-
+polish work concretely (Claude to review current state and propose a
+real, scoped plan) before starting, rather than guess at what "tidy"
+means and risk wasted effort in the wrong direction.
