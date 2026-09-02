@@ -46,11 +46,46 @@ class FrontendController:
     precedent -- every real operation is a plain Python method
     returning a JSON-ready dict, fully testable without a live socket."""
 
+    @staticmethod
+    def _parse_pin_table(raw: str) -> Dict[str, Dict[str, str]]:
+        """points.md #599: real, user-supplied pin-location table --
+        one 'group.name = LOCATION' per line, e.g. 'jtag.tck = PIN_AH12'.
+        Never auto-parsed from a .pin file or any other source; this only
+        parses what the user directly typed. group must be jtag/config/
+        extra -- anything else (or no dot) is routed to extra. Raises
+        ValueError with a line-specific message on malformed input."""
+        groups: Dict[str, Dict[str, str]] = {"jtag": {}, "config": {}, "extra": {}}
+        for lineno, line in enumerate(raw.splitlines(), start=1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                raise ValueError(f"pin table line {lineno}: expected 'group.name = LOCATION', got: {line!r}")
+            key, loc = line.split("=", 1)
+            key, loc = key.strip(), loc.strip()
+            if not loc:
+                raise ValueError(f"pin table line {lineno}: missing location for {key!r}")
+            if "." in key:
+                group, name = key.split(".", 1)
+            else:
+                group, name = "extra", key
+            group = group.strip().lower()
+            name = name.strip()
+            if group not in groups:
+                group = "extra"
+                name = key  # keep the original, unrecognized group prefix visible in the name
+            groups[group][name] = loc
+        return groups
+
     def generate_man(self, fields: Dict[str, Any]) -> Dict[str, Any]:
         required = ["card_id", "part", "alm_total", "dsp_total", "clk_pin", "led0_pin", "led1_pin", "output"]
         missing = [k for k in required if not fields.get(k)]
         if missing:
             return {"ok": False, "error": f"missing required field(s): {', '.join(missing)}"}
+        try:
+            pins = self._parse_pin_table(fields.get("pin_table") or "")
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
         try:
             man = man_generate_v1.build_man(
                 card_id=fields["card_id"], part=fields["part"],
@@ -59,6 +94,7 @@ class FrontendController:
                 alm_total=int(fields["alm_total"]), dsp_total=int(fields["dsp_total"]),
                 m20k_bits=int(fields["m20k_bits"]) if fields.get("m20k_bits") else None,
                 clk_pin=fields["clk_pin"], led0_pin=fields["led0_pin"], led1_pin=fields["led1_pin"],
+                jtag_pins=pins["jtag"], config_pins=pins["config"], extra_pins=pins["extra"],
             )
             with open(fields["output"], "w") as f:
                 json.dump(man, f, indent=2)
@@ -72,6 +108,12 @@ class FrontendController:
             f"--clk-pin {fields['clk_pin']} --led0-pin {fields['led0_pin']} --led1-pin {fields['led1_pin']} "
             f"-o {fields['output']}"
         )
+        for name, loc in pins["jtag"].items():
+            cli += f" --jtag-pin {name}={loc}"
+        for name, loc in pins["config"].items():
+            cli += f" --config-pin {name}={loc}"
+        for name, loc in pins["extra"].items():
+            cli += f" --extra-pin {name}={loc}"
         return {"ok": True, "output": fields["output"], "cli_equivalent": cli}
 
     def create_project(self, fields: Dict[str, Any]) -> Dict[str, Any]:
@@ -168,6 +210,26 @@ def page_man(result: Optional[Dict[str, Any]] = None) -> str:
 <h1>Step 1: describe your card{help_link('doc1-man-files')}</h1>
 <div class="real">Real, working -- generates an actual, schema-compatible MAN
 file via <code>tools/man_generate_v1.py</code> (points.md #557).</div>
+
+<h2>What's actually needed, and why</h2>
+<p>This table states plainly which fields the real build pipeline
+(<code>project_assemble_v1.py</code>'s own <code>load_man()</code>)
+actually reads today, versus what's real but only documentation --
+so nothing here is asked for without a stated reason.</p>
+<table style="width:100%; border-collapse:collapse; font-size:0.9em;">
+<tr style="text-align:left; border-bottom:1px solid #ccc;"><th>Field</th><th>Required to build a project</th><th>Why</th></tr>
+<tr><td>Card ID</td><td>Yes</td><td>identifies the card in generated projects</td></tr>
+<tr><td>Device part</td><td>Yes</td><td>Quartus device setting</td></tr>
+<tr><td>Quartus FAMILY string</td><td>No</td><td>the build tool always uses the literal "Arria 10" regardless -- kept here for documentation only</td></tr>
+<tr><td>Total ALMs</td><td>Yes</td><td>capacity checks (N cells vs. real budget)</td></tr>
+<tr><td>Total DSP blocks</td><td>Yes</td><td>capacity checks, DSP-aware placement</td></tr>
+<tr><td>Total M20K bits</td><td>No</td><td>documentation only -- no column-level detail is stored by this generator</td></tr>
+<tr><td>CLK_100M pin</td><td>Yes</td><td>SDC/QSF pin assignment</td></tr>
+<tr><td>LED0_N / LED1_N pins</td><td>Yes</td><td>heartbeat / array-alive indicators wired into every generated top</td></tr>
+<tr><td>JTAG IDCODE</td><td>No</td><td>documentation only, not read by the build pipeline today</td></tr>
+<tr><td>Additional pin locations (below)</td><td>No</td><td>not consumed by the build pipeline today -- real documentation for JTAG device pins, configuration pins, or anything else, kept for future tools (e.g. Walker)</td></tr>
+</table>
+
 <form method="post" action="/man">
 <label>Card ID<input name="card_id" required></label>
 <label>Device part (e.g. 10AX066H2F34E2SG)<input name="part" required></label>
@@ -178,6 +240,13 @@ file via <code>tools/man_generate_v1.py</code> (points.md #557).</div>
 <label>CLK_100M pin (e.g. PIN_E23)<input name="clk_pin" required></label>
 <label>LED0_N pin (e.g. PIN_AE7)<input name="led0_pin" required></label>
 <label>LED1_N pin (e.g. PIN_AH2)<input name="led1_pin" required></label>
+<label>JTAG IDCODE (optional, e.g. 0x02E250DD)<input name="jtag_idcode"></label>
+<label>Additional pin locations (optional -- one per line, <code>group.name = LOCATION</code>.
+Recognized groups: <code>jtag</code> (device pins, e.g. <code>jtag.tck = PIN_AH12</code>),
+<code>config</code> (configuration pins, e.g. <code>config.nCONFIG = PIN_AF13</code>),
+or anything else (e.g. <code>extra.pcie_refclk_p = PIN_AB28</code>).
+This is a real, user-supplied table -- it is NEVER auto-parsed from a .pin file or any other source.
+<textarea name="pin_table" rows="6" style="width:100%; padding:6px; box-sizing:border-box; margin-top:2px; font-family:monospace;" placeholder="jtag.tck = PIN_AH12&#10;jtag.tdi = PIN_AH13&#10;config.nCONFIG = PIN_AF13&#10;extra.pcie_refclk_p = PIN_AB28"></textarea></label>
 <label>Output path (e.g. docs/man/my-card.man.json)<input name="output" required></label>
 <button type="submit">Generate MAN file</button>
 </form>

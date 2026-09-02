@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-02, README.md rewritten to reflect the real closure decision (#596/#597), and a real, well-scoped next-session idea queued: a simulated Walker mode demonstrating the full real card-based methodology (MAN -> mirrored VM -> Walker discovery -> SHAPE -> Composer) end to end, not built tonight -- see `points/points_active.md` #598)
+# Current State (as of 2026-09-02, new session: a real pipeline-order walkthrough begun -- frontend's real order (MAN -> Cells -> Walker -> Other tools), Alan's own explicit choice over the named #479 five-tool order. Step 1 (MAN file) extended with a real, user-supplied pin-location table and a plain requirements table, see `points/points_active.md` #599)
+
+## Read this first (most recent)
+
+**2026-09-02, new session: stepping through the real build sequence,
+one process at a time, documenting/clarifying/fixing as we go.**
+Started at Step 1 (`/man`, the MAN file). Real gap found and closed:
+the form/generator only covered minimal structural fields with no way
+to supply JTAG/config/other board pins at all. Fixed per Alan's own
+explicit instruction: a real, free-form, user-supplied pin-location
+table (`group.name = LOCATION` syntax), explicitly NOT auto-parsed
+from a `.pin` file -- that stays `#28`/`#29`'s own separate,
+still-outstanding canonical method. Also added a plain requirements
+table to the `/man` page stating which fields the real build pipeline
+actually reads vs. documentation-only. 17 new tests
+(`tests/tools/`, previously zero coverage for this project's tools/
+scripts), 378/378 passing, zero regression. Full detail: `points/
+points_active.md` `#599`.
+
+**Real, immediate next step:** continue the walkthrough -- Step 2
+(Create cells / `project_assemble_v1.py`), same discipline: review
+what's real, what's missing, fix as found, before moving to Step 3
+(Walker).
+
+## Previous state (as of 2026-09-02, README.md rewritten to reflect the real closure decision (#596/#597), and a real, well-scoped next-session idea queued: a simulated Walker mode demonstrating the full real card-based methodology (MAN -> mirrored VM -> Walker discovery -> SHAPE -> Composer) end to end, not built tonight -- see `points/points_active.md` #598)
 
 ## Read this first (most recent)
 

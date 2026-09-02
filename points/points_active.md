@@ -1773,3 +1773,70 @@ the usage has reset"). The real building blocks it depends on
 exist; the real, new work is specifically the simulated ping-protocol
 Walker itself, and wiring its own real SHAPE output into Composer's
 own existing input expectations.
+
+## 599. Real, pipeline-order walkthrough begun (frontend's real order: MAN -> Cells -> Walker -> Other tools, Alan's own explicit choice over the named #479 five-tool order). Step 1 (MAN file) reviewed and extended: the /man form now states plainly which fields the real build pipeline actually reads vs. documentation-only, and gains a real, user-supplied pin-location table -- explicitly NOT auto-parsed from a .pin file or any other source. (Alan/Claude, 2026-09-02)
+
+**Real gap found and closed:** `man_generate_v1.build_man()`/the `/man`
+frontend form previously covered only the minimal structural fields
+(CLK/LED pins, ALM/DSP/M20K totals) -- the full MAN schema (real,
+already in use by the hand-authored `mustang-f100-a10.man.json`) also
+carries JTAG device pins, configuration pins, and other board-specific
+pin data with no way for a user to supply any of it through either the
+CLI or the frontend. Per Alan's own explicit instruction: add this,
+but keep it real and user-supplied, not automatically generated (no
+`.pin`-file parsing here -- that remains `#28`/`#29`'s own separate,
+still-outstanding canonical method).
+
+**`tools/man_generate_v1.py`:** `build_man()` gains three new optional
+dict params -- `jtag_pins` (slots into the existing
+`board.jtag.device_pins` schema location, matching the hand-authored
+file's own convention), `config_pins` (slots into
+`board.configuration.pins`), and `extra_pins` (a genuine catch-all,
+new `board.additional_pins` field, for anything with no dedicated slot
+yet -- PCIe refclk, DDR4 signals, etc.). All three are copied, not
+aliased, into the output. Every populated block's own `note` field
+honestly states "user-supplied... NOT independently verified"; the
+pre-existing empty-case note text is preserved exactly when no pins
+are given (real, explicit backward-compat regression test written for
+this). CLI gains `--jtag-pin`/`--config-pin`/`--extra-pin`, each
+repeatable, `NAME=LOCATION` syntax, raising a clear `SystemExit` on a
+malformed pair.
+
+**`nano/frontend_v1.py`:** two real additions to the `/man` page --
+(1) a plain requirements table stating, field by field, whether
+`project_assemble_v1.py`'s own `load_man()` actually reads it today
+(checked directly against that function, not assumed -- confirmed the
+only truly required fields are card_id/part/alm_total/dsp_total/
+clk_pin/led0_pin/led1_pin; family is always hardcoded to "Arria 10"
+regardless of what's supplied, M20K/JTAG-IDCODE are documentation
+only); (2) a single textarea, real `group.name = LOCATION` syntax per
+line (e.g. `jtag.tck = PIN_AH12`), parsed by a new
+`FrontendController._parse_pin_table()` static method -- unrecognized
+group prefixes (or no dot at all) fall back to the `extra` group
+rather than erroring, keeping the original text visible in the stored
+name. A genuine, separate small gap fixed along the way: the
+`jtag_idcode` field was already read by `generate_man()` but had no
+form input at all -- added.
+
+**Real, honest verification:** 17 new tests
+(`tests/tools/test_man_generate_v1.py`,
+`tests/tools/test_frontend_pin_table.py` -- this project's tools/
+scripts had ZERO prior test coverage, a real gap closed here, not just
+for the new feature), covering the parser's own edge cases (empty
+input, unrecognized groups, missing `=`, missing location, comments/
+blank lines ignored), `build_man()`'s pin-dict copy-not-alias
+behavior, and a full CLI round-trip. `tests/tools` added to
+`pyproject.toml`'s own `testpaths`. Full suite: 378/378 passing
+(361 pre-existing + 17 new), zero regression -- confirmed via
+`tests/vm`+`tests/tools` directly; `tests/fpga`'s own pre-existing,
+unrelated `pyserial` collection error (`#370`) reproduced identically
+before and after, not a regression introduced here. `page_man()`
+sanity-checked to actually render (contains the new table and
+textarea) and `man_generate_v1.py --help` checked directly for the
+new flags' real help text.
+
+**Real, honest scope: the pin table is genuinely free-form and
+unverified by design** -- nothing here checks a location string is a
+real, unused pin on the actual device (that remains `#28`/`#29`'s own
+canonical `.pin`-file-based method, still outstanding, deliberately
+not conflated with this feature).

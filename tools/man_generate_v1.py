@@ -24,7 +24,17 @@ import datetime
 
 
 def build_man(card_id, part, family, jtag_idcode, alm_total, dsp_total,
-              m20k_bits, clk_pin, led0_pin, led1_pin, jtag_tck_hz=6000000):
+              m20k_bits, clk_pin, led0_pin, led1_pin, jtag_tck_hz=6000000,
+              jtag_pins=None, config_pins=None, extra_pins=None):
+    """points.md #599: jtag_pins/config_pins/extra_pins are real, optional,
+    USER-SUPPLIED pin-location tables -- never parsed from a .pin file or
+    any other source by this tool. jtag_pins slots into the existing
+    board.jtag.device_pins schema location (tck/tdi/tdo/tms/ntrst, matching
+    the hand-authored MAN file's own convention); config_pins slots into
+    board.configuration.pins the same way; extra_pins is a genuine
+    catch-all for anything without a dedicated schema slot yet (PCIe
+    refclk, DDR4 signals, or anything else) -- stored under
+    board.additional_pins, explicitly marked user-supplied/unverified."""
     return {
         "man_version": "1.0",
         "card_id": card_id,
@@ -45,10 +55,21 @@ def build_man(card_id, part, family, jtag_idcode, alm_total, dsp_total,
             "name": None,
             "clock": {"CLK_100M": {"pin": clk_pin, "freq_hz": 100000000}, "note": "user-supplied"},
             "leds": {"LED0_N": led0_pin, "LED1_N": led1_pin, "status": "user-supplied -- not independently confirmed stable or physically wired to visible LEDs (see points.md #528 for why this distinction matters)"},
-            "jtag": {"programmer": None, "tck_hz": jtag_tck_hz, "note": "user-supplied", "device_pins": {}},
-            "configuration": {"note": "not populated by this generator", "pins": {}},
+            "jtag": {
+                "programmer": None, "tck_hz": jtag_tck_hz,
+                "note": "tck_hz is user-supplied; device_pins below (if any) are user-supplied and NOT independently verified against a real .pin file",
+                "device_pins": dict(jtag_pins) if jtag_pins else {},
+            },
+            "configuration": {
+                "note": "user-supplied pin table, NOT independently verified against a real .pin file" if config_pins else "not populated by this generator",
+                "pins": dict(config_pins) if config_pins else {},
+            },
             "pcie": {"hardware_capability": None, "current_architecture_integration": False},
             "ddr4": {"capacity_gb": None, "onboard": None, "current_integration": False},
+            "additional_pins": {
+                "note": "real, free-form, user-supplied pin-location table for anything without its own dedicated schema slot above (e.g. PCIe refclk, DDR4 signals). NEVER auto-parsed from a .pin file or any other source -- entered directly by the user, not independently verified.",
+                "pins": dict(extra_pins) if extra_pins else {},
+            },
         },
         "capabilities": {
             "bram": dsp_total is not None or m20k_bits is not None,
@@ -79,8 +100,23 @@ def main():
     ap.add_argument("--led0-pin", required=True, help="e.g. PIN_AE7")
     ap.add_argument("--led1-pin", required=True, help="e.g. PIN_AH2")
     ap.add_argument("--jtag-tck-hz", type=int, default=6000000)
+    ap.add_argument("--jtag-pin", action="append", default=[], metavar="NAME=LOCATION",
+                     help="Real, user-supplied JTAG device pin, e.g. --jtag-pin tck=PIN_AH12. Repeatable. Never auto-parsed from a .pin file.")
+    ap.add_argument("--config-pin", action="append", default=[], metavar="NAME=LOCATION",
+                     help="Real, user-supplied configuration pin, e.g. --config-pin nCONFIG=PIN_AF13. Repeatable.")
+    ap.add_argument("--extra-pin", action="append", default=[], metavar="NAME=LOCATION",
+                     help="Real, user-supplied pin with no dedicated schema slot (e.g. PCIe refclk, DDR4). Repeatable.")
     ap.add_argument("-o", "--output", required=True)
     args = ap.parse_args()
+
+    def _parse_pins(pairs):
+        out = {}
+        for pair in pairs:
+            if "=" not in pair:
+                raise SystemExit(f"--jtag-pin/--config-pin/--extra-pin expects NAME=LOCATION, got: {pair!r}")
+            name, loc = pair.split("=", 1)
+            out[name.strip()] = loc.strip()
+        return out
 
     man = build_man(
         card_id=args.card_id, part=args.part, family=args.family,
@@ -88,6 +124,9 @@ def main():
         dsp_total=args.dsp_total, m20k_bits=args.m20k_bits,
         clk_pin=args.clk_pin, led0_pin=args.led0_pin, led1_pin=args.led1_pin,
         jtag_tck_hz=args.jtag_tck_hz,
+        jtag_pins=_parse_pins(args.jtag_pin),
+        config_pins=_parse_pins(args.config_pin),
+        extra_pins=_parse_pins(args.extra_pin),
     )
     with open(args.output, "w") as f:
         json.dump(man, f, indent=2)
