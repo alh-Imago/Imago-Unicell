@@ -1,4 +1,49 @@
-# Current State (as of 2026-09-02, Step 4 of the walkthrough (Other tools) real work done: the workbench's own live grid can now be a genuine, checked reflection of a real assembler config -- per Alan's own direct framing, "the VM is a reflection of the supplied file from the assembler." See `points/points_active.md` #605)
+# Current State (as of 2026-09-02, Composer's real first build done -- shell-version compatibility awareness, real connection hints, and cardinal-direction visibility, extending workbench_v1.py per Alan's own three stated requirements. See `points/points_active.md` #606)
+
+## Read this first (most recent)
+
+**2026-09-02, Composer's real first build (#606), extending
+`workbench_v1.py` directly (per its own scope doc's own recommendation,
+confirmed with Alan first).** Alan's three real requirements: (1)
+shell-version compatibility awareness -- confirmed by direct RTL
+inspection that v1/v2 genuinely lack branch/sequencer, not guessed;
+(2) real prompts/hints before connections are made; (3) visibility
+into each cell's configured state + cardinal output directions.
+
+Built: `shell_compat_v1.py` (real, RTL-derived compatibility matrix,
+scans the actual `.v` files, never a hand-copied table);
+`connection_check_v1.py` (real cross-cell directional-mismatch
+detection, per-core field mapping verified directly against the VM's
+own capture logic); `set_target()` extended with an optional `shell`
+param; a real two-tier check (hard reject for shell-incompatible
+cores, soft hints for connection mismatches) wired into both
+`compile()` and `load_region()`; a real UI -- shell dropdown populated
+live from a new `/shells` endpoint, per-cell `out:`/`in:` direction
+summary on the grid, and a visible connection-hints panel (fixing a
+small, separate silent-error-swallowing bug along the way, same
+pattern `#605` had already partly fixed).
+
+**Real, honest finding:** neither `branch` nor `sequencer` has a real
+DSL tile yet, so the hard-rejection path can't currently be reached
+end-to-end through real DSL source -- tested directly against the
+checking function with synthetic records instead, a pre-existing gap,
+not one introduced here. One real bug caught by a failing test during
+development: the HTTP dispatcher wasn't passing `shell` through to the
+controller at all -- fixed before commit.
+
+31 new tests, 470/470 passing, zero regression. Full detail:
+`points/points_active.md` `#606`.
+
+**Composer's real first pass is done, matching its own scope doc's
+"minimal first, not full vision" framing** -- extended exactly as far
+as Alan's three stated requirements. Full drag-and-drop placement/
+routing remains real, larger future work.
+
+**Real, standing next-session items, unchanged:** `#603` (LLVM IR now
+has a place to be tested) and `#604` (card-decoupled virtual substrate
++ 3D extension + training buckets), both captured, nothing built yet.
+
+## Previous state (as of 2026-09-02, Step 4 of the walkthrough (Other tools) real work done: the workbench's own live grid can now be a genuine, checked reflection of a real assembler config -- per Alan's own direct framing, "the VM is a reflection of the supplied file from the assembler." See `points/points_active.md` #605)
 
 ## Read this first (most recent)
 

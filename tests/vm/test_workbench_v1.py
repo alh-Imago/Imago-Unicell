@@ -575,6 +575,143 @@ def test_load_region_without_target_is_unaffected():
     assert result["ok"], result.get("error")
 
 
+# ── real shell/version + connection-hint reflection (points.md #606) ───
+# "a version1 may not work with a version3" -- confirmed directly
+# against the real RTL: v1/v2 shells genuinely lack branch_cell/
+# sequencer_cell instantiations. NOTE: neither branch nor sequencer has
+# a real DSL tile yet (a separate, pre-existing gap -- #519 for
+# sequencer's own missing VM dispatch, and branch's own missing Tier-0
+# tile, confirmed while building this) -- so the shell-rejection PATH
+# is tested directly against WorkbenchController._check_shell_and_
+# connections() with synthetic records, exactly like connection_check_
+# v1.py's own tests do, rather than via a DSL program that cannot
+# currently reach it end to end. The REACHABLE cores (ram/adder/
+# accumulator/comparator/latch/nano) are present on every real shell,
+# so compile()/load_region()'s own real, integrated behavior is
+# covered via those.
+
+class _FakeRecord:
+    def __init__(self, cell_id, row, col, core, core_config):
+        self.cell_id, self.row, self.col = cell_id, row, col
+        self.core, self.core_config = core, core_config
+
+
+def test_set_target_with_shell_reports_real_cores():
+    ctrl = WorkbenchController()
+    result = ctrl.set_target(REAL_MAN, 4, shell="v1")
+    assert result["ok"], result.get("error")
+    assert result["target"]["shell"] == "v1"
+    assert "branch" not in result["target"]["shell_cores"]
+    assert "ram" in result["target"]["shell_cores"]
+
+
+def test_set_target_with_shell_v3_includes_branch():
+    ctrl = WorkbenchController()
+    result = ctrl.set_target(REAL_MAN, 4, shell="v3")
+    assert "branch" in result["target"]["shell_cores"]
+
+
+def test_set_target_unknown_shell_errors_cleanly():
+    ctrl = WorkbenchController()
+    result = ctrl.set_target(REAL_MAN, 4, shell="v99")
+    assert not result["ok"]
+    assert ctrl.session is None
+
+
+def test_set_target_without_shell_leaves_it_unset():
+    ctrl = WorkbenchController()
+    result = ctrl.set_target(REAL_MAN, 4)
+    assert result["target"]["shell"] is None
+    assert ctrl.shell_path is None
+
+
+def test_check_shell_and_connections_rejects_unsupported_core():
+    """Real, direct confirmation of the hard-rejection tier -- the
+    exact real hardware fact motivating this whole feature (branch
+    genuinely absent from v1's own RTL)."""
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4, shell="v1")
+    error, hints = ctrl._check_shell_and_connections([_FakeRecord("b1", 0, 0, "branch", {})])
+    assert error is not None
+    assert "branch" in error
+    assert "unicell_super_v1.v" in error
+
+
+def test_check_shell_and_connections_accepts_supported_core():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4, shell="v1")
+    error, hints = ctrl._check_shell_and_connections(
+        [_FakeRecord("r1", 0, 0, "ram", {"downstream_mask": ["e"]})])
+    assert error is None
+
+
+def test_check_shell_and_connections_no_shell_set_never_rejects():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4)  # no shell given
+    error, hints = ctrl._check_shell_and_connections([_FakeRecord("b1", 0, 0, "branch", {})])
+    assert error is None
+
+
+def test_compile_surfaces_connection_hints_for_reachable_cores():
+    """Real, end-to-end confirmation using the actually-reachable
+    DSL path: two ram cells wired with a real directional mismatch."""
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4, shell="v3")
+    mismatch = """
+    program mismatch {
+        place a as ram_constant at (0, 0) {
+            out: e
+            init_data: 1
+        }
+        place b as ram_flowing at (0, 1) {
+            in: n
+            out: s
+        }
+    }
+    """
+    result = ctrl.compile(mismatch, "dsl")
+    assert result["ok"], result.get("error")
+    assert len(result["connection_hints"]) == 1
+    assert "a@0,0" in result["connection_hints"][0]
+
+
+def test_compile_no_connection_hints_when_correctly_wired():
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4, shell="v3")
+    good = """
+    program good {
+        place a as ram_constant at (0, 0) {
+            out: e
+            init_data: 1
+        }
+        place b as ram_flowing at (0, 1) {
+            in: w
+            out: s
+        }
+    }
+    """
+    result = ctrl.compile(good, "dsl")
+    assert result["ok"], result.get("error")
+    assert result["connection_hints"] == []
+
+
+def test_load_region_surfaces_cross_region_connection_hints():
+    """Real, direct confirmation that the connection check runs across
+    the FULL grid, not just within one newly-loaded region."""
+    ctrl = WorkbenchController()
+    ctrl.set_target(REAL_MAN, 4, shell="v3")
+    a = """
+    program a { place a as ram_constant at (0, 0) { out: e; init_data: 1 } }
+    """.replace(";", "\n")
+    b = """
+    program b { place b as ram_flowing at (0, 0) { in: n; out: s } }
+    """.replace(";", "\n")
+    ctrl.load_region("regA", a, "dsl", row_offset=0, col_offset=0)
+    result = ctrl.load_region("regB", b, "dsl", row_offset=0, col_offset=1)
+    assert result["ok"], result.get("error")
+    assert len(result["connection_hints"]) == 1
+
+
 def test_real_server_set_target_and_compile_end_to_end():
     server = serve(port=7439, open_browser=False)
     try:
@@ -599,6 +736,39 @@ def test_real_server_set_target_and_compile_end_to_end():
 
         status, body = _http_get(7439, "/target")
         assert body["target"] is None
+    finally:
+        server.shutdown()
+
+
+def test_real_server_set_target_with_shell_end_to_end():
+    server = serve(port=7440, open_browser=False)
+    try:
+        time.sleep(0.3)
+        status, body = _http_post(7440, "/set_target", {"man_path": REAL_MAN, "cells": 4, "shell": "v1"})
+        assert body["ok"] is True
+        assert body["target"]["shell"] == "v1"
+        assert "branch" not in body["target"]["shell_cores"]
+    finally:
+        server.shutdown()
+
+
+def test_list_shells_controller():
+    ctrl = WorkbenchController()
+    result = ctrl.list_shells()
+    assert result["ok"] is True
+    assert "v1" in result["shells"]
+    assert "v3" in result["shells"]
+    assert "branch" not in result["shells"]["v1"]
+    assert "branch" in result["shells"]["v3"]
+
+
+def test_real_server_shells_endpoint():
+    server = serve(port=7441, open_browser=False)
+    try:
+        time.sleep(0.3)
+        status, body = _http_get(7441, "/shells")
+        assert body["ok"] is True
+        assert set(body["shells"].keys()) >= {f"v{n}" for n in range(1, 9)}
     finally:
         server.shutdown()
 

@@ -53,17 +53,23 @@ API, row/col-keyed throughout, never an address anywhere:
                                           plus dsp_columns for real DSP-
                                           column-aware auto-placement (#377).
     POST /clear_region                 -- {"name"}
-    POST /set_target                     -- {"man_path", "cells"} -- points.md
-                                             #605: establishes a real MAN-file
-                                             target (vm_mirror_v1.py, #601) --
-                                             the live grid becomes a genuine,
-                                             checked reflection of that real
-                                             card/cell-count config, persisting
+    POST /set_target                     -- {"man_path", "cells", "shell"} --
+                                             points.md #605/#606: establishes
+                                             a real MAN-file (+ optional real
+                                             shell) target (vm_mirror_v1.py/
+                                             shell_compat_v1.py) -- the live
+                                             grid becomes a genuine, checked
+                                             reflection of that real card/
+                                             cell-count/shell config, persisting
                                              across compile()/load_region()
                                              calls until changed or cleared.
     POST /clear_target                     -- returns to free mode (no real
                                                card correspondence claimed)
     GET  /target                             -- the current real target, if any
+    GET  /shells                               -- points.md #606: the real,
+                                                   RTL-derived shell/core
+                                                   compatibility matrix
+                                                   (shell_compat_v1.py)
     POST /step                           -- {"n": 1}
     POST /deliver                          -- {"row", "col", "direction", "value", "injected"}
     POST /inject                             -- {"row", "col", "value"}
@@ -90,6 +96,8 @@ from unicell_automaton_v1 import N, S, E, W
 from loader_v1 import bind_shape
 from host_registry_v1 import HostResourceRegistry
 import vm_mirror_v1
+import shell_compat_v1
+import connection_check_v1
 
 _DIRS = {"n": N, "s": S, "e": E, "w": W}
 
@@ -228,6 +236,19 @@ class WorkbenchController:
         # real, separately-queryable authority Alan asked for, added
         # without risking a regression in what already works.
         self.registry = HostResourceRegistry()
+        # points.md #606: real shell/version target, alongside the MAN
+        # target (#605) -- "the VM is a reflection of the supplied
+        # file" extends naturally to include which real shell a real
+        # assembler invocation would use, not just card/cell-count.
+        self.shell_version: Optional[str] = None
+        self.shell_path: Optional[str] = None
+        # points.md #606: raw core_config kept alongside self.regions,
+        # keyed by real grid position -- needed because SuperCell
+        # unpacks core_config into individual typed attributes on
+        # load and doesn't retain the original dict, but the real
+        # cross-cell connection check (connection_check_v1.py) needs
+        # the original per-core field names to work from.
+        self._records: Dict[Tuple[int, int], object] = {}
 
     # ── real target reflection (points.md #605) ────────────────────
     #
@@ -240,46 +261,122 @@ class WorkbenchController:
     # the workbench's live grid becomes a genuine, checked reflection
     # of that real config, not an arbitrary unconstrained shape.
 
-    def set_target(self, man_path: str, cells: int) -> Dict[str, Any]:
+    def set_target(self, man_path: str, cells: int, shell: Optional[str] = None) -> Dict[str, Any]:
         """Real, honest reset: establishes the target and starts a
         fresh, empty, mirror-bound session -- same "clean starting
         point" semantics `compile()` already has for a single program.
         Any program/region loaded from here on (via `compile()` or
-        `load_region()`) is checked against this real card layout."""
+        `load_region()`) is checked against this real card layout, and
+        (points.md #606) against `shell`'s own real core repertoire if
+        given -- "the VM is a reflection of the supplied file from the
+        assembler" extends to the shell, not just the card/cell-count."""
         try:
             bounds = vm_mirror_v1.load_mirror_bounds(man_path, cells)
         except Exception as e:
             return {"ok": False, "error": str(e)}
+        shell_path = None
+        if shell:
+            versions = shell_compat_v1.discover_shell_versions()
+            if shell not in versions:
+                return {"ok": False, "error": f"unknown shell {shell!r} -- real shells found on disk: {sorted(versions)}"}
+            shell_path = versions[shell]
         self.session = VMSession(SuperGrid([]))
         self.session.mirror_bounds = bounds
+        self.shell_version = shell
+        self.shell_path = shell_path
         self.regions = {}
+        self._records = {}
         self.registry = HostResourceRegistry()
         return {
             "ok": True,
             "target": {"card_id": bounds.card_id, "man_path": bounds.man_path,
-                       "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols},
+                       "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols,
+                       "shell": shell, "shell_cores": sorted(shell_compat_v1.supported_cores(shell_path)) if shell_path else None},
             "state": self.session.describe(),
         }
 
     def clear_target(self) -> Dict[str, Any]:
-        """Real, explicit return to free mode -- no card correspondence
-        claimed, matching every pre-#605 session's own real behavior."""
+        """Real, explicit return to free mode -- no card or shell
+        correspondence claimed, matching every pre-#605/#606 session's
+        own real behavior."""
         self.session = VMSession(SuperGrid([]))
+        self.shell_version = None
+        self.shell_path = None
         self.regions = {}
+        self._records = {}
         self.registry = HostResourceRegistry()
         return {"ok": True, "state": self.session.describe()}
+
+    def list_shells(self) -> Dict[str, Any]:
+        """points.md #606: the real, RTL-derived compatibility matrix
+        (shell_compat_v1.py) -- lets the UI populate a real, current
+        shell-version list rather than a hardcoded one that could
+        silently drift from what's actually on disk."""
+        return {"ok": True, "shells": shell_compat_v1.compatibility_matrix()}
 
     def current_target(self) -> Dict[str, Any]:
         bounds = self.session.mirror_bounds if self.session is not None else None
         if bounds is None:
             return {"ok": True, "target": None}
         return {"ok": True, "target": {"card_id": bounds.card_id, "man_path": bounds.man_path,
-                                        "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols}}
+                                        "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols,
+                                        "shell": self.shell_version,
+                                        "shell_cores": sorted(shell_compat_v1.supported_cores(self.shell_path)) if self.shell_path else None}}
+
+    def _check_shell_and_connections(self, new_records) -> Tuple[Optional[str], List[str]]:
+        """points.md #606: real, two-tier check run before ANY new
+        records are written into the grid.
+
+        TIER 1, hard: if a real shell target is set, every new record's
+        own core type must actually be instantiated in that shell's
+        real RTL (shell_compat_v1.py) -- a real hardware impossibility,
+        not a style preference, so this returns a real rejection
+        string (not None) on any failure, same "reject before
+        committing" tier as vm_mirror_v1's own topology check.
+
+        TIER 2, soft: cardinal-connection sanity across the FULL grid
+        (existing records + these new ones) via connection_check_v1.py
+        -- real, useful PROMPTS per Alan's own framing, never a
+        rejection; returned as a real list of hint strings alongside
+        a None error."""
+        if self.shell_path is not None:
+            for rec in new_records:
+                ok, reason = shell_compat_v1.check_core_compatible(self.shell_path, rec.core)
+                if not ok:
+                    return reason, []
+        combined = dict(self._records)
+        for rec in new_records:
+            combined[(rec.row, rec.col)] = rec
+        hints = connection_check_v1.check_connections(combined.values())
+        return None, hints
 
     # ── single-program mode (#362, unchanged) ──────────────────────
 
     def compile(self, source: str, language: str = "dsl") -> Dict[str, Any]:
         target = self.session.mirror_bounds if self.session is not None else None
+
+        # Compile once here (the same real compile_source()/
+        # compile_python_source() functions VMSession.from_dsl()/
+        # from_man() use internally) so the real ICM records --
+        # original core_config field names, needed by the shell/
+        # connection checks below -- are available BEFORE the session
+        # is replaced. VMSession's own from_*() methods are still used
+        # afterward to actually build the session, so construction
+        # logic isn't duplicated, only the (cheap) parse step.
+        if language == "python":
+            icm, diagnostics = compile_python_source(source)
+        else:
+            icm, diagnostics = compile_source(source)
+        if icm is None:
+            return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in diagnostics]}
+
+        # points.md #606: shell-compatibility (hard) + connection (soft)
+        # checks run against the real, freshly-compiled records BEFORE
+        # anything replaces the current session.
+        shell_error, connection_hints = self._check_shell_and_connections(icm.records)
+        if shell_error:
+            return {"ok": False, "error": f"shell incompatibility: {shell_error}"}
+
         try:
             if target is not None:
                 kwargs = {"python": source} if language == "python" else {"dsl": source}
@@ -293,12 +390,15 @@ class WorkbenchController:
         except vm_mirror_v1.MirrorFitError as e:
             return {"ok": False, "error": "program doesn't fit the real target ("
                                            f"{target.card_id}, {target.cells} cells): " + "; ".join(e.problems)}
+
         self.session = session
         self.regions = {}
+        self._records = {(r.row, r.col): r for r in icm.records}
         self.registry = HostResourceRegistry()
         return {
             "ok": True,
             "diagnostics": [_diag_to_dict(d) for d in session.diagnostics],
+            "connection_hints": connection_hints,
             "state": session.describe(),
         }
 
@@ -355,10 +455,20 @@ class WorkbenchController:
                 return {"ok": False, "error": "region doesn't fit the real target ("
                                                f"{self.session.mirror_bounds.card_id}): " + "; ".join(fit_problems)}
 
+        # points.md #606: shell-compatibility (hard) + connection (soft,
+        # checked across the FULL grid -- existing regions plus this
+        # one, catching cross-region mismatches too) checks, same
+        # "reject before writing anything" discipline as the topology
+        # check just above.
+        shell_error, connection_hints = self._check_shell_and_connections(bound)
+        if shell_error:
+            return {"ok": False, "error": f"shell incompatibility: {shell_error}"}
+
         from unicell_super_automaton_v1 import SuperCell
         positions = []
         for rec in bound:
             self.session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
+            self._records[(rec.row, rec.col)] = rec
             positions.append((rec.row, rec.col))
         self.regions[name] = positions
         self.registry.register_load(name, positions, metadata={"language": language})
@@ -366,6 +476,7 @@ class WorkbenchController:
         return {
             "ok": True,
             "diagnostics": [_diag_to_dict(d) for d in diagnostics],
+            "connection_hints": connection_hints,
             "region": {"name": name, "positions": positions},
             "state": self.session.describe(),
         }
@@ -378,6 +489,7 @@ class WorkbenchController:
         self.registry.register_unload(name)
         for pos in positions:
             self.session.grid.cells.pop(pos, None)
+            self._records.pop(pos, None)
         # real cleanup, not just deleting the cell entries: drop any
         # pending event whose ORIGIN was one of the removed cells (it
         # can never be acked now) or whose DESTINATION was removed
@@ -468,6 +580,7 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
   .cell { border: 2px solid #555; padding: 6px; min-width: 100px; font-size: 11px; background: #1e1e1e; }
   .cell .core { color: #6cf; font-weight: bold; }
   .cell .pos { color: #777; font-size: 10px; }
+  .cell .dirs { font-size: 10px; margin: 2px 0; }
   #diagnostics { color: #f88; white-space: pre-wrap; margin-top: 8px; font-size: 12px; }
   #tickcount { color: #9f9; font-weight: bold; }
   .region-row { display: flex; justify-content: space-between; align-items: center;
@@ -484,13 +597,16 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
 <div class="row">
   <div class="col">
     <div class="panel">
-      <h3>Real target (points.md #605)</h3>
+      <h3>Real target (points.md #605/#606)</h3>
       <div style="color:#999;font-size:12px;margin-bottom:6px;">Optional. Set this
         to make the grid below a genuine, checked reflection of a real
         card/cell-count -- exactly what <code>tools/project_assemble_v1.py</code>
         would build. Leave unset for free mode (no real card correspondence).</div>
       <label>MAN file path</label> <input type="text" id="manPath" value="docs/man/mustang-f100-a10.man.json" size="30">
       <label>cells</label> <input type="number" id="targetCells" value="4" size="4">
+      <label>shell (optional -- a version1 may not support the same cores as a version3)</label>
+      <select id="targetShell" onchange="showShellCoreInfo()"><option value="">(no shell check)</option></select>
+      <div id="shellCoreInfo" style="color:#777;font-size:11px;margin:2px 0;"></div>
       <button onclick="setTarget()">Set target</button>
       <button onclick="clearTarget()">Clear target (free mode)</button>
       <div id="targetStatus" style="color:#9cf;font-size:12px;margin-top:4px;"></div>
@@ -515,6 +631,7 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
       <span style="color:#777;font-size:11px;">(clear both for auto-placement)</span>
       <button onclick="loadRegion()">Load as region (adds to grid)</button>
       <div id="diagnostics"></div>
+      <div id="connectionHints" style="color:#fc6;font-size:11px;white-space:pre-line;"></div>
     </div>
 
     <div class="panel">
@@ -565,6 +682,36 @@ async function get(path) {
   return r.json();
 }
 
+// points.md #606: real, client-side mirror of connection_check_v1.py's
+// own per-core direction-field mapping -- display only (the real gate
+// lives server-side); kept in the same shape so it can't silently say
+// something different from what the server actually checked. branch/
+// sequencer deliberately omitted, same real reasons as the server side
+// (dynamic output; no real VM dispatch yet).
+const CORE_OUT_FIELD = {ram: "downstream_mask", adder: "downstream_mask", accumulator: "downstream_mask",
+                         compare: "downstream_mask", latch: "downstream_mask", nano: "routing_mask"};
+const CORE_IN_FIELDS = {ram: ["upstream_mask"], adder: ["upstream_mask"], accumulator: ["inc_dir", "dec_dir"],
+                         compare: ["upstream_mask"], latch: ["set_dir", "clear_dir"], nano: []};
+
+function activeDirs(mask) {
+  const dirs = [];
+  if (mask & 1) dirs.push("N");
+  if (mask & 2) dirs.push("S");
+  if (mask & 4) dirs.push("E");
+  if (mask & 8) dirs.push("W");
+  return dirs;
+}
+
+function cellDirections(core, coreState) {
+  coreState = coreState || {};
+  const outField = CORE_OUT_FIELD[core];
+  const out = outField ? activeDirs(coreState[outField] || 0) : [];
+  let inMask = 0;
+  for (const f of (CORE_IN_FIELDS[core] || [])) inMask |= (coreState[f] || 0);
+  const inDirs = CORE_IN_FIELDS[core] !== undefined ? activeDirs(inMask) : [];
+  return {out, in: inDirs};
+}
+
 function renderState(state) {
   document.getElementById("tickcount").textContent = "tick " + state.tick_count;
   const grid = document.getElementById("grid");
@@ -579,7 +726,12 @@ function renderState(state) {
     div.style.borderColor = colorForRegion(c.region);
     div.style.gridColumn = c.col + 1;
     div.style.gridRow = c.row + 1;
+    const dirs = cellDirections(c.core, c[c.core]);
+    const dirLine = `<div class="dirs">` +
+      `<span style="color:#6f6;">out: ${dirs.out.length ? dirs.out.join(",") : "-"}</span> &nbsp; ` +
+      `<span style="color:#69f;">in: ${dirs.in.length ? dirs.in.join(",") : (c.core === "nano" ? "any" : "-")}</span></div>`;
     div.innerHTML = `<div class="core">${c.core}</div><div class="pos">(${c.row},${c.col}) ${c.region || ""}</div>` +
+      dirLine +
       Object.entries(c[c.core] || {}).map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join("<br>");
     grid.appendChild(div);
   }
@@ -588,6 +740,14 @@ function renderState(state) {
 function renderDiagnostics(diags) {
   document.getElementById("diagnostics").textContent =
     (diags || []).map(d => `${d.severity.toUpperCase()} [${d.stage}]: ${d.problem}`).join("\n");
+}
+
+function renderConnectionHints(hints) {
+  // points.md #606: real, non-blocking prompts -- "hints/directions
+  // of connections before they are made," per Alan's own framing.
+  // Never an error; a cell can be deliberately left unconnected.
+  const div = document.getElementById("connectionHints");
+  div.textContent = (hints && hints.length) ? "HINT: " + hints.join("\nHINT: ") : "";
 }
 
 async function renderRegions() {
@@ -639,6 +799,7 @@ async function compileProgram() {
   const language = document.getElementById("language").value;
   const result = await post("/compile", {source: source, language: language});
   renderDiagnostics(result.diagnostics || (result.error ? [{severity: "error", stage: "compile", problem: result.error}] : []));
+  renderConnectionHints(result.connection_hints);
   if (result.ok) { renderState(result.state); renderRegions(); }
 }
 
@@ -654,6 +815,7 @@ async function loadRegion() {
   const colOffset = colRaw === "" ? null : parseInt(colRaw);
   const result = await post("/load_region", {source, language, name, row_offset: rowOffset, col_offset: colOffset});
   renderDiagnostics(result.diagnostics || [{severity: "error", stage: "region", problem: result.error || ""}]);
+  renderConnectionHints(result.connection_hints);
   if (result.ok) { renderState(result.state); renderRegions(); }
 }
 
@@ -685,10 +847,12 @@ async function refresh() {
 async function setTarget() {
   const man_path = document.getElementById("manPath").value;
   const cells = parseInt(document.getElementById("targetCells").value);
-  const result = await post("/set_target", {man_path, cells});
+  const shell = document.getElementById("targetShell").value || null;
+  const result = await post("/set_target", {man_path, cells, shell});
   if (result.ok) {
+    const shellNote = result.target.shell ? `, shell ${result.target.shell}` : "";
     document.getElementById("targetStatus").textContent =
-      `Target set: ${result.target.card_id}, ${result.target.cells} cells (${result.target.rows}x${result.target.cols}) -- grid reset.`;
+      `Target set: ${result.target.card_id}, ${result.target.cells} cells (${result.target.rows}x${result.target.cols})${shellNote} -- grid reset.`;
     renderState(result.state);
     renderRegions();
   } else {
@@ -708,14 +872,39 @@ async function clearTarget() {
 async function refreshTargetStatus() {
   const result = await get("/target");
   if (result.ok && result.target) {
+    const shellNote = result.target.shell ? `, shell ${result.target.shell}` : "";
     document.getElementById("targetStatus").textContent =
-      `Target: ${result.target.card_id}, ${result.target.cells} cells (${result.target.rows}x${result.target.cols})`;
+      `Target: ${result.target.card_id}, ${result.target.cells} cells (${result.target.rows}x${result.target.cols})${shellNote}`;
   } else {
     document.getElementById("targetStatus").textContent = "Free mode -- no real card target.";
   }
 }
 
+async function loadShells() {
+  const result = await get("/shells");
+  if (!result.ok) return;
+  const sel = document.getElementById("targetShell");
+  for (const version in result.shells) {
+    const opt = document.createElement("option");
+    opt.value = version;
+    opt.textContent = version;
+    sel.appendChild(opt);
+  }
+  window._shellCores = {};
+  for (const version in result.shells) window._shellCores[version] = Object.keys(result.shells[version]).sort();
+  sel.value = "v3" in result.shells ? "v3" : "";
+  showShellCoreInfo();
+}
+
+function showShellCoreInfo() {
+  const version = document.getElementById("targetShell").value;
+  const info = document.getElementById("shellCoreInfo");
+  if (!version || !window._shellCores || !window._shellCores[version]) { info.textContent = ""; return; }
+  info.textContent = "real cores on " + version + ": " + window._shellCores[version].join(", ");
+}
+
 loadDemos();
+loadShells();
 refreshTargetStatus();
 </script>
 </body>
@@ -758,6 +947,8 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
             self._json_response(self.controller.list_regions())
         elif self.path == "/target":
             self._json_response(self.controller.current_target())
+        elif self.path == "/shells":
+            self._json_response(self.controller.list_shells())
         elif self.path in ("/", "/index.html"):
             self._html_response(WORKBENCH_HTML)
         else:
@@ -777,7 +968,8 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == "/clear_region":
             self._json_response(self.controller.clear_region(body.get("name", "")))
         elif self.path == "/set_target":
-            self._json_response(self.controller.set_target(body.get("man_path", ""), body.get("cells", 0)))
+            self._json_response(self.controller.set_target(
+                body.get("man_path", ""), body.get("cells", 0), body.get("shell")))
         elif self.path == "/clear_target":
             self._json_response(self.controller.clear_target())
         elif self.path == "/step":

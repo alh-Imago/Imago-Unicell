@@ -498,6 +498,16 @@ loaded from then on is validated against the exact real N-cell layout
 via the same real mirroring /man, /cells, and /walker already use
 (<code>vm_mirror_v1.py</code>, #601). Leave it unset for free mode --
 no real card correspondence claimed, same as before this entry.</div>
+<div class="real">points.md #606: the "Real target" panel also now takes an
+optional shell version (v1-v8, real ones discovered directly on disk) --
+Composer's own real concern, per Alan's own words: "a version1 may not
+work with a version3." A cell whose core type isn't actually
+instantiated in the selected shell's real RTL is rejected outright
+(checked directly against the .v files, e.g. v1/v2 genuinely lack
+branch/sequencer); every cell's own configured cardinal in/out
+directions are shown on the grid, and a real, non-blocking hint appears
+whenever a cell broadcasts toward a neighbor that isn't configured to
+listen for it.</div>
 <pre>python3 nano/workbench_v1.py
 # -&gt; http://localhost:7420</pre>
 

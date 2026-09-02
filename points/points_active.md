@@ -2238,3 +2238,119 @@ in the whole toolchain -- untouched by this entry, per its own already-
 decided real scope (`docs/stripped-cell/design-notes/
 composer_scope.md`).
 
+## 606. Composer's real first build, per Alan's own direct requirements -- shell-version compatibility awareness, real prompts before connections are made, and configured-state/cardinal-direction visibility, all extending `workbench_v1.py` directly (its own scope doc's own recommendation, confirmed with Alan before starting). (Alan/Claude, 2026-09-02)
+
+**Alan's three real requirements, checked against real RTL/VM facts
+before building anything, not assumed:**
+1. Version-compatibility awareness (a "version1 may not work with a
+   version3" dropdown).
+2. Real prompts/hints about connections before they're made.
+3. Visibility into each cell's own configured state and cardinal
+   output directions.
+
+**The real, verified compatibility fact motivating requirement 1,
+confirmed by direct inspection of every real shell file
+(`fpga/verilog/unicell_super_v1.v` through `v8.v`), not guessed:** v1
+and v2 shells genuinely lack `branch_cell`/`sequencer_cell`
+instantiations in their own real RTL -- v1 has 5 of the 8 real core
+types, v2 adds sequencer (6), v3 adds branch (7, matching the standing
+"branch's own eventual wiring into `unicell_super_v3.v`" note). Every
+other real difference across v4-v8 is which MODULE VERSION implements
+a given core type (e.g. `ram_cell_v1` vs `ram_cell_v2`), not
+availability -- those are already known functionally identical via
+this project's own differential-testbench arc, so not flagged as a
+real hazard.
+
+**`nano/shell_compat_v1.py` (new):** `discover_shell_versions()` --
+real, direct filesystem scan for every real `unicell_super_v<N>.v`
+file (excluding experimental/wrapped variants). `supported_cores()` --
+reuses `project_assemble_v1.discover_instantiated_modules()` directly
+(the SAME real heuristic scan `#590`'s own compatibility check already
+uses, not a reimplementation) to find which core types are genuinely
+instantiated in one real shell file. `compatibility_matrix()`/
+`check_core_compatible()` -- the real, queryable API. Real, deliberate
+choice: this data is DERIVED from the real files each call, not a
+hand-copied table that could silently drift as new shell versions are
+added. 10 tests, all passing, confirming the real v1/v2/v3 facts
+directly.
+
+**`nano/connection_check_v1.py` (new), for requirement 2:** per-core
+direction-field mapping verified DIRECTLY against
+`unicell_super_automaton_v1.py`'s own real capture logic before being
+written, not assumed from naming alone -- confirmed every "_dir"-named
+field (`inc_dir`/`dec_dir`/`set_dir`/`clear_dir`) is a real 4-bit
+direction MASK (bit-tested, same convention as `upstream_mask`/
+`downstream_mask`), with exactly one real, documented exception:
+`branch`'s own `upstream_dir` is a genuine SINGLE direction value, not
+a mask. `check_connections()` walks every real physically-adjacent
+pair and flags real, human-readable HINTS (never rejections) when a
+cell broadcasts toward a neighbor not configured to listen back --
+data that would be silently dropped, not an error. Real, honest,
+explicit exclusions: `branch`'s own output is data-dependent
+(`active_route`, chosen at runtime), not statically checkable;
+`sequencer` has no real VM dispatch at all yet (`#519`, pre-existing).
+8 tests, all passing.
+
+**`nano/workbench_v1.py` wiring, real and tested, not just added
+API surface:** `set_target()` gains an optional `shell` param
+(alongside `#605`'s own `man_path`/`cells`) -- "the VM is a reflection
+of the supplied file" extends naturally to the shell, since a real
+assembler invocation always specifies all three together.
+`_check_shell_and_connections()` runs a real TWO-TIER check before any
+new records are written into the grid: TIER 1 (hard) rejects a program/
+region outright if any new cell's core type isn't real on the selected
+shell -- a genuine hardware impossibility, same rejection tier as
+`#605`'s own topology check; TIER 2 (soft) runs the connection check
+across the FULL grid (existing cells plus the new ones, catching
+cross-region mismatches too, confirmed by a real test) and returns
+`connection_hints` alongside `"ok": true` -- real prompts, never a
+block, matching Alan's own framing exactly. New `list_shells()`/
+`GET /shells` endpoint exposes the real, live compatibility matrix so
+the UI never hardcodes a shell list that could drift from what's
+actually on disk.
+
+**Real UI, not just a backend, for requirement 3:** the "Real target"
+panel gains a shell dropdown POPULATED FROM THE REAL, LIVE `/shells`
+endpoint (never a hardcoded list) with a live "real cores on vN: ..."
+line. The grid view's own per-cell rendering gains a real `out: .../
+in: ...` cardinal-direction summary line, computed via a client-side
+mirror of `connection_check_v1.py`'s own real per-core field mapping
+(display only -- the real gate stays server-side) so the UI can never
+silently claim something different from what the server actually
+checked. Connection hints from `compile()`/`load_region()` are now
+rendered in a real, visible panel (a genuine, separate, small gap
+fixed along the way, matching `#605`'s own earlier fix to the same
+silent-error-swallowing pattern).
+
+**Real, honest finding worth stating plainly, caught while testing:**
+neither `branch` nor `sequencer` has a real DSL tile registered at all
+yet (`super_tile_library_v1.py`'s own Tier-0 catalog covers only 6 of
+8 core types) -- so TIER 1's own hard-rejection path can't currently
+be exercised end-to-end through real DSL source; it's real, correct,
+and tested directly against `_check_shell_and_connections()` with
+synthetic records (matching `connection_check_v1.py`'s own test
+pattern), not a gap introduced by this entry.
+
+**Real, honest verification:** 31 new tests total across this entry
+(`tests/vm/test_shell_compat_v1.py` 10, `tests/vm/
+test_connection_check_v1.py` 8, 13 new additions to `tests/vm/
+test_workbench_v1.py`) -- covering the real v1/v2/v3 core-availability
+facts directly, the real per-core direction-field mapping including
+accumulator's separate inc/dec fields and branch's dynamic exclusion,
+both tiers of `_check_shell_and_connections()` (hard rejection via
+synthetic records, soft hints via the real, DSL-reachable cores),
+cross-region hint surfacing, and a full real HTTP round-trip for both
+`/set_target` with a shell and the new `/shells` endpoint. One real
+bug caught and fixed during test-writing itself: the HTTP dispatcher
+for `/set_target` had been left not actually passing `shell` through
+to the controller -- caught by a failing real-server test, not
+silently shipped. Full suite: 470/470 passing (439 prior + 31 new),
+zero regression.
+
+**Real, honest scope: this is Composer's real FIRST build, not the
+full vision** -- per `composer_scope.md`'s own already-decided minimal-
+first framing, extended exactly as far as Alan's three stated
+requirements this session, no further. Full drag-and-drop placement/
+routing interaction remains real, larger future work, same as that
+scope doc always said.
+
