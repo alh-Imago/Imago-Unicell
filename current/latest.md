@@ -1,4 +1,50 @@
-# Current State (as of 2026-09-02, real gap-plugging complete: both branch AND sequencer now have real Tier-0 DSL tiles, closing both halves of #519's own long-standing real asymmetry -- every one of the 8 real core types now has real RTL, real VM dispatch, and a real DSL tile. See `points/points_active.md` #608/#609)
+# Current State (as of 2026-09-02, session paused per Alan's own explicit request -- "save this for the next usage round," a real scoping pass for the LLVM IR compiler backend written instead of starting a build. See `points/points_active.md` #610)
+
+## Read this first (most recent)
+
+**2026-09-02, session paused, per Alan's own explicit request** ("save
+this for the next usage round, i dont want to get half way through and
+get stuck. so may be run a scope for the llvm model"). Wrote a real
+scope document instead: `docs/stripped-cell/design-notes/
+llvm_ir_compiler_scope.md`, matching the same "define the boundary
+before building" discipline as every other `*_scope.md` note.
+
+**A real, honest correction found while writing it, worth remembering:**
+checked directly against `c_frontend_v1.py`'s own header before citing
+it as prior art -- none of the three existing frontends (DSL, Python-
+AST, C) compile general programs at all; all three are the SAME
+declarative placement recipe in different syntax, no expressions, no
+control flow. `program_ir_v1.ProgramIR` itself is confirmed thin --
+nothing about expressions or control flow. So the real, load-bearing
+conclusion: the "actual programming" gap named back in `general_
+purpose_programming_long_range_note.md` (2026-08-16) has NOT been
+closed by anything built since, including this session's own new
+mirror/Walker infrastructure -- and LLVM IR is exactly the kind of
+input full of that gap's own hardest content. The scope doc restates
+the real open questions precisely (SSA-value-to-cell mapping, loop
+handling, `phi`-as-MUX, real memory) rather than softening them, names
+FlowTrix/LBM's own already-standing computational shape as the real,
+concrete bounded first target, sketches a pipeline marking exactly
+which stages are new/unsolved vs. reused, and confirms directly (not
+assumed) that `llvmlite` isn't currently installed here. Nothing built
+-- a real scoping pass only.
+
+**Real, standing next-session queue, in order:**
+1. Composer's own gaps are now fully closed (`#608`/`#609` -- branch
+   and sequencer both have real Tier-0 tiles; every one of the 8 real
+   core types now has real RTL, real VM dispatch, and a real DSL tile).
+   Continue wherever Alan directs next.
+2. `#604` (card-decoupled virtual substrate + 3D extension + training
+   buckets) -- with the real prerequisite Alan flagged: the other 7
+   cores would need nano's own reserved 6-bit cardinal headroom too,
+   before real 3D-aware cardinals could be built on them. Nothing
+   started.
+3. `#610`'s own LLVM IR scope -- start with the small hand-trace
+   experiment the scope doc suggests, not a parser, whenever picked up.
+
+Full detail: `points/points_active.md` `#608`-`#610`.
+
+## Previous state (as of 2026-09-02, real gap-plugging complete: both branch AND sequencer now have real Tier-0 DSL tiles, closing both halves of #519's own long-standing real asymmetry -- every one of the 8 real core types now has real RTL, real VM dispatch, and a real DSL tile. See `points/points_active.md` #608/#609)
 
 ## Read this first (most recent)
 

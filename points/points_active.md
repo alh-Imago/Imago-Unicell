@@ -2602,3 +2602,106 @@ asymmetry are now closed -- branch had real VM but no RTL slot (closed
 one of the 8 real core types now has both a real RTL slot AND real VM
 dispatch AND a real Tier-0 DSL tile.
 
+## 610. Real scoping pass for the LLVM IR compiler backend (`#547`/`#603`), per Alan's own explicit request at session pause -- a real scope document, not a build, so there's a clean stopping point rather than a half-finished start. (Alan/Claude, 2026-09-02)
+
+**New file: `docs/stripped-cell/design-notes/llvm_ir_compiler_scope.
+md`**, matching the same real discipline as `composer_scope.md`/
+`workbench_scope.md`/`unicell_s_dsl_and_compiler_scope.md` -- define
+the real boundary before writing anything, review-before-build, not a
+locked spec.
+
+**A real, honest correction found and stated plainly while writing
+this, not assumed from the existing frontend count:** checked directly
+against `c_frontend_v1.py`'s own header before citing it as prior art
+-- its entire real grammar is `place()`/`field()` calls inside one
+`void PROGRAM_NAME(void)` function, the SAME declarative placement
+recipe the DSL and Python-AST frontends already express, just in C's
+own syntax. None of the three existing frontends (DSL, Python-AST, C)
+compile general programs -- no expressions, no arithmetic, no control
+flow, no variables in any general-programming sense. `program_ir_v1.
+ProgramIR` itself is confirmed, directly against its own header, to be
+deliberately thin: a flat list of placements, nothing about
+expressions or control flow. The real, load-bearing conclusion: the
+"actual programming" gap `general_purpose_programming_long_range_note.
+md` named back on 2026-08-16 has NOT been closed by anything built
+since, including this session's own new mirror/Walker infrastructure
+-- and LLVM IR is exactly the kind of input full of that gap's own
+hardest content (SSA variables, `phi` nodes, branches, loops). This
+backend can't sidestep those open questions the way the existing three
+frontends implicitly did by never having them at all.
+
+**What this session's own new infrastructure genuinely does add, real
+and concrete, restated precisely (not oversold):** `VMSession.
+from_man()` (`#601`) means a candidate lowering can be loaded into a
+session that genuinely corresponds to a real card's own real layout;
+the simulated Walker (`#602`) means that lowering's own actual
+realized topology can be independently discovered and verified against
+intent. Real and useful for the one question that's actually answerable
+by running something -- not a solution to the open questions
+themselves.
+
+**The real, load-bearing open questions, restated precisely from the
+long-range note, not re-derived or softened:** what an SSA value maps
+to on a substrate with no addressable memory (a real, tractable-
+sounding first answer sketched: one value, one cell, decided at
+compile time); what an LLVM loop compiles to (real, existing LLVM
+loop-unrolling passes could plausibly let the frontend never see an
+actual loop construct at all, for a genuinely bounded first version --
+unbounded/data-dependent loops remain the same real, possibly-
+architectural open question); what a `phi` node means spatially (the
+old full-cell compiler's own real MUX-based `if`/`else` answer is
+directly relevant real prior art here, genuinely more tractable-
+looking than the loop/memory questions); real addressed memory (no
+real answer anywhere in this project yet, full-cell or Unicell-S,
+explicitly out of scope).
+
+**A real, concrete, bounded first target, not "solve general
+programs":** the FlowTrix/LBM demo's own already-standing
+computational shape (fixed lattice sites, purely local arithmetic, no
+dynamic control flow per site, one-hop streaming the fabric's own
+topology already provides for free) IS the real, concrete "genuinely
+bounded, well-behaved subset" `#547` already named -- not a
+hypothetical shape invented for this note.
+
+**A real, honest pipeline sketch** marks precisely which stages are
+new/unsolved (an SSA-value-to-cell allocation pass; a pattern matcher
+against the real tile library) versus fully reused unchanged
+(`ProgramIR`, the existing resolve/place/emit backend, `#601`/`#602`'s
+own real mirror+Walker verification) -- the real, honest scale
+statement: the actual novel engineering effort is entirely in the two
+new stages, not in wiring a fourth frontend into an already-proven
+architecture.
+
+**A real, practical tooling check done now, not assumed:** confirmed
+directly in this environment -- `llvmlite` (the standard real Python
+LLVM-IR binding) is NOT currently installed, no `clang`/`llvm-as`/
+`opt` binaries are available either; `pycparser` (the existing C
+frontend's own dependency) IS installed. A concrete first real step
+named for whenever this is picked up: confirm `pip install llvmlite`
+is actually viable here before any real parsing code is written.
+
+**A real, low-risk suggested first step**, matching this project's own
+"smallest test first" discipline: hand-trace ONE small, already-
+unrolled real LLVM IR snippet against the real Tier-0 tile library on
+paper before writing any real frontend code -- cheap enough to reveal
+whether the SSA-allocation question is genuinely tractable, or surface
+a real, unforeseen blocker early, before any real investment.
+
+**Real, honest scope: nothing built.** No parser, no SSA-allocation
+pass, no pattern matcher, no code at all -- a real scoping pass only.
+`#547` remains the correct starting citation for the original idea;
+`general_purpose_programming_long_range_note.md` remains the correct
+citation for the open questions this note restates rather than
+resolves.
+
+**Session paused here, per Alan's own explicit request** ("save this
+for the next usage round... don't want to get half way through and get
+stuck"). Real, explicit next-session queue, unchanged in substance from
+before, now with one more real item: (1) continue wherever Alan directs
+-- Composer's gaps are now fully closed (`#608`/`#609`); (2) `#604`
+(card-decoupled virtual substrate + 3D extension + training buckets),
+with the real 3D-cardinal-widening prerequisite Alan flagged (the other
+7 cores would need nano's own reserved 6-bit headroom too); (3) this
+entry's own LLVM IR scope, whenever picked up -- start with the small
+hand-trace experiment above, not a parser.
+
