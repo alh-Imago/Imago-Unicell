@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-02, REAL, DELIBERATE CLOSURE of the hardware exploration track -- Alan's own direct decision based on this session's complete, converged evidence. Real ceiling accepted: ~200-250 cells/card, ~65-75 MHz at that scale. Project shape going forward: hardware closed, VM/frontend/docs continue as a real tidy-and-polish pass, not new deep development, see `points/points_active.md` #596)
+# Current State (as of 2026-09-02, README.md rewritten to reflect the real closure decision (#596/#597), and a real, well-scoped next-session idea queued: a simulated Walker mode demonstrating the full real card-based methodology (MAN -> mirrored VM -> Walker discovery -> SHAPE -> Composer) end to end, not built tonight -- see `points/points_active.md` #598)
+
+## Read this first (most recent)
+
+**2026-09-02, session close: hardware closed, VM/tooling continues,
+one real idea queued for next time.** Tonight's real arc: the shared-
+storage thread reached a real, negative conclusion (v4/v5 cost more,
+`#573`-`#585`); a config-off-shell idea found one real, solid win
+(compare) and two inconclusive results (`#584`-`#592`); a "moat"
+placement idea found LogicLock's own real Fmax benefit is genuine but
+separate from its ALM cost, and the moat itself didn't help ALM
+(`#588`/`#595`); Alan then made the real, deliberate call to close
+hardware exploration for now (`#596`) given the converged real ceiling
+(~200-250 cells, ~65-75 MHz) found across all of it. README.md rewritten
+to reflect this honestly (`#597`), including the real, full v1-v8 shell
+lineage.
+
+**The real, important clarification that followed:** hardware isn't
+lost, just refocused -- the real RTL/core designs, ICM format, and
+SHAPE extraction all directly feed the VM (mirror mode), so nothing
+built this session stops being useful. That reframed Walker's own
+real scope specifically: it was gated on a real, full-card array that
+isn't coming, but a SIMULATED Walker (same real ping-discovery
+protocol, run against a VM-mirrored grid instead of real silicon) is
+buildable now and demonstrates the actual real methodology end to end
+-- not a shortcut past it, per Alan's own direct reasoning for wanting
+this over a plain free-form VM session.
+
+**Real, explicit next-session queue (new day, usage reset -- this is
+the one real thing to pick up):** build the simulated Walker. Full
+real design already confirmed and written down in `points/
+points_active.md` `#598`, not built yet.
+
+Full detail: `points/points_active.md` `#596`-`#598`.
+
+## Previous state (2026-09-02, REAL, DELIBERATE CLOSURE of the hardware exploration track -- Alan's own direct decision based on this session's complete, converged evidence. Real ceiling accepted: ~200-250 cells/card, ~65-75 MHz at that scale. Project shape going forward: hardware closed, VM/frontend/docs continue as a real tidy-and-polish pass, not new deep development, see `points/points_active.md` #596)
 
 ## Read this first (most recent)
 

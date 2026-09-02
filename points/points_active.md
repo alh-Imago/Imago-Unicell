@@ -1714,3 +1714,62 @@ genuinely live decision given `#596`'s own closure -- both were
 explicitly gated on real, at-scale hardware deployment that isn't
 happening), and a frontend copy pass, all deliberately deferred, not
 this entry's own scope.
+
+## 598. Real, queued idea for next session: a simulated Walker mode, running the real discovery protocol against a VM-mirrored grid instead of real silicon -- demonstrates the actual real methodology (MAN -> mirrored VM -> Walker discovery -> real SHAPE -> Composer placement review) end to end, rather than bypassing it with a direct free-form VM session. Per Alan's own real, direct framing: not a shortcut, a way to SHOW how a card-based system would/could work, using the exact same protocol real hardware discovery would use. Explicitly NOT built tonight -- a new day, usage reset, queued for a future session. (Alan/Claude, 2026-09-02)
+
+**STATUS: real, well-scoped idea, confirmed understood correctly
+before logging, not built. This is the real, explicit next-session
+queue item per #594's own close-out discipline (item 7).**
+
+**The real, confirmed design, matching Walker's own already-decided
+real scope (`#501`) exactly, unchanged -- only the transport changes:**
+Walker's real protocol starts at a known cell and pings each real
+cardinal direction in turn -- a cell answers with its own real ID/type
+if the ping targets "self," or relays it unchanged out one physical
+port if it targets a direction; the host walks outward hop by hop,
+building a genuine, live map of a PROGRAMMED design's own actual
+topology, deliberately NOT a static RTL-source guess (the real,
+original reason Walker exists at all: catching the class of bug where
+a build compiles clean while being quietly wrong, `#535`/`#445`'s own
+real, lived examples of exactly that risk). **A simulated Walker runs
+this exact same real protocol, unchanged, against a VM-mirrored grid
+instead of real silicon over JTAG** -- not a different, easier
+substitute, the identical methodology on a different transport.
+
+**The real, complete chain this enables, end to end:** a real MAN file
+(`docs/man/mustang-f100-a10.man.json`, already real and current)
+defines a card's own real, fixed shape/capacity -> the VM mirrors it
+(mirror mode, already real and existing per the project's own
+established five-tool pipeline, `#479`) -> loaded with a real program
+via ICM (already real, working) -> the simulated Walker discovers the
+loaded design's own actual topology via the real ping protocol above,
+producing a real SHAPE file -> that SHAPE file feeds Composer's own
+already-decided real scope (placement review of an already-compiled
+model, `docs/stripped-cell/design-notes/composer_scope.md`) exactly
+the same way a real hardware-discovered SHAPE file would. **Someone
+watching this chain run sees the actual real methodology this whole
+project is built around, not a shortcut past it** -- Alan's own real,
+direct reasoning for wanting this specific approach over a plain,
+free-form standing VM session, which would demonstrate less about how
+this project's own real card-based system actually works.
+
+**Real, direct connection to `#596`'s own closure decision:** this
+resolves the live question flagged when README.md was updated (`#597`)
+-- Walker's real scope was explicitly gated on "a real, full-card
+array existing first," which isn't happening under the real, accepted
+200-250 cell ceiling. A simulated Walker needs no such scale -- it
+works against any real, already-existing small design (including the
+N=10 arrays already built this session), so it's genuinely buildable
+and useful NOW, not blocked on hardware that was never going to exist.
+Composer was never actually blocked this way (its own real scope
+already only needed an already-compiled model, any size) -- worth
+remembering only Walker's own real scope needed this reframing, not
+both.
+
+**Real, honest scope: not built. Queued for a future session,** per
+Alan's own direct real instruction ("make notes... it a new day and
+the usage has reset"). The real building blocks it depends on
+(VM mirror mode, ICM loading, Composer's own real scope) already
+exist; the real, new work is specifically the simulated ping-protocol
+Walker itself, and wiring its own real SHAPE output into Composer's
+own existing input expectations.

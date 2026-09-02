@@ -1,6 +1,22 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
+> **UPDATE (2026-09-02): hardware exploration is CLOSED for now --
+> Alan's own real, deliberate decision (`points/points_active.md` #596),
+> not reflected in anything below this note.** A real, converged
+> investigation found this card's own real ceiling (~200-250 cells,
+> ~65-75 MHz Fmax at that scale) and found no lever (shared storage,
+> config-sharing, LogicLock, a "moat" of buffer cells) that moved it by
+> more than a small amount. **Current real priority: VM/frontend/docs,
+> not further hardware optimization.** README.md already rewritten to
+> reflect this (`#597`). Explicit, real next-session queue item: a
+> simulated Walker mode (same real ping-discovery protocol, run against
+> a VM-mirrored grid instead of real silicon) demonstrating the full
+> real card-based methodology end to end -- design confirmed, not yet
+> built, full detail in `points/points_active.md` `#598`. Everything
+> below this note describes earlier, real work and is kept for
+> historical accuracy, not current priority.
+
 > **UPDATE (2026-08-04): the plan below predates this session's work and
 > describes the FULL cell's own task path -- still valid FOR that separate
 > "dream" line (#107's fork), but NOT the currently active work.** The
