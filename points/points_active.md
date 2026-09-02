@@ -1840,3 +1840,57 @@ unverified by design** -- nothing here checks a location string is a
 real, unused pin on the actual device (that remains `#28`/`#29`'s own
 canonical `.pin`-file-based method, still outstanding, deliberately
 not conflated with this feature).
+
+## 600. Step 2 of the walkthrough (Create cells / `/cells`, `project_assemble_v1.py`): same real gap pattern as Step 1 -- the frontend exposed only 6 of `assemble()`'s real 14 parameters, silently dropping shell selection, LogicLock, and the custom-shell/dependency-override machinery (`#578`/`#582`/`#583`/`#590`) entirely. Closed, with a requirements table matching Step 1's own pattern. (Alan/Claude, 2026-09-02)
+
+**Real gap found, checked directly against `assemble()`'s own real
+signature, not assumed:** the `/cells` form and
+`FrontendController.create_project()` only ever passed
+`man_path`/`cells`/`output`/`top`/`single_core`/`core_path`/
+`probe_name` through -- `shell`, `logiclock`, `ll_fixed_alm`,
+`ll_headroom`, `shell_file`, `shell_module`, `file_list`, and
+`files_string` had zero path from the web UI, even though the CLI
+(`main()`) has supported all of them since `#578`/`#582`/`#583`/`#590`.
+A real, silent behavioral gap, not just a missing convenience: anyone
+using the web UI could never reach `v4`, LogicLock, or a custom/mixed-
+version shell at all.
+
+**`nano/frontend_v1.py`:** `create_project()` now accepts and passes
+through all of the above, with two real, deliberate corrections found
+while building this:
+- `assemble()` itself does NOT enforce "`--shell-file` requires
+  `--shell-module`" -- only `main()` does, before calling `assemble()`.
+  Any real caller bypassing `main()` (this frontend included) must
+  replicate that check itself, or a mismatched/confusing downstream
+  result would follow instead of a clear error. Added directly,
+  confirmed by a real test that a genuine custom-shell-file build
+  without a module name fails cleanly, not silently wrong.
+- `compat_warnings` (the real, advisory heuristic scan from `#590`)
+  was already returned by `assemble()` but silently dropped by the web
+  UI's own result rendering -- the CLI prints it, the web page didn't.
+  Fixed: `page_cells()` now renders any real warnings in their own
+  `<div>`, worded identically to the CLI's own "advisory... NOT a
+  substitute for a real compile" framing.
+
+The `/cells` page gains the same real requirements table pattern as
+Step 1's `/man` page (`#599`) -- every field stated plainly as
+required/optional with a one-line real reason -- plus two new grouped
+sections: "Shell / placement options" (shell dropdown, LogicLock
+checkbox, fixed-ALM/headroom) and "Custom shell / dependency override"
+(shell file/module, file list, inline files), both explicitly noted as
+ignored when a single core type is selected, matching `assemble()`'s
+own real behavior exactly.
+
+**Real, honest verification:** 10 new tests
+(`tests/tools/test_frontend_create_project.py`), including a genuine
+end-to-end build using a REAL custom shell file already in this repo
+(`fpga/verilog/unicell_super_v7.v`) -- not a mock, the actual
+dependency-resolution and compatibility-check machinery running for
+real. Also covers: v3-vs-v4 shell selection, LogicLock checkbox
+semantics (HTML presence-means-on, absence-means-off, checked
+directly, not assumed), fixed-ALM/headroom pass-through, the new
+shell-file-without-module validation, and confirmed the single-core
+path's own CLI-equivalent string correctly omits every shell/LogicLock
+flag (sanity-checked directly, matching `assemble()`'s own real
+"ignored when single_core is given" semantics). Full suite:
+388/388 passing (378 prior + 10 new), zero regression.

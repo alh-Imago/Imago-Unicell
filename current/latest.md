@@ -1,4 +1,29 @@
-# Current State (as of 2026-09-02, new session: a real pipeline-order walkthrough begun -- frontend's real order (MAN -> Cells -> Walker -> Other tools), Alan's own explicit choice over the named #479 five-tool order. Step 1 (MAN file) extended with a real, user-supplied pin-location table and a plain requirements table, see `points/points_active.md` #599)
+# Current State (as of 2026-09-02, walkthrough continues: Step 2 (Create cells) reviewed and extended -- shell/LogicLock/custom-shell-file/dependency-override options wired through to the frontend, previously silently unreachable from the web UI, see `points/points_active.md` #600)
+
+## Read this first (most recent)
+
+**2026-09-02, Step 2 of the walkthrough done: same real gap pattern as
+Step 1.** `/cells` only ever exposed 6 of `assemble()`'s real 14
+parameters -- `shell`, `logiclock`, `ll_fixed_alm`, `ll_headroom`,
+`shell_file`, `shell_module`, `file_list`, `files` had no path from
+the web UI at all, even though the CLI has supported them since
+`#578`/`#582`/`#583`/`#590`. Fixed, plus two real corrections found
+along the way: `assemble()` itself doesn't enforce "shell-file requires
+shell-module" (only `main()` did) -- replicated in the frontend
+controller; `compat_warnings` was already returned by `assemble()` but
+silently dropped by the web UI's own result rendering -- now shown.
+Same real requirements-table pattern as Step 1. 10 new tests, including
+a genuine end-to-end build with a real custom shell file already in
+this repo. 388/388 passing, zero regression. Full detail: `points/
+points_active.md` `#600`.
+
+**Real, immediate next step:** continue the walkthrough -- Step 3
+(Walker). Unlike Steps 1/2, Walker has zero code behind it at all (a
+real, honest placeholder) -- so this step is a genuine build, not a
+gap-closing review, per `#501`'s already-converged design and `#598`'s
+own simulated-Walker framing.
+
+## Previous state (as of 2026-09-02, new session: a real pipeline-order walkthrough begun -- frontend's real order (MAN -> Cells -> Walker -> Other tools), Alan's own explicit choice over the named #479 five-tool order. Step 1 (MAN file) extended with a real, user-supplied pin-location table and a plain requirements table, see `points/points_active.md` #599)
 
 ## Read this first (most recent)
 

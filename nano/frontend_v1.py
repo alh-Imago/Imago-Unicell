@@ -124,11 +124,29 @@ class FrontendController:
         single_core = fields.get("single_core") or None
         core_path = fields.get("core_path") or None
         probe_name = fields.get("probe_name") or None
+        shell = fields.get("shell") or "v3"
+        logiclock = bool(fields.get("logiclock"))
+        ll_fixed_alm = float(fields["ll_fixed_alm"]) if fields.get("ll_fixed_alm") else None
+        ll_headroom = float(fields["ll_headroom"]) if fields.get("ll_headroom") else 1.25
+        shell_file = fields.get("shell_file") or None
+        shell_module = fields.get("shell_module") or None
+        file_list = fields.get("file_list") or None
+        files_string = fields.get("files") or None
+
+        # Real, direct mirror of main()'s own CLI-side check (points.md
+        # #590) -- assemble() itself doesn't enforce this, so any real
+        # caller bypassing main() (this frontend included) must.
+        if shell_file and not shell_module:
+            return {"ok": False, "error": "shell file given without shell module: --shell-file requires the real module name inside that file (--shell-module)"}
+
         try:
             result = project_assemble_v1.assemble(
                 fields["man_path"], int(fields["cells"]), fields["output"],
                 top=fields.get("top") or None,
                 single_core=single_core, core_path=core_path, probe_name=probe_name,
+                shell=shell, logiclock=logiclock, ll_fixed_alm=ll_fixed_alm, ll_headroom=ll_headroom,
+                shell_file=shell_file, shell_module=shell_module,
+                file_list=file_list, files_string=files_string,
             )
         except Exception as e:
             return {"ok": False, "error": str(e)}
@@ -142,6 +160,21 @@ class FrontendController:
             cli += f" -x {core_path}"
         if probe_name:
             cli += f" -P {probe_name}"
+        if not single_core:
+            if shell != "v3":
+                cli += f" --shell {shell}"
+            if logiclock:
+                cli += " --logiclock"
+            if ll_fixed_alm is not None:
+                cli += f" --ll-fixed-alm {ll_fixed_alm}"
+            if fields.get("ll_headroom"):
+                cli += f" --ll-headroom {ll_headroom}"
+            if shell_file:
+                cli += f" --shell-file {shell_file} --shell-module {shell_module}"
+            if file_list:
+                cli += f" --file-list {file_list}"
+            if files_string:
+                cli += f' --files "{files_string}"'
         result["ok"] = True
         result["cli_equivalent"] = cli
         return result
@@ -261,15 +294,30 @@ def page_cells(result: Optional[Dict[str, Any]] = None) -> str:
         if result.get("ok"):
             core_line = f'Core type: {result["single_core"]} (resolved to {result["resolved_file"]})<br>' if result.get("single_core") else ""
             probe_line = f'ISSP probe: {result["probe_name"]} -- remember to generate the real issp IP in Quartus before compiling<br>' if result.get("probe_name") else "No ISSP probe (LED-based anti-pruning check works independently)<br>"
+            shell_line = ""
+            if not result.get("single_core"):
+                shell_line = f'Shell: {result.get("shell")}<br>'
+                if result.get("logiclock"):
+                    shell_line += "LogicLock: ON<br>"
+            warnings_html = ""
+            if result.get("compat_warnings"):
+                items = "".join(f"<li>{w}</li>" for w in result["compat_warnings"])
+                warnings_html = (
+                    '<div class="placeholder"><b>Compatibility warnings</b> '
+                    '(points.md #590 -- a real, advisory, heuristic scan, NOT a substitute '
+                    f'for a real compile; double-check, don\'t assume either way):<ul>{items}</ul></div>'
+                )
             result_html = (
                 f'<div class="result {cls}"><b>Wrote {result["files_written"]} files to:</b> {result["output"]}<br>'
                 f'Grid: {result["rows"]}x{result["cols"]}, real ALM budget: {result["alm_total"]:,}<br>'
-                f'{core_line}{probe_line}'
+                f'{core_line}{shell_line}{probe_line}'
                 f'<h2>Equivalent CLI</h2><pre>{result["cli_equivalent"]}</pre></div>'
+                f'{warnings_html}'
             )
         else:
             result_html = f'<div class="result {cls}"><b>Error:</b> {result.get("error")}</div>'
     core_options = "".join(f'<option value="{c}">{c}</option>' for c in project_assemble_v1.CORE_REGISTRY)
+    shell_options = "".join(f'<option value="{s}">{s}</option>' for s in sorted(project_assemble_v1.SHELL_REGISTRY))
     return f"""<!doctype html><html><head><title>Create cells</title>{PAGE_CSS}</head><body>
 {NAV}
 <h1>Step 2: generate a real Quartus project{help_link('doc3-project-assemble-v1py-real-n-cell-quartus-project-generator')}</h1>
@@ -281,6 +329,24 @@ and every cell genuinely loads a real, unpredictable configuration
 once at boot -- guarding directly against Quartus proving the array's
 own logic constant and collapsing it away (a real failure this project
 hit and fixed, #554).</div>
+
+<h2>What's actually needed, and why</h2>
+<table style="width:100%; border-collapse:collapse; font-size:0.9em;">
+<tr style="text-align:left; border-bottom:1px solid #ccc;"><th>Field</th><th>Required</th><th>Why</th></tr>
+<tr><td>MAN file path</td><td>Yes</td><td>real card capabilities (Step 1's own output)</td></tr>
+<tr><td>Cell count</td><td>Yes</td><td>how many cells to array into the grid</td></tr>
+<tr><td>Output folder</td><td>Yes</td><td>must be outside this repo (#556) -- prevents build artifacts landing in the tracked tree by accident</td></tr>
+<tr><td>Top-level module name</td><td>No</td><td>auto-generated from cell count/shell if left blank</td></tr>
+<tr><td>Single core type</td><td>No</td><td>array ONE real core type instead of the full 8-core shell (#567) -- shell/LogicLock options below are ignored when this is set</td></tr>
+<tr><td>Core source path</td><td>No</td><td>default <code>fpga/verilog</code>; matches by base name, newest real version wins</td></tr>
+<tr><td>ISSP probe name</td><td>No</td><td>omitted by default (#569) -- the LED-based anti-pruning check works without it</td></tr>
+<tr><td>Shell</td><td>No</td><td>which real 8-core shell to array (default v3); ignored with a single core type</td></tr>
+<tr><td>LogicLock</td><td>No</td><td>real per-cell placement region, fixing cross-die scattering (#582); ignored with a single core type</td></tr>
+<tr><td>LogicLock fixed ALM / headroom</td><td>No</td><td>only meaningful with LogicLock ON -- switches from AUTO_SIZE to a real, measured fixed size (#583)</td></tr>
+<tr><td>Custom shell file / module</td><td>No</td><td>target a shell not in the registry (e.g. a hand-built mixed-version shell, #587/#590) -- module name required if a file is given</td></tr>
+<tr><td>Dependency file list / inline files</td><td>No</td><td>override the shell's own registered dependency list explicitly (#590)</td></tr>
+</table>
+
 <form method="post" action="/cells">
 <label>MAN file path<input name="man_path" required></label>
 <label>Cell count<input name="cells" type="number" required></label>
@@ -290,6 +356,19 @@ hit and fixed, #554).</div>
 <select name="single_core"><option value="">(full 8-core shell)</option>{core_options}</select></label>
 <label>Core source path (optional, default fpga/verilog -- #567, matches by base name, newest version wins)<input name="core_path"></label>
 <label>ISSP probe name (optional -- omitted by default, #569; the LED-based check works without it)<input name="probe_name" placeholder="e.g. DEBUG_PROBE"></label>
+
+<h2>Shell / placement options (ignored if a single core type is set above)</h2>
+<label>Shell (default v3, #578)<select name="shell">{shell_options}</select></label>
+<label><input name="logiclock" type="checkbox" style="width:auto; display:inline; margin-right:6px;">Enable per-cell LogicLock placement regions (#582)</label>
+<label>LogicLock fixed ALM/cell (optional -- leave blank for AUTO_SIZE, #583)<input name="ll_fixed_alm" type="number" step="0.01"></label>
+<label>LogicLock headroom multiplier (default 1.25 = 25%, #583)<input name="ll_headroom" type="number" step="0.01" value="1.25"></label>
+
+<h2>Custom shell / dependency override (optional, advanced, #590)</h2>
+<label>Custom shell file (e.g. fpga/verilog/unicell_super_v7.v)<input name="shell_file"></label>
+<label>Custom shell module name (required if a custom shell file is given)<input name="shell_module"></label>
+<label>Dependency file list path (one real filename per line)<input name="file_list"></label>
+<label>Inline dependency list (comma-separated filenames -- takes precedence over the file list above)<input name="files"></label>
+
 <button type="submit">Generate project</button>
 </form>
 {result_html}
