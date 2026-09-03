@@ -1,4 +1,38 @@
-# Current State (as of 2026-09-03, real icmp support added to the LLVM IR frontend -- all four inequality predicates, verified against the real VM. select investigated and honestly deferred. See `points/points_active.md` #613)
+# Current State (as of 2026-09-03, session paused on low usage -- two real, verified leads for icmp eq/ne and select captured, per Alan's own direct pointers, not built yet. See `points/points_active.md` #614)
+
+## Read this first (most recent)
+
+**2026-09-03, session paused on low usage, per Alan's own explicit
+signal.** Two real leads captured before pausing, both confirmed
+against actual code, neither built:
+
+- **`eq`/`ne`:** nano genuinely has a built-in AND -- `TOPO_AND =
+  0x007` is real, confirmed in `unicell_gate_core.py`, and already
+  exposed via the registered `nano_gate` tile's own `topology` param.
+  Real shape: AND two `comparator` evaluations together. Open item:
+  `nano_gate`'s own two-arrival timing hasn't been traced yet the way
+  `#611` traced the adder's.
+- **`select`:** the command cell (`cell_command_v1.v`) is real and its
+  own header explicitly names a comparator match as an example
+  trigger -- but it's a genuinely different, heavier mechanism
+  (dynamically reprograms a target cell, a real multi-cycle transfer)
+  than a simple value mux. Whether it's the right conceptual fit for
+  `select` is a real, open question, not resolved.
+
+Both captured in full in `llvm_ir_compiler_scope.md`'s own Addendum 4.
+
+**Real, standing next-session queue, in order:**
+1. Trace `nano_gate`'s own real two-arrival timing directly (same
+   method `#611` used for the adder) before trusting an AND
+   composition.
+2. Build `icmp eq`/`ne` once that's solid.
+3. Investigate the command cell's own real fit for `select` --
+   separately, on its own merits.
+4. `phi`/loops -- the other standing item from `#613`, still needing a
+   genuinely new mechanism per `#612`'s own real finding (the old
+   system's answer depended on a bus Unicell-S doesn't have).
+
+## Previous state (as of 2026-09-03, real icmp support added to the LLVM IR frontend -- all four inequality predicates, verified against the real VM. select investigated and honestly deferred. See `points/points_active.md` #613)
 
 ## Read this first (most recent)
 

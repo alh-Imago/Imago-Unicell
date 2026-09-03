@@ -405,3 +405,62 @@ in `Addendum 2`, not this one) now stated precisely rather than left
 to guess at. The old mapper's own frontend-structure patterns remain a
 real, concrete reference for whenever `#611`'s own subset is extended
 toward `icmp`/`select`/`phi`/`br` -- not attempted in this entry.
+
+## Addendum 4 (2026-09-03): two real, verified leads for `eq`/`ne` and `select`, per Alan's own direct pointers -- confirmed against real code, not built yet
+
+`#613` closed the four inequality `icmp` predicates but honestly
+deferred `eq`/`ne` (no AND primitive) and `select` (the `branch` tile
+doesn't fit). Alan pointed at two real mechanisms; both confirmed
+directly against the actual RTL/tile code before being recorded here.
+
+**`eq`/`ne`: nano already has a real, built-in AND.** Checked directly
+against `unicell_gate_core.py` -- nano's real `topology` field selects
+among 12 real NOR-decomposed boolean functions, including
+`TOPO_AND = 0x007` (alongside `OR`/`NAND`/`NOR`/`XOR`/`XNOR`/etc.).
+`super_tile_library_v1.py`'s own already-registered `nano_gate` tile
+already exposes `topology` as a real, required param -- **no new tile
+registration needed at all.** The real, concrete shape for `icmp eq`:
+two `comparator` evaluations (`A>=B` and `B>=A`, both `#613`'s own
+already-proven mechanism) AND'd together via one `nano_gate` cell with
+`topology=TOPO_AND`; `ne` is the same composition negated (or, since
+nano's own topology table includes `TOPO_NAND`/`TOPO_XNOR` directly,
+possibly a single-cell answer rather than AND-then-invert -- a real,
+concrete design question for whenever this is picked up, not resolved
+here). **Real, open sub-question, not yet checked:** nano_gate's own
+real two-arrival timing semantics (`nano_gate`'s own tile description:
+"accepts input from ANY physically wired neighbor -- no upstream_mask
+on this core at all") haven't been traced the way `#611` traced the
+adder's -- whether the SAME OR-combine/continuously-live-contamination
+hazards apply here, or a genuinely different real timing story, needs
+real, direct tracing before trusting it, same discipline `#611` itself
+established.
+
+**`select`: the command cell (`cell_command_v1.v`) is a real, different,
+heavier mechanism worth exploring properly, not a rushed fit.** Its
+own real header comment explicitly names "a comparator's live match
+result" as an example trigger -- confirming this isn't a stretch.
+Real, honest distinction from a simple mux, stated plainly: this
+DYNAMICALLY REPROGRAMS a target cell's own real behavior (a genuine
+multi-cycle, 96-bit `program_in` transfer, `#123`'s own real design),
+triggered by a condition -- not an instant per-value selection between
+two already-computed results. Whether that's the right shape for
+LLVM's own `select` semantics (which wants ONE value chosen from two,
+not a cell's future behavior changed) is a real, open design question
+-- staging cost, real timing, and whether it's even the right
+conceptual fit (reprogram vs. route) all need real, direct
+investigation before building anything, per Alan's own honest framing
+("it can be a bit more in the staging, but it may help").
+
+**Real, honest scope: nothing built here either.** Both leads are
+real and verified against actual code (`TOPO_AND` genuinely exists and
+is already exposed via `nano_gate`'s own param; the command cell's own
+real trigger mechanism genuinely names a comparator match as an
+example use) -- but neither has been traced through an actual VM run
+the way every other real claim in `#611`-`#613` was. Real, concrete
+next steps, in order of how close each is to `#613`'s own already-
+proven pattern: (1) trace `nano_gate`'s own real two-arrival timing
+directly (mirroring `#611`'s own tick-by-tick method) before trusting
+an AND composition; (2) once that's solid, build `icmp eq`/`ne`; (3)
+investigate the command cell's own real fit for `select` separately,
+including its real staging/timing cost, before committing to it as
+the right mechanism.

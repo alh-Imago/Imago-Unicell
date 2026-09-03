@@ -2951,3 +2951,33 @@ deferred, now informed by `#612`'s own real finding that the old
 system's answer depended on a bus Unicell-S doesn't have, so a genuine
 new mechanism is needed here, not a port.
 
+## 614. Two real, verified leads for `eq`/`ne` and `select`, per Alan's own direct pointers -- confirmed against real code, not built (session paused on low usage). (Alan/Claude, 2026-09-03)
+
+**`eq`/`ne`: nano genuinely already has a built-in AND, confirmed
+directly against `unicell_gate_core.py`, not assumed.** `TOPO_AND =
+0x007` is one of nano's real 12 NOR-decomposed topology codes; the
+already-registered `nano_gate` tile already exposes `topology` as a
+real param -- no new tile needed. Real shape: AND two `#613`-proven
+`comparator` evaluations (`A>=B`, `B>=A`) via one `nano_gate`. Real,
+explicit open item: `nano_gate`'s own two-arrival timing hasn't been
+traced the way `#611` traced the adder's -- needed before trusting
+this composition.
+
+**`select`: the command cell (`cell_command_v1.v`) is real and worth
+exploring, but a genuinely different, heavier mechanism than a simple
+mux.** Its own real header names "a comparator's live match result" as
+an example trigger. Real, honest distinction: it DYNAMICALLY
+REPROGRAMS a target cell (a real multi-cycle 96-bit transfer), not an
+instant per-value selection -- whether that's the right conceptual fit
+for LLVM's own `select` semantics is a real, open design question, not
+resolved here.
+
+**Both captured in full in `llvm_ir_compiler_scope.md`'s own
+Addendum 4.** Real, honest scope: nothing built -- both leads are
+verified against real code, neither traced through an actual VM run.
+Session paused here on low usage, per Alan's own explicit signal.
+Real next-session order: (1) trace `nano_gate`'s real timing directly;
+(2) build `icmp eq`/`ne` once that's solid; (3) investigate the
+command cell's own real fit for `select` separately. `phi`/loops
+(`#613`'s own queued item) remain the other standing next step.
+
