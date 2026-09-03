@@ -266,3 +266,56 @@ Worth remembering precisely when general DAG routing is picked up
 next: the real design question isn't just "which relay cells route
 value X to consumer Y," it's "which relay path LENGTH gets X to Y at
 EXACTLY the tick the rest of the schedule requires."
+
+## Addendum 2 (2026-09-03): real prior art for exactly this problem already exists, in the old full-cell compiler -- not to be reinvented
+
+Alan's own direct point, confirmed by checking, not assumed: the old
+full-cell system's tile library (`fp_tiles.TileLibrary`, cited above,
+source itself archived away per this project's own "concept survives,
+code doesn't" discipline, but its real design documentation survives
+in `archeology/shared/docs/software/COMPILER_TILE_CONFIG.md`) wasn't
+just "known-good logic to assemble from" -- its real, concrete use was
+premade artifacts that were ALREADY fully placed, timed, and verified,
+so composing them meant inheriting solved timing for free rather than
+re-deriving it per program.
+
+**Direct, striking confirmation of `Addendum 1`'s own real conclusion
+above, found in that old documentation, not rediscovered independently
+this time:** the old placer had a NAMED, SYSTEMATIC rule for the exact
+same collision `#611` found by tracing VM ticks by hand: "Group cells
+so no two cells of the same dataflow DEPTH share a cluster (they would
+fire the same cycle -> local wired-OR bus collision)." Not a hazard to
+rediscover per program -- a real, general placement invariant, checked
+automatically.
+
+**A real, purpose-built primitive for exactly the "relay path length
+must be engineered, not just present" problem `Addendum 1` named as
+open:** a "TRANSIT PATH" -- dedicated relay cells for long-range
+connections, with a formal, documented safety condition (suppress-
+local on exit, a unique address per pass-through cluster, a free bus
+cycle there). Not improvised per-program the way `#611`'s own west-
+path relay was built -- a general, reusable primitive with its own
+correctness contract, verified once.
+
+**A real, mandatory verification gate before anything reached RTL, not
+"compile and hope":** "Validate the result in the event-driven sim
+(two-arrival firing + one-transaction-per-cluster-per-cycle +
+simultaneous multicast) BEFORE generating RTL." The library's own
+tiles had already been pushed through this gauntlet and archived as
+done -- composing them meant inheriting that timing correctness, not
+re-earning it.
+
+**Real, honest implication for whenever general DAG routing is
+actually built:** study `COMPILER_TILE_CONFIG.md`'s own real placer
+rules (dataflow-depth grouping, cluster embeddability, the transit
+primitive's safety condition) FIRST, as real, working prior art for
+this exact problem on a structurally similar cardinal-mesh substrate
+-- not the same cell model (`fp_tiles` targeted the old, finer-grained
+full-cell array, not Unicell-S's coarser one-core-per-cell model,
+per the long-range note's own already-stated caveat), but the real
+TIMING-CLOSURE DISCIPLINE (depth-based grouping to avoid same-cycle
+collisions; a formal, reusable long-range-routing primitive; a
+mandatory pre-RTL simulation gate) is very likely to transfer even
+where the exact cell shapes don't. Not scoped further here -- a real,
+concrete next-look item for whenever general routing is picked up, not
+a green light to start building it now.
