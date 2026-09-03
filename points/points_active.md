@@ -3306,3 +3306,52 @@ not silently assumed covered). Four real cores now confirmed working
 Session paused here per Alan's own real usage-budget signal ("1 more
 core").
 
+## 622. Real configuration-space projection for the unified carrier, per Alan's own direct request at session pause -- computed from real field widths, not hand-waved. Two honest numbers, not one. (Alan/Claude, 2026-09-03)
+
+**Real methodology, stated precisely:** a single "total
+configurations" number would be misleading -- a 32-bit data field
+(`ram`'s `init_data`, `comparator`'s `threshold`) contributes 2³² raw
+combinations that aren't 4 billion different BEHAVIORS the way
+`subtract_mode`'s 2 states are; it's one behavior multiplied by every
+value it could hold. Two real numbers computed and kept separate:
+**full state space** (every field at full width, including raw data
+payloads) and **structural-only** (data-payload fields counted as a
+single "holds whatever value it's given" slot instead of their own raw
+width) -- the more meaningful number for real behavioral diversity.
+
+**The real, shared multiplier every core now carries, computed as
+genuine distinct behaviors, not raw bit patterns:** the 3-addon chain
+contributes 41,984 real distinct combinations (`nibble_mask`: 256;
+`shift`/`lane`: 82, honoring `shift_lane_addon_v1.v`'s own real sparse
+9-amount design, not all 32 raw values; `invert`: 2) -- the same real
+number for every one of the 8 cores, since it's the identical, already-
+proven shared module.
+
+**Real results:** full state space totals ≈4.33×10¹⁷ across all 8
+cores (one physical cell, whichever core is selected); structural-only
+totals ≈1.235×10¹². Full per-core breakdown in the new doc.
+
+**Real, honest scope of what's projected vs. built:** four rows
+(`adder`/`ram`/`comparator`/`accumulator`) are real, computed from
+actual sim-verified `#618`-`#621` field widths. Three rows
+(`latch`/`sequencer`/`branch`) are real PROJECTIONS using their own
+real `v1` field widths with the same proven widening/addon convention
+-- not yet built, could reveal their own real adaptations the way
+`ram`'s split-write and `accumulator`'s active-gates-internal-state
+discoveries did. `nano`'s own row uses its real, current field widths
+as the honest starting point for the STRIP-not-add work `#621` already
+flagged, not a prediction of what survives that.
+
+**Real, explicit caveat, stated plainly in the doc itself:** this
+measures EXPRESSIVENESS, not usefulness or test coverage -- most of
+this space is neither meaningful to a real program nor something any
+real testing regime should enumerate; `#618`-`#621`'s own real
+discipline (functional categories, sim-verified) remains correct
+regardless of the number's size. No real ALM/Fmax cost is implied --
+that's the separate, standing question awaiting Alan's own Quartus
+run.
+
+**Captured in full in `docs/stripped-cell/design-notes/
+unified_carrier_configuration_space.md`** (new file). Session paused
+here, per Alan's own explicit "stop for now."
+

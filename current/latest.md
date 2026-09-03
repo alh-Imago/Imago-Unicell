@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-03, accumulator_cell_v4.v -- fourth real, sim-verified unified-carrier core, structurally the most different so far: continuously-live running state, never one-shot. A real testbench-design race chased down and fixed. Session paused per Alan's own usage signal. See `points/points_active.md` #621)
+# Current State (as of 2026-09-03, session paused per Alan's own explicit request -- a real configuration-space projection for the unified carrier computed and stored as a table before stopping. See `points/points_active.md` #622)
+
+## Read this first (most recent)
+
+**2026-09-03, session paused, per Alan's own explicit "stop for now."**
+Before pausing, computed a real projection of the unified carrier's
+own configuration space, per Alan's own direct request. Two honest
+numbers, not one: full state space (≈4.33×10¹⁷ across all 8 cores,
+one physical cell) and structural-only, excluding raw data payloads
+like `init_data`/`threshold` (≈1.235×10¹²) -- the more meaningful
+number for real behavioral diversity. Full per-core breakdown table in
+`docs/stripped-cell/design-notes/unified_carrier_configuration_space.
+md` (new file).
+
+Four rows real and computed from actual sim-verified field widths
+(`adder`/`ram`/`comparator`/`accumulator`, `#618`-`#621`); three real
+projections (`latch`/`sequencer`/`branch`) using their own real `v1`
+field widths with the same proven widening convention; `nano`'s own
+row uses its current real field widths as the honest starting point
+for the STRIP-not-add work already flagged, not a prediction.
+Explicit, honest caveat in the doc itself: this measures
+expressiveness, not usefulness or test coverage, and implies nothing
+about real ALM/Fmax cost.
+
+**Real, standing next-session queue, unchanged in substance:**
+1. The remaining 3 cores (`latch`/`sequencer`/`branch`), each likely
+   to surface its own real adaptation the way the first four did.
+2. The `N=8` multi-core carrier case.
+3. Alan's own real Quartus build for ALM/Fmax across all four `v4`
+   cores built so far, against their real `v1` baselines.
+4. The parked `is_command_cell`-as-9th-core idea, connecting to the
+   still-open `select` LLVM feature.
+5. `nano` itself -- a real STRIP-down to the unified shape, not an
+   add-up, since it already has the richest feature set of all 8.
+6. Standing LLVM-frontend queue: `icmp eq`/`ne` (needs `nano_gate`'s
+   own real timing traced first), `select`, `phi`/loops.
+
+## Previous state (as of 2026-09-03, accumulator_cell_v4.v -- fourth real, sim-verified unified-carrier core, structurally the most different so far: continuously-live running state, never one-shot. A real testbench-design race chased down and fixed. Session paused per Alan's own usage signal. See `points/points_active.md` #621)
 
 ## Read this first (most recent)
 
