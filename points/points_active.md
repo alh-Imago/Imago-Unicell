@@ -3213,3 +3213,40 @@ yet. Two real cores now confirmed working (`adder`, `ram`) -- the
 remaining 5 (`accumulator`/`comparator`/`latch`/`sequencer`/`branch`)
 and the `N=8` carrier case remain real, explicit next steps.
 
+## 620. `compare_cell_v4.v` -- the THIRD real, sim-verified unified-carrier core: single-arrival capture WITH real computation, a genuinely different combination from both `adder` (two-stage, computed) and `ram` (single-arrival, no computation). (Alan/Claude, 2026-09-03)
+
+**Real, notable data point, confirmed by the field arithmetic itself,
+not designed toward:** this core's own real total field width
+(`6+6+32+20 = 64` bits) fits EXACTLY in v1's own original 64-bit
+`cfg_data` -- no widening needed, unlike `ram_cell_v4.v` (`#619`,
+needed 80 bits). Real, concrete confirmation of the scope doc's own
+`#617` framing: the unified carrier's real bit-cost genuinely varies
+per core, not a fixed tax every core pays identically.
+
+**Real, deliberately simpler protocol choice than `#619`'s own real
+pattern, stated and justified directly in the RTL:** `threshold` (32
+bits) still needs the same real split LOW/HIGH write `init_data`
+needed (`#619`) -- but unlike `init_data`, `threshold` is pure
+configuration, never itself offered downstream the way `ram`'s
+`data_reg` is. No separate commit trigger needed here; each half-write
+takes effect immediately, since there's no real "currently held,
+must-not-be-silently-corrupted" state at risk the way `#619`'s own
+real bug found for `ram`.
+
+**Real, honest verification:** `tb_compare_cell_v4.v` (new) -- 7 real
+values received correctly: 4 confirming identical-to-v1 behavior
+(including the real boundary case `8>=8` and a genuine negative-value
+signed comparison), 2 confirming the real split `threshold` reprogram
+actually changes the comparison outcome (`150>=100` true,
+`99>=100` false), 1 through the real addon chain (`invert_en`), plus
+the real `active=0` check. `tb_compare_cell_v1.v`'s own existing real
+suite re-run unchanged (5/5, confirming v1 itself untouched). `523/523`
+Python tests still passing.
+
+**Real, honest scope, matching `#618`/`#619`'s own stated deferrals:**
+`is_command_cell` mode not included (parked, per the same session
+discussion). No real ALM/Fmax measurement yet. Three real cores now
+confirmed working (`adder`, `ram`, `comparator`) -- the remaining 4
+(`accumulator`/`latch`/`sequencer`/`branch`) and the `N=8` carrier case
+remain real, explicit next steps.
+

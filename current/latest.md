@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-03, ram_cell_v4.v -- the second real, sim-verified unified-carrier core, deliberately chosen for its different single-arrival capture shape. Two real bugs found and fixed by simulation, not inspection. See `points/points_active.md` #619)
+# Current State (as of 2026-09-03, compare_cell_v4.v -- the third real, sim-verified unified-carrier core: single-arrival capture WITH real computation, a genuinely different combination from both prior cores. See `points/points_active.md` #620)
+
+## Read this first (most recent)
+
+**2026-09-03, `compare_cell_v4.v` built and sim-verified (#620), third
+real core after `adder_cell_v4.v` (`#618`) and `ram_cell_v4.v`
+(`#619`).** A third genuinely distinct combination: single-arrival
+capture (like ram) WITH real computation against a configured value
+(like adder has, but two-stage there).
+
+**A real, notable data point:** this core's own total real field width
+(6+6+32+20=64 bits) fits EXACTLY in v1's original 64-bit `cfg_data` --
+no widening needed, unlike `ram_cell_v4.v` which needed 80. Confirms
+the unified carrier's real bit-cost genuinely varies per core.
+
+**A real, deliberately simpler protocol choice, justified directly in
+the RTL:** `threshold` needs the same real split LOW/HIGH write
+pattern `ram`'s `init_data` needed, but since `threshold` is pure
+config (never itself offered downstream), no separate commit trigger
+is needed here -- each half-write takes effect immediately, unlike
+`#619`'s own real "must not silently corrupt held state" case.
+
+`tb_compare_cell_v4.v` (new) -- 7 real values received correctly
+across identical-to-v1 behavior (including the boundary case and a
+negative comparison), the real threshold reprogram actually changing
+the comparison outcome, the addon chain, and the `active=0` check. v1's
+own real suite re-run unchanged. 523/523 Python tests still passing.
+
+**Real, standing next steps:** three real cores done (`adder`, `ram`,
+`comparator`) -- the remaining 4
+(`accumulator`/`latch`/`sequencer`/`branch`), the `N=8` carrier case,
+Alan's own real Quartus build for ALM/Fmax across all three `v4` cores
+so far, and the parked `is_command_cell`-as-9th-core idea (connecting
+to `select`).
+
+## Previous state (as of 2026-09-03, ram_cell_v4.v -- the second real, sim-verified unified-carrier core, deliberately chosen for its different single-arrival capture shape. Two real bugs found and fixed by simulation, not inspection. See `points/points_active.md` #619)
 
 ## Read this first (most recent)
 
