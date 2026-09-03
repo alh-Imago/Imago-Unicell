@@ -1,4 +1,33 @@
-# Current State (as of 2026-09-03, nano_gate_v4.v -- nano's own real STRIP-DOWN to the unified carrier shape, completing the whole family. ALL 8 real core types now have a real, sim-verified v4 build. See `points/points_active.md` #626)
+# Current State (as of 2026-09-03, session paused on low usage -- a real, confirmed-base lookup table of per-core capabilities/PROG_ID codes captured before stopping. See `points/points_active.md` #627)
+
+## Read this first (most recent)
+
+**2026-09-03, session paused on low usage.** Before stopping, per
+Alan's own direct request, captured a real, confirmed-base lookup
+table: `docs/stripped-cell/design-notes/
+unified_carrier_capability_table.md` (new file) -- per-core `cfg_data`
+width, own real fields, complete `PROG_ID` code tables, and capture
+shape for all 8 real cores (`#618`-`#626`), pulled directly from the
+actual RTL via grep, not recalled from memory. Also captures the real,
+confirmed cross-core facts worth remembering: the `PROG_ID` budget
+depends on field count (`branch`/`nano` both needed 4-bit widening,
+independently, not a coincidence); `cfg_data` width varies per core;
+32-bit+ fields need split writes; `active` needed three genuinely
+different real treatments across the family; continuously-live cores
+need opposite testbench patterns depending on whether a real external
+trigger exists.
+
+This is meant to be worked from directly next session, not
+re-derived.
+
+**Real, standing next-session queue, unchanged in substance:** (1)
+the `N=8` multi-core carrier case; (2) Alan's own real Quartus build
+for ALM/Fmax across the whole 8-core family; (3) the parked
+`is_command_cell`-as-9th-core idea -- the command-cell functionality
+removed from `nano` still needs a real home; (4) standing LLVM-
+frontend queue (`icmp eq`/`ne`, `select`, `phi`/loops).
+
+## Previous state (as of 2026-09-03, nano_gate_v4.v -- nano's own real STRIP-DOWN to the unified carrier shape, completing the whole family. ALL 8 real core types now have a real, sim-verified v4 build. See `points/points_active.md` #626)
 
 ## Read this first (most recent)
 

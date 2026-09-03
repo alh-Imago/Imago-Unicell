@@ -3649,3 +3649,44 @@ decode), Alan's own real Quartus build for ALM/Fmax across the whole
 family, and the parked `is_command_cell`-as-9th-core idea (the command-
 cell functionality removed here still needs a real, separate home).
 
+## 627. Real, confirmed-base lookup table -- per-core capability/PROG_ID reference, per Alan's own direct request at session pause ("usage is getting low... a confirmed base for the carrier"). Every fact pulled directly from the actual, sim-verified v4 RTL files, not reconstructed from memory. (Alan/Claude, 2026-09-03)
+
+**Captured in full in `docs/stripped-cell/design-notes/
+unified_carrier_capability_table.md`** (new file) -- a per-core table
+of `cfg_data` width, own real fields, `PROG_ID` width, and capture
+shape, plus the complete, exact `PROG_ID` code table for all 8 real
+cores (`#618`-`#626`), pulled directly from the real RTL via grep, not
+recalled from memory.
+
+**Real, confirmed cross-core facts captured precisely, worth keeping
+for next session:**
+- The `PROG_ID` budget genuinely depends on each core's own real field
+  count -- `branch` (15 fields) and `nano` (9 fields) both
+  independently needed the same real 4-bit widening, confirmed not a
+  coincidence.
+- `cfg_data` width genuinely varies per core's own real need --
+  `ram`/`branch` needed 80 bits; `nano` kept its own already-real
+  128-bit bus with room to spare; the rest fit the original 64 bits.
+- A 32-bit-or-wider field always needs a real split LOW/HIGH targeted
+  write; smaller fields fit in one.
+- `active` needed three genuinely different real treatments across
+  the family (offer-only gating; capture-also gating for
+  externally-triggered continuously-live cores; no explicit gating
+  needed at all for `sequencer`'s own causally-downstream advance;
+  `nano`'s own pre-existing `effective_freeze` convention reused
+  rather than importing the others' pattern).
+- Testbench design for continuously-live cores needs OPPOSITE patterns
+  depending on whether a real external trigger exists --
+  free-running-consumer for `accumulator`/`latch`, precise single-ack
+  control for `sequencer`.
+
+**Real, honest scope, stated in the doc itself:** no real ALM/Fmax
+numbers yet; the `N=8` carrier case is not built; the command-cell
+functionality removed from `nano` has no real home yet; some of
+`nano`'s own cloned-unchanged behaviors were not individually
+re-verified in the new build (real `v1`-level tests remain the source
+of truth for those).
+
+Session paused here, per Alan's own explicit low-usage signal.
+`523/523` Python tests still passing (docs-only change).
+
