@@ -3044,3 +3044,55 @@ usage. The 13 genuinely reserved `SUPER_LATCH` bits are the real
 headroom a second shift mechanism would need -- a real constraint to
 work within, not resolved here.
 
+## 617. Real scope document for a unified carrier design, per Alan's own precise 5-point breakdown -- one rich shell (programming, shift, command, 6-way cardinal fields, ack everywhere) wrapping either 1 core (today's standalone case) or N cores (today's super shell), differing only in how the real `active` bit gets driven. (Alan/Claude, 2026-09-03)
+
+**The real asymmetry this fixes, confirmed directly against the RTL,
+not assumed:** nano (`unicell_stripped_v1.v`) has a real, working
+second channel (`program_in`/`PROG_ID` targeting, `#123`/`#140`/
+`#615`), a real `is_command_cell` mode, and genuinely 6-bit-wide
+cardinal fields (`#604`'s own already-flagged 3D prerequisite). Every
+other real core (`adder_cell_v1.v` checked as the representative case)
+has a simpler, single `cfg_valid`/`cfg_data` shell -- no targeting, no
+command hook, 4-bit fields, hand-rolled separately rather than sharing
+nano's own richer design. Un-planned duplication, not a deliberate
+choice.
+
+**A real, honest correction made before writing the scope doc:**
+nano's own `cmd_in`/`cmd_out` cardinal ports are real and reserved
+(`#84`) but genuinely UNWIRED (`cmd_out_n` tied to `32'h0` in the
+current RTL) -- a real placeholder, not a third working channel. Kept
+precise in the scope doc rather than conflated with the two real,
+working mechanisms (programming channel, command-cell mode).
+
+**Alan's own real proposal, restated precisely against real module
+boundaries:** one shell design, not two -- parameterized by how many
+core-slots it holds (`N=1` for today's standalone case, `N=8` for
+today's super shell), providing the SAME full feature set regardless.
+The real, minimal difference between the two configurations is a
+single, per-core-slot `active` bit: tied permanently high when `N=1`;
+driven by the real, ALREADY-PROVEN `incoming_select == SEL_X` decode
+(`unicell_super_v3.v`'s own real pattern) when `N>1`. The mechanism
+already exists and works -- what's missing is making it a real,
+explicit, uniform port every core-slot carries, so the core+shell
+combination is identical RTL in both configurations.
+
+**Real, honest scope boundaries, not resolved in this entry:** real
+ALM cost of the added richness is unmeasured -- this project's own
+standing "measure every real addon/core as a delta" discipline
+applies directly, not skipped for elegance. The `cmd_in`/`cmd_out`
+channel itself remains genuinely unbuilt regardless of this work.
+Giving every core's own field ENCODING 6-bit headroom is proposed as
+low-cost; physically wiring real 6-directional ports remains `#604`'s
+own separate, larger, not-yet-started thread.
+
+**Real, low-risk first step named, not started:** per this project's
+own "clone, measure, don't assume" method -- build ONE real, `N=1`
+carrier around `adder` (the simplest core, and the one `#611`-`#613`'s
+own LLVM frontend already depends on), confirm identical behavior to
+today's `adder_cell_v1.v`, measure the real cost, before generalizing.
+
+**Captured in full in `docs/stripped-cell/design-notes/
+unified_carrier_scope.md`** (new file). Real, honest scope: no RTL
+written, no port list finalized -- a real scoping pass only, matching
+every other `*_scope.md` note in this directory.
+

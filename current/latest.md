@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-03, real correction captured -- nano's own lost shift capability, per Alan's own direct point that recent LLVM work was treating the 8 built cores as a closed set. See `points/points_active.md` #616)
+# Current State (as of 2026-09-03, real scope document for a unified carrier design -- one rich shell wrapping 1 or N cores, per Alan's own precise 5-point breakdown. See `points/points_active.md` #617)
+
+## Read this first (most recent)
+
+**2026-09-03, unified carrier scope written (#617), per Alan's own
+precise 5-point breakdown.** Real asymmetry confirmed directly: nano
+has a real, working `program_in`/`PROG_ID` targeting channel, a real
+command-cell mode, and genuinely 6-bit-wide cardinal fields; every
+other real core (checked via `adder_cell_v1.v`) has a simpler, single
+`cfg_valid`/`cfg_data` shell with none of that. Un-planned duplication,
+not a deliberate choice.
+
+Alan's own real proposal: ONE shell design, not two -- parameterized
+by core-slot count (`N=1` = today's standalone case, `N=8` = today's
+super shell), differing only in a single, real, per-core-slot `active`
+bit (tied high when `N=1`; driven by the already-proven `incoming_
+select == SEL_X` decode when `N>1` -- the mechanism already exists,
+just needs to become a uniform, explicit port).
+
+A real, honest correction made along the way: nano's own `cmd_in`/
+`cmd_out` ports are real but genuinely UNWIRED (`#84`, tied to
+`32'h0`) -- kept precise, not conflated with the two real, working
+mechanisms.
+
+Real, low-risk first step named, not started: build one real `N=1`
+carrier around `adder` (simplest core, already used by the LLVM
+frontend), confirm identical behavior, measure real cost, before
+generalizing. Captured in full in `docs/stripped-cell/design-notes/
+unified_carrier_scope.md` (new file). Nothing built -- a real scoping
+pass only.
+
+**Real, standing next-session queue, growing:** (1) the `adder`-based
+`N=1` carrier experiment above; (2) nano's own independent shift
+capability; (3) trace `nano_gate`'s real timing, then build `icmp
+eq`/`ne`; (4) investigate `select`; (5) `phi`/loops.
+
+## Previous state (as of 2026-09-03, real correction captured -- nano's own lost shift capability, per Alan's own direct point that recent LLVM work was treating the 8 built cores as a closed set. See `points/points_active.md` #616)
 
 ## Read this first (most recent)
 
