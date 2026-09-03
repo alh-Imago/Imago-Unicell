@@ -3355,3 +3355,56 @@ run.
 unified_carrier_configuration_space.md`** (new file). Session paused
 here, per Alan's own explicit "stop for now."
 
+## 623. `latch_cell_v4.v` -- the FIFTH real, sim-verified unified-carrier core, sharing `accumulator`'s continuously-live shape but with SET/CLEAR/TOGGLE semantics on a single bit rather than arithmetic on a running total. Every real behavior confirmed correct on the first real test run, thanks directly to `#621`'s own hard-won testbench-design lesson. (Alan/Claude, 2026-09-03)
+
+**Real core logic cloned unchanged from `latch_cell_v1.v`, INCLUDING
+its own real, documented history, faithfully preserved rather than
+silently dropped:** the real `#295` bug fix (only an arrival that
+actually carries a `1` on `set_dir` triggers a set, not any arrival),
+and the real `#522` TOGGLE extension (a third trigger flipping the
+current state, with real priority `CLEAR > SET > TOGGLE`). Both
+confirmed correct in the new `v4` build via direct tests, not assumed
+carried over correctly just because the code was copied.
+
+**Real, necessary extension of the `active`-gates-internal-state
+principle**, matching `#621`'s own real precedent for `accumulator`:
+`capture_set`/`capture_clr`/`capture_tog` are all gated on
+`effective_armed`, so an inactive cell's own internal latch state
+genuinely holds rather than silently flipping in the background.
+Confirmed by a real test: a clear arriving while `active=0`, then
+reactivating and checking the state is unchanged.
+
+**Real, notable fourth data point on field-width variability:** this
+core's own real field total (`6×4 + 20 = 44` bits) fits comfortably in
+the original 64-bit `cfg_data` with real, honest room to spare -- a
+fourth different real answer across the five cores built so far
+(`#619` needed 80 bits; `#620`/`#621` fit exactly at 64; this one fits
+with margin).
+
+**Real, honest confirmation the accumulated testbench discipline is
+paying off:** unlike `#621`'s own real, chased-down race (a "single
+ack per event" pattern silently reading one event stale against this
+shape's own continuous re-offering), this core's `v4` testbench --
+built directly using the free-running-consumer-plus-settle-time
+pattern `#621` established as the real, general lesson for any future
+continuously-live core -- passed all 12 real checks correctly on the
+first real simulation run, no debugging needed. Real, direct evidence
+that lesson was actually general, not specific to `accumulator`.
+
+**Real, honest verification:** `tb_latch_cell_v4.v` (new) -- 12 real
+checks: 7 confirming identical-to-v1 behavior (including the full
+`CLEAR > SET > TOGGLE` priority chain with a real same-cycle
+collision), 1 confirming a targeted `toggle_dir` reprogram doesn't
+disturb the `set`/`downstream` routing, 2 through the real addon chain
+(`invert_en` on and off), 1 confirming `active=0` holds the internal
+latch state. `tb_latch_cell_v1.v`'s own existing real suite re-run
+unchanged, confirming v1 itself untouched. `523/523` Python tests
+still passing.
+
+**Real, honest scope, matching `#618`-`#621`'s own stated deferrals:**
+`is_command_cell` mode not included (parked). No real ALM/Fmax
+measurement yet. Five real cores now confirmed working (`adder`,
+`ram`, `comparator`, `accumulator`, `latch`) -- the remaining 2
+(`sequencer`/`branch`) and the `N=8` carrier case remain real, explicit
+next steps.
+

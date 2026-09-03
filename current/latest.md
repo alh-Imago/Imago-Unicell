@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-03, session paused per Alan's own explicit request -- a real configuration-space projection for the unified carrier computed and stored as a table before stopping. See `points/points_active.md` #622)
+# Current State (as of 2026-09-03, latch_cell_v4.v -- fifth real, sim-verified unified-carrier core. Every real behavior confirmed correct on the first test run, thanks to #621's own hard-won testbench-design lesson. See `points/points_active.md` #623)
+
+## Read this first (most recent)
+
+**2026-09-03, `latch_cell_v4.v` built and sim-verified (#623), fifth
+real core after `adder`/`ram`/`comparator`/`accumulator`
+(`#618`-`#621`).** Shares `accumulator`'s continuously-live shape, but
+SET/CLEAR/TOGGLE semantics on a single bit rather than arithmetic on a
+running total.
+
+Real core logic cloned unchanged from `latch_cell_v1.v`, INCLUDING its
+own real documented history -- the real `#295` bug fix (only an
+arrival CARRYING a `1` triggers a set) and the real `#522` TOGGLE
+extension (`CLEAR > SET > TOGGLE` priority) -- both confirmed correct
+in the new build, not assumed carried over.
+
+**Real, direct evidence `#621`'s own testbench lesson generalized:**
+built using the free-running-consumer-plus-settle-time pattern
+established for `accumulator`'s own continuously-live shape, and all
+12 real checks passed on the FIRST simulation run -- no debugging
+needed this time, confirming that lesson was real and general, not a
+one-off fix.
+
+`tb_latch_cell_v4.v` (new) -- 12 real checks across identical-to-v1
+behavior (including the full priority chain with a real same-cycle
+collision), a targeted reprogram surviving routing, the addon chain,
+and `active=0` holding the internal latch state. v1's own real suite
+re-run unchanged. 523/523 Python tests still passing.
+
+**Real, standing next-session queue:** 2 real cores left
+(`sequencer`/`branch`), the `N=8` carrier case, Alan's own real
+Quartus build for ALM/Fmax across all five `v4` cores so far, the
+parked `is_command_cell`-as-9th-core idea, and nano's own future
+STRIP-down.
+
+## Previous state (as of 2026-09-03, session paused per Alan's own explicit request -- a real configuration-space projection for the unified carrier computed and stored as a table before stopping. See `points/points_active.md` #622)
 
 ## Read this first (most recent)
 
