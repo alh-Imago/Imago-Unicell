@@ -38,6 +38,36 @@ from the FULL cell, and real zone-scale measurement up to 750 cells. Read
 `current/latest.md` for the compressed summary before diving into
 `points/points_active.md` (or `points/INDEX.md` for older entries).**
 
+## Before scoping or building anything genuinely new: check `archeology/` first, not just its citations
+
+**Real, concrete lesson from `points.md #612` (2026-09-03), not a
+hypothetical worry:** a long-range note (`general_purpose_programming_
+long_range_note.md`) already NAMED the old full-cell system's real
+prior art (`fp_tiles.TileLibrary`, the old compiler) as "not to be
+reinvented" -- and it still took Alan's own direct "history hunt"
+request before that citation actually got chased into the real,
+archived source (`archeology/onion/*.onion`, via the Onion submodule --
+`git submodule update --init --recursive` + a fresh `build_ext.py`
+build each session, see the command above). Reading a citation isn't
+the same as checking what it actually contains. The old system solved
+real, substantial pieces of problems this project rediscovers
+periodically (e.g. `#612`'s own finding: a working LLVM IR frontend
+already existed; `#611`'s Addendum 2/3: the old placer already had a
+named rule for the exact same-cycle wired-OR collision hazard found by
+tracing VM ticks by hand).
+
+**The real, standing discipline this motivates, for any session,
+not just when explicitly told to "go look":** when a new task looks
+like it might overlap with something the FULL-cell line (or any other
+archived thread) plausibly attempted, search `archeology/` (`grep -rl`
+by keyword, check `archeology/shared/docs/software/INDEX.md`, check
+the `.onion` archives' own metadata via `onion -i`) BEFORE scoping new
+work from first principles -- the same real check `#547`/`#610`/`#611`
+should arguably have done proactively for LLVM specifically, before
+`#612` had to do it after the fact. Old source is archived, not
+deleted, specifically so it can be found and read, not just cited by
+name from memory.
+
 ## Session close-out procedure — run through this before ending EVERY session (2026-09-02, points.md #593/#594)
 
 **Real, standing checklist, not aspirational — added because #593's own
