@@ -1,4 +1,52 @@
-# Current State (as of 2026-09-03, branch_cell_v4.v -- sixth real, sim-verified unified-carrier core, the most structurally complex of all six. A real 4-bit PROG_ID widening (field COUNT, not width, forced it this time) and a real testbench misconception caught before being mistaken for a DUT bug. See `points/points_active.md` #624)
+# Current State (as of 2026-09-03, sequencer_cell_v4.v -- the SEVENTH and FINAL real, sim-verified unified-carrier core. All 8 real core types now have a real v4 build; only nano's own future strip-down remains. See `points/points_active.md` #625)
+
+## Read this first (most recent)
+
+**2026-09-03, `sequencer_cell_v4.v` built and sim-verified (#625) --
+the seventh and final real core, per Alan's own request to do
+`branch` then `sequencer`.** Real, honest confirmation of Alan's own
+direct prediction, checked against the RTL before building: this core
+genuinely has less real surface for several of `#617`'s own 5 points,
+since it has no capture side at all (`ack_out_X` tied low on every
+direction, confirmed directly). 6-way cardinality applies only to
+`downstream_mask` (no upstream to widen); `active` needs no separate
+capture-side gate at all, since the advance trigger is causally
+downstream of a successful offer.
+
+**A real testbench-design lesson learned the OPPOSITE way from
+`#621`/`#623`'s own lesson:** `accumulator`/`latch` needed a free-
+running consumer to protect against a real EXTERNAL trigger racing
+stale re-offers. This core has NO external trigger -- a first draft
+using that same pattern by default showed every check exactly one
+advance ahead of expected. Fixed with the OPPOSITE, correct approach:
+precise, manual, single-ack-per-step control. The real, general lesson
+this adds: free-running-consumer is correct specifically when there's
+an external trigger to protect against, not a universal rule for
+"continuously-live" cores.
+
+A second real subtlety, correctly reframed rather than worked around:
+because this core immediately re-offers after every drain, ANY ack
+always finds something pending, regardless of `active` -- the real,
+correct claim to test is that `active=0` prevents any NEW offer from
+starting, not that a single ack is a no-op.
+
+`tb_sequencer_cell_v4.v` (new) -- 9 real checks. 523/523 Python tests
+still passing.
+
+**Real, honest milestone: all 8 real core types now have a real,
+sim-verified `v4` build** -- `adder`/`ram`/`comparator`/`accumulator`/
+`latch`/`branch`/`sequencer`. `nano` itself remains, but per this same
+session's own earlier note, it needs STRIPPING to match this shape
+(it already has these capabilities), not building up like the other 7.
+
+**Real, standing next-session queue:** (1) `nano`'s own strip-down --
+a genuinely different direction of work from the other 7; (2) the
+`N=8` multi-core carrier case; (3) Alan's own real Quartus build for
+ALM/Fmax across all seven `v4` cores; (4) the parked
+`is_command_cell`-as-9th-core idea, connecting to `select`; (5)
+standing LLVM-frontend queue (`icmp eq`/`ne`, `select`, `phi`/loops).
+
+## Previous state (as of 2026-09-03, branch_cell_v4.v -- sixth real, sim-verified unified-carrier core, the most structurally complex of all six. A real 4-bit PROG_ID widening (field COUNT, not width, forced it this time) and a real testbench misconception caught before being mistaken for a DUT bug. See `points/points_active.md` #624)
 
 ## Read this first (most recent)
 

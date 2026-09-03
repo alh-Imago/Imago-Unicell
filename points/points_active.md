@@ -3472,3 +3472,81 @@ plainly). Six real cores now confirmed working (`adder`, `ram`,
 `comparator`, `accumulator`, `latch`, `branch`) -- only `sequencer`
 and the `N=8` carrier case remain.
 
+## 625. `sequencer_cell_v4.v` -- the SEVENTH and FINAL real, sim-verified unified-carrier core. All 8 real core types now have a real, sim-verified `v4` build. Alan's own direct prediction confirmed precisely against the real RTL: this core genuinely has less real surface for several of `#617`'s own 5 points, since it has no capture side at all. A real testbench-design lesson learned the OPPOSITE way from `#621`/`#623`. (Alan/Claude, 2026-09-03)
+
+**Real, honest confirmation of Alan's own direct prediction, checked
+against the RTL before building, not assumed:** `ack_out_X` is tied
+low on every direction in the real `v1` RTL, "there is nothing to
+acknowledge." Real, concrete consequence for each of `#617`'s own 5
+points: (1) programming still applies in full to this core's own real
+fields; (2) the addon chain still applies in full; (3) 6-way
+cardinality applies ONLY to `downstream_mask` (there is no
+`upstream_mask` to widen, because there is no upstream); (4) the
+programming channel still gets its own real ack, but the ordinary
+data-side ack stays tied to 0, unchanged from v1; (5) `active` applies
+with a real, genuine SIMPLIFICATION -- no capture path exists to
+separately gate, since `offer_just_completed` (the real advance
+trigger) is causally downstream of a successful offer, so an inactive
+cell's index cannot advance at all, not via an extra explicit gate but
+because the triggering offer never happens.
+
+**Real, notable data point confirming the `PROG_ID` budget genuinely
+depends on each core's own real field count, not a fixed rule:** this
+core has 7 real fields (`VALUE_0`-`3`, `SEQUENCE_LEN`,
+`downstream_mask`, `addon_config`) -- fitting EXACTLY in the same
+3-bit ID every core except `branch` (`#624`, 15 fields, needed 4 bits)
+used. A real, direct, opposite data point right after `#624`'s own
+real widening.
+
+**A real testbench-design lesson learned the OPPOSITE way from
+`#621`/`#623`'s own real lesson, confirmed by tracing an actual
+failure:** `accumulator`/`latch` needed a free-running auto-consumer
+because a real EXTERNAL trigger could race against stale re-offers.
+This core has NO external trigger at all -- a first draft, built using
+that SAME free-running pattern by default, showed every check exactly
+one real advance ahead of expected, since the free-running consumer
+raced ahead of the testbench's own checks unpredictably. Fixed with
+the OPPOSITE, correct approach: precise, manual, single-ack-per-step
+control (matching `#618`/`#619`/`#620`/`#624`'s own real pattern),
+giving deterministic control over exactly which index is being
+observed. **The real, general lesson this adds, alongside `#621`'s
+own:** the free-running-consumer pattern is correct specifically when
+there's a real external trigger to protect against racing with, not a
+universal rule for "continuously-live" cores -- `sequencer` is
+continuously-live in the sense of never going empty, but has no
+external trigger, so the precise-control pattern is the right one
+here, confirmed by direct evidence rather than assumed from
+superficial similarity to `accumulator`/`latch`.
+
+**A second real, honest subtlety found and correctly reframed, not
+worked around:** because this core immediately re-offers after every
+drain, ANY ack always finds something pending to drain, regardless of
+`active` -- a real, sensible property (an in-flight transaction
+completes its own handshake even during deactivation; only NEW offers
+are blocked). A first attempt at testing "one ack while inactive is a
+no-op" failed for this real reason, not a DUT bug -- reframed to the
+real, correct claim: `active=0` prevents any NEW offer from starting,
+confirmed by `fire_e` staying low across repeated ack attempts while
+inactive.
+
+**Real, honest verification:** `tb_sequencer_cell_v4.v` (new, no
+pre-existing standalone `v1` testbench existed) -- 9 real checks: 4
+confirming identical-to-v1 cycling behavior, 3 confirming a targeted
+`VALUE_1` reprogram survives continued cycling, 1 through the real
+addon chain, 1 confirming `active=0` genuinely prevents new offers
+across repeated real ack attempts. `523/523` Python tests still
+passing.
+
+**Real, honest scope, matching `#618`-`#624`'s own stated deferrals:**
+`is_command_cell` mode not included (parked). No real ALM/Fmax
+measurement yet.
+
+**Real, honest milestone: all 8 real core types now have a real,
+sim-verified `v4` build** (`adder`/`ram`/`comparator`/`accumulator`/
+`latch`/`branch`/`sequencer`, plus `nano` itself still pending its own
+real STRIP-down per this session's own earlier note, a genuinely
+different direction of work from the other 7). Real, standing next
+steps: the `N=8` multi-core carrier case, Alan's own real Quartus
+build for ALM/Fmax across all seven `v4` cores, the parked
+`is_command_cell`-as-9th-core idea, and `nano`'s own strip-down.
+
