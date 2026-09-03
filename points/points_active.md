@@ -3922,3 +3922,58 @@ in order, using `#612`'s own real method (extract, grep, read for
 substantive content) -- not attempted in this entry. `523/523` Python
 tests still passing (docs-only change).
 
+## 633. The old library's own wired-OR select construction confirmed to genuinely work on Unicell-S's own real two-arrival hardware -- two `hold_in`-preloaded AND cells, no dedicated OR cell, the wired-OR combine physics doing the final selection. Real, honest architectural placement question answered first: Tier 1 composed tile, not a new core or a shell feature. A third real instance of the same "dummy second arrival" bug class caught and fixed. (Alan/Claude, 2026-09-04)
+
+**Real, honest architectural question answered before building
+anything:** does this construction belong in a new core, or the
+shell? Checked directly against `composed_tile_library_v1.py`'s own
+real header (Tier 1, multi-cell composed tiles with relative
+placement, already real and hardware-confirmed via the real
+`sentinel` composition, `#291`-`#308`) -- neither. Not a new core,
+since no new computational primitive is needed (two already-existing
+`nano` cells, each configured `AND`). Not the shell, since the shell
+wraps ONE cell's own interface and has no concept of multiple cells or
+relative placement at all. It's a real, named Tier-1 recipe, the same
+real category `sentinel` already occupies.
+
+**A real, honest adaptation confirmed before building:** the old
+system's own real "no NOT gate needed" claim assumed `sel`/`nsel` were
+ALREADY known constants from outside that specific construction (set
+once, shared across 24 parallel bit-lanes in the real barrel-shifter
+case) -- it does not mean the `NOT` computation is free for a single,
+standalone `select` with a genuinely dynamic `cond`. The real saving
+under test here is ONE cell (the dedicated `OR`), not the barrel-
+shifter's own much larger amortized number.
+
+**The real construction, verified:** a `NOT_A` cell computes `nsel`
+once; two separate `AND` cells, each using nano's own real `hold_in`
+mode (`#626`) to permanently latch `cond`/`nsel` as their own real
+first operand, compute `AND(cond,a)`/`AND(nsel,b)` against live second
+operands; both route to the SAME real receiving cell on different
+cardinal directions (N/S) -- nano's own real `any_arrived` OR-combine
+(`#611`'s own confirmed hazard, deliberately used here as a feature)
+does the final selection with no dedicated `OR` cell at all.
+
+**A real, third instance of the same bug class this session already
+named twice (`#629`'s `NOT_A` dummy operand; this entry's own `RECV`
+cell), caught by tracing an actual failure, not assumed correct:** the
+receiving cell (`PASS_A`) only needs the VALUE from its real first
+(OR-combined) arrival, but nano's own hardware still requires a
+genuine SECOND arrival to trigger firing at all -- confirmed directly
+by fine-grained cycle tracing: `CellA`/`CellB` correctly delivered and
+got acked on the exact same real cycle (confirming the wired-OR
+delivery itself works), but the receiver sat holding the correct value
+forever, never firing, until a real, deliberate dummy second pulse was
+added.
+
+**Real, honest verification:** `tb_nano_select_wired_or_v1.v` (new) --
+2 real end-to-end cases, both correct, confirming the wired-OR
+construction genuinely works on Unicell-S's own real two-arrival
+model, not just on paper. `523/523` Python tests still passing.
+
+**Real, honest scope: nothing promoted to a real Tier-1 composed tile
+yet.** This entry confirms the CONSTRUCTION works in isolation; a real
+`select_mux_wired` entry in `composed_tile_library_v1.py`, and a real
+comparison against the plain 4-cell version's own real cost, remain
+the next steps, not attempted here.
+

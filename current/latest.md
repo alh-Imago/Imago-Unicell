@@ -1,4 +1,47 @@
-# Current State (as of 2026-09-04, real archeology inventory built -- all 25 archives mapped and prioritized for a future dedicated review, per Alan's own proposal. See `points/points_active.md` #632)
+# Current State (as of 2026-09-04, the old library's own wired-OR select construction confirmed to genuinely work on Unicell-S's own real hardware -- two hold_in-preloaded AND cells, no dedicated OR cell. See `points/points_active.md` #633)
+
+## Read this first (most recent)
+
+**2026-09-04, wired-OR select construction verified (#633) -- first
+item off the standing queue, working top-down.** Real, honest
+architectural question answered before building: this belongs in
+Tier 1 (`composed_tile_library_v1.py`, the same real category as the
+already-hardware-confirmed `sentinel`), not a new core and not the
+shell -- no new computational primitive, no multi-cell concept in the
+shell at all.
+
+Real, honest adaptation confirmed first: the old system's "no NOT gate
+needed" claim assumed `sel`/`nsel` were already-known constants shared
+across 24 bit-lanes -- for a single, dynamic `select`, the real saving
+is one cell (the dedicated `OR`), not the barrel-shifter's larger
+amortized number.
+
+The real construction verified: `NOT_A` computes `nsel` once; two
+`AND` cells use `hold_in` (`#626`) to latch `cond`/`nsel` permanently,
+computing against live second operands; both route to the same
+receiver on different directions, letting nano's own real OR-combine
+(`#611`) do the final selection with no dedicated `OR` cell. A third
+real instance of the "dummy second arrival" bug class (first seen in
+`#629`'s `NOT_A`) was caught and fixed -- the receiver only needs the
+VALUE from its first OR-combined arrival, but still needs a genuine
+second one to fire at all.
+
+`tb_nano_select_wired_or_v1.v` (new) -- 2 real end-to-end cases, both
+correct. 523/523 Python tests still passing.
+
+**Real, honest scope:** the construction works; promoting it to a real
+`select_mux_wired` Tier-1 entry, and a real cost comparison against the
+plain 4-cell version, remain the next steps.
+
+**Real, standing next-session queue, working top-down:** (1) promote
+both select constructions to real Tier-1 composed tiles; (2) `icmp
+eq`/`ne` (needs `nano_gate`'s own AND, timing not traced); (3)
+`phi`/loops; (4) command core prototype; (5) nano's own independent
+shift; (6) the `N=8` carrier case; (7) Alan's own real Quartus build;
+(8) the proposed archeology deep-dive (Tier 1 archives mapped in
+`#632`).
+
+## Previous state (as of 2026-09-04, real archeology inventory built -- all 25 archives mapped and prioritized for a future dedicated review, per Alan's own proposal. See `points/points_active.md` #632)
 
 ## Read this first (most recent)
 
