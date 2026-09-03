@@ -543,3 +543,16 @@ purpose (dynamic reprogramming triggered by a condition, per `docs/
 stripped-cell/design-notes/command_core_scope.md`'s own real design
 work) -- just no longer the load-bearing answer for `select`
 specifically.
+
+**Update (`points.md #630`): the honest gap above is now genuinely
+closed.** A real `comparator` cell's own real, `icmp`-shaped `0`/`1`
+output now drives this composition directly -- `comparator` → boolean-
+expand (`0 - cond` via a real `adder` in `subtract_mode`, on a
+genuinely DYNAMIC runtime value this time, not a compile-time literal)
+→ the 4-cell select. Sim-verified, both real outcomes correct. Two
+real bugs were found and fixed in the process, both in the new test's
+own wiring (a real ordering mistake exploiting the comparator's own
+persistent-offer behavior; a real, simple `adder_cell_v4`
+`upstream_mask` oversight), not in any already-proven cell. There is
+no remaining "not attempted yet" step between a real `icmp` result and
+a real `select` -- the full chain is real and confirmed.

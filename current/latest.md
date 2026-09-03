@@ -1,4 +1,50 @@
-# Current State (as of 2026-09-04, select genuinely solved -- 4 real, chained nano_gate_v4 cells composing (cond AND a) OR (NOT(cond) AND b) from already-proven gate primitives, sim-verified on the first real attempt. See `points/points_active.md` #629)
+# Current State (as of 2026-09-04, select's own honest gap fully closed -- comparator -> boolean-expand -> 4-cell select, all real, chained cells, sim-verified end to end. See `points/points_active.md` #630)
+
+## Read this first (most recent)
+
+**2026-09-04, `select`'s own real gap fully closed (#630).** The
+complete, real chain: `comparator` (real, `icmp`-shaped `0`/`1`
+output) → boolean-expand (real, DYNAMIC `0-cond` via `adder` in
+`subtract_mode`, on a genuine runtime value this time, not a compile-
+time literal) → the real 4-cell select composition from `#629`.
+
+Confirmed Alan's own recollection of the old full-cell system first:
+"preloaded value in a latch, incoming compared against it" is exactly
+`compare_cell`'s own real, current design -- not a different mechanism
+needed, the same comparator already used throughout `#620`/`#629`.
+
+Two real bugs found and fixed by tracing actual failures, both in the
+new test's own wiring, not any already-proven cell: (1) a real
+ordering mistake -- the comparator's own output stays PERSISTENTLY
+asserted once it fires, so pulsing it before the zero-feeder silently
+made it the expander's first operand instead of the second, computing
+`cond-0` instead of `0-cond`; (2) a real, simple config oversight --
+`adder_cell_v4` (unlike `nano`) has SELECTIVE `upstream_mask`, and the
+expander was only configured to listen on the zero-feeder's own
+direction, omitting where the comparator's real output actually
+arrives.
+
+`tb_select_full_chain_v1.v` (new) -- 2 real end-to-end cases, both
+correct through the complete real 6-cell chain. 523/523 Python tests
+still passing. `llvm_ir_compiler_scope.md`'s own Addendum 6 updated to
+record the closure.
+
+**Real, honest scope:** there is no remaining "not attempted yet" step
+between a real `icmp` result and a real `select` -- the full chain is
+real and confirmed. 6 real cells total per `select` when driven from a
+live comparison; the real area/latency-vs-command-cell tradeoff from
+`#629` still stands as the open integration question.
+
+**Real, standing next-session queue:** (1) nano's own independent
+shift capability (still open); (2) pick a sensing approach + address
+shape from the command-core note and prototype; (3) the `N=8`
+multi-core carrier case; (4) Alan's own real Quartus build for
+ALM/Fmax; (5) `icmp eq`/`ne`, `phi`/loops; (6) extract a real, shared
+carrier shell module (currently 8 independent files sharing a
+consistent pattern, not literal shared code -- flagged this session,
+not yet acted on).
+
+## Previous state (as of 2026-09-04, select genuinely solved -- 4 real, chained nano_gate_v4 cells composing (cond AND a) OR (NOT(cond) AND b) from already-proven gate primitives, sim-verified on the first real attempt. See `points/points_active.md` #629)
 
 ## Read this first (most recent)
 

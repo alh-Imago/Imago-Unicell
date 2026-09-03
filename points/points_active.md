@@ -3784,3 +3784,50 @@ command-cell reprogram alternative, which was heavier per-use but uses
 only 1 cell -- a real, concrete tradeoff for whenever this gets
 integrated into the actual LLVM frontend, not decided here.
 
+## 630. `select`'s own honest gap fully closed -- the complete, real chain: `comparator` (real, icmp-shaped 0/1 output) -> boolean-expand (real, DYNAMIC `0-cond` via `adder` in `subtract_mode`) -> the real 4-cell select composition from `#629`. Two real bugs found and fixed by tracing actual failures, both in the new test's own wiring, not the already-proven cells. (Alan/Claude, 2026-09-04)
+
+**Real, direct confirmation of Alan's own recollection, checked before
+building:** the "preloaded value in a latch, incoming compared
+against it" pattern he recalled from the old full-cell system is
+exactly `compare_cell`'s own real, current design (`threshold`, a
+real preconfigured register, compared against every real arrival) --
+not a different mechanism needing to be built, the SAME real
+comparator already used throughout `#620`/`#629`.
+
+**The real, necessary new piece:** boolean-expansion. `comparator`'s
+own real output is `{31'h0, result_bit}` -- correct, `icmp`-shaped,
+but not the all-ones/all-zeros mask `#629`'s own 4-cell construction
+needs. Solved with a real `adder` cell in `subtract_mode`, computing
+`0 - cond` -- but this time on a genuinely DYNAMIC runtime value, not
+a compile-time LLVM literal like `#611`'s own negate-at-injection
+trick used; the zero and the comparator's own live output are both
+real, physically arriving operands.
+
+**Two real bugs found and fixed by tracing actual failures, both
+found in the NEW test's own wiring, not in any already-proven cell:**
+1. A real ordering mistake: the comparator's own output stays
+   PERSISTENTLY asserted once it fires (a real, one-shot core holds
+   its offer until acked) -- pulsing it before the zero-feeder meant
+   it silently became the expander's real FIRST operand instead of
+   the intended second, computing `cond-0` instead of `0-cond`. Fixed
+   by reordering so the zero-feeder is captured first.
+2. A real, simple config oversight: `adder_cell_v4` (unlike `nano`)
+   has SELECTIVE `upstream_mask` -- the expander was only configured
+   to listen on N (the zero-feeder's own direction), completely
+   omitting W (where the comparator's real output actually arrives).
+   Fixed by including both directions in the mask.
+
+**Real, honest verification:** `tb_select_full_chain_v1.v` (new) -- 2
+real end-to-end cases (`10>=5` → true → selects `a`; `2>=5` → false →
+selects `b`), both correct through the complete real 6-cell chain
+(`comparator` + `adder`-as-expander + the real 4-cell `select`
+composition from `#629`). `523/523` Python tests still passing.
+
+**Real, honest scope: the gap from `#629` is now genuinely closed.**
+`select` can be driven directly from a real `comparator`'s own output
+-- the exact shape a real `icmp`→`select` LLVM lowering would need --
+with no remaining "not attempted yet" step in between. 6 real cells
+total per `select` when driven from a live comparison; the real
+area/latency-vs-command-cell tradeoff noted in `#629` still stands as
+the open integration question, not resolved here.
+
