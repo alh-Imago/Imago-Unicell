@@ -3739,3 +3739,48 @@ discussion precisely, matching every other `*_scope.md`'s own
 discipline -- picking one sensing approach and one addressing shape to
 prototype is the real next step, not attempted here.
 
+## 629. `select` genuinely solved -- not via `branch` (wrong semantics, `#613`) or a command-cell reprogram (heavier than the problem warranted, `#617` Addendum 4), but by composing 4 real, chained `nano_gate_v4.v` cells using ONLY its own already-proven gate primitives. Real, sim-verified, passed on the first real attempt. (Alan/Claude, 2026-09-04)
+
+**Real, honest check first, not assumed:** none of nano's own real 12
+topology codes is a direct 3-input select/mux -- `select(cond, a, b)`
+needs 3 real inputs, nano's own two-arrival model only ever combines
+2. No single nano cell does this alone, confirmed by checking the real
+topology table directly before proceeding.
+
+**The real, working construction:** the classic digital-design
+identity `select(cond, a, b) = (cond AND a) OR (NOT(cond) AND b)`,
+built from 4 chained real `nano_gate_v4.v` instances, using ONLY
+already-proven, already-tested real gate primitives (`TOPO_NOT_A`/
+`TOPO_AND`/`TOPO_OR`) -- Cell1 computes `NOT(cond)`; Cell2 computes
+`(cond AND a)`; Cell3 computes `(NOT(cond) AND b)` using Cell1's real
+output; Cell4 computes the real `OR` of Cell2 and Cell3. A real,
+direct application of nano's own architectural role as the project's
+NOR-universal composition primitive -- `select` isn't a gap needing a
+new mechanism, it's a textbook case for the exact kind of composition
+this core already exists to do.
+
+**Real, honest verification:** `tb_nano_select_compose_v1.v` (new) --
+2 real end-to-end cases (`cond=true` selects `a`, `cond=false` selects
+`b`), both passing correctly on the FIRST real simulation attempt, no
+debugging needed this time -- real, direct evidence that this
+session's own accumulated timing discipline (staggered arrivals per
+`#611`'s own confirmed OR-combine hazard, a genuine reset between
+independent trials per `#626`'s own real `a_arrived`-persistence
+finding) is now being applied correctly from the start, not
+rediscovered per composition. `523/523` Python tests still passing.
+
+**Real, honest scope, stated plainly:** this confirms the general
+approach works for a real, controlled 2-case test with clean
+all-ones/all-zeros `cond` values. A real, honest, NOT-yet-solved
+detail for actual LLVM integration: `select`'s own real `i1` condition
+is a raw 0/1 value, not already expanded to an all-ones/all-zeros
+bitmask -- a real, additional boolean-expansion step (e.g., `0 -
+cond`, reusing the adder's own already-proven negate-via-subtract
+trick from `#611`) would be needed before this construction applies
+directly to a real `%cond` value from `icmp`. Not attempted here.
+Real, honest cost note: this uses 4 real physical cells per `select`
+instruction, a genuine area/latency cost worth remembering against the
+command-cell reprogram alternative, which was heavier per-use but uses
+only 1 cell -- a real, concrete tradeoff for whenever this gets
+integrated into the actual LLVM frontend, not decided here.
+

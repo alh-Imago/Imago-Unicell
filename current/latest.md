@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-04, real command-core design note captured from a live discussion -- directional freeze, addressing in the spare prog_data bits, stage-then-release using existing decision cores as the trigger. See `points/points_active.md` #628)
+# Current State (as of 2026-09-04, select genuinely solved -- 4 real, chained nano_gate_v4 cells composing (cond AND a) OR (NOT(cond) AND b) from already-proven gate primitives, sim-verified on the first real attempt. See `points/points_active.md` #629)
+
+## Read this first (most recent)
+
+**2026-09-04, `select` solved for real (#629).** Not via `branch`
+(wrong semantics) or a command-cell reprogram (heavier than needed,
+and its own real staging-cost question stayed open) -- a real, direct
+composition of 4 chained `nano_gate_v4.v` cells, using ONLY its own
+already-proven gate primitives (`TOPO_NOT_A`/`TOPO_AND`/`TOPO_OR`):
+`select(cond,a,b) = (cond AND a) OR (NOT(cond) AND b)`. Confirmed via
+`tb_nano_select_compose_v1.v` (new) -- both real outcomes
+(`cond=true`→`a`, `cond=false`→`b`) passed correctly on the FIRST real
+simulation attempt, real, direct evidence this session's own
+accumulated timing discipline (staggered arrivals, genuine resets
+between trials) is now being applied correctly from the start.
+
+Real, honest gaps still open: needs `cond` as an all-ones/all-zeros
+bitmask, not a raw `i1` 0/1 (a real boolean-expansion step, reusing
+the adder's own negate-via-subtract trick, would bridge this -- not
+built). Real, honest cost tradeoff: 4 real cells per `select`, higher
+per-use area than the command-cell path would have been, but needs no
+new mechanism and no open staging-cost question. Captured in
+`llvm_ir_compiler_scope.md`'s own new Addendum 6. 523/523 Python tests
+still passing.
+
+**Real, standing next-session queue:** (1) the boolean-expansion step
+to make this usable from real `icmp` results; (2) nano's own
+independent shift capability (still open); (3) pick a sensing
+approach + addressing shape from the command-core note and prototype;
+(4) the `N=8` multi-core carrier case; (5) Alan's own real Quartus
+build for ALM/Fmax; (6) `icmp eq`/`ne`, `phi`/loops.
+
+## Previous state (as of 2026-09-04, real command-core design note captured from a live discussion -- directional freeze, addressing in the spare prog_data bits, stage-then-release using existing decision cores as the trigger. See `points/points_active.md` #628)
 
 ## Read this first (most recent)
 

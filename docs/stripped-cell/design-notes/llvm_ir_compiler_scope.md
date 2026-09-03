@@ -507,3 +507,39 @@ the real staging cost of any reconfiguration-based approach to
 `select` -- not scoped or attempted here, a real, separate design
 question for whenever the `select` lead from `Addendum 4` is picked up
 seriously.
+
+## Addendum 6 (2026-09-04, `points.md #629`): `select` genuinely solved -- not the command-cell path `Addendum 4` was investigating, a real gate-composition instead
+
+Real, working resolution, sim-verified: `select(cond, a, b) = (cond
+AND a) OR (NOT(cond) AND b)`, built from 4 real, chained
+`nano_gate_v4.v` cells using ONLY its own already-proven gate
+primitives (`TOPO_NOT_A`/`TOPO_AND`/`TOPO_OR`). Passed correctly on
+the first real simulation attempt for both real outcomes. This
+supersedes the `command cell` lead `Addendum 4` was pursuing for
+`select` specifically -- that lead's own real staging-cost concern
+(`Addendum 5`) no longer applies to `select`, since this construction
+needs no reconfiguration at all, only real dataflow composition, the
+same real mechanism every other real instruction in this frontend
+already uses.
+
+**Real, honest, NOT-yet-solved integration detail:** this construction
+needs `cond` as a real all-ones/all-zeros bitmask, not the raw 0/1 an
+LLVM `i1` actually is. A real boolean-expansion step (`0 - cond`,
+reusing the adder's own already-proven negate-via-subtract trick,
+`#611`) is needed before this applies directly to a real `%cond` from
+`icmp` -- not attempted yet.
+
+**Real, honest cost tradeoff, worth remembering for whenever this is
+actually integrated:** 4 real physical cells per `select` instruction
+is a genuine area/latency cost -- higher per-use than a hypothetical
+single-cell command-cell reprogram would have been, but avoids that
+path's own real, unresolved staging-cost question (`Addendum 5`)
+entirely, and needs no new mechanism at all, only composition of
+already-proven parts. A real, concrete design tradeoff for later, not
+decided here.
+
+The command-cell idea remains real and valuable for its own original
+purpose (dynamic reprogramming triggered by a condition, per `docs/
+stripped-cell/design-notes/command_core_scope.md`'s own real design
+work) -- just no longer the load-bearing answer for `select`
+specifically.
