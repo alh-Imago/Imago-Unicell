@@ -2882,3 +2882,72 @@ precisely so the next real session extending `#611` toward richer
 LLVM IR support starts from a stronger, evidence-grounded place rather
 than re-deriving "does the old system help here" from scratch.
 
+## 613. Real icmp support added to the LLVM IR frontend -- all four inequality predicates, verified end to end against the real VM. `select` investigated and honestly deferred -- an initial proposal that `branch` would serve it turned out wrong on closer inspection. (Alan/Claude, 2026-09-03)
+
+**Real, verified derivation, not guessed:** `comparator` (Tier-0,
+already real and tested) only ever compares ONE dynamic value against
+a FIXED, compile-time threshold (`result = 1 if input >= threshold
+else 0` -- confirmed directly against its own tile registration,
+single "in" port). Every icmp predicate therefore lowers as a real
+two-stage composition: a diff cell computing some `X - Y`, then the
+comparator evaluating that diff against `0` or `1`.
+
+**The real, necessary insight that made all four predicates work
+without any new VM feature, found by reasoning through `#611`'s own
+already-confirmed arrival-order fact, not by trial and error this
+time:** a chain-carried value (`i > 0`'s own west operand) is a
+physical wire from a prior instruction's real output -- it cannot be
+retroactively negated at its source. `sge`/`sgt` (needing `A - B`) use
+a plain ADD with the north operand pre-negated at injection, reusing
+`#611`'s own already-verified sub trick exactly. `slt`/`sle` (needing
+the OPPOSITE shape, `B - A`) instead use the real `subtractor` tile
+(`#608`, registered but unused until now) directly -- since this
+layout's own arrival order always has north land before west
+(`#611`'s own confirmed fact), hardware's own `A(first) - B(second)`
+naturally computes `north - west = B - A`, with NEITHER operand
+needing negation at all.
+
+**`nano/llvm_ir_frontend_v1.py`:** `icmp` added to
+`_SUPPORTED_OPCODES`; a new `_ICMP_LOWERING` table maps each of the
+four real predicates to `(tile_name, negate_north, threshold)`. The
+placement logic was refactored from a fixed `col = i + 1` to a running
+`col_cursor`, since `icmp` needs TWO physical columns (the diff cell
+plus the comparator) where `add`/`sub` need one -- the real invariant
+this preserves ("whatever sits one column west is always the previous
+instruction's own real result") holds automatically as long as the
+cursor advances by however many columns the instruction actually
+consumed, confirmed by testing, not just reasoned about. A new
+`_icmp_predicate()` helper parses the real predicate from the
+instruction's own text form -- `llvmlite` exposes no direct accessor
+(checked directly via `dir(instr)` before writing this, not assumed).
+`eq`/`ne` (needing a real AND of two comparisons, no AND primitive
+exists in Tier-0 yet) are honestly rejected with a clear diagnostic,
+not silently miscompiled.
+
+**Real, honest correction to the session's own earlier proposal:**
+`select` was proposed as a natural extension of the `branch` tile
+(`#608`) -- on closer inspection, wrong. `branch` compares an
+ARRIVING value against a DYNAMICALLY-LATCHED reference and routes
+based on the outcome; `select` needs to choose between two
+INDEPENDENTLY-COMPUTED values based on a separate condition -- a
+genuinely different mechanism. No combination of the current Tier-0
+tiles implements this cleanly. Deferred honestly, not forced into a
+fragile fit -- a real, separate design question for whenever it's
+picked up, not attempted in this entry.
+
+**Real, honest verification:** 7 new tests (`tests/vm/
+test_llvm_ir_frontend_v1.py`) -- all four predicates' own real
+boundary cases (equal-value edge behavior for each, e.g. `sge`
+including equality, `sgt` excluding it) run against the real VM via
+`inject()`/`tick()`, `icmp` reading a running chain value through two
+prior instructions correctly, negative-value comparisons, and a real
+confirmation that `eq`/`ne` are cleanly rejected rather than silently
+wrong. Full suite: 523/523 passing (516 prior + 7 new), zero
+regression.
+
+**Real, standing next step, per Alan's own explicit request:**
+`phi`/loops -- the real control-flow gap `#611`/`#610` both explicitly
+deferred, now informed by `#612`'s own real finding that the old
+system's answer depended on a bus Unicell-S doesn't have, so a genuine
+new mechanism is needed here, not a port.
+

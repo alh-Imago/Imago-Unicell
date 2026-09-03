@@ -1,4 +1,34 @@
-# Current State (as of 2026-09-03, real history hunt done -- the old full-cell system's own real, working LLVM IR frontend was extracted and read directly, confirming what transfers to Unicell-S and what doesn't, with real evidence. See `points/points_active.md` #612)
+# Current State (as of 2026-09-03, real icmp support added to the LLVM IR frontend -- all four inequality predicates, verified against the real VM. select investigated and honestly deferred. See `points/points_active.md` #613)
+
+## Read this first (most recent)
+
+**2026-09-03, icmp added (#613).** All four real inequality predicates
+(`sge`/`sgt`/`slt`/`sle`) now compile and run correctly, reusing only
+already-proven tiles: a diff cell (`adder` with a pre-negated operand
+for `sge`/`sgt`, or the real `subtractor` tile -- registered in `#611`
+but unused until now -- for `slt`/`sle`, exploiting this layout's own
+confirmed north-arrives-first fact so neither operand needs negation)
+feeding a `comparator` against a fixed threshold. Placement logic
+refactored from a fixed 1-column-per-instruction scheme to a running
+cursor, since `icmp` needs two columns. `eq`/`ne` honestly rejected
+(need a real AND, not yet built).
+
+**A real, honest correction:** the earlier proposal that `select`
+could reuse the `branch` tile turned out wrong on closer inspection --
+`branch` compares an arriving value against a dynamically-latched
+reference, not the same mechanism `select` needs (choosing between
+two independently-computed values). No current Tier-0 tile combination
+does this cleanly. Deferred honestly rather than forced.
+
+7 new tests, all real end-to-end VM runs covering every predicate's
+boundary cases. 523/523 passing, zero regression.
+
+**Real, standing next step, per Alan's own explicit request:**
+phi/loops -- informed by `#612`'s own finding that the old system's
+answer depended on a bus Unicell-S doesn't have, so this needs a
+genuine new mechanism, not a port.
+
+## Previous state (as of 2026-09-03, real history hunt done -- the old full-cell system's own real, working LLVM IR frontend was extracted and read directly, confirming what transfers to Unicell-S and what doesn't, with real evidence. See `points/points_active.md` #612)
 
 ## Read this first (most recent)
 

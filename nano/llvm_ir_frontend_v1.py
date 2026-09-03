@@ -62,7 +62,43 @@ from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from program_ir_v1 import ProgramIR, PlaceIR, FieldIR  # noqa: E402
 from dsl_compiler_v1 import compile_program_ir  # noqa: E402
 
-_SUPPORTED_OPCODES = {"add", "sub"}
+_SUPPORTED_OPCODES = {"add", "sub", "icmp"}
+
+# points.md #613: real, verified derivation -- reuses the exact same
+# real, proven primitives #611 already verified (the adder's own
+# negate-and-add sub trick, plus the real "subtractor" tile #608
+# registered but never used until now), composed with the real
+# "comparator" tile (a stateless `result = 1 if input >= threshold
+# else 0` against a FIXED, compile-time threshold -- confirmed
+# directly against its own real tile registration, single "in" port,
+# no two-operand capture at all). Since comparator can only compare
+# ONE dynamic value against a FIXED threshold, every icmp predicate is
+# lowered as: (1) a real two-operand diff cell computing some
+# `X - Y`, (2) the comparator evaluating that diff against 0 or 1.
+#
+# Real, necessary derivation, not guessed: comparator's own real
+# `>= threshold` only ever needs ONE of two real tile choices to reach
+# every one of these four predicates, with NO negation needed on the
+# physical "west" (chain-carried) wire -- which matters because a
+# chain value arriving via physical adjacency (i > 0) can't be
+# retroactively negated at its own source once it's already the
+# previous instruction's own real output:
+#   sge(A,B): diff = A + (-B)  -- plain ADD, B injected pre-negated
+#             (matches #611's own already-verified sub trick exactly)
+#   sgt(A,B): same diff, comparator threshold=1 instead of 0
+#   slt(A,B): diff = B - A     -- the real SUBTRACTOR tile's own
+#             hardware ordering (this layout's north operand always
+#             arrives BEFORE west, #611's own confirmed fact) gives
+#             north(B) - west(A) directly, with NEITHER operand
+#             needing negation at all
+#   sle(A,B): same diff, comparator threshold=0 instead of 1
+# (tile_name, negate_north_before_injecting, comparator_threshold)
+_ICMP_LOWERING = {
+    "sge": ("adder", True, 0),
+    "sgt": ("adder", True, 1),
+    "slt": ("subtractor", False, 1),
+    "sle": ("subtractor", False, 0),
+}
 
 
 def _diag(problem: str, what: str, why: str, suggestion: Optional[str] = None) -> CompileDiagnostic:
@@ -106,6 +142,21 @@ def _resolve_operand_value(operand, known_values: Dict[str, int]) -> Tuple[Optio
     if name:
         return known_values.get(name), True
     return _parse_literal(str(operand)), False
+
+
+def _icmp_predicate(instr) -> Optional[str]:
+    """Real, necessary text parsing -- llvmlite exposes no direct
+    predicate accessor on an icmp instruction (confirmed by checking
+    `dir(instr)` directly before writing this, not assumed), but the
+    real instruction text always has the real, stable form
+    "%name = icmp PRED TYPE %a, %b" -- the predicate is always the
+    token right after "icmp"."""
+    parts = str(instr).strip().split()
+    if "icmp" in parts:
+        idx = parts.index("icmp")
+        if idx + 1 < len(parts):
+            return parts[idx + 1]
+    return None
 
 
 def _parse_literal(text: str) -> Optional[int]:
@@ -201,6 +252,14 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
     statements: List[PlaceIR] = []
     injections: List[Tuple[int, int, int]] = []
     prev_instr_name: Optional[str] = None
+    # points.md #613: a running column cursor, not a fixed `i + 1` --
+    # icmp needs TWO physical columns (a diff cell + a comparator),
+    # so instructions no longer map 1:1 onto columns. The invariant
+    # this preserves: whatever sits at `col_cursor - 1` after placing
+    # an instruction is ALWAYS that instruction's own real result
+    # cell, so the next instruction's west neighbor is correct by
+    # construction, with no separate bookkeeping needed.
+    col_cursor = 1
 
     for i, instr in enumerate(body_instructions):
         if instr.opcode not in _SUPPORTED_OPCODES:
@@ -265,7 +324,22 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             ))
             return None, diagnostics, None
 
-        result = first_value + second_value if instr.opcode == "add" else first_value - second_value
+        if instr.opcode == "icmp":
+            predicate = _icmp_predicate(instr)
+            if predicate not in _ICMP_LOWERING:
+                diagnostics.append(_diag(
+                    problem=f"icmp predicate {predicate!r} not supported ({str(instr).strip()})",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why=f"this real, first frontend slice only understands {sorted(_ICMP_LOWERING)} "
+                        "(#613) -- eq/ne need a real AND of two comparisons, not yet built",
+                ))
+                return None, diagnostics, None
+            result = 1 if {
+                "sge": first_value >= second_value, "sgt": first_value > second_value,
+                "slt": first_value < second_value, "sle": first_value <= second_value,
+            }[predicate] else 0
+        else:
+            result = first_value + second_value if instr.opcode == "add" else first_value - second_value
         # Real hardware is 32-bit, always -- masking here keeps the
         # Python-side expected value honestly comparable to what the
         # VM will actually compute, no silent divergence for negative/
@@ -273,7 +347,18 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         result &= 0xFFFFFFFF
         known_values[instr.name] = result
 
-        col = i + 1
+        # ── place the real, two-operand "diff" cell every one of these
+        # instructions needs (add/sub compute it directly; icmp uses it
+        # as the input to a downstream comparator) -- shared logic,
+        # points.md #611's own already-verified real design ──
+        diff_col = col_cursor
+        if instr.opcode == "icmp":
+            diff_tile, negate_north, threshold = _ICMP_LOWERING[predicate]
+        elif instr.opcode == "sub":
+            diff_tile, negate_north = "adder", True
+        else:
+            diff_tile, negate_north = "adder", False
+
         # points.md #611: a real, necessary redesign, found empirically
         # by tracing actual VM ticks, not assumed correct from the
         # start. TWO real facts about the adder's own "two-arrival"
@@ -303,19 +388,23 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         # "whichever arrives first becomes A" would make subtract_mode
         # compute second_value - first_value, the WRONG order for
         # LLVM's `sub first, second`. Rather than fight the arrival
-        # order, `sub` is lowered as a plain ADD of the real, 32-bit
+        # order, `sub` (and icmp's sge/sgt, which need the same real
+        # A-B shape) is lowered as a plain ADD of the real, 32-bit
         # two's-complement NEGATION of second_value -- mathematically
-        # identical to a real subtraction, and reuses the exact same
-        # add pathway already confirmed correct, with no ordering
-        # question at all. The real "subtractor" tile (#611, using the
-        # RTL's own real subtract_mode bit) remains a real, separately
-        # useful, correctly-registered tile -- just not used by this
-        # particular layout, which has its own real ordering constraint
-        # this sidesteps entirely.
-        north_value = ((-second_value) & 0xFFFFFFFF) if instr.opcode == "sub" else second_value
-        injections.append((0, col, north_value))
+        # identical to a real subtraction, reusing the exact same add
+        # pathway already confirmed correct. icmp's slt/sle need the
+        # OPPOSITE real shape (B-A) -- rather than negate the WEST
+        # operand (impossible once i>0, since it's a physical wire
+        # carrying a prior instruction's own real output, not
+        # something that can be retroactively negated at its source),
+        # the real "subtractor" tile's own hardware ordering
+        # (north-arrives-first minus west-arrives-second) gives
+        # north(B) - west(A) directly, with NEITHER operand needing
+        # negation at all.
+        north_value = ((-second_value) & 0xFFFFFFFF) if negate_north else second_value
+        injections.append((0, diff_col, north_value))
         statements.append(PlaceIR(
-            name=f"value_north_{i}", tile_name="ram_flowing", row=0, col=col,
+            name=f"value_north_{i}", tile_name="ram_flowing", row=0, col=diff_col,
             fields=[FieldIR("in", "n"), FieldIR("out", "s")],
         ))
         if i == 0:
@@ -327,19 +416,41 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             # A real, harmless (no resend risk now -- pure single-shot)
             # extra relay hop on the west path guarantees it arrives
             # strictly one tick after north's.
-            injections.append((1, -1, first_value))
+            injections.append((1, diff_col - 2, first_value))
             statements.append(PlaceIR(
-                name="value_west0a", tile_name="ram_flowing", row=1, col=-1,
+                name="value_west0a", tile_name="ram_flowing", row=1, col=diff_col - 2,
                 fields=[FieldIR("in", "w"), FieldIR("out", "e")],
             ))
             statements.append(PlaceIR(
-                name="value_west0", tile_name="ram_flowing", row=1, col=0,
+                name="value_west0", tile_name="ram_flowing", row=1, col=diff_col - 1,
                 fields=[FieldIR("in", "w"), FieldIR("out", "e")],
             ))
         statements.append(PlaceIR(
-            name=f"op_{i}", tile_name="adder", row=1, col=col,
+            name=f"op_{i}", tile_name=diff_tile, row=1, col=diff_col,
             fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", "e")],
         ))
+
+        if instr.opcode == "icmp":
+            # points.md #613: comparator sits immediately EAST of the
+            # diff cell -- its own real "in" port (single, not two --
+            # comparator only ever compares ONE dynamic value against a
+            # FIXED, compile-time threshold, confirmed directly against
+            # its own real tile registration) receives the diff cell's
+            # own real output directly, no relay/timing concerns at all
+            # since this is a genuine single-arrival delivery, not a
+            # two-arrival capture.
+            cmp_col = diff_col + 1
+            statements.append(PlaceIR(
+                name=f"op_{i}_cmp", tile_name="comparator", row=1, col=cmp_col,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                # threshold is a required param, resolved above per predicate
+            ))
+            # real param goes on its own field entry (kept separate for clarity)
+            statements[-1].fields.append(FieldIR("threshold", threshold))
+            col_cursor = cmp_col + 1
+        else:
+            col_cursor = diff_col + 1
+
         prev_instr_name = instr.name
 
     ret_operand_name = _operand_name(list(ret_instr.operands)[0])
@@ -360,7 +471,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
 
     info = LlvmLoweringInfo(
         function_name=fn.name,
-        result_cell=(1, len(body_instructions)),
+        result_cell=(1, col_cursor - 1),
         expected_result=known_values[prev_instr_name],
         chain_length=len(body_instructions),
         injections=injections,

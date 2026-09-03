@@ -131,6 +131,93 @@ def test_negative_argument_value():
     assert out == 131  # (-10+50)-2+100-7
 
 
+# ── real icmp support (points.md #613) ──────────────────────────────
+
+def _run_icmp(source, argument_values, ticks=40):
+    """Real, end-to-end helper for icmp -- the result cell is a
+    comparator, not an adder, so it reads a different real field."""
+    icm, diagnostics, info = compile_llvm_ir(source, argument_values)
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    session = VMSession(grid)
+    for row, col, value in info.injections:
+        session.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    return cell.cmp_out_buffer, cell.cmp_data_valid, info
+
+
+def _icmp_ir(pred):
+    return f"""
+    define i1 @f(i32 %x) {{
+    entry:
+      %c = icmp {pred} i32 %x, 5
+      ret i1 %c
+    }}
+    """
+
+
+def test_icmp_sge_all_boundary_cases():
+    ir = _icmp_ir("sge")
+    assert _run_icmp(ir, {"x": 10})[0] == 1
+    assert _run_icmp(ir, {"x": 5})[0] == 1   # boundary: equal counts as >=
+    assert _run_icmp(ir, {"x": 3})[0] == 0
+
+
+def test_icmp_sgt_all_boundary_cases():
+    ir = _icmp_ir("sgt")
+    assert _run_icmp(ir, {"x": 10})[0] == 1
+    assert _run_icmp(ir, {"x": 5})[0] == 0   # boundary: equal is NOT >
+    assert _run_icmp(ir, {"x": 3})[0] == 0
+
+
+def test_icmp_slt_all_boundary_cases():
+    ir = _icmp_ir("slt")
+    assert _run_icmp(ir, {"x": 10})[0] == 0
+    assert _run_icmp(ir, {"x": 5})[0] == 0   # boundary: equal is NOT <
+    assert _run_icmp(ir, {"x": 3})[0] == 1
+
+
+def test_icmp_sle_all_boundary_cases():
+    ir = _icmp_ir("sle")
+    assert _run_icmp(ir, {"x": 10})[0] == 0
+    assert _run_icmp(ir, {"x": 5})[0] == 1   # boundary: equal counts as <=
+    assert _run_icmp(ir, {"x": 3})[0] == 1
+
+
+def test_icmp_mid_chain_reads_running_value():
+    """Real, direct confirmation icmp correctly reads the chain's own
+    running value through multiple prior instructions, not just a
+    bare argument."""
+    ir = """
+    define i1 @f(i32 %x, i32 %y) {
+    entry:
+      %t1 = add i32 %x, %y
+      %t2 = sub i32 %t1, 3
+      %c = icmp sgt i32 %t2, 10
+      ret i1 %c
+    }
+    """
+    out, valid, info = _run_icmp(ir, {"x": 5, "y": 8})   # (5+8)-3=10, 10>10=False
+    assert out == 0
+    out2, valid2, info2 = _run_icmp(ir, {"x": 5, "y": 10})  # (5+10)-3=12, 12>10=True
+    assert out2 == 1
+
+
+def test_icmp_eq_ne_honestly_rejected_not_silently_wrong():
+    for pred in ("eq", "ne"):
+        icm, diagnostics, info = compile_llvm_ir(_icmp_ir(pred), {"x": 5})
+        assert icm is None
+        assert any(f"{pred!r}" in d.problem for d in diagnostics)
+
+
+def test_icmp_negative_values():
+    ir = _icmp_ir("slt")
+    out, valid, info = _run_icmp(ir, {"x": -100})
+    assert out == 1  # -100 < 5
+
+
 def test_injections_are_exactly_what_was_used():
     """Real, direct confirmation the returned injection plan is
     complete and correct -- not just that the end result happens to be
