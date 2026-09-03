@@ -3690,3 +3690,52 @@ of truth for those).
 Session paused here, per Alan's own explicit low-usage signal.
 `523/523` Python tests still passing (docs-only change).
 
+## 628. Real design note for a 9th "command core", captured from a live design discussion following `#626`'s own removal of command-cell functionality from nano. Also confirms a real, honest gap: nano's own independent shift capability, flagged two sessions ago, was NOT restored during the `#626` strip-down. (Alan/Claude, 2026-09-04)
+
+**Real, honest confirmation checked directly, not assumed:** `nano_
+gate_v4.v` carries the SAME shared, coarse `shift_lane_addon_v1`
+every other core got this session -- but nano's own NATIVE,
+independent, fine-grained shift capability (the one that would layer
+with the shell's coarse jumps to close the gaps between them,
+originally flagged missing before `#617`'s own carrier work began)
+was never restored -- `#626`'s own real scope was "keep everything
+nano already had, remove only command-cell stuff," and nano never
+HAD its own shift to begin with. Real, standing gap for LLVM's own
+`shl`/`lshr`/`ashr`, unchanged.
+
+**Real design discussion captured in full in `docs/stripped-cell/
+design-notes/command_core_scope.md`** (new file):
+- **Directional freeze must move from shell to core** -- every real
+  `v4` core's own shared `freeze_in` (one wire, all four directions
+  tied together, confirmed directly against the RTL) can't serve a
+  command core that needs to freeze only the one direction its target
+  sits on. Real, necessary consequence: four separate freeze lines as
+  the command core's own logic.
+- **Four real approaches to knowing when it's safe to act**, converging
+  on two: ack-line sensing (real, honest caveat -- only gives a clean
+  "empty" signal for one-shot cores, not continuously-live ones, per
+  this session's own `#621`/`#623`/`#625` lessons) and direct
+  freeze-line visibility (a real, working synthesis with the
+  directional-freeze point: freeze the target first, settle one cycle,
+  then act -- freeze CREATES safety rather than merely observing it).
+- **Real, confirmed bit budget for target addressing:** the 32-bit
+  `prog_data` word's own real free space (`[31:24]`, 8 bits, confirmed
+  free in even the busiest 4-bit-ID cores) is enough for a real,
+  256-address target scheme, reusing each core's own already-present
+  (currently unused for this) `CELL_ID` parameter -- no widening
+  needed. Structurally the same shape as nano's own real relay-vs-
+  consume classification, applied to the programming channel instead
+  of data.
+- **Stage-then-release, using existing decision cores as the trigger**
+  -- the command core stores a payload and waits for a real release
+  signal from a `comparator`/`branch`/`latch` cell wired in directly,
+  rather than building bespoke decision logic -- a direct, real
+  application of this project's own Lego philosophy (`#498`).
+- **Real, open question, not resolved:** whether the addon chain even
+  applies to a control-plane, non-dataflow core at all.
+
+**Real, honest scope: nothing built.** A design note capturing a live
+discussion precisely, matching every other `*_scope.md`'s own
+discipline -- picking one sensing approach and one addressing shape to
+prototype is the real next step, not attempted here.
+

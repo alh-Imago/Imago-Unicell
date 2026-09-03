@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-03, session paused on low usage -- a real, confirmed-base lookup table of per-core capabilities/PROG_ID codes captured before stopping. See `points/points_active.md` #627)
+# Current State (as of 2026-09-04, real command-core design note captured from a live discussion -- directional freeze, addressing in the spare prog_data bits, stage-then-release using existing decision cores as the trigger. See `points/points_active.md` #628)
+
+## Read this first (most recent)
+
+**2026-09-04, command-core design note captured (#628).** Real
+discussion following `#626`'s own command-cell removal from nano.
+Also confirmed a real, honest gap along the way: `nano_gate_v4.v`
+carries the shared, coarse `shift_lane_addon_v1` every other core
+has, but nano's own NATIVE, independent, fine-grained shift capability
+(flagged missing before `#617`'s carrier work began) was never
+restored -- `#626`'s own scope was "keep what nano had," and nano
+never had its own shift to begin with. Still a real, standing gap for
+LLVM's `shl`/`lshr`/`ashr`.
+
+Full design discussion in `docs/stripped-cell/design-notes/
+command_core_scope.md` (new file): directional freeze needs to move
+from the shared shell wire to four separate lines on the command
+core's own logic; four sensing approaches converging on two (ack-line
+sensing has a real, honest caveat -- doesn't give a clean "empty"
+signal for continuously-live cores; direct freeze-line visibility
+combines naturally with the directional-freeze point -- freeze the
+target first, settle a cycle, then act); a real, confirmed 8-bit
+target-addressing scheme fits in the existing `prog_data` word's spare
+bits, reusing each core's own already-present `CELL_ID`; and a clean
+stage-then-release design using an existing `comparator`/`branch`/
+`latch` cell as the release trigger, rather than building bespoke
+decision logic.
+
+Nothing built -- a real design note only. 523/523 Python tests still
+passing (docs-only change).
+
+**Real, standing next-session queue:** (1) nano's own independent
+shift capability (re-surfaced, still open); (2) pick one sensing
+approach + one addressing shape from the command-core note and
+prototype; (3) the `N=8` multi-core carrier case; (4) Alan's own real
+Quartus build for ALM/Fmax across the whole 8-core family; (5)
+standing LLVM-frontend queue (`icmp eq`/`ne`, `select`, `phi`/loops).
+
+## Previous state (as of 2026-09-03, session paused on low usage -- a real, confirmed-base lookup table of per-core capabilities/PROG_ID codes captured before stopping. See `points/points_active.md` #627)
 
 ## Read this first (most recent)
 
