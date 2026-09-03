@@ -159,3 +159,63 @@ through the ordinary `data_out_X`/`fire_X` cardinal ports like any
 other core, rather than PCIe being treated as a special, carrier-level
 concern. Not scoped or started -- but a real, small, useful idea
 distinct from the speculation it arrived wrapped in.
+
+## Addendum (2026-09-03): nano's own real shift capability -- confirmed lost, and a real, precise reason to give it back, per Alan's own direct point
+
+Alan's own real correction, prompted by this session's own LLVM-
+frontend work narrowing focus onto the 8 already-built super-cell
+cores: recent work risked treating that set as closed, when a real,
+substantial, already-explored thread (`#303`-`#311`, the FULL cell's
+own shift/lane mechanism, and `shift_lane_addon_v1.v` -- the first
+real addon this project ever built) sits right here, underused.
+
+**The real, current state, checked directly, not assumed:**
+`shift_lane_addon_v1.v` is real, already built, and FAITHFULLY ported
+from the FULL cell's own real, in-use logic (`#303`) -- a SPARSE,
+FIXED-PATTERN shifter (exactly 9 discrete amounts, `{1,2,4,8,12,16,
+20,24,28}`; any other amount silently passes through unshifted, a
+real, deliberate "constant shift is free rewiring" tradeoff, not a
+missing feature), placement-flexible (before or after the active
+core's own data work, resolving the real position-sensitivity concern
+`#179`'s own follow-up first raised), with lane-cut coupled only to
+the shift-OUT direction. It lives entirely in `addon_config` (9 of the
+addon budget's own 20 bits, already 100% allocated across the 3 real
+addons) -- meaning it wraps whichever core is active, nano included,
+when nano runs AS ONE OF THE 8 CORES inside a super-cell shell.
+
+**But nano's own STANDALONE RTL (`unicell_stripped_v1.v`) has
+genuinely ZERO shift capability of its own** -- confirmed directly, a
+real grep for "shift" turns up nothing relevant. Whatever shift nano
+gets today comes entirely from the shared, single, sparse addon every
+other core also shares -- nothing nano-specific, nothing finer-grained.
+
+**Alan's own real proposal, precise, not yet built:** give nano back a
+genuine, INDEPENDENT shift capability of its own (distinct from, in
+addition to, the existing shared addon) -- so that when nano
+specifically is active, its own shift and the shell's own
+`shift_lane_addon_v1` could LAYER, giving genuinely finer-grained
+control than the single, sparse, 9-discrete-amount addon provides
+alone. Real, honest first step named plainly: even nano's own shift
+capability EXPOSED ALONE (independent of any layering) would be worth
+real testing on its own merits, not conditional on the layering idea
+panning out.
+
+**Real, direct connection to gaps already found this same session, not
+a speculative tie-in:** LLVM IR's own `shl`/`lshr`/`ashr` instructions
+-- not yet even considered for `#611`-`#613`'s own frontend -- would
+have a real, natural home in whatever shift mechanism results here.
+And the same earlier thread that first surfaced the shift/lane
+mechanism (`#303`-era) already flagged it as the real missing step
+toward eventual multiply support (shift-and-add) -- `LLVM.md`'s own
+archived note (`#612`) named `mul` as "too large for most FPGA
+targets... planned for a future session," and a real shift mechanism
+is a genuine, concrete piece of that future path, not a separate idea.
+
+**Real, honest scope: nothing built here.** The 13 genuinely reserved
+`SUPER_LATCH` bits (confirmed above, `addon_config`'s own 20 bits
+already 100% allocated) are the real, available headroom a second,
+nano-specific shift mechanism would need to draw from -- a real,
+concrete design constraint to work within, not resolved here. A real,
+precise proposal captured so it survives intact, matching every other
+`*_scope.md`/design-note's own discipline in this directory -- not
+started this session, given low usage.

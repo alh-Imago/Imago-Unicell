@@ -3007,3 +3007,40 @@ mechanism could be extended to the super-cell's other cores is a real,
 concrete, unexplored architectural question, captured in
 `llvm_ir_compiler_scope.md`'s own Addendum 5, not attempted here.
 
+## 616. Real correction, per Alan's own direct point: recent LLVM-frontend work risked treating the 8 built super-cell cores as a closed set, when a real, already-explored thread (nano's own lost shift capability) sits right there, underused. (Alan/Claude, 2026-09-03)
+
+**Confirmed directly, not assumed:** `shift_lane_addon_v1.v` is real,
+already built, faithfully ported from the FULL cell's own real,
+in-use logic (`#303`-`#311`) -- a SPARSE, FIXED-PATTERN shifter (9
+discrete amounts only, `{1,2,4,8,12,16,20,24,28}`; any other amount
+silently passes through unshifted, a real, deliberate tradeoff, not a
+gap), placement-flexible (before/after the active core). It lives in
+`addon_config` (100% allocated across the 3 real addons), wrapping
+whichever core is active -- nano included, when nano runs as one of
+the 8 cores inside a shell.
+
+**But nano's own STANDALONE RTL has genuinely zero shift capability
+of its own** -- confirmed directly, not assumed. Whatever shift nano
+gets today is entirely the shared, single addon every other core also
+gets.
+
+**Alan's own real proposal, precise, not built:** give nano back a
+genuine, independent shift capability, distinct from the shared addon
+-- layered with `shift_lane_addon_v1`, this could give genuinely
+finer-grained control than the single sparse addon alone. Even nano's
+own shift exposed alone, independent of any layering, would be worth
+real testing on its own merits.
+
+**Real, direct connection to gaps already found this same session:**
+LLVM's own `shl`/`lshr`/`ashr` -- not yet considered for `#611`-`#613`
+-- would have a natural home here, and the same real thread that
+surfaced shift/lane already flagged it as the missing step toward
+eventual multiply support, directly connecting to `#612`'s own found
+`mul` limitation.
+
+**Captured in full in `promotable_specialist_modules.md`'s own new
+Addendum.** Real, honest scope: nothing built, session paused on low
+usage. The 13 genuinely reserved `SUPER_LATCH` bits are the real
+headroom a second shift mechanism would need -- a real constraint to
+work within, not resolved here.
+

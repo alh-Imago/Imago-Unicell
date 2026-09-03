@@ -1,4 +1,29 @@
-# Current State (as of 2026-09-03, real finding on the old opcode-targeted command bus vs. today's mechanism -- confirmed against both RTL files. Nano kept its own targeted reconfiguration; the super-cell cores this LLVM frontend uses did not. See `points/points_active.md` #615)
+# Current State (as of 2026-09-03, real correction captured -- nano's own lost shift capability, per Alan's own direct point that recent LLVM work was treating the 8 built cores as a closed set. See `points/points_active.md` #616)
+
+## Read this first (most recent)
+
+**2026-09-03, real correction (#616), per Alan's own direct point.**
+Recent LLVM-frontend work risked treating the 8 built super-cell cores
+as closed -- a real, already-explored thread (`#303`-`#311`) sits
+right there: `shift_lane_addon_v1.v` is real and already built (a
+sparse, 9-discrete-amount shifter, faithfully ported from the FULL
+cell, placement-flexible), but nano's own STANDALONE RTL has zero
+shift capability of its own -- confirmed directly. Alan's real
+proposal: give nano back its own independent shift, which layered with
+the shared addon could give genuinely finer control. Direct connection
+to real gaps: LLVM's own `shl`/`lshr`/`ashr` (not yet considered) and
+the already-flagged path toward eventual multiply support. Captured in
+full in `promotable_specialist_modules.md`'s own new addendum. Nothing
+built -- session paused on low usage.
+
+**Real, standing next-session queue, growing but unchanged in kind:**
+(1) nano's own independent shift capability -- a real, concrete design
+question now; (2) trace `nano_gate`'s own real timing, then build
+`icmp eq`/`ne`; (3) investigate `select` (now informed by both the
+command-cell staging-cost finding AND the shift/select connection);
+(4) `phi`/loops.
+
+## Previous state (as of 2026-09-03, real finding on the old opcode-targeted command bus vs. today's mechanism -- confirmed against both RTL files. Nano kept its own targeted reconfiguration; the super-cell cores this LLVM frontend uses did not. See `points/points_active.md` #615)
 
 ## Read this first (most recent)
 
