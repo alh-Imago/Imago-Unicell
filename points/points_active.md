@@ -2816,3 +2816,69 @@ and the two-arrival firing model's own real behavioral subtleties
 dependence) are now documented in working code and tests, not just
 theorized about.
 
+## 612. Real history hunt, per Alan's own direct request: extracted and read the old full-cell system's own real, working LLVM IR frontend from the archive -- confirming what transfers and what doesn't, with real evidence, not guesswork. (Alan/Claude, 2026-09-03)
+
+**Real, practical first step: the Onion submodule (`tools/onion`) was
+never initialized in this session's own repo clone.** `git submodule
+update --init --recursive` + a fresh C-extension build (`build_ext.py`
++ `pip install -e .`), per this project's own established per-session
+ritual -- confirmed working, `onion` CLI available.
+
+**Two real archives inspected and extracted, not just their metadata
+trusted:** `archeology/onion/old_llvm_frontend.onion`
+(`llvm_frontend.py` + `llvm_ir_mapper.py`, 31KB each) and
+`archeology/onion/old_full_cell_tile_library.onion` (`fp_tiles.py`,
+313KB, containing the real `TilePlacer` class). Both real, substantial,
+working source, not stubs.
+
+**Real, honest scope comparison against `#611`'s own restricted
+slice:** the old mapper supported `add`/`sub`/`and`/`or`/`xor`, all six
+real `icmp` predicates, `select`, real CONDITIONAL BRANCHES, and real
+`phi` NODES (loop-carrying values) -- genuinely everything `#611`
+explicitly deferred as real control flow. `LLVM.md` (the old system's
+own real, dedicated design doc, also read directly) documents real
+float support and gives real, measured tile sizes (e.g. `INT32_ADD`:
+Kogge-Stone, 482 cells, depth 10).
+
+**The real, decisive architectural finding, confirmed against
+`TilePlacer`'s own actual code, not assumed from the design doc's
+surface claims:** `TilePlacer.place()`'s own docstring states it
+"places a tile into an address space by remapping its internal wire
+addresses to a fresh region of the BUS." The old mapper's own real
+`_lower_phi()`/`_lower_br()` work by reading/writing abstract BUS
+ADDRESSES -- any cell can reference any other cell's output directly,
+with zero physical adjacency to reason about. This is PRECISELY why
+phi/branches were tractable there and remain genuinely open for
+Unicell-S: every real timing hazard `#611` hit (OR-collision, live-
+source contamination, arrival-order dependence) exists SPECIFICALLY
+BECAUSE Unicell-S has no bus, by deliberate design (`#611`'s own
+Addendum 2, the confirmed "same cell" wired-OR mesh). The old mapper's
+own bus-addressed approach does NOT directly transfer -- a real,
+checked conclusion, not a guess.
+
+**What DOES transfer, real and useful, kept honestly distinct from
+what doesn't:** the mapper's own FRONTEND STRUCTURE (instruction-by-
+instruction SSA-value resolution through an environment, opcode
+dispatch to per-construct lowering methods, all six `icmp` predicates
+via sign-bit extraction on a subtractor) is real, concrete reference
+for extending `#611`'s own frontend toward `icmp`/`select`/`phi`/`br`
+later -- independent of the bus-vs-mesh question. A real, honest
+additional finding: `_lower_load()`/`_lower_store()` exist but are
+narrow -- a fixed, static stack-address alias via one `GS_PASS` cell,
+not general indexed/addressed memory -- `LLVM.md`'s own "no memory
+model" claim holds up against the real code, not an understatement.
+
+**Captured in full in `docs/stripped-cell/design-notes/
+llvm_ir_compiler_scope.md`'s own Addendum 3** -- the real, precise
+distinction between "logical/bus-addressed compiler structure"
+(transfers as a pattern) and "physical cardinal-mesh timing closure"
+(needs `Addendum 2`'s own separate, already-real prior art, not this
+one) is now stated with evidence, not left to guess at next time this
+is picked up.
+
+**Real, honest scope: nothing built or ported.** A real, completed
+research pass -- two archives read and understood, findings recorded
+precisely so the next real session extending `#611` toward richer
+LLVM IR support starts from a stronger, evidence-grounded place rather
+than re-deriving "does the old system help here" from scratch.
+

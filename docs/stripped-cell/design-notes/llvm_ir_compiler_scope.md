@@ -335,3 +335,73 @@ cells versus a single coarser super-cell holding one active core), not
 whether the underlying timing rules themselves still apply. Not scoped
 further here -- a real, concrete next-look item for whenever general
 routing is picked up, not a green light to start building it now.
+
+## Addendum 3 (2026-09-03): a real, working LLVM IR frontend already existed -- extracted and read directly, per Alan's own "history hunt" request
+
+`archeology/shared/docs/software/LLVM.md` (a real, dedicated design
+doc) and `archeology/onion/old_llvm_frontend.onion` (a real, archived
+source bundle) confirm the old full-cell system had a genuine, tested
+LLVM IR frontend: `llvm_frontend.py` + `llvm_ir_mapper.py`, 31KB each,
+using `llvmlite` -- the exact same library `#611` independently chose
+today. Extracted and read directly via the now-initialized Onion
+submodule (`tools/onion`, `git submodule update --init --recursive` +
+a fresh C-extension build, per this project's own established
+per-session ritual), not assumed from the design doc's own claims
+alone.
+
+**Real, honest scope comparison against today's `#611` slice:** the
+old mapper supported a genuinely richer subset --
+`add`/`sub`/`and`/`or`/`xor`, all six real `icmp` predicates (not just
+equality), `select`, real CONDITIONAL BRANCHES, and real `phi` NODES
+(loop-carrying values) -- everything `#611` explicitly deferred as
+"real control flow, not attempted here." `LLVM.md` also documents real
+float support (`fadd`/`fmul`/`fcmp`) and gives real, measured tile
+sizes (e.g. `INT32_ADD`: Kogge-Stone, 482 cells, depth 10) -- concrete
+evidence this wasn't a toy, it targeted real, sized, verified hardware
+tiles.
+
+**The real architectural fact this discovery surfaces, checked
+directly against `TilePlacer`'s own real code, not assumed:**
+`TilePlacer.place()`'s own docstring states plainly it "places a tile
+into an address space by remapping its internal wire addresses to a
+fresh region of the BUS." The old mapper's own `_lower_phi()`/
+`_lower_br()` work by writing to and reading from abstract BUS
+ADDRESSES -- a `phi` node's predecessors just write to a shared
+address, a branch's `GS_SELECT` cell routes between two addresses.
+**This is precisely why phi/branches were tractable there and remain
+genuinely open here:** a bus-addressed model sidesteps physical
+adjacency entirely -- any cell can reference any other cell's output
+by address, with no relay-path timing to engineer at all. Unicell-S
+has no bus, by deliberate design (`Addendum 2`'s own confirmed "same
+cell" wired-OR mesh) -- every real timing hazard `#611` hit (OR-
+collision, live-source contamination, arrival-order dependence) exists
+SPECIFICALLY BECAUSE there is no bus to sidestep it with. The old
+mapper's own bus-addressed approach does NOT directly transfer to
+Unicell-S's own real architecture -- confirmed by reading the actual
+code, not assumed from the design doc's surface-level operation table.
+
+**What DOES transfer, real and useful, kept distinct from what
+doesn't:** the mapper's own FRONTEND STRUCTURE -- walking LLVM IR
+instruction by instruction, resolving SSA values through an
+environment, dispatching by opcode to a per-construct lowering method,
+handling all six `icmp` predicates via sign-bit extraction on a
+subtractor tile -- is real, concrete, valuable reference for extending
+`#611`'s own frontend into a richer LLVM IR subset later, independent
+of the bus-vs-mesh question. A real, honest, additional finding: the
+old mapper's own `_lower_load()`/`_lower_store()` exist, but checked
+directly, are narrow -- a fixed, static stack-address alias (via a
+single `GS_PASS` cell), not general indexed/addressed memory (no
+array indexing, no pointer arithmetic) -- `LLVM.md`'s own "no memory
+model... only pure arithmetic functions" claim holds up against the
+real code, this isn't a case of the design doc understating a more
+complete implementation.
+
+**Real, honest scope: nothing built or ported here.** This is a real,
+completed research pass, per Alan's own direct request -- the two
+archives read and understood, the real distinction between "logical/
+bus-addressed compiler structure" (transfers as a pattern) and
+"physical cardinal-mesh timing closure" (needs the SEPARATE prior art
+in `Addendum 2`, not this one) now stated precisely rather than left
+to guess at. The old mapper's own frontend-structure patterns remain a
+real, concrete reference for whenever `#611`'s own subset is extended
+toward `icmp`/`select`/`phi`/`br` -- not attempted in this entry.

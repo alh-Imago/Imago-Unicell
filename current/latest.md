@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-03, the real, first LLVM IR frontend is built and working -- per #610's own scope and Alan's own direct "get that working today" request. Confirmed correct by actually running the VM, not just compiling. See `points/points_active.md` #611)
+# Current State (as of 2026-09-03, real history hunt done -- the old full-cell system's own real, working LLVM IR frontend was extracted and read directly, confirming what transfers to Unicell-S and what doesn't, with real evidence. See `points/points_active.md` #612)
+
+## Read this first (most recent)
+
+**2026-09-03, real history hunt (#612), per Alan's own direct
+request.** Initialized the Onion submodule (never done this session)
+and extracted two real archives: the old full-cell system's own
+working LLVM IR frontend (`llvm_frontend.py`/`llvm_ir_mapper.py`,
+using `llvmlite` -- the same library `#611` independently chose) and
+its real tile-placement library (`fp_tiles.py`, containing
+`TilePlacer`).
+
+The old mapper supported significantly more than `#611`'s own
+restricted slice -- all `icmp` predicates, `select`, real conditional
+branches, and real `phi` nodes (loop-carrying values). But checked
+directly against `TilePlacer`'s own code, not assumed: it operates on
+an abstract BUS-ADDRESS space, not physical cardinal placement --
+which is exactly why control flow was tractable there and remains
+genuinely open for Unicell-S. Every real timing hazard `#611` hit
+exists specifically because Unicell-S has no bus, by deliberate
+design (the same "same cell" wired-OR mesh confirmed last session).
+The old mapper's bus-addressed approach does NOT directly transfer --
+but its own frontend STRUCTURE (SSA-value resolution, opcode
+dispatch, icmp-via-sign-bit-extraction) is real, useful reference for
+extending `#611` toward richer LLVM IR later.
+
+Full findings captured in `docs/stripped-cell/design-notes/
+llvm_ir_compiler_scope.md`'s own Addendum 3, alongside Addendum 1
+(the real timing-closure discovery from `#611` itself) and Addendum 2
+(confirming the old and new cells are the SAME cell, not just
+similar). Nothing built or ported -- a real, completed research pass.
+
+**Real, standing next-session items:** `#604` (card-decoupled virtual
+substrate + 3D extension), and extending `#611`'s own LLVM frontend
+toward `icmp`/`select`/`phi`/`br`, informed by this session's own real
+findings about what does and doesn't transfer from the old system.
+
+## Previous state (as of 2026-09-03, the real, first LLVM IR frontend is built and working -- per #610's own scope and Alan's own direct "get that working today" request. Confirmed correct by actually running the VM, not just compiling. See `points/points_active.md` #611)
 
 ## Read this first (most recent)
 
