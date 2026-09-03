@@ -3250,3 +3250,59 @@ confirmed working (`adder`, `ram`, `comparator`) -- the remaining 4
 (`accumulator`/`latch`/`sequencer`/`branch`) and the `N=8` carrier case
 remain real, explicit next steps.
 
+## 621. `accumulator_cell_v4.v` -- the FOURTH real, sim-verified unified-carrier core, structurally the most different of all four: continuously-live running state, never one-shot, with two independent capture triggers. A real, genuine testbench-design race chased down and fixed, teaching a real, general lesson about testing continuously-live cores. (Alan/Claude, 2026-09-03)
+
+**Real, necessary extension of the "inactive = zero real effect"
+principle, not previously needed:** `#618`-`#620`'s own `active` bit
+only ever needed to gate the OFFERED output, since those cores are
+one-shot (empty until captured). This core is different -- it has a
+real, continuously-live INTERNAL running total that updates
+unconditionally on every real inc/dec, regardless of the offer side.
+`active` here also gates `capture_inc`/`capture_dec` themselves, so an
+inactive cell's own internal total genuinely holds rather than
+silently drifting in the background -- confirmed by a real test:
+triggering a real inc while `active=0`, then reactivating and checking
+the total is unchanged.
+
+**Real, notable third data point on field-width variability:**
+`threshold` here is 16 bits (pulse-mode only), fitting in ONE real
+targeted `PROG_ID` write directly -- unlike `ram`'s 32-bit `init_data`
+or `compare`'s 32-bit `threshold` (`#619`/`#620`), both of which needed
+a real split write. Three real cores, three different real answers to
+the same question, confirming the carrier's own protocol genuinely
+adapts per core rather than applying one fixed rule.
+
+**A real, genuine testbench-design race, chased down by direct signal
+tracing, not guessed at:** this core continuously re-offers its
+current total, re-arming `pending_ack` again the very next cycle after
+any single ack clears it -- even when nothing new happened. A test
+pattern of "ack once around each real event" (the exact pattern that
+worked fine for `#618`-`#620`'s own one-shot cores) races against that
+re-arm: the ack can land in a narrow window where it drains a STALE
+offer instead of the fresh one, silently reading one real event
+behind. Confirmed directly by isolating the exact sequence in a
+standalone trace before fixing the real testbench. The robust fix,
+now the real, general lesson for testing any future continuously-live
+core: a free-running auto-consumer (acks whatever's offered,
+continuously) combined with generous settle time before sampling,
+rather than precise single-ack timing around each event.
+
+**Real, honest verification:** `tb_accumulator_cell_v4.v` (new,
+rewritten once after the real race above) -- 7 real checks, all
+correct: 4 confirming identical-to-v1 running-total behavior across
+inc/dec sequences, 1 confirming the real single-write `step_amount`
+reprogram, 1 through the real addon chain (`invert_en`), 1 confirming
+`active=0` genuinely holds the internal total (not just the output).
+`tb_accumulator_cell_v1.v`'s own existing real suite re-run unchanged,
+confirming v1 itself untouched. `523/523` Python tests still passing.
+
+**Real, honest scope, matching `#618`-`#620`'s own stated deferrals:**
+`is_command_cell`/`pulse_mode`'s own real threshold-crossing behavior
+not separately exercised in the v4 testbench (static mode only,
+matching this session's own real time budget -- a real, explicit gap,
+not silently assumed covered). Four real cores now confirmed working
+(`adder`, `ram`, `comparator`, `accumulator`) -- `latch`/`sequencer`/
+`branch` and the `N=8` carrier case remain real, explicit next steps.
+Session paused here per Alan's own real usage-budget signal ("1 more
+core").
+

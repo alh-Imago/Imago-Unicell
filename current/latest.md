@@ -1,4 +1,49 @@
-# Current State (as of 2026-09-03, compare_cell_v4.v -- the third real, sim-verified unified-carrier core: single-arrival capture WITH real computation, a genuinely different combination from both prior cores. See `points/points_active.md` #620)
+# Current State (as of 2026-09-03, accumulator_cell_v4.v -- fourth real, sim-verified unified-carrier core, structurally the most different so far: continuously-live running state, never one-shot. A real testbench-design race chased down and fixed. Session paused per Alan's own usage signal. See `points/points_active.md` #621)
+
+## Read this first (most recent)
+
+**2026-09-03, `accumulator_cell_v4.v` built and sim-verified (#621),
+fourth real core after `adder`/`ram`/`comparator` (`#618`-`#620`).**
+Structurally the most different of all four: real, continuously-live
+running total (never one-shot, updates unconditionally on every real
+inc/dec), two independent capture triggers (inc/dec, not a matched
+pair).
+
+**Real, necessary extension of the `active` principle:** unlike the
+prior three (one-shot, `active` only needed to gate output), this
+core's own internal total updates regardless of the offer side --
+`active` here also gates `capture_inc`/`capture_dec` themselves, so an
+inactive cell's internal state genuinely holds, confirmed by a real
+test (inc while inactive, reactivate, check unchanged).
+
+**A real, genuine testbench-design race, chased down by direct signal
+tracing:** this core continuously re-offers its current total,
+re-arming `pending_ack` the very next cycle after any ack clears it --
+even with nothing new. A "single ack per event" pattern (which worked
+fine for the prior three one-shot cores) races against that re-arm and
+can silently read one event stale. Confirmed by isolating the exact
+sequence in a standalone trace. Fixed with the real, general lesson for
+any future continuously-live core: a free-running auto-consumer plus
+generous settle time before sampling, not precise single-ack timing.
+
+`tb_accumulator_cell_v4.v` (new, rewritten once after the race above)
+-- 7 real checks, all correct. v1's own real suite re-run unchanged.
+523/523 Python tests still passing.
+
+**Real, honest scope:** `pulse_mode`'s own threshold-crossing behavior
+not separately exercised in v4 (static mode only, a real, explicit
+gap). Four real cores done -- `latch`/`sequencer`/`branch` and the
+`N=8` carrier case remain. Session paused per Alan's own real
+usage-budget signal.
+
+**Real, standing next-session queue:** the remaining 3 cores, the
+`N=8` carrier case, Alan's own real Quartus build for ALM/Fmax across
+all four `v4` cores so far, the parked `is_command_cell`-as-9th-core
+idea, and — per this same session's own explicit note — nano itself
+will need STRIPPING to match the unified shape (it already has these
+capabilities), not adding to, when its turn comes.
+
+## Previous state (as of 2026-09-03, compare_cell_v4.v -- the third real, sim-verified unified-carrier core: single-arrival capture WITH real computation, a genuinely different combination from both prior cores. See `points/points_active.md` #620)
 
 ## Read this first (most recent)
 
