@@ -1,4 +1,53 @@
-# Current State (as of 2026-09-03, sequencer_cell_v4.v -- the SEVENTH and FINAL real, sim-verified unified-carrier core. All 8 real core types now have a real v4 build; only nano's own future strip-down remains. See `points/points_active.md` #625)
+# Current State (as of 2026-09-03, nano_gate_v4.v -- nano's own real STRIP-DOWN to the unified carrier shape, completing the whole family. ALL 8 real core types now have a real, sim-verified v4 build. See `points/points_active.md` #626)
+
+## Read this first (most recent)
+
+**2026-09-03, `nano_gate_v4.v` built and sim-verified (#626) --
+completing the entire unified-carrier family.** The largest, most
+complex core built this whole session, and correctly so -- it retains
+real capability none of the other 7 ever had.
+
+Per Alan's own direct decisions across this thread: command-cell
+functionality (`is_command_cell`, `cmd_in`/`cmd_out`) removed
+ENTIRELY -- both confirmed real but non-functional/redundant before
+removing (a config-time alias with a live-wire equivalent; a
+genuinely unwired dead stub). Everything else kept unchanged, per
+Alan's own "Swiss army knife" framing: the real two-arrival gate
+computation, the real dynamic pattern-based routing (kept deliberately,
+matching `branch`'s own real routing precedent), relay-vs-consume
+classification, and the full real memory-cell extension set (`hold`/
+`fb_internal`/`a_reemit`/`a_update`/`a_self_update`).
+
+Real, notable data point: `addon_config` fit inside the EXISTING
+128-bit `cmd_latch` without widening at all -- confirmed real, deliberate
+reserved headroom already existed. Real, same pressure as `branch`
+(`#624`): 9 real fields exceeded the 3-bit `PROG_ID` budget, widened
+to 4 bits -- the two richest, most field-dense cores in the family,
+confirmed not a coincidence.
+
+A real testbench issue correctly diagnosed as faithful DUT behavior,
+not a bug: `cfg_valid` doesn't clear `a_arrived` in the real RTL (only
+`rst` does) -- a real, deliberate v1 characteristic, preserved
+faithfully, not something to "fix."
+
+`tb_nano_gate_v4.v` (new) -- 8 real checks. v1 itself untouched,
+confirmed via its own existing real test suites. 523/523 Python tests
+still passing.
+
+**Real, honest milestone: ALL 8 real core types now have a real,
+sim-verified `v4` build** -- `adder`/`ram`/`comparator`/`accumulator`/
+`latch`/`branch`/`sequencer` (built up) and `nano` (stripped down),
+all sharing the same real programming channel, addon chain, and
+`active` bit.
+
+**Real, standing next steps:** (1) the `N=8` multi-core carrier case
+(wiring these same 8 cores behind one real `core_select` decode); (2)
+Alan's own real Quartus build for ALM/Fmax across the whole family;
+(3) the parked `is_command_cell`-as-9th-core idea -- the command-cell
+functionality removed from nano still needs a real home; (4) standing
+LLVM-frontend queue (`icmp eq`/`ne`, `select`, `phi`/loops).
+
+## Previous state (as of 2026-09-03, sequencer_cell_v4.v -- the SEVENTH and FINAL real, sim-verified unified-carrier core. All 8 real core types now have a real v4 build; only nano's own future strip-down remains. See `points/points_active.md` #625)
 
 ## Read this first (most recent)
 

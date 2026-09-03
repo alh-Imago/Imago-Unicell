@@ -3550,3 +3550,102 @@ steps: the `N=8` multi-core carrier case, Alan's own real Quartus
 build for ALM/Fmax across all seven `v4` cores, the parked
 `is_command_cell`-as-9th-core idea, and `nano`'s own strip-down.
 
+## 626. `nano_gate_v4.v` -- nano's own real STRIP-DOWN to the unified carrier shape, completing the whole family: all 8 real core types now have a real, sim-verified `v4` build. The largest, most complex core in the family, by a real margin -- and, faithfully, real evidence of exactly why: it retains real capability the other 7 never had. Per Alan's own direct decisions across this thread: command-cell functionality removed entirely; the dynamic pattern-routing kept as-is, "the Swiss army knife of all the cores." (Alan/Claude, 2026-09-03)
+
+**Real, deliberate removal, per Alan's own direct decision, confirmed
+correct before removing, not assumed:** `is_command_cell`
+(`cmd_latch[10]` in v1) is gone entirely -- confirmed directly it was
+ONLY ever a config-time alias forcing `effective_hold`/
+`effective_reemit` permanently true; the exact same real behavior
+remains fully reachable by driving `hold_in`/`a_reemit_in` directly
+from any real source. `cmd_in_n/s/e/w`/`cmd_out_n/s/e/w` are gone too
+-- confirmed directly they were real, reserved ports (`#84`) but
+genuinely UNWIRED (`cmd_out_x` tied to `32'h0` unconditionally). Zero
+real capability lost either way.
+
+**Real, deliberate retention, per Alan's own direct decision ("keep
+the routing, having at least 1 multifunction core will help... move/
+remove the command side completely"):** EVERYTHING else cloned
+unchanged from `unicell_stripped_v1.v` -- the real two-arrival
+NOR-decomposed gate computation (12 real topology codes), the real
+dynamic pattern-based routing (`pattern_low`/`equal`/`high` +
+`dynamic_route_en`, gated by the real, measured
+`ENABLE_DYNAMIC_ROUTING` compile-time parameter, kept precisely
+because it's genuinely core-specific outcome-dependent routing, the
+same real reasoning `branch_cell_v4.v`'s own routing got, `#624`),
+real relay-vs-consume classification (`cardinal_edge`), and the FULL
+real memory-cell extension set (`hold_in`/`fb_internal_in`/
+`a_reemit_in`/`a_update_in`/`a_self_update_in`), plus `error_frozen`'s
+own real protective latch. Confirmed by direct reading of the complete
+real `v1` file (773 lines) before writing a single line of the new
+one, not assumed from a partial picture.
+
+**Real, notable data point, confirmed not assumed:** `addon_config`
+(20 bits) fits inside the EXISTING 128-bit `cmd_latch` without
+widening `cfg_data` at all -- the real `v1` header already documents
+roughly 53 bits of genuine, deliberate reserved headroom left free for
+future extension. The one core built up from the richest starting
+budget needed the LEAST real extra room.
+
+**Real, same pressure `branch_cell_v4.v` hit (`#624`), confirmed not
+coincidental:** 9 real distinct fields (the real, existing 7 +
+`addon_config`) exceed the original 3-bit/8-slot `PROG_ID` budget --
+widened to 4 bits, same real fix, on what are now confirmed to be this
+project's own two richest, most field-dense cores.
+
+**A real, elegant integration choice, reusing nano's OWN existing
+convention rather than importing the other 7 cores' pattern
+wholesale:** the new `active` bit is folded directly into
+`effective_freeze` (`freeze_in || error_frozen || !armed || !active`)
+-- the SAME place `armed` already lived in the real `v1` logic --
+rather than introducing a separate `effective_armed` variable the way
+`#618`-`#625`'s own cores use, since that pattern doesn't exist in
+nano's own real design to begin with.
+
+**A real testbench bug caught and correctly diagnosed as a real,
+faithful DUT behavior, not a defect:** a first draft's "release the
+held reference via reconfigure" step failed, because `cfg_valid` does
+NOT clear `a_arrived` in the real `v1` RTL (confirmed directly -- only
+`rst` does). Left over from a `hold_in`-mode test, the next real send
+was silently treated as a second operand against stale held state.
+Fixed with a genuine reset, matching the real DUT's own actual,
+faithfully-preserved behavior -- not a bug introduced by this entry.
+
+**Real, honest verification:** `tb_nano_gate_v4.v` (new) -- 8 real
+checks: 2 confirming identical-to-v1 two-arrival AND-gate computation,
+2 confirming real `hold_in` mode (the held first operand surviving
+across multiple real fires), 2 confirming the real, targeted
+`PROG_ID_ADDON_CONFIG` reconfiguration survives topology/routing
+untouched, 2 confirming `active=0` gates BOTH the real capture and
+offer sides (unlike `sequencer_cell_v4.v`, `#625`, nano genuinely has
+a capture side to gate). `tb_stripped_v1_2cell.v`/`tb_stripped_v1_
+hold.v`'s own existing real suites re-run unchanged, confirming `v1`
+itself untouched (never modified). `523/523` Python tests still
+passing.
+
+**Real, honest scope, stated plainly:** this is the largest, most
+complex core in the whole family by a real margin -- and correctly
+so, since it retains real capability (relay/consume, hold/reemit/
+update/self-update, dynamic routing) none of the other 7 ever had, per
+Alan's own explicit "Swiss army knife" framing. Not every real feature
+got its own dedicated test here (`fb_internal_in`/`a_update_in`/
+`a_self_update_in`/`relay_mismatch` are cloned unchanged and real
+`v1`-level tests for them already exist -- `tb_stripped_v1_feedback.v`/
+`tb_stripped_v1_memcell.v`/`tb_stripped_v1_selfupdate.v`/`tb_
+stripped_v1_relaymismatch.v` -- but this entry's own new `v4` build
+did not re-verify each one individually, a real, explicit, honest gap,
+not silently assumed covered).
+
+**Real, honest milestone: ALL 8 real core types now have a real,
+sim-verified `v4` build.** Every core in this family --
+`adder`/`ram`/`comparator`/`accumulator`/`latch`/`branch`/`sequencer`
+(built up from a simpler shell) and `nano` (stripped down from a
+richer one) -- now shares the SAME real programming channel, the SAME
+real addon chain, the SAME real `active` bit, confirmed by direct
+simulation in every single case, not assumed from the design alone.
+Real, standing next steps: the `N=8` multi-core carrier case (wiring
+these same 8 real cores together behind one real `core_select`
+decode), Alan's own real Quartus build for ALM/Fmax across the whole
+family, and the parked `is_command_cell`-as-9th-core idea (the command-
+cell functionality removed here still needs a real, separate home).
+
