@@ -219,3 +219,50 @@ this directory. The real, load-bearing open questions above (variable
 mapping, loop handling, `phi`-as-MUX) are the right place to start
 whenever this is picked up for real -- in isolation, via the small,
 concrete experiment above, not a ground-up design effort.
+
+## Addendum (2026-09-03, `points.md #611`): the real, novel content is TIMING, confirmed by building it, not just theorized
+
+`#611` built the real, restricted first slice this note recommended
+(one function, one block, `add`/`sub`, a linear chain) -- and getting
+it CORRECT, not just compiling, required discovering three real,
+previously-undocumented facts about the two-arrival firing model, each
+found by tracing actual VM ticks:
+
+1. **Simultaneous arrivals bitwise-OR together**, not captured as
+   separate operands -- two neighbors offering on the same tick
+   collide into one combined value.
+2. **A continuously-live source keeps re-contaminating even behind a
+   single-shot "shielding" relay** -- once the relay drains and
+   re-opens (its own real, documented behavior), it recaptures from
+   the still-live source behind it and re-delivers, racing against
+   whatever the real second operand should have been. The robust fix
+   was one-time `VMSession.inject()` delivery instead of a
+   permanently-broadcasting constant.
+3. **A given layout's own arrival order is a fixed physical fact, not
+   a semantic label** -- `in_a`/`in_b` don't mean anything until you
+   know which one actually arrives first in THIS layout, and getting
+   it wrong silently reverses non-commutative operations like
+   subtraction.
+
+**The real, sharpened conclusion this proves, not just asserts:** the
+genuinely hard, novel content of this whole idea is less "which tile
+matches this IR instruction" and more **compile-time TIMING analysis**
+-- deciding not just where each value lives, but exactly when it will
+physically arrive relative to every other value it needs to combine
+with, and deliberately engineering that timing (relay-path padding,
+one-time delivery, operand-order accounting) rather than assuming
+correct placement is enough. For the linear-chain case, this was
+tractable by hand, once traced. **A real DAG makes this materially
+harder, not just bigger:** every point where two independently-
+computed values converge on the same consumer needs its own real
+timing analysis, and relay paths of different lengths converging on
+one cell need deliberate padding so arrivals aren't accidentally
+simultaneous OR accidentally out of the intended order. This is closer
+to real hardware timing closure / scheduling than to ordinary software
+compilation -- the SSA-allocation pass this note already named as
+"genuinely unsolved" is now confirmed, by direct evidence, to really
+be a **placement-AND-TIMING** allocation problem, not placement alone.
+Worth remembering precisely when general DAG routing is picked up
+next: the real design question isn't just "which relay cells route
+value X to consumer Y," it's "which relay path LENGTH gets X to Y at
+EXACTLY the tick the rest of the schedule requires."
