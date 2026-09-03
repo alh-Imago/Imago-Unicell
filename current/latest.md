@@ -1,4 +1,58 @@
-# Current State (as of 2026-09-02, session paused per Alan's own explicit request -- "save this for the next usage round," a real scoping pass for the LLVM IR compiler backend written instead of starting a build. See `points/points_active.md` #610)
+# Current State (as of 2026-09-03, the real, first LLVM IR frontend is built and working -- per #610's own scope and Alan's own direct "get that working today" request. Confirmed correct by actually running the VM, not just compiling. See `points/points_active.md` #611)
+
+## Read this first (most recent)
+
+**2026-09-03, LLVM IR frontend built and working (#611).** Per Alan's
+own direct request, picked up `#610`'s own scope doc and built the
+real thing today: `nano/llvm_ir_frontend_v1.py`. `pip install
+llvmlite` worked cleanly (v0.49.0). Real, deliberately restricted
+first slice per `#610`'s own "smallest test first" framing: one
+function, one basic block, `add`/`sub` only, a genuine linear
+accumulation chain (no general DAG yet), arguments resolved to real
+compile-time values. Reuses the exact same shared backend
+(`compile_program_ir()`) every other frontend already uses.
+
+**The real, valuable part: three sequential architectural discoveries
+about the two-arrival firing model, each found by tracing actual VM
+ticks, not reasoned out in advance:**
+1. Simultaneous arrivals from two neighbors bitwise-OR together, not
+   captured as separate operands (confirmed directly against
+   `_deliver_adder()`).
+2. A continuously-live source (`ram_constant`) keeps re-contaminating
+   even behind a "shielding" single-shot relay, once the relay drains
+   and re-opens -- a real, observed `20` instead of `18` traced
+   directly to this race. Fixed with real, one-time `VMSession.
+   inject()` delivery instead -- once delivered, nothing is left to
+   ever resend.
+3. This layout's own arrival order always has north land before west,
+   so a naive `subtract_mode` use got the operand order backwards for
+   `sub`. Fixed by lowering `sub` as a plain add of the real, 32-bit
+   two's-complement negation of the second operand -- reusing the
+   already-verified-correct add pathway entirely.
+
+A real, separately-useful `subtractor` tile also got added to the
+tile library along the way (the RTL's own already-existing
+`subtract_mode` bit, `#521`, now exposed) -- not used by this
+frontend's own final design, but real and correctly registered.
+
+17 new tests, all real end-to-end VM-execution confirmations (inject,
+tick, check the actual computed cell state) plus real diagnostic
+rejections (non-chain DAGs, unsupported opcodes, multi-block
+functions, etc.). 516/516 passing, zero regression. `llvmlite` added
+to `requirements.txt` as a real, non-optional dependency.
+
+**Real, honest scope, unchanged from `#610`'s own framing:** general
+DAG routing, control flow, real memory, and recursion remain open --
+not solved here. What changed is the restricted slice actually WORKS,
+verified by running the real VM.
+
+**Real, standing next-session items, unchanged:** `#604` (card-
+decoupled virtual substrate + 3D extension + training buckets, with
+the real 3D-cardinal-widening prerequisite Alan flagged), and this
+entry's own natural next step -- general DAG routing (relay cells for
+non-adjacent connections) to lift the linear-chain-only restriction.
+
+## Previous state (as of 2026-09-02, session paused per Alan's own explicit request -- "save this for the next usage round," a real scoping pass for the LLVM IR compiler backend written instead of starting a build. See `points/points_active.md` #610)
 
 ## Read this first (most recent)
 

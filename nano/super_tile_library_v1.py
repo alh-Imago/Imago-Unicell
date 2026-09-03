@@ -313,6 +313,24 @@ super_tile_library.register(SuperTileSpec(
 ))
 
 super_tile_library.register(SuperTileSpec(
+    name="subtractor", core="adder",
+    description="points.md #611: the SAME real adder core, with the "
+                 "real RTL's own subtract_mode bit fixed on -- computes "
+                 "A-B via the same real carry chain (invert B, cin=1), "
+                 "confirmed directly against adder_cell_v1.v's own real "
+                 "comment (\"subtraction is nearly free on top of the "
+                 "existing carry chain\"). A separate tile, not an "
+                 "optional param on \"adder\" -- this tile system's own "
+                 "params are always required, so a genuinely optional "
+                 "toggle needs its own tile, same real pattern "
+                 "\"ram_constant\"/\"ram_flowing\" already established.",
+    ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
+           TilePort("out", "out", "downstream_mask")],
+    fixed_core_config={"subtract_mode": 1},
+    target="super-only",
+))
+
+super_tile_library.register(SuperTileSpec(
     name="accumulator", core="accumulator",
     description="A continuously-live running total. inc/dec are genuinely "
                  "separate fields (unlike the adder's shared field) -- "

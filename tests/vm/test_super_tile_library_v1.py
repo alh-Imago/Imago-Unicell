@@ -156,6 +156,31 @@ def test_placed_accumulator_and_comparator_chain_in_a_real_grid():
 
 # ── branch (points.md #608, new) ────────────────────────────────────
 
+# ── subtractor (points.md #611, new) ────────────────────────────────
+
+def test_subtractor_tile_uses_real_subtract_mode():
+    tile = super_tile_library.get("subtractor")
+    rec = place(tile, 0, 0, {"in_a": "w", "in_b": "n", "out": "e"}, cell_id="sub")
+    assert rec.core == "adder"  # same real core as adder, per the RTL
+    assert rec.core_config["subtract_mode"] == 1
+
+
+def test_subtractor_computes_a_minus_b_two_stage_capture():
+    """Real functional confirmation, matching the established real
+    two-stage-capture test pattern (tb_unicell_super_v1.v's own
+    vector): first arrival becomes A, second computes A - B."""
+    tile = super_tile_library.get("subtractor")
+    rec = place(tile, 0, 0, {"in_a": "w", "in_b": "n", "out": "e"}, cell_id="sub")
+    grid = SuperGrid([rec])
+    cell = grid.cells[(0, 0)]
+    from unicell_automaton_v1 import N, W
+    accepted, _ = cell.deliver({N: 100}, None)
+    assert accepted is True and cell.adder_a_reg == 100
+    accepted, _ = cell.deliver({W: 23}, None)
+    assert accepted is True
+    assert cell.adder_out_buffer == 100 - 23
+
+
 def test_branch_tile_compiles_and_places():
     tile = super_tile_library.get("branch")
     rec = place(tile, 0, 0, {"in": "w", "route_low": "n", "route_equal": "e", "route_high": "s"},

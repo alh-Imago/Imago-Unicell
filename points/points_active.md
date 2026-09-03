@@ -2705,3 +2705,114 @@ with the real 3D-cardinal-widening prerequisite Alan flagged (the other
 entry's own LLVM IR scope, whenever picked up -- start with the small
 hand-trace experiment above, not a parser.
 
+## 611. The real, first LLVM IR frontend, built and working, per `#610`'s own scope and Alan's own direct "get that working today" request. A genuine, real chain of architectural discoveries about the two-arrival firing model along the way -- confirmed correct by actually running the VM, not just compiling. (Alan/Claude, 2026-09-03)
+
+**Real, practical start, confirming `#610`'s own tooling check for
+real:** `pip install llvmlite` -- clean, real, `llvmlite==0.49.0`.
+Confirmed it genuinely parses and walks real LLVM IR text (opcodes,
+operand names, types) before writing any frontend code.
+
+**Real, deliberately restricted first slice, exactly per `#610`'s own
+"smallest test first" recommendation:** one function, one basic block,
+`add`/`sub` only, and a genuine LINEAR ACCUMULATION CHAIN shape -- each
+instruction's first operand must be either a compile-time value (only
+possible for the chain's first instruction) or the immediately
+preceding instruction's own result; the second operand must always be
+a compile-time argument or literal. A real DAG (an instruction
+referencing an earlier, non-immediately-preceding result) is rejected
+with a clear diagnostic, not silently miscompiled -- general routing
+remains real, explicitly deferred future work. Function arguments
+resolve to real, compile-time-SUPPLIED values (a real "specialize this
+function for these inputs" semantic), not a general runtime-input
+mechanism.
+
+**`nano/llvm_ir_frontend_v1.py` (new):** reuses the real, existing
+shared backend unchanged (`#344`) -- builds a real `program_ir_v1.
+ProgramIR` and hands it to `dsl_compiler_v1.compile_program_ir()`,
+the SAME real entry point the DSL/Python-AST/C frontends already use.
+This frontend's own real job stays narrow: parse, enforce the
+chain-shape restriction, decide positions -- the same division of
+labor `#610`'s own scope doc named as the real, novel content.
+
+**A genuine, real chain of THREE sequential architectural discoveries,
+each found by actually tracing VM ticks, not reasoned out in advance
+-- the real, most valuable output of this entry, independent of the
+frontend itself:**
+
+1. **Simultaneous arrivals OR-combine, not capture separately.**
+   Confirmed directly against `_deliver_adder()`: two neighbors
+   offering on the SAME tick get bitwise-OR'd into ONE combined value,
+   not treated as distinct A/B operands. A first design (two directly-
+   adjacent `ram_constant` feeders) OR'd `3` and `5` into `7` (binary
+   `011 | 101`), corrupting the very first computation.
+2. **A continuously-live source keeps re-contaminating even behind a
+   "shielding" relay.** `ram_constant` is deliberately "permanent,
+   never-recaptured" -- shielding it behind a single-shot `ram_flowing`
+   relay only delays the problem: once the relay drains and re-opens
+   (its own real, documented behavior), it recaptures from the
+   still-live constant behind it and re-delivers, racing against the
+   chain's own slower, real value. A real, observed `20` instead of
+   `18` on the first two-instruction chain traced directly to this
+   race. The robust real fix: every raw value (arguments AND IR
+   literals alike) is delivered via a real, ONE-TIME `VMSession.
+   inject()` into a `ram_flowing` cell with no live upstream at all --
+   once delivered and drained, there is nothing left to ever resend.
+3. **This layout's own arrival order always has NORTH land before
+   WEST** -- meaning hardware's own "first-arrived becomes A" gives
+   `second_value - first_value` for a naive `subtract_mode` use, the
+   WRONG order for LLVM's `sub first, second`. Rather than fight the
+   ordering, `sub` is lowered as a plain ADD of the real, 32-bit
+   two's-complement NEGATION of the second operand -- mathematically
+   identical, and reuses the exact same add pathway already confirmed
+   correct, sidestepping the ordering question entirely.
+
+**A real, small, separately-useful addition found along the way, not
+used by this frontend's own final design but real and correctly
+registered regardless:** `nano/super_tile_library_v1.py` gains a
+`subtractor` tile -- the SAME real `adder` core with the RTL's own
+already-existing `subtract_mode` bit (`#521`) fixed on, confirmed
+against `adder_cell_v1.v`'s own real comment ("subtraction is nearly
+free on top of the existing carry chain"). A separate tile, not an
+optional param on `adder` -- this tile system's own params are always
+required, so a genuinely optional toggle needs its own tile, the same
+real pattern `ram_constant`/`ram_flowing` already established.
+
+**Real, honest 32-bit fidelity:** every computed value (and the
+Python-side `expected_result` used for verification) is masked to
+`0xFFFFFFFF`, matching real hardware's own 32-bit representation --
+confirmed with a real, direct test that a genuinely negative result
+(`5 - 100`) wraps to the correct two's-complement bit pattern, not a
+raw, unmasked Python negative int.
+
+**`requirements.txt` updated** -- `llvmlite` added as a real, non-
+optional dependency of this new frontend, matching the same
+"unconditionally imported, not truly optional" convention `pycparser`
+already has there.
+
+**Real, honest verification:** 17 new tests total (`tests/vm/
+test_llvm_ir_frontend_v1.py`, 15 -- real, end-to-end VM-execution
+confirmation for single-add, the original two-instruction chain, sub,
+negative wraparound, a longer 4-instruction mixed add/sub chain,
+negative arguments, and a direct check the returned injection plan is
+complete; plus real diagnostic rejections for multiple functions,
+multiple basic blocks, missing argument values, unsupported opcodes,
+a genuine non-chain DAG, a `ret` of a non-final value, invalid IR text,
+and an empty function body; `tests/vm/test_super_tile_library_v1.py`,
+2 -- the new `subtractor` tile's own real two-stage-capture
+confirmation). Full suite: 516/516 passing (499 prior + 17 new), zero
+regression.
+
+**Real, honest scope, stated plainly, matching `#610`'s own framing:**
+this is a genuinely restricted first slice -- one function, one block,
+two opcodes, a linear chain only. General DAG routing (relay cells for
+non-adjacent connections), control flow (`br`/`phi`/loops), real
+addressed memory, and recursion all remain the same real, open
+questions `general_purpose_programming_long_range_note.md` and
+`#610`'s own scope doc already named -- not solved here, not silently
+assumed solved. What changed today is real: the restricted slice
+actually WORKS, verified by running the real VM, not just compiling --
+and the two-arrival firing model's own real behavioral subtleties
+(OR-combining, continuously-live contamination, arrival-order
+dependence) are now documented in working code and tests, not just
+theorized about.
+

@@ -11,6 +11,12 @@ numpy               # required by nano/gpu_array_v1.py (#216 item 3's
 pycparser            # required by nano/c_frontend_v1.py (#374) -- a
                      # real, pure-Python C99 parser, imported
                      # unconditionally there, not truly optional
+llvmlite             # required by nano/llvm_ir_frontend_v1.py (#611) --
+                     # the real, standard Python LLVM-IR binding,
+                     # imported unconditionally there, not truly
+                     # optional. Confirmed installable and working
+                     # (v0.49.0 tested) before this frontend was built,
+                     # per #610's own real tooling-check discipline.
 
 # Development / testing
 # pytest             # for tests/vm/test_*.py
