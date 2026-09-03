@@ -3096,3 +3096,70 @@ unified_carrier_scope.md`** (new file). Real, honest scope: no RTL
 written, no port list finalized -- a real scoping pass only, matching
 every other `*_scope.md` note in this directory.
 
+## 618. `adder_cell_v4.v` -- the first real, sim-verified unified-carrier core, per `#617`'s own scoped first step. Real core logic cloned unchanged from v1; real shell richness added and independently confirmed correct via a real Icarus Verilog testbench, not assumed. A real bit-layout bug caught and fixed by the sim itself before this could be called done. (Alan/Claude, 2026-09-03)
+
+**Real, deliberate scope, per `#617`'s own named first step:** ONE
+core (`adder`), `N=1` (standalone) configuration only. Core arithmetic
+logic (two-stage A/B capture, `adder_v1.v`'s real carry chain,
+`subtract_mode`) cloned byte-for-shape from `adder_cell_v1.v`
+UNCHANGED -- confirmed identical by running the SAME 3 real operand
+pairs through both and getting bit-identical sums.
+
+**Real shell additions, each independently confirmed via simulation,
+not assumed correct from the RTL alone:**
+- **Real, targeted `program_in`/`PROG_ID` reconfiguration**, faithfully
+  ported from `unicell_stripped_v1.v`'s own real protocol (`#123`/
+  `#140`/`#615`), remapped onto this core's own real 3 fields
+  (`downstream_mask`/`upstream_mask`/`subtract_mode`) plus a 4th
+  (`addon_config`, see below). Sim-confirmed: flipping JUST
+  `subtract_mode` via the targeted channel, mid-run, leaves
+  `downstream_mask`/`upstream_mask` genuinely untouched -- the real
+  "scalpel, not a hammer" claim, verified by the routing continuing to
+  work afterward, not just that the new field landed.
+- **The real, already-proven 3-addon chain** (`nibble_mask` ->
+  `shift`/`lane` -> `invert`, `#303`-`#312`), wired here EXACTLY as
+  `unicell_super_v3.v` already does it -- same order, same 20-bit
+  `addon_config` layout, reused verbatim. Sim-confirmed: setting
+  `invert_en` via the targeted channel produces a genuinely bit-
+  inverted sum (`~(1+1) = 0xFFFFFFFD`), not just a config write that
+  compiles.
+- **6-bit-wide `downstream_mask`/`upstream_mask`** (real field-width
+  headroom only, matching nano's own real convention -- only 4 real
+  cardinal ports are physically wired in this file, per `#617`'s own
+  stated scope boundary).
+- **The real, new `active` port** (`#617` point 5) -- gates capture,
+  fire, offer, and BOTH real ack channels by construction. Sim-
+  confirmed: dropping `active` mid-run genuinely prevents a real
+  arrival from being captured at all, not just suppressing the
+  output.
+
+**A real bug found and fixed by the simulation itself, not caught by
+inspection:** a first draft widened `prog_word` to 20 bits (to fit
+`addon_config` in one write) without moving `prog_id` out of the way
+-- the two fields OVERLAPPED at bits `[18:16]`, silently corrupting
+any write. The real symptom: the testbench hung after the first
+targeted reprogram, `received` stuck at 3 instead of climbing further.
+Fixed by moving `prog_id` to `[22:20]`, above the now-wider `[19:0]`
+word -- same real principle nano's own layout already follows (ID
+directly above its own data payload), sized for this core's own wider
+field.
+
+**Real, honest verification:** `tb_adder_cell_v4.v` (new), covering
+all of the above in one real, sequential run -- 7 real operand pairs
+received with correct sums throughout (3 identical-to-v1, 2 subtract
+via targeted reprogram including a real two's-complement borrow, 1
+plain-add after reprogramming back, 1 through the real addon chain),
+plus the real `active=0` silence check. `tb_adder_cell_v1.v`'s own
+existing real suite re-run unchanged, confirming v1 itself was
+untouched. `523/523` Python tests still passing (RTL-only change).
+
+**Real, honest scope, stated plainly, matching `#617`'s own next
+step:** `is_command_cell`/COMMAND_EMIT mode is NOT included (a real,
+separate, later increment, per `#617`'s own stated deferral). No real
+ALM/Fmax measurement yet -- that needs Alan's own Quartus build,
+per this project's own standing "measure every real addon/core as a
+delta" discipline; sim-verified functional correctness only at this
+stage. The `N=8`/multi-core carrier case, and generalizing this same
+template to the other 6 cores, remain real, explicit next steps, not
+started.
+

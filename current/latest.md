@@ -1,4 +1,46 @@
-# Current State (as of 2026-09-03, real scope document for a unified carrier design -- one rich shell wrapping 1 or N cores, per Alan's own precise 5-point breakdown. See `points/points_active.md` #617)
+# Current State (as of 2026-09-03, adder_cell_v4.v -- the first real, sim-verified unified-carrier core, per #617's own scoped first step. Real core logic unchanged from v1, real shell richness added and independently confirmed via a real Icarus Verilog testbench. See `points/points_active.md` #618)
+
+## Read this first (most recent)
+
+**2026-09-03, `adder_cell_v4.v` built and sim-verified (#618), per
+`#617`'s own scoped first step.** Core arithmetic logic cloned
+unchanged from `adder_cell_v1.v` -- confirmed identical via 3 real
+operand pairs producing bit-identical sums. Real shell additions, each
+independently sim-confirmed: the real, targeted `program_in`/`PROG_ID`
+channel (ported from nano, `#123`/`#140`/`#615`) -- confirmed flipping
+JUST `subtract_mode` leaves routing genuinely untouched; the real,
+already-proven 3-addon chain (`nibble_mask`/`shift-lane`/`invert`,
+`#303`-`#312`), wired exactly as the existing super shell does --
+confirmed `invert_en` genuinely bit-inverts the output; 6-bit-wide
+mask fields (headroom only, matching nano's own convention); and the
+new `active` port (`#617` point 5) -- confirmed it genuinely prevents
+capture when low, not just output.
+
+**A real bug caught by the simulation itself, not inspection:** a
+first draft's widened `prog_word` (20 bits, to fit `addon_config`)
+overlapped `prog_id` at `[18:16]` -- silently corrupting writes. Real
+symptom: the testbench hung after the first reprogram. Fixed by moving
+`prog_id` to `[22:20]`, above the wider word -- same principle nano's
+own layout already follows.
+
+`tb_adder_cell_v4.v` (new) -- 7 real operand pairs, correct sums
+throughout, plus the `active=0` silence check. `tb_adder_cell_v1.v`'s
+own suite re-run unchanged, confirming v1 untouched. 523/523 Python
+tests still passing.
+
+**Real, honest scope:** `is_command_cell` mode deferred (per `#617`'s
+own plan); no real ALM/Fmax measurement yet (needs Alan's own Quartus
+build); `N=8`/multi-core carrier and generalizing to the other 6 cores
+remain real next steps, not started.
+
+**Real, standing next-session queue:** (1) Alan's own real Quartus
+build of `adder_cell_v4.v` for real ALM/Fmax, against the `adder_cell_
+v1.v` baseline; (2) generalize this same template to the other 6 real
+cores; (3) the `N=8` multi-core carrier case; (4) nano's own
+independent shift capability; (5) `icmp eq`/`ne`, `select`, `phi`/
+loops (the standing LLVM-frontend queue).
+
+## Previous state (as of 2026-09-03, real scope document for a unified carrier design -- one rich shell wrapping 1 or N cores, per Alan's own precise 5-point breakdown. See `points/points_active.md` #617)
 
 ## Read this first (most recent)
 
