@@ -2981,3 +2981,29 @@ Real next-session order: (1) trace `nano_gate`'s real timing directly;
 command cell's own real fit for `select` separately. `phi`/loops
 (`#613`'s own queued item) remain the other standing next step.
 
+## 615. Real, precise finding on the old opcode-targeted command bus vs. today's mechanism, per Alan's own direct question -- confirmed against both RTL files, not assumed. (Alan/Claude, 2026-09-03)
+
+**Nano's own targeted, "scalpel not hammer" reconfiguration is real
+and already built**, checked directly against `unicell_stripped_v1.v`:
+each `program_in` word is self-describing (3-bit `PROG_ID` + 16-bit
+data), covering 7 individually-addressable fields plus a `COMPLETE`
+marker supporting a genuine staged "pause, send more fields, then
+arm" sequence. The VM already models this faithfully
+(`unicell_automaton_v1.py`'s `CACell`). This is the old opcode
+system's real descendant, differently encoded, not lost.
+
+**But it doesn't reach the super-cell cores this LLVM frontend
+actually uses**, checked directly against `unicell_super_v3.v`: the
+shell's own `cfg_valid` commits the full 80-bit `SUPER_LATCH`
+atomically -- `program_in` is wired only to the nano sub-core inside
+the shell, not to `ram`/`adder`/`accumulator`/`comparator`/`latch`/
+`sequencer`/`branch`. Today, changing one field on an adder means
+reloading the whole latch.
+
+**Real, direct implication for `#614`'s own `select`-via-command-cell
+lead:** the real staging cost of that approach is currently the full
+80-bit commit, not a cheap targeted write -- whether a `PROG_ID`-style
+mechanism could be extended to the super-cell's other cores is a real,
+concrete, unexplored architectural question, captured in
+`llvm_ir_compiler_scope.md`'s own Addendum 5, not attempted here.
+

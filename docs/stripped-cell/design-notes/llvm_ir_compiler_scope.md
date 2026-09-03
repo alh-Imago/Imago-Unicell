@@ -464,3 +464,46 @@ an AND composition; (2) once that's solid, build `icmp eq`/`ne`; (3)
 investigate the command cell's own real fit for `select` separately,
 including its real staging/timing cost, before committing to it as
 the right mechanism.
+
+## Addendum 5 (2026-09-03): nano's own targeted reconfiguration is real and already built -- but doesn't reach the super-cell cores this frontend actually uses
+
+Alan's own real memory, checked directly rather than assumed: the old
+full-cell system used a rich, 256-opcode command bus (`cmd_bus[31:0]`,
+`unicell64_v3.v`) with many dedicated, narrow opcodes for targeting
+JUST PART of a cell's configuration (e.g. `CMD_TOPO_COMMAND_EMIT`
+setting a single bit, topology presets avoiding a full reconfigure)
+rather than always reloading everything.
+
+**Real, precise finding: this capability wasn't simply lost -- it
+survives, differently encoded, but ONLY on the nano core.** Checked
+directly against `unicell_stripped_v1.v`'s own real `program_in`
+protocol: each programming word is self-describing (`{3-bit ID,
+16-bit data}`), covering 7 real, individually-addressable fields
+(`PROG_ID_TOPOLOGY`/`ROUTING_MASK`/`CARDINAL_EDGE`/`PATTERN_LOW`/
+`EQUAL`/`HIGH`/`DYN_ROUTE_EN`), plus a `COMPLETE` marker that can
+commit-and-stay-cold for a genuine staged "pause, send more fields,
+then arm" sequence -- the RTL's own comment calls this "a scalpel, not
+a hammer." Confirmed the VM already models this faithfully
+(`unicell_automaton_v1.py`'s own `CACell`, matching the RTL's real
+`PROG_ID` table exactly) -- genuinely usable today, not a proposal.
+
+**Real, precise limitation, checked directly against
+`unicell_super_v3.v`, not assumed:** the super-cell shell's own
+`cfg_valid` commits the entire 80-bit `SUPER_LATCH` ATOMICALLY, all at
+once -- genuinely one full pass, no partial targeting. `program_in`
+does exist at the shell level, but is wired ONLY to the nano sub-core
+inside the shell -- NOT to the other seven real cores (`ram`/`adder`/
+`accumulator`/`comparator`/`latch`/`sequencer`/`branch`), exactly the
+ones this LLVM frontend and every Tier-0 tile actually use.
+
+**Real, honest implication, directly relevant to `Addendum 4`'s own
+`select`-via-command-cell lead:** today, even changing ONE field on an
+adder or comparator requires reloading the whole 80-bit latch --
+there is no cheaper, targeted path for the cores this frontend cares
+about, only for nano. Whether a real, `PROG_ID`-style selective
+mechanism could be extended to the super-cell's other cores is a real,
+concrete, unexplored architectural question that would directly affect
+the real staging cost of any reconfiguration-based approach to
+`select` -- not scoped or attempted here, a real, separate design
+question for whenever the `select` lead from `Addendum 4` is picked up
+seriously.

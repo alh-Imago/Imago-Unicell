@@ -1,4 +1,33 @@
-# Current State (as of 2026-09-03, session paused on low usage -- two real, verified leads for icmp eq/ne and select captured, per Alan's own direct pointers, not built yet. See `points/points_active.md` #614)
+# Current State (as of 2026-09-03, real finding on the old opcode-targeted command bus vs. today's mechanism -- confirmed against both RTL files. Nano kept its own targeted reconfiguration; the super-cell cores this LLVM frontend uses did not. See `points/points_active.md` #615)
+
+## Read this first (most recent)
+
+**2026-09-03, real RTL finding (#615), per Alan's own direct
+question.** Confirmed directly, not assumed: nano's own real
+`program_in` protocol (`unicell_stripped_v1.v`) already IS a targeted,
+"scalpel not hammer" mechanism -- self-describing `PROG_ID`-tagged
+words, 7 individually-addressable fields, a genuine staged commit
+sequence -- the old opcode system's real descendant, just differently
+encoded, not lost. The VM already models it faithfully.
+
+**But it doesn't reach the super-cell cores this LLVM frontend
+actually uses.** Checked directly against `unicell_super_v3.v`: the
+shell's `cfg_valid` commits the full 80-bit `SUPER_LATCH` atomically;
+`program_in` only reaches the nano sub-core inside the shell, not
+`adder`/`comparator`/etc. Real, direct implication for `#614`'s own
+`select`-via-command-cell lead: today that would cost a full 80-bit
+reload, not a cheap targeted write. Whether a `PROG_ID`-style
+mechanism could be extended to the other 7 cores is a real,
+unexplored architectural question -- captured in
+`llvm_ir_compiler_scope.md`'s own Addendum 5, nothing built.
+
+**Real, standing next-session queue, unchanged in substance, now with
+this real context added:** (1) trace `nano_gate`'s own real timing;
+(2) build `icmp eq`/`ne`; (3) investigate `select` -- now informed by
+the real cost difference between nano's targeted reconfiguration and
+the super-cell's atomic one; (4) `phi`/loops.
+
+## Previous state (as of 2026-09-03, session paused on low usage -- two real, verified leads for icmp eq/ne and select captured, per Alan's own direct pointers, not built yet. See `points/points_active.md` #614)
 
 ## Read this first (most recent)
 
