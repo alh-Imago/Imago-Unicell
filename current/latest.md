@@ -1,4 +1,43 @@
-# Current State (as of 2026-09-03, latch_cell_v4.v -- fifth real, sim-verified unified-carrier core. Every real behavior confirmed correct on the first test run, thanks to #621's own hard-won testbench-design lesson. See `points/points_active.md` #623)
+# Current State (as of 2026-09-03, branch_cell_v4.v -- sixth real, sim-verified unified-carrier core, the most structurally complex of all six. A real 4-bit PROG_ID widening (field COUNT, not width, forced it this time) and a real testbench misconception caught before being mistaken for a DUT bug. See `points/points_active.md` #624)
+
+## Read this first (most recent)
+
+**2026-09-03, `branch_cell_v4.v` built and sim-verified (#624), sixth
+real core, the most structurally complex of all six.** Real core logic
+cloned unchanged from `branch_cell_v1.v`, INCLUDING its own real,
+documented history: the real held-reference two-phase capture
+(`#497`), the real found-not-assumed `consumed` bug guard, real ROLLING
+MODE.
+
+**Real, first-of-its-kind protocol adaptation:** this core has 15 real
+distinct fields -- more than the 3-bit `PROG_ID` (7 slots) every prior
+core used. Widened to a real 4-bit ID (16 slots, exact fit). Every
+prior adaptation was driven by field WIDTH; this one by field COUNT --
+a genuinely different pressure on the same protocol. Also widened to
+80-bit `cfg_data` (same real precedent as `ram`, `#619`), and gave
+`upstream_dir` itself (a value, not a mask) the same 6-way headroom
+every mask field gets -- a real, deliberate first.
+
+**A real testbench misconception caught before being mistaken for a
+DUT bug:** a first draft expected the held reference to release after
+a targeted reprogram -- checked directly against the RTL before
+concluding the TEST was wrong, not the DUT. Matches
+`branch_cell_v1.v`'s own real, documented judgment call exactly
+(release only via a full `cfg_valid` reconfigure).
+
+`tb_branch_cell_v4.v` (new) -- 9 real checks, reusing the exact real
+scenario `top_branch_cell_test_v1.v`'s own Quartus attempt already
+checks (seed 8, LOW=5→marker1, EQUAL=8→marker2, HIGH=10 genuinely
+suppressed). 523/523 Python tests still passing.
+
+**Real, standing next-session queue:** only `sequencer` left (real,
+distinct shape -- no capture side at all, likely to use fewer of the
+new features, per Alan's own note), the `N=8` carrier case, Alan's own
+real Quartus build for ALM/Fmax across all six `v4` cores so far, the
+parked `is_command_cell`-as-9th-core idea, and nano's own future
+STRIP-down.
+
+## Previous state (as of 2026-09-03, latch_cell_v4.v -- fifth real, sim-verified unified-carrier core. Every real behavior confirmed correct on the first test run, thanks to #621's own hard-won testbench-design lesson. See `points/points_active.md` #623)
 
 ## Read this first (most recent)
 

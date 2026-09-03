@@ -3408,3 +3408,67 @@ measurement yet. Five real cores now confirmed working (`adder`,
 (`sequencer`/`branch`) and the `N=8` carrier case remain real, explicit
 next steps.
 
+## 624. `branch_cell_v4.v` -- the SIXTH real, sim-verified unified-carrier core, and the most structurally complex of all six: a real, documented held-reference two-phase capture with a subtle bug guard, cloned unchanged. A real, necessary 4-bit `PROG_ID` widening (field COUNT, not width, forced it this time), and a real testbench misconception caught and corrected before being confirmed as a genuine DUT bug. (Alan/Claude, 2026-09-03)
+
+**Real core logic cloned unchanged from `branch_cell_v1.v`, INCLUDING
+its own real, documented history, faithfully preserved:** the real
+held-reference mechanism (`#497`) -- the first arrival becomes a held
+comparison reference, never itself compared or drained; every later
+arrival routes through a real 3-outcome (`<`,`=`,`>`) table, each with
+independently configured value source, emit/suppress, and fan-out; the
+real, found-not-assumed `consumed` bug guard (without it, a single
+physical arrival would be captured twice, since this core's two
+capture paths have different guards, unlike every other core's shared
+one); real ROLLING MODE (`#497`-followup).
+
+**Real, necessary protocol adaptation, the first of its kind across
+all six cores built so far:** this core has 15 real distinct fields --
+more than the 3-bit `PROG_ID` (7 real slots) every prior core's own
+budget supported. Widened to a real 4-bit ID (16 real slots, 15 fields
++ `COMPLETE`, an exact fit with zero spare). Every prior real
+adaptation (`#619`'s split write, `#620`'s simpler single-write case)
+was driven by field WIDTH; this one was driven by field COUNT -- a
+genuinely different kind of pressure on the same real protocol,
+confirming it adapts along more than one axis.
+
+**A real, necessary width change:** this core's own real field total
+(69 bits with the widened `route`/`upstream_dir` fields +
+`addon_config`) exceeds the original 64-bit `cfg_data` -- widened to
+80 bits, same real precedent as `ram_cell_v4.v` (`#619`).
+
+**A real, deliberate first: `upstream_dir` (a single fixed-direction
+VALUE, not a mask) was ALSO given the same 6-way real headroom
+(`2`→`3` bits) every mask field gets** -- the same real reasoning
+(future 3D headroom, `#604`) applies to a value field just as much as
+a mask field, even though nothing about a value field's own real
+behavior required widening the way a data-payload field does.
+
+**A real testbench misconception caught and corrected BEFORE being
+mistaken for a DUT bug:** a first draft of the targeted-reprogram test
+expected the held reference to release after a targeted `PROG_ID`
+write -- checked directly against the RTL (`ref_valid <= 1'b0` only
+appears in the `rst` and `cfg_valid` branches, never in
+`programming_active`) before concluding the test's own expectation was
+wrong, not the DUT's behavior. Matches `branch_cell_v1.v`'s own real,
+explicitly-documented judgment call (release only via a full
+`cfg_valid` reconfigure) exactly -- confirmed, not silently assumed.
+
+**Real, honest verification:** `tb_branch_cell_v4.v` (new, no
+pre-existing standalone `v1` testbench existed to diff against --
+reused the exact real scenario `top_branch_cell_test_v1.v`'s own real
+Quartus attempt already checks: seed reference to 8, LOW=5 emits
+marker 1, EQUAL=8 emits marker 2, HIGH=10 is genuinely suppressed, not
+a zero value) -- 9 real checks, all correct: 4 confirming identical-
+to-v1 behavior, 2 confirming the widened `PROG_ID` reaches
+`route`/`emit` fields while correctly leaving the held reference
+untouched, 1 through the real addon chain, 2 confirming `active=0`
+gates both real capture paths. `523/523` Python tests still passing.
+
+**Real, honest scope, matching `#618`-`#623`'s own stated deferrals:**
+`is_command_cell` mode not included (parked). No real ALM/Fmax
+measurement yet -- `branch_cell_v1.v` itself has never touched real
+silicon either (`top_branch_cell_test_v1.v`'s own header says so
+plainly). Six real cores now confirmed working (`adder`, `ram`,
+`comparator`, `accumulator`, `latch`, `branch`) -- only `sequencer`
+and the `N=8` carrier case remain.
+
