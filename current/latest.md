@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-03, adder_cell_v4.v -- the first real, sim-verified unified-carrier core, per #617's own scoped first step. Real core logic unchanged from v1, real shell richness added and independently confirmed via a real Icarus Verilog testbench. See `points/points_active.md` #618)
+# Current State (as of 2026-09-03, ram_cell_v4.v -- the second real, sim-verified unified-carrier core, deliberately chosen for its different single-arrival capture shape. Two real bugs found and fixed by simulation, not inspection. See `points/points_active.md` #619)
+
+## Read this first (most recent)
+
+**2026-09-03, `ram_cell_v4.v` built and sim-verified (#619), second
+real core after `adder_cell_v4.v` (`#618`).** Deliberately picked for
+its genuinely different real capture shape (single-arrival, no A/B
+two-stage) -- a real test of whether the shell template generalizes,
+not just repeats.
+
+Real, necessary adaptations found while porting: `init_data` (32 bits)
+pushed the total real field width past v1's 64-bit `cfg_data` --
+widened to 80 bits (matching `SUPER_LATCH`'s own real width
+elsewhere). `init_data` also can't fit in one real targeted `PROG_ID`
+write -- split into two real half-writes (LOW/HIGH), keeping the
+programming port shape identical to `adder_cell_v4.v`'s.
+
+**A real, more serious bug caught by simulation, not inspection:** a
+first draft had `COMPLETE` unconditionally recommit `data_reg`/
+`data_valid` on EVERY targeted reprogram, even ones that never touched
+`init_data` -- silently corrupting a flowing cell's held state. Real,
+observed symptom: a value sent right after an unrelated reprogram
+arrived as `0`. Fixed with a real, explicit, separate trigger
+(`PROG_ID_LOAD_DATA_VALID`) -- `COMPLETE` now does only what nano's
+own real `COMPLETE` does: commit the arm state, nothing else.
+
+`tb_ram_cell_v4.v` (new) -- 6 real values received correctly across
+identical-core-behavior, targeted reprogram, the split init_data
+write, the addon chain, and the `active=0` check. v1's own real suite
+re-run unchanged. 523/523 Python tests still passing.
+
+**Real, standing next steps:** the remaining 5 cores
+(`accumulator`/`comparator`/`latch`/`sequencer`/`branch`), the `N=8`
+multi-core carrier case, Alan's own real Quartus build for ALM/Fmax on
+both `v4` cores so far, and the parked `is_command_cell`-as-9th-core
+idea (connecting to the still-open `select` LLVM feature).
+
+## Previous state (as of 2026-09-03, adder_cell_v4.v -- the first real, sim-verified unified-carrier core, per #617's own scoped first step. Real core logic unchanged from v1, real shell richness added and independently confirmed via a real Icarus Verilog testbench. See `points/points_active.md` #618)
 
 ## Read this first (most recent)
 

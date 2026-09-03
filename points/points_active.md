@@ -3163,3 +3163,53 @@ stage. The `N=8`/multi-core carrier case, and generalizing this same
 template to the other 6 cores, remain real, explicit next steps, not
 started.
 
+## 619. `ram_cell_v4.v` -- the SECOND real, sim-verified unified-carrier core, deliberately chosen for its genuinely different single-arrival capture shape (not another two-stage core like adder), confirming the real template generalizes rather than just repeats. Two real bugs found and fixed by simulation, not inspection. (Alan/Claude, 2026-09-03)
+
+**Real, necessary width/protocol adaptations, found while porting, not
+assumed:** this core's own real `init_data` field is 32 bits --
+combined with the wider 6-bit masks and the real 20-bit
+`addon_config`, the total (66 bits) genuinely exceeds v1's own 64-bit
+`cfg_data`. Widened to 80 bits (matching `SUPER_LATCH`'s own real,
+already-established width elsewhere in this project, not an arbitrary
+number). `init_data` itself can't fit in one real targeted `PROG_ID`
+write (32 bits alongside a 3-bit ID exceeds the 32-bit programming
+word) -- split into two real, separate half-writes
+(`PROG_ID_INIT_DATA_LOW`/`_HIGH`) rather than widening the programming
+channel itself, keeping this core's own programming ports identical in
+shape to `adder_cell_v4.v`'s (`#618`) -- consistent across the family,
+per Alan's own explicit request.
+
+**A real, more serious bug found and fixed by simulation, not
+inspection:** a first draft had `COMPLETE` unconditionally recommit
+`data_reg`/`data_valid` from `init_data` on EVERY targeted reprogram,
+even ones that never touched `init_data` at all (e.g. a `fixed_mode`-
+only reprogram) -- silently corrupting a flowing cell's own current
+held state. Real, observed symptom: a value sent immediately after an
+unrelated targeted reprogram arrived as `0` instead of the real value
+sent. Fixed with a real, explicit, separate trigger
+(`PROG_ID_LOAD_DATA_VALID`, mirroring `cfg_data`'s own real
+`load_data_valid` bit) -- `COMPLETE` itself now does only what nano's
+own real `COMPLETE` does (`#615`): commit the arm state, nothing else.
+A second, smaller bug (a testbench-only race -- two consumer ack
+mechanisms driving the same signal) was also caught and fixed the same
+way, confirming the DUT itself was correct once isolated properly.
+
+**Real, honest verification:** `tb_ram_cell_v4.v` (new) -- 6 real
+values received correctly: 3 confirming identical-to-v1 flowing
+capture/re-offer, 1 confirming a targeted `fixed_mode` reprogram
+doesn't disturb routing, 1 confirming the real split `init_data`
+LOW/HIGH write plus its own explicit commit trigger correctly
+reconstructs `0xCAFEBEEF`, 1 through the real addon chain
+(`invert_en`), plus the real `active=0` silence check.
+`tb_ram_cell_v1_chain.v`'s own existing real suite re-run unchanged
+(13/13 consumes, confirming v1 itself untouched). `523/523` Python
+tests still passing.
+
+**Real, honest scope, matching `#618`'s own stated deferrals:**
+`is_command_cell` mode not included (and, per this same session's own
+later discussion, may deserve to be its own, 9th core rather than a
+per-core mode -- parked, not decided). No real ALM/Fmax measurement
+yet. Two real cores now confirmed working (`adder`, `ram`) -- the
+remaining 5 (`accumulator`/`comparator`/`latch`/`sequencer`/`branch`)
+and the `N=8` carrier case remain real, explicit next steps.
+

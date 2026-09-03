@@ -190,6 +190,34 @@ module tb_adder_cell_v4;
         opB = 32'd1; pulse_b = 1'b1; #10; pulse_b = 1'b0;
         #60;
 
+        // ── Real addon chain: nibble_mask -- mask_en=1 (bit8),
+        // nibble_mask=8'h01 (block the lowest nibble), confirm the
+        // offered sum has its own real bottom nibble zeroed. ──
+        program_in = 1'b1;
+        prog_send(3'd3, 20'h101, 1'b1, 1'b1);   // mask_en=1, nibble_mask=8'h01
+        program_in = 1'b0;
+        #20;
+        expected_sum = (32'h0000_0000 + 32'h1234_5678) & 32'hFFFF_FFF0;
+        opA = 32'h0000_0000; pulse_a = 1'b1; #10; pulse_a = 1'b0;
+        wait (status_aa == 1'b1);
+        #10;
+        opB = 32'h1234_5678; pulse_b = 1'b1; #10; pulse_b = 1'b0;
+        #60;
+
+        // ── Real addon chain: shift -- shift_en=1 (bit14),
+        // direction=1/SHIFT_OUT (bit15), shift_amt=4 (bits[13:9]),
+        // confirm the offered sum is genuinely shifted right by 4. ──
+        program_in = 1'b1;
+        prog_send(3'd3, 20'hC800, 1'b1, 1'b1);   // shift_en=1, direction=1, shift_amt=4
+        program_in = 1'b0;
+        #20;
+        expected_sum = (32'h0000_0000 + 32'h0000_0010) >> 4;   // real sum=0x10, shifted -> 0x1
+        opA = 32'h0000_0000; pulse_a = 1'b1; #10; pulse_a = 1'b0;
+        wait (status_aa == 1'b1);
+        #10;
+        opB = 32'h0000_0010; pulse_b = 1'b1; #10; pulse_b = 1'b0;
+        #60;
+
         // clear addon_config for the final real check below
         program_in = 1'b1;
         prog_send(3'd3, 20'h0, 1'b1, 1'b1);
@@ -215,8 +243,8 @@ module tb_adder_cell_v4;
         active = 1'b1;
         #20;
 
-        if (received == 7 && errors == 0)
-            $display("PASS: adder_cell_v4 -- identical core behavior to v1 (3 pairs), real targeted PROG_ID reconfiguration (subtract_mode flipped forward and back without disturbing routing, 2 pairs + 1 pair), real addon chain (invert_en genuinely inverts the offered sum), real active=0 gating confirmed");
+        if (received == 9 && errors == 0)
+            $display("PASS: adder_cell_v4 -- identical core behavior to v1 (3 pairs), real targeted PROG_ID reconfiguration (subtract_mode flipped forward and back without disturbing routing, 2 pairs + 1 pair), real 3-addon chain independently confirmed (invert_en, nibble_mask, shift+direction all genuinely transform the offered sum, not just accept a config write), real active=0 gating confirmed");
         else
             $display("FAIL: received=%0d errors=%0d", received, errors);
 
