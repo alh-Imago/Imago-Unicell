@@ -309,13 +309,29 @@ re-earning it.
 actually built:** study `COMPILER_TILE_CONFIG.md`'s own real placer
 rules (dataflow-depth grouping, cluster embeddability, the transit
 primitive's safety condition) FIRST, as real, working prior art for
-this exact problem on a structurally similar cardinal-mesh substrate
--- not the same cell model (`fp_tiles` targeted the old, finer-grained
-full-cell array, not Unicell-S's coarser one-core-per-cell model,
-per the long-range note's own already-stated caveat), but the real
-TIMING-CLOSURE DISCIPLINE (depth-based grouping to avoid same-cycle
-collisions; a formal, reusable long-range-routing primitive; a
-mandatory pre-RTL simulation gate) is very likely to transfer even
-where the exact cell shapes don't. Not scoped further here -- a real,
-concrete next-look item for whenever general routing is picked up, not
-a green light to start building it now.
+this exact problem. Real, confirmed correction to an earlier, over-
+hedged version of this note: the cell model's own ADDRESSING
+granularity differs (the old full-cell substrate was more finely,
+loosely addressable; Unicell-S's coarser one-core-per-cell model packs
+more function per physical location) -- but the underlying CELL is
+confirmed the SAME, not just similar, per this project's own
+documented design lineage. `unicell_automaton_v1.py`'s own header
+states plainly that its same-cycle multi-direction OR-combine
+behavior "recreates the FULL cell's free wired-OR N-way reduction on
+these dedicated point-to-point wires" (`#153`) -- a DELIBERATE
+re-creation of the old full-cell's own real wire-level physics, not an
+independent rediscovery or a coincidental resemblance. The exact
+hazard `#611` found by tracing VM ticks by hand (simultaneous arrivals
+OR-combining) is consequently the SAME real physical behavior the old
+placer's own "no two cells of the same dataflow depth share a cluster"
+rule was written to avoid. Given the underlying wire-level cell physics
+are confirmed identical, not merely analogous, the old placer's own
+timing-closure discipline (depth-based grouping, the transit
+primitive, the mandatory pre-RTL simulation gate) is the RIGHT real
+starting reference for general DAG routing, not just a plausible one --
+the real, open, honest question is how it maps onto Unicell-S's own
+coarser addressing granularity (a "cluster" of finely-addressed full
+cells versus a single coarser super-cell holding one active core), not
+whether the underlying timing rules themselves still apply. Not scoped
+further here -- a real, concrete next-look item for whenever general
+routing is picked up, not a green light to start building it now.
