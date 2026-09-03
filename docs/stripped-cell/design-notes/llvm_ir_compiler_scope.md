@@ -556,3 +556,69 @@ persistent-offer behavior; a real, simple `adder_cell_v4`
 `upstream_mask` oversight), not in any already-proven cell. There is
 no remaining "not attempted yet" step between a real `icmp` result and
 a real `select` -- the full chain is real and confirmed.
+
+## Addendum 7 (2026-09-04, `points.md #631`): the old library's own real `MUX2` primitive is a line-for-line match, and its own real history mirrors this session's exactly -- plus a real, cheaper construction using this project's own already-real wired-OR physics, not yet tried
+
+Per Alan's own direct suggestion -- go back and look at what the old
+full-cell system's own real tile library (`fp_tiles.py`, extracted via
+the Onion archive, `#612`) actually catalogued, not to port the code
+(confirmed genuinely doesn't port, `#338`/`#612`), but because the
+real CONCEPTS it encoded are still true.
+
+**A striking, direct match, found not assumed:** `fp_tiles.py`'s own
+real `MUX2()` builder:
+```
+def MUX2(self, sel, a, b):
+    nsel = self.NOT(sel); sel_a = self.AND2(sel, a)
+    nsel_b = self.AND2(nsel, b); return self.OR2(sel_a, nsel_b)
+```
+is LINE-FOR-LINE the same real construction `#629` independently
+derived and built this session (`NOT`+`AND`+`AND`+`OR`, 4 cells).
+
+**An even more striking real, historical parallel, not a
+coincidence:** the SAME file's own real `SELECT()` method is marked
+`RETIRED`, with its own real comment: `"GS_SELECT is not in the
+silicon. Branch design pending. Use MUX2() for conditional data
+selection instead."` -- the OLD system went through the EXACT SAME
+real journey this session did: a dedicated select/branch-based
+mechanism was tried first, found not viable in real silicon, and
+retired in favor of the same gate composition `#629` arrived at
+independently after `branch` didn't fit (`#613`) and the command-cell
+path looked heavier than needed (`#617` Addendum 4). Real, converging
+evidence this is genuinely the right answer, not just an answer that
+happened to work today.
+
+**A real, already-documented optimization, directly applicable via
+this project's own real multicast, not yet applied:** the same file's
+own real barrel-shifter code computes `NOT(sel)` ONCE per stage and
+shares it across 24 real MUX cells (`"saves 23 NOT gates per stage vs
+naive"`) -- directly maps onto `#630`'s own real multicast mechanism
+(multi-bit `downstream_mask`, already proven for the boolean-expand
+stage): multiple real `select` instructions sharing the same real
+condition could all reuse ONE `NOT(cond)`/boolean-expand cell via
+broadcast, rather than each paying for its own.
+
+**A real, third, EVEN CHEAPER construction, genuinely worth real
+investigation, not yet tried:** the same file's own real
+`_barrel_shift_right_wired()` documents an alternative real MUX
+built from PRELOADED `sel`/`nsel` constants and a real WIRED-OR BUS --
+`"Cell A: AND(sel, src_a) -> out[i]. Cell B: AND(nsel, src_b) ->
+out[i]. The bus OR combines them... No NOT gate needed."` 240 real
+cells vs the shared-NOT version's 365, for the SAME 24-bit×5-stage
+barrel shifter -- because it deliberately uses simultaneous-arrival
+OR-combining as a FEATURE instead of avoiding it. **Real, direct
+relevance, not a stretch:** this project's own real cell model has the
+SAME real wired-OR physics -- confirmed multiple times this session
+(`#611`'s own found OR-combine hazard; `unicell_automaton_v1.py`'s own
+header, "recreates the FULL cell's free wired-OR N-way reduction",
+`#616`). What `#611` spent real effort AVOIDING (two arrivals landing
+on the same cycle corrupting a two-operand capture) is precisely what
+this OLD construction deliberately EXPLOITS for a genuinely cheaper
+real select: two independently-preloaded `AND` cells, both routed to
+the SAME real downstream direction, letting the OR-combine itself do
+the final selection -- no dedicated `OR` cell needed at all. Real,
+honest, NOT yet verified whether this maps cleanly onto Unicell-S's
+own real two-arrival-per-cell model (the old system's own wired-OR bus
+may be architecturally different at the mechanical level, not just
+larger) -- a real, concrete, worthwhile next investigation, not
+attempted here.

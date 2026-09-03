@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-04, select's own honest gap fully closed -- comparator -> boolean-expand -> 4-cell select, all real, chained cells, sim-verified end to end. See `points/points_active.md` #630)
+# Current State (as of 2026-09-04, the old library's own real MUX2 primitive matches #629's gate composition line-for-line, and its own real history mirrors this session's exactly -- plus a real, cheaper wired-OR construction found, not yet verified. See `points/points_active.md` #631)
+
+## Read this first (most recent)
+
+**2026-09-04, real archeology finding (#631), per Alan's own direct
+suggestion to look back at the old library's real concepts.** The old
+full-cell system's own real `fp_tiles.py` `MUX2()` builder is LINE-
+FOR-LINE the same construction `#629` independently derived
+(`NOT`+`AND`+`AND`+`OR`). Its own real `SELECT()` method is marked
+`RETIRED` with a real comment: a dedicated select/branch mechanism was
+tried first, found not viable in real silicon, retired in favor of the
+same gate composition -- the OLD system went through the exact same
+real journey this session did, independently.
+
+A real, already-documented optimization not yet applied: sharing one
+`NOT(sel)` cell across multiple real MUX cells via broadcast, mapping
+directly onto `#630`'s own real multicast mechanism. And a real,
+potentially even cheaper third construction found, not yet verified:
+using PRELOADED constants and a real wired-OR bus to do the final
+selection without a dedicated `OR` cell -- directly relevant since
+this project's own real cell model has the same wired-OR physics
+`#611` spent real effort learning to avoid corrupting. Whether it maps
+cleanly onto Unicell-S's own two-arrival model is a real, concrete,
+unverified next investigation.
+
+Captured in full in `llvm_ir_compiler_scope.md`'s own new Addendum 7.
+Nothing built -- a real research pass. 523/523 Python tests still
+passing (docs-only change).
+
+**Real, standing next-session queue:** (1) investigate the wired-OR-
+bus select construction against Unicell-S's own real cell model; (2)
+apply the shared-boolean-expand multicast optimization; (3) nano's own
+independent shift capability; (4) command-core sensing/addressing
+prototype; (5) the `N=8` multi-core carrier case; (6) Alan's own real
+Quartus build; (7) `icmp eq`/`ne`, `phi`/loops.
+
+## Previous state (as of 2026-09-04, select's own honest gap fully closed -- comparator -> boolean-expand -> 4-cell select, all real, chained cells, sim-verified end to end. See `points/points_active.md` #630)
 
 ## Read this first (most recent)
 

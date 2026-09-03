@@ -3831,3 +3831,52 @@ total per `select` when driven from a live comparison; the real
 area/latency-vs-command-cell tradeoff noted in `#629` still stands as
 the open integration question, not resolved here.
 
+## 631. The old library's own real `MUX2` primitive matches `#629`'s own gate composition line-for-line, and its own real history mirrors this session's exactly -- plus a real, cheaper, wired-OR-based construction found, not yet verified against Unicell-S's own real cell model. Per Alan's own direct suggestion to look back at the old library's real concepts. (Alan/Claude, 2026-09-04)
+
+**A striking, direct match, found not assumed:** the old full-cell
+system's own real `fp_tiles.py` (re-extracted via the Onion archive,
+`#612`) has a real `MUX2()` builder that is LINE-FOR-LINE the same
+construction `#629` independently derived and built this session
+(`NOT`+`AND`+`AND`+`OR`, 4 cells): `nsel=NOT(sel); sel_a=AND(sel,a);
+nsel_b=AND(nsel,b); return OR(sel_a,nsel_b)`.
+
+**A real, historical parallel, not a coincidence:** the same file's
+own real `SELECT()` method is marked `RETIRED`, with its own real
+comment: `"GS_SELECT is not in the silicon. Branch design pending. Use
+MUX2() instead."` -- the old system went through the EXACT SAME real
+journey this session did: a dedicated select/branch mechanism tried
+first, found not viable, retired in favor of the same gate composition
+`#629` arrived at independently after `branch` didn't fit (`#613`) and
+the command-cell path looked heavier than needed (`#617` Addendum 4).
+Real, converging evidence, not just an answer that happened to work.
+
+**A real, already-documented optimization, not yet applied:** the
+same file computes `NOT(sel)` ONCE per stage in a real barrel-shifter
+and shares it across 24 real MUX cells. Maps directly onto `#630`'s
+own real multicast (multi-bit `downstream_mask`, already proven) --
+multiple real `select`s sharing one condition could reuse ONE
+boolean-expand cell via broadcast rather than each paying for its own.
+
+**A real, third, potentially EVEN CHEAPER construction, genuinely
+worth investigation, not yet tried:** `_barrel_shift_right_wired()`
+documents an alternative real MUX using PRELOADED `sel`/`nsel`
+constants and a real WIRED-OR BUS -- two independently-preloaded `AND`
+cells routed to the SAME output direction, letting the OR-combine
+itself do the final selection, no dedicated `OR` cell needed (240 real
+cells vs the shared-NOT version's 365, same 24-bit×5-stage shifter).
+**Real, direct relevance:** this project's own real cell model has the
+SAME wired-OR physics -- confirmed repeatedly this session (`#611`'s
+own found OR-combine hazard; `unicell_automaton_v1.py`'s own header,
+"recreates the FULL cell's free wired-OR N-way reduction," `#616`).
+What `#611` spent real effort AVOIDING (simultaneous arrivals
+corrupting a two-operand capture) is precisely what this old
+construction deliberately EXPLOITS for a cheaper real select. Real,
+honest, NOT yet verified whether this maps cleanly onto Unicell-S's
+own real two-arrival-per-cell model -- a real, concrete next
+investigation, not attempted here.
+
+**Captured in full in `llvm_ir_compiler_scope.md`'s own new
+Addendum 7.** Real, honest scope: nothing built here -- a real
+research pass confirming and extending `#629`/`#630`'s own work, per
+Alan's own direct suggestion, not a new implementation.
+
