@@ -3880,3 +3880,45 @@ Addendum 7.** Real, honest scope: nothing built here -- a real
 research pass confirming and extending `#629`/`#630`'s own work, per
 Alan's own direct suggestion, not a new implementation.
 
+## 632. Real, organized inventory of all 25 archeology archives, per Alan's own proposal to spend a real dedicated session or two reviewing the old work systematically. A real map for future targeted dives, built from each archive's own already-recorded metadata, not a deep read of contents. (Alan/Claude, 2026-09-04)
+
+**Real scope:** 25 real archives exist in `archeology/onion/`. Two have
+been actually opened and read this session (`old_llvm_frontend.onion`,
+`old_full_cell_tile_library.onion`, `#612`/`#631`) -- both yielded
+real, substantial, still-applicable value (the real LLVM frontend
+structure; the `MUX2` construction matching `#629` line-for-line). The
+other 23 are genuinely unexplored beyond their own archival metadata.
+
+**Captured in full in `docs/stripped-cell/design-notes/
+archeology_inventory.md`** (new file) -- a real, 4-tier priority map:
+
+- **Tier 1 (real, concrete, already-hinted current relevance):**
+  `old_composer_tool.onion` (explicitly flagged as real concept
+  reference for the future Stage 5 composer); `old_root_misc_files.
+  onion` (contains a real, validated FlowTrix cylinder-flow result,
+  directly relevant to the standing FlowTrix demo roadmap item);
+  `old_trix_domain_family.onion` (real domain-modeling concepts likely
+  connecting to the CURRENT active concept-graph/bridge-paper
+  research); `old_papers_drafts.onion` (real SI_CHECK/confidence-
+  bridge methodology, likely relevant to `concept_inference.py`'s own
+  real confidence-weighted path-finding).
+- **Tier 2 (real, likely value, less directly tied to a named
+  thread):** the old community-model ecosystem, the old UI/GPU
+  visualizer (confirmed dead under cardinal wiring, but the
+  visualization APPROACH may still hold real ideas), old packed-adder
+  utilities.
+- **Tier 3 (real, but scope-recalibrated or narrowly hardware-era-
+  specific):** the old distributed OS/Pond layer (already explicitly
+  out of scope), old PCIe/hardware-bringup work (relevant only once
+  real PCIe work starts).
+- **Tier 4 (confirmed low priority):** 9 archives whose own real
+  metadata already identifies a direct current replacement or states
+  plainly nothing is needed.
+
+**Real, honest scope: this is a map, not a review.** None of the 23
+unopened archives have actually been read yet -- only their own
+already-recorded metadata. The real next step is starting with Tier 1,
+in order, using `#612`'s own real method (extract, grep, read for
+substantive content) -- not attempted in this entry. `523/523` Python
+tests still passing (docs-only change).
+

@@ -1,4 +1,47 @@
-# Current State (as of 2026-09-04, the old library's own real MUX2 primitive matches #629's gate composition line-for-line, and its own real history mirrors this session's exactly -- plus a real, cheaper wired-OR construction found, not yet verified. See `points/points_active.md` #631)
+# Current State (as of 2026-09-04, real archeology inventory built -- all 25 archives mapped and prioritized for a future dedicated review, per Alan's own proposal. See `points/points_active.md` #632)
+
+## Read this first (most recent)
+
+**2026-09-04, real archeology inventory (#632), per Alan's own
+proposal to dedicate a real session or two to reviewing the old
+full-cell work systematically.** 25 real archives exist; only 2 have
+been actually opened this session (`old_llvm_frontend.onion`,
+`old_full_cell_tile_library.onion`), both yielding real, substantial
+value. Built a real, 4-tier priority map from the other 23 archives'
+own already-recorded metadata (no decompression needed for this pass):
+`docs/stripped-cell/design-notes/archeology_inventory.md` (new file).
+
+**Tier 1 (real, concrete, already-hinted current relevance), in
+priority order for whenever the review happens:**
+1. `old_composer_tool.onion` -- real concept reference for the future
+   Stage 5 composer.
+2. `old_root_misc_files.onion` -- contains a real, validated FlowTrix
+   cylinder-flow result, directly relevant to the standing FlowTrix
+   demo roadmap item.
+3. `old_trix_domain_family.onion` -- real domain-modeling concepts
+   likely connecting to the CURRENT active concept-graph/bridge-paper
+   research thread.
+4. `old_papers_drafts.onion` -- real SI_CHECK/confidence-bridge
+   methodology, likely relevant to `concept_inference.py`'s own real
+   confidence-weighted path-finding.
+
+Tiers 2-4 (likely value but less directly tied; scope-recalibrated or
+hardware-era-specific; confirmed low priority) captured in full in the
+new doc.
+
+**Real, honest scope: this is a map, not a review.** None of the 23
+unopened archives have actually been read -- only their own metadata.
+523/523 Python tests still passing (docs-only change).
+
+**Real, standing next-session queue:** (1) the proposed dedicated
+archeology review, starting with Tier 1 in order; (2) the wired-OR-bus
+select construction investigation; (3) apply the shared-boolean-
+expand multicast optimization; (4) nano's own independent shift
+capability; (5) command-core sensing/addressing prototype; (6) the
+`N=8` multi-core carrier case; (7) Alan's own real Quartus build; (8)
+`icmp eq`/`ne`, `phi`/loops.
+
+## Previous state (as of 2026-09-04, the old library's own real MUX2 primitive matches #629's gate composition line-for-line, and its own real history mirrors this session's exactly -- plus a real, cheaper wired-OR construction found, not yet verified. See `points/points_active.md` #631)
 
 ## Read this first (most recent)
 
