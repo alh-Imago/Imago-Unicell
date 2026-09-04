@@ -4416,3 +4416,70 @@ own independent shift; (3) the `N=8` carrier case ("new shell design");
 (4) Python-frontend integration; (5) Alan's own real Quartus build;
 (6) promote both select constructions + icmp eq to Tier-1/frontend;
 (7) the archeology deep-dive.
+
+## 641. Real command-core design note, round 2 -- a live follow-up discussion resolving several of `#628`'s own open questions, following `#639`/`#640`'s real cardinal shells landing. Nothing built -- captured in full in `docs/stripped-cell/design-notes/command_core_scope_v2.md`. (Alan/Claude, 2026-09-04)
+
+**Real, resolved: one core type, two live instances**, mode-selected
+(same real pattern `ram_cell_v4.v`'s own `fixed_mode` bit already
+uses), not two separate files -- matching the diagram's own "Command
+Cell 1"/"Command Cell 2" split while keeping one RTL file. Single
+fixed target direction per instance, config-time, same shape as
+`branch_cell_v4.v`'s own `upstream_dir` -- narrows `#628`'s original
+256-address runtime-targeting scope down to what's actually needed
+for a first real build.
+
+**Real, resolved: buffer fan-out needs zero new RTL.** Checked
+directly against the RTL: `next_pending_ack = downstream_mask[3:0] &
+~ack_in_vec` (confirmed in `adder_cell_v4.v`, same shape everywhere)
+-- every masked bit fires simultaneously, real multicast already
+built into every core. The "head buffer cell sends to two directions
+at once" requirement is free. Real, still-open gap, not resolved this
+entry: no existing core cleanly holds a genuine multi-word 32-bit
+command sequence (`sequencer_cell_v4` too narrow at 4x8-bit, plain RAM
+holds one static value with no advance).
+
+**Real, resolved: variable-length packets, deliberately chosen** over
+fixed-count, generalizing into a real, standalone flow-control
+primitive beyond just this pipeline. Real, confirmed structural
+finding along the way: `PROG_ID_COMPLETE` is unavoidable even for the
+simplest single-field transaction -- `program_done_r` is set ONLY by
+it (confirmed in `nano_gate_v4.v`'s own always block), so every real
+transaction is at minimum two words regardless of scheme.
+
+**Real, resolved: a genuinely new shared primitive** -- capture a
+pattern once into a hold register, then continuously compare every
+subsequent arrival against it indefinitely (distinct from every
+existing core: RAM never compares after capture, `adder_cell_v4`
+captures-then-fires-once-then-resets). Same circuit shared by both
+modes; only the pattern SOURCE differs -- live-captured from the
+trigger word (trigger mode) vs config-fixed to the target's own real
+`COMPLETE` value (programmer mode, `4'd15`/`3'd7`).
+
+**Real, resolved: completion detection is ack-anchored, and this was
+never optional.** Confirmed directly against the RTL: ordinary
+`ack_out` is dead the instant a cell is frozen (`consumed_now` gated
+by `!effective_freeze` on every real path) -- exactly why the
+programming channel has its own separate, freeze-safe `prog_ack_out_x`
+(`programming_active && prog_sel_x`, no freeze term at all). Real,
+resolved mechanism: programmer mode relays buffer data onto the
+target's programming channel, paced by real `prog_ack_out_x`; the
+shared comparator identifies which relayed word is the real
+`COMPLETE` word; only once THAT specific word is confirmed via
+`prog_ack_out` (not merely sent) does programmer mode declare done and
+release freeze. Trigger mode's own detection stays simpler -- the
+buffer link it watches is deliberately unfrozen throughout, so plain
+content-comparison is sufficient there, no ack-anchoring needed.
+
+**Real, still standing from `#628`:** freeze-output generation is
+genuinely new RTL (no core drives freeze today, only receives it),
+needed by both modes. Newly flagged this entry: programmer mode
+driving the programming channel outward (relaying onto
+`prog_data_in_x`) is equally new -- no core currently drives that
+channel either, only receives it.
+
+**Real, honest scope: nothing built, same discipline as `#628`.** The
+buffer-cell-type gap remains the one real open question; the
+suggested real next step is building the shared capture-compare +
+freeze-drive block first (common to both modes), deferring the buffer
+question behind a simple fixed-count stand-in if early testing is
+needed before it's resolved.

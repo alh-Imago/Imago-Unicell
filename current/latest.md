@@ -1,4 +1,35 @@
-# Current State (as of 2026-09-04, real bounded loop rewired through the real cardinal control shells -- proves real cardinal control genuinely composes across a working multi-cell topology, not just one wrapped cell. Command-core scoping is the explicit next conversation. See `points/points_active.md` #640)
+# Current State (as of 2026-09-04, real command-core design note round 2 -- several of #628's own open questions resolved via live discussion, following #639/#640's real cardinal shells. Nothing built. See `points/points_active.md` #641)
+
+## Read this first (most recent)
+
+**2026-09-04, command-core design, round 2 (#641) -- nothing built,
+same discipline as `#628`.** Full note:
+`docs/stripped-cell/design-notes/command_core_scope_v2.md`. Key real
+resolutions: one core type, two mode-selected live instances (matching
+`ram_cell_v4.v`'s own `fixed_mode` pattern), single fixed target
+direction per instance; buffer fan-out is free (confirmed multi-hot
+`downstream_mask` already fires simultaneously on every core);
+variable-length packets chosen deliberately; a genuinely new shared
+"capture-once-then-continuously-compare" primitive needed by both
+modes (pattern live-captured in trigger mode, config-fixed to the
+real `COMPLETE` value in programmer mode); completion detection is
+ack-anchored via the real, freeze-safe `prog_ack_out_x` (confirmed
+ordinary `ack_out` is dead while frozen -- exactly why the programming
+channel has its own separate ack lines). Freeze-output generation
+(both modes) and programming-channel-output generation (programmer
+mode) remain the two genuinely new RTL pieces. Real, still-open: no
+existing core cleanly holds a multi-word 32-bit command buffer.
+
+**Real, standing next-session queue:** (1) build the shared capture-
+compare + freeze-drive block (common to both modes) -- the real next
+step, per this entry's own note; (2) resolve the buffer-cell-type
+question (deferrable behind a fixed-count stand-in); (3) nano's own
+independent shift; (4) the `N=8` carrier case ("new shell design");
+(5) Python-frontend integration; (6) Alan's own real Quartus build;
+(7) promote both select constructions + icmp eq to Tier-1/frontend;
+(8) the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, real bounded loop rewired through the real cardinal control shells -- proves real cardinal control genuinely composes across a working multi-cell topology, not just one wrapped cell. Command-core scoping is the explicit next conversation. See `points/points_active.md` #640)
 
 ## Read this first (most recent)
 
