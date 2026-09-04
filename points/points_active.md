@@ -3977,3 +3977,48 @@ yet.** This entry confirms the CONSTRUCTION works in isolation; a real
 comparison against the plain 4-cell version's own real cost, remain
 the next steps, not attempted here.
 
+## 634. `icmp eq` genuinely solved -- step 2 off the standing queue. A cleaner real formula found than the originally-planned AND-based one: `XOR(diff>=0, diff>=1) == (diff==0)` exactly, needing no separate NOT/AND cells at all. Real, sim-verified on Unicell-S's own hardware, including negative values. A real timing-margin bug caught and fixed, distinct from every prior bug class this session. (Alan/Claude, 2026-09-04)
+
+**A real, cleaner formula found before building, not the originally-
+planned one:** `#614`'s own real lead assumed `eq` would need
+`comparator` AND'd with a `NOT`'d second comparator. Checked by hand
+first: given `comp1 = (diff>=0)` and `comp2 = (diff>=1)`, `XOR(comp1,
+comp2)` equals `(diff==0)` exactly, verified case by case (`diff<0`:
+`0 XOR 0=0`; `diff==0`: `1 XOR 0=1`; `diff>0`: `1 XOR 1=0`). Nano's own
+real `TOPO_XOR` (`0x0BC`) already exists -- no separate `NOT` cell
+needed at all, a genuinely simpler real construction than first
+planned.
+
+**The real construction, verified:** an `adder` computes `diff = A-B`
+(reusing `#613`'s own real negate-at-injection trick), multicasting to
+two `comparator` cells (thresholds `0` and `1`) via the same real
+multi-bit `downstream_mask` mechanism proven in `#630`/`#633`; both
+comparator results feed a real `nano_gate` `XOR` cell.
+
+**A real timing-margin bug, distinct from every prior bug class this
+session, caught by tracing an actual failure:** the construction was
+functionally correct from the first real attempt -- the real issue was
+purely an insufficient settle-time margin in the test's own final wait
+before checking (`result_fire` genuinely asserted, just roughly one
+real clock cycle later than the original wait allowed for). Confirmed
+directly by adding finer-grained cycle tracing before concluding it
+was a real bug rather than a margin issue -- a real, honest, DIFFERENT
+kind of mistake from `#611`'s arrival-order bugs, `#619`'s implicit-
+commit bug, or `#630`/`#633`'s missing-dummy-arrival bugs.
+
+**Real, honest verification:** `tb_icmp_eq_compose_v1.v` (new) -- 4
+real end-to-end cases (equal, greater, less, negative-equal), all
+correct, confirming the `XOR`-based construction genuinely works on
+Unicell-S's own real two-arrival hardware, not just on paper.
+`523/523` Python tests still passing.
+
+**Real, honest scope: `ne` and Python-frontend integration remain
+open.** `ne = NOT(eq)` is a real, trivial one-cell extension, not yet
+built. Full integration into `llvm_ir_frontend_v1.py`'s own column-
+cursor placement system (a genuine 2D layout question -- the real
+result lands on a different row than the established chain-
+continuation convention assumes) is a real, separate, not-yet-
+attempted step, matching how `select`'s own RTL composition (`#629`/
+`#630`/`#633`) was verified before any Python integration was
+attempted either.
+

@@ -1,4 +1,34 @@
-# Current State (as of 2026-09-04, the old library's own wired-OR select construction confirmed to genuinely work on Unicell-S's own real hardware -- two hold_in-preloaded AND cells, no dedicated OR cell. See `points/points_active.md` #633)
+# Current State (as of 2026-09-04, icmp eq genuinely solved -- XOR(diff>=0, diff>=1) == (diff==0), sim-verified on real hardware including negative values. See `points/points_active.md` #634)
+
+## Read this first (most recent)
+
+**2026-09-04, `icmp eq` solved (#634) -- step 2 off the standing
+queue, working top-down.** A real, cleaner formula than originally
+planned: `XOR(diff>=0, diff>=1) == (diff==0)` exactly -- no separate
+`NOT`/`AND` cells needed at all, just an `adder` (diff) multicasting
+to two `comparator`s (thresholds 0/1) feeding a real `nano_gate` XOR.
+
+A real timing-margin bug (not a new bug class) caught and fixed: the
+construction was correct from the first attempt, the test's own
+settle-time wait was just about one cycle short before checking.
+
+`tb_icmp_eq_compose_v1.v` (new) -- 4 real cases, all correct including
+negative values. 523/523 Python tests still passing.
+
+**Real, honest scope:** `ne = NOT(eq)` is a trivial one-cell
+extension, not yet built. Python-frontend integration (a real 2D
+layout question, since the result lands on a different row than the
+established chain convention assumes) is separate and not attempted,
+matching how `select`'s own RTL composition was verified before any
+Python integration.
+
+**Real, standing next-session queue, working top-down:** (1) `ne` (one
+more cell) + Python-frontend integration for both; (2) `phi`/loops;
+(3) command core prototype; (4) nano's own independent shift; (5) the
+`N=8` carrier case; (6) Alan's own real Quartus build; (7) promote
+both select constructions to Tier-1; (8) the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, the old library's own wired-OR select construction confirmed to genuinely work on Unicell-S's own real hardware -- two hold_in-preloaded AND cells, no dedicated OR cell. See `points/points_active.md` #633)
 
 ## Read this first (most recent)
 
