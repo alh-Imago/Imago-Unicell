@@ -4220,3 +4220,75 @@ design": assembling all 8 sim-verified `v4` unified-carrier cores into
 an actual `unicell_super_v4` shell, not yet started); (5) Alan's own
 real Quartus build; (6) promote both select constructions + icmp eq to
 Tier-1/frontend; (7) the archeology deep-dive.
+
+## 638. Real, genuine bounded loop closed as a proper 4-cell physical ring -- LOOPVAR+LOOP_CTRL+ADDER+RAM_RELAY, resolving #637's own standing integration question. Per Alan's own real design call: since the decision already lives entirely in LOOP_CTRL, the 4th cell closing the ring only ever needs to relay, never decide -- ram_cell_v4 in its own real "flowing" mode fits exactly, no dummy-second-arrival overhead needed. (Alan/Claude, 2026-09-04)
+
+**Real topology, sim-verified:** `tb_nano_bounded_loop_ring_v1.v`
+(new) -- a proper 2x2 square, a legal even-length cycle in the
+bipartite N/S/E/W mesh: `LOOPVAR --south--> LOOP_CTRL --east--> ADDER
+--north--> RAM_RELAY --west--> LOOPVAR`. LOOP_CTRL's own real dynamic
+pattern-routing (`#637`) decides CONTINUE (east, into ADDER) vs EXIT
+(south, to a real testbench consumer) each round; RAM_RELAY (real
+`fixed_mode=0` "flowing" mode -- single-arrival capture, no A/B
+two-stage, no dynamic routing at all) only ever relays ADDER's real
+sum back to LOOPVAR, closing the physical loop with no decision logic
+and therefore none of `#637`'s own found conflicts (relay vs dynamic-
+routing collision doesn't apply -- it's a genuinely separate cell).
+
+**Real, honest scope, matching `#636`'s own precedent:** loop bound N
+and increment constant B remain testbench-injected, standing in for
+not-yet-built constant sources. hold/upd/reemit remain testbench-
+driven, standing in for the future loop-control mechanism (`#628`).
+
+**Real, full end-to-end result:** `for i in 0..3` -- 3 real continue
+rounds (0->1->2->3), each hop genuinely computed by the real adder and
+relayed by the real RAM cell through the real 4-cell ring, then a real
+exit at `i==N==3`, its final value captured straight off LOOP_CTRL's
+own dynamic-routing decision. 9/9 checks correct.
+
+**Two real bugs found and fixed while building it, same discipline as
+`#636`/`#637`, not glossed over:**
+1. **Same bug class as `#636`'s own bug 1, one level up:** LOOP_CTRL
+   already holds `i` as its real pending first arrival coming into
+   each round (from the entry-seed's own automatic first offer, or the
+   previous round's own trailing reemit) -- reemitting `i` again at
+   the START of a round, before that already-held value is consumed,
+   made LOOP_CTRL treat the redundant reemit as its real SECOND
+   arrival, comparing the old `i` against itself (equal!) and firing a
+   bogus EXIT before `N` was ever injected. Fixed with the same real
+   reordering `#636` used: consume first (inject N, decide, run the
+   real chain if continuing), reemit-for-next LAST.
+2. **A genuinely new real finding:** waiting for `adder_data_valid` to
+   drain only confirms the ADDER->RAM_RELAY handoff completed, NOT
+   that RAM_RELAY's own downstream offer actually reached and was
+   consumed by LOOPVAR -- the task was moving on to clear `upd` and
+   start the next reemit before LOOPVAR had genuinely captured the
+   relayed value. Fixed by waiting for `rr_data_valid` (RAM_RELAY's
+   own real status port) to drain instead, the correct real signal for
+   "LOOPVAR actually consumed this."
+
+**Real, full regression, not assumed safe:** no RTL changed this entry
+(pure new testbench). All 11 `nano_gate_v4`/`adder_cell_v4`/
+`ram_cell_v4`-dependent testbenches pass clean (`tb_nano_adder_loop_v1`,
+`tb_nano_gate_v4`, `tb_nano_loop_variable_v1`, `tb_nano_select_
+compose_v1`, `tb_nano_select_wired_or_v1`, `tb_icmp_eq_compose_v1`,
+`tb_select_full_chain_v1`, `tb_nano_loop_exit_v1`, `tb_nano_bounded_
+loop_ring_v1`, `tb_adder_cell_v4`, `tb_compare_cell_v4`). 523/523
+Python tests, unchanged baseline.
+
+**Real, honest scope: this is a real, complete, physically-closed
+bounded loop in simulation, not yet a Quartus/silicon result, and not
+yet driven by anything but testbench-injected N/B constants and
+control pulses.** The LLVM `phi`/loop-var storage (`#635`), real adder
+feedback (`#636`), and real loop-exit decision (`#637`) are now all
+genuinely integrated into one working real loop -- the standing
+queue's own top item is now closed.
+
+**Real, standing next-session queue, working top-down:** (1) command
+core prototype (`#628`) -- the natural next real source for N/B
+constants and control sequencing, replacing the testbench stand-ins
+above; (2) nano's own independent shift; (3) the `N=8` carrier case
+("new shell design", not yet started); (4) Python-frontend integration
+for the whole loop construction; (5) Alan's own real Quartus build;
+(6) promote both select constructions + icmp eq to Tier-1/frontend;
+(7) the archeology deep-dive.

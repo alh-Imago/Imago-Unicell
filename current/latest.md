@@ -1,4 +1,47 @@
-# Current State (as of 2026-09-04, real loop-exit mechanism proven in isolation via nano's own dynamic pattern-routing -- plus a real, honest topological limit found for full physical integration. See `points/points_active.md` #637)
+# Current State (as of 2026-09-04, real, genuine bounded loop closed as a proper 4-cell physical ring -- LOOPVAR+LOOP_CTRL+ADDER+RAM_RELAY, `for i in 0..3` fully working end to end. See `points/points_active.md` #638)
+
+## Read this first (most recent)
+
+**2026-09-04, real bounded loop closed (#638) -- resolves `#637`'s
+own standing integration question.** Per Alan's own real design call:
+since the decision already lives in LOOP_CTRL, the 4th cell closing
+the ring only ever needs to relay, never decide -- `ram_cell_v4` in
+its own real "flowing" mode (`fixed_mode=0`) fits exactly. `tb_nano_
+bounded_loop_ring_v1.v` (new): a proper 2x2 square, a legal even-
+length cycle in the bipartite mesh -- `LOOPVAR --south--> LOOP_CTRL
+--east--> ADDER --north--> RAM_RELAY --west--> LOOPVAR`. `for i in
+0..3`: 3 real continue rounds (0->1->2->3) through the real 4-cell
+ring, then a real exit at `i==N==3` captured off LOOP_CTRL's own
+dynamic-routing decision. 9/9 checks correct.
+
+**Two real bugs found and fixed:** (1) same class as `#636`'s own bug
+1, one level up -- reemitting `i` before LOOP_CTRL's already-pending
+first arrival was consumed made it compare the old `i` against itself
+instead of against `N`; fixed with the same consume-first/reemit-last
+reordering. (2) A new finding: waiting for `adder_data_valid` to drain
+only confirms ADDER->RAM_RELAY handoff, not that RAM_RELAY->LOOPVAR
+actually completed -- fixed by waiting for `rr_data_valid` (RAM_
+RELAY's own real status port) to drain instead.
+
+**Real, full regression:** no RTL changed this entry. All 11 nano_
+gate_v4/adder_cell_v4/ram_cell_v4-dependent testbenches pass clean.
+523/523 Python tests, unchanged.
+
+**Real, honest scope: complete in simulation, not yet Quartus/silicon,
+and N/B/control pulses are still testbench-injected stand-ins.** The
+`phi` storage (`#635`), real adder feedback (`#636`), and real loop-
+exit decision (`#637`) are now all genuinely integrated into one
+working real loop.
+
+**Real, standing next-session queue, working top-down:** (1) command
+core prototype (`#628`) -- the natural next real source for N/B and
+control sequencing; (2) nano's own independent shift; (3) the `N=8`
+carrier case ("new shell design", not yet started); (4) Python-
+frontend integration for the whole loop construction; (5) Alan's own
+real Quartus build; (6) promote both select constructions + icmp eq to
+Tier-1/frontend; (7) the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, real loop-exit mechanism proven in isolation via nano's own dynamic pattern-routing -- plus a real, honest topological limit found for full physical integration. See `points/points_active.md` #637)
 
 ## Read this first (most recent)
 
