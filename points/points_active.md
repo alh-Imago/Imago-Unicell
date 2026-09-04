@@ -4169,3 +4169,54 @@ sim-verified `v4` unified-carrier cores into an actual `unicell_
 super_v4` shell, not yet started); (5) Alan's own real Quartus build;
 (6) promote both select constructions + icmp eq to Tier-1/frontend;
 (7) the archeology deep-dive.
+
+## 637. Real loop-exit mechanism, proven in isolation: nano_gate_v4's own dynamic pattern-routing correctly routes the loop variable to CONTINUE vs EXIT based on comparing it against a real bound N. A real, honest topological limit found and documented while scoping full integration, not glossed over: a genuine 3-cell physical ring can't close in this cardinal mesh. (Alan/Claude, 2026-09-04)
+
+**Real construction, sim-verified first attempt:** `tb_nano_loop_exit_v1.v`
+(new) -- a single `nano_gate_v4` cell (`ENABLE_DYNAMIC_ROUTING=1`,
+topology PASS_A) captures the loop variable `i` as its first real
+arrival (west) and the bound `N` as its second (north, standing in for
+a not-yet-built constant source, matching `#636`'s own precedent). Its
+own real `cmp_gt`/`cmp_lt`-selected pattern routes `i` to EAST
+(pattern_high, `N>i`, continue) or SOUTH (pattern_equal/pattern_low,
+`N==i` or `N<i`, exit) -- 5 real cases (`i=0,1,2` continue; `i=3`
+real exit boundary; `i=5` degenerate/safety exit), all correct on the
+first real run, matching `N==3`'s own real `for i in 0..N` bound.
+
+**Real, honest scope, matching #629/#630/#633/#634's own established
+discipline:** this proves the DECISION mechanism in isolation, not
+wired into the real LOOPVAR+ADDER physical loop from `#636`. A real,
+concrete reason found while actually working through that
+integration, not assumed or glossed over: this project's cardinal mesh
+is bipartite -- a genuine 3-cell ring cannot close under pure N/S/E/W
+single-hop links (grid graphs only admit even-length cycles). Worse,
+even setting geometry aside, `dynamic_route_en` applies to a cell's
+WHOLE `effective_routing`, including any `cardinal_edge`-marked relay
+direction -- so a single cell can't simultaneously be a reliable
+straight relay for a real return-sum path AND a dynamic comparator-
+router for the real continue/exit decision; a relay event would get
+routed by the stale comparison instead of passed straight through.
+Real, standing consequence for next integration attempt: either a 4th
+real relay cell closing a proper even-length ring, or a redesigned
+control scheme where the exit test doesn't require routing return
+traffic back through the same dynamically-routed cell -- not resolved
+here, a real, separate, later design question.
+
+**Real, full regression, not assumed safe:** no RTL changed this
+entry (pure new testbench) -- all 7 `nano_gate_v4`-dependent
+testbenches (`tb_nano_adder_loop_v1`, `tb_nano_gate_v4`,
+`tb_nano_loop_variable_v1`, `tb_nano_select_compose_v1`,
+`tb_nano_select_wired_or_v1`, `tb_icmp_eq_compose_v1`,
+`tb_select_full_chain_v1`, plus the new `tb_nano_loop_exit_v1`) pass
+clean. **523/523 Python tests**, unchanged from the established
+baseline.
+
+**Real, standing next-session queue, working top-down:** (1) resolve
+the real physical-integration question above (4th relay cell vs
+redesigned control scheme) and wire LOOPVAR+ADDER+LOOP_CTRL into a
+genuine end-to-end bounded loop; (2) command core prototype; (3)
+nano's own independent shift; (4) the `N=8` carrier case ("new shell
+design": assembling all 8 sim-verified `v4` unified-carrier cores into
+an actual `unicell_super_v4` shell, not yet started); (5) Alan's own
+real Quartus build; (6) promote both select constructions + icmp eq to
+Tier-1/frontend; (7) the archeology deep-dive.

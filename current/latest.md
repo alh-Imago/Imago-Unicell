@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-04, real adder wired into the phi/loop-variable feedback path -- plus a genuine RTL bug found and fixed in nano_gate_v4.v itself. See `points/points_active.md` #636)
+# Current State (as of 2026-09-04, real loop-exit mechanism proven in isolation via nano's own dynamic pattern-routing -- plus a real, honest topological limit found for full physical integration. See `points/points_active.md` #637)
+
+## Read this first (most recent)
+
+**2026-09-04, real loop-exit mechanism (#637) -- step 1 off `#636`'s
+own standing queue.** `tb_nano_loop_exit_v1.v` (new): a single
+`nano_gate_v4` cell (`ENABLE_DYNAMIC_ROUTING=1`) captures the loop
+variable `i` and bound `N` as its two real arrivals, dynamically
+routing `i` to CONTINUE (east, `N>i`) or EXIT (south, `N==i`/`N<i`) --
+5 real cases, all correct first attempt.
+
+**Real, honest scope, matching `#629`/`#630`/`#633`/`#634`'s own
+established discipline:** proven in isolation, not yet wired into the
+real LOOPVAR+ADDER physical loop from `#636`. A real, concrete
+architectural finding surfaced while actually working through that
+integration, not glossed over: this project's cardinal mesh is
+bipartite -- a genuine 3-cell ring cannot close under pure N/S/E/W
+single-hop links. Separately, `dynamic_route_en` applies to a cell's
+WHOLE `effective_routing`, including any relay-classified direction --
+so one cell can't be both a reliable straight relay for a return path
+AND a dynamic comparator-router for the exit decision at the same
+time. Full physical integration needs either a 4th real relay cell
+(closing a proper even-length ring) or a redesigned control scheme --
+not resolved this entry.
+
+**Real, full regression:** no RTL changed this entry. All 8
+`nano_gate_v4`-dependent testbenches pass clean. 523/523 Python tests,
+unchanged.
+
+**Real, standing next-session queue, working top-down:** (1) resolve
+the physical-integration question above and wire LOOPVAR+ADDER+
+LOOP_CTRL into a genuine end-to-end bounded loop; (2) command core
+prototype; (3) nano's own independent shift; (4) the `N=8` carrier
+case ("new shell design", not yet started); (5) Alan's own real
+Quartus build; (6) promote both select constructions + icmp eq to
+Tier-1/frontend; (7) the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, real adder wired into the phi/loop-variable feedback path -- plus a genuine RTL bug found and fixed in nano_gate_v4.v itself. See `points/points_active.md` #636)
 
 ## Read this first (most recent)
 
