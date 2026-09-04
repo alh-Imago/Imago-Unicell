@@ -1,4 +1,56 @@
-# Current State (as of 2026-09-04, real, working phi/loop-variable storage mechanism found and sim-verified -- a genuine physical feedback wire, not bus addressing. See `points/points_active.md` #635)
+# Current State (as of 2026-09-04, real adder wired into the phi/loop-variable feedback path -- plus a genuine RTL bug found and fixed in nano_gate_v4.v itself. See `points/points_active.md` #636)
+
+## Read this first (most recent)
+
+**2026-09-04, real adder wired into the loop (#636) -- step 1 off
+`#635`'s own standing queue, working top-down.** `tb_nano_adder_loop_v1.v`
+(new) wires LOOPVAR (`nano_gate_v4`, PASS_A) to a real, separate
+`adder_cell_v4` over a genuine bidirectional cardinal link (LOOPVAR
+east <-> ADDER west, both directions on the same real link, matching
+this project's own established convention). `#635`'s own testbench
+stand-in for the increment is now a real, computed sum: sim-verified
+incrementing 0->1->2->3 across three real iterations, each hop
+produced by the real adder, not a constant.
+
+**A real, significant RTL-level finding along the way, not just a
+testbench bug:** sequencing the new testbench off `adder_cell_v4`'s
+own real `status_a_arrived`/`status_data_valid` ports (rather than
+guessed delays) surfaced a genuine gap in `nano_gate_v4.v` itself --
+`can_fire` didn't exclude `a_update_in`-intended arrivals, so under
+`hold_in` (permanent `a_arrived=1`) a real, live closed loop could
+silently schedule a spurious offer using STALE `cmd_latch[127:96]`
+data whenever an update-intended arrival also happened to satisfy
+`can_fire`'s own independent condition. Never surfaced in `#635`'s own
+single-cell test since that test never had a live, continuously-ready
+downstream target during an update event. Real, minimal fix applied
+directly to `nano_gate_v4.v` (still sim-only, built this same session,
+not yet Quartus-proven -- not cloned to a new file version): `can_fire`
+now also requires `!a_update_in`. `ack_out`/`consumed_now` unaffected.
+
+**Real, full regression run against the fix:** all six existing
+testbenches instantiating `nano_gate_v4` (`tb_nano_gate_v4`,
+`tb_nano_loop_variable_v1`, `tb_nano_select_compose_v1`,
+`tb_nano_select_wired_or_v1`, `tb_icmp_eq_compose_v1`,
+`tb_select_full_chain_v1`) still pass clean. **523/523 Python tests**
+(`pytest tests/vm tests/tools`), matching the established baseline
+exactly.
+
+**Real, honest scope: this confirms the loop is wired to a real adder,
+not that the loop is autonomous.** Not yet built: the real config-
+loaded constant source (B operand still testbench-injected); the real
+loop-exit mechanism (nano's own dynamic pattern-routing, kept in
+`#626`, not yet exercised); Python-frontend integration.
+
+**Real, standing next-session queue, working top-down:** (1) the real
+loop-exit mechanism via nano's dynamic pattern-routing; (2) command
+core prototype; (3) nano's own independent shift; (4) the `N=8`
+carrier case (assembling all 8 sim-verified `v4` unified-carrier cores
+into an actual `unicell_super_v4` shell -- the "new shell design"
+thread, not yet started); (5) Alan's own real Quartus build; (6)
+promote both select constructions + icmp eq to Tier-1/frontend; (7)
+the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, real, working phi/loop-variable storage mechanism found and sim-verified -- a genuine physical feedback wire, not bus addressing. See `points/points_active.md` #635)
 
 ## Read this first (most recent)
 

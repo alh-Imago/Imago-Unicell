@@ -321,7 +321,20 @@ module nano_gate_v4 #(
                              (!want_e || ready_in_e) &&
                              (!want_w || ready_in_w);
 
-    wire can_fire = new_data && ready_bit && targets_all_ready && !effective_freeze && !program_in;
+    // Real, necessary exclusion, found while wiring a real adder_cell_v4
+    // into a genuine hold+update closed loop (LLVM phi/loop-var work,
+    // points.md #636): can_fire's own condition (new_data=consume_
+    // arrived&&a_arrived) is independently satisfied by ANY real
+    // arrival while hold_in keeps a_arrived permanently 1 -- including
+    // one that's ALSO a_update_in-intended. Without this exclusion,
+    // any_fire (below) schedules a spurious extra offer using STALE
+    // cmd_latch[127:96] data (a_update_active's own branch never
+    // touches it) whenever a real downstream target happens to already
+    // be ready during an update -- silently corrupting the very next
+    // real arrival this cell captures. ack_out/consumed_now are
+    // unaffected: a_update_active already contributes to consumed_now
+    // independently, so the real upstream sender is still acked correctly.
+    wire can_fire = new_data && ready_bit && targets_all_ready && !effective_freeze && !program_in && !a_update_in;
     wire relay_fire = relay_arrived && ready_bit && targets_all_ready && !effective_freeze && !program_in;
 
     wire [5:0] targeted_vec = {2'b00, want_w, want_e, want_s, want_n};

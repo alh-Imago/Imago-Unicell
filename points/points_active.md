@@ -4088,3 +4088,84 @@ yet exercised for this specific purpose); and any Python-frontend
 integration. A real, concrete, three-part next step, not attempted
 here.
 
+
+## 636. Real, working adder wired into the phi/loop-variable feedback path -- step 1 off the standing queue, working top-down. Along the way, a genuine RTL-level bug found in `nano_gate_v4.v` itself (not a testbench issue) and fixed: `can_fire` didn't exclude `a_update_in`-intended arrivals, so a real, live closed loop could silently schedule a spurious offer using stale data. (Alan/Claude, 2026-09-04)
+
+**Real topology built and sim-verified:** `tb_nano_adder_loop_v1.v`
+(new) wires LOOPVAR (`nano_gate_v4`, PASS_A) and a real, separate
+`adder_cell_v4` instance together over a genuine bidirectional
+cardinal link (LOOPVAR's east port <-> ADDER's west port, the same
+"one link carries both directions" convention every other cell-to-
+cell wiring in this project already uses). `#635`'s own testbench-
+injected stand-in value for the adder's output is now a real,
+computed sum, sim-verified incrementing the loop variable 0->1->2->3
+across three real iterations, each hop produced by the real
+`adder_cell_v4`, not a constant.
+
+**Real, honest scope, unchanged from `#635`'s own precedent:** the
+increment constant (B operand, 1) is still injected directly by the
+testbench on ADDER's north port, standing in for a not-yet-built
+config-loaded constant source. The reemit/update control pulses
+(hold/upd/reemit) remain testbench-driven, standing in for the future
+loop-control mechanism (`#628`'s command core, or the loop-exit item
+still queued behind this one).
+
+**A real, significant RTL-level finding, not just a testbench bug,**
+caught by driving the new testbench's sequencing off `adder_cell_v4`'s
+own real `status_a_arrived`/`status_data_valid` ports (per Alan's own
+standing "measure via real signals, not guessed delays" discipline)
+instead of fixed-delay guessing -- three real testbench-sequencing
+bugs were found and fixed first (documented in full in the new file's
+own comments: reemitting before the already-held A was consumed;
+`a_update_in` raised after the real arrival it needed to catch had
+already landed; a settle-cycle race between the drain-detect and
+LOOPVAR's own registered update), but after fixing all three, the loop
+STILL lagged one iteration behind. Tracing that down to the real RTL:
+`nano_gate_v4.v`'s own `can_fire = new_data && ready_bit &&
+targets_all_ready && ...` is satisfied by ANY real arrival whenever
+`hold_in` keeps `a_arrived` permanently 1 -- including one the
+testbench intends purely as an `a_update_in` update. Since `any_fire`
+(and therefore `next_pending_ack`/`fire_e`) includes `can_fire`
+unconditionally, and the ACTUAL register action taken that cycle was
+the `a_update_active` branch (which never touches `cmd_latch[127:96]`),
+a spurious extra offer got scheduled using STALE output data --
+silently corrupting the very next real arrival the cell captured. This
+never surfaced in `#635`'s own single-cell testbench because that test
+never had a live, continuously-ready downstream target closing the
+loop during an update event.
+
+**Real, minimal RTL fix applied directly to `nano_gate_v4.v`** (not
+cloned to a new file version -- this core was built THIS SAME session,
+`#626`, sim-only so far, not yet Quartus/silicon-proven): `can_fire`
+now also requires `!a_update_in`. `ack_out`/`consumed_now` are
+unaffected -- `a_update_active` already contributes to `consumed_now`
+independently, so the real upstream sender is still acked correctly;
+only the spurious stale-data offer is suppressed.
+
+**Real, full regression run against the fix, not assumed safe:** all
+six existing testbenches that instantiate `nano_gate_v4`
+(`tb_nano_gate_v4`, `tb_nano_loop_variable_v1`,
+`tb_nano_select_compose_v1`, `tb_nano_select_wired_or_v1`,
+`tb_icmp_eq_compose_v1`, `tb_select_full_chain_v1` -- the latter two
+needed `compare_cell_v4.v`/`adder_cell_v4.v` in the compile list, not
+run in the previous session's own check) still pass clean. Full Python
+suite: **523/523 passing**, matching the established baseline exactly
+(`pytest tests/vm tests/tools`, per `pyproject.toml`'s own real
+`testpaths`/marker setup -- `tests/fpga/` requires live hardware/
+`pyserial`/`fpga_bridge`, confirmed genuinely unrunnable here, not a
+new gap).
+
+**Real, honest scope: this confirms the loop is wired to a real adder,
+not that the loop is autonomous.** Not yet built: the real config-
+loaded constant source (B operand still testbench-injected); the real
+loop-exit mechanism (nano's own dynamic pattern-routing, kept in
+`#626`, not yet exercised); Python-frontend integration.
+
+**Real, standing next-session queue, working top-down:** (1) the real
+loop-exit mechanism via nano's dynamic pattern-routing; (2) command
+core prototype; (3) nano's own independent shift; (4) the `N=8`
+carrier case (the "new shell design" thread: assembling all 8
+sim-verified `v4` unified-carrier cores into an actual `unicell_
+super_v4` shell, not yet started); (5) Alan's own real Quartus build;
+(6) promote both select constructions + icmp eq to Tier-1/frontend;
+(7) the archeology deep-dive.
