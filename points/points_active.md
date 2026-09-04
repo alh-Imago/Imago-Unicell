@@ -4362,3 +4362,57 @@ not the single-core cardinal-control wrapper built here); (5)
 Python-frontend integration for the whole loop construction; (6)
 Alan's own real Quartus build; (7) promote both select constructions +
 icmp eq to Tier-1/frontend; (8) the archeology deep-dive.
+
+## 640. Real bounded loop rewired through the real cardinal control shells -- #639's own standing next step 1, proving real cardinal control genuinely composes across a working multi-cell topology, not just a single wrapped cell in isolation. Zero RTL changed, only which module the loop's 4 cells instantiate. (Alan/Claude, 2026-09-04)
+
+**Real construction, sim-verified first attempt after two hierarchical-
+path fixes:** `tb_nano_bounded_loop_ring_shells_v1.v` (new) -- the
+exact same real 4-cell ring topology as `#638`
+(`LOOPVAR --south--> LOOP_CTRL --east--> ADDER --north--> RAM_RELAY
+--west--> LOOPVAR`), but LOOPVAR/LOOP_CTRL now instantiate
+`nano_shell_v1` and ADDER/RAM_RELAY now instantiate `adder_shell_v1`/
+`ram_shell_v1` (`#639`) instead of the raw cores directly.
+`active`/`hold`/`a_reemit`/`a_update` are asserted through each
+shell's own real cardinal north port (single-direction, per `#639`'s
+own proven-sufficient OR-combine) rather than the old flat ports
+`#638` used. Same real result: 3 continue rounds (0->1->2->3), then a
+real exit at `i==N==3`. 9/9 checks, identical timing to `#638`'s own
+run -- the shell rewiring is functionally transparent, exactly as it
+should be for a pure wrapper change.
+
+**Two real, minor fixes needed, both mechanical, not logic bugs:** the
+shells add one extra level of module hierarchy (`SHELL.CORE.signal`
+instead of `SHELL.signal`), so the testbench's own hierarchical debug
+probes (`LOOPVAR.data_reg`, `LOOP_CTRL.a_arrived`, carried over
+unchanged from `#638`) needed `.CORE.` inserted to still resolve.
+Everything else -- the real sequencing, the real bug fixes from `#636`/
+`#638` already baked into `do_round`'s own ordering -- carried over
+completely unchanged, confirming those fixes belong to the LOOP's own
+real logic, not anything specific to how the cores were wired.
+
+**Real, honest scope: still no command core.** The testbench continues
+to stand in for one, same as `#638`, but now genuinely THROUGH each
+shell's real cardinal ports instead of flat ones -- the real, concrete
+progress this entry set out to prove (`#639`'s own explicit standing
+gap #1: "the other cores have to tie into those"). `LOOP_CTRL` uses
+`nano_shell_v1` too (a plain `nano_gate_v4` instance with dynamic
+routing enabled, same control-signal shape as `LOOPVAR`) -- not a
+separate shell type, `#639` only built one shell per CORE type, not
+per topological role.
+
+**Real, full regression, not assumed safe:** zero RTL changed this
+entry (a second testbench file only). All 14 existing testbenches
+(both the raw-core `#638` version and the new shell-rewired one) pass
+clean side by side. 523/523 Python tests, unchanged baseline.
+
+**Real, standing next-session queue, working top-down:** (1) the
+actual command core itself -- the real, remaining consumer of these
+cardinal lines, per `#639`'s own explicit standing gap #2: driving
+freeze/hold/reemit/update into specific real cardinal directions of
+specific real neighboring shells, replacing the testbench's own
+single-direction stand-in above. Command-core SCOPING is the
+explicitly agreed next real conversation, not yet started. (2) nano's
+own independent shift; (3) the `N=8` carrier case ("new shell design");
+(4) Python-frontend integration; (5) Alan's own real Quartus build;
+(6) promote both select constructions + icmp eq to Tier-1/frontend;
+(7) the archeology deep-dive.

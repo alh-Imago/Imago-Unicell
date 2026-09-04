@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-04, real cardinal control shells built -- step 1 of the command-core prerequisite work, freeze/hold/reemit/update/active are now real per-direction cardinal signals on new wrapper files, zero core RTL touched. See `points/points_active.md` #639)
+# Current State (as of 2026-09-04, real bounded loop rewired through the real cardinal control shells -- proves real cardinal control genuinely composes across a working multi-cell topology, not just one wrapped cell. Command-core scoping is the explicit next conversation. See `points/points_active.md` #640)
+
+## Read this first (most recent)
+
+**2026-09-04, real bounded loop rewired through shells (#640) --
+`#639`'s own standing next step 1.** `tb_nano_bounded_loop_ring_shells_
+v1.v` (new): the exact same `#638` 4-cell ring, but LOOPVAR/LOOP_CTRL
+now instantiate `nano_shell_v1` and ADDER/RAM_RELAY now instantiate
+`adder_shell_v1`/`ram_shell_v1` instead of the raw cores.
+`active`/`hold`/`a_reemit`/`a_update` genuinely routed through each
+shell's own real cardinal north port (single-direction, per `#639`'s
+proven-sufficient OR-combine). Same real result: 3 continue rounds
+(0->1->2->3), then a real exit at `i==N==3`. 9/9 checks, identical
+timing to `#638` -- functionally transparent, exactly as a pure
+wrapper change should be. Two mechanical fixes only (hierarchical
+debug probes needed `.CORE.` inserted for the shells' extra nesting
+level); the real sequencing logic carried over completely unchanged.
+
+**Real, honest scope: still no command core.** The testbench continues
+standing in for one, but now genuinely through real cardinal ports.
+
+**Real, full regression:** zero RTL changed this entry. All 14
+existing testbenches pass clean side by side. 523/523 Python tests,
+unchanged.
+
+**Real, standing next-session queue:** (1) the actual command core
+itself -- SCOPING is the explicitly agreed next conversation, not yet
+started; (2) nano's own independent shift; (3) the `N=8` carrier case
+("new shell design"); (4) Python-frontend integration; (5) Alan's own
+real Quartus build; (6) promote both select constructions + icmp eq to
+Tier-1/frontend; (7) the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, real cardinal control shells built -- step 1 of the command-core prerequisite work, freeze/hold/reemit/update/active are now real per-direction cardinal signals on new wrapper files, zero core RTL touched. See `points/points_active.md` #639)
 
 ## Read this first (most recent)
 
