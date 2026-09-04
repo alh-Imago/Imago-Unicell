@@ -4710,3 +4710,44 @@ end to end; (4) nano's own independent shift; (5) Alan's own real
 Quartus build, now genuinely covering all 9 cores; (6) promote both
 select constructions + icmp eq to Tier-1/frontend; (7) the archeology
 deep-dive.
+
+## 646. The remaining 4 cardinal shells (branch/accumulator/latch/sequencer) -- closing a real gap #639 left open before the VIX Carrier needs all 9 real shells to exist. Found while beginning the carrier build, not planned in advance. (Alan/Claude, 2026-09-04)
+
+**Real, found mid-build, not pre-planned:** starting the VIX Carrier's
+own real design ("wraps the shells, not bare cores," confirmed with
+Alan up front) surfaced that `#639` only ever built shells for 4 of
+the 8 original cores (`nano`/`adder`/`ram`/`compare`) -- `branch_cell_
+v4`, `accumulator_cell_v4`, `latch_cell_v4`, `sequencer_cell_v4` never
+got real cardinal wrappers. Closed before the carrier could proceed:
+`branch_shell_v1.v`, `accumulator_shell_v1.v`, `latch_shell_v1.v`,
+`sequencer_shell_v1.v` (new), same exact real pattern as `#639` --
+`active`/`freeze_in` become real 4-way cardinal ports, OR-combined,
+zero core RTL touched.
+
+**Real verification, `tb_shells_v2.v` (new):** single-direction
+`active` (a different direction per instance) proven sufficient for
+all 4; freeze exercised on 2 of the 4 (branch, latch) as a
+representative real check rather than exhaustively on all four,
+stated plainly as a deliberate coverage tradeoff given this work is
+secondary to the carrier build itself, not hidden. 6/6 checks correct.
+
+**One real bug found and fixed while building the test, not the
+shells:** `branch_cell_v4` uses a held-reference model -- the FIRST
+real arrival seeds the reference (no offer at all), only the SECOND
+compares against it and fires. The test's first attempt sent a single
+arrival expecting an immediate result, which is structurally
+impossible for this core; fixed by seeding the reference first, then
+sending the real comparison value. A second, separate fix: the first
+check's own real offer was never acked before the freeze check ran,
+so the freeze check was reading a stale, still-pending `fire_e` left
+over from the previous check rather than freeze's own real effect --
+fixed by explicitly acking before proceeding.
+
+**Real, full regression:** no core RTL touched. All 22 Verilog
+testbenches now in the repository pass clean side by side. 523/523
+Python tests, unchanged baseline.
+
+**Real milestone, now genuinely complete:** all 9 unified-carrier
+cores have real cardinal control shells. The VIX Carrier build
+(`#647`, following) can now proceed with all 9 real shell dependencies
+actually existing.

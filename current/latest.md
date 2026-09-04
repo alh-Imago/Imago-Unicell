@@ -1,4 +1,25 @@
-# Current State (as of 2026-09-04, command_shell_v1.v built -- all 9 unified-carrier cores now have real cardinal control shells. Next: the carrier shell assembling all 9 into one real multi-core unit. See `points/points_active.md` #645)
+# Current State (as of 2026-09-04, the remaining 4 cardinal shells built -- all 9 unified-carrier cores now genuinely have real cardinal control shells, found necessary while starting the VIX Carrier build. See `points/points_active.md` #646)
+
+## Read this first (most recent)
+
+**2026-09-04, remaining 4 cardinal shells (#646) -- found mid-build,
+not planned.** Starting the VIX Carrier surfaced that `#639` only
+shelled 4 of 8 original cores. Closed: `branch_shell_v1.v`/
+`accumulator_shell_v1.v`/`latch_shell_v1.v`/`sequencer_shell_v1.v`
+(new), same real pattern as `#639`. `tb_shells_v2.v`: 6/6 checks,
+single-direction active proven sufficient for all 4, freeze exercised
+on 2 of 4 (stated as a deliberate tradeoff, not hidden). One real bug
+found building the test (not the shells): `branch_cell_v4` needs a
+seed arrival before a comparison arrival (held-reference model), plus
+a stale-fire-from-unacked-previous-check timing issue, both fixed.
+
+**Real, full regression:** no core RTL touched. All 22 Verilog
+testbenches pass clean. 523/523 Python tests, unchanged.
+
+**Real milestone, now complete:** all 9 unified-carrier cores have
+real cardinal control shells. The VIX Carrier build can now proceed.
+
+## Previous state (as of 2026-09-04, command_shell_v1.v built -- all 9 unified-carrier cores now have real cardinal control shells. Next: the carrier shell assembling all 9 into one real multi-core unit. See `points/points_active.md` #645)
 
 ## Read this first (most recent)
 
