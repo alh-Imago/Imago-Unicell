@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-04, command-core design round 2 continued -- buffer chain fully resolved (real ram_shell_v1 flowing-mode chain), plus a free cascading-freeze mechanism found: freezing only the head cell stalls the whole buffer. Nothing built. See `points/points_active.md` #642)
+# Current State (as of 2026-09-04, command-core design consolidated -- single shared toggle primitive replaces the two-pattern design, 9-bit config budget confirmed, mode-select resolved to govern the start mechanism too. Nothing built. See `points/points_active.md` #643)
+
+## Read this first (most recent)
+
+**2026-09-04, command-core design, round 2 consolidated (#643) --
+still nothing built.** `command_core_scope_v2.md` updated in place
+(third revision). Real, resolved: ONE shared toggle-pattern register
+(`if (match) state <= !state;`), not separate activate/deactivate
+fields -- sidesteps a real equal-pattern race by construction, and
+reduces the config budget from 13 to **9 bits total** (mode select 1 +
+polarity 1 + drive direction 3 + toggle pattern 4). Recognition is
+direction-agnostic (any of 4 real directions, OR-combined, matching
+`freeze_in`'s own idiom on the shells); only the action needs a
+direction.
+
+**Real, resolved: mode select governs the START mechanism, not just
+the reaction.** Trigger mode is genuinely symmetric -- outermost gate
+in the pipeline, detects its own start via the toggle comparator.
+Programmer mode's toggle side is genuinely off -- downstream of
+trigger mode's own gating, starts on plain first-arrival, comparator
+used only for one-shot stop-detection against the target's real
+`COMPLETE` value.
+
+**Real, confirmed:** toggle-pattern reset default is `0000` (matches
+`compare_cell_v4.v`'s own `threshold`). Real, deliberate scope limit:
+config-time-only this build; live mid-operation reconfiguration
+deferred, matching the addon-chain and dynamic-addressing questions.
+
+**Real, standing next-session queue:** (1) build the shared toggle-
+compare + freeze-drive block itself -- the one mechanism with no
+existing implementation anywhere in the family, unchanged across three
+design rounds; (2) nano's own independent shift; (3) the `N=8` carrier
+case ("new shell design"); (4) Python-frontend integration; (5) Alan's
+own real Quartus build; (6) promote both select constructions + icmp
+eq to Tier-1/frontend; (7) the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, command-core design round 2 continued -- buffer chain fully resolved (real ram_shell_v1 flowing-mode chain), plus a free cascading-freeze mechanism found: freezing only the head cell stalls the whole buffer. Nothing built. See `points/points_active.md` #642)
 
 ## Read this first (most recent)
 

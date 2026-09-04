@@ -87,35 +87,92 @@ A wide/arbitrary stop-pattern field was considered and set aside --
 it would force a two-word trigger protocol (direction word + pattern
 word) for no real known use today.
 
-## Real, resolved: a genuinely new shared primitive -- capture-once-then-continuously-compare
+## Real, resolved: one shared toggle primitive, not two separate patterns -- and mode governs the START mechanism, not just the reaction
 
-Real, confirmed: this is NOT any existing core's behavior. RAM
-captures once and holds forever, never comparing again. `adder_cell_
-v4` captures once and fires once, resetting after. What both trigger
-mode and programmer mode need is different from both: capture a
-pattern into a hold register ONCE, then continuously compare EVERY
-subsequent arrival against that held value indefinitely, with no
-reset between checks -- a persistent watch, not a one-shot. Real,
-minimal internal shape (both modes, same circuit):
-1. One capture register, loaded once from a trigger event.
-2. A continuous equality compare against that held value on every
-   subsequent real arrival from the watched direction.
-3. Match -> real action (mode-dependent, see below).
+**Superseding this note's own earlier framing above** (which had
+separate, independently-set activate/deactivate patterns, and a
+trigger-mode pattern captured live from the trigger word's own bits):
+a live follow-up pass simplified this further, and it's real, not
+speculative -- confirmed workable, not just simpler on paper.
 
-**Real, resolved: the pattern SOURCE differs by mode, the comparator
-circuit doesn't:**
-- **Trigger mode:** pattern captured LIVE from the trigger word's own
-  narrow field at runtime -- a genuinely configurable, per-transaction
-  stop-pattern ("a configurable trigger releasing data as required, a
-  flow control" -- Alan's own framing, and a real, valuable
-  generalization beyond this specific command pipeline).
-- **Programmer mode:** pattern is FIXED at config time to the real,
-  known `PROG_ID_COMPLETE` value for whichever target type this
-  instance points at (`4'd15` or `3'd7`).
+**Real, confirmed: this is NOT any existing core's behavior.** RAM
+captures once and holds forever, never comparing again.
+`adder_cell_v4` captures once and fires once, resetting after. What
+this core needs is different from both: ONE held pattern register,
+config-set (same `cfg_data`/`PROG_ID` mechanism as any other field --
+explicitly NOT set via this cell's own trigger/programmer mechanism,
+which would be circular), reset-default `0000` (confirmed matches
+`compare_cell_v4.v`'s own `threshold` register exactly -- an
+un-configured cell genuinely toggles on the first `0000` it sees,
+real and expected, not an oversight). Recognition is direction-
+agnostic -- match from ANY of the 4 real directions (OR-combined, the
+same "any real neighbor" idiom `freeze_in` already uses on the shells,
+`#639`), not a configured watch-direction. Only the ACTION the match
+produces needs a direction (see drive-direction, below).
 
-This is what makes "one core, mode-selected" genuinely clean rather
-than a forced unification: same internal circuit, only where the held
-value comes from differs.
+**Real, resolved: the core circuit is `if (match) state <= !state;`
+-- a genuine toggle, not two independent compare-and-set paths.** This
+sidesteps a real hazard a naive two-value design would have (an
+activate pattern equal to the deactivate pattern would race, since
+both conditions would fire on the same value) -- with one shared
+toggle pattern, "equal" isn't even a distinguishable case, it's just
+"flip on this value," unambiguous by construction, one field instead
+of two.
+
+**Real, resolved: mode select governs where the FIRST transition's
+source comes from, not just what the match produces** -- this is a
+real structural difference between the two modes, not merely a
+different output action on an otherwise-identical circuit:
+- **Trigger mode:** genuinely symmetric. It's the outermost gate in
+  the whole pipeline -- nothing upstream is already gating anything
+  for it -- so it has to detect its OWN start via the comparator: a
+  real toggle match, both directions, same mechanism, same pattern.
+  Polarity (below) sets which state it rests in.
+  - Rest state 0 (normally frozen): first match -> unfreeze the
+    buffer direction (real start-of-burst). Second match, same
+    pattern -> refreeze (real end-of-burst / terminal-marker
+    detection, cascading the free full-chain stall, see below).
+- **Programmer mode:** the toggle side is genuinely OFF/circumvented,
+  not merely unused -- it's downstream of trigger mode's own gating,
+  so by the time any real data reaches it, trigger mode has already
+  decided the buffer should be flowing. Real, simpler start: the
+  first real arrival while idle IS the start (freeze the target,
+  assert `program_in`, begin relaying) -- no pattern match needed to
+  know whether to start, only that something arrived. The comparator
+  IS still genuinely needed here, but only for the STOP side: match
+  against the toggle pattern (config-fixed to the target's own real
+  `PROG_ID_COMPLETE` value, `4'd15`/`3'd7`) identifies which relayed
+  word is the terminating one -- one-shot, one direction, not a toggle.
+
+## Real, resolved: the full bit budget
+
+| Field | Bits | Real notes |
+|---|---|---|
+| Mode select (trigger / programmer) | 1 | Also governs start-mechanism, not just reaction (above) |
+| Polarity (rest-frozen / rest-open) | 1 | Meaningful in trigger mode; programmer mode always rests idle-awaiting-arrival |
+| Drive direction | 3 | Where the ACTION lands (freeze/unfreeze target in trigger mode; program+freeze target in programmer mode) -- same shape as `branch_cell_v4.v`'s own `upstream_dir` |
+| Toggle pattern (single, shared) | 4 | Sized to the wider of the two real known `PROG_ID_COMPLETE` values; capped here deliberately, not left open-ended |
+| **Total** | **9** | |
+
++20 if the addon-chain question (below) ever resolves yes; current
+instinct is no, since this core never produces a dataflow value for
+the addon chain to act on. Comfortably fits the smaller, 64-bit
+`cfg_data` shape six of the eight existing cores already use (not
+nano/branch's wider 128/80-bit layout), with a 3-bit `PROG_ID` (well
+under the 8-slot budget for real fields + `COMPLETE`).
+
+**Real, deliberate scope limit, stated explicitly rather than left
+implicit:** the toggle pattern is config-time-only in this first
+build -- set via the ordinary `cfg_data`/`PROG_ID` mechanism, same as
+any other field, reused across many trigger cycles once set. Neither
+of the two uses actually being designed (trigger mode, programmer
+mode) needs to change this value mid-operation; both set it once and
+reuse it indefinitely. Live reconfiguration while the cell is actively
+watching (without pausing it via ordinary `program_in`, which would
+create a real, momentary blind spot) is a genuinely separate, real
+capability -- deferred, not attempted here, matching how the
+addon-chain question and `#628`'s own 256-address dynamic targeting
+were both set aside rather than solved speculatively.
 
 ## Real, resolved: completion detection is ack-anchored, not content-only, and this was NOT optional
 
@@ -136,18 +193,22 @@ processed (a real per-word ack, same shape as every ordinary data
 
 **Real, resolved mechanism for programmer mode, combining the shared
 comparator with this freeze-safe ack:**
-1. Relay buffer data -> target's `prog_data_in_x`/`prog_arrived_in_x`,
+1. First real arrival from the buffer while idle: freeze the target,
+   assert `program_in`, begin relaying -- no comparator match needed
+   to start (the toggle side is genuinely off in this mode, see
+   above); trigger mode has already done the gating upstream.
+2. Relay buffer data -> target's `prog_data_in_x`/`prog_arrived_in_x`,
    pacing each word off the real `prog_ack_out_x` (word N acked ->
    send word N+1) -- free, already-existing infrastructure, no new
    flow-control logic needed for pacing.
-2. The shared capture-and-compare primitive (pattern fixed to the
+3. The shared comparator (toggle pattern fixed at config time to the
    target's own real `COMPLETE` value) identifies WHICH relayed word
-   is the terminating one.
-3. Only once THAT specific word is confirmed via `prog_ack_out` (not
+   is the terminating one -- one-shot match, not a toggle.
+4. Only once THAT specific word is confirmed via `prog_ack_out` (not
    merely sent) does programmer mode declare the burst genuinely done
    -- combining "I recognized this as the last word" with "the target
    genuinely received it," not either alone.
-4. Only then: drop `program_in`, release the target's freeze (via the
+5. Only then: drop `program_in`, release the target's freeze (via the
    freeze-drive primitive below).
 
 **Trigger mode's own completion detection stays simpler and doesn't
@@ -218,11 +279,17 @@ on the freeze/buffer side).
 ## Real, honest summary of what this core actually needs to be, end to end
 
 One core, mode-selected (matching `ram_cell_v4.v`'s own `fixed_mode`
-precedent), with:
-- A fixed, config-time target direction (matching `branch_cell_v4.v`'s
+precedent), 9 real config bits total, with:
+- A fixed, config-time drive direction (matching `branch_cell_v4.v`'s
   own `upstream_dir`).
-- The shared capture-and-compare primitive (live-captured pattern in
-  trigger mode, config-fixed `COMPLETE` pattern in programmer mode).
+- Polarity (trigger mode's own rest state; not meaningful in
+  programmer mode).
+- One shared toggle-pattern register, direction-agnostic recognition,
+  config-set only (`0000` reset default, matching `compare_cell_v4.v`'s
+  own `threshold`).
+- Mode-dependent start: genuine symmetric toggle in trigger mode
+  (nothing upstream gates it); plain first-arrival in programmer mode
+  (trigger mode has already gated it).
 - Real, new freeze-DRIVE output logic (neither mode currently exists
   anywhere in the family).
 - Real, new programming-channel-DRIVE output logic (programmer mode

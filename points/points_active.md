@@ -4535,3 +4535,56 @@ folded directly into the sections they resolve. The one real remaining
 piece, unchanged: building the shared capture-compare + freeze-drive
 block itself, common to both modes, with no existing implementation
 anywhere in the family.
+
+## 643. Command-core design, round 2 continued and consolidated: single shared toggle primitive replaces the earlier two-pattern design, mode-select resolved to also govern the START mechanism (not just the reaction), full 9-bit config budget confirmed. `command_core_scope_v2.md` updated in place. (Alan/Claude, 2026-09-04)
+
+**Real, resolved, superseding this note's own earlier two-field
+framing:** one shared toggle-pattern register (`if (match) state <=
+!state;`), not separate activate/deactivate patterns. Sidesteps a
+real hazard the two-value design had (equal activate/deactivate
+patterns would race) by construction -- "equal" isn't even a
+distinguishable case with a shared toggle, it's just "flip on this
+value." Recognition is direction-agnostic (any of the 4 real
+directions, OR-combined, same idiom `freeze_in` already uses on the
+shells); only the ACTION needs a configured direction.
+
+**Real, resolved: mode select governs where the FIRST transition's
+source comes from, not merely which action a match produces.**
+Trigger mode is genuinely symmetric -- it's the outermost gate in the
+pipeline, nothing upstream gates it, so it must detect its own start
+via the toggle comparator (real match, both directions, same
+mechanism as its own end-detection). Programmer mode's toggle side is
+genuinely OFF/circumvented, not merely unused -- it's downstream of
+trigger mode's own gating, so its start is just "first real arrival
+while idle," no pattern match needed; the comparator is still used,
+but only for the STOP side (one-shot match against the target's own
+`COMPLETE` value, not a toggle).
+
+**Real, confirmed: reset-default of the toggle pattern is `0000`**,
+matching `compare_cell_v4.v`'s own `threshold` register exactly -- an
+un-configured cell genuinely toggles on the first `0000` it sees,
+documented as real, expected behavior. Real, deliberate scope limit
+stated explicitly: the pattern is config-time-only this build (set via
+ordinary `cfg_data`/`PROG_ID`, explicitly NOT via this cell's own
+trigger/programmer mechanism, which would be circular); live
+mid-operation reconfiguration is real, separate, deferred, matching
+how the addon-chain question and `#628`'s own dynamic addressing were
+both set aside rather than solved speculatively.
+
+**Real, full config bit budget, confirmed:** mode select (1) +
+polarity (1) + drive direction (3) + shared toggle pattern (4) = **9
+bits total**, down from round 2's own earlier 13-bit count (the
+single-pattern simplification removed the redundant second field).
+Fits the smaller 64-bit `cfg_data`/3-bit `PROG_ID` shape six of the
+eight existing cores already use. +20 if the still-open addon-chain
+question resolves yes (current instinct: no).
+
+**Real, honest scope: still nothing built.** `command_core_scope_v2.md`
+updated in place again (third live revision of the same working note,
+matching its own stated discipline), superseding the two-pattern
+framing from `#641`/`#642` without contradicting any of their other
+resolved points (buffer chain, cascading freeze, ack-anchored
+completion all carry over unchanged). The one real remaining piece,
+unchanged across three rounds: building the shared toggle-compare +
+freeze-drive block itself, the one mechanism with no existing
+implementation anywhere in the family.
