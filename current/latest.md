@@ -1,4 +1,51 @@
-# Current State (as of 2026-09-04, icmp eq genuinely solved -- XOR(diff>=0, diff>=1) == (diff==0), sim-verified on real hardware including negative values. See `points/points_active.md` #634)
+# Current State (as of 2026-09-04, real, working phi/loop-variable storage mechanism found and sim-verified -- a genuine physical feedback wire, not bus addressing. See `points/points_active.md` #635)
+
+## Read this first (most recent)
+
+**2026-09-04, `phi`/loop-variable storage solved (#635) -- step 3 off
+the standing queue, working top-down.** Per Alan's own direct request
+to check the old archive first: `llvm_ir_mapper.py`'s own real
+`_lower_phi` uses a "storage cell (`GS_LATCH | LOOP_MODE`)" that holds
+and re-emits the last value written by whichever predecessor
+(entry/back-edge) actually fired -- a real, directly relevant concept,
+achieved here via a genuine PHYSICAL feedback wire in the cardinal
+mesh instead of bus addressing.
+
+A real, substantive correction caught BEFORE building further: a first
+design assumed nano's own `a_self_update_in` was the right mechanism
+-- checked directly against the established `tb_stripped_v1_
+selfupdate.v` first, confirming self-update recomputes against a FIXED
+value, not a fresh per-iteration one, and nano has no native `ADD`
+gate anyway. The real, correct, more architecturally apt mechanism:
+`hold_in`+`a_update_in`, fed by a real physical feedback wire from a
+separate `adder` cell -- a genuine hardware loop, matching "topology
+is computation" directly, not a workaround.
+
+Two more real bugs caught by tracing actual failures: `a_reemit_active`
+needs an accompanying real arrival (confirmed against the established
+testbench's own real usage); the entry-edge capture needed the same
+dummy-second-arrival pattern as `#629`/`#630`/`#633`, with `hold_in`
+needing to be set BEFORE that second arrival.
+
+`tb_nano_loop_variable_v1.v` (new) -- 3 real checks, entry-seed plus 2
+iterations correctly carrying forward. 523/523 Python tests still
+passing.
+
+**Real, honest scope: this is the STORAGE half of a physical loop, not
+a complete one.** Not yet built: the real feedback wire from an actual
+`adder` cell (stood in with a direct value here); the real loop exit
+mechanism (nano's own dynamic pattern-routing, real and kept in
+`#626`, not yet exercised for this); Python-frontend integration.
+
+**Real, standing next-session queue, working top-down:** (1) wire a
+real `adder` into the feedback loop for a genuine counting loop; (2)
+the real loop-exit mechanism via nano's dynamic pattern-routing; (3)
+command core prototype; (4) nano's own independent shift; (5) the
+`N=8` carrier case; (6) Alan's own real Quartus build; (7) promote
+both select constructions + icmp eq to Tier-1/frontend; (8) the
+archeology deep-dive.
+
+## Previous state (as of 2026-09-04, icmp eq genuinely solved -- XOR(diff>=0, diff>=1) == (diff==0), sim-verified on real hardware including negative values. See `points/points_active.md` #634)
 
 ## Read this first (most recent)
 

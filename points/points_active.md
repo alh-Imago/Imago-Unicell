@@ -4022,3 +4022,69 @@ attempted step, matching how `select`'s own RTL composition (`#629`/
 `#630`/`#633`) was verified before any Python integration was
 attempted either.
 
+## 635. Real, working `phi`/loop-variable storage mechanism found and sim-verified -- step 3 off the standing queue. Per Alan's own direct request, the old archive's own real "GS_LATCH | LOOP_MODE" concept confirmed to transfer, achieved via a genuine PHYSICAL feedback wire instead of bus addressing. Two real, substantive corrections to my own understanding along the way, both caught before or by tracing actual failures. (Alan/Claude, 2026-09-04)
+
+**Real, directly relevant archive material found, per Alan's own
+request to check the old work first:** `llvm_ir_mapper.py`'s own real
+`_lower_phi` (re-extracted, `#612`'s own archive) uses a real "storage
+cell (`GS_LATCH | LOOP_MODE`)" that "holds the last value written to
+its input address and re-emits it each tick" -- every predecessor
+block (entry OR loop back-edge) writes to a SHARED bus address, and
+the cell holds+re-emits whichever one actually fired. The SAME real
+file's own `_lower_br` uses `GS_SELECT` for conditional-branch
+ROUTING (not value-selection -- a real, distinct concept from `#629`'s
+own select/mux work), directly matching nano's own real, already-kept
+dynamic pattern-routing (`pattern_low/equal/high`+`dynamic_route_en`,
+preserved unchanged in `#626` precisely because it was recognized as
+genuinely core-specific).
+
+**A real, substantive correction to my own understanding, caught
+BEFORE building further, not after a failure:** a first real design
+assumed nano's own `a_self_update_in` mode was the right mechanism for
+a loop-carried increment. Checked directly against the real,
+ESTABLISHED `tb_stripped_v1_selfupdate.v` testbench before proceeding:
+self-update mode recomputes `A = topology(A, out_buffer)` where
+`out_buffer` is a FIXED value set once before self-update begins,
+never a fresh per-iteration input -- suited to bitwise-converging
+patterns (a self-adjusting threshold), not arithmetic counting. Nano
+also has no native `ADD` gate (that's the separate `adder` core). The
+real, correct, more architecturally apt mechanism: `hold_in` +
+`a_update_in` (a genuinely fresh EXTERNAL arrival overwrites the held
+A each iteration) fed by a real, PHYSICAL feedback wire from a
+separate `adder` cell -- a genuine hardware loop in the cardinal mesh,
+matching this project's own "topology is computation" philosophy
+directly, not an internal single-cell trick. This is architecturally
+a BETTER fit than the old system's own bus-addressed version, not
+just a workaround for lacking a bus.
+
+**A real, second bug found by tracing an actual failure, not
+assumed:** `a_reemit_active` requires `consume_arrived` (some real
+physical arrival happening that exact cycle) -- toggling `reemit`
+alone, with no accompanying arrival, never triggers it. Confirmed
+directly against `tb_stripped_v1_selfupdate.v`'s own real usage
+(`seed()` called alongside `reemit=1`, with an explicit real comment:
+"trigger value, should be ignored") before concluding this was the
+real, established convention rather than a coincidence.
+
+**A real, third, more mundane finding, the same bug class as `#629`/
+`#630`/`#633`:** the initial entry-edge capture still needed a real
+dummy second arrival to fire at all, and `hold_in` had to be set
+BEFORE that second arrival (since `a_arrived <= hold_in` on fire --
+setting `hold_in` only afterward silently left `a_arrived` cleared,
+breaking the later reemit step).
+
+**Real, honest verification:** `tb_nano_loop_variable_v1.v` (new) -- 3
+real checks: entry-seed, and two real "iterations" where a fresh
+external value (standing in for a real `adder`'s own `i+1` output)
+correctly overwrites the held loop variable and carries forward.
+`523/523` Python tests still passing.
+
+**Real, honest scope: this confirms the STORAGE half of a physical
+loop, not a complete loop.** Not yet built: the real physical feedback
+WIRE from an actual `adder` cell (this entry stood in for it with a
+direct testbench value); the real loop CONDITION/exit mechanism (nano's
+own dynamic pattern-routing, confirmed real and kept in `#626`, not
+yet exercised for this specific purpose); and any Python-frontend
+integration. A real, concrete, three-part next step, not attempted
+here.
+
