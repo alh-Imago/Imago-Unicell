@@ -4663,3 +4663,50 @@ command cell, end to end; (4) nano's own independent shift; (5) the
 included; (6) Alan's own real Quartus build, to get real ALM/Fmax
 figures on this whole family; (7) promote both select constructions +
 icmp eq to Tier-1/frontend; (8) the archeology deep-dive.
+
+## 645. command_shell_v1.v -- the real cardinal control shell for the command cell, matching `#639`'s own pattern for all 8 other cores. All 9 unified-carrier cores now have real cardinal control shells. (Alan/Claude, 2026-09-04)
+
+**Real, same pattern as `#639`, zero core RTL touched:**
+`command_shell_v1.v` (new) wraps `command_cell_v4.v` unchanged,
+converting its two flat live-control ports (`active`, `freeze_in`)
+into real 4-way cardinal port sets, OR-combined internally. The
+command cell's own genuinely NEW ports (`freeze_out_x`, the drive-side
+programming channel, the watch-side `ack_out_x`/`ready_out`) needed no
+shell-level treatment at all -- they're already real, per-direction
+cardinal ports on the base core itself, matching `#639`'s own
+established scope (only the two ordinary flat control signals every
+base-layer core shares need cardinalizing).
+
+**Real, full verification, both modes, through the shell:**
+`tb_command_shell_v1.v` (new) -- single-direction `active_in_s` alone
+activates trigger mode (rest frozen, real toggle match unfreezes/
+refreezes correctly through the shell); single-direction `active_in_e`
+alone activates programmer mode, which then genuinely re-runs `#644`'s
+own full end-to-end proof through the shell -- three real words
+programming a fresh `nano_gate_v4` target from scratch, freeze-safe
+`prog_ack`-paced, toggle-recognized `COMPLETE`, and a real functional
+check confirming the target actually works afterward. 6/6 checks
+correct.
+
+**Real, full regression, not assumed safe:** no core RTL touched. All
+20 Verilog testbenches now in the repository pass clean side by side.
+523/523 Python tests, unchanged baseline.
+
+**Real, milestone:** all 9 unified-carrier cores (`nano`, `adder`,
+`ram`, `compare`, `branch`, `accumulator`, `latch`, `sequencer`,
+`command`) now have real cardinal control shells. The mesh is
+genuinely ready for a command cell to sit at a cardinal position and
+drive freeze/hold/reemit/update/programming into real neighbors using
+nothing but the standard shell interface every core shares.
+
+**Real, standing next-session queue:** (1) the carrier shell -- "one
+thing to hold them all," assembling all 9 cores into a real
+`unicell_super_v4`-class multi-core carrier with runtime `core_select`,
+the real next architectural step Alan named directly; (2) wire a real
+command cell into an actual multi-cell topology (e.g. `#638`'s bounded
+loop's remaining constant/control stand-ins); (3) the real buffer
+chain (`ram_shell_v1` flowing mode) actually feeding a command cell
+end to end; (4) nano's own independent shift; (5) Alan's own real
+Quartus build, now genuinely covering all 9 cores; (6) promote both
+select constructions + icmp eq to Tier-1/frontend; (7) the archeology
+deep-dive.

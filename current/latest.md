@@ -1,4 +1,34 @@
-# Current State (as of 2026-09-04, the command core is real, working RTL -- command_cell_v4.v, the 9th unified-carrier core, both modes sim-verified including genuinely programming a fresh nano_gate_v4 target end to end. See `points/points_active.md` #644)
+# Current State (as of 2026-09-04, command_shell_v1.v built -- all 9 unified-carrier cores now have real cardinal control shells. Next: the carrier shell assembling all 9 into one real multi-core unit. See `points/points_active.md` #645)
+
+## Read this first (most recent)
+
+**2026-09-04, command_shell_v1.v (#645) -- all 9 cores now shelled.**
+Same real pattern as `#639`: `active`/`freeze_in` become real 4-way
+cardinal ports, OR-combined, zero core RTL touched. The command cell's
+own new ports (freeze-drive, drive-side programming channel) needed no
+shell treatment -- already real cardinal ports on the base core.
+`tb_command_shell_v1.v`: 6/6 checks, both modes re-verified through
+the shell including the full real end-to-end target-programming proof
+from `#644`.
+
+**Real, full regression:** no core RTL touched. All 20 Verilog
+testbenches pass clean. 523/523 Python tests, unchanged.
+
+**Real milestone:** all 9 unified-carrier cores now have real cardinal
+control shells -- the mesh is ready for a command cell anywhere in it
+to drive freeze/hold/reemit/update/programming into real neighbors
+using the standard shell interface alone.
+
+**Real, standing next-session queue:** (1) the carrier shell -- "one
+thing to hold them all," assembling all 9 cores into a real
+`unicell_super_v4`-class multi-core carrier with runtime `core_select`;
+(2) wire a real command cell into an actual multi-cell topology; (3)
+the real buffer chain feeding a command cell end to end; (4) nano's
+own independent shift; (5) Alan's own real Quartus build, now covering
+all 9 cores; (6) promote both select constructions + icmp eq to
+Tier-1/frontend; (7) the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, the command core is real, working RTL -- command_cell_v4.v, the 9th unified-carrier core, both modes sim-verified including genuinely programming a fresh nano_gate_v4 target end to end. See `points/points_active.md` #644)
 
 ## Read this first (most recent)
 
