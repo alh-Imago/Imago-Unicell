@@ -4483,3 +4483,55 @@ suggested real next step is building the shared capture-compare +
 freeze-drive block first (common to both modes), deferring the buffer
 question behind a simple fixed-count stand-in if early testing is
 needed before it's resolved.
+
+## 642. Command-core design, round 2 continued: the buffer-chain question from `#641` fully resolved, plus a real, free mechanism found -- freezing only the head buffer cell cascades a full stall through the entire chain, no per-cell freeze logic needed. `command_core_scope_v2.md` updated in place. (Alan/Claude, 2026-09-04)
+
+**Real, resolved, correcting an earlier wrong guess in the same
+discussion:** the buffer chain must be `ram_shell_v1` in FLOWING mode
+(`fixed_mode=0`), not `fixed_mode=1` as first floated. Checked
+directly against the RTL: `ready_out`/`capture_now` are both hard-
+gated `!fixed_mode` -- a fixed-mode cell never becomes ready to
+receive and never drains, so it genuinely cannot chain. Flowing mode
+is exactly `#638`'s own proven `RAM_RELAY`: `capture_now` requires
+`!data_valid`, `data_valid` clears the instant `offer_draining` fires,
+freeing `ready_out` for the cell behind it to push forward -- the
+whole chain advances through ordinary, already-proven ready/ack
+backpressure. Zero new RTL. "Preloaded" vs. "computed by another
+mechanism" isn't a real distinction at this level -- both are just
+whatever fills the tail end of the chain via ordinary dataflow.
+
+**Real, free mechanism found, not previously flagged:** freezing ONLY
+the head buffer cell stalls the entire chain behind it, as a genuine
+side effect of the SAME backpressure mechanism, not a second one.
+`ready_out = ... && !effective_freeze` -- freeze the head, its
+`ready_out` drops, the cell behind it can't offer (`any_fire` requires
+`targets_all_ready`), its own `data_valid` never drains, its own
+`ready_out` drops too, cascading down the whole chain from one freeze
+at one cell. Confirmed continuous-assignment (combinational) timing:
+a freeze asserted the instant the terminal marker is recognized takes
+effect same cycle or next, depending on whether the trigger cell's own
+freeze-drive output ends up combinational or registered -- a real,
+open, low-stakes implementation choice, not a correctness question.
+Confirmed separately: `fire_x` reads off registered `pending_ack`, not
+freshly-evaluated `want_to_offer`, so an already-in-flight offer (the
+terminal marker's own) is never corrupted by a freeze landing the same
+cycle -- the freeze only blocks the NEXT offer, exactly the wanted
+timing.
+
+**Real, resolved, full end-to-end picture, closing `#641`'s own open
+buffer question:** trigger mode and programmer mode both watch the
+same buffer stream (multicast) for the same terminal marker. Trigger
+mode reacts by freezing the head cell (cascading the free stall
+above); programmer mode reacts independently by confirming via
+`prog_ack_out` and releasing the target's freeze. Same event, two
+independent, correct reactions, no coordination needed between the
+two cells beyond both watching the same wire.
+
+**Real, honest scope: still nothing built.** `command_core_scope_v2.md`
+updated in place (a live, working note, not a locked spec, matching
+its own stated discipline) rather than appending a v3 file -- the
+buffer-chain resolution and the cascading-freeze finding are both
+folded directly into the sections they resolve. The one real remaining
+piece, unchanged: building the shared capture-compare + freeze-drive
+block itself, common to both modes, with no existing implementation
+anywhere in the family.

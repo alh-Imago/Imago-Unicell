@@ -36,14 +36,22 @@ cell, most naturally) with a real 2-bit `downstream_mask` (toward the
 programmer instance, toward the trigger instance) already does this,
 today, no new core needed.
 
-**Real, still open, not resolved here:** what holds a genuine
-multi-word 32-bit command SEQUENCE. Neither `sequencer_cell_v4.v`
-(4x8-bit, too narrow) nor a plain RAM cell (single static value, no
-advance-to-next) cleanly provides this. Real candidates not yet
-evaluated: several RAM cells physically chained with a real hand-off
-signal between them (reusing the SAME freeze-drive primitive scoped
-below), or a genuinely new small buffer core. Picking one is real,
-separate, later work.
+**Real, resolved, not open anymore:** what holds a genuine multi-word
+32-bit command SEQUENCE is a real chain of `ram_shell_v1` instances in
+FLOWING mode (`fixed_mode=0`), not `fixed_mode=1` -- checked directly
+against the RTL and corrects an earlier wrong guess in this same
+discussion (fixed_mode was floated as a candidate; it genuinely can't
+chain, since `ready_out`/`capture_now` are both hard-gated `!fixed_mode`,
+so a fixed-mode cell never becomes ready to receive and never drains).
+Flowing mode is exactly `#638`'s own proven `RAM_RELAY`, chained N
+times: `capture_now` requires `!data_valid`, `data_valid` clears the
+instant `offer_draining` fires, and THAT is what frees the cell's own
+`ready_out` for the cell behind it to push forward -- the entire
+chain advances through ordinary, already-proven ready/ack backpressure,
+zero new RTL. "Preloaded" vs. "computed by another mechanism" is not a
+real distinction at this level -- both are just whatever fills the
+tail end of the chain via ordinary dataflow; the same backpressure
+rules apply regardless of the source.
 
 ## Real, resolved: variable-length packets, chosen deliberately
 
@@ -149,6 +157,47 @@ trigger mode is a pure, passive observer on that link, not itself
 awaiting confirmation of something it sent. Content-comparison alone
 (no ack gating) is sufficient there.
 
+## Real, resolved: freezing the head cell alone stalls the entire buffer chain -- no per-cell mechanism needed
+
+A genuine, free consequence of the SAME backpressure mechanism that
+makes the buffer chain (above) advance in the first place, not a
+second mechanism running alongside it. Confirmed directly against the
+RTL: `ready_out = effective_armed && !data_valid && !fixed_mode &&
+!effective_freeze` -- freezing the head cell drops its own `ready_out`
+to 0. The cell behind it can't offer into a target whose `ready_out`
+is 0 (`any_fire` requires `targets_all_ready`), so ITS `data_valid`
+never drains, so ITS OWN `ready_out` drops too -- cascading a full
+stall down the entire chain from a single freeze at the head. Real,
+confirmed: this is a continuous assignment, not registered -- the
+moment `freeze_in` changes, `ready_out` follows COMBINATIONALLY the
+same cycle, so a freeze asserted the instant the terminal marker is
+recognized takes effect immediately (same cycle) or one cycle later
+if the trigger cell's own freeze-drive output is registered rather
+than combinational -- a real, open, low-stakes implementation choice
+for the freeze-drive block itself, not something that affects
+correctness either way.
+
+**Real, confirmed: an already-in-flight offer is not corrupted by a
+freeze landing mid-handshake.** `fire_x` is driven off the registered
+`pending_ack`, not a freshly-evaluated `want_to_offer` each cycle -- a
+freeze asserted the same cycle the terminal marker's own offer is
+still completing its ack does not interrupt that specific offer. The
+freeze only blocks the NEXT offer from starting, which is exactly the
+timing wanted: the terminal marker itself still gets through cleanly,
+and nothing after it does.
+
+**Real, resolved, full end-to-end picture:** trigger mode and
+programmer mode both watch the SAME buffer stream (multicast, real,
+free -- see above) for the SAME terminal marker. On match: trigger
+mode freezes the head cell, which cascades a full, free stall through
+the whole chain via the mechanism above -- no coordination needed with
+programmer mode, and no per-cell freeze logic needed anywhere in the
+chain itself. Programmer mode, independently, confirms via
+`prog_ack_out` (real, freeze-safe, see above) and releases the
+target's freeze. Same event, two independent, correct reactions from
+watching one wire -- nothing new required beyond the freeze-drive
+block and the shared comparator both modes already need.
+
 ## Real, still standing from `command_core_scope.md`: freeze-output generation is new RTL, not composition
 
 Unchanged from the first note's own real finding: no core in the
@@ -182,11 +231,8 @@ precedent), with:
 
 ## Not yet done, stated plainly
 
-No RTL written. Genuinely open, not resolved here: what cell type (or
-composition of existing cells) plays "buffer" for a real multi-word
-sequence -- the one real gap from `command_core_scope.md`'s own scope
-that this round of discussion didn't close. The real next step is
-still picking a concrete port list and building the shared capture-
-compare + freeze-drive block first (the common core of both modes),
-not the buffer question, which can be deferred behind a simpler
-fixed-count stand-in for early testing if needed.
+No RTL written. The buffer question is now resolved (real `ram_
+shell_v1` chain, flowing mode, composition only) -- the real next step
+is building the shared capture-compare + freeze-drive block itself
+(common to both modes), the one remaining piece with no existing real
+implementation anywhere in the family.

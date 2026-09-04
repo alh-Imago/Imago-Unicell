@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-04, real command-core design note round 2 -- several of #628's own open questions resolved via live discussion, following #639/#640's real cardinal shells. Nothing built. See `points/points_active.md` #641)
+# Current State (as of 2026-09-04, command-core design round 2 continued -- buffer chain fully resolved (real ram_shell_v1 flowing-mode chain), plus a free cascading-freeze mechanism found: freezing only the head cell stalls the whole buffer. Nothing built. See `points/points_active.md` #642)
+
+## Read this first (most recent)
+
+**2026-09-04, command-core design, round 2 continued (#642) -- still
+nothing built.** `command_core_scope_v2.md` updated in place. Real,
+resolved (correcting an earlier wrong guess in the same discussion):
+the buffer chain is `ram_shell_v1` in FLOWING mode (`fixed_mode=0`,
+not `fixed_mode=1` -- confirmed `ready_out`/`capture_now` are hard-
+gated `!fixed_mode`, so fixed-mode cells can't chain). Flowing mode is
+exactly `#638`'s own proven `RAM_RELAY`, chained N times -- zero new
+RTL, ordinary ready/ack backpressure does all the advancing.
+
+**Real, free mechanism found:** freezing only the HEAD buffer cell
+cascades a full stall through the entire chain, as a genuine side
+effect of the same backpressure mechanism (`ready_out` gated by
+`!effective_freeze`, propagating stall cell-to-cell). Confirmed
+combinational timing and that an in-flight offer (the terminal marker
+itself) is never corrupted by a same-cycle freeze (`fire_x` reads
+registered `pending_ack`, not fresh `want_to_offer`).
+
+**Real, full picture, closing `#641`'s open buffer question:** trigger
+and programmer modes both watch the same buffer stream for the same
+terminal marker; trigger mode freezes the head (free cascade); programmer
+mode confirms via `prog_ack_out` and releases the target. No
+coordination needed beyond both watching one wire.
+
+**Real, standing next-session queue:** (1) build the shared capture-
+compare + freeze-drive block itself -- the one remaining piece with no
+existing implementation anywhere in the family; (2) nano's own
+independent shift; (3) the `N=8` carrier case ("new shell design");
+(4) Python-frontend integration; (5) Alan's own real Quartus build;
+(6) promote both select constructions + icmp eq to Tier-1/frontend;
+(7) the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, real command-core design note round 2 -- several of #628's own open questions resolved via live discussion, following #639/#640's real cardinal shells. Nothing built. See `points/points_active.md` #641)
 
 ## Read this first (most recent)
 
