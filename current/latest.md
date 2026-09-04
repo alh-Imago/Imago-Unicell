@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-04, real, genuine bounded loop closed as a proper 4-cell physical ring -- LOOPVAR+LOOP_CTRL+ADDER+RAM_RELAY, `for i in 0..3` fully working end to end. See `points/points_active.md` #638)
+# Current State (as of 2026-09-04, real cardinal control shells built -- step 1 of the command-core prerequisite work, freeze/hold/reemit/update/active are now real per-direction cardinal signals on new wrapper files, zero core RTL touched. See `points/points_active.md` #639)
+
+## Read this first (most recent)
+
+**2026-09-04, real cardinal control shells (#639) -- command-core step
+1, per Alan's own direct design call.** Every unified-carrier core's
+own flat control ports (`active`, `freeze_in`, nano's own additional
+`hold_in`/`fb_internal_in`/`a_reemit_in`/`a_update_in`/
+`a_self_update_in`) become real 4-way cardinal ports (`_n/_s/_e/_w`) on
+NEW WRAPPER files -- `nano_shell_v1.v`, `adder_shell_v1.v`,
+`ram_shell_v1.v`, `compare_shell_v1.v` -- matching `program_in`'s own
+existing real per-direction shape, OR-combined internally. Zero core
+RTL touched: `nano_gate_v4.v`/`adder_cell_v4.v`/`ram_cell_v4.v`/
+`compare_cell_v4.v` are byte-identical to before this entry.
+
+**Real, full verification:** `tb_shells_v1.v` (new) proves all 4
+shells preserve the wrapped core's own behavior AND that asserting a
+control line from just ONE real direction (a different one per test)
+is genuinely sufficient. 8/8 checks correct.
+
+**Real, full regression:** no core RTL changed. All 13 existing
+testbenches pass clean unchanged, plus the new one. 523/523 Python
+tests, unchanged.
+
+**Real, honest scope: step 1 only.** Not yet done: (1) rewiring
+existing multi-cell topologies (e.g. `#638`'s bounded-loop ring)
+through these shells' real cardinal control links; (2) the actual
+command core, the real next consumer of these lines.
+
+**Real, standing next-session queue, working top-down:** (1) rewire
+`#638`'s bounded-loop ring through these shells; (2) build the command
+core itself; (3) nano's own independent shift; (4) the `N=8` carrier
+case ("new shell design" -- a DIFFERENT "shell" than this entry's, the
+multi-core carrier, not this entry's single-core control wrapper); (5)
+Python-frontend integration; (6) Alan's own real Quartus build; (7)
+promote both select constructions + icmp eq to Tier-1/frontend; (8)
+the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, real, genuine bounded loop closed as a proper 4-cell physical ring -- LOOPVAR+LOOP_CTRL+ADDER+RAM_RELAY, `for i in 0..3` fully working end to end. See `points/points_active.md` #638)
 
 ## Read this first (most recent)
 

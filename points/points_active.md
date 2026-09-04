@@ -4292,3 +4292,73 @@ above; (2) nano's own independent shift; (3) the `N=8` carrier case
 for the whole loop construction; (5) Alan's own real Quartus build;
 (6) promote both select constructions + icmp eq to Tier-1/frontend;
 (7) the archeology deep-dive.
+
+## 639. Real cardinal control shells -- step 1 of the command-core prerequisite work, per Alan's own direct design call: "the shell connection to the freeze signal, in fact all signals has to become cardinal... make the cardinal parts on the shell, but tie them together internally... not as drastic as changing each core individually." Four new shell wrappers (nano/adder/ram/compare), zero core RTL touched. (Alan/Claude, 2026-09-04)
+
+**Real design, confirmed with Alan before touching anything:** every
+one of the 4 unified-carrier cores' own flat, single-bit live-control
+ports (`active`, `freeze_in`, and nano's own additional `hold_in`/
+`fb_internal_in`/`a_reemit_in`/`a_update_in`/`a_self_update_in`)
+becomes a real 4-way cardinal port set (`_n/_s/_e/_w`) on a new WRAPPER
+file, not on the core itself -- matching the exact real per-direction
+shape `program_in`'s own `prog_data_in_n/s/e/w` channel already uses.
+Real, simple OR-combine internally (any real cardinal neighbor
+asserting a control line activates it), the same "any real arrival"
+rule this whole project already uses everywhere (`any_arrived`,
+`any_upstream_arrived`). Confirmed explicitly: `active` gets the same
+real cardinal treatment as the others, and only 4 real directions are
+wired for now -- the eventual 6-way cardinal expansion (real headroom
+already reserved in every mask field in this family) is real, separate,
+later work, deliberately left alone this entry per Alan's own note.
+
+**Real files, new, zero core RTL touched:** `nano_shell_v1.v` (all 7
+control signals -- `active`/`freeze_in`/`hold_in`/`fb_internal_in`/
+`a_reemit_in`/`a_update_in`/`a_self_update_in` -- the most complex,
+serving as the template), `adder_shell_v1.v`/`ram_shell_v1.v`/
+`compare_shell_v1.v` (each just `active`/`freeze_in`, matching those
+3 cores' own real, smaller control surface). Each wrapper instantiates
+its underlying core completely unchanged -- `nano_gate_v4.v`,
+`adder_cell_v4.v`, `ram_cell_v4.v`, `compare_cell_v4.v` are all
+byte-identical to before this entry.
+
+**Real, full verification, not assumed correct:** `tb_shells_v1.v`
+(new) exercises all 4 shells directly, proving each preserves the
+wrapped core's own proven behavior AND that asserting a control line
+from just ONE of the 4 real cardinal directions (deliberately a
+DIFFERENT single direction per test, not always the same one) is
+genuinely sufficient -- the OR-combine really does reach the real
+core. 8/8 checks: nano's real single-direction `active_in_e` activates
+capture/fire; single-direction `freeze_in_s` genuinely blocks it;
+releasing it resumes real capture/fire; adder's real single-direction
+`active_in_w` plus real 7+5=12; single-direction `freeze_in_n` blocks
+real capture; RAM's real single-direction `active_in_s` plus real
+flowing-mode relay; single-direction `freeze_in_e` blocks it; compare's
+real single-direction `active_in_n` plus real 10>=8->1.
+
+**Real, full regression, not assumed safe:** no core RTL changed this
+entry. All 13 existing testbenches (raw cores, still wired flat/direct
+as before) pass clean unchanged, plus the new `tb_shells_v1`. 523/523
+Python tests, unchanged baseline.
+
+**Real, honest scope: this is step 1 only.** Not yet done, per Alan's
+own explicit framing of the fuller plan: (1) "the other cores have to
+tie into those" -- existing multi-cell topologies (e.g. `#638`'s own
+bounded-loop ring) still use the raw cores with flat, testbench-tied
+control signals, not yet rewired through these shells' real cardinal
+links; (2) "the command core has to use those individual lines" -- no
+command core exists yet; it's the real, natural next consumer of these
+cardinal ports, driving freeze/hold/reemit/update into specific real
+cardinal directions of specific real neighboring shells.
+
+**Real, standing next-session queue, working top-down:** (1) rewire
+`#638`'s own bounded-loop-ring construction (or a fresh equivalent)
+through these new shells, confirming real cardinal control genuinely
+composes across a multi-cell topology, not just a single wrapped
+cell; (2) build the actual command core, driving these real cardinal
+lines into real neighboring shells; (3) nano's own independent shift;
+(4) the `N=8` carrier case ("new shell design" -- note this is a
+DIFFERENT "shell" than this entry's own, the multi-core carrier shell,
+not the single-core cardinal-control wrapper built here); (5)
+Python-frontend integration for the whole loop construction; (6)
+Alan's own real Quartus build; (7) promote both select constructions +
+icmp eq to Tier-1/frontend; (8) the archeology deep-dive.
