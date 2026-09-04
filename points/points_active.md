@@ -4751,3 +4751,112 @@ Python tests, unchanged baseline.
 cores have real cardinal control shells. The VIX Carrier build
 (`#647`, following) can now proceed with all 9 real shell dependencies
 actually existing.
+
+## 647. The VIX Carrier is real, working RTL -- `unicell_vix_carrier_v1.v`, holding all 9 unified-carrier cores (via their real cardinal shells) simultaneously, mutually exclusive, runtime `core_select`. A real config-race bug found and fixed along the way -- the same bug class the old lineage already found once (`#320`), reintroduced fresh in the new architecture and caught by tracing, not assumed away. (Alan/Claude, 2026-09-04)
+
+**Real, deliberate naming, confirmed with Alan up front:** "VIX Carrier"
+-- V for version, IX for the 9th real core count -- deliberately NOT
+continuing the old `unicell_super_v1`-`v8` numbering, since
+`unicell_super_v4.v` already exists as a real, unrelated, earlier-
+lineage file (built on `ram_cell_v1`/`adder_cell_v1`/`accumulator_
+cell_v3`/etc., NOT this session's own "unified carrier v4" generation)
+-- a genuine naming collision found and avoided before any RTL was
+written, confirmed by directly checking which core files `unicell_
+super_v8.v` actually instantiates.
+
+**Real architecture, reused directly from that old lineage's own
+proven pattern** (`unicell_super_v1.v`'s own header, `#304`/`#315`/
+`#317`/`#319`): all 9 real cores physically present simultaneously,
+mutually exclusive, exactly one active via `core_select`, config-time
+not synthesis-time. Same real isolation mechanism: every core always
+instantiated and clocked, but only the selected core ever sees genuine
+`arrived_*`/`cfg_valid`/`program_in`/`prog_arrived_in_*`.
+
+**Real, genuinely new work beyond the old lineage, confirmed with Alan
+before building, not discovered after:** (1) wraps the real cardinal
+control SHELLS (`#639`/`#645`/`#646`), not bare cores -- `active`/
+`freeze_in` broadcast to all 9 unchanged, safe since cfg_valid/
+arrived/program_in stay gated regardless; (2) real, safety-critical
+programming-channel routing the old lineage never had to solve --
+`PROG_ID` values collide across core types, so `program_in`/
+`prog_arrived_in_*` gate to the selected core only, same mutual-
+exclusion principle extended to the live reprogramming channel; (3)
+`core_config` widened to 128 real bits (nano's own real width in this
+generation), a meaningful jump from the old lineage's 42-bit union;
+(4) command's own genuinely new external ports (`freeze_out_*`, the
+drive-side programming channel) reach all the way out to the carrier's
+own external ports, muxed, active only when `core_select=SEL_COMMAND`.
+
+**Real gap found and closed BEFORE the carrier could be built, not
+planned in advance:** `#639` only ever shelled 4 of 8 original cores
+-- closed as `#646` (`branch_shell_v1.v`/`accumulator_shell_v1.v`/
+`latch_shell_v1.v`/`sequencer_shell_v1.v`, same real pattern, 6/6
+checks, two real testbench bugs found and fixed there too).
+
+**Real, significant bug found and fixed while bringing the carrier up,
+not assumed away:** the exact same bug CLASS the old lineage already
+found and fixed once (`#320` -- "gating a NEW config's delivery on the
+OLD registered core_select means a config switching TO a new core can
+never actually reach it"), reintroduced fresh here in a different
+form: `cfgv_X` was correctly gated on `incoming_select` (same-cycle,
+deliberately, to avoid exactly this race), but each core's own
+reconstructed `cfg_data` was fed from the REGISTERED `core_config`
+instead of the same-cycle `incoming_config` -- so the `cfg_valid`
+pulse and the correct config value never landed on the same cycle,
+and every core captured `cfg_valid=1` alongside a still-stale,
+all-zero config. Found by tracing an actual failure (nano's `routing_
+mask` reading back as `000000` despite the intended value being
+correctly present in `incoming_config` at that exact moment) down
+through `cfg_d` -> `core_config`/`incoming_config` -> `nano_cfg` ->
+`cmd_latch`, not guessed. Fixed: every core's own cfg reconstruction
+now reads `incoming_config`, matching exactly how the old lineage's
+own `unicell_super_v3.v` already did this for the identical reason.
+
+**Real, honest correction of a false lead:** a genuinely different
+hypothesis was raised mid-debugging -- that the failures reflected a
+real Quartus timing limit in the shell+shell+core layering, and that
+the layering might need collapsing to shell+core. Traced and rejected
+before acting on it: the actual failures were (a) a testbench checking
+`fire_e` one cycle too early (the real value had already landed
+correctly), and (b) the config-race bug above -- neither is evidence
+about real hardware timing. Each shell layer adds only two 4-input OR
+gates; RTL module boundaries aren't synthesis boundaries, and Quartus
+flattens hierarchy during optimization regardless of source-file
+layering. The real, honest position stated plainly: this sim failure
+settles nothing about the layering question either way -- only an
+actual Quartus build with real ALM/Fmax numbers can, matching this
+project's own standing discipline of never accepting a number without
+measuring it.
+
+**Real, full verification, `tb_unicell_vix_carrier_v1.v` (new):** not
+re-proving each of the 9 cores' own internal logic (already separately
+proven in each one's own dedicated testbench) -- proving what's
+genuinely carrier-specific: real `core_select` routing (nano, RAM,
+sequencer each individually selected and verified correct), genuine
+cross-core ISOLATION confirmed via a real hierarchical probe into
+nano's own internal state (not just "the output changed" -- `a_
+arrived`/`data_reg` genuinely frozen while a different core is
+selected and receiving real arrivals), and command mode's own new
+external ports genuinely programming a real, separate, external
+`nano_gate_v4` target end to end through the carrier (3 real words,
+freeze-safe `prog_ack` pacing, real functional confirmation
+afterward). 6/6 checks correct after the fixes above.
+
+**Real, full regression, not assumed safe:** all 23 Verilog
+testbenches in the repository now pass clean side by side. 523/523
+Python tests, unchanged baseline.
+
+**Real, honest scope: sim-only, not yet Quartus-proven.** This is
+where the real next step lives, per Alan's own explicit framing --
+build this in Quartus and get real ALM/Fmax figures for the whole
+9-core family, the actual test of whether the shell+shell+core
+layering costs anything real, settling the timing question the false
+lead above raised speculatively.
+
+**Real, standing next-session queue:** (1) Alan's own real Quartus
+build of `unicell_vix_carrier_v1.v` -- the genuine next step, real
+ALM/Fmax figures for all 9 cores together for the first time; (2) wire
+a real command cell into an actual multi-cell topology; (3) the real
+buffer chain feeding a command cell end to end; (4) nano's own
+independent shift; (5) promote both select constructions + icmp eq to
+Tier-1/frontend; (6) the archeology deep-dive.

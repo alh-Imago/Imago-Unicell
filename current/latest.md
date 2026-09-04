@@ -1,4 +1,60 @@
-# Current State (as of 2026-09-04, the remaining 4 cardinal shells built -- all 9 unified-carrier cores now genuinely have real cardinal control shells, found necessary while starting the VIX Carrier build. See `points/points_active.md` #646)
+# Current State (as of 2026-09-04, the VIX Carrier is real, working RTL -- unicell_vix_carrier_v1.v holds all 9 unified-carrier cores, mutually exclusive, runtime core_select, sim-verified. Real Quartus build is the genuine next step. See `points/points_active.md` #647)
+
+## Read this first (most recent)
+
+**2026-09-04, the VIX Carrier is real RTL (#647).**
+`unicell_vix_carrier_v1.v` (new) -- V for version, IX for the 9th real
+core count, deliberately NOT continuing the old `unicell_super_v1`-`v8`
+numbering (that lineage is unrelated -- built on old `_v1`/`_v3` core
+versions, and `unicell_super_v4.v` already exists as a different file
+entirely, a real naming collision found and avoided before writing any
+RTL). Same real mutual-exclusion architecture as the old lineage
+(`#304`/`#315`/`#317`/`#319`), but wraps the real cardinal control
+SHELLS (not bare cores), routes the live programming channel to the
+selected core only (a genuinely new safety-critical problem the old
+lineage never had), and exposes command mode's own new external ports
+(freeze-drive, drive-side programming channel) at the carrier level.
+
+**Real gap found and closed first:** `#639` only shelled 4 of 8
+original cores -- closed as `#646` (branch/accumulator/latch/
+sequencer shells, 6/6 checks).
+
+**Real, significant bug found and fixed:** the same bug CLASS the old
+lineage already found once (`#320`) -- `cfgv_X` correctly gated on
+same-cycle `incoming_select`, but each core's reconstructed `cfg_data`
+was wrongly fed from the REGISTERED `core_config` instead of same-
+cycle `incoming_config`, so `cfg_valid` and the correct value never
+landed together. Found by tracing an actual failure down through the
+signal chain, not guessed.
+
+**Real, honest correction of a false lead:** a hypothesis mid-
+debugging suggested the failures reflected a real Quartus timing limit
+requiring shell+shell+core to collapse to shell+core. Traced and
+rejected: the real failures were a testbench checking one cycle too
+early plus the config-race bug above -- neither is evidence about real
+hardware timing. Stated plainly: only an actual Quartus build settles
+the layering question, matching this project's own standing "never
+accept a number without measuring it" discipline.
+
+**Real, full verification:** `tb_unicell_vix_carrier_v1.v` proves real
+core_select routing, genuine cross-core isolation (verified via a real
+internal-state probe, not just output), and command mode's new ports
+genuinely programming a real external target end to end through the
+carrier. 6/6 checks. All 23 Verilog testbenches pass clean; 523/523
+Python tests, unchanged.
+
+**Real, honest scope: sim-only, not yet Quartus-proven** -- the actual
+next step, per Alan's own framing: real ALM/Fmax figures for all 9
+cores together, settling the layering-cost question for real.
+
+**Real, standing next-session queue:** (1) Alan's own real Quartus
+build; (2) wire a real command cell into an actual multi-cell
+topology; (3) the real buffer chain feeding a command cell end to end;
+(4) nano's own independent shift; (5) promote both select
+constructions + icmp eq to Tier-1/frontend; (6) the archeology
+deep-dive.
+
+## Previous state (as of 2026-09-04, the remaining 4 cardinal shells built -- all 9 unified-carrier cores now genuinely have real cardinal control shells, found necessary while starting the VIX Carrier build. See `points/points_active.md` #646)
 
 ## Read this first (most recent)
 
