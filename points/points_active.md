@@ -4588,3 +4588,78 @@ completion all carry over unchanged). The one real remaining piece,
 unchanged across three rounds: building the shared toggle-compare +
 freeze-drive block itself, the one mechanism with no existing
 implementation anywhere in the family.
+
+## 644. The command core is real, working RTL -- `command_cell_v4.v`, the 9th unified-carrier core, built from `command_core_scope_v2.md`'s own fully-resolved design (`#628`, `#641`-`#643`). Both modes sim-verified, including genuinely programming a fresh, never-configured `nano_gate_v4` target end to end and confirming it actually works afterward. (Alan/Claude, 2026-09-04)
+
+**Real, first RTL for the core `compare_cell_v4.v`'s own header
+already flagged as the "9th-core question"** (parked back at `#617`/
+`#620`, long before this session's own command-core design work
+began). One core, mode-selected (`mode`), matching `ram_cell_v4.v`'s
+own `fixed_mode` precedent exactly: `mode=0` (trigger) genuinely
+symmetric toggle, first match unfreezes, second match refreezes;
+`mode=1` (programmer) starts on plain first-arrival (no pattern match
+needed, downstream of trigger mode's own gating), relays real words
+onto a real target's programming channel, and the SAME comparator
+(config-fixed to the target's own real `PROG_ID_COMPLETE`) identifies
+the terminating word, confirmed via the real, freeze-safe
+`prog_ack_in` before releasing the target. `cfg_data[8:0]`: `mode`(1)
++ `polarity`(1) + `drive_dir`(3) + `toggle_pattern`(4) -- the full
+9-bit budget scoped in `#643`, unchanged.
+
+**Real, deliberate, explicitly-documented design choice, not glossed
+over:** `toggle_pattern` compares against bits `[23:20]` of the
+watched/relayed word (the real `PROG_ID` position for 4-bit-ID
+targets) -- for narrow-ID targets, `toggle_pattern` must be configured
+to the zero-extended 3-bit value, relying on bit[23] being 0 in a
+well-formed transaction (a real, stated assumption, not a hardware-
+enforced guarantee, flagged in the RTL's own header for later
+scrutiny).
+
+**Real, first-attempt sim result: 11/12 checks passed immediately**
+(`tb_command_cell_v4.v`, new) -- the entire trigger-mode toggle (4/4)
+and the entire 3-word real programming handshake (freeze, relay,
+freeze-safe confirm, recognize-and-release) worked correctly on the
+first real run. The one failure was a real, found-and-fixed testbench
+bug, not a core bug: word-construction concatenations narrower than
+32 bits silently zero-extend on assignment, which can (and for one of
+the three test words, did) misplace the `prog_id` nibble away from its
+real `[23:20]` position -- two of the three words happened to land
+correctly by width coincidence, one didn't. Fixed with an explicit,
+always-32-bit `make_word` helper. **12/12 after the fix.**
+
+**Real, genuine end-to-end proof, not just "were the words relayed":**
+the test target is a completely fresh `nano_gate_v4` instance, never
+`cfg_valid`'d -- `command_cell_v4` programs its `topology` and
+`routing_mask` from nothing via the real programming channel alone,
+then a real functional check confirms the target genuinely captures
+and fires west-to-east per what was JUST configured live, not merely
+that bits were written.
+
+**Real, full regression, not assumed safe:** no existing RTL touched.
+All 19 Verilog testbenches in the repository (the full 8-core family,
+every shell, every multi-cell construction from `#636` through `#640`,
+plus the new `tb_command_cell_v4`) pass clean side by side. 523/523
+Python tests, unchanged baseline.
+
+**Real, honest scope: not yet built.** No `command_shell_v1.v`
+cardinal-control wrapper yet (matching `#639`'s own pattern for the
+other 8 cores) -- `command_cell_v4.v` currently has flat `active`/
+`freeze_in` like every other CORE file's own base layer, consistent,
+but not yet wrapped. Live reconfiguration of `toggle_pattern` while
+actively watching remains deferred, per `#643`'s own stated scope
+limit. The addon chain is NOT included in this core (confirmed
+instinct from `#643`: this core never produces a dataflow value for it
+to act on).
+
+**Real, standing next-session queue, working top-down:** (1)
+`command_shell_v1.v`, matching `#639`'s pattern, for consistency and
+for real integration into cardinal-control topologies; (2) wire a real
+command cell into an actual multi-cell topology (e.g. rewiring `#638`'s
+own bounded loop's constant/control stand-ins with a real command
+core, closing that loop's own remaining honest-scope gap); (3) the
+real buffer chain (`ram_shell_v1` in flowing mode) actually feeding a
+command cell, end to end; (4) nano's own independent shift; (5) the
+`N=8` carrier case -- now genuinely `N=9` with the command core
+included; (6) Alan's own real Quartus build, to get real ALM/Fmax
+figures on this whole family; (7) promote both select constructions +
+icmp eq to Tier-1/frontend; (8) the archeology deep-dive.

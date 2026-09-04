@@ -1,11 +1,12 @@
-# The command core — real design notes, round 2 (CONCEPT, review before building)
+# The command core — real design notes, round 2 (RESOLVED, see `fpga/verilog/command_cell_v4.v` for the real implementation, `points.md` #644)
 
 *Captured 2026-09-04, from a real, live follow-up design discussion,
 after `#639`/`#640`'s own real cardinal control shells landed. This
 note builds directly on `command_core_scope.md`'s own real open
-questions -- several are resolved here, none are contradicted. Nothing
-built here either -- same discipline as the first note: capture shape
-before committing to RTL.*
+questions -- several are resolved here, none are contradicted.
+**Real RTL now exists** (`#644`) implementing everything in this note
+exactly as resolved -- this file remains as the real design record,
+not superseded.*
 
 ## Real, resolved: one core type, two live instances
 
@@ -298,8 +299,8 @@ precedent), 9 real config bits total, with:
 
 ## Not yet done, stated plainly
 
-No RTL written. The buffer question is now resolved (real `ram_
-shell_v1` chain, flowing mode, composition only) -- the real next step
-is building the shared capture-compare + freeze-drive block itself
-(common to both modes), the one remaining piece with no existing real
-implementation anywhere in the family.
+**Real RTL now exists** (`command_cell_v4.v`, `#644`) implementing
+every point above. No `command_shell_v1.v` cardinal-control wrapper
+yet (matching `#639`'s own pattern for the other 8 cores). No real
+multi-cell topology wires a command cell in yet -- the real next step,
+per `#644`'s own standing queue.

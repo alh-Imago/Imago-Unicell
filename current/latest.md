@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-04, command-core design consolidated -- single shared toggle primitive replaces the two-pattern design, 9-bit config budget confirmed, mode-select resolved to govern the start mechanism too. Nothing built. See `points/points_active.md` #643)
+# Current State (as of 2026-09-04, the command core is real, working RTL -- command_cell_v4.v, the 9th unified-carrier core, both modes sim-verified including genuinely programming a fresh nano_gate_v4 target end to end. See `points/points_active.md` #644)
+
+## Read this first (most recent)
+
+**2026-09-04, the command core is real RTL (#644).** `command_cell_v4.v`
+(new) -- the 9th unified-carrier core, `compare_cell_v4.v`'s own
+long-flagged "9th-core question," built exactly from `command_core_
+scope_v2.md`'s fully-resolved design. One core, mode-selected: `mode=0`
+(trigger) genuine symmetric toggle; `mode=1` (programmer) relays real
+words onto a target's programming channel, confirmed via real,
+freeze-safe `prog_ack_in`. 9-bit config budget, unchanged from `#643`.
+
+**Real, genuine end-to-end proof:** `tb_command_cell_v4.v` programs a
+completely fresh, never-`cfg_valid`'d `nano_gate_v4` target from
+nothing via the real programming channel alone, then confirms the
+target genuinely works afterward (real functional check, not just
+"were the words relayed"). 11/12 checks passed first attempt; the one
+failure was a real testbench bug (narrower-than-32-bit word
+concatenation silently zero-extending and misplacing the `prog_id`
+nibble), fixed with an explicit `make_word` helper. 12/12 after.
+
+**Real, full regression:** no existing RTL touched. All 19 Verilog
+testbenches in the repo pass clean side by side. 523/523 Python tests,
+unchanged.
+
+**Real, honest scope: not yet built.** No `command_shell_v1.v`
+cardinal wrapper yet. No real multi-cell topology wires a command cell
+in yet. Live reconfiguration of `toggle_pattern` remains deferred.
+
+**Real, standing next-session queue:** (1) `command_shell_v1.v`,
+matching `#639`'s pattern; (2) wire a real command cell into an actual
+multi-cell topology (e.g. `#638`'s bounded loop's remaining constant/
+control stand-ins); (3) the real buffer chain feeding a command cell
+end to end; (4) nano's own independent shift; (5) the `N=8` carrier
+case -- now genuinely `N=9`; (6) Alan's own real Quartus build; (7)
+promote both select constructions + icmp eq to Tier-1/frontend; (8)
+the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, command-core design consolidated -- single shared toggle primitive replaces the two-pattern design, 9-bit config budget confirmed, mode-select resolved to govern the start mechanism too. Nothing built. See `points/points_active.md` #643)
 
 ## Read this first (most recent)
 
