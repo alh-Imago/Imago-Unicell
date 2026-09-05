@@ -1,4 +1,44 @@
-# Current State (as of 2026-09-05, project_assemble_v1.py extended with a real --shell vix path -- generates a genuine N-cell VIX Carrier Quartus project, sim-elaboration-clean at N=10 and N=20. Alan's own real Quartus build is the actual next step. See `points/points_active.md` #648)
+# Current State (as of 2026-09-05, Quartus license expired -- real financial constraint, not resolvable soon. Work redirected to VM/compiler side. Real hold_in bug found+fixed in the VM, #638's bounded loop ring confirmed working at the VM level. See `points/points_active.md` #649)
+
+## Read this first (most recent)
+
+**2026-09-05, VM corrected and verified (#649).** Quartus Prime
+Standard Edition's license expired; renewal needs a real purchase, not
+happening soon, and the free Lite Edition doesn't support Arria 10 at
+all. Work continues on the VM/compiler side -- no RTL sim or Quartus
+needed there. Checked what the VM already models before touching
+anything: loop-exit (`#140`'s dynamic routing) already existed,
+predating this session; command core has no real model (`is_command_
+cell` is an older, unrelated concept); VIX Carrier's 9-core select has
+no VM equivalent yet (`SuperGrid` still models the old lineage).
+
+**Real bug found and fixed, `nano/unicell_automaton_v1.py`:** the
+post-fire reset branch checked `self.latch_in` (this file's own header
+already marks that field legacy/RTL-unconfirmed) instead of `self.
+hold_in` (the real field this session's whole `nano_gate_v4.v` work
+used throughout), and also wrongly overwrote the held operand.
+Confirmed against the real RTL's own `a_arrived <= hold_in;` before
+fixing. No existing test ever exercised a second round under `hold_in`
+(the only way this could show up) -- confirmed, not assumed safe.
+
+**Real VM-level verification, `tests/vm/test_bounded_loop_ring_v1.py`
+(new):** the exact `#638` 4-cell topology, built entirely from already-
+existing VM primitives. `for i in 0..3`: 3 continue rounds, real exit
+at `i==N==3`. 9/9 checks, only correct after the `hold_in` fix AND
+after finding the same `a_update_in`-ordering lesson `#636`'s own RTL
+work already found independently.
+
+**Real, full regression:** 523/523 Python tests, unchanged count.
+
+**Real, standing next-session queue (RTL/Quartus deferred until the
+license resolves):** (1) the command core's own real VM model --
+genuinely new work; (2) extend `SuperGrid` to the 9 real v4-generation
+cores; (3) extend `llvm_ir_frontend_v1.py` to support `phi`/`br`/loops
+now that a real working VM target exists; (4) promote both select
+constructions + icmp eq to Tier-1/frontend; (5) the archeology
+deep-dive.
+
+## Previous state (as of 2026-09-05, project_assemble_v1.py extended with a real --shell vix path -- generates a genuine N-cell VIX Carrier Quartus project, sim-elaboration-clean at N=10 and N=20. Alan's own real Quartus build is the actual next step. See `points/points_active.md` #648)
 
 ## Read this first (most recent)
 

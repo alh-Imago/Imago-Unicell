@@ -387,9 +387,24 @@ class CACell:
         computed = compute_gate(self.topology, a, b)
         self.data_reg = computed
 
-        if self.latch_in:
+        if self.hold_in:
+            # points.md #649: real fix, found while building a VM-level
+            # test of #638's own real bounded-loop-ring construction --
+            # this branch previously checked `self.latch_in` (this
+            # file's own header already marks that field explicitly
+            # legacy/RTL-unconfirmed) instead of `self.hold_in` (the
+            # real, RTL-confirmed field), AND additionally overwrote
+            # a_data with the incoming arrival. Confirmed directly
+            # against `nano_gate_v4.v`'s own real can_fire branch this
+            # session (`a_arrived <= hold_in;`, data_reg/the held
+            # operand untouched): under hold_in, a_arrived stays True
+            # so future reemit/update events remain possible, but the
+            # held operand itself must NOT change here -- it only ever
+            # changes via the separate, already-correct a_update_in
+            # branch above. No existing test ever exercised a SECOND
+            # round under hold_in (the only way this would show up),
+            # confirmed directly before this fix.
             self.a_arrived = True
-            self.a_data = b
         else:
             self.a_arrived = False
 

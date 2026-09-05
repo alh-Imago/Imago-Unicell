@@ -4931,3 +4931,94 @@ multi-cell topology; (3) the real buffer chain feeding a command cell
 end to end; (4) nano's own independent shift; (5) promote both select
 constructions + icmp eq to Tier-1/frontend; (6) the archeology
 deep-dive.
+
+## 649. VM corrected and verified: a real, genuine bug found in `unicell_automaton_v1.py`'s own `hold_in` handling (predating this session, never triggered by any existing test), fixed, and `#638`'s own real bounded loop ring construction confirmed working end-to-end at the VM level using only already-existing primitives. Quartus is down (license expired, real financial constraint, not resolvable soon) -- work continues on the VM/compiler side, which needs no RTL simulation or Quartus at all. (Alan/Claude, 2026-09-05)
+
+**Real, honest context for this session's own redirection:** Quartus
+Prime Standard Edition's license expired; renewal requires a real
+purchase, not resolvable soon. The free Lite Edition does not support
+Arria 10 at all -- there is no reduced-cost path to real figures for
+this specific device right now. Per Alan's own explicit framing, this
+does not stop real progress -- the sim-first discipline this whole
+project already runs on was always doing the actual correctness work;
+Quartus was the periodic real-hardware-numbers checkpoint, not the
+thing carrying day-to-day correctness. Work continues on the VM/
+compiler side, which needs neither Verilog simulation nor Quartus.
+
+**Real, first question answered before touching anything:** does the
+VM already model the mechanisms this week's RTL work proved out
+(loop-exit, command core, VIX carrier), or does building on it require
+new VM work first? Checked each directly rather than assumed:
+- **Loop-exit** (dynamic pattern-routing): already real, already
+  existed, predates this session (`#140`). `nano_gate_v4`'s own
+  `#637` loop-exit mechanism is a real, proven HARDWARE instance of a
+  mechanism the VM's own Python model already had -- not something the
+  VM needed to catch up to.
+- **Command core**: no real model. The VM's own `is_command_cell` flag
+  is a real, different, older, much simpler concept ("permanent
+  forced hold+reemit-on-trigger") with no relationship to this week's
+  real toggle-compare/freeze-drive/programming-drive mechanism.
+  Genuinely new work, not started.
+- **VIX Carrier**: `SuperGrid` already does real multi-core mutual-
+  exclusion select -- but for the OLD core lineage (`ram_cell_v1` etc.),
+  the same real old/new split found on the Verilog side (`#647`).
+  Extending it to the 9 real v4-generation cores is real, separate,
+  not-yet-started work.
+
+**Real, chosen priority, confirmed with Alan:** verify the loop-ring
+composition first, since it's what's DIRECTLY blocking LLVM frontend
+work -- `llvm_ir_frontend_v1.py`'s own real, stated header limitation
+("No control flow (`br`, `phi`, loops) at all yet... genuinely novel,
+unsolved territory") is exactly what this week's RTL loop work
+(`#635`-`#638`) was built to make possible. A working VM target is the
+real prerequisite for extending the frontend to `phi`/`br`.
+
+**Real bug found and fixed, `nano/unicell_automaton_v1.py`:** the
+reset branch after a normal fire checked `self.latch_in` -- this
+file's OWN header already marks that field explicitly legacy and
+RTL-unconfirmed -- instead of `self.hold_in` (the real, RTL-confirmed
+field this entire session's `nano_gate_v4.v` work has used
+throughout), and additionally overwrote the held operand with the
+incoming arrival. Confirmed directly against the real RTL's own
+`a_arrived <= hold_in;` (with `data_reg`/the held operand untouched)
+before fixing, not assumed. Checked for blast radius before fixing:
+no existing test ever sets `latch_in=True`, and no existing `hold_in=
+True` test exercises a SECOND round (the only way this bug could ever
+manifest) -- confirmed directly, not assumed safe. Full regression:
+523/523 unchanged after the fix.
+
+**Real, genuine VM-level verification, `tests/vm/test_bounded_loop_
+ring_v1.py` (new):** the exact same real 4-cell topology as `#638`'s
+own RTL (`LOOPVAR --south--> LOOP_CTRL --east--> ADDER --north-->
+RAM_RELAY --west--> LOOPVAR`), built entirely from the VM's own
+already-existing primitives (`hold_in`/`a_reemit_in`/`a_update_in`,
+`#140`'s own comparator-driven `dynamic_route_en`) -- none needed
+building fresh. `for i in 0..3`: 3 real continue rounds (0->1->2->3),
+then a real exit at `i==N==3`. 9/9 checks, confirmed correct only
+after the `hold_in` fix above AND after finding the SAME real
+sequencing lesson `#636`'s own RTL work already found independently:
+`a_update_in` must be asserted BEFORE the real value it needs to catch
+lands, since `run_to_quiescence()` drains an entire real chain in one
+call. A real, separate bug in the TEST itself was also found and
+fixed along the way: checking `data_reg` (only ever set by the
+NORMAL fire path, never touched by an `a_update_in` event) instead of
+`a_data` (the real field `a_update_in` actually writes) -- caught by
+noticing round 4's own correct exit-detection was inconsistent with
+what the wrong-field check appeared to show.
+
+**Real, full regression:** 523/523 Python tests, unchanged count
+(this new test follows this codebase's own established script-style
+VM-mechanism-test convention, matching `test_unicell_automaton_v1.py`
+exactly -- contributes to pytest's own collection as an import-time
+check, not a discrete counted test, same as every other file in that
+convention).
+
+**Real, standing next-session queue, working top-down (RTL/Quartus
+items deferred until the license situation resolves):** (1) the
+command core's own real VM model -- the genuinely new mechanism, no
+existing primitive to lean on, real design work needed; (2) extend
+`SuperGrid`/`SuperCell` to the 9 real v4-generation cores (a VM-side
+VIX Carrier equivalent); (3) extend `llvm_ir_frontend_v1.py` itself to
+support `phi`/`br`/loops, now that a real, working VM target exists
+for exactly that shape; (4) promote both select constructions + icmp
+eq to Tier-1/frontend; (5) the archeology deep-dive.
