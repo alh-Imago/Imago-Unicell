@@ -1,4 +1,43 @@
-# Current State (as of 2026-09-05, Quartus license expired -- real financial constraint, not resolvable soon. Work redirected to VM/compiler side. Real hold_in bug found+fixed in the VM, #638's bounded loop ring confirmed working at the VM level. See `points/points_active.md` #649)
+# Current State (as of 2026-09-05, real ICM v3 format extension -- dynamic_route_en/pattern_low/pattern_equal/pattern_high now expressible for nano, the real prerequisite for LLVM loop support. Two real downstream wiring gaps found and fixed. Tile-library extension is the next real step before the frontend itself. See `points/points_active.md` #650)
+
+## Read this first (most recent)
+
+**2026-09-05, real ICM v3 format extension (#650) -- LLVM loop-support
+prerequisite work.** Before touching `llvm_ir_frontend_v1.py`, checked
+whether the tile-library/ICM pipeline could express what `#649`'s
+loop-ring needs -- it could not, for `dynamic_route_en`/`pattern_low`/
+`pattern_equal`/`pattern_high` specifically. Extended `icm_v3.py`'s
+`_NANO_FIELDS` (bits 28-40, confirmed these fields genuinely exist on
+`unicell_stripped_v1.v` since `#49`/`#51`, not invented).
+
+**Two real downstream gaps found and fixed, matching hold_in's own
+earlier pattern:** `root_definition.json`'s separate validation gate
+needed the same fields added (confirmed by querying it directly, not
+assumed); `SuperCell.from_record()`'s own `CACell(...)` construction
+call is a hardcoded field list, not dynamic -- confirmed by testing
+(a record with `dynamic_route_en=1` silently produced `False`) before
+fixing. Also updated `validate_icm_v3_against_rtl_v1.py`'s own
+hardcoded exception list, caught by its existing test actually
+failing.
+
+**Real, full regression:** 523/523 Python tests after every step.
+
+**Real, honest scope: still not at the LLVM frontend.** Checked the
+tile-library abstraction next -- found LOOP_CTRL needs a DERIVED
+`routing_mask` field (OR of two different ports' own chosen
+directions), which the existing tile mechanism doesn't support (it
+only handles multiple ports sharing the SAME field). A real, small
+extension to `SuperTileSpec` itself, not rushed into this entry.
+
+**Real, standing next-session queue:** (1) the derived-field mechanism
+in `SuperTileSpec`, then register the loop tiles; (2) extend
+`llvm_ir_frontend_v1.py` for `phi`/`br`/loops, verified against `#649`'s
+working VM target; (3) the command core's own real VM model; (4)
+extend `SuperGrid` to the 9 real v4-generation cores; (5) promote both
+select constructions + icmp eq to Tier-1/frontend; (6) the archeology
+deep-dive.
+
+## Previous state (as of 2026-09-05, Quartus license expired -- real financial constraint, not resolvable soon. Work redirected to VM/compiler side. Real hold_in bug found+fixed in the VM, #638's bounded loop ring confirmed working at the VM level. See `points/points_active.md` #649)
 
 ## Read this first (most recent)
 

@@ -448,8 +448,32 @@
         "hi": 27,
         "lo": 27,
         "description": "MANUAL, #522/#543"
+      },
+      {
+        "name": "dynamic_route_en",
+        "hi": 28,
+        "lo": 28,
+        "description": "MANUAL, #650 -- see comment below, not mechanically extractable"
+      },
+      {
+        "name": "pattern_low",
+        "hi": 32,
+        "lo": 29,
+        "description": "MANUAL, #650"
+      },
+      {
+        "name": "pattern_equal",
+        "hi": 36,
+        "lo": 33,
+        "description": "MANUAL, #650"
+      },
+      {
+        "name": "pattern_high",
+        "hi": 40,
+        "lo": 37,
+        "description": "MANUAL, #650"
       }
     ]
   },
-  "_manual_overrides_warning": "REAL, HONEST FLAG: nano_within_super.fields (hold_in through a_self_update_in) were added MANUALLY, not by regenerate_root_definition_v1.py. These are PORTS on unicell_stripped_v1.v wired individually via core_config bits in unicell_super_v1.v/v2.v/v3.v, physically separated from nano's own cfg_data field-map comment block by ~150 lines of other core instantiations -- the mechanical extractor genuinely cannot see them (confirmed, not assumed). RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL WIPE THESE FIVE FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, until the extractor is taught to handle this real, structural case (a real, deliberately-deferred piece of tooling work)."
+  "_manual_overrides_warning": "REAL, HONEST FLAG: nano_within_super.fields (hold_in through a_self_update_in) were added MANUALLY, not by regenerate_root_definition_v1.py. These are PORTS on unicell_stripped_v1.v wired individually via core_config bits in unicell_super_v1.v/v2.v/v3.v, physically separated from nano's own cfg_data field-map comment block by ~150 lines of other core instantiations -- the mechanical extractor genuinely cannot see them (confirmed, not assumed). RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL WIPE THESE FIVE FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, until the extractor is taught to handle this real, structural case (a real, deliberately-deferred piece of tooling work). EXTENDED #650: dynamic_route_en/pattern_low/pattern_equal/pattern_high were ALSO added manually, same real reason -- nano_gate_v4.v's own comparator-driven routing (#140's VM equivalent), never exposed here before. RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL ALSO WIPE THESE FOUR FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, same as the five fields above."
 }

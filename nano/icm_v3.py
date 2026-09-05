@@ -172,6 +172,25 @@ _NANO_FIELDS = {
     "a_reemit_in": (25, 25),
     "a_update_in": (26, 26),
     "a_self_update_in": (27, 27),
+    # points.md #650: real, necessary extension -- dynamic_route_en/
+    # pattern_low/pattern_equal/pattern_high (nano_gate_v4.v's own real
+    # comparator-driven routing, `#140`'s VM equivalent, the mechanism
+    # `#637`/`#638`'s own real loop-exit construction is built on) were
+    # never exposed here at all, confirmed directly against this same
+    # table before this was added -- a real, honest gap, not a typo.
+    # Sized to the REAL minimum need (4-bit patterns, not `routing_
+    # mask`/`cardinal_edge`'s own 6-bit 3D-ready reservation) since
+    # only 14 spare bits remain in this format's real 42-bit budget --
+    # this format is tied to the OLD core lineage (`unicell_super_v1`-
+    # `v8`), which this session's own real VIX Carrier work already
+    # found needs a genuinely wider config space for the NEW v4-
+    # generation family; widening THIS format's own 42-bit budget is
+    # real, separate, later work, not attempted here.
+    "dynamic_route_en": (28, 28),
+    "pattern_low": (29, 32),
+    "pattern_equal": (33, 36),
+    "pattern_high": (37, 40),
+    # bit 41 remains real, spare headroom in this 42-bit budget.
 }
 
 # RAM: ram_cell_v1.v lines 40-47, full 42-bit core_config used exactly.
@@ -285,8 +304,12 @@ CORE_FIELD_TABLES = {
 # list of 'n'/'s'/'e'/'w' when building a record from friendlier Python,
 # and are always returned as a list of direction letters on decode.
 _DIR_FIELDS = {
-    SEL_NANO: (),  # routing_mask/cardinal_edge are 6-bit (3D-ready), not
-                    # plain 4-bit one-hot -- left as raw ints, not dir lists
+    SEL_NANO: ("pattern_low", "pattern_equal", "pattern_high"),
+                    # routing_mask/cardinal_edge are 6-bit (3D-ready), not
+                    # plain 4-bit one-hot -- left as raw ints, not dir lists.
+                    # pattern_low/equal/high (#650) ARE plain 4-bit one-hot(s),
+                    # the same real shape as branch's own route_low/equal/high
+                    # below -- given the friendlier list-based interface.
     SEL_RAM: ("downstream_mask", "upstream_mask"),
     SEL_ADDER: ("downstream_mask", "upstream_mask"),
     SEL_ACC: ("inc_dir", "dec_dir", "downstream_mask"),

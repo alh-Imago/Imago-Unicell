@@ -48,18 +48,23 @@ def validate(repo_root: str) -> int:
     # specifically -- the standalone cmd_latch layout is a DIFFERENT,
     # not-comparable field map (see the extractor's own docstring).
     #
-    # REAL, DOCUMENTED EXCEPTION (#522/#543), not a bug to keep
+    # REAL, DOCUMENTED EXCEPTION (#522/#543/#650), not a bug to keep
     # re-discovering: hold_in/fb_internal_in/a_reemit_in/a_update_in/
-    # a_self_update_in are real PORTS on unicell_stripped_v1.v, wired
+    # a_self_update_in/dynamic_route_en/pattern_low/pattern_equal/
+    # pattern_high are real PORTS on unicell_stripped_v1.v (the first
+    # five) / nano_gate_v4.v's own real comparator-driven routing (the
+    # last four, #650, needed for #637/#638's own real loop-exit
+    # mechanism, never exposed in this format until now), wired
     # individually via core_config bits in unicell_super_v1.v/v2.v/
     # v3.v, physically separated from nano's own field-map comment
     # block by ~150 lines -- the extractor genuinely cannot see them.
-    # icm_v3.py correctly HAS these 5 fields (hand-verified against the
+    # icm_v3.py correctly HAS these 9 fields (hand-verified against the
     # real RTL wiring); the mechanical extraction correctly does NOT.
     # Excluded from this specific comparison for that reason -- not
     # silently ignored, named explicitly right here. ──────────────────
     _NANO_PORT_FIELDS_NOT_MECHANICALLY_EXTRACTABLE = {
         "hold_in", "fb_internal_in", "a_reemit_in", "a_update_in", "a_self_update_in",
+        "dynamic_route_en", "pattern_low", "pattern_equal", "pattern_high",
     }
     rtl_nano = {_normalize_name(f.name): (f.lo, f.hi) for f in extracted["nano_within_super"].fields}
     py_nano = {k: v for k, v in v3.CORE_FIELD_TABLES[v3.SEL_NANO].items()

@@ -392,6 +392,20 @@ class SuperCell:
                 a_reemit_in=bool(cfg.get("a_reemit_in", 0)),
                 a_update_in=bool(cfg.get("a_update_in", 0)),
                 a_self_update_in=bool(cfg.get("a_self_update_in", 0)),
+                # #650: same real gap, same real fix -- dynamic_route_en/
+                # pattern_low/pattern_equal/pattern_high (nano_gate_v4.v's
+                # own real comparator-driven routing, needed for #637/
+                # #638's own real loop-exit mechanism) were never wired
+                # through here either, even after being added to icm_v3.py's
+                # own field table and root_definition.json above -- CACell
+                # already fully implements this (`#140`), this was again
+                # purely a passthrough gap. Confirmed by testing directly:
+                # from_record() silently returned dynamic_route_en=False
+                # even with it set to 1 in the record, before this fix.
+                dynamic_route_en=bool(cfg.get("dynamic_route_en", 0)),
+                pattern_low=cfg.get("pattern_low", 0),
+                pattern_equal=cfg.get("pattern_equal", 0),
+                pattern_high=cfg.get("pattern_high", 0),
             )
         elif core == "ram":
             cell.ram_downstream_mask = dm(cfg.get("downstream_mask", 0))

@@ -5022,3 +5022,78 @@ VIX Carrier equivalent); (3) extend `llvm_ir_frontend_v1.py` itself to
 support `phi`/`br`/loops, now that a real, working VM target exists
 for exactly that shape; (4) promote both select constructions + icmp
 eq to Tier-1/frontend; (5) the archeology deep-dive.
+
+## 650. Real, necessary prerequisite for LLVM loop support: extended `icm_v3.py`'s nano field table (and every downstream consumer) with `dynamic_route_en`/`pattern_low`/`pattern_equal`/`pattern_high` -- nano_gate_v4.v's own real comparator-driven routing, confirmed to already exist on `unicell_stripped_v1.v` since #49/#51, never exposed in this format until now. Two real gaps found and fixed while wiring this through, not assumed correct after the format change alone. (Alan/Claude, 2026-09-05)
+
+**Real, honest motivation:** continuing the LLVM work per Alan's own
+direction -- extending `llvm_ir_frontend_v1.py` to support `phi`/`br`/
+loops, targeting `#649`'s own confirmed-working VM loop-ring. Before
+touching the frontend itself, checked whether the underlying
+tile-library/ICM pipeline could even EXPRESS the fields the loop-ring
+needs (`hold_in` for LOOPVAR, `dynamic_route_en`+patterns for
+LOOP_CTRL) -- found it could not, for the comparator fields
+specifically, and fixed that first, since nothing downstream can work
+without it.
+
+**Real, confirmed-not-assumed extension:** `icm_v3.py`'s `_NANO_FIELDS`
+gets `dynamic_route_en`(28), `pattern_low`(29-32), `pattern_equal`
+(33-36), `pattern_high`(37-40) -- sized to the REAL minimum need
+(4-bit patterns, not `routing_mask`/`cardinal_edge`'s own 6-bit 3D-
+ready reservation) since only 14 spare bits remain in this format's
+real 42-bit budget (this format is tied to the OLD core lineage, which
+`#647`'s own VIX Carrier work already found needs a genuinely wider
+config space for the NEW v4-generation family -- widening THIS
+format's own budget is real, separate, later work). Confirmed directly
+against `unicell_stripped_v1.v`'s own real RTL before writing this --
+these fields exist there too (`#49`/`#51`, predating even `#140`'s own
+VM implementation), not invented for this entry.
+
+**Two real gaps found and fixed while wiring this through, matching
+the exact same class of gap `hold_in` etc. already had (`#522`/
+`#543`):**
+1. `root_definition.json`'s own `nano_within_super` entry -- the
+   SEPARATE validation gate `SuperCell.from_record()` actually checks
+   against -- didn't have the new fields either, confirmed directly by
+   querying it before assuming the `icm_v3.py` change alone was
+   sufficient. Added following the exact same real "MANUAL, not
+   mechanically extractable" convention already established.
+2. `validate_icm_v3_against_rtl_v1.py`'s own real, hardcoded exception
+   list (comparing `icm_v3.py` against the RTL's own field-map comment,
+   which structurally cannot see these individually-wired ports) needed
+   the same 4 fields added -- caught by the existing regression test
+   actually failing (4 mismatches), not silently passing.
+3. `SuperCell.from_record()`'s own actual `CACell(...)` construction
+   call is a hardcoded field list, not dynamic -- confirmed directly by
+   testing (a real `IcmV3Record` with `dynamic_route_en=1` silently
+   produced a `CACell` with `dynamic_route_en=False`) before assuming
+   the format+validation changes alone were sufficient. Fixed by adding
+   the 4 fields to the actual constructor call.
+
+**Real, full regression, not assumed safe:** 523/523 Python tests
+after every step, confirmed at each of the 3 fixes above, not just at
+the end.
+
+**Real, honest scope: still not reaching the LLVM frontend.** Checked
+the tile-library abstraction (`super_tile_library_v1.py`) next, since
+that's what `PlaceIR`/`compile_program_ir()` actually consumes --
+found a real, further gap: LOOP_CTRL needs TWO different tile ports
+(continue->`pattern_high`, exit->`pattern_equal`) plus a THIRD,
+DERIVED `routing_mask` field (the OR of whichever directions get
+chosen) -- confirmed directly that the existing tile mechanism only
+supports MULTIPLE ports OR-combining into the SAME field (the adder's
+own `in_a`/`in_b` case), not a derived field computed from several
+different ports' own choices. This is a real, small extension to
+`SuperTileSpec` itself, not just registering two new tiles matching
+the existing pattern -- a genuine design decision, not rushed into
+this entry.
+
+**Real, standing next-session queue, working top-down:** (1) decide
+and build the derived-field mechanism in `SuperTileSpec`/`_resolve()`/
+`place()`, then register the `nano_loop_var`/`nano_loop_ctrl` tiles;
+(2) extend `llvm_ir_frontend_v1.py` itself to parse multi-block IR
+with `phi`/`br`, recognize the restricted single-counting-loop shape,
+and lower it to the tile-based ring, verified against `#649`'s own
+working VM target; (3) the command core's own real VM model; (4)
+extend `SuperGrid` to the 9 real v4-generation cores; (5) promote both
+select constructions + icmp eq to Tier-1/frontend; (6) the archeology
+deep-dive.
