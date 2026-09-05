@@ -5613,3 +5613,82 @@ the auto-sized-VM-from-ICM tool (`#651`); (3) real `sub`-based
 counting-down loop support in the LLVM frontend; (4) promote both
 select constructions + icmp eq to Tier-1/frontend; (5) the archeology
 deep-dive.
+
+## 658. Traced exactly where Alan asked: "where does the programming mapping stop?" -- confirmed a real, standing gap on BOTH sides (RTL array generator leaves carrier-to-carrier program_out unwired; the VM's own #657 test wired one command cell to one slot by hand, no general mesh mechanism existed). Fixed the VM side: real, dynamic command-target resolution through a proper multi-slot mesh, since which core a neighbor slot has active can itself change at runtime. (Alan/Claude, 2026-09-05)
+
+**Real, confirmed gap #1, RTL side, checked directly, not assumed:**
+`project_assemble_v1.py`'s own array generator ties every carrier's
+own real `program_in`/`prog_arrived_in` to an anti-pruning broadcast
+constant (`ENTRY_DATA`), and each carrier's own real `program_out_n/s/
+e/w` (driven by its internal, currently-selected command core) is
+declared but never wired to any neighbor's receive-side ports at all
+-- confirmed by grepping the generator's own output directly. Real,
+separate, RTL-side gap, not something the VM work here resolves (and
+not resolvable via Quartus right now regardless).
+
+**Real, confirmed gap #2, VM side, found by re-examining `#657`'s own
+work honestly:** that test's own `command_target` was set by hand
+(`cmd.command_target = slot`), not through any general mechanism --
+there was no way for a command core embedded INSIDE a `VixCarrierSlot`
+to reach a NEIGHBORING slot at all, let alone correctly, since a
+slot's own `core_select` can itself change at runtime (the exact
+mechanism `#657` just built) -- meaning "the target" can't be resolved
+once and cached the way a fixed-type cell's own target could be
+(`#655`/`#656`'s own simpler, still-valid case).
+
+**Real fix: dynamic target resolution, not a bigger static wiring
+pass.** `VixCarrierCell._resolve_command_target()` distinguishes two
+real cases: a plain command cell in an ordinary `VixCarrierGrid` still
+uses the fixed `command_target` reference (`#655`/`#656`, unchanged);
+a command core that is one of a `VixCarrierSlot`'s own 9 co-resident
+cores instead looks up the actual NEIGHBOR SLOT (fixed by real grid
+position, resolved once) and returns THAT slot's own currently-active
+core (re-evaluated fresh on every real use, never cached) -- matching
+the real RTL's own continuous `sel_X && ...` gating exactly: there is
+no such thing as "the target," only "whichever core the target slot
+currently has selected." `_propagate_freeze`/`_relay_word` both
+updated to use this resolution instead of the raw field directly.
+
+**Real, new grid-construction helper, `build_vix_slot_grid()`:** builds
+`VixCarrierSlot`s at given positions with given initial `core_select`
+values, wires their real, static `neighbors` dict by ordinary N/S/E/W
+adjacency -- the one thing genuinely fixed by physical position --
+and returns a plain `SuperGrid`, reusing its own real `tick()`/
+`inject()`/`run_to_quiescence()` machinery completely unchanged
+(`VixCarrierSlot` duck-types the same real interface `DspWrapperCell`
+already established, `#656`'s own precedent).
+
+**Real, full end-to-end verification, `tests/vm/test_vix_carrier_
+mesh_v1.py` (new), 10/10 checks, all correct on the first real run:**
+the exact carrier-to-carrier scenario -- slot A's own command core
+(one of ITS 9 co-resident cores) correctly resolves its real target as
+the actual neighbor SLOT, not a fixed cell; slot B deliberately starts
+on the wrong core (`adder`); the insisted-upon first word correctly
+reaches THROUGH the mesh and redirects it; freeze correctly held/
+released across the mesh boundary; fields correctly relayed; a real,
+end-to-end functional confirmation. A second, genuinely necessary
+property also confirmed: if the neighbor slot's own `core_select`
+changes AGAIN later (by some other real cause), the SAME command
+core's own target resolution reflects that fresh state on its next
+use, not a value cached from the earlier session.
+
+**Real, full regression:** 537/537 Python tests, unchanged count;
+20/20 and 15/15 in `#655`-`#657`'s own existing VixCarrier test files,
+confirmed unaffected by the dynamic-resolution change.
+
+**Real, honest scope, unchanged:** the RTL-side gap (carrier-to-
+carrier `program_out` wiring in the array generator) remains real,
+separate, unresolved -- this entry fixes the VM side only, matching
+this session's own explicit "VM is the proving ground until hardware
+returns" framing. Field-tweak relaying to non-nano targets remains
+the one other standing gap, unaffected by this entry.
+
+**Real, standing next-session queue, working top-down:** (1) extend
+live PROG_ID reprogramming beyond nano, now more clearly useful given
+the mesh can already correctly route to any of the 9 cores; (2) wire
+real carrier-to-carrier `program_out`/`freeze_out` in the RTL array
+generator, once real value comes from doing so (or once Quartus
+returns to verify it); (3) the auto-sized-VM-from-ICM tool (`#651`);
+(4) real `sub`-based counting-down loop support in the LLVM frontend;
+(5) promote both select constructions + icmp eq to Tier-1/frontend;
+(6) the archeology deep-dive.

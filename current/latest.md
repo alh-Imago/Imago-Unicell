@@ -1,4 +1,52 @@
-# Current State (as of 2026-09-05, VixCarrierSlot is real, working VM code -- 9-core-per-position VIX Carrier model, insisting the first word of any programming session be a raw core-select value, proven against the exact cross-core-mismatch scenario Alan raised. See `points/points_active.md` #657)
+# Current State (as of 2026-09-05, traced exactly where the programming mapping stops -- confirmed real gaps on both the RTL and VM sides, fixed the VM side with dynamic, mesh-aware command-target resolution. Carrier-to-carrier programming now proven end to end. See `points/points_active.md` #658)
+
+## Read this first (most recent)
+
+**2026-09-05, real carrier-to-carrier mapping traced and fixed on the
+VM side (#658).** Confirmed two real, standing gaps directly: (1) RTL
+side -- `project_assemble_v1.py`'s array generator ties `program_in`
+to an anti-pruning constant and leaves `program_out_n/s/e/w`
+completely unwired to any neighbor. (2) VM side -- `#657`'s own test
+wired one command cell to one slot by hand; no general mechanism
+existed for a command core embedded inside a `VixCarrierSlot` to reach
+a neighboring slot, especially since which core a slot has active can
+itself change at runtime.
+
+**Real fix: dynamic resolution, not static caching.**
+`VixCarrierCell._resolve_command_target()` now distinguishes a plain
+command cell (unchanged fixed-target path) from one embedded inside a
+slot, which instead looks up the actual neighbor SLOT (fixed by grid
+position) and returns THAT slot's own currently-active core, re-
+evaluated fresh every time -- matching the real RTL's own continuous
+`sel_X` gating: there's no "the target," only "whichever core the
+target slot currently has selected."
+
+**Real, new helper:** `build_vix_slot_grid()` wires real, static
+neighbor adjacency and returns a plain `SuperGrid`, no changes needed.
+
+**Real, full verification, 10/10 checks, correct on the first run:**
+the exact carrier-to-carrier scenario -- slot A's command core
+correctly resolves the real neighbor slot, slot B starts on the wrong
+core, the first word redirects it through the mesh, fields relay
+correctly, freeze holds/releases correctly across the boundary, real
+functional confirmation. Also confirmed: if the neighbor's core_select
+changes again later, resolution reflects the fresh state, not a cache.
+
+**Real, full regression:** 537/537 Python tests; 20/20 and 15/15 in
+the existing VixCarrier test files, unaffected.
+
+**Real, honest scope:** the RTL-side wiring gap remains unresolved --
+this fixes the VM side only, matching this session's own "VM is the
+proving ground until hardware returns" framing.
+
+**Real, standing next-session queue:** (1) extend live PROG_ID
+reprogramming beyond nano; (2) wire real carrier-to-carrier program_
+out/freeze_out in the RTL array generator once Quartus returns; (3)
+the auto-sized-VM-from-ICM tool (`#651`); (4) real `sub`-based
+counting-down loop support; (5) promote both select constructions +
+icmp eq to Tier-1/frontend; (6) the archeology deep-dive.
+
+## Previous state (as of 2026-09-05, VixCarrierSlot is real, working VM code -- 9-core-per-position VIX Carrier model, insisting the first word of any programming session be a raw core-select value, proven against the exact cross-core-mismatch scenario Alan raised. See `points/points_active.md` #657)
 
 ## Read this first (most recent)
 

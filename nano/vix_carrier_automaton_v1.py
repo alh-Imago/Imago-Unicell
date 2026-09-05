@@ -90,7 +90,40 @@ class VixCarrierCell(SuperCell):
     #: object `drive_dir` names -- see `VixCarrierGrid._wire_command_targets()`.
     #: A direct Python object reference, not a simulated wire -- the VM
     #: has no need to model real inter-cell wiring delay for this.
+    #: Points.md #658: this is the FIXED-target path, for a plain
+    #: command cell sitting in an ordinary `VixCarrierGrid` next to a
+    #: fixed-type cell (`#655`/`#656`'s own real scenario). A command
+    #: cell that is itself one of the 9 co-resident cores INSIDE a
+    #: `VixCarrierSlot` (the real, full "carrier speaking to carrier"
+    #: case, `#658`) resolves its own real target DYNAMICALLY instead,
+    #: via `_owning_slot` below -- because which neighbor SLOT it's
+    #: even talking to is fixed by grid position, but WHICH of that
+    #: neighbor's 9 co-resident cores is actually listening can change
+    #: at runtime (the exact mechanism `#657` just built), so it can't
+    #: be resolved once and cached the way a fixed-type target can.
     command_target: Optional["VixCarrierCell"] = None
+    #: real, set by `VixCarrierSlot.__post_init__()`/`boot()` when this
+    #: cell is one of a slot's own 9 co-resident cores -- `None` for a
+    #: plain, standalone cell in an ordinary `VixCarrierGrid`.
+    _owning_slot: Optional["VixCarrierSlot"] = None
+
+    def _resolve_command_target(self):
+        """Points.md #658: real dynamic resolution for a slot-embedded
+        command core -- looks up the actual NEIGHBOR SLOT via grid
+        position (fixed) and drive_dir (this cell's own real config),
+        then returns THAT slot's own currently-active core (whatever it
+        is right now, re-evaluated fresh every time, not cached) --
+        matching the real RTL's own real, continuous `sel_X && ...`
+        gating exactly: there is no such thing as "the target" fixed in
+        advance, only "whichever core the target slot currently has
+        selected." Falls back to the fixed `command_target` field for a
+        plain, non-slot-embedded command cell (`#655`/`#656`'s own
+        real, still-valid simpler case)."""
+        if self._owning_slot is not None:
+            direction = _DIR_FROM_CODE.get(self.command_drive_dir)
+            neighbor_slot = self._owning_slot.neighbors.get(direction) if direction is not None else None
+            return neighbor_slot
+        return self.command_target
 
     @classmethod
     def from_record(cls, rec: "v3.IcmV3Record") -> "VixCarrierCell":
@@ -192,8 +225,9 @@ def _propagate_freeze(self: VixCarrierCell, level: bool) -> None:
     specific special-casing needed here anymore; setting the outer
     `freeze_in` field alone is now sufficient for every real target
     type, not just nano."""
-    if self.command_target is not None:
-        self.command_target.freeze_in = level
+    target = self._resolve_command_target()
+    if target is not None:
+        target.freeze_in = level
 
 
 def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:
@@ -210,7 +244,7 @@ def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:
     prog_word split. Command mode itself stays unaware of which shape
     it's talking to either way -- a genuinely unaware, faithful relay,
     exactly as designed."""
-    target = self.command_target
+    target = self._resolve_command_target()
     if target is None:
         self.command_word_pending = False
         if toggle_match:
@@ -261,6 +295,33 @@ VixCarrierCell._relay_word = _relay_word
 register_core_handler("command", CoreHandler(
     deliver=_deliver_command, offer_state=_offer_state_command, clear_valid=_clear_valid_command,
 ))
+
+
+def build_vix_slot_grid(slot_core_selects: Dict[Tuple[int, int], str]) -> SuperGrid:
+    """Points.md #658: real, necessary grid-construction helper -- the
+    actual "carrier speaking to carrier" case: builds `VixCarrierSlot`s
+    at each given position with the given INITIAL `core_select`, then
+    wires their real, static `neighbors` dict by ordinary grid
+    adjacency (N/S/E/W) -- the one thing that's fixed by physical
+    position, unlike which of a neighbor's own 9 co-resident cores is
+    currently listening, which is resolved dynamically instead (see
+    `VixCarrierCell._resolve_command_target()`). Returns a plain
+    `SuperGrid`, reusing its own real `tick()`/`inject()`/
+    `run_to_quiescence()` machinery unchanged -- `VixCarrierSlot`
+    duck-types the same real interface `DspWrapperCell` already
+    established for this."""
+    slots: Dict[Tuple[int, int], VixCarrierSlot] = {
+        pos: VixCarrierSlot(row=pos[0], col=pos[1], core_select=sel)
+        for pos, sel in slot_core_selects.items()
+    }
+    grid = SuperGrid([])
+    grid.cells = slots
+    for (row, col), slot in slots.items():
+        for direction, (dr, dc) in ((N, (-1, 0)), (S, (1, 0)), (E, (0, 1)), (W, (0, -1))):
+            neighbor = slots.get((row + dr, col + dc))
+            if neighbor is not None:
+                slot.neighbors[direction] = neighbor
+    return grid
 
 
 class VixCarrierGrid(SuperGrid):
@@ -358,10 +419,19 @@ class VixCarrierSlot:
     _cores: Dict[str, VixCarrierCell] = field(default_factory=dict)
     _prog_awaiting_select: bool = field(default=False, init=False)
     _prog_in_active: bool = field(default=False, init=False)
+    #: real, static grid adjacency (`#658`), resolved once by whatever
+    #: builds the grid (a fixed, physical property of the mesh -- WHICH
+    #: neighbor sits in each direction never changes at runtime, only
+    #: which of that neighbor's own 9 co-resident cores is currently
+    #: listening can). Keyed by the same `N`/`S`/`E`/`W` direction
+    #: constants used throughout this VM.
+    neighbors: Dict[int, "VixCarrierSlot"] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self._cores:
             self._cores = {name: _blank_core(self.row, self.col, name) for name in _ALL_CORE_NAMES}
+        for cell in self._cores.values():
+            cell._owning_slot = self
 
     @property
     def active(self) -> VixCarrierCell:
@@ -379,8 +449,10 @@ class VixCarrierSlot:
         if core_select not in _ALL_CORE_NAMES:
             raise ValueError(f"unknown core {core_select!r} -- must be one of {_ALL_CORE_NAMES}")
         self.core_select = core_select
-        self._cores[core_select] = _blank_core(self.row, self.col, core_select)
-        self._cores[core_select].freeze_in = self.freeze_in
+        fresh = _blank_core(self.row, self.col, core_select)
+        fresh._owning_slot = self
+        fresh.freeze_in = self.freeze_in
+        self._cores[core_select] = fresh
 
     # ── Real programming-channel interception -- see class docstring. ──
     def begin_programming(self) -> None:
