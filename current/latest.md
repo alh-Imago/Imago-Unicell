@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-05, the LLVM IR frontend compiles real loops -- phi/br/icmp counting loops lower to #638/#649/#652's own real, proven 4-cell bounded-loop-ring, verified end-to-end across 6 varied programs and 5 negative tests. A genuine pre-increment-vs-post-increment semantic mismatch found and fixed mid-build. See `points/points_active.md` #653)
+# Current State (as of 2026-09-05, place_on_nano() extended to full field coverage, both loop tiles retagged universal, and a real naming collision resolved BEFORE building the VM's own upcoming 9-core extension (VixCarrierCell/VixCarrierGrid, not SuperCell/SuperGrid). See `points/points_active.md` #654)
+
+## Read this first (most recent)
+
+**2026-09-05, place_on_nano() extended + naming resolved proactively
+(#654).** Closed `#652`'s own standing item: `place_on_nano()` now
+builds the full real `CACell` (all 9 fields), matching `from_record()`'s
+own coverage. Both loop tiles retagged `universal`, confirmed by 2 new
+real-behavior tests (not just config-value checks) -- `nano_loop_var`
+genuinely keeps `a_arrived=True` across a second real event on a real
+`CAGrid`; `nano_loop_ctrl` genuinely routes a real continue decision.
+537/537 Python tests (up from 535).
+
+**Real naming collision found and resolved BEFORE building it:** the
+VM's existing multi-core classes (`SuperCell`/`SuperGrid`) are tied to
+the OLD core lineage -- the same real name-vs-generation mismatch
+already found once on the RTL side (`unicell_super_v4.v` vs "VIX
+Carrier"). Decided now, before the actual 9-core VM extension is
+built: a new file, `nano/vix_carrier_automaton_v1.py`, with classes
+`VixCarrierCell`/`VixCarrierGrid` -- mirroring the RTL's own naming for
+direct traceability, not reusing `SuperCell`/`SuperGrid`.
+
+**Real, honest scope: naming decided, nothing built yet.** The actual
+9-core VM extension is real, separate, next work.
+
+**Real, standing next-session queue:** (1) build `vix_carrier_
+automaton_v1.py` under the resolved name; (2) the command core's own
+real VM model; (3) the auto-sized-VM-from-ICM tool (`#651`); (4) real
+`sub`-based counting-down loop support; (5) promote both select
+constructions + icmp eq to Tier-1/frontend; (6) the archeology
+deep-dive.
+
+## Previous state (as of 2026-09-05, the LLVM IR frontend compiles real loops -- phi/br/icmp counting loops lower to #638/#649/#652's own real, proven 4-cell bounded-loop-ring, verified end-to-end across 6 varied programs and 5 negative tests. A genuine pre-increment-vs-post-increment semantic mismatch found and fixed mid-build. See `points/points_active.md` #653)
 
 ## Read this first (most recent)
 

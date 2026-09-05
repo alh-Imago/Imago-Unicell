@@ -230,7 +230,19 @@ def place_on_nano(tile: SuperTileSpec, row: int, col: int,
     Rejects anything that isn't genuinely universal with a clear error,
     rather than guessing: a `super-only` tile has no meaning on a plain
     Unicell-n grid at all (there's no RAM/adder/accumulator/comparator/
-    latch core there to select)."""
+    latch core there to select).
+
+    Points.md #654: real, necessary extension -- this used to build
+    only a bare `topology`+`routing_mask` `CACell`, silently dropping
+    every other real nano field (`hold_in`/`a_reemit_in`/`a_update_in`/
+    `dynamic_route_en`/pattern fields, etc.) even when a tile's own
+    `fixed_core_config`/params set them. Confirmed directly by testing
+    before this fix (`#652`): `place_on_nano()` on `nano_loop_var`
+    produced `hold_in=False` despite the tile's own real config saying
+    `1` -- exactly why `nano_loop_var`/`nano_loop_ctrl` were retagged
+    `super-only` rather than `universal` at the time. Now matches
+    `SuperCell.from_record()`'s own real field coverage exactly (the
+    same `dm()` list-to-bitmask normalization, applied here too)."""
     if TARGET_UNICELL_N not in valid_targets(tile):
         raise ValueError(
             f"tile {tile.name!r} (target={tile.target!r}) has no Unicell-n equivalent -- "
@@ -246,10 +258,29 @@ def place_on_nano(tile: SuperTileSpec, row: int, col: int,
     field_dirs, params = _resolve(tile, port_directions, params)
     from unicell_automaton_v1 import CACell
 
-    routing_mask = v3.pack_dirmask(field_dirs.get("routing_mask", []))
-    topology = params.get("topology", 0)
-    return CACell(row=row, col=col, topology=topology, start_flag=True,
-                  routing_mask=routing_mask, cardinal_edge=0)
+    cfg: Dict[str, object] = dict(tile.fixed_core_config)
+    cfg.update(field_dirs)
+    cfg.update(params)
+
+    def dm(val):
+        return v3.pack_dirmask(val) if isinstance(val, (list, tuple, set)) else int(val)
+
+    return CACell(
+        row=row, col=col,
+        topology=cfg.get("topology", 0),
+        start_flag=bool(cfg.get("ready", 1)),
+        routing_mask=dm(cfg.get("routing_mask", 0)),
+        cardinal_edge=dm(cfg.get("cardinal_edge", 0)),
+        hold_in=bool(cfg.get("hold_in", 0)),
+        fb_internal_in=bool(cfg.get("fb_internal_in", 0)),
+        a_reemit_in=bool(cfg.get("a_reemit_in", 0)),
+        a_update_in=bool(cfg.get("a_update_in", 0)),
+        a_self_update_in=bool(cfg.get("a_self_update_in", 0)),
+        dynamic_route_en=bool(cfg.get("dynamic_route_en", 0)),
+        pattern_low=dm(cfg.get("pattern_low", 0)),
+        pattern_equal=dm(cfg.get("pattern_equal", 0)),
+        pattern_high=dm(cfg.get("pattern_high", 0)),
+    )
 
 
 class SuperTileLibrary:
@@ -323,15 +354,12 @@ super_tile_library.register(SuperTileSpec(
     ports=[TilePort("out", "out", "routing_mask")],
     param_names=[],
     fixed_core_config={"topology": TOPO_PASS_A, "hold_in": 1, "ready": 1},
-    # points.md #652: target="super-only", not "universal" -- real,
-    # honest correction, caught by testing before this claim shipped.
-    # place_on_nano() (the Unicell-n path) is hardcoded to wire only
-    # topology+routing_mask into the CACell it builds; hold_in is
-    # silently dropped (confirmed directly: place_on_nano() on this
-    # exact tile produced hold_in=False despite fixed_core_config
-    # saying 1). Real, separate, later fix: extend place_on_nano() to
-    # match from_record()'s own real field coverage.
-    target="super-only",
+    # points.md #654: target="universal" restored -- #652's own real
+    # gap (place_on_nano() silently dropped hold_in) is now fixed
+    # (place_on_nano() matches from_record()'s own real field coverage
+    # exactly), confirmed directly by testing before retagging, not
+    # assumed fixed.
+    target="universal",
 ))
 
 super_tile_library.register(SuperTileSpec(
@@ -364,16 +392,12 @@ super_tile_library.register(SuperTileSpec(
     ],
     param_names=["pattern_low"],
     fixed_core_config={"topology": TOPO_PASS_A, "dynamic_route_en": 1, "ready": 1},
-    # points.md #652: real, honest correction, caught by testing before
-    # this claim shipped -- place_on_nano() (the Unicell-n path) is
-    # hardcoded to wire only topology+routing_mask into the CACell it
-    # builds; hold_in/dynamic_route_en/pattern_* are silently dropped.
-    # Confirmed directly: place_on_nano() on nano_loop_var produced
-    # hold_in=False despite the tile's own fixed_core_config saying 1.
-    # target="super-only" until place_on_nano() is genuinely extended
-    # to match from_record()'s own real field coverage -- a real,
-    # separate, later fix, not claimed done here.
-    target="super-only",
+    # points.md #654: real, honest correction resolved -- #652's own
+    # finding (place_on_nano() silently dropped dynamic_route_en/
+    # pattern_*) is now fixed (place_on_nano() matches from_record()'s
+    # own real field coverage exactly), confirmed directly by testing
+    # before retagging, not assumed fixed.
+    target="universal",
 ))
 
 super_tile_library.register(SuperTileSpec(

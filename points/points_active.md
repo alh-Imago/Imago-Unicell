@@ -5306,3 +5306,57 @@ v4-generation cores; (4) the auto-sized-VM-from-ICM tool (`#651`); (5)
 consider real support for `sub`-based counting-down loops, given the
 `subtractor` tile already exists; (6) promote both select constructions
 + icmp eq to Tier-1/frontend; (7) the archeology deep-dive.
+
+## 654. `place_on_nano()` extended to match `from_record()`'s real field coverage -- both loop tiles retagged `universal`, confirmed correct by real-behavior testing, not just config values. Real naming collision found and resolved BEFORE building, not after -- the same class of issue already found once on the RTL side (`unicell_super_v4.v` vs "VIX Carrier"), now caught proactively for the VM's own upcoming 9-core extension. (Alan/Claude, 2026-09-05)
+
+**Real, closing `#652`'s own standing item:** `place_on_nano()` now
+builds the full real `CACell` -- `routing_mask`/`cardinal_edge`/
+`hold_in`/`fb_internal_in`/`a_reemit_in`/`a_update_in`/`a_self_
+update_in`/`dynamic_route_en`/`pattern_low`/`pattern_equal`/`pattern_
+high` -- matching `SuperCell.from_record()`'s own real field coverage
+exactly (`#650`/`#652`'s own fixes), including the same `dm()` list-
+to-bitmask normalization. `nano_loop_var`/`nano_loop_ctrl` retagged
+`target="universal"`, confirmed correct by testing BEFORE retagging,
+not assumed from the code change alone.
+
+**Real, genuine behavior verification, not just config-value checks,**
+`tests/vm/test_super_tile_library_v1.py` (2 new tests): `nano_loop_var`
+placed via `place_on_nano()` onto a real `CAGrid` genuinely keeps
+`a_arrived=True` across a second real event (the actual reason
+`hold_in` exists, not just that the field reads `True`); `nano_loop_
+ctrl` genuinely routes a real continue decision (comparing two real
+injected arrivals) to the real east output. 34/34 in that file
+(up from 32), 537/537 overall (up from 535).
+
+**Real naming collision found and resolved BEFORE building it, matching
+the exact discipline `#647`'s own RTL naming check already used once:**
+the VM's existing multi-core-select classes are named `SuperCell`/
+`SuperGrid` (`unicell_super_automaton_v1.py`), tied to the OLD core
+lineage -- the SAME real name-vs-generation mismatch already found on
+the RTL side (`unicell_super_v4.v` being an unrelated, older file
+despite the "v4" in its name). Extending the VM to the 9 real v4-
+generation cores (this session's own standing queue item) under those
+SAME class names would recreate the identical confusion. Real,
+decided resolution, mirroring `#647`'s own RTL naming exactly for
+direct traceability between the two real sides of the same conceptual
+carrier: a NEW file, `nano/vix_carrier_automaton_v1.py`, with classes
+`VixCarrierCell`/`VixCarrierGrid` -- not `SuperCell`/`SuperGrid`
+reused, not a same-named clash with the RTL's own `unicell_vix_
+carrier_v1.v` file itself. `unicell_super_automaton_v1.py`'s own
+`SuperCell`/`SuperGrid` remain untouched, continuing to model the old
+lineage exactly as they always have.
+
+**Real, honest scope: naming decided, nothing built yet.** The actual
+9-core VM extension (`SEL_COMMAND` dispatch, the command core's own VM
+model, etc.) is real, separate, next work -- this entry only resolves
+what to call it before that work starts, avoiding discovering the
+collision mid-build the way `#647` did on the RTL side.
+
+**Real, standing next-session queue, working top-down:** (1) build
+`nano/vix_carrier_automaton_v1.py` (`VixCarrierCell`/`VixCarrierGrid`)
+-- the real 9-core VM extension, under the now-resolved name; (2) the
+command core's own real VM model (a genuinely new mechanism within
+that same file, no existing primitive to lean on); (3) the auto-sized-
+VM-from-ICM tool (`#651`); (4) real `sub`-based counting-down loop
+support in the LLVM frontend; (5) promote both select constructions +
+icmp eq to Tier-1/frontend; (6) the archeology deep-dive.

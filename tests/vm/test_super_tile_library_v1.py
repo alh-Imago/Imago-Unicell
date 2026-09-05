@@ -356,11 +356,12 @@ def test_for_target_filters_correctly():
     from super_tile_library_v1 import TARGET_UNICELL_N, TARGET_UNICELL_S
     on_n = super_tile_library.for_target(TARGET_UNICELL_N)
     on_s = super_tile_library.for_target(TARGET_UNICELL_S)
-    # points.md #652: nano_loop_var/nano_loop_ctrl registered as
-    # target="super-only" (place_on_nano() doesn't yet wire hold_in/
-    # dynamic_route_en/pattern_* -- a real, separate, later fix) --
-    # nano_gate remains the only real Unicell-n-capable tile today.
-    assert on_n == ["nano_gate"]
+    # points.md #654: place_on_nano() now matches from_record()'s own
+    # real field coverage (hold_in/dynamic_route_en/pattern_* included)
+    # -- nano_loop_var/nano_loop_ctrl retagged universal, confirmed by
+    # testing before retagging, not assumed. This list needs updating
+    # alongside the library each time a new universal tile is added.
+    assert on_n == sorted(["nano_gate", "nano_loop_var", "nano_loop_ctrl"])
     assert on_s == sorted(super_tile_library.names())   # Unicell-S is the strict superset
 
 
@@ -384,6 +385,53 @@ def test_place_on_nano_produces_a_real_working_cacell():
     grid.tick()
     assert grid.cells[(0, 0)].out_buffer == 0xFF   # OR(0, 0xFF), fired and offered east
     assert grid.cells[(0, 0)].routing_mask == 0b0100   # 'e' bit, matching pack_dirmask convention
+
+
+def test_place_on_nano_wires_loop_var_hold_in_correctly():
+    """Points.md #654: real, necessary regression -- place_on_nano()
+    used to silently drop hold_in entirely (confirmed broken in #652,
+    fixed in #654). Verifies REAL behavior, not just the config value:
+    a_arrived genuinely stays True across a second real event, letting
+    a real reemit/update happen, the whole reason hold_in exists."""
+    from super_tile_library_v1 import place_on_nano
+    from unicell_automaton_v1 import CAGrid
+
+    tile = super_tile_library.get("nano_loop_var")
+    cell = place_on_nano(tile, 0, 0, {"out": "e"})
+    assert cell.hold_in is True   # the real config value itself
+
+    grid = CAGrid(1, 1)
+    grid.cells[(0, 0)] = cell
+    grid.inject(0, 0, 7)             # real capture
+    grid.tick()
+    grid.inject(0, 0, 0xDEADBEEF)     # real dummy second arrival -> fires
+    grid.tick()
+    assert cell.a_arrived is True    # real behavior: stays True under hold_in
+    assert cell.a_data == 7
+
+
+def test_place_on_nano_wires_loop_ctrl_dynamic_routing_correctly():
+    """Points.md #654: real, necessary regression -- place_on_nano()
+    used to silently drop dynamic_route_en/pattern_* entirely
+    (confirmed broken in #652, fixed in #654). Verifies REAL behavior:
+    the comparator genuinely routes continue vs exit based on comparing
+    two real arrivals, not just that the config values look right."""
+    from super_tile_library_v1 import place_on_nano
+    from unicell_automaton_v1 import CAGrid
+
+    tile = super_tile_library.get("nano_loop_ctrl")
+    cell = place_on_nano(tile, 0, 0, {"continue_out": "e", "exit_out": "s"},
+                          params={"pattern_low": ["s"]})
+    assert cell.dynamic_route_en is True
+
+    grid = CAGrid(1, 2)
+    grid.cells[(0, 0)] = cell
+    grid.inject(0, 0, 2)   # real i=2
+    grid.tick()
+    grid.inject(0, 0, 5)   # real N=5 -> 5>2 -> continue -> east
+    grid.tick()
+    assert cell.out_buffer == 2
+    assert cell.routing_mask & 0b0100   # east bit set (continue path)
 
 
 def test_place_on_nano_rejects_super_only_tile():
