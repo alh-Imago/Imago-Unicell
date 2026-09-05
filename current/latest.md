@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-04, the VIX Carrier is real, working RTL -- unicell_vix_carrier_v1.v holds all 9 unified-carrier cores, mutually exclusive, runtime core_select, sim-verified. Real Quartus build is the genuine next step. See `points/points_active.md` #647)
+# Current State (as of 2026-09-05, project_assemble_v1.py extended with a real --shell vix path -- generates a genuine N-cell VIX Carrier Quartus project, sim-elaboration-clean at N=10 and N=20. Alan's own real Quartus build is the actual next step. See `points/points_active.md` #648)
+
+## Read this first (most recent)
+
+**2026-09-05, real `--shell vix` project generator (#648).** Extended
+`project_assemble_v1.py` (`#552`'s own tool) with a `"vix"` `SHELL_
+REGISTRY` entry and a dedicated `generate_top_vix()` -- generates a
+real N-cell array of `unicell_vix_carrier_v1.v` with matching QSF/SDC,
+ready for Quartus. Extended `#554`'s own anti-pruning technique to
+cover the receive-side programming channel (all 9 cores) AND command
+mode's own new drive-side channel -- both broadcast from the same
+real unconstrained `ENTRY_DATA`-derived signal as `core_select`, not
+tied to a hard 0 that Quartus could prove dead.
+
+**Two real bugs found and fixed:** (1) a JSON-escaping mishap turned
+every intended newline into a literal `\n`, collapsing the entire
+generated top-level into one 33,729-character line that `iverilog`'s
+own lexer refused to read -- traced to one line, fixed at the source.
+(2) `debug_issp_probe_v1.v` missing from the new dependency list
+silently dropped the requested debug probe -- fixed.
+
+**Real, full verification:** a real 10-cell VIX project generated and
+compiled completely clean under `iverilog` (all 9 core types x 10 real
+instances, zero errors, excluding only the Quartus-only `issp` IP
+sub-instance, a known, documented, expected limitation). A second
+20-cell generation also clean.
+
+**Real, honest scope: sim-elaboration-clean, not yet Quartus-run.**
+The actual compile happens on Alan's own Windows machine next.
+
+**Real, standing next-session queue:** (1) Alan's own real Quartus
+build -- the actual ALM/Fmax/interaction-size numbers this session's
+whole RTL arc has been building toward; (2) wire a real command cell
+into an actual multi-cell topology; (3) the real buffer chain feeding
+a command cell end to end; (4) nano's own independent shift; (5)
+promote both select constructions + icmp eq to Tier-1/frontend; (6)
+the archeology deep-dive.
+
+## Previous state (as of 2026-09-04, the VIX Carrier is real, working RTL -- unicell_vix_carrier_v1.v holds all 9 unified-carrier cores, mutually exclusive, runtime core_select, sim-verified. Real Quartus build is the genuine next step. See `points/points_active.md` #647)
 
 ## Read this first (most recent)
 

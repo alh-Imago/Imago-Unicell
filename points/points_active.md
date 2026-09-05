@@ -4860,3 +4860,74 @@ a real command cell into an actual multi-cell topology; (3) the real
 buffer chain feeding a command cell end to end; (4) nano's own
 independent shift; (5) promote both select constructions + icmp eq to
 Tier-1/frontend; (6) the archeology deep-dive.
+
+## 648. `project_assemble_v1.py` extended with a real `--shell vix` path -- generates a genuine N-cell VIX Carrier Quartus project, the real next step toward Alan's own real ALM/Fmax numbers for the whole 9-core family. Two real bugs found and fixed while building it (a JSON-escaping mishap turning the whole generated top-level into one 33,729-character line, and a missing dependency silently dropping the requested debug probe). (Alan/Claude, 2026-09-05)
+
+**Real, reused architecture, not a new tool:** `project_assemble_v1.py`
+already had exactly the right shape for this (`#552`'s own real
+"initial creator tool") -- a `SHELL_REGISTRY` dispatch, real MAN-file-
+driven QSF/SDC generation, and (`#554`'s own hard-won finding) a real,
+proven anti-pruning technique. Added a `"vix"` entry with its own real
+dependency list (all 9 cores, all 9 real cardinal shells, 3 addons,
+the carrier itself) and a dedicated `generate_top_vix()` -- kept
+separate from the existing `generate_top()` rather than bent into its
+v3/v4-shaped wiring, since the VIX Carrier's real port list (cardinal
+`active_in_x`/`freeze_in_x`, a 160-bit `VIX_LATCH`, command mode's own
+new drive-side ports) is genuinely different, not a variant of the old
+shape.
+
+**Real, necessary EXTENSION of `#554`'s own anti-pruning fix, not just
+reapplied:** with 9 real selectable cores instead of the old lineage's
+up to 8, and both a receive-side AND (command mode only) a drive-side
+programming channel with no analogue in any prior shell, `program_in`/
+`prog_arrived_in_x`/`prog_data_in_x` AND command's own `prog_ack_in_x`
+are ALL broadcast from the same real, unconstrained `ENTRY_DATA`-
+derived signal used for `core_select`/`core_config` -- tying any of
+these to a hard 0 would let Quartus prove the entire receive-side
+`PROG_ID` decode path (all 9 cores) or command's own relay-
+confirmation logic permanently dead, the same real failure class
+`#554` already found once (13 ALM for 500 cells), via a different
+signal this time. The anti-pruning XOR-tree was extended to cover
+every one of command's own new real outputs too.
+
+**Real bug #1, found and fixed:** every intended Python `"\n"` inside
+the newly-written function came through as the literal 2-character
+sequence `\n` due to a JSON-escaping mishap in how the edit was
+applied -- traced down to exactly one line (the final `"\n".join(...)`
+call), confirmed by generating a real test project and finding the
+entire 432-line output collapsed into a single 33,729-character line
+(`iverilog`'s own lexer refused to even read it: "input buffer
+overflow"). Fixed at the source, not patched around.
+
+**Real bug #2, found and fixed:** `debug_issp_probe_v1.v` was missing
+from `VIX_DEPENDENCIES` entirely -- passing `--probe` silently
+produced a QSF with no probe file referenced at all (the existing
+`generate_qsf()` only ever includes it if it's already IN the
+dependency list). Found by checking the generated QSF's own content
+directly against what was requested, not assumed correct.
+
+**Real, full verification, not assumed safe:** a real 10-cell VIX
+project (`--cells 10 --shell vix --probe`) generated, then the ENTIRE
+project (all 9 core types x 10 real instances, every shell, the
+carrier, the generated top-level) compiled clean under `iverilog`
+with zero errors -- excluding only `debug_issp_probe_v1.v`'s own
+`issp` sub-instance, which is a real Quartus-generated IP that
+structurally cannot exist until Quartus itself creates it (confirmed
+this is the tool's own long-documented, expected limitation, not a
+new gap). A second real generation at `--cells 20` also compiled
+clean, confirming the fix generalizes past the one tested size.
+
+**Real, honest scope: sim-elaboration-clean, not yet Quartus-run.**
+The actual Quartus compile has to happen on Alan's own Windows
+machine, per this project's own established authoritative-path
+convention -- that's the genuine next step, not something completable
+in this session.
+
+**Real, standing next-session queue:** (1) Alan's own real Quartus
+build of the generated N-cell VIX project(s) -- the actual ALM/Fmax/
+interaction-size numbers this whole session's RTL work has been
+building toward; (2) wire a real command cell into an actual
+multi-cell topology; (3) the real buffer chain feeding a command cell
+end to end; (4) nano's own independent shift; (5) promote both select
+constructions + icmp eq to Tier-1/frontend; (6) the archeology
+deep-dive.
