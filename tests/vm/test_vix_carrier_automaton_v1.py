@@ -51,7 +51,7 @@ check("real, second-pass-resolved command_target reference", cmd.command_target 
 print("\n=== TRIGGER mode: real toggle, real freeze-drive against a real nano target ===")
 # =============================================================================
 check("real, immediate initial propagation (polarity=0 -> rest frozen)",
-      target._nano.freeze_in is True)
+      target.freeze_in is True)
 
 grid.inject(0, 1, 5)
 for _ in range(3):
@@ -63,7 +63,7 @@ grid._pending.pop((0, 1), None)   # withdraw the stalled injection before contin
 matching_word = 0xF << 20
 grid.inject(0, 0, matching_word)
 grid.run_to_quiescence()
-check("real toggle: a matching word flips freeze off", target._nano.freeze_in is False)
+check("real toggle: a matching word flips freeze off", target.freeze_in is False)
 
 grid.inject(0, 1, 5)
 grid.run_to_quiescence()
@@ -73,7 +73,7 @@ check("real, functional confirmation: the target genuinely accepts arrivals once
 grid.inject(0, 0, matching_word)
 grid.run_to_quiescence()
 check("real toggle back: a second matching word flips freeze back on",
-      target._nano.freeze_in is True)
+      target.freeze_in is True)
 
 
 # =============================================================================
@@ -91,14 +91,14 @@ check("real, fresh target starts genuinely unconfigured", fresh._nano.start_flag
 
 grid2.inject(0, 0, (PROG_ID_TOPOLOGY << 20) | TOPO_PASS_A)
 grid2.run_to_quiescence()
-check("real freeze held during relay", fresh._nano.freeze_in is True)
+check("real freeze held during relay", fresh.freeze_in is True)
 
 grid2.inject(0, 0, (PROG_ID_ROUTING_MASK << 20) | 0b0100)
 grid2.run_to_quiescence()
 
 grid2.inject(0, 0, (PROG_ID_COMPLETE << 20) | 1)
 grid2.run_to_quiescence()
-check("real freeze released only on the real COMPLETE word", fresh._nano.freeze_in is False)
+check("real freeze released only on the real COMPLETE word", fresh.freeze_in is False)
 check("real target now armed", fresh._nano.start_flag is True)
 check("real topology correctly relayed", fresh._nano.topology == TOPO_PASS_A)
 check("real routing_mask correctly relayed", fresh._nano.routing_mask == 0b0100)
@@ -124,6 +124,44 @@ grid3.run_to_quiescence()
 grid3.inject(5, 5, 4)
 grid3.run_to_quiescence()
 check("real, unchanged adder behavior, inherited from SuperCell", adder.adder_out_buffer == 7)
+
+
+# =============================================================================
+print("\n=== Real, shell-level freeze gate (#656): 'if it works on one it should work on all' ===")
+# =============================================================================
+cmd_rec3 = v3.IcmV3Record(row=0, col=0, core="command", core_config={
+    "mode": 0, "polarity": 0, "drive_dir": 2, "toggle_pattern": 0xF,
+}, addon_config={}, cell_id="CMD3")
+# The SAME real freeze-drive mechanism, now targeting a non-nano core
+# (adder) -- the exact gap #655 left open, closed here at the one real
+# shared dispatch point (SuperCell.deliver()), not per-core.
+adder_rec2 = v3.IcmV3Record(row=0, col=1, core="adder", core_config={
+    "downstream_mask": 0b0100, "upstream_mask": 0b0011,
+}, addon_config={}, cell_id="TARGET_ADD")
+
+grid4 = VixCarrierGrid([cmd_rec3, adder_rec2])
+cmd3 = grid4.cells[(0, 0)]
+target_adder = grid4.cells[(0, 1)]
+check("real, immediate initial propagation reaches a non-nano target too",
+      target_adder.freeze_in is True)
+
+grid4.inject(0, 1, 3)
+for _ in range(3):
+    grid4.tick()
+check("real stall: a non-nano target genuinely rejects a real arrival while frozen",
+      target_adder.adder_a_arrived is False)
+grid4._pending.pop((0, 1), None)   # withdraw the stalled injection before continuing
+
+grid4.inject(0, 0, 0xF << 20)
+grid4.run_to_quiescence()
+check("real toggle off reaches the non-nano target", target_adder.freeze_in is False)
+
+grid4.inject(0, 1, 3)
+grid4.run_to_quiescence()
+grid4.inject(0, 1, 4)
+grid4.run_to_quiescence()
+check("real, functional confirmation: the non-nano target genuinely works once unfrozen",
+      target_adder.adder_out_buffer == 7)
 
 
 # =============================================================================

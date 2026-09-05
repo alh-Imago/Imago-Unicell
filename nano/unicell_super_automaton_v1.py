@@ -505,6 +505,21 @@ class SuperCell:
         handler = _CORE_HANDLERS.get(self.core)
         if handler is None:
             raise ValueError(f"unsupported core {self.core!r}")
+        if self.freeze_in:
+            # points.md #656: real, shell-level freeze gate -- matching
+            # the real RTL's own shell (#639/#645/#646): every core
+            # receives freeze_in uniformly from its own shell, not
+            # reimplemented per core. Applied here, at the ONE real
+            # dispatch point every non-nano core type funnels through,
+            # so it genuinely covers all 8 of them at once ("if it
+            # works on one it should work on all" -- Alan's own real
+            # framing) rather than needing a separate freeze check
+            # added to each of _deliver_ram/_deliver_adder/etc
+            # individually. Nano handles its own freeze internally
+            # above (its own effective_freeze also gates ack_out/
+            # ready_out, not just capture) -- this gate covers the
+            # other 8, which previously had no freeze-gating at all.
+            return (False, None)
         return handler.deliver(self, arrivals, injected)
 
     # ── RAM: ram_cell_v1.v ────────────────────────────────────────────
@@ -968,6 +983,19 @@ class SuperGrid:
         # whether or not anything was captured this same tick. ──
         for pos, cell in self.cells.items():
             if cell.core == "nano" or cell.pending_ack != 0:
+                continue
+            if getattr(cell, "freeze_in", False):
+                # points.md #656: real, necessary defensive check --
+                # this pass iterates over EVERY cell in the grid
+                # regardless of class, and DspWrapperCell (a genuine,
+                # separate, deliberately duck-typed class, #521ish --
+                # "sit in the same real grid as ordinary SuperCells
+                # without SuperGrid itself needing to change") has no
+                # freeze_in field at all by design. Confirmed directly
+                # by testing (a real AttributeError on a mixed grid)
+                # before fixing -- getattr(..., False) treats any cell
+                # type that doesn't model freeze as never frozen, a
+                # safe, correct default, not a workaround.
                 continue
             value, valid, downstream = cell._offer_state()
             if not valid or downstream == 0:

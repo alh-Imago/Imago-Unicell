@@ -1,4 +1,48 @@
-# Current State (as of 2026-09-05, VixCarrierCell/VixCarrierGrid are real, working VM code -- the command core proven end-to-end in both trigger and programmer modes, including programming a fresh nano cell from scratch, matching #644's own real RTL proof. See `points/points_active.md` #655)
+# Current State (as of 2026-09-05, freeze-gating moved to the shell -- SuperCell.deliver()'s own real dispatch point now gates all 9 core types uniformly, not just nano. Programming's own limitation confirmed independent of freeze, directly against the RTL. See `points/points_active.md` #656)
+
+## Read this first (most recent)
+
+**2026-09-05, freeze moved to the shell (#656).** Answered directly
+against the real RTL first: programming's nano-only limitation is NOT
+caused by freeze -- `programming_active` has no `effective_freeze` term
+in either `nano_gate_v4.v` or `adder_cell_v4.v`, by deliberate design
+(freezing a target specifically to safely write to it would be
+self-defeating if writing were also blocked by freeze). The two gaps
+are genuinely independent.
+
+**Real, honest correction of `#655`:** re-examining `SuperCell.
+deliver()` showed nano already re-syncs `freeze_in` on every delivery
+call -- `#655`'s own manual fix was confirmed unnecessary by testing;
+the earlier "bug" was a test checking the value before any real
+`deliver()` call had run.
+
+**Real fix, moved to the shell as asked:** one freeze check added at
+`SuperCell.deliver()` (the VM's own real dispatch point every core
+funnels through, matching the RTL's own shell) plus a matching one in
+the generic offer pass -- extends real freeze-gating to all 8
+previously-unprotected core types at once, not per-core patches.
+`VixCarrierCell._propagate_freeze` simplified accordingly.
+
+**Real regression found and fixed:** the generic offer pass iterates
+over every cell regardless of class -- `DspWrapperCell` (a deliberately
+separate, duck-typed class with no `freeze_in` field) crashed with a
+real `AttributeError`, caught by 6 real tests failing on the first full
+run. Fixed with `getattr(cell, "freeze_in", False)`.
+
+**Real, full verification:** a new test proves freeze genuinely works
+against a non-nano target (adder) end to end -- the actual "works on
+one, works on all" claim, proven. 20/20 in the VixCarrier test file.
+
+**Real, full regression:** 537/537 Python tests, unchanged count.
+
+**Real, standing next-session queue:** (1) extend live PROG_ID
+reprogramming beyond nano -- the one remaining genuinely nano-only
+limitation; (2) the auto-sized-VM-from-ICM tool (`#651`); (3) real
+`sub`-based counting-down loop support; (4) promote both select
+constructions + icmp eq to Tier-1/frontend; (5) the archeology
+deep-dive.
+
+## Previous state (as of 2026-09-05, VixCarrierCell/VixCarrierGrid are real, working VM code -- the command core proven end-to-end in both trigger and programmer modes, including programming a fresh nano cell from scratch, matching #644's own real RTL proof. See `points/points_active.md` #655)
 
 ## Read this first (most recent)
 

@@ -185,25 +185,15 @@ def _propagate_freeze(self: VixCarrierCell, level: bool) -> None:
     """Real, direct Python object reference, standing in for the real
     RTL's own physical freeze_out wire -- see module docstring.
 
-    Points.md #655: real, necessary fix, found by testing -- `SuperCell.
-    freeze_in` is a plain field, copied into `self._nano.freeze_in`
-    ONCE at construction time (`unicell_super_automaton_v1.py` line
-    ~503), not a live link; setting it after construction has zero
-    effect on the nano cell's own actual behavior. Confirmed directly:
-    without this fix, a real target's own `freeze_in` field updated
-    correctly but its `_nano.freeze_in` (the field `effective_freeze`
-    actually reads) stayed stale. Real, honest, separate gap, not
-    fixed here: `freeze_in` has NO real effect on the other 8 core
-    types today -- none of their own dispatch handlers ever check it
-    (confirmed directly: only nano's own `effective_freeze` consumes
-    it anywhere in this VM). Freezing a non-nano target is accepted
-    without error but currently has no real behavioral effect --
-    real, separate, later work, matching the same honest scope limit
-    already stated for live PROG_ID reprogramming."""
+    Points.md #656: simplified -- freeze-gating now happens uniformly
+    at `SuperCell.deliver()`'s own real dispatch point (the VM's own
+    "shell" equivalent, matching the real RTL's own shell wiring
+    exactly), covering all 9 core types from ONE place. No core-
+    specific special-casing needed here anymore; setting the outer
+    `freeze_in` field alone is now sufficient for every real target
+    type, not just nano."""
     if self.command_target is not None:
         self.command_target.freeze_in = level
-        if self.command_target.core == "nano":
-            self.command_target._nano.freeze_in = level
 
 
 def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:

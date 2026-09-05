@@ -5457,3 +5457,74 @@ auto-sized-VM-from-ICM tool (`#651`); (4) real `sub`-based counting-
 down loop support in the LLVM frontend; (5) promote both select
 constructions + icmp eq to Tier-1/frontend; (6) the archeology
 deep-dive.
+
+## 656. Real, freeze-gating moved to the shell -- `SuperCell.deliver()`'s own real dispatch point (the VM's equivalent of `#639`/`#645`/`#646`'s own RTL shell) now gates ALL 9 core types uniformly, matching Alan's own real framing exactly: "if it works on one it should work on all." A prior finding from `#655` corrected: freeze on nano was never actually broken -- the earlier "fix" was masking a test-timing artifact. Also answered directly: programming's own real limitation is NOT caused by freeze -- confirmed independent in the real RTL itself. (Alan/Claude, 2026-09-05)
+
+**Real question answered first, directly against the RTL, not
+guessed:** is `SuperCell.program_word()`'s nano-only limitation caused
+by the freeze gap? No -- confirmed directly in both `nano_gate_v4.v`
+and `adder_cell_v4.v`: `programming_active = program_in && active &&
+prog_any_arrived`, no `effective_freeze` term at all. This is by real,
+deliberate design -- command mode's own programmer path freezes a
+target SPECIFICALLY so it can safely write to it; if programming were
+itself gated by freeze, the whole mechanism would be self-defeating.
+The two gaps are genuinely independent: freeze-gating (fixed here) and
+live PROG_ID reprogramming for the other 7 core types (still real,
+separate, later work).
+
+**Real, honest correction of `#655`'s own earlier finding:** re-
+examining `SuperCell.deliver()` while implementing this showed the
+existing nano branch already re-syncs `self._nano.freeze_in = self.
+freeze_in` on EVERY delivery call, not just at construction. `#655`'s
+own "fix" (writing `_nano.freeze_in` directly inside `_propagate_
+freeze`) was confirmed, by direct testing, to have been unnecessary --
+the earlier test that seemed to show it broken was checking the value
+BEFORE any real `deliver()` call had run, an artifact of checking too
+early, the same class of thing found several times elsewhere this
+session. Freeze on nano specifically was never actually broken.
+
+**Real, moved to the shell, matching Alan's own exact framing:**
+`SuperCell.deliver()` is the VM's own real dispatch point every core
+type funnels through -- the direct equivalent of the real RTL's own
+shell (`#639`/`#645`/`#646`), which wires `freeze_in` uniformly rather
+than reimplementing it per core. Added ONE freeze check there (plus a
+matching one in the generic offer pass, since the real RTL's own
+`ready_out` is ALSO gated by `!effective_freeze`, not just capture) --
+this alone extends real freeze-gating to all 8 previously-unprotected
+core types at once, not one core-specific fix at a time.
+`VixCarrierCell._propagate_freeze` simplified in the same commit --
+the nano-specific special-casing from `#655` is now genuinely
+unnecessary, confirmed by the full test suite passing with it removed.
+
+**Real regression found and fixed, not missed:** the generic offer
+pass iterates over EVERY cell in a grid regardless of class --
+`DspWrapperCell` (a genuine, separate, deliberately duck-typed class
+that intentionally has no `freeze_in` field at all, so it can share a
+grid with ordinary `SuperCell`s without either class needing to know
+about the other) doesn't have this attribute, confirmed by a real
+`AttributeError` surfacing in 6 real tests the first time the full
+suite ran after this change. Fixed with `getattr(cell, "freeze_in",
+False)` -- any cell type that doesn't model freeze is correctly
+treated as never frozen, not crashed on.
+
+**Real, full verification:** `tests/vm/test_vix_carrier_automaton_v1.py`
+extended with a new test proving freeze now genuinely works against a
+non-nano target (adder) -- initial propagation, real stall while
+frozen, real toggle-off, real functional confirmation once unfrozen --
+the exact "works on one, works on all" claim, proven, not assumed.
+Four existing assertions fixed along the way: they checked `_nano.
+freeze_in` (nano's own internal, lazily-synced copy) instead of the
+outer `freeze_in` field the propagation actually sets immediately --
+correct once pointed at the right field. 20/20 in this file.
+
+**Real, full regression:** 537/537 Python tests, unchanged count,
+confirmed clean after both the freeze-gating change and the
+`DspWrapperCell` fix.
+
+**Real, standing next-session queue, working top-down:** (1) extend
+live PROG_ID reprogramming (`SuperCell.program_word()`) beyond nano --
+the one remaining genuinely nano-only real limitation; (2) the
+auto-sized-VM-from-ICM tool (`#651`); (3) real `sub`-based counting-
+down loop support in the LLVM frontend; (4) promote both select
+constructions + icmp eq to Tier-1/frontend; (5) the archeology
+deep-dive.
