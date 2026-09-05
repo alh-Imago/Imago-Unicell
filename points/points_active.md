@@ -5692,3 +5692,77 @@ returns to verify it); (3) the auto-sized-VM-from-ICM tool (`#651`);
 (4) real `sub`-based counting-down loop support in the LLVM frontend;
 (5) promote both select constructions + icmp eq to Tier-1/frontend;
 (6) the archeology deep-dive.
+
+## 659. Real, first orienting look into the TRIX cross-domain system (`archeology/onion/old_trix_domain_family.onion`, `old_frontend.onion`) -- a genuine first pass, not the full 2-session dive Alan's already planning. Onion setup (submodule init + build_ext + pip install) redone this session, confirmed working. (Alan/Claude, 2026-09-05)
+
+**Real architecture found, `cell_format.py` (128KB, the real core):** a
+formal "format contract" system -- each domain defines how external
+data packs into cells (bits per symbol, an encode/decode LUT at the
+boundary) and, genuinely valuable, WHICH TILES are even valid for that
+format, so a Composer-level tool could refuse an operation on the
+wrong format's cells. The cells themselves never change; format is a
+real layer above them, general enough that the docstring names an
+`Amino20` (protein) format as a worked example that was never actually
+built out.
+
+**Real, 7 domain families confirmed via `onion -i`/extraction, not
+just named:** MathTrix (the largest -- Conway, N-body, PageRank,
+Ising, Gray-Scott, fast marching, 1D/2D Laplacian), FlowTrix (D2Q9
+lattice Boltzmann + cylinder/Strouhal validation), NeuroTrix
+(leaky-integrate-and-fire), MidiTrix, NetTrix, OptiTrix, SensorTrix
+(one file each, not yet read).
+
+**Real, direct connection to the CURRENT standing FlowTrix roadmap
+item, not just conceptual overlap:** `flowtrix_cylinder.py` already
+implements the exact validation this project's own standing FlowTrix
+demo plan describes -- D2Q9, cylinder flow, Strouhal number against
+the published Williamson/Roshko correlation -- and its own real
+methodology is genuinely rigorous: it explicitly checks that its own
+simulated `collide()` matches the fabric's real collide tile at a
+sample point before trusting the result, closing the chain "fabric
+collide tile == flow.collide() == this vectorised collide." Real,
+directly reusable validation approach for the future Unicell-S build,
+not just a historical curiosity.
+
+**Real domain-description content found, per Alan's own follow-up
+ask:** `old_frontend.onion`'s `mathtrix_frontend.html` embeds a real
+"rule library" with one-line physics descriptions per algorithm (heat
+diffusion, 2D wave equation, Turing reaction-diffusion, Ising/
+Metropolis, Newtonian N-body). Checked against Alan's own stated
+expectation that these might be scientifically stale -- they are not:
+every one is foundational, textbook physics (Fourier 1822, Turing
+1952, Metropolis 1953, Newtonian gravity), nothing here has a
+scientific shelf life to have expired. The real "holes" are coverage
+gaps instead -- PageRank/Conway/boids/fast-marching each have a real
+`.py` implementation but no matching description was ever added to the
+HTML rule library, so the frontend and the actual algorithm set
+drifted apart at some point.
+
+**Real, adjacent discovery, not yet explored:** `old_papers_drafts.
+onion`'s own `paper_bridges/` subtree contains a real, separate
+concept-graph/cross-domain-mapping system (`concept_inference.py`,
+`cross_domain.py`, a real `concept_graph.db`, `cross_domain_matches.
+json`, plus two real HTML explorer UIs) -- this is very likely the
+"CURRENT, active concept-graph/bridge-paper research thread" the
+archeology inventory's own Tier-1 entry already flagged, though its
+own real content hasn't been opened yet.
+
+**Real, honest scope: a first look only, not the dive.** Confirmed the
+old code itself doesn't port (built for the old compiler pipeline,
+per the archive's own metadata) -- what's real and worth the two
+sessions Alan's already planning is the concepts: the format-contract
+abstraction, FlowTrix's proven validation methodology, and (unopened
+so far) the concept-graph/bridge system's own real cross-domain
+mapping approach.
+
+**Real, standing next-session queue, working top-down (unchanged
+priority order from `#658`, archeology dive noted as still pending its
+own dedicated 2-session pass):** (1) extend live PROG_ID reprogramming
+beyond nano; (2) wire real carrier-to-carrier `program_out`/
+`freeze_out` in the RTL array generator; (3) the auto-sized-VM-from-
+ICM tool (`#651`); (4) real `sub`-based counting-down loop support;
+(5) promote both select constructions + icmp eq to Tier-1/frontend;
+(6) the real, dedicated TRIX/cross-domain archeology dive (this entry's
+own real first-look groundwork, `old_papers_drafts.onion`'s concept-
+graph system as the natural next open, plus the remaining unread
+domain files -- MidiTrix/NetTrix/OptiTrix/SensorTrix).

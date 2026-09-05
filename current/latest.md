@@ -1,4 +1,38 @@
-# Current State (as of 2026-09-05, traced exactly where the programming mapping stops -- confirmed real gaps on both the RTL and VM sides, fixed the VM side with dynamic, mesh-aware command-target resolution. Carrier-to-carrier programming now proven end to end. See `points/points_active.md` #658)
+# Current State (as of 2026-09-05, real first orienting look into the TRIX cross-domain archeology -- format-contract architecture confirmed, FlowTrix's own cylinder/Strouhal validation directly reusable, a real unexplored concept-graph system found alongside it. Not the full dive yet -- that's still standing, queued. See `points/points_active.md` #659)
+
+## Read this first (most recent)
+
+**2026-09-05, first look into TRIX archeology (#659).** Onion setup
+redone and confirmed working. `old_trix_domain_family.onion`: a real
+"format contract" system (`cell_format.py`) letting the same cells
+represent wildly different domains (7 real families: MathTrix/
+FlowTrix/NeuroTrix/MidiTrix/NetTrix/OptiTrix/SensorTrix). FlowTrix's
+own `flowtrix_cylinder.py` already implements the exact D2Q9/Strouhal
+validation the current standing FlowTrix roadmap item describes, with
+a real, rigorous chain-of-custody check (its own simulated collide
+verified against the fabric's real collide tile before trusting the
+result) -- directly reusable methodology, not just a historical
+reference.
+
+**Domain descriptions checked against Alan's own stated expectation
+that they might be stale -- they're not.** `old_frontend.onion`'s
+rule-library descriptions (heat diffusion, wave equation, Turing
+reaction-diffusion, Ising/Metropolis, Newtonian N-body) are all
+foundational, textbook physics with no scientific shelf life to have
+expired. The real gaps found are coverage gaps instead -- several real
+`.py` algorithms (PageRank, Conway, boids, fast marching) were never
+given a matching HTML description at all.
+
+**Real, unopened discovery:** `old_papers_drafts.onion` contains a
+separate, real concept-graph/cross-domain-mapping system (own database,
+two HTML explorers) -- likely the "current, active" thread the
+archeology inventory already flagged, not yet read.
+
+**Real, honest scope: first look only.** The real 2-session dive Alan's
+already planning remains standing, queued -- this is groundwork for it,
+not a substitute.
+
+## Previous state (as of 2026-09-05, traced exactly where the programming mapping stops -- confirmed real gaps on both the RTL and VM sides, fixed the VM side with dynamic, mesh-aware command-target resolution. Carrier-to-carrier programming now proven end to end. See `points/points_active.md` #658)
 
 ## Read this first (most recent)
 
