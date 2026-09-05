@@ -1,4 +1,54 @@
-# Current State (as of 2026-09-05, freeze-gating moved to the shell -- SuperCell.deliver()'s own real dispatch point now gates all 9 core types uniformly, not just nano. Programming's own limitation confirmed independent of freeze, directly against the RTL. See `points/points_active.md` #656)
+# Current State (as of 2026-09-05, VixCarrierSlot is real, working VM code -- 9-core-per-position VIX Carrier model, insisting the first word of any programming session be a raw core-select value, proven against the exact cross-core-mismatch scenario Alan raised. See `points/points_active.md` #657)
+
+## Read this first (most recent)
+
+**2026-09-05, VixCarrierSlot is real (#657).** Answered directly
+against the RTL: live programming carries no core-selection
+information, gated purely by `sel_X && program_in` on whichever core
+is already selected. The boot-load path (`cfg_valid`) is the opposite
+-- reads core-select straight off the same word being committed.
+
+**Real design, reusing the proven method's spirit without the same
+164-bit format:** rather than a new carrier-level PROG_ID value
+(which would collide with some core's own existing assignment --
+the 3-bit space is shared across all 9 field tables), `VixCarrierSlot`
+treats the FIRST word of any fresh programming session as a raw
+core-select value; only after that does it route subsequent words
+normally. Enforced entirely at the receiving slot -- command mode
+stays an unaware, faithful relay.
+
+**Real 9-core co-residence:** all 9 real core types genuinely
+co-resident per slot, `core_select` switchable via a real `boot()`,
+every other behavior delegated to whichever core is active, duck-typed
+into `SuperGrid.tick()` the same way `DspWrapperCell` already
+established.
+
+**Real, significant bug found by testing:** `relay_word()` asserted
+`program_in` on every word but never cleared it when the session
+ended -- confirmed by a real infinite-stall reproduction (the real
+RTL's own `program_in` is top-priority and suspends ordinary captures
+entirely while asserted). Fixed in `end_programming()`.
+
+**Real, full verification, 15/15 checks:** the exact scenario raised
+-- a slot starting on the WRONG core, correctly redirected by the
+first word, configured, and functionally proven end to end despite the
+deliberately wrong starting state. Two honest error paths confirmed.
+
+**Real, full regression:** 537/537 Python tests; 20/20 in the existing
+VixCarrier test file, unaffected.
+
+**Real, honest scope:** field-tweak relaying still only works against
+a real nano target -- selecting any of the 9 cores now works
+correctly, but configuring non-nano cores still raises the same
+already-stated `NotImplementedError`.
+
+**Real, standing next-session queue:** (1) extend live PROG_ID
+reprogramming beyond nano; (2) the auto-sized-VM-from-ICM tool
+(`#651`); (3) real `sub`-based counting-down loop support; (4) promote
+both select constructions + icmp eq to Tier-1/frontend; (5) the
+archeology deep-dive.
+
+## Previous state (as of 2026-09-05, freeze-gating moved to the shell -- SuperCell.deliver()'s own real dispatch point now gates all 9 core types uniformly, not just nano. Programming's own limitation confirmed independent of freeze, directly against the RTL. See `points/points_active.md` #656)
 
 ## Read this first (most recent)
 

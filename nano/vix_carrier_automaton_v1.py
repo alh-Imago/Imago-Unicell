@@ -51,7 +51,7 @@ and this is the same real category of abstraction, not a new one.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import icm_v3 as v3
@@ -200,7 +200,16 @@ def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:
     """Real, deliberate VM-level simplification of the real RTL's own
     multi-cycle prog_data_out/prog_arrived_out/prog_ack_in handshake --
     see module docstring. Only genuinely exercised against a real nano
-    target today (`SuperCell.program_word()`'s own real, stated scope)."""
+    target today (`SuperCell.program_word()`'s own real, stated scope).
+
+    Points.md #657: polymorphic over the real target's own real shape
+    -- a `VixCarrierSlot` (see its own class docstring) gets the raw,
+    un-split word directly, letting IT decide whether this is the
+    real, insisted-upon core-select word or an ordinary field tweak;
+    a plain, fixed-type cell keeps the original, simpler prog_id/
+    prog_word split. Command mode itself stays unaware of which shape
+    it's talking to either way -- a genuinely unaware, faithful relay,
+    exactly as designed."""
     target = self.command_target
     if target is None:
         self.command_word_pending = False
@@ -208,6 +217,18 @@ def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:
             self.command_active_r = False
             self._propagate_freeze(False)
         return
+
+    if isinstance(target, VixCarrierSlot):
+        if not target._prog_in_active:
+            target.begin_programming()
+        target.relay_word(word)
+        self.command_word_pending = False
+        if toggle_match:
+            target.end_programming()
+            self.command_active_r = False
+            self._propagate_freeze(False)
+        return
+
     if target.core != "nano":
         raise NotImplementedError(
             f"command cell's own programmer-mode relay only works against a real "
@@ -279,3 +300,167 @@ class VixCarrierGrid(SuperGrid):
             cell._propagate_freeze(
                 cell.command_active_r if cell.command_mode else cell.command_freeze_state
             )
+
+
+_ALL_CORE_NAMES = ("nano", "adder", "ram", "comparator", "branch",
+                   "accumulator", "latch", "sequencer", "command")
+_SEL_FROM_INDEX = {i: name for i, name in enumerate(_ALL_CORE_NAMES)}
+_INDEX_FROM_SEL = {name: i for i, name in _SEL_FROM_INDEX.items()}
+
+
+def _blank_core(row: int, col: int, core: str) -> VixCarrierCell:
+    """A freshly-reset, blank-configured cell of the given core type --
+    the real, minimal semantic `VixCarrierSlot.boot()` needs (matching
+    the real RTL's own `cfg_valid` reset: a whole-word commit clears
+    the cell to a known, blank baseline, ready for incremental PROG_ID
+    configuration to follow)."""
+    rec = v3.IcmV3Record(row=row, col=col, core=core, core_config={}, addon_config={}, cell_id=None)
+    return VixCarrierCell.from_record(rec)
+
+
+@dataclass
+class VixCarrierSlot:
+    """Points.md #657: the real, genuine VM model of `#647`'s own real
+    VIX Carrier -- ONE physical grid position holding all 9 real core
+    types SIMULTANEOUSLY (matching the real RTL's own "all 9 physically
+    present, mutually exclusive" design exactly, `#647`'s own real
+    header), `core_select` switchable at runtime via a real `boot()`
+    operation, every other real behavior (deliver/offer/freeze/
+    programming) delegated to whichever core is CURRENTLY selected --
+    matching the real RTL's own output mux and per-core gating
+    (`sel_nano && ...`, `sel_adder && ...`, etc.) exactly, confirmed
+    directly against `unicell_vix_carrier_v1.v` before writing this.
+
+    Real, deliberate design answering Alan's own real question and
+    follow-up instruction directly: live programming (`program_word`)
+    reaches ONLY whichever core is currently selected -- it carries no
+    core-selection information of its own, exactly matching the real
+    RTL's own `sel_X && program_in` gating (confirmed: no core's own
+    `program_in` port includes anything encoding which core it's meant
+    for). Rather than inventing a new carrier-level PROG_ID reserved
+    value (which would necessarily collide with SOME core's own real,
+    existing PROG_ID assignment -- the 3-bit PROG_ID space is genuinely
+    shared/reused across all 9 cores' own field tables, so no value is
+    ever free), this slot instead treats the FIRST real word of any
+    fresh live-programming session specially: a raw core-select value,
+    not an ordinary PROG_ID word. Only after that first word does it
+    route subsequent words to whichever core it just selected, via the
+    ordinary, already-proven PROG_ID mechanism, completely unchanged.
+    This "insist core-select first" rule is enforced ENTIRELY here, at
+    the receiving slot -- command mode itself (`#655`) stays an
+    unaware, faithful relay of whatever real words it's given, in
+    order; it never needs to know this convention exists at all."""
+    row: int
+    col: int
+    core_select: str = "nano"
+    freeze_in: bool = False
+    cell_id: Optional[str] = None
+    _cores: Dict[str, VixCarrierCell] = field(default_factory=dict)
+    _prog_awaiting_select: bool = field(default=False, init=False)
+    _prog_in_active: bool = field(default=False, init=False)
+
+    def __post_init__(self) -> None:
+        if not self._cores:
+            self._cores = {name: _blank_core(self.row, self.col, name) for name in _ALL_CORE_NAMES}
+
+    @property
+    def active(self) -> VixCarrierCell:
+        return self._cores[self.core_select]
+
+    def boot(self, core_select: str) -> None:
+        """Real, minimal 'whole-word commit' semantic -- matches the
+        real RTL's own `cfg_valid`: switches `core_select` and resets
+        that core to a clean, blank baseline, ready for incremental
+        PROG_ID configuration to follow. Deliberately does NOT accept
+        a full config dict here -- this models the real, narrow "first
+        word selects the core" step specifically, not a full boot-load;
+        ordinary field configuration continues via the SAME real,
+        already-proven PROG_ID channel immediately afterward."""
+        if core_select not in _ALL_CORE_NAMES:
+            raise ValueError(f"unknown core {core_select!r} -- must be one of {_ALL_CORE_NAMES}")
+        self.core_select = core_select
+        self._cores[core_select] = _blank_core(self.row, self.col, core_select)
+        self._cores[core_select].freeze_in = self.freeze_in
+
+    # ── Real programming-channel interception -- see class docstring. ──
+    def begin_programming(self) -> None:
+        """Real, rising-edge equivalent of `program_in` going high --
+        marks the start of a fresh session, so the very next word is
+        treated as the real core-select value, not an ordinary PROG_ID
+        word."""
+        self._prog_in_active = True
+        self._prog_awaiting_select = True
+
+    def end_programming(self) -> None:
+        # points.md #657: real, necessary fix, found by testing -- the
+        # real RTL's own program_in is "a live external wire, top
+        # priority" that suspends ordinary captures entirely while
+        # asserted (confirmed directly: unicell_automaton_v1.py's own
+        # header states this exactly). relay_word() asserts program_in
+        # on the currently-active core for every word; without
+        # clearing it back here, the target stays permanently stuck
+        # "mid-programming" forever after the session ends, silently
+        # rejecting every real, ordinary arrival -- confirmed directly
+        # by a real infinite-stall reproduction before fixing.
+        self.active.program_in = False
+        self._prog_in_active = False
+        self._prog_awaiting_select = False
+
+    def relay_word(self, word: int) -> None:
+        """Real, raw 32-bit word, NOT pre-split into (prog_id, data) --
+        this slot decides for itself how to interpret it, unlike a
+        plain, fixed-type cell's own `program_word(prog_id, data)`."""
+        if not self._prog_in_active:
+            raise ValueError("relay_word() called with no active programming session -- "
+                              "call begin_programming() first, matching the real RTL's own "
+                              "program_in-must-be-asserted-first convention")
+        if self._prog_awaiting_select:
+            core_select = _SEL_FROM_INDEX.get(word & 0x1F)
+            if core_select is None:
+                raise ValueError(f"first word of a programming session must be a real, valid "
+                                  f"core-select value (0-8), got {word & 0x1F!r}")
+            self.boot(core_select)
+            self._prog_awaiting_select = False
+            return
+        prog_id = (word >> 20) & 0x7
+        prog_word = word & 0xFFFFF
+        self.active.program_in = True
+        self.active.program_word(prog_id, prog_word)
+
+    # ── Real duck-typed grid interface -- delegates to whichever core
+    # is CURRENTLY selected, matching the real RTL's own output mux and
+    # per-core gating exactly. Same real pattern `DspWrapperCell`
+    # already established for sitting in the same real grid as ordinary
+    # `SuperCell`s without `SuperGrid` itself needing to change. ──
+    @property
+    def core(self) -> str:
+        return self.core_select
+
+    @property
+    def _nano(self):
+        return self.active._nano
+
+    @property
+    def addon_config(self) -> dict:
+        return self.active.addon_config
+
+    @property
+    def pending_ack(self) -> int:
+        return self.active.pending_ack
+
+    @pending_ack.setter
+    def pending_ack(self, value: int) -> None:
+        self.active.pending_ack = value
+
+    def deliver(self, arrivals, injected=None):
+        self.active.freeze_in = self.freeze_in
+        return self.active.deliver(arrivals, injected)
+
+    def _offer_state(self):
+        return self.active._offer_state()
+
+    def is_continuously_live(self) -> bool:
+        return self.active.is_continuously_live()
+
+    def clear_valid_on_drain(self) -> None:
+        self.active.clear_valid_on_drain()

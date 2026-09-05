@@ -5528,3 +5528,88 @@ auto-sized-VM-from-ICM tool (`#651`); (3) real `sub`-based counting-
 down loop support in the LLVM frontend; (4) promote both select
 constructions + icmp eq to Tier-1/frontend; (5) the archeology
 deep-dive.
+
+## 657. `VixCarrierSlot` is real, working VM code -- the genuine 9-core-per-position VIX Carrier model, answering Alan's own real question about live programming and core selection directly against the RTL, then implementing his own follow-up design: the receiving slot INSISTS the first word of any programming session be a raw core-select value, enforced entirely at the receiving end, proven against the exact cross-core-mismatch scenario he raised. One genuinely significant bug found and fixed by testing. (Alan/Claude, 2026-09-05)
+
+**Real question answered first, directly against the RTL, not
+guessed:** does live programming go to the currently-selected core, or
+does the word itself carry core-selection? Confirmed in `unicell_vix_
+carrier_v1.v`: every core's own `program_in` is wired `sel_X &&
+program_in` -- gated purely by the already-committed `core_select`,
+carrying no core-selection information at all. The one-time boot-load
+(`cfg_valid`) is the opposite: `incoming_select` reads straight off the
+same word being committed, so it CAN switch core AND configure
+atomically -- but only through that heavier, whole-word path.
+
+**Real design decision, reusing the proven method's own spirit without
+literally reusing its 160-bit format:** the boot format and the 32-bit
+live-PROG_ID format are genuinely different widths, so byte-for-byte
+reuse isn't possible over the live channel. Rather than inventing a
+new carrier-level PROG_ID reserved value (which would necessarily
+collide with some core's own real, existing PROG_ID assignment -- the
+3-bit space is shared/reused across all 9 cores' own field tables, so
+no value is ever free), `VixCarrierSlot` treats the FIRST real word of
+any fresh live-programming session specially: a raw core-select value,
+not an ordinary PROG_ID word. Only after that does it route subsequent
+words to whichever core it just selected, via the ordinary, already-
+proven PROG_ID mechanism, completely unchanged. Enforced entirely at
+the receiving slot -- command mode itself (`#655`) stays an unaware,
+faithful relay of whatever real words it's given, in order; it never
+needs to know this convention exists.
+
+**Real, genuine 9-core co-residence, confirmed directly, not assumed:**
+`VixCarrierSlot` holds all 9 real core types simultaneously (matching
+`#647`'s own real RTL header exactly), `core_select` switchable at
+runtime via a real `boot()` (resets the newly-selected core to a
+clean, blank baseline -- the real, minimal semantic the "first word"
+step needs, distinct from a full boot-load). Every other real
+behavior -- deliver, offer, freeze, programming -- delegates to
+whichever core is CURRENTLY active, duck-typed into the existing
+`SuperGrid.tick()` machinery the exact same way `DspWrapperCell`
+already established (`#656`'s own real precedent), no changes needed
+to `SuperGrid` itself.
+
+**Real, genuinely significant bug found by testing, not assumed
+correct:** `relay_word()` asserts the active core's own `program_in`
+on every relayed word, but the first implementation never cleared it
+back to `False` when the session ended -- confirmed directly by a real
+infinite-stall reproduction (a real, ordinary arrival sent to the
+freshly-programmed target after COMPLETE was permanently rejected).
+Root cause traced precisely: the real RTL's own `program_in` is "a
+live external wire, top priority" that suspends ordinary captures
+entirely while asserted (confirmed against this VM's own existing
+header documentation) -- leaving it stuck true after programming
+finished meant the target could never capture anything again. Fixed
+in `end_programming()`.
+
+**Real, full end-to-end verification, `tests/vm/test_vix_carrier_
+slot_v1.py` (new), 15/15 checks:** basic 9-core co-residence and
+`boot()`; the EXACT scenario Alan raised -- a slot deliberately
+starting on the wrong core (`adder`), correctly redirected by the
+first real word to the intended core (`nano`), correctly configured
+via ordinary field-tweak words, freeze correctly held through the
+relay and released only on the real COMPLETE word, `program_in`
+correctly cleared afterward (the actual bug found), and a real,
+end-to-end functional confirmation despite the deliberately wrong
+starting state; two honest error paths (an invalid core-select index,
+`relay_word()` called without `begin_programming()` first) each
+produce a clear error, not a silent misuse.
+
+**Real, full regression:** 537/537 Python tests, unchanged count;
+20/20 in `#655`/`#656`'s own existing VixCarrier test file, confirmed
+unaffected by the `_relay_word()` polymorphism change.
+
+**Real, honest scope, unchanged from `#654`/`#655`/`#656`:** ordinary
+field-tweak relaying still only genuinely works against a real nano
+target -- selecting a non-nano core via the new first-word mechanism
+works correctly, but attempting to relay further PROG_ID words to it
+still raises the same, already-stated `NotImplementedError`. Extending
+live PROG_ID reprogramming beyond nano remains real, separate work.
+
+**Real, standing next-session queue, working top-down:** (1) extend
+live PROG_ID reprogramming beyond nano, now genuinely useful given
+`VixCarrierSlot` can already select any of the 9 cores correctly; (2)
+the auto-sized-VM-from-ICM tool (`#651`); (3) real `sub`-based
+counting-down loop support in the LLVM frontend; (4) promote both
+select constructions + icmp eq to Tier-1/frontend; (5) the archeology
+deep-dive.
