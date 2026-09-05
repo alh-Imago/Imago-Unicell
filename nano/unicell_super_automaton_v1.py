@@ -328,12 +328,12 @@ class SuperCell:
     def program_done(self) -> bool:
         return bool(self._nano.program_done) if self.core == "nano" else False
 
-    @staticmethod
-    def from_record(rec: "v3.IcmV3Record") -> "SuperCell":
+    @classmethod
+    def from_record(cls, rec: "v3.IcmV3Record") -> "SuperCell":
         core = rec.core
         cfg = rec.core_config
         addon = rec.addon_config
-        cell = SuperCell(row=rec.row, col=rec.col, core=core, addon_config=addon, cell_id=rec.cell_id)
+        cell = cls(row=rec.row, col=rec.col, core=core, addon_config=addon, cell_id=rec.cell_id)
 
         # Real, root-definition-driven validation (points.md #358), not
         # a silent .get(key, default) that would let a typo'd field name

@@ -229,9 +229,19 @@ def test_super_grid_accumulator_heartbeat_never_quiesces():
 def test_registry_holds_exactly_the_seven_non_nano_cores():
     """points.md #609: sequencer added, closing the SEL_SEQ=6 half of
     #519's own real asymmetry (real RTL since unicell_super_v2.v, now
-    real VM dispatch too)."""
+    real VM dispatch too).
+
+    Points.md #655: `_CORE_HANDLERS` is a real, deliberately SHARED
+    extension point -- `vix_carrier_automaton_v1.py`'s own real command
+    core registers into this SAME global registry from a separate file
+    (a real, legitimate cross-file extension, not an accident), so a
+    strict equality check here would make this test's own pass/fail
+    depend on which OTHER test files happened to import first in the
+    same pytest session. This test's own real intent is narrower and
+    still correct as a subset check: the old lineage's own 7 real
+    non-nano handlers are still there, genuinely unchanged."""
     from unicell_super_automaton_v1 import _CORE_HANDLERS
-    assert set(_CORE_HANDLERS.keys()) == {"ram", "adder", "accumulator", "comparator", "latch", "sequencer", "branch"}
+    assert {"ram", "adder", "accumulator", "comparator", "latch", "sequencer", "branch"} <= set(_CORE_HANDLERS.keys())
 
 
 def test_registering_duplicate_core_handler_raises():

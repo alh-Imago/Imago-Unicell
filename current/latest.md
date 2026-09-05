@@ -1,4 +1,56 @@
-# Current State (as of 2026-09-05, place_on_nano() extended to full field coverage, both loop tiles retagged universal, and a real naming collision resolved BEFORE building the VM's own upcoming 9-core extension (VixCarrierCell/VixCarrierGrid, not SuperCell/SuperGrid). See `points/points_active.md` #654)
+# Current State (as of 2026-09-05, VixCarrierCell/VixCarrierGrid are real, working VM code -- the command core proven end-to-end in both trigger and programmer modes, including programming a fresh nano cell from scratch, matching #644's own real RTL proof. See `points/points_active.md` #655)
+
+## Read this first (most recent)
+
+**2026-09-05, the VM's 9-core extension is real (#655).**
+`VixCarrierCell`/`VixCarrierGrid` built -- genuinely subclasses
+`SuperCell` (confirmed at runtime: `type(cell).__name__ ==
+"VixCarrierCell"`, not a cosmetic alias), inheriting the 8 already-
+proven core types unchanged. `SuperCell.from_record()` made a real
+`@classmethod` for this (zero behavior change, confirmed by the full
+regression before/after). The only genuinely new mechanism -- the
+command core -- confirmed field-by-field against `command_cell_v4.v`'s
+own real RTL before writing any Python.
+
+**Four real bugs found by testing, not assumed correct:** (1) the
+parent's dispatch has a deliberate catch-all raise for unrecognized
+cores -- fixed by handling `command` entirely separately. (2)
+`SuperCell.freeze_in` is a one-time construction-time copy, not a live
+link to `_nano.freeze_in` -- confirmed by testing before assuming the
+naive approach worked, fixed directly. (3) the real RTL's own
+`freeze_out` is continuous/combinational -- a fresh rest-frozen trigger
+cell needs its initial state propagated immediately, not only on the
+first arrival. (4) a `run_to_quiescence()` timeout on a frozen target
+turned out to be CORRECT behavior (real backpressure stalls forever) --
+the test was wrong, not the VM, traced before "fixing" the wrong thing.
+
+**Real, full end-to-end verification, 16/16 checks:** genuine subclass
+identity; trigger mode's full real cycle (frozen start, real stall,
+toggle off/on, functional confirmation); programmer mode's full real
+cycle against a genuinely fresh nano target (freeze held through the
+relay, released only on real COMPLETE, fields correctly relayed,
+functional confirmation); one existing core type confirmed still
+working, inherited unchanged.
+
+**Real, downstream test fix:** `_CORE_HANDLERS` is a deliberately
+shared registry -- an existing test's strict-equality check would have
+made its result depend on import order across files. Fixed to a
+subset check matching its own real intent, confirmed robust either way.
+
+**Real, full regression:** 537/537 Python tests, unchanged count.
+
+**Real, honest scope:** programmer mode's relay only works against a
+real nano target today (a clear `NotImplementedError` otherwise, not
+silent no-op); freeze has real effect on nano only, not the other 8
+core types yet.
+
+**Real, standing next-session queue:** (1) extend real freeze-gating
+beyond nano; (2) extend live PROG_ID reprogramming beyond nano; (3) the
+auto-sized-VM-from-ICM tool (`#651`); (4) real `sub`-based counting-
+down loop support; (5) promote both select constructions + icmp eq to
+Tier-1/frontend; (6) the archeology deep-dive.
+
+## Previous state (as of 2026-09-05, place_on_nano() extended to full field coverage, both loop tiles retagged universal, and a real naming collision resolved BEFORE building the VM's own upcoming 9-core extension (VixCarrierCell/VixCarrierGrid, not SuperCell/SuperGrid). See `points/points_active.md` #654)
 
 ## Read this first (most recent)
 

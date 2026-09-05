@@ -5360,3 +5360,100 @@ that same file, no existing primitive to lean on); (3) the auto-sized-
 VM-from-ICM tool (`#651`); (4) real `sub`-based counting-down loop
 support in the LLVM frontend; (5) promote both select constructions +
 icmp eq to Tier-1/frontend; (6) the archeology deep-dive.
+
+## 655. `VixCarrierCell`/`VixCarrierGrid` are real, working VM code -- the 9-core VM extension decided in `#654`, built. The command core (mode 0 trigger, mode 1 programmer) is proven end-to-end against a real nano target, including programming a fresh, never-configured cell from scratch, matching `#644`'s own real RTL proof. Real, genuine subclass identity, not a cosmetic alias -- and several real bugs found by testing, not assumed correct. (Alan/Claude, 2026-09-05)
+
+**Real, deliberate reuse, not a parallel reimplementation:** `VixCarrierCell`
+genuinely subclasses `SuperCell` -- confirmed at runtime, not just at
+the import level (`type(cell).__name__ == "VixCarrierCell"`, the actual
+point of `#654`'s own naming decision, not a cosmetic re-export alias).
+The 8 already-modeled core types keep their own real, already-proven
+dispatch completely unchanged, inherited for free. `SuperCell.
+from_record()` made a real `@classmethod` (`cls(...)`, not a hardcoded
+`SuperCell(...)`) specifically so this works -- a small, safe,
+zero-behavior-change refactor for the old lineage, confirmed by the
+full 537-test regression passing unchanged both before and after.
+
+**The only genuinely new mechanism: the command core,** confirmed
+field-by-field against `command_cell_v4.v`'s own real RTL (`#628`/
+`#641`-`#645`) before writing a line of Python, not from memory:
+TRIGGER mode's real symmetric toggle (every real arrival acked
+unconditionally, but the freeze level only flips on a matching word);
+PROGRAMMER mode's real relay-and-hold (starts on a plain first arrival,
+holds freeze for the whole relay, releases only once a word matching
+`toggle_pattern` -- config-fixed to the target's own real `PROG_ID_
+COMPLETE` -- has been applied).
+
+**Real bugs found by testing, not assumed correct:**
+1. `SuperCell.from_record()`'s own real dispatch body has a deliberate
+   catch-all `raise` for any core it doesn't recognize (`#317`) -- the
+   first override attempt called the parent's dispatch UNCONDITIONALLY
+   before adding the command-specific branch, so it never got that far.
+   Fixed by handling `core="command"` entirely separately, never
+   calling the parent's body for it at all.
+2. `SuperCell.freeze_in` is a plain field, copied into `self._nano.
+   freeze_in` ONCE at construction time, not a live link -- confirmed
+   directly by testing (`command_target.freeze_in = True` had zero
+   effect on the target's own actual behavior) before assuming the
+   naive approach worked. Fixed by also setting `command_target._nano.
+   freeze_in` directly when the target is nano. Real, honest, separate
+   gap left stated, not fixed here: freeze has NO real effect on the
+   other 8 core types today (confirmed directly: none of their own
+   dispatch handlers check it anywhere in this VM) -- extending real
+   freeze-gating to all 9 core types is real, separate, later work.
+3. The real RTL's own `freeze_out` is a continuous, combinational
+   signal, always reflecting the current state -- the first version of
+   `_wire_command_targets()` only ever propagated freeze ON AN ARRIVAL
+   EVENT, leaving a fresh polarity=0 (rest-frozen) trigger cell's own
+   real target un-frozen until the first real toggle. Fixed with a real
+   initial propagation pass right after target-wiring.
+4. `run_to_quiescence()` correctly raised a real `TimeoutError` when a
+   test injected an arrival at a permanently-frozen target -- this is
+   CORRECT, intentional behavior (a frozen target genuinely stalls the
+   sender forever, matching real hardware backpressure), not a VM bug;
+   the TEST was wrong to expect quiescence there. Fixed the test, not
+   the VM, once the real cause was traced, not the other way round.
+
+**Real, full end-to-end verification, `tests/vm/test_vix_carrier_
+automaton_v1.py` (new), 16/16 checks:** genuine subclass identity for
+both command and nano cells; trigger mode's full real cycle (initial
+frozen state, a real stall while frozen, toggle-off, genuine
+functional acceptance once unfrozen, toggle-back-on); programmer
+mode's full real cycle against a genuinely fresh, never-configured
+nano target (freeze held through the whole relay, released only on
+the real COMPLETE word, topology/routing_mask correctly relayed,
+end-to-end functional confirmation the freshly-programmed cell
+actually works); one of the existing 8 core types (adder) confirmed
+still working correctly, inherited unchanged.
+
+**Real, downstream test fix, not a workaround:** `_CORE_HANDLERS` is a
+real, deliberately SHARED registry -- `vix_carrier_automaton_v1.py`'s
+own command-core registration is a genuine, legitimate cross-file
+extension, not an accident. An existing test asserting the registry
+held EXACTLY the old lineage's 7 non-nano handlers would otherwise
+have its pass/fail depend on which other test files happened to import
+first in the same pytest session -- fixed to check the real invariant
+(the old lineage's own 7 are still there, unchanged) as a subset check,
+confirmed robust in both isolated and combined test runs.
+
+**Real, full regression:** 537/537 Python tests, unchanged count (this
+new test file follows the same established script-style VM-mechanism
+convention as `#649`/`#652`'s own tests).
+
+**Real, honest scope, stated plainly, not glossed over:** PROGRAMMER
+mode's own relay-and-apply is only genuinely exercised against a real
+nano target -- `SuperCell.program_word()`'s own real, stated scope
+limit (`#654`) means relaying to any other core type raises a real,
+clear `NotImplementedError` rather than silently doing nothing.
+Extending live PROG_ID reprogramming to the other 7 core types, and
+extending real freeze-gating beyond nano, are both real, separate,
+later work.
+
+**Real, standing next-session queue, working top-down:** (1) extend
+real freeze-gating to the other 8 core types (currently only nano
+checks `effective_freeze` anywhere in this VM); (2) extend live PROG_ID
+reprogramming (`SuperCell.program_word()`) beyond nano; (3) the
+auto-sized-VM-from-ICM tool (`#651`); (4) real `sub`-based counting-
+down loop support in the LLVM frontend; (5) promote both select
+constructions + icmp eq to Tier-1/frontend; (6) the archeology
+deep-dive.
