@@ -5097,3 +5097,49 @@ working VM target; (3) the command core's own real VM model; (4)
 extend `SuperGrid` to the 9 real v4-generation cores; (5) promote both
 select constructions + icmp eq to Tier-1/frontend; (6) the archeology
 deep-dive.
+
+## 651. Real design note, captured for the record, not built: a compiled ICM file already carries its own minimum real footprint (every cell's row/col/core/config), a genuine bonus of the existing LLVM-to-ICM pipeline nobody's built the tool for yet -- auto-instantiating an exact-sized, zero-waste VM instance straight from a compiled program's own ICM, instead of requiring a hand-sized `SuperGrid` first. (Alan, 2026-09-05)
+
+**Real observation, Alan's own, worth stating precisely:** every
+frontend this project has (`llvm_ir_frontend_v1.py` included, once
+`#650`'s own prerequisite work lands the rest of the way) already
+lowers to a real `ProgramIR` -> `IcmV3File`, and that file already
+records exactly which `(row, col)` cells are used and which real core
+type/config each one needs -- the minimum real grid footprint to run
+that specific compiled program is ALREADY latent in data that already
+exists, not something that needs computing freshly.
+
+**Real, standing gap, genuinely not built:** a tool that takes a
+compiled `IcmV3File` and derives the minimum bounding grid
+(`rows`/`cols` from the real min/max row/col across all records) and
+auto-instantiates a `SuperGrid`/`CAGrid` sized exactly to that,
+loading every cell from the ICM directly -- rather than requiring
+someone to hand-construct a correctly-sized VM grid first and then
+load records into it. `SuperGrid.from_icm()` already exists and takes
+records directly, but nothing currently DERIVES the right size from
+those records first before this hand-off -- the missing piece is
+narrow and well-defined, not a large gap.
+
+**Real, genuine side benefit worth naming plainly, per Alan's own
+framing:** this turns "compile a program to an ICM" into "compile a
+program and get a free, right-sized, runnable VM instance for it" as
+a natural consequence of a pipeline that already exists end to end --
+letting a user compile+run their own program in the VM without
+needing to understand or hand-configure grid dimensions at all. A
+real, concrete step toward genuine end-user usability of the whole
+system, not just an internal testing convenience.
+
+**Real, honest scope: design note only, nothing built.** Captured here
+so it doesn't evaporate, per Alan's own explicit direction that VM
+work/upgrades continue incrementally as gaps are found, not attempted
+in this same session (usage constraint, real and stated).
+
+**Real, standing next-session queue, working top-down (unchanged from
+`#650`, this entry adds one more real item, does not reorder the
+others):** (1) the derived-field mechanism in `SuperTileSpec`, then
+register the loop tiles; (2) extend `llvm_ir_frontend_v1.py` for
+`phi`/`br`/loops, verified against `#649`'s working VM target; (3) the
+command core's own real VM model; (4) extend `SuperGrid` to the 9 real
+v4-generation cores; (5) this entry's own auto-sized-VM-from-ICM tool;
+(6) promote both select constructions + icmp eq to Tier-1/frontend;
+(7) the archeology deep-dive.

@@ -1,4 +1,34 @@
-# Current State (as of 2026-09-05, real ICM v3 format extension -- dynamic_route_en/pattern_low/pattern_equal/pattern_high now expressible for nano, the real prerequisite for LLVM loop support. Two real downstream wiring gaps found and fixed. Tile-library extension is the next real step before the frontend itself. See `points/points_active.md` #650)
+# Current State (as of 2026-09-05, design note captured -- ICM files already carry their own minimum runnable footprint, a genuine bonus of the LLVM-to-ICM pipeline nobody's built the auto-sizing tool for yet. Usage constraint hit for this round; VM work/upgrades continue incrementally as gaps are found. See `points/points_active.md` #651)
+
+## Read this first (most recent)
+
+**2026-09-05, real design note captured (#651), nothing built.**
+Alan's own observation: a compiled `IcmV3File` already records exactly
+which cells/configs a program needs -- the minimum real grid footprint
+is already latent data, not something needing fresh computation.
+Standing gap: no tool yet derives the minimum bounding grid from an
+ICM's own records and auto-instantiates a right-sized `SuperGrid`/
+`CAGrid` from it (`SuperGrid.from_icm()` exists but expects the size
+decided already). Real side benefit worth naming: this turns "compile
+to ICM" into "compile and get a free, right-sized, runnable VM" for
+free -- a real step toward end-user usability, not just internal
+testing convenience.
+
+**Real, explicit direction for ongoing work:** VM corrections/upgrades
+continue incrementally as real gaps are found (matching `#649`/`#650`'s
+own discipline this session), not all resolved in one sitting -- usage
+constraint hit for this round.
+
+**Real, standing next-session queue, working top-down:** (1) the
+derived-field mechanism in `SuperTileSpec`, then register the loop
+tiles; (2) extend `llvm_ir_frontend_v1.py` for `phi`/`br`/loops,
+verified against `#649`'s working VM target; (3) the command core's
+own real VM model; (4) extend `SuperGrid` to the 9 real v4-generation
+cores; (5) this entry's own auto-sized-VM-from-ICM tool; (6) promote
+both select constructions + icmp eq to Tier-1/frontend; (7) the
+archeology deep-dive.
+
+## Previous state (as of 2026-09-05, real ICM v3 format extension -- dynamic_route_en/pattern_low/pattern_equal/pattern_high now expressible for nano, the real prerequisite for LLVM loop support. Two real downstream wiring gaps found and fixed. Tile-library extension is the next real step before the frontend itself. See `points/points_active.md` #650)
 
 ## Read this first (most recent)
 
