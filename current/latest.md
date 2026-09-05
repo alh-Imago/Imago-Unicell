@@ -1,4 +1,47 @@
-# Current State (as of 2026-09-05, the loop-ring construction works entirely through the standard tile-library pipeline -- nano_loop_var/nano_loop_ctrl registered and proven end-to-end, 12/12 checks. A real TilePort generalization and a real pre-existing bug fix made this possible. LLVM frontend extension is the real next step. See `points/points_active.md` #652)
+# Current State (as of 2026-09-05, the LLVM IR frontend compiles real loops -- phi/br/icmp counting loops lower to #638/#649/#652's own real, proven 4-cell bounded-loop-ring, verified end-to-end across 6 varied programs and 5 negative tests. A genuine pre-increment-vs-post-increment semantic mismatch found and fixed mid-build. See `points/points_active.md` #653)
+
+## Read this first (most recent)
+
+**2026-09-05, LLVM frontend compiles real loops (#653).** A real,
+narrow shape (single function, single-phi counting loop, `icmp slt`,
+`add` increment only) lowers to `#652`'s own real tiles. Confirmed
+llvmlite's real conditional-`br` operand order via a direct spike
+before writing the parser (`[cond, false_dest, true_dest]`, the known
+LLVM source-vs-storage-order quirk).
+
+**Two real bugs found and fixed:** (1) bound/increment validation
+wrongly rejected values resolving through a real function argument --
+fixed immediately on the first real compile attempt. (2) Genuinely
+more significant: the first IR shape tried checked the POST-increment
+value and returned it, but the real, proven hardware tests the
+PRE-increment value and exits with THAT -- found by tracing an actual
+round-count mismatch back to the real semantic difference, not
+guessed. Fixed by checking/returning `%i` (the phi) instead of
+`%i.next` -- no new hardware needed, the ring was already correct; the
+frontend's own understanding of it was wrong.
+
+**Real, full end-to-end verification:** 6 varied real programs (different
+bounds, literal bound, non-zero entry seed, step-by-2, zero- and
+single-iteration edge cases) run through a real `SuperGrid`, each
+matching its own independently-computed expected result. 5 deliberate
+negative tests, each producing a clear diagnostic, none crashing.
+
+**Real, full regression:** 34/34 in the extended frontend test file;
+535/535 Python tests overall (up from 523), unchanged elsewhere.
+
+**Real, honest scope: still narrow by design.** Counting-down loops,
+multi-variable loops, nested loops, and non-trivial loop bodies remain
+real, explicitly deferred, each with its own clear diagnostic already.
+
+**Real, standing next-session queue:** (1) extend `place_on_nano()` to
+match `from_record()`'s coverage, then retag both loop tiles
+`universal`; (2) the command core's own real VM model; (3) extend
+`SuperGrid` to the 9 real v4-generation cores; (4) the auto-sized-
+VM-from-ICM tool (`#651`); (5) real `sub`-based counting-down loop
+support; (6) promote both select constructions + icmp eq to
+Tier-1/frontend; (7) the archeology deep-dive.
+
+## Previous state (as of 2026-09-05, the loop-ring construction works entirely through the standard tile-library pipeline -- nano_loop_var/nano_loop_ctrl registered and proven end-to-end, 12/12 checks. A real TilePort generalization and a real pre-existing bug fix made this possible. LLVM frontend extension is the real next step. See `points/points_active.md` #652)
 
 ## Read this first (most recent)
 

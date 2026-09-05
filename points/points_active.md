@@ -5226,3 +5226,83 @@ back to `universal`; (3) the command core's own real VM model; (4)
 extend `SuperGrid` to the 9 real v4-generation cores; (5) the auto-
 sized-VM-from-ICM tool (`#651`); (6) promote both select constructions
 + icmp eq to Tier-1/frontend; (7) the archeology deep-dive.
+
+## 653. The LLVM IR frontend compiles real loops -- `phi`/`br`/`icmp`-based counting loops now lower to `#638`/`#649`/`#652`'s own real, proven 4-cell bounded-loop-ring, verified end-to-end through the real VM across 6 varied programs and 5 deliberate negative tests. A genuine semantic mismatch found and fixed mid-build: the real, proven hardware tests the loop variable BEFORE incrementing, not after -- the first LLVM IR shape tried didn't match it. (Alan/Claude, 2026-09-05)
+
+**Real, narrow shape, matching `#611`'s own "smallest test first"
+discipline exactly:** exactly one function, either the pre-existing
+single-block straight-line shape (unchanged) or a real, narrowly-
+restricted 3-block counting loop -- `entry` unconditionally branches to
+`loop`; `loop` holds exactly one `phi` (a literal constant from
+`entry`, a self-reference from `loop`'s own increment), one `add`
+increment, one `icmp slt`, one conditional `br`; `exit` holds exactly
+one `ret`. General multi-block control flow, nested loops, nontrivial
+bodies, and `sub`-based counting-down loops are real, explicitly
+deferred -- named plainly in the code and the diagnostics, not silently
+absorbed.
+
+**Real, confirmed-not-assumed llvmlite ground truth, checked via a
+direct spike before writing 200+ lines of parsing code against
+assumptions:** a conditional `br`'s own real operand storage order is
+`[cond, false_dest, true_dest]` -- the well-known LLVM internal quirk
+where source syntax lists the true destination first but the real
+operand order is reversed. Confirmed empirically, not assumed from the
+source syntax.
+
+**Real bug #1, found and fixed:** the bound/increment validation
+wrongly rejected `is_reference=True` values, when a bound or increment
+resolving through a real function ARGUMENT (not just a literal) is
+exactly what the existing straight-line frontend already permits --
+only the phi's own entry-seed specifically needs to be a literal (no
+real entry-seed source exists in the fabric yet, `#636`'s own
+established scope). Found immediately on the very first real compile
+attempt (`%n` failing to resolve), not discovered later.
+
+**Real bug #2, genuinely more significant, found by actually running
+the compiled result through the real VM rather than trusting the
+compile succeeded:** the first LLVM IR shape tried checked `icmp slt
+%i.next, %n` (post-increment) and returned `%i.next` -- but `#638`/
+`#649`/`#652`'s own real, PROVEN hardware topology tests whatever
+LOOPVAR currently holds BEFORE deciding whether ADDER even runs that
+round, and the real exit value is that pre-increment value, not a
+value ADDER computed. Confirmed by tracing an actual round-count
+mismatch (`expected_continue_rounds=2` where `#649`'s own proven
+3-round behavior was expected) back to the real semantic mismatch, not
+guessed. Real, minimal fix: check `%i` (the phi's own value) and
+return `%i`, not `%i.next` -- `%i.next` still computes unconditionally
+in the loop block either way (ordinary LLVM basic-block semantics: all
+instructions execute, only the terminator branches), it's simply
+unused on the exit path, exactly as real, unoptimized compiler output
+often looks. No new hardware topology needed -- the existing, already-
+proven ring was correct all along; the FRONTEND's own understanding of
+it was wrong.
+
+**Real, full end-to-end verification, not stopping at "it compiled":**
+6 varied real programs run all the way through a real `SuperGrid`
+(different bounds, a literal bound instead of an argument, a non-zero
+entry seed, a step-by-2 increment, and both zero-iteration and single-
+iteration edge cases) -- every one matched its own independently-
+computed expected final value and round count. 5 deliberate negative
+tests (wrong block count, wrong predicate, `sub` increment, non-
+literal entry seed, and the exact post-increment mistake bug #2 itself
+found) each produce a real, clear diagnostic, none crash.
+
+**Real, full regression:** `tests/vm/test_llvm_ir_frontend_v1.py`
+extended with 12 new real pytest tests (34/34 in that file). Full
+suite: 535/535 Python tests (up from 523), unchanged elsewhere.
+
+**Real, honest scope: still narrow, by design, not by accident.**
+Counting-down loops (`sub`), loops with more than one live variable,
+nested loops, and loop bodies with real work beyond the induction
+variable itself all remain real, explicitly deferred -- each already
+produces a real, specific, non-silent diagnostic today rather than a
+wrong answer.
+
+**Real, standing next-session queue, working top-down:** (1) extend
+`place_on_nano()` to match `from_record()`'s real field coverage, then
+retag both loop tiles `universal` (`#652`'s own standing item); (2) the
+command core's own real VM model; (3) extend `SuperGrid` to the 9 real
+v4-generation cores; (4) the auto-sized-VM-from-ICM tool (`#651`); (5)
+consider real support for `sub`-based counting-down loops, given the
+`subtractor` tile already exists; (6) promote both select constructions
++ icmp eq to Tier-1/frontend; (7) the archeology deep-dive.

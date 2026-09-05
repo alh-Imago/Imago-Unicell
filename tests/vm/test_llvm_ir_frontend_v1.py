@@ -337,3 +337,221 @@ def test_empty_function_body_rejected():
     icm, diagnostics, info = compile_llvm_ir(ir, {})
     assert icm is None
     assert any("no real instructions" in d.problem for d in diagnostics)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #652/#653: the real, narrow single counting-loop shape,
+# lowered to #638/#649/#652's own real, proven 4-cell bounded-loop-ring
+# tiles. Every test actually runs the real VM (the SAME per-round
+# protocol #649/#652's own tests already established), not just
+# checking the ICM compiled.
+# ═══════════════════════════════════════════════════════════════════════
+
+_COUNT_LOOP_IR = """
+define i32 @count(i32 %n) {{
+entry:
+  br label %loop
+loop:
+  %i = phi i32 [ {seed}, %entry ], [ %i.next, %loop ]
+  %i.next = add i32 %i, {step}
+  %cond = icmp slt i32 %i, %n
+  br i1 %cond, label %loop, label %exit
+exit:
+  ret i32 %i
+}}
+"""
+
+
+def _run_loop(source, argument_values):
+    """Real, end-to-end helper, the SAME per-round protocol #649/#652's
+    own tests already established: entry-seed (two real arrivals),
+    then repeatedly inject the real bound into LOOP_CTRL, and if it
+    routes CONTINUE, inject the real increment into ADDER and consume
+    the real result into LOOPVAR (a_update_in, asserted BEFORE the
+    value lands -- #636's own real sequencing lesson) before reemitting
+    for the next round."""
+    icm, diagnostics, info = compile_llvm_ir(source, argument_values)
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    loopvar_ca = grid.cells[info.loopvar_pos]._nano
+    loop_ctrl_ca = grid.cells[info.loop_ctrl_pos]._nano
+    adder = grid.cells[info.adder_pos]
+    lv_r, lv_c = info.loopvar_pos
+    lc_r, lc_c = info.loop_ctrl_pos
+    ad_r, ad_c = info.adder_pos
+
+    grid.inject(lv_r, lv_c, info.entry_seed_value)
+    grid.run_to_quiescence()
+    grid.inject(lv_r, lv_c, 0xDEADBEEF)
+    grid.run_to_quiescence()
+
+    rounds = 0
+    while True:
+        grid.inject(lc_r, lc_c, info.bound_value)
+        grid.run_to_quiescence()
+        if not (adder.adder_a_arrived and not loop_ctrl_ca.a_arrived):
+            break
+        loopvar_ca.a_update_in = True
+        grid.inject(ad_r, ad_c, info.increment_value)
+        grid.run_to_quiescence()
+        loopvar_ca.a_update_in = False
+        loopvar_ca.a_reemit_in = True
+        grid.inject(lv_r, lv_c, 0xFFFFFFFF)
+        grid.run_to_quiescence()
+        loopvar_ca.a_reemit_in = False
+        rounds += 1
+        assert rounds <= 1000, "real bug: exceeded 1000 rounds, likely an infinite loop"
+
+    return loopvar_ca.a_data, rounds, info
+
+
+def test_loop_basic_count_to_three():
+    out, rounds, info = _run_loop(_COUNT_LOOP_IR.format(seed=0, step=1), {"n": 3})
+    assert out == 3 == info.expected_final_value
+    assert rounds == 3 == info.expected_continue_rounds
+
+
+def test_loop_different_bound():
+    out, rounds, info = _run_loop(_COUNT_LOOP_IR.format(seed=0, step=1), {"n": 5})
+    assert out == 5 == info.expected_final_value
+    assert rounds == 5
+
+
+def test_loop_zero_iterations_edge_case():
+    out, rounds, info = _run_loop(_COUNT_LOOP_IR.format(seed=0, step=1), {"n": 0})
+    assert out == 0 == info.expected_final_value
+    assert rounds == 0
+
+
+def test_loop_single_iteration_edge_case():
+    out, rounds, info = _run_loop(_COUNT_LOOP_IR.format(seed=0, step=1), {"n": 1})
+    assert out == 1 == info.expected_final_value
+    assert rounds == 1
+
+
+def test_loop_literal_bound_instead_of_argument():
+    ir = """
+    define i32 @count_lit() {
+    entry:
+      br label %loop
+    loop:
+      %i = phi i32 [ 0, %entry ], [ %i.next, %loop ]
+      %i.next = add i32 %i, 1
+      %cond = icmp slt i32 %i, 4
+      br i1 %cond, label %loop, label %exit
+    exit:
+      ret i32 %i
+    }
+    """
+    out, rounds, info = _run_loop(ir, {})
+    assert out == 4 == info.expected_final_value
+
+
+def test_loop_nonzero_entry_seed():
+    out, rounds, info = _run_loop(_COUNT_LOOP_IR.format(seed=5, step=1), {"n": 8})
+    assert out == 8 == info.expected_final_value
+    assert rounds == 3
+
+
+def test_loop_step_by_two():
+    out, rounds, info = _run_loop(_COUNT_LOOP_IR.format(seed=0, step=2), {"n": 10})
+    assert out == 10 == info.expected_final_value
+    assert rounds == 5
+
+
+def test_loop_wrong_block_count_rejected():
+    ir = """
+    define i32 @f(i32 %n) {
+    a:
+      br label %b
+    b:
+      br label %c
+    c:
+      br label %d
+    d:
+      ret i32 %n
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"n": 3})
+    assert icm is None
+    assert any("expected exactly 1" in d.problem and "exactly 3" in d.problem for d in diagnostics)
+
+
+def test_loop_wrong_predicate_rejected():
+    ir = """
+    define i32 @bad(i32 %n) {
+    entry:
+      br label %loop
+    loop:
+      %i = phi i32 [ 0, %entry ], [ %i.next, %loop ]
+      %i.next = add i32 %i, 1
+      %cond = icmp sgt i32 %n, %i
+      br i1 %cond, label %loop, label %exit
+    exit:
+      ret i32 %i
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"n": 3})
+    assert icm is None
+    assert any("predicate" in d.problem for d in diagnostics)
+
+
+def test_loop_sub_increment_deferred_cleanly():
+    ir = """
+    define i32 @bad(i32 %n) {
+    entry:
+      br label %loop
+    loop:
+      %i = phi i32 [ 10, %entry ], [ %i.next, %loop ]
+      %i.next = sub i32 %i, 1
+      %cond = icmp slt i32 %i, %n
+      br i1 %cond, label %loop, label %exit
+    exit:
+      ret i32 %i
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"n": 20})
+    assert icm is None
+    assert any("not a real add" in d.problem for d in diagnostics)
+
+
+def test_loop_nonliteral_entry_seed_rejected():
+    ir = """
+    define i32 @bad(i32 %start, i32 %n) {
+    entry:
+      br label %loop
+    loop:
+      %i = phi i32 [ %start, %entry ], [ %i.next, %loop ]
+      %i.next = add i32 %i, 1
+      %cond = icmp slt i32 %i, %n
+      br i1 %cond, label %loop, label %exit
+    exit:
+      ret i32 %i
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"start": 0, "n": 3})
+    assert icm is None
+    assert any("literal compile-time constant" in d.problem for d in diagnostics)
+
+
+def test_loop_postincrement_check_rejected_with_clear_diagnostic():
+    """Real, deliberate negative test: checking %i.next (post-increment)
+    instead of %i (the phi's own pre-increment value) does NOT match
+    #638/#649/#652's own real, proven hardware -- must be rejected with
+    a clear diagnostic, not silently mis-lowered."""
+    ir = """
+    define i32 @bad(i32 %n) {
+    entry:
+      br label %loop
+    loop:
+      %i = phi i32 [ 0, %entry ], [ %i.next, %loop ]
+      %i.next = add i32 %i, 1
+      %cond = icmp slt i32 %i.next, %n
+      br i1 %cond, label %loop, label %exit
+    exit:
+      ret i32 %i.next
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"n": 3})
+    assert icm is None
+    assert any("pre-increment" in d.problem for d in diagnostics)

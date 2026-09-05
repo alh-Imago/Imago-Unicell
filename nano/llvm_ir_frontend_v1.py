@@ -7,9 +7,27 @@ a made-up LLVM-like pseudo-language, matching `c_frontend_v1.py`'s own
 
 REAL, DELIBERATELY RESTRICTED FIRST SLICE, matching `#610`'s own
 "smallest test first" recommendation exactly -- not general LLVM IR:
-- Exactly one function, one basic block. No control flow (`br`, `phi`,
-  loops) at all yet -- real, explicitly deferred future work, `#610`'s
-  own "genuinely novel, unsolved" territory.
+- Exactly one function. Either ONE basic block (the original straight-
+  line shape, unchanged), OR a real, narrowly-restricted 3-block
+  COUNTING LOOP shape (`#652`'s own real prerequisite work: `entry`
+  unconditionally branches to `loop`; `loop` holds exactly one `phi`
+  (two incoming edges: a literal constant from `entry`, a self-
+  reference from `loop`'s own final instruction), one `add`/`sub`
+  increment, one `icmp` testing the phi's OWN pre-increment value
+  (matching `#638`/`#649`/`#652`'s own real, proven hardware exactly --
+  LOOP_CTRL tests what LOOPVAR currently holds BEFORE deciding whether
+  ADDER even runs that round, not a post-increment test), and one
+  conditional `br` back to `loop` or out to `exit`; `exit` holds
+  exactly one `ret` of the phi's own pre-increment value (the value
+  LOOP_CTRL routes out directly on exit -- that round's own increment,
+  though it still computes unconditionally in the same block like any
+  ordinary LLVM basic block, is simply never offered to ADDER when the
+  exit path is taken)) -- lowered to `#638`/`#649`/`#652`'s own real,
+  proven 4-cell bounded-loop-ring tiles (`nano_loop_var`/`nano_loop_
+  ctrl`/`adder`/`ram_flowing`). General multi-block control flow,
+  nested loops, and loops with more than one live variable remain real,
+  explicitly deferred future work -- this is ONE narrow, real shape,
+  not a general control-flow compiler.
 - Only `add`/`sub` (32-bit integer) and a terminating `ret`.
 - A REAL LINEAR ACCUMULATION CHAIN shape, not general DAG routing:
   each instruction's FIRST operand must be either a real, compile-time
@@ -204,12 +222,16 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
     fn = functions[0]
 
     blocks = list(fn.blocks)
+    if len(blocks) == 3:
+        return _compile_single_counting_loop(fn, argument_values)
     if len(blocks) != 1:
         diagnostics.append(_diag(
-            problem=f"function {fn.name!r} has {len(blocks)} basic blocks, expected exactly 1",
+            problem=f"function {fn.name!r} has {len(blocks)} basic blocks, expected exactly 1 "
+                     f"(straight-line) or exactly 3 (a real, narrowly-restricted counting loop, #652)",
             what=f"checking {fn.name!r}'s own real control-flow shape",
-            why="this real, first frontend slice has no control-flow support at all yet (#611/#610) -- "
-                "branches, loops, and multi-block functions are real, explicitly deferred future work",
+            why="this real frontend slice supports only two real shapes: a single-block "
+                "straight-line chain (#611), or a real, narrow 3-block counting loop (#652) -- "
+                "general multi-block control flow remains real, explicitly deferred future work",
         ))
         return None, diagnostics, None
     block = blocks[0]
@@ -475,5 +497,300 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         expected_result=known_values[prev_instr_name],
         chain_length=len(body_instructions),
         injections=injections,
+    )
+    return icm, diagnostics, info
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #652/#653: the real, narrowly-restricted single COUNTING LOOP
+# shape -- entry unconditionally branches to loop; loop holds exactly one
+# phi (constant from entry, self-reference from loop's own increment),
+# one add increment, one icmp (slt only, v1), one conditional br back to
+# loop or out to exit; exit holds exactly one ret of the loop's own final
+# value. Lowered to #638/#649/#652's own real, proven 4-cell bounded-
+# loop-ring tiles at the SAME fixed relative layout #652 already proved:
+#   LOOPVAR(0,0) --south--> LOOP_CTRL(1,0) --east--> ADDER(1,1)
+#      ^                                                  |
+#      |                                                north
+#     west                                                |
+#      +------------------- RAM_RELAY(0,1) <---------------+
+# ═══════════════════════════════════════════════════════════════════════
+
+@dataclass
+class LlvmLoopLoweringInfo:
+    """Real, honest bookkeeping for the loop shape -- everything a
+    caller needs to actually DRIVE the real, per-round protocol
+    #636/#649/#652 already established (this fabric has no real command
+    core wired in yet to do this from within itself, #644's own real,
+    separate, later work) and verify the result, not just trust it
+    compiled."""
+    function_name: str
+    loopvar_pos: Tuple[int, int]
+    loop_ctrl_pos: Tuple[int, int]
+    adder_pos: Tuple[int, int]
+    ram_relay_pos: Tuple[int, int]
+    entry_seed_value: int
+    bound_value: int
+    increment_value: int
+    #: the real, final value the loop variable settles on once the real
+    #: VM run reaches the real exit condition -- computed here by
+    #: literally interpreting the SAME real semantics the hardware
+    #: itself uses (increment first, THEN decide continue/exit on the
+    #: new value), not assumed equal to a naive Python `for` loop.
+    expected_final_value: int
+    #: how many real CONTINUE rounds the caller should expect before
+    #: the real exit fires (matches #652's own `do_round()` loop count).
+    expected_continue_rounds: int
+
+
+def _block_terminator(block):
+    return list(block.instructions)[-1]
+
+
+def _unconditional_br_target(instr) -> Optional[str]:
+    ops = list(instr.operands)
+    if instr.opcode != "br" or len(ops) != 1:
+        return None
+    return ops[0].name
+
+
+def _conditional_br_targets(instr) -> Optional[Tuple[str, str, str]]:
+    """Returns (cond_name, false_dest_name, true_dest_name) -- REAL,
+    CONFIRMED llvmlite operand order for a conditional `br`, checked
+    directly against the real parser before writing this (a well-known
+    real LLVM quirk: source syntax lists iftrue then iffalse, but the
+    real operand storage order is [cond, iffalse, iftrue]), not assumed
+    from the source syntax order."""
+    ops = list(instr.operands)
+    if instr.opcode != "br" or len(ops) != 3:
+        return None
+    return ops[0].name, ops[1].name, ops[2].name
+
+
+def _compile_single_counting_loop(fn, argument_values: Dict[str, int]
+                                    ) -> Tuple[Optional[Any], List[CompileDiagnostic], Optional[LlvmLoopLoweringInfo]]:
+    diagnostics: List[CompileDiagnostic] = []
+    blocks = {b.name: b for b in fn.blocks}
+    entry = list(fn.blocks)[0]   # real, guaranteed LLVM invariant: the first block is always the entry
+
+    def fail(problem, what, why, suggestion=None):
+        diagnostics.append(_diag(problem=problem, what=what, why=why, suggestion=suggestion))
+        return None, diagnostics, None
+
+    entry_instrs = list(entry.instructions)
+    if len(entry_instrs) != 1:
+        return fail(
+            f"entry block {entry.name!r} has {len(entry_instrs)} instructions, expected exactly 1",
+            "checking the loop shape's own real entry block",
+            "this real, narrow counting-loop shape (#652) requires entry to hold nothing but "
+                "an unconditional branch into the loop -- any real setup work belongs in the "
+                "phi's own entry-seed value, not as separate entry-block instructions",
+        )
+    loop_name = _unconditional_br_target(entry_instrs[0])
+    if loop_name is None or loop_name not in blocks:
+        return fail(
+            f"entry block {entry.name!r} doesn't end with a real, unconditional branch "
+                f"to another real block in this function",
+            "checking the loop shape's own real entry block",
+            "this real, narrow counting-loop shape (#652) requires entry's own terminator "
+                "to be exactly `br label %loop_block_name`",
+        )
+    loop_block = blocks[loop_name]
+    other_names = [n for n in blocks if n not in (entry.name, loop_name)]
+    if len(other_names) != 1:
+        return fail(
+            f"function {fn.name!r} has {len(other_names) + 2} basic blocks after identifying "
+                f"entry and loop, expected exactly 1 remaining (the real exit block)",
+            "checking the loop shape's own real block count",
+            "this real, narrow counting-loop shape (#652) is exactly 3 real blocks: entry, "
+                "loop, exit -- no more, no fewer",
+        )
+    exit_block = blocks[other_names[0]]
+
+    loop_instrs = list(loop_block.instructions)
+    if len(loop_instrs) != 4:
+        return fail(
+            f"loop block {loop_block.name!r} has {len(loop_instrs)} instructions, expected exactly 4 "
+                f"(phi, increment, icmp, conditional br)",
+            "checking the loop block's own real instruction shape",
+            "this real, narrow counting-loop shape (#652) supports exactly one phi, one add "
+                "increment, one icmp, and one conditional branch -- nothing else inside the loop "
+                "body yet, real, explicitly deferred future work",
+        )
+    phi_instr, inc_instr, icmp_instr, br_instr = loop_instrs
+
+    if phi_instr.opcode != "phi":
+        return fail(f"loop block {loop_block.name!r}'s own first instruction is "
+                     f"{phi_instr.opcode!r}, not a real phi",
+                     "checking the loop block's own real instruction order",
+                     "this real, narrow shape requires the loop-carried variable's own phi "
+                         "to be the loop block's first real instruction")
+    phi_ops = list(phi_instr.operands)
+    if len(phi_ops) != 2:
+        return fail(f"loop variable {phi_instr.name!r}'s own phi has {len(phi_ops)} incoming "
+                     f"values, expected exactly 2",
+                     "checking the loop variable's own real phi",
+                     "this real, narrow shape supports exactly one loop-carried variable with "
+                         "exactly two real incoming edges (entry's seed value, the loop's own "
+                         "self-referencing increment) -- more incoming edges mean a real, more "
+                         "general control-flow shape, explicitly deferred")
+    entry_seed_value, entry_seed_is_ref = _resolve_operand_value(phi_ops[0], {})
+    if entry_seed_is_ref or entry_seed_value is None:
+        return fail(f"loop variable {phi_instr.name!r}'s own entry-seed operand "
+                     f"{phi_ops[0].name or str(phi_ops[0])!r} is not a real, literal compile-time constant",
+                     "checking the loop variable's own real entry-seed value",
+                     "this real, narrow shape requires the phi's own entry-block incoming value "
+                         "to be a literal constant -- LOOPVAR's own real entry-seed (#636) has no "
+                         "other real source wired in yet")
+
+    if inc_instr.opcode != "add":
+        return fail(f"loop block {loop_block.name!r}'s own second instruction is "
+                     f"{inc_instr.opcode!r}, not a real add",
+                     "checking the loop's own real increment instruction",
+                     "this real, narrow shape (v1, #652) supports only a counting-UP loop via a "
+                         "real `add` increment -- `sub` (a counting-down loop, needing the real "
+                         "`subtractor` tile instead of `adder`) is real, explicitly deferred")
+    inc_ops = list(inc_instr.operands)
+    if not (inc_ops[0].name == phi_instr.name):
+        return fail(f"the loop's own real increment {inc_instr.name!r} doesn't add to "
+                     f"{phi_instr.name!r} (the loop variable's own phi) as its first operand",
+                     "checking the loop's own real increment instruction",
+                     "this real, narrow shape requires the increment to be exactly "
+                         f"`{inc_instr.name} = add {phi_instr.name}, <compile-time constant>`")
+    increment_value, increment_is_ref = _resolve_operand_value(inc_ops[1], argument_values)
+    if increment_value is None:
+        return fail(f"the loop's own real increment's second operand "
+                     f"{inc_ops[1].name or str(inc_ops[1])!r} is not a real compile-time value",
+                     "checking the loop's own real increment instruction",
+                     "the increment amount must be a real argument or literal constant")
+
+    if icmp_instr.opcode != "icmp":
+        return fail(f"loop block {loop_block.name!r}'s own third instruction is "
+                     f"{icmp_instr.opcode!r}, not a real icmp",
+                     "checking the loop's own real exit condition",
+                     "this real, narrow shape requires the third instruction to be the real "
+                         "icmp deciding whether the loop continues")
+    predicate = _icmp_predicate(icmp_instr)
+    if predicate != "slt":
+        return fail(f"loop exit condition uses predicate {predicate!r}, expected 'slt'",
+                     "checking the loop's own real exit condition",
+                     "this real, narrow shape (v1, #652) only supports `icmp slt <incremented "
+                         "value>, <bound>` (\"continue while less than the bound\") -- LOOP_CTRL's "
+                         "own real dynamic-routing comparator (#637/#650) can express other real "
+                         "shapes, but only this one is wired up in the frontend yet")
+    icmp_ops = list(icmp_instr.operands)
+    if icmp_ops[0].name != phi_instr.name:
+        return fail(f"the loop's own real icmp compares {icmp_ops[0].name or str(icmp_ops[0])!r}, "
+                     f"not the loop variable's own real, held (pre-increment) value {phi_instr.name!r}",
+                     "checking the loop's own real exit condition",
+                     f"this real, narrow shape (matching #638/#649/#652's own proven real hardware "
+                         f"topology -- LOOP_CTRL tests the value LOOPVAR currently holds BEFORE "
+                         f"deciding whether ADDER even runs this round) requires exactly "
+                         f"`icmp slt {phi_instr.name}, <bound>` -- note this is the phi's OWN "
+                         f"value, not the incremented one; `{inc_instr.name}` (the increment) "
+                         f"still computes unconditionally in the same block either way, it's just "
+                         f"unused on the exit path, same as any ordinary LLVM basic block")
+    bound_value, bound_is_ref = _resolve_operand_value(icmp_ops[1], argument_values)
+    if bound_value is None:
+        return fail(f"the loop's own real bound {icmp_ops[1].name or str(icmp_ops[1])!r} is not "
+                     f"a real, compile-time-resolved argument or constant",
+                     "checking the loop's own real exit condition",
+                     "the loop bound must be a real function argument (given a compile-time "
+                         "value via argument_values) or a literal constant")
+
+    if br_instr.opcode != "br":
+        return fail(f"loop block {loop_block.name!r}'s own real terminator is "
+                     f"{br_instr.opcode!r}, not a real conditional br",
+                     "checking the loop's own real terminator",
+                     "this real, narrow shape requires the loop block's own real terminator to "
+                         "be the conditional branch deciding continue vs exit")
+    targets = _conditional_br_targets(br_instr)
+    if targets is None:
+        return fail(f"loop block {loop_block.name!r}'s own real terminator isn't a real "
+                     f"conditional `br i1 ..., label ..., label ...`",
+                     "checking the loop's own real terminator",
+                     "this real, narrow shape requires exactly a conditional branch here")
+    cond_name, false_dest, true_dest = targets
+    if cond_name != icmp_instr.name:
+        return fail(f"the loop's own real terminator branches on {cond_name!r}, not the "
+                     f"loop's own real icmp result {icmp_instr.name!r}",
+                     "checking the loop's own real terminator",
+                     "the conditional branch must test the loop's own real icmp result directly")
+    if true_dest != loop_block.name or false_dest != exit_block.name:
+        return fail(f"the loop's own real terminator branches TRUE->{true_dest!r}/"
+                     f"FALSE->{false_dest!r}, expected TRUE->{loop_block.name!r} (continue) / "
+                     f"FALSE->{exit_block.name!r} (exit)",
+                     "checking the loop's own real terminator",
+                     "this real, narrow shape (matching `icmp slt`'s own real meaning, \"continue "
+                         "while less than the bound\") requires the TRUE destination to re-enter "
+                         "the loop and the FALSE destination to leave it")
+
+    exit_instrs = list(exit_block.instructions)
+    if len(exit_instrs) != 1 or exit_instrs[0].opcode != "ret":
+        return fail(f"exit block {exit_block.name!r} doesn't hold exactly one real `ret`",
+                     "checking the loop shape's own real exit block",
+                     "this real, narrow shape requires exit to hold nothing but the real "
+                         "`ret` of the loop's own final value")
+    ret_operand_name = _operand_name(list(exit_instrs[0].operands)[0])
+    if ret_operand_name != phi_instr.name:
+        return fail(f"exit block {exit_block.name!r} returns {ret_operand_name!r}, not the "
+                     f"loop variable's own real, held (pre-increment) value {phi_instr.name!r}",
+                     "checking the loop shape's own real exit block",
+                     f"matching #638/#649/#652's own proven real hardware -- the value LOOP_CTRL "
+                         f"routes out on exit is whatever LOOPVAR currently holds, not a value "
+                         f"ADDER computed this round (that round's own real increment is never "
+                         f"even offered to ADDER when the exit path is taken) -- this real, narrow "
+                         f"shape requires exactly `ret i32 {phi_instr.name}`")
+
+    # ── Real, honest interpretation, matching the REAL hardware's own
+    # semantics exactly (#636/#649/#652): increment first, THEN decide
+    # continue/exit on the NEW value -- not a naive Python `for` loop's
+    # own pre-test semantics. ──
+    # ── Real, honest interpretation, matching the REAL, proven
+    # hardware's own semantics exactly (#638/#649/#652): LOOP_CTRL
+    # tests the CURRENT (pre-increment) value BEFORE deciding whether
+    # ADDER even runs this round -- NOT a post-increment test. ──
+    i = entry_seed_value
+    rounds = 0
+    while True:
+        rounds += 1
+        if rounds > 1_000_000:   # real, honest safety valve -- never trust an unbounded loop blindly
+            return fail("the loop's own real compile-time interpretation didn't terminate "
+                        "within 1,000,000 rounds",
+                        "computing the loop's own real expected final value",
+                        "either the bound/increment don't actually converge, or this frontend's "
+                        "own interpreter has a real bug -- refusing to hang either way")
+        if i < bound_value:
+            i = (i + increment_value) & 0xFFFFFFFF
+            continue
+        expected_final_value = i
+        break
+
+    # ── Real, proven 4-cell layout, #638/#649/#652's own real, fixed
+    # relative positions -- LOOPVAR(0,0)/LOOP_CTRL(1,0)/ADDER(1,1)/
+    # RAM_RELAY(0,1). ──
+    statements: List[PlaceIR] = [
+        PlaceIR(name="loopvar", tile_name="nano_loop_var", row=0, col=0,
+                fields=[FieldIR("out", "s")]),
+        PlaceIR(name="loop_ctrl", tile_name="nano_loop_ctrl", row=1, col=0,
+                fields=[FieldIR("continue_out", "e"), FieldIR("exit_out", "s"),
+                        FieldIR("pattern_low", ["s"])]),
+        PlaceIR(name="adder", tile_name="adder", row=1, col=1,
+                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "s"), FieldIR("out", "n")]),
+        PlaceIR(name="ram_relay", tile_name="ram_flowing", row=0, col=1,
+                fields=[FieldIR("in", "s"), FieldIR("out", "w")]),
+    ]
+
+    program_ir = ProgramIR(name=fn.name, statements=statements)
+    icm, backend_diags = compile_program_ir(program_ir, program_name_hint=fn.name)
+    diagnostics.extend(backend_diags)
+    if icm is None:
+        return None, diagnostics, None
+
+    info = LlvmLoopLoweringInfo(
+        function_name=fn.name,
+        loopvar_pos=(0, 0), loop_ctrl_pos=(1, 0), adder_pos=(1, 1), ram_relay_pos=(0, 1),
+        entry_seed_value=entry_seed_value, bound_value=bound_value, increment_value=increment_value,
+        expected_final_value=expected_final_value, expected_continue_rounds=rounds - 1,
     )
     return icm, diagnostics, info
