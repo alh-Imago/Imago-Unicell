@@ -25,18 +25,22 @@ the VM's own tested tick/deliver logic (`#337`), so this file can never
 risk regressing anything already proven there.
 
 Deliberately omits `CACell`'s many legacy/Phase-2/3/4 fields
-(`invert_out`, `latch_in`, `hold_in`, `fb_internal_in`, etc.) from the
-nano JSON block -- every one of them is permanently unreachable through
-Unicell-S's own restricted nano exposure (`icm_v3.py`'s own documented
-scope: topology/ready/routing_mask/cardinal_edge only), so including
-them would just be a wall of always-default noise, not real
-information about the running cell.
+(`invert_out`, `latch_in`, etc.) from the nano JSON block -- those
+remain permanently unreachable through Unicell-S's own real nano
+exposure. UPDATED #652: `hold_in`/`fb_internal_in`/`a_reemit_in`/
+`a_update_in`/`a_self_update_in` (`#522`/`#543`) and `dynamic_route_en`/
+`pattern_low`/`pattern_equal`/`pattern_high` (`#650`) are now REAL,
+reachable fields -- this module's own earlier claim that icm_v3's scope
+was "topology/ready/routing_mask/cardinal_edge only" is stale as of
+those two changes, not current; all nine are included below.
 """
 
 from __future__ import annotations
 
 import json
 from typing import Any, Dict
+
+import icm_v3 as v3
 
 
 def cell_to_dict(cell) -> Dict[str, Any]:
@@ -59,13 +63,36 @@ def cell_to_dict(cell) -> Dict[str, Any]:
         base["nano"] = {
             "topology": n.topology,
             "ready_config": n.start_flag,
-            "routing_mask": n.routing_mask,
-            "cardinal_edge": n.cardinal_edge,
+            # points.md #652: real fix -- these two were previously a
+            # raw, un-unpacked passthrough of whatever `n.routing_mask`/
+            # `n.cardinal_edge` happened to hold. Confirmed as a real
+            # bug in this same entry: before that fix, a tile-library-
+            # placed cell's own `routing_mask` was ITSELF still a raw
+            # direction list (a separate, real bug in `from_record()`),
+            # so this passthrough "accidentally" produced the right-
+            # looking friendly output -- two bugs canceling out, not
+            # correct behavior. Now that `n.routing_mask`/`cardinal_edge`
+            # are correctly real ints, this module must do its own real
+            # unpacking to keep presenting the same friendly list shape.
+            "routing_mask": v3.unpack_dirmask(n.routing_mask),
+            "cardinal_edge": v3.unpack_dirmask(n.cardinal_edge),
             "a_data": n.a_data,
             "a_arrived": n.a_arrived,
             "data_reg": n.data_reg,
             "out_buffer": n.out_buffer,
             "is_ready": n.ready,
+            # points.md #652: real fields, reachable since #522/#543
+            # (first five) and #650 (last four) -- this module's own
+            # earlier "permanently unreachable" claim predates both.
+            "hold_in": n.hold_in,
+            "fb_internal_in": n.fb_internal_in,
+            "a_reemit_in": n.a_reemit_in,
+            "a_update_in": n.a_update_in,
+            "a_self_update_in": n.a_self_update_in,
+            "dynamic_route_en": n.dynamic_route_en,
+            "pattern_low": v3.unpack_dirmask(n.pattern_low),
+            "pattern_equal": v3.unpack_dirmask(n.pattern_equal),
+            "pattern_high": v3.unpack_dirmask(n.pattern_high),
         }
     elif cell.core == "ram":
         base["ram"] = {

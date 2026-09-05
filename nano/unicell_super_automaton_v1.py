@@ -381,8 +381,22 @@ class SuperCell:
                 row=rec.row, col=rec.col,
                 topology=cfg.get("topology", 0),
                 start_flag=bool(cfg.get("ready", 0)),
-                routing_mask=cfg.get("routing_mask", 0),
-                cardinal_edge=cfg.get("cardinal_edge", 0),
+                # points.md #652: real, pre-existing bug found and fixed
+                # here, predating this change -- routing_mask/
+                # cardinal_edge were never wrapped in `dm()` the way
+                # every other core's own dir-fields already are (e.g.
+                # `adder_downstream_mask = dm(...)` a few lines above),
+                # confirmed directly by testing: a real tile-library-
+                # produced record with routing_mask=['e'] silently left
+                # `cell._nano.routing_mask` as the raw list `['e']`, not
+                # a packed int, before this fix. Never caught before
+                # because nothing had yet placed a nano tile through
+                # `super_tile_library.place()` and then loaded it via
+                # `SuperGrid.from_icm()`/`from_record()` in the same
+                # real path -- the same class of untested-combination
+                # gap as `#649`'s own `hold_in`/`latch_in` bug.
+                routing_mask=dm(cfg.get("routing_mask", 0)),
+                cardinal_edge=dm(cfg.get("cardinal_edge", 0)),
                 # #522/#543: real ports, previously never wired through
                 # from the shell's own core_config -- CACell already
                 # fully implements all 5 (#118/#119/#120), this was
@@ -403,9 +417,9 @@ class SuperCell:
                 # from_record() silently returned dynamic_route_en=False
                 # even with it set to 1 in the record, before this fix.
                 dynamic_route_en=bool(cfg.get("dynamic_route_en", 0)),
-                pattern_low=cfg.get("pattern_low", 0),
-                pattern_equal=cfg.get("pattern_equal", 0),
-                pattern_high=cfg.get("pattern_high", 0),
+                pattern_low=dm(cfg.get("pattern_low", 0)),
+                pattern_equal=dm(cfg.get("pattern_equal", 0)),
+                pattern_high=dm(cfg.get("pattern_high", 0)),
             )
         elif core == "ram":
             cell.ram_downstream_mask = dm(cfg.get("downstream_mask", 0))

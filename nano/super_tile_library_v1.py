@@ -69,9 +69,10 @@ wires through at all. So:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import icm_v3 as v3
+from unicell_gate_core import TOPO_PASS_A
 
 # ── Target tags (points.md #339) ─────────────────────────────────────
 TARGET_UNICELL_N = "unicell-n"   # plain nano grid -- unicell_stripped_v1.v, no super shell
@@ -93,10 +94,26 @@ class TilePort:
     """One named, physically-directional port on a tile. `field` names
     the core_config field this port's chosen direction feeds into
     (matching `icm_v3.CORE_FIELD_TABLES[core]`'s own field names exactly
-    -- never invented ad hoc)."""
+    -- never invented ad hoc). Points.md #652: `field` may be a single
+    name (every tile registered so far) OR several -- a genuine
+    generalization, not a special case, of the SAME OR-combine grouping
+    `_resolve()` already used for "multiple ports, one shared field"
+    (the adder's own `in_a`/`in_b`, points.md #338), now also covering
+    "one port, multiple fields it contributes to" -- needed for a real
+    case with no other clean expression: `nano_loop_ctrl`'s own
+    continue/exit output ports each need to set their OWN dedicated
+    comparator-pattern field (`pattern_high`/`pattern_equal`) AND
+    contribute their chosen direction into the SHARED `routing_mask`
+    every real offer is gated through -- a field genuinely DERIVED from
+    more than one port's own independent choice, not something any
+    single port could express alone under the old one-field-per-port
+    shape."""
     name: str
     kind: str          # "in" or "out" -- documentation/validation only
-    field: str          # which core_config field this port drives
+    field: Union[str, Tuple[str, ...]]
+
+    def field_names(self) -> Tuple[str, ...]:
+        return (self.field,) if isinstance(self.field, str) else tuple(self.field)
 
 
 @dataclass
@@ -163,9 +180,10 @@ def _resolve(tile: SuperTileSpec, port_directions: Dict[str, str],
             d = d.lower()
             if d not in ("n", "s", "e", "w"):
                 raise ValueError(f"port {port.name!r}: direction must be n/s/e/w, got {d!r}")
-            field_dirs.setdefault(port.field, [])
-            if d not in field_dirs[port.field]:
-                field_dirs[port.field].append(d)
+            for fname in port.field_names():
+                field_dirs.setdefault(fname, [])
+                if d not in field_dirs[fname]:
+                    field_dirs[fname].append(d)
     for k in field_dirs:
         field_dirs[k].sort()
 
@@ -279,6 +297,83 @@ super_tile_library.register(SuperTileSpec(
     param_names=["topology"],
     fixed_core_config={"ready": 1},
     target="universal",
+))
+
+# points.md #652: real loop-construction tiles, the tile-library-level
+# counterpart to `#638`'s own real bounded-loop-ring RTL and `#649`'s
+# own confirmed-working VM composition of the exact same shape.
+# Together with a plain `ram_flowing` cell closing the physical ring
+# (the real, load-bearing 4th-cell reason `#637`'s own design note
+# already found: this mesh is bipartite, a genuine 3-cell ring cannot
+# close under pure N/S/E/W hops), these two tiles are everything the
+# ring needs beyond the already-registered `adder`/`subtractor`.
+super_tile_library.register(SuperTileSpec(
+    name="nano_loop_var", core="nano",
+    description="A real loop-carried variable's own storage cell -- "
+                 "PASS_A topology (fixed), hold_in=1 (fixed, #522) so "
+                 "its own held value survives indefinitely across real "
+                 "a_update_in/a_reemit_in events instead of resetting "
+                 "after the first two-arrival fire, matching #638's own "
+                 "real LOOPVAR exactly. Only the forward offer is a "
+                 "named port -- a_update_in/a_reemit_in stay real,  "
+                 "testbench/control-plane-driven control signals, not "
+                 "tile parameters (matching #636's own established "
+                 "honest scope: no real command-core/control source "
+                 "exists yet to drive them from within the fabric).",
+    ports=[TilePort("out", "out", "routing_mask")],
+    param_names=[],
+    fixed_core_config={"topology": TOPO_PASS_A, "hold_in": 1, "ready": 1},
+    # points.md #652: target="super-only", not "universal" -- real,
+    # honest correction, caught by testing before this claim shipped.
+    # place_on_nano() (the Unicell-n path) is hardcoded to wire only
+    # topology+routing_mask into the CACell it builds; hold_in is
+    # silently dropped (confirmed directly: place_on_nano() on this
+    # exact tile produced hold_in=False despite fixed_core_config
+    # saying 1). Real, separate, later fix: extend place_on_nano() to
+    # match from_record()'s own real field coverage.
+    target="super-only",
+))
+
+super_tile_library.register(SuperTileSpec(
+    name="nano_loop_ctrl", core="nano",
+    description="A real loop-exit decision cell -- PASS_A topology "
+                 "(fixed) so the routed value is always the loop "
+                 "variable itself regardless of outcome, dynamic_"
+                 "route_en=1 (fixed, #140/#650) so the SAME real "
+                 "comparator that decides the route also determines "
+                 "which of `continue_out`/`exit_out` actually fires. "
+                 "Points.md #652's own real, necessary TilePort "
+                 "generalization in action: `continue_out` sets its own "
+                 "dedicated `pattern_high` field AND contributes its "
+                 "chosen direction into the shared `routing_mask` every "
+                 "real offer is gated through; `exit_out` does the same "
+                 "for `pattern_equal` -- `routing_mask` ends up as the "
+                 "real, correct OR of both, DERIVED from two different "
+                 "ports' own independent choices, with no separate "
+                 "field or special-casing needed. `pattern_low` "
+                 "(the degenerate N<i safety case) is deliberately tied "
+                 "to the SAME direction as `exit_out` via `params`, not "
+                 "a fourth port -- matching #638's own real, stated "
+                 "safety reasoning (route it out rather than let it "
+                 "silently hang) without inventing a redundant port for "
+                 "a case that should always resolve the same way "
+                 "`exit_out` does.",
+    ports=[
+        TilePort("continue_out", "out", ("pattern_high", "routing_mask")),
+        TilePort("exit_out", "out", ("pattern_equal", "routing_mask")),
+    ],
+    param_names=["pattern_low"],
+    fixed_core_config={"topology": TOPO_PASS_A, "dynamic_route_en": 1, "ready": 1},
+    # points.md #652: real, honest correction, caught by testing before
+    # this claim shipped -- place_on_nano() (the Unicell-n path) is
+    # hardcoded to wire only topology+routing_mask into the CACell it
+    # builds; hold_in/dynamic_route_en/pattern_* are silently dropped.
+    # Confirmed directly: place_on_nano() on nano_loop_var produced
+    # hold_in=False despite the tile's own fixed_core_config saying 1.
+    # target="super-only" until place_on_nano() is genuinely extended
+    # to match from_record()'s own real field coverage -- a real,
+    # separate, later fix, not claimed done here.
+    target="super-only",
 ))
 
 super_tile_library.register(SuperTileSpec(

@@ -356,7 +356,11 @@ def test_for_target_filters_correctly():
     from super_tile_library_v1 import TARGET_UNICELL_N, TARGET_UNICELL_S
     on_n = super_tile_library.for_target(TARGET_UNICELL_N)
     on_s = super_tile_library.for_target(TARGET_UNICELL_S)
-    assert on_n == ["nano_gate"]   # the ONLY tile with a Unicell-n equivalent today
+    # points.md #652: nano_loop_var/nano_loop_ctrl registered as
+    # target="super-only" (place_on_nano() doesn't yet wire hold_in/
+    # dynamic_route_en/pattern_* -- a real, separate, later fix) --
+    # nano_gate remains the only real Unicell-n-capable tile today.
+    assert on_n == ["nano_gate"]
     assert on_s == sorted(super_tile_library.names())   # Unicell-S is the strict superset
 
 

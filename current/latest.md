@@ -1,4 +1,50 @@
-# Current State (as of 2026-09-05, design note captured -- ICM files already carry their own minimum runnable footprint, a genuine bonus of the LLVM-to-ICM pipeline nobody's built the auto-sizing tool for yet. Usage constraint hit for this round; VM work/upgrades continue incrementally as gaps are found. See `points/points_active.md` #651)
+# Current State (as of 2026-09-05, the loop-ring construction works entirely through the standard tile-library pipeline -- nano_loop_var/nano_loop_ctrl registered and proven end-to-end, 12/12 checks. A real TilePort generalization and a real pre-existing bug fix made this possible. LLVM frontend extension is the real next step. See `points/points_active.md` #652)
+
+## Read this first (most recent)
+
+**2026-09-05, loop-ring works through the tile library (#652).**
+`TilePort.field` generalized to accept multiple field names (mirroring
+the adder's own established "several ports, one field" the other way
+round) -- solved LOOP_CTRL's derived-`routing_mask` need (OR of
+`continue_out`+`exit_out`'s own chosen directions) with zero new
+concepts. Fully backward-compatible, all 32 pre-existing tile tests
+unchanged.
+
+**Real, pre-existing bug found and fixed:** `SuperCell.from_record()`'s
+nano construction never wrapped `routing_mask`/`cardinal_edge` in the
+same `dm()` normalization every other core's dir-fields already use --
+confirmed by testing (a tile-placed record with `routing_mask=['e']`
+silently left the CACell holding the raw list). Never caught before
+since nothing had placed a nano tile through the library and loaded it
+via `SuperGrid` in the same path until now. Fixed, plus a downstream
+fix to `vm_introspection_v1.py` (was "correct" only because of the
+same bug, two wrongs canceling out).
+
+**Real tiles registered and proven:** `nano_loop_var`/`nano_loop_ctrl`,
+matching `#638`/`#649`'s exact config (`routing_mask=6`, `pattern_
+high=4`, `pattern_equal=pattern_low=2`). `tests/vm/test_loop_tiles_v1.py`
+(new): the full 4-cell ring built entirely through `place()` ->
+`IcmV3Record` -> `SuperGrid`. `for i in 0..3`: 3 continue rounds, real
+exit at `i==N==3`. 12/12 checks.
+
+**Real, honest correction caught before shipping:** both tiles were
+initially tagged `target="universal"` -- checked directly and found
+`place_on_nano()` (Unicell-n) silently drops `hold_in`/`dynamic_
+route_en`/patterns, confirmed by testing. Retagged `super-only`;
+extending `place_on_nano()` is real, separate, later work.
+
+**Real, full regression:** 523/523 Python tests after every fix.
+
+**Real, standing next-session queue:** (1) extend `llvm_ir_frontend_
+v1.py` for `phi`/`br`/loops, lowering to these two real tiles, verified
+against this entry's own working target; (2) extend `place_on_nano()`
+to match `from_record()`'s coverage, then retag both tiles `universal`;
+(3) the command core's own real VM model; (4) extend `SuperGrid` to the
+9 real v4-generation cores; (5) the auto-sized-VM-from-ICM tool (`#651`);
+(6) promote both select constructions + icmp eq to Tier-1/frontend;
+(7) the archeology deep-dive.
+
+## Previous state (as of 2026-09-05, design note captured -- ICM files already carry their own minimum runnable footprint, a genuine bonus of the LLVM-to-ICM pipeline nobody's built the auto-sizing tool for yet. Usage constraint hit for this round; VM work/upgrades continue incrementally as gaps are found. See `points/points_active.md` #651)
 
 ## Read this first (most recent)
 

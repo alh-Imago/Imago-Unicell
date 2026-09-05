@@ -5143,3 +5143,86 @@ command core's own real VM model; (4) extend `SuperGrid` to the 9 real
 v4-generation cores; (5) this entry's own auto-sized-VM-from-ICM tool;
 (6) promote both select constructions + icmp eq to Tier-1/frontend;
 (7) the archeology deep-dive.
+
+## 652. The loop-ring construction now works entirely through the standard tile-library pipeline -- `nano_loop_var`/`nano_loop_ctrl` registered and proven end-to-end against `#638`/`#649`'s own exact configuration, 12/12 checks. A real generalization of `TilePort` (one port, several fields -- the mirror image of the adder's own established "several ports, one field") solved LOOP_CTRL's own derived-`routing_mask` need with no special-casing. A real, pre-existing bug found and fixed along the way, predating this entry. (Alan/Claude, 2026-09-05)
+
+**Real, necessary generalization, not a new mechanism:** `TilePort.field`
+widened to accept ONE field name (every tile registered before this)
+OR SEVERAL -- the exact mirror of the already-existing "several ports,
+one shared field" grouping `_resolve()` used for the adder's own
+`in_a`/`in_b` (`#338`), now also covering "one port, several fields."
+`nano_loop_ctrl`'s own `continue_out`/`exit_out` ports each set their
+own dedicated comparator-pattern field (`pattern_high`/`pattern_equal`)
+AND contribute their chosen direction into the shared `routing_mask`
+every real offer is gated through -- `routing_mask` ends up as the
+real, correct OR of both, DERIVED from two different ports' own
+independent choices, with zero new concepts and zero special-casing.
+Fully backward-compatible: all 32 pre-existing tile-library tests
+still pass unchanged.
+
+**Real, pre-existing bug found and fixed, predating this entry:**
+`SuperCell.from_record()`'s nano construction never wrapped `routing_
+mask`/`cardinal_edge` in the same `dm()` list-to-bitmask normalization
+every other core's own dir-fields already use (confirmed elsewhere in
+this same function, e.g. `adder_downstream_mask = dm(...)`). Confirmed
+directly by testing, not assumed: a tile-placed record with `routing_
+mask=['e']` silently left the CACell holding the raw list `['e']`, not
+a packed int. Never caught before because nothing had placed a nano
+tile through `super_tile_library.place()` and loaded it via `SuperGrid`/
+`from_record()` in the same real path until this entry -- the same
+class of untested-combination gap as `#649`'s own `hold_in`/`latch_in`
+bug. Fixed for `routing_mask`/`cardinal_edge` and this entry's own new
+`pattern_low`/`pattern_equal`/`pattern_high` together.
+
+**Real, downstream fix required by the above:** `vm_introspection_v1.py`'s
+own JSON output for nano's `routing_mask`/`cardinal_edge` was a direct,
+un-unpacked passthrough -- it only "looked correct" before because the
+CACell itself was ALSO wrong (holding a raw list), two bugs canceling
+out, not correct behavior. Fixed to properly `unpack_dirmask()` both,
+and extended to surface all 9 real fields `#522`/`#543`/`#650` made
+reachable (this module's own prior "permanently unreachable" claim was
+stale relative to both).
+
+**Real tiles registered, `super_tile_library_v1.py`:** `nano_loop_var`
+(PASS_A + `hold_in=1` fixed, matching `#638`'s own real LOOPVAR
+exactly) and `nano_loop_ctrl` (PASS_A + `dynamic_route_en=1` fixed,
+`continue_out`/`exit_out` ports, `pattern_low` as a param tied to the
+same direction as `exit_out` by convention rather than a redundant
+fourth port -- matching `#638`'s own real degenerate-safety reasoning).
+
+**Real, full end-to-end verification, `tests/vm/test_loop_tiles_v1.py`
+(new):** the exact `#638`/`#649` 4-cell topology, built ENTIRELY
+through `super_tile_library.place()` -> `IcmV3Record` -> `SuperGrid` --
+the same real pipeline `compile_program_ir()`/the LLVM frontend
+actually consumes, not hand-built `CACell`/`SuperCell` instances.
+Confirmed the tile-produced config matches `#638`/`#649`'s own hand-
+verified values exactly (`routing_mask=6`, `pattern_high=4`, `pattern_
+equal=pattern_low=2`). `for i in 0..3`: 3 continue rounds, real exit at
+`i==N==3`. 12/12 checks, all correct on the first real run after the
+fixes above.
+
+**Real, honest correction caught before it shipped, not after:** both
+new tiles were initially tagged `target="universal"` (claiming a real
+Unicell-n equivalent exists) -- checked directly before trusting the
+label, and confirmed `place_on_nano()` is hardcoded to wire only
+`topology`+`routing_mask` into the `CACell` it builds, silently
+dropping `hold_in`/`dynamic_route_en`/pattern fields entirely
+(confirmed: `place_on_nano()` on `nano_loop_var` produced `hold_in=
+False` despite the tile's own `fixed_core_config` saying `1`). Retagged
+`target="super-only"` -- honest about current real capability rather
+than a convenient but false claim. Extending `place_on_nano()` to match
+`from_record()`'s own real field coverage is real, separate, later work.
+
+**Real, full regression, not assumed safe:** 523/523 Python tests
+after every fix, confirmed at each step, not just at the end.
+
+**Real, standing next-session queue, working top-down:** (1) extend
+`llvm_ir_frontend_v1.py` itself to parse multi-block IR with `phi`/`br`,
+recognize the restricted single-counting-loop shape, and lower it to
+these two real tiles + `adder`/`ram_flowing`, verified against this
+entry's own working tile-based target; (2) extend `place_on_nano()` to
+match `from_record()`'s real field coverage, then retag both loop tiles
+back to `universal`; (3) the command core's own real VM model; (4)
+extend `SuperGrid` to the 9 real v4-generation cores; (5) the auto-
+sized-VM-from-ICM tool (`#651`); (6) promote both select constructions
++ icmp eq to Tier-1/frontend; (7) the archeology deep-dive.
