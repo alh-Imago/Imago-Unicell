@@ -6551,3 +6551,58 @@ combined-summary UX pattern, the missing auto-play feature, the
 `WorkspacePond` precedent, the `warning`-field idea) are captured in
 the record for whenever that work actually starts, not lost between
 now and then.
+
+## 671. Real design clarification from Alan: what "Pond" actually meant in the old system -- an execution boundary, not primarily a storage concept. A defined, bounded region holding one running program, with the VM able to host several such regions simultaneously, each isolated, communicating only through a deliberate bridge system. Reframes and connects several previously-separate findings from this same session. (Alan, 2026-09-06)
+
+**The real concept, stated precisely:** a Pond = a bounded grid region
+running one loaded program -- in this project's own current
+terminology, one compiled chain/program's occupied cells. The old
+VM could hold and run MULTIPLE separate Ponds simultaneously, each
+one isolated, with cross-Pond communication happening only through a
+real, deliberate bridge system -- described as having substantial real
+function, even though it was built against the original Unicell, not
+Unicell-S.
+
+**Real, retroactive reframing of `#670`'s own findings:** the old
+workbench's `highlight_region()`/`free_region()` were dismissed there
+as genuinely dead (regions keyed by address sets, no equivalent
+concept under cardinal wiring) -- correct about the IMPLEMENTATION,
+but this entry clarifies the underlying CONCEPT they were managing
+("the VM hosts several independent, boundaried programs at once") is
+exactly what's being described here, just expressed in address terms
+because that's what the original Unicell had to work with. The concept
+itself doesn't inherit the old implementation's own real dead-ness.
+
+**Real, likely connection to `#659`'s own unopened find:** `old_
+papers_drafts.onion`'s `paper_bridges/` subtree (`cross_domain.py`,
+`concept_graph.db`, `bridge_visualiser.html`) was logged then as a
+"cross-domain concept-mapping system," its exact real mechanism
+unconfirmed. Given this entry's own real description, a real,
+plausible reading: those "bridges" may not have been purely abstract
+concept-relationships -- they may be the literal real communication
+mechanism between separate domain Ponds (MathTrix running in one
+region, FlowTrix in another, a real bridge carrying values between
+them). Not confirmed -- `paper_bridges/` itself still hasn't been
+opened -- but a real, specific hypothesis worth checking directly when
+that archive is finally read, rather than treating "concept graph" and
+"Pond" as two separate, unrelated threads.
+
+**Real, honest gap in the CURRENT system, stated plainly:** `SuperGrid`
+has no concept of this at all today -- one flat space, one program.
+Multiple independent, simultaneously-running regions with a real
+cross-region bridge would be a genuinely new capability to build, not
+a gap in something that already partially exists. `AutoSizedVM`
+(`#667`) auto-sizes exactly ONE program into ONE tight grid -- the
+natural, but not yet built, next step this entry points toward would
+be hosting several such auto-sized regions side by side in one VM
+instance, with a real bridge mechanism connecting named points across
+them (a direct, natural extension of `#667`'s own `io_name` design,
+just crossing a Pond boundary instead of staying within one).
+
+**Real, honest scope: a design clarification only, nothing built or
+scheduled yet.** Kept here specifically because it reframes and
+connects `#659`, `#664`, `#667`, and `#670` into a single, coherent
+picture that wasn't visible from any one of them alone -- the kind of
+context that's easy to lose if not written down precisely, and
+directly useful once the TRIX/archeology dive or a real multi-program
+VM design begins.
