@@ -1,4 +1,48 @@
-# Current State (as of 2026-09-06, project_assemble_v1.py gets a real, honest --target yosys path -- an open-source synthesis option, actually run end to end against the real project RTL, with an earlier overstated Arria-10 claim corrected first. See `points/points_active.md` #663)
+# Current State (as of 2026-09-06, real carrier-to-carrier wiring in the RTL array generator -- the standing gap from #658, closed and proven in real RTL simulation, not just generated text. See `points/points_active.md` #665)
+
+## Read this first (most recent)
+
+**2026-09-06, real carrier-to-carrier RTL wiring closed (#665).**
+`generate_top_vix()` now wires `freeze_in`/`prog_data_in`/`prog_
+arrived_in`/`prog_ack_in` as real, cardinal, point-to-point ports
+(matching the same convention `data_in`/`arrived_in` already used),
+and `program_in` (the one real flat exception on the carrier) as a
+real OR of whichever neighbors exist. Interior connections are now
+genuinely live signals, not tied to provably-constant values.
+
+**Real, honest scope clarified first:** checked directly whether the
+real RTL supports `#658`'s own "first word redirects core_select"
+mechanism -- it doesn't; that's a real, useful VM-only design with no
+RTL counterpart yet. Today's test proves what the real hardware
+actually supports: reprogramming a correctly-booted neighbor through
+the now-wired mesh.
+
+**Real, decisive verification, `tb_vix_carrier_mesh_v1.v` (new):** two
+real carrier instances, hand-wired with the exact generator convention
+-- a command core genuinely freezes and reprograms a neighbor across a
+real cell boundary, with a real functional confirmation the target
+works afterward. 5/5 checks.
+
+**Two real bugs found, handled honestly at different scopes:**
+`nano_gate_v4.v`'s own real PROG_ID field is 4 bits (`COMPLETE=15`),
+not 3 -- found by this new test, fixed in both the testbench and the
+VM's own `_PROG_ID_WIDTH_4BIT` table. A deeper, separate finding --
+the VM's own `PROG_ID_COMPLETE=7` constant is itself stale against the
+real RTL -- was deliberately NOT fixed here (8+ hardcoded call sites
+depend on it), logged plainly as its own standing item instead of
+folded in.
+
+**Real, full regression:** all 16 Verilog testbenches pass; 557 Python
+tests unchanged. The generator re-verified at N=1, 7, 10, 20.
+
+**Real, standing next-session queue:** (1) the auto-sized-VM-from-ICM
+tool (`#651`); (2) promote both select constructions + icmp eq to
+Tier-1/frontend; (3) the `PROG_ID_COMPLETE` stale-value correction
+(a real, separate, wider pass); (4) real core-select-via-live-
+programming in the RTL itself, matching `#658`'s proven VM design, if
+wanted for real hardware; (5) the TRIX archeology dive once stable.
+
+## Previous state (as of 2026-09-06, project_assemble_v1.py gets a real, honest --target yosys path -- an open-source synthesis option, actually run end to end against the real project RTL, with an earlier overstated Arria-10 claim corrected first. See `points/points_active.md` #663)
 
 ## Read this first (most recent)
 

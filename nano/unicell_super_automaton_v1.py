@@ -184,7 +184,7 @@ _PROG_TABLES: dict = {
         15: ("complete", None),
     },
 }
-_PROG_ID_WIDTH_4BIT = {"branch"}   # real, confirmed exception -- see table comment above
+_PROG_ID_WIDTH_4BIT = {"branch", "nano"}   # real, confirmed -- see table comment above; nano_gate_v4.v ALSO uses a real 4-bit PROG_ID field (prog_id = prog_data_val[23:20], COMPLETE=15), found by #665's own real RTL testbench, not previously caught
 
 # Real width->mask lookup for the "rawN"/"dirN" kind strings above --
 # keeps each table entry readable while program_word() itself only

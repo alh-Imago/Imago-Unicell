@@ -757,12 +757,31 @@ def generate_top_vix(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=No
     programming channel PLUS command mode's own new DRIVE-side one,
     every one of `program_in`/`prog_arrived_in_x`/`prog_data_in_x`/
     `prog_ack_in_x` is ALSO broadcast from the same real, unconstrained
-    ENTRY_DATA-derived signal used for `core_select`/`core_config` --
-    tying any of these to a hard 0 constant would let Quartus prove
-    the entire receive-side PROG_ID decode path (all 9 cores) AND
-    command mode's own relay-confirmation logic permanently dead,
-    the exact same real failure class `#554` already found once
-    (13 ALM for 500 cells), just via a different signal this time.
+    ENTRY_DATA-derived signal used for `core_select`/`core_config`
+    -- but ONLY at real array boundaries now (points.md #665): tying
+    any of these to a hard 0 constant would let Quartus prove the
+    entire receive-side PROG_ID decode path (all 9 cores) AND command
+    mode's own relay-confirmation logic permanently dead, the exact
+    same real failure class `#554` already found once (13 ALM for 500
+    cells), just via a different signal this time.
+
+    Points.md #665: real carrier-to-carrier wiring -- the standing gap
+    `#658` found and left open (`program_out`/`freeze_out` declared,
+    captured into per-cell wires, but never actually connected to any
+    real neighbor). `freeze_in`/`prog_data_in`/`prog_arrived_in`/
+    `prog_ack_in` are all real, cardinal, point-to-point ports
+    (confirmed directly against `unicell_vix_carrier_v1.v` -- exactly
+    one real neighbor per direction, or none at a boundary), wired the
+    SAME real way `data_in`/`arrived_in`/`ack_in` already were.
+    `program_in` is the one real exception: a SINGLE flat port on the
+    carrier (confirmed directly -- only one command core can ever be
+    actively driving a given target at a time), so it becomes a real
+    OR of whichever real neighbors exist instead of one point-to-point
+    wire. Interior connections are now genuinely live, config-
+    dependent signals (a real neighbor's own output), not tied to a
+    provably-constant value at all -- the anti-pruning broadcast is
+    now needed, and used, only at real array boundaries where no such
+    neighbor exists.
     """
     module_name = SHELL_REGISTRY["vix"]["module"]
     positions = cell_positions(n, rows, cols)
@@ -864,10 +883,55 @@ def generate_top_vix(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=No
                 return "1'b0"
             return f"{nb}_ack_{opp}"
 
+        # points.md #665: real carrier-to-carrier wiring -- the
+        # standing gap #658 found (program_out/freeze_out declared but
+        # never connected to any neighbor). freeze_in/prog_data_in/
+        # prog_arrived_in/prog_ack_in are all real, cardinal, point-
+        # to-point ports (exactly one real neighbor per direction, or
+        # none at a boundary) -- the SAME real convention already used
+        # for data_in/arrived_in/ack_in above, just extended to the
+        # command-specific channel. `program_in` is the one real
+        # exception: a SINGLE flat port on the carrier (confirmed
+        # directly against unicell_vix_carrier_v1.v -- only one command
+        # core can ever be actively driving a given target at a time),
+        # so it becomes a real OR of whichever real neighbors exist,
+        # not a single point-to-point wire.
+        def freeze_in(direction, nb, opp):
+            if nb is None:
+                return "1'b0"
+            return f"{nb}_fzo_{opp}"
+
+        def prog_data_in(direction, nb, opp):
+            if nb is None:
+                return "prog_data_bcast"
+            return f"{nb}_pdo{opp}"
+
+        def prog_arrived_in(direction, nb, opp):
+            if nb is None:
+                return "ENTRY_DATA" if direction == "n" else "1'b0"
+            return f"{nb}_pao{opp}"
+
+        def prog_ack_in(direction, nb, opp):
+            if nb is None:
+                return "ENTRY_DATA" if direction == "n" else "1'b0"
+            return f"{nb}_pack_{opp}"
+
+        program_in_terms = []
+        if n_nb is not None:
+            program_in_terms.append(f"{n_nb}_pos")
+        if s_nb is not None:
+            program_in_terms.append(f"{s_nb}_pon")
+        if e_nb is not None:
+            program_in_terms.append(f"{e_nb}_pow")
+        if w_nb is not None:
+            program_in_terms.append(f"{w_nb}_poe")
+        program_in_expr = " | ".join(program_in_terms) if program_in_terms else "ENTRY_DATA"
+
         lines.append(f"{module_name} #(.CELL_ID(16'h{cid:04X})) {nm} (")
         lines.append("    .clk(clk), .rst(rst),")
         lines.append("    .active_in_n(1'b1), .active_in_s(1'b1), .active_in_e(1'b1), .active_in_w(1'b1),")
-        lines.append("    .freeze_in_n(1'b0), .freeze_in_s(1'b0), .freeze_in_e(1'b0), .freeze_in_w(1'b0),")
+        lines.append(f"    .freeze_in_n({freeze_in('n', n_nb, 's')}), .freeze_in_s({freeze_in('s', s_nb, 'n')}),")
+        lines.append(f"    .freeze_in_e({freeze_in('e', e_nb, 'w')}), .freeze_in_w({freeze_in('w', w_nb, 'e')}),")
         lines.append(f"    .cfg_valid(cfg_valid_bcast), .cfg_data(cfg_data_bcast),")
         lines.append(f"    .data_in_n({data_in('n', n_nb, 's')}), .data_in_s({data_in('s', s_nb, 'n')}),")
         lines.append(f"    .data_in_e({data_in('e', e_nb, 'w')}), .data_in_w({data_in('w', w_nb, 'e')}),")
@@ -878,15 +942,17 @@ def generate_top_vix(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=No
         lines.append(f"    .ready_out({nm}_ready), .ready_in_n(1'b1), .ready_in_s(1'b1), .ready_in_e(1'b1), .ready_in_w(1'b1),")
         lines.append(f"    .ack_out_n({nm}_ack_n), .ack_out_s({nm}_ack_s), .ack_out_e({nm}_ack_e), .ack_out_w({nm}_ack_w),")
         lines.append(f"    .ack_in_n({ack_in('n', n_nb, 's')}), .ack_in_s({ack_in('s', s_nb, 'n')}), .ack_in_e({ack_in('e', e_nb, 'w')}), .ack_in_w({ack_in('w', w_nb, 'e')}),")
-        lines.append(f"    .program_in(ENTRY_DATA), .program_done({nm}_prog_done),")
-        lines.append(f"    .prog_data_in_n(prog_data_bcast), .prog_data_in_s(prog_data_bcast), .prog_data_in_e(prog_data_bcast), .prog_data_in_w(prog_data_bcast),")
-        lines.append("    .prog_arrived_in_n(ENTRY_DATA), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),")
+        lines.append(f"    .program_in({program_in_expr}), .program_done({nm}_prog_done),")
+        lines.append(f"    .prog_data_in_n({prog_data_in('n', n_nb, 's')}), .prog_data_in_s({prog_data_in('s', s_nb, 'n')}),")
+        lines.append(f"    .prog_data_in_e({prog_data_in('e', e_nb, 'w')}), .prog_data_in_w({prog_data_in('w', w_nb, 'e')}),")
+        lines.append(f"    .prog_arrived_in_n({prog_arrived_in('n', n_nb, 's')}), .prog_arrived_in_s({prog_arrived_in('s', s_nb, 'n')}),")
+        lines.append(f"    .prog_arrived_in_e({prog_arrived_in('e', e_nb, 'w')}), .prog_arrived_in_w({prog_arrived_in('w', w_nb, 'e')}),")
         lines.append(f"    .prog_ack_out_n({nm}_pack_n), .prog_ack_out_s({nm}_pack_s), .prog_ack_out_e({nm}_pack_e), .prog_ack_out_w({nm}_pack_w),")
         lines.append(f"    .freeze_out_n({nm}_fzo_n), .freeze_out_s({nm}_fzo_s), .freeze_out_e({nm}_fzo_e), .freeze_out_w({nm}_fzo_w),")
         lines.append(f"    .program_out_n({nm}_pon), .program_out_s({nm}_pos), .program_out_e({nm}_poe), .program_out_w({nm}_pow),")
         lines.append(f"    .prog_data_out_n({nm}_pdon), .prog_data_out_s({nm}_pdos), .prog_data_out_e({nm}_pdoe), .prog_data_out_w({nm}_pdow),")
         lines.append(f"    .prog_arrived_out_n({nm}_paon), .prog_arrived_out_s({nm}_paos), .prog_arrived_out_e({nm}_paoe), .prog_arrived_out_w({nm}_paow),")
-        lines.append("    .prog_ack_in_n(ENTRY_DATA), .prog_ack_in_s(1'b0), .prog_ack_in_e(1'b0), .prog_ack_in_w(1'b0),")
+        lines.append(f"    .prog_ack_in_n({prog_ack_in('n', n_nb, 's')}), .prog_ack_in_s({prog_ack_in('s', s_nb, 'n')}), .prog_ack_in_e({prog_ack_in('e', e_nb, 'w')}), .prog_ack_in_w({prog_ack_in('w', w_nb, 'e')}),")
         lines.append("    .status_core_select()")
         lines.append(");")
         lines.append("")

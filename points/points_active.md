@@ -6102,3 +6102,87 @@ acquired yet.** Kept here so the concrete plan (chip, toolchain,
 scale expectation, the SD-card/Pond connection, the ESP32/workbench
 idea) is in the record, not just this conversation, for whenever the
 board actually arrives.
+
+## 665. Real carrier-to-carrier wiring in the RTL array generator -- the standing gap `#658` found and left open, closed. Freeze and live programming now genuinely cross real cell boundaries in the generated array, proven in actual RTL simulation, not just inspected as generated text. Two further real, honest findings surfaced along the way, kept plainly separate from this entry's own real scope. (Alan/Claude, 2026-09-06)
+
+**Real fix, `generate_top_vix()`, `tools/project_assemble_v1.py`:**
+`freeze_in`/`prog_data_in`/`prog_arrived_in`/`prog_ack_in` are all real,
+cardinal, point-to-point ports (confirmed directly against `unicell_
+vix_carrier_v1.v` -- exactly one real neighbor per direction, or none
+at a boundary), now wired the SAME real way `data_in`/`arrived_in`/
+`ack_in` already were, instead of tied to constants everywhere.
+`program_in` is the one real exception: a single flat port on the
+carrier (confirmed directly -- only one command core can ever be
+actively driving a given target at a time), so it becomes a real OR of
+whichever real neighbors exist instead of one point-to-point wire.
+Interior connections are now genuinely live, config-dependent signals
+(a real neighbor's own output), not tied to a provably-constant value
+at all -- the anti-pruning broadcast from `#648`/`#654` is now needed,
+and used, only at real array boundaries where no such neighbor exists.
+
+**Real, honest scope clarified before testing, not assumed:** checked
+directly against `unicell_vix_carrier_v1.v` whether the real RTL
+supports `#658`'s own "first live-programming word redirects core_
+select" mechanism -- it does not. `core_select` is switchable ONLY via
+the one-time `cfg_valid`/`cfg_data` boot commit in the real RTL today;
+`#658`'s own real fix (`VixCarrierSlot.relay_word()`) is a genuine,
+useful VM-level software design with no RTL counterpart built yet.
+Stated plainly rather than conflated -- today's real RTL test proves
+what the hardware actually supports: a correctly-booted neighbor,
+reprogrammed through the real, now-wired mesh.
+
+**Real, decisive RTL verification, `fpga/verilog/tb_vix_carrier_
+mesh_v1.v` (new):** two real `unicell_vix_carrier_v1` instances, hand-
+wired with the exact same point-to-point convention the generator now
+produces -- cell A (command, programmer mode, drive_dir=E) genuinely
+freezes and reprograms cell B (boot-configured to nano) across a real
+cell boundary. 5/5 checks: idle state, freeze correctly asserted
+during the relay, freeze correctly released only on the real COMPLETE
+word, `routing_mask` and `ready_bit` both confirmed genuinely correct
+on the target afterward -- a real, end-to-end functional proof, not
+just timing.
+
+**Real bug #1, found by this new RTL test, not previously caught:**
+`nano_gate_v4.v`'s own real PROG_ID field is 4 bits wide (`COMPLETE=
+15`, confirmed directly: `prog_id = prog_data_val[23:20]`), matching
+branch's own real exception (`#661`) -- NOT the 3-bit width every
+other core uses. The RTL testbench's own first attempt used a 3-bit
+`make_word()` for nano and failed at the COMPLETE step; traced and
+fixed directly. This ALSO exposed the same real gap in the VM:
+`_PROG_ID_WIDTH_4BIT` (`#650`/`#660`) listed only `branch`, missing
+`nano` -- fixed there too, confirmed safe by the full 557-test
+regression (every existing test happened to use `PROG_ID_COMPLETE=7`,
+a value representable identically under either a 3-bit or 4-bit
+extraction, so this real gap had never actually manifested before).
+
+**Real bug #2, found while investigating bug #1, deliberately NOT
+fixed in this entry -- scale and risk require its own dedicated pass:**
+`unicell_automaton_v1.py`'s own Python `PROG_ID_COMPLETE = 7` constant
+is itself stale, matching the OLDER `unicell_stripped_v1.v`'s real
+3-bit convention rather than `nano_gate_v4.v`'s own real, current value
+of 15 -- the value this entire session's RTL work has used throughout.
+Confirmed at least 8 real call sites across `tests/vm/test_unicell_
+super_automaton_v1.py` hardcode the literal `7` directly (not the
+symbolic constant), meaning correcting the VALUE itself would be a
+real, wider-reaching change needing its own careful pass, not folded
+into this entry's own narrower, already-complete scope. Logged here
+plainly so it isn't lost, not silently left for someone to rediscover.
+
+**Real, full regression, not assumed safe:** all 16 Verilog
+testbenches in the repository (including the new mesh test) pass
+clean; 557 Python tests via pytest, unchanged. The array generator
+itself re-verified at N=1 (the degenerate single-cell case, exercising
+the real ENTRY_DATA fallback for `program_in` when no neighbor exists
+in any direction), N=7 (non-square, real boundary cases), N=10, and
+N=20 -- all compile clean under `iverilog`.
+
+**Real, standing next-session queue, working top-down:** (1) the
+auto-sized-VM-from-ICM tool (`#651`); (2) promote both select
+constructions + icmp eq to Tier-1/frontend; (3) a real, dedicated pass
+correcting `PROG_ID_COMPLETE`'s own stale value for nano (bug #2
+above) and every hardcoded call site that depends on it; (4) real RTL
+work extending `unicell_vix_carrier_v1.v` itself with a genuine core-
+select-via-live-programming mechanism, matching `#658`'s own proven VM
+design, if/when that capability is wanted in real hardware; (5) once
+the above genuinely stabilizes, return to the TRIX/cross-domain
+archeology dive.
