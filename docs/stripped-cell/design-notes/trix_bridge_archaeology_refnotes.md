@@ -384,16 +384,93 @@ match 1050 here (likely a different, more refined subset, or the
 database grew after that count was written — worth resolving on a
 future pass, not assumed either way).
 
+**`hub_gaps.json` (100 entries, checked directly) confirms the "49
+displacement gaps" claim exactly** — 49 of 100 total entries are
+displacement-specific, matching notes.md precisely. Real, striking
+concentration: only 8 unique concepts have ANY gap at all across the
+whole 265-concept graph, and just three — displacement (49), mass
+(25), force (12) — account for 86% of all gaps found. Confirmed the
+"Mass at 25" section (read on this pass, previously only seen as a
+header): a genuinely different *flavor* of gap from displacement's.
+Mass's gaps are administrative, not philosophical — the physics is
+already completely settled (the weak equivalence principle, inertial
+mass = gravitational mass, verified empirically to 1 part in 10¹⁴; γm₀
+↔ rest mass via the Lorentz factor; nuclear mass defect via E=mc²) but
+simply hasn't been written as a formal `BridgeContract` yet. Flagged
+in the notes themselves as "good early targets for community
+contributions" — a real, low-effort, high-confidence backlog, unlike
+displacement's gaps, which require the deeper Δ-primitive declaration
+to close at all.
+
+---
+
+## `paper_substrate/notes.md` — the vision paper's core thesis (read in full, 6.4KB)
+
+Genuinely the most polished writing found in this archive so far —
+reads like a near-final draft, not working notes. Central framing,
+worth remembering as its own real contribution:
+
+**"We built a system that makes ignorance visible."** Not a typed
+compute fabric (though it is one). Not a knowledge graph (though it
+contains one). A system that maps the SHAPE of what isn't known,
+precisely enough to direct someone toward filling it.
+
+**The Mendeleev reframe, sharper than anywhere else in the archive:**
+Mendeleev didn't discover gallium — he declared a hole where it had
+to be, described its properties from surrounding structure (atomic
+weight, valence, density) 15 years before anyone detected it. "A
+shaped absence is more useful than a vague one."
+
+**Four real, carefully DIFFERENTIATED examples of "shaped absence,"
+each genuinely a different TYPE of not-knowing, not the same gap
+repeated:**
+- **Dark matter** — a clean hole: high gravitational confidence on one
+  side, nothing on the other. The shape itself is already a real
+  constraint (couples to mass, not to electromagnetic force).
+- **The information paradox** — not a missing node at all, a **broken
+  cycle**: information enters a black hole (confidence 1.0), Hawking
+  radiation exits (confidence 1.0), but the cycle's own confidence
+  doesn't conserve. A structurally different kind of problem from a
+  hole.
+- **Consciousness** — no clean edges at all: a real, honest GRADIENT
+  of decreasing confidence moving from neuroscience toward phenomenal
+  experience. "A frontier that gets hazier, not a wall that stops
+  cleanly."
+- **The Planck scale** — not absence, **contradiction**: two real,
+  independently high-confidence mechanism chains (QFT, general
+  relativity) converge on the same concepts with incompatible values.
+
+**The Hawking bridge's own real role in this specific paper, stated
+precisely:** confidence=1.0 because derived from first principles, but
+it touches the information paradox's own broken cycle directly. "The
+bridge is solid. What it connects to is not. The graph shows both
+clearly and does not conflate them." "Hawking was standing at one of
+those edges... the bridge carries his name not as tribute but as
+description."
+
+**Real, honest limits stated directly, matching the whole project's
+own established discipline:** "The graph cannot resolve the gaps it
+reveals. It can only make them precise." Explicitly NOT claiming to
+solve dark matter or quantum gravity — only to make the shape of not
+knowing precise enough that a real answer, once found, would
+immediately show where it fits.
+
+**Target venue named explicitly and ambitiously: Nature or Science** —
+"Not a computer architecture paper. Not even primarily a systems
+paper... The computer science is the method. The claim is about
+knowledge itself." A genuinely different register and ambition than
+the other six, more technical/specialized papers.
+
 ---
 
 ## Not yet opened at all (this session)
 
 - `paper_bridges/data/cross_domain.py` (8.2KB)
 - `paper_bridges/data/cross_domain_matches.json` (415KB) — presumably a JSON export of the same real bridge data now confirmed in `concept_graph.db`
-- `paper_bridges/data/hub_gaps.json` (34.8KB) — presumably the real "49 displacement gaps" / hub-node data referenced throughout notes.md
+- `paper_bridges/data/hub_gaps.json` (34.8KB) — READ this session, see the "Real implementation confirmed" section above
 - `paper_bridges/bridge_visualiser.html` / `concept_graph_explorer.html` — the real, built interactive UIs (both real, substantial files, 155KB/216KB)
-- `paper_hawking/`, `paper_flowtrix/`, `paper_robotics/`, `paper_main/`, `paper_substrate/`, `paper_timing/` — all real, individual paper folders, only READMEs skimmed via file listing, not read
-- `paper_substrate/notes.md` (6.4KB) — likely relevant given "substrate" naming echoes this project's own "universal symbolic substrate" framing (Paper 7)
+- `paper_hawking/`, `paper_flowtrix/`, `paper_robotics/`, `paper_main/`, `paper_timing/` — all real, individual paper folders, only READMEs skimmed via file listing, not read
+- `paper_substrate/notes.md` — READ this session in full, see its own dedicated section above; `paper_substrate/README.md` itself still not read
 
 ## Real, standing connections to CURRENT project work (cross-referenced against points_active.md)
 
