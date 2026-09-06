@@ -599,7 +599,46 @@ harness built directly into the visual Pond browser.
 
 ---
 
+## `workbench.py`'s own embedded frontend (`WORKBENCH_HTML`) — the third real, related UI, same design language
+
+Already scoped once for backend features in `#670` (`ws set`/`get`,
+`start_run`/`pause_run`, the `warning`-field idea). This pass looks at
+its own real, embedded HTML/JS frontend specifically, not covered
+before.
+
+**Real, semantically-rich cell-state colour coding, confirmed directly
+in the CSS**: distinct colours for blank/waiting/fired/memory/halted/
+config states -- a genuine visual vocabulary for what a cell is
+actually doing, not a generic on/off grid.
+
+**Explicitly, directly confirmed shared design system, straight from
+its own header comment: `"Pond colour system (mirrors composer)"`.**
+`addrPondKey()`/`pondColorForAddr()` are real, near-identical mirrors
+of the composer's own `addrPrefix()`/`pondColorForBlock()` -- the same
+address-prefix-based Pond inference, reused deliberately across both
+tools, not reinvented.
+
+**`renderGrid()` (read in full) is a genuinely well-engineered, real
+live visualization** -- every cell in the array gets its own real,
+clickable DOM element, coloured by its actual current state via a
+`data-state` attribute, with a real semantic tooltip decoding the raw
+gate-state bits into something readable ("AND · 1SHOT · 0x0010001A ·
+[waiting]"), a subtle Pond-coloured border tint when not selected, and
+zoom-dependent text (showing the cell's own address once zoomed in
+enough to read it). Built to actually work at scale, not just look
+good in a screenshot.
+
+**`renderRegions()` directly confirms the "multiple independent,
+loadable processes" model Alan described from memory, now seen as
+real, working UI**: each region shown with its own real image name,
+region ID, cell count, execution state, live cycle count, and a real
+`Free` button to release it -- regions/Ponds genuinely were
+independently loadable, runnable, and freeable units, visible and
+manageable one at a time in the same interface.
+
 ## Not yet opened at all (this session)
+
+---
 
 
 - `paper_bridges/data/cross_domain.py` (8.2KB)
