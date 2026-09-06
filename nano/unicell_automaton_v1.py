@@ -108,10 +108,20 @@ _DIRS = (N, S, E, W)
 _DIR_BIT = {N: 0, S: 1, E: 2, W: 3}
 _OPPOSITE = {N: S, S: N, E: W, W: E}
 
-# ── Phase 4 (points.md #123/#140/#156): the ID-tagged incremental
-# programming protocol, matching cell_wrapper_v2.v / unicell_stripped_v1.v
-# exactly -- {3-bit ID, 16-bit data} per word, 7 real field targets + 1
-# reserved COMPLETE marker (8 codes, exact fit for 3 bits).
+# ── Points.md #675: real, corrected to match nano_gate_v4.v's own
+# CURRENT real PROG_ID table exactly -- {4-bit ID, 20-bit data} per
+# word (confirmed directly: `prog_id = prog_data_val[23:20]`), not the
+# older {3-bit ID, 16-bit data} shape this comment used to describe.
+# Fields 0-6 are unchanged from the original Phase 4 design
+# (points.md #123/#140/#156); PROG_ID_ADDON_CONFIG(7) is a genuinely
+# new real field the VM never had a constant OR a dispatch case for at
+# all (found while fixing this, not assumed complete) -- program_word()
+# still has no real handling for it, a real, separate, honestly-
+# flagged gap, not silently fixed here. PROG_ID_COMPLETE moved from 7
+# to 15 to make room for it -- the OLD value of 7 was stale here for as
+# long as ADDON_CONFIG has existed in the real RTL, confirmed by `#665`
+# (found while wiring the real carrier-to-carrier mesh, itself
+# unrelated to this specific fix).
 PROG_ID_TOPOLOGY      = 0
 PROG_ID_ROUTING_MASK  = 1
 PROG_ID_CARDINAL_EDGE = 2
@@ -119,7 +129,8 @@ PROG_ID_PATTERN_LOW   = 3
 PROG_ID_PATTERN_EQUAL = 4
 PROG_ID_PATTERN_HIGH  = 5
 PROG_ID_DYN_ROUTE_EN  = 6
-PROG_ID_COMPLETE      = 7
+PROG_ID_ADDON_CONFIG  = 7   # real RTL field, #675 -- no VM dispatch case exists yet, see program_word()
+PROG_ID_COMPLETE      = 15
 
 
 @dataclass
@@ -248,9 +259,11 @@ class CACell:
         return selected & self.routing_mask & _MASK4
 
     def program_word(self, prog_id: int, data: int) -> None:
-        """points.md #123/#140/#156: apply one incremental programming
-        word, {3-bit ID, 16-bit data}, matching cell_wrapper_v2.v /
-        unicell_stripped_v1.v's PROG_ID table exactly. No word-count
+        """Points.md #675: corrected to match nano_gate_v4.v's own
+        CURRENT real PROG_ID table exactly -- {4-bit ID, 20-bit data}
+        per word (was stale here at {3-bit ID, 16-bit data}, the
+        original Phase 4 shape from points.md #123/#140/#156, before
+        PROG_ID_ADDON_CONFIG was added to the real RTL). No word-count
         state -- each word independently targets ONE field ("a scalpel,
         not a hammer"). Only takes effect while program_in is held; the
         caller is responsible for the same discipline the real wrapper
@@ -258,8 +271,13 @@ class CACell:
         done) -- this method itself does not check program_in, matching
         how the RTL's case(prog_id) block is unconditional once
         programming_active is already true.
+
+        Real, honest, standing gap, not silently glossed over:
+        PROG_ID_ADDON_CONFIG(7) has no real dispatch case here at all --
+        the real RTL field exists (confirmed directly against nano_
+        gate_v4.v), the VM has never implemented it.
         """
-        data &= 0xFFFF
+        data &= 0xFFFFF
         if prog_id == PROG_ID_TOPOLOGY:
             self.topology = data & 0x3FF
         elif prog_id == PROG_ID_ROUTING_MASK:

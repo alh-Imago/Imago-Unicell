@@ -6778,3 +6778,74 @@ archeology dive (`#659`'s own groundwork already done and waiting, now
 also carrying the "timing to depth" precedent from `#668` and this
 entry's own real, hard lesson about verifying under real timing, not
 convenient test timing).
+
+## 675. The `PROG_ID_COMPLETE` stale-value correction (`#665`'s own logged, deliberately-deferred finding) -- closed, along with a real naming collision it exposed in a different module, a real missing constant, and a real test-coverage gap that let a mistake in fixing this go undetected for four other core types. The last item on the standing queue. (Alan/Claude, 2026-09-06)
+
+**The original, narrow fix:** `unicell_automaton_v1.py`'s own
+`PROG_ID_COMPLETE` corrected from the stale `7` to the real, current
+`15`, matching `nano_gate_v4.v` exactly (`prog_id = prog_data_val
+[23:20]`, a real 4-bit field). The stale comment above the table (still
+describing the old `{3-bit ID, 16-bit data}` shape) corrected to match
+the real, current `{4-bit ID, 20-bit data}` wire format -- including a
+related, previously-unnoticed stale mask (`data &= 0xFFFF`, should be
+`0xFFFFF`) that happened to never cause an observable bug since no
+currently-dispatched field needs more than 16 bits, but was part of
+the same stale documentation.
+
+**A real, previously-missing field found while fixing this, not
+assumed complete:** `nano_gate_v4.v` has a real `PROG_ID_ADDON_CONFIG
+= 7` field the VM never had a constant OR a dispatch case for at all
+-- added the constant, confirmed `program_word()`'s own dispatch
+correctly falls through as a silent no-op for it (matching the RTL's
+own `default: ;`), and left the real dispatch gap honestly flagged
+rather than silently implemented as part of this fix.
+
+**A real naming collision found in a completely different module,
+`vix_carrier_automaton_v1.py`:** its own local `PROG_ID_COMPLETE = 7`
+turned out to be genuinely, correctly 7 -- but for COMMAND's own
+separate receive-side config table (`command_cell_v4.v`'s own real
+3-bit field, confirmed directly, unaffected by nano's own table
+growing), not nano's target-relay channel at all. Three real test
+files (`test_vix_carrier_slot_v1.py`, `test_vix_carrier_mesh_v1.py`,
+`test_vix_carrier_automaton_v1.py`) had been importing this SAME
+symbol name for BOTH real, different purposes, silently working only
+because the two real numbers happened to coincide at 7 -- and broke
+the instant nano's own value diverged to 15. Renamed to `COMMAND_
+PROG_ID_COMPLETE` to make which real table a caller means unambiguous
+at the call site, and fixed all three test files to import nano's own
+real constant from its own real source for the nano-targeting usages,
+while correctly leaving `#660`'s own deliberate adder-targeting literal
+`7` (in the mesh test's own second scenario) untouched -- that one was
+never wrong.
+
+**A real mistake made and caught while doing this fix, worth recording
+honestly rather than smoothing over:** the first pass at updating 8
+hardcoded `program_word(7, 1)` calls in `test_unicell_super_
+automaton_v1.py` was too broad -- it correctly fixed the one real nano
+test, but wrongly changed 7 OTHER tests (ram, adder, comparator,
+accumulator, sequencer, latch) that dispatch through a completely
+different table (`_PROG_TABLES`, `#660`) where `7` is genuinely each
+core's own correct value, unrelated to nano's. Two of the seven wrong
+changes surfaced immediately as real test failures. The other four did
+NOT fail at all -- because those four tests never actually asserted
+`program_done`, meaning a silently-wrong PROG_ID would have passed
+undetected. A real, separate test-coverage gap, found only because
+this mistake happened to expose it. All 7 wrong changes reverted to
+the correct literal `7` with accurate comments; the missing `program_
+done` assertion added to all four previously-silent tests, closing the
+real gap rather than just fixing the immediate symptom.
+
+**Real, full regression, checked twice -- once after the mistake, once
+after the correction:** 585 Python tests via pytest (the same real
+count as before this entry, confirming the net effect is genuinely
+correct, not just different); 15/15, 14/14, and 20/20 in the three
+affected script-style VixCarrier test files.
+
+**Real, standing next-session queue:** the explicit two-item standing
+queue (`select`, `#674`; this entry) is now fully closed. Return to the
+TRIX/cross-domain archeology dive (`#659`'s own groundwork already
+done and waiting), carrying forward: the "timing to depth" placement
+precedent (`#668`), the real-timing-vs-convenient-test-timing lesson
+(`#674`), and this entry's own real lesson -- a fix that touches a
+widely-shared symbol needs to check EVERY real usage's own actual
+meaning before assuming a single, uniform replacement is safe.

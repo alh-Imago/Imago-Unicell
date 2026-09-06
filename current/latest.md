@@ -1,4 +1,43 @@
-# Current State (as of 2026-09-06, select (LLVM's own ternary) built and verified in the real frontend -- the remaining half of "promote select + icmp eq to Tier-1." A real bug caught by Alan's own direct question before it was ever committed. See `points/points_active.md` #674)
+# Current State (as of 2026-09-06, the PROG_ID_COMPLETE stale-value correction closed -- the last item on the standing queue. Also fixed a real naming collision in a different module, a real missing constant, and a real test-coverage gap the fix itself exposed. See `points/points_active.md` #675)
+
+## Read this first (most recent)
+
+**2026-09-06, PROG_ID_COMPLETE fixed, standing queue fully closed
+(#675).** `unicell_automaton_v1.py`'s own `PROG_ID_COMPLETE` corrected
+from stale `7` to real, current `15` (matching `nano_gate_v4.v`'s real
+4-bit field), plus a related stale 16-bit data mask corrected to 20
+bits, and a previously-missing `PROG_ID_ADDON_CONFIG` constant added
+(the real RTL field it names still has no VM dispatch case -- flagged
+honestly, not implemented here).
+
+**A real naming collision found in `vix_carrier_automaton_v1.py`:**
+its own local `PROG_ID_COMPLETE = 7` is genuinely correct -- for
+COMMAND's own separate config table, not nano's. Three test files had
+been importing this same symbol for both real, different meanings,
+silently working only because the numbers happened to coincide.
+Renamed to `COMMAND_PROG_ID_COMPLETE`; all three test files fixed to
+import nano's real constant from its own real source instead.
+
+**A real mistake made and caught during the fix itself:** an
+overly-broad first pass wrongly changed 7 other tests (ram, adder,
+comparator, accumulator, sequencer, latch) that correctly use `7` via
+a completely different table. Two failed immediately; four didn't fail
+at all, because those four never actually asserted `program_done` --
+a real, separate test-coverage gap this mistake exposed. All 7 wrong
+changes reverted; the missing assertion added to all four previously-
+silent tests.
+
+**Real, full regression, checked twice:** 585 Python tests via pytest
+(same count as before this entry, confirming correctness); 15/15,
+14/14, 20/20 in the three affected VixCarrier test files.
+
+**The standing queue (`select` + this entry) is now fully closed.**
+Next: the TRIX/cross-domain archeology dive (`#659`'s own groundwork
+waiting), carrying forward the "timing to depth" precedent, the
+real-timing-vs-test-timing lesson, and this entry's own lesson about
+checking every usage of a shared symbol before a uniform fix.
+
+## Previous state (as of 2026-09-06, select (LLVM's own ternary) built and verified in the real frontend -- the remaining half of "promote select + icmp eq to Tier-1." A real bug caught by Alan's own direct question before it was ever committed. See `points/points_active.md` #674)
 
 ## Read this first (most recent)
 

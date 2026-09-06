@@ -67,7 +67,20 @@ PROG_ID_MODE = 0
 PROG_ID_POLARITY = 1
 PROG_ID_DRIVE_DIR = 2
 PROG_ID_TOGGLE_PATTERN = 3
-PROG_ID_COMPLETE = 7   # shared convention -- matches nano's own PROG_ID_COMPLETE
+# points.md #675: real, deliberate rename from the old, ambiguous
+# `PROG_ID_COMPLETE` -- this is genuinely, correctly 7 for command's
+# OWN separate config table (confirmed directly against command_
+# cell_v4.v: `prog_id = prog_data_val[22:20]`, a real 3-bit field,
+# unaffected by nano's own PROG_ID_ADDON_CONFIG addition). The OLD
+# shared name was a real, found bug waiting to happen: nano's own
+# PROG_ID_COMPLETE moved from 7 to 15 when nano's own table grew a new
+# field, but this command-side constant correctly stayed at 7 -- code
+# using the SAME symbol name for both real, different things (as three
+# real test files did, unnoticed until this fix) silently kept working
+# only because the two numbers happened to coincide, and broke the
+# instant they didn't. Renamed to make which real table a caller means
+# unambiguous at the call site, not just in a comment.
+COMMAND_PROG_ID_COMPLETE = 7
 
 _DIR_FROM_CODE = {0: N, 1: S, 2: E, 3: W}
 

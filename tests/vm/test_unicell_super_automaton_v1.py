@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
 
 import icm_v3 as v3  # noqa: E402
 from unicell_super_automaton_v1 import SuperCell, SuperGrid, apply_addons  # noqa: E402
-from unicell_automaton_v1 import N, S, E, W  # noqa: E402
+from unicell_automaton_v1 import N, S, E, W, PROG_ID_COMPLETE  # noqa: E402
 
 
 def _rec(cell_id, row, col, core, core_config=None, addon_config=None):
@@ -359,7 +359,7 @@ def test_program_word_reprograms_nano_cardinal_edge():
     # standalone CACell directly, now working at the shell level
     cell.program_in = True
     cell.program_word(2, 0b0001)   # PROG_ID_CARDINAL_EDGE, set N to relay
-    cell.program_word(7, 1)        # PROG_ID_COMPLETE, armed=1
+    cell.program_word(PROG_ID_COMPLETE, 1)        # points.md #675: was hardcoded 7, corrected to the real, current value
     cell.program_in = False
 
     assert cell._nano.cardinal_edge == 0b0001
@@ -380,7 +380,7 @@ def test_program_in_and_program_word_now_work_for_ram_too():
     cell.program_word(0, 0b000100)   # downstream_mask = E
     cell.program_word(3, 0xBEEF)     # init_data low half
     cell.program_word(4, 0xDEAD)     # init_data high half
-    cell.program_word(7, 1)          # COMPLETE
+    cell.program_word(7, 1)          # this core's own real COMPLETE id via _PROG_TABLES -- distinct from nano's own PROG_ID_COMPLETE=15 (#675)
     cell.program_in = False
 
     assert cell.ram_downstream_mask == 0b000100
@@ -503,7 +503,7 @@ def test_prog_id_adder_full_cycle():
     cell.program_word(0, 0b000100)   # downstream_mask = E
     cell.program_word(1, 0b000011)   # upstream_mask = N|S
     cell.program_word(2, 1)          # subtract_mode
-    cell.program_word(7, 1)          # COMPLETE
+    cell.program_word(7, 1)          # this core's own real COMPLETE id via _PROG_TABLES -- distinct from nano's own PROG_ID_COMPLETE=15 (#675)
     cell.program_in = False
     assert cell.adder_downstream_mask == 0b000100
     assert cell.adder_upstream_mask == 0b000011
@@ -517,7 +517,7 @@ def test_prog_id_ram_half_write_combines_correctly():
     cell.program_word(3, 0xBEEF)     # init_data low half
     cell.program_word(4, 0xDEAD)     # init_data high half
     cell.program_word(6, 1)          # load_data_valid
-    cell.program_word(7, 1)          # COMPLETE
+    cell.program_word(7, 1)          # this core's own real COMPLETE id via _PROG_TABLES -- distinct from nano's own PROG_ID_COMPLETE=15 (#675)
     cell.program_in = False
     assert cell.ram_data_reg == 0xDEADBEEF
     assert cell.ram_data_valid is True
@@ -528,9 +528,10 @@ def test_prog_id_comparator_half_write_threshold():
     cell.program_in = True
     cell.program_word(2, 0x0002)     # threshold low half
     cell.program_word(3, 0x0001)     # threshold high half
-    cell.program_word(7, 1)
+    cell.program_word(7, 1)          # this core's own real COMPLETE id via _PROG_TABLES -- distinct from nano's own PROG_ID_COMPLETE=15 (#675)
     cell.program_in = False
     assert cell.cmp_threshold == 0x00010002
+    assert cell.program_done is True   # points.md #675: real, closed gap -- this assertion was missing, meaning a wrong PROG_ID here would have passed silently
 
 
 def test_prog_id_branch_uses_the_real_4bit_id_width():
@@ -554,11 +555,12 @@ def test_prog_id_accumulator_full_cycle():
     cell.program_word(0, 0b000001)    # inc_dir = N
     cell.program_word(2, 0b000100)    # downstream_mask = E
     cell.program_word(3, 5)           # step_amount
-    cell.program_word(7, 1)
+    cell.program_word(7, 1)          # this core's own real COMPLETE id via _PROG_TABLES -- distinct from nano's own PROG_ID_COMPLETE=15 (#675)
     cell.program_in = False
     assert cell.acc_inc_dir == 0b000001
     assert cell.acc_downstream_mask == 0b000100
     assert cell.acc_step_amount == 5
+    assert cell.program_done is True   # points.md #675: real, closed gap -- was missing
 
 
 def test_prog_id_sequencer_full_cycle():
@@ -566,10 +568,11 @@ def test_prog_id_sequencer_full_cycle():
     cell.program_in = True
     cell.program_word(0, 0xAA)        # value_0
     cell.program_word(5, 0b000100)    # downstream_mask = E
-    cell.program_word(7, 1)
+    cell.program_word(7, 1)          # this core's own real COMPLETE id via _PROG_TABLES -- distinct from nano's own PROG_ID_COMPLETE=15 (#675)
     cell.program_in = False
     assert cell.seq_value_0 == 0xAA
     assert cell.seq_downstream_mask == 0b000100
+    assert cell.program_done is True   # points.md #675: real, closed gap -- was missing
 
 
 def test_prog_id_latch_full_cycle():
@@ -577,10 +580,11 @@ def test_prog_id_latch_full_cycle():
     cell.program_in = True
     cell.program_word(0, 0b000001)    # set_dir = N
     cell.program_word(2, 0b000100)    # downstream_mask = E
-    cell.program_word(7, 1)
+    cell.program_word(7, 1)          # this core's own real COMPLETE id via _PROG_TABLES -- distinct from nano's own PROG_ID_COMPLETE=15 (#675)
     cell.program_in = False
     assert cell.latch_set_dir == 0b000001
     assert cell.latch_downstream_mask == 0b000100
+    assert cell.program_done is True   # points.md #675: real, closed gap -- was missing
 
 
 def test_prog_id_unrecognized_id_is_a_real_noop():

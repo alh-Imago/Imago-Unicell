@@ -24,8 +24,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
 
-from vix_carrier_automaton_v1 import build_vix_slot_grid, PROG_ID_COMPLETE, _INDEX_FROM_SEL
-from unicell_automaton_v1 import PROG_ID_TOPOLOGY, PROG_ID_ROUTING_MASK
+from vix_carrier_automaton_v1 import build_vix_slot_grid, _INDEX_FROM_SEL
+from unicell_automaton_v1 import PROG_ID_TOPOLOGY, PROG_ID_ROUTING_MASK, PROG_ID_COMPLETE
 from unicell_gate_core import TOPO_PASS_A
 
 results = []
