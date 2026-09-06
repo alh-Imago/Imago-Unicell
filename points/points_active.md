@@ -5910,3 +5910,50 @@ confirmed RTL-side gap, still open); (2) the auto-sized-VM-from-ICM
 tool (`#651`); (3) promote both select constructions + icmp eq to
 Tier-1/frontend; (4) once the above genuinely stabilizes, return to
 the TRIX/cross-domain archeology dive.
+
+## 662. Real archaeology search for a specific historical claim (the old full-cell system compiling "the compiler" down to 176 cells), and a real, honest correction of that claim once checked against the archives. The genuine, corrected historical fact, worth keeping: the old system's own real boot sequence loaded 176 active Tier2 cells; the compiler itself added roughly 6k cells on top; the full OS layer added tens to hundreds of thousands more (uncertain order of magnitude); it could genuinely compile itself. (Alan/Claude, 2026-09-06)
+
+**Real, thorough search conducted before concluding anything:** Onion
+re-confirmed working (already set up this session, `#659`). Re-opened
+`old_llvm_frontend.onion` (`llvm_frontend.py`/`llvm_ir_mapper.py`,
+already read once before in `#612`) and searched all 25 archives'
+metadata for "LLVM"/"benchmark"/"compiler" -- no file anywhere named
+anything like "compiler," and no cell-count total of exactly 176 found
+in any accessible archive. `old_composer_tool.onion`'s own real example
+`.icm` files checked directly for real cell counts: `adder_int32.icm`
+= 483 cells (confirms `#612`'s own already-documented 482-cell Kogge-
+Stone figure), `sum4.icm` = 1641 cells, `countdown.icm` = 32 cells --
+real, consistent data, but none matching the recalled figure.
+`LLVM.md` (the old system's own design doc `#612` quotes directly, with
+real measured tile sizes) could not be located in any of the 25
+currently-archived `.onion` files -- either never archived, or lives
+outside this Onion set.
+
+**Real, honest correction from Alan directly, once the search came up
+empty -- the genuine historical fact, not the mis-recalled one:** the
+176-cell figure was from an early iteration's own real BOOT SEQUENCE
+loading 176 active cells (Tier2), not a compiled-compiler total. The
+compiler itself added roughly 6k cells on top of that boot base; the
+full OS layer added tens to hundreds of thousands more cells (genuinely
+uncertain order of magnitude -- "50k, or 500k," stated honestly as
+fuzzy recall, not asserted as precise). The real, solid fact
+underneath the fuzzy numbers: the old system could genuinely compile
+itself.
+
+**Real, explicit acknowledgment, worth recording precisely:** Unicell-
+S's own real branching support (`#653`/`#661`, one induction variable,
+one comparison, ascending or descending) will remain genuinely more
+limited than what the old bus-addressed system could do -- confirmed
+again as a real, understood, ALREADY-ACCEPTED architectural trade-off
+(`#612`'s own finding: the old system's rich `phi`/branch support
+depended entirely on having a bus, which Unicell-S deliberately does
+not have, by design, for the sake of the "topology is computation"
+property itself). Not a shortfall to fix later -- a real cost of a
+real, deliberate choice, stated plainly rather than treated as an
+open problem.
+
+**Real, honest scope: no code touched, a real search-and-correct pass
+only.** Kept here so the corrected, real historical numbers (176 boot/
+Tier2, ~6k compiler, tens-to-hundreds-of-thousands OS) are the ones
+that persist in the record, not the mis-recalled "compiled the
+compiler down to 176 cells" framing that prompted the search.
