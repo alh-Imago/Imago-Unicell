@@ -737,6 +737,36 @@ specific, fixable gap if this tool is ever revived.
 
 **Every real, substantive file in this whole archaeology pass (`old_papers_drafts.onion` + the composer/workbench/region-connector trio in `old_composer_tool.onion`/`old_full_cell_ui_and_gpu.onion`) has now been read.** Only `cross_domain_matches.json`'s own specific rows remain genuinely unexamined, and its generating algorithm is fully understood, so this is closer to a finished pass than an open one.
 
+## The actual genesis of the whole method, stated directly by Alan (not reconstructed from the archive alone)
+
+Worth recording precisely, since it's the real origin of the method,
+sharper than how the design notes describe it in the abstract: the
+idea started from noticing that an equation, stripped of its
+domain-specific labels, is just a structural shape -- a functional
+form. The actual work was searching real, basic algorithms/equations,
+stripping each down to that bare shape, and checking whether the SAME
+shape recurs in a different domain under different names. **A "gap"
+specifically means the shape WAS found to repeat -- the structural
+match is real and confirmed -- but no one has actually written the
+matching, working equation for that other domain yet.** Not "these
+might be related" (a weaker, softer claim) -- "this exact pattern
+already exists here, and by the same structural logic it should exist
+there too, and currently it doesn't."
+
+This is precisely, mechanically what `concept_graph.db`'s own real
+`equation_templates`/`template_slots`/`template_bridges` tables
+implement, not just a prose description of something looser: a
+"template" (e.g. T01, `flux = conductivity × Δ`) IS the stripped,
+domain-free shape; every real `template_bridges` row is one specific,
+concrete instance of "this shape shows up here too, but hasn't been
+declared." It's also the precise, correct reason the real status split
+was 1050 "predicted" against only 45 "valid" -- the search for
+repeating shapes runs mechanically far ahead of anyone actually
+writing the domain-specific equation down by hand.
+
+---
+
+
 ## Real, standing connections to CURRENT project work (cross-referenced against points_active.md)
 
 - `#659` — first TRIX dig, found `cell_format.py`'s FormatDefinition
