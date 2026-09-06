@@ -6032,3 +6032,73 @@ defaults to the unchanged `quartus` behavior).
 open-source ballpark tool, not a Quartus replacement -- the only way
 to get a real Arria 10 ALM/Fmax number remains an actual Quartus
 build, unchanged by any of this.
+
+## 664. Real design note, captured for the record: the project's real next hardware target, once acquired, is a Sipeed Tang Nano 20K (Gowin GW2AR-18) paired with an ESP32 for WiFi/webserver connectivity -- confirmed with a real, fully open-source Verilog-to-bitstream toolchain (Apicula/nextpnr-himbaechel/openFPGALoader), a genuine, meaningful step up from the Arria 10's own Yosys situation (synthesis only, no real open P&R path). Real, honest scale expectation stated: a mobile/edge-scale target, not a big-array replacement. (Alan, 2026-09-06)
+
+**Real, confirmed context for this decision:** the Arria 10 card's own
+real path forward is now genuinely curtailed (`#663`'s own note) --
+Alan is selling both cards and the programmer to recoup cost, and
+looking for a new, more permanent target. The Tang Nano 20K was
+already a standing target for the project's own real "mobile side,"
+per Alan's own direct statement -- this may become the interim
+platform until a larger card is found.
+
+**Real, confirmed chip specs, from Alan's own direct sourcing, not
+assumed:** GW2AR-18 QN88 -- 20,736 real LUT4 logic cells, 15,552 real
+flip-flops (~0.75 FF/LUT, worth checking directly once real synthesis
+numbers exist -- could become the binding resource before LUTs do,
+depending on how register-heavy this project's own real per-cell
+footprint turns out to be on this architecture), 2 real PLLs, real DSP
+units supporting 18x18 multiplication. 64Mbit SDRAM, 828K block SRAM,
+microSD, RGB LCD, JTAG on the board itself.
+
+**Real, confirmed toolchain advantage over the Arria 10 situation,
+checked directly against Apicula's own current device list before
+saying so:** the Tang Nano 20K (`GW2AR-LV18QN88C8/I7`) is an EXPLICITLY
+supported device in Apicula, with a real, complete, confirmed open
+flow: `yosys` (`synth_gowin`) -> `nextpnr-himbaechel` (real place &
+route) -> `gowin_pack` (real bitstream generation) -> `openFPGALoader`
+(real flashing) -- genuine synthesis THROUGH a real, working bitstream,
+not the Arria 10's own real limitation (Yosys synthesis only, no real
+open P&R path for that device at all, `#663`).
+
+**Real, honest scale expectation, matching how Alan is already
+framing it, not oversold:** ~20K LUT4-equivalent resources is a small
+fraction of the Arria 10's own real ~250K ALM budget -- a real,
+single-digit-to-low-double-digit cell count target, not a multi-
+hundred-cell array. Fits the real "mobile/edge" use case directly, not
+a replacement for the larger-array ambition.
+
+**Real, genuinely new interface direction, Alan's own idea:** the
+board's own microSD slot opens a real path to interface UniCell cells
+directly with real persistent media -- a real, concrete way to
+actually test the ALREADY-DESIGNED native filesystem concept (flat
+block pool, no directories, the "Pond" heuristic-index architecture)
+against real hardware for the first time, rather than only on paper.
+Real, direct connection worth naming: `archeology/onion/old_full_
+cell_os_pond_layer.onion` (`pond.py`/`pond_ptt.py`/`companion.py`,
+found during `#659`'s own TRIX dig, not yet opened) uses this exact
+same "Pond" terminology -- very likely the earlier iteration of this
+same idea, worth a real look once there's an actual board to test
+concepts against, not guessed at in the abstract the way `#659`'s
+own TRIX pass had to be.
+
+**Real, genuinely new capability, the ESP32 pairing:** WiFi + a real
+webserver makes this a genuinely portable, networked platform -- a
+real, natural hardware-side counterpart to `nano/workbench_v1.py`'s
+own already-real live VM-viewing capability. Real design opportunity,
+not yet started: bridge real FPGA cell state to a browser over WiFi,
+the hardware equivalent of watching a program execute live, on actual
+silicon instead of simulation.
+
+**Real, honest note for later, not urgent now:** this project's own
+existing DSP wrapper tiles (`dsp_add_wrapper_v1.v` etc.) lean on real
+Altera-specific floating-point megafunction inference -- porting them
+to genuinely use Gowin's own real 18x18 DSP primitives would be real,
+separate, later work if those tiles ever matter on this target.
+
+**Real, honest scope: a design note only, nothing built, no board
+acquired yet.** Kept here so the concrete plan (chip, toolchain,
+scale expectation, the SD-card/Pond connection, the ESP32/workbench
+idea) is in the record, not just this conversation, for whenever the
+board actually arrives.
