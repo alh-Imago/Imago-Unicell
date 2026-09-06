@@ -542,7 +542,65 @@ correctly-structured code contribution, ready to review."
 
 ---
 
+## `unicell_composer.html` — the other real, standalone frontend (Alan's own "I liked the front end")
+
+Same archive as `region_connector.html` (`old_composer_tool.onion`).
+1631 lines. "Imago UniCell Composer v2" — a real, complete visual cell
+editor with undo/redo, multi-select, a logic-tree panel, and a live
+in-browser simulator, not just a static diagram tool.
+
+**`MODELS` (real, comprehensive standard-cell library, ~70 entries,
+read in full) — genuinely useful reference data on its own, independent
+of the rest of this dive:** real, measured cell counts and pipeline
+depths across Integer arithmetic/logic/shift (INT32_ADDER: 482c depth
+10, matching the figure already known from `#612`; INT32_ADDER_CLA:
+3969c depth 52 fully combinational; shifts as pure wiring, zero real
+logic cost per bit), Comparison (INT32_EQUAL 95c, INT32_LT_S 523c),
+Float (FP32_ADDER 1253c depth 85, FP32_MULTIPLIER 3066c depth 89, both
+`vmOnly`), large multipliers explicitly flagged `placeholder`+`vmOnly`
+(a 32×32 Dadda tree at 23,924c "needs dedicated multiply pond"; a
+32×32 Booth radix-4 at 109,458c "pending NOR-efficient rewrite" — HONEST
+labeling of what's real today vs. aspirational), Counters, I/O
+handlers (keyboard/mouse/sensor/network/storage/audio, real costs
+each), and a **complete MIF (MathTrix Internal Float) family** with
+real costs for every operation: `MIF_UNPACK`/`MIF_PACK` (the real
+IEEE-754↔MIF boundary tiles, 74c/126c), `MIF_ADD` (814c depth 79),
+`MIF_MUL` (3066c depth 89), `MIF_DIV` (4789c, depth 1177 -- real,
+explicit tradeoff noted between a cell-budget-optimized and a
+low-latency-with-LUT variant), `MIF_SQRT`, `MIF_MADD` (fused multiply-
+add, explicitly described as fusing MUL+ADD into one tile), and a full
+set of MIF comparisons.
+
+**A real, direct confirmation, independent of anything else found in
+this dive:** `OS Ponds` appears as ITS OWN real model category —
+`COMPILER_POND`, `INT32_COMPILER_POND`, `LLVM_COMPILER_POND`,
+`SEQUENCER_POND`, each with `cells:0, depth:0`. Ponds were not only a
+hardware execution-region concept -- **software/runtime processes
+(a compiler, a sequencer) were placeable, first-class objects on the
+exact same visual canvas as hardware tiles**, a genuine unification of
+"the thing that computes" and "the thing that runs the computation" in
+one shared visual language.
+
+**The real Pond colour/inference system (`inferPonds`/`buildPond`/
+`pondColorForBlock`, read in full) — a genuinely elegant, working
+implementation of the Pond concept, matching Alan's own real
+description precisely:** Ponds are **inferred, not manually declared**
+-- computed automatically from bits 23:16 of each cell's own real
+address (`addrPrefix()`), the same real "discover structure from the
+data, don't hand-declare it" instinct already seen in the concept
+graph's own hub-node discovery. Each unique address prefix gets a
+stable colour from an 8-entry palette, used consistently across the
+canvas tint, a live "pond key" side panel (showing cell count and
+ports per Pond), AND the simulator. **Genuinely interactive**: each
+input port in the pond key has a real `→1` inject button that fires a
+real value directly into the live simulated bus at that exact address
+and ticks the simulation immediately -- a live, per-port test
+harness built directly into the visual Pond browser.
+
+---
+
 ## Not yet opened at all (this session)
+
 
 - `paper_bridges/data/cross_domain.py` (8.2KB)
 - `paper_bridges/data/cross_domain_matches.json` (415KB) — presumably a JSON export of the same real bridge data now confirmed in `concept_graph.db`
