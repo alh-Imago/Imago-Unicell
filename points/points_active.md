@@ -5766,3 +5766,76 @@ ICM tool (`#651`); (4) real `sub`-based counting-down loop support;
 own real first-look groundwork, `old_papers_drafts.onion`'s concept-
 graph system as the natural next open, plus the remaining unread
 domain files -- MidiTrix/NetTrix/OptiTrix/SensorTrix).
+
+## 660. Live PROG_ID reprogramming extended to all 9 core types -- the one remaining genuinely nano-only VM limitation `#654`-`#658` each flagged and left open, closed. Every field table confirmed directly against each core's own real RTL before writing it. The exact previously-blocked scenario -- a command core programming a non-nano target across a real carrier mesh -- now proven end to end. (Alan/Claude, 2026-09-05)
+
+**Real, per-core PROG_ID dispatch tables, `unicell_super_automaton_
+v1.py`'s own new `_PROG_TABLES`, confirmed field-by-field against each
+core's own real RTL (`fpga/verilog/*_cell_v4.v`) before writing a line
+of Python, not assumed from nano's own shape:** adder, ram, comparator,
+accumulator, latch, sequencer, and branch each get their own real
+table. Two genuine, deliberate RTL exceptions reproduced exactly, not
+smoothed into one generic shape:
+- **Branch's own real PROG_ID field is 4 bits wide** (`COMPLETE=15`),
+  not the 3-bit width (`COMPLETE=7`) every other core uses -- confirmed
+  directly (`branch_cell_v4.v`'s own `prog_id = prog_data_val[23:20]`
+  vs every other core's `[22:20]`). The caller-side word-splitting
+  logic (in `vix_carrier_automaton_v1.py`'s two relay call sites) now
+  looks up the real ID width per target core rather than hardcoding 3
+  bits everywhere.
+- **RAM's `init_data` and comparator's `threshold` are written as two
+  real half-words** (`_LOW`/`_HIGH`, each committing 16 bits into the
+  low/high half of the real 32-bit field), not one wide write --
+  confirmed directly against both cores' own real RTL.
+
+**Real, honest simplification, not a silently-faked feature:** none of
+these 8 core types have an "armed"/start-gate modeled in this VM at
+all (an existing, already-documented choice -- they fire
+unconditionally once configured). So `COMPLETE`'s only real VM effect
+for them is `program_done`; the real RTL's own arm-state bit has
+nothing to write to here, and this is stated plainly in the code
+rather than invented a fake field to receive it.
+
+**Real, full verification, not stopping at individual field checks:**
+`tests/vm/test_unicell_super_automaton_v1.py` gets 8 new real pytest
+tests -- a full program/COMPLETE cycle for adder, accumulator,
+sequencer, and latch; ram's and comparator's own real half-write
+combination; branch's own real 4-bit ID width; an unrecognized PROG_ID
+confirmed as a real, silent no-op (matching the RTL's own `default:
+;`). Two old tests asserting the now-removed "nano only" restriction
+were rewritten to test the new, correct behavior instead of deleted --
+the restriction they tested is real history, not something to erase
+from the record.
+
+**Real, end-to-end proof of the exact scenario `#658` left explicitly
+open:** `tests/vm/test_vix_carrier_mesh_v1.py` extended -- a command
+core embedded in one `VixCarrierSlot` redirects a neighboring slot to
+`adder` (not nano) via the real, insisted-upon first word, then
+genuinely configures it (`downstream_mask`/`upstream_mask`) across the
+real mesh boundary, with freeze correctly held through the relay and
+released only on the real `COMPLETE` word -- and a real functional
+confirmation that the freshly-programmed non-nano target actually
+computes the right answer. 4 new checks, 14/14 in that file overall.
+
+**Real, full regression:** 545 Python tests via pytest (up from 537 --
+the 8 new PROG_ID tests contribute to the ordinary collected count);
+20/20 and 15/15 in the two script-style VixCarrier test files,
+confirmed unaffected.
+
+**Real, honest documentation upkeep:** every comment in `vix_carrier_
+automaton_v1.py` that stated the old "nano only" scope limit as a
+CURRENT fact was updated to reflect the real, current state -- the one
+exception left in place (`unicell_super_automaton_v1.py`'s own new
+table comment) correctly phrases it as real history (`#654`-`#658`
+"each flagged" it), not a present-tense claim.
+
+**Real, standing next-session queue, working top-down (per Alan's own
+explicit direction: stabilize the VM and frontends BEFORE returning to
+the TRIX archeology, `#659`'s own real first-look groundwork already
+done and waiting):** (1) wire real carrier-to-carrier `program_out`/
+`freeze_out` in the RTL array generator (`#658`'s own real, confirmed
+RTL-side gap, still open); (2) the auto-sized-VM-from-ICM tool
+(`#651`); (3) real `sub`-based counting-down loop support in the LLVM
+frontend; (4) promote both select constructions + icmp eq to
+Tier-1/frontend; (5) once the above genuinely stabilizes, return to
+the TRIX/cross-domain archeology dive.

@@ -98,6 +98,100 @@ class CoreHandler:
 
 _CORE_HANDLERS: dict = {}
 
+# Points.md #660: real, per-core PROG_ID dispatch tables, confirmed
+# directly against each core's own real RTL (fpga/verilog/*_cell_v4.v)
+# before writing this -- every ID, field name, bit width, and half-
+# write split matches the actual `case (prog_id)` block in the real
+# RTL exactly, not smoothed into one generic shape. "dirN"/"rawN" kinds
+# mask to that real bit width; "half_low"/"half_high" write into
+# bits[15:0]/[31:16] of the SAME field, matching ram's/compare's own
+# real two-word commit for a value wider than one 16-bit prog_word.
+# Field names match `from_record()`'s own existing per-core field
+# names exactly, reused, not duplicated under a different name.
+_PROG_TABLES: dict = {
+    "adder": {
+        0: ("dir6", "adder_downstream_mask"),
+        1: ("dir6", "adder_upstream_mask"),
+        2: ("bool", "adder_subtract_mode"),
+        3: ("raw20", "addon_config"),
+        7: ("complete", None),
+    },
+    "ram": {
+        0: ("dir6", "ram_downstream_mask"),
+        1: ("dir6", "ram_upstream_mask"),
+        2: ("bool", "ram_fixed_mode"),
+        3: ("half_low", "ram_data_reg"),
+        4: ("half_high", "ram_data_reg"),
+        5: ("raw20", "addon_config"),
+        6: ("bool", "ram_data_valid"),
+        7: ("complete", None),
+    },
+    "comparator": {
+        0: ("dir6", "cmp_downstream_mask"),
+        1: ("dir6", "cmp_upstream_mask"),
+        2: ("half_low", "cmp_threshold"),
+        3: ("half_high", "cmp_threshold"),
+        4: ("raw20", "addon_config"),
+        7: ("complete", None),
+    },
+    "accumulator": {
+        0: ("dir6", "acc_inc_dir"),
+        1: ("dir6", "acc_dec_dir"),
+        2: ("dir6", "acc_downstream_mask"),
+        3: ("raw8", "acc_step_amount"),
+        4: ("bool", "acc_pulse_mode"),
+        5: ("raw16", "acc_threshold"),
+        6: ("raw20", "addon_config"),
+        7: ("complete", None),
+    },
+    "latch": {
+        0: ("dir6", "latch_set_dir"),
+        1: ("dir6", "latch_clear_dir"),
+        2: ("dir6", "latch_downstream_mask"),
+        3: ("dir6", "latch_toggle_dir"),
+        4: ("raw20", "addon_config"),
+        7: ("complete", None),
+    },
+    "sequencer": {
+        0: ("raw8", "seq_value_0"),
+        1: ("raw8", "seq_value_1"),
+        2: ("raw8", "seq_value_2"),
+        3: ("raw8", "seq_value_3"),
+        4: ("raw2", "seq_sequence_len_m1"),
+        5: ("dir6", "seq_downstream_mask"),
+        6: ("raw20", "addon_config"),
+        7: ("complete", None),
+    },
+    # Real, deliberate exception: branch's own real PROG_ID field is 4
+    # bits wide (COMPLETE=15), not the 3-bit width every other core
+    # uses (COMPLETE=7) -- confirmed directly against branch_cell_v4.v.
+    "branch": {
+        0: ("raw3", "br_upstream_dir"),
+        1: ("bool", "br_value_source_low"),
+        2: ("bool", "br_value_source_equal"),
+        3: ("bool", "br_value_source_high"),
+        4: ("raw7", "br_fixed_value_low"),
+        5: ("raw7", "br_fixed_value_equal"),
+        6: ("raw7", "br_fixed_value_high"),
+        7: ("bool", "br_emit_low"),
+        8: ("bool", "br_emit_equal"),
+        9: ("bool", "br_emit_high"),
+        10: ("dir6", "br_route_low"),
+        11: ("dir6", "br_route_equal"),
+        12: ("dir6", "br_route_high"),
+        13: ("bool", "br_rolling_mode"),
+        14: ("raw20", "addon_config"),
+        15: ("complete", None),
+    },
+}
+_PROG_ID_WIDTH_4BIT = {"branch"}   # real, confirmed exception -- see table comment above
+
+# Real width->mask lookup for the "rawN"/"dirN" kind strings above --
+# keeps each table entry readable while program_word() itself only
+# needs one real masking rule.
+_RAW_WIDTH_MASK = {"dir6": 0x3F, "raw2": 0x3, "raw3": 0x7, "raw7": 0x7F,
+                   "raw8": 0xFF, "raw16": 0xFFFF, "raw20": 0xFFFFF}
+
 
 def register_core_handler(name: str, handler: CoreHandler) -> None:
     if name in _CORE_HANDLERS:
@@ -281,6 +375,10 @@ class SuperCell:
                                      # it just advances to the next value on drain)
 
     freeze_in: bool = False
+    #: points.md #660: real, generic live-PROG_ID state for the 8 core
+    #: types that don't delegate to an internal `_nano` object.
+    _prog_in_flag: bool = False
+    _prog_program_done: bool = False
     _shell_pending_ack: int = 0   # non-nano cores' shared pending_ack mask
 
     # ── the shell-level programming channel (points.md #390's own real
@@ -289,44 +387,89 @@ class SuperCell:
     # the real RTL's own sel_active_nano convention exactly. Delegates
     # straight to the already-real, already-proven CACell.program_word()
     # -- no new mechanism, just the same shell-level exposure the RTL
-    # now has. ──
+    # now has.
+    #
+    # Points.md #660: real, necessary extension -- the other 8 core
+    # types get the SAME real shell-level channel here now, closing the
+    # one remaining genuinely nano-only limitation `#654`-`#658` each
+    # flagged and left open. Every PROG_ID table below confirmed
+    # directly against each core's own real RTL (`adder_cell_v4.v`
+    # etc.) before writing this, not assumed from nano's own shape --
+    # branch's own real PROG_ID field is 4 bits wide (COMPLETE=15), not
+    # the 3-bit width (COMPLETE=7) every other core uses, and ram's/
+    # compare's own wider fields (`init_data`/`threshold`) are written
+    # as two real half-words (`_LOW`/`_HIGH`), not one wide write --
+    # both real, deliberate RTL choices, reproduced exactly, not
+    # smoothed over into a single generic shape. ──
+    def _prog_table(self):
+        return _PROG_TABLES.get(self.core)
+
     @property
     def program_in(self) -> bool:
-        return self._nano.program_in if self.core == "nano" else False
+        if self.core == "nano":
+            return self._nano.program_in
+        return self._prog_in_flag if self._prog_table() is not None else False
 
     @program_in.setter
     def program_in(self, value: bool) -> None:
-        if self.core != "nano":
+        if self.core == "nano":
+            self._nano.program_in = value
+            return
+        if self._prog_table() is None:
             raise ValueError(
-                f"program_in only applies to nano -- this cell's own core is "
-                f"{self.core!r}, matching the real RTL's own sel_active_nano "
-                f"gating (#390): the shell-level programming channel only ever "
-                f"reaches nano."
+                f"program_in has no real meaning for core {self.core!r} -- "
+                f"no PROG_ID table exists for this core type"
             )
-        self._nano.program_in = value
+        self._prog_in_flag = bool(value)
 
     def program_word(self, prog_id: int, data: int) -> None:
-        """Shell-level access to nano's own real, already-proven
+        """Shell-level access to a core's own real, already-proven
         incremental PROG_ID-word reprogramming channel. Matches the
-        exact same calling convention already established for the
-        standalone `CACell` directly:
+        exact same calling convention already established for nano:
             cell.program_in = True
-            cell.program_word(PROG_ID_CARDINAL_EDGE, new_mask)
+            cell.program_word(PROG_ID_DOWNSTREAM_MASK, 0b000100)
             cell.program_word(PROG_ID_COMPLETE, 1)
             cell.program_in = False
-        """
-        if self.core != "nano":
+        `data` is always a raw integer, matching the real RTL's own
+        20-bit `prog_word` wire -- never a friendly direction list;
+        there is no such encoding at the real wire level."""
+        if self.core == "nano":
+            self._nano.program_word(prog_id, data)
+            return
+        table = self._prog_table()
+        if table is None:
             raise ValueError(
-                f"program_word() only applies to nano -- this cell's own core "
-                f"is {self.core!r}, matching the real RTL's own sel_active_nano "
-                f"gating (#390): the shell-level programming channel only ever "
-                f"reaches nano."
+                f"program_word() has no real meaning for core {self.core!r} -- "
+                f"no PROG_ID table exists for this core type"
             )
-        self._nano.program_word(prog_id, data)
+        entry = table.get(prog_id)
+        if entry is None:
+            return   # unrecognized ID: no-op, matches the real RTL's own `default: ;`
+        kind, field = entry
+        if kind == "complete":
+            # Real, honest simplification: none of these 8 core types
+            # have an "armed"/start-gate modeled in this VM at all (they
+            # fire unconditionally once configured, an existing,
+            # documented choice) -- so COMPLETE's only real VM effect
+            # is program_done; the real RTL's own arm-state bit has
+            # nothing to write to here, and isn't silently faked.
+            self._prog_program_done = True
+        elif kind == "bool":
+            setattr(self, field, bool(data & 1))
+        elif kind == "half_low":
+            cur = getattr(self, field)
+            setattr(self, field, (cur & 0xFFFF0000) | (data & 0xFFFF))
+        elif kind == "half_high":
+            cur = getattr(self, field)
+            setattr(self, field, (cur & 0x0000FFFF) | ((data & 0xFFFF) << 16))
+        else:   # "dir6"/"rawN" -- stored exactly as given, masked to the field's own real width
+            setattr(self, field, data & _RAW_WIDTH_MASK[kind])
 
     @property
     def program_done(self) -> bool:
-        return bool(self._nano.program_done) if self.core == "nano" else False
+        if self.core == "nano":
+            return bool(self._nano.program_done)
+        return getattr(self, "_prog_program_done", False)
 
     @classmethod
     def from_record(cls, rec: "v3.IcmV3Record") -> "SuperCell":

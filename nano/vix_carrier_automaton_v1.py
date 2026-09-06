@@ -31,13 +31,12 @@ writing this, not assumed from memory:
     (config-fixed to the target's own real `PROG_ID_COMPLETE`) has
     been relayed and confirmed.
 
-Real, honest, stated scope limit, not silently glossed over: the VM's
-own live PROG_ID reprogramming channel (`SuperCell.program_word()`)
-only exists for `core="nano"` today (`SuperCell.program_in`'s own
-setter explicitly raises for every other core type) -- so PROGRAMMER
-mode's own real relay-and-apply behavior is only genuinely exercised
-here against a real nano target. Extending live reprogramming to the
-other 7 core types is real, separate, later work, not attempted here.
+Points.md #660: live PROG_ID reprogramming (`SuperCell.program_word()`)
+has since been extended to all 9 core types -- PROGRAMMER mode's own
+real relay-and-apply behavior now genuinely works against any of them,
+not just nano. Each core's own PROG_ID table lives in `unicell_super_
+automaton_v1.py`'s own `_PROG_TABLES`, confirmed field-by-field
+against each core's own real RTL.
 
 Real, deliberate VM-level simplification, stated plainly: the real
 RTL's own multi-cycle prog_data_out/prog_arrived_out/prog_ack_in
@@ -57,6 +56,7 @@ from typing import Dict, List, Optional, Tuple
 import icm_v3 as v3
 from unicell_super_automaton_v1 import (
     SuperCell, SuperGrid, CoreHandler, register_core_handler, N, S, E, W,
+    _PROG_TABLES, _PROG_ID_WIDTH_4BIT,
 )
 
 # Real, RTL-confirmed constants (command_cell_v4.v's own real PROG_ID
@@ -233,8 +233,8 @@ def _propagate_freeze(self: VixCarrierCell, level: bool) -> None:
 def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:
     """Real, deliberate VM-level simplification of the real RTL's own
     multi-cycle prog_data_out/prog_arrived_out/prog_ack_in handshake --
-    see module docstring. Only genuinely exercised against a real nano
-    target today (`SuperCell.program_word()`'s own real, stated scope).
+    see module docstring. Works against any of the 9 real core types
+    since #660 (`SuperCell.program_word()`'s own real, extended scope).
 
     Points.md #657: polymorphic over the real target's own real shape
     -- a `VixCarrierSlot` (see its own class docstring) gets the raw,
@@ -263,14 +263,13 @@ def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:
             self._propagate_freeze(False)
         return
 
-    if target.core != "nano":
+    if target.core not in _PROG_TABLES and target.core != "nano":
         raise NotImplementedError(
-            f"command cell's own programmer-mode relay only works against a real "
-            f"nano target today -- {target.core!r} has no live PROG_ID reprogramming "
-            f"modeled yet (SuperCell.program_word()'s own real, stated scope, #654) -- "
-            f"real, separate, later work, not silently skipped here"
+            f"command cell's own programmer-mode relay has no real PROG_ID table for "
+            f"core {target.core!r} -- unrecognized core type, not silently skipped here"
         )
-    prog_id = (word >> 20) & 0x7
+    id_bits = 4 if target.core in _PROG_ID_WIDTH_4BIT else 3
+    prog_id = (word >> 20) & ((1 << id_bits) - 1)
     prog_word = word & 0xFFFFF
     target.program_in = True
     target.program_word(prog_id, prog_word)
@@ -494,7 +493,8 @@ class VixCarrierSlot:
             self.boot(core_select)
             self._prog_awaiting_select = False
             return
-        prog_id = (word >> 20) & 0x7
+        id_bits = 4 if self.core_select in _PROG_ID_WIDTH_4BIT else 3
+        prog_id = (word >> 20) & ((1 << id_bits) - 1)
         prog_word = word & 0xFFFFF
         self.active.program_in = True
         self.active.program_word(prog_id, prog_word)

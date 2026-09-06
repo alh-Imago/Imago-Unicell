@@ -100,6 +100,47 @@ check("real, dynamic re-resolution reflects the neighbor's CURRENT state, not a 
 
 
 # =============================================================================
+print("\n=== Real, carrier-to-carrier programming a NON-NANO target (#660) ===")
+# =============================================================================
+# Points.md #660: the exact scenario #658 explicitly left as a real,
+# stated, standing gap -- "field-tweak relaying still only works
+# against a real nano target." Live PROG_ID reprogramming has since
+# been extended to all 9 core types; this proves the full mesh path
+# genuinely reaches a non-nano target end to end, not just that the
+# first (core-select) word can redirect to one.
+grid3 = build_vix_slot_grid({(0, 0): "command", (0, 1): "nano"})
+slot_c, slot_d = grid3.cells[(0, 0)], grid3.cells[(0, 1)]
+cmd3 = slot_c.active
+cmd3.command_mode = True
+cmd3.command_drive_dir = 2
+cmd3.command_toggle_pattern = 7   # adder's own real COMPLETE id (3-bit table)
+cmd3.command_armed = True
+
+grid3.inject(0, 0, _INDEX_FROM_SEL["adder"])
+grid3.run_to_quiescence()
+check("real first word redirects the neighbor to a non-nano core",
+      slot_d.core_select == "adder")
+
+grid3.inject(0, 0, word(0, 0b000100))   # downstream_mask = E
+grid3.run_to_quiescence()
+grid3.inject(0, 0, word(1, 0b000011))   # upstream_mask = N|S
+grid3.run_to_quiescence()
+grid3.inject(0, 0, word(7, 1))          # COMPLETE
+grid3.run_to_quiescence()
+check("real fields correctly relayed to the non-nano target across the mesh",
+      slot_d.active.adder_downstream_mask == 0b000100 and slot_d.active.adder_upstream_mask == 0b000011)
+check("real freeze released after the non-nano target's own COMPLETE word",
+      slot_d.freeze_in is False)
+
+grid3.inject(0, 1, 3)
+grid3.run_to_quiescence()
+grid3.inject(0, 1, 4)
+grid3.run_to_quiescence()
+check("real, end-to-end functional confirmation -- a non-nano target, programmed across the mesh, genuinely works",
+      slot_d.active.adder_out_buffer == 7)
+
+
+# =============================================================================
 print("\n=== Results ===\n")
 # =============================================================================
 passed = sum(1 for s, _ in results if s == "PASS")

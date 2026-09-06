@@ -366,42 +366,49 @@ def test_program_word_reprograms_nano_cardinal_edge():
     assert cell.program_done is True
 
 
-def test_program_in_rejects_non_nano_cores():
+def test_program_in_and_program_word_now_work_for_ram_too():
+    """Points.md #660: real, necessary regression -- live PROG_ID
+    reprogramming extended beyond nano. This test replaces the old
+    'rejects_non_nano_cores' pair, which tested a real limitation that
+    no longer exists."""
     rec = v3.IcmV3Record(cell_id="r", row=0, col=0, core="ram",
-                          core_config={"downstream_mask": ["e"], "upstream_mask": [], "fixed_mode": 0, "load_data_valid": 0, "init_data": 0},
-                          addon_config={})
+                          core_config={}, addon_config={})
     grid = SuperGrid([rec])
     cell = grid.cells[(0, 0)]
 
+    cell.program_in = True
+    cell.program_word(0, 0b000100)   # downstream_mask = E
+    cell.program_word(3, 0xBEEF)     # init_data low half
+    cell.program_word(4, 0xDEAD)     # init_data high half
+    cell.program_word(7, 1)          # COMPLETE
+    cell.program_in = False
+
+    assert cell.ram_downstream_mask == 0b000100
+    assert cell.ram_data_reg == 0xDEADBEEF
+    assert cell.program_done is True
+    assert cell.program_in is False
+
+
+def test_program_word_raises_for_a_genuinely_unrecognized_core():
+    rec = v3.IcmV3Record(cell_id="r", row=0, col=0, core="ram",
+                          core_config={}, addon_config={})
+    grid = SuperGrid([rec])
+    cell = grid.cells[(0, 0)]
+    cell.core = "not_a_real_core"   # a genuinely unsupported core name
     try:
         cell.program_in = True
     except ValueError as e:
-        assert "only applies to nano" in str(e)
+        assert "no PROG_ID table" in str(e)
     else:
-        raise AssertionError("expected ValueError for a non-nano core")
-
-
-def test_program_word_rejects_non_nano_cores():
-    rec = v3.IcmV3Record(cell_id="r", row=0, col=0, core="ram",
-                          core_config={"downstream_mask": ["e"], "upstream_mask": [], "fixed_mode": 0, "load_data_valid": 0, "init_data": 0},
-                          addon_config={})
-    grid = SuperGrid([rec])
-    cell = grid.cells[(0, 0)]
-
-    try:
-        cell.program_word(2, 0)
-    except ValueError as e:
-        assert "only applies to nano" in str(e)
-    else:
-        raise AssertionError("expected ValueError for a non-nano core")
+        raise AssertionError("expected ValueError for a genuinely unrecognized core")
 
 
 def test_program_in_and_program_done_read_false_for_non_nano_without_raising():
-    # reading (not setting) program_in/program_done on a non-nano cell
-    # is safe and simply reports False -- only WRITING program_in or
-    # calling program_word() is a real error, matching the real RTL's
-    # own gating (a non-selected core's programming ports are simply
-    # inert, not a fault condition to read)
+    # points.md #660: reading (not setting) program_in/program_done on
+    # a fresh, never-programmed cell of any core type is safe and
+    # simply reports False -- this test now covers "before any real
+    # programming has happened yet", not "this core type can't be
+    # programmed" (extended beyond nano, #660).
     rec = v3.IcmV3Record(cell_id="r", row=0, col=0, core="ram",
                           core_config={"downstream_mask": ["e"], "upstream_mask": [], "fixed_mode": 0, "load_data_valid": 0, "init_data": 0},
                           addon_config={})
@@ -482,6 +489,109 @@ def test_nano_exposed_ports_reach_the_real_cacell_not_just_stored():
     assert cell._nano.a_reemit_in is False
     assert cell._nano.a_update_in is True
     assert cell._nano.a_self_update_in is False
+
+
+# ── #660: real live PROG_ID reprogramming extended to all 9 core types,
+# closing the one remaining genuinely nano-only limitation #654-#658
+# each flagged. Every table entry confirmed directly against each
+# core's own real RTL before writing it (see unicell_super_automaton_
+# v1.py's own _PROG_TABLES comment for the full real rationale). ─────
+
+def test_prog_id_adder_full_cycle():
+    cell = SuperCell.from_record(_rec("a", 0, 0, "adder"))
+    cell.program_in = True
+    cell.program_word(0, 0b000100)   # downstream_mask = E
+    cell.program_word(1, 0b000011)   # upstream_mask = N|S
+    cell.program_word(2, 1)          # subtract_mode
+    cell.program_word(7, 1)          # COMPLETE
+    cell.program_in = False
+    assert cell.adder_downstream_mask == 0b000100
+    assert cell.adder_upstream_mask == 0b000011
+    assert cell.adder_subtract_mode is True
+    assert cell.program_done is True
+
+
+def test_prog_id_ram_half_write_combines_correctly():
+    cell = SuperCell.from_record(_rec("r", 0, 0, "ram"))
+    cell.program_in = True
+    cell.program_word(3, 0xBEEF)     # init_data low half
+    cell.program_word(4, 0xDEAD)     # init_data high half
+    cell.program_word(6, 1)          # load_data_valid
+    cell.program_word(7, 1)          # COMPLETE
+    cell.program_in = False
+    assert cell.ram_data_reg == 0xDEADBEEF
+    assert cell.ram_data_valid is True
+
+
+def test_prog_id_comparator_half_write_threshold():
+    cell = SuperCell.from_record(_rec("c", 0, 0, "comparator"))
+    cell.program_in = True
+    cell.program_word(2, 0x0002)     # threshold low half
+    cell.program_word(3, 0x0001)     # threshold high half
+    cell.program_word(7, 1)
+    cell.program_in = False
+    assert cell.cmp_threshold == 0x00010002
+
+
+def test_prog_id_branch_uses_the_real_4bit_id_width():
+    """Points.md #660: branch's own real PROG_ID field is 4 bits wide
+    (COMPLETE=15), not the 3-bit width every other core uses
+    (COMPLETE=7) -- confirmed directly against branch_cell_v4.v."""
+    cell = SuperCell.from_record(_rec("b", 0, 0, "branch"))
+    cell.program_in = True
+    cell.program_word(0, 0b010)       # upstream_dir = E
+    cell.program_word(11, 0b000100)   # route_equal = E
+    cell.program_word(15, 1)          # COMPLETE -- only valid at 4 bits
+    cell.program_in = False
+    assert cell.br_upstream_dir == 0b010
+    assert cell.br_route_equal == 0b000100
+    assert cell.program_done is True
+
+
+def test_prog_id_accumulator_full_cycle():
+    cell = SuperCell.from_record(_rec("acc", 0, 0, "accumulator"))
+    cell.program_in = True
+    cell.program_word(0, 0b000001)    # inc_dir = N
+    cell.program_word(2, 0b000100)    # downstream_mask = E
+    cell.program_word(3, 5)           # step_amount
+    cell.program_word(7, 1)
+    cell.program_in = False
+    assert cell.acc_inc_dir == 0b000001
+    assert cell.acc_downstream_mask == 0b000100
+    assert cell.acc_step_amount == 5
+
+
+def test_prog_id_sequencer_full_cycle():
+    cell = SuperCell.from_record(_rec("s", 0, 0, "sequencer"))
+    cell.program_in = True
+    cell.program_word(0, 0xAA)        # value_0
+    cell.program_word(5, 0b000100)    # downstream_mask = E
+    cell.program_word(7, 1)
+    cell.program_in = False
+    assert cell.seq_value_0 == 0xAA
+    assert cell.seq_downstream_mask == 0b000100
+
+
+def test_prog_id_latch_full_cycle():
+    cell = SuperCell.from_record(_rec("l", 0, 0, "latch"))
+    cell.program_in = True
+    cell.program_word(0, 0b000001)    # set_dir = N
+    cell.program_word(2, 0b000100)    # downstream_mask = E
+    cell.program_word(7, 1)
+    cell.program_in = False
+    assert cell.latch_set_dir == 0b000001
+    assert cell.latch_downstream_mask == 0b000100
+
+
+def test_prog_id_unrecognized_id_is_a_real_noop():
+    """Matches the real RTL's own `default: ;` -- an unrecognized
+    PROG_ID is silently ignored, not an error."""
+    cell = SuperCell.from_record(_rec("a", 0, 0, "adder"))
+    cell.program_in = True
+    cell.program_word(99, 0xFFFFF)   # not a real PROG_ID for adder
+    cell.program_in = False
+    assert cell.adder_downstream_mask == 0
+    assert cell.adder_upstream_mask == 0
 
 
 if __name__ == "__main__":

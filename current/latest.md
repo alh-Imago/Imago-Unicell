@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-05, real first orienting look into the TRIX cross-domain archeology -- format-contract architecture confirmed, FlowTrix's own cylinder/Strouhal validation directly reusable, a real unexplored concept-graph system found alongside it. Not the full dive yet -- that's still standing, queued. See `points/points_active.md` #659)
+# Current State (as of 2026-09-06, live PROG_ID reprogramming extended to all 9 core types -- the one remaining genuinely nano-only VM limitation, closed. A command core programming a non-nano target across a real carrier mesh now proven end to end. See `points/points_active.md` #660)
+
+## Read this first (most recent)
+
+**2026-09-06, live PROG_ID reprogramming extended to all 9 core types
+(#660).** Per Alan's own explicit direction to stabilize the VM and
+frontends before returning to the TRIX archeology. `unicell_super_
+automaton_v1.py`'s own new `_PROG_TABLES` gives adder/ram/comparator/
+accumulator/latch/sequencer/branch each their own real PROG_ID table,
+confirmed field-by-field against each core's own real RTL. Two genuine
+RTL exceptions reproduced exactly: branch's own real 4-bit PROG_ID
+field (`COMPLETE=15`, not 7), and ram's/comparator's own real
+half-word writes for `init_data`/`threshold`.
+
+**Real, honest simplification stated plainly:** none of these 8 core
+types have an "armed" gate modeled in this VM (an existing, documented
+choice) -- `COMPLETE`'s only real effect for them is `program_done`,
+not a faked arm-state write.
+
+**Real, end-to-end proof of the exact scenario `#658` left open:** a
+command core embedded in one `VixCarrierSlot` now correctly redirects,
+configures, and functionally proves a NEIGHBORING slot on a non-nano
+core (`adder`) across the real mesh -- the field-tweak relaying gap
+`#658` explicitly named as still standing is now closed.
+
+**Real, full regression:** 545 Python tests via pytest (up from 537);
+20/20, 15/15, and 14/14 in the three VixCarrier test files.
+
+**Real, standing next-session queue:** (1) wire real carrier-to-carrier
+`program_out`/`freeze_out` in the RTL array generator (`#658`'s own
+confirmed RTL-side gap, still open); (2) the auto-sized-VM-from-ICM
+tool (`#651`); (3) real `sub`-based counting-down loop support; (4)
+promote both select constructions + icmp eq to Tier-1/frontend; (5)
+once the above genuinely stabilizes, return to the TRIX/cross-domain
+archeology dive (`#659`'s own groundwork already done and waiting).
+
+## Previous state (as of 2026-09-05, real first orienting look into the TRIX cross-domain archeology -- format-contract architecture confirmed, FlowTrix's own cylinder/Strouhal validation directly reusable, a real unexplored concept-graph system found alongside it. Not the full dive yet -- that's still standing, queued. See `points/points_active.md` #659)
 
 ## Read this first (most recent)
 
