@@ -89,7 +89,7 @@ from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from program_ir_v1 import ProgramIR, PlaceIR, FieldIR  # noqa: E402
 from dsl_compiler_v1 import compile_program_ir  # noqa: E402
 
-_SUPPORTED_OPCODES = {"add", "sub", "icmp"}
+_SUPPORTED_OPCODES = {"add", "sub", "icmp", "select"}
 
 # points.md #613: real, verified derivation -- reuses the exact same
 # real, proven primitives #611 already verified (the adder's own
@@ -320,6 +320,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
     last_result_row = 1   # points.md #668: eq/ne's own real result lives at row 2 (the XOR gate), not row 1 -- updated below when placed
     injections: List[Tuple[int, int, int]] = []
     prev_instr_name: Optional[str] = None
+    prev_icmp_predicate: Optional[str] = None   # points.md #674: tracked so select's own cond can be validated
     # points.md #613: a running column cursor, not a fixed `i + 1` --
     # icmp needs TWO physical columns (a diff cell + a comparator),
     # so instructions no longer map 1:1 onto columns. The invariant
@@ -338,6 +339,145 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     "every other real LLVM opcode is explicitly deferred future work",
             ))
             return None, diagnostics, None
+
+        if instr.opcode == "select":
+            # points.md #674: LLVM's own ternary -- select i1 %cond, %true, %false.
+            # A genuinely different operand shape (3, not 2) from every other
+            # instruction this frontend handles, so it's validated and placed
+            # entirely separately, before the ordinary 2-operand machinery below
+            # ever runs.
+            sel_operands = list(instr.operands)
+            if len(sel_operands) != 3:
+                diagnostics.append(_diag(
+                    problem=f"select with {len(sel_operands)} operands, expected 3",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="a real select is always (cond, true_val, false_val)",
+                ))
+                return None, diagnostics, None
+            if i != len(body_instructions) - 1:
+                diagnostics.append(_diag(
+                    problem=f"select is used mid-chain, not as the final instruction "
+                             f"before ret ({str(instr).strip()})",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="select's own real result lands on a different physical row "
+                        "than the ordinary chain convention (#674's own 5-cell "
+                        "composition, not a single diff+comparator) -- a later "
+                        "instruction reading it as an ordinary chain value would be "
+                        "wired to the wrong cell. Only supported as the chain's own "
+                        "final, returned value for now, the same real restriction "
+                        "eq/ne already has (#668).",
+                ))
+                return None, diagnostics, None
+            cond_name = _operand_name(sel_operands[0])
+            if not (cond_name == prev_instr_name and prev_icmp_predicate in _ICMP_LOWERING):
+                diagnostics.append(_diag(
+                    problem=f"select's own cond operand {cond_name or str(sel_operands[0])!r} "
+                             f"isn't the immediately preceding ordinary icmp's own result",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="this real, first slice requires select's cond to come directly "
+                        f"from the immediately preceding icmp, using one of "
+                        f"{sorted(_ICMP_LOWERING)} specifically -- eq/ne's own result "
+                        "lives at a different row (#668) and isn't wired as a valid "
+                        "cond source here yet; a cond from further back in the chain, "
+                        "or a bare argument/constant, needs real relay routing not "
+                        "built here",
+                ))
+                return None, diagnostics, None
+            true_value, _ = _resolve_operand_value(sel_operands[1], argument_values)
+            false_value, _ = _resolve_operand_value(sel_operands[2], argument_values)
+            if true_value is None or false_value is None:
+                diagnostics.append(_diag(
+                    problem="select's own true_val/false_val operands must both be "
+                             "compile-time arguments or constants",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="neither can reference another instruction's result in this "
+                        "real, first slice -- only cond may (and only the immediately "
+                        "preceding icmp, per the check above)",
+                ))
+                return None, diagnostics, None
+
+            cond_value = known_values[cond_name] & 1
+            result = (true_value if cond_value else false_value) & 0xFFFFFFFF
+            known_values[instr.name] = result
+
+            # points.md #674: real, 5-cell composition, verified directly in
+            # the VM under REALISTIC injection timing (every value delivered
+            # up front, none sequenced by a convenient test script) before
+            # writing this placement code -- an earlier version of this
+            # composition passed under artificially-sequenced test timing
+            # and then failed outright once tested honestly, catching a
+            # real hop-count-symmetry bug before it ever reached here.
+            #
+            #   cond(west, chain) --\
+            #                        MASK_SUB(0,c) -e-> AND_TRUE(0,c+1) -e-> OR(0,c+2)
+            #   "0"(north, inj) ---/          \
+            #                                  s
+            #                                  v
+            #                          NOT_MASK(1,c) -e-> AND_FALSE(1,c+1) -\
+            #                                                                (relay up to OR)
+            #
+            # mask = 0 - cond (broadcasts a bare 0/1 boolean to a full
+            # 0x0/0xFFFFFFFF word -- a raw bitwise AND against an
+            # un-broadcast 0/1 would only ever touch the lowest bit).
+            # not_mask = XOR(mask, 0xFFFFFFFF) -- an exact boolean/bitwise
+            # complement since mask is ALREADY a full word, not the
+            # bitwise-NOT-of-a-bare-bit trap #668 already found with
+            # TOPO_XNOR. AND_TRUE/AND_FALSE gate true_val/false_val by
+            # mask/not_mask; OR combines them. The AND_TRUE->OR path (2
+            # hops) and the AND_FALSE->relay->OR path (3 hops, through
+            # NOT_MASK's own extra stage) are naturally, structurally
+            # unequal -- the real fix here was leaving that asymmetry
+            # alone, not "correcting" it into equal lengths.
+            sub_col = col_cursor
+            injections.append((0, sub_col, 0))
+            statements.append(PlaceIR(
+                name=f"op_{i}_zero", tile_name="ram_flowing", row=0, col=sub_col,
+                fields=[FieldIR("in", "n"), FieldIR("out", "s")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_mask", tile_name="subtractor", row=1, col=sub_col,
+                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", ["e", "s"])],
+            ))
+            injections.append((3, sub_col, 0xFFFFFFFF))
+            statements.append(PlaceIR(
+                name=f"op_{i}_xor_const", tile_name="ram_flowing", row=3, col=sub_col,
+                fields=[FieldIR("in", "s"), FieldIR("out", "n")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_not_mask", tile_name="nano_gate", row=2, col=sub_col,
+                fields=[FieldIR("out", "e"), FieldIR("topology", 0x0BC)],
+            ))
+            injections.append((0, sub_col + 1, true_value))
+            statements.append(PlaceIR(
+                name=f"op_{i}_true_const", tile_name="ram_flowing", row=0, col=sub_col + 1,
+                fields=[FieldIR("in", "n"), FieldIR("out", "s")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_and_true", tile_name="nano_gate", row=1, col=sub_col + 1,
+                fields=[FieldIR("out", "e"), FieldIR("topology", 0x007)],
+            ))
+            injections.append((3, sub_col + 1, false_value))
+            statements.append(PlaceIR(
+                name=f"op_{i}_false_const", tile_name="ram_flowing", row=3, col=sub_col + 1,
+                fields=[FieldIR("in", "s"), FieldIR("out", "n")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_and_false", tile_name="nano_gate", row=2, col=sub_col + 1,
+                fields=[FieldIR("out", "e"), FieldIR("topology", 0x007)],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_relay", tile_name="ram_flowing", row=2, col=sub_col + 2,
+                fields=[FieldIR("in", "w"), FieldIR("out", "n")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_or", tile_name="nano_gate", row=1, col=sub_col + 2,
+                fields=[FieldIR("out", "e"), FieldIR("topology", 0x024)],
+            ))
+            col_cursor = sub_col + 3
+            last_result_row = 1
+            prev_instr_name = instr.name
+            prev_icmp_predicate = None
+            continue
 
         operands = list(instr.operands)
         if len(operands) != 2:
@@ -618,6 +758,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             col_cursor = diff_col + 1
 
         prev_instr_name = instr.name
+        prev_icmp_predicate = predicate if instr.opcode == "icmp" else None
 
     ret_operand_name = _operand_name(list(ret_instr.operands)[0])
     if ret_operand_name != prev_instr_name:

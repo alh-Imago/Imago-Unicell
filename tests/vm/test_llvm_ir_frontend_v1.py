@@ -700,3 +700,98 @@ def test_descending_loop_mismatched_sub_with_slt_rejected():
     icm, diagnostics, info = compile_llvm_ir(ir, {"n": 3})
     assert icm is None
     assert any("expected" in d.problem and "sgt" in d.problem for d in diagnostics)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #674: select (LLVM's own ternary), the remaining half of
+# the standing "promote select + icmp eq to Tier-1" task (#668 covered
+# eq/ne). result = cond ? true_val : false_val, lowered to a real
+# 5-cell composition: mask = 0 - cond (broadcasts a bare 0/1 boolean to
+# a full 0x0/0xFFFFFFFF word), not_mask = XOR(mask, 0xFFFFFFFF), then
+# AND_TRUE/AND_FALSE gate true_val/false_val by mask/not_mask, OR
+# combines them.
+#
+# A real, hard-won lesson from building this, worth keeping in mind for
+# anything built after it: an earlier version of this composition
+# passed under artificially-sequenced test timing (values injected one
+# at a time with pauses between them) and then failed outright once
+# tested under REAL injection timing (every value delivered up front,
+# matching how the frontend's own `injections` list is actually
+# applied) -- an added relay meant to stagger one path had accidentally
+# made two naturally-unequal hop counts equal again, silently
+# reintroducing the exact same-tick convergence bug #668 already found
+# once. The fix was leaving the natural 2-vs-3 hop asymmetry alone, not
+# "correcting" it.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _run_select(x, y, predicate, ticks=60):
+    ir = f"""
+    define i32 @f(i32 %x) {{
+    entry:
+      %c = icmp {predicate} i32 %x, {y}
+      %r = select i1 %c, i32 %x, i32 {y}
+      ret i32 %r
+    }}
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": x})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    return grid.cells[info.result_cell]._nano.out_buffer
+
+
+def test_select_real_cases_across_predicates():
+    cases = [
+        (10, 5, "sgt", 10), (3, 5, "sgt", 5), (5, 5, "sgt", 5),
+        (10, 5, "slt", 5), (3, 5, "slt", 3),
+        (100, 100, "sle", 100), (100, 99, "sge", 100),
+    ]
+    for x, y, pred, expect in cases:
+        result = _run_select(x, y, pred)
+        assert result == expect, f"select(x={x}, {pred}, y={y}) = {result}, expected {expect}"
+
+
+def test_select_handles_a_real_negative_two_complement_value():
+    result = _run_select(0xFFFFFFFF, 5, "sge")   # x as -1 signed; -1 >= 5 is false
+    assert result == 5
+
+
+def test_select_rejected_mid_chain():
+    """Points.md #674: select's own real result lands on a different
+    physical row than the ordinary chain convention -- using it mid-
+    chain must be rejected with a clear diagnostic, matching #668's
+    own real restriction for eq/ne."""
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %c = icmp sgt i32 %x, 5
+      %r = select i1 %c, i32 %x, i32 5
+      %r2 = add i32 %r, 1
+      ret i32 %r2
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 10})
+    assert icm is None
+    assert any("mid-chain" in d.problem for d in diagnostics)
+
+
+def test_select_requires_cond_from_the_immediately_preceding_ordinary_icmp():
+    """Points.md #674: a select whose cond doesn't come directly from
+    the immediately preceding ordinary icmp must be rejected -- here
+    hit indirectly via #668's own 'eq must be final' rule, since any
+    chain pairing eq/ne with a following select is already invalid on
+    those terms first."""
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %c = icmp eq i32 %x, 5
+      %r = select i1 %c, i32 %x, i32 5
+      ret i32 %r
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
+    assert icm is None
+    assert len(diagnostics) > 0

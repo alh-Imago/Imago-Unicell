@@ -6712,3 +6712,69 @@ related to X" lookup -- a real, different, complementary tool, not a
 replacement for the ledger itself. Real, honest scope: an idea only,
 deliberately not designed or built here -- explicitly deferred by
 Alan's own words ("not now").
+
+## 674. `select` (LLVM's own ternary) built and verified in the real LLVM frontend -- the remaining half of the standing "promote select + icmp eq to Tier-1" task (`#668` covered eq/ne). A real, hard-won bug found by Alan's own direct question about nano's preload/one-shot behavior, catching a false-positive "verified" result before it was ever committed. (Alan/Claude, 2026-09-06)
+
+**Real design, no bespoke MUX gate needed:** `result = cond ? true_val :
+false_val` lowered to a real 5-cell composition using only existing
+primitives -- `mask = 0 - cond` (a subtractor broadcasts the bare 0/1
+boolean into a full `0x0`/`0xFFFFFFFF` word; a raw bitwise AND against
+an un-broadcast bit would only ever touch the lowest bit), `not_mask =
+XOR(mask, 0xFFFFFFFF)` (a real, exact bitwise complement here, since
+mask is ALREADY a full word -- not the bare-bit-vs-bitwise-NOT trap
+`#668` already found with `TOPO_XNOR`), then `AND_TRUE`/`AND_FALSE`
+gate `true_val`/`false_val` by `mask`/`not_mask`, and `OR` combines
+them.
+
+**Real, decisive question from Alan, caught a real bug before it was
+ever committed:** asked directly whether nano's own one-shot-fire/hold
+behavior could help, prompting a check of whether the composition's
+own "verified" pass actually held under the REAL injection timing the
+frontend would use, not the convenient, manually-sequenced timing my
+own first test script used. It didn't: the composition failed outright
+once tested with every value injected up front (matching `LlvmLowering
+Info.injections`'s own real convention) instead of paced with
+`run_to_quiescence()` calls between each one. Traced precisely: an
+added relay meant to stagger the final OR-combine's two paths had
+accidentally made two NATURALLY unequal hop counts (2 vs 3, since one
+path routes through the NOT-gate stage and the other doesn't) equal
+again -- silently reintroducing the exact same-tick convergence bug
+`#668` already found once. The real fix was removing the relay and
+leaving the natural asymmetry alone, not "correcting" it into equal
+lengths. A second, smaller finding along the way: nano's own single-
+operand `TOPO_NOT_A` still needs a genuine second (dummy) arrival to
+fire at all, and the ORDER of that dummy relative to the real operand
+matters for a non-commutative gate -- switching to a real, commutative
+`XOR(mask, 0xFFFFFFFF)` sidesteps this entirely, since XOR doesn't
+care which operand arrives first.
+
+**Real, honest scope limits, each with a clear diagnostic rather than
+silently wired wrong, matching `#668`'s own established pattern:**
+select's own result lands on a different physical row than the
+ordinary chain convention, so it's restricted to being the chain's
+own final, returned instruction. Its `cond` operand must come directly
+from the immediately preceding ORDINARY icmp (`sge`/`sgt`/`slt`/`sle`)
+-- `eq`/`ne` aren't wired as a valid cond source here (their own result
+already lives at yet another row, `#668`), though in practice any
+chain pairing eq/ne with a following select is already caught by
+eq/ne's own "must be final" rule first.
+
+**Real, full end-to-end verification, not stopping at the isolated VM
+composition:** 7 real `(x, y, predicate)` cases across all 4 ordinary
+predicates through the actual compiled LLVM IR, a real negative
+(two's-complement) value case, both restriction diagnostics confirmed.
+`tests/vm/test_llvm_ir_frontend_v1.py` extended with 5 new tests, all
+running the real compiled pipeline end to end, none stopping at just
+the isolated composition.
+
+**Real, full regression:** 46/46 in the extended frontend test file;
+585 Python tests via pytest overall (up from 581).
+
+**Real, standing next-session queue, working top-down:** (1) the
+`PROG_ID_COMPLETE` stale-value correction (`#665`'s own logged,
+deliberately-deferred finding) -- the one remaining item on the
+standing queue; (2) once that's done, return to the TRIX/cross-domain
+archeology dive (`#659`'s own groundwork already done and waiting, now
+also carrying the "timing to depth" precedent from `#668` and this
+entry's own real, hard lesson about verifying under real timing, not
+convenient test timing).

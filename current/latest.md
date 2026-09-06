@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-06, AutoSizedVM.read_named() extended to comparator/accumulator/latch/sequencer -- a short pick before select. Corrected a real oversight in #667 and a real inject_named() limitation found along the way. See `points/points_active.md` #669)
+# Current State (as of 2026-09-06, select (LLVM's own ternary) built and verified in the real frontend -- the remaining half of "promote select + icmp eq to Tier-1." A real bug caught by Alan's own direct question before it was ever committed. See `points/points_active.md` #674)
+
+## Read this first (most recent)
+
+**2026-09-06, select built and verified (#674).** Closes the standing
+`#668` task. `result = cond ? true : false` lowered to a real 5-cell
+composition (mask broadcast via subtraction, XOR-based complement, two
+ANDs, one OR) using only existing primitives, no bespoke MUX gate.
+
+**Real bug caught by a direct question, before it was ever committed:**
+Alan asked whether nano's own one-shot-fire/preload behavior could
+help, which prompted checking the composition under REAL injection
+timing rather than my own convenient, manually-paced test sequencing.
+It failed: a relay I'd added to stagger the final OR-combine's two
+paths had accidentally made two naturally-unequal hop counts (2 vs 3)
+equal again, silently reintroducing the exact same-tick convergence
+bug `#668` already found once. Fixed by removing the relay and leaving
+the natural asymmetry alone.
+
+**Real, honest scope limits, matching `#668`'s own pattern:** select
+must be the chain's final instruction; its cond must come directly
+from the immediately preceding ordinary icmp (not eq/ne, which already
+land on a different row).
+
+**Real, full verification:** 7 real cases across all 4 ordinary
+predicates through the actual compiled pipeline, a negative-value case,
+both restriction diagnostics confirmed. 46/46 in the frontend test
+file; 585 Python tests overall (up from 581).
+
+**Real, standing next-session queue:** (1) the `PROG_ID_COMPLETE`
+stale-value correction (`#665`) -- the one remaining standing item;
+(2) once done, the TRIX archeology dive, now carrying both the "timing
+to depth" precedent and this entry's own lesson about verifying under
+real timing, not convenient test timing.
+
+## Previous state (as of 2026-09-06, AutoSizedVM.read_named() extended to comparator/accumulator/latch/sequencer -- a short pick before select. Corrected a real oversight in #667 and a real inject_named() limitation found along the way. See `points/points_active.md` #669)
 
 ## Read this first (most recent)
 
