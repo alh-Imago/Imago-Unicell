@@ -120,12 +120,48 @@ _SUPPORTED_OPCODES = {"add", "sub", "icmp"}
 #             needing negation at all
 #   sle(A,B): same diff, comparator threshold=0 instead of 1
 # (tile_name, negate_north_before_injecting, comparator_threshold)
+# points.md #611: real diff/threshold shape for the 4 REAL order
+# comparisons this frontend has understood since #613. eq/ne need a
+# genuinely different shape (#668) -- see _EQ_NE_PREDICATES below and the
+# real, dedicated placement logic in the main lowering loop.
 _ICMP_LOWERING = {
     "sge": ("adder", True, 0),
     "sgt": ("adder", True, 1),
     "slt": ("subtractor", False, 1),
     "sle": ("subtractor", False, 0),
 }
+
+# points.md #668: real, hard-won VM finding, verified in isolation
+# before touching this frontend at all -- eq(A,B) is genuinely
+# TOPO_XOR(diff>=0, diff>=1): true only when diff is EXACTLY 0 (for
+# diff<0 both comparators read 0, XOR=0; for diff==0 the first reads 1
+# and the second 0, XOR=1; for diff>=1 both read 1, XOR=0). ne is the
+# same real gate with TOPO_XNOR instead -- no extra cells needed, only
+# a different fixed topology constant on the same real 2-input gate.
+# The one real, non-obvious finding this needed: nano's own two-arrival
+# gate OR-COMBINES two same-tick arrivals from different sources into
+# ONE event -- it does NOT treat them as two separate sequential
+# operands the way #611's own diff-injection stagger already handles
+# for west/north. Feeding it two INDEPENDENTLY COMPUTED values (here,
+# two comparator outputs) needs the exact same real fix: deliberately
+# unequal hop counts so the two arrivals land on genuinely different
+# ticks. Verified directly against six real (a, b) pairs in the VM
+# before writing any of this lowering code.
+# points.md #668: real, final fix -- TOPO_XNOR turned out to be a
+# genuine BITWISE not-XOR over all 32 bits, not a clean boolean invert
+# (confirmed by testing: gave 0xFFFFFFFE instead of 0, since the eq
+# result is 0/1 but XNOR inverts every bit of the 32-bit word). The
+# real, working fix: `ne` reuses the exact same eq composition, then
+# XORs its clean 0/1 result against a real, ONE-TIME-injected constant
+# 1 -- XOR(1,1)=0, XOR(0,1)=1, an exact boolean NOT, not a bitwise one.
+# Deliberately a real, one-time injection (matching this frontend's
+# own established convention for every constant value), not a
+# continuously-live ram_constant -- #611's own real finding already
+# warned that a permanently-re-offering source contaminates a nano
+# gate's own two-arrival timing once its shielding relay drains and
+# reopens.
+_EQ_TOPOLOGY = 0x0BC   # TOPO_XOR
+_EQ_NE_PREDICATES = ("eq", "ne")
 
 
 def _diag(problem: str, what: str, why: str, suggestion: Optional[str] = None) -> CompileDiagnostic:
@@ -281,6 +317,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
     # result can actually be checked against the VM later ──
     known_values: Dict[str, int] = dict(argument_values)
     statements: List[PlaceIR] = []
+    last_result_row = 1   # points.md #668: eq/ne's own real result lives at row 2 (the XOR gate), not row 1 -- updated below when placed
     injections: List[Tuple[int, int, int]] = []
     prev_instr_name: Optional[str] = None
     # points.md #613: a running column cursor, not a fixed `i + 1` --
@@ -357,18 +394,35 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
 
         if instr.opcode == "icmp":
             predicate = _icmp_predicate(instr)
-            if predicate not in _ICMP_LOWERING:
+            if predicate not in _ICMP_LOWERING and predicate not in _EQ_NE_PREDICATES:
                 diagnostics.append(_diag(
                     problem=f"icmp predicate {predicate!r} not supported ({str(instr).strip()})",
                     what=f"lowering instruction {i + 1} ({str(instr).strip()})",
-                    why=f"this real, first frontend slice only understands {sorted(_ICMP_LOWERING)} "
-                        "(#613) -- eq/ne need a real AND of two comparisons, not yet built",
+                    why=f"this real, first frontend slice only understands "
+                        f"{sorted(list(_ICMP_LOWERING) + list(_EQ_NE_PREDICATES))} (#613/#668)",
                 ))
                 return None, diagnostics, None
-            result = 1 if {
-                "sge": first_value >= second_value, "sgt": first_value > second_value,
-                "slt": first_value < second_value, "sle": first_value <= second_value,
-            }[predicate] else 0
+            if predicate in _EQ_NE_PREDICATES and i != len(body_instructions) - 1:
+                diagnostics.append(_diag(
+                    problem=f"icmp {predicate!r} is used mid-chain, not as the final instruction "
+                             f"before ret ({str(instr).strip()})",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="eq/ne's own real result lands on a different physical row than the "
+                        "ordinary chain convention (#668's own real 6-cell composition, not a "
+                        "single comparator) -- a later instruction reading it as an ordinary "
+                        "chain value would be wired to the wrong cell. Only supported as the "
+                        "chain's own final, returned value for now.",
+                    suggestion="restructure so the eq/ne comparison is the last real instruction "
+                               "before ret, or wait for general multi-row chain routing to be built",
+                ))
+                return None, diagnostics, None
+            if predicate in _EQ_NE_PREDICATES:
+                result = 1 if (first_value == second_value) == (predicate == "eq") else 0
+            else:
+                result = 1 if {
+                    "sge": first_value >= second_value, "sgt": first_value > second_value,
+                    "slt": first_value < second_value, "sle": first_value <= second_value,
+                }[predicate] else 0
         else:
             result = first_value + second_value if instr.opcode == "add" else first_value - second_value
         # Real hardware is 32-bit, always -- masking here keeps the
@@ -384,7 +438,21 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         # points.md #611's own already-verified real design ──
         diff_col = col_cursor
         if instr.opcode == "icmp":
-            diff_tile, negate_north, threshold = _ICMP_LOWERING[predicate]
+            if predicate in _EQ_NE_PREDICATES:
+                # points.md #668: eq/ne's own real test (diff==0 exactly)
+                # is genuinely sign-agnostic -- a nonzero diff of EITHER
+                # sign makes both comparators agree (both 0 for a
+                # negative diff, both 1 for a positive one), giving
+                # XOR=0 either way; only diff==0 splits them. So which
+                # operand order the subtractor's own real north-minus-
+                # west hardware produces doesn't matter here, unlike
+                # slt/sgt's own real asymmetric case -- reusing the same
+                # "subtractor, no negation" wiring as slt/sle purely for
+                # consistency with the rest of this table, not because
+                # eq/ne needs that specific sign.
+                diff_tile, negate_north = "subtractor", False
+            else:
+                diff_tile, negate_north, threshold = _ICMP_LOWERING[predicate]
         elif instr.opcode == "sub":
             diff_tile, negate_north = "adder", True
         else:
@@ -462,23 +530,90 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         ))
 
         if instr.opcode == "icmp":
-            # points.md #613: comparator sits immediately EAST of the
-            # diff cell -- its own real "in" port (single, not two --
-            # comparator only ever compares ONE dynamic value against a
-            # FIXED, compile-time threshold, confirmed directly against
-            # its own real tile registration) receives the diff cell's
-            # own real output directly, no relay/timing concerns at all
-            # since this is a genuine single-arrival delivery, not a
-            # two-arrival capture.
-            cmp_col = diff_col + 1
-            statements.append(PlaceIR(
-                name=f"op_{i}_cmp", tile_name="comparator", row=1, col=cmp_col,
-                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
-                # threshold is a required param, resolved above per predicate
-            ))
-            # real param goes on its own field entry (kept separate for clarity)
-            statements[-1].fields.append(FieldIR("threshold", threshold))
-            col_cursor = cmp_col + 1
+            if predicate in _EQ_NE_PREDICATES:
+                # points.md #668: the real, 6-cell eq/ne composition --
+                # verified directly in the VM (six real (a,b) pairs)
+                # before writing any of this placement code. Layout
+                # (relative to the diff cell at (1, diff_col)):
+                #   diff(1,c) --e--> CMP0(1,c+1) --s--> XOR(2,c+1)
+                #      |                                    ^
+                #      s                                    n
+                #      v                                    |
+                #   CMP1(2,c) --s--> RELAY_A(3,c) --e--> RELAY_B(3,c+1)
+                # CMP0=threshold 0, CMP1=threshold 1 -- diff fans out
+                # to both simultaneously; CMP1's own path is
+                # deliberately routed two hops longer via the two
+                # relays so its real contribution reaches XOR one tick
+                # after CMP0's -- nano's own two-arrival gate OR-
+                # combines genuinely simultaneous same-tick arrivals
+                # from different sources into one event rather than
+                # treating them as two separate operands (the same
+                # real fact #611's own west/north injection stagger
+                # above already has to work around).
+                statements[-1].fields[-1] = FieldIR("out", ["e", "s"])   # diff cell fans out, not a single direction
+                cmp0_col = diff_col + 1
+                statements.append(PlaceIR(
+                    name=f"op_{i}_cmp0", tile_name="comparator", row=1, col=cmp0_col,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "s"), FieldIR("threshold", 0)],
+                ))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_cmp1", tile_name="comparator", row=2, col=diff_col,
+                    fields=[FieldIR("in", "n"), FieldIR("out", "s"), FieldIR("threshold", 1)],
+                ))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_relay_a", tile_name="ram_flowing", row=3, col=diff_col,
+                    fields=[FieldIR("in", "n"), FieldIR("out", "e")],
+                ))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_relay_b", tile_name="ram_flowing", row=3, col=cmp0_col,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "n")],
+                ))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_xor", tile_name="nano_gate", row=2, col=cmp0_col,
+                    fields=[FieldIR("out", "e"), FieldIR("topology", _EQ_TOPOLOGY)],
+                ))
+                if predicate == "ne":
+                    # points.md #668: ne = XOR(eq_result, real one-time
+                    # constant 1) -- an exact boolean NOT (1^1=0, 0^1=1),
+                    # not the bitwise NOT that TOPO_XNOR turned out to
+                    # give across all 32 bits. The constant is injected
+                    # directly, with no relay hops at all -- it reaches
+                    # the second XOR far sooner than eq_result's own
+                    # multi-hop computed path, giving a large, safe
+                    # natural stagger rather than a knife-edge one-tick
+                    # margin.
+                    ne_col = cmp0_col + 1
+                    injections.append((3, ne_col, 1))
+                    statements.append(PlaceIR(
+                        name=f"op_{i}_const1", tile_name="ram_flowing", row=3, col=ne_col,
+                        fields=[FieldIR("in", "s"), FieldIR("out", "n")],
+                    ))
+                    statements.append(PlaceIR(
+                        name=f"op_{i}_ne_xor", tile_name="nano_gate", row=2, col=ne_col,
+                        fields=[FieldIR("out", "e"), FieldIR("topology", _EQ_TOPOLOGY)],
+                    ))
+                    col_cursor = ne_col + 1
+                else:
+                    col_cursor = cmp0_col + 1
+                last_result_row = 2
+            else:
+                # points.md #613: comparator sits immediately EAST of the
+                # diff cell -- its own real "in" port (single, not two --
+                # comparator only ever compares ONE dynamic value against a
+                # FIXED, compile-time threshold, confirmed directly against
+                # its own real tile registration) receives the diff cell's
+                # own real output directly, no relay/timing concerns at all
+                # since this is a genuine single-arrival delivery, not a
+                # two-arrival capture.
+                cmp_col = diff_col + 1
+                statements.append(PlaceIR(
+                    name=f"op_{i}_cmp", tile_name="comparator", row=1, col=cmp_col,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                    # threshold is a required param, resolved above per predicate
+                ))
+                # real param goes on its own field entry (kept separate for clarity)
+                statements[-1].fields.append(FieldIR("threshold", threshold))
+                col_cursor = cmp_col + 1
         else:
             col_cursor = diff_col + 1
 
@@ -502,7 +637,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
 
     info = LlvmLoweringInfo(
         function_name=fn.name,
-        result_cell=(1, col_cursor - 1),
+        result_cell=(last_result_row, col_cursor - 1),
         expected_result=known_values[prev_instr_name],
         chain_length=len(body_instructions),
         injections=injections,

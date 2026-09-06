@@ -1,4 +1,52 @@
-# Current State (as of 2026-09-06, the auto-sized-VM-from-ICM tool is real -- and, per Alan's own direct request, it resolves named external data entry/exit points, so a design can receive real data without the caller ever needing a raw grid coordinate. See `points/points_active.md` #667)
+# Current State (as of 2026-09-06, icmp eq/ne promoted to a real, working LLVM frontend composition -- diff, two comparators, nano's own native XOR topology. A real timing bug found and fixed, with a named precedent recovered from the earlier system. select not yet started. See `points/points_active.md` #668)
+
+## Read this first (most recent)
+
+**2026-09-06, icmp eq/ne real and working (#668).** `nano_gate`'s own
+real topology table already has native single-cell XOR/XNOR/AND/OR/NOT
+-- `eq(A,B) = XOR(diff>=0, diff>=1)`, true only when diff is exactly
+0. Real, hard-won VM finding: feeding a nano gate two comparator
+outputs that arrive on the exact same tick gets OR-combined into one
+event, not treated as two separate operands -- fixed by routing one
+path two hops longer via relay cells so the two arrivals land on
+different ticks.
+
+**Important context from Alan, recovered after the fact:** this
+staggering requirement was a known, named feature of the earlier
+system's own compiler, which measured not just placement but "timing
+to depth." What got built here ad hoc (hand-picked relay hops,
+verified by testing) is the same problem that compiler solved more
+generally -- worth recovering that actual algorithm once the TRIX
+archeology dive gets there, rather than re-deriving this by hand every
+time a new composition needs it.
+
+**Real bug #2, found immediately after:** `TOPO_XNOR` is a genuine
+bitwise not-XOR over all 32 bits, not a clean boolean invert (gave
+`0xFFFFFFFE` instead of `0`). Fixed: `ne` reuses the eq composition,
+then XORs its clean 0/1 result against a real, one-time-injected
+constant 1 -- an exact boolean NOT, deliberately not a continuously-
+live `ram_constant` (which `#611` already found contaminates a nano
+gate's own two-arrival timing).
+
+**Real, honest scope limit:** eq/ne's result lands on a different
+physical row than the ordinary chain convention, so using it mid-chain
+(not as the final, returned value) is rejected with a clear diagnostic
+rather than silently wired wrong.
+
+**Real, full verification:** all 6 `(a,b)` pairs correct for both
+predicates through the actual compiled IR; 42/42 in the extended
+frontend test file; 576 Python tests overall (up from 572).
+
+**Real, honest scope: `select` not started** -- the remaining half of
+this standing task, for a following session.
+
+**Real, standing next-session queue:** (1) build `select`; (2) the
+`PROG_ID_COMPLETE` stale-value correction (`#665`); (3) extend
+`read_named()` to remaining core types if needed (`#667`); (4) the
+TRIX archeology dive, now with a specific real target inside it -- the
+old compiler's own "timing to depth" placement metric.
+
+## Previous state (as of 2026-09-06, the auto-sized-VM-from-ICM tool is real -- and, per Alan's own direct request, it resolves named external data entry/exit points, so a design can receive real data without the caller ever needing a raw grid coordinate. See `points/points_active.md` #667)
 
 ## Read this first (most recent)
 

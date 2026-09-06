@@ -6340,3 +6340,95 @@ scope to the remaining core types if/when a real design genuinely
 needs to read one of them back; (4) once the above genuinely
 stabilizes, return to the TRIX/cross-domain archeology dive (`#659`'s
 own groundwork already done and waiting).
+
+## 668. `icmp eq`/`ne` promoted from #613's honest placeholder to a real, working composition in the LLVM frontend -- diff, two comparators, and nano's own native XOR/gate topologies, no bespoke multi-cell Boolean gates needed. A real, hard-won timing bug found and fixed along the way, and a real, named precedent for it recovered from Alan's own memory of the earlier system. (Alan/Claude, 2026-09-06)
+
+**Real, useful correction to the standing task's own framing, checked
+before assuming anything:** the tile library had NO registered select/
+icmp_eq compositions at all -- "promote to Tier-1" meant building what
+an earlier, pre-transcript session had apparently designed and
+recorded only as a memory summary, not something already sitting in
+this repo waiting to be wired up. Verified fresh against the real VM
+rather than trusted as a complete spec.
+
+**Real, simpler foundation than expected, checked directly:** `nano_
+gate`'s own real topology table already includes native single-cell
+XOR/XNOR/AND/OR/NOT (`unicell_gate_core.py`'s own `TOPO_*` constants)
+-- no bespoke multi-cell Boolean-gate compositions needed for the
+basic operators themselves, only for combining values that arrive from
+genuinely different upstream sources.
+
+**Real, hard-won VM finding, verified in isolation before touching the
+frontend at all:** `eq(A,B)` is `XOR(diff>=0, diff>=1)` -- true only
+when `diff` is exactly 0 (for a negative diff both comparators read 0,
+for `diff>=1` both read 1, only `diff==0` splits them). Building this
+first hit a real, genuine bug: feeding a nano gate two comparator
+outputs that both arrive on the exact same tick gets OR-COMBINED into
+ONE event, not treated as two separate operands -- traced precisely by
+watching the pending queue tick-by-tick, not guessed at. Fixed by
+deliberately routing one comparator's own path two hops longer via two
+relay cells, so its contribution lands one tick after the other's.
+
+**Real, named precedent for this exact fact, given directly by Alan
+after the fact, not rediscovered blind:** this staggering requirement
+was a known, standard feature of the earlier full-cell system's own
+compiler, which measured not just placement but "timing to depth" --
+whether arrivals that need to be sequential actually land on different
+ticks, and vice versa. What was built here ad hoc (hand-picked relay
+hops, verified by testing) is the same real problem that compiler
+solved more generally and systematically. Worth returning to directly
+once the TRIX archeology dive reaches that part of the old system,
+rather than re-deriving this by hand for every future composition that
+needs it.
+
+**Real bug #2, found immediately after wiring `ne` into the frontend,
+not assumed correct from the VM-level design:** `TOPO_XNOR` is a
+genuine BITWISE not-XOR over all 32 bits, not a clean boolean invert
+-- confirmed directly by testing: it gave `0xFFFFFFFE`/`0xFFFFFFFF`
+instead of `0`/`1`, since the eq result is a clean 0/1 but XNOR flips
+every bit of the full 32-bit word. `invert_addon_v1.v` checked as a
+possible fix and found to have the exact same bitwise semantic. The
+real, working fix: `ne` reuses the exact same eq composition, then
+XORs its own clean 0/1 result against a real, ONE-TIME-injected
+constant 1 (an exact boolean NOT: `1^1=0`, `0^1=1`) -- deliberately
+not a continuously-live `ram_constant`, since `#611`'s own real finding
+already warned that a permanently-re-offering source contaminates a
+nano gate's own two-arrival timing once its shielding relay drains and
+reopens.
+
+**Real, honest scope limit, stated with a clear diagnostic rather than
+silently wired wrong:** eq/ne's own real result lands on a different
+physical row than the ordinary chain convention (the 6/8-cell
+composition, not a single comparator) -- using it mid-chain, with
+another instruction depending on its result, is rejected with a clear
+error naming exactly why, restricted to being the chain's own final,
+returned value for now.
+
+**Real, full end-to-end verification:** all 6 real `(a,b)` pairs
+correct for both `eq` and `ne` through the actual compiled LLVM IR,
+not just the isolated VM composition. `tests/vm/test_llvm_ir_
+frontend_v1.py` extended with 5 new tests (all-cases coverage for
+both predicates, a dedicated regression test for the bitwise-NOT bug
+specifically, the mid-chain rejection, and a check that a genuinely
+unsupported predicate like `ugt` is still honestly rejected, not
+accidentally swept in). One stale test (`icmp_eq_ne_honestly_
+rejected`) removed as genuinely superseded, not just left in place.
+
+**Real, full regression:** 42/42 in the extended frontend test file;
+576 Python tests via pytest overall (up from 572).
+
+**Real, honest scope: `select` not started.** The `icmp eq`/`ne` half
+of this standing task is done; the `select` instruction (LLVM's own
+ternary, needing its own NOT+AND+AND+OR MUX2-style composition per
+memory's own earlier design) remains real, separate, not-yet-begun
+work for a following session.
+
+**Real, standing next-session queue, working top-down:** (1) build
+`select`, the remaining half of this task; (2) the `PROG_ID_COMPLETE`
+stale-value correction (`#665`'s own logged, deliberately-deferred
+finding); (3) extend `AutoSizedVM.read_named()` to the remaining core
+types if a real design needs it (`#667`); (4) once the above genuinely
+stabilizes, return to the TRIX/cross-domain archeology dive -- with a
+real, specific new target inside it now: the old compiler's own real
+"timing to depth" placement metric, worth recovering properly rather
+than re-deriving each real composition's own stagger by hand.

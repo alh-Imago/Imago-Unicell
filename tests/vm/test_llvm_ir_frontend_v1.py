@@ -205,11 +205,94 @@ def test_icmp_mid_chain_reads_running_value():
     assert out2 == 1
 
 
-def test_icmp_eq_ne_honestly_rejected_not_silently_wrong():
-    for pred in ("eq", "ne"):
-        icm, diagnostics, info = compile_llvm_ir(_icmp_ir(pred), {"x": 5})
-        assert icm is None
-        assert any(f"{pred!r}" in d.problem for d in diagnostics)
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #668: icmp eq/ne, promoted from #613's own honestly-
+# rejected placeholder to a real, working 6/8-cell composition --
+# diff -> two comparators (threshold 0 and 1) -> XOR gives eq exactly
+# (true only when diff==0); ne reuses the same eq composition, then
+# XORs its own clean 0/1 result against a real, one-time-injected
+# constant 1 for an exact boolean NOT. A real, hard-won finding along
+# the way: nano's own two-arrival gate OR-combines two same-tick
+# arrivals from different sources into ONE event rather than treating
+# them as separate sequential operands, so the two comparator outputs
+# need deliberately unequal hop counts to land on genuinely different
+# ticks -- the same real fact #611's own west/north injection stagger
+# already had to work around, now confirmed to generalize to this
+# shape too.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _run_eq_ne(pred, x, y, ticks=40):
+    ir = f"""
+    define i1 @f(i32 %x) {{
+    entry:
+      %c = icmp {pred} i32 %x, {y}
+      ret i1 %c
+    }}
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": x})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    return grid.cells[info.result_cell]._nano.out_buffer, info
+
+
+def test_icmp_eq_all_real_cases():
+    for x, y, expected in [(5, 5, 1), (5, 8, 0), (8, 5, 0), (0, 0, 1), (100, 100, 1), (3, 4, 0)]:
+        result, info = _run_eq_ne("eq", x, y)
+        assert result == expected, f"eq({x},{y}) = {result}, expected {expected}"
+
+
+def test_icmp_ne_all_real_cases():
+    for x, y, expected in [(5, 5, 0), (5, 8, 1), (8, 5, 1), (0, 0, 0), (100, 100, 0), (3, 4, 1)]:
+        result, info = _run_eq_ne("ne", x, y)
+        assert result == expected, f"ne({x},{y}) = {result}, expected {expected}"
+
+
+def test_icmp_ne_gives_a_clean_boolean_not_a_bitwise_one():
+    """Points.md #668: the real bug found and fixed -- TOPO_XNOR alone
+    gives 0xFFFFFFFE/0xFFFFFFFF (a genuine bitwise not-XOR over all 32
+    bits), not a clean 0/1. This is the regression test for that fix."""
+    result, _ = _run_eq_ne("ne", 5, 8)
+    assert result == 1, f"expected a clean boolean 1, got {result!r} (0xFFFFFFFF would indicate the bitwise-NOT regression)"
+    result0, _ = _run_eq_ne("ne", 5, 5)
+    assert result0 == 0, f"expected a clean boolean 0, got {result0!r} (0xFFFFFFFE would indicate the bitwise-NOT regression)"
+
+
+def test_icmp_eq_ne_rejected_mid_chain():
+    """Points.md #668: eq/ne's own real result lands on a different
+    physical row than the ordinary chain convention -- using it mid-
+    chain (not as the final, returned instruction) must be rejected
+    with a clear diagnostic, not silently wired to the wrong cell."""
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %c = icmp eq i32 %x, 5
+      %r = add i32 %x, 1
+      ret i32 %r
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
+    assert icm is None
+    assert any("mid-chain" in d.problem for d in diagnostics)
+
+
+def test_icmp_unsupported_predicate_still_honestly_rejected():
+    """Real, necessary regression -- #668 must not have accidentally
+    widened the honest-rejection net to swallow a genuinely
+    unsupported predicate along with eq/ne."""
+    ir = """
+    define i1 @f(i32 %x) {
+    entry:
+      %c = icmp ugt i32 %x, 5
+      ret i1 %c
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
+    assert icm is None
+    assert any("ugt" in d.problem for d in diagnostics)
 
 
 def test_icmp_negative_values():
