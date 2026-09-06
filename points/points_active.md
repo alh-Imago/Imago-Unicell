@@ -6486,3 +6486,68 @@ real, separate, not-yet-started work.
 genuinely stabilizes, return to the TRIX/cross-domain archeology dive,
 now with a specific real target inside it (the old compiler's own
 "timing to depth" placement metric, `#668`).
+
+## 670. Real design note: a light scope of the old workbench.py (archeology/onion/old_full_cell_ui_and_gpu.onion), specifically for what Alan described earlier -- named entry-point injection with a real UI window. Found real, concrete precedent and two genuinely useful, addressing-agnostic features not yet carried forward. (Alan/Claude, 2026-09-06)
+
+**Real, existing audit found first, not re-derived from scratch:**
+`docs/stripped-cell/design-notes/workbench_scope.md` (already in this
+repo, dated day 2 of the rebuild) is the real, line-level audit that
+`nano/workbench_v1.py` was originally built from -- a real, dead/
+reusable split already done for the address/`gate_state`-based
+concepts. This entry's own real value is narrower and different: not
+re-auditing what's already been incorporated, but scanning for
+specific UI/UX features the original audit's own narrow lens (address-
+compatibility only) wouldn't have surfaced.
+
+**Real, direct confirmation of Alan's own described feature:** the old
+`workbench.py` had a real `WorkspacePond` object (defined in a
+companion module not included in this specific archive, likely tied to
+the same "Pond" OS-layer concept found during `#659`'s own TRIX dig)
+exposing `ws set <name> <value>` / `ws get <name>` -- genuine, named
+input injection and named output reading, real precedent for `#667`'s
+own `inject_named()`/`read_named()` design, confirmed independently
+rather than assumed from memory alone.
+
+**Two real, genuinely useful features found, neither carried forward
+yet:**
+- **`ws run` / `ws values`'s own combined summary view** -- rather than
+  injecting and reading named points one at a time, `ws run` executes
+  and then prints every real named input AND output together in one
+  labeled summary (`IN x = 5`, `OUT result = 12`); `ws values` shows
+  the same summary as a standing status view without running first.
+  Genuinely nice ergonomic idea for the workbench's own future "entry
+  window": one live panel showing every named point at once, not
+  scattered individual fields.
+- **`start_run(ticks_per_sec)`/`pause_run`** -- a real, continuous
+  auto-play thread (own background thread, configurable ticks/sec,
+  stops itself automatically once the design naturally quiesces --
+  `not any(c.start_flag for c in cells)`). Confirmed directly: the
+  current `workbench_v1.py` has no such thing today, only manual
+  single/multi-step advancing. Nothing here ties to the old address-
+  based architecture at all -- a clean, addressing-agnostic feature
+  genuinely missing, not superseded.
+
+**Real, smaller finding worth noting for a future set() implementation:**
+`ws set`'s own real result includes an optional `warning` field --
+the old system could flag something off about a set value (type
+mismatch, out of range) without hard-failing. Worth considering
+alongside `#669`'s own recent finding that `inject_named()` is a
+silent, honest no-op for direction-sensitive core types (accumulator/
+latch) -- a warning there instead of pure silence would be a small,
+real correctness improvement.
+
+**Real, honest scope: two threads found but deliberately not chased
+further, matching this entry's own "light scope" framing:** `ws
+search`'s own real scope wasn't confirmed from usage alone (possibly
+connects to the same Pond/concept-graph search machinery from `#659`'s
+own TRIX dig); `WorkspacePond`'s own class definition lives in a
+different, not-yet-opened archive.
+
+**Real, honest scope: a design note only, nothing built.** The
+workbench connector itself remains explicitly deferred to the TRIX/
+archeology dive per Alan's own earlier direction (`#665`'s own
+conversation) -- this entry exists so the concrete findings (the
+combined-summary UX pattern, the missing auto-play feature, the
+`WorkspacePond` precedent, the `warning`-field idea) are captured in
+the record for whenever that work actually starts, not lost between
+now and then.
