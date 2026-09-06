@@ -677,11 +677,65 @@ yet found, or genuinely just never finished).
 
 ---
 
+## The two real, interactive HTML explorers — Alan's own real anticipation of "a surprise or two" confirmed
+
+Both genuinely more complete and sophisticated than expected going in.
+Both hand-rolled in vanilla canvas/JS -- no D3.js, no Three.js, no
+charting library at all.
+
+**`bridge_visualiser.html` (155KB) -- a real, multi-view analysis
+dashboard, four distinct real views (`drawMatrix`/`drawChord`/
+`drawBridge`/`drawHubs`), not one visualization:**
+- **`drawChord()` (read in full)** is the real, working chord diagram
+  referenced but never actually read in `notes.md`'s own "displacement
+  hub" section -- genuine hand-drawn bezier curves connecting domain
+  arcs around a circle, line thickness scaled by real shared-variable
+  count, with live hover tooltips naming the actual shared variables
+  (up to 4) for whichever domain pair the cursor is over.
+- **`placeEquation()` (read in full) is the single most impressive
+  feature found in this whole dive.** A real, working realization of
+  `paper_substrate/notes.md`'s own "shaped absence" thesis as an
+  actual usable tool, not just a description of one: type in the
+  variable names of your OWN new equation, and it (1) matches them
+  against the real known concepts, (2) identifies which real domains
+  they touch, (3) checks every real pair of those domains for an
+  existing bridge and explicitly flags any pair with no bridge as
+  `"⚠ UNDECLARED GAP"`, and (4) cross-references the real `hub_gaps`
+  data to report exactly how many named, counted hub gaps your
+  equation would close. This is the PhD-student use case from
+  `paper_substrate/notes.md` turned into working code, not just
+  described in prose.
+
+**`concept_graph_explorer.html` (216KB) -- a real, different kind of
+tool: a genuinely polished, fully hand-rolled 3D force-graph browser,**
+not a 2D dashboard. Real perspective projection (rotate Y then X, a
+simple FOV/depth scale factor), correct back-to-front depth sorting,
+glowing node shadows, continuous `requestAnimationFrame` animation for
+auto-spin, click-to-select, a dimension filter, and a real path-finder
+between any two named concepts.
+
+**A real, honest, meaningful inconsistency found by tracing the actual
+code, worth recording precisely rather than glossed over:** this
+explorer's own `findPath()` is a plain, UNWEIGHTED breadth-first
+search (fewest hops) -- NOT the confidence-weighted, `-log(confidence)`
+Dijkstra from `concept_inference.py`. This directly contradicts
+`notes.md`'s own, repeatedly-stated design principle ("finds shortest
+path by confidence LOSS, not hop count -- a 2-hop 0.95×0.95=0.90 path
+beats a 1-hop 0.70 path"). In its current, real form, this specific
+visual tool would show the WRONG "best" path in exactly the kind of
+case its own design notes use as the headline example. Likely built
+earlier or separately from the confidence-weighted engine as a
+simpler visual proof-of-concept, not yet reconciled with it -- a real,
+specific, fixable gap if this tool is ever revived.
+
+---
+
 ## Not yet opened at all (this session)
 
-- `paper_bridges/data/cross_domain_matches.json` (415KB) — the real output of `cross_domain.py`, now that its generating algorithm is fully understood (only worth opening for specific example rows now, not structural discovery)
-- `paper_bridges/bridge_visualiser.html` / `concept_graph_explorer.html` — the real, built interactive UIs (both real, substantial files, 155KB/216KB)
+- `paper_bridges/data/cross_domain_matches.json` (415KB) — the real output of `cross_domain.py`, now fully understood structurally; only worth opening for specific example rows, not discovery
 - All 6 remaining paper READMEs now read (`paper_hawking`, `paper_flowtrix`, `paper_robotics`, `paper_main`, `paper_timing`, `paper_substrate`) -- confirmed scaffolded stubs, no `draft.md`/`notes.md`/real data present for any of them except `paper_substrate/notes.md` (already read in full above) and `paper_bridges/notes.md`
+
+**Every real, substantive file in this whole archaeology pass (`old_papers_drafts.onion` + the composer/workbench/region-connector trio in `old_composer_tool.onion`/`old_full_cell_ui_and_gpu.onion`) has now been read.** Only `cross_domain_matches.json`'s own specific rows remain genuinely unexamined, and its generating algorithm is fully understood, so this is closer to a finished pass than an open one.
 
 ## Real, standing connections to CURRENT project work (cross-referenced against points_active.md)
 
