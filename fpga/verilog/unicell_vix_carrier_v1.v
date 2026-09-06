@@ -121,11 +121,91 @@ module unicell_vix_carrier_v1 #(
 );
 
     // ── VIX_LATCH, committed atomically on cfg_valid -- same whole-
-    // word-commit convention as every core in this family. ──
+    // word-commit convention as every core in this family. Points.md
+    // #666: ALSO committed by a real, internal "first live-programming
+    // word is a core-select" pulse -- see below. ──
     reg [159:0] vix_latch = 160'h0;
+
+    // ── Points.md #666: real RTL implementation of #658's own proven
+    // VM design (VixCarrierSlot.relay_word()) -- the receive-side
+    // channel now INSISTS the first real word of any fresh live-
+    // programming session be a raw core-select value, enforced here,
+    // at the receiving carrier, exactly matching the VM's own real
+    // design. Real, honest gap this closes: #665 found and stated
+    // plainly that the real RTL had no such mechanism at all -- this
+    // entry builds it, not assumed done already.
+    //
+    // "Awaiting select" real edge-detected state -- re-armed on every
+    // real program_in rising edge (a fresh session starting), cleared
+    // the cycle the first real word is consumed as a core-select
+    // value. Starts armed on reset, matching a safe, consistent
+    // default for the very first live session after power-up.
+    reg program_in_prev = 1'b0;
+    always @(posedge clk) program_in_prev <= program_in;
+    wire program_in_rising = program_in && !program_in_prev;
+
+    reg awaiting_select = 1'b1;
+
+    // Real, subtle bug found and fixed by simulation, not assumed
+    // correct from reading the code: program_in's own FIRST real
+    // rising edge and the FIRST real word's own arrival happen on the
+    // exact SAME cycle -- command's own program_out only ever asserts
+    // once its own active_r becomes 1, which happens on the SAME
+    // cycle it captures its own first watch arrival. So
+    // program_in_rising and consume_as_select are BOTH true together
+    // on that first real cycle, and priority matters: consume_as_
+    // select must win (clearing awaiting_select), never program_in_
+    // rising (which would incorrectly re-arm it) -- checked in that
+    // order below, not the reverse. Found by an RTL testbench hanging
+    // (every word after the first got silently re-consumed as another
+    // core-select attempt, since awaiting_select never actually
+    // cleared), not caught by inspection alone.
+
+    // Real, carrier-level "any real word arrived" -- the SAME real
+    // priority-mux convention (N>S>E>W) every core's own internal
+    // watch logic already uses, applied here once at the carrier
+    // level for this one, new purpose.
+    wire prog_any_arrived_carrier = prog_arrived_in_n || prog_arrived_in_s ||
+                                     prog_arrived_in_e || prog_arrived_in_w;
+    wire [31:0] carrier_prog_word = prog_arrived_in_n ? prog_data_in_n :
+                                     prog_arrived_in_s ? prog_data_in_s :
+                                     prog_arrived_in_e ? prog_data_in_e :
+                                                          prog_data_in_w;
+
+    // Real, decisive condition -- fires exactly once per session, on
+    // whichever real cycle the first real word actually arrives.
+    wire consume_as_select = program_in && awaiting_select && prog_any_arrived_carrier;
+
+    always @(posedge clk) begin
+        if (rst) awaiting_select <= 1'b1;
+        else if (consume_as_select) awaiting_select <= 1'b0;
+        else if (program_in_rising) awaiting_select <= 1'b1;
+    end
+
+    // Real, necessary "ordinary programming" gate -- every one of the
+    // 9 cores' own program_in/prog_arrived_in below is ALSO gated on
+    // this, so the same real word that gets consumed as a core-select
+    // value here can never ALSO be misread as an ordinary field-tweak
+    // by whichever core happened to be selected before the redirect.
+    wire program_in_ordinary = program_in && !awaiting_select;
+
+    // Real, minimal "boot to a blank baseline" semantic -- matches the
+    // VM's own real `_blank_core()`/`boot()`: switches core_select and
+    // resets the newly-selected core to a clean, all-zero config, via
+    // the SAME real, already-proven cfg_valid/cfg_data mechanism every
+    // core already uses, an internally-generated pulse rather than a
+    // new reset pathway. Mutually exclusive with the real, external
+    // cfg_valid (a genuine boot-load commit and a live-programming
+    // redirect can never happen on the same real cycle), so sharing
+    // one "effective" set of wires for both is safe and correct.
+    wire effective_cfg_valid = cfg_valid || consume_as_select;
+    wire [4:0]   effective_incoming_select = consume_as_select ? carrier_prog_word[4:0] : cfg_data[4:0];
+    wire [127:0] effective_incoming_config = consume_as_select ? 128'h0 : cfg_data[132:5];
+
     always @(posedge clk) begin
         if (rst) vix_latch <= 160'h0;
         else if (cfg_valid) vix_latch <= cfg_data;
+        else if (consume_as_select) vix_latch <= {27'h0, 128'h0, carrier_prog_word[4:0]};
     end
 
     // ── REGISTERED select/config -- reflects the SETTLED
@@ -136,14 +216,15 @@ module unicell_vix_carrier_v1 #(
     // vix_latch[159:133] deliberately unused -- reserved headroom
 
     // ── INCOMING select/config -- the value ABOUT TO BE committed,
-    // straight off cfg_data. Same real bug class the old lineage
-    // already found and fixed once (#320): gating a NEW config's
-    // delivery on the OLD (pre-update) registered core_select means a
-    // config switching TO a new core can never actually reach it --
-    // the core_select/core_config a LOAD must be gated on is the one
-    // ARRIVING this cycle. ──
-    wire [4:0]   incoming_select = cfg_data[4:0];
-    wire [127:0] incoming_config = cfg_data[132:5];
+    // straight off cfg_data OR the real, internal select-redirect
+    // pulse above. Same real bug class the old lineage already found
+    // and fixed once (#320): gating a NEW config's delivery on the
+    // OLD (pre-update) registered core_select means a config switching
+    // TO a new core can never actually reach it -- the core_select/
+    // core_config a LOAD must be gated on is the one ARRIVING this
+    // cycle. ──
+    wire [4:0]   incoming_select = effective_incoming_select;
+    wire [127:0] incoming_config = effective_incoming_config;
 
     localparam [4:0] SEL_NANO = 5'd0, SEL_ADDER = 5'd1, SEL_RAM = 5'd2,
                       SEL_COMPARE = 5'd3, SEL_BRANCH = 5'd4, SEL_ACCUM = 5'd5,
@@ -152,15 +233,15 @@ module unicell_vix_carrier_v1 #(
     // ── Per-core gated cfg_valid -- only the SELECTED core ever
     // genuinely loads config; the other 8 stay at their reset default
     // forever. ──
-    wire cfgv_nano    = cfg_valid && (incoming_select == SEL_NANO);
-    wire cfgv_adder   = cfg_valid && (incoming_select == SEL_ADDER);
-    wire cfgv_ram     = cfg_valid && (incoming_select == SEL_RAM);
-    wire cfgv_compare = cfg_valid && (incoming_select == SEL_COMPARE);
-    wire cfgv_branch  = cfg_valid && (incoming_select == SEL_BRANCH);
-    wire cfgv_accum   = cfg_valid && (incoming_select == SEL_ACCUM);
-    wire cfgv_latch   = cfg_valid && (incoming_select == SEL_LATCH);
-    wire cfgv_seq     = cfg_valid && (incoming_select == SEL_SEQ);
-    wire cfgv_command = cfg_valid && (incoming_select == SEL_COMMAND);
+    wire cfgv_nano    = effective_cfg_valid && (incoming_select == SEL_NANO);
+    wire cfgv_adder   = effective_cfg_valid && (incoming_select == SEL_ADDER);
+    wire cfgv_ram     = effective_cfg_valid && (incoming_select == SEL_RAM);
+    wire cfgv_compare = effective_cfg_valid && (incoming_select == SEL_COMPARE);
+    wire cfgv_branch  = effective_cfg_valid && (incoming_select == SEL_BRANCH);
+    wire cfgv_accum   = effective_cfg_valid && (incoming_select == SEL_ACCUM);
+    wire cfgv_latch   = effective_cfg_valid && (incoming_select == SEL_LATCH);
+    wire cfgv_seq     = effective_cfg_valid && (incoming_select == SEL_SEQ);
+    wire cfgv_command = effective_cfg_valid && (incoming_select == SEL_COMMAND);
 
     // ── Per-core gated arrivals -- only the selected core ever sees a
     // genuine arrival; every other core stays completely idle. ──
@@ -178,8 +259,10 @@ module unicell_vix_carrier_v1 #(
 
     // ── Real, safety-critical: programming channel gated to the
     // selected core only (header point 2). ──
-    wire prog_arr_n_g = prog_arrived_in_n, prog_arr_s_g = prog_arrived_in_s,
-         prog_arr_e_g = prog_arrived_in_e, prog_arr_w_g = prog_arrived_in_w;
+    wire prog_arr_n_g = prog_arrived_in_n && !awaiting_select,
+         prog_arr_s_g = prog_arrived_in_s && !awaiting_select,
+         prog_arr_e_g = prog_arrived_in_e && !awaiting_select,
+         prog_arr_w_g = prog_arrived_in_w && !awaiting_select;
 
     // ── Each core's own real cfg_data, reconstructed directly from
     // INCOMING_CONFIG (same-cycle, straight off cfg_data), NOT the
@@ -262,7 +345,7 @@ module unicell_vix_carrier_v1 #(
         .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
         .ack_out_n(nano_an), .ack_out_s(nano_as_), .ack_out_e(nano_ae), .ack_out_w(nano_aw),
         .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
-        .program_in(sel_nano && program_in), .program_done(nano_pd),
+        .program_in(sel_nano && program_in_ordinary), .program_done(nano_pd),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_nano && prog_arr_n_g), .prog_arrived_in_s(sel_nano && prog_arr_s_g),
         .prog_arrived_in_e(sel_nano && prog_arr_e_g), .prog_arrived_in_w(sel_nano && prog_arr_w_g),
@@ -283,7 +366,7 @@ module unicell_vix_carrier_v1 #(
         .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
         .ack_out_n(adder_an), .ack_out_s(adder_as_), .ack_out_e(adder_ae), .ack_out_w(adder_aw),
         .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
-        .program_in(sel_adder && program_in), .program_done(adder_pd),
+        .program_in(sel_adder && program_in_ordinary), .program_done(adder_pd),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_adder && prog_arr_n_g), .prog_arrived_in_s(sel_adder && prog_arr_s_g),
         .prog_arrived_in_e(sel_adder && prog_arr_e_g), .prog_arrived_in_w(sel_adder && prog_arr_w_g),
@@ -305,7 +388,7 @@ module unicell_vix_carrier_v1 #(
         .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
         .ack_out_n(ram_an), .ack_out_s(ram_as_), .ack_out_e(ram_ae), .ack_out_w(ram_aw),
         .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
-        .program_in(sel_ram && program_in), .program_done(ram_pd),
+        .program_in(sel_ram && program_in_ordinary), .program_done(ram_pd),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_ram && prog_arr_n_g), .prog_arrived_in_s(sel_ram && prog_arr_s_g),
         .prog_arrived_in_e(sel_ram && prog_arr_e_g), .prog_arrived_in_w(sel_ram && prog_arr_w_g),
@@ -327,7 +410,7 @@ module unicell_vix_carrier_v1 #(
         .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
         .ack_out_n(compare_an), .ack_out_s(compare_as_), .ack_out_e(compare_ae), .ack_out_w(compare_aw),
         .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
-        .program_in(sel_compare && program_in), .program_done(compare_pd),
+        .program_in(sel_compare && program_in_ordinary), .program_done(compare_pd),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_compare && prog_arr_n_g), .prog_arrived_in_s(sel_compare && prog_arr_s_g),
         .prog_arrived_in_e(sel_compare && prog_arr_e_g), .prog_arrived_in_w(sel_compare && prog_arr_w_g),
@@ -349,7 +432,7 @@ module unicell_vix_carrier_v1 #(
         .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
         .ack_out_n(branch_an), .ack_out_s(branch_as_), .ack_out_e(branch_ae), .ack_out_w(branch_aw),
         .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
-        .program_in(sel_branch && program_in), .program_done(branch_pd),
+        .program_in(sel_branch && program_in_ordinary), .program_done(branch_pd),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_branch && prog_arr_n_g), .prog_arrived_in_s(sel_branch && prog_arr_s_g),
         .prog_arrived_in_e(sel_branch && prog_arr_e_g), .prog_arrived_in_w(sel_branch && prog_arr_w_g),
@@ -370,7 +453,7 @@ module unicell_vix_carrier_v1 #(
         .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
         .ack_out_n(accum_an), .ack_out_s(accum_as_), .ack_out_e(accum_ae), .ack_out_w(accum_aw),
         .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
-        .program_in(sel_accum && program_in), .program_done(accum_pd),
+        .program_in(sel_accum && program_in_ordinary), .program_done(accum_pd),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_accum && prog_arr_n_g), .prog_arrived_in_s(sel_accum && prog_arr_s_g),
         .prog_arrived_in_e(sel_accum && prog_arr_e_g), .prog_arrived_in_w(sel_accum && prog_arr_w_g),
@@ -391,7 +474,7 @@ module unicell_vix_carrier_v1 #(
         .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
         .ack_out_n(latch_an), .ack_out_s(latch_as_), .ack_out_e(latch_ae), .ack_out_w(latch_aw),
         .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
-        .program_in(sel_latch && program_in), .program_done(latch_pd),
+        .program_in(sel_latch && program_in_ordinary), .program_done(latch_pd),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_latch && prog_arr_n_g), .prog_arrived_in_s(sel_latch && prog_arr_s_g),
         .prog_arrived_in_e(sel_latch && prog_arr_e_g), .prog_arrived_in_w(sel_latch && prog_arr_w_g),
@@ -412,7 +495,7 @@ module unicell_vix_carrier_v1 #(
         .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
         .ack_out_n(seq_an), .ack_out_s(seq_as_), .ack_out_e(seq_ae), .ack_out_w(seq_aw),
         .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
-        .program_in(sel_seq && program_in), .program_done(seq_pd),
+        .program_in(sel_seq && program_in_ordinary), .program_done(seq_pd),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_seq && prog_arr_n_g), .prog_arrived_in_s(sel_seq && prog_arr_s_g),
         .prog_arrived_in_e(sel_seq && prog_arr_e_g), .prog_arrived_in_w(sel_seq && prog_arr_w_g),
@@ -435,7 +518,7 @@ module unicell_vix_carrier_v1 #(
         .prog_data_out_n(command_pdon), .prog_data_out_s(command_pdos), .prog_data_out_e(command_pdoe), .prog_data_out_w(command_pdow),
         .prog_arrived_out_n(command_paon), .prog_arrived_out_s(command_paos), .prog_arrived_out_e(command_paoe), .prog_arrived_out_w(command_paow),
         .prog_ack_in_n(prog_ack_in_n), .prog_ack_in_s(prog_ack_in_s), .prog_ack_in_e(prog_ack_in_e), .prog_ack_in_w(prog_ack_in_w),
-        .program_in(sel_command && program_in), .program_done(),
+        .program_in(sel_command && program_in_ordinary), .program_done(),
         .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
         .prog_arrived_in_n(sel_command && prog_arr_n_g), .prog_arrived_in_s(sel_command && prog_arr_s_g),
         .prog_arrived_in_e(sel_command && prog_arr_e_g), .prog_arrived_in_w(sel_command && prog_arr_w_g),
@@ -493,18 +576,34 @@ module unicell_vix_carrier_v1 #(
                            sel_compare ? compare_pd : sel_branch ? branch_pd : sel_accum ? accum_pd :
                            sel_latch ? latch_pd : sel_seq ? seq_pd : 1'b0;   // command has no receive-side program_done wired
 
-    assign prog_ack_out_n = sel_nano ? nano_pan : sel_adder ? adder_pan : sel_ram ? ram_pan :
+    // ── Points.md #666: real, necessary synthetic ack -- when the
+    // carrier itself consumes a word as a core-select value, NO
+    // individual core's own prog_arrived_in was ever asserted for it
+    // (consume_as_select fires before any per-core routing), so no
+    // core produces the real prog_ack_out the sender is waiting for.
+    // Found by a real RTL testbench hanging (the sender's own relay
+    // never sent a second word, stuck waiting for an ack that would
+    // never arrive) -- traced to this exact cause, not assumed. Fires
+    // a real, one-cycle synthetic ack back in whichever direction the
+    // word actually arrived from, matching the same real priority
+    // (N>S>E>W) `carrier_prog_word` itself already uses. ──
+    wire select_ack_n = consume_as_select && prog_arrived_in_n;
+    wire select_ack_s = consume_as_select && !prog_arrived_in_n && prog_arrived_in_s;
+    wire select_ack_e = consume_as_select && !prog_arrived_in_n && !prog_arrived_in_s && prog_arrived_in_e;
+    wire select_ack_w = consume_as_select && !prog_arrived_in_n && !prog_arrived_in_s && !prog_arrived_in_e && prog_arrived_in_w;
+
+    assign prog_ack_out_n = select_ack_n || (sel_nano ? nano_pan : sel_adder ? adder_pan : sel_ram ? ram_pan :
                              sel_compare ? compare_pan : sel_branch ? branch_pan : sel_accum ? accum_pan :
-                             sel_latch ? latch_pan : sel_seq ? seq_pan : 1'b0;
-    assign prog_ack_out_s = sel_nano ? nano_pas : sel_adder ? adder_pas : sel_ram ? ram_pas :
+                             sel_latch ? latch_pan : sel_seq ? seq_pan : 1'b0);
+    assign prog_ack_out_s = select_ack_s || (sel_nano ? nano_pas : sel_adder ? adder_pas : sel_ram ? ram_pas :
                              sel_compare ? compare_pas : sel_branch ? branch_pas : sel_accum ? accum_pas :
-                             sel_latch ? latch_pas : sel_seq ? seq_pas : 1'b0;
-    assign prog_ack_out_e = sel_nano ? nano_pae : sel_adder ? adder_pae : sel_ram ? ram_pae :
+                             sel_latch ? latch_pas : sel_seq ? seq_pas : 1'b0);
+    assign prog_ack_out_e = select_ack_e || (sel_nano ? nano_pae : sel_adder ? adder_pae : sel_ram ? ram_pae :
                              sel_compare ? compare_pae : sel_branch ? branch_pae : sel_accum ? accum_pae :
-                             sel_latch ? latch_pae : sel_seq ? seq_pae : 1'b0;
-    assign prog_ack_out_w = sel_nano ? nano_paw : sel_adder ? adder_paw : sel_ram ? ram_paw :
+                             sel_latch ? latch_pae : sel_seq ? seq_pae : 1'b0);
+    assign prog_ack_out_w = select_ack_w || (sel_nano ? nano_paw : sel_adder ? adder_paw : sel_ram ? ram_paw :
                              sel_compare ? compare_paw : sel_branch ? branch_paw : sel_accum ? accum_paw :
-                             sel_latch ? latch_paw : sel_seq ? seq_paw : 1'b0;
+                             sel_latch ? latch_paw : sel_seq ? seq_paw : 1'b0);
 
     // ── Command's own genuinely new ports -- meaningful only when
     // core_select=SEL_COMMAND, safe defaults otherwise. ──

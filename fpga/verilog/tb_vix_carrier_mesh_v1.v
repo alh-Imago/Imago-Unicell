@@ -141,7 +141,21 @@ module tb_vix_carrier_mesh_v1;
 
         check(mesh_freeze === 1'b0, "cell A idle: no real freeze asserted onto cell B yet");
 
-        // Real word 1: set cell B's own routing_mask -- fed to cell A
+        // Real word 1: points.md #666 -- the receiving carrier now
+        // INSISTS the first real word of any session be a raw core-
+        // select value. Cell B is already nano, but the protocol is
+        // mandatory regardless -- sending it here, not skipping it,
+        // is what makes this test honest after #666 (an earlier
+        // version of this test skipped this and passed only by
+        // coincidence: the first ordinary word it sent had low bits
+        // that happened to equal SEL_NANO too, silently masking the
+        // real bug -- traced and fixed directly, not left in place).
+        a_val_n = {27'h0, SEL_NANO}; a_pulse_n = 1'b1;
+        @(posedge clk); #1; a_pulse_n = 1'b0;
+        repeat (2) @(posedge clk); #1;
+        check(CELL_B.core_select === SEL_NANO, "real core-select word correctly consumed first, across the mesh");
+
+        // Real word 2: set cell B's own routing_mask -- fed to cell A
         // as an ordinary real cardinal arrival (matching command's own
         // real 'watch' mechanism), relayed across the REAL mesh to B.
         a_val_n = make_word(PROG_ID_ROUTING_MASK, 20'h0); a_pulse_n = 1'b1;
@@ -169,8 +183,8 @@ module tb_vix_carrier_mesh_v1;
               "real target genuinely armed after the real COMPLETE word crossed the mesh");
 
         $display("");
-        if (checks == 5 && errors == 0)
-            $display("PASS: the array generator's own new carrier-to-carrier wiring (#665) genuinely works in real RTL simulation, not just generated text -- freeze and program signals correctly cross a real cell boundary using the exact same point-to-point convention generate_top_vix() now produces");
+        if (checks == 6 && errors == 0)
+            $display("PASS: real carrier-to-carrier wiring (#665) AND the real core-select-first protocol (#666) both genuinely work in real RTL simulation -- freeze, program signals, and the mandatory first-word redirect all correctly cross a real cell boundary using the exact same convention generate_top_vix() now produces");
         else
             $display("FAIL: checks=%0d errors=%0d", checks, errors);
 

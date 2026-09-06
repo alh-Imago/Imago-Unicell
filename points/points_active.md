@@ -6186,3 +6186,84 @@ select-via-live-programming mechanism, matching `#658`'s own proven VM
 design, if/when that capability is wanted in real hardware; (5) once
 the above genuinely stabilizes, return to the TRIX/cross-domain
 archeology dive.
+
+## 666. Real RTL implementation of #658's own proven VM design -- core-select-via-live-programming now genuinely exists in `unicell_vix_carrier_v1.v` itself, not just the VM. A cell starting on the wrong core is correctly redirected by the mandatory first live-programming word, in real RTL simulation. Two real, significant bugs found and fixed by testing, not assumed away. (Alan/Claude, 2026-09-06)
+
+**Real, deliberate scope, following directly from `#665`'s own honest
+note:** `#665` found and stated plainly that the real RTL had no
+mechanism for live programming to redirect `core_select` at all --
+only the VM's own `VixCarrierSlot` had this. This entry builds the
+real RTL counterpart.
+
+**Real design, mirroring the VM's own proven mechanism exactly:** a
+new `awaiting_select` register, re-armed on `program_in`'s own real
+rising edge, cleared the cycle the carrier consumes its first real
+word as a raw core-select value (`consume_as_select`). While armed, no
+individual core's own `program_in`/`prog_arrived_in` ever sees a real
+arrival -- the SAME real word that gets consumed as a select can never
+also be misread as an ordinary field-tweak by whichever core happened
+to be selected before the redirect. The "boot to a blank baseline"
+semantic reuses the carrier's own already-proven `cfg_valid`/`cfg_data`
+mechanism internally (an OR'd, one-cycle synthetic pulse with an
+all-zero config) rather than inventing a new reset pathway -- `#665`'s
+own real design instinct, applied here too.
+
+**Real bug #1, found by an RTL testbench genuinely hanging, not
+assumed correct from reading the code:** the carrier's own `prog_ack_
+out_x` was derived purely from whichever core is currently selected's
+own real ack signal. During `consume_as_select`, no core's own real
+`prog_arrived_in` was ever asserted, so no ack was ever produced -- the
+sender (command mode) was left waiting forever for an acknowledgment
+that could never arrive, and never sent its second word. Fixed with a
+real, synthetic one-cycle ack, OR'd into whichever direction the
+select-word actually arrived from, matching the same real priority
+(N>S>E>W) the carrier's own word-selection mux already uses.
+
+**Real bug #2, found by the SAME testbench still failing after fixing
+bug #1 -- traced to a genuine priority ordering error, not a timing
+artifact:** `program_in`'s own real FIRST rising edge and the first
+real word's own arrival happen on the exact same cycle -- command
+mode's own `program_out` only asserts once its own `active_r` becomes
+1, which happens on the SAME cycle it captures its own first watch
+arrival. So `program_in_rising` and `consume_as_select` were both true
+together on that first real cycle, and the original if-else order
+checked `program_in_rising` first -- re-arming `awaiting_select`
+instead of letting the consume clear it, meaning EVERY word after the
+first got silently re-consumed as another core-select attempt forever.
+Fixed by checking `consume_as_select` first. A genuinely subtle,
+easy-to-miss ordering bug, only caught because the testbench's own
+downstream checks kept failing rather than being accepted as "close
+enough."
+
+**Real, decisive verification, two testbenches:** `tb_vix_carrier_
+mesh_v1.v` (`#665`'s own file, updated -- its own scenario silently
+passed by coincidence before this entry, since its first relayed word
+happened to have low bits equal to `SEL_NANO` anyway; fixed to
+properly send a real select word first, now honestly testing what it
+claims to). `tb_vix_carrier_select_redirect_v1.v` (new) -- the actual
+distinguishing scenario: cell B deliberately boots to the WRONG core
+(adder), cell A's own command core correctly redirects it to nano via
+the mandatory first word, then genuinely configures it, across a real
+cell boundary -- 5/5 checks, matching the VM's own `#658` proof
+exactly, now shown true in real RTL.
+
+**Real, full regression:** all 17 Verilog testbenches in the repository
+pass clean (up from 16 -- the new redirect test); the array generator
+re-verified at N=1, 4, 10 with the modified carrier RTL, all compile
+clean; 557 Python tests unchanged (this entry is RTL-only, no VM code
+touched).
+
+**Real, honest scope, unchanged:** the RTL array generator (`#665`)
+still doesn't wire carrier-to-carrier connections for anything beyond
+what `#665` already covers -- this entry adds real capability to the
+carrier module itself, usable by anything that instantiates it
+directly (matching how both new testbenches use it), not a change to
+`project_assemble_v1.py`.
+
+**Real, standing next-session queue, working top-down:** (1) the
+auto-sized-VM-from-ICM tool (`#651`); (2) promote both select
+constructions + icmp eq to Tier-1/frontend; (3) the `PROG_ID_COMPLETE`
+stale-value correction (`#665`'s own logged, deliberately-deferred
+finding); (4) once the above genuinely stabilizes, return to the
+TRIX/cross-domain archeology dive (`#659`'s own groundwork already
+done and waiting).
