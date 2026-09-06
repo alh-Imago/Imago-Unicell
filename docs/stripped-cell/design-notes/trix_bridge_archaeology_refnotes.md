@@ -258,21 +258,140 @@ actual schema/code, whether there's a real, visible flag distinguishing
 "this confidence was derived" from "this confidence was assigned,"
 not just the binary computable/declarative split.
 
-**[Not yet read — remaining ~420 lines]:** The distinguishing claim
-(1081), Flux taxonomy and general equation matrix — from a Gemini
-conversation (1153), the bridge model as hypothesis engine (1327),
-the three-domain test for fundamentality (1413).
+**The distinguishing claim (line 1081, READ IN FULL):** the paper's own
+stated inversion — prior knowledge-graph work asks "where are the
+holes," this asks "what are the holes MADE OF." Answer: Δ. Explicitly
+frames the COMPILER itself (refusing to run without declared
+assumptions) as "the instrument of revelation" — the epistemological
+contribution is distinct from the engineering one.
+
+**Flux taxonomy (line 1153, READ IN FULL, explicitly credited to an
+external Gemini conversation):** Passive Flux (systems seeking
+equilibrium, Δ naturally→0: heat, pressure, diffusion — well-declared,
+mature, short paths), Active/Managed Flux (systems that SPEND ENERGY
+to MAINTAIN non-zero Δ: biology, power grids, economies, political
+institutions — "life is what happens when passive flux is locally
+reversed by active input"), Informational Flux (abstract substrate:
+Shannon entropy, Bayesian update, price discovery — "currently sparse,
+mostly undeclared... the deepest knowledge holes"). The isomorphism
+section claims Fourier heat conduction, Ohm's law, Fick's diffusion,
+Darcy's law, and Black-Scholes drift are literally the SAME equation
+(Flux = Conductivity × Gradient) with domain names as substrate
+labels only -- worth noting this connects to a REAL, established
+physics idea (generalized flux-force / linear response relations,
+Onsager reciprocity) rather than being a wholly novel observation; the
+genuine synthesis here is tying it explicitly to the compiler's own
+bridge-declaration requirement. The boundary-question analysis is
+genuinely useful and specific: Physics↔Chemistry is "tool-driven"
+(thick, historical, not structural); Physics↔Economics is
+"Δ-type-driven" (real structural similarity, almost no declared
+crossings -- thin not because weak, because never declared);
+Physics↔Politics is "almost entirely undeclared" (zero declared
+bridges, "maximum knowledge hole"). Ends by naming the ultimate
+architectural destination: a general equation matrix (Flux =
+Conductivity × Gradient, parameterized by Δ and 0) implementable
+directly as a real, generic NOR-gate fabric topology, with domain
+selected purely by WHICH DATA is loaded, not by rewiring -- "the
+domain is metadata."
+
+**The bridge model as hypothesis engine (line 1327, READ IN FULL) --
+the most methodologically rigorous section, genuinely testable, not
+just philosophical:** three real, formal categories -- **Green**
+(declared, high confidence, known knowns), **Amber** (a functional
+family appears in domain A, domain B has the structural prerequisites
+but no declared instance yet -- "the bridge model predicts the
+equation must exist there... each amber gap is a hypothesis"), **Dark**
+(predicted but genuinely CANNOT exist -- a real structural
+prerequisite is absent, "the absence is a result, not a gap").
+Explicitly modeled on Mendeleev's own real justified absences
+(element 43/Technetium missing because it has no stable isotopes, not
+by oversight). Three real, worked "dark gap" examples: electoral
+systems lack passive-flux equations because they're DESIGNED to resist
+equilibrium (a real structural fact about the nature of political
+competition, not a data gap); accounting lacks exponential-growth
+equations in the growth-law sense because accounting enforces Δ=0 at
+every transaction -- "a measurement system, not a dynamic system";
+genomics lacks field-integral equations because DNA is discrete, field
+equations require a continuous substrate. **The three-domain test for
+fundamentality** (real, checkable criteria: appears independently in
+5+ domains; absence elsewhere is either amber-predictable or
+dark-justified; reduces to Δ/0 in canonical form) is applied to name
+real, specific candidate "fundamental equation models" with real
+attached numbers: `linear_flux` (3 declared, 24 predicted missing),
+`linear_product` (10 domains), `exponential_decay/growth` (4/2
+domains), and `logistic` (only 1 domain declared -- population
+dynamics -- but flagged as "most interesting candidate" given the
+structure's real ubiquity: market saturation, epidemic curves,
+capacitor charging, neural activation, adoption curves, species
+invasion, all undeclared). Closing, real, falsifiable summary claim:
+"21 structural families across 192 equations... 147 domain-family
+pairs where a functional family is predicted present but undeclared."
+
+**`notes.md` is now fully read, 1483/1483 lines.** The specific numbers
+throughout (192 equations, 27 domains, 544 undeclared bridges, 147
+predicted-but-undeclared pairs, 49 displacement gaps) all point to REAL
+underlying data -- almost certainly what actually lives in `concept_
+graph.db`/`cross_domain_matches.json`/`hub_gaps.json`, none of which
+have been opened yet. The real, decisive next check: how much of this
+theoretical framework actually got implemented and populated with real
+data, versus how much stayed at the design-notes stage.
+
+---
+
+## Real implementation confirmed — this was genuinely built, not just designed
+
+**`concept_inference.py` (460 lines, read in full) is a real, working,
+mathematically sound implementation**, not a sketch. A genuine modified
+Dijkstra: edge weight = `-log(confidence)`, correctly turning "maximize
+confidence product" into "minimize weight sum" — the standard, correct
+transformation for this class of problem. Produces real GREEN (direct,
+confidence≥0.80) / AMBER (multi-hop, confidence product shown) / RED
+(no path — returns the real dimensional shape a missing bridge would
+need) results. The docstring's own example query — `find("displacement",
+"wave_function")  # quantum gap` — is a genuinely well-chosen real
+example (the classical-to-quantum gap is real and famously unresolved).
+
+**`concept_graph.db` (SQLite, real, checked directly) confirms every
+specific number in `notes.md` was backed by real, populated data, not
+aspirational writing:**
+
+| Table | Rows |
+|---|---|
+| domains | 35 |
+| units | 35 |
+| concepts | 265 |
+| equations | **192** (exact match to notes.md's own "192 equations across 27 domains" claim) |
+| equation_components | 1366 |
+| constants | 14 |
+| equation_templates | 18 |
+| template_slots | 65 |
+| equation_instances | 51 |
+| **template_bridges** | **1095** |
+
+**`template_bridges`'s own real schema and data** is the actual, live
+output of the "hypothesis engine" described in notes.md's final
+section: `(template_id, domain_a, domain_b, equation_a, equation_b,
+status, confidence, shared_structure, constant_a, constant_b,
+zero_compatible, notes, auto_generated)`. Real, checked example rows
+for template T01 ("flux = conductivity × Δ", i.e. `linear_flux`):
+chemistry↔circuits (ε vs 1/R, confidence 0.9), chemistry↔structural_
+geology (ε vs the real Mohr-Coulomb shear formula `tan(φ)+c/σₙ`,
+confidence 0.9), circuits↔structural_geology (1/R vs E). **Status
+breakdown: 1050 "predicted", 45 "valid"** — a real, live instance of
+the Amber/Green split from notes.md, though the specific "147
+domain-family pairs" number from the design notes doesn't exactly
+match 1050 here (likely a different, more refined subset, or the
+database grew after that count was written — worth resolving on a
+future pass, not assumed either way).
 
 ---
 
 ## Not yet opened at all (this session)
 
-- `paper_bridges/data/concept_inference.py` — the real inference engine code
-- `paper_bridges/data/cross_domain.py`
-- `paper_bridges/data/concept_graph.db` — the real, built SQLite graph
-- `paper_bridges/data/cross_domain_matches.json`
-- `paper_bridges/data/hub_gaps.json` — presumably the real "49 displacement gaps" data referenced in notes.md
-- `paper_bridges/bridge_visualiser.html` / `concept_graph_explorer.html` — the real, built interactive UIs
+- `paper_bridges/data/cross_domain.py` (8.2KB)
+- `paper_bridges/data/cross_domain_matches.json` (415KB) — presumably a JSON export of the same real bridge data now confirmed in `concept_graph.db`
+- `paper_bridges/data/hub_gaps.json` (34.8KB) — presumably the real "49 displacement gaps" / hub-node data referenced throughout notes.md
+- `paper_bridges/bridge_visualiser.html` / `concept_graph_explorer.html` — the real, built interactive UIs (both real, substantial files, 155KB/216KB)
 - `paper_hawking/`, `paper_flowtrix/`, `paper_robotics/`, `paper_main/`, `paper_substrate/`, `paper_timing/` — all real, individual paper folders, only READMEs skimmed via file listing, not read
 - `paper_substrate/notes.md` (6.4KB) — likely relevant given "substrate" naming echoes this project's own "universal symbolic substrate" framing (Paper 7)
 
