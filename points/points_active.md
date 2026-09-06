@@ -6606,3 +6606,50 @@ picture that wasn't visible from any one of them alone -- the kind of
 context that's easy to lose if not written down precisely, and
 directly useful once the TRIX/archeology dive or a real multi-program
 VM design begins.
+
+## 672. Real design clarification from Alan: the exact real bridge mechanism connecting separate Ponds -- typed bridge cells, with translation happening on each side of the crossing, and a real per-value type-tag bit pattern this project has nothing equivalent to today. Directly connects to and completes #659's own cell_format.py finding. (Alan, 2026-09-06)
+
+**The real mechanism, stated precisely, completing `#671`'s own
+picture:** Ponds map to this project's own real chains/programs
+(`#671`). The old system's own real connection points used direct
+addressing (a real consequence of the original Unicell being address-
+based); in this project's own real terms, the equivalent is specific
+CELLS that bridge two or more chains. Translation happens on BOTH
+sides of a crossing, in opposite directions: going OUT of a chain, a
+value is wrapped into a real, typed bridge format BEFORE it reaches
+the bridge cell; going IN to the receiving chain, that same real
+wrapper is stripped back off AFTER the bridge cell, so the destination
+chain only ever sees a plain value in its own native format. Each
+chain stays simple internally; the real typing overhead exists only at
+the seam, for only as long as a value is actually crossing it.
+
+**Real, direct completion of `#659`'s own cell_format.py finding, not
+a new, separate thread:** the old cell's own real bit pattern
+"carrying type with the data" is almost certainly the SAME real
+mechanism as `cell_format.py`'s own "format contract" system found
+during the TRIX dig (encode/decode LUTs, bits-per-symbol, which tiles
+are valid for a given format). `#659` found WHAT that typing system
+was; this entry gives the missing HOW -- the real, concrete mechanism
+by which a typed value actually crossed from one domain's chain into
+another's, without either side needing to understand the other's own
+internal format.
+
+**Real, honest, stated gap in the CURRENT system:** Unicell-S has
+nothing equivalent to this at all today -- a cell's own real value is
+a bare 32-bit word, no tag, no type, nothing riding alongside it. This
+is a genuinely absent real capability, not a dormant one waiting to be
+re-enabled -- a real bridge/typed-crossing mechanism would need
+designing fresh here if ever wanted, informed by this real precedent
+rather than invented blind.
+
+**Real, worth recording plainly, Alan's own assessment:** a genuinely
+good, correct design, constrained by the real physical medium
+available at the time rather than by any flaw in the thinking itself
+-- "ahead of the physical medium," a different, more forgivable kind
+of obsolescence than most retired code carries.
+
+**Real, honest scope: a design clarification only, nothing built.**
+Kept here specifically because it completes the real mechanism
+`#659`/`#671` had already partly surfaced -- the concrete "how" that
+makes the whole cross-domain bridge concept actually buildable, once
+there's real time to design and build a Unicell-S equivalent.
