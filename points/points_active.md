@@ -5839,3 +5839,74 @@ RTL-side gap, still open); (2) the auto-sized-VM-from-ICM tool
 frontend; (4) promote both select constructions + icmp eq to
 Tier-1/frontend; (5) once the above genuinely stabilizes, return to
 the TRIX/cross-domain archeology dive.
+
+## 661. The LLVM IR frontend compiles real descending (counting-down) loops -- `sub` paired with `icmp sgt`, closing the real, explicitly-deferred gap `#652`/`#653` both named. A genuinely new tile was needed, not a flipped flag, for a real, hardware-forced reason found and confirmed before writing any frontend code. (Alan/Claude, 2026-09-06)
+
+**Real, hardware-forced finding, checked before writing anything:**
+LOOP_CTRL's own real comparator always tests "bound (arrives second)
+vs loop-var (arrives first)", with `pattern_high` firing when bound >
+loop-var -- exactly "continue" for an ascending loop, but exactly
+backwards for a descending one, which needs to continue when loop-var
+> bound (`pattern_low`). Which arrival is "first" vs "second" is fixed
+by the real topology (LOOPVAR always offers before the bound arrives),
+not swappable -- so this genuinely needs its own tile, not a parameter
+on the existing one.
+
+**Real, new tile registered, `nano_loop_ctrl_desc`:** the exact mirror
+of `nano_loop_ctrl`'s own real field mapping -- `continue_out`->
+`pattern_low`, `exit_out`->`pattern_equal`, `pattern_high` as the
+degenerate-safety param (tied to the same direction as `exit_out`,
+matching `#652`'s own established convention for the ascending case).
+Verified in isolation via `place()` before touching the frontend at
+all -- confirmed the derived `routing_mask` and pattern fields resolve
+correctly on the first attempt.
+
+**Real, hand-built VM proof of the descending 4-cell ring before any
+frontend work, matching `#649`'s own established discipline:**
+LOOPVAR(hold_in) --south--> `nano_loop_ctrl_desc` --east--> `subtractor`
+--north--> RAM_RELAY --west--> LOOPVAR. `for i=10; i>7; i-=1`: correctly
+produced 10->9->8->7 (exit), matching real C-style countdown semantics
+exactly, on the first real run.
+
+**Real frontend extension, `llvm_ir_frontend_v1.py`:** the increment
+check now accepts `add` OR `sub`; the predicate check requires `slt`
+for `add` and `sgt` for `sub` specifically (a real, symmetric pairing,
+not an arbitrary restriction) -- any mismatch (`add`+`sgt`, `sub`+
+`slt`) produces a real, clear diagnostic naming which predicate was
+expected and why, not a silent wrong lowering. The Python interpreter
+used to compute `expected_final_value` extended with the same real
+symmetry (`i > bound` / subtract, vs `i < bound` / add). Tile placement
+dispatches to `nano_loop_ctrl_desc`+`subtractor` for the descending
+case, `nano_loop_ctrl`+`adder` for ascending, sharing everything else
+in the topology unchanged.
+
+**Real, full end-to-end verification, not stopping at "it compiled":**
+a real compiled descending loop (`for i=10; i>7; i-=1`) run through a
+real `SuperGrid`, matching its own independently-computed expected
+result exactly, on the first real compile-and-run attempt. `tests/vm/
+test_llvm_ir_frontend_v1.py` extended with 3 real positive tests
+(basic countdown, a zero-iteration edge case, step-by-2) and 2
+negative tests (the two real mismatched opcode/predicate
+combinations, each rejected with a clear diagnostic). One old test
+asserting `sub` was rejected outright was removed as genuinely
+superseded, not just papered over -- its own exact scenario is now
+covered correctly by the new mismatch test instead.
+
+**Real, full regression:** 38/38 in the extended frontend test file;
+549 Python tests via pytest overall (up from 545); 20/20, 15/15, 14/14,
+12/12, and 9/9 in the five script-style VM-mechanism test files,
+confirmed unaffected.
+
+**Real, honest scope, unchanged in spirit:** general multi-block
+control flow, nested loops, and multi-variable loops all remain real,
+explicitly deferred -- this closes the specific gap named at `#652`'s
+own real narrow scope, not a general control-flow compiler.
+
+**Real, standing next-session queue, working top-down (per Alan's own
+explicit stabilize-first direction, TRIX archeology `#659`'s own
+groundwork still waiting):** (1) wire real carrier-to-carrier
+`program_out`/`freeze_out` in the RTL array generator (`#658`'s own
+confirmed RTL-side gap, still open); (2) the auto-sized-VM-from-ICM
+tool (`#651`); (3) promote both select constructions + icmp eq to
+Tier-1/frontend; (4) once the above genuinely stabilizes, return to
+the TRIX/cross-domain archeology dive.

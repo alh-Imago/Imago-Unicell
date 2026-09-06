@@ -400,6 +400,36 @@ super_tile_library.register(SuperTileSpec(
     target="universal",
 ))
 
+# points.md #661: the real, necessary descending-loop counterpart to
+# nano_loop_ctrl -- a genuinely different tile, not a flipped flag.
+# LOOP_CTRL's own real comparator always tests "bound (arrives second)
+# vs loop-var (arrives first)", with pattern_high firing when bound >
+# loop-var -- exactly "continue" for an ascending loop, but exactly
+# BACKWARDS for a descending one, which needs to continue when loop-
+# var > bound (pattern_low), not the other way round. This is a real,
+# hardware-forced asymmetry (which arrival is "first" vs "second" is
+# fixed by the real topology, not swappable), so it needs its own real
+# tile with continue_out/exit_out mapped to the opposite patterns, not
+# a parameter on the existing one.
+super_tile_library.register(SuperTileSpec(
+    name="nano_loop_ctrl_desc", core="nano",
+    description="The real descending-loop counterpart to `nano_loop_"
+                 "ctrl` -- same real PASS_A + dynamic_route_en=1 "
+                 "mechanism, but `continue_out` sets `pattern_low` "
+                 "(fires when the loop variable, arriving first, is "
+                 "GREATER than the bound, arriving second) and "
+                 "`exit_out` sets `pattern_equal`, the exact mirror of "
+                 "the ascending tile's own real field mapping -- "
+                 "matching a real `for (i=N; i>bound; i-=step)` shape.",
+    ports=[
+        TilePort("continue_out", "out", ("pattern_low", "routing_mask")),
+        TilePort("exit_out", "out", ("pattern_equal", "routing_mask")),
+    ],
+    param_names=["pattern_high"],
+    fixed_core_config={"topology": TOPO_PASS_A, "dynamic_route_en": 1, "ready": 1},
+    target="universal",
+))
+
 super_tile_library.register(SuperTileSpec(
     name="ram_constant", core="ram",
     description="A fixed-value RAM cell -- offers a permanent, "

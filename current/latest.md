@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-06, live PROG_ID reprogramming extended to all 9 core types -- the one remaining genuinely nano-only VM limitation, closed. A command core programming a non-nano target across a real carrier mesh now proven end to end. See `points/points_active.md` #660)
+# Current State (as of 2026-09-06, the LLVM frontend compiles real descending (countdown) loops -- sub/icmp sgt, a genuinely new tile needed for a real hardware-forced reason, verified in the VM before any frontend work. See `points/points_active.md` #661)
+
+## Read this first (most recent)
+
+**2026-09-06, descending loops compile (#661).** Closes the real,
+explicitly-deferred `sub`-loop gap `#652`/`#653` both named. Real,
+hardware-forced finding checked first: LOOP_CTRL's comparator always
+tests "bound (second arrival) vs loop-var (first arrival)" -- backwards
+for a descending loop, which needs continue-on-greater-than instead of
+continue-on-less-than. Since which arrival is first/second is fixed by
+the real topology, this genuinely needed a new tile (`nano_loop_ctrl_
+desc`, `continue_out`->`pattern_low`), not a flipped parameter.
+
+**Real, staged verification, matching this project's own established
+discipline:** new tile verified in isolation via `place()` first; the
+full 4-cell descending ring (LOOPVAR/`nano_loop_ctrl_desc`/
+`subtractor`/RAM_RELAY) hand-built and proven in the VM (`for i=10;
+i>7; i-=1` → 10→9→8→7 exit) BEFORE touching the frontend at all; only
+then extended `llvm_ir_frontend_v1.py` to accept `sub`+`icmp sgt`
+alongside the existing `add`+`icmp slt`, with any mismatch producing a
+clear diagnostic. A real compiled countdown loop then run through a
+real `SuperGrid`, matching its own expected result -- correct on the
+first real attempt at every stage.
+
+**Real, full regression:** 38/38 in the extended frontend test file;
+549 Python tests via pytest overall (up from 545); all five script-
+style VM-mechanism test files unaffected.
+
+**Real, standing next-session queue:** (1) wire real carrier-to-carrier
+`program_out`/`freeze_out` in the RTL array generator (`#658`'s own
+confirmed RTL-side gap); (2) the auto-sized-VM-from-ICM tool (`#651`);
+(3) promote both select constructions + icmp eq to Tier-1/frontend;
+(4) once the above genuinely stabilizes, return to the TRIX/cross-
+domain archeology dive (`#659`'s own groundwork already done).
+
+## Previous state (as of 2026-09-06, live PROG_ID reprogramming extended to all 9 core types -- the one remaining genuinely nano-only VM limitation, closed. A command core programming a non-nano target across a real carrier mesh now proven end to end. See `points/points_active.md` #660)
 
 ## Read this first (most recent)
 

@@ -361,7 +361,11 @@ def test_for_target_filters_correctly():
     # -- nano_loop_var/nano_loop_ctrl retagged universal, confirmed by
     # testing before retagging, not assumed. This list needs updating
     # alongside the library each time a new universal tile is added.
-    assert on_n == sorted(["nano_gate", "nano_loop_var", "nano_loop_ctrl"])
+    # points.md #661: nano_loop_ctrl_desc (the real descending-loop
+    # counterpart) also registered universal -- this list needs
+    # updating alongside the library each time a new universal tile is
+    # added, not treated as a fixed constant.
+    assert on_n == sorted(["nano_gate", "nano_loop_var", "nano_loop_ctrl", "nano_loop_ctrl_desc"])
     assert on_s == sorted(super_tile_library.names())   # Unicell-S is the strict superset
 
 

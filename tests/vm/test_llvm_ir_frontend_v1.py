@@ -496,25 +496,6 @@ def test_loop_wrong_predicate_rejected():
     assert any("predicate" in d.problem for d in diagnostics)
 
 
-def test_loop_sub_increment_deferred_cleanly():
-    ir = """
-    define i32 @bad(i32 %n) {
-    entry:
-      br label %loop
-    loop:
-      %i = phi i32 [ 10, %entry ], [ %i.next, %loop ]
-      %i.next = sub i32 %i, 1
-      %cond = icmp slt i32 %i, %n
-      br i1 %cond, label %loop, label %exit
-    exit:
-      ret i32 %i
-    }
-    """
-    icm, diagnostics, info = compile_llvm_ir(ir, {"n": 20})
-    assert icm is None
-    assert any("not a real add" in d.problem for d in diagnostics)
-
-
 def test_loop_nonliteral_entry_seed_rejected():
     ir = """
     define i32 @bad(i32 %start, i32 %n) {
@@ -555,3 +536,84 @@ def test_loop_postincrement_check_rejected_with_clear_diagnostic():
     icm, diagnostics, info = compile_llvm_ir(ir, {"n": 3})
     assert icm is None
     assert any("pre-increment" in d.problem for d in diagnostics)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #661: the real descending-loop counterpart -- sub paired
+# with icmp sgt, lowered to nano_loop_ctrl_desc + subtractor. Every
+# test actually runs the real VM, same discipline as the ascending
+# suite above.
+# ═══════════════════════════════════════════════════════════════════════
+
+_COUNTDOWN_LOOP_IR = """
+define i32 @countdown(i32 %n) {{
+entry:
+  br label %loop
+loop:
+  %i = phi i32 [ {seed}, %entry ], [ %i.next, %loop ]
+  %i.next = sub i32 %i, {step}
+  %cond = icmp sgt i32 %i, %n
+  br i1 %cond, label %loop, label %exit
+exit:
+  ret i32 %i
+}}
+"""
+
+
+def test_descending_loop_basic_countdown():
+    out, rounds, info = _run_loop(_COUNTDOWN_LOOP_IR.format(seed=10, step=1), {"n": 7})
+    assert out == 7 == info.expected_final_value
+    assert rounds == 3 == info.expected_continue_rounds
+
+
+def test_descending_loop_zero_iterations_edge_case():
+    out, rounds, info = _run_loop(_COUNTDOWN_LOOP_IR.format(seed=5, step=1), {"n": 5})
+    assert out == 5 == info.expected_final_value
+    assert rounds == 0
+
+
+def test_descending_loop_step_by_two():
+    out, rounds, info = _run_loop(_COUNTDOWN_LOOP_IR.format(seed=20, step=2), {"n": 10})
+    assert out == 10 == info.expected_final_value
+    assert rounds == 5
+
+
+def test_descending_loop_mismatched_add_with_sgt_rejected():
+    """A real, deliberate mismatch: `add` (ascending shape) paired with
+    `icmp sgt` (descending predicate) matches neither real supported
+    combination -- must be rejected with a clear diagnostic."""
+    ir = """
+    define i32 @bad(i32 %n) {
+    entry:
+      br label %loop
+    loop:
+      %i = phi i32 [ 0, %entry ], [ %i.next, %loop ]
+      %i.next = add i32 %i, 1
+      %cond = icmp sgt i32 %i, %n
+      br i1 %cond, label %loop, label %exit
+    exit:
+      ret i32 %i
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"n": 3})
+    assert icm is None
+    assert any("expected" in d.problem and "sgt" in d.problem for d in diagnostics)
+
+
+def test_descending_loop_mismatched_sub_with_slt_rejected():
+    ir = """
+    define i32 @bad(i32 %n) {
+    entry:
+      br label %loop
+    loop:
+      %i = phi i32 [ 10, %entry ], [ %i.next, %loop ]
+      %i.next = sub i32 %i, 1
+      %cond = icmp slt i32 %i, %n
+      br i1 %cond, label %loop, label %exit
+    exit:
+      ret i32 %i
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"n": 3})
+    assert icm is None
+    assert any("expected" in d.problem and "sgt" in d.problem for d in diagnostics)

@@ -9,25 +9,34 @@ REAL, DELIBERATELY RESTRICTED FIRST SLICE, matching `#610`'s own
 "smallest test first" recommendation exactly -- not general LLVM IR:
 - Exactly one function. Either ONE basic block (the original straight-
   line shape, unchanged), OR a real, narrowly-restricted 3-block
-  COUNTING LOOP shape (`#652`'s own real prerequisite work: `entry`
-  unconditionally branches to `loop`; `loop` holds exactly one `phi`
-  (two incoming edges: a literal constant from `entry`, a self-
-  reference from `loop`'s own final instruction), one `add`/`sub`
-  increment, one `icmp` testing the phi's OWN pre-increment value
+  COUNTING LOOP shape (`#652`'s own real prerequisite work, `#661`'s
+  own real descending-loop extension: `entry` unconditionally branches
+  to `loop`; `loop` holds exactly one `phi` (two incoming edges: a
+  literal constant from `entry`, a self-reference from `loop`'s own
+  final instruction), one increment (`add` paired with `icmp slt` for
+  counting UP, or `sub` paired with `icmp sgt` for counting DOWN,
+  `#661`), one `icmp` testing the phi's OWN pre-increment value
   (matching `#638`/`#649`/`#652`'s own real, proven hardware exactly --
   LOOP_CTRL tests what LOOPVAR currently holds BEFORE deciding whether
-  ADDER even runs that round, not a post-increment test), and one
-  conditional `br` back to `loop` or out to `exit`; `exit` holds
+  the increment even runs that round, not a post-increment test), and
+  one conditional `br` back to `loop` or out to `exit`; `exit` holds
   exactly one `ret` of the phi's own pre-increment value (the value
   LOOP_CTRL routes out directly on exit -- that round's own increment,
   though it still computes unconditionally in the same block like any
-  ordinary LLVM basic block, is simply never offered to ADDER when the
-  exit path is taken)) -- lowered to `#638`/`#649`/`#652`'s own real,
-  proven 4-cell bounded-loop-ring tiles (`nano_loop_var`/`nano_loop_
-  ctrl`/`adder`/`ram_flowing`). General multi-block control flow,
-  nested loops, and loops with more than one live variable remain real,
-  explicitly deferred future work -- this is ONE narrow, real shape,
-  not a general control-flow compiler.
+  ordinary LLVM basic block, is simply never offered to the adder/
+  subtractor when the exit path is taken)) -- lowered to `#638`/`#649`/
+  `#652`/`#661`'s own real, proven 4-cell bounded-loop-ring tiles
+  (`nano_loop_var`/`nano_loop_ctrl`-or-`nano_loop_ctrl_desc`/`adder`-
+  or-`subtractor`/`ram_flowing`). `#661`'s own real, hardware-forced
+  finding: LOOP_CTRL's comparator always tests "bound (arrives second)
+  vs loop-var (arrives first)", so a descending loop needs its own
+  real tile (`nano_loop_ctrl_desc`, `continue_out`->`pattern_low`) --
+  the polarity can't just be flipped on the existing one, since which
+  arrival is "first" vs "second" is fixed by the real topology, not a
+  parameter. General multi-block control flow, nested loops, and loops
+  with more than one live variable remain real, explicitly deferred
+  future work -- this is TWO narrow, real, symmetric shapes, not a
+  general control-flow compiler.
 - Only `add`/`sub` (32-bit integer) and a terminating `ret`.
 - A REAL LINEAR ACCUMULATION CHAIN shape, not general DAG routing:
   each instruction's FIRST operand must be either a real, compile-time
@@ -527,7 +536,7 @@ class LlvmLoopLoweringInfo:
     function_name: str
     loopvar_pos: Tuple[int, int]
     loop_ctrl_pos: Tuple[int, int]
-    adder_pos: Tuple[int, int]
+    adder_pos: Tuple[int, int]   # #661: also the subtractor's own position for a descending loop -- one shared name, the role at this position, not always literally an adder tile
     ram_relay_pos: Tuple[int, int]
     entry_seed_value: int
     bound_value: int
@@ -643,20 +652,22 @@ def _compile_single_counting_loop(fn, argument_values: Dict[str, int]
                          "to be a literal constant -- LOOPVAR's own real entry-seed (#636) has no "
                          "other real source wired in yet")
 
-    if inc_instr.opcode != "add":
+    if inc_instr.opcode not in ("add", "sub"):
         return fail(f"loop block {loop_block.name!r}'s own second instruction is "
-                     f"{inc_instr.opcode!r}, not a real add",
+                     f"{inc_instr.opcode!r}, not a real add or sub",
                      "checking the loop's own real increment instruction",
-                     "this real, narrow shape (v1, #652) supports only a counting-UP loop via a "
-                         "real `add` increment -- `sub` (a counting-down loop, needing the real "
-                         "`subtractor` tile instead of `adder`) is real, explicitly deferred")
+                     "this real, narrow shape supports a counting-UP loop via a real `add` "
+                         "(paired with `icmp slt`) or a counting-DOWN loop via a real `sub` "
+                         "(paired with `icmp sgt`) -- no other increment shape is wired up yet")
+    is_descending = (inc_instr.opcode == "sub")
     inc_ops = list(inc_instr.operands)
     if not (inc_ops[0].name == phi_instr.name):
-        return fail(f"the loop's own real increment {inc_instr.name!r} doesn't add to "
+        return fail(f"the loop's own real increment {inc_instr.name!r} doesn't "
+                     f"{'subtract from' if is_descending else 'add to'} "
                      f"{phi_instr.name!r} (the loop variable's own phi) as its first operand",
                      "checking the loop's own real increment instruction",
                      "this real, narrow shape requires the increment to be exactly "
-                         f"`{inc_instr.name} = add {phi_instr.name}, <compile-time constant>`")
+                         f"`{inc_instr.name} = {inc_instr.opcode} {phi_instr.name}, <compile-time constant>`")
     increment_value, increment_is_ref = _resolve_operand_value(inc_ops[1], argument_values)
     if increment_value is None:
         return fail(f"the loop's own real increment's second operand "
@@ -671,13 +682,17 @@ def _compile_single_counting_loop(fn, argument_values: Dict[str, int]
                      "this real, narrow shape requires the third instruction to be the real "
                          "icmp deciding whether the loop continues")
     predicate = _icmp_predicate(icmp_instr)
-    if predicate != "slt":
-        return fail(f"loop exit condition uses predicate {predicate!r}, expected 'slt'",
+    expected_predicate = "sgt" if is_descending else "slt"
+    if predicate != expected_predicate:
+        return fail(f"loop exit condition uses predicate {predicate!r}, expected "
+                     f"{expected_predicate!r} to match the real `{inc_instr.opcode}` increment "
+                     f"already used",
                      "checking the loop's own real exit condition",
-                     "this real, narrow shape (v1, #652) only supports `icmp slt <incremented "
-                         "value>, <bound>` (\"continue while less than the bound\") -- LOOP_CTRL's "
-                         "own real dynamic-routing comparator (#637/#650) can express other real "
-                         "shapes, but only this one is wired up in the frontend yet")
+                     f"this real, narrow shape requires `add` paired with `icmp slt` (counting "
+                         f"up, \"continue while less than the bound\") or `sub` paired with "
+                         f"`icmp sgt` (counting down, \"continue while greater than the bound\") "
+                         f"-- LOOP_CTRL's own real comparator (#637/#650/#661) can express other "
+                         f"real shapes, but only these two are wired up in the frontend yet")
     icmp_ops = list(icmp_instr.operands)
     if icmp_ops[0].name != phi_instr.name:
         return fail(f"the loop's own real icmp compares {icmp_ops[0].name or str(icmp_ops[0])!r}, "
@@ -685,8 +700,8 @@ def _compile_single_counting_loop(fn, argument_values: Dict[str, int]
                      "checking the loop's own real exit condition",
                      f"this real, narrow shape (matching #638/#649/#652's own proven real hardware "
                          f"topology -- LOOP_CTRL tests the value LOOPVAR currently holds BEFORE "
-                         f"deciding whether ADDER even runs this round) requires exactly "
-                         f"`icmp slt {phi_instr.name}, <bound>` -- note this is the phi's OWN "
+                         f"deciding whether the increment even runs this round) requires exactly "
+                         f"`icmp {predicate} {phi_instr.name}, <bound>` -- note this is the phi's OWN "
                          f"value, not the incremented one; `{inc_instr.name}` (the increment) "
                          f"still computes unconditionally in the same block either way, it's just "
                          f"unused on the exit path, same as any ordinary LLVM basic block")
@@ -749,7 +764,9 @@ def _compile_single_counting_loop(fn, argument_values: Dict[str, int]
     # ── Real, honest interpretation, matching the REAL, proven
     # hardware's own semantics exactly (#638/#649/#652): LOOP_CTRL
     # tests the CURRENT (pre-increment) value BEFORE deciding whether
-    # ADDER even runs this round -- NOT a post-increment test. ──
+    # the increment even runs this round -- NOT a post-increment test.
+    # #661: real, symmetric descending case added alongside the
+    # existing ascending one. ──
     i = entry_seed_value
     rounds = 0
     while True:
@@ -760,22 +777,33 @@ def _compile_single_counting_loop(fn, argument_values: Dict[str, int]
                         "computing the loop's own real expected final value",
                         "either the bound/increment don't actually converge, or this frontend's "
                         "own interpreter has a real bug -- refusing to hang either way")
-        if i < bound_value:
-            i = (i + increment_value) & 0xFFFFFFFF
+        continuing = (i > bound_value) if is_descending else (i < bound_value)
+        if continuing:
+            i = ((i - increment_value) if is_descending else (i + increment_value)) & 0xFFFFFFFF
             continue
         expected_final_value = i
         break
 
     # ── Real, proven 4-cell layout, #638/#649/#652's own real, fixed
-    # relative positions -- LOOPVAR(0,0)/LOOP_CTRL(1,0)/ADDER(1,1)/
-    # RAM_RELAY(0,1). ──
+    # relative positions -- LOOPVAR(0,0)/LOOP_CTRL(1,0)/ADDER-or-
+    # SUBTRACTOR(1,1)/RAM_RELAY(0,1). #661: the descending case swaps
+    # in nano_loop_ctrl_desc (continue_out->pattern_low, the real,
+    # necessary mirror of the ascending tile's own mapping) and
+    # subtractor (the same real adder core, subtract_mode fixed on) --
+    # everything else about the topology is identical. ──
+    if is_descending:
+        loop_ctrl_fields = [FieldIR("continue_out", "e"), FieldIR("exit_out", "s"),
+                             FieldIR("pattern_high", ["s"])]
+        loop_ctrl_tile, op_tile = "nano_loop_ctrl_desc", "subtractor"
+    else:
+        loop_ctrl_fields = [FieldIR("continue_out", "e"), FieldIR("exit_out", "s"),
+                             FieldIR("pattern_low", ["s"])]
+        loop_ctrl_tile, op_tile = "nano_loop_ctrl", "adder"
     statements: List[PlaceIR] = [
         PlaceIR(name="loopvar", tile_name="nano_loop_var", row=0, col=0,
                 fields=[FieldIR("out", "s")]),
-        PlaceIR(name="loop_ctrl", tile_name="nano_loop_ctrl", row=1, col=0,
-                fields=[FieldIR("continue_out", "e"), FieldIR("exit_out", "s"),
-                        FieldIR("pattern_low", ["s"])]),
-        PlaceIR(name="adder", tile_name="adder", row=1, col=1,
+        PlaceIR(name="loop_ctrl", tile_name=loop_ctrl_tile, row=1, col=0, fields=loop_ctrl_fields),
+        PlaceIR(name="op", tile_name=op_tile, row=1, col=1,
                 fields=[FieldIR("in_a", "w"), FieldIR("in_b", "s"), FieldIR("out", "n")]),
         PlaceIR(name="ram_relay", tile_name="ram_flowing", row=0, col=1,
                 fields=[FieldIR("in", "s"), FieldIR("out", "w")]),
