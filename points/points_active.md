@@ -6267,3 +6267,76 @@ stale-value correction (`#665`'s own logged, deliberately-deferred
 finding); (4) once the above genuinely stabilizes, return to the
 TRIX/cross-domain archeology dive (`#659`'s own groundwork already
 done and waiting).
+
+## 667. The auto-sized-VM-from-ICM tool (`#651`'s own standing gap) is real -- and, per Alan's own direct request, it also resolves named external data entry/exit points, so a design can receive real data (from a person testing it, or later real I/O hardware) without the caller ever needing to know a raw grid coordinate. (Alan/Claude, 2026-09-06)
+
+**Real, new ICM field, `IcmV3Record.io_name` (`icm_v3.py`):** an
+optional, human-chosen name marking a cell as a genuine external data
+entry/exit point. Deliberately just a name, not a separate input/
+output role field -- which direction a caller actually uses a named
+point for is decided at the point of use (`inject_named` vs
+`read_named`), not baked into the design; the same RAM cell that takes
+a seed value in can just as naturally be read back out later. Included
+in `record_hash()`'s own canonicalization -- changing which cell
+serves as a named entry point is a real, meaningful design change, not
+cosmetic. Fully backward compatible: defaults to `None`, existing ICM
+files/tests need no changes, confirmed by the full regression.
+
+**Real, new module, `nano/vm_autosize_v1.py`, two separate real
+concerns:**
+- **Auto-sizing:** `compute_bounding_box()`/`remap_records_to_origin()`
+  -- a design's own real records may span a much larger conceptual
+  coordinate space than it actually occupies (generous authoring
+  padding, or extraction from a larger composed design); the real VM
+  built here uses only the tight, minimum bounding rectangle the
+  design genuinely needs, confirmed directly: a 3-cell chain authored
+  at row=50/col=100 produces a real 1x3 grid, not 51x103.
+- **Named I/O:** `collect_io_points()` resolves every real `io_name`
+  into its (post-remap) grid position, raising a clear error on a
+  genuine ambiguity (two cells sharing the same name) rather than
+  silently keeping whichever was scanned last.
+
+**Real, clean caller-facing API, `AutoSizedVM`:** `inject_named(name,
+value)` works for any real core type (an ordinary cardinal arrival,
+the same real mechanism `SuperGrid.inject()` already provides
+generically). `read_named(name)` is deliberately narrower and honest
+about it -- nano/adder/ram are real, supported today (comparator/
+branch/accumulator/latch/sequencer emit routing decisions or cycle
+between several values, not one settled "current value" in the same
+sense, and are not silently faked here); an unsupported core type
+raises a clear error naming exactly which types are supported, rather
+than returning something plausible-looking but wrong. Both direction
+methods raise a clear `KeyError` naming the real, available names on
+an unknown lookup, not a silent `None`/exception from deeper in the
+grid.
+
+`build_auto_sized_vm(icm)` is the one real entry point this module
+exists for -- auto-sizes, resolves names, and returns a ready-to-use
+`AutoSizedVM` in one real call.
+
+**Real, full end-to-end verification, `tests/vm/test_vm_autosize_
+v1.py` (new), 15/15 checks:** bounding-box/remap correctness (including
+a genuinely fresh-object guarantee even when already at the origin);
+`io_name` round-tripping through `to_dict()`/`from_dict()` and
+defaulting to `None` for backward compatibility; the real, decisive
+test -- inject via a named entry point on a design placed far from the
+origin, run to quiescence, and read the correct real result back via a
+named exit point, the caller never touching a raw coordinate at any
+point; the duplicate-name and unknown-name error paths; the honest
+unsupported-core-type error for `read_named()`. One real, expected
+finding along the way, not a bug: nano's own real two-arrival firing
+model (already established elsewhere in this project) meant the first
+draft of the nano read test needed a real second arrival to actually
+fire -- fixed in the test, not the code.
+
+**Real, full regression:** 572 Python tests via pytest (up from 557);
+all five script-style VM-mechanism test files, unaffected.
+
+**Real, standing next-session queue, working top-down:** (1) promote
+both select constructions + icmp eq to Tier-1/frontend; (2) the
+`PROG_ID_COMPLETE` stale-value correction (`#665`'s own logged,
+deliberately-deferred finding); (3) extend `read_named()`'s own real
+scope to the remaining core types if/when a real design genuinely
+needs to read one of them back; (4) once the above genuinely
+stabilizes, return to the TRIX/cross-domain archeology dive (`#659`'s
+own groundwork already done and waiting).

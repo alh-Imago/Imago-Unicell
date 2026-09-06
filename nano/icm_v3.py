@@ -428,6 +428,19 @@ class IcmV3Record:
     core: str
     core_config: dict = field(default_factory=dict)
     addon_config: dict = field(default_factory=dict)
+    #: points.md #667: a real, optional, human-chosen name marking this
+    #: cell as a genuine external data entry/exit point -- direct from
+    #: a person, or (later) real I/O hardware. `None` for an ordinary,
+    #: purely-internal cell. Deliberately just a name, not a separate
+    #: "input"/"output" role field: which direction a caller actually
+    #: uses a named point for (inject vs read) is decided at the point
+    #: of use, not baked into the design -- the same RAM cell that
+    #: takes a seed value in can just as naturally be read back out.
+    #: Part of this record's own real identity -- included in
+    #: `record_hash()` below, since changing which cell serves as a
+    #: named entry point is a real, meaningful design change, not
+    #: cosmetic.
+    io_name: Optional[str] = None
 
     def super_latch(self) -> int:
         return encode_super_latch(self.core, self.core_config, self.addon_config)
@@ -441,6 +454,7 @@ class IcmV3Record:
             "core": self.core,
             "core_config": self.core_config,
             "addon_config": self.addon_config,
+            "io_name": self.io_name,
             "super_latch_hex": f"0x{latch:020x}",
         }
 
@@ -449,6 +463,7 @@ class IcmV3Record:
         return IcmV3Record(
             cell_id=d["cell_id"], row=d["row"], col=d["col"], core=d["core"],
             core_config=d.get("core_config", {}), addon_config=d.get("addon_config", {}),
+            io_name=d.get("io_name"),
         )
 
 
@@ -459,7 +474,7 @@ def _canonical_records_json(records) -> str:
     languages/implementations, not just this one file's own dict order."""
     canon = [
         {"cell_id": r.cell_id, "row": r.row, "col": r.col, "core": r.core,
-         "core_config": r.core_config, "addon_config": r.addon_config}
+         "core_config": r.core_config, "addon_config": r.addon_config, "io_name": r.io_name}
         for r in records
     ]
     return json.dumps(canon, sort_keys=True, separators=(",", ":"))

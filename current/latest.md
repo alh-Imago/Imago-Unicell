@@ -1,4 +1,37 @@
-# Current State (as of 2026-09-06, real RTL implementation of #658's core-select-via-live-programming mechanism -- a cell starting on the wrong core is correctly redirected by the mandatory first word, in real RTL simulation, not just the VM. See `points/points_active.md` #666)
+# Current State (as of 2026-09-06, the auto-sized-VM-from-ICM tool is real -- and, per Alan's own direct request, it resolves named external data entry/exit points, so a design can receive real data without the caller ever needing a raw grid coordinate. See `points/points_active.md` #667)
+
+## Read this first (most recent)
+
+**2026-09-06, auto-sized VM + named I/O entry points (#667).** Closes
+`#651`'s own standing gap. New `IcmV3Record.io_name` field (optional,
+backward compatible, included in `record_hash()`) marks a cell as a
+genuine external data entry/exit point -- direct from a person testing
+a design, or later real I/O hardware. New `nano/vm_autosize_v1.py`:
+`build_auto_sized_vm(icm)` computes the real, tight bounding box a
+design actually occupies (not whatever larger space it was authored
+in), remaps to the origin, and resolves every `io_name` into a direct
+grid position.
+
+**Real, clean caller API, `AutoSizedVM`:** `inject_named(name, value)`
+works for any core type. `read_named(name)` is honestly narrower --
+nano/adder/ram today, with a clear error naming exactly which types
+are supported for anything else, not a silently-wrong guess.
+
+**Real, decisive test:** a 3-cell chain authored far from the origin
+(row=50, col=100), auto-sized down to a real 1x3 grid, data injected
+via a named entry point and read back correct via a named exit point,
+the caller never touching a raw coordinate.
+
+**Real, full regression:** 572 Python tests via pytest (up from 557);
+all script-style VM test files unaffected.
+
+**Real, standing next-session queue:** (1) promote select constructions
++ icmp eq to Tier-1/frontend; (2) the `PROG_ID_COMPLETE` stale-value
+correction (`#665`'s own logged finding); (3) extend `read_named()` to
+the remaining core types if a real design needs it; (4) the TRIX
+archeology dive once stable.
+
+## Previous state (as of 2026-09-06, real RTL implementation of #658's core-select-via-live-programming mechanism -- a cell starting on the wrong core is correctly redirected by the mandatory first word, in real RTL simulation, not just the VM. See `points/points_active.md` #666)
 
 ## Read this first (most recent)
 
