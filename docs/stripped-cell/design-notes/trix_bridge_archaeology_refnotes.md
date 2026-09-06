@@ -19,6 +19,14 @@ read and where it lives.*
 
 ## Archive map
 
+**Real, important note: this dive spans TWO separate archives, not
+one.** `old_composer_tool.onion` (already Tier 1) contains
+`region_connector.html` — the real "cross-domain planner" UI (found
+only because Alan specifically recalled it existed, not from the
+metadata-only inventory pass) — sitting alongside `unicell_composer.html`
+and the real example `.icm` files already used for cell-count checks
+in `#659`. Everything else below is `old_papers_drafts.onion`.
+
 `old_papers_drafts.onion` — 43 files, 7 planned papers + `paper_bridges/`
 (the largest, most developed subtree by far — ~1.9MB of the archive's
 ~1.9MB total is dominated by `paper_bridges/data/`).
@@ -97,7 +105,7 @@ a specific claim later.
 
 ---
 
-## paper_bridges/notes.md — design notes (IN PROGRESS, read through line ~1060 of 1483)
+## paper_bridges/notes.md — design notes (fully read, 1483/1483 lines)
 
 Dated entries, "morning thinking session" style, explicitly marked
 pre-implementation / ideas still developing. Real, substantial
@@ -460,6 +468,77 @@ immediately show where it fits.
 paper... The computer science is the method. The claim is about
 knowledge itself." A genuinely different register and ambition than
 the other six, more technical/specialized papers.
+
+---
+
+## `region_connector.html` — the "cross-domain planner" (Alan's own real recollection, found in a different archive)
+
+**Real, important correction to my own earlier cataloguing:** this
+lives in `old_composer_tool.onion` (already Tier 1, already used
+once for cell-count checks in `#659`), NOT `old_papers_drafts.onion`
+where the other bridge UIs live — a real, separate archive from the
+rest of this dive, found only because Alan specifically recalled it
+existed. 1313 lines, sits alongside `unicell_composer.html` in the
+same archive.
+
+**A genuinely complete, well-engineered visual tool, read through its
+real function list end to end:**
+- `renderBrowser`/drag-and-drop (`onDragStart`/`onDrop`) — drag a
+  domain model (MathTrix/BioTrix/ChemTrix/PhysTrix/FinTrix, each with
+  its own real UI colour) onto a canvas.
+- `addRegion`/`makeDraggable` — **Regions** as real, draggable canvas
+  nodes — the same real "Pond" concept found in `#671`/`#672`, now seen
+  as an actual, working UI object, not just a design description.
+- `startConnect`/`endConnect`/`tryConnect` — port-based wire-dragging
+  between two regions.
+- **`tryConnect`'s own real matching logic**: same format+context =
+  direct connection, no bridge needed. Different format = search the
+  real `BRIDGES` array for a matching `(source_format, target_format)`
+  pair. A real, additional `context` field (beyond format) is checked
+  too — a bridge can match on FORMAT while still flagging a
+  "ctx-mismatch" badge if the specific USAGE context differs, a level
+  of nuance beyond what `notes.md`'s own three-layer model
+  (domain/scope/dimension) explicitly named.
+- `showBridgePanel` — real, live UI: every matching bridge shown with
+  its own real formula, a confidence bar+percentage, colour-coded by
+  `confColor()`, and a context-match badge. Selecting one and
+  confirming records a real, timestamped connection.
+- **`showNoBridgeMessage`, when no bridge exists at all**, tells the
+  user exactly what to do next: *"To create a custom bridge, define a
+  BridgeContract in cell_format.py and declare semantic_confidence."*
+  Real, direct confirmation that `cell_format.py` (`#659`'s own
+  original find) is genuinely the live source of truth this whole tool
+  is a front-end for, not a separate or parallel system.
+- `validatePipeline`/`dfs`/`showValidationReport` — a real depth-first
+  traversal validating an assembled multi-region pipeline before
+  export.
+- `exportPipeline`, using a real `sha256`/`canonR` — the SAME
+  canonical-hash convention this project's own ICM format uses.
+- **`openCustomBridge`/`saveCustomBridge`/`_bridgeStub`/
+  `promoteCustomBridge` — the part that closes the entire loop.** A
+  real form (source format, target format, name, formula, confidence,
+  notes) lets a user declare a brand-new bridge the built-in catalogue
+  doesn't cover. `_bridgeStub()` then generates a REAL, syntactically
+  valid `BridgeContract` Python subclass automatically applying the
+  exact same confidence-tier policy documented in `TRIX_ECOSYSTEM.md`
+  (`>=0.95` auto_place, `>=0.80` warn_and_place, `>=0.60` require_
+  verification, else reject) -- with clear, honest `# TODO` placeholders
+  for the things a UI genuinely cannot infer on its own (constants
+  used, SI input/output units, the dimension-exponent vector).
+  `promoteCustomBridge()` downloads this as a real `.py` file with
+  exact, correct paste-in instructions (`from cell_format import
+  BridgeContract`, register in `FUNDAMENTAL_BRIDGES`). A real,
+  thoughtful design choice, explicitly commented in the source: *"It
+  does NOT bypass the confidence/context discipline — it just lets a
+  user declare a connection the built-in catalogue doesn't cover yet."*
+  You don't need to know Python or the internal class structure to
+  PROPOSE a new bridge -- only an honest formula and an honest
+  confidence estimate.
+
+This is, genuinely, one of the most complete, usable single artifacts
+found in this whole dive -- a real, closed loop from "I want to
+connect two domains and nothing exists yet" to "here is a real,
+correctly-structured code contribution, ready to review."
 
 ---
 
