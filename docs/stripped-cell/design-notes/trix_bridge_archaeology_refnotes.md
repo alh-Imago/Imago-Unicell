@@ -636,17 +636,52 @@ region ID, cell count, execution state, live cycle count, and a real
 independently loadable, runnable, and freeable units, visible and
 manageable one at a time in the same interface.
 
-## Not yet opened at all (this session)
+---
+
+## `cross_domain.py` (read in full, 8.2KB) and the remaining paper READMEs
+
+**The remaining 6 paper READMEs (`paper_hawking`, `paper_flowtrix`,
+`paper_robotics`, `paper_main`, `paper_timing`, `paper_substrate` —
+all read):** confirmed these are genuinely scaffolded stubs, not
+substantive content -- folder structure + a short data/figures
+inventory each, matching what `PAPERS.md` already documented in more
+detail. Only `paper_bridges` ever received real, substantial written
+content. No new facts beyond what was already logged.
+
+**`cross_domain.py` is a real, complete, working algorithm — and it's
+DIFFERENT from `concept_inference.py`'s own path-solving Dijkstra.**
+This one does a real, brute-force pairwise comparison
+(`itertools.combinations`) across every concept pair in the database,
+matching on exact dimensional equality and scoring confidence via a
+real, hand-curated `DOMAIN_PROXIMITY` table (physics↔mechanics=0.0,
+thermodynamics↔chemistry=0.1, physics↔chemistry=0.15, chemistry↔
+biology=0.2, physics↔economics=0.6 -- genuine domain-expert judgment
+calls, not derived) plus a hub-connectivity bonus and a known-bridge
+bonus. `KNOWN_BRIDGES` is a real, hardcoded list of 15 specific, named,
+scientifically accurate mechanisms (Arrhenius, Hawking radiation,
+Carnot, Boltzmann factor, DNA Watson-Crick melting temperature, Eyring,
+Gibbs-Helmholtz, equipartition, Planck, van't Hoff, pH) -- this is what
+actually generates `cross_domain_matches.json`.
+
+**A real, honest gap found by tracing the actual code, not assumed
+from the docstring:** the module's own docstring promises three match
+types -- GREEN (same domain, same dimension), AMBER (cross-domain,
+same dimension), and RED ("different domain, compatible but not
+identical dimension — speculative"). The real match loop initializes
+`matches = {"green": [], "amber": [], "red": []}` but only ever
+appends to `green` and `amber` -- `red` is declared and never
+populated anywhere in the file. The speculative, "compatible-but-not-
+identical" tier was designed but never actually built here, at least
+not in this specific script (possibly implemented elsewhere and not
+yet found, or genuinely just never finished).
 
 ---
 
+## Not yet opened at all (this session)
 
-- `paper_bridges/data/cross_domain.py` (8.2KB)
-- `paper_bridges/data/cross_domain_matches.json` (415KB) — presumably a JSON export of the same real bridge data now confirmed in `concept_graph.db`
-- `paper_bridges/data/hub_gaps.json` (34.8KB) — READ this session, see the "Real implementation confirmed" section above
+- `paper_bridges/data/cross_domain_matches.json` (415KB) — the real output of `cross_domain.py`, now that its generating algorithm is fully understood (only worth opening for specific example rows now, not structural discovery)
 - `paper_bridges/bridge_visualiser.html` / `concept_graph_explorer.html` — the real, built interactive UIs (both real, substantial files, 155KB/216KB)
-- `paper_hawking/`, `paper_flowtrix/`, `paper_robotics/`, `paper_main/`, `paper_timing/` — all real, individual paper folders, only READMEs skimmed via file listing, not read
-- `paper_substrate/notes.md` — READ this session in full, see its own dedicated section above; `paper_substrate/README.md` itself still not read
+- All 6 remaining paper READMEs now read (`paper_hawking`, `paper_flowtrix`, `paper_robotics`, `paper_main`, `paper_timing`, `paper_substrate`) -- confirmed scaffolded stubs, no `draft.md`/`notes.md`/real data present for any of them except `paper_substrate/notes.md` (already read in full above) and `paper_bridges/notes.md`
 
 ## Real, standing connections to CURRENT project work (cross-referenced against points_active.md)
 
