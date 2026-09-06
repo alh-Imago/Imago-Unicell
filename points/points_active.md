@@ -6653,3 +6653,62 @@ Kept here specifically because it completes the real mechanism
 `#659`/`#671` had already partly surfaced -- the concrete "how" that
 makes the whole cross-domain bridge concept actually buildable, once
 there's real time to design and build a Unicell-S equivalent.
+
+## 673. Real, recovered connection: `#543`/`#544`/`#545` (the MathTrix/NVFP4 comparison, the lane-split/recombine composition, and the resulting T-tree design principle -- all from 2026-08-30, `points_06_481-571.md`) are a real, related-but-distinct thread to this session's own bridge/Pond/type-tag discussion (`#671`/`#672`). Found by actually searching past conversations rather than guessing, not reconstructed from memory alone. (Alan/Claude, 2026-09-06)
+
+**Real, precise recovery, not approximate recall:** Alan referenced an
+earlier discussion about FP4/FP8/FP16 packing into a 32-bit word,
+uncertain whether it was accessible. Found via a real conversation
+search, not assumed: `#543` is the real, confirmed external validation
+-- NVIDIA's own NVFP4 format (16 values sharing one common scale
+factor, decoupling "scale" from "shape") independently rediscovered
+the same real structural principle already on paper in this project's
+own archived MIF (MathTrix Internal Float) design (an exponent/flags
+cell paired with a separate mantissa cell, so exponent arithmetic
+never touches the mantissa). `#544` is the real, direct answer to
+Alan's own "lanes" proposal from that same conversation -- 8x4-bit,
+4x8-bit, or 2x16-bit lanes, each isolated via `nibble_mask_addon_v1.v`
+and OR-recombined through RAM's own real multi-direction capture,
+zero new RTL needed. `#545` generalized the real hop-count constraint
+`#544`'s own negative test case surfaced into a design principle (the
+forced 1-in-3-out "T" shape from the 4-port-per-cell constraint,
+giving powers-of-3 fan-out by construction) and tied it back to a real
+"pentacross" shape from 51 days earlier in the project's own history --
+the same geometry solving a different problem for the same structural
+reason.
+
+**Real, honest, standing scope from that earlier work, not silently
+assumed complete:** only the 2-lane (16-bit) case was actually proven,
+in the VM only (`tests/vm/test_lane_split_recombine_v1.py`, 2/2). The
+4-lane and 8-lane trees are real, designed, and understood, but
+genuinely not built -- no VM composition, no RTL testbench. Real,
+concrete, ready-to-pick-up work whenever wanted.
+
+**Real, precise distinction from this session's own bridge/Pond
+discussion, stated plainly rather than conflated:** lane-splitting
+(`#544`) is about representing mixed precision WITHIN one chain --
+decoupling scale from shape so each part carries only the complexity
+it needs. The bridge type-tag mechanism (`#672`) is about carrying
+type information ACROSS a boundary BETWEEN chains. Related instinct
+(decouple one concern from another so neither pays for complexity it
+doesn't need), genuinely different mechanism, genuinely different
+problem.
+
+**Real, separate, standing idea from Alan, captured here rather than
+left to evaporate in conversation, explicitly NOT to be acted on now:**
+a real, searchable concept-to-location index -- mapping named ideas
+(lane-splitting, Pond/bridge, MIF, timing-to-depth, etc.) to where
+they actually live (which ledger entries, which archive files, which
+past conversations) -- would materially help avoid two real, recurring
+costs this session has already hit more than once: (1) losing time
+re-finding where a concept was actually discussed (this entry itself
+required a live conversation search rather than an instant lookup),
+and (2) genuinely re-chasing a problem that was already solved
+elsewhere in the project's own history (matching the "timing to depth"
+precedent from `#668`, discovered mid-solve rather than looked up
+first). The append-only, chronological ledger is excellent for a full,
+honest historical record but genuinely poor for "find everything
+related to X" lookup -- a real, different, complementary tool, not a
+replacement for the ledger itself. Real, honest scope: an idea only,
+deliberately not designed or built here -- explicitly deferred by
+Alan's own words ("not now").
