@@ -6432,3 +6432,57 @@ stabilizes, return to the TRIX/cross-domain archeology dive -- with a
 real, specific new target inside it now: the old compiler's own real
 "timing to depth" placement metric, worth recovering properly rather
 than re-deriving each real composition's own stagger by hand.
+
+## 669. AutoSizedVM.read_named() extended to comparator/accumulator/latch/sequencer -- a genuinely short, well-bounded pick before starting select, per Alan's own request. Found and corrected a real oversight in #667's own original scope, and a real, separate limitation in inject_named() along the way. (Alan/Claude, 2026-09-06)
+
+**Real correction, not a new capability:** comparator was wrongly
+excluded from `read_named()` in `#667` -- it does have a real, settled
+single value (`cmp_out_buffer`, its own 0/1 threshold result),
+confirmed directly against its own real field definitions. Genuinely
+new additions: accumulator's own real running total (`acc_total`) and
+latch's own real sticky state (`latch_state`), both simple, direct
+field reads. Sequencer needed one extra step (`seq_value_{seq_index}`,
+its own currently-active value out of up to 4 configured ones) --
+special-cased alongside nano rather than forced into the flat
+field-name table. Branch remains real, deliberately excluded -- it
+emits a genuine multi-way routing decision across low/equal/high, not
+one settled value.
+
+**Real, separate finding along the way, corrected honestly rather than
+left inaccurate:** `#667`'s own docstring claimed `inject_named()`
+"works for any real core type" -- checked directly against the real
+RTL-matching delivery logic and found FALSE for accumulator and latch
+specifically: both explicitly document "injected unsupported" (they
+only ever act on a genuine cardinal arrival matching their own
+configured direction, e.g. `acc_inc_dir`/`latch_set_dir`) -- a
+directionless injection is a real, silent no-op for these two, not a
+trigger. Docstring corrected to name this precisely rather than
+overclaim; a real test confirms the no-op is honest (doesn't move the
+accumulator's own total) rather than silently wrong. Driving these two
+from a named point would need real, separate design (the caller
+specifying which cardinal direction a named point delivers from) --
+not attempted here.
+
+**Real, full verification, `tests/vm/test_vm_autosize_v1.py` extended
+to 20/20 checks:** comparator and sequencer tested via ordinary
+`inject_named()` (both genuinely support injected values); accumulator
+and latch tested by driving a real cardinal arrival directly (matching
+how their own existing tests already do it), confirming `read_named()`
+still works correctly once properly driven; the honest `inject_named()`
+no-op confirmed for accumulator specifically. One stale test (using
+comparator as the "unsupported" example, now genuinely supported)
+corrected to use branch instead.
+
+**Real, full regression:** 581 Python tests via pytest (up from 576).
+
+**Real, honest scope, unchanged from `#667`:** branch remains
+unsupported for `read_named()`, by design, not oversight. Extending
+`inject_named()` to handle direction-sensitive core types remains
+real, separate, not-yet-started work.
+
+**Real, standing next-session queue, working top-down:** (1) `select`
+(the remaining half of `#668`'s own standing task); (2) the
+`PROG_ID_COMPLETE` stale-value correction (`#665`); (3) once the above
+genuinely stabilizes, return to the TRIX/cross-domain archeology dive,
+now with a specific real target inside it (the old compiler's own
+"timing to depth" placement metric, `#668`).

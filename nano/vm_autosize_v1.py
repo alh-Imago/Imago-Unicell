@@ -84,24 +84,38 @@ def collect_io_points(records: List["v3.IcmV3Record"]) -> Dict[str, Tuple[int, i
 
 # Real, honest, per-core-type "current value" field -- deliberately
 # narrow rather than pretending every core type has an equally
-# meaningful single output value to read back (comparator/branch emit
-# routing decisions, not a value; sequencer cycles between several).
+# meaningful single output value to read back. Points.md #669: three
+# more real, genuine single-value core types found and added --
+# comparator's own `cmp_out_buffer` (its real 0/1 threshold result,
+# an oversight in #667's own original scope, not something comparator
+# genuinely lacks), accumulator's own real running total (`acc_total`),
+# and latch's own real sticky state (`latch_state`). Sequencer is
+# special-cased below (its own "current value" needs one extra lookup
+# through `seq_index`, not a single flat field). Branch remains real,
+# deliberately excluded -- it emits a genuine multi-way routing
+# decision across low/equal/high, not one settled value to read back.
 _READABLE_VALUE_FIELD = {
-    "nano": None,   # special-cased below -- lives on the inner _nano object, not a flat field
+    "nano": None,        # special-cased below -- lives on the inner _nano object, not a flat field
+    "sequencer": None,   # special-cased below -- needs seq_value_{seq_index}, not a fixed field name
     "adder": "adder_out_buffer",
     "ram": "ram_data_reg",
+    "comparator": "cmp_out_buffer",
+    "accumulator": "acc_total",
+    "latch": "latch_state",
 }
 
 
 def _read_cell_value(cell: "SuperCell") -> int:
     if cell.core == "nano":
         return cell._nano.out_buffer
+    if cell.core == "sequencer":
+        return getattr(cell, f"seq_value_{cell.seq_index}")
     field_name = _READABLE_VALUE_FIELD.get(cell.core)
     if field_name is None:
         raise ValueError(
             f"reading a current value back from a real {cell.core!r} cell isn't "
             f"supported yet -- real, supported core types for read_named(): "
-            f"{sorted(n for n in _READABLE_VALUE_FIELD if n != 'nano') + ['nano']}. "
+            f"{sorted(n for n in _READABLE_VALUE_FIELD if n not in ('nano', 'sequencer')) + ['nano', 'sequencer']}. "
             f"inject_named() (writing data IN) works for any real core type "
             f"regardless, since it's just an ordinary arrival."
         )
@@ -123,10 +137,21 @@ class AutoSizedVM:
     cols: int
 
     def inject_named(self, name: str, value: int) -> None:
-        """Real, direct data-in path -- works for any real core type,
-        since it's just an ordinary cardinal arrival at that cell's own
-        position, the same real mechanism `SuperGrid.inject()` already
-        provides generically."""
+        """Real, direct data-in path via `SuperGrid.inject()`'s own
+        real, directionless "injected" delivery. Points.md #669: an
+        honest correction to this docstring's own earlier, too-broad
+        claim -- this does NOT work for every real core type.
+        `accumulator`/`latch` both explicitly document "injected
+        unsupported" (they only ever act on a genuine cardinal
+        arrival matching their own configured direction, e.g.
+        `acc_inc_dir`/`latch_set_dir`) -- for these two, `inject_named`
+        is silently a real no-op, not a real trigger, matching each
+        core's own already-documented real behavior rather than
+        raising a surprising error. Real, supported-for-injection core
+        types: nano, adder, ram, comparator, sequencer. Driving
+        accumulator/latch from a named point would need a real,
+        separate design (the caller specifying which cardinal
+        direction a named point delivers from) -- not attempted here."""
         row, col = self._resolve(name)
         self.grid.inject(row, col, value)
 

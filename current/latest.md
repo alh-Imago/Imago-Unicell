@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-06, icmp eq/ne promoted to a real, working LLVM frontend composition -- diff, two comparators, nano's own native XOR topology. A real timing bug found and fixed, with a named precedent recovered from the earlier system. select not yet started. See `points/points_active.md` #668)
+# Current State (as of 2026-09-06, AutoSizedVM.read_named() extended to comparator/accumulator/latch/sequencer -- a short pick before select. Corrected a real oversight in #667 and a real inject_named() limitation found along the way. See `points/points_active.md` #669)
+
+## Read this first (most recent)
+
+**2026-09-06, read_named() extended (#669).** Comparator was wrongly
+excluded from `#667` -- it has a real settled value (`cmp_out_buffer`).
+Genuinely new: accumulator's `acc_total`, latch's `latch_state`,
+sequencer's current value (special-cased, needs `seq_value_{seq_index}`).
+Branch stays excluded -- a genuine multi-way routing decision, not one
+value.
+
+**Real, separate finding, corrected honestly:** `#667`'s claim that
+`inject_named()` "works for any core type" was false for accumulator/
+latch -- both explicitly document "injected unsupported" (they only
+act on a genuine cardinal arrival matching their own configured
+direction). Docstring corrected; a real test confirms the no-op is
+honest rather than silently wrong.
+
+**Real, full regression:** 581 Python tests via pytest (up from 576).
+
+**Real, standing next-session queue:** (1) `select` (the remaining
+half of `#668`'s task); (2) the `PROG_ID_COMPLETE` stale-value
+correction (`#665`); (3) the TRIX archeology dive once stable, now
+with a specific real target -- the old compiler's own "timing to
+depth" placement metric (`#668`).
+
+## Previous state (as of 2026-09-06, icmp eq/ne promoted to a real, working LLVM frontend composition -- diff, two comparators, nano's own native XOR topology. A real timing bug found and fixed, with a named precedent recovered from the earlier system. select not yet started. See `points/points_active.md` #668)
 
 ## Read this first (most recent)
 

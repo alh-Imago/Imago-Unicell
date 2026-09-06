@@ -133,14 +133,17 @@ def test_read_named_rejects_unknown_name():
 
 
 def test_read_named_honestly_rejects_unsupported_core_types():
+    """Points.md #669: branch remains real, deliberately excluded --
+    it emits a genuine multi-way routing decision across low/equal/
+    high, not one settled value to read back."""
     icm = v3.IcmV3File(name="test", records=[
-        v3.IcmV3Record(cell_id="CMP", row=0, col=0, core="comparator", io_name="threshold"),
+        v3.IcmV3Record(cell_id="BR", row=0, col=0, core="branch", io_name="route"),
     ])
     vm = build_auto_sized_vm(icm)
     try:
-        vm.read_named("threshold")
+        vm.read_named("route")
     except ValueError as e:
-        assert "comparator" in str(e) and "not supported yet" in str(e) or "isn't supported yet" in str(e)
+        assert "branch" in str(e) and "supported yet" in str(e)
     else:
         raise AssertionError("expected ValueError for reading an unsupported core type")
 
@@ -175,6 +178,81 @@ def test_io_name_survives_a_real_dict_roundtrip():
     rec = v3.IcmV3Record(cell_id="X", row=0, col=0, core="ram", io_name="my_entry")
     rec2 = v3.IcmV3Record.from_dict(rec.to_dict())
     assert rec2.io_name == "my_entry"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #669: real_named() extended to comparator/accumulator/latch/
+# sequencer. Comparator was a genuine oversight in #667's own original
+# scope (it does have a real, settled 0/1 value, cmp_out_buffer) -- not
+# a new capability, a correction. Accumulator/latch surfaced a real,
+# separate finding along the way: both explicitly document "injected
+# unsupported" in their own real delivery logic (they only ever act on
+# a genuine cardinal arrival matching their own configured direction),
+# so inject_named() is honestly a real no-op for them, not a trigger --
+# read_named() still works correctly once driven by a direct cardinal
+# delivery (matching how their own existing tests already do it).
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_read_named_supports_comparator():
+    icm = v3.IcmV3File(name="test", records=[
+        v3.IcmV3Record(cell_id="C", row=0, col=0, core="comparator",
+                        core_config={"threshold": 5}, io_name="cmp_out"),
+    ])
+    vm = build_auto_sized_vm(icm)
+    vm.inject_named("cmp_out", 7)
+    vm.grid.run_to_quiescence()
+    assert vm.read_named("cmp_out") == 1
+
+
+def test_read_named_supports_sequencer_current_index():
+    icm = v3.IcmV3File(name="test", records=[
+        v3.IcmV3Record(cell_id="S", row=0, col=0, core="sequencer",
+                        core_config={"VALUE_0": 11, "VALUE_1": 22, "downstream_mask": ["e"]},
+                        io_name="seq_out"),
+    ])
+    vm = build_auto_sized_vm(icm)
+    assert vm.read_named("seq_out") == 11
+
+
+def test_read_named_supports_accumulator_driven_by_a_real_cardinal_arrival():
+    """Points.md #669: accumulator's own real "injected unsupported"
+    behavior means this must be driven by a genuine cardinal arrival,
+    not inject_named() -- documented and tested honestly, not papered
+    over."""
+    from unicell_super_automaton_v1 import N
+    icm = v3.IcmV3File(name="test", records=[
+        v3.IcmV3Record(cell_id="A", row=0, col=0, core="accumulator",
+                        core_config={"inc_dir": ["n"], "step_amount": 3}, io_name="acc_out"),
+    ])
+    vm = build_auto_sized_vm(icm)
+    vm.grid.cells[(0, 0)].deliver({N: 1}, None)
+    assert vm.read_named("acc_out") == 3
+
+
+def test_read_named_supports_latch_driven_by_a_real_cardinal_arrival():
+    from unicell_super_automaton_v1 import N
+    icm = v3.IcmV3File(name="test", records=[
+        v3.IcmV3Record(cell_id="L", row=0, col=0, core="latch",
+                        core_config={"set_dir": ["n"]}, io_name="latch_out"),
+    ])
+    vm = build_auto_sized_vm(icm)
+    vm.grid.cells[(0, 0)].deliver({N: 1}, None)
+    assert vm.read_named("latch_out") is True
+
+
+def test_inject_named_is_a_real_honest_noop_for_accumulator():
+    """Points.md #669: not a silent failure -- accumulator's own real
+    delivery logic explicitly treats a directionless arrival as a
+    real no-op (documented in its own code), so inject_named() simply
+    doesn't move the total, rather than raising a confusing error."""
+    icm = v3.IcmV3File(name="test", records=[
+        v3.IcmV3Record(cell_id="A", row=0, col=0, core="accumulator",
+                        core_config={"inc_dir": ["n"], "step_amount": 3}, io_name="acc_out"),
+    ])
+    vm = build_auto_sized_vm(icm)
+    vm.inject_named("acc_out", 1)
+    vm.grid.run_to_quiescence()
+    assert vm.read_named("acc_out") == 0
 
 
 if __name__ == "__main__":
