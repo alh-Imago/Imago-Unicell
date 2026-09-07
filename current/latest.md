@@ -1,4 +1,50 @@
-# Current State (as of 2026-09-07, real full doc + static-page staleness audit done per Alan's own direct request -- a map, not a rewrite. Confirmed the command core + VIX Carrier appear in zero standing reference docs, found 2 stale static pages, 1 genuinely finished one, and a stale gh-pages site. See `points/points_active.md` #678)
+# Current State (as of 2026-09-07, the full doc + static-page refresh pass from #678's audit is done -- every stale item named actually brought current. See `points/points_active.md` #679)
+
+## Read this first (most recent)
+
+**2026-09-07, doc/static-page refresh pass complete (#679).** Per
+Alan's own direct request ("bring them up to current design, that way
+there should not be too much to add later") -- everything `#678`'s
+audit flagged as stale has now been fixed; everything it confirmed as
+NOT stale was correctly left alone.
+
+**Living docs:** `CORES_AND_WRAPPERS_REFERENCE.md` gained a full VIX
+Carrier/command-core section (`VIX_LATCH` layout, `core_select`
+mapping, honest sim-only status, a naming-collision warning vs.
+`unicell_super_v4.v`); `SUPER_CELL_INTERNALS.md` cross-references it.
+`ICM_V3_FORMAT.md` gained nano's 9 real `#650` fields with correct bit
+positions, and its own scope note (which had literally named its own
+now-fired update trigger) rewritten. `README.md`, `docs/README.md`,
+`docs/PROJECT_PHILOSOPHY.md`, `UNICELL_S_DSL_MANUAL.md`, and
+`llvm_ir_compiler_scope.md` all brought current. `VM_CORE_GAP_
+ANALYSIS.md` got a real status banner -- all 8 of its original 2026-
+08-08 gaps have since been closed, confirmed file-by-file, kept as an
+accurate historical snapshot rather than rewritten or archived.
+
+**Static HTML:** `cell_pipeline_explainer.html` gained the missing
+sequencer/branch cores and nano's 9 missing fields, every bit position
+read directly from `icm_v3.py`, syntax-checked with `node --check`.
+`docs/manual.html` regenerated cleanly -- confirmed the fresh VIX
+Carrier content actually made it in (49 mentions, was 0).
+
+**The public `gh-pages` site** (5 pages, via a real `git worktree`,
+same method `#369` used originally): moved from the old 6-core
+`unicell_super_v1.v` baseline to the current `unicell_super_v3.v`
+8-core baseline with real, current Quartus numbers (479 ALM/301.9
+shell-only/107.05 MHz), added sequencer/branch to the architecture
+breakdown, added a new VIX Carrier section to 3 pages (honest sim-only
+labeling), corrected the "no loops" claim to name the real, narrow
+LLVM-IR bounded-loop capability, fixed the test count (211 → 593),
+relabeled the Quartus/Windows toolchain panel PAUSED (license
+expired), and fixed a stale `points.md` link. `contact.html` confirmed
+to need zero changes.
+
+**Real, full regression:** 592 passed + 1 skipped, unchanged -- a
+documentation-only pass, no code behavior touched. Every HTML file
+checked for balanced tags; the JS-bearing explainer additionally
+syntax-checked before committing.
+
+## Previous state (as of 2026-09-07, real full doc + static-page staleness audit done per Alan's own direct request -- a map, not a rewrite. Confirmed the command core + VIX Carrier appear in zero standing reference docs, found 2 stale static pages, 1 genuinely finished one, and a stale gh-pages site. See `points/points_active.md` #678)
 
 ## Read this first (most recent)
 

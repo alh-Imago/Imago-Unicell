@@ -7065,3 +7065,95 @@ genuinely don't need touching (the `*_scope.md` design notes, by their
 own point-in-time nature; `chaos_topology_demo.html`, by its own fixed-
 snapshot nature), and naming one real open question (`docs/manual.html`'s
 continued reason to exist) rather than deciding it here.
+
+## 679. The real refresh pass `#678`'s audit called for -- every stale doc and static page it named actually brought current, per Alan's own direct request ("bring them up to current design, that way there should not be too much to add later"). (Alan/Claude, 2026-09-07)
+
+**Real method, matching `#369`'s own original discipline exactly:**
+every claim verified against real RTL/VM code before being written, not
+assumed from the audit's own summary alone -- `unicell_vix_carrier_
+v1.v`'s own header read directly for the `VIX_LATCH` layout and
+`core_select` mapping, `command_cell_v4.v`'s own header for the two
+real modes, `icm_v3.py`'s own current `_NANO_FIELDS`/`_SEQ_FIELDS`/
+`_BRANCH_FIELDS` tables read directly for every bit position added to
+docs and the explainer HTML, `gpu_array_v1.py`/`vm_introspection_v1.py`/
+`vm_ai_port_v1.py` confirmed to actually exist before crediting
+`VM_CORE_GAP_ANALYSIS.md`'s own 8 gaps as closed.
+
+**Living reference docs brought current (`docs/stripped-cell/
+CORES_AND_WRAPPERS_REFERENCE.md`, `SUPER_CELL_INTERNALS.md`,
+`ICM_V3_FORMAT.md`, `README.md`, `docs/PROJECT_PHILOSOPHY.md`,
+`docs/README.md`, `UNICELL_S_DSL_MANUAL.md`, `llvm_ir_compiler_scope.
+md`):** the VIX Carrier / command-core generation now has a real,
+dedicated section in `CORES_AND_WRAPPERS_REFERENCE.md` -- the
+`VIX_LATCH[159:0]` layout, the `core_select` mapping, the command
+core's two modes, and an honest status table (sim-verified, no
+Quartus data since the license expired before `#648`'s own `--shell
+vix` path could be run, no ICM format of its own yet) -- cross-
+referenced from `SUPER_CELL_INTERNALS.md` rather than duplicated, with
+a real, explicit naming-collision warning in both places
+(`unicell_super_v4.v` vs. `command_cell_v4.v` are unrelated despite
+both saying "v4"). `ICM_V3_FORMAT.md`'s own nano field table gained
+the 9 real fields `#650` added (`hold_in` through `pattern_high`),
+correct bit positions, and its "Scope, stated honestly" section
+rewritten since it had literally named its own now-fired update
+trigger. `README.md` gained the LLVM IR frontend, workbench auto-play,
+and a new VIX Carrier section with the same honest sim-only framing.
+`UNICELL_S_DSL_MANUAL.md` gained the `branch` Tier-0 tile row (`#608`)
+and the LLVM IR frontend as a genuine "other frontend" (confirmed it
+shares the same real `ProgramIR`/backend before adding it, not assumed).
+`llvm_ir_compiler_scope.md` gained a status banner since most of its
+own concept-stage questions have since shipped.
+
+**`current/VM_CORE_GAP_ANALYSIS.md`:** a real, honest status banner
+added rather than a rewrite or an archive move -- all 8 of the
+original `#216` gaps this document identified on 2026-08-08 have since
+been closed (root definition extraction, GPU/CPU execution, the
+core-type registry, JSON introspection, the AI port, workbench timing
+control, the full compiler stack), confirmed one by one against real
+files, not assumed from the doc's own age. The root-level 77-file
+inventory itself stays genuinely accurate as a historical snapshot.
+
+**`tools/explainers/cell_pipeline_explainer.html`:** the two missing
+cores (sequencer `sel:6`, branch `sel:7`) and nano's 9 missing `#650`
+fields added, every bit position read directly from `icm_v3.py`'s own
+current field tables. Branch's own `upstream_dir` (a genuine 2-bit
+single-direction INDEX, not a 4-bit mask, `#606`) rendered as `hex`
+rather than the existing `dirs` widget, which is built for multi-
+direction masks specifically -- a real, deliberate choice, not an
+oversight. Syntax-checked with `node --check`, zero errors.
+
+**`docs/manual.html`:** regenerated via `docs/build_manual.py` --
+confirmed the generator still runs cleanly and the fresh VIX
+Carrier/command-core content actually makes it in (49 real mentions,
+was 0), since the tool bakes the current markdown at build time
+rather than needing separate updates. Still genuinely true, per
+`#678`'s own finding, that nothing else in the repo links to this
+static file; the live `/manual` route (`#558`) remains the always-
+fresh option regardless.
+
+**The public `gh-pages` site (5 pages, separate branch, real `git
+worktree`, same real approach `#369` used originally):** `index.html`/
+`architecture.html`/`status.html` moved from the old 6-core
+`unicell_super_v1.v` baseline to the real, current `unicell_super_v3.v`
+8-core baseline, with the real, current Quartus numbers (479 ALM /
+301.9 ALM shell-only / 107.05 MHz, replacing 213 ALM / 200.76 MHz) and
+sequencer/branch added to the per-core architecture breakdown. A real,
+new section added to all three pages for the VIX Carrier, honestly
+labeled sim-verified with no silicon data yet. `architecture.html`'s
+own "no loops" scope claim corrected to name the real, narrow LLVM-IR
+bounded-loop capability that now exists, stated as narrow, not general.
+`status.html`'s test count corrected (211 → 593) and the Quartus/
+Windows toolchain panel relabeled PAUSED (license expired) rather than
+SOLID, separate from the pre-existing Linux JTAG PAUSED item.
+`docs.html`'s dead-ish `points.md` link fixed to `points/INDEX.md`
+(the ledger split since the original rewrite) and a link to
+`CORES_AND_WRAPPERS_REFERENCE.md` added. `contact.html` confirmed to
+need zero changes, the same real finding `#369` made originally.
+
+**Real, honest scope: everything `#678` named as stale has now been
+addressed; everything it confirmed as NOT stale (the `*_scope.md`
+design notes, `chaos_topology_demo.html`) was correctly left
+untouched.** Full regression: 592 passed + 1 skipped across `tests/vm`
++ `tests/tools`, unchanged -- this was a documentation pass, no code
+behavior touched. Every HTML edit checked for balanced tags before
+committing; the JS-bearing explainer additionally syntax-checked.
