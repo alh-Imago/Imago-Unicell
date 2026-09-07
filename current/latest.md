@@ -1,4 +1,25 @@
-# Current State (as of 2026-09-07, #683's shift_fine/shift_lane_v2 addon chain wired into all 8 real shells, full regression confirmed, the assembler's own hardcoded dependency lists fixed before they could break a real build. Real 6-item downstream checklist captured in a new design note. See `points/points_active.md` #684)
+# Current State (as of 2026-09-07, the standing "N=8 carrier case" queue item confirmed resolved by the VIX Carrier's own construction; a genuinely distinct "variable carrier width" idea split off and recorded on its own in unified_carrier_scope.md. See `points/points_active.md` #685)
+
+## Read this first (most recent)
+
+**2026-09-07, N=8 carrier case closed out, variable-width idea kept
+separately (#685).** Alan asked directly whether the standing "N=8"
+queue item was still needed given the carrier is "now at 9." Traced
+back to `#617`'s own original wording: "N=8" meant one shell design
+parameterized by core-slot count (N=1 standalone, N=8 super shell),
+not an 8-cell array. Confirmed resolved by the VIX Carrier + the 9
+cardinal control shells, each independently real and reusable both
+standalone and combined -- the original item is closed.
+
+**One real, distinct idea kept on record, per Alan's own explicit
+request:** `unicell_vix_carrier_v1.v` is a FIXED 9-slot mux (confirmed
+-- its only real parameter is `CELL_ID`, not core count). A genuinely
+variable-width carrier (a real parameterized module, one "carrier
+truth" reusable at whatever width a future need calls for) is a real,
+separate, still-open idea -- captured in `unified_carrier_scope.md`'s
+own status update, not scheduled, not blocking anything.
+
+## Previous state (as of 2026-09-07, #683's shift_fine/shift_lane_v2 addon chain wired into all 8 real shells, full regression confirmed, the assembler's own hardcoded dependency lists fixed before they could break a real build. Real 6-item downstream checklist captured in a new design note. See `points/points_active.md` #684)
 
 ## Read this first (most recent)
 

@@ -147,3 +147,37 @@ finalized -- a real scoping pass only, matching every other
 `*_scope.md` note in this directory. The real, concrete next step is
 the single-core, `adder`-based experiment above, not a ground-up
 redesign of all 8 cores or the existing super shell at once.
+
+## Real status update, 2026-09-07: most of this vision is now built -- as the VIX Carrier, not under this note's own provisional name
+
+The "naming, not decided" caveat above resolved itself in practice:
+`unicell_vix_carrier_v1.v` (`#628`-`#666`) claimed "carrier" as its
+real name, and delivered most of this note's own real substance --
+the same rich shell (programming/`PROG_ID`, command-cell support via
+a genuine 9th core, cardinal control on every live-control port)
+wrapping any of 9 real cores, one physical cell, runtime-selected. The
+"one shell design covering N=1 and N=many" goal is real today, just
+via a different real mechanism than a single parameterized module:
+each of the 9 cardinal control shells (`nano_shell_v1.v`, `adder_
+shell_v1.v`, etc.) is independently reusable, confirmed instantiated
+BOTH standalone (real N=1-equivalent testbenches) AND combined inside
+the carrier (real N=9). Full detail: `CORES_AND_WRAPPERS_REFERENCE.
+md`'s own dedicated VIX Carrier section.
+
+**Real, genuinely still-open piece, worth keeping on record rather
+than closing this note out entirely:** `unicell_vix_carrier_v1.v` is a
+FIXED 9-slot mux (`core_select[4:0]`, values 0-8 hardcoded), not a
+truly variable-width design -- confirmed directly, its only real
+Verilog `parameter` is `CELL_ID`, not a core-count. A genuinely
+**variable carrier width** -- one real parameterized RTL module (a
+true `parameter NUM_CORES` or equivalent, generating its own
+`core_select` width and per-core-slot wiring generically) would supply
+a single real "carrier truth": one module, reusable at whatever width
+a given future need calls for (3 cores, 12 cores, whatever a future
+core family requires), rather than hand-maintaining fixed-width
+variants file by file the way `unicell_super_v1.v`-`v8.v` already
+had to be maintained as 8 separate files for 8 slightly different
+shell shapes. Real, distinct from the original N=8/N=9 ask (which
+this note's own "one shell, N=1 or N=8" framing already covers, now
+resolved) -- a genuine, separate idea, not attempted here, not
+currently blocking anything. Captured so it isn't lost, not scheduled.

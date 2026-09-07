@@ -7496,3 +7496,36 @@ rather than left reading as still-open.
 **Real, honest scope: RTL wiring + the assembler fix are the only
 things actually built and verified this entry; the six-item checklist
 above is real, deliberately-scoped future work, not attempted here.**
+
+## 685. Real closure check on the standing "N=8 carrier case" queue item, per Alan's own direct question ("is it still required as we have now moved to a variable carrier size, currently at 9?") -- traced back to `#617`'s own original wording, confirmed effectively resolved by the VIX Carrier, and one genuinely distinct, still-open idea (a truly variable-width carrier) split off and recorded on its own rather than left conflated with the closed item. (Alan/Claude, 2026-09-07)
+
+**Real, traced-back answer, not assumed from memory:** "N=8" (later
+"N=9") never meant an 8-cell array -- `#617`'s own original wording
+was "one shell design, parameterized by how many core-slots it holds,
+N=1 for standalone, N=8 for the super shell, same mechanism (an
+`active` bit per core-slot) covering both." Checked against what's
+actually built: the VIX Carrier delivers this real substance, just via
+a different real mechanism than one monolithic parameterized module --
+each of the 9 cardinal control shells (`nano_shell_v1.v` etc.) is
+independently real and reusable, confirmed instantiated BOTH
+standalone (`tb_shells_v1.v`, real N=1-equivalent usage) AND combined
+inside `unicell_vix_carrier_v1.v` (real N=9). The original item is
+resolved, not still owed.
+
+**One real, genuinely distinct idea split off and kept on record, per
+Alan's own direct request ("keep a note on the variable carrier
+width, that supplies a single carrier truth which can be reused as
+needed"):** `unicell_vix_carrier_v1.v` is confirmed a FIXED 9-slot mux
+-- its only real Verilog `parameter` is `CELL_ID`, not a core count.
+A genuinely variable-width carrier (a real `parameter NUM_CORES` or
+equivalent, generating its own `core_select` width and per-slot wiring
+generically) would give one real, reusable "carrier truth" instead of
+hand-maintaining fixed-width variants file by file -- the same real
+pattern that already cost 8 separate files for `unicell_super_v1.v`-
+`v8.v`. Captured in `unified_carrier_scope.md`'s own real status
+update (the doc whose original "one shell, N=1 or N=8" framing this
+whole item traces back to) -- not scheduled, not blocking anything,
+just recorded so it isn't lost the way the original shift gap once
+was (`#616`).
+
+**Real, honest scope: nothing built, a closure/scoping note only.**
