@@ -1,4 +1,46 @@
-# Current State (as of 2026-09-07, llvm_ir_frontend_v1.py itself migrated to use the real select/icmp_eq/icmp_ne composed tiles -- a genuine ~90-line net simplification, zero regressions, its own most delicate hand-tuned timing code removed entirely. See `points/points_active.md` #688)
+# Current State (as of 2026-09-07, real scope written for shl/lshr/ashr plus a full LLVM frontend completion roadmap, including an honest answer to "can it compile itself." Design-note only, nothing built. See `points/points_active.md` #689)
+
+## Read this first (most recent)
+
+**2026-09-07, LLVM frontend completion scope (#689).** Per Alan's own
+direct request: scope shift-opcode support now that the hardware
+exists, then scope the whole frontend's path to real completeness,
+including whether it could ever "compile itself."
+
+**`shl`/`lshr` are real and mostly buildable now** -- the shift amount
+already fits the frontend's own compile-time-second-operand rule
+perfectly. The real missing link: `place()` already accepts `addon_
+config`, but nothing routes a `PlaceIR`'s own fields to it -- needs a
+new `"addon.<name>"` field-routing bucket (generic, reusable for
+anything else needing addon access later). `ashr` is a real, separate
+HARDWARE gap, not compiler work -- `shift_fine_addon_v1.v` only does a
+plain logical shift, no sign-extension exists anywhere in the chain.
+
+**A real gap inventory for the whole frontend, tiered by what kind of
+work each actually is**, built on `general_purpose_programming_long_
+range_note.md`'s own already-real findings: Tier A (mechanical --
+bitwise and/or/xor, shl/lshr, mul-by-constant via shift-and-add); Tier
+B (real and hard, but with proven prior art -- general DAG data flow,
+general branching via the old compiler's own proven spatial-MUX
+answer, bounded loop unrolling, nested/multi-variable loops); Tier C
+(genuinely open architectural questions, not backlog items -- real
+addressed memory, unbounded/data-dependent loops, function calls/
+recursion, floating point).
+
+**"Can it compile itself" answered honestly, not deferred:** the
+literal reading doesn't hold up -- the frontend is an ordinary Python
+program needing memory, recursion, and unbounded-size input handling,
+all Tier C. This is the architecture's own deliberate, stated boundary
+(configuration, not general-purpose), not a "not built yet" gap. A
+real, more reachable alternative milestone named instead: a bounded
+expression evaluator or small fully-unrolled state machine -- exercises
+Tier A/B thoroughly without needing memory or unbounded control flow.
+
+**Real, honest scope: nothing built.** `llvm_ir_frontend_completion_
+scope.md` created; `general_purpose_programming_long_range_note.md`
+updated with a direct pointer to it.
+
+## Previous state (as of 2026-09-07, llvm_ir_frontend_v1.py itself migrated to use the real select/icmp_eq/icmp_ne composed tiles -- a genuine ~90-line net simplification, zero regressions, its own most delicate hand-tuned timing code removed entirely. See `points/points_active.md` #688)
 
 ## Read this first (most recent)
 

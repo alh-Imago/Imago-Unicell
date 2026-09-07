@@ -7760,3 +7760,85 @@ i==0 stagger), which are still delivered via the OLD runtime-injection
 path, unchanged, in this entry. That broader migration is real,
 separate, larger future work -- not attempted here, flagged rather
 than silently left for later rediscovery.
+
+## 689. Real scope for `shl`/`lshr`/`ashr`, and a comprehensive completion roadmap for the whole LLVM IR frontend, including an honest answer to Alan's own "can it compile itself" framing. `docs/stripped-cell/design-notes/llvm_ir_frontend_completion_scope.md`. Design-note only, nothing built. (Alan/Claude, 2026-09-07)
+
+**Part 1 -- `shl`/`lshr`/`ashr`, real and mostly buildable now:** the
+shift AMOUNT already fits the frontend's own existing "second operand
+must be compile-time" restriction perfectly, no new restriction
+needed. The real, missing link, confirmed directly: `place()` already
+accepts an `addon_config` dict (callable today), but nothing between a
+`PlaceIR`'s own fields and that call ever reaches it -- `dsl_compiler_
+v1.py`'s field-routing only recognizes a tile's declared ports/params,
+no third "addon" bucket, and `SuperTileSpec` has no field for a tile
+to declare addon settings at all (the same real gap `shift_fine_addon_
+rollout.md`, `#684`, already named). Real, minimal design: a reserved
+`"addon.<name>"` field-name convention, recognized generically for ANY
+tile (matching the real RTL fact that addon_config is core-independent
+on the periphery), plus a real coarse+fine decomposition algorithm for
+any shift amount 0-31 (pick the largest real coarse tap `<= N`, `fine
+= N - coarse`, always 0-3 by construction).
+
+**`ashr` is a real, separate hardware gap, not more compiler work.**
+Confirmed directly against `shift_fine_addon_v1.v`: it's a plain
+logical shift, zero-fill both directions -- no sign-extension exists
+anywhere in the addon chain. `lshr` is fully served by existing
+hardware; `ashr` needs real, new RTL, flagged as a conscious decision
+for whenever picked up, not silently assumed solvable by software
+alone.
+
+**Part 2 -- a real gap inventory for the whole frontend, tiered by
+what kind of work each actually is, built directly on `general_
+purpose_programming_long_range_note.md`'s own already-real findings
+rather than re-deriving them:**
+- **Tier A (mechanical, no new architecture):** bitwise `and`/`or`/
+  `xor` (trivial -- `nano_gate` already has these topologies, same
+  pattern `select`/`icmp_eq` already proved); `shl`/`lshr` (above);
+  `mul` by a compile-time constant (shift-and-add, genuinely possible
+  now that shift exists, though summing 3+ partial products bridges
+  into Tier B's own DAG-routing problem).
+- **Tier B (real, hard, but with proven prior art):** general DAG data
+  flow (`#610`'s own already-named "actual hard, unsolved part");
+  general branching outside the one narrow loop shape (real, proven
+  prior art transfers directly -- the old full-cell compiler's own
+  spatial-MUX answer is exactly what `select`/`#686` already builds
+  and this frontend already lowers to); bounded loop unrolling (same,
+  proven prior art); nested loops / multiple live loop variables
+  (harder -- the existing 4-cell bounded-loop-ring hardware was proven
+  for exactly one induction variable, real topology question
+  unanswered for more than one).
+- **Tier C (genuinely open architectural questions, already named in
+  the long-range note, not just backlog items):** real addressed
+  memory (what does "a variable" even mean on a fixed-topology
+  substrate); unbounded/data-dependent loops (the long-range note's
+  own "may be a real architectural dead end" concern); function calls/
+  recursion (no call-stack mechanism exists or has been designed;
+  recursion runs straight into the unbounded-loop question); floating
+  point (not attempted or scoped anywhere in this project).
+
+**Part 3 -- "can it compile itself," answered honestly rather than
+deferred:** the literal reading doesn't hold up, stated directly, not
+just filed as future work -- `llvm_ir_frontend_v1.py` is an ordinary
+Python program (parses text of unknown size, recurses, dynamically
+allocates), and every one of those needs is either genuinely unsolved
+(memory, function calls/recursion) or the same Tier C question the
+project's own long-range note already flags as a possible substrate-
+level dead end (unbounded, data-dependent control flow) -- this isn't
+"not built yet" the way `shl` is, it's the architecture's own stated,
+deliberate boundary (a configuration architecture, not a general-
+purpose one, per `unified_carrier_scope.md`/`architecture.html`).
+A real, much more reachable alternative milestone named instead: a
+bounded expression evaluator or a small, fixed-size, fully-unrolled
+state machine -- genuinely exercises Tier A/B thoroughly without
+requiring memory or unbounded control flow, offered as a real
+alternative measure of progress, not a quiet redefinition of the
+original, harder question, which stays open and correctly flagged as
+Tier C.
+
+**`general_purpose_programming_long_range_note.md` updated** with a
+real, direct pointer to this new note, rather than left as the only
+place these open questions live.
+
+**Real, honest scope: nothing built.** A scoping pass only, per
+Alan's own direct request, matching every other `*_scope.md`'s own
+discipline.

@@ -11,6 +11,16 @@ project on its own." NOT scoped, NOT started -- this is a marker so the
 idea survives intact until deliberately picked up, same discipline as
 `super_tile_library_scope.md` before Tier 0 existed.*
 
+**Real, more concrete update, 2026-09-07:** the real LLVM IR frontend
+this note anticipated has since been built (`#611` onward) and grown
+substantially (`#652`/`#661`/`#686`/`#688`) -- `llvm_ir_frontend_
+completion_scope.md` picks up this note's own real, unresolved
+questions (what a "variable" means, what a loop compiles to, general
+DAG data flow) and tiers them against that frontend's actual current
+gaps, including a direct, honest answer to "can it compile itself."
+Read that note for the concrete, current state; this one remains the
+real, original vision record.
+
 ## The vision, stated plainly
 
 A user supplies real programming — not just declarative tile placement
