@@ -400,78 +400,27 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             result = (true_value if cond_value else false_value) & 0xFFFFFFFF
             known_values[instr.name] = result
 
-            # points.md #674: real, 5-cell composition, verified directly in
-            # the VM under REALISTIC injection timing (every value delivered
-            # up front, none sequenced by a convenient test script) before
-            # writing this placement code -- an earlier version of this
-            # composition passed under artificially-sequenced test timing
-            # and then failed outright once tested honestly, catching a
-            # real hop-count-symmetry bug before it ever reached here.
-            #
-            #   cond(west, chain) --\
-            #                        MASK_SUB(0,c) -e-> AND_TRUE(0,c+1) -e-> OR(0,c+2)
-            #   "0"(north, inj) ---/          \
-            #                                  s
-            #                                  v
-            #                          NOT_MASK(1,c) -e-> AND_FALSE(1,c+1) -\
-            #                                                                (relay up to OR)
-            #
-            # mask = 0 - cond (broadcasts a bare 0/1 boolean to a full
-            # 0x0/0xFFFFFFFF word -- a raw bitwise AND against an
-            # un-broadcast 0/1 would only ever touch the lowest bit).
-            # not_mask = XOR(mask, 0xFFFFFFFF) -- an exact boolean/bitwise
-            # complement since mask is ALREADY a full word, not the
-            # bitwise-NOT-of-a-bare-bit trap #668 already found with
-            # TOPO_XNOR. AND_TRUE/AND_FALSE gate true_val/false_val by
-            # mask/not_mask; OR combines them. The AND_TRUE->OR path (2
-            # hops) and the AND_FALSE->relay->OR path (3 hops, through
-            # NOT_MASK's own extra stage) are naturally, structurally
-            # unequal -- the real fix here was leaving that asymmetry
-            # alone, not "correcting" it into equal lengths.
+            # points.md #688: promoted to the real, registered `select`
+            # composed tile (#686) -- ONE placement statement, not a
+            # hand-inlined 10-cell sequence. The tile's own real
+            # preload-only sub-cells (its internal zero/0xFFFFFFFF
+            # constants, plus true_val/false_val below) are now seeded
+            # via the real file-format-level mechanism (#687) --
+            # automatically, at grid construction time, well before any
+            # dynamically-computed operand like `cond` could possibly
+            # arrive (it still has to traverse every earlier instruction
+            # in this chain first) -- so the whole-program `injections`
+            # list this frontend still uses for RUNTIME values no
+            # longer needs (and must NOT include) any of select's own
+            # internal constants; they are never delivered as live
+            # events at all anymore.
             sub_col = col_cursor
-            injections.append((0, sub_col, 0))
             statements.append(PlaceIR(
-                name=f"op_{i}_zero", tile_name="ram_flowing", row=0, col=sub_col,
-                fields=[FieldIR("in", "n"), FieldIR("out", "s")],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_mask", tile_name="subtractor", row=1, col=sub_col,
-                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", ["e", "s"])],
-            ))
-            injections.append((3, sub_col, 0xFFFFFFFF))
-            statements.append(PlaceIR(
-                name=f"op_{i}_xor_const", tile_name="ram_flowing", row=3, col=sub_col,
-                fields=[FieldIR("in", "s"), FieldIR("out", "n")],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_not_mask", tile_name="nano_gate", row=2, col=sub_col,
-                fields=[FieldIR("out", "e"), FieldIR("topology", 0x0BC)],
-            ))
-            injections.append((0, sub_col + 1, true_value))
-            statements.append(PlaceIR(
-                name=f"op_{i}_true_const", tile_name="ram_flowing", row=0, col=sub_col + 1,
-                fields=[FieldIR("in", "n"), FieldIR("out", "s")],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_and_true", tile_name="nano_gate", row=1, col=sub_col + 1,
-                fields=[FieldIR("out", "e"), FieldIR("topology", 0x007)],
-            ))
-            injections.append((3, sub_col + 1, false_value))
-            statements.append(PlaceIR(
-                name=f"op_{i}_false_const", tile_name="ram_flowing", row=3, col=sub_col + 1,
-                fields=[FieldIR("in", "s"), FieldIR("out", "n")],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_and_false", tile_name="nano_gate", row=2, col=sub_col + 1,
-                fields=[FieldIR("out", "e"), FieldIR("topology", 0x007)],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_relay", tile_name="ram_flowing", row=2, col=sub_col + 2,
-                fields=[FieldIR("in", "w"), FieldIR("out", "n")],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_or", tile_name="nano_gate", row=1, col=sub_col + 2,
-                fields=[FieldIR("out", "e"), FieldIR("topology", 0x024)],
+                name=f"op_{i}", tile_name="select", row=0, col=sub_col,
+                fields=[
+                    FieldIR("cond", "w"), FieldIR("out", "e"),
+                    FieldIR("true_val", true_value), FieldIR("false_val", false_value),
+                ],
             ))
             col_cursor = sub_col + 3
             last_result_row = 1
@@ -664,96 +613,56 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 name="value_west0", tile_name="ram_flowing", row=1, col=diff_col - 1,
                 fields=[FieldIR("in", "w"), FieldIR("out", "e")],
             ))
+        # points.md #688: eq/ne promoted to the real, registered
+        # `icmp_eq`/`icmp_ne` composed tiles (#686) -- each one's own
+        # internal "diff" sub-cell (offset (0,0)) IS the shared diff
+        # cell every other icmp predicate also needs, so eq/ne places
+        # ONE composed-tile statement here instead of a bare diff cell
+        # PLUS a separately-appended 6-cell (or 8-cell, ne) extra
+        # structure. The preload-only `one_const` inside `icmp_ne`
+        # (#686) is seeded via the real file-format mechanism (#687),
+        # automatically, well before this instruction's own dynamic
+        # operand(s) could possibly arrive -- no manual injection or
+        # timing stagger needed for it at all.
+        if instr.opcode == "icmp" and predicate in _EQ_NE_PREDICATES:
+            statements.append(PlaceIR(
+                name=f"op_{i}", tile_name=f"icmp_{predicate}", row=1, col=diff_col,
+                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", "e")],
+            ))
+            col_cursor = diff_col + (3 if predicate == "ne" else 2)
+            last_result_row = 2
+            prev_instr_name = instr.name
+            prev_icmp_predicate = predicate
+            continue
+
         statements.append(PlaceIR(
             name=f"op_{i}", tile_name=diff_tile, row=1, col=diff_col,
             fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", "e")],
         ))
 
         if instr.opcode == "icmp":
-            if predicate in _EQ_NE_PREDICATES:
-                # points.md #668: the real, 6-cell eq/ne composition --
-                # verified directly in the VM (six real (a,b) pairs)
-                # before writing any of this placement code. Layout
-                # (relative to the diff cell at (1, diff_col)):
-                #   diff(1,c) --e--> CMP0(1,c+1) --s--> XOR(2,c+1)
-                #      |                                    ^
-                #      s                                    n
-                #      v                                    |
-                #   CMP1(2,c) --s--> RELAY_A(3,c) --e--> RELAY_B(3,c+1)
-                # CMP0=threshold 0, CMP1=threshold 1 -- diff fans out
-                # to both simultaneously; CMP1's own path is
-                # deliberately routed two hops longer via the two
-                # relays so its real contribution reaches XOR one tick
-                # after CMP0's -- nano's own two-arrival gate OR-
-                # combines genuinely simultaneous same-tick arrivals
-                # from different sources into one event rather than
-                # treating them as two separate operands (the same
-                # real fact #611's own west/north injection stagger
-                # above already has to work around).
-                statements[-1].fields[-1] = FieldIR("out", ["e", "s"])   # diff cell fans out, not a single direction
-                cmp0_col = diff_col + 1
-                statements.append(PlaceIR(
-                    name=f"op_{i}_cmp0", tile_name="comparator", row=1, col=cmp0_col,
-                    fields=[FieldIR("in", "w"), FieldIR("out", "s"), FieldIR("threshold", 0)],
-                ))
-                statements.append(PlaceIR(
-                    name=f"op_{i}_cmp1", tile_name="comparator", row=2, col=diff_col,
-                    fields=[FieldIR("in", "n"), FieldIR("out", "s"), FieldIR("threshold", 1)],
-                ))
-                statements.append(PlaceIR(
-                    name=f"op_{i}_relay_a", tile_name="ram_flowing", row=3, col=diff_col,
-                    fields=[FieldIR("in", "n"), FieldIR("out", "e")],
-                ))
-                statements.append(PlaceIR(
-                    name=f"op_{i}_relay_b", tile_name="ram_flowing", row=3, col=cmp0_col,
-                    fields=[FieldIR("in", "w"), FieldIR("out", "n")],
-                ))
-                statements.append(PlaceIR(
-                    name=f"op_{i}_xor", tile_name="nano_gate", row=2, col=cmp0_col,
-                    fields=[FieldIR("out", "e"), FieldIR("topology", _EQ_TOPOLOGY)],
-                ))
-                if predicate == "ne":
-                    # points.md #668: ne = XOR(eq_result, real one-time
-                    # constant 1) -- an exact boolean NOT (1^1=0, 0^1=1),
-                    # not the bitwise NOT that TOPO_XNOR turned out to
-                    # give across all 32 bits. The constant is injected
-                    # directly, with no relay hops at all -- it reaches
-                    # the second XOR far sooner than eq_result's own
-                    # multi-hop computed path, giving a large, safe
-                    # natural stagger rather than a knife-edge one-tick
-                    # margin.
-                    ne_col = cmp0_col + 1
-                    injections.append((3, ne_col, 1))
-                    statements.append(PlaceIR(
-                        name=f"op_{i}_const1", tile_name="ram_flowing", row=3, col=ne_col,
-                        fields=[FieldIR("in", "s"), FieldIR("out", "n")],
-                    ))
-                    statements.append(PlaceIR(
-                        name=f"op_{i}_ne_xor", tile_name="nano_gate", row=2, col=ne_col,
-                        fields=[FieldIR("out", "e"), FieldIR("topology", _EQ_TOPOLOGY)],
-                    ))
-                    col_cursor = ne_col + 1
-                else:
-                    col_cursor = cmp0_col + 1
-                last_result_row = 2
-            else:
-                # points.md #613: comparator sits immediately EAST of the
-                # diff cell -- its own real "in" port (single, not two --
-                # comparator only ever compares ONE dynamic value against a
-                # FIXED, compile-time threshold, confirmed directly against
-                # its own real tile registration) receives the diff cell's
-                # own real output directly, no relay/timing concerns at all
-                # since this is a genuine single-arrival delivery, not a
-                # two-arrival capture.
-                cmp_col = diff_col + 1
-                statements.append(PlaceIR(
-                    name=f"op_{i}_cmp", tile_name="comparator", row=1, col=cmp_col,
-                    fields=[FieldIR("in", "w"), FieldIR("out", "e")],
-                    # threshold is a required param, resolved above per predicate
-                ))
-                # real param goes on its own field entry (kept separate for clarity)
-                statements[-1].fields.append(FieldIR("threshold", threshold))
-                col_cursor = cmp_col + 1
+            # points.md #688: eq/ne no longer reach this point at all --
+            # handled and `continue`d earlier, above, via the real
+            # `icmp_eq`/`icmp_ne` composed tiles (#686). Only the
+            # ordinary threshold-comparator predicates (slt/sle/sge/sgt)
+            # still take this path.
+            # points.md #613: comparator sits immediately EAST of the
+            # diff cell -- its own real "in" port (single, not two --
+            # comparator only ever compares ONE dynamic value against a
+            # FIXED, compile-time threshold, confirmed directly against
+            # its own real tile registration) receives the diff cell's
+            # own real output directly, no relay/timing concerns at all
+            # since this is a genuine single-arrival delivery, not a
+            # two-arrival capture.
+            cmp_col = diff_col + 1
+            statements.append(PlaceIR(
+                name=f"op_{i}_cmp", tile_name="comparator", row=1, col=cmp_col,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                # threshold is a required param, resolved above per predicate
+            ))
+            # real param goes on its own field entry (kept separate for clarity)
+            statements[-1].fields.append(FieldIR("threshold", threshold))
+            col_cursor = cmp_col + 1
         else:
             col_cursor = diff_col + 1
 

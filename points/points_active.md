@@ -7681,3 +7681,82 @@ plausibly be simplified the same way, a genuinely bigger realization
 than just these two compositions) -- deliberately not attempted here,
 flagged as real future work rather than a sweeping rewrite alongside
 everything else in this entry.
+
+## 688. `llvm_ir_frontend_v1.py` itself migrated to use the real `select`/`icmp_eq`/`icmp_ne` composed tiles (`#686`), and `dsl_compiler_v1.py`'s own composed-tile placement path extended to support preload-only sub-cells generally -- per Alan's own direct request to continue the migration. A genuine ~90-line net simplification, zero regressions. (Alan/Claude, 2026-09-07)
+
+**`dsl_compiler_v1.py` extended first, since it's the real shared
+backend every frontend (DSL, Python-AST, LLVM-IR) routes through:**
+its own composed-tile placement call now passes a real `preloads`
+list to `place_composed()` and folds the result into the records via
+`apply_preloads_to_records()` (`#687`'s own bridge function) --
+meaning `select`/`icmp_eq`/`icmp_ne` (and any FUTURE composed tile
+with preload-only sub-cells) are now placeable directly from real DSL
+source, not just reachable through the LLVM frontend. `_param_names()`
+(the DSL compiler's own separate copy of the same real logic
+`training_bucket_export_v1.py`'s `_required_composed_params()` already
+needed fixing for) updated the same way: a preload-only sub-cell's
+own required param surfaces bare (whole-tile-scope), not namespaced.
+Verified directly: `place s1 as select at (0,0) { cond: w  out: e
+true_val: 42  false_val: 7 }` compiles cleanly, produces the correct
+4 real preloads, saves to a real `.icm` file, and runs correctly
+end to end through `VMSession.from_dsl()`.
+
+**`llvm_ir_frontend_v1.py`'s own hand-inlined `#674`/`#668` code
+replaced with real, single composed-tile placements:** `select`'s own
+~90-line, 10-statement inline composition collapses to one `PlaceIR(
+tile_name="select", ...)`. `icmp eq`/`ne` required a real
+restructuring, not just a swap: each composed tile's own internal
+`diff` sub-cell IS the same shared diff cell every OTHER icmp
+predicate also needs, so eq/ne now branches and `continue`s BEFORE the
+shared bare-diff-cell placement code runs (reusing the exact same
+north/west injection-and-stagger logic every opcode already shares,
+unchanged), rather than placing a diff cell twice. The now-unreachable
+6/8-cell hand-inlined eq/ne block removed entirely.
+
+**The real, concrete benefit confirmed, not just claimed:** `select`'s
+own four internal constants (a `0`, `0xFFFFFFFF`, and the two caller
+values) and `icmp_ne`'s own real one-time constant `1` no longer
+appear in `LlvmLoweringInfo.injections` (the whole-program runtime-
+injection list the caller must manually apply) AT ALL -- they're real,
+persisted preloads on the compiled records, seeded automatically at
+grid construction per `#687`. Confirmed directly: `info.injections`
+for a real `select` program contains only the genuine per-run values
+(the icmp's own comparison constant and the function's own argument),
+never select's own internal wiring constants.
+
+**Real, full verification, not assumed correct from passing pre-
+existing tests alone:** manually traced a real select-using program
+end to end through actual `SuperGrid` construction (confirming
+preloads apply automatically) plus real injection/ticking for the
+genuinely dynamic values, checking the final VM output against the
+expected result for two real cases (`x=10 -> 100`, `x=2 -> 200`). All
+49 pre-existing LLVM frontend tests (`test_icmp_eq_all_real_cases`,
+`test_select_real_cases_across_predicates`, etc. -- which construct a
+real `SuperGrid` from `icm.records` and check actual VM output) passed
+UNCHANGED, the strongest real proof the migration preserves exact
+behavior, not just that it compiles.
+
+**3 new tests added** confirming the specific migration benefit
+directly (constants absent from `injections`, present as real
+`preload_value` on the records instead) -- not just relying on the
+pre-existing tests' own silence.
+
+**Real, measured simplification:** `llvm_ir_frontend_v1.py` shrank by
+a net ~90 lines (154 removed, 63 added, mostly explanatory comments),
+removing the most delicate, hand-tuned, hardest-to-maintain code in
+the whole frontend -- the manually-staggered relay-based timing logic
+for these two compositions specifically.
+
+**Real, full regression: 648 passed, 1 skipped, zero failures** (was
+645 before this entry -- 4 new DSL-level tests plus 3 new LLVM-
+frontend-level tests, minus one net test-count accounting difference).
+
+**Real, honest scope, stated plainly:** the SAME class of
+simplification -- preloading a constant via the file format instead of
+precisely-timed live injection -- could very plausibly extend to
+add/sub/icmp's OWN shared "diff cell" constants too (the `value_north_
+{i}`/`value_west0`/`value_west0a` cells and their own relay-based
+i==0 stagger), which are still delivered via the OLD runtime-injection
+path, unchanged, in this entry. That broader migration is real,
+separate, larger future work -- not attempted here, flagged rather
+than silently left for later rediscovery.

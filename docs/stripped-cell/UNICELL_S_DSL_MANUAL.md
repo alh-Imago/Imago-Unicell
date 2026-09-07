@@ -207,6 +207,20 @@ worked example of nested composition and double-namespaced params.
 Ports: `s1_inc`, `s1_dec`, `s1_clear`, `s1_out`, `s2_inc`, `s2_dec`,
 `s2_clear`, `s2_out`. Params: `s1.cmp.threshold`, `s2.cmp.threshold`.
 
+### `select`, `icmp_eq`, `icmp_ne`
+
+Real, added `points.md #686`/`#688` — promoted from `llvm_ir_frontend_
+v1.py`'s own original hand-inlined code (`#668`/`#674`), now reusable
+from any frontend, not just LLVM IR. `select` (LLVM's own ternary):
+ports `cond`, `out`; params `true_val`, `false_val` — both real,
+caller-supplied 32-bit constants, seeded directly into their own
+registers while the tile is held frozen at load time (`#687`), not
+delivered as live inputs. `icmp_eq`/`icmp_ne` (`a == b` / `a != b`):
+ports `in_a`, `in_b`, `out`; no params. All three are ordinary Tier-1
+tiles from a placement's own point of view — `place c1 as icmp_eq at
+(0,0) { in_a: w  in_b: n  out: e }` works exactly like any other
+built-in tile.
+
 ### 5.1 Example — placing `sentinel`
 
 ```

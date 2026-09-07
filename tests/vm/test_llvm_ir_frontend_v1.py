@@ -759,6 +759,63 @@ def test_select_handles_a_real_negative_two_complement_value():
     assert result == 5
 
 
+# ── points.md #688: select/icmp_eq/icmp_ne promoted to the real,
+# registered composed tiles (#686), their own internal constants now
+# seeded via the ICM v3 file-format preload mechanism (#687) rather
+# than manually, precisely-timed live injection. ──────────────────────
+
+def test_select_no_longer_needs_runtime_injection_for_its_own_constants():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %c = icmp sgt i32 %x, 5
+      %r = select i1 %c, i32 100, i32 200
+      ret i32 %r
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 10})
+    assert icm is not None
+    # Only the icmp's own real comparison constant (5) and argument
+    # (x=10) remain -- select's own internal 0/0xFFFFFFFF/100/200 are
+    # NOT in this list at all anymore; they're preloaded directly.
+    injected_values = {v for _, _, v in info.injections}
+    assert 100 not in injected_values
+    assert 200 not in injected_values
+    assert 0xFFFFFFFF not in injected_values
+
+
+def test_select_constants_are_real_preloads_on_the_compiled_records():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %c = icmp sgt i32 %x, 5
+      %r = select i1 %c, i32 100, i32 200
+      ret i32 %r
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 10})
+    preloaded = {r.preload_value for r in icm.records if r.preload_value is not None}
+    assert preloaded == {0, 0xFFFFFFFF, 100, 200}
+
+
+def test_icmp_ne_no_longer_needs_runtime_injection_for_its_own_constant():
+    ir = """
+    define i1 @f(i32 %x) {
+    entry:
+      %c = icmp ne i32 %x, 5
+      ret i1 %c
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 7})
+    assert icm is not None
+    injected_values = {v for _, _, v in info.injections}
+    # the real, one-time constant `1` icmp_ne's own final XOR needs is
+    # no longer a live injection -- it's a real preload now.
+    preloaded = {r.preload_value for r in icm.records if r.preload_value is not None}
+    assert 1 in preloaded
+    assert icm.records  # sanity: real records still produced
+
+
 def test_select_rejected_mid_chain():
     """Points.md #674: select's own real result lands on a different
     physical row than the ordinary chain convention -- using it mid-

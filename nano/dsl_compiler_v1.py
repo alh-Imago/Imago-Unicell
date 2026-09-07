@@ -99,7 +99,7 @@ from program_ir_v1 import ProgramIR, PlaceIR, DefineIR
 import icm_v3 as v3
 import icm_v4 as v4
 from composed_tile_library_v1 import composed_tile_library, place_composed, ComposedTileSpec, \
-    SubCellPlacement, ComposedTileLibrary
+    SubCellPlacement, ComposedTileLibrary, apply_preloads_to_records
 # Imported for their own self-registration side effects (points.md
 # #485) -- this is the ONE line a future tile-kind module needs added
 # here to be resolvable by name; nothing else in this file names a
@@ -356,8 +356,20 @@ def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[Dict[s
 
     try:
         if is_composed:
+            preloads: List[Tuple[int, int, int]] = []
             records = place_composed(tile, stmt.row, stmt.col, port_directions, params,
-                                      composed_library=composed_library)
+                                      composed_library=composed_library, preloads=preloads)
+            if preloads:
+                # points.md #688: fold place_composed()'s own in-memory
+                # preload list directly into the matching records'
+                # real `preload_value` field -- the same real bridge
+                # `#687` already built and proved, applied here so any
+                # DSL/Python-AST program placing a composed tile with
+                # preload-only sub-cells (e.g. `select`/`icmp_eq`/
+                # `icmp_ne`, #686) gets a correctly-seeded ICM file
+                # automatically, with no special handling needed
+                # anywhere else in this function.
+                apply_preloads_to_records(records, preloads)
             # `records` may now be a real MIX of v3.IcmV3Record and
             # v4.DspWrapperRecord (#486, composed sub-cells can draw
             # from any registered kind) -- bucket by real isinstance,
@@ -413,6 +425,17 @@ def _param_names(tile, composed_library) -> List[str]:
         return list(tile.param_names)
     names: List[str] = []
     for sub in tile.subcells:
+        # points.md #688: a preload-only sub-cell (#686) contributes
+        # its own required param too -- but BARE, not namespaced,
+        # matching `place_composed()`'s own real convention that a
+        # preload param is whole-tile-scope (`select`'s `true_val`/
+        # `false_val`), not per-subcell. `preload_fixed_value` needs
+        # nothing from the caller at all.
+        if sub.preload_param_name is not None:
+            names.append(sub.preload_param_name)
+            continue
+        if sub.preload_fixed_value is not None:
+            continue
         sub_tile = _resolve_tile_by_name(sub.tile_name, composed_library)
         for p in _param_names(sub_tile, composed_library):
             if p in sub.fixed_params:

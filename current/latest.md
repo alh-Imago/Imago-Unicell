@@ -1,4 +1,48 @@
-# Current State (as of 2026-09-07, select/icmp_eq/icmp_ne promoted to real Tier-1 composed tiles on a new freeze/preload/unfreeze mechanism, then elevated to the ICM v3 file format itself -- plus a separate, serious, previously-undiscovered nano_gate save bug found and fixed. See `points/points_active.md` #686/#687)
+# Current State (as of 2026-09-07, llvm_ir_frontend_v1.py itself migrated to use the real select/icmp_eq/icmp_ne composed tiles -- a genuine ~90-line net simplification, zero regressions, its own most delicate hand-tuned timing code removed entirely. See `points/points_active.md` #688)
+
+## Read this first (most recent)
+
+**2026-09-07, LLVM frontend migration complete (#688).** Per Alan's
+own direct request to continue -- `dsl_compiler_v1.py`'s own composed-
+tile placement path extended first (the real shared backend every
+frontend routes through) to support preload-only sub-cells generally,
+meaning `select`/`icmp_eq`/`icmp_ne` are now placeable directly from
+real DSL source too, not just via the LLVM frontend.
+
+**`llvm_ir_frontend_v1.py`'s own hand-inlined `#674`/`#668` code
+replaced with real, single composed-tile placements.** `select`'s own
+~90-line, 10-statement inline composition collapsed to one `PlaceIR`.
+`icmp eq`/`ne` needed real restructuring (branch and `continue` before
+the shared diff-cell code, since each tile's own internal `diff`
+sub-cell IS that same shared cell) rather than a simple swap. The now-
+unreachable old 6/8-cell hand-inlined block removed entirely.
+
+**The real, concrete benefit confirmed directly:** `select`'s own 4
+internal constants and `icmp_ne`'s own real constant no longer appear
+in the runtime `injections` list at all -- they're real, persisted
+preloads on the compiled records now, applied automatically at grid
+construction. Manually traced a real select program end to end through
+actual VM execution for two real cases, both correct.
+
+**Real, full regression: 648 passed, 1 skipped, zero failures** (was
+645). All 49 pre-existing LLVM frontend tests -- which construct a
+real grid and check actual VM output -- passed UNCHANGED, the
+strongest proof this preserves exact behavior. 3 new tests added
+confirming the migration benefit directly, not just relying on
+pre-existing tests' silence.
+
+**Real, measured simplification:** the frontend shrank by a net ~90
+lines, removing its own most delicate, hand-tuned, hardest-to-maintain
+code -- the manually-staggered relay-based timing logic for these two
+compositions specifically.
+
+**Real, honest scope, stated plainly:** the SAME class of
+simplification could very plausibly extend to add/sub/icmp's own
+shared "diff cell" constants too (still delivered via the old runtime-
+injection path, unchanged, in this entry) -- real, separate, larger
+future work, flagged rather than left for silent rediscovery.
+
+## Previous state (as of 2026-09-07, select/icmp_eq/icmp_ne promoted to real Tier-1 composed tiles on a new freeze/preload/unfreeze mechanism, then elevated to the ICM v3 file format itself -- plus a separate, serious, previously-undiscovered nano_gate save bug found and fixed. See `points/points_active.md` #686/#687)
 
 ## Read this first (most recent)
 

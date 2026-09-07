@@ -899,6 +899,83 @@ def test_recovery_unrecoverable_header_still_gives_exactly_one_diagnostic():
     assert len(diags) == 1
 
 
+# ── select/icmp_eq/icmp_ne composed tiles reachable directly from DSL
+# source (points.md #688) -- the same real preload mechanism #686/#687
+# built for the LLVM frontend, now also usable by any DSL program. ──
+
+def test_dsl_can_place_select_with_preload_params():
+    src = """
+    program test_select {
+        place s1 as select at (0, 0) {
+            cond: w
+            out: e
+            true_val: 42
+            false_val: 7
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+    assert icm is not None
+    assert len(icm.records) == 10
+    preloaded = {(r.row, r.col): r.preload_value for r in icm.records if r.preload_value is not None}
+    assert preloaded == {(0, 0): 0, (3, 0): 0xFFFFFFFF, (0, 1): 42, (3, 1): 7}
+
+
+def test_dsl_placed_select_runs_correctly_end_to_end():
+    from vm_ai_port_v1 import VMSession
+    from unicell_automaton_v1 import W
+    from vm_introspection_v1 import cell_at
+
+    src = """
+    program test_select {
+        place s1 as select at (0, 0) {
+            cond: w
+            out: e
+            true_val: 42
+            false_val: 7
+        }
+    }
+    """
+    session = VMSession.from_dsl(src)
+    assert session.grid.cells[(0, 0)].freeze_in is False  # already released on load
+    session.tick(2)
+    session.grid.cells[(1, 0)].deliver({W: 1}, None)
+    session.tick(8)
+    assert cell_at(session.grid, 1, 2)["nano"]["out_buffer"] == 42
+
+
+def test_dsl_select_missing_true_val_gives_a_real_diagnostic():
+    src = """
+    program test_select {
+        place s1 as select at (0, 0) {
+            cond: w
+            out: e
+            false_val: 7
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    assert any("true_val" in d.problem for d in diags)
+
+
+def test_dsl_can_place_icmp_eq():
+    src = """
+    program test_icmp {
+        place c1 as icmp_eq at (0, 0) {
+            in_a: w
+            in_b: n
+            out: e
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+    assert icm is not None
+    assert len(icm.records) == 6
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))
