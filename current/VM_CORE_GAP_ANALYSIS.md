@@ -1,5 +1,45 @@
 # VM Core Gap Analysis — root-level Python vs. the nano cell, vs. #216's requirements
 
+**Real, major status update, 2026-09-07: every one of the 8 gaps this
+document identifies below has since been closed or substantially
+addressed.** This doc is now a real, accurate HISTORICAL snapshot of
+2026-08-08 — genuinely useful for understanding how far the project
+has come and why `core/` was never actually built as a separate
+folder (the gaps got closed in `nano/` directly instead) — but reading
+the "actual holes" section below as a current gap list would be
+actively wrong. The real, current status of each:
+
+1. Root definition from RTL — now real: `nano/root_definition_
+   extractor_v1.py` mechanically extracts field definitions straight
+   from the RTL's own comments (`#355`/`#356`).
+2. Grid construction — was already DONE here; now far richer
+   (`SuperGrid`, and `VixCarrierGrid` for the newer 9-core family).
+3. Dual CPU/GPU execution — now real: `nano/gpu_array_v1.py` (`#361`),
+   vectorizing which cells are ready to offer each tick.
+4. Cell-design-aware/parameterized — now real, via a different real
+   mechanism than originally envisioned here: a core-type registry
+   (`#358`) lets a new core join VM dispatch without touching the
+   VM's own core code.
+5. JSON introspection API — now real and central to the whole project:
+   `vm_introspection_v1.py`, every cell/grid state as JSON.
+6. AI-interaction port — now real: `vm_ai_port_v1.py`'s `VMSession`,
+   compile → load → run → inspect in one object.
+7. Timing-awareness for the workbench — now real, further than
+   "PARTIAL": the workbench has real user-facing speed control
+   (`start_run`/`pause_run` at a chosen ticks/sec, `#676`), though
+   still no real-world-equivalent ns/tick clock-frequency emulation.
+8. No compiler/model-loading bridge — now real and foundational: the
+   full DSL/Python-AST/C/LLVM-IR compiler stack, ICM v3/v4, exactly
+   the missing piece this document called "the biggest one."
+
+**What's genuinely still true from this doc, unaffected by the above:**
+the root-level 77-file inventory and the old-format/nano-format split
+itself is a real, historical fact about files that mostly haven't
+changed since (they're pre-nano-architecture legacy, most now further
+archived — see `archeology/`). The "concept survives, code doesn't"
+discipline in the closing Addendum remains real, standing guidance,
+not outdated.
+
 *Written while waiting on the FPGA timing work (`#206`-`#215`) to settle,
 per Alan's request: map what already exists, find the holes, before
 `core/` gets built. Not a design document itself — `#216` is the design;

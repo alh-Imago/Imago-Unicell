@@ -236,6 +236,20 @@ const CORES = [
     {name:'ready', lo:10, hi:10, kind:'toggle'},
     {name:'routing_mask', lo:11, hi:16, kind:'hex'},
     {name:'cardinal_edge', lo:17, hi:22, kind:'hex'},
+    // points.md #650, added 2026-09-07 per the #678 doc audit -- real
+    // loop-routing fields nano_gate_v4.v's own hardware, and the LLVM
+    // IR frontend's real loop compilation (#652/#653/#661), are built
+    // on. Checked directly against icm_v3.py's own current _NANO_FIELDS
+    // table before adding these, not guessed at.
+    {name:'hold_in', lo:23, hi:23, kind:'toggle'},
+    {name:'fb_internal_in', lo:24, hi:24, kind:'toggle'},
+    {name:'a_reemit_in', lo:25, hi:25, kind:'toggle'},
+    {name:'a_update_in', lo:26, hi:26, kind:'toggle'},
+    {name:'a_self_update_in', lo:27, hi:27, kind:'toggle'},
+    {name:'dynamic_route_en', lo:28, hi:28, kind:'toggle'},
+    {name:'pattern_low', lo:29, hi:32, kind:'hex'},
+    {name:'pattern_equal', lo:33, hi:36, kind:'hex'},
+    {name:'pattern_high', lo:37, hi:40, kind:'hex'},
   ]},
   {sel:1, name:'ram', fields:[
     {name:'downstream_mask', lo:0, hi:3, kind:'dirs'},
@@ -262,6 +276,40 @@ const CORES = [
     {name:'set_dir', lo:0, hi:3, kind:'dirs'},
     {name:'clear_dir', lo:4, hi:7, kind:'dirs'},
     {name:'downstream_mask', lo:8, hi:11, kind:'dirs'},
+  ]},
+  // sel:6/7 added 2026-09-07 per the #678 doc audit -- this page
+  // previously stopped at the original 6 cores (unicell_super_v1.v),
+  // missing sequencer (added unicell_super_v2.v) and branch (added
+  // unicell_super_v3.v) entirely. Bit positions mirrored exactly from
+  // nano/icm_v3.py's own current _SEQ_FIELDS/_BRANCH_FIELDS, checked
+  // directly, not transcribed from an older copy of this file.
+  {sel:6, name:'sequencer', fields:[
+    {name:'VALUE_0', lo:0, hi:7, kind:'hex'},
+    {name:'VALUE_1', lo:8, hi:15, kind:'hex'},
+    {name:'VALUE_2', lo:16, hi:23, kind:'hex'},
+    {name:'VALUE_3', lo:24, hi:31, kind:'hex'},
+    {name:'SEQUENCE_LEN', lo:32, hi:33, kind:'hex'},
+    {name:'downstream_mask', lo:34, hi:37, kind:'dirs'},
+  ]},
+  {sel:7, name:'branch', fields:[
+    // upstream_dir is a genuine SINGLE 2-bit direction INDEX, not a
+    // 4-bit mask (confirmed against icm_v3.py directly, points.md
+    // #606) -- rendered as 'hex' rather than 'dirs' since the 'dirs'
+    // widget here is built for multi-direction masks specifically.
+    {name:'upstream_dir', lo:0, hi:1, kind:'hex'},
+    {name:'value_source_low', lo:2, hi:2, kind:'toggle'},
+    {name:'value_source_equal', lo:3, hi:3, kind:'toggle'},
+    {name:'value_source_high', lo:4, hi:4, kind:'toggle'},
+    {name:'fixed_value_low', lo:5, hi:11, kind:'hex'},
+    {name:'fixed_value_equal', lo:12, hi:18, kind:'hex'},
+    {name:'fixed_value_high', lo:19, hi:25, kind:'hex'},
+    {name:'emit_low', lo:26, hi:26, kind:'toggle'},
+    {name:'emit_equal', lo:27, hi:27, kind:'toggle'},
+    {name:'emit_high', lo:28, hi:28, kind:'toggle'},
+    {name:'route_low', lo:29, hi:32, kind:'hex'},
+    {name:'route_equal', lo:33, hi:36, kind:'hex'},
+    {name:'route_high', lo:37, hi:40, kind:'hex'},
+    {name:'rolling_mode', lo:41, hi:41, kind:'toggle'},
   ]},
 ];
 
