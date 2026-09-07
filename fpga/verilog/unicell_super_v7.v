@@ -160,7 +160,13 @@ module unicell_super_v7 #(
     wire [4:0]  core_select  = super_latch[4:0];
     wire [41:0] core_config  = super_latch[46:5];
     wire [19:0] addon_config = super_latch[66:47];
-    // super_latch[79:67] deliberately unused -- reserved headroom (#317)
+    wire [1:0]  shift_fine   = super_latch[68:67];   // #683/#684: real 2-bit fine
+                                                       // shift, closes shift_lane_
+                                                       // addon_v1's own sparse-9-tap
+                                                       // gaps. super_latch[79:69]
+                                                       // deliberately still unused
+                                                       // -- 11 bits genuine future
+                                                       // headroom (#317, was 13).
 
     // ── INCOMING select/config -- the value ABOUT TO BE committed,
     // straight off cfg_data. Real bug found and fixed here (2026-08-15,
@@ -504,16 +510,24 @@ module unicell_super_v7 #(
     // present regardless of which core is selected (#310's own split:
     // addons are core-independent, on the periphery). Order matches
     // #312's own proven wiring: nibble_mask -> shift/lane -> invert. ──
-    wire [31:0] after_mask, after_shiftlane, addon_out;
+    wire [31:0] after_mask, after_fineshift, after_shiftlane, addon_out;
+    wire [1:0]  shift_fine_applied;
 
     nibble_mask_addon_v1 ADDON_NM (
         .mask_en(addon_config[8]), .nibble_mask(addon_config[7:0]),
         .data_in(mux_dout_n), .data_out(after_mask)
     );
-    shift_lane_addon_v1 ADDON_SL (
+    shift_fine_addon_v1 ADDON_SF (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amount(shift_fine),
+        .data_in(after_mask), .data_out(after_fineshift),
+        .shift_amount_out(shift_fine_applied)
+    );
+    shift_lane_addon_v2 ADDON_SL (
         .direction(addon_config[15]), .shift_en(addon_config[14]),
         .shift_amt(addon_config[13:9]), .lane_cut(addon_config[18:16]),
-        .data_in(after_mask), .data_out(after_shiftlane)
+        .shift_fine_in(shift_fine_applied),
+        .data_in(after_fineshift), .data_out(after_shiftlane)
     );
     invert_addon_v1 ADDON_INV (
         .invert_en(addon_config[19]),

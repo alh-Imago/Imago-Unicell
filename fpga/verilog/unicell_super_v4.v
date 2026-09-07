@@ -106,6 +106,13 @@ module unicell_super_v4 #(
     wire [4:0]  core_select  = super_latch[4:0];
     wire [41:0] core_config  = super_latch[46:5];
     wire [19:0] addon_config = super_latch[66:47];
+    wire [1:0]  shift_fine   = super_latch[68:67];   // #683/#684: real 2-bit fine
+                                                       // shift, closes shift_lane_
+                                                       // addon_v1's own sparse-9-tap
+                                                       // gaps. super_latch[79:69]
+                                                       // deliberately still unused
+                                                       // -- 11 bits genuine future
+                                                       // headroom (#317, was 13).
 
     wire [4:0]  incoming_select  = cfg_data[4:0];
     wire [41:0] incoming_config  = cfg_data[46:5];
@@ -470,16 +477,24 @@ module unicell_super_v4 #(
     end
 
     // ── The three real ADDONs — unchanged from v3. ──
-    wire [31:0] after_mask, after_shiftlane, addon_out;
+    wire [31:0] after_mask, after_fineshift, after_shiftlane, addon_out;
+    wire [1:0]  shift_fine_applied;
 
     nibble_mask_addon_v1 ADDON_NM (
         .mask_en(addon_config[8]), .nibble_mask(addon_config[7:0]),
         .data_in(mux_dout_n), .data_out(after_mask)
     );
-    shift_lane_addon_v1 ADDON_SL (
+    shift_fine_addon_v1 ADDON_SF (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amount(shift_fine),
+        .data_in(after_mask), .data_out(after_fineshift),
+        .shift_amount_out(shift_fine_applied)
+    );
+    shift_lane_addon_v2 ADDON_SL (
         .direction(addon_config[15]), .shift_en(addon_config[14]),
         .shift_amt(addon_config[13:9]), .lane_cut(addon_config[18:16]),
-        .data_in(after_mask), .data_out(after_shiftlane)
+        .shift_fine_in(shift_fine_applied),
+        .data_in(after_fineshift), .data_out(after_shiftlane)
     );
     invert_addon_v1 ADDON_INV (
         .invert_en(addon_config[19]),

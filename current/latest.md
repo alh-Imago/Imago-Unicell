@@ -1,4 +1,46 @@
-# Current State (as of 2026-09-07, real sim-verified RTL for a shared 2-bit fine shift addon -- reframed from "nano's own independent shift" into a benefit for all 8 cores, per Alan's own precise design. 4 testbenches, all passing. Nothing wired into a shell yet, by explicit request. See `points/points_active.md` #683)
+# Current State (as of 2026-09-07, #683's shift_fine/shift_lane_v2 addon chain wired into all 8 real shells, full regression confirmed, the assembler's own hardcoded dependency lists fixed before they could break a real build. Real 6-item downstream checklist captured in a new design note. See `points/points_active.md` #684)
+
+## Read this first (most recent)
+
+**2026-09-07, shift addon wired into all 8 shells + assembler fixed
+(#684).** Per Alan's own direct request to continue -- `shift_fine`
+allocated from `super_latch[68:67]` (2 of the 13 reserved bits, 11
+remain), the addon chain reordered to `nibble_mask -> shift_fine_
+addon_v1 -> shift_lane_addon_v2 -> invert` across `unicell_super_v1.v`
+through `v8.v`.
+
+**Real, full regression, not assumed:** every shell version with an
+existing testbench (v1, v3-v8) re-run against the new RTL, confirmed
+passing unchanged at the default `shift_fine=0` -- branch-cell tests,
+shared-storage tests, all exact. v2 confirmed via clean elaboration
+(no dedicated testbench exists). The deliberately-excluded experimental
+variant left untouched, confirmed via `shell_compat_v1.py`. Full
+Python suite: 619 passed + 1 skipped, unchanged.
+
+**A real thing that would have actually broken, caught first:**
+`project_assemble_v1.py`'s own hardcoded `V3_DEPENDENCIES`/`V4_
+DEPENDENCIES` lists still named the now-unused `shift_lane_addon_v1.v`
+-- fixed both, verified end-to-end with a real `--shell v3 --cells 4`
+build. `VIX_DEPENDENCIES` deliberately NOT fixed -- the VIX Carrier's
+own v4-generation cells carry a separate copy of the old addon chain
+in their own per-core config slice, a genuinely different situation
+needing its own rollout.
+
+**`shift_fine_addon_rollout.md` created** -- a real, concrete 6-item
+checklist per Alan's own request: the VIX Carrier's own separate
+rollout; `icm_v3.py`'s field-table decision (still undecided: fold
+into `addon_config` or expose as its own separate field, matching
+where the RTL actually put it); the VM's `apply_addons()` (a real gap,
+will silently diverge from hardware once exposed); the workbench (no
+addon UI exists at all today); Composer readiness; and the LLVM
+frontend's `shl`/`lshr`/`ashr` (still no target, needs a real DSL/tile
+path to configure addon fields at all -- confirmed none exists).
+
+**Real, honest scope:** RTL wiring + the assembler fix are the only
+things actually built this entry; the 6-item checklist is real,
+deliberately-scoped future work.
+
+## Previous state (as of 2026-09-07, real sim-verified RTL for a shared 2-bit fine shift addon -- reframed from "nano's own independent shift" into a benefit for all 8 cores, per Alan's own precise design. 4 testbenches, all passing. Nothing wired into a shell yet, by explicit request. See `points/points_active.md` #683)
 
 ## Read this first (most recent)
 

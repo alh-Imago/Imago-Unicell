@@ -162,6 +162,18 @@ distinct from the speculation it arrived wrapped in.
 
 ## Addendum (2026-09-03): nano's own real shift capability -- confirmed lost, and a real, precise reason to give it back, per Alan's own direct point
 
+**Real, status update, 2026-09-07 — read this first:** Alan's own
+precise design call reframed this from "nano's own independent shift"
+into a shared-addon upgrade benefiting all 8 cores at once: a genuine
+2-bit fine shift (0-3) layered in front of the existing 9-tap coarse
+shifter closes every gap between taps for free (no two adjacent taps
+are more than 4 apart). This is now REAL, sim-verified RTL, wired into
+all 8 shells (`unicell_super_v1.v`-`v8.v`), with a full downstream
+checklist (compiler, VM, workbench, Composer, LLVM, and the VIX
+Carrier's own separate rollout) tracked in `shift_fine_addon_rollout.
+md`. The real proposal below is preserved as the original scoping
+record, not because it's still an open question.
+
 Alan's own real correction, prompted by this session's own LLVM-
 frontend work narrowing focus onto the 8 already-built super-cell
 cores: recent work risked treating that set as closed, when a real,

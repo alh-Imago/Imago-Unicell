@@ -7426,3 +7426,73 @@ lone `shift_lane_addon_v1` instance, allocating the real
 to match. `docs/stripped-cell/design-notes/promotable_specialist_
 modules.md`'s own Addendum updated with the real reframe and this
 entry's own detail.
+
+## 684. `#683`'s shift_fine/shift_lane_v2 addon chain wired into all 8 real shells (`unicell_super_v1.v`-`v8.v`), regression-verified, and the assembler's own hardcoded dependency lists fixed before they could actually break a real build. Real downstream checklist captured in a new design note, per Alan's own direct request. (Alan/Claude, 2026-09-07)
+
+**Real RTL wiring, all 8 shells:** `shift_fine[1:0]` allocated from
+`super_latch[68:67]` -- 2 of the 13 genuinely-reserved bits (`#317`),
+11 remaining as real, untouched headroom. Addon chain reordered to
+`nibble_mask -> shift_fine_addon_v1 -> shift_lane_addon_v2 -> invert`,
+replacing the old single `shift_lane_addon_v1` instantiation, with
+`shift_amount_out` carrying the applied fine amount into `shift_lane_
+addon_v2`'s own `shift_fine_in` so its `lane_cut` math sees the real
+total shift, not the coarse amount alone.
+
+**Real, full regression, not assumed backward-compatible:** every
+shell version with an existing testbench (v1, v3-v8) re-run against
+the new RTL and confirmed passing UNCHANGED at the default `shift_
+fine=0` -- including v3's and v6/v7/v8's own substantive branch-cell
+tests, v4/v5's own shared-external-storage tests, all still exact.
+v2 (no dedicated testbench exists) confirmed via clean `iverilog`
+elaboration. `unicell_super_v3_wrapped_experimental.v` deliberately
+left untouched -- confirmed via `shell_compat_v1.py`'s own real
+shell-discovery logic that it's already excluded from the active
+shell set. Full Python suite also re-run: 619 passed + 1 skipped,
+unchanged.
+
+**A real thing that WOULD have actually broken, caught before it did:**
+`tools/project_assemble_v1.py`'s own `V3_DEPENDENCIES`/`V4_
+DEPENDENCIES` are hardcoded file lists, not a derived scan of real
+module instantiations -- both still named the now-unused `shift_lane_
+addon_v1.v` explicitly. Fixed both to the real two-file chain, then
+verified end-to-end with an actual `--shell v3 --cells 4` build: the
+generated `.qsf` correctly lists both new files and they're physically
+copied into the output directory. `VIX_DEPENDENCIES` deliberately NOT
+fixed -- the VIX Carrier's own v4-generation cells carry their own
+separate copy of the OLD addon chain in their own per-core `addon_
+config` slice, a genuinely different wiring situation needing its own
+separate rollout, not a trivial extension of this one.
+
+**`docs/stripped-cell/design-notes/shift_fine_addon_rollout.md`
+created, per Alan's own direct request** ("make a note of the things
+to update... the assembler, the compiler, the vm and workbench...
+composer system... and the llvm"): a real, concrete checklist, not a
+vague pointer --
+1. `VIX_DEPENDENCIES`/the VIX Carrier's own 9 v4-generation cells --
+   separate rollout, unstarted.
+2. `icm_v3.py`'s own `addon_config` field table -- needs a real,
+   undecided design choice: expose `shift_fine` as if part of `addon_
+   config` for a clean caller shape, or as a genuinely separate field
+   matching where the RTL actually put it (`SUPER_LATCH[68:67]`,
+   outside `addon_config`'s own `[66:47]`).
+3. The VM's own `apply_addons()` -- a real, meaningful gap, not
+   cosmetic: harmless today (nothing can set the bit through any real
+   path yet), but will silently diverge from real hardware the moment
+   `icm_v3.py` exposes it, unless updated in step.
+4. The workbench -- confirmed directly, no UI exposes `addon_config`
+   at all today; genuinely unbuilt, not merely undiscovered.
+5. Composer readiness -- flagged for whenever a real placement/config
+   UI gets built, not a blocker for Composer's own current scope.
+6. The LLVM IR frontend's own `shl`/`lshr`/`ashr` -- still no real
+   target; needs items 2 and a real DSL/tile-level path to configure
+   `addon_config` at all (confirmed directly: no tile in `super_tile_
+   library_v1.py` today can set any addon field, only `core_config`),
+   neither of which exist yet.
+
+`docs/stripped-cell/design-notes/promotable_specialist_modules.md`'s
+own Addendum updated with a real status pointer to this rollout,
+rather than left reading as still-open.
+
+**Real, honest scope: RTL wiring + the assembler fix are the only
+things actually built and verified this entry; the six-item checklist
+above is real, deliberately-scoped future work, not attempted here.**
