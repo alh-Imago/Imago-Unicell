@@ -32,7 +32,7 @@
       <div class="eyebrow"><span class="tag">LOG</span> CURRENT STATE</div>
       <h1>Nothing is declared working until it's measured</h1>
       <p class="lead">
-        This page tracks real progress against the project's own record (<code>points.md</code>)
+        This page tracks real progress against the project's own record (<code>points/</code>)
         &mdash; not aspiration. Every entry below is either confirmed on silicon, tested in
         simulation, or explicitly queued, and stated as exactly that, not blurred together.
       </p>
@@ -45,50 +45,70 @@
 
         <div class="log-entry">
           <div class="log-meta">SILICON — QUARTUS-CONFIRMED</div>
-          <div class="log-title">All 6 real cores, one physical cell</div>
+          <div class="log-title">8 real cores, one physical cell (unicell_super_v3.v)</div>
           <p>
-            <code>unicell_super_v1.v</code> &mdash; a single physical cell holding a NOR-gate
-            logic core, RAM, an adder, an accumulator, a comparator, and a latch simultaneously,
-            with the active one chosen by a runtime configuration write. <strong>213 ALM total,
-            257 registers</strong> &mdash; only ~1.7&times; the cost of one ordinary logic cell
-            alone, not 6&times;. Isolation/selection overhead: <strong>25.9 ALM</strong>, smaller
-            than any one of the 3 largest individual cores.
+            A single physical cell holding a NOR-gate logic core, RAM, an adder, an
+            accumulator, a comparator, a latch, a sequencer, and a branch/routing core
+            simultaneously, with the active one chosen by a runtime configuration write.
+            <strong>479 ALM total (301.9 ALM for the shell alone)</strong>. Confirmed, across
+            four independent measured axes (ALM, Fmax, array-scale register behavior, and
+            placement-constraint tolerance), as the cheapest, fastest, most placement-tolerant
+            shell version built so far — a systematic exploration of shared-storage,
+            config-sharing, and physical-fencing ("moat") alternatives found none that beat it.
           </p>
           <span class="badge ok">CONFIRMED</span>
         </div>
 
         <div class="log-entry">
           <div class="log-meta">SILICON — QUARTUS-CONFIRMED</div>
-          <div class="log-title">Timing: best margin of any build so far</div>
+          <div class="log-title">Timing: a real, comfortable margin</div>
           <p>
-            <code>clk_div</code> 200.76 MHz &mdash; <strong>8.03&times; margin</strong> over the
+            <code>clk_div</code> 107.05 MHz &mdash; <strong>~4.3&times; margin</strong> over the
             25 MHz requirement.
           </p>
           <span class="badge ok">CONFIRMED</span>
         </div>
 
         <div class="log-entry">
-          <div class="log-meta">SIMULATION — READY FOR SILICON</div>
-          <div class="log-title">Real self-test FSM built</div>
+          <div class="log-meta">SILICON — REAL, DELIBERATE CEILING FOUND</div>
+          <div class="log-title">Real scale ceiling: roughly 200-250 cells</div>
           <p>
-            <code>top_unicell_super_test_v1.v</code> &mdash; a single physical cell instance
-            cycles through all 6 core configurations, checking each genuine result. Sim-confirmed
-            clean and stable over an extended run; not yet run on real hardware.
+            A systematic array-scale investigation found this card's own real ceiling: roughly
+            200-250 cells, 65-75 MHz Fmax at that scale — a genuine ~2.5-3&times; margin over
+            the fabric clock, but not a large substrate by any real measure. Hardware
+            exploration is closed for now as a deliberate result; work continues on the VM and
+            compiler side, which has no such ceiling.
           </p>
-          <span class="badge active">READY, NOT YET RUN</span>
+          <span class="badge ok">CONFIRMED</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">SIMULATION ONLY — NO SILICON DATA YET</div>
+          <div class="log-title">A genuinely separate, newer 9-core generation: the VIX Carrier</div>
+          <p>
+            A real 9th core (the <strong>command core</strong>) plus the same 8 cores above,
+            each wrapped in a new cardinal control shell, combined into one runtime-selected
+            cell (<code>unicell_vix_carrier_v1.v</code>). Real and sim-verified in both RTL and
+            the VM, including a command core genuinely programming a fresh, never-configured
+            neighbor end to end. <strong>No Quartus/silicon data exists for this family yet</strong>
+            — the Quartus license expired before a real build could be run.
+          </p>
+          <span class="badge active">SIM-VERIFIED, NOT YET BUILT</span>
         </div>
 
         <div class="log-entry">
           <div class="log-meta">SOFTWARE STACK — GENUINELY TESTED, NOT YET SILICON-CONFIRMED</div>
-          <div class="log-title">ICM v3 format, a real VM, a tile library, a compiler and DSL, a browser workbench</div>
+          <div class="log-title">ICM v3/v4 formats, a real VM, a tile library, four compiler frontends, a browser workbench</div>
           <p>
             All of it lives in <code>nano/</code>. The program format is verified two independent
             ways &mdash; bit-for-bit against real, compiled RTL test vectors, and mechanically
-            re-derived straight from the RTL's own comments. The compiler has two genuinely
-            independent frontends (a purpose-built DSL, and a real Python-AST parser) proven to
-            produce byte-identical output for the same program. None of this has been
-            independently confirmed on real hardware as these specific multi-cell layouts &mdash;
-            that distinction is kept honest, not blurred.
+            re-derived straight from the RTL's own comments. Four genuinely independent frontends
+            (a purpose-built DSL, a real Python-AST parser, a real C-AST parser, and a real LLVM
+            IR frontend that compiles real, working bounded counting loops) all produce the same
+            shared intermediate representation. The browser workbench can drive a program, load
+            multiple independent regions onto one shared grid, and auto-play at a chosen rate.
+            None of this has been independently confirmed on real hardware as these specific
+            multi-cell layouts &mdash; that distinction is kept honest, not blurred.
           </p>
           <span class="badge active">SIM/SOFTWARE TESTED</span>
         </div>
@@ -113,9 +133,9 @@
       <h2>What's solid, and what's paused</h2>
       <div class="grid">
         <div class="panel">
-          <span class="badge ok">SOLID</span>
+          <span class="badge warn">PAUSED</span>
           <h3>Windows / Quartus path</h3>
-          <p>Card programming and Tcl-based testing via Quartus Prime 25.1 on Windows is the authoritative path.</p>
+          <p>Card programming and Tcl-based testing via Quartus Prime 25.1 on Windows was the authoritative path; the license has since expired and renewal isn't financially feasible near-term. Sim-first discipline means correctness work continues regardless — Quartus was the periodic real-hardware-numbers checkpoint, not day-to-day correctness.</p>
         </div>
         <div class="panel">
           <span class="badge warn">PAUSED</span>
@@ -135,7 +155,7 @@
         <div class="panel">
           <span class="badge ok">TESTED</span>
           <h3>Test coverage</h3>
-          <p>211 tests across the current Unicell-S software stack, plus 70 legacy VM regression scripts &mdash; all currently passing.</p>
+          <p>593 tests across the current Unicell-S software stack (592 passing, 1 skipped) — all currently passing.</p>
         </div>
       </div>
     </section>

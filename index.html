@@ -92,33 +92,41 @@
       <div class="eyebrow"><span class="tag">STATUS</span> THE SUPER CARRIER SHELL</div>
       <h2>Real, Quartus-confirmed silicon numbers</h2>
       <p>
-        The active architecture is the <strong>super carrier shell</strong>: a single physical
-        FPGA cell holding six real, different cores simultaneously &mdash; a NOR-gate logic cell,
-        RAM, an adder, an accumulator, a comparator, and a latch &mdash; with the active one
-        chosen by a runtime configuration write, not a synthesis-time choice.
+        The active, recommended architecture is <code>unicell_super_v3.v</code>: a single
+        physical FPGA cell holding eight real, different cores simultaneously &mdash; a
+        NOR-gate logic cell, RAM, an adder, an accumulator, a comparator, a latch, a
+        sequencer, and a branch/routing core &mdash; with the active one chosen by a runtime
+        configuration write, not a synthesis-time choice. Confirmed, across four independent
+        measured axes, as the cheapest, fastest, and most placement-tolerant of every shell
+        version built so far.
       </p>
       <div class="grid">
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
           <h3>Total shell cost</h3>
-          <p>213 ALM, 257 registers &mdash; all 6 cores physically present in every bitstream.</p>
-        </div>
-        <div class="panel">
-          <span class="badge ok">CONFIRMED</span>
-          <h3>Isolation/selection overhead</h3>
-          <p>25.9 ALM &mdash; smaller than any one of the 3 largest individual cores.</p>
+          <p>479 ALM total (301.9 ALM for the shell alone) &mdash; all 8 cores physically present in every bitstream.</p>
         </div>
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
           <h3>Timing</h3>
-          <p><code>clk_div</code> 200.76 MHz &mdash; 8.03&times; margin over the 25 MHz requirement, the best margin of any build so far.</p>
+          <p><code>clk_div</code> 107.05 MHz &mdash; a real ~4.3&times; margin over the 25 MHz requirement.</p>
+        </div>
+        <div class="panel">
+          <span class="badge ok">CONFIRMED</span>
+          <h3>Real scale ceiling, found on purpose</h3>
+          <p>A deliberate investigation found this card's own real ceiling: roughly 200-250 cells, 65-75 MHz Fmax at that scale. Hardware exploration is closed for now as a result &mdash; work continues on the VM/compiler side.</p>
         </div>
         <div class="panel">
           <span class="badge ok">TESTED</span>
           <h3>Software stack</h3>
-          <p>A real VM, ICM v3 program format, tile library, DSL compiler with two independent frontends, and a working browser workbench &mdash; all genuinely tested in simulation, not yet independently confirmed on hardware as these specific multi-cell layouts.</p>
+          <p>A real VM, ICM v3/v4 program formats, tile library, DSL/Python-AST/C/LLVM-IR compiler frontends, and a working browser workbench &mdash; all genuinely tested (593 real tests), not yet independently confirmed on hardware as these specific multi-cell layouts.</p>
         </div>
       </div>
+      <p>
+        A genuinely separate, newer 9-core generation (the <strong>VIX Carrier</strong>,
+        including a new command core) also exists, real and sim-verified, with no Quartus
+        data yet &mdash; see <a href="status.html">current status</a> for the honest detail.
+      </p>
       <div class="btn-row">
         <a class="btn" href="status.html">Full status log &rarr;</a>
       </div>

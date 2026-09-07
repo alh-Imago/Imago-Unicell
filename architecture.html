@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Architecture — Imago UniCell</title>
-<meta name="description" content="How Imago UniCell works: the super carrier shell, six real cores in one physical cell, cardinal wiring, the two-arrival firing model, and no shared bus at all.">
+<meta name="description" content="How Imago UniCell works: the super carrier shell, real cores in one physical cell, cardinal wiring, the two-arrival firing model, and no shared bus at all.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -32,11 +32,12 @@
       <div class="eyebrow"><span class="tag">FIG. 02</span> CORE PRINCIPLE</div>
       <h1>The wiring layout is the logic</h1>
       <p class="lead">
-        The active architecture is the <strong>super carrier shell</strong>: a single physical
-        FPGA cell that holds six real, different cores simultaneously &mdash; a NOR-gate logic
-        cell, RAM, an adder, an accumulator, a comparator, and a latch. Every core is always
-        physically present in every bitstream; which one is <em>active</em> is chosen by a
-        runtime configuration write (<code>core_select</code>), not a synthesis-time choice.
+        The active, recommended architecture is <code>unicell_super_v3.v</code>: a single
+        physical FPGA cell that holds eight real, different cores simultaneously &mdash; a
+        NOR-gate logic cell, RAM, an adder, an accumulator, a comparator, a latch, a
+        sequencer, and a branch/routing core. Every core is always physically present in
+        every bitstream; which one is <em>active</em> is chosen by a runtime configuration
+        write (<code>core_select</code>), not a synthesis-time choice.
       </p>
       <p>
         Cells wire directly to their North/South/East/West physical neighbors. There is
@@ -59,7 +60,7 @@
       </p>
       <div class="panel">
         <dl class="kv">
-          <dt><code>core_select</code></dt><dd>bits [4:0] &mdash; which of the 6 real cores is active (values 6-31 are real, deliberate future headroom)</dd>
+          <dt><code>core_select</code></dt><dd>bits [4:0] &mdash; which of the 8 real cores is active (values 8-31 are real, deliberate future headroom)</dd>
           <dt><code>core_config</code></dt><dd>bits [46:5] &mdash; per-core fields, reinterpreted depending on which core is selected</dd>
           <dt><code>addon_config</code></dt><dd>bits [66:47] &mdash; the addon chain (nibble mask, shift/lane, invert), identical across every core</dd>
         </dl>
@@ -67,7 +68,7 @@
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 04</span> THE SIX CORES</div>
+      <div class="eyebrow"><span class="tag">FIG. 04</span> THE EIGHT CORES</div>
       <h2>Genuinely different firing semantics, verified against the real RTL bodies</h2>
       <div class="grid">
         <div class="panel">
@@ -86,6 +87,14 @@
           <h3>accumulator &amp; latch</h3>
           <p>Continuously live &mdash; never blocked, re-arm and re-offer their current value every idle tick, a genuine heartbeat.</p>
         </div>
+        <div class="panel">
+          <h3>sequencer</h3>
+          <p>Holds a fixed 4-value sequence and steps through it, offering one value per real advance.</p>
+        </div>
+        <div class="panel">
+          <h3>branch</h3>
+          <p>A held-reference router: captures a first value as reference, then routes each later arrival out one of three faces depending on how it compares.</p>
+        </div>
       </div>
     </section>
 
@@ -101,9 +110,32 @@
       <p>
         A real, honest limit stated plainly: this is still fundamentally a
         <em>configuration</em> architecture, not a general-purpose one. There's no addressed
-        memory, no program counter, no loops. Whether and how general-purpose programming could
-        ever map onto this substrate is a genuinely open architectural question, not yet
-        answered &mdash; not a small extension of what exists today.
+        memory and no program counter. A narrow but real exception now exists: a compiler
+        frontend can lower single-variable bounded counting loops (ascending or descending)
+        from real LLVM IR onto a proven 4-cell loop-ring construction &mdash; genuinely working,
+        genuinely narrow, not a general loop capability. Whether and how broader
+        general-purpose programming could map onto this substrate remains a genuinely open
+        architectural question.
+      </p>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 05</span> A NEWER, SEPARATE GENERATION</div>
+      <h2>The VIX Carrier &mdash; a real 9th core, sim-verified, no silicon numbers yet</h2>
+      <p>
+        Alongside the shell described above, a genuinely separate, parallel core generation
+        was built: the same 8 cores plus a real 9th, the <strong>command core</strong>, each
+        wrapped in its own cardinal control shell so control signals (freeze, hold, feedback)
+        become real 4-way wired ports instead of flat wires &mdash; the mechanism that lets one
+        cell genuinely freeze, hold, or reprogram a physical neighbor. The command core itself
+        watches for a toggle pattern to trigger a burst, or drives a freeze-and-relay
+        programming sequence onto a neighboring cell.
+      </p>
+      <p>
+        Real and sim-verified in both RTL and the VM &mdash; including a command core actually
+        programming a fresh, never-configured neighbor end to end &mdash; but genuinely
+        untested on real silicon: the Quartus license expired before a build could be run.
+        Stated plainly rather than left ambiguous.
       </p>
       <div class="btn-row">
         <a class="btn" href="status.html">See current build status &rarr;</a>
