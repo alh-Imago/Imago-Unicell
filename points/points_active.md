@@ -7354,3 +7354,75 @@ found and fixed while re-reading the note before this update, not
 left standing; the "Status" section now states plainly that Tier-1
 export is real and built, with the DSP-wrapper trace, bulk/3D
 generation, and layer 2 named as the real remaining gaps.
+
+## 683. Real, sim-verified RTL for a 2-bit fine shift stage, reframed from "nano's own independent shift" into a shared-addon upgrade benefiting all 8 cores at once, per Alan's own precise design ("if we add just a 2 bit cumulative shift to each core... it would give the full bit coverage across every core"). Four testbenches, 100%+12+37*2 checks, all passing. Nothing wired into a shell yet, by explicit request. (Alan/Claude, 2026-09-07)
+
+**The real reframe, confirmed by construction before any RTL was
+written:** the existing `shift_lane_addon_v1` supports exactly 9
+sparse coarse amounts (`{1,2,4,8,12,16,20,24,28}`). Alan's own precise
+proposal: layer a small, GENERAL 2-bit fine stage (0-3) in front of
+it. Checked directly: the union of `{tap + 0,1,2,3}` across all 9 taps
+(plus the implicit 0) is the full, gap-free 0-31 range, since no two
+adjacent taps are ever more than 4 apart -- confirmed mathematically
+before building, then confirmed again by exhaustive simulation below.
+Since `addon_config` is core-independent (always active regardless of
+`core_select`), this benefits all 8 cores in one place -- a genuinely
+better shape than nano getting its own separate, independent mechanism,
+which was the original `#616` framing.
+
+**The real problem Alan named precisely, caught before it became a
+bug, not after:** "it has to hit before the lane mechanism, and carry
+that value through to it, or it will fail." `shift_lane_addon_v1`'s
+own `lane_cut` boundary-crossing math is computed from `shift_amt`
+alone -- once a fine pre-shift moves data by 0-3 bits upstream, that
+window is wrong by up to 3 bits unless recomputed from the TOTAL real
+shift.
+
+**Real RTL, matching "clone, don't modify a proven file" exactly:**
+- `fpga/verilog/shift_fine_addon_v1.v` -- a genuine general 2-bit
+  shifter, no unsupported-amount case (unlike its sparse coarse
+  sibling), forwarding the REAL fine shift that actually happened
+  (`shift_amount_out`, forced to 0 when disabled, regardless of the
+  configured value) for the coarse stage's own lane_cut math to use.
+- `fpga/verilog/shift_lane_addon_v2.v` -- cloned from `v1` (left
+  completely untouched; its own original testbench still passes
+  bit-for-bit, confirmed, not assumed). The ONLY real change: a new
+  `shift_fine_in[1:0]` input folded into `lane_s` (`shift_amt +
+  shift_fine_in`, max 31, still exactly 5 bits, no overflow).
+
+**Real, full verification, four testbenches, all passing:**
+`tb_shift_fine_addon_v1.v` (12 checks: both directions, all 4 real
+amounts, the shift_en=0-forces-zero forwarding rule). `tb_shift_lane_
+addon_v2.v` (full regression of v1's own proven testbench with
+shift_fine_in=0 -- bit-identical -- plus new fine-correction cases,
+every expected value confirmed by directly simulating the module in
+isolation FIRST, not hand-derived algebra, since an all-ones data
+pattern turned out not to reveal a window-position shift for every
+boundary -- bit8 coincidentally stays constant in that specific case;
+bit16/bit24 do show a real, clear divergence, used instead).
+`tb_shift_chain_v1.v` -- the real, end-to-end proof: both addons
+chained together (fine's own `shift_amount_out` wired straight into
+coarse's `shift_fine_in`), swept across every real (coarse, fine)
+combination in both directions, each checked against a plain
+behavioral shift by the TRUE total amount -- 74/74 checks passing,
+genuinely proving gap-free 0-31 coverage rather than asserting it from
+the construction argument alone.
+
+**A real bug found and fixed in the TESTBENCH itself while building,
+not the design under test:** `tb_shift_chain_v1.v`'s own direction
+sweep first used a 1-bit `reg` as a `for`-loop counter -- incrementing
+past 1 silently wraps back to 0, a genuine infinite loop, caught by a
+hung simulation (`vvp` timing out with zero output) rather than a
+wrong result. Fixed with a separate `integer` loop variable, real
+lesson for any future sweep-both-directions testbench in this project.
+
+**Real, honest scope, per Alan's own explicit request ("Yes sim
+verify..."):** nothing wired into any shell yet. Real, separate,
+deliberately unstarted next steps: wiring both new addons into
+`unicell_super_v1.v` through `v8.v` in place of each shell's existing
+lone `shift_lane_addon_v1` instance, allocating the real
+`shift_fine[1:0]` config bits from the 13 genuinely-reserved
+`SUPER_LATCH[79:67]` bits, and updating `icm_v3.py`'s own field tables
+to match. `docs/stripped-cell/design-notes/promotable_specialist_
+modules.md`'s own Addendum updated with the real reframe and this
+entry's own detail.

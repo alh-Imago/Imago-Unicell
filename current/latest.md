@@ -1,4 +1,45 @@
-# Current State (as of 2026-09-07, Tier-1 composed-tile export is real and built -- export_tier1_tile(), correctly handling real nested composition, fan-out, and mixed non-super_records bucket detection. See `points/points_active.md` #682)
+# Current State (as of 2026-09-07, real sim-verified RTL for a shared 2-bit fine shift addon -- reframed from "nano's own independent shift" into a benefit for all 8 cores, per Alan's own precise design. 4 testbenches, all passing. Nothing wired into a shell yet, by explicit request. See `points/points_active.md` #683)
+
+## Read this first (most recent)
+
+**2026-09-07, shift_fine_addon_v1 + shift_lane_addon_v2 built and
+sim-verified (#683).** Started from the standing "nano's own
+independent shift" queue item; Alan's own precise reframe made it a
+shared-addon upgrade instead: a small, general 2-bit fine stage (0-3)
+in front of the existing 9-tap coarse `shift_lane_addon_v1`, giving
+full gap-free 0-31 coverage since no two adjacent taps are more than 4
+apart -- benefits all 8 cores at once (addon_config is core-
+independent), not nano alone.
+
+**The real problem Alan named precisely before it became a bug:**
+`shift_lane_addon_v1`'s own `lane_cut` boundary-crossing math uses
+`shift_amt` alone -- a fine pre-shift upstream makes that window wrong
+by up to 3 bits unless the fine amount is carried through and folded
+into the total. `shift_lane_addon_v2` (cloned from v1, v1 itself
+untouched and still passing its own original testbench bit-for-bit)
+adds exactly that: a `shift_fine_in[1:0]` input feeding `lane_s`.
+
+**Real, full verification, four testbenches, all passing:**
+`tb_shift_fine_addon_v1.v` (12 checks), `tb_shift_lane_addon_v2.v`
+(full v1 regression + new fine-correction cases, expected values
+confirmed by direct simulation, not hand algebra -- an all-ones data
+pattern turned out not to reveal a position shift at every boundary),
+`tb_shift_chain_v1.v` (74/74 checks, both addons chained, swept
+across every real (coarse, fine) pair in both directions against a
+plain behavioral shift by the true total).
+
+**A real bug found in the TESTBENCH, not the design:** a 1-bit `reg`
+used as a `for`-loop direction counter wrapped silently past 1, a
+genuine infinite loop caught by a hung simulation. Fixed with a
+separate `integer` counter.
+
+**Real, honest scope: nothing wired into any shell yet**, per Alan's
+own explicit "sim verify" request. Wiring into `unicell_super_v1.v`-
+`v8.v`, allocating the real config bits from the 13 genuinely-reserved
+`SUPER_LATCH[79:67]` bits, and updating `icm_v3.py`'s field tables are
+real, separate, deliberately unstarted next steps.
+
+## Previous state (as of 2026-09-07, Tier-1 composed-tile export is real and built -- export_tier1_tile(), correctly handling real nested composition, fan-out, and mixed non-super_records bucket detection. See `points/points_active.md` #682)
 
 ## Read this first (most recent)
 

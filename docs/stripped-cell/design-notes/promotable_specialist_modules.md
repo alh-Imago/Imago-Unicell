@@ -219,3 +219,69 @@ concrete design constraint to work within, not resolved here. A real,
 precise proposal captured so it survives intact, matching every other
 `*_scope.md`/design-note's own discipline in this directory -- not
 started this session, given low usage.
+
+## Update (2026-09-07): a genuinely better shape found, sim-verified real RTL built — not nano-specific, a shared-addon upgrade benefiting all 8 cores at once
+
+**The real reframe, per Alan's own direct design call:** rather than
+build nano its own SEPARATE, independent shift mechanism, add a small,
+GENERAL 2-bit "fine" shift stage (0-3) immediately in front of the
+existing `shift_lane_addon_v1` in the shared addon chain. Confirmed
+directly, by construction: the union of `{coarse_tap + 0,1,2,3}` for
+every one of the 9 real coarse taps (`{1,2,4,8,12,16,20,24,28}`, plus
+the implicit 0) covers the ENTIRE 0-31 range with zero gaps, since no
+two adjacent taps are ever more than 4 apart. Two bits, not five —
+genuinely cheaper than a general barrel shifter, and it benefits every
+one of the 8 cores at once (since `addon_config` is core-independent),
+not just nano.
+
+**The real problem this creates, caught and fixed, per Alan's own
+direct point ("it has to hit before the lane mechanism, and carry that
+value through to it, or it will fail"):** `shift_lane_addon_v1`'s own
+`lane_cut` boundary-crossing math is computed from `shift_amt` alone.
+Once a fine pre-shift moves the data by 0-3 bits before the coarse
+stage ever sees it, `lane_cut`'s window is wrong by up to 3 bits unless
+it's recomputed from the TOTAL real shift (coarse + fine), not the
+coarse portion alone.
+
+**Real RTL built and sim-verified, matching the "clone, don't modify a
+proven file" rule exactly:**
+- `shift_fine_addon_v1.v` — a genuine general 2-bit shifter (no
+  unsupported-amount case, unlike its sparse coarse sibling), same
+  direction convention, forwarding the REAL fine shift that actually
+  happened (`shift_amount_out`, forced to 0 when `shift_en=0`,
+  regardless of the configured value) downstream.
+- `shift_lane_addon_v2.v` — cloned from `v1` (left completely
+  untouched, its own testbench still passes bit-for-bit, unmodified);
+  the ONLY change is a new `shift_fine_in[1:0]` input folded into
+  `lane_cut`'s own `lane_s` computation (`shift_amt + shift_fine_in`,
+  max 31, still exactly 5 bits).
+
+**Real, full verification, four testbenches, all passing:**
+`tb_shift_fine_addon_v1.v` (12 checks, the fine stage standalone,
+both directions, all 4 real amounts); `tb_shift_lane_addon_v2.v` (a
+full regression of `v1`'s own proven testbench with `shift_fine_in=0`
+— bit-identical, confirmed — plus new, directly-simulated-not-hand-
+derived cases proving the `lane_cut` window genuinely tracks the total
+shift); `tb_shift_chain_v1.v` — the real, end-to-end proof of the
+whole claim: both addons chained together, swept across every real
+`(coarse, fine)` combination in both directions, each result checked
+against a plain behavioral shift by the true total amount — 74/74
+checks passing, confirming genuine, gap-free 0-31 coverage, not just
+asserted by construction.
+
+**One real bug found and fixed in the testbench itself while building
+this, not the RTL:** the integration testbench's own direction sweep
+used a 1-bit `reg` as a `for`-loop counter (`direction`), which wraps
+silently past 1 back to 0 — a real infinite loop, caught by a hung
+simulation, not a logic error in the design under test. Fixed with a
+separate `integer` loop variable.
+
+**Real, honest scope: sim-verified only, not yet wired into any
+shell.** Per Alan's own explicit request ("Yes sim verify..."), this
+stops at standalone RTL + testbenches. Wiring `shift_fine_addon_v1` +
+`shift_lane_addon_v2` into `unicell_super_v1.v` through `v8.v` (in
+place of the lone `shift_lane_addon_v1` instance each currently has),
+allocating the real `shift_fine[1:0]` config bits from the 13
+genuinely-reserved `SUPER_LATCH[79:67]` bits, and updating `icm_v3.py`'s
+own field tables to match, are real, separate, deliberately unstarted
+next steps.
