@@ -208,8 +208,10 @@ def _wrap_signed32(v: int) -> int:
 
 
 def apply_addons(value: int, addon_config: dict) -> int:
-    """nibble_mask -> shift_lane -> invert, matching unicell_super_v1.v
-    lines 337-349's real instantiation order exactly."""
+    """nibble_mask -> shift_fine -> shift_lane -> invert, matching
+    unicell_super_v1.v's real instantiation order exactly (points.md
+    #684: the fine stage was inserted between mask and the original
+    coarse stage, per Alan's own direct design)."""
     value &= _MASK32
 
     # nibble_mask_addon_v1.v
@@ -221,26 +223,40 @@ def apply_addons(value: int, addon_config: dict) -> int:
                 keep |= 0xF << (4 * nibble)
         value &= keep
 
-    # shift_lane_addon_v1.v -- sparse fixed-pattern shift, faithfully ported
-    if addon_config.get("shift_en"):
-        amt = addon_config.get("shift_amt", 0)
-        direction = addon_config.get("direction", 0)
+    shift_en = addon_config.get("shift_en", 0)
+    direction = addon_config.get("direction", 0)
+    shift_fine = addon_config.get("shift_fine", 0) & 0b11
+    shift_amt = addon_config.get("shift_amt", 0)
+
+    # shift_fine_addon_v1.v -- always-complete 2-bit fine shift,
+    # unconditionally first in the chain (points.md #684).
+    if shift_en and shift_fine:
+        if direction:  # SHIFT_OUT (right)
+            value = (value >> shift_fine) & _MASK32
+        else:  # SHIFT_IN (left)
+            value = (value << shift_fine) & _MASK32
+
+    # shift_lane_addon_v2.v -- sparse fixed-pattern coarse shift
+    # (faithfully ported, unchanged from v1), plus lane_cut's own real
+    # fine-corrected total-shift window math (points.md #684).
+    if shift_en:
         _SUPPORTED = (1, 2, 4, 8, 12, 16, 20, 24, 28)
-        if amt in _SUPPORTED:
+        if shift_amt in _SUPPORTED:
             if direction:  # SHIFT_OUT (right)
-                shifted = (value >> amt) & _MASK32
+                shifted = (value >> shift_amt) & _MASK32
                 lane_cut = addon_config.get("lane_cut", 0)
-                lane_ones = (1 << amt) - 1
+                lane_s = shift_amt + shift_fine   # real, TOTAL shift -- #684
+                lane_ones = (1 << lane_s) - 1
                 lane_kill = _MASK32
                 if lane_cut & 1:
-                    lane_kill &= ~((lane_ones << 8) >> amt) & _MASK32
+                    lane_kill &= ~((lane_ones << 8) >> lane_s) & _MASK32
                 if lane_cut & 2:
-                    lane_kill &= ~((lane_ones << 16) >> amt) & _MASK32
+                    lane_kill &= ~((lane_ones << 16) >> lane_s) & _MASK32
                 if lane_cut & 4:
-                    lane_kill &= ~((lane_ones << 24) >> amt) & _MASK32
+                    lane_kill &= ~((lane_ones << 24) >> lane_s) & _MASK32
                 value = shifted & lane_kill
             else:  # SHIFT_IN (left)
-                value = (value << amt) & _MASK32
+                value = (value << shift_amt) & _MASK32
         # unsupported amount: deliberate no-op, matches the RTL exactly
 
     # invert_addon_v1.v

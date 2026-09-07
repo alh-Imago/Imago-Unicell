@@ -174,6 +174,63 @@ def test_addon_chain_order_mask_then_shift_then_invert():
     assert out == 0xFFFFF0FF
 
 
+# ── shift_fine (points.md #684/#690) -- real 2-bit fine shift, always
+# runs first, chained before the coarse stage; lane_cut's own window
+# math uses the TOTAL (coarse+fine) shift, cross-checked bit-for-bit
+# against the real RTL (shift_fine_addon_v1.v -> shift_lane_addon_v2.v)
+# via a real iverilog run, not assumed correct from the Python alone.
+
+def test_addon_fine_shift_alone_right():
+    out = apply_addons(0x00000010, {"shift_en": 1, "shift_amt": 0, "direction": 1, "shift_fine": 2})
+    assert out == 0x00000004
+
+
+def test_addon_fine_shift_alone_left():
+    out = apply_addons(0x00000001, {"shift_en": 1, "shift_amt": 0, "direction": 0, "shift_fine": 3})
+    assert out == 0x00000008
+
+
+def test_addon_fine_and_coarse_combine_for_full_0_31_range():
+    # Real, direct confirmation of the whole point of the fine stage:
+    # coarse taps alone only reach {0,1,2,4,8,12,16,20,24,28} -- amount
+    # 11 (a real gap between coarse taps 8 and 12) is only reachable as
+    # coarse=8 + fine=3.
+    out = apply_addons(0x80000000, {"shift_en": 1, "shift_amt": 8, "direction": 1, "shift_fine": 3})
+    assert out == (0x80000000 >> 11) & 0xFFFFFFFF
+
+
+def test_addon_fine_shift_cross_checked_against_real_rtl():
+    # Real, independent confirmation, not just internal consistency:
+    # this exact (value, shift_amt=8, shift_fine=2, direction=right,
+    # lane_cut=0) case was also run through the actual
+    # shift_fine_addon_v1.v -> shift_lane_addon_v2.v RTL chain via
+    # iverilog and produced the identical 0x00048d15.
+    value = 0x12345678
+    out = apply_addons(value, {"shift_en": 1, "direction": 1, "shift_amt": 8, "shift_fine": 2, "lane_cut": 0})
+    assert out == 0x00048d15
+
+
+def test_addon_lane_cut_uses_the_real_total_shift_not_coarse_alone():
+    # The real bug #684's own fine+coarse split would reintroduce if
+    # lane_cut's window used shift_amt alone: a boundary crossing that
+    # only happens because of the fine portion would be missed.
+    value = 0xFFFFFFFF
+    # coarse=8, fine=0: window sized for exactly 8
+    out_no_fine = apply_addons(value, {"shift_en": 1, "direction": 1, "shift_amt": 8,
+                                        "shift_fine": 0, "lane_cut": 0b001})
+    # coarse=8, fine=3 (total 11): window must be sized for 11, not 8
+    out_with_fine = apply_addons(value, {"shift_en": 1, "direction": 1, "shift_amt": 8,
+                                          "shift_fine": 3, "lane_cut": 0b001})
+    assert out_no_fine != out_with_fine   # real, different window sizes must give different results
+
+
+def test_addon_shift_fine_defaults_to_zero_backward_compatible():
+    # Every existing addon_config dict (no "shift_fine" key at all)
+    # must behave EXACTLY as before this change.
+    out = apply_addons(0x00000010, {"shift_en": 1, "shift_amt": 4, "direction": 1})
+    assert out == 0x00000001
+
+
 def test_nano_delegates_to_real_cacell():
     # topology=OR(0x024), ready=1, routing_mask=N(1), cardinal_edge=0 (consume all)
     rec = _rec("c0", 0, 0, "nano", {"topology": 0x024, "ready": 1, "routing_mask": 1, "cardinal_edge": 0})

@@ -55,6 +55,17 @@ from typing import Optional
 CORE_SELECT_LO, CORE_SELECT_HI = 0, 4          # [4:0]   5 bits
 CORE_CONFIG_LO, CORE_CONFIG_HI = 5, 46         # [46:5]  42 bits
 ADDON_CONFIG_LO, ADDON_CONFIG_HI = 47, 66      # [66:47] 20 bits
+SHIFT_FINE_LO, SHIFT_FINE_HI = 67, 68          # [68:67] 2 bits, #683/#684 --
+                                                 # a real, SEPARATE bit range
+                                                 # from addon_config (deliberately
+                                                 # NOT inside [66:47] -- that
+                                                 # range was already 100%
+                                                 # allocated). Packed/unpacked
+                                                 # here as if it were one more
+                                                 # addon_config key, for a clean,
+                                                 # unified caller-facing dict --
+                                                 # see encode_super_latch()/
+                                                 # decode_super_latch() below.
 RESERVED_LO, RESERVED_HI = 67, 79              # [79:67] 13 bits
 
 SUPER_LATCH_WIDTH = 80
@@ -414,10 +425,20 @@ def encode_super_latch(core: "int|str", core_config: dict, addon_config: Optiona
     sel = CORE_IDS[core] if isinstance(core, str) else core
     if sel not in CORE_NAMES:
         raise ValueError(f"core_select {sel} has no field table (values 6-31 are reserved, per #317)")
+    addon_config = dict(addon_config or {})
+    # points.md #690: shift_fine lives in a real, separate bit range
+    # ([68:67], outside addon_config's own fully-allocated [66:47]) --
+    # popped out here so pack_addon_config() (which rejects unknown
+    # keys, #310's own real safety check) never sees it, and packed
+    # into its own real field instead. A caller-facing convenience,
+    # not a hardware fact: from the outside, shift_fine is just one
+    # more addon_config key.
+    shift_fine = addon_config.pop("shift_fine", 0)
     latch = 0
     latch = _set_field(latch, CORE_SELECT_LO, CORE_SELECT_HI, sel)
     latch = _set_field(latch, CORE_CONFIG_LO, CORE_CONFIG_HI, pack_core_config(sel, core_config))
-    latch = _set_field(latch, ADDON_CONFIG_LO, ADDON_CONFIG_HI, pack_addon_config(addon_config or {}))
+    latch = _set_field(latch, ADDON_CONFIG_LO, ADDON_CONFIG_HI, pack_addon_config(addon_config))
+    latch = _set_field(latch, SHIFT_FINE_LO, SHIFT_FINE_HI, shift_fine)
     return latch
 
 
@@ -425,10 +446,13 @@ def decode_super_latch(latch: int) -> dict:
     sel = _get_field(latch, CORE_SELECT_LO, CORE_SELECT_HI)
     core_config_raw = _get_field(latch, CORE_CONFIG_LO, CORE_CONFIG_HI)
     addon_config_raw = _get_field(latch, ADDON_CONFIG_LO, ADDON_CONFIG_HI)
+    shift_fine = _get_field(latch, SHIFT_FINE_LO, SHIFT_FINE_HI)
+    addon_config = unpack_addon_config(addon_config_raw)
+    addon_config["shift_fine"] = shift_fine
     out = {
         "core_select": sel,
         "core": CORE_NAMES.get(sel, f"reserved_{sel}"),
-        "addon_config": unpack_addon_config(addon_config_raw),
+        "addon_config": addon_config,
     }
     if sel in CORE_FIELD_TABLES:
         out["core_config"] = unpack_core_config(sel, core_config_raw)

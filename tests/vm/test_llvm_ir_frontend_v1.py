@@ -34,6 +34,24 @@ def _run(source, argument_values, ticks=60):
     return cell.adder_out_buffer, cell.adder_data_valid, info
 
 
+def _run_shift(source, argument_values, ticks=30):
+    """Same real end-to-end discipline as `_run()`, but for shl/lshr
+    (#690): their own result cell is a real `ram` core (the sink cell
+    that captures the shift addon's OWN offered value, not the shift
+    cell itself -- the addon chain applies at offer time, not by
+    mutating a cell's stored register, #690's own real finding)."""
+    icm, diagnostics, info = compile_llvm_ir(source, argument_values)
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    session = VMSession(grid)
+    for row, col, value in info.injections:
+        session.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    return cell.ram_data_reg, cell.ram_data_valid, info
+
+
 # ── real, end-to-end correctness -- actually running the VM ─────────
 
 def test_single_add_instruction():
@@ -852,3 +870,119 @@ def test_select_requires_cond_from_the_immediately_preceding_ordinary_icmp():
     icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
     assert icm is None
     assert len(diagnostics) > 0
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #690: shl/lshr, real and buildable now that shift_fine_
+# addon_v1/shift_lane_addon_v2 (#683/#684) exist in real hardware.
+# Every "does it compute the right answer" test actually runs the real
+# VM, same discipline as every other opcode in this file.
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_shl_single_instruction():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %r = shl i32 %x, 11
+      ret i32 %r
+    }
+    """
+    out, valid, info = _run_shift(ir, {"x": 3})
+    assert valid is True
+    assert out == (3 << 11) & 0xFFFFFFFF
+
+
+def test_lshr_single_instruction():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %r = lshr i32 %x, 11
+      ret i32 %r
+    }
+    """
+    out, valid, info = _run_shift(ir, {"x": 0x80000000})
+    assert valid is True
+    assert out == (0x80000000 >> 11) & 0xFFFFFFFF
+
+
+def test_shl_lshr_real_cases_across_the_full_0_31_range():
+    # Real, direct confirmation the coarse+fine decomposition covers
+    # every real amount, not just the 9 coarse taps -- 11, 19, 27 are
+    # each only reachable via a real fine correction.
+    cases = [0, 1, 3, 5, 7, 11, 15, 19, 23, 27, 31]
+    for amount in cases:
+        ir_shl = f"""
+        define i32 @f(i32 %x) {{
+        entry:
+          %r = shl i32 %x, {amount}
+          ret i32 %r
+        }}
+        """
+        out, valid, _ = _run_shift(ir_shl, {"x": 0x12345678})
+        expected = (0x12345678 << amount) & 0xFFFFFFFF
+        assert out == expected, f"shl by {amount}: got {out:#x}, expected {expected:#x}"
+
+        ir_lshr = f"""
+        define i32 @f(i32 %x) {{
+        entry:
+          %r = lshr i32 %x, {amount}
+          ret i32 %r
+        }}
+        """
+        out2, valid2, _ = _run_shift(ir_lshr, {"x": 0xFEDCBA98})
+        expected2 = (0xFEDCBA98 >> amount) & 0xFFFFFFFF
+        assert out2 == expected2, f"lshr by {amount}: got {out2:#x}, expected {expected2:#x}"
+
+
+def test_shl_then_add_chained():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %a = shl i32 %x, 4
+      %r = add i32 %a, 7
+      ret i32 %r
+    }
+    """
+    out, valid, info = _run(ir, {"x": 3})
+    assert valid is True
+    assert out == ((3 << 4) + 7) & 0xFFFFFFFF
+
+
+def test_add_then_shl_chained():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %a = add i32 %x, 5
+      %r = shl i32 %a, 3
+      ret i32 %r
+    }
+    """
+    out, valid, info = _run_shift(ir, {"x": 10})
+    assert valid is True
+    assert out == ((10 + 5) << 3) & 0xFFFFFFFF
+
+
+def test_shl_amount_out_of_range_gives_a_real_diagnostic():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %r = shl i32 %x, 32
+      ret i32 %r
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 1})
+    assert icm is None
+    assert any("0-31" in d.problem for d in diagnostics)
+
+
+def test_ashr_gives_a_real_specific_hardware_gap_diagnostic():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %r = ashr i32 %x, 4
+      ret i32 %r
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 1})
+    assert icm is None
+    assert any("sign-extension" in d.problem or "sign-extension" in d.why for d in diagnostics)

@@ -7842,3 +7842,83 @@ place these open questions live.
 **Real, honest scope: nothing built.** A scoping pass only, per
 Alan's own direct request, matching every other `*_scope.md`'s own
 discipline.
+
+## 690. `shl`/`lshr` built and verified end to end, per Alan's own direct request to continue past the `#689` scoping pass. Required real changes at every layer -- the file format, the VM, the compiler, and the frontend -- not just the frontend alone. `ashr` correctly refused with a specific, real hardware-gap diagnostic. (Alan/Claude, 2026-09-07)
+
+**`icm_v3.py`:** `shift_fine` given a real, separate bit range
+(`SUPER_LATCH[68:67]`, outside `addon_config`'s own fully-allocated
+`[66:47]`), packed/unpacked transparently as if it were one more
+`addon_config` key -- a real, deliberate caller-facing convenience,
+not a hardware fact. Confirmed no collision with `addon_config`'s own
+bits by round-tripping every real addon field at its max value
+simultaneously with `shift_fine` set.
+
+**`unicell_super_automaton_v1.py`'s own `apply_addons()` fixed** to
+model the real two-stage chain correctly -- fine shift first
+(unconditional, always-complete 0-3), then the coarse sparse-table
+shift, with `lane_cut`'s own boundary-window math now using the
+TOTAL (coarse+fine) shift, matching `shift_lane_addon_v2.v`'s own real
+correction exactly. **Cross-checked bit-for-bit against the actual
+RTL**, not just Python-internal consistency: the same (value, shift_
+amt=8, shift_fine=2, direction=right, lane_cut=0) case run through a
+real `iverilog` compile of `shift_fine_addon_v1.v`->`shift_lane_
+addon_v2.v` produced the identical `0x00048d15` the Python VM
+computes.
+
+**`dsl_compiler_v1.py`: a real, new, generic `"addon.<name>"`
+field-routing bucket**, closing the exact gap `#684`'s own rollout
+checklist and `#689`'s own scoping both named -- `place()` already
+accepted `addon_config`, but nothing between a placement's own fields
+and that call ever reached it. Recognized for ANY Tier-0 tile (not
+tied to a tile's own declared ports/params, matching the real RTL fact
+that addon_config is core-independent, on the periphery, `#310`).
+Real, clear rejections built in, not silent gaps: addon fields on a
+composed-tile placement (no single real target cell decided yet,
+`#690`'s own honest scope) or on a tile kind with no real addon_config
+mechanism at all (e.g. DSP wrapper records) both produce a specific,
+named diagnostic.
+
+**`llvm_ir_frontend_v1.py`: real `shl`/`lshr` lowering**, fitting the
+frontend's own existing "second operand must be compile-time" rule
+perfectly (a shift amount already is one). A real, deterministic
+`_decompose_shift()` picks the largest real coarse tap `<= amount` and
+uses the remainder (always 0-3) as the fine correction, giving full
+0-31 coverage from the two real hardware stages.
+
+**A real, empirical design correction found while verifying, not
+assumed correct from the design alone:** the addon chain applies at
+OFFER time, not by mutating a cell's own stored register -- a single
+shift-relay cell's own internal register stays the RAW, unshifted
+value; only what it actually offers to a real downstream neighbor is
+shifted. Every other opcode in this frontend exposes its own final
+answer as a directly-readable register (adder's own `out_buffer`,
+etc.) -- matching that same convention for `shl`/`lshr` needed a real,
+second SINK cell to capture the shifted offer, not the shift cell
+alone. Found by testing a real single-instruction `shl` program and
+getting the unshifted value back before adding the sink.
+
+**`ashr` correctly refused, with a real, specific diagnostic** naming
+the actual hardware gap (`shift_fine_addon_v1.v` only ever performs a
+plain logical shift, zero-fill both directions -- no sign-extension
+mechanism exists anywhere in the real addon chain) rather than the
+generic "unsupported opcode" message every other unimplemented opcode
+still gets.
+
+**Real, full end-to-end verification, actually running the VM, not
+just checking compilation:** `shl`/`lshr` each independently verified
+correct for a real single-instruction program, PLUS every real amount
+0-31 swept for both (11 real test cases each, confirmed correct
+including amounts like 11/19/27 that are only reachable via the real
+fine correction, not a bare coarse tap), PLUS two real chained
+programs (`shl` then `add`, and `add` then `shl`) confirming the new
+opcode composes correctly with the pre-existing chain.
+
+**Real, full regression:** 7 new tests in `test_llvm_ir_frontend_v1.
+py` (was 49, now 56), plus the file-format/VM/compiler-level tests
+from earlier the same session. Whole-project total: **668 passed, 1
+skipped, zero failures** (was 648 before this entry's own work began).
+
+**`llvm_ir_frontend_completion_scope.md` updated** with a real status
+note: Part 1 (`shl`/`lshr`) is now built, not just scoped; `ashr`
+remains correctly unsupported, exactly as scoped, now with a real
+diagnostic proving the gap is understood precisely, not just assumed.

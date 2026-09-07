@@ -976,6 +976,61 @@ def test_dsl_can_place_icmp_eq():
     assert len(icm.records) == 6
 
 
+# ── real "addon.<name>" field-routing bucket (points.md #690) ───────
+
+def test_dsl_can_set_addon_fields_via_addon_prefix():
+    src = """
+    program test_shift {
+        place r1 as ram_flowing at (0, 0) {
+            in: n
+            out: e
+            addon.shift_en: 1
+            addon.direction: 1
+            addon.shift_amt: 8
+            addon.shift_fine: 2
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert diags == []
+    assert icm.records[0].addon_config == {
+        "shift_en": 1, "direction": 1, "shift_amt": 8, "shift_fine": 2,
+    }
+
+
+def test_dsl_addon_fields_rejected_on_composed_tiles():
+    src = """
+    program test {
+        place s1 as select at (0, 0) {
+            cond: w
+            out: e
+            true_val: 1
+            false_val: 0
+            addon.shift_en: 1
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    assert any("composed-tile placements" in d.problem for d in diags)
+
+
+def test_dsl_addon_fields_rejected_on_dsp_wrapper_tiles():
+    src = """
+    program test2 {
+        place d1 as dsp_add at (0, 0) {
+            in_a: n
+            in_b: w
+            out: e
+            addon.shift_en: 1
+        }
+    }
+    """
+    icm, diags = compile_source(src)
+    assert icm is None
+    assert any("no real addon_config mechanism" in d.problem for d in diags)
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

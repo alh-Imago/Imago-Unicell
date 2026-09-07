@@ -327,6 +327,49 @@ def test_preload_value_is_covered_by_record_hash():
     assert icm_a.record_hash() != icm_b.record_hash()
 
 
+# ── shift_fine, real SEPARATE bit range [68:67] (points.md #684/#690) ─
+
+def test_shift_fine_round_trips_through_super_latch():
+    latch = v3.encode_super_latch(
+        "ram", {"upstream_mask": ["n"], "downstream_mask": ["e"]},
+        {"shift_en": 1, "direction": 1, "shift_amt": 8, "shift_fine": 3},
+    )
+    decoded = v3.decode_super_latch(latch)
+    assert decoded["addon_config"]["shift_fine"] == 3
+    assert decoded["addon_config"]["shift_amt"] == 8
+
+
+def test_shift_fine_defaults_to_zero_when_absent():
+    latch = v3.encode_super_latch("ram", {"upstream_mask": ["n"], "downstream_mask": ["e"]}, {})
+    decoded = v3.decode_super_latch(latch)
+    assert decoded["addon_config"]["shift_fine"] == 0
+
+
+def test_shift_fine_does_not_collide_with_addon_config_bits():
+    # shift_fine lives at [68:67], a real, separate range from
+    # addon_config's own fully-allocated [66:47] -- setting every real
+    # addon_config field to its max value must not perturb shift_fine,
+    # and vice versa.
+    full_addon = {"nibble_mask": 0xFF, "mask_en": 1, "shift_amt": 28, "shift_en": 1,
+                  "direction": 1, "lane_cut": 0b111, "invert_en": 1, "shift_fine": 3}
+    latch = v3.encode_super_latch("ram", {"upstream_mask": ["n"], "downstream_mask": ["e"]}, full_addon)
+    decoded = v3.decode_super_latch(latch)
+    for k, v in full_addon.items():
+        assert decoded["addon_config"][k] == v, f"{k}: {decoded['addon_config'][k]!r} != {v!r}"
+
+
+def test_shift_fine_survives_icm_file_save_load_round_trip():
+    rec = v3.IcmV3Record(cell_id="r0", row=0, col=0, core="ram",
+                          core_config={"upstream_mask": ["n"], "downstream_mask": ["e"]},
+                          addon_config={"shift_en": 1, "direction": 1, "shift_amt": 4, "shift_fine": 2})
+    icm = v3.IcmV3File(name="shift_test", records=[rec])
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "shift.icm")
+        icm.save(path)
+        loaded = v3.IcmV3File.load(path)
+    assert loaded.records[0].addon_config["shift_fine"] == 2
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

@@ -336,8 +336,17 @@ def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[Dict[s
 
     port_directions: Dict[str, object] = {}
     params: Dict[str, object] = {}
+    addon_config: Dict[str, object] = {}
     for f in stmt.fields:
-        if f.key in port_names:
+        # points.md #690: a real, reserved "addon.<name>" field-name
+        # convention, recognized generically for ANY tile -- addon_
+        # config is genuinely core-independent, on the periphery
+        # (#310), not part of any tile's own declared port/param
+        # contract, so it needs its own bucket rather than being
+        # squeezed into either existing one.
+        if f.key.startswith("addon."):
+            addon_config[f.key[len("addon."):]] = f.value
+        elif f.key in port_names:
             port_directions[f.key] = f.value
         elif f.key in param_names:
             params[f.key] = f.value
@@ -347,9 +356,29 @@ def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[Dict[s
                 what=f"field '{f.key}' on placement '{stmt.name}'",
                 problem=f"'{f.key}' is neither a port nor a param of tile '{stmt.tile_name}'",
                 why=f"tile '{stmt.tile_name}' only has ports {sorted(port_names)} "
-                    f"and params {sorted(param_names)}",
+                    f"and params {sorted(param_names)} (or a real 'addon.<name>' field)",
                 span=f.span,
             ))
+
+    if addon_config and is_composed:
+        diagnostics.append(CompileDiagnostic(
+            severity="error", stage="resolve",
+            what=f"addon field(s) {sorted(addon_config)} on placement '{stmt.name}'",
+            problem="addon_config fields aren't supported on composed-tile placements yet",
+            why="a composed tile has several real physical cells -- which one an "
+                "'addon.<name>' field would even apply to isn't decided (#690); "
+                "real, separate future work, not attempted here",
+        ))
+    elif addon_config and tile_source.bucket != "super_records":
+        diagnostics.append(CompileDiagnostic(
+            severity="error", stage="resolve",
+            what=f"addon field(s) {sorted(addon_config)} on placement '{stmt.name}'",
+            problem=f"tile '{stmt.tile_name}' (bucket {tile_source.bucket!r}) has no real "
+                     "addon_config mechanism at all",
+            why="addon_config is a real, specific part of the OLD super-cell lineage's own "
+                "SUPER_LATCH format (#310) -- other real record kinds (e.g. DSP wrapper "
+                "records) don't have an equivalent concept",
+        ))
 
     if diagnostics:
         return None, diagnostics
@@ -382,7 +411,8 @@ def _resolve_and_place(stmt: PlaceIR, composed_library) -> Tuple[Optional[Dict[s
             return result, diagnostics
         else:
             rec = tile_source.place_fn(tile, stmt.row, stmt.col, port_directions, params,
-                                        cell_id=f"{stmt.name}@{stmt.row},{stmt.col}")
+                                        cell_id=f"{stmt.name}@{stmt.row},{stmt.col}",
+                                        **({"addon_config": addon_config} if addon_config else {}))
             return {tile_source.bucket: [rec]}, diagnostics
     except ValueError as e:
         diagnostics.append(CompileDiagnostic(

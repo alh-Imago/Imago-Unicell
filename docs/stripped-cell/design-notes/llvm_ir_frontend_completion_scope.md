@@ -8,6 +8,18 @@ built here.*
 
 ## Part 1: `shl`/`lshr`/`ashr` — real, concrete, mostly buildable now
 
+**Real status update, 2026-09-07, same day: `shl`/`lshr` are now
+built and verified.** Everything below this note was the original
+scoping; the real build followed it closely, with one real design
+correction found empirically (see `points.md #690`): the addon chain
+applies at OFFER time, not by mutating a cell's own stored register,
+so the lowering needs a real second "sink" cell to capture the
+shifted value into something directly readable, matching every other
+opcode's own convention -- not just the single relay cell originally
+imagined. `ashr` remains unsupported, exactly as scoped, with a real,
+specific diagnostic naming the hardware gap rather than a generic
+"unsupported opcode" message.
+
 **The good news: the shift AMOUNT fits the frontend's existing
 restriction perfectly.** LLVM's `shl`/`lshr`/`ashr` take the value to
 shift and a shift amount; this frontend already requires an

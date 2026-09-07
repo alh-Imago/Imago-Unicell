@@ -1,4 +1,43 @@
-# Current State (as of 2026-09-07, real scope written for shl/lshr/ashr plus a full LLVM frontend completion roadmap, including an honest answer to "can it compile itself." Design-note only, nothing built. See `points/points_active.md` #689)
+# Current State (as of 2026-09-07, shl/lshr built and verified end to end -- real changes needed at every layer (file format, VM, compiler, frontend), not just the frontend alone. ashr correctly refused with a specific hardware-gap diagnostic. See `points/points_active.md` #690)
+
+## Read this first (most recent)
+
+**2026-09-07, shl/lshr built (#690).** Per Alan's own direct request
+to continue past `#689`'s scoping pass. Needed real changes at every
+layer, not just the frontend:
+
+- **`icm_v3.py`:** `shift_fine` given its own real bit range
+  (`SUPER_LATCH[68:67]`), packed/unpacked as if it were one more
+  `addon_config` key.
+- **`unicell_super_automaton_v1.py`:** `apply_addons()` fixed to model
+  the real two-stage fine-then-coarse chain, `lane_cut` now using the
+  TOTAL shift. Cross-checked bit-for-bit against a real `iverilog` run
+  of the actual RTL -- identical result.
+- **`dsl_compiler_v1.py`:** a new, generic `"addon.<name>"` field-
+  routing bucket -- `place()` already accepted `addon_config`, nothing
+  ever reached it before this. Real, clear rejections for composed
+  tiles and non-addon-capable tile kinds (e.g. DSP wrapper).
+- **`llvm_ir_frontend_v1.py`:** real `shl`/`lshr` lowering via a
+  deterministic coarse+fine decomposition.
+
+**A real, empirical correction found while verifying:** the addon
+chain applies at OFFER time, not by mutating a cell's stored register
+-- needed a real second sink cell to capture the shifted value into
+something directly readable, matching every other opcode's own
+convention. Found by testing a real program and getting the raw,
+unshifted value back first.
+
+**`ashr` correctly refused** with a specific diagnostic naming the
+real hardware gap (no sign-extension exists anywhere in the addon
+chain) rather than a generic message.
+
+**Real, full end-to-end verification:** `shl`/`lshr` swept across
+every real amount 0-31 (including amounts only reachable via the fine
+correction), plus two real chained programs, all run through the
+actual VM. Full regression: 668 passed, 1 skipped, zero failures (was
+648).
+
+## Previous state (as of 2026-09-07, real scope written for shl/lshr/ashr plus a full LLVM frontend completion roadmap, including an honest answer to "can it compile itself." Design-note only, nothing built. See `points/points_active.md` #689)
 
 ## Read this first (most recent)
 

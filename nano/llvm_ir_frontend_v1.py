@@ -89,7 +89,23 @@ from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from program_ir_v1 import ProgramIR, PlaceIR, FieldIR  # noqa: E402
 from dsl_compiler_v1 import compile_program_ir  # noqa: E402
 
-_SUPPORTED_OPCODES = {"add", "sub", "icmp", "select"}
+_SUPPORTED_OPCODES = {"add", "sub", "icmp", "select", "shl", "lshr"}
+
+# points.md #690: real, deterministic decomposition of any shift amount
+# 0-31 into (coarse, fine) -- coarse is one of shift_lane_addon_v2.v's
+# own 9 real sparse taps (or 0, a real no-op), fine is 0-3
+# (shift_fine_addon_v1.v, #683). Picks the LARGEST real coarse tap
+# `<= amount`; the remainder is always 0-3 by construction, since no
+# gap between consecutive real coarse taps exceeds 4.
+_COARSE_TAPS = (0, 1, 2, 4, 8, 12, 16, 20, 24, 28)
+
+
+def _decompose_shift(amount: int) -> Tuple[int, int]:
+    coarse = max(t for t in _COARSE_TAPS if t <= amount)
+    fine = amount - coarse
+    assert 0 <= fine <= 3, f"internal error: fine={fine} out of range for amount={amount}"
+    return coarse, fine
+
 
 # points.md #613: real, verified derivation -- reuses the exact same
 # real, proven primitives #611 already verified (the adder's own
@@ -332,6 +348,17 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
 
     for i, instr in enumerate(body_instructions):
         if instr.opcode not in _SUPPORTED_OPCODES:
+            if instr.opcode == "ashr":
+                diagnostics.append(_diag(
+                    problem=f"unsupported instruction: 'ashr' ({str(instr).strip()})",
+                    what=f"lowering instruction {i + 1} of {len(body_instructions)}",
+                    why="a real, separate HARDWARE gap, not missing compiler support: "
+                        "shift_fine_addon_v1.v/shift_lane_addon_v2.v (#683/#684) only ever "
+                        "perform a plain LOGICAL shift (zero-fill both directions) -- there "
+                        "is no sign-extension mechanism anywhere in the real addon chain "
+                        "(#690). 'lshr' is fully supported; 'ashr' needs new RTL first.",
+                ))
+                return None, diagnostics, None
             diagnostics.append(_diag(
                 problem=f"unsupported instruction: {instr.opcode!r} ({str(instr).strip()})",
                 what=f"lowering instruction {i + 1} of {len(body_instructions)}",
@@ -480,6 +507,81 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     "restriction) -- it can never reference another instruction's result",
             ))
             return None, diagnostics, None
+
+        if instr.opcode in ("shl", "lshr"):
+            # points.md #690: real, buildable now that shift_fine_
+            # addon_v1/shift_lane_addon_v2 (#683/#684) exist in real
+            # hardware -- the shift amount already fits this
+            # frontend's own existing "second operand must be compile-
+            # time" rule perfectly, no new restriction needed. `ashr`
+            # deliberately NOT supported: confirmed directly against
+            # `shift_fine_addon_v1.v`'s own real implementation, the
+            # addon chain only ever does a plain LOGICAL shift
+            # (zero-fill both directions) -- there is no sign-
+            # extension mechanism anywhere in it. That's a real,
+            # separate hardware gap, not something this frontend can
+            # work around in software.
+            if not (0 <= second_value <= 31):
+                diagnostics.append(_diag(
+                    problem=f"{instr.opcode} amount {second_value} is outside the real, "
+                             f"supported 0-31 range",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="a 32-bit shift by more than 31 bits is undefined in LLVM itself, "
+                        "and every real cardinal cell's own shift addon chain caps out at 31 "
+                        "(28 max coarse tap + 3 max fine) -- there is no larger real amount "
+                        "to lower this to",
+                ))
+                return None, diagnostics, None
+
+            result = ((first_value << second_value) if instr.opcode == "shl"
+                      else (first_value >> second_value)) & 0xFFFFFFFF
+            known_values[instr.name] = result
+
+            # Real, minimal placement -- genuinely simpler than add/sub/
+            # icmp's own shared "diff cell" scaffold: shl/lshr have
+            # only ONE real dynamic input (the chain value, from the
+            # west) and no second delivered operand at all -- the
+            # shift amount is entirely config, not a live arrival, so
+            # none of add/sub/icmp's own two-operand same-tick-
+            # collision staggering applies here.
+            #
+            # Real, necessary SECOND cell, found empirically while
+            # testing this: the addon chain applies at OFFER time, not
+            # by mutating a cell's own stored register (confirmed
+            # directly -- the shift cell's own `ram_data_reg` stays the
+            # RAW, unshifted value; only what it OFFERS to a real
+            # downstream neighbor is actually shifted). Every other
+            # opcode in this frontend exposes its own final answer as a
+            # directly-readable register (adder's own `out_buffer`,
+            # etc.) -- matching that convention here needs a real sink
+            # cell to CAPTURE the shifted offer into its own readable
+            # register, not just the shift cell alone.
+            coarse, fine = _decompose_shift(second_value)
+            shift_col = col_cursor
+            if i == 0:
+                # No stagger needed (unlike add/sub/icmp's own i==0
+                # case): there is only ever ONE injected value here,
+                # never a second one landing on the same tick.
+                injections.append((1, shift_col, first_value))
+            statements.append(PlaceIR(
+                name=f"op_{i}_shift", tile_name="ram_flowing", row=1, col=shift_col,
+                fields=[
+                    FieldIR("in", "w"), FieldIR("out", "e"),
+                    FieldIR("addon.shift_en", 1),
+                    FieldIR("addon.direction", 1 if instr.opcode == "lshr" else 0),
+                    FieldIR("addon.shift_amt", coarse),
+                    FieldIR("addon.shift_fine", fine),
+                ],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}", tile_name="ram_flowing", row=1, col=shift_col + 1,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+            ))
+            col_cursor = shift_col + 2
+            last_result_row = 1
+            prev_instr_name = instr.name
+            prev_icmp_predicate = None
+            continue
 
         if instr.opcode == "icmp":
             predicate = _icmp_predicate(instr)
