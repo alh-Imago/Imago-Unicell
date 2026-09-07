@@ -1,4 +1,48 @@
-# Current State (as of 2026-09-07, real scope notes written for Composer's full editor and AI training buckets, per Alan's own direct request. Both design-notes-only, matching the project's own "scope before build" discipline. See `points/points_active.md` #677)
+# Current State (as of 2026-09-07, real full doc + static-page staleness audit done per Alan's own direct request -- a map, not a rewrite. Confirmed the command core + VIX Carrier appear in zero standing reference docs, found 2 stale static pages, 1 genuinely finished one, and a stale gh-pages site. See `points/points_active.md` #678)
+
+## Read this first (most recent)
+
+**2026-09-07, full doc + static-page audit (#678).** Alan extended the
+`#676`/`#677` orphaned-work review to documentation: "add full doc
+review and update static html pages to the list as well, some will be
+behind and some will not have changed, but they need completing."
+`docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md` -- every claim checked
+directly (git dates, keyword searches, cross-referenced against the
+ledger), same method as `POINTS_STATUS_AUDIT.md`/`_2.md`.
+
+**The single biggest finding:** the command core and the 9-core VIX
+Carrier (`#644`/`#647`, a full week of real RTL+VM work) appear in
+ZERO of the project's own standing reference docs -- confirmed by
+direct grep across `CORES_AND_WRAPPERS_REFERENCE.md`,
+`SUPER_CELL_INTERNALS.md`, `PROJECT_PHILOSOPHY.md`, `docs/README.md`,
+`README.md`, `VM_CORE_GAP_ANALYSIS.md`. `ICM_V3_FORMAT.md` had
+literally named its own update trigger ("when nano's dynamic-
+reprogramming channel lands in the RTL...") -- `#650` fired it three
+weeks ago, doc never touched.
+
+**Three real, different static-HTML findings, not one blanket
+"stale":** `docs/manual.html` is stale AND possibly orphaned entirely
+(a live, always-fresh `/manual` route already exists per `#558`, and
+nothing else in the repo references the static file -- flagged as a
+real decision needed, not assumed). `cell_pipeline_explainer.html`
+confirmed stale by inspecting its own embedded core list directly
+(still 6 cores, missing branch/sequencer/command and every `#650`
+loop-routing field). `chaos_topology_demo.html` confirmed genuinely
+NOT stale -- it documents one fixed, real captured run by its own
+design, not a living reference; the one item that's actually finished.
+
+**The public `gh-pages` site** (separate branch, 5 pages, last touched
+`#369`) -- confirmed stale with real evidence: `status.html` states
+"211 tests" (real count is 593) and shows the original 6-core shell as
+current architecture, missing everything from `project_assemble_v1.py`
+onward.
+
+**Real, honest scope: nothing rewritten.** This is the map. Real next
+step, not done here: an actual refresh pass per doc/page, matching
+`#369`'s own original "read fully, rewrite what's stale, verify every
+figure" discipline.
+
+## Previous state (as of 2026-09-07, real scope notes written for Composer's full editor and AI training buckets, per Alan's own direct request. Both design-notes-only, matching the project's own "scope before build" discipline. See `points/points_active.md` #677)
 
 ## Read this first (most recent)
 

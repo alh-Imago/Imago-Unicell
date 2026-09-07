@@ -6991,3 +6991,77 @@ follow the exact same discipline as `composer_scope.md`/
 increment identified and ready to pick up for each, but the actual
 choice of when/whether to build either is explicitly left to Alan, not
 made here.
+
+## 678. Real doc + static-page staleness audit, per Alan's own direct request extending `#676`/`#677` ("add full doc review and update static html pages to the list as well... some will be behind and some will not have changed, but they need completing"). `docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md` -- a map, not a rewrite, matching the exact discipline `POINTS_STATUS_AUDIT.md`/`_2.md` already established. (Alan/Claude, 2026-09-07)
+
+**Method: every claim checked directly, not assumed from a doc's own
+edit date alone** -- git dates for every live (non-`archeology/`) `.md`
+doc, cross-checked by direct keyword search for the three most recent
+major landmarks not yet reflected anywhere (command core `#644`, the
+VIX Carrier + 9 cardinal shells `#639`/`#645`-`#647`, nano's loop-
+routing field extension `#650`); the three live HTML files and the
+separate `gh-pages` branch (5 pages) inspected the same way.
+
+**The single biggest, most concrete finding:** the command core and
+the entire 9-core VIX Carrier -- a full week of real, working RTL and
+VM code -- appear in precisely ZERO of this project's own standing
+reference docs or public-facing pages. Confirmed by direct grep: zero
+hits for "vix"/"command core"/"cardinal shell" across
+`CORES_AND_WRAPPERS_REFERENCE.md`, `SUPER_CELL_INTERNALS.md`,
+`PROJECT_PHILOSOPHY.md`, `docs/README.md`, `README.md`, and
+`VM_CORE_GAP_ANALYSIS.md`.
+
+**Real, specific staleness confirmed per doc, not a blanket guess:**
+`CORES_AND_WRAPPERS_REFERENCE.md` (2026-08-25) still says "all 6 cores"
+and lists only the original six -- no branch/sequencer/command/VIX
+anywhere, the most stale of the group. `ICM_V3_FORMAT.md` (2026-08-16)
+explicitly named its OWN trigger condition for updating ("when nano's
+dynamic-reprogramming channel is added to the RTL, the field table
+gets extended to match") -- `#650` fired that trigger three weeks ago
+and the doc was never touched. `SUPER_CELL_INTERNALS.md` (2026-09-02)
+covers "the 8 real cores" in real depth but landed 2 days before the
+command core made it 9. `README.md` (2026-09-02, the most current)
+still predates the command core, VIX Carrier, and the LLVM IR loop
+compiler entirely. `current/VM_CORE_GAP_ANALYSIS.md` (2026-08-08) is
+old enough that whether it's still a living document or belongs
+alongside `archeology/` is flagged as a real, undecided question
+rather than assumed either way.
+
+**Static HTML, three real, different findings, not one blanket
+"stale":**
+- `docs/manual.html` -- stale on two counts, not one: content baked
+  2026-08-18 (`#376`), AND possibly genuinely orphaned now that `#558`
+  built a live, always-fresh `/manual` route. Checked directly: no
+  reference to `docs/manual.html` anywhere else in the repo, no GitHub
+  Pages config pointing at `docs/` (the separate `gh-pages` branch is
+  its own unrelated site). Flagged as a real, conscious decision
+  needed (re-bake for a genuine offline use case, or retire the
+  generator) rather than assumed.
+- `tools/explainers/cell_pipeline_explainer.html` (`#489`, 2026-08-24)
+  -- confirmed stale by inspecting its own embedded `CORES` array
+  directly: still the original 6 cores, nano's own field list stops
+  before every loop-routing field `#650` added. A real, concrete
+  completion task, not a vague one.
+- `tools/explainers/chaos_topology_demo.html` (`#393`, 2026-08-18) --
+  confirmed NOT stale, needs no completion. Its own page text states
+  plainly it documents one specific, genuine captured VM run, not a
+  living architecture reference -- the one item on the whole list
+  that's genuinely finished as-is, matching Alan's own "some will not
+  have changed" framing exactly.
+
+**The public `gh-pages` site (5 pages, separate branch, last touched
+`#369`, 2026-08-17)** -- confirmed stale with real evidence, not just
+its own old date: `status.html` states "211 tests" (real current count
+593, `#676`) and presents the original 6-core shell as "the current
+architecture" with 2026-08-24-era Quartus figures -- roughly 80 ledger
+entries and three weeks behind `main`, missing `project_assemble_v1.py`,
+LogicLock/moat, the command core, the VIX Carrier, and the LLVM IR
+loop compiler entirely.
+
+**Real, honest scope: nothing rewritten.** Per Alan's own explicit
+framing, this entry is the map, not the fix -- a real audit locating
+every stale living doc and static page, confirming which ones
+genuinely don't need touching (the `*_scope.md` design notes, by their
+own point-in-time nature; `chaos_topology_demo.html`, by its own fixed-
+snapshot nature), and naming one real open question (`docs/manual.html`'s
+continued reason to exist) rather than deciding it here.
