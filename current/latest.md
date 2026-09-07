@@ -1,4 +1,49 @@
-# Current State (as of 2026-09-07, real structural decision made for the AI training buckets -- partition by area/bucket, reusing the existing tile-source-registry self-registration mechanism. Still design-note-only. See `points/points_active.md` #680)
+# Current State (as of 2026-09-07, the AI training bucket exporter's real, minimal first slice is built -- nano/training_bucket_export_v1.py, per Alan's own direct choice to pick one item off the standing list. See `points/points_active.md` #681)
+
+## Read this first (most recent)
+
+**2026-09-07, training bucket exporter built (#681).** Per Alan's own
+direct choice ("pick one and start on that") -- `nano/training_bucket_
+export_v1.py` walks `tile_source_registry_v1.py`'s own self-
+registering tile sources and `workbench_v1.py`'s own `DEMOS` dict,
+writing one real JSON file per tile/demo (`#680`'s own area-partition
+decision), plus a fresh `manifest.json` every run. 19 real tile
+buckets, 6 real demo buckets, produced from a real run.
+
+**A real bug found and fixed while building:** `icm_record.to_dict()`
+crashed for `nano_gate`/`branch`/the loop tiles -- their own
+`routing_mask`/`route_low`-family fields are deliberately excluded
+from `icm_v3._DIR_FIELDS` (they need different packing than a plain
+4-bit mask), so calling `to_dict()` on a raw, un-normalized `place()`
+result hits a real gap the normal DSL-compiler pipeline never
+exercises. Fixed by reading the record's own real attributes directly
+instead of routing through `to_dict()`'s narrower assumption.
+
+**A second real correction, this time to the scope note itself:**
+`ai_training_buckets_scope.md` had claimed Tier-0 and Tier-1 tiles
+"both live in the same real registry" -- checked while building and
+found false: Tier-1 composed tiles are a genuinely separate library,
+never self-registered into `tile_source_registry_v1`. Fixed in the
+doc, not built around silently.
+
+**A real, empirical design choice:** a tick after each delivered input
+port, not just at the end -- accumulator's own real "same-tick arrivals
+net to zero" semantics made the first version's trace technically
+correct but confusing. Also found, and left as accurate rather than
+"fixed": the registered `accumulator` tile exposes no `step_amount`
+param, so its real default (0) means every inc/dec genuinely moves the
+total by zero today.
+
+**Real, honest scope, unattempted here and stated plainly in the
+module's own docstring:** Tier-1 composed-tile export, a real DSP-
+wrapper trace (metadata-only today), any bulk/3D generation, and layer
+2 (attaching a real model) all remain real, separate future work.
+
+**Real, full regression:** 14 new tests in `test_training_bucket_
+export_v1.py`, all passing; 606 passed + 1 skipped overall (was 592),
+zero failures elsewhere.
+
+## Previous state (as of 2026-09-07, real structural decision made for the AI training buckets -- partition by area/bucket, reusing the existing tile-source-registry self-registration mechanism. Still design-note-only. See `points/points_active.md` #680)
 
 ## Read this first (most recent)
 

@@ -7201,3 +7201,80 @@ structural decision.
 **Real, honest scope: still nothing built.** A same-day update to a
 same-day scope note, per Alan's own direct follow-up, matching this
 note's own "define the boundary before writing anything" discipline.
+
+## 681. The AI training bucket exporter's real, minimal first slice is built -- `nano/training_bucket_export_v1.py`, per Alan's own direct choice to pick one item off the standing list and build it thoroughly. A real, pre-existing bug found and fixed along the way, not assumed away. (Alan/Claude, 2026-09-07)
+
+**Real, working exporter, matching `#680`'s own area-partition
+decision exactly:** walks `tile_source_registry_v1.py`'s own self-
+registering tile sources (Tier-0 primitives via `super_tile_library_
+v1.py`, DSP-wrapper tiles via `dsp_wrapper_tile_library_v1.py`) and
+`workbench_v1.py`'s own `DEMOS` dict, writing one real JSON file per
+tile/demo into `tiles/`/`demos/`, plus a `manifest.json` index
+regenerated fresh every run. 19 real tile buckets and 6 real demo
+buckets produced from the current repo state on a real run.
+
+**A real bug found and fixed while building, not papered over:**
+`icm_record.to_dict()` -- which packs into the compact `SUPER_LATCH`
+hex format via `pack_core_config()` -- crashed with a real `TypeError`
+for `nano_gate`, `branch`, and both loop tiles specifically, because
+`icm_v3._DIR_FIELDS[core_select]` deliberately does NOT list nano's
+`routing_mask`/`cardinal_edge` or branch's `route_low`/`route_equal`/
+`route_high` (they need a different packing than a plain 4-bit
+one-hot, by design). Calling `to_dict()` directly on a raw `place()`
+result -- before the normal DSL-compiler pipeline's own `dm()`
+normalization runs -- hits exactly this gap. Real fix: this exporter
+doesn't need the packed hex at all, only the real, readable field
+values, so it reads `icm_record`'s own attributes directly instead of
+routing through `to_dict()`'s narrower assumption. `SuperCell.from_
+record()` (used for the actual VM trace) already does its own correct
+normalization and was never affected.
+
+**A real, second, honest correction made to `ai_training_buckets_
+scope.md` itself while building:** that note's own first draft claimed
+Tier-0 and Tier-1 tiles "both live in the same real registry today" --
+checked directly while building the exporter and found FALSE: Tier-1
+composed tiles (`composed_tile_library_v1.py`) are a genuinely
+separate library, confirmed against `tile_source_registry_v1.py`'s own
+docstring, never self-registered into the generic hook at all. Fixed
+in the scope note rather than silently building around it.
+
+**Real, deliberate design choice, found empirically not assumed:** a
+real tick is inserted after EACH delivered input port, not just at the
+very end -- accumulator's own real, documented "same-tick arrivals net
+to zero" semantics meant the first version's trace (deliver all inputs
+back-to-back, then tick) produced a technically-correct but pedagogically-
+confusing result. A separate real, honest finding surfaced by this same
+test: the registered `accumulator` TILE exposes no `step_amount` param
+at all, so its real default (0) means every inc/dec genuinely moves the
+total by exactly zero -- confirmed as correct CURRENT tile behavior,
+not a bug, and left as an accurate reflection of what the tile actually
+does today rather than worked around.
+
+**Real, honest scope boundaries, stated plainly in the module's own
+docstring and enforced in code, not just described:** Tier-1 composed
+tiles are NOT exported (real, separate future work -- multi-cell
+auto-placement + canonical param selection, the same class of problem
+`composer_full_editor_scope.md` already flagged); only `"super_
+records"`-bucket tile sources get a real, actually-executed VM trace --
+`dsp_wrapper_records` sources get real static metadata plus an
+explicit, honest note why no trace exists, never a faked one; demos
+get a real, actually-compiled ICM record (proving the source still
+compiles) but no generic injected trace, since there's no generic
+name-to-injection mechanism for arbitrary multi-cell demo programs yet.
+
+**Real, full test coverage, `tests/vm/test_training_bucket_export_v1.
+py`, 14 tests, all passing:** direction-assignment edge cases (exactly
+4 ports, >4 rejected), a real, arithmetically-verified adder trace
+(5+3=8, checked against the actual VM output, not asserted blind), the
+nano_gate/branch regression tests for the bug above, the honest
+DSP-wrapper metadata-only path, real demo compilation (including a
+genuine compile-failure path via a deliberately broken synthetic
+demo), and the full `export_all()` manifest/file-count/re-run-safety
+checks. Full regression: 606 passed + 1 skipped (was 592), zero
+failures elsewhere.
+
+**`ai_training_buckets_scope.md` updated to close the loop:** its own
+"Status" section now states plainly that the first slice is real and
+built, not "no code exists yet," and lists what's genuinely still
+open (Tier-1 export, a real DSP-wrapper trace, the bulk/3D generation
+axis, layer 2 itself).

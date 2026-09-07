@@ -61,12 +61,21 @@ one file.
 already exists as its own real unit in the code, not a fresh
 taxonomy:**
 
-1. **`tiles/`** — one bucket file per entry in `super_tile_library_
-   v1.py`'s tile registry (Tier-0 primitives AND Tier-1 composed tiles
-   both live in the same real registry today, so both fall in this
-   one area naturally — `nano_gate`, `adder`, `sentinel`,
-   `dual_threshold_monitor`, `select`'s own loop-tile relatives, etc.,
-   each already a distinct, named, independently-described unit).
+1. **`tiles/`** — one bucket file per entry in `tile_source_registry_
+   v1.py`'s own self-registering tile sources (Tier-0 primitives via
+   `super_tile_library_v1.py`, plus DSP-wrapper tiles via `dsp_
+   wrapper_tile_library_v1.py` — both genuinely self-register into the
+   SAME generic registry today, confirmed directly). **Real correction
+   made while building the first slice, 2026-09-07:** Tier-1 COMPOSED
+   tiles (`sentinel`, `dual_threshold_monitor`, `twin_sentinel`, the
+   loop tiles) do NOT live in this registry — `composed_tile_library_
+   v1.py` is a genuinely separate library, confirmed directly against
+   `tile_source_registry_v1.py`'s own docstring ("Tier-1 composed
+   tiles... remain super-tile-only sub-cells for now"). This was
+   wrongly stated as already-unified in this note's own first draft;
+   corrected once actually checked, not left silently wrong. Exporting
+   Tier-1 composed tiles is real, separate future work — see "Status"
+   below.
 2. **`demos/`** — one bucket file per entry in `workbench_v1.py`'s own
    `DEMOS` dict. Genuinely different from `tiles/`: a demo is a
    complete, wired, runnable PROGRAM (possibly combining several
@@ -210,6 +219,12 @@ schema), before deciding how many thousand of them to generate.
 
 ## Status
 
-No code exists for any of this yet. Design/scoping note only, per
-Alan's own direct request, following the exact discipline every other
-`*_scope.md` in this directory already uses.
+**Updated 2026-09-07, real code now exists — the first slice from
+above is built:** `nano/training_bucket_export_v1.py` (`points.md
+#681`) implements the `tiles/`/`demos/` exporter exactly as scoped,
+including the real per-tile/per-demo file layout `#680` decided. 14
+real tests, `tests/vm/test_training_bucket_export_v1.py`, all passing,
+zero regressions (606 total). Genuinely still NOT built: Tier-1
+composed-tile export (see the real correction above), a real DSP-
+wrapper trace (metadata-only today, honestly), any bulk/3D generation
+axis (`#604`), and anything in layer 2 (attaching a real model).
