@@ -181,6 +181,7 @@ super_tile_library_v1.py`), not transcribed from memory.
 | `accumulator` | `inc`, `dec`, `out` | — | A running total, continuously offered. `inc`/`dec` are genuinely separate fields (unlike the adder). Same-tick arrivals on both net to zero. |
 | `comparator` | `in`, `out` | `threshold` | Stateless: `1` if the input (signed) is `>= threshold`, else `0`. |
 | `latch` | `set`, `clear`, `out` | — | A continuously-live sticky bit. `clear` wins if both arrive the same tick. |
+| `branch` | `in`, `route_low`, `route_equal`, `route_high` | `rolling_mode` | Real, added `points.md` #608. Captures the first arrival as a reference (or continuously updates it if `rolling_mode` is set), then routes each later arrival out `route_low`/`route_equal`/`route_high` depending on how it compares against that reference. Always emits on every outcome — passes the arrived value straight through, no fixed-override params exposed yet. |
 
 ## 5. Tier-1 tiles — built-in composed tiles
 
@@ -349,6 +350,22 @@ for the same logical program.
   sitter-rust` are confirmed installable (checked directly before
   choosing this approach for C), and the same design pattern would
   apply — a real, separate undertaking, not attempted in this pass.
+
+- **A real LLVM IR frontend** (`nano/llvm_ir_frontend_v1.py`,
+  `points.md #612`-`#674`) — compiles real LLVM IR straight to the same
+  shared `ProgramIR`/backend. Real, working today: ascending and
+  descending single-variable counting loops (`phi`/`br`/`icmp`,
+  lowered onto a real, proven 4-cell bounded loop-ring), `select`
+  (ternary), and `icmp eq`/`ne` — each composed from existing
+  primitives, no bespoke hardware. Real, honest, narrow scope, stated
+  plainly: one induction variable per loop, no nested loops, no loop
+  body beyond the induction variable itself yet, each restriction
+  producing a real, specific diagnostic rather than a silent wrong
+  answer. See `docs/stripped-cell/design-notes/
+  llvm_ir_compiler_scope.md` for the original scoping note (some of
+  what it named as future work has since shipped — check `points/
+  points_active.md` #612 onward for the real, current status rather
+  than assuming the scope note alone is up to date).
 
 ## 8. Targets — Unicell-n vs. Unicell-S
 

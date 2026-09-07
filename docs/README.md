@@ -66,18 +66,32 @@ to start."
   Alan's own "needs careful planning" framing.
 - **`stripped-cell/design-notes/`** — the same concept-stage-proposal
   category, for the super carrier shell / Unicell-S line specifically.
-  Three entries: the tile library's own Tier-0/Tier-1 scoping note
-  (written before any of it was built), the DSL/compiler design
-  proposal, and a genuinely long-range note (general-purpose,
-  language-agnostic programming compiled onto Unicell-S, and its
-  possible link to lowering the compiler's own output all the way to
-  synthesizable Verilog) — deliberately deferred, per Alan's own words:
-  "sort after all this is sorted."
+  **Updated 2026-09-07:** grown well past the original three entries —
+  now roughly 20 real design notes (command core, the VIX Carrier, the
+  LLVM IR compiler, DSP timing, the tile designer, Composer's full
+  editor, AI training buckets, and more), each dated and scoped at its
+  own top; see the directory listing directly rather than an
+  enumeration here, which would only go stale again.
 
 See `../archeology/TRIAGE.md` for the full pass over everything else in
 `archeology/` — most of it turned out to be genuinely cell-specific or
 a different axis entirely (compiler/VM/application layer, not cell
 mechanics), with reasons recorded rather than silently skipped.
+
+## Keeping this current — real, standing self-audits, not assumed clean
+
+- **`shared/POINTS_STATUS_AUDIT.md`** / **`shared/POINTS_STATUS_
+  AUDIT_2.md`** — a curated map on top of `points/`'s own chronological
+  ledger: what's done, what's genuinely still pending, what's an open
+  thought-direction with no build started.
+- **`shared/DOCS_AND_STATIC_PAGES_AUDIT.md`** (2026-09-07) — the same
+  discipline applied to documentation and static HTML output itself:
+  which "living" reference docs have fallen behind the real
+  architecture, which static pages need real completion work, and
+  which are genuinely finished as-is (a fixed historical snapshot
+  isn't "stale" just because time has passed). Read this before
+  assuming any doc here is current — it names the real gaps directly
+  rather than leaving them to be rediscovered.
 
 ## Structure
 

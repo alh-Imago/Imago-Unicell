@@ -89,7 +89,11 @@ layer" distinction before this conversation happened at all). The
 training buckets (`#510`/`#511`) are the real, concrete next piece —
 not a philosophical aspiration, a specific, buildable knowledge layer
 that turns an already-real connection point into something genuinely
-useful at scale.
+useful at scale. **Real scoping update, 2026-09-07:** `#510`/`#511`
+themselves never named a concrete shape for what a "training bucket"
+actually contains — `docs/stripped-cell/design-notes/ai_training_
+buckets_scope.md` names four genuinely different real candidates and
+identifies a minimal first slice, still nothing built.
 
 ## Real, honest scope
 

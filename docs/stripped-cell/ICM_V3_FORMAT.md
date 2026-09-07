@@ -67,6 +67,21 @@ super_latch[46:5]`).
 | `ready` | `[10]` | nano's `ready` bit |
 | `routing_mask` | `[16:11]` | nano's routing_mask (6-bit, 3D-ready) |
 | `cardinal_edge` | `[22:17]` | nano's cardinal_edge (6-bit) |
+| `hold_in` | `[23]` | nano's hold_in bit — real, added `points.md` #650 |
+| `fb_internal_in` | `[24]` | nano's fb_internal_in bit — real, added `#650` |
+| `a_reemit_in` | `[25]` | nano's a_reemit_in bit — real, added `#650` |
+| `a_update_in` | `[26]` | nano's a_update_in bit — real, added `#650` |
+| `a_self_update_in` | `[27]` | nano's a_self_update_in bit — real, added `#650` |
+| `dynamic_route_en` | `[28]` | enables `nano_gate_v4.v`'s own real comparator-driven routing — real, added `#650` |
+| `pattern_low` | `[32:29]` | 4-bit routing pattern (dynamic routing) — real, added `#650` |
+| `pattern_equal` | `[36:33]` | 4-bit routing pattern (dynamic routing) — real, added `#650` |
+| `pattern_high` | `[40:37]` | 4-bit routing pattern (dynamic routing) — real, added `#650` |
+
+Bit 41 remains real, spare headroom in this 42-bit budget. The five
+`hold_in`-through-`a_self_update_in` fields and the four dynamic-
+routing fields are the real, direct mechanism `#637`/`#638`'s own
+proven bounded-loop-ring construction (and the LLVM IR frontend's real
+loop compilation, `#652`/`#653`/`#661`) are built on.
 
 **RAM** (`core_select=1`) — full 42 bits used:
 | Field | Bits |
@@ -126,14 +141,25 @@ core-independent — `unicell_super_v1.v` lines 337-349):
 
 ## Scope, stated honestly (matches `unicell_super_v1.v`'s own header)
 
-nano's own extra ports beyond the basic cardinal handshake —
-command-cell mode, feedback (`fb_internal_in`/`a_reemit_in`/
-`a_update_in`/`a_self_update_in`), and the dedicated dynamic-
-reprogramming channel — are **out of scope for this first ICM v3 build**,
-same as they're out of scope for `unicell_super_v1.v` itself. There is
-no field for them in the nano table above. When that support is added to
-the RTL, the nano field table gets extended to match — not invented
-speculatively ahead of it.
+**Updated 2026-09-07 (`#650` fired the trigger condition this section
+originally named):** feedback (`fb_internal_in`/`a_reemit_in`/
+`a_update_in`/`a_self_update_in`) and dynamic comparator-driven routing
+(`dynamic_route_en`/`pattern_low`/`pattern_equal`/`pattern_high`) ARE
+now real fields in the nano table above, added `points.md` #650 — the
+real, direct mechanism the LLVM IR frontend's own loop compilation
+(`#652`/`#653`/`#661`) needs and uses.
+
+**Still genuinely out of scope, not yet added:** nano's own real
+command-cell mode and the dedicated dynamic-reprogramming channel —
+there is no field for either in the nano table above. Separately, and
+more significantly: this entire ICM v3 format is scoped to the OLD
+core lineage (`unicell_super_v1.v`-`v8.v`) only. The real, newer VIX
+Carrier generation (`command_cell_v4.v`, `unicell_vix_carrier_v1.v`,
+`points.md` #628-#666 — see `CORES_AND_WRAPPERS_REFERENCE.md`'s own
+dedicated section) has NO portable, on-disk ICM format of its own yet;
+it exists only in RTL simulation and the VM's own in-memory classes.
+Widening this format (or building a genuinely new one) for that family
+is real, separate, unstarted work, not attempted here.
 
 ## Record / file format
 

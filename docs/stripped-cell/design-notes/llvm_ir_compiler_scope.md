@@ -1,5 +1,18 @@
 # LLVM IR → Unicell-S compiler backend — real scope (CONCEPT, review before building)
 
+# LLVM IR → Unicell-S compiler backend — real scope (CONCEPT, review before building)
+
+**Real, status update, 2026-09-07 — read this before the rest of the
+note below:** this scope note was written at `#603`/2026-09-02 when
+NOTHING was built yet. Since then, a real, working LLVM IR frontend
+(`nano/llvm_ir_frontend_v1.py`) shipped and has grown through `#674`:
+ascending/descending single-variable counting loops, `select`, and
+`icmp eq`/`ne` are all real today, each verified end-to-end through
+the actual VM. The concept-stage framing and open questions below may
+no longer all be open — check `points/points_active.md` #612 onward
+and `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md` §7 for the real,
+current status rather than assuming this note alone reflects it.
+
 *Captured 2026-09-02, per `points.md #547` (2026-08-31)'s own real,
 long-standing intent, and `#603` (2026-09-02)'s own real observation
 that this session's new VM-mirror + simulated-Walker infrastructure

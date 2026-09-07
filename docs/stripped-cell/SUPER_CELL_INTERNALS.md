@@ -403,3 +403,28 @@ See `points.md` #324-#356 for the original build/verification
 narrative, and `#515`-`#543` for this session's own real extensions
 (accumulator/adder/latch fields, nano's exposed ports, branch cell's
 real RTL slot, the VM sync, and every real silicon confirmation).
+
+## A genuinely different, newer generation exists alongside this one — the VIX Carrier (`points.md` #628-#666, 2026-09-04/05/06)
+
+**This document's own scope stops at `unicell_super_v1.v`/`v2.v`/
+`v3.v` (the ORIGINAL core lineage, up to 8 real cores).** A real,
+separate, parallel lineage was built afterward: a full second core
+generation (`nano_gate_v4.v`, `ram_cell_v4.v`, etc. — confusingly
+versioned, see the warning below), a real 9th core (`command`), each
+wrapped in its own real cardinal control shell, all combined into
+`unicell_vix_carrier_v1.v`. **Full detail — the `VIX_LATCH` register
+layout, the command core's own two modes, and the real, current
+Quartus/silicon status (not yet run) — lives in
+`CORES_AND_WRAPPERS_REFERENCE.md`'s own dedicated section, not
+duplicated here**, matching this doc's own established cross-
+referencing convention with `CELL_INTERNALS.md`.
+
+**The one thing worth stating here directly, since it's easy to get
+backwards:** despite the "v4" in both places, `unicell_super_v4.v`
+(a real file in THIS document's own lineage, the 4th shell version)
+and the VIX Carrier's own `nano_gate_v4.v`/`command_cell_v4.v`/etc.
+(a completely different, unrelated cell GENERATION) are not the same
+thing and don't share any code — a real naming collision the VIX
+Carrier's own RTL header deliberately flags and avoids, not
+discovered after the fact.
+

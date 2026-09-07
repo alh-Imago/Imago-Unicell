@@ -206,3 +206,86 @@ config-time selectable, not synthesis-time fixed.
 - **Sim-only, but real Quartus fit already confirmed for the wrapping top-level (SDC-verified, real timing):** accumulator, comparator, latch — the three cells themselves aren't independently Quartus-built yet, but `top_sentinel_discrete_test_v2.v` (the self-test wrapping all three) has a real, SDC-confirmed fit: 78 ALM, `clk_div` 272.26 MHz, no failing paths (`points.md` #306-#308).
 - **Sim-only, no Quartus attempt yet:** `shift_lane_addon_v1.v`, `nibble_mask_addon_v1.v`, `invert_addon_v1.v` — the first real ADDON instances (`#311`), faithfully ported and testbench-verified, not yet wired into any cell or built in Quartus.
 - **A genuinely different SHELL (see its own section above), real at the RTL level, sim-only above it:** the super carrier shell itself is Quartus-confirmed real silicon (`#320`-`#323`); everything built on top of it this session (ICM v3, the VM, the tile library, the compiler) is real and tested in software/simulation, not yet independently Quartus/silicon-confirmed as those specific multi-cell layouts.
+
+## The VIX Carrier — a real, third, newest generation, distinct from both tables above (`points.md` #628-#666, 2026-09-04/05/06)
+
+**Real, important naming warning, stated up front:** this is a
+GENUINELY separate lineage from the super carrier shell above, not an
+extension of it — despite both using cell/file names that include
+"v4." `unicell_super_v4.v` (the 4th shell VERSION in the table above,
+wrapping the OLD individual core files like `ram_cell_v1.v`) and
+`nano_gate_v4.v`/`command_cell_v4.v`/etc. (the NEW cell GENERATION
+described here) are unrelated — a real collision found and deliberately
+avoided before any VIX Carrier RTL was written (`unicell_vix_carrier_
+v1.v`'s own header), not discovered after the fact. When in doubt,
+check which FILE is meant, not just the version number attached to it.
+
+**What it actually is:** a full second, parallel core family —
+`nano_gate_v4.v`, `ram_cell_v4.v`, `adder_cell_v4.v`, `accumulator_
+cell_v4.v`, `compare_cell_v4.v`, `latch_cell_v4.v`, `sequencer_cell_
+v4.v`, `branch_cell_v4.v`, and the genuinely new 9th core, `command_
+cell_v4.v` — each wrapped in its own real CARDINAL CONTROL SHELL
+(`nano_shell_v1.v`, `ram_shell_v1.v`, `adder_shell_v1.v`,
+`accumulator_shell_v1.v`, `compare_shell_v1.v`, `latch_shell_v1.v`,
+`sequencer_shell_v1.v`, `branch_shell_v1.v`, `command_shell_v1.v`,
+`points.md` #639/#645/#646), then all 9 combined into one real,
+mutually-exclusive, runtime-`core_select`ed physical cell:
+`unicell_vix_carrier_v1.v` ("V" for version, "IX" for the real 9th-core
+count — Alan's own naming, `#647`).
+
+**Why the cardinal control shells exist, the real reason, not
+cosmetic:** per Alan's own direct design call, every one of a core's
+flat, single-bit live-control ports (`active`, `freeze_in`, and — for
+nano specifically — `hold_in`/`fb_internal_in`/`a_reemit_in`/
+`a_update_in`/`a_self_update_in`) becomes a real 4-way cardinal port
+set (`_n/_s/_e/_w`), OR-combined internally, matching the same
+per-direction shape `program_in`'s own channel already used. This is
+what makes the command core (below) able to genuinely freeze/hold/
+reemit/update a neighboring cell over a real physical link, instead of
+a flat wire with no real hardware meaning.
+
+**The command core — genuinely new, not a variant of an existing
+core:** one core, mode-selected, deployed as two simultaneously-active
+instances in a real topology (the same pattern `ram_cell_v4.v`'s own
+`fixed_mode` bit already uses):
+- **TRIGGER mode** (`mode=0`) watches a real cardinal buffer stream for
+  a config-set 4-bit toggle pattern — the outermost gate in the whole
+  pipeline, detecting its own start/end of burst.
+- **PROGRAMMER mode** (`mode=1`), downstream of trigger's own gating,
+  freezes its real target, asserts `program_out`, and relays each
+  captured word onto the target's real programming channel — the
+  DRIVE side of the programming handshake every other core only ever
+  RECEIVES, new to this core alone in the family.
+
+**`VIX_LATCH[159:0]`, the real config register, a deliberately round
+number with real reserved headroom, not packed tight:**
+
+| Field | Bits | Meaning |
+|---|---|---|
+| `core_select` | `[4:0]` | `0`=nano `1`=adder `2`=ram `3`=compare `4`=branch `5`=accumulator `6`=latch `7`=sequencer `8`=command; `9`-`31` reserved |
+| `core_config` | `[132:5]` | 128 bits, a UNION not a struct — sized to the single widest real core (nano), reinterpreted per `core_select`, zero reshuffling since every core's own real field layout already starts at bit 0 of its own space |
+| reserved | `[159:133]` | 27 bits, genuine future headroom |
+
+**Real, genuinely new mechanisms beyond the old lineage, not just a
+bigger clone of it:** (1) the cardinal control shells above; (2)
+real, safety-critical programming-channel routing the old lineage
+never needed — `PROG_ID` values collide across core types (`PROG_ID=0`
+means `topology` on nano, `downstream_mask` on adder), so `program_in`/
+`prog_arrived_in_*` are gated to the SELECTED core only, the same
+mutual-exclusion principle `cfg_valid` already used, extended to the
+live reprogramming channel; (3) `core_config` widened to 128 real bits
+(nano's own real width), not the old lineage's 42-bit union; (4) the
+command core's own genuinely new external ports (`freeze_out_*`, the
+drive-side programming channel).
+
+**Real, current status, honestly stated:**
+
+| | Status |
+|---|---|
+| RTL (all 9 cores + 9 cardinal shells + the carrier itself) | **Real, sim-verified** — every core's testbench passes, plus a full carrier-level testbench (`tb_unicell_vix_carrier_v1.v`) and real end-to-end tests (a real, bounded loop-ring construction wired through the cardinal shells, `#640`; a command core genuinely programming a fresh, never-configured target end to end, `#644`) |
+| Quartus/real silicon | **Not yet run.** `project_assemble_v1.py --shell vix` (`#648`) exists and can generate a real N-cell VIX Carrier project, but the Quartus license expired (`#649`) before it could be run — no real ALM/Fmax numbers exist for this family yet |
+| VM (`VixCarrierCell`/`VixCarrierGrid`/`VixCarrierSlot`) | **Real, tested** — genuinely subclasses `SuperCell` (the 8 already-modeled core types keep their own proven dispatch, inherited for free), adding only the command core as new mechanism (`#655`-`#658`, `#660`) |
+| ICM file format | **Does not exist yet.** ICM v3/v4 (below) are scoped to the OLD core lineage only — the VIX Carrier has no portable, on-disk program format of its own; it lives in RTL simulation and the VM's own in-memory classes only |
+| Compiler/DSL reachability | **Not yet wired in.** The DSL/LLVM-IR frontends target the OLD lineage's tile library; promoting any of this to a compiler target is real, separate, unstarted work |
+
+

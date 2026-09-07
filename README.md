@@ -136,12 +136,20 @@ throughout the project's own documentation, never blurred.
 - **A second, genuinely independent frontend** — a real Python-AST
   parser (a declarative subset of actual Python syntax), proven to
   produce byte-identical output to the DSL for the same program.
+- **A real LLVM IR frontend** — compiles real, working loops (both
+  ascending and descending counting patterns) straight from LLVM IR's
+  own `phi`/`br`/`icmp` control flow onto a real, proven 4-cell bounded
+  loop-ring construction, plus `select` (ternary) and `icmp eq`/`ne`,
+  each lowered to a small composition of existing primitives — no
+  bespoke hardware needed for any of it. Deliberately narrow, stated
+  plainly: single induction variable, no nested loops yet.
 - **A real AI-interaction port** (`VMSession`) — compile → load → run →
   inspect, in one clean object, with real JSON introspection of any
   cell or the whole grid.
 - **A working browser workbench** — compile a program, watch it run,
   drive individual cells, load multiple independent programs onto one
-  shared grid as named regions. Run it with:
+  shared grid as named regions, or let it auto-play at a chosen rate
+  until you pause it or the design naturally settles. Run it with:
   ```bash
   python3 nano/workbench_v1.py
   # → http://localhost:7420
@@ -173,6 +181,28 @@ throughout the project's own documentation, never blurred.
   explicit dependency-file list (with a real, advisory compatibility
   check) for mixing and matching core versions without hand-writing a
   Quartus project file list each time.
+
+## A newer, second core generation — the VIX Carrier (sim-only, no Quartus data yet)
+
+Alongside `unicell_super_v1.v`-`v8.v` above, a genuinely separate,
+parallel core family was built: a real 9th core (`command`), each of
+the 9 cores wrapped in its own new cardinal control shell (so
+`active`/`freeze_in`/nano's own feedback ports become real 4-way
+cardinal ports instead of flat wires), all combined into one
+mutually-exclusive, runtime-selected cell: `unicell_vix_carrier_v1.v`
+("V" for version, "IX" for the real 9th-core count). The command core
+watches for a real toggle pattern to trigger a burst, or drives a
+freeze-and-relay programming sequence onto a neighboring cell — real,
+new mechanisms this project didn't have before.
+
+**Real, honest status:** RTL and VM both real and sim-verified —
+including a genuine bounded loop-ring wired through the new cardinal
+shells, and a command core actually programming a fresh, never-
+configured target end to end. **No Quartus/silicon data exists for
+this family yet** — the Quartus license expired before a real build
+could be run — and it has no portable, on-disk ICM file format of its
+own; ICM v3/v4 above are scoped to the older lineage only. Full detail:
+[`docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md`](docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md).
 
 ## Quick start
 
