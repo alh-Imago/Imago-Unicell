@@ -823,3 +823,23 @@ directly traceable to plain pattern-noticing rather than theorizing.
   own "Android tablet deployment" section (Termux + Flask + WiFi,
   ICM as the portability layer scaling from tablet to desktop to
   silicon) is a close, real precursor to the current hardware plan.
+- **The never-built next step, stated directly by Alan, not found in
+  any archived file -- LaTeX as a real input format, extending the
+  LLVM side of things to take the equation side into account.** The
+  real plan: not just SymPy/Python input (the actual, real math_
+  frontend_design.md architecture already found -- SymPy → Discretiser
+  → Pattern Matcher → Tiler → Wirer), but LaTeX equations parsed
+  directly, compiled through an EXPANDED LLVM-style frontend that
+  understands mathematical notation, not just imperative code. This
+  tied directly into MathTrix -- explicitly named as the FIRST of the
+  Trix family designs, the one everything else (FlowTrix, NeuroTrix,
+  MidiTrix, and the rest) grew out of, not just one member among many.
+  **A real, direct, current connection worth being explicit about:**
+  this project's own `nano/llvm_ir_frontend_v1.py` -- actively extended
+  THIS SAME SESSION with `select` and `icmp eq/ne` (`#668`/`#674`) --
+  is exactly the kind of frontend this old, never-realized idea would
+  have expanded. If a LaTeX-equation input path is ever wanted for
+  Unicell-S, this is real, standing precedent for the shape of it: not
+  a separate system, but the SAME LLVM frontend already being built,
+  extended to accept a second real input grammar alongside ordinary
+  IR.
