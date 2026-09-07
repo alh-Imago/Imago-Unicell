@@ -764,6 +764,21 @@ was 1050 "predicted" against only 45 "valid" -- the search for
 repeating shapes runs mechanically far ahead of anyone actually
 writing the domain-specific equation down by hand.
 
+**And Δ/0 themselves came from the exact same process, by Alan's own
+direct account -- not a separate philosophical construction.** He
+noticed the pattern (every stripped equation, across every domain
+checked, resolved to some difference measured from a reference state)
+and stated it plainly. Nothing more elaborate than that -- no top-down
+theory built first and then confirmed by cherry-picked examples. This
+matters for how much weight the claim should carry: an empirical
+regularity noticed while doing the real, mechanical stripping work
+first-hand is a meaningfully different, more credible kind of claim
+than a philosophical framework equations were later fitted into. The
+"two irreducible primitives" framing in `notes.md` is real and
+correctly attributed to this same bottom-up method -- it's the single
+most sweeping claim in the whole archive, and it's also the one most
+directly traceable to plain pattern-noticing rather than theorizing.
+
 ---
 
 
