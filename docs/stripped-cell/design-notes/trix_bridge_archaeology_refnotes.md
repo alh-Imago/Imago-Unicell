@@ -597,6 +597,30 @@ real value directly into the live simulated bus at that exact address
 and ticks the simulation immediately -- a live, per-port test
 harness built directly into the visual Pond browser.
 
+**Real design intent behind touch support, stated directly by Alan,
+confirmed precisely against the actual code:** the composer was built
+as a standalone unit specifically so design work could happen on the
+go, with a compiled design then run on either the VM or real FPGA
+hardware if available. Checked directly, not assumed: real, careful
+touch handling exists (`touchstart`/`touchmove`/`touchend`, `touch-
+action:none` to properly suppress the browser's own default scroll/
+zoom). Single-finger drag distinguishes a tap (select) from a pan via
+a real movement threshold; two-finger pinch-to-zoom correctly anchors
+the zoom around the actual midpoint between the two touch points, not
+just the canvas centre -- genuinely careful mobile UX, not a token
+"works on a phone" checkbox. Directly connects to `math_frontend_
+design.md`'s own real "Android tablet deployment" section (Termux +
+Flask + WiFi, ICM as the portable layer scaling from tablet to desktop
+to silicon) -- the composer's touch support is the concrete, working
+half of that same real deployment story, and the "run on VM or FPGA"
+choice is exactly the same portability principle applied to where the
+design actually executes, not just where it's drawn. Ties directly
+into the real community-contribution layer already documented in
+`TRIX_ECOSYSTEM.md` -- lowering the barrier to designing AT ALL (no
+desktop, no dedicated hardware required, just a phone or tablet) is
+itself a real, deliberate expansion of who can realistically
+contribute a new model or bridge.
+
 ---
 
 ## `workbench.py`'s own embedded frontend (`WORKBENCH_HTML`) — the third real, related UI, same design language
