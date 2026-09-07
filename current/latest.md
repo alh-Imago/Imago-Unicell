@@ -1,4 +1,66 @@
-# Current State (as of 2026-09-07, the standing "N=8 carrier case" queue item confirmed resolved by the VIX Carrier's own construction; a genuinely distinct "variable carrier width" idea split off and recorded on its own in unified_carrier_scope.md. See `points/points_active.md` #685)
+# Current State (as of 2026-09-07, select/icmp_eq/icmp_ne promoted to real Tier-1 composed tiles on a new freeze/preload/unfreeze mechanism, then elevated to the ICM v3 file format itself -- plus a separate, serious, previously-undiscovered nano_gate save bug found and fixed. See `points/points_active.md` #686/#687)
+
+## Read this first (most recent)
+
+**2026-09-07, select/icmp_eq/icmp_ne promoted + preload elevated to
+the file format (#686/#687).** Per Alan's own direct request to
+continue the "promote to Tier-1" queue item, then his own direct
+design to elevate it further.
+
+**#686 -- real, new composed-tile mechanism.** The existing composed-
+tile machinery had no way to express a compile-time-known constant
+(needed by both compositions, and NOT solvable via `ram_constant`,
+which `#611` already found races and corrupts). Alan's own design:
+freeze the whole tile, seed constants directly into their own
+registers (bypassing `deliver()` entirely -- confirmed it REJECTS
+outright while frozen, `#656`), one blanket unfreeze. `SuperGrid.
+freeze_all()`/`unfreeze_all()`/`preload_ram_flowing()` built on
+already-proven machinery (the same plain attribute assignment
+`SuperCell.restore()` already uses). `ComposedTileSpec`/`place_
+composed()` extended (`preload_fixed_value`/`preload_param_name`),
+backward-compatible -- all 38 pre-existing composed-tile tests
+unaffected. `select`/`icmp_eq`/`icmp_ne` registered as real tiles,
+same proven topology as `#668`/`#674`'s own original, verified correct
+via actual VM execution for every real truth-table case. Two real bugs
+found and fixed while verifying: a test-harness delivery-order mistake,
+and a genuine direction-collision bug in the training-bucket exporter
+(an external port could silently collide with a subcell's own
+internally-fixed direction).
+
+**#687 -- elevated to the file format itself,** per Alan's own recall
+of the original compiler's 3-pass design ("produce the ICM file...
+insert the values needed... loaded as one file... held frozen until
+complete... released"). `IcmV3Record` gained a real `preload_value`
+field, persisted and hash-covered; `SuperGrid.__init__()` now applies
+freeze/preload/unfreeze automatically for any record carrying one,
+built into construction itself -- zero effect on every existing
+caller. `apply_preloads_to_records()` bridges `place_composed()`'s
+in-memory list into the records. Full end-to-end verified: place ->
+save to a real `.icm` file -> load it back -> the standard loader
+(`SuperGrid.from_icm()`, already used by every real entry point) does
+the right thing automatically, no special-case caller code.
+
+**A separate, serious, previously-undiscovered bug found and fixed:**
+`IcmV3File.save()` crashed for ANY program using `nano_gate` at all --
+confirmed via a real, minimal DSL-compiled program, not just this
+session's own new tiles. Root cause: `place()` always gives a
+directional port a list value, but nano's own `routing_mask`/
+`cardinal_edge` were deliberately excluded from the packer's list-
+handling table (a real, separate, still-correct DECODE-side choice).
+Fixed narrowly on the ENCODE side only, confirmed against the one
+existing test that depends on the decode contract staying unchanged
+(an earlier, broader fix attempt broke it and was correctly reverted).
+
+**Real, full regression:** ~30 new tests across 4 files. Whole-project
+total: 641 passed, 1 skipped, zero failures (was 606 this morning).
+
+**Real, honest scope: `llvm_ir_frontend_v1.py` itself NOT migrated** --
+still runs its own original hand-inlined code, unaffected. Migrating
+it (and potentially removing its own existing relay-based timing
+staggers throughout add/sub/icmp lowering the same way) is real,
+separate, larger future work, not attempted here.
+
+## Previous state (as of 2026-09-07, the standing "N=8 carrier case" queue item confirmed resolved by the VIX Carrier's own construction; a genuinely distinct "variable carrier width" idea split off and recorded on its own in unified_carrier_scope.md. See `points/points_active.md` #685)
 
 ## Read this first (most recent)
 

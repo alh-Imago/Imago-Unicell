@@ -77,6 +77,29 @@ class SubCellPlacement:
     # (`place_composed()` applies fixed_params AFTER any caller-supplied
     # merge, deliberately, not the other way around) -- "fixed" means
     # fixed.
+    preload_fixed_value: Optional[int] = None
+    preload_param_name: Optional[str] = None
+    # points.md #686, per Alan's own direct design: marks this sub-cell
+    # as PRELOAD-ONLY -- a compile-time-known constant seeded directly
+    # into its own captured-value register while the whole tile is held
+    # frozen (`SuperGrid.freeze_all()`/`preload_ram_flowing()`), rather
+    # than delivered as a live, precisely-timed event. Real, necessary
+    # reason, not a shortcut: `ram_constant` (the obvious alternative)
+    # is a continuously-live source that races against a dynamically-
+    # computed operand and corrupts the result -- confirmed, the exact
+    # trap `#611` already found and avoided for the whole-program case.
+    # Genuinely different from `fixed_params`: this value is written
+    # directly to the CELL OBJECT after construction, bypassing
+    # `deliver()`/`core_config` entirely (`ram_flowing` has no params
+    # of its own to even receive a value through). Exactly ONE of the
+    # two fields above may be set on a preload-only sub-cell -- a
+    # literal, tile-authored constant, or the (bare, NOT namespaced --
+    # this is a whole-tile-scope value, not a per-subcell one) name of
+    # a param the composed tile's own caller must supply. A sub-cell
+    # with either field set must resolve to the real `ram_flowing` tile
+    # specifically, and must NOT appear in `internal_directions` or
+    # `external_ports` for its own `in` port -- checked, not assumed,
+    # at placement time (see `place_composed()`).
 
 
 @dataclass
@@ -101,7 +124,8 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
                     params: Optional[dict] = None,
                     library: SuperTileLibrary = super_tile_library,
                     composed_library: Optional["ComposedTileLibrary"] = None,
-                    _chain: Tuple[str, ...] = ()) -> List[object]:
+                    _chain: Tuple[str, ...] = (),
+                    preloads: Optional[List[Tuple[int, int, int]]] = None) -> List[object]:
     """Resolve a composed tile at anchor (row, col) into real, LEAF-level
     placement records -- one per leaf sub-cell, each ultimately placed
     via its own real tile kind's `place()` function. Per-kind buckets
@@ -149,7 +173,21 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
     which tile names are currently being expanded on this call stack;
     recursing into a name already in it raises a real `ValueError`
     naming the exact cycle, at the point it's first detected, instead of
-    silently recursing until the interpreter gives up."""
+    silently recursing until the interpreter gives up.
+
+    PRELOAD-ONLY SUB-CELLS (`points.md #686`): if this tile (or any
+    nested tile inside it) contains a `SubCellPlacement` with
+    `preload_fixed_value`/`preload_param_name` set, the caller MUST
+    pass a real, mutable `preloads` list -- every preload-only
+    sub-cell's own resolved `(absolute_row, absolute_col, value)`
+    triple gets appended to it (nested tiles append to the SAME list,
+    not a separate one per level). Omitting `preloads` while such a
+    sub-cell exists is a real error, not a silent no-op -- a
+    compile-time constant that never gets seeded is a correctness bug,
+    not a cosmetic gap. The caller is responsible for the real,
+    necessary sequence around this call: freeze the grid, construct
+    cells from these records, apply every returned preload via
+    `SuperGrid.preload_ram_flowing()`, THEN unfreeze."""
     if composed_library is None:
         composed_library = composed_tile_library
     if tile.name in _chain:
@@ -181,9 +219,46 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
             sub_tile, sub_place_fn = _resolve_subcell_leaf(sub.tile_name, library)
         sub_port_names = sub_tile.port_names()
 
+        is_preload = sub.preload_fixed_value is not None or sub.preload_param_name is not None
+        if is_preload:
+            if nested is not None or sub.tile_name != "ram_flowing":
+                raise ValueError(
+                    f"composed tile {tile.name!r}: sub-cell {sub.name!r} sets a "
+                    f"preload value but resolves to {sub.tile_name!r}, not the real "
+                    f"'ram_flowing' tile -- preload-only sub-cells are scoped to "
+                    f"ram_flowing specifically (#686)"
+                )
+            if sub.preload_fixed_value is not None and sub.preload_param_name is not None:
+                raise ValueError(
+                    f"composed tile {tile.name!r}: sub-cell {sub.name!r} sets BOTH "
+                    f"preload_fixed_value and preload_param_name -- exactly one, not both"
+                )
+            if preloads is None:
+                raise ValueError(
+                    f"composed tile {tile.name!r}: sub-cell {sub.name!r} is preload-only, "
+                    f"but no `preloads` list was passed to place_composed() -- a "
+                    f"compile-time constant that never gets seeded is a real "
+                    f"correctness bug, not something to silently skip"
+                )
+
         sub_directions = dict(sub.internal_directions)
         for port in sub_port_names:
             if port in sub_directions:
+                continue
+            if is_preload and port == "in":
+                # Real, deliberate placeholder, not a functional wire:
+                # `place()` itself still requires every declared port to
+                # have SOME direction (a generic, per-tile completeness
+                # check, unaware of preload-only sub-cells) -- but
+                # ram_flowing's own "in" wiring is just the
+                # `upstream_mask` config field, and once preloaded (and
+                # frozen->unfrozen), `ram_data_valid` is already True,
+                # so `deliver()` rejects any further arrival regardless
+                # of direction (its own real "doubly-full-guarded"
+                # behavior) -- there is no physical neighbor at this
+                # direction and none is needed. 'n' is arbitrary and
+                # inert, not a real connection.
+                sub_directions[port] = "n"
                 continue
             match = None
             for ext_name, (sc_name, sc_port) in tile.external_ports.items():
@@ -210,16 +285,54 @@ def place_composed(tile: ComposedTileSpec, row: int, col: int,
         if nested is not None:
             records.extend(place_composed(nested, row + dr, col + dc, sub_directions, sub_params,
                                            library=library, composed_library=composed_library,
-                                           _chain=_chain))
+                                           _chain=_chain, preloads=preloads))
         else:
             records.append(sub_place_fn(sub_tile, row + dr, col + dc, sub_directions, sub_params,
                                          cell_id=f"{tile.name}.{sub.name}@{row + dr},{col + dc}"))
+
+        if is_preload:
+            if sub.preload_fixed_value is not None:
+                value = sub.preload_fixed_value
+            else:
+                if sub.preload_param_name not in params:
+                    raise ValueError(
+                        f"composed tile {tile.name!r}: sub-cell {sub.name!r} needs "
+                        f"top-level param {sub.preload_param_name!r}, not supplied"
+                    )
+                value = params[sub.preload_param_name]
+                seen_params.add(sub.preload_param_name)
+            preloads.append((row + dr, col + dc, value))
 
     unknown_params = set(params) - seen_params
     if unknown_params:
         raise ValueError(f"composed tile {tile.name!r}: unknown param(s) {sorted(unknown_params)}")
 
     return records
+
+
+def apply_preloads_to_records(records: List[object], preloads: List[Tuple[int, int, int]]) -> None:
+    """Real, file-format-level bridge (`points.md #687`), per Alan's
+    own direct design: folds `place_composed()`'s own in-memory
+    `preloads` list (row, col, value triples) directly into the
+    matching records' own `IcmV3Record.preload_value` field, mutating
+    in place. Once applied, the preload travels with the records
+    themselves -- through `IcmV3File.save()`/`load()`, through a plain
+    `SuperGrid(records)` construction, anywhere -- rather than needing
+    a separate, ephemeral list threaded through by hand at every call
+    site. `SuperGrid.__init__()` and `IcmV3File`'s own save/load round
+    trip both already handle `preload_value` natively; this is the one
+    real, small step connecting `place_composed()`'s own output to
+    that already-real mechanism, not a new mechanism of its own."""
+    by_pos = {(r.row, r.col): r for r in records}
+    for row, col, value in preloads:
+        if (row, col) not in by_pos:
+            raise ValueError(
+                f"apply_preloads_to_records: no record at ({row}, {col}) to "
+                f"apply preload {value!r} to -- a real mismatch between "
+                f"place_composed()'s own records and its own preloads list, "
+                f"not something to silently ignore"
+            )
+        by_pos[(row, col)].preload_value = value
 
 
 def _resolve_subcell_leaf(tile_name: str, library: SuperTileLibrary):
@@ -419,6 +532,154 @@ composed_tile_library.register(ComposedTileSpec(
     external_ports={
         "in_a": ("adder", "in_a"), "in_b": ("adder", "in_b"),
         "out": ("sink", "out"),
+    },
+    proven="sim-only",
+))
+
+# ── select (points.md #686): the real LLVM-ternary composition
+# (`select i1 %cond, %true, %false`) originally built inline in
+# `llvm_ir_frontend_v1.py` (#674), promoted to a real, reusable Tier-1
+# tile per Alan's own direct design. Genuinely the SAME proven internal
+# topology as #674's own original (mask/not_mask/and_true/and_false/
+# relay/or, identical relative offsets and hop-count relationships) --
+# only the CONSTANT-DELIVERY mechanism changed, from a precisely-timed
+# live `inject()` sequence to `#686`'s own freeze/preload/unfreeze
+# pattern. Deliberately conservative: the internal topology (which
+# already has empirically-necessary, load-bearing UNEQUAL hop counts
+# between the and_true->or and and_false->relay->or paths) is left
+# exactly as proven, not re-simplified in the same change -- only the
+# fragile part (caller-side injection timing) is what this promotion
+# actually fixes.
+#
+#   cond(external, "in_a") --\
+#                              MASK(1,0) -e-> AND_TRUE(1,1) -e-> OR(1,2)
+#   zero_const(0,0) --------/         \
+#                                       s
+#                                       v
+#                               NOT_MASK(2,0) -e-> AND_FALSE(2,1) -\
+#   notmask_const(3,0) ----------------/                            (relay(2,2)->n->OR)
+#   true_const(0,1) --s--> AND_TRUE's own north input
+#   false_const(3,1) --n--> AND_FALSE's own north input
+#
+# mask = 0 - cond (broadcasts a bare 0/1 boolean to a full 0x0/
+# 0xFFFFFFFF word). not_mask = XOR(mask, 0xFFFFFFFF) -- an exact
+# boolean/bitwise complement since mask is already a full word.
+# and_true/and_false gate true_val/false_val by mask/not_mask; or
+# combines them.
+composed_tile_library.register(ComposedTileSpec(
+    name="select",
+    description="LLVM's own ternary -- select i1 cond, true_val, "
+                 "false_val. 'cond' is a real, dynamic external input "
+                 "(wire it to whatever computed the boolean); "
+                 "'true_val'/'false_val' are real, caller-supplied "
+                 "32-bit constants, seeded directly into their own "
+                 "ram_flowing registers while frozen (#686) -- not "
+                 "live inputs. 'out' is the real, computed ternary "
+                 "result.",
+    subcells=[
+        SubCellPlacement(name="zero_const", offset=(0, 0), tile_name="ram_flowing",
+                          internal_directions={"out": "s"}, preload_fixed_value=0),
+        SubCellPlacement(name="mask", offset=(1, 0), tile_name="subtractor",
+                          internal_directions={"in_b": "n", "out": ["e", "s"]}),
+        SubCellPlacement(name="not_mask", offset=(2, 0), tile_name="nano_gate",
+                          internal_directions={"out": "e"}, fixed_params={"topology": 0x0BC}),
+        SubCellPlacement(name="notmask_const", offset=(3, 0), tile_name="ram_flowing",
+                          internal_directions={"out": "n"}, preload_fixed_value=0xFFFFFFFF),
+        SubCellPlacement(name="true_const", offset=(0, 1), tile_name="ram_flowing",
+                          internal_directions={"out": "s"}, preload_param_name="true_val"),
+        SubCellPlacement(name="and_true", offset=(1, 1), tile_name="nano_gate",
+                          internal_directions={"out": "e"}, fixed_params={"topology": 0x007}),
+        SubCellPlacement(name="and_false", offset=(2, 1), tile_name="nano_gate",
+                          internal_directions={"out": "e"}, fixed_params={"topology": 0x007}),
+        SubCellPlacement(name="false_const", offset=(3, 1), tile_name="ram_flowing",
+                          internal_directions={"out": "n"}, preload_param_name="false_val"),
+        SubCellPlacement(name="relay", offset=(2, 2), tile_name="ram_flowing",
+                          internal_directions={"in": "w", "out": "n"}),
+        SubCellPlacement(name="or_gate", offset=(1, 2), tile_name="nano_gate",
+                          internal_directions={}, fixed_params={"topology": 0x024}),
+    ],
+    external_ports={
+        "cond": ("mask", "in_a"),
+        "out": ("or_gate", "out"),
+    },
+    proven="sim-only",
+))
+
+# ── icmp eq/ne (points.md #686): the real 6-cell comparator-pair
+# composition originally built inline in `llvm_ir_frontend_v1.py`
+# (#668), promoted the same way as `select` above. Genuinely the SAME
+# proven topology (two comparators against threshold 0/1, XOR'd, with
+# CMP1's own path deliberately routed two hops longer so its
+# contribution reaches the XOR one tick after CMP0's -- #668's own
+# real, load-bearing timing finding, left exactly as proven) -- ne
+# adds one more real XOR against a preloaded constant 1 (an exact
+# boolean NOT, not a bitwise one).
+#
+#   diff(external, in_a/in_b) --e--> CMP0(0,1) --s--> XOR(1,1) [--e--> NE_XOR(1,2), if ne]
+#      |                                                ^                    ^
+#      s                                                n                    |
+#      v                                                |             one_const(2,2)
+#   CMP1(1,0) --s--> RELAY_A(2,0) --e--> RELAY_B(2,1)----/
+#   CMP0=threshold 0 (diff==0 test), CMP1=threshold 1 (diff>=1 test) --
+#   diff fans out to both; XOR(CMP0, CMP1) is 1 exactly when diff==0
+#   (both agree=0) or... in this exact original design CMP0/CMP1's own
+#   real relationship is preserved unchanged from #668, not re-derived
+#   here.
+composed_tile_library.register(ComposedTileSpec(
+    name="icmp_eq",
+    description="LLVM's icmp eq -- a == b, real 1/0 result. 'in_a'/"
+                 "'in_b' are real, dynamic external inputs; 'out' is "
+                 "the real, computed boolean result.",
+    subcells=[
+        SubCellPlacement(name="diff", offset=(0, 0), tile_name="subtractor",
+                          internal_directions={"out": ["e", "s"]}),
+        SubCellPlacement(name="cmp0", offset=(0, 1), tile_name="comparator",
+                          internal_directions={"in": "w", "out": "s"}, fixed_params={"threshold": 0}),
+        SubCellPlacement(name="cmp1", offset=(1, 0), tile_name="comparator",
+                          internal_directions={"in": "n", "out": "s"}, fixed_params={"threshold": 1}),
+        SubCellPlacement(name="relay_a", offset=(2, 0), tile_name="ram_flowing",
+                          internal_directions={"in": "n", "out": "e"}),
+        SubCellPlacement(name="relay_b", offset=(2, 1), tile_name="ram_flowing",
+                          internal_directions={"in": "w", "out": "n"}),
+        SubCellPlacement(name="xor_gate", offset=(1, 1), tile_name="nano_gate",
+                          internal_directions={}, fixed_params={"topology": 0x0BC}),
+    ],
+    external_ports={
+        "in_a": ("diff", "in_a"), "in_b": ("diff", "in_b"),
+        "out": ("xor_gate", "out"),
+    },
+    proven="sim-only",
+))
+
+composed_tile_library.register(ComposedTileSpec(
+    name="icmp_ne",
+    description="LLVM's icmp ne -- a != b, real 1/0 result. Same real "
+                 "topology as icmp_eq, plus one more real XOR against "
+                 "a preloaded constant 1 -- an exact boolean NOT "
+                 "(1^1=0, 0^1=1), not a bitwise one. 'in_a'/'in_b' are "
+                 "real, dynamic external inputs; 'out' is the real, "
+                 "computed boolean result.",
+    subcells=[
+        SubCellPlacement(name="diff", offset=(0, 0), tile_name="subtractor",
+                          internal_directions={"out": ["e", "s"]}),
+        SubCellPlacement(name="cmp0", offset=(0, 1), tile_name="comparator",
+                          internal_directions={"in": "w", "out": "s"}, fixed_params={"threshold": 0}),
+        SubCellPlacement(name="cmp1", offset=(1, 0), tile_name="comparator",
+                          internal_directions={"in": "n", "out": "s"}, fixed_params={"threshold": 1}),
+        SubCellPlacement(name="relay_a", offset=(2, 0), tile_name="ram_flowing",
+                          internal_directions={"in": "n", "out": "e"}),
+        SubCellPlacement(name="relay_b", offset=(2, 1), tile_name="ram_flowing",
+                          internal_directions={"in": "w", "out": "n"}),
+        SubCellPlacement(name="eq_xor", offset=(1, 1), tile_name="nano_gate",
+                          internal_directions={"out": "e"}, fixed_params={"topology": 0x0BC}),
+        SubCellPlacement(name="one_const", offset=(2, 2), tile_name="ram_flowing",
+                          internal_directions={"out": "n"}, preload_fixed_value=1),
+        SubCellPlacement(name="ne_xor", offset=(1, 2), tile_name="nano_gate",
+                          internal_directions={}, fixed_params={"topology": 0x0BC}),
+    ],
+    external_ports={
+        "in_a": ("diff", "in_a"), "in_b": ("diff", "in_b"),
+        "out": ("ne_xor", "out"),
     },
     proven="sim-only",
 ))

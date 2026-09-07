@@ -306,7 +306,14 @@ CORE_FIELD_TABLES = {
 _DIR_FIELDS = {
     SEL_NANO: ("pattern_low", "pattern_equal", "pattern_high"),
                     # routing_mask/cardinal_edge are 6-bit (3D-ready), not
-                    # plain 4-bit one-hot -- left as raw ints, not dir lists.
+                    # plain 4-bit one-hot -- DECODED as raw ints, not dir
+                    # lists (an existing, real, relied-upon contract --
+                    # `test_round_trip_every_core` passes a raw int and
+                    # expects one back). `_pack_fields()` below now
+                    # ENCODES either representation correctly regardless of
+                    # this list membership (points.md #687) -- this table
+                    # only controls DECODE shape, not what's accepted going
+                    # in.
                     # pattern_low/equal/high (#650) ARE plain 4-bit one-hot(s),
                     # the same real shape as branch's own route_low/equal/high
                     # below -- given the friendlier list-based interface.
@@ -338,19 +345,36 @@ _ADDON_FIELDS = {
 }
 
 
-def _pack_fields(field_table: dict, values: dict, dir_fields=()) -> int:
+def _pack_fields(field_table: dict, values: dict) -> int:
     """Generic bit-packer: {field_name: value_or_dirlist} -> int, per a
     field_table of name -> (lo, hi). Unknown keys in `values` are a hard
     error (silently dropping a typo'd field is exactly the kind of
     "looks safe while not being safe" mistake this project's own
-    capability-manifest notes warn about)."""
+    capability-manifest notes warn about).
+
+    Real bug found and fixed (`points.md #687`): ENCODING a list/tuple/
+    set value now works for ANY field, not just ones registered in
+    `dir_fields` -- `super_tile_library_v1.place()`'s own generic
+    mechanism produces a list for EVERY directional port field
+    regardless of whether that field is in `dir_fields` (a DECODE-only
+    concern, unaffected by this), so a field like nano's own `routing_
+    mask` (deliberately left out of `dir_fields` since it decodes as a
+    raw int, not a list -- a real, separate, still-valid choice) could
+    receive a real, valid list value from `place()` and crash outright
+    the moment anyone called `IcmV3File.save()`/`to_dict()` on the
+    result -- found while building `select`'s own first real file-
+    format round-trip, not a hypothetical: EVERY real program using
+    `nano_gate` hit this. `dir_fields` still controls DECODE shape only
+    (`_unpack_fields` below, unchanged) -- an existing, real,
+    relied-upon contract (`test_round_trip_every_core` passes a raw int
+    for `routing_mask` and correctly expects one back)."""
     unknown = set(values) - set(field_table)
     if unknown:
         raise ValueError(f"unknown field(s) {sorted(unknown)}, expected one of {sorted(field_table)}")
     packed = 0
     for name, (lo, hi) in field_table.items():
         v = values.get(name, 0)
-        if name in dir_fields and isinstance(v, (list, tuple, set)):
+        if isinstance(v, (list, tuple, set)):
             v = pack_dirmask(v)
         packed = _set_field(packed, lo, hi, v)
     return packed
@@ -368,7 +392,7 @@ def _unpack_fields(field_table: dict, packed: int, dir_fields=()) -> dict:
 
 def pack_core_config(core: "int|str", values: dict) -> int:
     sel = CORE_IDS[core] if isinstance(core, str) else core
-    return _pack_fields(CORE_FIELD_TABLES[sel], values, _DIR_FIELDS[sel])
+    return _pack_fields(CORE_FIELD_TABLES[sel], values)
 
 
 def unpack_core_config(core: "int|str", packed: int) -> dict:
@@ -441,6 +465,20 @@ class IcmV3Record:
     #: named entry point is a real, meaningful design change, not
     #: cosmetic.
     io_name: Optional[str] = None
+    #: points.md #687, per Alan's own direct design: a real, optional
+    #: compile-time-known constant to be seeded DIRECTLY into this
+    #: cell's own captured-value register while the whole grid is held
+    #: frozen at load time (`SuperGrid.from_icm()`), rather than
+    #: delivered as a live, precisely-timed event -- the file-format-
+    #: level generalization of `#686`'s own in-memory `preloads` list.
+    #: `None` for an ordinary cell needing no preload. Only meaningful
+    #: on a real `ram_flowing` (`core="ram"`, `fixed_mode=0`) cell --
+    #: checked, not assumed, by the loader. Part of this record's own
+    #: real identity -- included in `record_hash()` below, matching
+    #: `io_name`'s own precedent: a wrong or missing preload silently
+    #: produces a wrong program, exactly the class of corruption this
+    #: hash exists to catch.
+    preload_value: Optional[int] = None
 
     def super_latch(self) -> int:
         return encode_super_latch(self.core, self.core_config, self.addon_config)
@@ -455,6 +493,7 @@ class IcmV3Record:
             "core_config": self.core_config,
             "addon_config": self.addon_config,
             "io_name": self.io_name,
+            "preload_value": self.preload_value,
             "super_latch_hex": f"0x{latch:020x}",
         }
 
@@ -463,7 +502,7 @@ class IcmV3Record:
         return IcmV3Record(
             cell_id=d["cell_id"], row=d["row"], col=d["col"], core=d["core"],
             core_config=d.get("core_config", {}), addon_config=d.get("addon_config", {}),
-            io_name=d.get("io_name"),
+            io_name=d.get("io_name"), preload_value=d.get("preload_value"),
         )
 
 
@@ -474,7 +513,8 @@ def _canonical_records_json(records) -> str:
     languages/implementations, not just this one file's own dict order."""
     canon = [
         {"cell_id": r.cell_id, "row": r.row, "col": r.col, "core": r.core,
-         "core_config": r.core_config, "addon_config": r.addon_config, "io_name": r.io_name}
+         "core_config": r.core_config, "addon_config": r.addon_config, "io_name": r.io_name,
+         "preload_value": r.preload_value}
         for r in records
     ]
     return json.dumps(canon, sort_keys=True, separators=(",", ":"))

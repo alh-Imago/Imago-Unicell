@@ -7529,3 +7529,155 @@ just recorded so it isn't lost the way the original shift gap once
 was (`#616`).
 
 **Real, honest scope: nothing built, a closure/scoping note only.**
+
+## 686. `select`/`icmp_eq`/`icmp_ne` promoted from hand-inlined LLVM-frontend-only code to real, reusable Tier-1 composed tiles, per Alan's own direct request to continue with the "promote to Tier-1/frontend" queue item. Required a real, new mechanism (freeze/preload/unfreeze), designed by Alan and built here, since the existing composed-tile machinery had no way to express a compile-time-known constant. (Alan/Claude, 2026-09-07)
+
+**The real blocker, found before any code was written:** both
+compositions rely on precisely-timed, one-time `inject()` calls into
+`ram_flowing` cells for their own compile-time-known constants (a
+`0`, `0xFFFFFFFF`, `select`'s own `true_val`/`false_val`) -- not an
+arbitrary choice: `#611` had already found and documented that the
+obvious alternative, `ram_constant`, is continuously-live and races
+against a dynamically-computed operand, corrupting the result.
+`ComposedTileSpec`/`place_composed()` had no way to express "this
+sub-cell needs a one-time injected value" at all -- genuinely
+promoting these two compositions required a real, new mechanism, not
+a mechanical copy-paste.
+
+**Alan's own real design, built exactly as specified:** rather than
+precisely-timed live injection, load the whole tile FROZEN, seed every
+constant directly into its own captured-value register (bypassing
+`deliver()` entirely -- confirmed necessary, not a shortcut:
+`deliver()` REJECTS every arrival outright while `freeze_in` is set,
+`#656`), then release everything with one real, simultaneous blanket
+unfreeze. `SuperGrid.freeze_all()`/`unfreeze_all()`/`preload_ram_
+flowing()` built on top of already-real, already-tested machinery --
+`preload_ram_flowing()` is plain attribute assignment, the exact same
+approach `SuperCell.restore()` (`#483`) already uses, no new low-level
+mechanism at all.
+
+**`ComposedTileSpec`/`place_composed()` extended, backward-compatible:**
+`SubCellPlacement` gains `preload_fixed_value`/`preload_param_name`
+(exactly one may be set); `place_composed()` gains an optional
+`preloads` list parameter that preload-only sub-cells append their own
+resolved `(row, col, value)` triple to, threaded correctly through
+real nesting. Omitting `preloads` while a preload-only sub-cell exists
+raises a real, loud error -- a compile-time constant that never gets
+seeded is a correctness bug, not something to silently skip. All 38
+pre-existing composed-tile tests (`sentinel`/`dual_threshold_monitor`/
+`twin_sentinel`/`dsp_add_and_hold`) still pass unchanged.
+
+**`select`, `icmp_eq`, `icmp_ne` registered as real Tier-1 tiles,**
+genuinely the SAME proven internal topology as `#668`/`#674`'s own
+original hand-inlined code (identical relative offsets, identical
+empirically-necessary UNEQUAL hop counts between the `and_true->or`
+and `and_false->relay->or` paths, left exactly as proven) -- only the
+constant-delivery mechanism changed. Verified correct via actual VM
+execution: all 4 real truth-table cases for `select`, 3 real cases
+each for `icmp_eq`/`icmp_ne`.
+
+**Two real bugs found and fixed while verifying, not assumed away:**
+(1) an early test delivered both `icmp` operands in one combined
+`deliver()` call rather than two separate ones -- the adder's own
+real same-tick-arrival semantics silently OR-merge simultaneous
+arrivals into one value rather than capturing them as separate A/B,
+producing a wrong-looking result that was the TEST's own bug, not the
+tile's; (2) a genuine, real DIRECTION-COLLISION bug in the training-
+bucket exporter's own generic `_assign_composed_directions()`
+(`#682`): it only checked for collisions among a subcell's own
+EXTERNAL ports, not against directions the SAME subcell already had
+internally fixed (`select`'s own `mask` subcell fixes `in_b` to face
+north for `zero_const` -- the auto-assigner handed `cond` the SAME
+side, which would have silently wired both fields to listen to the
+same physical neighbor). Fixed by excluding a subcell's own `internal_
+directions` values from its available-direction pool.
+
+**Real, empirical timing finding, documented not just fixed:** a
+preloaded value needs a full 2 ticks to be genuinely CAPTURED by a
+real downstream neighbor after unfreezing -- one tick only OFFERS it.
+Delivering a live, dynamic external port before that settle window
+completes races a still-in-flight constant and produces a real,
+observably wrong result (confirmed directly: an earlier test attempt
+got 6 instead of 42). This is now the documented, real usage contract
+for any caller of these tiles.
+
+**`training_bucket_export_v1.py` updated to match:** `_required_
+composed_params()` now includes a preload-only sub-cell's own bare
+(non-namespaced) required param; `export_tier1_tile()` applies the
+real freeze/preload/unfreeze/settle sequence automatically whenever a
+tile's own placement produces any preloads, matching the exact
+contract above.
+
+**Real, full regression, this entry alone:** 24 tests in `test_
+composed_tile_library_v1.py` (was 15), 27 in `test_training_bucket_
+export_v1.py` -- all passing.
+
+## 687. The freeze/preload/unfreeze mechanism elevated from an in-memory, composed-tile-only Python list to a real, persisted part of the ICM v3 file format itself, per Alan's own direct design recalling the original compiler's 3-pass structure ("gather values... check branch logic... produce the ICM file with that logic... insert the values needed... loaded as one file... held frozen until complete... released"). A separate, serious, previously-undiscovered bug found and fixed along the way. (Alan/Claude, 2026-09-07)
+
+**`IcmV3Record` gains a real `preload_value: Optional[int]` field** --
+persisted through `to_dict()`/`from_dict()`, included in `record_
+hash()` (matching `io_name`'s own precedent: a wrong or missing
+preload silently produces a wrong program, exactly the class of
+corruption the hash exists to catch).
+
+**`SuperGrid.__init__()` now applies the whole freeze/preload/unfreeze
+sequence automatically** for any record carrying a real `preload_
+value` -- built directly into construction itself, not a separate
+opt-in step, so ANY caller building a grid from records with preloads
+gets this behavior for free, matching Alan's own "loaded as one file...
+held frozen until complete... released" description exactly. A grid
+with no preloaded records at all -- every existing caller, today --
+is completely unaffected: `freeze_all()`/`unfreeze_all()` are never
+even called.
+
+**`apply_preloads_to_records()`** (`composed_tile_library_v1.py`)
+bridges `place_composed()`'s own in-memory `preloads` list into the
+matching records' own `preload_value` field, mutating in place --
+once applied, the preload travels with the records themselves through
+`IcmV3File.save()`/`load()`, or a plain `SuperGrid(records)`
+construction, with no separate list needing to be threaded through by
+hand at every call site.
+
+**Real, full end-to-end verification:** place `select` -> fold
+preloads into records -> save to a real `.icm` file -> load it back ->
+`SuperGrid.from_icm()` (the standard loader every real entry point
+already uses -- `VMSession.from_dsl()`/`from_python()`/`from_icm_
+file()` all route through it) applies freeze/preload/unfreeze with
+zero special-case caller code -- confirmed correct (`select(cond=1,
+true=42, false=7) = 42`) reading straight off disk.
+
+**A separate, serious, previously-undiscovered bug found and fixed
+while building this, not assumed away:** `IcmV3File.save()` crashed
+with a real `TypeError` for ANY program using `nano_gate` -- confirmed
+directly, including a genuine, minimal DSL-compiled program, not just
+raw `place_composed()` output. Root cause: `place()`'s own generic
+mechanism always gives a directional port field a LIST value (`['e']`),
+but nano's own `routing_mask`/`cardinal_edge` were deliberately
+excluded from `_DIR_FIELDS` (a real, separate, still-correct DECODE-
+side choice: they decode as raw ints, not dir-lists, and `#`-tagged
+existing test `test_round_trip_every_core` genuinely depends on this).
+The ENCODE side, though, unconditionally assumed anything not in `_DIR_
+FIELDS` was already a raw int. Real, narrow fix: `_pack_fields()` now
+converts a list/tuple/set value to the correct int for ANY field,
+regardless of `_DIR_FIELDS` membership -- `_DIR_FIELDS` now controls
+DECODE shape only, exactly matching the existing, real, relied-upon
+contract, confirmed by re-running the full suite (an earlier, broader
+attempted fix -- also allowing routing_mask to DECODE as a list --
+broke that exact test and was correctly reverted in favor of this
+narrower one).
+
+**Real, full regression:** 4 new tests in `test_icm_v3.py`, 3 new in
+`test_unicell_super_automaton_v1.py`, 3 new in `test_composed_tile_
+library_v1.py` (real file-format round-trip). Whole-project total:
+**641 passed, 1 skipped, zero failures** (was 606 before this
+afternoon's `#686`/`#687` work).
+
+**Real, honest scope: `llvm_ir_frontend_v1.py` itself has NOT been
+migrated to use these new tiles** -- it still runs its own original,
+hand-inlined `#668`/`#674` code, unaffected by any of this. A real,
+separate, larger undertaking (removing the frontend's own existing
+relay-based timing staggers throughout add/sub/icmp lowering could
+plausibly be simplified the same way, a genuinely bigger realization
+than just these two compositions) -- deliberately not attempted here,
+flagged as real future work rather than a sweeping rewrite alongside
+everything else in this entry.

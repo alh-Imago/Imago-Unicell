@@ -288,6 +288,9 @@ def test_export_all_includes_a_tiles_composed_bucket_per_registered_tile(tmp_pat
     real_composed_count = len(tbe.composed_tile_library.names())
     assert len(manifest["tiles_composed"]) == real_composed_count
     names = {entry["name"] for entry in manifest["tiles_composed"]}
-    assert names == {"sentinel", "dual_threshold_monitor", "twin_sentinel", "dsp_add_and_hold"}
+    assert names == {
+        "sentinel", "dual_threshold_monitor", "twin_sentinel", "dsp_add_and_hold",
+        "select", "icmp_eq", "icmp_ne",
+    }
     for entry in manifest["tiles_composed"]:
         assert os.path.exists(os.path.join(str(tmp_path), entry["file"]))

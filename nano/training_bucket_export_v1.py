@@ -250,9 +250,21 @@ def _required_composed_params(tile: ComposedTileSpec) -> List[str]:
     `#342`'s own real 's1.cmp.threshold' precedent). A `fixed_params`
     entry on any subcell (leaf or nested) removes exactly the param it
     names, the same real "fixed always wins" rule `place_composed()`
-    itself applies."""
+    itself applies.
+
+    Real, necessary extension (`#686`): a PRELOAD-ONLY sub-cell
+    (`preload_param_name` set) contributes its own required param too
+    -- but BARE, not namespaced, matching `place_composed()`'s own real
+    convention that a preload param is whole-tile-scope (`select`'s
+    `true_val`/`false_val`), not per-subcell. A sub-cell with `preload_
+    fixed_value` set instead needs nothing from the caller at all."""
     required: List[str] = []
     for sub in tile.subcells:
+        if sub.preload_param_name is not None:
+            required.append(sub.preload_param_name)
+            continue
+        if sub.preload_fixed_value is not None:
+            continue
         nested = (composed_tile_library.get(sub.tile_name)
                   if sub.tile_name in composed_tile_library.names() else None)
         if nested is not None:
@@ -279,21 +291,42 @@ def _assign_composed_directions(tile: ComposedTileSpec) -> Dict[str, str]:
     registered today: no single subcell exposes more than 4 of its own
     ports externally (the same real per-cell ceiling `#676`'s own
     Tier-0 exporter already found), so within-group cycling never
-    exceeds it."""
+    exceeds it.
+
+    Real, necessary correction (`#686`): a subcell can ALSO have real,
+    internally-fixed directions (`SubCellPlacement.internal_
+    directions`, e.g. `select`'s own `mask` subcell fixes `in_b` to
+    face its real north neighbor, `zero_const`) -- those directions are
+    already spoken for on THIS subcell and must be excluded from the
+    cycle, or an external port could collide with an internal one onto
+    the very same physical side (confirmed as a real bug while building
+    `select`'s own export: `cond` was auto-assigned 'n', the exact same
+    side `mask`'s own fixed `in_b` already used, corrupting the
+    two-stage capture entirely)."""
     by_subcell: Dict[str, List[str]] = {}
     for port_name, (subcell_name, _subcell_port) in tile.external_ports.items():
         by_subcell.setdefault(subcell_name, []).append(port_name)
 
+    subcells_by_name = {s.name: s for s in tile.subcells}
+
     directions: Dict[str, str] = {}
     for subcell_name, port_names in by_subcell.items():
-        if len(port_names) > 4:
+        used = set()
+        for value in subcells_by_name[subcell_name].internal_directions.values():
+            if isinstance(value, list):
+                used.update(value)
+            else:
+                used.add(value)
+        available = [d for d in _DIR_LETTERS if d not in used]
+        if len(port_names) > len(available):
             raise ValueError(
                 f"composed tile {tile.name!r}: subcell {subcell_name!r} exposes "
-                f"{len(port_names)} external ports (a real physical cell has only "
-                f"4 cardinal neighbors): {sorted(port_names)}"
+                f"{len(port_names)} external ports but only {len(available)} real "
+                f"cardinal sides remain free ({used} already internally fixed): "
+                f"{sorted(port_names)}"
             )
         for i, name in enumerate(sorted(port_names)):
-            directions[name] = _DIR_LETTERS[i]
+            directions[name] = available[i]
     return directions
 
 
@@ -360,12 +393,30 @@ def export_tier1_tile(tile_name: str) -> Dict[str, Any]:
         )
         return record
 
-    records = place_composed(tile, 0, 0, directions, params or None)
+    preloads: List[Tuple[int, int, int]] = []
+    records = place_composed(tile, 0, 0, directions, params or None, preloads=preloads)
     session = VMSession(SuperGrid([]))
     for rec in records:
         session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
 
-    trace: List[Dict[str, Any]] = [{"step": "initial", "state": session.describe()}]
+    trace: List[Dict[str, Any]] = []
+    if preloads:
+        # Real, necessary sequence (#686): freeze the whole grid, seed
+        # every preload-only sub-cell directly, unfreeze, then let the
+        # preloaded constants fully settle -- one tick only OFFERS a
+        # preloaded value, a second is needed for a real neighbor to
+        # actually CAPTURE it (confirmed empirically while building
+        # `select`/`icmp_eq`/`icmp_ne`) -- BEFORE any live/dynamic
+        # external port gets delivered below, so a live operand never
+        # races a still-in-flight constant.
+        session.grid.freeze_all()
+        for r, c, v in preloads:
+            session.grid.preload_ram_flowing(r, c, v)
+        session.grid.unfreeze_all()
+        session.tick(2)
+        trace.append({"step": "preload+unfreeze+settle", "state": session.describe()})
+    else:
+        trace.append({"step": "initial", "state": session.describe()})
 
     resolved_ports = [
         (name, *_resolve_port_absolute(tile, name, 0, 0, directions[name]))

@@ -8,6 +8,7 @@ RTL, not against its own assumptions restated.
 """
 import sys
 import os
+import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
 
@@ -245,6 +246,85 @@ def test_cell_type_is_v3_when_mixing_branch_and_original_cores():
                            core_config={"upstream_dir": 0, "emit_low": 1, "route_low": ["e"]})
     icm = v3.IcmV3File(name="mixed", records=[rec1, rec2])
     assert icm.to_dict()["cell_type"] == "unicell_super_v3"
+
+
+# ── nano_gate routing_mask list-encoding bug (points.md #687) ───────
+
+def test_nano_gate_with_list_routing_mask_encodes_without_crashing():
+    # Real, previously-undiscovered bug: super_tile_library_v1.place()'s
+    # own generic mechanism ALWAYS gives routing_mask a list value
+    # (['e'], not 15) -- to_dict()/save() crashed outright on this for
+    # every real nano_gate-based program, since routing_mask was
+    # deliberately excluded from _DIR_FIELDS (a real, separate, still-
+    # correct DECODE-side choice). Confirmed fixed: encoding now accepts
+    # a list for ANY field, decode contract (raw int for routing_mask)
+    # unchanged.
+    rec = v3.IcmV3Record(cell_id="g0", row=0, col=0, core="nano",
+                          core_config={"topology": 7, "ready": 1, "routing_mask": ["e"]})
+    d = rec.to_dict()   # must not raise
+    assert d["core"] == "nano"
+
+
+def test_routing_mask_decode_contract_unchanged_raw_int_in_raw_int_out():
+    # The real, existing, relied-upon contract this fix must NOT break:
+    # a raw int in still decodes as a raw int out (not silently promoted
+    # to a list) -- routing_mask/cardinal_edge are deliberately absent
+    # from _DIR_FIELDS on the DECODE side.
+    packed = v3.pack_core_config("nano", {"topology": 0, "ready": 1, "routing_mask": 0b1111})
+    decoded = v3.unpack_core_config("nano", packed)
+    assert decoded["routing_mask"] == 0b1111
+    assert not isinstance(decoded["routing_mask"], list)
+
+
+def test_nano_gate_program_saves_and_loads_via_the_real_dsl_compiler():
+    # The real, end-to-end proof: an actual DSL-compiled program using
+    # nano_gate (previously impossible to save at all) now round-trips.
+    import dsl_compiler_v1 as dsl
+    icm, diags = dsl.compile_source(
+        "program t { place g1 as nano_gate at (0,0) { out: e  topology: 7 } }"
+    )
+    assert diags == []
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "nano_gate.icm")
+        icm.save(path)   # must not raise
+        loaded = v3.IcmV3File.load(path)
+        assert loaded.records[0].core_config["routing_mask"] == ["e"]
+
+
+# ── preload_value (points.md #687) ───────────────────────────────────
+
+def test_preload_value_defaults_to_none():
+    rec = v3.IcmV3Record(cell_id="r0", row=0, col=0, core="ram")
+    assert rec.preload_value is None
+    assert rec.to_dict()["preload_value"] is None
+
+
+def test_preload_value_round_trips_through_to_dict_from_dict():
+    rec = v3.IcmV3Record(cell_id="r0", row=0, col=0, core="ram", preload_value=0xCAFE)
+    restored = v3.IcmV3Record.from_dict(rec.to_dict())
+    assert restored.preload_value == 0xCAFE
+
+
+def test_preload_value_round_trips_through_save_load():
+    rec = v3.IcmV3Record(cell_id="r0", row=0, col=0, core="ram",
+                          core_config={"upstream_mask": ["n"], "downstream_mask": ["e"]},
+                          preload_value=99)
+    icm = v3.IcmV3File(name="preload_test", records=[rec])
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "preload.icm")
+        icm.save(path)
+        loaded = v3.IcmV3File.load(path)
+    assert loaded.records[0].preload_value == 99
+
+
+def test_preload_value_is_covered_by_record_hash():
+    # A wrong or missing preload silently produces a wrong program --
+    # the same real reasoning io_name's own hash coverage already uses.
+    rec_a = v3.IcmV3Record(cell_id="r0", row=0, col=0, core="ram", preload_value=1)
+    rec_b = v3.IcmV3Record(cell_id="r0", row=0, col=0, core="ram", preload_value=2)
+    icm_a = v3.IcmV3File(name="t", records=[rec_a])
+    icm_b = v3.IcmV3File(name="t", records=[rec_b])
+    assert icm_a.record_hash() != icm_b.record_hash()
 
 
 if __name__ == "__main__":

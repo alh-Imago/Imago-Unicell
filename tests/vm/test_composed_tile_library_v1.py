@@ -18,7 +18,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
 
 from composed_tile_library_v1 import composed_tile_library, place_composed  # noqa: E402
 from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
-from unicell_automaton_v1 import N, S  # noqa: E402
+from unicell_automaton_v1 import N, S, W  # noqa: E402
+from vm_introspection_v1 import cell_at  # noqa: E402
 
 
 def test_place_composed_rejects_missing_port():
@@ -372,6 +373,166 @@ def test_run_to_quiescence_still_returns_quickly_for_a_genuinely_idle_grid():
     grid = SuperGrid([rec])
     ticks = grid.run_to_quiescence(max_ticks=10)
     assert ticks <= 2   # one real tick to confirm nothing's pending, not an error
+
+
+# ── select/icmp_eq/icmp_ne (points.md #686) -- the real, promoted
+# LLVM-frontend compositions (originally hand-inlined, #668/#674), now
+# real, reusable Tier-1 tiles built on #686's own freeze/preload/
+# unfreeze mechanism instead of precisely-timed live injection. ──────
+
+def _run_composed_with_preload(tile_name, port_directions, params, deliveries, settle_ticks_before_deliveries, settle_ticks_after):
+    """Real, reusable test harness matching the actual required usage
+    contract for a composed tile with preload-only sub-cells: freeze
+    the whole grid, seed every real preload, unfreeze, let the
+    preloaded constants FULLY settle (a real, necessary step found
+    empirically while building this -- one tick only OFFERS a
+    preloaded value, a second tick is needed for a real neighbor to
+    actually CAPTURE it, #686), THEN deliver any live/dynamic ports,
+    then tick again to let the result propagate."""
+    tile = composed_tile_library.get(tile_name)
+    preloads = []
+    records = place_composed(tile, 0, 0, port_directions, params, preloads=preloads)
+    grid = SuperGrid(records)
+    grid.freeze_all()
+    for r, c, v in preloads:
+        grid.preload_ram_flowing(r, c, v)
+    grid.unfreeze_all()
+    for _ in range(settle_ticks_before_deliveries):
+        grid.tick()
+    for (row, col), arrivals in deliveries:
+        grid.cells[(row, col)].deliver(arrivals, None)
+    for _ in range(settle_ticks_after):
+        grid.tick()
+    return grid
+
+
+def test_select_composed_tile_all_four_real_truth_table_cases():
+    # Real, necessary ordering, found empirically while building this:
+    # the composed tile's own internal "mask = 0 - cond" subtraction
+    # needs the preloaded zero constant to be the FIRST real operand
+    # captured and cond (the live, dynamic external port) the SECOND --
+    # matching #674's own original "north-arrives-first" convention,
+    # here achieved by letting the preload settle (2 ticks) BEFORE
+    # delivering cond, rather than a hand-tuned relay-based stagger.
+    for cond, true_val, false_val in [(0, 42, 7), (0, 0xFFFFFFFF, 5), (1, 42, 7), (1, 0xFFFFFFFF, 5)]:
+        grid = _run_composed_with_preload(
+            "select", {"cond": "w", "out": "e"}, {"true_val": true_val, "false_val": false_val},
+            deliveries=[((1, 0), {W: cond})],
+            settle_ticks_before_deliveries=2, settle_ticks_after=10,
+        )
+        expected = true_val if cond else false_val
+        assert cell_at(grid, 1, 2)["nano"]["out_buffer"] == expected
+
+
+def test_select_rejects_missing_true_val_param():
+    tile = composed_tile_library.get("select")
+    try:
+        place_composed(tile, 0, 0, {"cond": "w", "out": "e"}, {"false_val": 7}, preloads=[])
+    except ValueError as e:
+        assert "true_val" in str(e)
+    else:
+        raise AssertionError("expected ValueError for missing true_val")
+
+
+def test_place_composed_raises_if_preload_subcell_but_no_preloads_list():
+    # Real, deliberate safety check (#686): a compile-time constant
+    # that never gets seeded is a correctness bug, not a cosmetic gap
+    # -- omitting `preloads=` when a preload-only sub-cell exists must
+    # fail loudly, never silently drop the constant.
+    tile = composed_tile_library.get("select")
+    try:
+        place_composed(tile, 0, 0, {"cond": "w", "out": "e"}, {"true_val": 1, "false_val": 0})
+    except ValueError as e:
+        assert "preloads" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_icmp_eq_composed_tile_real_cases():
+    for a, b in [(5, 5), (5, 7), (0, 0)]:
+        # Real, necessary: TWO separate deliver() calls, not one
+        # combined dict -- a single call with both W and N arrivals
+        # together gets bitwise-OR'd into ONE value by the adder's own
+        # real same-tick-arrival semantics, not captured as separate
+        # A/B (confirmed empirically while building this: an earlier
+        # version of this test passed both in one call and got None).
+        grid = _run_composed_with_preload(
+            "icmp_eq", {"in_a": "w", "in_b": "n", "out": "e"}, {},
+            deliveries=[((0, 0), {W: a}), ((0, 0), {N: b})],
+            settle_ticks_before_deliveries=0, settle_ticks_after=12,
+        )
+        assert cell_at(grid, 1, 1)["nano"]["out_buffer"] == int(a == b)
+
+
+def test_icmp_ne_composed_tile_real_cases():
+    for a, b in [(5, 5), (5, 7), (0, 0)]:
+        grid = _run_composed_with_preload(
+            "icmp_ne", {"in_a": "w", "in_b": "n", "out": "e"}, {},
+            deliveries=[((0, 0), {W: a}), ((0, 0), {N: b})],
+            settle_ticks_before_deliveries=0, settle_ticks_after=12,
+        )
+        assert cell_at(grid, 1, 2)["nano"]["out_buffer"] == int(a != b)
+
+
+# ── apply_preloads_to_records / real file-format round trip (#687) ──
+
+def test_apply_preloads_to_records_sets_matching_record_field():
+    from composed_tile_library_v1 import apply_preloads_to_records
+    tile = composed_tile_library.get("select")
+    preloads = []
+    records = place_composed(tile, 0, 0, {"cond": "w", "out": "e"},
+                              {"true_val": 42, "false_val": 7}, preloads=preloads)
+    apply_preloads_to_records(records, preloads)
+    by_pos = {(r.row, r.col): r for r in records}
+    for row, col, value in preloads:
+        assert by_pos[(row, col)].preload_value == value
+    # a non-preload subcell (e.g. the mask/subtractor) must be untouched
+    assert by_pos[(1, 0)].preload_value is None
+
+
+def test_apply_preloads_to_records_rejects_mismatched_position():
+    from composed_tile_library_v1 import apply_preloads_to_records
+    tile = composed_tile_library.get("select")
+    preloads = []
+    records = place_composed(tile, 0, 0, {"cond": "w", "out": "e"},
+                              {"true_val": 1, "false_val": 0}, preloads=preloads)
+    try:
+        apply_preloads_to_records(records, [(99, 99, 5)])
+        raise AssertionError("expected ValueError")
+    except ValueError as e:
+        assert "99" in str(e)
+
+
+def test_select_real_file_format_round_trip_via_icm_save_load():
+    # The real, complete pipeline per #687: place -> fold preloads into
+    # records -> save to a real .icm file -> load it back -> the
+    # STANDARD loader (SuperGrid.from_icm()) applies freeze/preload/
+    # unfreeze automatically, with no special-case caller code at all.
+    import tempfile
+    import os
+    from composed_tile_library_v1 import apply_preloads_to_records
+    import icm_v3 as v3
+
+    tile = composed_tile_library.get("select")
+    preloads = []
+    records = place_composed(tile, 0, 0, {"cond": "w", "out": "e"},
+                              {"true_val": 42, "false_val": 7}, preloads=preloads)
+    apply_preloads_to_records(records, preloads)
+    icm = v3.IcmV3File(name="select_roundtrip", records=records)
+
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "select.icm")
+        icm.save(path)
+        loaded = v3.IcmV3File.load(path)
+
+    grid = SuperGrid.from_icm(loaded)
+    assert grid.cells[(0, 0)].freeze_in is False   # already released
+    grid.tick()
+    grid.tick()
+    grid.cells[(1, 0)].deliver({W: 1}, None)
+    for _ in range(8):
+        grid.tick()
+    assert cell_at(grid, 1, 2)["nano"]["out_buffer"] == 42
 
 
 if __name__ == "__main__":

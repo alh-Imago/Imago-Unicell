@@ -1025,6 +1025,25 @@ class SuperGrid:
         self._pending: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
         self.tick_count = 0
 
+        # ── freeze/preload/unfreeze (points.md #687), per Alan's own
+        # direct design: any record carrying a real `preload_value`
+        # gets seeded directly into its own captured-value register
+        # while EVERY cell in this grid is held frozen, released by one
+        # real, blanket unfreeze -- built directly into construction
+        # itself, not a separate opt-in step, so ANY caller building a
+        # grid from records with preloads gets this behavior for free,
+        # the same way a real hardware bitstream loads its whole
+        # configuration before ever coming out of reset. A grid with no
+        # preloaded records at all (every existing caller, today) does
+        # nothing here -- freeze_all()/unfreeze_all() are never even
+        # called, zero behavior change. ──────────────────────────────
+        preloaded = [(r.row, r.col, r.preload_value) for r in records if r.preload_value is not None]
+        if preloaded:
+            self.freeze_all()
+            for row, col, value in preloaded:
+                self.preload_ram_flowing(row, col, value)
+            self.unfreeze_all()
+
     @staticmethod
     def from_icm(icm: "v3.IcmV3File") -> "SuperGrid":
         return SuperGrid(icm.records)
@@ -1036,6 +1055,49 @@ class SuperGrid:
 
     def inject(self, row: int, col: int, value: int) -> None:
         self._pending.setdefault((row, col), []).append((None, None, value))
+
+    # ── freeze/preload/unfreeze (points.md #686) -- Alan's own direct
+    # design: rather than deliver a compile-time-known constant as a
+    # live, precisely-timed event (the old select/icmp-eq approach's
+    # own fragile hop-count staggering, #668/#674), load the WHOLE
+    # program frozen, seed every constant directly into its target
+    # cell's own internal register (bypassing `deliver()` entirely --
+    # confirmed necessary, not a shortcut: `deliver()` REJECTS every
+    # arrival outright while `freeze_in` is set, #656), then release
+    # every cell with one real, simultaneous blanket unfreeze. From
+    # that instant, every cell (dynamic operands and preloaded
+    # constants alike) starts from the same tick with nothing already
+    # "ahead" -- downstream arrival order becomes a pure function of
+    # real hop distance, not a race to avoid. ──────────────────────────
+    def freeze_all(self) -> None:
+        for cell in self.cells.values():
+            cell.freeze_in = True
+
+    def unfreeze_all(self) -> None:
+        for cell in self.cells.values():
+            cell.freeze_in = False
+
+    def preload_ram_flowing(self, row: int, col: int, value: int) -> None:
+        """Seeds a `ram_flowing` cell's own captured-value register
+        directly, as if it had already received and captured `value` --
+        the real, honest, narrow scope this session actually needs
+        (`ram_flowing` specifically, the only core type select/icmp-eq's
+        own compile-time constants ever use). Real, deliberate choice:
+        plain attribute assignment, the exact same mechanism `SuperCell.
+        restore()` already uses (`#483`) -- no new low-level machinery,
+        reusing what's already real and tested. Only meaningful while
+        the target cell is frozen (or hasn't ticked yet); calling this
+        on a live, already-running cell is the caller's own
+        responsibility to avoid, not guarded against here."""
+        cell = self.cells[(row, col)]
+        if cell.core != "ram":
+            raise ValueError(
+                f"preload_ram_flowing: cell at ({row}, {col}) is a {cell.core!r} "
+                f"core, not 'ram' -- this method's own real, current scope is "
+                f"ram_flowing cells only"
+            )
+        cell.ram_data_reg = value & _MASK32
+        cell.ram_data_valid = True
 
     def confirm_read(self, row: int, col: int) -> None:
         """Same terminal-output contract as CAGrid's own confirm_read --

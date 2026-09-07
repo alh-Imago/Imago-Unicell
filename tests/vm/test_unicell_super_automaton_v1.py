@@ -598,6 +598,90 @@ def test_prog_id_unrecognized_id_is_a_real_noop():
     assert cell.adder_upstream_mask == 0
 
 
+# ── freeze_all/unfreeze_all/preload_ram_flowing (points.md #686) ────
+
+def test_freeze_all_sets_every_cell_and_blocks_delivery():
+    grid = SuperGrid([_rec("r", 0, 0, "ram", {"upstream_mask": ["n"], "downstream_mask": ["e"]})])
+    grid.freeze_all()
+    assert grid.cells[(0, 0)].freeze_in is True
+    accepted, _ = grid.cells[(0, 0)].deliver({N: 123}, None)
+    assert accepted is False   # real, necessary confirmation -- deliver()
+                                # REJECTS outright while frozen (#656), not
+                                # just declines to offer downstream
+
+
+def test_unfreeze_all_restores_normal_delivery():
+    grid = SuperGrid([_rec("r", 0, 0, "ram", {"upstream_mask": ["n"], "downstream_mask": ["e"]})])
+    grid.freeze_all()
+    grid.unfreeze_all()
+    assert grid.cells[(0, 0)].freeze_in is False
+    accepted, _ = grid.cells[(0, 0)].deliver({N: 123}, None)
+    assert accepted is True
+
+
+def test_preload_ram_flowing_seeds_the_value_directly():
+    grid = SuperGrid([_rec("r", 0, 0, "ram", {"upstream_mask": ["n"], "downstream_mask": ["e"]})])
+    grid.freeze_all()
+    grid.preload_ram_flowing(0, 0, 0xDEADBEEF)
+    cell = grid.cells[(0, 0)]
+    assert cell.ram_data_reg == 0xDEADBEEF
+    assert cell.ram_data_valid is True
+
+
+def test_preload_ram_flowing_rejects_non_ram_cell():
+    grid = SuperGrid([_rec("a", 0, 0, "adder")])
+    try:
+        grid.preload_ram_flowing(0, 0, 5)
+        assert False, "expected ValueError"
+    except ValueError as e:
+        assert "ram" in str(e)
+
+
+def test_freeze_preload_unfreeze_propagates_to_a_real_neighbor():
+    """The real, complete end-to-end sequence #686 exists for: freeze
+    the whole grid, seed a constant directly (bypassing deliver()
+    entirely), unfreeze, and confirm the preloaded value genuinely
+    propagates to a real downstream neighbor via ordinary ticking --
+    not just that the source cell's own register got set."""
+    ram_rec = _rec("r", 0, 0, "ram", {"upstream_mask": ["n"], "downstream_mask": ["s"]})
+    adder_rec = _rec("a", 1, 0, "adder", {"upstream_mask": ["n", "w"], "downstream_mask": ["e"]})
+    grid = SuperGrid([ram_rec, adder_rec])
+    grid.freeze_all()
+    grid.preload_ram_flowing(0, 0, 17)
+    grid.unfreeze_all()
+    grid.tick()
+    grid.tick()
+    assert grid.cells[(1, 0)].adder_a_reg == 17
+    assert grid.cells[(1, 0)].adder_a_arrived is True
+
+
+# ── real IcmV3Record.preload_value baked directly into construction
+# (points.md #687) -- the file-format-level generalization: ANY grid
+# built from records carrying a real preload_value gets the whole
+# freeze/preload/unfreeze sequence automatically, no separate opt-in.
+
+def test_supergrid_construction_applies_record_level_preload_automatically():
+    ram_rec = _rec("r", 0, 0, "ram", {"upstream_mask": ["n"], "downstream_mask": ["e"]})
+    ram_rec.preload_value = 0xABCD
+    grid = SuperGrid([ram_rec])
+    # already released -- the whole point is the caller never sees the
+    # intermediate frozen state
+    assert grid.cells[(0, 0)].freeze_in is False
+    assert grid.cells[(0, 0)].ram_data_reg == 0xABCD
+    assert grid.cells[(0, 0)].ram_data_valid is True
+
+
+def test_supergrid_construction_with_no_preloads_never_touches_freeze():
+    # Real, necessary confirmation: a grid with no preloaded records at
+    # all must be completely unaffected -- freeze_all()/unfreeze_all()
+    # aren't even called, zero behavior change for every existing
+    # caller (every test in this whole suite except the ones above).
+    ram_rec = _rec("r", 0, 0, "ram", {"upstream_mask": ["n"], "downstream_mask": ["e"]})
+    grid = SuperGrid([ram_rec])
+    assert grid.cells[(0, 0)].freeze_in is False
+    assert grid.cells[(0, 0)].ram_data_valid is False
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))
