@@ -6,6 +6,11 @@ where we are"). A real scoping pass only, matching this project's own
 established discipline — define the real boundary before writing any
 code, not after.*
 
+**Updated 2026-09-07, same day, per Alan's own follow-up direct
+request:** partition the buckets by area from the start (see "Real
+structural decision" below) — added before any code existed, per this
+same note's own "define the boundary before writing anything" rule.
+
 ## Where this comes from
 
 `#510` (2026-08-25): a real, new roadmap item — "a real, structured
@@ -32,6 +37,73 @@ own invention — `vm_ai_port_v1.py`'s own docstring, written 2026-08-**)
    optional. Training buckets are squarely LAYER 2's own concern —
    this note does not scope attaching or training any actual model,
    only the DATA a future layer 2 would need.
+
+## Real structural decision, per Alan's own direct request, 2026-09-07: partition by area, not one monolithic bucket
+
+Alan's own framing: split the training buckets into sections/areas so
+that adding a new area is just a new bucket, and updating something
+only means touching the one bucket it actually belongs to — not a
+single combined corpus that has to be regenerated (or reasoned about)
+as one unit every time anything changes.
+
+**The real, existing seam this maps onto, not an invented one:**
+`nano/tile_source_registry_v1.py` already lets a tile library
+self-register (`register_tile_source(TileSource(...))`) — `#485`/`#487`
+built this specifically so a new tile source can be added without
+editing a central list. Walking THIS registry, rather than hand-listing
+tile names in the exporter, means the bucket-per-area principle costs
+zero new machinery: a new tile that registers itself is automatically
+a new, separate bucket the next time the exporter runs, and an
+existing tile's own updated behavior only ever regenerates its own
+one file.
+
+**Real, concrete area boundaries, each mapping onto something that
+already exists as its own real unit in the code, not a fresh
+taxonomy:**
+
+1. **`tiles/`** — one bucket file per entry in `super_tile_library_
+   v1.py`'s tile registry (Tier-0 primitives AND Tier-1 composed tiles
+   both live in the same real registry today, so both fall in this
+   one area naturally — `nano_gate`, `adder`, `sentinel`,
+   `dual_threshold_monitor`, `select`'s own loop-tile relatives, etc.,
+   each already a distinct, named, independently-described unit).
+2. **`demos/`** — one bucket file per entry in `workbench_v1.py`'s own
+   `DEMOS` dict. Genuinely different from `tiles/`: a demo is a
+   complete, wired, runnable PROGRAM (possibly combining several
+   tiles plus `expose()` wiring), not a single composable unit — worth
+   keeping separate even where the same name appears in both (e.g.
+   `sentinel` is both a tile and a demo).
+3. **`frontend_compositions/`** — a real, honest, smaller area for
+   constructions that exist only as inline code inside a compiler
+   frontend, NOT as registered tiles — `select` and `icmp eq`/`ne` in
+   `llvm_ir_frontend_v1.py` specifically, confirmed by direct check to
+   have zero entries in the tile registry. This area needs a small,
+   explicit list (it can't self-register the way `tiles/` does) until
+   or unless each one is promoted to a real tile — which is already a
+   standing, separate roadmap item. **A real, useful side effect worth
+   naming:** promoting a frontend composition to a registered tile
+   doesn't just serve the compiler — it also moves that pattern from
+   this small, manually-tracked area into the self-registering
+   `tiles/` area for free, one more real reason (beyond the compiler's
+   own reuse) to do that promotion.
+4. **A top-level lineage split, not yet needed but ready when it is:**
+   everything above targets the OLD core lineage (the one with real
+   DSL/tile-registry reachability today). The newer VIX Carrier/
+   command-core generation (`CORES_AND_WRAPPERS_REFERENCE.md`'s own
+   dedicated section) has no compiler or tile-registry reachability
+   yet, so it genuinely has nothing to export today — but the moment
+   it does, it becomes a new top-level lineage folder (e.g. `vix_
+   carrier/tiles/`, `vix_carrier/demos/`), added alongside the
+   existing one, touching nothing already built.
+
+**What this buys, concretely, matching Alan's own stated reason for
+asking:** a new tile/demo/composition never requires touching an
+exporter's own hardcoded list (for `tiles/`, since it's registry-
+driven) or, at worst, a small, isolated addition to one area's own
+list (`frontend_compositions/`) — never a change to how any OTHER
+area's buckets are produced. Updating one core's own behavior (a new
+field, a fixed bug) only ever needs that one tile's own bucket file
+regenerated, not the whole corpus re-verified.
 
 ## The real, open question this note exists to answer: what IS a
 "training bucket," concretely
@@ -102,20 +174,23 @@ export step.
 ## A real, minimal first slice (not built), matching every other
 `*_scope.md`'s own "smallest real step, not the full vision" discipline
 
-Build a real EXPORTER, not a generator: walk the already-existing
-`DEMOS` dict and `super_tile_library_v1.py`'s own composed-tile
-catalog, and for each entry emit one canonical, model-consumable
-record — name, plain-language description, real DSL source, the
-resulting ICM record(s), and a real example VM trace (a fixed
-injection sequence run through an actual `VMSession`, with the tick-
-by-tick observed output, not an assumed one). This is shape (c)-plus-
-(b): it reuses 100% already-existing, already-tested code, adds no new
-mechanism, and produces a real, concrete "bucket #1" — a few dozen
-records — instead of an abstract roadmap line. It also gives a real,
-early answer to a question every one of the four shapes above would
-eventually need anyway: what does ONE record actually look like on
-disk (a JSON schema), before deciding how many thousand of them to
-generate.
+Build a real EXPORTER, not a generator — and, per the area-partition
+decision above, one that writes ONE FILE PER BUCKET, not one combined
+corpus: walk `super_tile_library_v1.py`'s own tile registry (the
+`tiles/` area, registry-driven, no hardcoded list) and `workbench_v1.
+py`'s own `DEMOS` dict (the `demos/` area), and for each individual
+entry emit its own canonical, model-consumable record — name,
+plain-language description, real DSL source, the resulting ICM
+record(s), and a real example VM trace (a fixed injection sequence run
+through an actual `VMSession`, with the tick-by-tick observed output,
+not an assumed one) — as its own file. This is shape (c)-plus-(b): it
+reuses 100% already-existing, already-tested code, adds no new
+mechanism, and produces a real, concrete first set of buckets — one
+per tile, one per demo — instead of an abstract roadmap line or a
+single monolithic file. It also gives a real, early answer to a
+question every one of the four shapes above would eventually need
+anyway: what does ONE record actually look like on disk (a JSON
+schema), before deciding how many thousand of them to generate.
 
 ## Explicitly, honestly NOT scoped here
 

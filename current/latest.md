@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-07, the full doc + static-page refresh pass from #678's audit is done -- every stale item named actually brought current. See `points/points_active.md` #679)
+# Current State (as of 2026-09-07, real structural decision made for the AI training buckets -- partition by area/bucket, reusing the existing tile-source-registry self-registration mechanism. Still design-note-only. See `points/points_active.md` #680)
+
+## Read this first (most recent)
+
+**2026-09-07, training buckets partitioned by area (#680).** Alan's
+own direct follow-up: split the buckets into sections/areas so a new
+area is just a new bucket, and an update only ever touches the one
+bucket it belongs to. `ai_training_buckets_scope.md` updated same day.
+
+**Real, existing mechanism reused, not invented:** `tile_source_
+registry_v1.py`'s own self-registration (`#485`/`#487`) means walking
+that registry for the `tiles/` area costs zero new machinery -- a
+newly registered tile is automatically a new bucket next export run.
+
+**Real area boundaries decided:** `tiles/` (Tier-0 + Tier-1, one file
+per tile-registry entry), `demos/` (one file per `workbench_v1.py`'s
+`DEMOS` entry -- a complete wired program, genuinely different from a
+single tile even when the name matches, e.g. `sentinel`),
+`frontend_compositions/` (a small, explicit list for `select`/`icmp
+eq` -- confirmed to have zero tile-registry entries today, until
+promoted to real tiles), and a top-level lineage split ready for the
+VIX Carrier generation whenever it becomes compiler-reachable.
+
+**Real, honest scope: still nothing built** -- a same-day refinement
+of a same-day scope note, structural decision only.
+
+## Previous state (as of 2026-09-07, the full doc + static-page refresh pass from #678's audit is done -- every stale item named actually brought current. See `points/points_active.md` #679)
 
 ## Read this first (most recent)
 

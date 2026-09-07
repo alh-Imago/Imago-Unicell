@@ -7157,3 +7157,47 @@ untouched.** Full regression: 592 passed + 1 skipped across `tests/vm`
 + `tests/tools`, unchanged -- this was a documentation pass, no code
 behavior touched. Every HTML edit checked for balanced tags before
 committing; the JS-bearing explainer additionally syntax-checked.
+
+## 680. Real structural decision for the AI training buckets, per Alan's own direct follow-up request: partition by area, not one monolithic bucket -- so adding a new area is just a new bucket, and updating one area only ever touches that bucket. `ai_training_buckets_scope.md` updated, still design-note-only. (Alan/Claude, 2026-09-07)
+
+**Real, existing seam reused, not a new mechanism invented:** `nano/
+tile_source_registry_v1.py` (`#485`/`#487`) already lets a tile library
+self-register -- walking THAT registry for the `tiles/` area, rather
+than hand-listing tile names in a future exporter, means a newly
+registered tile becomes a new, separate bucket automatically, and an
+existing tile's own changed behavior only ever needs its own one file
+regenerated.
+
+**Real, concrete area boundaries decided, each mapped onto something
+that already exists as its own real unit, not an invented taxonomy:**
+`tiles/` (one file per `super_tile_library_v1.py` registry entry,
+covering both Tier-0 primitives and Tier-1 composed tiles, since both
+already live in the same real registry); `demos/` (one file per
+`workbench_v1.py`'s own `DEMOS` entry -- genuinely different from
+`tiles/` since a demo is a complete wired program, not a single
+composable unit, even where the same name like `sentinel` appears in
+both); `frontend_compositions/` (a real, honest, smaller area for
+`select`/`icmp eq` in `llvm_ir_frontend_v1.py`, confirmed by direct
+check to have zero tile-registry entries -- needs a small explicit
+list until each is promoted to a real tile, already a standing
+separate roadmap item); and a top-level lineage split, not yet needed
+but ready when it is -- the VIX Carrier generation has no compiler/
+tile-registry reachability yet, so it has nothing to export today, but
+becomes a new top-level folder the moment it does, touching nothing
+already built.
+
+**A real, useful side effect worth naming, not previously connected:**
+promoting a frontend composition (`select`/`icmp eq`) to a registered
+tile doesn't just serve the compiler's own reuse -- it also moves that
+pattern from the small, manually-tracked `frontend_compositions/` area
+into the self-registering `tiles/` area for free, one more real reason
+to do that promotion.
+
+**The minimal first slice (still not built) updated to match:** the
+real exporter now writes ONE FILE PER BUCKET (one per tile, one per
+demo) rather than a single combined corpus, per this entry's own
+structural decision.
+
+**Real, honest scope: still nothing built.** A same-day update to a
+same-day scope note, per Alan's own direct follow-up, matching this
+note's own "define the boundary before writing anything" discipline.
