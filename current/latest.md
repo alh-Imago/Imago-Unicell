@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-07, real orphaned-work audit done per Alan's own direct request -- confirmed his 3 named suspects (training buckets, Composer's full vision, workbench gaps) plus several more, and closed the smallest one same session: workbench auto-play. See `points/points_active.md` #676)
+# Current State (as of 2026-09-07, real scope notes written for Composer's full editor and AI training buckets, per Alan's own direct request. Both design-notes-only, matching the project's own "scope before build" discipline. See `points/points_active.md` #677)
+
+## Read this first (most recent)
+
+**2026-09-07, both remaining `#676` items scoped out into real docs
+(#677).** Per Alan's own direct request ("scope both out into docs, so
+we know where we are") -- design notes only, nothing built, same
+discipline as `composer_scope.md`/`workbench_scope.md`.
+
+**`composer_full_editor_scope.md`:** confirms `#606`-`#609` built real
+review tooling (shell-compat checks, connection hints, direction
+summaries), not the drag-and-drop editor `composer_scope.md` already
+deferred. Surfaces a real, unresolved question rather than guessing at
+it: the old system's links were position-independent graph edges; this
+system's connections are cardinal and require physical adjacency, so
+the old "drag-to-link" gesture could mean placement-only (matches
+already-decided scope) or real topology authoring (already ruled out).
+Recommends placement-only and scopes a real minimal next increment
+(draggable cells, port highlighting, a library panel) all reusing
+already-existing, already-tested code.
+
+**`ai_training_buckets_scope.md`:** names the real question `#510`/
+`#511` left open -- "training bucket" spans at least 4 different real
+shapes (behavior examples, NL-to-DSL pairs, a pattern-reference corpus,
+bulk synthetic generation per `#604`) -- and doesn't pick one. Confirms
+`vm_ai_port_v1.py`'s own layer-1/layer-2 split needs no changes.
+Identifies the workbench's own `DEMOS` dict and
+`super_tile_library_v1.py`'s own composed-tile catalog as real,
+already-built raw material, and scopes a minimal first slice: a real
+EXPORTER (not a generator) producing one canonical JSON record per
+existing demo/pattern, verified against an actual VM run, deferring
+the harder shape/scale/model-attachment questions.
+
+**Real, honest scope: nothing built for either.** Both notes identify
+a real, ready-to-pick-up next increment each; whether/when to build
+either is explicitly left to Alan.
+
+## Previous state (as of 2026-09-07, real orphaned-work audit done per Alan's own direct request -- confirmed his 3 named suspects (training buckets, Composer's full vision, workbench gaps) plus several more, and closed the smallest one same session: workbench auto-play. See `points/points_active.md` #676)
 
 ## Read this first (most recent)
 

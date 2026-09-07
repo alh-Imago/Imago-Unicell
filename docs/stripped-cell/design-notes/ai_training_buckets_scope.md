@@ -1,0 +1,140 @@
+# AI training buckets — real scope, per the #676 audit
+
+*Captured 2026-09-07, per Alan's own direct request following the
+`#676` orphaned-work audit ("scope both out into docs, so we know
+where we are"). A real scoping pass only, matching this project's own
+established discipline — define the real boundary before writing any
+code, not after.*
+
+## Where this comes from
+
+`#510` (2026-08-25): a real, new roadmap item — "a real, structured
+knowledge substrate teaching a future AI system the composition method
+(`#509`) and the real, proven patterns already discovered, not just
+'what does each cell do.'" `#511` clarified it as the already-
+anticipated "layer 2" of `vm_ai_port_v1.py`'s own docstring. `#604`
+(2026-09-02) later connected it to a second, genuinely different axis:
+a card-decoupled virtual substrate (no real hardware ceiling) as a
+richer generation space for the same idea, in both 2D and 3D. Nothing
+was ever built or scoped into concrete steps on either axis — this
+note is the first real attempt at that.
+
+## The real, already-existing two-layer distinction (not this note's
+own invention — `vm_ai_port_v1.py`'s own docstring, written 2026-08-**)
+
+1. **Layer 1 — the port itself.** A clean, structured interface any
+   driver (AI, script, human) can drive the VM through: compile (DSL
+   or Python-AST) → real ICM v3 → running `SuperGrid` → real JSON
+   introspection. Already real, already built, needs no changes for
+   training buckets.
+2. **Layer 2 — actually attaching a reasoning model to make decisions
+   through that interface.** Explicitly named as separate, later, and
+   optional. Training buckets are squarely LAYER 2's own concern —
+   this note does not scope attaching or training any actual model,
+   only the DATA a future layer 2 would need.
+
+## The real, open question this note exists to answer: what IS a
+"training bucket," concretely
+
+`#510`'s own framing ("the composition method... not just what does
+each cell do") points at teaching PATTERNS, not just facts — but
+"pattern" is still underspecified. Four real, genuinely different
+shapes a bucket could take, not mutually exclusive:
+
+**(a) Input/output behavior examples.** A fixed topology + config,
+paired with its real observed behavior (a VM trace over N ticks given
+a stated set of injections). Teaches cause-and-effect on THIS
+substrate specifically.
+
+**(b) Natural-language-to-DSL pairs.** A stated goal ("count injected
+pulses and flag when they exceed a threshold") paired with the real
+DSL source that implements it (e.g. `sentinel`) and its trace. Teaches
+translation from intent to a real, working program — closer to a
+conventional instruction-tuning shape.
+
+**(c) A pattern-to-implementation reference corpus.** "Need a MUX →
+here is `select`'s real 4-cell nano-gate composition, here is why it
+works, here is the hop-count constraint that makes it correct." Closer
+to a retrieval/reference corpus than training data in the strict
+sense — teaches the COMPOSITION METHOD `#510` explicitly named, most
+directly of the four.
+
+**(d) Bulk synthetic generation.** Large volumes of valid, randomly or
+systematically generated topologies (2D and, per `#604`'s own later
+extension, 3D) plus their VM-computed behavior, at a scale no real
+card's own physical ceiling could provide. Teaches general substrate
+mechanics from volume rather than curated examples.
+
+**This note does not pick one.** (c) is the most directly buildable
+today, entirely from already-existing, already-tested code, with zero
+new mechanism. (a)/(b) need a real decision about scale and curation
+effort. (d) is real, separate, larger work — it depends on `#604`'s own
+still-unbuilt card-decoupled virtual substrate generator, not just an
+export step.
+
+## What already exists to build on, not duplicate
+
+- **`nano/workbench_v1.py`'s own `DEMOS` dict** (`#363`) — 6 real,
+  working, hand-described programs (`simple_ram`, `adder_pair`,
+  `sentinel`, `dual_threshold_monitor`, `twin_sentinel`,
+  `python_ast_example`), each already carrying a name, a plain-
+  language description, and real DSL/Python source. This is already,
+  structurally, a tiny hand-curated proto-bucket in shape (b) — it
+  just isn't exported anywhere outside the workbench's own `/demos`
+  endpoint.
+- **`nano/super_tile_library_v1.py`'s own Tier-0 + composed tile
+  catalog** — `sentinel`, `dual_threshold_monitor`, `twin_sentinel`,
+  the `select`/`icmp eq` LLVM-frontend compositions, the wired-OR MUX
+  construction, etc. Each is a real, named, already-understood
+  pattern-to-cells recipe — the direct, already-built raw material for
+  shape (c), currently living as Python code and docstrings, not as a
+  portable, model-consumable corpus.
+- **`vm_ai_port_v1.VMSession`** — compile → run → introspect in one
+  object; the real mechanism any exporter would drive to produce a
+  genuine, verified VM trace for a bucket entry, rather than a
+  hand-written or assumed one.
+- **`nano/experimental_3d_grid_v1.py`** (`#520`) — real, honest prior
+  art for `#604`'s own 3D extension: an already-built, deliberately
+  separate, VM-only 6-cardinal toy model, explicitly not grounded in
+  any real RTL. The natural (not novelty-for-its-own-sake) starting
+  point if the 3D generation axis is ever picked up.
+
+## A real, minimal first slice (not built), matching every other
+`*_scope.md`'s own "smallest real step, not the full vision" discipline
+
+Build a real EXPORTER, not a generator: walk the already-existing
+`DEMOS` dict and `super_tile_library_v1.py`'s own composed-tile
+catalog, and for each entry emit one canonical, model-consumable
+record — name, plain-language description, real DSL source, the
+resulting ICM record(s), and a real example VM trace (a fixed
+injection sequence run through an actual `VMSession`, with the tick-
+by-tick observed output, not an assumed one). This is shape (c)-plus-
+(b): it reuses 100% already-existing, already-tested code, adds no new
+mechanism, and produces a real, concrete "bucket #1" — a few dozen
+records — instead of an abstract roadmap line. It also gives a real,
+early answer to a question every one of the four shapes above would
+eventually need anyway: what does ONE record actually look like on
+disk (a JSON schema), before deciding how many thousand of them to
+generate.
+
+## Explicitly, honestly NOT scoped here
+
+- **Actually attaching or training any model** (layer 2, per
+  `vm_ai_port_v1.py`'s own docstring) — genuinely separate, later,
+  optional work; this note only scopes the data such a layer would
+  eventually consume.
+- **`#604`'s own card-decoupled virtual substrate generator** — real,
+  separate, larger work, a true prerequisite for shape (d)
+  specifically, not for the pattern-library export slice above. Not
+  started here.
+- **The 3D extension** — real prior art exists (`#520`), but building
+  on it is its own, separate decision, not implied by this note.
+- **Any claim about which of shapes (a)-(d) is "correct"** — a real
+  product/architecture decision for whoever eventually attaches layer
+  2, not decidable from the VM side alone.
+
+## Status
+
+No code exists for any of this yet. Design/scoping note only, per
+Alan's own direct request, following the exact discipline every other
+`*_scope.md` in this directory already uses.

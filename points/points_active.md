@@ -6940,3 +6940,54 @@ project's own "scope before build" discipline (`composer_scope.md`,
 `workbench_scope.md`), Alan's own direction on which to prioritize next
 is the right next step before writing code for either, not a unilateral
 choice made here.
+
+## 677. Real scope notes written for the two remaining `#676` items (Composer's full editor, AI training buckets), per Alan's own direct request ("scope both out into docs, so we know where we are") -- design notes only, matching this project's own established "scope before build" discipline, nothing built. (Alan/Claude, 2026-09-07)
+
+**`docs/stripped-cell/design-notes/composer_full_editor_scope.md`:**
+confirms exactly what `#606`-`#609` actually built (shell-compat
+awareness, connection hints, direction-summary rendering -- all
+extending `workbench_v1.py` directly, no separate canvas anywhere) is
+review tooling, not the drag-and-drop editor `composer_scope.md`
+already deferred back at `#385`. Re-confirms the old, archived
+Composer's own real visual paradigm (canvas placement, drag-link
+gesture, library panel) against `old_composer_tool.onion` directly.
+
+**A real, unresolved architectural question surfaced, not answered:**
+the old system's links were graph edges between arbitrary ports,
+decoupled from position; this system's connections are cardinal and
+require physical adjacency, making the old "drag-to-link" gesture
+genuinely ambiguous here -- it could mean PLACEMENT-only (matches
+`composer_scope.md`'s own already-decided scope) or real topology
+AUTHORING (which that same scope doc explicitly ruled out). The note
+recommends the placement-only reading and scopes a real, minimal next
+increment on that basis (draggable cells reusing `load_region()`'s own
+collision check, port highlighting reusing `connection_check_v1.py`'s
+existing data for display only, a library panel reusing
+`super_tile_library_v1.py`'s own already-built tile catalog) --
+without silently deciding the authoring question for Alan.
+
+**`docs/stripped-cell/design-notes/ai_training_buckets_scope.md`:**
+names the real, open question `#510`/`#511` left unaddressed --
+"training bucket" is underspecified across (at least) four genuinely
+different real shapes (input/output behavior examples; natural-
+language-to-DSL pairs; a pattern-to-implementation reference corpus;
+bulk synthetic generation per `#604`'s own virtual-substrate idea) --
+and does not pick one. Confirms `vm_ai_port_v1.py`'s own real, already-
+existing layer-1/layer-2 split (the port itself vs. attaching a
+reasoning model) needs no changes for this. Identifies the workbench's
+own `DEMOS` dict and `super_tile_library_v1.py`'s own composed-tile
+catalog as real, already-built, already-tested raw material requiring
+zero new mechanism to export -- and scopes a real, minimal first slice
+on that basis: a real EXPORTER (not a generator) producing one
+canonical JSON record per existing demo/pattern (description, DSL
+source, ICM record, a real, actually-run VM trace), deliberately
+deferring the harder open questions (which shape is right, whether/how
+`#604`'s own bulk-generation axis connects, and any real model
+attachment) rather than guessing at them.
+
+**Real, honest scope: nothing built for either item.** Both notes
+follow the exact same discipline as `composer_scope.md`/
+`workbench_scope.md`/`command_core_scope.md` -- a real, minimal next
+increment identified and ready to pick up for each, but the actual
+choice of when/whether to build either is explicitly left to Alan, not
+made here.
