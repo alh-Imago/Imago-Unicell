@@ -67,15 +67,19 @@ taxonomy:**
    wrapper_tile_library_v1.py` — both genuinely self-register into the
    SAME generic registry today, confirmed directly). **Real correction
    made while building the first slice, 2026-09-07:** Tier-1 COMPOSED
-   tiles (`sentinel`, `dual_threshold_monitor`, `twin_sentinel`, the
-   loop tiles) do NOT live in this registry — `composed_tile_library_
-   v1.py` is a genuinely separate library, confirmed directly against
-   `tile_source_registry_v1.py`'s own docstring ("Tier-1 composed
-   tiles... remain super-tile-only sub-cells for now"). This was
-   wrongly stated as already-unified in this note's own first draft;
-   corrected once actually checked, not left silently wrong. Exporting
-   Tier-1 composed tiles is real, separate future work — see "Status"
-   below.
+   tiles (`sentinel`, `dual_threshold_monitor`, `twin_sentinel`,
+   `dsp_add_and_hold`) do NOT live in this registry — `composed_tile_
+   library_v1.py` is a genuinely separate library, confirmed directly
+   against `tile_source_registry_v1.py`'s own docstring ("Tier-1
+   composed tiles... remain super-tile-only sub-cells for now"). This
+   was wrongly stated as already-unified in this note's own first
+   draft; corrected once actually checked, not left silently wrong. A
+   second, related correction: the loop tiles (`nano_loop_var`/`nano_
+   loop_ctrl`) are NOT Tier-1 examples either, despite this note's own
+   earlier draft implying they might be — confirmed directly, they're
+   real Tier-0 entries in `super_tile_library_v1.py` (single-cell,
+   `target="universal"`), already covered by `tiles/`. **Real Tier-1
+   export is now built — see "Status" below.**
 2. **`demos/`** — one bucket file per entry in `workbench_v1.py`'s own
    `DEMOS` dict. Genuinely different from `tiles/`: a demo is a
    complete, wired, runnable PROGRAM (possibly combining several
@@ -224,7 +228,27 @@ above is built:** `nano/training_bucket_export_v1.py` (`points.md
 #681`) implements the `tiles/`/`demos/` exporter exactly as scoped,
 including the real per-tile/per-demo file layout `#680` decided. 14
 real tests, `tests/vm/test_training_bucket_export_v1.py`, all passing,
-zero regressions (606 total). Genuinely still NOT built: Tier-1
-composed-tile export (see the real correction above), a real DSP-
-wrapper trace (metadata-only today, honestly), any bulk/3D generation
-axis (`#604`), and anything in layer 2 (attaching a real model).
+zero regressions (606 total). Genuinely still NOT built at that point:
+Tier-1 composed-tile export (see the real correction above), a real
+DSP-wrapper trace (metadata-only today, honestly), any bulk/3D
+generation axis (`#604`), and anything in layer 2 (attaching a real
+model).
+
+**Updated again 2026-09-07, same day, per Alan's own direct request to
+continue: Tier-1 composed-tile export is now real and built** (`points.
+md #682`), in its own separate `tiles_composed/` bucket area (a
+genuinely different registry/resolution mechanism from Tier-0's
+`tiles/`, kept separate on purpose). Handles real nested composition
+correctly (`twin_sentinel`'s own nested sentinels, confirmed via an
+actually-executed multi-cell trace reaching identical real state on
+both branches), real fan-out (`dual_threshold_monitor`), and correctly,
+honestly detects when a composed tile transitively touches a
+non-`super_records` bucket (`dsp_add_and_hold`'s own real DSP-wrapper
+subcell) and falls back to static-metadata-only rather than faking a
+trace. 13 more real tests (27 total in the file), 619 passed + 1
+skipped overall, zero regressions.
+
+**Genuinely still NOT built:** a real DSP-wrapper execution model (so
+`dsp_add_and_hold` could get a real trace too, not just metadata), any
+bulk/3D generation axis (`#604`), and anything in layer 2 (attaching a
+real model to consume any of this).

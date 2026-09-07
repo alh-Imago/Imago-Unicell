@@ -1,4 +1,54 @@
-# Current State (as of 2026-09-07, the AI training bucket exporter's real, minimal first slice is built -- nano/training_bucket_export_v1.py, per Alan's own direct choice to pick one item off the standing list. See `points/points_active.md` #681)
+# Current State (as of 2026-09-07, Tier-1 composed-tile export is real and built -- export_tier1_tile(), correctly handling real nested composition, fan-out, and mixed non-super_records bucket detection. See `points/points_active.md` #682)
+
+## Read this first (most recent)
+
+**2026-09-07, Tier-1 composed-tile export built (#682).** Per Alan's
+own direct request to continue -- `export_tier1_tile()` added to
+`nano/training_bucket_export_v1.py`, in its own `tiles_composed/`
+bucket area (a genuinely separate registry/mechanism from Tier-0's
+`tiles/`).
+
+**Four new real, generic helper functions**, each mirroring `place_
+composed()`'s own real resolution logic rather than reimplementing it:
+`_composed_tile_buckets()` (recursive bucket-kind detection through any
+nesting), `_required_composed_params()` (recursive, namespace-correct
+required-param discovery, honoring `fixed_params` at any depth),
+`_assign_composed_directions()` (groups external ports by their own
+immediate subcell, not globally -- necessary since a composed tile's
+total port count isn't capped at 4 the way one Tier-0 cell's is),
+`_resolve_port_absolute()` (recursively resolves a port to its real
+absolute row/col/direction/kind, correctly walking through nested
+composed sub-cells to the real leaf underneath).
+
+**A real, empirical design correction:** the first version ticked once
+between injected ports; a multi-cell composed tile needs a real tick
+PER PHYSICAL HOP to propagate, so this was bumped to a bounded 3-tick
+settle window per port (never `run_to_quiescence()` -- sentinel/dual_
+threshold_monitor both contain real continuously-live cores).
+
+**A genuinely interesting, kept-not-fixed finding:** with the generic
+default `threshold=0`, the comparator permanently re-asserts SET once
+the accumulator settles at zero (`0 >= 0` is always true) -- so the
+external `clear` port can never durably win. Confirmed real via the
+actual trace, not a bug -- a real, instructive property of a
+chronically-true alarm condition.
+
+**Real verification against all 4 registered composed tiles:**
+`sentinel` (real trace, correct final state), `dual_threshold_monitor`
+(real fan-out, both branches correct), `twin_sentinel` (real NESTED
+composition confirmed -- both branches independently reach identical
+state, the strongest proof the recursive resolution works),
+`dsp_add_and_hold` (correctly detected as mixed-bucket, honest
+metadata-only, no faked trace).
+
+**Real, full regression:** 13 new tests (27 total in the file), 619
+passed + 1 skipped overall (was 606), zero failures elsewhere.
+`ai_training_buckets_scope.md` updated twice more -- a further small
+mistake in the earlier correction (implying the loop tiles might be
+Tier-1) found and fixed, and the Status section now states Tier-1
+export is real and built.
+
+## Previous state (as of 2026-09-07, the AI training bucket exporter's real, minimal first slice is built -- nano/training_bucket_export_v1.py, per Alan's own direct choice to pick one item off the standing list. See `points/points_active.md` #681)
 
 ## Read this first (most recent)
 

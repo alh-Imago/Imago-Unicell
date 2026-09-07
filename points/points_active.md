@@ -7278,3 +7278,79 @@ failures elsewhere.
 built, not "no code exists yet," and lists what's genuinely still
 open (Tier-1 export, a real DSP-wrapper trace, the bulk/3D generation
 axis, layer 2 itself).
+
+## 682. Tier-1 composed-tile export is real and built -- `export_tier1_tile()`, per Alan's own direct request to continue with the Tier-1 builds. Correctly handles real nested composition, real fan-out, and honestly detects mixed non-super_records bucket kinds. (Alan/Claude, 2026-09-07)
+
+**Real, generic algorithm, not per-tile special-casing, matching
+`#680`'s own "new tile = new bucket, zero exporter changes" goal:**
+four new real helper functions, each mirroring `composed_tile_library_
+v1.place_composed()`'s own real resolution logic rather than
+reimplementing it independently: `_composed_tile_buckets()` recursively
+walks a composed tile's subcell tree (through any real nesting) to
+find every real bucket kind used underneath it; `_required_composed_
+params()` recursively computes exactly which namespaced params are
+still required from the caller, honoring `fixed_params` at any depth
+(confirmed correct against `sentinel`'s own real spec: only `cmp.
+threshold`, `step_amount` correctly excluded since it's fixed);
+`_assign_composed_directions()` groups external ports by their own
+immediate subcell (not globally) before cycling n/s/e/w -- a real,
+necessary generalization since a composed tile's total external port
+count isn't capped at 4 the way a single Tier-0 cell's is (`dual_
+threshold_monitor` has 6); `_resolve_port_absolute()` recursively
+resolves a port to its real absolute (row, col, direction, kind),
+correctly walking through a NESTED composed sub-cell (not stopping at
+the intermediate level) to reach the real leaf cell underneath.
+
+**Real, empirical design correction found while verifying the actual
+output, not assumed correct from the code alone:** the first working
+version ticked once between each injected port, matching Tier-0's own
+convention -- but a multi-cell composed tile needs a real tick per
+PHYSICAL HOP for a change to propagate (acc -> cmp -> lat is two real
+hops), and one tick left later stages of the chain mid-flight when the
+next port's own injection landed, producing a real but confusing
+timing artifact in the trace. Fixed: a bounded 3-tick settle window
+after each injected port (still never `run_to_quiescence()`, since
+sentinel/dual_threshold_monitor both contain real, continuously-live
+cores that never quiesce by construction, `#676`'s own finding).
+
+**Real, genuinely interesting finding surfaced by the trace itself,
+kept rather than "fixed" into looking cleaner:** with the generic
+default `threshold=0`, `0 >= 0` is always true, so once the
+accumulator settles at zero the comparator permanently re-asserts SET
+every cycle -- meaning the external `clear` port can never durably win
+against a continuously-satisfied trigger condition. Confirmed real via
+the actual trace (a momentary post-clear `False` immediately overwritten
+by the next real SET pulse), not a bug in this exporter -- a real,
+correct, and genuinely instructive property of a sentinel whose alarm
+condition never stops being true, exactly the kind of non-obvious
+substrate behavior `#510`'s own "teach the composition method, not just
+facts" framing was written for.
+
+**Real verification against all 4 currently-registered composed
+tiles:** `sentinel` (real trace, total settles to 0, comparator fires,
+latch sets -- matches the reasoning above); `dual_threshold_monitor`
+(real fan-out confirmed: one shared accumulator, both independent
+comparator->latch branches reach the same real correct state);
+`twin_sentinel` (real NESTED composition confirmed correct: both `s1`
+at rows 0-0..2 and `s2` at rows 2-2..2 independently reach identical
+real state, the strongest proof the recursive absolute-position
+resolution actually works); `dsp_add_and_hold` (correctly detected as
+transitively touching both `super_records` and `dsp_wrapper_records`,
+falls back to real, honest static-metadata-only, same discipline as
+Tier-0's own DSP-wrapper sources, never a faked trace).
+
+**Real, full test coverage, 13 new tests (27 total in `tests/vm/
+test_training_bucket_export_v1.py`):** every new helper function
+tested directly against real registered tiles (not synthetic
+fixtures), the nested-resolution case tested explicitly, and all 4
+composed tiles' own real final states asserted against actually-
+observed values from a real run, not assumed correct. Full regression:
+619 passed + 1 skipped (was 606), zero failures elsewhere.
+
+**`ai_training_buckets_scope.md` updated twice more, same day:** the
+earlier "real correction" section itself had a further, smaller
+mistake (implying the loop tiles might be Tier-1 examples) -- also
+found and fixed while re-reading the note before this update, not
+left standing; the "Status" section now states plainly that Tier-1
+export is real and built, with the DSP-wrapper trace, bulk/3D
+generation, and layer 2 named as the real remaining gaps.

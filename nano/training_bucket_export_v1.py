@@ -14,18 +14,19 @@ regenerates its own one file.
 
 REAL, HONEST SCOPE, stated plainly rather than silently overreached:
 
-1. **Tier-1 COMPOSED tiles are NOT covered here.** Confirmed directly
-   against `tile_source_registry_v1.py`'s own docstring, not assumed:
-   Tier-1 tiles (`composed_tile_library_v1.py` -- `sentinel`, `dual_
-   threshold_monitor`, `twin_sentinel`, the loop tiles) are a
-   genuinely separate library, never registered into the generic
-   `tile_source_registry_v1` hook at all ("Tier-1 composed tiles...
-   remain super-tile-only sub-cells for now"). Exporting them
-   generically needs real, separate design work -- multi-cell
-   auto-placement plus a way to pick canonical parameter values per
-   tile (the same class of problem `composer_full_editor_scope.md`
-   already flagged for a different reason) -- real, future work, not
-   attempted in this first slice.
+1. **Tier-1 composed tiles ARE now covered** (`export_tier1_tile()`,
+   `points.md #682`) — in their own separate `tiles_composed/` bucket
+   area, not mixed into Tier-0's `tiles/`, since `composed_tile_
+   library_v1.py` is a genuinely different registry/resolution
+   mechanism (confirmed directly against `tile_source_registry_v1.py`'s
+   own docstring: Tier-1 tiles are never registered into that generic
+   hook at all). A composed tile whose own subcells resolve entirely
+   through `bucket == "super_records"` sources (recursively, through
+   any real nesting) gets a real, actually-executed, multi-cell VM
+   trace; one that transitively includes any other bucket kind (e.g.
+   `dsp_add_and_hold`'s own real DSP-wrapper subcell) gets real, static
+   metadata only, same honest-scope discipline as Tier-0's own
+   `dsp-wrapper` sources.
 
 2. **Only "super_records"-bucket tile sources get a REAL, actually-
    executed VM trace.** A tile source's own `bucket` field (`#485`)
@@ -54,14 +55,18 @@ from __future__ import annotations
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from tile_source_registry_v1 import all_sources, TileSource
+from tile_source_registry_v1 import all_sources, find_source_for, TileSource
 from vm_ai_port_v1 import VMSession, CompileFailure
 from unicell_super_automaton_v1 import SuperGrid, SuperCell
 from unicell_automaton_v1 import N, S, E, W
+from super_tile_library_v1 import super_tile_library
+from composed_tile_library_v1 import (
+    composed_tile_library, ComposedTileSpec, place_composed, _resolve_subcell_leaf,
+)
 import workbench_v1
 
 _DIR_LETTERS = ["n", "s", "e", "w"]
@@ -203,6 +208,217 @@ def export_tier0_tile(source: TileSource, tile_name: str) -> Dict[str, Any]:
     return record
 
 
+# ── Tier-1 composed tiles (`points.md #682`) ─────────────────────────
+
+def _leaf_bucket(tile_name: str) -> str:
+    """Mirrors `composed_tile_library_v1._resolve_subcell_leaf()`'s own
+    real resolution order exactly (Tier-0 library checked first, then
+    the generic tile-source registry) -- but returns the real `bucket`
+    name instead of the resolved tile, since that's all a leaf-bucket
+    check needs."""
+    if tile_name in super_tile_library.names():
+        return "super_records"
+    source = find_source_for(tile_name)
+    if source is not None:
+        return source.bucket
+    raise ValueError(f"unknown leaf tile {tile_name!r}")
+
+
+def _composed_tile_buckets(tile: ComposedTileSpec) -> Set[str]:
+    """Recursively collects every real bucket kind used anywhere inside
+    a composed tile, through any real nesting -- the generic, correct
+    way to answer "is this whole tile runnable through the plain
+    SuperGrid/VMSession," matching Tier-0's own per-source bucket
+    check, generalized to a tree instead of one leaf."""
+    buckets: Set[str] = set()
+    for sub in tile.subcells:
+        nested = (composed_tile_library.get(sub.tile_name)
+                  if sub.tile_name in composed_tile_library.names() else None)
+        if nested is not None:
+            buckets |= _composed_tile_buckets(nested)
+        else:
+            buckets.add(_leaf_bucket(sub.tile_name))
+    return buckets
+
+
+def _required_composed_params(tile: ComposedTileSpec) -> List[str]:
+    """Recursively computes every real, still-required namespaced
+    param name a composed tile needs from its own caller -- walking
+    the exact same subcell tree `place_composed()` itself walks, real
+    nesting included, so a nested composed sub-cell's own required
+    inner params surface correctly double-namespaced (matching
+    `#342`'s own real 's1.cmp.threshold' precedent). A `fixed_params`
+    entry on any subcell (leaf or nested) removes exactly the param it
+    names, the same real "fixed always wins" rule `place_composed()`
+    itself applies."""
+    required: List[str] = []
+    for sub in tile.subcells:
+        nested = (composed_tile_library.get(sub.tile_name)
+                  if sub.tile_name in composed_tile_library.names() else None)
+        if nested is not None:
+            inner_names = _required_composed_params(nested)
+        else:
+            leaf_tile, _place_fn = _resolve_subcell_leaf(sub.tile_name, super_tile_library)
+            inner_names = list(leaf_tile.param_names)
+        for name in inner_names:
+            if name in sub.fixed_params:
+                continue
+            required.append(f"{sub.name}.{name}")
+    return required
+
+
+def _assign_composed_directions(tile: ComposedTileSpec) -> Dict[str, str]:
+    """Real, generic direction assignment for a composed tile's own
+    EXTERNAL ports -- grouped by which immediate subcell each port
+    belongs to (`tile.external_ports[name] = (subcell_name, ...)`),
+    cycling n/s/e/w WITHIN each group. Unlike a single Tier-0 cell, a
+    composed tile's total external port count isn't capped at 4 (real
+    example: `dual_threshold_monitor` has 6) -- different subcells are
+    different physical cells, so directions may genuinely repeat
+    ACROSS groups. Confirmed correct against every composed tile
+    registered today: no single subcell exposes more than 4 of its own
+    ports externally (the same real per-cell ceiling `#676`'s own
+    Tier-0 exporter already found), so within-group cycling never
+    exceeds it."""
+    by_subcell: Dict[str, List[str]] = {}
+    for port_name, (subcell_name, _subcell_port) in tile.external_ports.items():
+        by_subcell.setdefault(subcell_name, []).append(port_name)
+
+    directions: Dict[str, str] = {}
+    for subcell_name, port_names in by_subcell.items():
+        if len(port_names) > 4:
+            raise ValueError(
+                f"composed tile {tile.name!r}: subcell {subcell_name!r} exposes "
+                f"{len(port_names)} external ports (a real physical cell has only "
+                f"4 cardinal neighbors): {sorted(port_names)}"
+            )
+        for i, name in enumerate(sorted(port_names)):
+            directions[name] = _DIR_LETTERS[i]
+    return directions
+
+
+def _resolve_port_absolute(
+    tile: ComposedTileSpec, port_name: str, anchor_row: int, anchor_col: int,
+    direction: str,
+) -> Tuple[int, int, str, str]:
+    """Real, recursive resolution of one composed tile's own external
+    port to an absolute (row, col, direction, in/out-kind) -- recurses
+    through nested composed sub-cells exactly the way `place_composed()`
+    itself does when wiring a nested tile's own directions through,
+    so a `twin_sentinel`-style port (mapping into a NESTED sentinel,
+    not a leaf cell directly) resolves correctly to the real leaf cell
+    underneath it, not the intermediate composed sub-cell."""
+    subcell_name, subcell_port = tile.external_ports[port_name]
+    sub = next(s for s in tile.subcells if s.name == subcell_name)
+    abs_row, abs_col = anchor_row + sub.offset[0], anchor_col + sub.offset[1]
+
+    nested = (composed_tile_library.get(sub.tile_name)
+              if sub.tile_name in composed_tile_library.names() else None)
+    if nested is not None:
+        return _resolve_port_absolute(nested, subcell_port, abs_row, abs_col, direction)
+
+    leaf_tile, _place_fn = _resolve_subcell_leaf(sub.tile_name, super_tile_library)
+    kind = next(p.kind for p in leaf_tile.ports if p.name == subcell_port)
+    return abs_row, abs_col, direction, kind
+
+
+def export_tier1_tile(tile_name: str) -> Dict[str, Any]:
+    """One real, complete bucket record for a single Tier-1 composed-
+    tile entry -- static metadata always; a real, actually-executed,
+    genuinely multi-cell VM trace only when every real leaf underneath
+    it (through any nesting) resolves to a `super_records` bucket (see
+    module docstring, point 1)."""
+    tile = composed_tile_library.get(tile_name)
+    directions = _assign_composed_directions(tile)
+    required_params = _required_composed_params(tile)
+    params = {name: _default_param_value(name) for name in required_params}
+
+    record: Dict[str, Any] = {
+        "bucket": "tiles_composed",
+        "name": tile.name,
+        "description": tile.description,
+        "external_ports": [
+            {"name": name, "subcell": tile.external_ports[name][0],
+             "subcell_port": tile.external_ports[name][1], "direction": directions[name]}
+            for name in tile.port_names()
+        ],
+        "params": params,
+        "proven": tile.proven,
+        "target": tile.target,
+        "subcell_tile_names": sorted({s.tile_name for s in tile.subcells}),
+    }
+
+    used_buckets = _composed_tile_buckets(tile)
+    if used_buckets != {"super_records"}:
+        record["trace"] = None
+        record["trace_note"] = (
+            f"real, honest scope: this composed tile transitively uses bucket "
+            f"kind(s) {sorted(used_buckets)}, not just 'super_records' -- not "
+            "runnable through the plain SuperGrid/VMSession this exporter "
+            "drives; static metadata only, same honest-scope discipline as "
+            "Tier-0's own non-super_records sources."
+        )
+        return record
+
+    records = place_composed(tile, 0, 0, directions, params or None)
+    session = VMSession(SuperGrid([]))
+    for rec in records:
+        session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
+
+    trace: List[Dict[str, Any]] = [{"step": "initial", "state": session.describe()}]
+
+    resolved_ports = [
+        (name, *_resolve_port_absolute(tile, name, 0, 0, directions[name]))
+        for name in tile.external_ports  # real dict insertion (declaration) order --
+                                          # more legible trace narrative than
+                                          # port_names()'s own alphabetical sort,
+                                          # which is still used for the metadata
+                                          # listing above (a stable, sorted index
+                                          # is the right shape there, declaration
+                                          # order is the right shape for a trace).
+    ]
+    in_ports = [(name, row, col, direction) for name, row, col, direction, kind in resolved_ports
+                if kind == "in"]
+    for i, (name, row, col, direction) in enumerate(in_ports):
+        value = _TEST_VALUES[i % len(_TEST_VALUES)]
+        accepted, _forward = session.deliver(row, col, {_DIR_CONST[direction]: value}, None)
+        trace.append({
+            "step": f"deliver {name} (at {row},{col} dir={direction}) = {value}",
+            "accepted": accepted,
+            "state": session.describe(),
+        })
+        # Real, bounded settle window after EACH injected port, not
+        # just one tick -- a multi-cell composed tile needs a real
+        # tick per physical hop for a change to propagate (acc -> cmp
+        # -> lat is two real hops), confirmed empirically while
+        # building this exporter: one tick alone left later stages
+        # mid-flight when the NEXT port's own injection landed,
+        # producing a real but confusing chain-timing artifact. Three
+        # ticks is enough for every composed tile registered today
+        # (none deeper than two real hops); still bounded, never
+        # run_to_quiescence().
+        for t in range(3):
+            session.tick(1)
+        trace.append({"step": f"settle after {name}", "state": session.describe()})
+
+    # Real, bounded settle ticks, same real reason as Tier-0: several
+    # of these tiles (sentinel, dual_threshold_monitor) contain real,
+    # continuously-live cores (accumulator/latch) that never quiesce
+    # by construction -- run_to_quiescence() would hang, so this stays
+    # a fixed, bounded loop.
+    for t in range(5):
+        session.tick(1)
+        trace.append({"step": f"tick {t + 1}", "state": session.describe()})
+
+    record["records"] = [
+        {"cell_id": r.cell_id, "row": r.row, "col": r.col, "core": r.core,
+         "core_config": r.core_config, "addon_config": r.addon_config}
+        for r in records
+    ]
+    record["trace"] = trace
+    return record
+
+
 def export_demo(name: str) -> Dict[str, Any]:
     """One real bucket record for a `workbench_v1.DEMOS` entry --
     real, static metadata plus a real, actually-compiled ICM record
@@ -230,16 +446,19 @@ def export_demo(name: str) -> Dict[str, Any]:
 
 
 def export_all(output_dir: str) -> Dict[str, Any]:
-    """Writes one real JSON file per tile/demo into `output_dir/tiles/`
-    and `output_dir/demos/`, plus a real `manifest.json` index,
-    regenerated fresh every run -- never hand-maintained, matching
-    `#680`'s own real area-partition decision."""
+    """Writes one real JSON file per tile/composed-tile/demo into
+    `output_dir/tiles/`, `output_dir/tiles_composed/`, and `output_dir/
+    demos/`, plus a real `manifest.json` index, regenerated fresh every
+    run -- never hand-maintained, matching `#680`'s own real
+    area-partition decision."""
     tiles_dir = os.path.join(output_dir, "tiles")
+    tiles_composed_dir = os.path.join(output_dir, "tiles_composed")
     demos_dir = os.path.join(output_dir, "demos")
     os.makedirs(tiles_dir, exist_ok=True)
+    os.makedirs(tiles_composed_dir, exist_ok=True)
     os.makedirs(demos_dir, exist_ok=True)
 
-    manifest: Dict[str, Any] = {"tiles": [], "demos": []}
+    manifest: Dict[str, Any] = {"tiles": [], "tiles_composed": [], "demos": []}
 
     for source in all_sources():
         for tile_name in sorted(source.library.names()):
@@ -251,6 +470,15 @@ def export_all(output_dir: str) -> Dict[str, Any]:
                 "name": tile_name, "source_kind": source.kind,
                 "file": os.path.relpath(path, output_dir),
             })
+
+    for tile_name in sorted(composed_tile_library.names()):
+        record = export_tier1_tile(tile_name)
+        path = os.path.join(tiles_composed_dir, f"{tile_name}.json")
+        with open(path, "w") as f:
+            json.dump(record, f, indent=2, default=str)
+        manifest["tiles_composed"].append({
+            "name": tile_name, "file": os.path.relpath(path, output_dir),
+        })
 
     for demo_name in sorted(workbench_v1.DEMOS):
         record = export_demo(demo_name)
@@ -271,5 +499,6 @@ def export_all(output_dir: str) -> Dict[str, Any]:
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "training_buckets"
     result = export_all(out)
-    print(f"Wrote {len(result['tiles'])} tile buckets and "
+    print(f"Wrote {len(result['tiles'])} tile buckets, "
+          f"{len(result['tiles_composed'])} composed-tile buckets, and "
           f"{len(result['demos'])} demo buckets to {out}/")
