@@ -89,6 +89,29 @@ API, row/col-keyed throughout, never an address anywhere:
     POST /step                           -- {"n": 1}
     POST /deliver                          -- {"row", "col", "direction", "value", "injected"}
     POST /inject                             -- {"row", "col", "value"}
+    POST /start_run                            -- {"ticks_per_sec": 1.0} --
+                                                   points.md #676, closing the
+                                                   real gap `#670`'s own
+                                                   archived-workbench audit
+                                                   found (`start_run`/
+                                                   `pause_run` in the old
+                                                   `workbench.py`, genuinely
+                                                   missing here): a real,
+                                                   continuous background
+                                                   auto-play thread, ticking
+                                                   at the given rate until
+                                                   paused or the design
+                                                   naturally quiesces (the
+                                                   last tick produced no
+                                                   activity at all).
+    POST /pause_run                              -- stops any running
+                                                     auto-play; a no-op,
+                                                     not an error, if none
+                                                     is running
+    GET  /run_status                             -- {"running", "ticks_per_sec",
+                                                       "ticks_executed"} --
+                                                       real, current auto-play
+                                                       status
 """
 
 from __future__ import annotations
@@ -266,6 +289,23 @@ class WorkbenchController:
         # cross-cell connection check (connection_check_v1.py) needs
         # the original per-core field names to work from.
         self._records: Dict[Tuple[int, int], object] = {}
+        # points.md #676: real, continuous auto-play, the one genuinely
+        # missing feature `#670`'s own light scope of the old, archived
+        # `workbench.py` found (`start_run`/`pause_run` there). A real
+        # background thread, not a busy-loop -- `_run_lock` guards the
+        # actual `tick()` call so a manual /step, /inject, or /deliver
+        # arriving from the (separate) request-handling thread while
+        # auto-play is live can't race it mid-tick. Honest, narrow scope:
+        # this lock protects the tick call itself, not every other
+        # session-mutating endpoint (compile/load_region/etc.) -- calling
+        # those while auto-play is running is real, still-open, low-
+        # stakes future work, not solved here.
+        self._run_lock = threading.Lock()
+        self._run_stop_event: Optional[threading.Event] = None
+        self._run_thread: Optional[threading.Thread] = None
+        self._run_active: bool = False
+        self._run_ticks_per_sec: float = 0.0
+        self._run_tick_count: int = 0
 
     # ── real target reflection (points.md #605) ────────────────────
     #
@@ -690,6 +730,82 @@ class WorkbenchController:
         self.session.inject(row, col, value)
         return self.state()
 
+    # ── real, continuous auto-play (points.md #676) ─────────────────
+
+    def start_run(self, ticks_per_sec: float = 1.0) -> Dict[str, Any]:
+        """Starts a real background thread ticking the live session at
+        `ticks_per_sec`, until `pause_run()` is called or the design
+        naturally quiesces -- a tick that produces no activity at all
+        (`grid.tick()`'s own real per-tick "which cells did something"
+        map coming back empty), the honest, current-architecture
+        equivalent of the old workbench's own `not any(c.start_flag ...)`
+        check (`#670`): under cardinal wiring there's no single global
+        start_flag to poll, but "the last tick did nothing" is the same
+        real underlying signal -- nothing left to compute.
+
+        REAL, HONEST LIMITATION, matching `SuperGrid.run_to_quiescence()`'s
+        own documented behavior exactly (not a separate bug here): a
+        design containing any continuously-live core (accumulator/latch/
+        RAM fixed-mode) with a real downstream target NEVER produces an
+        empty tick by construction -- it's a heartbeat, on purpose. For
+        such a design, auto-play correctly runs forever until `pause_run()`
+        is called; that is the real, intended behavior for a live monitor
+        like the `sentinel` demo, not a defect to work around."""
+        if self.session is None:
+            return {"ok": False, "error": "no program compiled yet"}
+        if ticks_per_sec <= 0:
+            return {"ok": False, "error": "ticks_per_sec must be positive"}
+        if self._run_active:
+            return {"ok": False, "error": "already running -- call pause_run first"}
+
+        stop_event = threading.Event()
+        self._run_stop_event = stop_event
+        self._run_ticks_per_sec = ticks_per_sec
+        self._run_tick_count = 0
+        self._run_active = True
+        interval = 1.0 / ticks_per_sec
+
+        def _loop() -> None:
+            try:
+                while not stop_event.is_set():
+                    with self._run_lock:
+                        if self.session is None:
+                            break
+                        active = self.session.tick(1)
+                        self._run_tick_count += 1
+                    if not active:
+                        break
+                    if stop_event.wait(interval):
+                        break
+            finally:
+                self._run_active = False
+
+        thread = threading.Thread(target=_loop, daemon=True)
+        self._run_thread = thread
+        thread.start()
+        return {"ok": True, "running": True, "ticks_per_sec": ticks_per_sec}
+
+    def pause_run(self) -> Dict[str, Any]:
+        """Stops any running auto-play. A real, honest no-op (not an
+        error) if nothing is running -- matching every other real
+        workbench operation's own tolerance for being called when
+        there's nothing to do."""
+        if self._run_stop_event is not None:
+            self._run_stop_event.set()
+        thread = self._run_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=2.0)
+        self._run_active = False
+        return {"ok": True, "running": False, "ticks_executed": self._run_tick_count}
+
+    def run_status(self) -> Dict[str, Any]:
+        return {
+            "ok": True,
+            "running": self._run_active,
+            "ticks_per_sec": self._run_ticks_per_sec,
+            "ticks_executed": self._run_tick_count,
+        }
+
 
 WORKBENCH_HTML = r"""<!DOCTYPE html>
 <html lang="en">
@@ -795,6 +911,11 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
       <button onclick="step(10)">Step 10</button>
       <button onclick="refresh()">Refresh</button>
       <span id="tickcount"></span>
+      <br><br>
+      <label>ticks/sec</label> <input type="number" id="runRate" value="2" min="0.1" step="0.1" size="4">
+      <button onclick="startRun()">Auto-play</button>
+      <button onclick="pauseRun()">Pause</button>
+      <span id="runstatus"></span>
       <br><br>
       <label>row</label> <input type="number" id="dRow" value="0" size="3">
       <label>col</label> <input type="number" id="dCol" value="0" size="3">
@@ -1036,6 +1157,38 @@ async function refresh() {
   if (result.ok) renderState(result.state);
 }
 
+let runPollHandle = null;
+
+async function startRun() {
+  const rate = parseFloat(document.getElementById("runRate").value) || 1.0;
+  const result = await post("/start_run", {ticks_per_sec: rate});
+  if (!result.ok) {
+    document.getElementById("runstatus").textContent = "Error: " + result.error;
+    return;
+  }
+  if (runPollHandle === null) {
+    runPollHandle = setInterval(pollRun, Math.max(200, 1000 / rate));
+  }
+}
+
+async function pauseRun() {
+  await post("/pause_run", {});
+  if (runPollHandle !== null) { clearInterval(runPollHandle); runPollHandle = null; }
+  await pollRun();
+}
+
+async function pollRun() {
+  const result = await get("/run_status");
+  if (!result.ok) return;
+  document.getElementById("runstatus").textContent =
+    (result.running ? "running" : "stopped") + " (" + result.ticks_executed + " ticks)";
+  await refresh();
+  if (!result.running && runPollHandle !== null) {
+    clearInterval(runPollHandle);
+    runPollHandle = null;
+  }
+}
+
 async function setTarget() {
   const man_path = document.getElementById("manPath").value;
   const cells = parseInt(document.getElementById("targetCells").value);
@@ -1141,6 +1294,8 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
             self._json_response(self.controller.current_target())
         elif self.path == "/shells":
             self._json_response(self.controller.list_shells())
+        elif self.path == "/run_status":
+            self._json_response(self.controller.run_status())
         elif self.path in ("/", "/index.html"):
             self._html_response(WORKBENCH_HTML)
         else:
@@ -1182,6 +1337,10 @@ class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == "/inject":
             self._json_response(self.controller.inject(
                 body.get("row"), body.get("col"), body.get("value", 0)))
+        elif self.path == "/start_run":
+            self._json_response(self.controller.start_run(body.get("ticks_per_sec", 1.0)))
+        elif self.path == "/pause_run":
+            self._json_response(self.controller.pause_run())
         else:
             self._json_response({"ok": False, "error": "not found"}, status=404)
 

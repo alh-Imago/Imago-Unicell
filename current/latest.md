@@ -1,4 +1,55 @@
-# Current State (as of 2026-09-06, the PROG_ID_COMPLETE stale-value correction closed -- the last item on the standing queue. Also fixed a real naming collision in a different module, a real missing constant, and a real test-coverage gap the fix itself exposed. See `points/points_active.md` #675)
+# Current State (as of 2026-09-07, real orphaned-work audit done per Alan's own direct request -- confirmed his 3 named suspects (training buckets, Composer's full vision, workbench gaps) plus several more, and closed the smallest one same session: workbench auto-play. See `points/points_active.md` #676)
+
+## Read this first (most recent)
+
+**2026-09-07, orphaned-work audit + workbench auto-play built (#676).**
+Alan asked directly: go back through the ledger (100+ points) and find
+parts chatted about but never worked on, naming 3 known suspects. All
+3 confirmed real via the existing `POINTS_STATUS_AUDIT.md`/`_2.md`
+(covering #1-#592) plus a fresh read of #593-#675 (this session's own
+tail, not yet audited):
+1. **Training buckets for the AI** (`#510`/`#511`/`#604`) -- nothing
+   built, nothing scoped.
+2. **Composer's full original vision** -- confirmed against
+   `composer_scope.md`: only the minimal "view and confirm" first pass
+   exists; the real drag-and-drop canvas editor + library panel
+   (`old_composer_tool.onion`'s own visual paradigm) was explicitly
+   deferred and never started.
+3. **Workbench gaps vs. the old, archived `workbench.py`** (`#670`) --
+   the NEW workbench is real and working, but two old features were
+   never carried forward: a combined named-IN/OUT summary view, and
+   continuous auto-play.
+
+**Built same session, the smallest of the three:** `WorkbenchController.
+start_run(ticks_per_sec)`/`pause_run()`/`run_status()` -- a real
+background thread, stopping itself on genuine quiescence (a `tick()`
+that produces no activity), same as the old system's intent, adapted
+honestly to cardinal wiring (no global `start_flag` to poll here).
+
+**A real, honest limitation found, not a bug:** any continuously-live
+core (accumulator/latch/RAM fixed-mode) with a real downstream target
+never produces an empty tick by construction -- auto-play on such a
+design (e.g. `sentinel`) correctly runs forever until paused, matching
+`SuperGrid.run_to_quiescence()`'s own already-documented heartbeat
+behavior. The first test written assumed `sentinel` would quiesce and
+failed for exactly this reason; fixed by testing quiescence against
+`adder_pair` instead, with a separate test confirming the
+continuously-live case runs until paused.
+
+**Real, full regression:** 72/72 in `test_workbench_v1.py` (8 new); 593
+total (592 passed + 1 skipped) across `tests/vm` + `tests/tools`.
+
+**Real, honest scope: Composer's full editor and training buckets
+deliberately NOT started** -- both are real, larger undertakings,
+matching this project's own "scope before build" discipline. Also
+found, not chased further: nano's own independent shift capability
+still not restored, the `N=8` carrier case still not built, the 4-lane/
+8-lane trees still only designed, trig/exponential functions still
+unsupported, `#673`'s own concept-index idea still deliberately
+deferred, and two much older orphans (`#10`, `#45`) never formally
+decided either way.
+
+## Previous state (as of 2026-09-06, the PROG_ID_COMPLETE stale-value correction closed -- the last item on the standing queue. Also fixed a real naming collision in a different module, a real missing constant, and a real test-coverage gap the fix itself exposed. See `points/points_active.md` #675)
 
 ## Read this first (most recent)
 

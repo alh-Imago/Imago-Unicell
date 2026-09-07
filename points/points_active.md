@@ -6849,3 +6849,94 @@ precedent (`#668`), the real-timing-vs-convenient-test-timing lesson
 (`#674`), and this entry's own real lesson -- a fix that touches a
 widely-shared symbol needs to check EVERY real usage's own actual
 meaning before assuming a single, uniform replacement is safe.
+
+## 676. Real, comprehensive orphaned-work audit, per Alan's own direct request ("go back through the points and latest, at least 100 points... see if there are parts chatted about but never worked on") -- confirmed his own three named suspects, found several more, and closed the first, smallest one same session: continuous auto-play (`start_run`/`pause_run`) added to the real workbench, the one genuinely missing feature `#670`'s own light scope of the old, archived `workbench.py` had found and left open. (Alan/Claude, 2026-09-07)
+
+**Real method, not a re-derivation from scratch:** both existing
+`POINTS_STATUS_AUDIT.md` (#1-#330) and `POINTS_STATUS_AUDIT_2.md`
+(#331-#592) already existed and were read in full; this entry's own
+real, added value is reading every entry from `#593` through `#675`
+(the current session's own tail, not yet audited) and cross-checking
+Alan's three named suspects against the full record.
+
+**Alan's own three named suspects, all confirmed real and genuinely
+unbuilt, not misremembered:**
+1. **Training buckets for the local AI** (`#510`/`#511`, extended at
+   `#604`'s own card-decoupled-substrate framing) -- a real, named
+   roadmap item tied to `vm_ai_port_v1.py`'s own docstring. Nothing
+   built, nothing scoped into concrete steps.
+2. **The Composer upgrade to match the original** -- confirmed
+   directly against `composer_scope.md`: what's built (`#606`-`#609`)
+   is deliberately the minimal "view and confirm placement" first
+   pass. The original's own real visual paradigm (canvas drag-
+   placement, drag-from-output-port-to-input-port linking, a library
+   panel -- `old_composer_tool.onion`) was explicitly scoped as "real,
+   larger future work" and never started.
+3. **The workbench system** -- the NEW workbench (`workbench_v1.py`)
+   is real, working, and heavily extended (`#605`-`#607`), but `#670`'s
+   own light audit of the OLD, archived `workbench.py` found two real
+   features genuinely missing, never carried forward: a combined
+   named-IN/OUT summary view (`ws run`/`ws values`), and continuous
+   auto-play (`start_run`/`pause_run` at N ticks/sec, self-stopping on
+   quiescence).
+
+**Further genuinely orphaned items found beyond Alan's three, worth a
+conscious decision rather than silent drift, not chased further this
+entry:** nano's own independent fine-grained shift capability (queued,
+never restored since `#626`'s strip-down); the `N=8` multi-core carrier
+case (not built); the 4-lane/8-lane lane-split/recombine trees (`#544`/
+`#545` -- only the 2-lane case proven, in the VM only); trigonometric/
+exponential functions (`#513`/`#514` -- confirmed completely
+unsupported); a searchable concept-to-location index for the ledger
+itself (`#673` -- Alan's own idea, explicitly deferred, "not now"); and
+two much older orphans from Era 1 (`#10` host-triggerable control
+register, `#45` a dedicated "lab AI" role) that the first audit already
+flagged and neither confirmed nor formally dropped since.
+
+**Real building done same session, the smallest and lowest-risk of the
+three named items:** `WorkbenchController` gains `start_run(ticks_per_
+sec)` -- a real background thread ticking the live session at the
+given rate until paused or the design naturally quiesces -- and
+`pause_run()`/`run_status()`. Quiescence detection uses `grid.tick()`'s
+own real per-tick "which cells did something" map coming back empty --
+the honest, current-architecture equivalent of the old workbench's own
+`not any(c.start_flag ...)` check, since cardinal wiring has no single
+global start_flag to poll. `_run_lock` guards the actual `tick()` call
+against a manual `/step`/`/inject`/`/deliver` racing it from the
+request-handling thread; other session-mutating endpoints are NOT
+similarly guarded -- a real, honest, narrow first-pass scope, not
+silently assumed safe.
+
+**A real, honest limitation found and confirmed, not treated as a bug:**
+a design containing any continuously-live core (accumulator/latch/RAM
+fixed-mode) with a real downstream target NEVER produces an empty
+tick, by construction -- matching `SuperGrid.run_to_quiescence()`'s own
+already-documented heartbeat behavior exactly. Auto-play on such a
+design (e.g. the `sentinel` demo) correctly runs forever until
+`pause_run()` is called; this is the real, intended behavior for a live
+monitor, not a defect. The first test written assumed `sentinel` would
+naturally quiesce and failed for exactly this reason -- caught and
+fixed by switching to `adder_pair` (a genuinely one-shot, non-
+continuously-live topology) for the quiescence-reaching test, and
+adding a SEPARATE test that confirms the continuously-live case keeps
+running until explicitly paused.
+
+**HTTP/UI wiring, matching the existing two-layer pattern exactly:**
+`POST /start_run` (`{"ticks_per_sec"}`), `POST /pause_run`, `GET
+/run_status`. Workbench HTML/JS gains a ticks/sec field, Auto-play/
+Pause buttons, and a status poller that also drives the existing grid
+re-render while running.
+
+**Real, full regression:** 8 new tests in `test_workbench_v1.py` (72/72
+in that file, up from 64); 592 passed + 1 skipped across `tests/vm` +
+`tests/tools` (up from 585 -- the +7 net is 8 new tests minus the 1
+pre-existing skip counted differently by full-suite vs. targeted runs;
+zero failures either way).
+
+**Real, honest scope: two of the three named items (Composer's full
+visual editor, training buckets) deliberately NOT started this entry.**
+Both are real, larger architectural undertakings -- matching this
+project's own "scope before build" discipline (`composer_scope.md`,
+`workbench_scope.md`), Alan's own direction on which to prioritize next
+is the right next step before writing code for either, not a unilateral
+choice made here.

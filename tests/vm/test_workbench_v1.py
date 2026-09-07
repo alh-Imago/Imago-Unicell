@@ -58,6 +58,111 @@ def test_controller_compile_and_full_sentinel_sequence():
     assert state["cells"]["0,2"]["latch"]["state"] is True
 
 
+def test_start_run_requires_compiled_session():
+    ctrl = WorkbenchController()
+    result = ctrl.start_run(2.0)
+    assert result["ok"] is False
+    assert "compiled" in result["error"]
+
+
+def test_start_run_rejects_non_positive_rate():
+    ctrl = WorkbenchController()
+    ctrl.compile(SENTINEL_DSL, "dsl")
+    result = ctrl.start_run(0)
+    assert result["ok"] is False
+    assert "positive" in result["error"]
+
+
+def test_start_run_rejects_double_start():
+    ctrl = WorkbenchController()
+    ctrl.compile(SENTINEL_DSL, "dsl")
+    ctrl.deliver(0, 0, "n", 1)
+    r1 = ctrl.start_run(5.0)
+    assert r1["ok"] is True
+    r2 = ctrl.start_run(5.0)
+    assert r2["ok"] is False
+    assert "already running" in r2["error"]
+    ctrl.pause_run()
+
+
+def test_start_run_ticks_until_quiescent_and_reports_correct_final_state():
+    # Deliberately NOT the sentinel demo -- accumulator/latch are real,
+    # continuously-live cores with a real downstream target, and NEVER
+    # produce an empty tick by construction (matching `SuperGrid.
+    # run_to_quiescence()`'s own documented heartbeat behavior). Uses
+    # `adder_pair` instead, a genuinely quiescent topology: it fires
+    # once for a given pair of inputs, then has nothing left to do.
+    ctrl = WorkbenchController()
+    ctrl.load_demo("adder_pair")
+    ctrl.deliver(0, 0, "n", 3)
+    ctrl.deliver(0, 0, "w", 4)
+    result = ctrl.start_run(50.0)
+    assert result["ok"] is True
+    assert result["running"] is True
+
+    # Wait for the background thread to reach real, natural quiescence.
+    for _ in range(60):
+        time.sleep(0.05)
+        if not ctrl.run_status()["running"]:
+            break
+    status = ctrl.run_status()
+    assert status["running"] is False
+    assert status["ticks_executed"] > 0
+
+    state = ctrl.state()["state"]
+    assert state["cells"]["0,0"]["adder"]["out_buffer"] == 7
+
+
+def test_start_run_on_a_continuously_live_design_runs_until_paused():
+    # Real, honest confirmation of the documented limitation: a
+    # continuously-live core (the sentinel's own accumulator) never
+    # produces an empty tick, so auto-play correctly keeps running
+    # until explicitly paused, matching a real live monitor's own
+    # intended heartbeat behavior, not a bug.
+    ctrl = WorkbenchController()
+    ctrl.compile(SENTINEL_DSL, "dsl")
+    ctrl.deliver(0, 0, "n", 1)
+    result = ctrl.start_run(200.0)
+    assert result["ok"] is True
+    time.sleep(0.3)
+    status = ctrl.run_status()
+    assert status["running"] is True
+    assert status["ticks_executed"] > 0
+    ctrl.pause_run()
+    assert ctrl.run_status()["running"] is False
+
+
+def test_pause_run_is_a_safe_no_op_when_nothing_running():
+    ctrl = WorkbenchController()
+    result = ctrl.pause_run()
+    assert result["ok"] is True
+    assert result["running"] is False
+    assert result["ticks_executed"] == 0
+
+
+def test_pause_run_stops_a_running_autoplay():
+    ctrl = WorkbenchController()
+    ctrl.compile(SENTINEL_DSL, "dsl")
+    ctrl.deliver(0, 0, "n", 1)
+    start = ctrl.start_run(2.0)  # slow enough to still be running when paused
+    assert start["ok"] is True
+    result = ctrl.pause_run()
+    assert result["ok"] is True
+    assert result["running"] is False
+    # A second pause_run, with nothing running, is a real, safe no-op.
+    result2 = ctrl.pause_run()
+    assert result2["ok"] is True
+
+
+def test_run_status_shape_before_anything_runs():
+    ctrl = WorkbenchController()
+    status = ctrl.run_status()
+    assert status["ok"] is True
+    assert status["running"] is False
+    assert status["ticks_executed"] == 0
+    assert status["ticks_per_sec"] == 0.0
+
+
 def test_controller_compile_failure_returns_real_diagnostics():
     ctrl = WorkbenchController()
     broken = "program broken { place r1 as ram_constant at (0,0) { init_data: 1 } }"
