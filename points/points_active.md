@@ -8149,3 +8149,61 @@ qualifies, not as a separate, easy-to-miss caveat elsewhere.
 
 **Real, full regression:** 1 new test, 678 passed + 1 skipped overall
 (was 677), zero failures elsewhere.
+
+## 696. The real RTL side of `#692`'s own 4-lane recursive combine tree, built and proven -- per Alan's own direct request ("when the new card arrives it is going to have a lot of proving to do"). Two real bugs found and fixed, both in the testbench itself, not the RTL under test. (Alan/Claude, 2026-09-07)
+
+**`fpga/verilog/tb_lane_combine_tree_v1.v`, real, passing:** 7 actual
+`unicell_super_v1.v` shell instances (not the VM), wired in the exact
+same topology as `#692`'s own proven Python model, driven through the
+genuine `shift_fine_addon_v1.v`/`shift_lane_addon_v2.v` RTL built
+earlier this session (`#683`/`#684`). Real result, via an actual
+`iverilog` compile and run: `0x44332211`, matching the VM's own
+proven answer exactly.
+
+**Real, deliberate scope, stated plainly:** every `ready_in_*` tied
+permanently high, matching `tb_unicell_super_v1.v`'s own established
+convention -- this proves the real DATA TRANSFORMATION correctness of
+the combine tree (masking, shifting, OR-capture), not backpressure/
+handshake behavior under contention, a genuinely separate concern
+already proven elsewhere (`tb_grid5x5_both_v2_freeze.v`).
+
+**Two real bugs found and fixed while building this, both in the
+testbench itself, confirmed by direct signal tracing before assuming
+otherwise, not in the RTL under test:**
+1. A genuine Verilog gotcha: plain `output` task arguments only copy
+   OUT to the caller's actual reg when the task RETURNS, not as
+   they're assigned mid-task. An internal `$display` inside the
+   config-loading task showed the intended `cfg_valid` pulse
+   correctly; the real, port-connected register outside never saw it
+   at all -- confirmed directly by tracing `super_latch` staying at
+   `0` throughout, despite the task's own internal state looking
+   correct. `ref` arguments (true pass-by-reference) would fix this,
+   but `iverilog` does not yet support them ("Reference ports not
+   supported yet"). Fixed by inlining each of the 7 config loads
+   directly, matching `tb_unicell_super_v1.v`'s own already-proven
+   convention (direct assignment, no task indirection) rather than
+   working around a real tool limitation with something fragile.
+2. A real cardinal-to-bit convention mix-up: `N=bit0, S=bit1, E=bit2,
+   W=bit3` (confirmed directly against `ram_cell_v1.v`'s own real
+   `ram_sel_w = arrived_w && upstream_mask[3]` etc., not assumed) --
+   an initial `upstream_mask` of `4'b0110`, intended as "west+east,"
+   actually wired east+south. Found via a specific, diagnosable
+   symptom, not a vague "wrong answer": one gatherer's own west-side
+   `arrived` signal stayed permanently asserted, never acknowledged,
+   confirming that direction was never actually being listened to.
+
+**Real method used to find both, worth naming:** direct hierarchical
+signal tracing inside the actual simulation (`$display`/`$monitor` on
+internal registers like `.CORE_RAM.data_valid`, `.CORE_RAM.data_reg`,
+raw `upstream_val`/`ram_sel_*` wires) -- the same real "verify at
+hardware level, don't assume" discipline this project already applies
+to the VM, now applied to the RTL testbench layer itself.
+
+**Real, honest scope: proves the 4-lane case specifically.** The
+8-lane RTL testbench (mirroring `#693`'s own VM proof) and the fan-out
+direction's own RTL proof (mirroring `#694`/`#695`) are real,
+understood, genuinely ready-to-pick-up next steps -- not attempted
+here, not silently assumed solved.
+
+**Real, full regression:** Python suite unaffected (678 passed, 1
+skipped, unchanged) -- this was pure RTL work.

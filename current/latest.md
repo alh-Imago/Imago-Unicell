@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-07, Alan's own precise correction to #694 confirmed and proven -- fan-out's "no equal-hop-count requirement" is real but scoped exactly to topologies where nothing reconverges; recombining split lanes re-inherits #544's own tree method, proven directly. See `points/points_active.md` #695)
+# Current State (as of 2026-09-07, the real RTL side of #692's 4-lane combine tree built and proven -- 7 real unicell_super_v1.v shells, actual iverilog run, 0x44332211 confirmed. Two real bugs found and fixed, both in the testbench, not the RTL. See `points/points_active.md` #696)
+
+## Read this first (most recent)
+
+**2026-09-07, real RTL proof of the 4-lane combine tree (#696).** Per
+Alan's own direct request ("when the new card arrives it is going to
+have a lot of proving to do") -- `fpga/verilog/tb_lane_combine_tree_
+v1.v`, 7 real `unicell_super_v1.v` shells wired in `#692`'s own exact
+topology, driven through the genuine `shift_fine_addon_v1.v`/`shift_
+lane_addon_v2.v` RTL. Real result via an actual `iverilog` run:
+`0x44332211`, matching the VM's own proven answer.
+
+**Two real bugs found and fixed, both in the testbench itself, not
+the RTL under test:** (1) a genuine Verilog gotcha -- plain `output`
+task arguments only copy out to the caller's real reg when the task
+returns, not as assigned mid-task, so a config-loading task's own
+internal `cfg_valid` pulse never reached the real DUT port at all;
+fixed by inlining each config load directly, matching `tb_unicell_
+super_v1.v`'s own proven convention (`iverilog` doesn't support `ref`
+args yet). (2) a real cardinal bit-order mix-up (`N=bit0,S=bit1,
+E=bit2,W=bit3`, confirmed against `ram_cell_v1.v` directly) -- an
+`upstream_mask` intended as "west+east" actually wired east+south,
+found via a specific symptom (one source's arrival permanently
+asserted, never acknowledged), not a vague wrong answer.
+
+**Real method used to find both:** direct hierarchical signal tracing
+in simulation (`$display`/`$monitor` on internal registers and raw
+capture-logic wires) -- the same "verify at hardware level, don't
+assume" discipline already applied to the VM, now applied to the RTL
+testbench layer itself.
+
+**Real, honest scope:** proves the 4-lane case specifically. The
+8-lane RTL testbench and the fan-out direction's own RTL proof are
+real, understood, ready to pick up -- not attempted here.
+
+**Real, full regression:** Python suite unaffected (678 passed, 1
+skipped) -- pure RTL work.
+
+## Previous state (as of 2026-09-07, Alan's own precise correction to #694 confirmed and proven -- fan-out's "no equal-hop-count requirement" is real but scoped exactly to topologies where nothing reconverges; recombining split lanes re-inherits #544's own tree method, proven directly. See `points/points_active.md` #695)
 
 ## Read this first (most recent)
 
