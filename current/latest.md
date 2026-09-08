@@ -1,4 +1,37 @@
-# Current State (as of 2026-09-07, the 8-lane extension of #692's recursive lane-combine tree built and proven -- 15 cells, 3 hops per source, a diamond layout more compact than the first draft. See `points/points_active.md` #693)
+# Current State (as of 2026-09-07, the reverse fan-out mechanism confirmed and proven -- each lane repositioned via SHIFT_OUT and routed to a single cardinal or a real combination of cardinals, with no equal-hop-count requirement (a favorable asymmetry vs. the gather direction). See `points/points_active.md` #694)
+
+## Read this first (most recent)
+
+**2026-09-07, lane fan-out proven (#694).** Alan asked directly
+whether each lane could be sent to 1 cardinal, or combinations of
+such -- the real reverse of `#692`'s combine tree. Confirmed: needed
+zero new mechanism. `downstream_mask` has always been a real set of
+directions, and the addon chain applies at offer time regardless of
+which directions are targeted, so extracting+repositioning a lane
+(`nibble_mask` + `SHIFT_OUT`) and broadcasting it to any subset of the
+4 cardinals costs nothing extra either way.
+
+**A real, favorable asymmetry found, not assumed:** splitting has no
+contention (each sink hears from exactly one source), so `#544`'s own
+hard equal-hop-count requirement doesn't apply at all here -- confirmed
+directly, sinks needing different numbers of shift stages settle at
+different ticks with zero correctness consequence. Fan-out is
+genuinely simpler than gather, not just its mirror image.
+
+**Built and proven** (`tests/vm/test_lane_fanout_v1.py`, 3/3): one
+source broadcasts `#692`'s own combined value (`0x44332211`) to 4
+neighbors; 3 lanes each route to a single, different cardinal; the
+4th routes its one repositioned value to 2 real directions at once,
+confirmed identical at both.
+
+**Real, honest scope:** proves single-level fan-out. A recursive
+version (mirroring the combine trees, for more than 4 final
+destinations) is real, understood, not built. No RTL testbench yet.
+
+**Real, full regression:** 677 passed + 1 skipped (was 674), zero
+failures.
+
+## Previous state (as of 2026-09-07, the 8-lane extension of #692's recursive lane-combine tree built and proven -- 15 cells, 3 hops per source, a diamond layout more compact than the first draft. See `points/points_active.md` #693)
 
 ## Read this first (most recent)
 

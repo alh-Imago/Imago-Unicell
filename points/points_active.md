@@ -8069,3 +8069,51 @@ wanted, not silently assumed solved.
 
 **Real, full regression:** 3 new tests, 674 passed + 1 skipped overall
 (was 671), zero failures elsewhere.
+
+## 694. Alan's own direct question -- "if each lane can be sent to 1 cardinal, or combinations of such, is that a possibility?" -- confirmed and proven in the VM as the real reverse of `#692`'s own combine tree. Needed zero new mechanism; a real, favorable structural asymmetry found and confirmed along the way. (Alan/Claude, 2026-09-07)
+
+**The real answer, confirmed by building it, not just argued for:**
+yes -- and it needed no new mechanism at all. `downstream_mask` has
+always been a real SET of directions, not a single one (`select`/
+`icmp`, `#686`, already fan one value to two directions at once).
+Since the addon chain applies at OFFER time regardless of which
+directions are being offered to (the same real property `#692`
+already leaned on), a cell can extract-and-reposition its own lane via
+`nibble_mask` + `SHIFT_OUT`, then broadcast that one repositioned
+value to any real subset of its 4 cardinal neighbors -- a single
+direction, or a genuine combination of several, at zero extra cost
+either way.
+
+**A real, favorable structural asymmetry found and confirmed, not
+just assumed:** unlike the gather/combine direction, splitting has NO
+contention -- nothing is ever OR-combined at a receiver, so each sink
+only ever hears from exactly one source. `#544`'s own hard equal-hop-
+count requirement (the single hardest correctness constraint the
+gather direction has) genuinely does not apply here at all -- confirmed
+directly: sinks needing zero shift stages and sinks needing a real
+shift stage settle at different real ticks with no correctness
+consequence, since there's no race to lose. The fan-out direction is
+genuinely simpler to get right than the gather direction, not just a
+mirror image of equal difficulty.
+
+**Real, concrete layout and verification** (`tests/vm/test_lane_
+fanout_v1.py`, 3/3 passing): one source broadcasts `#692`'s own real
+combined test value (`0x44332211`, a deliberate callback) raw to all 4
+cardinal neighbors; each neighbor independently masks+repositions its
+own byte. Three lanes each route to a single, different cardinal
+direction (one needing no shift at all, since its byte was already at
+the natural position -- kept honest rather than shifting by 0 for
+symmetry's sake); the fourth (`extractor_E`) routes its own single
+repositioned value to TWO real directions at once, confirmed by
+checking both real recipients hold the identical value, not just
+individually-correct ones.
+
+**Real, honest scope: proves the single-level fan-out case.** A
+RECURSIVE fan-out tree (mirroring `#692`'s/`#693`'s own recursive
+combine trees exactly, for splitting a value into MORE than 4 final
+destinations) is the natural next extension -- real, understood, not
+built here. No real RTL testbench exists yet either, matching every
+other entry in this thread's own scope discipline.
+
+**Real, full regression:** 3 new tests, 677 passed + 1 skipped overall
+(was 674), zero failures elsewhere.
