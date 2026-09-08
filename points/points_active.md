@@ -8408,3 +8408,78 @@ available again, not attempted or estimated here.
 of all 5 together immediately before this entry was written. Python
 suite unaffected (681 passed, 1 skipped, unchanged) -- this was pure
 RTL work.
+
+## 700. The core mechanism for general DAG data flow -- the "actual hard, unsolved part" `llvm_ir_frontend_v1.py`'s own docstring has named since `#610` -- proven for the first time, per Alan's own direct design: hold a relayed value at its destination and deliver it only on a separate, explicit trigger, decoupling relay path LENGTH from delivery TIMING entirely. (Alan/Claude, 2026-09-08)
+
+**The real problem, stated precisely before building anything:**
+relaying a value from an earlier instruction's result to a later, non-
+adjacent instruction takes a number of hops that varies with distance
+-- a reference 5 instructions back travels further than one 2
+instructions back. If the relayed value is delivered the moment it
+arrives, its arrival order relative to the consuming instruction's
+OTHER operand (a compile-time constant, delivered by near-
+instantaneous direct injection) becomes distance-dependent -- for
+order-sensitive ops (subtraction: A-B, whichever arrives first becomes
+A), an accidentally-reversed arrival order would silently compute the
+wrong result. This is the real risk Alan's own "add an arrival
+trigger" framing was aimed at closing.
+
+**Alan's own real fix, built on already-proven machinery, not a new
+mechanism invented from scratch:** don't let arrival trigger delivery.
+Hold the relayed value the moment it arrives (nano's own real, RTL-
+confirmed `hold_in` mechanism, already proven in `#638`'s own bounded
+loop ring, `#649`), and deliver it only when a SEPARATE, EXPLICIT
+trigger event arrives (`a_reemit_in`) -- an event the compiler times
+independently, at exactly the moment the consuming instruction needs
+it, regardless of how many hops the original relay took.
+
+**The mechanism, confirmed directly against `unicell_automaton_v1.
+deliver()` before building anything:** a nano cell configured with
+`hold_in=1, a_reemit_in=1` checks `hold_in and a_reemit_in and a_
+arrived` FIRST, before its normal capture/compute path -- so once such
+a cell has captured one real value, ANY subsequent arrival (nano has
+no upstream_mask at all; it accepts from whichever real neighbor
+delivers, or even a raw injection with no real neighbor) immediately
+re-emits the held value, bypassing the normal two-operand gate
+computation entirely. The reemit path calls `_emit(self.a_data)`
+directly, so `topology` is irrelevant to this cell's real role here.
+
+**Real, isolated proof built first**, matching this whole session's
+own sim-first discipline (`tests/vm/test_dag_relay_trigger_v1.py`,
+3/3 passing): a value travels a real 2-hop relay chain into a nano
+cell configured this way; confirmed the consumer downstream holds
+NOTHING even after the relay chain has fully settled and even after
+waiting far longer than the relay itself needs -- delivery happens
+ONLY on an explicit, separately-injected trigger, at exactly the tick
+the trigger fires, regardless of how long the value had already been
+waiting.
+
+**Real, integrated proof that this actually solves the ordering
+problem it was built for**, not just that the mechanism works in
+isolation (`tests/vm/test_dag_relay_into_subtractor_v1.py`, 2/2
+passing): wired the drop cell's own reemit directly into a real
+`adder` configured for subtraction. By firing the trigger BEFORE
+injecting the compile-time second operand, the relayed value is
+GUARANTEED to become A (the minuend), producing the correct real
+result (`100 - 23 = 77`) regardless of relay distance -- confirmed
+identical for both a 2-hop and a 5-hop relay path, the same real
+result either way, proving path length genuinely does not affect
+correctness once the trigger controls delivery timing.
+
+**Real, honest scope: this proves the core mechanism only.** Wiring
+this into `llvm_ir_frontend_v1.py` itself -- tracking each
+instruction's own result position, deciding the exact column-spacing/
+geometry scheme so relay lanes and drop cells never collide with the
+main chain, building a real discard-sink for any chain value nothing
+downstream consumes (so quiescence still holds when a value is
+deliberately NOT passed to the immediately-following instruction), and
+generating the correct trigger-then-constant injection ordering for
+every real DAG reference -- is real, substantial, ready-to-pick-up
+follow-on work, not attempted here. Deliberately scoped narrow, per
+the plan agreed before building: only the FIRST operand becomes
+routable to any earlier result in this pass; the second operand stays
+compile-time-only (a separate, larger step, since it currently arrives
+via a one-shot constant feeder, not a live relay endpoint).
+
+**Real, full regression:** 5 new tests, 686 passed + 1 skipped overall
+(was 681), zero failures elsewhere.

@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-08, the config-off-shell rollout completed for all 8 cores -- ram/adder/sequencer/branch now match compare/latch/accumulator's own #584/#587/#592 fix; nano was always this way. A real, separate .qsf bug found in v6/v7/v8 and flagged, not fixed. Sim-verified only -- NOT yet run on real hardware. See `points/points_active.md` #699. NOTE: Alan's own machine is currently down (possible system-board failure) -- he could not check or verify anything in this session.)
+# Current State (as of 2026-09-08, the core mechanism for general DAG data flow proven for the first time -- hold+trigger, decoupling relay path length from delivery timing, solving the operand-ordering risk directly. Frontend integration not yet attempted. Alan's own new machine is on order after the previous one's board failure -- he still cannot check anything interactively. See `points/points_active.md` #700)
+
+## Read this first (most recent)
+
+**2026-09-08, general DAG routing's core mechanism proven (#700).**
+The "actual hard, unsolved part" `llvm_ir_frontend_v1.py`'s own
+docstring has named since `#610`. Alan's own real fix: relaying a
+value across a variable number of hops makes its arrival time
+unpredictable relative to a compile-time second operand -- for order-
+sensitive ops (subtraction), that risks silently reversing which
+operand becomes A. Fix: hold the relayed value at its destination
+(nano's own real, RTL-confirmed `hold_in`, already proven in `#638`'s
+bounded loop ring) and deliver it only on a SEPARATE, explicit trigger
+(`a_reemit_in`) the compiler times independently -- decoupling path
+length from delivery timing entirely.
+
+**Proven in two real steps:** first, isolated (`test_dag_relay_
+trigger_v1.py`, 3/3) -- a value travels a real relay chain and sits
+held, undelivered, no matter how long the wait, until an explicit
+trigger fires. Then integrated (`test_dag_relay_into_subtractor_v1.
+py`, 2/2) -- wired into a real subtractor, confirming the relayed
+value correctly becomes the first operand (A) by firing the trigger
+before the second operand, with the identical correct result for both
+a 2-hop and a 5-hop relay path.
+
+**Real, honest scope: this proves the core mechanism only.** Wiring it
+into the actual frontend -- tracking result positions, geometry/
+column-spacing so relay lanes don't collide with the main chain, a
+real discard-sink for unconsumed chain values (so quiescence still
+holds), and generating correct trigger-then-constant injection
+ordering -- is real, substantial, ready-to-pick-up follow-on work.
+Deliberately narrow for this pass: only the first operand becomes
+routable to any earlier result; the second operand stays compile-
+time-only.
+
+**Real, full regression:** 686 passed + 1 skipped (was 681), zero
+failures.
+
+## Previous state (as of 2026-09-08, the config-off-shell rollout completed for all 8 cores -- ram/adder/sequencer/branch now match compare/latch/accumulator's own #584/#587/#592 fix; nano was always this way. A real, separate .qsf bug found in v6/v7/v8 and flagged, not fixed. Sim-verified only -- NOT yet run on real hardware. See `points/points_active.md` #699. NOTE: Alan's own machine is currently down (possible system-board failure) -- he could not check or verify anything in this session.)
 
 ## Read this first (most recent)
 
