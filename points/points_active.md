@@ -8308,3 +8308,103 @@ verification (bit-for-bit against real IEEE-754 values) was already
 done and logged at `#697`; this entry exists so the REASON it matters
 -- Alan's own original vision for the whole TRIX family -- is recorded
 alongside the proof, not left to be re-explained later.
+
+## 699. The config-off-shell rollout (`#584`/`#587`/`#592`) completed for all remaining cores -- RAM, adder, sequencer, branch -- closing what Alan asked to check on directly: "an update only applied to a few of the cores but not the rest." Confirmed via direct RTL inspection first, not assumed from memory: the real split was 4-vs-4 (nano/compare/latch/accumulator already fixed; ram/adder/sequencer/branch still on the old pattern), not the 3-vs-5 recalled initially. A separate, serious, pre-existing bug found in v6/v7/v8's own Quartus project files while preparing v9's, flagged not silently fixed. Built entirely sim-first; NOT yet run through real Quartus. (Alan/Claude, 2026-09-07/08)
+
+**Real, direct confirmation before writing anything, not assumed from
+the ledger alone:** grepped the actual RTL for `<=` (registered,
+latched) vs `wire ... =` (continuous) config-field assignment across
+all 8 cores. Real result: `nano` (`unicell_stripped_v1.v`) was ALWAYS
+built continuous, never needed the fix; `compare`/`latch`/
+`accumulator` were retrofitted at `#584`/`#587`/`#592`; `ram`/`adder`/
+`sequencer`/`branch` were still on the original local-latch pattern.
+A genuine 4-vs-4 split, corrected from an initial 3-vs-5 recollection.
+
+**A real, careful distinction made per core before writing any new
+file, not a mechanical find-and-replace:** some cores have genuine
+ONE-TIME SEED fields (a value used only at the instant of `cfg_valid`
+to write real runtime state, never referenced as config again) mixed
+in among their real ongoing config fields, and only the latter group
+should move to the continuous pattern:
+- **`ram_cell_v3.v`**: `downstream_mask`/`upstream_mask`/`fixed_mode`
+  move to continuous (confirmed `fixed_mode` IS read every cycle post-
+  config, via `!fixed_mode && offer_draining`). `load_data_valid`/
+  `init_data` stay exactly as real, one-time seeds for `data_reg`/
+  `data_valid` -- genuine runtime state from that point on, unchanged.
+- **`adder_cell_v3.v`**: simpler real case -- all three fields
+  (`downstream_mask`/`upstream_mask`/`subtract_mode`) are read every
+  cycle (subtract_mode feeds `adder_b_in` combinationally), no
+  one-time-seed complication at all.
+- **`sequencer_cell_v3.v`**: ALL SIX real fields (`value_0`-`value_3`/
+  `sequence_len_m1`/`downstream_mask`) move to continuous -- confirmed
+  `value_for_index()` is called fresh on every real sequence advance,
+  not just once at config time, unlike RAM's own genuine one-time
+  seeds.
+- **`branch_cell_v3.v`**: all 14 real fields (the widest config
+  surface in this whole family, `#497`'s own fully-used 42-bit budget)
+  move to continuous -- confirmed every one is read combinationally on
+  every real `capture_compare` event. The real held-reference
+  mechanism (`ref_value`/`ref_valid`) and the real double-capture guard
+  (`consumed`) are both genuine runtime state, unchanged.
+
+**Real, differential verification for each core, matching `tb_
+compare_v3_diff_v1.v`'s own established two-part discipline exactly --
+(1) behavior-preserving under NORMAL driving, reusing or closely
+mirroring each core's own existing proven test vectors, and (2) a
+direct demonstration of the actual NEW capability (changing a field on
+`cfg_data` live, with NO fresh `cfg_valid` pulse, and confirming v3
+reflects it immediately while v1's own local latch stays stale):**
+`tb_ram_v3_diff_v1.v`, `tb_adder_v3_diff_v1.v` (real add AND real
+subtract), `tb_sequencer_v3_diff_v1.v` (a full real wrap-around
+cycle), `tb_branch_v3_diff_v1.v` (real held-reference capture, LOW/
+EQUAL classification, genuine HIGH suppression) -- all 4 passing.
+
+**A real, complete, fully-migrated shell built and proven end to end:**
+`unicell_super_v9.v`, cloned from `v8`, with all 4 remaining cores
+swapped to their own real `_v3` variant and rewired to `core_config`
+(matching `#584`'s own established shell-level pattern exactly).
+`tb_unicell_super_v9.v` reuses `tb_unicell_super_v8.v`'s own exact,
+unmodified real test vectors across all 8 cores through `core_select`
+routing -- passing with ZERO observable behavior change, the real,
+direct proof this fix genuinely changes nothing about what any core
+computes, only where it reads its own config from.
+
+**A real, separate, pre-existing bug found and flagged, not silently
+fixed, while preparing v9's own real Quartus project file:** `top_
+unicell_super_test_v8.qsf` (and, by inheritance, v6/v7's own) lists
+`unicell_super_v3.v` in its own file set, NOT `unicell_super_v8.v` --
+the module its own top-level actually instantiates -- and separately
+still lists the OLD `shift_lane_addon_v1.v` instead of `v2`, missing
+`shift_fine_addon_v1.v` entirely (`#684`'s own real fix, applied to
+`project_assemble_v1.py`'s own generator at the time, but never
+carried into these hand-authored `.qsf` files). Real, honest
+implication: none of v6/v7/v8's own `.qsf` files would successfully
+compile in real Quartus as they stand today -- consistent with none of
+them ever having actually been run (matching `#587`'s/`#592`'s own
+already-honest "real Quartus target built, not yet run" status).
+`top_unicell_super_test_v9.qsf`/`.v`/`.sdc` built correct from the
+start, inheriting neither bug -- v6/v7/v8's own files deliberately
+left untouched, flagged here for Alan's own real decision rather than
+fixed unasked.
+
+**Real, deliberate distinction from `#596`'s own closure, stated
+explicitly in `unicell_super_v9.v`'s own header:** this is NOT a
+reopening of the hardware-exploration/ALM-area question `#596`
+correctly closed. The motivation here is a real correctness property
+(a core with a private, latched config copy can go stale after a live
+reprogram that doesn't happen to also re-pulse THAT core's own `cfg_
+valid`) -- more relevant now that the command core's own real live-
+reprogramming channel (`#644`) exists than when `#596` was decided.
+
+**Real, honest scope: sim-verified only, matching every core on this
+axis so far.** NOT run through real Quartus -- genuinely can't be,
+right now (Alan's own machine is currently down, possible system-board
+failure). No ALM/Fmax numbers exist for v9 yet; that real confirmation
+step is a real, ready-to-pick-up next step whenever hardware is
+available again, not attempted or estimated here.
+
+**Real, full regression, RTL side:** 5 new testbenches, all passing
+(4 differential + 1 full-shell), confirmed via a clean, final re-run
+of all 5 together immediately before this entry was written. Python
+suite unaffected (681 passed, 1 skipped, unchanged) -- this was pure
+RTL work.

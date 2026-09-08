@@ -1,4 +1,69 @@
-# Current State (as of 2026-09-07, Alan's own real, unifying design vision for the whole TRIX family recorded -- "the crown jewel of the system," boundary-does-all-the-work, no extra cells needed -- alongside the technical proof that confirms it still holds on the current substrate. See `points/points_active.md` #698)
+# Current State (as of 2026-09-08, the config-off-shell rollout completed for all 8 cores -- ram/adder/sequencer/branch now match compare/latch/accumulator's own #584/#587/#592 fix; nano was always this way. A real, separate .qsf bug found in v6/v7/v8 and flagged, not fixed. Sim-verified only -- NOT yet run on real hardware. See `points/points_active.md` #699. NOTE: Alan's own machine is currently down (possible system-board failure) -- he could not check or verify anything in this session.)
+
+## Read this first (most recent)
+
+**2026-09-07/08, config-off-shell rollout completed (#699).** Alan
+asked directly to check on "an update only applied to a few of the
+cores but not the rest" -- confirmed by direct RTL inspection: the
+real split was 4-vs-4 (nano/compare/latch/accumulator already
+continuous; ram/adder/sequencer/branch still latched locally), not the
+3-vs-5 recalled initially.
+
+**Built, per core, with real care taken over which fields actually
+belong in the continuous group** (some cores mix genuine one-time seed
+fields in with their real ongoing config -- RAM's own `load_data_
+valid`/`init_data` stay exactly as one-time seeds; everything else,
+including all 6 of sequencer's own fields and all 14 of branch's own,
+moves to continuous): `ram_cell_v3.v`, `adder_cell_v3.v`, `sequencer_
+cell_v3.v`, `branch_cell_v3.v`.
+
+**Each verified with a real, two-part differential test** (behavior-
+preserving under normal driving, PLUS a direct demonstration of the
+new capability -- a live config change with no fresh `cfg_valid`,
+confirming v3 reflects it while v1's own latch stays stale):
+`tb_ram_v3_diff_v1.v`, `tb_adder_v3_diff_v1.v`, `tb_sequencer_v3_diff_
+v1.v`, `tb_branch_v3_diff_v1.v` -- all passing.
+
+**A complete, fully-migrated shell built and proven end to end:**
+`unicell_super_v9.v` (all 8 cores now continuous), tested via `tb_
+unicell_super_v9.v` reusing `tb_unicell_super_v8.v`'s own exact,
+unmodified test vectors across all 8 cores -- zero observable behavior
+change, confirmed directly.
+
+**A real, separate, pre-existing bug found and flagged, not silently
+fixed:** `top_unicell_super_test_v8.qsf` (and v6/v7's own) lists
+`unicell_super_v3.v` instead of the module it actually instantiates,
+and separately still references the pre-`#684` shift addon files.
+None of v6/v7/v8's own `.qsf` files would compile in real Quartus as
+they stand -- consistent with none ever having actually been run.
+`top_unicell_super_test_v9.qsf`/`.v`/`.sdc` built correct from the
+start; v6/v7/v8's own files deliberately left untouched, flagged for
+Alan's own decision.
+
+**Real, deliberate distinction from `#596`'s own closure:** this is
+not a reopening of the ALM-area question `#596` correctly closed --
+the motivation is a real correctness property (a stale local config
+copy after a live reprogram that doesn't re-pulse that core's own
+`cfg_valid`), more relevant now that the command core's own real
+live-reprogramming channel (`#644`) exists.
+
+**Real, honest scope: sim-verified only.** NOT run through real
+Quartus -- genuinely can't be right now. Real, full regression: 5 new
+testbenches all passing (re-confirmed together immediately before
+logging this); Python suite unaffected (681 passed, 1 skipped).
+
+**A note for whoever picks this up next:** Alan's own machine went
+down partway through this session (possible system-board failure) --
+he could not check, review, or verify anything here interactively.
+Everything above was verified as thoroughly as possible without him
+(direct RTL inspection before writing any new file, real differential
+tests for every change, a final clean re-run of everything immediately
+before committing) specifically because of that. Worth a careful
+second look together once his machine is working again, not because
+anything is known to be wrong, but because that review didn't happen
+yet.
+
+## Previous state (as of 2026-09-07, Alan's own real, unifying design vision for the whole TRIX family recorded -- "the crown jewel of the system," boundary-does-all-the-work, no extra cells needed -- alongside the technical proof that confirms it still holds on the current substrate. See `points/points_active.md` #698)
 
 ## Read this first (most recent)
 
