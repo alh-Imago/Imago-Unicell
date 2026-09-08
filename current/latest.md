@@ -1,4 +1,34 @@
-# Current State (as of 2026-09-07, Alan's own recursive lane-combine-tree idea proven in the VM -- a real, better realization of the standing 4-lane/8-lane work using the fine+coarse shift addon. 4-lane case proven (7 cells, 3/3 tests). See `points/points_active.md` #692)
+# Current State (as of 2026-09-07, the 8-lane extension of #692's recursive lane-combine tree built and proven -- 15 cells, 3 hops per source, a diamond layout more compact than the first draft. See `points/points_active.md` #693)
+
+## Read this first (most recent)
+
+**2026-09-07, 8-lane combine tree proven (#693).** Same recursive
+primitive as `#692`, nested one level deeper: 4 inner gatherer cells
+(2 nibble sources each) feed 2 outer gatherer cells (`#692`'s own
+shape, one applying `+8`, the other `+8` then a further `+16`) into
+one final merge -- 15 cells total, using a diamond layout instead of
+the first draft's linear+relay one, giving 3 hops per source instead
+of 4.
+
+**Real, deliberate tradeoff, exactly as Alan named:** not cell-cheap
+(grows faster than linearly in lane count), but every cell reuses an
+already-proven mechanism in an already-proven shape. A cheaper
+alternative (gathering 4 sources per cell directly, using RAM's real
+4-port limit) exists in principle but wasn't built -- this proves the
+recursive-doubling approach specifically, since it generalizes
+uniformly to any power-of-2 lane count from one building block.
+
+**Real, full verification** (`tests/vm/test_lane_combine_tree_8way_
+v1.py`, 3/3): correct `0x87654321` from 8 independent nibbles, every
+source confirmed to reach merge on the same tick, and each of the 4
+inner gatherers' own local combine checked independently.
+
+**Real, honest scope:** no RTL testbench yet for either the 4-lane or
+8-lane case -- VM-only, sim-first, matching `#544`'s/`#692`'s own
+discipline. Real, full regression: 674 passed + 1 skipped (was 671),
+zero failures.
+
+## Previous state (as of 2026-09-07, Alan's own recursive lane-combine-tree idea proven in the VM -- a real, better realization of the standing 4-lane/8-lane work using the fine+coarse shift addon. 4-lane case proven (7 cells, 3/3 tests). See `points/points_active.md` #692)
 
 ## Read this first (most recent)
 

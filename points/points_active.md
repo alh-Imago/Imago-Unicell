@@ -8023,3 +8023,49 @@ discipline exactly -- deferred, not silently assumed solved.
 
 **Real, full regression:** 3 new tests, 671 passed + 1 skipped overall
 (was 668), zero failures elsewhere.
+
+## 693. The 8-lane (4-bit each) extension of `#692`'s own recursive lane-combine tree, built and proven -- per Alan's own explicit framing that the recursive doubling design is "the basis for the combinational tree... not cheap in cell usage but it's safe and specific." (Alan/Claude, 2026-09-07)
+
+**Real, three-level-deep structure, the same primitive nested one
+level further than `#692`, not a new mechanism:** 4 real "inner"
+gatherer cells (each combining 2 independent 4-bit sources into a
+local 8-bit pattern, `#544`'s own proven mechanism exactly) feed 2
+"outer" gatherer cells (`#692`'s own real shape -- one side offers its
+local 16-bit pattern as-is, the other applies its own +8 local shift
+plus, one level further out, gathererB applies a FURTHER +16 shift to
+its own already-combined 16-bit pattern) feeding one final merge.
+
+**A real, more compact realization than the first attempt, using a
+diamond layout instead of a linear one:** 15 cells total (vs. a first,
+less efficient 17-cell draft using explicit relay cells), with every
+one of the 8 real nibble sources exactly 3 hops from the final merge
+cell (not 4) -- the gather-and-relay role folded into single cells at
+each level rather than kept as separate stages, while still keeping
+every path's hop count identical, matching `#544`'s own hard
+requirement.
+
+**Real, honest, deliberate tradeoff, exactly as Alan named:** 15 cells
+for 8 real lanes, growing faster than linearly in lane count -- not
+cell-cheap. A real, different, cheaper 8-lane design exists in
+principle (gathering 4 sources directly per cell using RAM's real
+4-port limit, needing only 2 gatherers + 1 merge) but was deliberately
+NOT built here -- this file proves the recursive-doubling approach
+specifically, since it's the one that generalizes uniformly to any
+power-of-2 lane count from the same single, already-proven building
+block, rather than needing a bespoke design at every new lane count.
+
+**Real, full verification, `tests/vm/test_lane_combine_tree_8way_v1.
+py`, 3/3 passing:** the full 8-source combine produces the correct
+`0x87654321` from 8 independent, self-checking nibble values; every
+source confirmed to reach the final merge cell in exactly the same
+tick (not staggered); and each of the 4 real inner gatherer cells'
+own local combine checked independently, confirming the tree's real
+correctness level by level, not just at the root.
+
+**Real, honest scope: no real RTL testbench exists for either the
+4-lane or 8-lane case yet**, matching `#544`'s and `#692`'s own scope
+discipline exactly -- VM-only, sim-first, a genuine next step if
+wanted, not silently assumed solved.
+
+**Real, full regression:** 3 new tests, 674 passed + 1 skipped overall
+(was 671), zero failures elsewhere.
