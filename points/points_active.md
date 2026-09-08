@@ -8207,3 +8207,68 @@ here, not silently assumed solved.
 
 **Real, full regression:** Python suite unaffected (678 passed, 1
 skipped, unchanged) -- this was pure RTL work.
+
+## 697. Real prior art found in the MathTrix archive (MIF -- MathTrix Internal Float), directly connecting to this session's own lane combine/fan-out work, plus Alan's own real fix verified bit-for-bit against actual IEEE-754 values -- closing the "can the exponent/mantissa split be done cleanly" question. (Alan/Claude, 2026-09-07)
+
+**Real, substantial prior art, not a sketch:** `archeology/shared/
+docs/software/PAPER_DRAFT.md`/`FORMAT_DEFINITION_GUIDE.md` describe
+MIF -- 17 real tiles (`UNPACK`/`PACK`/`ADD`/`SUB`/`MUL`/`DIV`
+(Newton-Raphson)/`SQRT`/`MADD`/etc.), real measured numbers (`MIF_MUL`
+= 3,066 cells/89-tick depth; `MIF_DIV` = 4,789 cells/1,177-tick
+depth), 242/242 tile tests passing, and real downstream applications
+(FlowTrix's lattice-Boltzmann solver validated against the actual
+Strouhal-number correlation; NeuroTrix's spiking-neuron model matched
+a reference implementation over 300-tick runs). MIF was the reference
+case later generalized into a whole `FormatDefinition` system reused
+for DNA, chemistry, physics, and finance domains.
+
+**The real design decision, confirmed precisely:** MIF never packs a
+float into one word for internal computation -- exponent+sign live in
+one cell, mantissa in another, from the moment data enters the
+fabric. The packed IEEE-754 word only exists at the real boundary
+(`MIF_UNPACK`/`MIF_PACK`), paid once per value. The same "avoid the
+split problem, don't solve it repeatedly" framing already named in
+`llvm_ir_frontend_completion_scope.md` as the natural fit here.
+
+**A real, second connection found while reading, not gone looking
+for:** the same archive names a "preloaded-A" pattern -- a cell whose
+value loads once at configure time, fires at zero runtime cost, used
+there for physical constants. The same real idea as this session's own
+freeze/preload/unfreeze mechanism (`#686`/`#687`), independently
+arrived at twice on two completely different hardware generations.
+
+**Alan's own real fix for the one remaining problem, verified bit-for-
+bit against actual IEEE-754 values, not just argued for:** extracting
+sign+exponent (top 9 bits) needs no mask at all -- a plain right-shift
+by 23 (`shift_amt=20`+`shift_fine=3`, exactly representable) zero-
+fills everything above the real field for free. The mantissa (bits
+22-0) is the real remaining problem: a single `nibble_mask` can only
+cleanly reach 24 bits, leaking bit 23 (the exponent's own real LSB)
+for any value with an odd exponent -- confirmed concretely, not
+asserted: `100000.0` (exponent 143, odd) gives a naive result of
+`0xc35000` against a real mantissa of `0x435000`, off by exactly that
+one bit. Alan's own fix: mask to 24 bits, shift left 1 (moving the
+stray bit from position 23 to 24, outside the 6-nibble window), mask
+to 24 bits AGAIN (now correctly dropping it), shift right 1 to
+restore the real bit positions. Two real addon-chain passes, no new
+hardware.
+
+**Verified directly** (`tests/vm/test_unicell_super_automaton_v1.py`,
+3 new tests, all passing): the plain top-of-word shift, a concrete
+demonstration of the real naive-mask leak (not just described), and
+the full mask-shift-mask-shift technique confirmed to exactly
+reproduce Python's own `struct`-computed mantissa across seven real
+test values (ordinary numbers, negative numbers, very small/large
+magnitudes, negative zero).
+
+**`docs/stripped-cell/design-notes/mathtrix_mif_connection.md`
+created**, capturing all of the above plus the real, honest remaining
+scope: the PACK direction (the mirror of this extraction, a real
+symmetric problem to `#692`-`#696`'s own fan-out/combine work), the
+actual arithmetic tiles, and the larger open question of whether this
+project follows MIF's own "never repack" strategy for real -- none of
+that attempted here, this closes out specifically "can the split be
+done cleanly."
+
+**Real, full regression:** 3 new tests, 681 passed + 1 skipped overall
+(was 678), zero failures elsewhere.

@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-07, the real RTL side of #692's 4-lane combine tree built and proven -- 7 real unicell_super_v1.v shells, actual iverilog run, 0x44332211 confirmed. Two real bugs found and fixed, both in the testbench, not the RTL. See `points/points_active.md` #696)
+# Current State (as of 2026-09-07, real MathTrix/MIF prior art found connecting directly to this session's lane combine/fan-out work, plus Alan's own real IEEE-754 mantissa-extraction fix verified bit-for-bit against actual float values. See `points/points_active.md` #697)
+
+## Read this first (most recent)
+
+**2026-09-07, MathTrix/MIF connection + mantissa-extraction fix
+verified (#697).** Deep-dived the archive per Alan's own request:
+MIF (MathTrix Internal Float) is real, substantial prior art -- 17
+tiles, real measured cell/depth numbers, 242/242 tests, real
+downstream validation (FlowTrix's Strouhal number, NeuroTrix matching
+a reference model). Its own real design: never pack a float for
+internal computation -- exponent+sign and mantissa live in separate
+cells from the start, matching the "avoid the split problem" framing
+already in the LLVM completion scope note. A second real connection
+found while reading: MIF's own "preloaded-A" constant pattern is the
+same idea as this session's own freeze/preload/unfreeze mechanism
+(`#686`/`#687`), independently arrived at twice on two different
+hardware generations.
+
+**Alan's own real fix for the one remaining problem, verified bit-for-
+bit against actual IEEE-754 values:** sign+exponent extraction needs
+no mask at all (plain right-shift by 23, zero-fill handles the rest).
+The mantissa is the real remaining problem -- a single mask leaks the
+exponent's own LSB for odd exponents, confirmed concretely (`100000.0`
+gives `0xc35000` instead of the real `0x435000`). Fix: mask-24, shift
+left 1 (moves the stray bit out of range), mask-24 again, shift right
+1 (restores position). Two real addon-chain passes, no new hardware --
+verified against 7 real test values in `test_unicell_super_automaton_
+v1.py`.
+
+**`mathtrix_mif_connection.md` created**, capturing the connection and
+the real, honest remaining scope (the PACK direction, the actual
+arithmetic tiles, the open "never repack" strategy question) -- none
+of that attempted here.
+
+**Real, full regression:** 681 passed + 1 skipped (was 678), zero
+failures.
+
+## Previous state (as of 2026-09-07, the real RTL side of #692's 4-lane combine tree built and proven -- 7 real unicell_super_v1.v shells, actual iverilog run, 0x44332211 confirmed. Two real bugs found and fixed, both in the testbench, not the RTL. See `points/points_active.md` #696)
 
 ## Read this first (most recent)
 

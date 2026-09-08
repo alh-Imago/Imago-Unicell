@@ -231,6 +231,69 @@ def test_addon_shift_fine_defaults_to_zero_backward_compatible():
     assert out == 0x00000001
 
 
+# ── points.md #697: real IEEE754 field extraction via mask+shift,
+# connecting the current addon chain to the archived MathTrix/MIF
+# format's own real "control cell (sign+exponent) / mantissa cell"
+# split (`archeology/shared/docs/software/PAPER_DRAFT.md`, `FORMAT_
+# DEFINITION_GUIDE.md`). Verified against real, actual IEEE754 bit
+# patterns (via Python's own `struct.pack`), not synthetic test
+# values -- the same standard `float32` layout MIF's own boundary
+# tiles (`MIF_UNPACK`/`MIF_PACK`) targeted on the old architecture.
+
+def _real_bits(f: float) -> int:
+    import struct
+    return struct.unpack("<I", struct.pack("<f", f))[0]
+
+
+def test_extract_sign_and_exponent_via_plain_shift_needs_no_mask_at_all():
+    """A field at the TOP of the word (sign+exponent, bits[31:23])
+    needs no masking after the shift: a logical right-shift zero-
+    fills everything above the real field for free. shift_amt=20 +
+    shift_fine=3 = 23, exactly representable by the real coarse+fine
+    decomposition (#690)."""
+    import struct
+    for value in (3.14159, 1.0, -2.5, 100000.0, 0.001, -0.0, 123456.789):
+        bits = _real_bits(value)
+        sign_exp = apply_addons(bits, {"shift_en": 1, "direction": 1, "shift_amt": 20, "shift_fine": 3})
+        expected = (bits >> 23) & 0x1FF
+        assert sign_exp == expected, f"{value!r}: got {sign_exp:03x}, expected {expected:03x}"
+
+
+def test_naive_single_mask_leaks_a_stray_exponent_bit_into_the_mantissa():
+    """Real, honest confirmation of the actual problem, not just the
+    fix: nibble_mask only cleanly keeps whole nibbles, so isolating
+    the real 23-bit mantissa (bits[22:0]) via a SINGLE mask can only
+    cleanly reach 20 or 24 bits -- keeping 24 (6 nibbles) leaks bit
+    23, the exponent's own real LSB, for any value whose exponent
+    happens to be odd."""
+    value = 100000.0   # real exponent = 143 (odd) -- bit 23 is genuinely 1
+    bits = _real_bits(value)
+    real_mantissa = bits & 0x7FFFFF
+    naive = apply_addons(bits, {"mask_en": 1, "nibble_mask": 0b11000000})
+    assert naive != real_mantissa
+    assert naive == real_mantissa | (1 << 23)   # exactly the one stray bit, nothing else
+
+
+def test_mask_shift_mask_shift_isolates_the_real_mantissa_exactly():
+    """Alan's own real fix: mask to 24 bits (6 nibbles, `0b11000000`),
+    shift left 1 (moving the stray exponent bit from position 23 to
+    24 -- outside the 6-nibble window), mask to 24 bits AGAIN (now
+    correctly dropping the stray bit, which is out of range), then
+    shift right 1 to restore the real mantissa's own original bit
+    positions. Two real cells' worth of work (each stage is one real
+    addon-chain pass, mask-then-shift, matching the chain's own real
+    order), using only mechanisms that already exist -- no new
+    hardware needed."""
+    for value in (3.14159, 1.0, -2.5, 100000.0, 0.001, -0.0, 123456.789):
+        bits = _real_bits(value)
+        expected = bits & 0x7FFFFF
+        stage1 = apply_addons(bits, {"mask_en": 1, "nibble_mask": 0b11000000,
+                                      "shift_en": 1, "direction": 0, "shift_amt": 1})
+        stage2 = apply_addons(stage1, {"mask_en": 1, "nibble_mask": 0b11000000,
+                                        "shift_en": 1, "direction": 1, "shift_amt": 1})
+        assert stage2 == expected, f"{value!r}: got {stage2:06x}, expected {expected:06x}"
+
+
 def test_nano_delegates_to_real_cacell():
     # topology=OR(0x024), ready=1, routing_mask=N(1), cardinal_edge=0 (consume all)
     rec = _rec("c0", 0, 0, "nano", {"topology": 0x024, "ready": 1, "routing_mask": 1, "cardinal_edge": 0})
