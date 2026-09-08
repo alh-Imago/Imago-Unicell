@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-07, shl/lshr built and verified end to end -- real changes needed at every layer (file format, VM, compiler, frontend), not just the frontend alone. ashr correctly refused with a specific hardware-gap diagnostic. See `points/points_active.md` #690)
+# Current State (as of 2026-09-07, the LaTeX-equation path scoped as a real, concrete target for llvm_ir_frontend_v1.py -- real prior art found (math_frontend_design.md, MathTrix's own origin), plus a real correction to floating point's Tier C classification. Design-note only. See `points/points_active.md` #691)
+
+## Read this first (most recent)
+
+**2026-09-07, LaTeX-equation path scoped (#691).** Alan asked directly
+whether the LLVM system could handle LaTeX equations once the other
+Tier A/B bits are done. Real, grounded answer: `archeology/shared/
+docs/software/math_frontend_design.md` already scoped exactly this --
+`SymPy -> Discretiser -> Pattern Matcher -> Tiler -> Wirer`, feeding
+the same real IR pipeline `llvm_ir_frontend_v1.py` descends from.
+`trix_bridge_archaeology_refnotes.md` confirms this was MathTrix's own
+real origin -- the first Trix design.
+
+**A concrete, satisfying connection:** the old design's own gaps were
+named as "MUL tile (future), SHR tile (future)" -- `SHR` is `lshr`,
+built this same session at `#690`. Its own 1D Laplacian stencil
+(`alpha=1/4` as a power-of-2 shift) is now genuinely buildable.
+
+**Still needed:** general `mul`; general DAG/tree routing (the real
+gating item -- almost every real equation needs this); a real LaTeX
+parser (genuinely new work); fixed-point scaling (already solved on
+paper, Q16 format).
+
+**Stays Tier A/B, not Tier C:** a single equation needs no loops or
+memory; applying a stencil across N grid points is compile-time-
+bounded unrolling, same technique as ordinary loop unrolling.
+
+**A real correction made along the way:** floating point was wrongly
+called genuinely unscoped Tier C in `#689`. Corrected -- a real,
+worked-out design exists (bit-manipulation chains on plain INT32
+cells, reusing the existing 64-bit paired-cell mechanism). Moved to
+Tier B.
+
+**Real, honest scope: nothing built.** `llvm_ir_frontend_completion_
+scope.md` updated with a new Part 2.5 and the correction.
+
+## Previous state (as of 2026-09-07, shl/lshr built and verified end to end -- real changes needed at every layer (file format, VM, compiler, frontend), not just the frontend alone. ashr correctly refused with a specific hardware-gap diagnostic. See `points/points_active.md` #690)
 
 ## Read this first (most recent)
 

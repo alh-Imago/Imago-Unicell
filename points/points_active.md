@@ -7922,3 +7922,47 @@ skipped, zero failures** (was 648 before this entry's own work began).
 note: Part 1 (`shl`/`lshr`) is now built, not just scoped; `ashr`
 remains correctly unsupported, exactly as scoped, now with a real
 diagnostic proving the gap is understood precisely, not just assumed.
+
+## 691. The LaTeX-equation path scoped as a real, concrete target for `llvm_ir_frontend_v1.py`, per Alan's own direct question ("could it handle the latex equation side, if we finish the other bits first"). Real prior art found confirming this was already scoped once, long before this project's own current lineage -- and a real correction made to `#689`'s own completion scope along the way. Design-note only, nothing built. (Alan/Claude, 2026-09-07)
+
+**Real, grounded answer, not speculation:** `archeology/shared/docs/
+software/math_frontend_design.md` already scoped exactly this idea --
+`SymPy -> Discretiser -> Pattern Matcher -> Tiler -> Wirer`, feeding
+the same real `compiler_int32`/IR pipeline `llvm_ir_frontend_v1.py`
+directly descends from. `trix_bridge_archaeology_refnotes.md`
+confirms this was MathTrix's own real origin -- the first Trix design,
+the one the whole family grew out of.
+
+**A concrete, satisfying connection surfaced, not assumed:** the old
+design's own "Path to Implementation" names its main gaps as "MUL
+tile (future), SHR tile (future)" -- `SHR` is `lshr`, built this same
+session at `#690`. Its own 1D Laplacian stencil pattern (`alpha=1/4`
+as a power-of-2 shift) is now genuinely, actually buildable.
+
+**What's still needed beyond `shl`/`lshr`, named concretely:** general
+`mul`; general DAG/tree routing (the real gating item -- almost any
+real equation combines two independently-computed sub-expressions,
+not an edge case); a real LaTeX parser (genuinely new, separate from
+backend lowering); fixed-point scaling (already solved on paper, Q16
+format, `math_frontend_design.md`'s own real strategy).
+
+**Real, honest scope confirmation: this stays Tier A/B, not Tier C.**
+A single equation needs no loops or memory; applying a stencil across
+a grid of N points is compile-time-bounded unrolling, the same
+technique already named for ordinary loop unrolling. Genuinely open
+Tier C territory (real integrals, unbounded summation) would need
+separate work; ordinary algebraic equations and fixed-size numerical
+stencils never touch it.
+
+**A real correction made to `#689`'s own completion scope, found
+while researching this:** floating point was wrongly characterized
+there as genuinely unscoped Tier C. Corrected: `math_frontend_design.
+md` has a real, worked-out design (float32/float64 via bit-
+manipulation chains on plain INT32 cells, reusing the existing paired-
+cell mechanism already built for 64-bit ints) -- never built, but a
+real, bounded, mechanical design, not an open architectural question.
+Moved to Tier B.
+
+**Real, honest scope: nothing built.** `llvm_ir_frontend_completion_
+scope.md` updated with a new Part 2.5 and the Tier C->B floating-point
+correction, per Alan's own direct question, not a build request.

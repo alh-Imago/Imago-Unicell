@@ -134,6 +134,13 @@ prior art, tiered by how hard each one actually is.
   ring, wired to share a common exit signal? Does nesting mean
   physically nesting rings in space?) — not decided or attempted
   anywhere in this project yet.
+- **Floating point** (moved here from Tier C, 2026-09-07 — see the
+  real correction below). `math_frontend_design.md` has a real,
+  worked-out design: float32/float64 via bit-manipulation chains on
+  plain INT32 cells (5 cells for `FLOAT32_ADD`, 4 for `FLOAT32_MUL`,
+  etc.), reusing the same paired-cell mechanism already built for
+  signed 64-bit integers. A real, bounded, mechanical build once
+  general `mul`/bitwise ops exist — not a new architectural question.
 
 ### Tier C — genuinely open architectural questions, not just
 "more compiler work" (named, not resolved, in the long-range note
@@ -157,9 +164,57 @@ already)
   always-inlined "function" is really just Tier B's own DAG-routing
   problem wearing a different name; genuine recursion runs straight
   into the same unbounded-loop question above.
-- **Floating point.** Not attempted, not scoped anywhere in this
-  project — every real core (`adder`, `comparator`, `accumulator`)
-  operates on plain 32-bit integers.
+- **Floating point.** **Correction, 2026-09-07: not actually
+  unscoped.** `archeology/shared/docs/software/math_frontend_design.
+  md` has a real, worked-out design -- float32/float64 via bit-
+  manipulation chains on plain INT32 cells (5 cells for `FLOAT32_ADD`,
+  4 for `FLOAT32_MUL`, etc.), reusing the SAME paired-cell mechanism
+  already built for signed 64-bit integers (the two-arrival model
+  naturally synchronizes a mantissa pair). Never built, but a real,
+  bounded, Tier-A/B-shaped design, not a genuine architectural
+  question -- moved out of Tier C on that basis.
+
+## Part 2.5: the LaTeX-equation path — a real, concrete, reachable
+target once Tier B lands, added 2026-09-07 per Alan's own direct
+question
+
+**Real prior art confirms this is architecturally sound, not just
+plausible.** `archeology/shared/docs/software/math_frontend_design.md`
+already scoped exactly this idea: `SymPy → Discretiser → Pattern
+Matcher → Tiler → Wirer`, feeding the same real `compiler_int32`/IR
+pipeline `llvm_ir_frontend_v1.py` directly descends from.
+`trix_bridge_archaeology_refnotes.md` confirms this was MathTrix's
+own real origin — the first Trix design, the one the whole family grew
+out of.
+
+**A concrete, satisfying connection to what's already built:** that
+old design's own "Path to Implementation" names its main gaps as "MUL
+tile (future), SHR tile (future)" — `SHR` is `lshr` (`#690`, built the
+same day this note was updated). Its own 1D Laplacian stencil pattern
+(`u_new[i] = u[i] + alpha*(u[i-1] - 2*u[i] + u[i+1])`, `alpha=1/4` as a
+power-of-2 shift) is now genuinely, actually buildable.
+
+**What's still needed, concretely, beyond `shl`/`lshr`:**
+1. **General `mul`** (Tier A/B boundary above) — the other named gap.
+2. **General DAG/tree routing** (Tier B) — the real gating item.
+   Almost any real equation combines two independently-computed sub-
+   expressions (`(a+b)*(c+d)`, `a*b + c*d`) — not an edge case, the
+   common case.
+3. **A real LaTeX parser** — genuinely new, currently unbuilt work,
+   separate from backend lowering: turning `\frac{a+b}{c}` syntax into
+   something the compiler can consume.
+4. **Fixed-point scaling** — already solved on paper (Q16 format,
+   `math_frontend_design.md`'s own real strategy), just needs building.
+
+**Why this stays real and reachable, not Tier C:** a single equation
+evaluation needs no loops or memory at all. Applying a stencil across
+a grid of N points is compile-time-bounded unrolling (N known ahead of
+time) — the same real, proven technique Tier B's own bounded-loop-
+unrolling item already names. Genuinely open Tier C territory (real
+integrals, unbounded summation, data-dependent iteration) would need
+separate, further work, but ordinary algebraic equations and fixed-
+size numerical stencils — exactly what the old design targeted — never
+touch it.
 
 ## Part 3: "if it can get to a point it can compile itself" — what
 this would actually mean, stated honestly rather than left ambiguous
