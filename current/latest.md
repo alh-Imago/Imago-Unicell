@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-07, the LaTeX-equation path scoped as a real, concrete target for llvm_ir_frontend_v1.py -- real prior art found (math_frontend_design.md, MathTrix's own origin), plus a real correction to floating point's Tier C classification. Design-note only. See `points/points_active.md` #691)
+# Current State (as of 2026-09-07, Alan's own recursive lane-combine-tree idea proven in the VM -- a real, better realization of the standing 4-lane/8-lane work using the fine+coarse shift addon. 4-lane case proven (7 cells, 3/3 tests). See `points/points_active.md` #692)
+
+## Read this first (most recent)
+
+**2026-09-07, recursive lane-combine tree proven (#692).** Alan's own
+idea: rather than `#544`'s vaguely-shaped "2-stage OR-tree," recursively
+double -- two 2-source gather sub-trees (identical to `#544`'s own
+proven mechanism), the second one applying an EXTRA shift to its own
+already-combined pattern before offering onward, then a final merge.
+
+**The one property checked before building:** the addon chain applies
+inside a cell's own offer step, same tick as an unshifted offer would
+happen -- confirmed directly against `apply_addons()`'s real call
+site. So a shifted branch costs zero extra hop-count relative to an
+unshifted one, meaning `#544`'s own hardest constraint (every path to
+a recombiner needs the same hop count) isn't violated by this design.
+
+**Built and proven:** a real 7-cell, 4-independent-8-bit-source layout
+(`tests/vm/test_lane_combine_tree_v1.py`, 3/3), correctly producing
+`0x44332211`, with every source confirmed to reach the merge cell in
+exactly the same tick.
+
+**A real bug found and fixed, in the test's own layout, not the
+idea:** a coordinate mix-up (north is `row-1`, not `row+1` in this VM)
+had the two gatherers' own downstream directions backwards. Caught
+immediately since `run_to_quiescence()` settled on a wrong (zero)
+answer rather than timing out; fixed by swapping the directions.
+
+**Real, honest scope:** proves 4-lane specifically. 8-lane is the same
+mechanism one level deeper (or a single 4-input gather per half, given
+RAM's real 4-port limit) -- real, understood, not built. No real RTL
+testbench yet either, matching `#544`'s own original scope discipline.
+
+**Real, full regression:** 671 passed + 1 skipped (was 668), zero
+failures.
+
+## Previous state (as of 2026-09-07, the LaTeX-equation path scoped as a real, concrete target for llvm_ir_frontend_v1.py -- real prior art found (math_frontend_design.md, MathTrix's own origin), plus a real correction to floating point's Tier C classification. Design-note only. See `points/points_active.md` #691)
 
 ## Read this first (most recent)
 

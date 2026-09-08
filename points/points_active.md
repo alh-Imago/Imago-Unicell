@@ -7966,3 +7966,60 @@ Moved to Tier B.
 **Real, honest scope: nothing built.** `llvm_ir_frontend_completion_
 scope.md` updated with a new Part 2.5 and the Tier C->B floating-point
 correction, per Alan's own direct question, not a build request.
+
+## 692. Alan's own real recursive lane-combine-tree idea, proven in the VM -- a real, genuinely better realization of the "4-lane/8-lane" work `#544`/`#673` had left standing, using the fine+coarse shift addon (`#683`/`#684`) instead of the flat "2-stage OR-tree" originally imagined. A real bug found and fixed along the way, not in the idea itself. (Alan/Claude, 2026-09-07)
+
+**The real idea, restated and confirmed sound before building, not
+just conceptually plausible:** rather than `#544`'s own vaguely-shaped
+"2-stage OR-tree" for going past 2 lanes, recursively double: two
+independent 2-source "gather" sub-trees (each identical to `#544`'s
+own already-proven mechanism -- one source at its natural local
+position, one shifted to the other local position, OR-gathered with
+no addon on the gatherer itself), with the SECOND sub-tree's own
+gatherer applying ONE ADDITIONAL shift to its already-combined local
+pattern before offering it onward, then a final cell ORs both
+sub-trees together.
+
+**The one property checked before building anything, not assumed:**
+the addon chain applies INSIDE a cell's own ordinary offer step, the
+same tick it would have offered its raw value anyway (confirmed
+directly against `apply_addons()`'s own real call site, inside the
+offer pass, not a separate stage). This means adding a shift to one
+branch costs ZERO extra hop-count/tick delay relative to an unshifted
+branch -- `#544`'s own single hardest real constraint (every path to a
+recombiner needs the SAME hop count, or the design silently produces a
+confidently wrong answer) is NOT violated by this doubling structure.
+This was the one thing that could have quietly broken the whole idea,
+and it doesn't.
+
+**Real, concrete 7-cell layout built and proven** (`tests/vm/test_
+lane_combine_tree_v1.py`, 3/3 passing): 4 independent 8-bit sources,
+two 2-source gatherer cells (matching `#544`'s own proven mechanism
+exactly), one gatherer applying an extra shift-left-16 to its own
+already-combined local pattern, one final merge cell. Every source
+reaches the merge cell in exactly the same number of ticks, by
+construction -- confirmed directly, not just claimed, by ticking one
+step at a time and checking `merge` settles all at once, not
+staggered. The final combined value (`0x44332211` from four real,
+independent byte values) is correct.
+
+**A real bug found and fixed while building, in the test's own
+layout, not the idea:** a coordinate-convention mix-up -- in this VM,
+north is `row - 1`, not `row + 1` (confirmed directly against `neighbor_
+pos()`) -- meant the first version's two gatherer cells had their own
+`downstream_mask` directions backwards, so neither one's offer ever
+reached the merge cell at all. Found immediately from `run_to_
+quiescence()` returning a real but wrong (zero) result rather than
+timing out, fixed by swapping the two directions, re-verified.
+
+**Real, honest scope: proves the 4-lane (8-bit each) case specifically,
+built from two real 2-lane sub-trees.** The fuller 8-lane (4-bit each)
+case is the identical mechanism one recursive level deeper (or, since
+RAM has exactly 4 real cardinal ports, potentially a single-level
+4-input gather per half rather than a second recursive doubling) --
+real, understood, genuinely ready to pick up, not built here. No real
+RTL testbench exists yet either, matching `#544`'s own original scope
+discipline exactly -- deferred, not silently assumed solved.
+
+**Real, full regression:** 3 new tests, 671 passed + 1 skipped overall
+(was 668), zero failures elsewhere.
