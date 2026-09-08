@@ -1,4 +1,27 @@
-# Current State (as of 2026-09-07, the reverse fan-out mechanism confirmed and proven -- each lane repositioned via SHIFT_OUT and routed to a single cardinal or a real combination of cardinals, with no equal-hop-count requirement (a favorable asymmetry vs. the gather direction). See `points/points_active.md` #694)
+# Current State (as of 2026-09-07, Alan's own precise correction to #694 confirmed and proven -- fan-out's "no equal-hop-count requirement" is real but scoped exactly to topologies where nothing reconverges; recombining split lanes re-inherits #544's own tree method, proven directly. See `points/points_active.md` #695)
+
+## Read this first (most recent)
+
+**2026-09-07, precise fan-out/recombine boundary confirmed (#695).**
+Alan's own correction: `#694`'s "no equal-hop-count requirement" is
+real, but only because nothing in that test ever reconverges -- every
+sink is a dead end. The moment split lanes need to be brought back
+together, that convergence point re-inherits `#544`'s original hard
+requirement, because RAM's capture register is a real, single slot
+regardless of how the value arrived.
+
+**Proven directly** (`tests/vm/test_lane_fanout_v1.py`, 4/4): took
+`#694`'s own two real lane values and routed them to a shared
+recombine cell with deliberately mismatched path lengths -- reproduced
+`#544`'s exact real failure signature (wrong partial answer, perpetual
+non-quiescence), confirming the boundary precisely even though the
+values came from an otherwise-safe fan-out. The splitting itself was
+never the risk; any later convergence always is.
+
+**Real, full regression:** 678 passed + 1 skipped (was 677), zero
+failures.
+
+## Previous state (as of 2026-09-07, the reverse fan-out mechanism confirmed and proven -- each lane repositioned via SHIFT_OUT and routed to a single cardinal or a real combination of cardinals, with no equal-hop-count requirement (a favorable asymmetry vs. the gather direction). See `points/points_active.md` #694)
 
 ## Read this first (most recent)
 

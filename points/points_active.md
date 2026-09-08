@@ -8117,3 +8117,35 @@ other entry in this thread's own scope discipline.
 
 **Real, full regression:** 3 new tests, 677 passed + 1 skipped overall
 (was 674), zero failures elsewhere.
+
+## 695. Alan's own real, precise correction to `#694`'s own "no equal-hop-count requirement" claim -- confirmed and proven, not just agreed to: that exemption is real but scoped exactly to a topology where nothing ever reconverges. The moment split lanes need to be recombined, the tree method (`#544`'s own original hard requirement) applies again, regardless of how the values were produced. (Alan/Claude, 2026-09-07)
+
+**The precise correction, confirmed directly, not just conceded:**
+`#694`'s own real finding (fan-out has no equal-hop-count requirement)
+remains true, but only because nothing in that specific test ever
+reconverges -- every sink is a genuine dead end. Alan's own real point:
+if a topology ever needs to bring split-off values back TOGETHER
+again (recombination), that convergence point re-inherits `#544`'s
+original hard requirement, because RAM's own capture register is a
+real, single slot regardless of how the value arrived at it -- the
+risk was never in the splitting itself, it's in any later convergence.
+
+**Proven directly, not just argued for** (`tests/vm/test_lane_fanout_
+v1.py`, new 4th test, 4/4 passing overall): took `#694`'s own two real
+lane values (`LANE0`, `LANE1`) and routed them to a shared recombine
+cell with deliberately mismatched path lengths (one direct hop, the
+other through one real extra relay) -- the exact same real mismatch
+shape as `#544`'s own original negative test. Reproduced the identical
+real failure signature (a confidently wrong, partial answer, and
+perpetual non-quiescence), confirming the boundary precisely: the
+values being recombined came from an otherwise entirely safe fan-out,
+and the recombination step failed anyway, exactly as it would have if
+they'd come from any other source.
+
+**Real, honest scope note added to the module docstring itself**, not
+left implicit -- future readers of `#694`'s own fan-out mechanism will
+see the precise boundary stated plainly alongside the property it
+qualifies, not as a separate, easy-to-miss caveat elsewhere.
+
+**Real, full regression:** 1 new test, 678 passed + 1 skipped overall
+(was 677), zero failures elsewhere.

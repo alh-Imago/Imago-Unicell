@@ -23,6 +23,20 @@ ONE source, so there is no "two arrivals racing for one slot" failure
 mode to guard against at all. The fan-out direction is genuinely
 SIMPLER to get right than the gather direction.
 
+**Real, precise scope boundary, per Alan's own direct correction
+(`#695`): this exemption is real, but scoped exactly to a topology
+where nothing ever reconverges.** The moment two already-split lanes
+need to be brought back TOGETHER at a shared cell -- for any reason,
+whether the overall shape started as a gather tree or a fan-out --
+that convergence point re-inherits `#544`'s own original hard
+requirement, because RAM's own capture register is a real, single
+slot regardless of how the value arrived at it. Proven directly below,
+not just argued for: `test_recombining_two_already_split_lanes_still_
+needs_the_tree_method` takes two of THIS file's own real lane values
+and deliberately mismatches their path lengths to a shared recombine
+cell, reproducing `#544`'s exact real failure signature. The fan-out
+step itself was never the risk; any later convergence always is.
+
 Real, concrete layout: one source broadcasts a real, already-combined
 32-bit value (`#692`'s own real test value, `0x44332211` -- a
 deliberate callback) raw to all 4 cardinal neighbors. Each neighbor is
@@ -155,6 +169,65 @@ def test_fanout_has_no_equal_hop_count_requirement_unlike_the_gather_tree():
     assert grid.cells[(-2, 0)].ram_data_valid is True
     assert grid.cells[(2, 0)].ram_data_valid is True
     assert grid.cells[(0, -2)].ram_data_valid is True
+
+
+# ── points.md #695: Alan's own real, precise correction -- the "no
+# equal-hop-count requirement" property above is real, but SCOPED
+# exactly to a pure fan-out where nothing ever reconverges. The
+# moment two already-split lanes need to be brought back together
+# (recombination), THAT convergence point re-inherits #544's own
+# original hard requirement, because RAM's own capture register is a
+# real, single slot regardless of how the value arrived at it. Proven
+# here directly, not just argued for, by deliberately mismatching two
+# already-split lanes' own path lengths to a shared recombine cell. ──
+
+def test_recombining_two_already_split_lanes_still_needs_the_tree_method():
+    """Real, direct proof of the precise scope boundary Alan named:
+    the two values recombined here are exactly LANE0/LANE1, the same
+    real outputs `#694`'s own proven fan-out mechanism produces --
+    but routed to a shared recombine cell with DELIBERATELY mismatched
+    path lengths (one direct hop; the other through one real extra
+    relay), the same real mismatch shape as `#544`'s own original
+    negative test. This reproduces that exact real failure signature
+    -- confirming recombination re-inherits the original hard
+    requirement even for values that came out of an otherwise-safe
+    fan-out; the fan-out step itself was never the risk, any later
+    convergence always is."""
+    records = [
+        v3.IcmV3Record(cell_id="source_A", row=0, col=0, core="ram",
+                        core_config={"downstream_mask": ["e"], "upstream_mask": [],
+                                     "fixed_mode": 0, "load_data_valid": 1, "init_data": LANE0}),
+        v3.IcmV3Record(cell_id="relay_extra", row=0, col=1, core="ram",
+                        core_config={"downstream_mask": ["e"], "upstream_mask": ["w"],
+                                     "fixed_mode": 0, "load_data_valid": 0, "init_data": 0}),
+        v3.IcmV3Record(cell_id="recombine", row=0, col=2, core="ram",
+                        core_config={"downstream_mask": [], "upstream_mask": ["w", "e"],
+                                     "fixed_mode": 0, "load_data_valid": 0, "init_data": 0}),
+        v3.IcmV3Record(cell_id="source_B", row=0, col=3, core="ram",
+                        core_config={"downstream_mask": ["w"], "upstream_mask": [],
+                                     "fixed_mode": 0, "load_data_valid": 1, "init_data": LANE1}),
+    ]
+    grid = SuperGrid(records)
+
+    try:
+        grid.run_to_quiescence(max_ticks=30)
+        quiesced = True
+    except TimeoutError:
+        quiesced = False
+
+    recombine = grid.cells[(0, 2)]
+    correct_combined = LANE0 | LANE1
+    # Either real failure shape proves the point, matching #544's own
+    # original test exactly: never settling, or settling on the wrong
+    # (partial) value.
+    assert not quiesced or recombine.ram_data_reg != correct_combined, (
+        "mismatched hop counts at a recombine point should NOT produce "
+        "the correct combined value, even when the two lanes came from "
+        "an otherwise-safe fan-out -- if this fails, the real "
+        "correctness requirement this test exists to demonstrate isn't "
+        "actually real"
+    )
+    assert not quiesced, "the longer-path lane's rejected retry should keep the grid perpetually active"
 
 
 if __name__ == "__main__":
