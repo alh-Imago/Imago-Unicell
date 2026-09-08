@@ -90,6 +90,40 @@ Python's own `struct`-computed mantissa for seven real test values
 spanning ordinary numbers, negative numbers, very small and very
 large magnitudes, and negative zero.
 
+## The real vision behind the whole TRIX family, per Alan's own words
+
+**"The TRIX family was going to be the crown jewel of the system —
+a way to define and manipulate specific cases in the native substrate
+without extra cells being needed. The boundary was where all the work
+was done, and the domain idea spawned from that, so it flowed through
+— but it worked."**
+
+This is the real, unifying design principle everything above is an
+instance of, stated precisely rather than left implicit: push ALL
+domain-specific complexity to the boundary (the pack/unpack step,
+paid once per value), and once data is inside the fabric in its own
+native, already-decomposed form, computation uses the SAME generic
+substrate primitives every other domain already uses — no new,
+domain-specific cell type required. The `FormatDefinition` pattern
+(alphabet/packing/boundary/operations/constants) wasn't designed
+top-down and then applied to MIF — it was the REVERSE: MIF solved the
+boundary problem for floats first, the pattern that solution revealed
+GENERALIZED cleanly to DNA, chemistry, physics, and finance, and
+*that's* what proved the principle was real rather than a one-off
+trick.
+
+**This session's own work is a direct, literal instance of that same
+principle, on the current substrate, not just a technical echo of
+it.** The mask-shift-mask-shift mantissa extraction verified above
+uses precisely ZERO new cell types — `nibble_mask`, `shift_fine`, and
+`shift_lane_v2` already existed for entirely unrelated reasons
+(`#544`'s own lane-splitting idea, `#683`'s shift work for LLVM's
+`shl`/`lshr`). The float boundary problem is fully solved by composing
+already-general-purpose primitives, exactly matching "manipulate a
+specific case in the native substrate without extra cells" -- not
+because it was designed that way for floats specifically, but because
+the underlying substrate-wide principle held.
+
 ## Real, honest scope
 
 This confirms the FULL boundary extraction (sign+exponent AND

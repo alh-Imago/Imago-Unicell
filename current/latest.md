@@ -1,4 +1,33 @@
-# Current State (as of 2026-09-07, real MathTrix/MIF prior art found connecting directly to this session's lane combine/fan-out work, plus Alan's own real IEEE-754 mantissa-extraction fix verified bit-for-bit against actual float values. See `points/points_active.md` #697)
+# Current State (as of 2026-09-07, Alan's own real, unifying design vision for the whole TRIX family recorded -- "the crown jewel of the system," boundary-does-all-the-work, no extra cells needed -- alongside the technical proof that confirms it still holds on the current substrate. See `points/points_active.md` #698)
+
+## Read this first (most recent)
+
+**2026-09-07, the TRIX family's own real design vision recorded
+(#698).** Alan's own words, captured directly: the TRIX family was
+meant to be "the crown jewel of the system... a way to define and
+manipulate specific cases in the native substrate without extra cells
+being needed. The boundary was where all the work was done, and the
+domain idea spawned from that." Real, important clarification on the
+order of discovery: `FormatDefinition` wasn't designed top-down and
+applied to MIF -- MIF solved the real boundary problem for floats
+FIRST, and that solution's own pattern generalized cleanly to DNA,
+chemistry, physics, and finance. The generalization succeeding is
+what proved the principle real, not a one-off trick.
+
+**Confirmed as a direct, literal instance of that same principle
+today, not just an echo of it:** `#697`'s own mask-shift-mask-shift
+mantissa extraction uses precisely ZERO new cell types -- reusing
+`nibble_mask`/`shift_fine`/`shift_lane_v2`, each already built for
+entirely unrelated reasons. The float boundary problem is fully
+solved by composing already-general-purpose primitives -- the same
+substrate-wide principle holding on the CURRENT architecture, not
+just the old one MIF was built on.
+
+**Real, honest scope: this entry records the design principle and its
+own provenance, not new technical work** -- the actual verification
+was already done and logged at `#697`.
+
+## Previous state (as of 2026-09-07, real MathTrix/MIF prior art found connecting directly to this session's lane combine/fan-out work, plus Alan's own real IEEE-754 mantissa-extraction fix verified bit-for-bit against actual float values. See `points/points_active.md` #697)
 
 ## Read this first (most recent)
 
