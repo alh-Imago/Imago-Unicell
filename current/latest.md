@@ -1,4 +1,24 @@
-# Current State (as of 2026-09-08, real, isolated proof of the shared-producer DAG tap mechanism -- daisy-chained drop cells letting one producer serve multiple consumers, lifting #701's own "one consumer per producer" restriction. Sim-only, NOT yet wired into the frontend. Session paused here on a usage constraint, at a clean, fully-tested stopping point. See `points/points_active.md` #706)
+# Current State (as of 2026-09-08, Alan's own new priority-arbiter core idea recorded as a design note (`future-core-candidates/priority_arbiter_core.md`) -- confirmed directly that NO existing core does this (all OR-combine simultaneous arrivals, not priority-order them). Design idea only, nothing built. See `points/points_active.md` #707)
+
+## Read this first (most recent)
+
+**2026-09-08, priority-arbiter core idea recorded (#707).** Alan's
+own new idea: a cell with two priority-ordered inputs (west always
+wins, north waits its turn rather than merging) and one fixed output
+-- a genuinely different, asymmetric port model from every existing
+core's symmetric convention. Checked directly against the real RTL of
+every cardinal-port core (`ram`/`branch`/`adder`/`latch`/`compare`):
+none arbitrate by priority today -- all OR-combine simultaneous
+arrivals, the same mechanism behind `#686`'s own known bug. If built,
+this could remove much of the hop-count/ordering engineering today's
+own DAG relay and `ashr` work needed, since correctness would come
+from the rule rather than the geometry. Real, open questions named
+(new core vs. modified existing one; universal vs. scoped; a real,
+unconfirmed timing concern about a longer combinational path per
+tick) -- design note only, saved to `future-core-candidates/`,
+nothing built.
+
+## Previous state (as of 2026-09-08, real, isolated proof of the shared-producer DAG tap mechanism -- daisy-chained drop cells letting one producer serve multiple consumers, lifting #701's own "one consumer per producer" restriction. Sim-only, NOT yet wired into the frontend. Session paused here on a usage constraint, at a clean, fully-tested stopping point. See `points/points_active.md` #706)
 
 ## Read this first (most recent)
 

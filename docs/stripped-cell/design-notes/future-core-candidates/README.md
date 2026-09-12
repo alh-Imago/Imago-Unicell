@@ -6,6 +6,11 @@ for FPGA" work (a snap-in third-party core-plugin ecosystem, `#353`)
 gets picked up. `core_select` values 6-31 are already real, reserved
 headroom in the live RTL for exactly this kind of thing (`#317`).
 
+A fourth, later contribution (`priority_arbiter_core.md`, Alan,
+2026-09-08) is a design idea rather than RTL — a genuinely new
+priority-based port-arbitration mechanism, not yet built. See that
+file directly.
+
 **None of these are Unicell-S cores yet.** They're plain combinational
 arithmetic — no `core_select` dispatch, no two-arrival capture, no
 `downstream_mask`/`upstream_mask` offering protocol, none of the real

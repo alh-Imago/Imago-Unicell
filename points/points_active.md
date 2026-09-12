@@ -8843,3 +8843,35 @@ stopping point rather than starting the larger integration mid-way.
 
 **Real, full regression:** 3 new tests, 714 passed + 1 skipped overall
 (was 711), zero failures elsewhere.
+
+## 707. Alan's own new priority-arbiter core idea recorded, design note only -- confirmed directly against every real cardinal-port core's own RTL (`ram`/`branch`/`adder`/`latch`/`compare`) that NONE currently arbitrate between simultaneous arrivals by priority; every one OR-combines them, the same real mechanism behind `#686`'s own known bug. Saved to `future-core-candidates/priority_arbiter_core.md`. (Alan/Claude, 2026-09-08)
+
+**The real idea:** a cell with two distinct, PRIORITY-ORDERED real
+input roles (west always wins; north only taken when west is empty,
+genuinely held back rather than lost or merged) and one fixed real
+output direction -- a genuinely different, asymmetric port model from
+every existing core's own symmetric "any direction can be upstream or
+downstream" convention.
+
+**Real, honest motivation, if it held true across the fabric:** a
+large fraction of today's own hop-count/ordering engineering (the DAG
+relay's trigger-chain-length work, `ashr`'s own stagger cells, the
+shared-producer daisy-chain's strict ordering requirement) exists
+specifically because nothing in the hardware resolves a same-tick
+collision by rule -- correctness has to come from careful timing
+instead. A real priority-arbitration primitive would let correctness
+come from the RULE, not the geometry.
+
+**Real, open questions named, not resolved:** new core type vs. a
+mode on an existing one; universal across every core vs. scoped to
+one new core; and a genuinely new port-role model (fixed priority-in/
+secondary-in/out) needing real thought, not just a config field. A
+real, honest, unconfirmed timing concern also flagged -- a genuine
+priority CHAIN is a longer combinational path per tick than today's
+flat OR-combine, and whether that fits the shell's own real 200.76 MHz
+budget (`#322`) is unverified.
+
+**Real, honest status:** design idea only, matching the discipline
+already established for this same directory's own earlier
+contributions (`#378`) -- no RTL, no VM model, no scoping pass, no
+core_select assignment.
