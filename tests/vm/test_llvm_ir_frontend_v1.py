@@ -986,3 +986,158 @@ def test_ashr_gives_a_real_specific_hardware_gap_diagnostic():
     icm, diagnostics, info = compile_llvm_ir(ir, {"x": 1})
     assert icm is None
     assert any("sign-extension" in d.problem or "sign-extension" in d.why for d in diagnostics)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #700/#701: general DAG data flow -- the "actual hard,
+# unsolved part" this frontend's own docstring has named since #610.
+# Real, deliberately narrow first pass: an add/sub instruction may
+# reference ANY earlier add/sub result, not just the immediately
+# preceding one, using #700's own real hold+trigger mechanism
+# (promoted to the real `nano_hold_trigger` tile, #701). Every "does it
+# compute the right answer" test actually runs the real VM.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _run_dag(source, argument_values, ticks=400):
+    icm, diagnostics, info = compile_llvm_ir(source, argument_values)
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    return cell.adder_out_buffer, cell.adder_data_valid, info
+
+
+def test_dag_reference_to_a_non_adjacent_earlier_add_result():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 5
+      %t2 = add i32 %t1, 10
+      %t3 = add i32 %t1, 3
+      ret i32 %t3
+    }
+    """
+    for x, expected in [(10, 18), (0, 8), (100, 108), (7, 15)]:
+        out, valid, info = _run_dag(ir, {"x": x})
+        assert valid is True
+        assert out == expected, f"x={x}: got {out}, expected {expected}"
+        assert info.expected_result == expected
+
+
+def test_dag_reference_holds_and_only_delivers_on_the_real_explicit_trigger():
+    """Real, direct confirmation this isn't an accidental instant
+    pass-through: inspects the drop cell's own internal nano state
+    directly across many ticks, confirming it holds the real relayed
+    value the whole time before the program's own real trigger fires."""
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 1
+      %t2 = add i32 %t1, 2
+      %t3 = add i32 %t2, 3
+      %t4 = add i32 %t3, 4
+      %t5 = add i32 %t1, 100
+      ret i32 %t5
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    drop_pos = next((r.row, r.col) for r in icm.records if "relay_drop" in r.cell_id)
+    for t in range(1, 60):
+        grid.tick()
+        if t == 20:
+            drop_state = grid.cells[drop_pos]._nano
+            assert drop_state.a_arrived is True
+            assert drop_state.a_data == 6   # x+1
+    cell = grid.cells[info.result_cell]
+    assert cell.adder_out_buffer == 106
+    assert cell.adder_data_valid is True
+
+
+def test_dag_reference_with_sub_on_both_ends():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = sub i32 %x, 3
+      %t2 = add i32 %t1, 100
+      %t3 = sub i32 %t1, 1
+      ret i32 %t3
+    }
+    """
+    out, valid, info = _run_dag(ir, {"x": 20})
+    assert valid is True
+    assert out == 16
+
+
+def test_two_non_overlapping_dag_references_in_one_function():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 1
+      %t2 = add i32 %t1, 2
+      %t3 = add i32 %t1, 100
+      %t4 = add i32 %t3, 1
+      %t5 = add i32 %t4, 1
+      %t6 = add i32 %t5, 2
+      %t7 = add i32 %t5, 200
+      ret i32 %t7
+    }
+    """
+    out, valid, info = _run_dag(ir, {"x": 5})
+    assert valid is True
+    assert out == 308
+
+
+def test_dag_reference_to_a_non_add_sub_producer_gives_a_specific_diagnostic():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = shl i32 %x, 2
+      %t2 = add i32 %t1, 5
+      %t3 = add i32 %t1, 10
+      ret i32 %t3
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 3})
+    assert icm is None
+    assert any("deliberately narrow" in d.why for d in diagnostics)
+
+
+def test_multiple_consumers_of_the_same_producer_rejected_with_specific_diagnostic():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 1
+      %t2 = add i32 %t1, 2
+      %t3 = add i32 %t1, 100
+      %t4 = add i32 %t3, 3
+      %t5 = add i32 %t1, 1000
+      ret i32 %t5
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
+    assert icm is None
+    assert any("already tapped by an earlier DAG reference" in d.problem for d in diagnostics)
+
+
+def test_overlapping_dag_reference_ranges_rejected_with_specific_diagnostic():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 1
+      %t2 = add i32 %t1, 2
+      %t3 = add i32 %t1, 100
+      %t4 = add i32 %t2, 200
+      %t5 = add i32 %t4, 1
+      ret i32 %t5
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
+    assert icm is None
+    assert any("overlaps an earlier one" in d.problem for d in diagnostics)

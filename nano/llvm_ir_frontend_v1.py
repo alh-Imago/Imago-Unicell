@@ -79,7 +79,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -105,6 +105,47 @@ def _decompose_shift(amount: int) -> Tuple[int, int]:
     fine = amount - coarse
     assert 0 <= fine <= 3, f"internal error: fine={fine} out of range for amount={amount}"
     return coarse, fine
+
+
+def _compute_needs_relay_tap(body_instructions) -> Set[str]:
+    """points.md #701: the real pre-pass general DAG routing needs --
+    scanned BEFORE the main per-instruction loop so a producer's own
+    downstream fan-out can be emitted CORRECTLY the first time (an
+    extra south tap into the relay lane, #700's own real mechanism),
+    rather than needing to retroactively modify an already-emitted
+    `PlaceIR`. Purely structural (comparing SSA NAMES against the
+    immediately-preceding instruction's own name) -- no value
+    resolution needed at all, so this can run before `known_values`
+    exists.
+
+    Real, deliberate scope for this first integration pass, stated
+    directly: only `add`/`sub` may be tapped OR be a DAG-referencing
+    consumer -- both lower onto the real, commutative "adder" tile
+    (`sub` as `add(first, -second)`, `#611`'s own already-verified
+    trick), so which of the two real operands (the relayed DAG value,
+    the compile-time constant) arrives first at the diff cell
+    genuinely doesn't affect correctness. `icmp`'s own subtractor-based
+    predicates (`slt`/`sle`/`sgt`/`sge`) ARE real, order-sensitive
+    (north-minus-west), and `select`/`shl`/`lshr` have their own real,
+    separate result-row conventions -- none of the four are supported
+    as a DAG reference SOURCE or CONSUMER in this pass; each gets a
+    real, specific diagnostic instead of silently doing the wrong
+    thing."""
+    producer_opcode: Dict[str, str] = {}
+    needs_tap: Set[str] = set()
+    for idx, instr in enumerate(body_instructions):
+        producer_opcode[instr.name] = instr.opcode
+        if idx == 0 or instr.opcode not in ("add", "sub"):
+            continue
+        operands = list(instr.operands)
+        if len(operands) != 2:
+            continue
+        first_name = _operand_name(operands[0])
+        prev_name = body_instructions[idx - 1].name
+        if first_name and first_name != prev_name and first_name in producer_opcode:
+            if producer_opcode[first_name] in ("add", "sub"):
+                needs_tap.add(first_name)
+    return needs_tap
 
 
 # points.md #613: real, verified derivation -- reuses the exact same
@@ -337,6 +378,23 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
     injections: List[Tuple[int, int, int]] = []
     prev_instr_name: Optional[str] = None
     prev_icmp_predicate: Optional[str] = None   # points.md #674: tracked so select's own cond can be validated
+    # points.md #701: real position tracking for general DAG routing --
+    # every instruction's own final, readable result cell, keyed by
+    # SSA name. Needed so a LATER, non-adjacent reference can find
+    # WHERE to tap a relay chain from, without re-deriving it.
+    result_positions: Dict[str, Tuple[int, int]] = {}
+    needs_relay_tap = _compute_needs_relay_tap(body_instructions)
+    # points.md #701: a real, found-empirically fix -- two DIFFERENT
+    # DAG references (even from the SAME producer) can have
+    # overlapping column ranges, which would otherwise collide on a
+    # single shared pair of relay/trigger rows. Each DAG reference
+    # gets its own exclusive pair of rows instead (2/3, 4/5, 6/7, ...),
+    # confirmed necessary by an actual multi-reference compile that
+    # failed with real, specific "cell already occupied" diagnostics
+    # before this fix -- not a hypothetical.
+    dag_reference_count = 0
+    tapped_producers: Set[str] = set()
+    dag_reference_ranges: List[Tuple[int, int, str]] = []
     # points.md #613: a running column cursor, not a fixed `i + 1` --
     # icmp needs TWO physical columns (a diff cell + a comparator),
     # so instructions no longer map 1:1 onto columns. The invariant
@@ -452,6 +510,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             col_cursor = sub_col + 3
             last_result_row = 1
             prev_instr_name = instr.name
+            result_positions[instr.name] = (last_result_row, col_cursor - 1)
             prev_icmp_predicate = None
             continue
 
@@ -471,6 +530,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
 
         # REAL chain-shape enforcement -- the one, explicit restriction
         # this whole frontend slice depends on being honest about.
+        is_dag_reference = False
         if i == 0:
             if first_value is None:
                 diagnostics.append(_diag(
@@ -483,17 +543,43 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 ))
                 return None, diagnostics, None
         else:
-            if not (first_is_ref and first_name == prev_instr_name):
+            if first_is_ref and first_name == prev_instr_name:
+                pass   # the ordinary, adjacent chain reference -- unchanged
+            elif first_is_ref and first_name in needs_relay_tap and instr.opcode in ("add", "sub"):
+                # points.md #701: a real, in-scope DAG reference -- the
+                # pre-pass already confirmed BOTH ends are add/sub
+                # (the commutative "adder" tile, #611's own negate-
+                # and-add trick), so which of the diff cell's two real
+                # operands arrives first doesn't affect correctness.
+                is_dag_reference = True
+            else:
+                why = ("this real, first frontend slice only supports a genuine LINEAR "
+                       "ACCUMULATION CHAIN, not a general DAG (#611/#610) -- an instruction "
+                       "referencing an earlier, non-immediately-preceding result needs real "
+                       "relay-cell routing for a non-adjacent connection")
+                suggestion = "reorder/restructure the IR into a straight accumulation chain"
+                if first_is_ref and first_name in result_positions:
+                    # points.md #701: a real, specific reason, not the
+                    # generic message -- this IS a real earlier result,
+                    # just not one DAG references are supported for yet
+                    # (either the consumer or the producer is outside
+                    # add/sub's own real commutative shape).
+                    why = ("general DAG routing (#701) is real but deliberately narrow so far: "
+                           "only an add/sub instruction referencing an EARLIER add/sub result is "
+                           "supported (both lower onto the real, commutative adder tile, so "
+                           "operand arrival order doesn't affect correctness) -- icmp's own "
+                           "subtractor-based predicates are genuinely order-sensitive, and "
+                           "select/shl/lshr each have their own real, separate result-row "
+                           "convention, so none of the four may be a DAG reference source or "
+                           "consumer yet")
+                    suggestion = ("use add/sub on both ends of the reference, or wait for DAG "
+                                  "routing to cover order-sensitive/non-chain-row instructions too")
                 diagnostics.append(_diag(
                     problem=f"instruction {i + 1}'s own first operand is {first_name or str(operands[0])!r}, "
                              f"not the immediately preceding instruction's result ({prev_instr_name!r})",
                     what=f"lowering instruction {i + 1} ({str(instr).strip()})",
-                    why="this real, first frontend slice only supports a genuine LINEAR "
-                        "ACCUMULATION CHAIN, not a general DAG (#611/#610) -- an instruction "
-                        "referencing an earlier, non-immediately-preceding result needs real "
-                        "relay-cell routing for a non-adjacent connection, explicitly deferred",
-                    suggestion="reorder/restructure the IR into a straight accumulation chain, "
-                               "or wait for general DAG routing to be built",
+                    why=why,
+                    suggestion=suggestion,
                 ))
                 return None, diagnostics, None
 
@@ -580,6 +666,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             col_cursor = shift_col + 2
             last_result_row = 1
             prev_instr_name = instr.name
+            result_positions[instr.name] = (last_result_row, col_cursor - 1)
             prev_icmp_predicate = None
             continue
 
@@ -734,12 +821,162 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             col_cursor = diff_col + (3 if predicate == "ne" else 2)
             last_result_row = 2
             prev_instr_name = instr.name
+            result_positions[instr.name] = (last_result_row, col_cursor - 1)
             prev_icmp_predicate = predicate
             continue
 
+        # points.md #701: real DAG-reference relay -- built BEFORE the
+        # diff cell itself, since the diff cell's own `in_a` direction
+        # depends on whether a relay drop feeds it (south) or an
+        # ordinary chain neighbor does (west). Real geometry, chosen
+        # to never collide with anything this frontend already places:
+        # row 0 is fully occupied by every instruction's own compile-
+        # time constant feeder, so the relay lane runs at row 2 (one
+        # row south of the main chain), and the trigger's own delay
+        # chain at row 3 (one further south still) -- neither row is
+        # touched by anything else this frontend emits.
+        if is_dag_reference:
+            producer_row, producer_col = result_positions[first_name]
+            if first_name in tapped_producers:
+                diagnostics.append(_diag(
+                    problem=f"instruction {i + 1}'s own first operand {first_name!r} is already "
+                             f"tapped by an earlier DAG reference in this same function "
+                             f"({str(instr).strip()})",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="real, honest scope for this first pass (#701): each producer's result "
+                        "can be tapped for a non-adjacent DAG reference by AT MOST ONE later "
+                        "consumer -- multiple consumers sharing one producer's own relay "
+                        "infrastructure needs a real, separate branching/sharing design "
+                        "(a single tap cell serving several diverging relay chains) that "
+                        "hasn't been built yet; found directly, not assumed, by an actual "
+                        "multi-consumer compile that failed with real cell-collision "
+                        "diagnostics before this check existed",
+                    suggestion="restructure so each earlier result is only referenced "
+                               "non-adjacently once, or wait for shared/branching relay taps",
+                ))
+                return None, diagnostics, None
+            # points.md #701: a real, found-empirically constraint --
+            # the tap and drop are both FORCED onto row 2 (the diff
+            # cell only has 4 real ports, 3 already spoken for: west/
+            # south for in_a, north for in_b, east for out -- row 2 is
+            # the only real place left for either end to connect from).
+            # That means two DIFFERENT DAG references whose own real
+            # [producer_col, diff_col] ranges OVERLAP would need their
+            # own intermediate relay cells to occupy the SAME row-2
+            # positions -- a real, genuine collision, not something a
+            # different row choice can dodge (an earlier draft tried
+            # per-reference rows and broke the tap's own single-hop
+            # connection to its producer, confirmed by an actual
+            # failing compile before this check existed). Detected
+            # explicitly, with a real, specific reason, rather than
+            # relying on the placement layer's own generic "cell
+            # already occupied" error to surface it indirectly.
+            for used_start, used_end, used_instr in dag_reference_ranges:
+                if producer_col <= used_end and used_start <= diff_col:
+                    diagnostics.append(_diag(
+                        problem=f"instruction {i + 1}'s own DAG reference to {first_name!r} "
+                                 f"(columns {producer_col}-{diff_col}) overlaps an earlier one "
+                                 f"({used_instr!r}, columns {used_start}-{used_end})",
+                        what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                        why="real, honest scope for this first pass (#701): a DAG reference's "
+                            "own relay lane is forced onto row 2 (the only real free side of "
+                            "the diff cell), so two references whose own column ranges overlap "
+                            "would need the same row-2 cells -- a real geometric collision, not "
+                            "one a different row choice can avoid without breaking the tap's own "
+                            "single-hop connection to its producer",
+                        suggestion="restructure so DAG-referenced ranges don't overlap, or wait "
+                                   "for a real multi-lane/shared-tap relay design",
+                    ))
+                    return None, diagnostics, None
+            dag_reference_ranges.append((producer_col, diff_col, instr.name))
+            tapped_producers.add(first_name)
+            relay_col = producer_col
+            while relay_col <= diff_col:
+                if relay_col == producer_col:
+                    # the tap itself -- receives the producer's own
+                    # real south offering (added to the producer's own
+                    # `out` field below, via `needs_relay_tap`).
+                    statements.append(PlaceIR(
+                        name=f"op_{i}_relay_tap", tile_name="ram_flowing", row=2, col=relay_col,
+                        fields=[FieldIR("in", "n"), FieldIR("out", "e")],
+                    ))
+                elif relay_col == diff_col:
+                    # points.md #700's own real drop cell -- holds the
+                    # relayed value, delivers it north into the diff
+                    # cell only once the real, explicit trigger below
+                    # arrives from the south. Sits DIRECTLY south of
+                    # the diff cell itself (same column), not one
+                    # short of it -- confirmed the hard way: an
+                    # earlier draft placed it at `diff_col - 1`,
+                    # delivering to an empty cell instead of the diff
+                    # cell's own real south input.
+                    statements.append(PlaceIR(
+                        name=f"op_{i}_relay_drop", tile_name="nano_hold_trigger", row=2, col=relay_col,
+                        fields=[FieldIR("out", "n")],
+                    ))
+                else:
+                    statements.append(PlaceIR(
+                        name=f"op_{i}_relay_{relay_col}", tile_name="ram_flowing", row=2, col=relay_col,
+                        fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                    ))
+                relay_col += 1
+
+            # points.md #700's own real timing fix: the trigger's own
+            # chain is DELIBERATELY built far longer than the tap-relay
+            # chain could possibly need, so it is GUARANTEED to arrive
+            # at the drop only after the drop has already captured the
+            # real relayed value -- correctness here doesn't actually
+            # depend on precisely which of the two operands the diff
+            # cell captures first (`add`/`sub` are commutative once
+            # `sub`'s own second operand is pre-negated, #611), but the
+            # real, intended contract of this mechanism is "delivery
+            # happens on an explicit trigger," and this margin makes
+            # that genuinely true, not just true by coincidence.
+            #
+            # Real, found-empirically fix, distinct from the relay
+            # lane's own row-2 constraint: the trigger's own horizontal
+            # run gets its OWN unique row per DAG reference
+            # (`3 + dag_reference_count`), not a shared row 3. A shared
+            # row failed for a real, non-obvious reason: a LATER,
+            # LONGER trigger chain can "sweep through" the exact same
+            # columns an EARLIER, SHORTER one already occupies on that
+            # row, even when their own START columns are chosen to
+            # differ -- confirmed directly by an actual two-reference
+            # compile that collided this way before this fix existed.
+            # Since the trigger only needs to reach the drop (row 2)
+            # by SOME path, not directly like the relay lane does, its
+            # own unique row descends to row 2 with a few extra hops
+            # right at the end, confined to the drop's own column
+            # (always unique per instruction, so this short descent
+            # never collides with another reference's own descent).
+            trigger_row = 3 + dag_reference_count
+            trigger_start_col = -(2 * diff_col + 10)
+            injections.append((trigger_row, trigger_start_col, 0))
+            statements.append(PlaceIR(
+                name=f"op_{i}_trigger_src", tile_name="ram_flowing", row=trigger_row, col=trigger_start_col,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+            ))
+            trigger_col = trigger_start_col + 1
+            while trigger_col <= diff_col:
+                statements.append(PlaceIR(
+                    name=f"op_{i}_trigger_{trigger_col}", tile_name="ram_flowing", row=trigger_row, col=trigger_col,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "n" if trigger_col == diff_col else "e")],
+                ))
+                trigger_col += 1
+            descend_row = trigger_row - 1
+            while descend_row >= 3:
+                statements.append(PlaceIR(
+                    name=f"op_{i}_trigger_descend_{descend_row}", tile_name="ram_flowing",
+                    row=descend_row, col=diff_col,
+                    fields=[FieldIR("in", "s"), FieldIR("out", "n")],
+                ))
+                descend_row -= 1
+            dag_reference_count += 1
+
         statements.append(PlaceIR(
             name=f"op_{i}", tile_name=diff_tile, row=1, col=diff_col,
-            fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", "e")],
+            fields=[FieldIR("in_a", "s" if is_dag_reference else "w"), FieldIR("in_b", "n"),
+                    FieldIR("out", ["e", "s"] if instr.name in needs_relay_tap else "e")],
         ))
 
         if instr.opcode == "icmp":
@@ -769,6 +1006,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             col_cursor = diff_col + 1
 
         prev_instr_name = instr.name
+        result_positions[instr.name] = (last_result_row, col_cursor - 1)
         prev_icmp_predicate = predicate if instr.opcode == "icmp" else None
 
     ret_operand_name = _operand_name(list(ret_instr.operands)[0])

@@ -1,4 +1,47 @@
-# Current State (as of 2026-09-08, the core mechanism for general DAG data flow proven for the first time -- hold+trigger, decoupling relay path length from delivery timing, solving the operand-ordering risk directly. Frontend integration not yet attempted. Alan's own new machine is on order after the previous one's board failure -- he still cannot check anything interactively. See `points/points_active.md` #700)
+# Current State (as of 2026-09-08, general DAG data flow wired into llvm_ir_frontend_v1.py for real -- add/sub can reference any earlier add/sub result, not just the immediately preceding one. Three real geometric bugs found and fixed by actual testing. See `points/points_active.md` #701)
+
+## Read this first (most recent)
+
+**2026-09-08, general DAG routing integrated into the LLVM frontend
+(#701).** `#700`'s own hold+trigger mechanism is now real, wired
+integration, not just a proven standalone primitive. Real, deliberate
+scope: `add`/`sub` referencing an earlier `add`/`sub` result only --
+both use the commutative "adder" tile, so operand arrival order
+genuinely doesn't affect correctness, letting this first pass exercise
+the real mechanism without also solving the harder, order-sensitive
+case yet (`icmp`/`select`/`shl`/`lshr` are explicitly out of scope,
+each with a specific diagnostic).
+
+**A new, real Tier-0 tile, `nano_hold_trigger`** -- `#700`'s mechanism
+promoted to a reusable primitive, same discipline `select`/`icmp_eq`/
+`icmp_ne` used earlier.
+
+**Three real, non-obvious geometric bugs found and fixed, each by
+actually running a compiled program:**
+1. Drop cell placed one column short of the diff cell it fed
+2. Two DAG references sharing the same producer collided on the same
+   tap position -- scoped to "one consumer per producer" for now, with
+   a specific diagnostic
+3. Two non-overlapping-by-column references' own trigger chains still
+   collided -- a longer, later chain can sweep through columns a
+   shorter, earlier one already occupies on a shared row. Fixed with
+   per-reference trigger rows descending to row 2 only at the very
+   end, plus explicit detection/rejection of column-overlapping
+   references (the relay lane itself is genuinely forced onto row 2).
+
+**Real, full verification:** correct across 4 input values, direct
+inspection of the drop cell's real internal state confirming it holds
+for dozens of ticks before releasing (not an accidental pass-through),
+`sub` on both ends, two genuinely non-overlapping references computing
+correctly together, and three distinct out-of-scope cases each
+producing a specific, real diagnostic.
+
+**Real, full regression: 693 passed, 1 skipped, zero failures** (was
+686). Real, honest scope still open: multiple consumers of one
+producer, and DAG references for order-sensitive/non-chain-row
+instructions -- not attempted here.
+
+## Previous state (as of 2026-09-08, the core mechanism for general DAG data flow proven for the first time -- hold+trigger, decoupling relay path length from delivery timing, solving the operand-ordering risk directly. Frontend integration not yet attempted. Alan's own new machine is on order after the previous one's board failure -- he still cannot check anything interactively. See `points/points_active.md` #700)
 
 ## Read this first (most recent)
 

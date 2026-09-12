@@ -8483,3 +8483,90 @@ via a one-shot constant feeder, not a live relay endpoint).
 
 **Real, full regression:** 5 new tests, 686 passed + 1 skipped overall
 (was 681), zero failures elsewhere.
+
+## 701. General DAG data flow wired into `llvm_ir_frontend_v1.py` for real -- an `add`/`sub` instruction may now reference any earlier `add`/`sub` result, not just the immediately preceding one, using `#700`'s own real hold+trigger mechanism promoted to a new, reusable Tier-0 tile. Three real, non-obvious geometric bugs found and fixed by actually testing, not assumed correct from the design. (Alan/Claude, 2026-09-08)
+
+**Real, deliberate scope, chosen to make the first integration
+tractable, not a shortcut around correctness:** DAG references are
+supported for `add`/`sub` referencing an EARLIER `add`/`sub` result
+only. Both lower onto the real, commutative "adder" tile (`sub` as
+`add(first, -second)`, `#611`'s own already-verified trick) -- which
+of the diff cell's two real operands arrives first genuinely doesn't
+affect correctness here, unlike `icmp`'s own subtractor-based
+predicates (real, order-sensitive north-minus-west) or `select`/
+`shl`/`lshr` (each with their own separate result-row convention).
+The real, explicit hold+trigger mechanism is used regardless -- not a
+shortcut around it -- specifically to validate the actual integration
+pattern (position tracking, relay geometry, injection sequencing)
+that harder, order-sensitive cases will need later.
+
+**`nano_hold_trigger`: a new, real Tier-0 tile** (`super_tile_
+library_v1.py`) -- `#700`'s own proven mechanism promoted to a
+reusable primitive, the same discipline `select`/`icmp_eq`/`icmp_ne`
+(`#686`) already used. Real, deliberate distinction from `nano_loop_
+var` (`#652`): that tile fixes `hold_in=1` but deliberately leaves
+`a_reemit_in` at its own real default (a later, dynamic control-plane
+toggle, not yet built) -- this tile fixes BOTH from the moment it's
+placed, matching the genuinely different real use case here (hold
+once, release once, no live reconfiguration needed at all).
+
+**A real pre-pass** (`_compute_needs_relay_tap`) determines, purely
+structurally (comparing SSA names, no value resolution needed), which
+producers need an extra south tap BEFORE they're emitted -- avoiding
+any need to retroactively modify an already-appended `PlaceIR`.
+
+**Three real, non-obvious geometric bugs found and fixed, each by
+actually running a real compiled program, not by inspection alone:**
+1. The drop cell was placed one column short of the diff cell it
+   needed to feed (`diff_col - 1` instead of `diff_col`) -- found
+   because the diff cell's own south input simply never received
+   anything at all.
+2. Two DIFFERENT DAG references sharing the SAME producer collided --
+   both wanted a tap cell at the exact same `(2, producer_col)`
+   position. Real, honest scope decision rather than a fragile fix:
+   each producer may be tapped by AT MOST ONE later consumer for this
+   first pass (a real, specific diagnostic explains why, naming the
+   real "shared tap serving several diverging relay chains" design
+   this doesn't attempt yet) -- confirmed the collision was real by
+   an actual failing multi-consumer compile before writing the check.
+3. Two DIFFERENT, non-overlapping-by-column DAG references' own
+   TRIGGER chains still collided -- a later, LONGER trigger chain can
+   "sweep through" the exact columns an earlier, SHORTER one already
+   occupies on a shared row, even with different start columns. Found
+   directly, not assumed, by tracing the actual colliding cell names.
+   Fixed by giving each DAG reference's own trigger chain a genuinely
+   unique row for its horizontal run, descending to row 2 only in the
+   final few hops at the drop's own (always-unique) column -- and,
+   separately, by explicitly detecting and rejecting COLUMN-
+   overlapping references outright (the relay lane itself is
+   genuinely forced onto row 2, since the diff cell's four real ports
+   are otherwise fully spoken for -- no per-reference row can dodge
+   that one), with a real, specific diagnostic naming the actual
+   geometric reason rather than the placement layer's own generic
+   "cell already occupied" error surfacing it indirectly.
+
+**Real, full verification, not just compiled:**
+- A 3-instruction reference, correct across 4 different input values
+- Direct inspection of the drop cell's own real internal state (`a_
+  arrived`/`a_data`) confirming it holds the correct relayed value for
+  dozens of ticks before the explicit trigger fires -- not an
+  accidental instant pass-through
+- `sub` on both ends of a reference
+- Two genuinely non-overlapping DAG references in the same function,
+  both computing correctly together
+- Referencing a `shl` result (out of scope) gives a specific diagnostic
+- Referencing an already-tapped producer a second time gives a
+  specific diagnostic
+- Referencing overlapping column ranges gives a specific diagnostic
+
+**Real, full regression:** 7 new tests in `test_llvm_ir_frontend_v1.
+py`, 1 tile-enumeration test updated for the new registered tile.
+Whole-project total: **693 passed, 1 skipped, zero failures** (was
+686 before this entry's own work began).
+
+**Real, honest scope still open, stated plainly:** multiple consumers
+sharing one producer's own relay infrastructure (a real, separate
+branching/sharing design), and DAG references for `icmp`'s own order-
+sensitive predicates or for `select`/`shl`/`lshr` (each needing their
+own real accommodation, not just relaxing the same check) are real,
+understood, ready-to-pick-up next steps -- not attempted here.

@@ -330,6 +330,35 @@ super_tile_library.register(SuperTileSpec(
     target="universal",
 ))
 
+# points.md #701: real, general DAG-routing primitive -- promoted from
+# #700's own proven hold+trigger mechanism to a real, reusable Tier-0
+# tile, the same discipline `select`/`icmp_eq`/`icmp_ne` (#686) already
+# used going from hand-inlined code to a real registered tile. Real,
+# deliberate DIFFERENCE from `nano_loop_var` (#652): that tile fixes
+# `hold_in=1` but deliberately leaves `a_reemit_in` at its own real
+# default (0) since ITS OWN design intent is a LATER, dynamic control-
+# plane toggle (not yet built). This tile fixes BOTH `hold_in=1` AND
+# `a_reemit_in=1` from the moment it's placed -- captures its first
+# real arrival (from ANY neighbor, nano has no upstream_mask at all)
+# and holds it; ANY subsequent arrival (from any OTHER neighbor, or a
+# raw injection with no real neighbor) immediately re-emits the held
+# value, bypassing normal two-operand gate computation entirely
+# (confirmed directly against `unicell_automaton_v1.deliver()`, #700).
+# `topology` is genuinely irrelevant to this tile's own real role --
+# the reemit path calls `_emit(self.a_data)` directly, never reaching
+# topology-based computation at all.
+super_tile_library.register(SuperTileSpec(
+    name="nano_hold_trigger", core="nano",
+    description="Real DAG-relay drop cell (#700/#701): holds its first "
+                 "real arrival, delivers it (unchanged) only on a "
+                 "separate, later, explicit trigger arrival -- "
+                 "decoupling relay path length from delivery timing.",
+    ports=[TilePort("out", "out", "routing_mask")],
+    param_names=[],
+    fixed_core_config={"topology": 0, "ready": 1, "hold_in": 1, "a_reemit_in": 1},
+    target="universal",
+))
+
 # points.md #652: real loop-construction tiles, the tile-library-level
 # counterpart to `#638`'s own real bounded-loop-ring RTL and `#649`'s
 # own confirmed-working VM composition of the exact same shape.
