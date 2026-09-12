@@ -8627,3 +8627,70 @@ needed, is a genuine, ready-to-pick-up next step, not attempted here.
 
 **Real, full regression:** 7 new tests (4 + 3), 700 passed + 1
 skipped overall (was 693), zero failures elsewhere.
+
+## 703. The full, real, end-to-end `ashr` composition assembled and proven -- Alan's own sign-magnitude design, chaining `#702`'s two proven building blocks with `lshr` and a real correction/re-negate stage, entirely from EXISTING primitives. NO NEW RTL NEEDED. Four real geometric/ordering bugs found and fixed by actually testing, matching `#701`'s own iterative discipline exactly. (Alan/Claude, 2026-09-08)
+
+**Real, deliberate topology, using a genuine property of the problem
+rather than brute-forcing symmetry:** non-negative `x` never needs any
+correction at all (logical and arithmetic shift are identical for
+non-negative values) -- so the composition is a real two-path branch,
+not one uniform pipeline: the LOW route (x<0) takes the full real
+machinery (negate, shift, lost-bit check, re-negate, correct); the
+EQUAL/HIGH route (x>=0) takes a genuinely shorter path (`lshr` alone),
+padded with plain relay cells to reach the shared final merge. Given
+the two routes are mutually exclusive by construction (branch only
+ever takes one), the classic `#544` equal-hop-count requirement
+(needed when multiple sources can genuinely arrive simultaneously)
+doesn't strictly bind here -- the padding was built anyway, and left
+in, since it costs little and keeps the topology's own timing honest
+rather than relying on that distinction being noticed later.
+
+**Four real bugs found and fixed by actually running the composition,
+not by inspection -- the same discipline `#701`'s own DAG relay
+integration used, and just as necessary here:**
+1. `addon_config=None` on cells with no addon crashed `apply_addons()`
+   outright -- fixed by defaulting to `{}` in the test's own record
+   builder.
+2. A "lost-bit stagger" relay cell was placed one column short of the
+   correction-subtract stage it needed to feed -- found because the
+   correction stage never received its second operand at all.
+3. **The real, substantive one:** the correction subtract was
+   originally wired to apply BEFORE re-negation, not after -- the
+   EXACT SAME ordering mistake already caught once in the Python
+   verification script for this same algorithm (`#702`), now caught a
+   second time in the actual circuit. Real, honest lesson: getting the
+   algorithm right on paper doesn't mean the ordering discipline
+   automatically carries into the wiring -- it has to be checked again
+   at each layer.
+4. A relay meant to travel from row 3 to row 1 only travelled one hop
+   (reaching row 2), not two -- found because the final merge cell
+   never received the positive-path's own result despite every
+   upstream cell along that path showing the correct value.
+
+**Real, full verification:** correct for representative negative,
+positive, and zero inputs at shift amounts 4 and 8, plus a real sweep
+including `INT32_MIN`, `-1`, `-16`/`-17` (the exact boundary case that
+originally exposed the naive approach's own off-by-one), all checked
+directly against Python's real signed `>>`.
+`tests/vm/test_ashr_full_composition_v1.py`, 4/4 passing.
+
+**Real, honest headline: this closes the `ashr` gap without any new
+RTL at all.** Every primitive used (`branch`, `adder`/`subtractor`,
+`comparator`, `nibble_mask`+`shift` addons, plain relay) already
+exists and is already proven on real hardware or in the VM. What was
+previously a real, stated hardware gap (`shift_fine_addon_v1.v` has no
+sign-extension circuit) is now a real, buildable software composition
+instead -- at the honest cost of roughly 9x the cell count of a single
+`lshr`, not a free win, a genuine tradeoff of area for "no new
+silicon needed."
+
+**Real, honest scope still open:** this proves the composition works
+as a standalone circuit for a fixed, compile-time-known shift amount
+and a hand-built topology. Wiring it into `llvm_ir_frontend_v1.py`
+itself (so real `ashr` LLVM IR compiles to this, automatically,
+for any shift amount 0-31) is a real, separate, ready-to-pick-up
+integration step, matching how `#700`'s own mechanism needed `#701`'s
+own separate integration pass -- not attempted here.
+
+**Real, full regression:** 4 new tests, 704 passed + 1 skipped overall
+(was 700), zero failures elsewhere.

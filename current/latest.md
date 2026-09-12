@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-08, two of the real building blocks for a sign-magnitude `ashr` composition proven in the VM -- conditional negate via branch+reconvergence (select can't do this job), and lost-bit detection via nibble_mask+comparator. Full end-to-end composition not yet assembled. See `points/points_active.md` #702)
+# Current State (as of 2026-09-08, the full, real, end-to-end `ashr` composition assembled and proven -- entirely from existing primitives, NO NEW RTL NEEDED. What was a stated hardware gap is now a buildable software composition, at the honest cost of ~9x a single lshr's cell count. Frontend integration not yet attempted. See `points/points_active.md` #703)
+
+## Read this first (most recent)
+
+**2026-09-08, full `ashr` composition proven (#703).** Chains `#702`'s
+two building blocks (conditional negate via branch+reconvergence,
+lost-bit detection via nibble_mask+comparator) with `lshr` and a real
+correction/re-negate stage. Real, deliberate topology: non-negative
+`x` never needs correction at all, so the composition is a genuine
+two-path branch -- full machinery for x<0, a shorter `lshr`-only path
+for x>=0, padded to a shared merge.
+
+**Four real bugs found by actually running it, same discipline `#701`
+needed:** a `None` addon_config crash, a relay one column short of
+its target, a real ordering mistake (correction applied before re-
+negation instead of after -- the SAME mistake already caught once in
+the Python verification script, caught again in the actual wiring),
+and a relay that only travelled one hop of a needed two-hop vertical
+move.
+
+**Real, honest headline: no new RTL needed at all.** Every primitive
+used already exists, already proven. What was a stated hardware gap
+(no sign-extension circuit in the shift addon) is now a real,
+buildable software composition -- at the honest cost of roughly 9x a
+single `lshr`'s cell count, not a free win.
+
+**Verified against Python's real signed `>>`**, including `INT32_MIN`
+and the exact `-16`/`-17` boundary that originally exposed the naive
+approach's own off-by-one. `tests/vm/test_ashr_full_composition_v1.py`,
+4/4 passing. Real, full regression: 704 passed, 1 skipped (was 700).
+
+**Real, honest scope still open:** proven as a standalone, hand-built
+circuit for a fixed shift amount. Wiring this into `llvm_ir_frontend_
+v1.py` itself (compiling real `ashr` IR to this automatically, for any
+shift amount) is a real, separate, ready-to-pick-up integration step.
+
+## Previous state (as of 2026-09-08, two of the real building blocks for a sign-magnitude `ashr` composition proven in the VM -- conditional negate via branch+reconvergence (select can't do this job), and lost-bit detection via nibble_mask+comparator. Full end-to-end composition not yet assembled. See `points/points_active.md` #702)
 
 ## Read this first (most recent)
 
