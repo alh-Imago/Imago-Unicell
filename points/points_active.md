@@ -8570,3 +8570,60 @@ branching/sharing design), and DAG references for `icmp`'s own order-
 sensitive predicates or for `select`/`shl`/`lshr` (each needing their
 own real accommodation, not just relaxing the same check) are real,
 understood, ready-to-pick-up next steps -- not attempted here.
+
+## 702. Two of the real building blocks for a sign-magnitude `ashr` composition proven in the VM -- Alan's own real design, closing the gap left when the MIF sign-magnitude dive (`ashr` scoping conversation) found the naive "shift magnitude, reattach sign" approach silently wrong by 1 for odd negative values. Both proven on the first or near-first attempt. Full end-to-end composition not yet attempted. (Alan/Claude, 2026-09-08)
+
+**The real correction, verified numerically before building anything:**
+real arithmetic shift rounds toward negative infinity -- `-5 >> 1`
+must be `-3`, not `-2`. Naive sign-magnitude (negate, logical-shift the
+magnitude, negate back) gives `-2`, wrong by exactly 1, silently, only
+for negative values where a `1` bit gets shifted off the bottom. The
+real fix, Alan's own: detect whether any shifted-out bit was `1`, and
+if so, subtract 1 from the result AFTER re-negating (not before --
+this exact ordering mistake was caught in a first draft of the
+verification script itself and fixed before it reached any real code).
+Confirmed correct against Python's own real signed `>>` across 5,010
+cases including every real edge case (`INT32_MIN`, shift by 0, shift
+by 31): zero mismatches.
+
+**Building block 1: conditional negate of a DYNAMICALLY COMPUTED
+value, via branch + reconvergence, not `select`.** Confirmed directly
+against `select`'s own real tile registration before building
+anything: `select` (`#686`) takes `true_val`/`false_val` as real,
+compile-time PRELOADED constants -- it structurally cannot choose
+between two values computed at runtime (here: `x` itself, and
+`0 - x`). Alan's own real proposal instead: route `x` down one of two
+physical paths based on its own sign using `branch`'s real
+classification (LOW routes to a subtractor computing `0-x`, EQUAL/HIGH
+route directly, unchanged), then RECONVERGE the two paths -- the same
+real lane-combine mechanism `#692` already proved, applied to a
+control-flow decision instead of a data lane. Real, hop-count-matched
+topology (`#544`'s own hard requirement, confirmed still binding):
+both paths are exactly 2 hops from branch to the merge cell.
+`tests/vm/test_conditional_negate_via_branch_v1.py`, 4/4 passing on
+the first attempt, including the full real range
+(`-2147483648`..`2147483647`, zero).
+
+**Building block 2: lost-bit detection via `nibble_mask` +
+`comparator`, per Alan's own direct proposal.** Mask the low N bits
+about to be shifted out (already-proven extraction technique,
+`#690`/`#697`), feed the masked result into `comparator(threshold=1)`
+-- a real, existing tile, no new logic needed at all. Produces the
+exact 0/1 correction amount directly.
+`tests/vm/test_lost_bits_detection_v1.py`, 3/3 passing on the first
+attempt (after one attribute-name correction, `cmp_out_buffer`/
+`cmp_data_valid`, found by checking `unicell_super_automaton_v1.py`
+directly rather than guessing).
+
+**Real, honest scope: two of the real building blocks are proven,
+the full end-to-end pipeline is not yet assembled.** The remaining
+real work: sign extraction (already proven elsewhere, `#697`'s own
+top-bit shift), the logical shift itself (`lshr`, already built,
+`#690`), the final subtract-by-correction stage, and a second
+conditional-negate (re-negate on the way out) -- chaining all of these
+together into one real, working `ashr` composition, with the same
+kind of real geometry/hop-count care the DAG relay work (`#701`)
+needed, is a genuine, ready-to-pick-up next step, not attempted here.
+
+**Real, full regression:** 7 new tests (4 + 3), 700 passed + 1
+skipped overall (was 693), zero failures elsewhere.

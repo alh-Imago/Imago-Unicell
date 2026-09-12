@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-08, general DAG data flow wired into llvm_ir_frontend_v1.py for real -- add/sub can reference any earlier add/sub result, not just the immediately preceding one. Three real geometric bugs found and fixed by actual testing. See `points/points_active.md` #701)
+# Current State (as of 2026-09-08, two of the real building blocks for a sign-magnitude `ashr` composition proven in the VM -- conditional negate via branch+reconvergence (select can't do this job), and lost-bit detection via nibble_mask+comparator. Full end-to-end composition not yet assembled. See `points/points_active.md` #702)
+
+## Read this first (most recent)
+
+**2026-09-08, two `ashr` building blocks proven (#702).** Closes the
+gap from the MIF sign-magnitude dive: naive sign-magnitude `ashr`
+(negate, logical-shift, negate back) is silently wrong by 1 for odd
+negative values, since real arithmetic shift rounds toward negative
+infinity. Alan's own real fix: detect if any shifted-out bit was `1`,
+subtract 1 from the result AFTER re-negating. Verified against
+Python's own real signed `>>` across 5,010 cases, zero mismatches.
+
+**Building block 1: conditional negate of a dynamically computed
+value, via branch + reconvergence, not `select`.** `select` needs
+compile-time constants for both outcomes -- it structurally can't
+choose between two live, runtime-computed values (`x` and `0-x`).
+Alan's own proposal: route `x` down one of two physical paths based on
+its own sign via `branch`'s real classification, then reconverge --
+the same lane-combine mechanism from `#692`, applied to control flow.
+`tests/vm/test_conditional_negate_via_branch_v1.py`, 4/4 passing
+first try, full real range including `INT32_MIN`.
+
+**Building block 2: lost-bit detection via `nibble_mask` +
+`comparator(threshold=1)`** -- Alan's own proposal, no new logic
+needed at all. `tests/vm/test_lost_bits_detection_v1.py`, 3/3 passing.
+
+**Real, honest scope: two building blocks proven, full pipeline not
+yet assembled.** Sign extraction, `lshr`, the correction subtract, and
+the final re-negate all need chaining together with real geometry/
+hop-count care (matching `#701`'s own DAG relay work) -- a real,
+ready-to-pick-up next step.
+
+**Real, full regression: 700 passed, 1 skipped, zero failures** (was
+693).
+
+## Previous state (as of 2026-09-08, general DAG data flow wired into llvm_ir_frontend_v1.py for real -- add/sub can reference any earlier add/sub result, not just the immediately preceding one. Three real geometric bugs found and fixed by actual testing. See `points/points_active.md` #701)
 
 ## Read this first (most recent)
 
