@@ -8875,3 +8875,33 @@ budget (`#322`) is unverified.
 already established for this same directory's own earlier
 contributions (`#378`) -- no RTL, no VM model, no scoping pass, no
 core_select assignment.
+
+## 708. Alan's own real idea, verified -- arbitrary-precision "low K bits" extraction via shift-left-then-shift-right, using ONLY the existing shift mechanism. No new RTL. Lifts `ashr`'s own nibble-alignment restriction (`#705`). Isolated proof only, NOT yet wired into the `ashr` composition. (Alan/Claude, 2026-09-08)
+
+**The real trick:** shifting LEFT by `(32-K)` discards everything
+except the low K bits (they fall off the top, zero-filled). Shifting
+the SAME amount back RIGHT restores their position, with the same
+zero-fill clearing everything above bit K-1. Verified first in plain
+Python (5,000 random cases, 0 mismatches), then as a real, isolated
+4-cell chain (src -> shift_left -> catch1 -> shift_right -> catch2) --
+confirmed correct for non-nibble-aligned amounts (1, 2, 3), nibble-
+aligned amounts (still correct), and a real 30-case random sweep.
+`tests/vm/test_arbitrary_bit_extraction_via_double_shift_v1.py`, 3/3
+passing. One trivial, honest edge case: K=0 needs no chain at all
+(zero bits are ever shifted out, the answer is always 0) -- not a
+real gap, just outside the mechanism's own real 0-31 shift range.
+
+**Real significance:** this needs ZERO new hardware -- the shift
+mechanism already operates at full 0-31 bit precision (`#690`). If
+substituted for `nibble_mask` in `ashr`'s own lost-bit-detection stage,
+this would lift the nibble-alignment restriction `#705` had to impose
+honestly rather than ship a silent wrong answer.
+
+**Real, honest scope: isolated mechanism proof only.** NOT yet wired
+into the `ashr` composition itself (replacing `nibble_mask` there with
+this double-shift chain, then re-running the full non-nibble-aligned
+sweep) -- a real, small, well-scoped follow-on step. Session paused
+here (usage constraint) at a clean, fully-tested point.
+
+Real, full regression: 3 new tests, 717 passed + 1 skipped (was 714),
+zero failures elsewhere.

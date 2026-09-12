@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-08, Alan's own new priority-arbiter core idea recorded as a design note (`future-core-candidates/priority_arbiter_core.md`) -- confirmed directly that NO existing core does this (all OR-combine simultaneous arrivals, not priority-order them). Design idea only, nothing built. See `points/points_active.md` #707)
+# Current State (as of 2026-09-08, Alan's own real idea verified -- arbitrary-precision "low K bits" extraction via shift-left-then-shift-right, using ONLY the existing shift mechanism, no new RTL. Lifts ashr's own nibble-alignment restriction. Isolated proof only, NOT yet wired into the ashr composition. See `points/points_active.md` #708)
+
+## Read this first (most recent)
+
+**2026-09-08, arbitrary-bit-extraction trick verified (#708).** Shift
+left by `(32-K)`, then right by the same amount -- discards then
+restores the low K bits with correct zero-fill, at any K from 1-31,
+using only the shift mechanism already proven (`#690`). Confirmed in
+Python (5,000 cases) then as a real 4-cell VM chain, 3/3 tests
+passing. K=0 is a trivial, known-at-compile-time case (no chain
+needed). Real regression: 717 passed, 1 skipped (was 714).
+
+**Real significance:** if substituted for `nibble_mask` in `ashr`'s
+own lost-bit-detection stage, this lifts `#705`'s own honest nibble-
+alignment restriction entirely, with zero new hardware.
+
+**Real, honest scope: isolated mechanism proof only.** Wiring it into
+the actual `ashr` composition (replacing `nibble_mask`, re-running the
+full non-nibble-aligned sweep) is a real, small, well-scoped next
+step -- not attempted here. Paused deliberately at this clean point
+(usage constraint).
+
+## Previous state (as of 2026-09-08, Alan's own new priority-arbiter core idea recorded as a design note (`future-core-candidates/priority_arbiter_core.md`) -- confirmed directly that NO existing core does this (all OR-combine simultaneous arrivals, not priority-order them). Design idea only, nothing built. See `points/points_active.md` #707)
+
+## Previous state (as of 2026-09-08, real, isolated proof of the shared-producer DAG tap mechanism -- daisy-chained drop cells letting one producer serve multiple consumers, lifting #701's own "one consumer per producer" restriction. Sim-only, NOT yet wired into the frontend. See `points/points_active.md` #706)
 
 ## Read this first (most recent)
 
