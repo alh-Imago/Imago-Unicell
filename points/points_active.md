@@ -8694,3 +8694,33 @@ own separate integration pass -- not attempted here.
 
 **Real, full regression:** 4 new tests, 704 passed + 1 skipped overall
 (was 700), zero failures elsewhere.
+
+## 704. Composer's own original premise (`#370`/`#371`, "create models," reframed away by `#385`'s real doubt) partly revived -- Alan's own real recall: a second, genuinely narrower real use case for the tile library exists alongside LLVM consumption, one `#385`'s own doubt doesn't actually cover. Design note only, `composer_scope.md` addended -- not built, not scoped further than this. (Alan/Claude, 2026-09-08)
+
+**The real distinction, found by checking `composer_scope.md`'s own
+text directly before writing anything:** `#385`'s real doubt was
+specifically about UNGUIDED, from-scratch authoring on a blank canvas
+-- "needs pre-made models and full system understanding to be useful
+for that." That doubt is real and still holds. It does not, on its
+own, rule out a person composing NEW designs AROUND or ON TOP OF the
+tile library's own already-built pieces (`select`/`icmp_eq`/`sentinel`
+/`nano_hold_trigger`/etc.) -- a meaningfully smaller, more tractable
+problem ("arrange known, labeled parts") than the one `#385` correctly
+doubted.
+
+**Two real, concrete connections this note didn't have when first
+written:** the LaTeX-equation-to-hardware path (a compiler assembling
+an equation from known tiles is exactly the kind of thing worth
+SHOWING a person, tile by tile, as it happens), and the wider TRIX
+family's own domain-definition pattern (MIF, FinTrix, and whatever
+follows are, at bottom, ALSO a person assembling a composition from
+shared tile-library building blocks for a new domain -- the same real
+tool either way, not a separate one per domain).
+
+**Real, honest scope: this does not reopen `#385`'s own correct
+doubt about free-form authoring.** Named as a second, narrower,
+genuinely different use case worth a real scoping pass of its own
+later, once there's a substantial-enough tile library and a real
+consumer (LaTeX, or a new TRIX domain) hungry for it -- not designed,
+not built, not sequenced against the rest of `composer_scope.md`'s
+own minimal-first-scope plan.

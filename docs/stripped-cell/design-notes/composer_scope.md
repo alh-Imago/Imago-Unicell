@@ -91,3 +91,53 @@ matching the same discipline as every other `*_scope.md` note in this
 directory (`workbench_scope.md`, `super_tile_library_scope.md`,
 `unicell_s_dsl_and_compiler_scope.md`) -- define the real boundary
 before writing anything, not after.
+
+## Addendum, 2026-09-08: a second, distinct real use case for the
+## tile library, alongside LLVM consumption -- Alan's own real recall
+
+Alan's own real recollection, checked against this note's own text
+before writing anything further: the Composer's ORIGINAL premise
+(`#370`/`#371`, "create models") was genuinely a standalone system --
+letting a person SEE and CREATE designs interactively, not just review
+an automated placement. `#385`'s own real doubt about that premise
+was specifically about UNGUIDED, from-scratch authoring -- "it needs
+pre-made models and full system understanding to be useful for that."
+That doubt is real and still holds for a blank canvas. It does NOT,
+on its own, rule out a genuinely different, lighter version of the
+same original idea: a person composing NEW designs AROUND or ON TOP OF
+the tile library's own already-built, already-understood pieces
+(`select`, `icmp_eq`, `sentinel`, `nano_hold_trigger`, and so on),
+rather than starting from nothing. That's a meaningfully smaller,
+more tractable problem than the one `#385` correctly doubted --
+closer to "arrange known, labeled parts" than "design a circuit from
+first principles."
+
+**Real, concrete connections this note didn't have when first
+written:**
+- The LaTeX-equation-to-hardware path (`llvm_ir_frontend_completion_
+  scope.md`'s own Part 2.5) is the most direct real fit: a person
+  writes an equation, the compiler assembles it from known tiles
+  (`MUL`, `SHR`, the float bit-manipulation chains from the MIF
+  connection, `#697`) -- a Composer that can SHOW that assembly, tile
+  by tile, as it's built, turns an opaque compile step into something
+  a person can actually see and learn from, and potentially adjust.
+- The wider TRIX family (`docs/shared/FORMAT_DEFINITION_GUIDE.md`'s
+  own domain-definition pattern -- MIF, FinTrix, and whatever comes
+  after) is, at bottom, ALSO a person assembling a specific
+  composition from a shared set of tile-library building blocks for a
+  new domain. A visual surface for seeing and arranging that
+  composition is close to the same real tool either way, not a
+  separate one per domain.
+
+**Real, honest scope of this addendum:** this does NOT reopen or
+relax `#385`'s own real, correct doubt about free-form authoring from
+a blank canvas -- that stays out of scope, for the same reason it was
+excluded before. It names a second, narrower, genuinely different
+real use case (browse/understand/compose-around an existing library)
+that the original "create models" doubt doesn't actually cover, worth
+holding alongside the "review the loader's placement" scope this note
+already commits to -- not designed here, not built, not sequenced
+against the rest of this file's own minimal-first-scope plan. A real
+candidate for a FUTURE scoping pass of its own, once there's a real
+tile library substantial enough (and a real LaTeX/TRIX consumer
+hungry enough) to make it worth doing.

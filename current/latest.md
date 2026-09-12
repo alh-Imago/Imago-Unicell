@@ -1,4 +1,23 @@
-# Current State (as of 2026-09-08, the full, real, end-to-end `ashr` composition assembled and proven -- entirely from existing primitives, NO NEW RTL NEEDED. What was a stated hardware gap is now a buildable software composition, at the honest cost of ~9x a single lshr's cell count. Frontend integration not yet attempted. See `points/points_active.md` #703)
+# Current State (as of 2026-09-08, Composer's own original "create models" premise partly revived -- a second, narrower real use case for the tile library named alongside LLVM consumption (browse/compose-around an existing library, not free-form authoring). Design note only, composer_scope.md addended, nothing built. See `points/points_active.md` #704)
+
+## Read this first (most recent)
+
+**2026-09-08, Composer scope addendum (#704).** Alan's own real
+recall, checked against `composer_scope.md`'s own text: the
+Composer's original premise (`#370`/`#371`, "create models") was a
+standalone, see-and-create system before `#385`'s real doubt
+narrowed it to "review the loader's automated placement." That doubt
+was specifically about UNGUIDED, blank-canvas authoring -- it doesn't
+cover a person composing NEW designs around the tile library's own
+already-built pieces, a meaningfully smaller problem. Two real
+connections named: the LaTeX-equation path (showing a compile
+assemble itself from known tiles, live), and the wider TRIX family's
+own domain-definition pattern (MIF/FinTrix/etc. are, at bottom, the
+same "compose from shared tiles" act). Real, honest scope: does not
+reopen `#385`'s own correct doubt about free-form authoring --
+design note only, not built, not sequenced against anything.
+
+## Previous state (as of 2026-09-08, the full, real, end-to-end `ashr` composition assembled and proven -- entirely from existing primitives, NO NEW RTL NEEDED. What was a stated hardware gap is now a buildable software composition, at the honest cost of ~9x a single lshr's cell count. Frontend integration not yet attempted. See `points/points_active.md` #703)
 
 ## Read this first (most recent)
 
