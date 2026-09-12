@@ -89,7 +89,7 @@ from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from program_ir_v1 import ProgramIR, PlaceIR, FieldIR  # noqa: E402
 from dsl_compiler_v1 import compile_program_ir  # noqa: E402
 
-_SUPPORTED_OPCODES = {"add", "sub", "icmp", "select", "shl", "lshr"}
+_SUPPORTED_OPCODES = {"add", "sub", "icmp", "select", "shl", "lshr", "ashr"}
 
 # points.md #690: real, deterministic decomposition of any shift amount
 # 0-31 into (coarse, fine) -- coarse is one of shift_lane_addon_v2.v's
@@ -406,17 +406,6 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
 
     for i, instr in enumerate(body_instructions):
         if instr.opcode not in _SUPPORTED_OPCODES:
-            if instr.opcode == "ashr":
-                diagnostics.append(_diag(
-                    problem=f"unsupported instruction: 'ashr' ({str(instr).strip()})",
-                    what=f"lowering instruction {i + 1} of {len(body_instructions)}",
-                    why="a real, separate HARDWARE gap, not missing compiler support: "
-                        "shift_fine_addon_v1.v/shift_lane_addon_v2.v (#683/#684) only ever "
-                        "perform a plain LOGICAL shift (zero-fill both directions) -- there "
-                        "is no sign-extension mechanism anywhere in the real addon chain "
-                        "(#690). 'lshr' is fully supported; 'ashr' needs new RTL first.",
-                ))
-                return None, diagnostics, None
             diagnostics.append(_diag(
                 problem=f"unsupported instruction: {instr.opcode!r} ({str(instr).strip()})",
                 what=f"lowering instruction {i + 1} of {len(body_instructions)}",
@@ -594,19 +583,232 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             ))
             return None, diagnostics, None
 
+        if instr.opcode == "ashr":
+            # points.md #703/#705: real, buildable via composition, not
+            # new RTL -- `shift_fine_addon_v1.v` only ever performs a
+            # plain LOGICAL shift (confirmed directly against the real
+            # RTL, #690), but Alan's own sign-magnitude design (branch
+            # for the conditional negate, nibble_mask+comparator for
+            # lost-bit detection, `#702`/`#703`) closes the gap entirely
+            # in software, from primitives that already exist. This is
+            # that composition's own real frontend integration -- the
+            # topology is `tests/vm/test_ashr_full_composition_v1.py`'s
+            # own already-proven layout, ported to `place()` and
+            # parameterized on `col_cursor`/the real shift amount.
+            #
+            # Real, deliberate scope for this pass, matching `#701`'s
+            # own narrow-first discipline: only an adjacent chain value
+            # (or, for i==0, the function argument) may be shifted --
+            # `ashr` is not (yet) a valid DAG-reference source or
+            # target. The existing chain-shape check already enforces
+            # this correctly (its own add/sub-only DAG carve-out simply
+            # never matches `ashr`), so no separate check is needed
+            # here.
+            if not (0 <= second_value <= 31):
+                diagnostics.append(_diag(
+                    problem=f"ashr amount {second_value} is outside the real, "
+                             f"supported 0-31 range",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="a 32-bit shift by more than 31 bits is undefined in LLVM itself, "
+                        "and every real cardinal cell's own shift addon chain caps out at 31 "
+                        "(28 max coarse tap + 3 max fine) -- there is no larger real amount "
+                        "to lower this to",
+                ))
+                return None, diagnostics, None
+
+            # points.md #705: a real, found-empirically limit, not a
+            # design choice -- the lost-bit detection stage (#702) uses
+            # `nibble_mask`, whose own real hardware granularity is 4
+            # bits (confirmed directly: a first attempt at shift amount
+            # 1 gave a silently wrong answer, -3 instead of the real
+            # -3... actually off by one the OTHER way, -2 not -3 --
+            # exactly the class of silent error this whole mechanism
+            # exists to prevent). Extracting a PRECISE, non-nibble-
+            # aligned bit range needs a real, separate technique (the
+            # same kind of two-pass mask/shift trick MIF's own mantissa
+            # extraction used, #697) -- not attempted here. Scoped
+            # honestly: only nibble-aligned amounts are supported this
+            # pass, with a real, specific diagnostic for anything else,
+            # rather than a silently wrong answer for most of 0-31.
+            if second_value % 4 != 0:
+                diagnostics.append(_diag(
+                    problem=f"ashr amount {second_value} is not nibble-aligned "
+                             f"(not a multiple of 4)",
+                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
+                    why="the real lost-bit-detection stage this composition depends on "
+                        "(#702) uses nibble_mask, whose own real hardware granularity is "
+                        "4 bits -- it cannot precisely extract a non-nibble-aligned low-bit "
+                        "range (confirmed directly: an early attempt at amount=1 gave a "
+                        "silently wrong result). Extracting an arbitrary bit range needs a "
+                        "real, separate technique, not yet built (#705's own honest scope).",
+                    suggestion="only shift amounts 0, 4, 8, 12, 16, 20, 24, 28 are currently "
+                               "supported for ashr",
+                ))
+                return None, diagnostics, None
+
+            def _real_ashr(x: int, n: int) -> int:
+                x &= 0xFFFFFFFF
+                if x >= 0x80000000:
+                    x -= 0x100000000
+                return (x >> n) & 0xFFFFFFFF
+
+            result = _real_ashr(first_value, second_value)
+            known_values[instr.name] = result
+
+            coarse, fine = _decompose_shift(second_value)
+            nibbles_to_keep = second_value // 4
+            nibble_mask = (0xFF << nibbles_to_keep) & 0xFF
+
+            base_col = col_cursor
+            if i == 0:
+                # Real, found-empirically fix (#701/#702's own
+                # discipline continued): injecting the reference (0)
+                # and the function argument into the SAME cell would
+                # be OR-merged together on the same tick (confirmed
+                # directly against `SuperGrid.tick()`'s own real
+                # handling of simultaneous injected events) --
+                # silently corrupting the reference. Routing the
+                # argument through a SEPARATE cell one hop further
+                # west avoids the collision entirely: the two
+                # injections land in different `_pending` entries, and
+                # west_feeder's own ordinary "reject while already
+                # holding a value" behavior then enforces the correct
+                # order (reference drains into branch first) with no
+                # extra timing logic needed at all.
+                injections.append((1, base_col - 1, first_value))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_operand_source", tile_name="ram_flowing", row=1, col=base_col - 1,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                ))
+            injections.append((1, base_col, 0))
+            statements.append(PlaceIR(
+                name=f"op_{i}_west_feeder", tile_name="ram_flowing", row=1, col=base_col,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_branch", tile_name="branch", row=1, col=base_col + 1,
+                fields=[
+                    FieldIR("in", "w"), FieldIR("rolling_mode", 0),
+                    FieldIR("route_low", ["e"]), FieldIR("route_equal", ["s"]), FieldIR("route_high", ["s"]),
+                ],
+            ))
+            # ── negative path (x<0): negate -> lshr -> re-negate ->
+            # subtract the lost-bit correction. Order matters here --
+            # the correction must apply AFTER re-negation, not before
+            # (the exact ordering mistake #702's own verification
+            # script caught once already, and #703's first circuit
+            # draft caught a second time). ──
+            statements.append(PlaceIR(
+                name=f"op_{i}_subtractor_neg", tile_name="subtractor", row=1, col=base_col + 2,
+                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", ["e", "s"])],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_zero_for_negate", tile_name="ram_flowing", row=0, col=base_col + 2,
+                fields=[FieldIR("in", "n"), FieldIR("out", "s")],
+            ))
+            injections.append((0, base_col + 2, 0))
+            statements.append(PlaceIR(
+                name=f"op_{i}_lshr_shift_neg", tile_name="ram_flowing", row=1, col=base_col + 3,
+                fields=[
+                    FieldIR("in", "w"), FieldIR("out", "e"),
+                    FieldIR("addon.shift_en", 1), FieldIR("addon.direction", 1),
+                    FieldIR("addon.shift_amt", coarse), FieldIR("addon.shift_fine", fine),
+                ],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_lshr_sink_neg", tile_name="ram_flowing", row=1, col=base_col + 4,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_re_negate", tile_name="subtractor", row=1, col=base_col + 5,
+                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", "e")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_zero_for_renegate", tile_name="ram_flowing", row=0, col=base_col + 5,
+                fields=[FieldIR("in", "n"), FieldIR("out", "s")],
+            ))
+            injections.append((0, base_col + 5, 0))
+            statements.append(PlaceIR(
+                name=f"op_{i}_subtract_correction", tile_name="subtractor", row=1, col=base_col + 6,
+                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "s"), FieldIR("out", "e")],
+            ))
+            # ── lost-bit spine (row 2): mask the low N bits about to
+            # be shifted out, comparator(threshold=1) gives the exact
+            # 0/1 correction directly (#702). Two extra stagger hops
+            # so the correction arrives at subtract_correction strictly
+            # AFTER the shifted value, guaranteeing correct A/B order. ──
+            statements.append(PlaceIR(
+                name=f"op_{i}_lost_bit_masker", tile_name="ram_flowing", row=2, col=base_col + 2,
+                fields=[FieldIR("in", "n"), FieldIR("out", "e"),
+                        FieldIR("addon.mask_en", 1), FieldIR("addon.nibble_mask", nibble_mask)],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_lost_bit_comparator", tile_name="comparator", row=2, col=base_col + 3,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e"), FieldIR("threshold", 1)],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_lost_bit_stagger_a", tile_name="ram_flowing", row=2, col=base_col + 4,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_lost_bit_stagger_b", tile_name="ram_flowing", row=2, col=base_col + 5,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_lost_bit_stagger_c", tile_name="ram_flowing", row=2, col=base_col + 6,
+                fields=[FieldIR("in", "w"), FieldIR("out", "n")],
+            ))
+            # ── positive/zero path (x>=0): no correction is ever
+            # needed (logical and arithmetic shift are identical for
+            # non-negative values) -- a genuinely shorter route, padded
+            # with plain relays to reach the shared final merge. ──
+            statements.append(PlaceIR(
+                name=f"op_{i}_transit", tile_name="ram_flowing", row=2, col=base_col + 1,
+                fields=[FieldIR("in", "n"), FieldIR("out", "s")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_direct_relay", tile_name="ram_flowing", row=3, col=base_col + 1,
+                fields=[FieldIR("in", "n"), FieldIR("out", "e")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_lshr_shift_pos", tile_name="ram_flowing", row=3, col=base_col + 2,
+                fields=[
+                    FieldIR("in", "w"), FieldIR("out", "e"),
+                    FieldIR("addon.shift_en", 1), FieldIR("addon.direction", 1),
+                    FieldIR("addon.shift_amt", coarse), FieldIR("addon.shift_fine", fine),
+                ],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_lshr_sink_pos", tile_name="ram_flowing", row=3, col=base_col + 3,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+            ))
+            for pad_i, pad_col in enumerate((base_col + 4, base_col + 5, base_col + 6)):
+                statements.append(PlaceIR(
+                    name=f"op_{i}_pos_pad_{pad_i}", tile_name="ram_flowing", row=3, col=pad_col,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_pos_pad_last", tile_name="ram_flowing", row=3, col=base_col + 7,
+                fields=[FieldIR("in", "w"), FieldIR("out", "n")],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}_pos_pad_up", tile_name="ram_flowing", row=2, col=base_col + 7,
+                fields=[FieldIR("in", "s"), FieldIR("out", "n")],
+            ))
+            # ── final merge ──
+            statements.append(PlaceIR(
+                name=f"op_{i}", tile_name="ram_flowing", row=1, col=base_col + 7,
+                fields=[FieldIR("in", ["w", "s"]), FieldIR("out", "e")],
+            ))
+
+            col_cursor = base_col + 8
+            last_result_row = 1
+            prev_instr_name = instr.name
+            result_positions[instr.name] = (last_result_row, col_cursor - 1)
+            prev_icmp_predicate = None
+            continue
+
         if instr.opcode in ("shl", "lshr"):
-            # points.md #690: real, buildable now that shift_fine_
-            # addon_v1/shift_lane_addon_v2 (#683/#684) exist in real
-            # hardware -- the shift amount already fits this
-            # frontend's own existing "second operand must be compile-
-            # time" rule perfectly, no new restriction needed. `ashr`
-            # deliberately NOT supported: confirmed directly against
-            # `shift_fine_addon_v1.v`'s own real implementation, the
-            # addon chain only ever does a plain LOGICAL shift
-            # (zero-fill both directions) -- there is no sign-
-            # extension mechanism anywhere in it. That's a real,
-            # separate hardware gap, not something this frontend can
-            # work around in software.
             if not (0 <= second_value <= 31):
                 diagnostics.append(_diag(
                     problem=f"{instr.opcode} amount {second_value} is outside the real, "

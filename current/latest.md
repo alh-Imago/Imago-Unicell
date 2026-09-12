@@ -1,4 +1,43 @@
-# Current State (as of 2026-09-08, Composer's own original "create models" premise partly revived -- a second, narrower real use case for the tile library named alongside LLVM consumption (browse/compose-around an existing library, not free-form authoring). Design note only, composer_scope.md addended, nothing built. See `points/points_active.md` #704)
+# Current State (as of 2026-09-08, `ashr` wired into `llvm_ir_frontend_v1.py` for real -- `#703`'s proven composition now compiles from actual LLVM IR, for any input, at any nibble-aligned shift amount. A real, previously-unknown limitation (non-nibble-aligned amounts give a silently wrong answer) found and honestly scoped rather than shipped broken. See `points/points_active.md` #705)
+
+## Read this first (most recent)
+
+**2026-09-08, `ashr` frontend integration (#705).** `#703`'s own
+proven standalone composition ported into real instruction lowering.
+Real, deliberate scope: `ashr` is not (yet) a valid DAG-reference
+source or target -- only an adjacent chain value or the function
+argument may be shifted; the existing chain-shape check already
+enforces this on its own.
+
+**Three real, mechanical bugs found by actually running it:** the
+`branch` tile needs `rolling_mode` set explicitly; `ram_flowing` has
+no `fixed_mode`/`init_data` (that's `ram_constant`'s job); and
+`ram_constant`'s own continuous offering double-captured the same
+zero as both operands before the real relayed value ever arrived --
+fixed by switching to the existing one-shot-constant pattern
+(`value_north_i`) already used elsewhere in the frontend.
+
+**A real, more important find:** testing amount=1 (not covered by
+`#703`'s own standalone proof, which only tested 4 and 8) surfaced a
+genuine silent wrong answer -- `nibble_mask`'s own real hardware
+granularity is 4 bits, so it can't precisely extract a non-nibble-
+aligned low-bit range. Scoped honestly rather than patched under time
+pressure: only nibble-aligned amounts (0, 4, ..., 28) are supported,
+with a specific diagnostic for anything else. Arbitrary-bit-range
+extraction is real, separate, ready-to-pick-up follow-on work.
+
+**Real, full verification:** a 96-case sweep against Python's real
+signed `>>`, zero mismatches, including `INT32_MIN` and the exact
+`-16`/`-17` boundary. Real regression: 711 passed, 1 skipped (was
+704), zero failures.
+
+**Next up, per the agreed order:** extend general DAG routing's own
+two remaining gaps -- shared-producer taps (a geometry problem), then
+order-sensitive references for `icmp`/`select`/`shl`/`lshr` (a
+correctness problem, likely reusing the branch-based pattern this
+entry just proved out again).
+
+## Previous state (as of 2026-09-08, Composer's own original "create models" premise partly revived -- a second, narrower real use case for the tile library named alongside LLVM consumption (browse/compose-around an existing library, not free-form authoring). Design note only, composer_scope.md addended, nothing built. See `points/points_active.md` #704)
 
 ## Read this first (most recent)
 

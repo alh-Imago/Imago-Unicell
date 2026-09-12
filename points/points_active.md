@@ -8724,3 +8724,81 @@ later, once there's a substantial-enough tile library and a real
 consumer (LaTeX, or a new TRIX domain) hungry for it -- not designed,
 not built, not sequenced against the rest of `composer_scope.md`'s
 own minimal-first-scope plan.
+
+## 705. `ashr` wired into `llvm_ir_frontend_v1.py` for real -- `#703`'s own proven sign-magnitude composition ported from a standalone circuit into actual instruction lowering, for real LLVM IR, any input, at any nibble-aligned shift amount. A real, important, previously-unknown limitation found and honestly scoped rather than shipped silently broken. (Alan/Claude, 2026-09-08)
+
+**Real, deliberate scope choice, decided before building anything:**
+`ashr`'s own frontend wiring and general DAG routing's own further
+extensions were kept as separate, sequential steps rather than one
+sweep -- `ashr` first (smaller, fully proven already as a standalone
+circuit), extending DAG routing's real gaps after. Chosen specifically
+because combining unrelated extensions in one sitting makes it harder
+to tell which change caused which failure when something breaks --
+and something did break, twice, in this very entry.
+
+**Real, deliberate narrow scope for the DAG-reference question, not
+an oversight:** `ashr` is NOT (yet) a valid DAG-reference source or
+target -- only an adjacent chain value (or the function argument, for
+`i==0`) may be shifted. The existing chain-shape check already
+enforces this correctly on its own (its own add/sub-only DAG carve-
+out simply never matches `ashr`), so no separate check was needed.
+
+**A real, subtle timing mechanic confirmed directly before writing
+any placement code:** two `inject()` calls targeting the SAME cell,
+both applied before the first tick, get OR-merged together on that
+one tick (confirmed directly against `SuperGrid.tick()`'s own real
+handling) -- injecting both the branch's own reference (0) and, for
+`i==0`, the function argument into the same cell would have silently
+corrupted the reference. Routing the argument through a separate
+cell one hop further west avoids this entirely: the two injections
+land in different `_pending` entries, and the target cell's own
+ordinary "reject while already holding a value" behavior then
+enforces the correct arrival order (reference drains first) with no
+extra timing logic needed.
+
+**Three real, mechanical bugs found and fixed by actually compiling +
+running the composition, not by inspection:**
+1. The registered `branch` tile requires `rolling_mode` explicitly
+   (not defaulted) -- a real, specific compile-time diagnostic caught
+   this immediately.
+2. `ram_flowing` has no `fixed_mode`/`init_data` fields at all --
+   those belong to the separate `ram_constant` tile. Tried
+   `ram_constant` first for the composition's own two "feed a zero"
+   constants; wrong choice.
+3. **The real, substantive one:** `ram_constant`'s own `fixed_mode=1`
+   makes it CONTINUOUSLY offer its value forever -- the adder
+   receiving it captured the SAME zero twice (once as A, then again
+   as B before the real relayed value ever arrived), computing `0-0`
+   instead of `0-x`. The existing frontend's own established pattern
+   for one-shot compile-time constants (`value_north_i`: a plain
+   `ram_flowing` cell fed by a real, one-time runtime injection, not
+   a fixed-mode cell) was the correct tool all along -- switching to
+   it fixed this immediately.
+
+**A real, previously-unknown, and more important limitation found by
+testing beyond what `#703`'s own standalone proof had covered:** that
+proof only ever tested nibble-aligned shift amounts (4 and 8). Testing
+amount=1 through the real frontend integration surfaced a genuine,
+silent wrong answer (`-5 >> 1` computed as `-2`, not the real `-3`) --
+the lost-bit-detection stage's own `nibble_mask` addon has a real
+hardware granularity of 4 bits, and cannot precisely extract a non-
+nibble-aligned low-bit range. Scoped honestly rather than patched
+around under time pressure: `ashr` now supports only nibble-aligned
+amounts (0, 4, 8, ..., 28), with a real, specific diagnostic naming
+exactly this reason for anything else. Extracting an arbitrary bit
+range precisely needs a real, separate technique (plausibly the same
+two-pass mask/shift trick MIF's own mantissa extraction used, `#697`)
+-- not attempted here, a real, ready-to-pick-up follow-on.
+
+**Real, full verification:** a 96-case sweep (12 representative values
+x 8 nibble-aligned amounts, including `INT32_MIN`, `-1`, the `-16`/
+`-17` boundary, `2147483647`) against Python's own real signed `>>`,
+zero mismatches. Shift-by-zero confirmed as identity. `ashr` chained
+directly after a real `add` confirmed correct. Non-nibble-aligned
+rejection confirmed with the correct, specific diagnostic. One
+now-obsolete test (asserting `ashr` amount=4 was always rejected)
+replaced with a real regression marker confirming the opposite is now
+true, rather than silently deleted.
+
+**Real, full regression:** 7 new tests, 1 test replaced (net 0), 711
+passed + 1 skipped overall (was 704), zero failures elsewhere.

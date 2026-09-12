@@ -975,7 +975,11 @@ def test_shl_amount_out_of_range_gives_a_real_diagnostic():
     assert any("0-31" in d.problem for d in diagnostics)
 
 
-def test_ashr_gives_a_real_specific_hardware_gap_diagnostic():
+def test_ashr_amount_4_no_longer_rejected():
+    # points.md #705: this exact scenario used to be the real,
+    # confirmed hardware-gap rejection -- now genuinely supported via
+    # the sign-magnitude composition (#702/#703). Kept as a real
+    # regression marker for that specific change, not just deleted.
     ir = """
     define i32 @f(i32 %x) {
     entry:
@@ -984,8 +988,7 @@ def test_ashr_gives_a_real_specific_hardware_gap_diagnostic():
     }
     """
     icm, diagnostics, info = compile_llvm_ir(ir, {"x": 1})
-    assert icm is None
-    assert any("sign-extension" in d.problem or "sign-extension" in d.why for d in diagnostics)
+    assert icm is not None, diagnostics
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1141,3 +1144,107 @@ def test_overlapping_dag_reference_ranges_rejected_with_specific_diagnostic():
     icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
     assert icm is None
     assert any("overlaps an earlier one" in d.problem for d in diagnostics)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #705: ashr wired into the frontend for real -- Alan's own
+# sign-magnitude composition (#702/#703) via branch + reconvergence,
+# no new RTL. Real, honest scope: nibble-aligned shift amounts only
+# (0, 4, 8, ..., 28) -- the lost-bit detection stage's own real
+# hardware granularity (nibble_mask, 4 bits) can't precisely extract a
+# non-nibble-aligned bit range, confirmed directly by an early attempt
+# at amount=1 giving a silently wrong answer.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _run_ashr_frontend(x, n, ticks=60):
+    ir = f"""
+    define i32 @f(i32 %x) {{
+    entry:
+      %r = ashr i32 %x, {n}
+      ret i32 %r
+    }}
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": x})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    return cell.ram_data_reg, cell.ram_data_valid, info
+
+
+def _real_ashr(x, n, bits=32):
+    x &= (1 << bits) - 1
+    if x >= (1 << (bits - 1)):
+        x -= (1 << bits)
+    return (x >> n) & ((1 << bits) - 1)
+
+
+def test_ashr_negative_value_nibble_aligned():
+    out, valid, info = _run_ashr_frontend(-80, 4)
+    assert valid is True
+    assert out == _real_ashr(-80, 4) == info.expected_result
+
+
+def test_ashr_positive_value_nibble_aligned():
+    out, valid, info = _run_ashr_frontend(20, 4)
+    assert valid is True
+    assert out == _real_ashr(20, 4)
+
+
+def test_ashr_zero():
+    out, valid, info = _run_ashr_frontend(0, 4)
+    assert valid is True
+    assert out == 0
+
+
+def test_ashr_shift_by_zero_is_identity():
+    out, valid, info = _run_ashr_frontend(-12345, 0)
+    assert valid is True
+    assert out == _real_ashr(-12345, 0) == (-12345) & 0xFFFFFFFF
+
+
+def test_ashr_real_sweep_nibble_aligned_amounts():
+    for x in [-80, 20, 0, -5, -2147483648, -1, -16, -17, -100, 5, 100, 2147483647]:
+        for n in (0, 4, 8, 12, 16, 20, 24, 28):
+            out, valid, info = _run_ashr_frontend(x, n)
+            expected = _real_ashr(x, n)
+            assert valid is True, f"x={x} n={n}: not valid"
+            assert out == expected, f"x={x} n={n}: got {out:#x}, expected {expected:#x}"
+
+
+def test_ashr_non_nibble_aligned_amount_gives_a_specific_diagnostic():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %r = ashr i32 %x, 1
+      ret i32 %r
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": -5})
+    assert icm is None
+    assert any("not nibble-aligned" in d.problem for d in diagnostics)
+
+
+def test_ashr_chained_after_add():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 100
+      %t2 = ashr i32 %t1, 4
+      ret i32 %t2
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": -200})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(80):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    expected = _real_ashr(-200 + 100, 4)
+    assert cell.ram_data_valid is True
+    assert cell.ram_data_reg == expected == info.expected_result
