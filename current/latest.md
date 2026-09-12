@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-08, `ashr` wired into `llvm_ir_frontend_v1.py` for real -- `#703`'s proven composition now compiles from actual LLVM IR, for any input, at any nibble-aligned shift amount. A real, previously-unknown limitation (non-nibble-aligned amounts give a silently wrong answer) found and honestly scoped rather than shipped broken. See `points/points_active.md` #705)
+# Current State (as of 2026-09-08, real, isolated proof of the shared-producer DAG tap mechanism -- daisy-chained drop cells letting one producer serve multiple consumers, lifting #701's own "one consumer per producer" restriction. Sim-only, NOT yet wired into the frontend. Session paused here on a usage constraint, at a clean, fully-tested stopping point. See `points/points_active.md` #706)
+
+## Read this first (most recent)
+
+**2026-09-08, shared-producer DAG tap mechanism proven (#706).** A
+drop cell's own `routing_mask` can hold more than one direction --
+its reemit (`#700`) delivers to its own consumer AND relays onward to
+a second, independent drop on the same trigger, which holds and waits
+for its own separate trigger exactly like any other DAG tap.
+
+**A real, honest new constraint found, not assumed:** the daisy-chain
+is order-dependent -- a later drop can't receive anything until an
+earlier one's own trigger has fired. Real, careful thought needed
+before frontend integration: the compiler would need to order the
+chain to match each consumer's real need, not just build it in program
+order by default.
+
+**Real, isolated verification** (`tests/vm/test_dag_shared_producer_
+tap_v1.py`, 3/3 passing first try): one producer serving two
+independent consumers, confirmed correct delivery timing and final
+values for both.
+
+**Real, honest scope: standalone mechanism proof only.** Wiring this
+into `llvm_ir_frontend_v1.py` -- replacing `#701`'s own `tapped_
+producers` rejection with real, ordered chain construction, plus the
+column-spacing geometry for an arbitrary number of consumers -- is
+real, substantial, ready-to-pick-up follow-on work. Paused
+deliberately here (usage constraint) rather than starting that
+integration mid-way.
+
+**Real, full regression: 714 passed, 1 skipped, zero failures** (was
+711).
+
+**Still next, per the agreed order:** finish wiring shared-producer
+taps into the frontend, then the harder remaining DAG gap --
+order-sensitive references for `icmp`/`select`/`shl`/`lshr`.
+
+## Previous state (as of 2026-09-08, `ashr` wired into `llvm_ir_frontend_v1.py` for real -- `#703`'s proven composition now compiles from actual LLVM IR, for any input, at any nibble-aligned shift amount. A real, previously-unknown limitation (non-nibble-aligned amounts give a silently wrong answer) found and honestly scoped rather than shipped broken. See `points/points_active.md` #705)
 
 ## Read this first (most recent)
 

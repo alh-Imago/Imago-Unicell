@@ -8802,3 +8802,44 @@ true, rather than silently deleted.
 
 **Real, full regression:** 7 new tests, 1 test replaced (net 0), 711
 passed + 1 skipped overall (was 704), zero failures elsewhere.
+
+## 706. Real, isolated proof of the mechanism needed to lift `#701`'s own named "one consumer per producer" DAG-relay restriction -- daisy-chaining the drop cell itself. Sim-only; NOT yet integrated into `llvm_ir_frontend_v1.py`. (Alan/Claude, 2026-09-08)
+
+**The real idea:** a drop cell (`nano_hold_trigger`, `#701`) can be
+given a `routing_mask` with MORE than one direction. Its own reemit
+(`#700`) calls `_emit(self.a_data)` using whatever routing_mask is
+configured -- so a drop can deliver to its own consumer AND relay
+onward to a SECOND, independent drop on the exact same trigger event.
+The second drop holds the relayed value exactly like any other DAG
+tap, waiting for its own, separate, later trigger.
+
+**A real, honest new constraint this introduces, confirmed directly
+rather than assumed:** the chain becomes ORDER-DEPENDENT -- a later
+drop cannot receive anything until an earlier drop's own trigger has
+already fired. For a real program, the daisy-chain order needs to
+match (or not precede) each consumer's own real need -- not a free-
+form fan-out. Worth real, careful thought before frontend integration:
+the compiler would need to order the chain correctly, not just build
+it in program order by default.
+
+**Real, isolated verification, matching this whole project's own
+sim-first discipline** (`tests/vm/test_dag_shared_producer_tap_v1.py`,
+3/3 passing on the first attempt): one producer, tapped once, serving
+two independent consumers -- confirmed the first drop's own trigger
+delivers to its own consumer AND simultaneously seeds the second
+drop's own hold state; confirmed the second drop genuinely waits for
+its OWN separate trigger regardless of how long it's kept waiting;
+confirmed both consumers end up with the correct value once both
+triggers have fired.
+
+**Real, honest scope: this is a standalone mechanism proof only.**
+Wiring this into `llvm_ir_frontend_v1.py` itself -- replacing `#701`'s
+own `tapped_producers` rejection with real, ordered daisy-chain
+construction, plus figuring out the real column-spacing/geometry for
+an arbitrary number of chained consumers -- is a real, substantial,
+ready-to-pick-up follow-on step, not attempted here. Session paused at
+this point deliberately (usage constraint) at a clean, fully-tested
+stopping point rather than starting the larger integration mid-way.
+
+**Real, full regression:** 3 new tests, 714 passed + 1 skipped overall
+(was 711), zero failures elsewhere.
