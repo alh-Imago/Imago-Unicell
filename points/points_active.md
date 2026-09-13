@@ -9017,3 +9017,58 @@ existing DAG path confirmed unaffected (regression).
 
 **Real, full regression:** 722 passed + 1 skipped overall (was 718),
 zero failures elsewhere.
+
+## 711. Three real, precise findings following up `#710`, all checked directly rather than assumed: (1) `comparator`'s own real semantics confirmed exactly; (2) the `icmp` subtraction-overflow boundary confirmed precisely; (3) `eq`/`ne`'s own exclusion from DAG routing sharpened from "doesn't work" to its actual, structural, geometric cause. (Alan/Claude, 2026-09-08)
+
+**(1) `comparator`'s own real semantics, confirmed directly against
+`_deliver_comparator()`:** it compares exactly ONE dynamic, arriving
+value against ONE fixed, compile-time-configured `cmp_threshold` --
+it never takes two dynamic values (a real "first" and "second")
+against each other. For any icmp predicate where the second operand
+is compile-time-known (always true in this frontend today), this is
+already the right primitive; it was never the missing piece for
+`eq`/`ne`'s own DAG support.
+
+**(2) The real `icmp` subtraction-overflow boundary, confirmed
+precisely by a direct sweep, not estimated:** the raw 32-bit
+`north-west` subtraction this frontend's own `slt`/`sle`/`sgt`/`sge`
+lowering depends on gives a wrong answer exactly when the two real
+operands have OPPOSITE signs AND `|a| + |b| > 2^31 - 1` -- confirmed
+against 900 checked combinations, zero prediction mismatches. This is
+the classic, well-known signed-subtraction-overflow condition from
+computer arithmetic, not something specific to this frontend's own
+design; a real, pre-existing, `#710`-flagged limitation, still not
+attempted here.
+
+**(3) `eq`/`ne`'s own real exclusion reason, sharpened by attempting
+the fix directly rather than accepting the vaguer "doesn't work"
+diagnosis `#710` shipped with:** moving the composed tile's own
+emission after the relay-building block, and making `in_a` respect
+`is_dag_reference`, DID correctly wire the tile -- but placing the
+relay's own row-2 lane collided outright with `icmp_eq`/`icmp_ne`'s
+own real internal footprint (`cmp1`/`xor_gate` subcells already
+occupy that exact row, confirmed by an actual placement collision).
+Moving the relay lane to a different row (5) to dodge that footprint
+then broke the OTHER real requirement -- the drop must sit DIRECTLY
+south of the diff cell (a single hop, the only real free side once
+west/north/east are spoken for) -- confirmed by the composed tile
+silently never receiving anything (comparator/XOR permanently
+unfired) once the drop was no longer adjacent. This is a genuine,
+structural geometric conflict between the relay mechanism's own real
+requirement and `icmp_eq`/`icmp_ne`'s own real internal layout, not
+a wiring bug -- fixing it needs restructuring that composed tile's
+own internal footprint (`#686`), a real, separate, larger task.
+Reverted cleanly back to `#710`'s own exclusion, with this precise
+reason now recorded directly in the diagnostic itself rather than
+the vaguer original wording.
+
+**Real, honest scope: no functional change from `#710`.** `eq`/`ne`
+remain excluded from DAG routing; the fix attempt's own real, useful
+byproduct is the code-ordering correction (moving the composed-tile
+emission after the relay block) and the now-precise diagnostic
+wording, both left in place as groundwork for whenever `icmp_eq`/
+`icmp_ne`'s own internal layout gets revisited.
+
+**Real, full regression:** unchanged at 722 passed, 1 skipped -- one
+existing test's own expected diagnostic wording updated to match, no
+new tests needed for a scope that stayed the same.

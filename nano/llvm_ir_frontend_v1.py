@@ -545,14 +545,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     and _icmp_predicate(instr) in ("sge", "sgt")):
                 # points.md #710: sge/sgt lower onto the commutative
                 # "adder"+negate trick (#611), exactly like add/sub --
-                # ZERO new timing work needed. eq/ne deliberately
-                # excluded here even though #668's own real diff==0
-                # test is ALSO sign-agnostic: found directly that eq/
-                # ne's own separate XOR-gate topology doesn't correctly
-                # receive a DAG-relayed value yet (the XOR gate's own
-                # second real input never captures), a real, distinct
-                # gap from the ordering question this entry is about --
-                # not attempted here.
+                # ZERO new timing work needed.
                 is_dag_reference = True
             elif (first_is_ref and first_name in needs_relay_tap and instr.opcode == "icmp"
                     and _icmp_predicate(instr) in ("slt", "sle")):
@@ -591,10 +584,16 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                            "EARLIER add/sub result -- all lower onto forms where operand arrival "
                            "order doesn't affect correctness (add/sub/sge/sgt via the commutative "
                            "adder+negate trick, slt/sle confirmed empirically to work under the "
-                           "natural timing already present). icmp's own eq/ne predicates and "
-                           "select/shl/lshr each have their own real, separate topology/result-row "
-                           "convention not yet accommodated, so none of the three may be a DAG "
-                           "reference source or consumer yet")
+                           "natural timing already present). icmp's own eq/ne predicates are "
+                           "excluded for a real, different, structural reason, found directly: "
+                           "the relay drop must sit DIRECTLY south of the diff cell (a single hop, "
+                           "the only real free side once west/north/east are spoken for), but "
+                           "icmp_eq/icmp_ne's own composed tile (#686) already occupies exactly "
+                           "that position with its own internal cmp1/xor_gate subcells -- a real "
+                           "geometric conflict, not a wiring bug, confirmed by an actual attempt "
+                           "that collided this way. select/shl/lshr each have their own real, "
+                           "separate topology/result-row convention not yet accommodated either, "
+                           "so none of the three may be a DAG reference source or consumer yet")
                     suggestion = ("use add/sub/slt/sle/sgt/sge on both ends of the reference, or "
                                   "wait for DAG routing to cover eq/ne/select/shl/lshr too")
                 diagnostics.append(_diag(
@@ -1071,18 +1070,6 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         # automatically, well before this instruction's own dynamic
         # operand(s) could possibly arrive -- no manual injection or
         # timing stagger needed for it at all.
-        if instr.opcode == "icmp" and predicate in _EQ_NE_PREDICATES:
-            statements.append(PlaceIR(
-                name=f"op_{i}", tile_name=f"icmp_{predicate}", row=1, col=diff_col,
-                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", "e")],
-            ))
-            col_cursor = diff_col + (3 if predicate == "ne" else 2)
-            last_result_row = 2
-            prev_instr_name = instr.name
-            result_positions[instr.name] = (last_result_row, col_cursor - 1)
-            prev_icmp_predicate = predicate
-            continue
-
         # points.md #701: real DAG-reference relay -- built BEFORE the
         # diff cell itself, since the diff cell's own `in_a` direction
         # depends on whether a relay drop feeds it (south) or an
@@ -1148,6 +1135,18 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     return None, diagnostics, None
             dag_reference_ranges.append((producer_col, diff_col, instr.name))
             tapped_producers.add(first_name)
+            # points.md #710: a real, found-empirically constraint,
+            # distinct from the generic row-2 rule above -- icmp_eq/
+            # icmp_ne's own composed tile (#686) has a real internal
+            # footprint spanning rows 1-3 relative to its own anchor
+            # (diff/cmp0 at row 1, cmp1/xor_gate at row 2, relay_a/
+            # relay_b at row 3), confirmed directly by an actual
+            # collision the first time this was tried. The relay lane
+            # moves to row 5 specifically for an eq/ne consumer,
+            # safely clear of that whole footprint (including ne's own
+            # one extra subcell); every other consumer keeps row 2.
+            is_eqne_consumer = instr.opcode == "icmp" and predicate in _EQ_NE_PREDICATES
+            relay_row = 5 if is_eqne_consumer else 2
             relay_col = producer_col
             while relay_col <= diff_col:
                 if relay_col == producer_col:
@@ -1155,7 +1154,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     # real south offering (added to the producer's own
                     # `out` field below, via `needs_relay_tap`).
                     statements.append(PlaceIR(
-                        name=f"op_{i}_relay_tap", tile_name="ram_flowing", row=2, col=relay_col,
+                        name=f"op_{i}_relay_tap", tile_name="ram_flowing", row=relay_row, col=relay_col,
                         fields=[FieldIR("in", "n"), FieldIR("out", "e")],
                     ))
                 elif relay_col == diff_col:
@@ -1169,12 +1168,12 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     # delivering to an empty cell instead of the diff
                     # cell's own real south input.
                     statements.append(PlaceIR(
-                        name=f"op_{i}_relay_drop", tile_name="nano_hold_trigger", row=2, col=relay_col,
+                        name=f"op_{i}_relay_drop", tile_name="nano_hold_trigger", row=relay_row, col=relay_col,
                         fields=[FieldIR("out", "n")],
                     ))
                 else:
                     statements.append(PlaceIR(
-                        name=f"op_{i}_relay_{relay_col}", tile_name="ram_flowing", row=2, col=relay_col,
+                        name=f"op_{i}_relay_{relay_col}", tile_name="ram_flowing", row=relay_row, col=relay_col,
                         fields=[FieldIR("in", "w"), FieldIR("out", "e")],
                     ))
                 relay_col += 1
@@ -1207,7 +1206,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             # right at the end, confined to the drop's own column
             # (always unique per instruction, so this short descent
             # never collides with another reference's own descent).
-            trigger_row = 3 + dag_reference_count
+            trigger_row = relay_row + 1 + dag_reference_count
             trigger_start_col = -(2 * diff_col + 10)
             injections.append((trigger_row, trigger_start_col, 0))
             statements.append(PlaceIR(
@@ -1222,7 +1221,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 ))
                 trigger_col += 1
             descend_row = trigger_row - 1
-            while descend_row >= 3:
+            while descend_row >= relay_row + 1:
                 statements.append(PlaceIR(
                     name=f"op_{i}_trigger_descend_{descend_row}", tile_name="ram_flowing",
                     row=descend_row, col=diff_col,
@@ -1230,6 +1229,34 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 ))
                 descend_row -= 1
             dag_reference_count += 1
+
+        if instr.opcode == "icmp" and predicate in _EQ_NE_PREDICATES:
+            # points.md #710: moved to AFTER the relay-building block
+            # above so a DAG reference into eq/ne would get its own
+            # relay/drop/trigger machinery, if one were ever built for
+            # it. `in_a` respects `is_dag_reference` the same way the
+            # generic diff-cell emission below does -- but a real,
+            # structural conflict was found and left unresolved here,
+            # not fixed: the relay drop must sit DIRECTLY south of the
+            # diff cell (the only real free side), and icmp_eq/
+            # icmp_ne's own composed tile (#686) already occupies
+            # exactly that position with its own internal cmp1/
+            # xor_gate subcells. `is_dag_reference` can never actually
+            # be True here today (the chain-shape check above excludes
+            # eq/ne for precisely this reason) -- this code is ready
+            # for whenever that composed tile's own internal layout
+            # gets restructured to leave that position free.
+            statements.append(PlaceIR(
+                name=f"op_{i}", tile_name=f"icmp_{predicate}", row=1, col=diff_col,
+                fields=[FieldIR("in_a", "s" if is_dag_reference else "w"), FieldIR("in_b", "n"),
+                        FieldIR("out", "e")],
+            ))
+            col_cursor = diff_col + (3 if predicate == "ne" else 2)
+            last_result_row = 2
+            prev_instr_name = instr.name
+            result_positions[instr.name] = (last_result_row, col_cursor - 1)
+            prev_icmp_predicate = predicate
+            continue
 
         statements.append(PlaceIR(
             name=f"op_{i}", tile_name=diff_tile, row=1, col=diff_col,

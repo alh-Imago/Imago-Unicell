@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-08, general DAG routing extended to icmp's own slt/sle/sgt/sge predicates -- confirmed empirically that the natural timing already gives correct results, no delay cell needed. A real, separate, pre-existing sign bug found and fixed along the way. See `points/points_active.md` #710)
+# Current State (as of 2026-09-08, three precise follow-up findings after #710 -- comparator's real semantics confirmed, the icmp overflow boundary confirmed exactly, and eq/ne's exclusion sharpened to its real, structural, geometric cause (the relay drop's own required adjacency conflicts with icmp_eq/ne's own internal footprint). No functional change from #710. See `points/points_active.md` #711)
+
+## Read this first (most recent)
+
+**2026-09-08, three precise follow-ups to #710 (#711).** Comparator
+confirmed directly: compares exactly one dynamic value against one
+fixed, compile-time threshold -- never two dynamic values against
+each other. The icmp subtraction-overflow boundary confirmed
+precisely: wrong exactly when the two operands have opposite signs
+AND `|a|+|b| > 2^31-1` (the classic signed-subtraction-overflow
+condition, not specific to this frontend). And eq/ne's own exclusion
+sharpened from a vague "doesn't work" to its real cause: the relay
+drop must sit directly south of the diff cell (the only free side),
+but icmp_eq/icmp_ne's own composed tile already occupies exactly that
+position with its own cmp1/xor_gate subcells -- confirmed by actually
+attempting the fix and hitting first a placement collision, then (once
+moved) a silent non-delivery. A structural conflict, not a wiring bug
+-- fixing it needs restructuring that composed tile's own internal
+layout, a real, separate, larger task.
+
+**No functional change from #710** -- eq/ne remain excluded, with the
+precise reason now in the diagnostic itself. Real regression:
+unchanged at 722 passed, 1 skipped.
+
+## Previous state (as of 2026-09-08, general DAG routing extended to icmp's own slt/sle/sgt/sge predicates -- confirmed empirically that the natural timing already gives correct results, no delay cell needed. A real, separate, pre-existing sign bug found and fixed along the way. See `points/points_active.md` #710)
 
 ## Read this first (most recent)
 
