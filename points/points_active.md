@@ -9228,3 +9228,39 @@ treating either as done. Saved to `docs/stripped-cell/design-notes/
 dag_routing_select_shl_lshr_scope.md`, with a real, honest priority
 order (`shl`/`lshr` first, `select`-as-source second, `select`'s own
 `cond` last) for whenever this gets picked up.
+
+## 715. Alan's own new idea recorded and explicitly QUEUED, not scoped in detail yet -- external, independent output confirmation via `io_name` (already-existing, real infrastructure) + real Python file writing, for whenever work reaches the end of the current LaTeX/TRIX-family body of work. Design note only. (Alan/Claude, 2026-09-08)
+
+**The real idea:** the VM/Workbench already shows data flowing through
+every cell, but that's confirmation from INSIDE the same process that
+ran the simulation. A real, external file write -- independent of
+whatever computed the result -- lets a design's output be checked
+without trusting the same run's own introspection of itself.
+
+**The real hook this connects to, confirmed directly:** `io_name`
+already exists on every `IcmV3Record`, deliberately designed so
+whether a marked cell is used for input or output is decided AT THE
+POINT OF USE, "so the same RAM cell that takes a seed value in can
+just as naturally be read back out" -- real, already-built
+infrastructure this idea would use, not something new. `IcmV3File`'s
+own save/load already does real Python file I/O for loading programs;
+writing a result back out through the same kind of channel reuses an
+existing path.
+
+**A real, useful connection named for whenever this gets built:** this
+whole week's own bug-finding relied on exactly this comparison
+discipline by hand, every time -- an independently-computed expected
+value checked against the VM's own real output, in a throwaway script,
+for `ashr`'s sign ordering, `icmp`'s DAG timing, `eq`/`ne`'s width
+mismatch, and more. A real output-file mechanism would make that a
+standing capability instead of something reinvented per test.
+
+**Real, honest status: explicitly queued by Alan's own direction, not
+scoped in detail now.** A genuinely different capability from the
+Workbench's own current real scope (place/route/review an already-
+compiled model) -- closer to "run a compiled program and collect its
+real answer," needing its own real scoping pass later. Saved to
+`docs/stripped-cell/design-notes/external_output_confirmation_scope.
+md`. No RTL, no VM change, no file format change, nothing built --
+added to the end of the real, standing list of work for review once
+the current body of work reaches that stage.

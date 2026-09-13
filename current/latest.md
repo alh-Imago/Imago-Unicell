@@ -1,4 +1,27 @@
-# Current State (as of 2026-09-08, real scoping pass for DAG routing's last three excluded opcodes (select/shl/lshr) -- they turn out NOT to share one problem. shl/lshr have no port-scarcity or ordering issue at all; select's own cond hits the exact same structural conflict icmp_eq/icmp_ne had. Design note only, nothing built. See `points/points_active.md` #714)
+# Current State (as of 2026-09-08, Alan's own new idea recorded and explicitly QUEUED for later -- external, independent output confirmation via io_name (already-existing infrastructure) + real file writing, for review once work reaches the end of the current LaTeX/TRIX-family body of work. Design note only. See `points/points_active.md` #715)
+
+## Read this first (most recent)
+
+**2026-09-08, external output confirmation idea recorded, explicitly
+queued (#715).** Alan's own idea: the VM/Workbench already shows data
+flowing through cells, but that's confirmation from inside the same
+process -- a real, external file write, independent of whatever
+computed the result, lets output be checked without trusting the same
+run's own introspection of itself. Connects directly to `io_name`,
+already-existing infrastructure deliberately built so a marked cell's
+role (input vs output) is decided at the point of use, not baked in --
+"the same RAM cell that takes a seed value in can just as naturally be
+read back out." `IcmV3File`'s own save/load already does real file
+I/O for loading; writing a result out reuses that same kind of path.
+
+**Real, honest status: explicitly queued by Alan's own direction, not
+scoped now.** A different capability from the Workbench's own current
+real scope (place/route/review) -- its own real scoping pass comes
+later, near the end of the current, much larger body of work still
+ahead. Saved to `docs/stripped-cell/design-notes/external_output_
+confirmation_scope.md`. Nothing built.
+
+## Previous state (as of 2026-09-08, real scoping pass for DAG routing's last three excluded opcodes (select/shl/lshr) -- they turn out NOT to share one problem. shl/lshr have no port-scarcity or ordering issue at all; select's own cond hits the exact same structural conflict icmp_eq/icmp_ne had. Design note only, nothing built. See `points/points_active.md` #714)
 
 ## Read this first (most recent)
 
