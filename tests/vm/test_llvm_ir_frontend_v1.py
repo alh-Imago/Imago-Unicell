@@ -1112,7 +1112,12 @@ def test_dag_reference_to_a_non_add_sub_producer_gives_a_specific_diagnostic():
     assert any("deliberately narrow" in d.why for d in diagnostics)
 
 
-def test_multiple_consumers_of_the_same_producer_rejected_with_specific_diagnostic():
+def test_multiple_consumers_of_the_same_producer_now_supported():
+    # points.md #713: lifts #701's own "at most one consumer" real
+    # restriction, using #706's own proven daisy-chain mechanism.
+    # Kept as a real regression marker, matching #705's own earlier
+    # "amount 4 no longer rejected" precedent, for the exact scenario
+    # that used to be rejected here.
     ir = """
     define i32 @f(i32 %x) {
     entry:
@@ -1125,8 +1130,39 @@ def test_multiple_consumers_of_the_same_producer_rejected_with_specific_diagnost
     }
     """
     icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
-    assert icm is None
-    assert any("already tapped by an earlier DAG reference" in d.problem for d in diagnostics)
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(100):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    assert cell.adder_out_buffer == 1006 == info.expected_result   # x=5: t1=6, t5=t1+1000
+
+
+def test_three_consumers_of_the_same_producer():
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 1
+      %t2 = add i32 %t1, 2
+      %t3 = add i32 %t1, 100
+      %t4 = add i32 %t3, 3
+      %t5 = add i32 %t1, 1000
+      %t6 = add i32 %t5, 4
+      %t7 = add i32 %t1, 10000
+      ret i32 %t7
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(150):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    assert cell.adder_out_buffer == 10006 == info.expected_result   # x=5: t1=6, t7=t1+10000
 
 
 def test_overlapping_dag_reference_ranges_rejected_with_specific_diagnostic():

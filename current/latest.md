@@ -1,4 +1,37 @@
-# Current State (as of 2026-09-08, icmp_eq/icmp_ne's own structural conflict fixed by restructuring the composed tile (a new fanout subcell frees diff's south port) -- eq/ne now genuinely support general DAG routing, closing it out for ALL of add/sub/icmp's real predicates. Two more real bugs found along the way. See `points/points_active.md` #712)
+# Current State (as of 2026-09-08, `#701`'s own "at most one consumer per producer" DAG restriction lifted for real -- `#706`'s proven daisy-chain mechanism now wired into the frontend, any number of consumers per producer. Worked on the first real attempt. See `points/points_active.md` #713)
+
+## Read this first (most recent)
+
+**2026-09-08, shared-producer DAG taps wired into the frontend
+(#713).** The pre-pass now returns, per producer, the full ordered
+list of every consumer, letting the main loop decide each drop's own
+routing correctly the first time (last in chain = deliver only; any
+other = deliver AND relay onward, `#706`'s own mechanism). A 2-
+consumer chain (the exact scenario `#701` had to reject) and a 3-
+consumer chain both compiled and computed correctly on the first real
+attempt.
+
+**One real, precise exception needed in the existing overlap check:**
+references sharing the same producer are the same intentional chain,
+not a collision -- only different producers' ranges may not overlap.
+A related, real, separate finding: a value that is itself both a DAG
+consumer and a DAG producer has its own two ranges genuinely collide
+at the shared column -- confirmed a real, correct rejection, not a
+new bug.
+
+**One real bug found, in the test script, not the mechanism:** an
+early manual check read the wrong field on an adder cell, always
+giving 0 -- fixed by reading the right field, confirming the real
+computation was correct all along.
+
+**Real, honest closure:** general DAG routing now supports any number
+of non-adjacent consumers per producer. Real regression: 724 passed,
+1 skipped (was 723).
+
+**Remaining real DAG gap:** `select`/`shl`/`lshr`'s own separate
+result-row/topology convention -- a different problem, not started.
+
+## Previous state (as of 2026-09-08, icmp_eq/icmp_ne's own structural conflict fixed by restructuring the composed tile (a new fanout subcell frees diff's south port) -- eq/ne now genuinely support general DAG routing, closing it out for ALL of add/sub/icmp's real predicates. Two more real bugs found along the way. See `points/points_active.md` #712)
 
 ## Read this first (most recent)
 

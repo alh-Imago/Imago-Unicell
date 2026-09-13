@@ -107,16 +107,27 @@ def _decompose_shift(amount: int) -> Tuple[int, int]:
     return coarse, fine
 
 
-def _compute_needs_relay_tap(body_instructions) -> Set[str]:
-    """points.md #701: the real pre-pass general DAG routing needs --
-    scanned BEFORE the main per-instruction loop so a producer's own
-    downstream fan-out can be emitted CORRECTLY the first time (an
-    extra south tap into the relay lane, #700's own real mechanism),
-    rather than needing to retroactively modify an already-emitted
-    `PlaceIR`. Purely structural (comparing SSA NAMES against the
-    immediately-preceding instruction's own name) -- no value
-    resolution needed at all, so this can run before `known_values`
-    exists.
+def _compute_needs_relay_tap(body_instructions) -> Dict[str, List[str]]:
+    """points.md #701/#713: the real pre-pass general DAG routing
+    needs -- scanned BEFORE the main per-instruction loop so a
+    producer's own downstream fan-out can be emitted CORRECTLY the
+    first time (an extra south tap into the relay lane, #700's own
+    real mechanism), rather than needing to retroactively modify an
+    already-emitted `PlaceIR`. Purely structural (comparing SSA NAMES
+    against the immediately-preceding instruction's own name) -- no
+    value resolution needed at all, so this can run before
+    `known_values` exists.
+
+    Returns, per producer name, the real, ORDERED list of every later
+    consumer that references it non-adjacently -- #713's own real
+    extension for shared-producer taps (#706's own proven daisy-chain
+    mechanism): a producer may now be tapped by MORE than one
+    consumer, each one's own drop relaying onward to the next in the
+    exact order they appear in the program, so the main loop can
+    correctly decide, for each one, whether it's the LAST in its own
+    producer's own chain (routing_mask=["n"] only) or not (["n","e"],
+    continuing the daisy chain) -- without ever needing to go back and
+    modify an already-emitted drop.
 
     Real, deliberate scope for this first integration pass, stated
     directly: only `add`/`sub` may be tapped OR be a DAG-referencing
@@ -132,7 +143,7 @@ def _compute_needs_relay_tap(body_instructions) -> Set[str]:
     real, specific diagnostic instead of silently doing the wrong
     thing."""
     producer_opcode: Dict[str, str] = {}
-    needs_tap: Set[str] = set()
+    needs_tap: Dict[str, List[str]] = {}
     for idx, instr in enumerate(body_instructions):
         producer_opcode[instr.name] = instr.opcode
         if idx == 0 or instr.opcode not in ("add", "sub", "icmp"):
@@ -144,7 +155,7 @@ def _compute_needs_relay_tap(body_instructions) -> Set[str]:
         prev_name = body_instructions[idx - 1].name
         if first_name and first_name != prev_name and first_name in producer_opcode:
             if producer_opcode[first_name] in ("add", "sub"):
-                needs_tap.add(first_name)
+                needs_tap.setdefault(first_name, []).append(instr.name)
     return needs_tap
 
 
@@ -393,7 +404,11 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
     # failed with real, specific "cell already occupied" diagnostics
     # before this fix -- not a hypothetical.
     dag_reference_count = 0
-    tapped_producers: Set[str] = set()
+    # points.md #713: tracks, per producer, the CURRENT end of its own
+    # daisy chain (the column of the most recently placed drop) -- not
+    # just whether it's been tapped at all, since #713 now allows more
+    # than one consumer per producer.
+    tapped_producers: Dict[str, int] = {}
     dag_reference_ranges: List[Tuple[int, int, str]] = []
     # points.md #613: a running column cursor, not a fixed `i + 1` --
     # icmp needs TWO physical columns (a diff cell + a comparator),
@@ -1099,59 +1114,65 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         # touched by anything else this frontend emits.
         if is_dag_reference:
             producer_row, producer_col = result_positions[first_name]
-            if first_name in tapped_producers:
-                diagnostics.append(_diag(
-                    problem=f"instruction {i + 1}'s own first operand {first_name!r} is already "
-                             f"tapped by an earlier DAG reference in this same function "
-                             f"({str(instr).strip()})",
-                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
-                    why="real, honest scope for this first pass (#701): each producer's result "
-                        "can be tapped for a non-adjacent DAG reference by AT MOST ONE later "
-                        "consumer -- multiple consumers sharing one producer's own relay "
-                        "infrastructure needs a real, separate branching/sharing design "
-                        "(a single tap cell serving several diverging relay chains) that "
-                        "hasn't been built yet; found directly, not assumed, by an actual "
-                        "multi-consumer compile that failed with real cell-collision "
-                        "diagnostics before this check existed",
-                    suggestion="restructure so each earlier result is only referenced "
-                               "non-adjacently once, or wait for shared/branching relay taps",
-                ))
-                return None, diagnostics, None
+            # points.md #713: real, shared-producer support -- lifts
+            # #701's own "at most one consumer" restriction, using
+            # #706's own proven daisy-chain mechanism (a drop's own
+            # `routing_mask` can hold more than one direction: deliver
+            # to its own consumer AND relay onward to the next drop in
+            # the same real trigger event). The pre-pass already knows
+            # the FULL, ordered list of every consumer for this
+            # producer, so each drop's own routing_mask (last in the
+            # chain gets just north; every other gets north+east) is
+            # decided correctly the first time, with no need to go
+            # back and modify an already-emitted drop.
+            consumer_list = needs_relay_tap[first_name]
+            consumer_index = consumer_list.index(instr.name)
+            is_last_in_chain = consumer_index == len(consumer_list) - 1
+            is_first_in_chain = first_name not in tapped_producers
+            relay_start_col = producer_col if is_first_in_chain else tapped_producers[first_name]
             # points.md #701: a real, found-empirically constraint --
             # the tap and drop are both FORCED onto row 2 (the diff
             # cell only has 4 real ports, 3 already spoken for: west/
             # south for in_a, north for in_b, east for out -- row 2 is
             # the only real place left for either end to connect from).
             # That means two DIFFERENT DAG references whose own real
-            # [producer_col, diff_col] ranges OVERLAP would need their
-            # own intermediate relay cells to occupy the SAME row-2
-            # positions -- a real, genuine collision, not something a
-            # different row choice can dodge (an earlier draft tried
-            # per-reference rows and broke the tap's own single-hop
-            # connection to its producer, confirmed by an actual
-            # failing compile before this check existed). Detected
-            # explicitly, with a real, specific reason, rather than
-            # relying on the placement layer's own generic "cell
-            # already occupied" error to surface it indirectly.
+            # column ranges OVERLAP would need their own intermediate
+            # relay cells to occupy the SAME row-2 positions -- a real,
+            # genuine collision, not something a different row choice
+            # can dodge (an earlier draft tried per-reference rows and
+            # broke the tap's own single-hop connection to its
+            # producer, confirmed by an actual failing compile before
+            # this check existed). Detected explicitly, with a real,
+            # specific reason, rather than relying on the placement
+            # layer's own generic "cell already occupied" error to
+            # surface it indirectly. Real, honest exception: a chain
+            # CONTINUING from the same producer's own previous drop is
+            # not a real collision (it's the same, intentional chain,
+            # #713) -- only ranges belonging to DIFFERENT producers may
+            # not overlap.
             for used_start, used_end, used_instr in dag_reference_ranges:
-                if producer_col <= used_end and used_start <= diff_col:
+                if used_instr in consumer_list:
+                    continue   # same producer's own daisy chain -- not a real collision
+                if relay_start_col <= used_end and used_start <= diff_col:
                     diagnostics.append(_diag(
                         problem=f"instruction {i + 1}'s own DAG reference to {first_name!r} "
-                                 f"(columns {producer_col}-{diff_col}) overlaps an earlier one "
+                                 f"(columns {relay_start_col}-{diff_col}) overlaps an earlier one "
                                  f"({used_instr!r}, columns {used_start}-{used_end})",
                         what=f"lowering instruction {i + 1} ({str(instr).strip()})",
-                        why="real, honest scope for this first pass (#701): a DAG reference's "
+                        why="real, honest scope for this pass (#701/#713): a DAG reference's "
                             "own relay lane is forced onto row 2 (the only real free side of "
-                            "the diff cell), so two references whose own column ranges overlap "
-                            "would need the same row-2 cells -- a real geometric collision, not "
-                            "one a different row choice can avoid without breaking the tap's own "
-                            "single-hop connection to its producer",
-                        suggestion="restructure so DAG-referenced ranges don't overlap, or wait "
-                                   "for a real multi-lane/shared-tap relay design",
+                            "the diff cell), so two references to DIFFERENT producers whose own "
+                            "column ranges overlap would need the same row-2 cells -- a real "
+                            "geometric collision, not one a different row choice can avoid "
+                            "without breaking the tap's own single-hop connection to its "
+                            "producer",
+                        suggestion="restructure so DAG-referenced ranges from different "
+                                   "producers don't overlap, or wait for a real multi-lane "
+                                   "relay design",
                     ))
                     return None, diagnostics, None
-            dag_reference_ranges.append((producer_col, diff_col, instr.name))
-            tapped_producers.add(first_name)
+            dag_reference_ranges.append((relay_start_col, diff_col, instr.name))
+            tapped_producers[first_name] = diff_col
             # points.md #712: relay lane back to the standard row 2 for
             # EVERY consumer, including eq/ne -- the earlier row-5
             # workaround was needed only because icmp_eq/icmp_ne's own
@@ -1163,12 +1184,15 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             # own internal cells at row 2 now sit one and two columns
             # further east (cmp1, xor_gate), not at diff_col itself.
             relay_row = 2
-            relay_col = producer_col
+            relay_col = relay_start_col if is_first_in_chain else relay_start_col + 1
             while relay_col <= diff_col:
-                if relay_col == producer_col:
+                if is_first_in_chain and relay_col == producer_col:
                     # the tap itself -- receives the producer's own
                     # real south offering (added to the producer's own
-                    # `out` field below, via `needs_relay_tap`).
+                    # `out` field below, via `needs_relay_tap`). Only
+                    # placed for the FIRST consumer in the chain --
+                    # later consumers relay onward from the previous
+                    # drop instead, which already holds the value.
                     statements.append(PlaceIR(
                         name=f"op_{i}_relay_tap", tile_name="ram_flowing", row=relay_row, col=relay_col,
                         fields=[FieldIR("in", "n"), FieldIR("out", "e")],
@@ -1182,10 +1206,14 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     # short of it -- confirmed the hard way: an
                     # earlier draft placed it at `diff_col - 1`,
                     # delivering to an empty cell instead of the diff
-                    # cell's own real south input.
+                    # cell's own real south input. Real, #713's own
+                    # extension: routing_mask ALSO includes east
+                    # (continuing the daisy chain onward) unless this
+                    # is genuinely the last consumer in its own
+                    # producer's own chain.
                     statements.append(PlaceIR(
                         name=f"op_{i}_relay_drop", tile_name="nano_hold_trigger", row=relay_row, col=relay_col,
-                        fields=[FieldIR("out", "n")],
+                        fields=[FieldIR("out", "n" if is_last_in_chain else ["n", "e"])],
                     ))
                 else:
                     statements.append(PlaceIR(

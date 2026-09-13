@@ -9134,3 +9134,55 @@ remaining gap than the one this entry closes.
 
 **Real, full regression:** 2 tests added, 1 obsolete test replaced,
 723 passed + 1 skipped overall (was 722), zero failures elsewhere.
+
+## 713. `#701`'s own "at most one consumer per producer" restriction lifted for real -- `#706`'s own proven daisy-chain mechanism wired into the actual frontend. A producer's result can now be tapped by any number of later, non-adjacent DAG-referencing consumers. Worked correctly on the first real attempt; one real bug found was in the test script checking it, not the mechanism itself. (Alan/Claude, 2026-09-08)
+
+**The real change:** the pre-pass (`_compute_needs_relay_tap`) now
+returns, per producer, the FULL, ORDERED list of every later consumer
+that references it, not just a boolean "does someone need this" --
+letting the main loop decide, for each drop in a chain, whether it's
+the LAST one (routing_mask=`["n"]` only) or not (`["n","e"]`,
+continuing the daisy chain, `#706`'s own real mechanism) correctly the
+first time, with no need to go back and modify an already-emitted
+drop. `tapped_producers` changed from a rejection set to a real
+tracker of each producer's own current chain-end column, so the
+SECOND (and later) consumer's own relay starts from the PREVIOUS
+drop's position, not the producer's own original tap.
+
+**The real overlap check needed one precise, deliberate exception:**
+two DAG references sharing the SAME producer are not a real collision
+(they're the same, intentional daisy chain) -- only ranges belonging
+to genuinely DIFFERENT producers may not overlap, confirmed by keeping
+the existing, real row-2 geometric constraint (`#701`) for everything
+else unchanged.
+
+**Real, full verification:** a 2-consumer daisy chain (the exact
+scenario `#701` had to reject) now compiles and computes correctly on
+the very first real attempt; a 3-consumer chain also correct on the
+first attempt, confirming the mechanism genuinely generalizes past
+`#706`'s own 2-consumer proof, not just replicates it once. One real,
+separate finding along the way: a producer that is ALSO itself a
+consumer of an earlier value has its own two DAG ranges genuinely
+collide at the shared column (its own result position) -- confirmed
+this is a real, correct rejection of a real geometric conflict, not a
+new bug, and left as-is (matching the same honest row-2 constraint
+this whole mechanism already lives under).
+
+**One real bug found, in the verification, not the mechanism:** an
+early manual test read `ram_data_reg` on a cell whose own `core` was
+`adder`, always giving the field's own default (0) regardless of the
+real computed value -- confirmed by re-checking with the correct
+field (`adder_out_buffer`) and getting the right answer immediately.
+A reminder that "got the wrong number" and "the mechanism is broken"
+are not the same diagnosis, worth checking which one it actually is
+before assuming the harder explanation.
+
+**Real, honest closure:** general DAG routing (`add`/`sub`, and every
+real `icmp` predicate, `#710`/`#712`) now supports any number of
+non-adjacent consumers per producer, not just one. The remaining real
+gap is `select`/`shl`/`lshr`'s own separate result-row/topology
+convention -- a different problem, not attempted here.
+
+**Real, full regression:** 2 tests added (a 2-consumer regression
+marker and a 3-consumer test), 1 obsolete test replaced, 724 passed +
+1 skipped overall (was 723), zero failures elsewhere.
