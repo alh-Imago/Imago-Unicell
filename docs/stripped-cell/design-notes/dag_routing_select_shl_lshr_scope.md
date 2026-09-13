@@ -1,5 +1,19 @@
 # DAG routing for select/shl/lshr — real scoping, no build (Alan/Claude, 2026-09-08)
 
+## Update (#716/#717): shl/lshr done; select's cond built, wired, and confirmed structurally unreachable
+
+`shl`/`lshr` as DAG consumers: done, tested, correct (`#716`). `select`'s
+own `cond` as a DAG consumer of a non-adjacent icmp: the composed tile
+was restructured, the mechanism built and wired correctly, but a real,
+honest, structural finding closes it out -- no valid LLVM IR program
+in this frontend can currently reach that path end-to-end (`select`
+must be last, and nothing i1-typed can bridge back to i32 for an
+intervening instruction, so any real gap instruction unavoidably
+overlaps `select`'s own reference under the row-2 constraint). See
+`#717` for the full account. `select` as a DAG source remains
+structurally blocked as corrected below. The rest of this note is the
+original scoping pass, kept for its own real reasoning.
+
 ## Real status of general DAG routing so far
 
 `add`/`sub` and every real `icmp` predicate (`slt`/`sle`/`sgt`/`sge`/
@@ -32,19 +46,27 @@ effort as `add`/`sub` did (`#701`) -- likely the smallest of the
 three real remaining gaps.
 
 ## `select` as a DAG reference SOURCE (its own result tapped later)
-## — likely easy, for a real, specific reason
+## — CORRECTION (`#716`): this is not actually a small, separate task
+## at all. It's structurally blocked, independent of anything about
+## `or_gate`'s own ports.
 
-`select`'s own real result lives at `or_gate`'s output. `or_gate` is
-a `nano_gate` core -- confirmed directly, these have no `upstream_mask`
-at all (accept from any wired neighbor) and their own `routing_mask`
-is already a real, multi-bit field, matching the SAME "fan out to an
-extra direction" pattern already used for `add`/`sub`'s own producer
-side (`FieldIR("out", ["e","s"] if ... else "e")`, `#701`).
+Confirmed directly, missed in the first pass of this note: `select`
+is ALREADY, hard-restricted to be the FINAL instruction before `ret`
+(the exact same real restriction `eq`/`ne` has, `#668`) -- nothing can
+ever come AFTER `select` in this frontend's own current design, so
+nothing could ever reference its result non-adjacently in the first
+place. The `or_gate`/`nano_gate` fan-out observation below is real,
+but moot until/unless `select`'s own "must be last" restriction is
+separately lifted (its own real, larger task -- select's own result
+lives on a different physical row than the ordinary chain convention,
+the same real reason `eq`/`ne` has this restriction).
 
-**Real, honest expectation, not yet verified:** tapping `select`'s own
-result for a later DAG reference is plausibly a small, additive
-change -- add south to `or_gate`'s own routing_mask when needed, the
-same real mechanism already proven elsewhere.
+`or_gate` is a `nano_gate` core -- confirmed to have no `upstream_mask`
+at all (accepts from any wired neighbor) and an already multi-bit
+`routing_mask`, matching the same real fan-out pattern already proven
+for `add`/`sub`'s own producer side. If `select`-mid-chain is ever
+built, tapping its own result should be a small, additive change on
+top of that -- but that's a real precondition, not a detail.
 
 ## `select`'s own `cond` as a DAG reference CONSUMER — the real hard
 ## case, structurally identical to `icmp_eq`/`icmp_ne`'s own problem

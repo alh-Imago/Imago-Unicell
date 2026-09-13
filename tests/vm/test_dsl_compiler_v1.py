@@ -917,9 +917,9 @@ def test_dsl_can_place_select_with_preload_params():
     icm, diags = compile_source(src)
     assert diags == []
     assert icm is not None
-    assert len(icm.records) == 10
+    assert len(icm.records) == 11   # points.md #716: +1 for the new fanout cell
     preloaded = {(r.row, r.col): r.preload_value for r in icm.records if r.preload_value is not None}
-    assert preloaded == {(0, 0): 0, (3, 0): 0xFFFFFFFF, (0, 1): 42, (3, 1): 7}
+    assert preloaded == {(0, 0): 0, (3, 1): 0xFFFFFFFF, (0, 2): 42, (3, 2): 7}
 
 
 def test_dsl_placed_select_runs_correctly_end_to_end():
@@ -941,8 +941,8 @@ def test_dsl_placed_select_runs_correctly_end_to_end():
     assert session.grid.cells[(0, 0)].freeze_in is False  # already released on load
     session.tick(2)
     session.grid.cells[(1, 0)].deliver({W: 1}, None)
-    session.tick(8)
-    assert cell_at(session.grid, 1, 2)["nano"]["out_buffer"] == 42
+    session.tick(10)
+    assert cell_at(session.grid, 1, 3)["nano"]["out_buffer"] == 42
 
 
 def test_dsl_select_missing_true_val_gives_a_real_diagnostic():

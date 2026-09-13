@@ -1484,3 +1484,69 @@ def test_shift_dag_reference_real_sweep():
                       ("lshr", -5, 4), ("shl", 0, 0), ("lshr", 2147483647, 1)]:
         got, expected = _run_shift_dag(op, x, n)
         assert got == expected, f"{op} x={x} n={n}: got {got}, expected {expected}"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #717: select's own cond extended to support a non-adjacent
+# DAG reference to an earlier icmp, reusing the same real
+# `_build_dag_relay` mechanism as add/sub/icmp/shl/lshr. The composed
+# tile restructuring (a new `fanout` subcell freeing `mask`'s own
+# south port, the same real fix shape as `#712`'s for icmp_eq/icmp_ne)
+# is genuinely correct and wired -- but a real, honest, structural
+# finding: no valid LLVM IR program in this frontend can currently
+# REACH this path end-to-end. select must be the final instruction, so
+# a non-adjacent cond needs >=1 real instruction between the icmp and
+# select -- but nothing i1-typed can feed real i32 arithmetic (zext
+# isn't supported), so that instruction must itself be a DAG reference
+# to something EARLIER than the icmp, and its own relay lane
+# unavoidably straddles the icmp's own column, genuinely colliding
+# with select's own reference under the real row-2 constraint (#701).
+# Confirmed by exhausting every real ordering that could plausibly
+# avoid this. Tested here as the real, observable overlap rejection
+# this structural gap actually produces.
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_select_ordinary_cond_still_works_after_restructuring():
+    # Real regression check: #717's own restructuring of the select
+    # composed tile (freeing mask's own south port) must not disturb
+    # the ordinary, adjacent case at all.
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %cond = icmp slt i32 %x, 20
+      %r = select i1 %cond, i32 42, i32 7
+      ret i32 %r
+    }
+    """
+    for x, expected in [(3, 42), (30, 7)]:
+        icm, diagnostics, info = compile_llvm_ir(ir, {"x": x})
+        assert icm is not None, diagnostics
+        grid = SuperGrid(icm.records)
+        for row, col, value in info.injections:
+            grid.inject(row, col, value)
+        for _ in range(15):
+            grid.tick()
+        cell = grid.cells[info.result_cell]
+        assert cell._nano.out_buffer == expected == info.expected_result
+
+
+def test_select_cond_dag_reference_hits_the_real_structural_overlap():
+    # Real, honest documentation of #717's own structural finding: any
+    # instruction between a non-adjacent icmp and select must itself be
+    # a DAG reference to something earlier, which unavoidably overlaps
+    # select's own reference under the real row-2 constraint (#701) --
+    # confirmed as an actual, observable rejection, not silently wrong
+    # behavior.
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 5
+      %cond1 = icmp slt i32 %t1, 20
+      %gap = add i32 %t1, 999
+      %r = select i1 %cond1, i32 42, i32 7
+      ret i32 %r
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 3})
+    assert icm is None
+    assert any("overlaps an earlier one" in d.problem for d in diagnostics)

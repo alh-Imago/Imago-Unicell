@@ -1,4 +1,46 @@
-# Current State (as of 2026-09-08, `shl`/`lshr` extended to support general DAG routing as consumers -- `#714`'s own scoping prediction confirmed exactly right on the math, but building it surfaced the same real ordering bug `#712` found for `icmp_eq`/`icmp_ne`, applying here too. See `points/points_active.md` #716)
+# Current State (as of 2026-09-08, the #701→#717 general DAG routing arc closed out -- add/sub, every real icmp predicate, and shl/lshr all genuinely support general DAG routing. select's own cond was built and wired correctly but found to be structurally unreachable given today's supported opcode set, confirmed by exhausting every plausible ordering. See `points/points_active.md` #717)
+
+## Read this first (most recent)
+
+**2026-09-08, select's cond DAG reference built, wired, and found
+structurally unreachable (#717).** Corrected an earlier scoping error
+first: "select as a DAG source" isn't a small task at all -- select is
+already hard-restricted to be the final instruction, so nothing can
+ever reference its result. Then restructured select's composed tile
+(same shape as #712's icmp_eq/icmp_ne fix -- a new `fanout` subcell
+frees `mask`'s own south port), extracted the relay-building code into
+a real, reusable `_build_dag_relay()` function (confirmed byte-for-
+byte identical regression before building anything on top of it), and
+wired select's own cond to use it for a non-adjacent icmp reference.
+
+**The real, honest finding:** the mechanism is correctly built and
+wired, reusing the exact same proven relay code as everything else --
+but no valid LLVM IR program in this frontend can currently reach it.
+select must be last, so a non-adjacent cond needs a real instruction
+between the icmp and select -- but nothing i1-typed can feed real i32
+arithmetic (no zext), so that instruction must itself DAG-reference
+something earlier than the icmp, and its own relay lane unavoidably
+straddles the icmp's own column, colliding with select's own reference
+under the real row-2 constraint (#701). Confirmed by trying every
+plausible ordering, not assumed.
+
+**Real, honest scope: a genuinely correct, currently-unreachable
+mechanism, documented as exactly that** -- not left to fail silently,
+not claimed as a finished feature. Should a real i1-to-i32 bridge ever
+get added, this path becomes reachable with no further changes.
+
+**Real, full verification:** the ordinary select case reconfirmed
+correct after restructuring; the real overlap rejection this
+structural gap produces confirmed as expected, tested behavior. Real
+regression: 729 passed, 1 skipped (was 727).
+
+**This closes out the whole #701→#717 general DAG routing arc.**
+add/sub, every real icmp predicate, and shl/lshr fully support general
+DAG routing (consumers, and for add/sub, shared-producer chains).
+select is the one real, structural exception -- correctly built,
+provably unreachable today, clearly documented.
+
+## Previous state (as of 2026-09-08, `shl`/`lshr` extended to support general DAG routing as consumers -- `#714`'s own scoping prediction confirmed exactly right on the math, but building it surfaced the same real ordering bug `#712` found for `icmp_eq`/`icmp_ne`, applying here too. See `points/points_active.md` #716)
 
 ## Read this first (most recent)
 

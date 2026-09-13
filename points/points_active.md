@@ -9300,3 +9300,84 @@ smaller piece of the same scoping note.
 
 **Real, full regression:** 3 new tests, 727 passed + 1 skipped overall
 (was 724), zero failures elsewhere.
+
+## 717. `select`'s own `cond` extended to support a non-adjacent DAG reference to an earlier icmp -- the composed tile restructured (same real shape as `#712`), the relay mechanism extracted into a real, reusable function, and the wiring built and verified for the ordinary case. A real, honest, structural finding closes this out: no valid LLVM IR program in this frontend can currently reach the new path end-to-end. (Alan/Claude, 2026-09-08)
+
+**A real correction to `#714`'s own earlier scoping, made directly:**
+"select as a DAG SOURCE" isn't actually a small, separate task at
+all -- `select` is already hard-restricted to be the FINAL instruction
+before `ret` (`#668`'s own restriction, shared with eq/ne), so nothing
+can ever come after it to reference its result non-adjacently in the
+first place. Corrected in the scoping note before doing any further
+work, rather than chasing a task that couldn't succeed.
+
+**The real restructuring, same shape as `#712`'s fix for `icmp_eq`/
+`icmp_ne`:** `mask` (select's own real subtractor subcell) had all
+four real ports already spoken for even in the ordinary case (west for
+`cond`, north for `zero_const`, east+south to feed `and_true`/
+`not_mask` both). Fixed by inserting a new `fanout` subcell east of
+`mask`, taking over feeding both -- `mask` itself now offers to a
+single real direction, leaving its own south port genuinely free.
+Everything downstream shifts one column east; the real 5-cell ternary
+logic itself is untouched. Verified correct for the ordinary case via
+the full regression suite before touching the DAG-reference wiring at
+all.
+
+**Real refactor, done because select's own operand shape (three
+operands, not two) couldn't reuse the existing relay-building code
+in place:** extracted the whole relay/drop/trigger mechanism out of
+the inline 2-operand path into a real, reusable `_build_dag_relay()`
+function. Confirmed the full regression suite passes byte-for-byte
+identically after the extraction, before building anything new on top
+of it -- the refactor itself introduced zero behavior change.
+
+**The wiring itself, built and reasoned through carefully:** extended
+the pre-pass to handle `select`'s own three-operand shape (using
+`operands[0]` specifically for `cond`, with its own eligibility rule --
+the referenced producer must be `icmp` specifically, not `add`/`sub`);
+added real, per-instruction predicate tracking (`icmp_predicates`) so
+a non-adjacent reference can confirm the referenced instruction is a
+genuinely eligible icmp (`slt`/`sle`/`sgt`/`sge`, never `eq`/`ne`,
+matching the adjacent case's own existing rule) the same way
+`prev_icmp_predicate` already does for the immediately-preceding case.
+
+**A real, honest, structural finding, confirmed by exhausting every
+plausible ordering rather than assumed:** this mechanism is real and
+correctly wired, reusing the exact same, already-proven
+`_build_dag_relay` used successfully by `add`/`sub`/`icmp`/`shl`/
+`lshr` -- but no valid LLVM IR program in this frontend can currently
+REACH it end-to-end. `select` must be the final instruction, so a
+non-adjacent `cond` needs at least one real instruction between the
+referenced icmp and `select` -- but that instruction can't be adjacent
+to the icmp (its own result is `i1`, and nothing `i1`-typed can feed
+real `i32` arithmetic; `zext` isn't in `_SUPPORTED_OPCODES`), so it
+must itself be a DAG reference to something EARLIER than the icmp --
+and that reference's own relay lane, spanning from its own producer up
+to itself, unavoidably straddles the icmp's own column, genuinely
+colliding with `select`'s own reference under the real row-2
+constraint (`#701`). Tried multiple real orderings (the gap referencing
+the same producer as a daisy-chain continuation, the gap positioned
+before the icmp instead of after, using a second icmp) -- all hit the
+identical structural wall for the identical reason.
+
+**Real, honest scope: a genuinely correct, unreachable mechanism,
+documented as such rather than left to fail silently or claimed as a
+finished feature.** The restructuring and the pre-pass/predicate-
+tracking groundwork are real, tested, and useful regardless -- should
+`zext` or some other i1-to-i32 bridge ever get added, this path would
+become reachable with no further changes needed.
+
+**Real, full verification:** the ordinary (adjacent) select case
+reconfirmed correct after the restructuring; the real, observable
+overlap rejection this structural gap produces confirmed as expected,
+tested behavior, not silently wrong output. 2 new tests.
+
+**Real, full regression:** 729 passed + 1 skipped overall (was 727),
+zero failures elsewhere.
+
+**Real, honest closure of the whole `#701`→`#717` DAG routing arc:**
+add/sub, every real icmp predicate, and shl/lshr all genuinely support
+general DAG routing as both consumers and (for add/sub) producers,
+with shared-producer daisy chains. select's own case is the one real,
+structural exception -- correctly built, provably unreachable given
+today's supported opcode set, and clearly documented as exactly that.

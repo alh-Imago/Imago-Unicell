@@ -421,7 +421,7 @@ def test_select_composed_tile_all_four_real_truth_table_cases():
             settle_ticks_before_deliveries=2, settle_ticks_after=10,
         )
         expected = true_val if cond else false_val
-        assert cell_at(grid, 1, 2)["nano"]["out_buffer"] == expected
+        assert cell_at(grid, 1, 3)["nano"]["out_buffer"] == expected
 
 
 def test_select_rejects_missing_true_val_param():
@@ -530,9 +530,9 @@ def test_select_real_file_format_round_trip_via_icm_save_load():
     grid.tick()
     grid.tick()
     grid.cells[(1, 0)].deliver({W: 1}, None)
-    for _ in range(8):
+    for _ in range(10):
         grid.tick()
-    assert cell_at(grid, 1, 2)["nano"]["out_buffer"] == 42
+    assert cell_at(grid, 1, 3)["nano"]["out_buffer"] == 42
 
 
 if __name__ == "__main__":

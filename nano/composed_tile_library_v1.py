@@ -577,25 +577,38 @@ composed_tile_library.register(ComposedTileSpec(
                  "live inputs. 'out' is the real, computed ternary "
                  "result.",
     subcells=[
+        # points.md #716: real restructuring, same shape as #712's own
+        # fix for icmp_eq/icmp_ne -- `mask`'s own four real ports were
+        # already fully spoken for even in the ordinary case (west for
+        # `cond`, north for `zero_const`, east+south to feed
+        # `and_true`/`not_mask` both), leaving no free port for a DAG
+        # relay's own drop. Fixed by inserting `fanout` directly east
+        # of `mask`, taking over feeding BOTH `and_true` (east) and
+        # `not_mask` (south) -- `mask` itself now offers to a single
+        # real direction only, leaving its own south port genuinely
+        # free. Everything downstream shifts one column east to make
+        # room; the real 5-cell ternary logic itself is untouched.
         SubCellPlacement(name="zero_const", offset=(0, 0), tile_name="ram_flowing",
                           internal_directions={"out": "s"}, preload_fixed_value=0),
         SubCellPlacement(name="mask", offset=(1, 0), tile_name="subtractor",
-                          internal_directions={"in_b": "n", "out": ["e", "s"]}),
-        SubCellPlacement(name="not_mask", offset=(2, 0), tile_name="nano_gate",
+                          internal_directions={"in_b": "n", "out": "e"}),
+        SubCellPlacement(name="fanout", offset=(1, 1), tile_name="ram_flowing",
+                          internal_directions={"in": "w", "out": ["e", "s"]}),
+        SubCellPlacement(name="not_mask", offset=(2, 1), tile_name="nano_gate",
                           internal_directions={"out": "e"}, fixed_params={"topology": 0x0BC}),
-        SubCellPlacement(name="notmask_const", offset=(3, 0), tile_name="ram_flowing",
+        SubCellPlacement(name="notmask_const", offset=(3, 1), tile_name="ram_flowing",
                           internal_directions={"out": "n"}, preload_fixed_value=0xFFFFFFFF),
-        SubCellPlacement(name="true_const", offset=(0, 1), tile_name="ram_flowing",
+        SubCellPlacement(name="true_const", offset=(0, 2), tile_name="ram_flowing",
                           internal_directions={"out": "s"}, preload_param_name="true_val"),
-        SubCellPlacement(name="and_true", offset=(1, 1), tile_name="nano_gate",
+        SubCellPlacement(name="and_true", offset=(1, 2), tile_name="nano_gate",
                           internal_directions={"out": "e"}, fixed_params={"topology": 0x007}),
-        SubCellPlacement(name="and_false", offset=(2, 1), tile_name="nano_gate",
+        SubCellPlacement(name="and_false", offset=(2, 2), tile_name="nano_gate",
                           internal_directions={"out": "e"}, fixed_params={"topology": 0x007}),
-        SubCellPlacement(name="false_const", offset=(3, 1), tile_name="ram_flowing",
+        SubCellPlacement(name="false_const", offset=(3, 2), tile_name="ram_flowing",
                           internal_directions={"out": "n"}, preload_param_name="false_val"),
-        SubCellPlacement(name="relay", offset=(2, 2), tile_name="ram_flowing",
+        SubCellPlacement(name="relay", offset=(2, 3), tile_name="ram_flowing",
                           internal_directions={"in": "w", "out": "n"}),
-        SubCellPlacement(name="or_gate", offset=(1, 2), tile_name="nano_gate",
+        SubCellPlacement(name="or_gate", offset=(1, 3), tile_name="nano_gate",
                           internal_directions={}, fixed_params={"topology": 0x024}),
     ],
     external_ports={
