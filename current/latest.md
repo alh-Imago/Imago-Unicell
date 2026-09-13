@@ -1,4 +1,31 @@
-# Current State (as of 2026-09-08, Alan's own real idea verified -- arbitrary-precision "low K bits" extraction via shift-left-then-shift-right, using ONLY the existing shift mechanism, no new RTL. Lifts ashr's own nibble-alignment restriction. Isolated proof only, NOT yet wired into the ashr composition. See `points/points_active.md` #708)
+# Current State (as of 2026-09-08, `ashr`'s own nibble-alignment restriction fully lifted -- `#708`'s double-shift extraction wired into the real composition, supporting the complete 0-31 shift range. Two real bugs found and fixed. See `points/points_active.md` #709)
+
+## Read this first (most recent)
+
+**2026-09-08, `ashr` nibble restriction fully lifted (#709).** `#708`'s
+own double-shift technique swapped in for `nibble_mask` -- a clean
+1:1 replacement (same 5 cells, same columns). Two real bugs found by
+testing, both specific to the K=0 edge case: `subtractor_neg`'s own
+south tap collided with the K=0 zero injection (fixed by making it
+conditional); and a plain relay chain matched by HOP COUNT still
+arrived too early, since adder-based hops take longer per real tick
+than plain relay hops of the same count -- a first fix attempt (hold
++trigger) hit the exact same "long trigger sweeps through an existing
+lane" collision already found once in `#701`'s DAG relay work,
+confirming that failure mode generalizes. Real, honest step back:
+for K=0 the correction is always 0, so `subtract_correction` doesn't
+need to exist for that case at all -- simpler and correct by
+construction rather than by careful timing.
+
+**Real, full verification: a complete 384-case sweep across the
+entire real 0-31 shift range** (not just nibble-aligned), including
+`INT32_MIN` and the `-16`/`-17` boundary, zero mismatches.
+
+**Real, honest closure:** `ashr` now supports the full real LLVM
+semantic range with no restriction at all. Real regression: 718
+passed, 1 skipped (was 717), zero failures.
+
+## Previous state (as of 2026-09-08, Alan's own real idea verified -- arbitrary-precision "low K bits" extraction via shift-left-then-shift-right, using ONLY the existing shift mechanism, no new RTL. Lifts ashr's own nibble-alignment restriction. Isolated proof only, NOT yet wired into the ashr composition. See `points/points_active.md` #708)
 
 ## Read this first (most recent)
 

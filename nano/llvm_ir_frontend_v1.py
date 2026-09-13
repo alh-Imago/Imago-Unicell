@@ -616,35 +616,20 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 ))
                 return None, diagnostics, None
 
-            # points.md #705: a real, found-empirically limit, not a
-            # design choice -- the lost-bit detection stage (#702) uses
-            # `nibble_mask`, whose own real hardware granularity is 4
-            # bits (confirmed directly: a first attempt at shift amount
-            # 1 gave a silently wrong answer, -3 instead of the real
-            # -3... actually off by one the OTHER way, -2 not -3 --
-            # exactly the class of silent error this whole mechanism
-            # exists to prevent). Extracting a PRECISE, non-nibble-
-            # aligned bit range needs a real, separate technique (the
-            # same kind of two-pass mask/shift trick MIF's own mantissa
-            # extraction used, #697) -- not attempted here. Scoped
-            # honestly: only nibble-aligned amounts are supported this
-            # pass, with a real, specific diagnostic for anything else,
-            # rather than a silently wrong answer for most of 0-31.
-            if second_value % 4 != 0:
-                diagnostics.append(_diag(
-                    problem=f"ashr amount {second_value} is not nibble-aligned "
-                             f"(not a multiple of 4)",
-                    what=f"lowering instruction {i + 1} ({str(instr).strip()})",
-                    why="the real lost-bit-detection stage this composition depends on "
-                        "(#702) uses nibble_mask, whose own real hardware granularity is "
-                        "4 bits -- it cannot precisely extract a non-nibble-aligned low-bit "
-                        "range (confirmed directly: an early attempt at amount=1 gave a "
-                        "silently wrong result). Extracting an arbitrary bit range needs a "
-                        "real, separate technique, not yet built (#705's own honest scope).",
-                    suggestion="only shift amounts 0, 4, 8, 12, 16, 20, 24, 28 are currently "
-                               "supported for ashr",
-                ))
-                return None, diagnostics, None
+            # points.md #705->#708->#709: the real limit found in #705
+            # (`nibble_mask`'s own 4-bit hardware granularity can't
+            # precisely extract a non-nibble-aligned low-bit range) is
+            # now lifted -- Alan's own real idea, verified in #708:
+            # shifting LEFT by (32-K) discards everything except the
+            # low K bits (zero-filled off the top), and shifting the
+            # SAME amount back RIGHT restores their position with the
+            # same zero-fill clearing everything above bit K-1. Uses
+            # ONLY the existing shift mechanism (#690), already proven
+            # at full 0-31 bit precision -- no new RTL needed. The
+            # real, honest edge case: K=0 needs no chain at all (32-0
+            # is out of the real 0-31 shift range, and the answer is
+            # already known at compile time -- zero bits are ever
+            # shifted out, so the correction is always 0).
 
             def _real_ashr(x: int, n: int) -> int:
                 x &= 0xFFFFFFFF
@@ -656,8 +641,8 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             known_values[instr.name] = result
 
             coarse, fine = _decompose_shift(second_value)
-            nibbles_to_keep = second_value // 4
-            nibble_mask = (0xFF << nibbles_to_keep) & 0xFF
+            if second_value > 0:
+                extract_coarse, extract_fine = _decompose_shift(32 - second_value)
 
             base_col = col_cursor
             if i == 0:
@@ -700,7 +685,8 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             # draft caught a second time). ──
             statements.append(PlaceIR(
                 name=f"op_{i}_subtractor_neg", tile_name="subtractor", row=1, col=base_col + 2,
-                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"), FieldIR("out", ["e", "s"])],
+                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "n"),
+                        FieldIR("out", "e" if second_value == 0 else ["e", "s"])],
             ))
             statements.append(PlaceIR(
                 name=f"op_{i}_zero_for_negate", tile_name="ram_flowing", row=0, col=base_col + 2,
@@ -728,36 +714,60 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 fields=[FieldIR("in", "n"), FieldIR("out", "s")],
             ))
             injections.append((0, base_col + 5, 0))
-            statements.append(PlaceIR(
-                name=f"op_{i}_subtract_correction", tile_name="subtractor", row=1, col=base_col + 6,
-                fields=[FieldIR("in_a", "w"), FieldIR("in_b", "s"), FieldIR("out", "e")],
-            ))
-            # ── lost-bit spine (row 2): mask the low N bits about to
-            # be shifted out, comparator(threshold=1) gives the exact
-            # 0/1 correction directly (#702). Two extra stagger hops
-            # so the correction arrives at subtract_correction strictly
-            # AFTER the shifted value, guaranteeing correct A/B order. ──
-            statements.append(PlaceIR(
-                name=f"op_{i}_lost_bit_masker", tile_name="ram_flowing", row=2, col=base_col + 2,
-                fields=[FieldIR("in", "n"), FieldIR("out", "e"),
-                        FieldIR("addon.mask_en", 1), FieldIR("addon.nibble_mask", nibble_mask)],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_lost_bit_comparator", tile_name="comparator", row=2, col=base_col + 3,
-                fields=[FieldIR("in", "w"), FieldIR("out", "e"), FieldIR("threshold", 1)],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_lost_bit_stagger_a", tile_name="ram_flowing", row=2, col=base_col + 4,
-                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_lost_bit_stagger_b", tile_name="ram_flowing", row=2, col=base_col + 5,
-                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}_lost_bit_stagger_c", tile_name="ram_flowing", row=2, col=base_col + 6,
-                fields=[FieldIR("in", "w"), FieldIR("out", "n")],
-            ))
+            if second_value == 0:
+                # Real, much simpler fix: for K=0 the correction is
+                # ALWAYS 0 (zero bits are ever shifted out), so
+                # subtract_correction doesn't need to exist at all --
+                # re_negate's own output can pass straight through.
+                # An earlier draft tried to build the lost-bit
+                # machinery anyway and feed it a compile-time zero,
+                # but hit a real timing mismatch (a plain relay chain
+                # and an adder-based chain of the same HOP COUNT don't
+                # take the same real TICK COUNT) that needed
+                # increasingly complex fixes for no real benefit --
+                # skipping the machinery entirely is both simpler and
+                # correct by construction.
+                statements.append(PlaceIR(
+                    name=f"op_{i}_subtract_correction", tile_name="ram_flowing", row=1, col=base_col + 6,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                ))
+            else:
+                statements.append(PlaceIR(
+                    name=f"op_{i}_subtract_correction", tile_name="subtractor", row=1, col=base_col + 6,
+                    fields=[FieldIR("in_a", "w"), FieldIR("in_b", "s"), FieldIR("out", "e")],
+                ))
+            # ── lost-bit spine (row 2): real, arbitrary-precision
+            # extraction (#708) -- shift left by (32-K) discards
+            # everything except the low K bits, shift right by the
+            # same amount restores them with correct zero-fill.
+            # comparator(threshold=1) then gives the exact 0/1
+            # correction directly, same as before (#702). For K=0, no
+            # spine is built at all -- see the note above. ──
+            if second_value > 0:
+                statements.append(PlaceIR(
+                    name=f"op_{i}_lost_bit_shift_left", tile_name="ram_flowing", row=2, col=base_col + 2,
+                    fields=[FieldIR("in", "n"), FieldIR("out", "e"),
+                            FieldIR("addon.shift_en", 1), FieldIR("addon.direction", 0),
+                            FieldIR("addon.shift_amt", extract_coarse), FieldIR("addon.shift_fine", extract_fine)],
+                ))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_lost_bit_catch1", tile_name="ram_flowing", row=2, col=base_col + 3,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                ))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_lost_bit_shift_right", tile_name="ram_flowing", row=2, col=base_col + 4,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "e"),
+                            FieldIR("addon.shift_en", 1), FieldIR("addon.direction", 1),
+                            FieldIR("addon.shift_amt", extract_coarse), FieldIR("addon.shift_fine", extract_fine)],
+                ))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_lost_bit_catch2", tile_name="ram_flowing", row=2, col=base_col + 5,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+                ))
+                statements.append(PlaceIR(
+                    name=f"op_{i}_lost_bit_comparator", tile_name="comparator", row=2, col=base_col + 6,
+                    fields=[FieldIR("in", "w"), FieldIR("out", "n"), FieldIR("threshold", 1)],
+                ))
             # ── positive/zero path (x>=0): no correction is ever
             # needed (logical and arithmetic shift are identical for
             # non-negative values) -- a genuinely shorter route, padded

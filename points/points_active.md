@@ -8905,3 +8905,52 @@ here (usage constraint) at a clean, fully-tested point.
 
 Real, full regression: 3 new tests, 717 passed + 1 skipped (was 714),
 zero failures elsewhere.
+
+## 709. `#708`'s own double-shift extraction wired into the real `ashr` composition -- the nibble-alignment restriction `#705` had to impose honestly is now fully lifted. `ashr` supports the complete, real 0-31 shift range. Two real, non-obvious bugs found and fixed by actually testing, matching this whole session's own established discipline. (Alan/Claude, 2026-09-08)
+
+**The real swap, a clean 1:1 replacement:** the old 5-cell lost-bit
+spine (`nibble_mask` masker + comparator + 3 stagger relays) replaced
+with a new 5-cell spine (shift-left + catch + shift-right + catch +
+comparator, `#708`'s own real technique) at the exact same column
+positions -- no other geometry needed to change.
+
+**Two real bugs found, both specific to the K=0 edge case (32-0=32 is
+out of the real 0-31 shift range, needing its own special handling):**
+1. `subtractor_neg`'s own south tap was left unconditionally active --
+   for K=0, a compile-time-zero injection aimed at the lost-bit spine
+   landed on the SAME cell subtractor_neg's own south offer already
+   reaches, capturing the wrong value entirely. Fixed by making the
+   south tap conditional on `second_value > 0`.
+2. **The real, substantive one:** even once that collision was fixed,
+   a plain relay chain built to MATCH the real chain's own hop count
+   still arrived at `subtract_correction` too early, reversing which
+   operand became A vs B -- because an adder-based hop (waiting for
+   two real operands) takes longer per real TICK than a plain relay
+   hop of the same HOP COUNT. A first attempt to fix this properly
+   (holding the zero via `nano_hold_trigger`, triggered on a
+   deliberately long relay) hit the exact same "long trigger chain
+   sweeps through columns an earlier lane already occupies" collision
+   already found once in `#701`'s own DAG relay work -- confirming
+   that failure mode generalizes beyond DAG routing specifically.
+   Real, honest step back rather than compounding fixes: for K=0 the
+   correction is ALWAYS 0 (zero bits are ever shifted out), so
+   `subtract_correction` doesn't need to exist at all for that case --
+   `re_negate`'s own output passes straight through instead. Simpler,
+   and correct by construction, not by careful timing.
+
+**Real, full verification:** a complete 384-case sweep -- 12
+representative values (including `INT32_MIN`, `-1`, the `-16`/`-17`
+boundary, `2147483647`) across the ENTIRE real 0-31 shift range, not
+just nibble-aligned amounts -- against Python's own real signed `>>`,
+zero mismatches. `test_ashr_non_nibble_aligned_amount_gives_a_specific
+_diagnostic` (now obsolete, since amount=1 works) replaced with a real
+regression marker confirming the opposite, matching `#705`'s own
+earlier precedent for amount=4. A new full-sweep test added.
+
+**Real, honest closure:** `ashr` now supports the complete, real LLVM
+semantic range (0-31) with no scope restriction at all -- the
+nibble-alignment limitation named in `#705` is fully closed, not
+narrowed further.
+
+**Real, full regression:** 2 tests added, 1 obsolete test replaced,
+718 passed + 1 skipped overall (was 717), zero failures elsewhere.

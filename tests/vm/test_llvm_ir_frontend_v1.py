@@ -1215,7 +1215,11 @@ def test_ashr_real_sweep_nibble_aligned_amounts():
             assert out == expected, f"x={x} n={n}: got {out:#x}, expected {expected:#x}"
 
 
-def test_ashr_non_nibble_aligned_amount_gives_a_specific_diagnostic():
+def test_ashr_amount_1_no_longer_rejected():
+    # points.md #709: the nibble-alignment restriction #705 had to
+    # impose is lifted by #708's own real double-shift extraction
+    # technique -- kept as a real regression marker, matching #705's
+    # own earlier "amount 4 no longer rejected" test.
     ir = """
     define i32 @f(i32 %x) {
     entry:
@@ -1224,8 +1228,22 @@ def test_ashr_non_nibble_aligned_amount_gives_a_specific_diagnostic():
     }
     """
     icm, diagnostics, info = compile_llvm_ir(ir, {"x": -5})
-    assert icm is None
-    assert any("not nibble-aligned" in d.problem for d in diagnostics)
+    assert icm is not None, diagnostics
+
+
+def test_ashr_real_full_0_to_31_sweep():
+    def real_ashr(x, n, bits=32):
+        x &= (1 << bits) - 1
+        if x >= (1 << (bits - 1)):
+            x -= (1 << bits)
+        return (x >> n) & ((1 << bits) - 1)
+
+    for x in [-80, 20, 0, -5, -2147483648, -1, -16, -17, -100, 5, 100, 2147483647]:
+        for n in range(0, 32):
+            out, valid, info = _run_ashr_frontend(x, n)
+            expected = real_ashr(x, n)
+            assert valid is True, f"x={x} n={n}: not valid"
+            assert out == expected, f"x={x} n={n}: got {out:#x}, expected {expected:#x}"
 
 
 def test_ashr_chained_after_add():
