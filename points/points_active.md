@@ -8954,3 +8954,66 @@ narrowed further.
 
 **Real, full regression:** 2 tests added, 1 obsolete test replaced,
 718 passed + 1 skipped overall (was 717), zero failures elsewhere.
+
+## 710. General DAG routing extended to `icmp`'s own `slt`/`sle`/`sgt`/`sge` predicates -- Alan's own directed order: use `#700`'s mechanism, and if it becomes difficult, fall back to a delay cell. It didn't become difficult -- confirmed empirically that the natural timing already gives correct results, no delay cell needed. A real, separate, pre-existing sign bug found and fixed along the way. (Alan/Claude, 2026-09-08)
+
+**Real, deliberate order, chosen precisely because it turned out to
+matter: test empirically before building the fallback.** `sge`/`sgt`
+lower onto the commutative "adder"+negate trick (`#611`), exactly like
+`add`/`sub` -- zero new timing work needed, confirmed directly against
+`_ICMP_LOWERING`'s own table before assuming otherwise. `slt`/`sle` use
+the real, order-sensitive "subtractor" tile (`A-B`, not commutative) --
+here, which operand arrives first genuinely matters, and Alan's own
+directed fallback ("move the selector back a cell, introduce a delay
+cell, so you know they're in order") was the real, ready answer if
+needed.
+
+**It wasn't needed.** Tested directly first: the north constant is a
+near-instant compile-time injection; the DAG-relayed value must travel
+the full tap-relay-drop-trigger chain, genuinely slower to arrive even
+with zero extra delay. It naturally lands second every time -- exactly
+the role `west` already plays in the ordinary, non-DAG case (the real
+docstring already on this code names this precisely: "north-arrives-
+first minus west-arrives-second"). Confirmed empirically across a real
+168-case sweep before concluding this, not assumed from the analysis
+alone.
+
+**A real, separate, pre-existing bug found and fixed along the way,
+unrelated to DAG routing itself:** `known_values` stores every result
+as unsigned 32-bit, but `slt`/`sle`/`sgt`/`sge` need a genuinely SIGNED
+comparison for their own compile-time `expected_result` tracking --
+confirmed this bug already existed even WITHOUT any DAG reference at
+all (a plain `icmp slt i32 %x, -2147483643` with `x=105` already gave
+the wrong `expected_result`). Never triggered before this work, since
+no earlier real icmp test happened to compare against a value that was
+both computed AND negative. Fixed with a real, explicit
+`_as_signed32()` conversion before the comparison.
+
+**A second, real, separate, out-of-scope issue found and left
+untouched, flagged plainly:** `icmp`'s subtractor-based lowering can
+silently overflow when the two operands span a wide range near the
+INT32 boundary (confirmed directly, independent of DAG routing: a
+plain, non-DAG `icmp slt` with operands ~2^31 apart gives a wrong
+answer via raw 32-bit subtraction wraparound). Real, pre-existing,
+deeper limitation of the current icmp lowering technique itself, not
+attempted here -- a real, separate follow-on item.
+
+**`eq`/`ne` explicitly, honestly excluded from this pass, not silently
+broken:** despite `#668`'s own real, sign-agnostic diff==0 test making
+them THEORETICALLY eligible for the same "arrival order doesn't
+matter" reasoning, `eq`/`ne`'s own separate XOR-gate topology (row 2,
+not the same shape as the subtractor-based predicates) was found not
+to correctly receive a DAG-relayed value -- confirmed directly (the
+XOR gate's own second input never even captures). A real, distinct
+gap from the ordering question this entry solves, named plainly with
+its own specific diagnostic rather than left to fail silently.
+
+**Real, full verification:** a 168-case sweep across all four order-
+predicates (`slt`/`sle`/`sgt`/`sge`), safe value ranges, against an
+independently-computed correct answer, zero mismatches. Real, specific
+diagnostics confirmed for `eq`/`ne` (out of scope) and add/sub's own
+existing DAG path confirmed unaffected (regression).
+`tests/vm/test_llvm_ir_frontend_v1.py`, 4 new tests.
+
+**Real, full regression:** 722 passed + 1 skipped overall (was 718),
+zero failures elsewhere.

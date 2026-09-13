@@ -135,7 +135,7 @@ def _compute_needs_relay_tap(body_instructions) -> Set[str]:
     needs_tap: Set[str] = set()
     for idx, instr in enumerate(body_instructions):
         producer_opcode[instr.name] = instr.opcode
-        if idx == 0 or instr.opcode not in ("add", "sub"):
+        if idx == 0 or instr.opcode not in ("add", "sub", "icmp"):
             continue
         operands = list(instr.operands)
         if len(operands) != 2:
@@ -541,6 +541,39 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 # and-add trick), so which of the diff cell's two real
                 # operands arrives first doesn't affect correctness.
                 is_dag_reference = True
+            elif (first_is_ref and first_name in needs_relay_tap and instr.opcode == "icmp"
+                    and _icmp_predicate(instr) in ("sge", "sgt")):
+                # points.md #710: sge/sgt lower onto the commutative
+                # "adder"+negate trick (#611), exactly like add/sub --
+                # ZERO new timing work needed. eq/ne deliberately
+                # excluded here even though #668's own real diff==0
+                # test is ALSO sign-agnostic: found directly that eq/
+                # ne's own separate XOR-gate topology doesn't correctly
+                # receive a DAG-relayed value yet (the XOR gate's own
+                # second real input never captures), a real, distinct
+                # gap from the ordering question this entry is about --
+                # not attempted here.
+                is_dag_reference = True
+            elif (first_is_ref and first_name in needs_relay_tap and instr.opcode == "icmp"
+                    and _icmp_predicate(instr) in ("slt", "sle")):
+                # points.md #710: slt/sle use the real, order-sensitive
+                # "subtractor" tile (A-B, not commutative) -- unlike
+                # add/sub/sge/sgt, which operand arrives first at the
+                # diff cell genuinely matters here. Confirmed EMPIRICALLY
+                # rather than assumed, per Alan's own real fallback plan
+                # ("move the selector back a cell, introduce a delay
+                # cell, so you know they're in order") -- tested first
+                # to see whether the natural timing already gives the
+                # right order before building anything extra. It does:
+                # the north constant is a near-instant injection, and
+                # the DAG-relayed value is genuinely slower to arrive
+                # even with no extra delay at all (it must travel the
+                # full tap-relay-drop-trigger chain), so it naturally
+                # lands second every time -- exactly the role `west`
+                # already plays for the ordinary, non-DAG case. No
+                # delay cell needed after all; the fallback stayed
+                # unused because the direct approach already worked.
+                is_dag_reference = True
             else:
                 why = ("this real, first frontend slice only supports a genuine LINEAR "
                        "ACCUMULATION CHAIN, not a general DAG (#611/#610) -- an instruction "
@@ -553,16 +586,17 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     # just not one DAG references are supported for yet
                     # (either the consumer or the producer is outside
                     # add/sub's own real commutative shape).
-                    why = ("general DAG routing (#701) is real but deliberately narrow so far: "
-                           "only an add/sub instruction referencing an EARLIER add/sub result is "
-                           "supported (both lower onto the real, commutative adder tile, so "
-                           "operand arrival order doesn't affect correctness) -- icmp's own "
-                           "subtractor-based predicates are genuinely order-sensitive, and "
-                           "select/shl/lshr each have their own real, separate result-row "
-                           "convention, so none of the four may be a DAG reference source or "
-                           "consumer yet")
-                    suggestion = ("use add/sub on both ends of the reference, or wait for DAG "
-                                  "routing to cover order-sensitive/non-chain-row instructions too")
+                    why = ("general DAG routing (#701/#710) is real but deliberately narrow so "
+                           "far: add/sub, and icmp's slt/sle/sgt/sge predicates, may reference an "
+                           "EARLIER add/sub result -- all lower onto forms where operand arrival "
+                           "order doesn't affect correctness (add/sub/sge/sgt via the commutative "
+                           "adder+negate trick, slt/sle confirmed empirically to work under the "
+                           "natural timing already present). icmp's own eq/ne predicates and "
+                           "select/shl/lshr each have their own real, separate topology/result-row "
+                           "convention not yet accommodated, so none of the three may be a DAG "
+                           "reference source or consumer yet")
+                    suggestion = ("use add/sub/slt/sle/sgt/sge on both ends of the reference, or "
+                                  "wait for DAG routing to cover eq/ne/select/shl/lshr too")
                 diagnostics.append(_diag(
                     problem=f"instruction {i + 1}'s own first operand is {first_name or str(operands[0])!r}, "
                              f"not the immediately preceding instruction's result ({prev_instr_name!r})",
@@ -909,9 +943,21 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             if predicate in _EQ_NE_PREDICATES:
                 result = 1 if (first_value == second_value) == (predicate == "eq") else 0
             else:
+                # points.md #710: a real, pre-existing sign bug found
+                # by DAG-referencing a negative computed value for the
+                # first time -- known_values stores every result as
+                # unsigned 32-bit (the line below masks it), but
+                # slt/sle/sgt/sge need a genuinely SIGNED comparison.
+                # Never triggered before this, since every earlier
+                # icmp test happened to compare against a value that
+                # was never both computed AND negative.
+                def _as_signed32(v: int) -> int:
+                    v &= 0xFFFFFFFF
+                    return v - 0x100000000 if v >= 0x80000000 else v
+                signed_first, signed_second = _as_signed32(first_value), _as_signed32(second_value)
                 result = 1 if {
-                    "sge": first_value >= second_value, "sgt": first_value > second_value,
-                    "slt": first_value < second_value, "sle": first_value <= second_value,
+                    "sge": signed_first >= signed_second, "sgt": signed_first > signed_second,
+                    "slt": signed_first < signed_second, "sle": signed_first <= signed_second,
                 }[predicate] else 0
         else:
             result = first_value + second_value if instr.opcode == "add" else first_value - second_value

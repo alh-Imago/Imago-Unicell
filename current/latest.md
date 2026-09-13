@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-08, `ashr`'s own nibble-alignment restriction fully lifted -- `#708`'s double-shift extraction wired into the real composition, supporting the complete 0-31 shift range. Two real bugs found and fixed. See `points/points_active.md` #709)
+# Current State (as of 2026-09-08, general DAG routing extended to icmp's own slt/sle/sgt/sge predicates -- confirmed empirically that the natural timing already gives correct results, no delay cell needed. A real, separate, pre-existing sign bug found and fixed along the way. See `points/points_active.md` #710)
+
+## Read this first (most recent)
+
+**2026-09-08, DAG routing extended to icmp's order predicates (#710).**
+Alan's own directed order: use `#700`'s mechanism for `slt`/`sle`, and
+if difficult, fall back to a delay cell ("move the selector back a
+cell"). It wasn't needed -- tested empirically first, and the natural
+timing already gives correct results: the north constant's near-
+instant injection naturally arrives first, the DAG-relayed value is
+genuinely slower (must travel the full relay chain) and naturally
+lands second, exactly matching `west`'s own role in the ordinary case.
+`sge`/`sgt` reuse the commutative adder+negate trick with zero new
+work, confirmed against `_ICMP_LOWERING` directly.
+
+**A real, separate, pre-existing sign bug found and fixed:**
+`known_values` stores every result as unsigned 32-bit, but slt/sle/
+sgt/sge need signed comparison for their own compile-time expected-
+result tracking -- confirmed to already exist even without any DAG
+reference, never triggered before since no earlier test compared a
+computed AND negative value. Fixed with explicit sign-conversion.
+
+**Two real things found and left honestly flagged, not fixed here:**
+a separate, pre-existing icmp overflow bug for operands spanning near
+the INT32 boundary (unrelated to DAG routing); and eq/ne's own
+separate XOR-gate topology doesn't yet correctly receive a DAG-relayed
+value -- explicitly excluded with its own diagnostic, not silently
+broken.
+
+**Real, full verification:** 168-case sweep across slt/sle/sgt/sge,
+zero mismatches. Real regression: 722 passed, 1 skipped (was 718).
+
+## Previous state (as of 2026-09-08, `ashr`'s own nibble-alignment restriction fully lifted -- `#708`'s double-shift extraction wired into the real composition, supporting the complete 0-31 shift range. Two real bugs found and fixed. See `points/points_active.md` #709)
 
 ## Read this first (most recent)
 

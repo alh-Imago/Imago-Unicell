@@ -1266,3 +1266,91 @@ def test_ashr_chained_after_add():
     expected = _real_ashr(-200 + 100, 4)
     assert cell.ram_data_valid is True
     assert cell.ram_data_reg == expected == info.expected_result
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #710: general DAG routing extended to icmp's own slt/sle/
+# sgt/sge predicates. sge/sgt reuse the commutative adder+negate trick
+# (#611) with zero new timing work; slt/sle use the real, order-
+# sensitive "subtractor" tile, confirmed EMPIRICALLY (per Alan's own
+# fallback plan) to already work correctly under the natural timing
+# with no delay cell needed -- the north constant's near-instant
+# injection naturally arrives first, the DAG-relayed value naturally
+# arrives second, exactly matching the role `west` already plays for
+# the ordinary, non-DAG case. Also fixes a real, pre-existing, unrelated
+# sign bug found along the way: known_values stores every result as
+# unsigned 32-bit, but slt/sle/sgt/sge need a genuinely signed
+# comparison -- never triggered before this, since no earlier icmp test
+# happened to compare against a value that was both computed AND
+# negative.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _run_icmp_dag(pred, x, threshold, ticks=60):
+    ir = f"""
+    define i1 @f(i32 %x) {{
+    entry:
+      %t1 = add i32 %x, 5
+      %t2 = add i32 %t1, 10
+      %t3 = icmp {pred} i32 %t1, {threshold}
+      ret i1 %t3
+    }}
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": x})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    return cell.cmp_out_buffer, cell.cmp_data_valid, info
+
+
+def _real_signed_icmp(x, threshold, pred):
+    t1 = (x + 5) & 0xFFFFFFFF
+    if t1 >= 0x80000000:
+        t1 -= 0x100000000
+    ops = {"slt": t1 < threshold, "sle": t1 <= threshold, "sgt": t1 > threshold, "sge": t1 >= threshold}
+    return 1 if ops[pred] else 0
+
+
+def test_icmp_slt_dag_reference():
+    out, valid, info = _run_icmp_dag("slt", 3, 20)
+    assert valid is True
+    assert out == 1 == info.expected_result   # t1=8, 8<20
+
+
+def test_icmp_dag_reference_with_negative_computed_value():
+    # the exact case that surfaced the real sign bug: t1 = -10+5 = -5,
+    # stored as unsigned in known_values, needing real sign-conversion
+    # before the slt/sle/sgt/sge comparison.
+    out, valid, info = _run_icmp_dag("slt", -10, 20)
+    assert valid is True
+    assert out == 1 == info.expected_result   # -5 < 20
+
+
+def test_icmp_dag_reference_real_sweep_all_order_predicates():
+    for pred in ["slt", "sle", "sgt", "sge"]:
+        for x in [3, -10, 100, -1, 0, -1000, 1000]:
+            for threshold in [20, -5, 8, -1000, 1000, 0]:
+                out, valid, info = _run_icmp_dag(pred, x, threshold)
+                expected = _real_signed_icmp(x, threshold, pred)
+                assert valid is True, f"{pred} x={x} threshold={threshold}: not valid"
+                assert out == expected == info.expected_result, (
+                    f"{pred} x={x} threshold={threshold}: got {out}, expected {expected}"
+                )
+
+
+def test_icmp_eq_dag_reference_not_yet_supported():
+    ir = """
+    define i1 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 5
+      %t2 = add i32 %t1, 10
+      %t3 = icmp eq i32 %t1, 8
+      ret i1 %t3
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 3})
+    assert icm is None
+    assert any("eq/ne" in d.why for d in diagnostics)
