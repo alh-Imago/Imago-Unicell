@@ -461,7 +461,7 @@ def test_icmp_eq_composed_tile_real_cases():
             deliveries=[((0, 0), {W: a}), ((0, 0), {N: b})],
             settle_ticks_before_deliveries=0, settle_ticks_after=12,
         )
-        assert cell_at(grid, 1, 1)["nano"]["out_buffer"] == int(a == b)
+        assert cell_at(grid, 1, 2)["nano"]["out_buffer"] == int(a == b)
 
 
 def test_icmp_ne_composed_tile_real_cases():
@@ -471,7 +471,7 @@ def test_icmp_ne_composed_tile_real_cases():
             deliveries=[((0, 0), {W: a}), ((0, 0), {N: b})],
             settle_ticks_before_deliveries=0, settle_ticks_after=12,
         )
-        assert cell_at(grid, 1, 2)["nano"]["out_buffer"] == int(a != b)
+        assert cell_at(grid, 1, 3)["nano"]["out_buffer"] == int(a != b)
 
 
 # ── apply_preloads_to_records / real file-format round trip (#687) ──

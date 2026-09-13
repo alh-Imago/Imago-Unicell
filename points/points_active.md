@@ -9072,3 +9072,65 @@ wording, both left in place as groundwork for whenever `icmp_eq`/
 **Real, full regression:** unchanged at 722 passed, 1 skipped -- one
 existing test's own expected diagnostic wording updated to match, no
 new tests needed for a scope that stayed the same.
+
+## 712. `icmp_eq`/`icmp_ne`'s own real structural conflict (`#711`) fixed by restructuring the composed tile itself -- Alan's own directed fix ("move the eq side over, add a relay cell in"). `eq`/`ne` now genuinely support general DAG routing, closing it out for ALL of add/sub/icmp's real predicates. Two more real bugs found and fixed along the way. (Alan/Claude, 2026-09-08)
+
+**The real restructuring, per Alan's own directed shape:** `diff`
+(the subtractor at `icmp_eq`'s own core) had ALL FOUR of its real
+ports already spoken for even in the ordinary case -- west/north for
+`in_a`/`in_b`, east+south to feed `cmp0`/`cmp1` both. A DAG reference
+needs south as a FIFTH connection (the relayed value coming in), which
+was never available. Fixed by inserting a new `fanout` subcell
+directly east of `diff`, taking over the job of feeding BOTH `cmp0`
+(east) and `cmp1` (south) -- `diff` itself now offers to a single real
+direction only, leaving its own south port genuinely free. Everything
+downstream shifts one column east to make room; `#668`'s own real,
+load-bearing timing proof (two comparators against threshold 0/1,
+XOR'd, CMP1's own path deliberately routed two hops longer) is
+otherwise untouched -- both paths gained the identical one extra hop,
+preserving their real relative timing.
+
+**Two more real bugs found and fixed by actually testing the
+restructured tile, not assumed correct from the design alone:**
+1. The frontend's own `col_cursor` width formula for eq/ne
+   (`diff_col + 2/3`) was never updated for the tile's own new,
+   one-column-wider footprint -- found immediately via `AttributeError:
+   'NoneType' object has no attribute 'out_buffer'` (the frontend was
+   pointing at an empty cell). Fixed to `diff_col + 3/4`.
+2. **The real, substantive one:** even with the structural fix and
+   width fix both applied, the relay drop was still placed at a
+   leftover row-5 workaround from `#710`'s own earlier, now-obsolete
+   attempt. With `diff`'s south port genuinely free again, the drop's
+   own required position (directly south of `diff`, at its exact
+   column) is clear on row 2 once more -- `icmp_eq`/`icmp_ne`'s own
+   internal cells at row 2 now sit one and two columns further east
+   (`cmp1`, `xor_gate`), not at `diff_col` itself. Reverted the row-5
+   workaround back to the standard row 2 for every consumer, eq/ne
+   included.
+
+**A third, genuinely separate bug found once the mechanism itself
+worked, in the compile-time `expected_result` tracking specifically:**
+`first_value` (always stored unsigned via `known_values`) and
+`second_value` (a raw literal straight from the IR, not necessarily
+unsigned-masked) can represent the SAME real value in two different
+Python representations (`4294967291` vs `-5`), making a direct `==`
+wrongly false -- the same root cause as `#710`'s own signed-comparison
+bug, a different symptom. Fixed by masking both to the same unsigned
+32-bit representation before comparing (equality doesn't care about
+sign, only about matching representations).
+
+**Real, full verification:** a 108-case sweep across `eq`/`ne`,
+including `INT32_MIN`/`INT32_MAX` on both sides, against an
+independently-computed correct answer, zero mismatches. The one
+obsolete test (asserting eq/ne DAG references were rejected) replaced
+with two real regression tests, matching `#705`'s own established
+precedent for this exact situation.
+
+**Real, honest closure:** general DAG routing now covers `add`/`sub`
+and every real `icmp` predicate (`slt`/`sle`/`sgt`/`sge`/`eq`/`ne`) --
+only `select`/`shl`/`lshr`'s own separate result-row/topology
+convention remains unaccommodated, a real, different, and smaller
+remaining gap than the one this entry closes.
+
+**Real, full regression:** 2 tests added, 1 obsolete test replaced,
+723 passed + 1 skipped overall (was 722), zero failures elsewhere.

@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-08, three precise follow-up findings after #710 -- comparator's real semantics confirmed, the icmp overflow boundary confirmed exactly, and eq/ne's exclusion sharpened to its real, structural, geometric cause (the relay drop's own required adjacency conflicts with icmp_eq/ne's own internal footprint). No functional change from #710. See `points/points_active.md` #711)
+# Current State (as of 2026-09-08, icmp_eq/icmp_ne's own structural conflict fixed by restructuring the composed tile (a new fanout subcell frees diff's south port) -- eq/ne now genuinely support general DAG routing, closing it out for ALL of add/sub/icmp's real predicates. Two more real bugs found along the way. See `points/points_active.md` #712)
+
+## Read this first (most recent)
+
+**2026-09-08, icmp_eq/icmp_ne restructured, DAG routing closed out for
+icmp (#712).** Per Alan's own directed fix: `diff` had all four real
+ports already spoken for even in the ordinary case. Inserted a new
+`fanout` subcell east of `diff` to take over feeding both `cmp0`/
+`cmp1`, freeing `diff`'s own south port for the DAG relay. `#668`'s
+own real timing proof preserved -- both paths gained the identical
+extra hop.
+
+**Two more real bugs found by testing the restructured tile:** the
+frontend's own width formula for eq/ne wasn't updated for the tile's
+new, wider footprint (fixed immediately by a clear `AttributeError`);
+and a leftover row-5 workaround from `#710`'s own earlier attempt was
+still in place, blocking the drop from its now-genuinely-free row-2
+position (reverted to the standard row 2 for every consumer).
+
+**A third, separate bug found once the mechanism worked:** eq/ne's
+own compile-time `expected_result` mixed an always-unsigned stored
+value with a possibly-signed raw literal, making equality wrongly
+false for matching negative values -- same root cause as `#710`'s own
+signed-comparison bug, different symptom. Fixed by masking both to
+the same representation before comparing.
+
+**Real, full verification:** 108-case sweep across eq/ne including
+`INT32_MIN`/`INT32_MAX`, zero mismatches. Real regression: 723 passed,
+1 skipped (was 722).
+
+**Real, honest closure:** general DAG routing now covers add/sub and
+every real icmp predicate. Only select/shl/lshr's own separate
+result-row/topology convention remains unaccommodated -- a real,
+smaller, different remaining gap.
+
+## Previous state (as of 2026-09-08, three precise follow-up findings after #710 -- comparator's real semantics confirmed, the icmp overflow boundary confirmed exactly, and eq/ne's exclusion sharpened to its real, structural, geometric cause (the relay drop's own required adjacency conflicts with icmp_eq/ne's own internal footprint). No functional change from #710. See `points/points_active.md` #711)
 
 ## Read this first (most recent)
 

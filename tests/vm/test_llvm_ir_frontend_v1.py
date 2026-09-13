@@ -1341,7 +1341,13 @@ def test_icmp_dag_reference_real_sweep_all_order_predicates():
                 )
 
 
-def test_icmp_eq_dag_reference_not_yet_supported():
+def test_icmp_eq_dag_reference_now_supported():
+    # points.md #712: the real, structural conflict #710/#711 found
+    # (the relay drop needing diff's own south port, which icmp_eq/
+    # icmp_ne's own composed tile used to occupy) is fixed by
+    # restructuring that tile (a new `fanout` subcell takes over
+    # feeding cmp0/cmp1) -- kept as a real regression marker, matching
+    # #705's own earlier "amount 4 no longer rejected" precedent.
     ir = """
     define i1 @f(i32 %x) {
     entry:
@@ -1352,5 +1358,44 @@ def test_icmp_eq_dag_reference_not_yet_supported():
     }
     """
     icm, diagnostics, info = compile_llvm_ir(ir, {"x": 3})
-    assert icm is None
-    assert any("eq/ne" in d.why for d in diagnostics)
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(60):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    assert cell._nano.out_buffer == 1 == info.expected_result   # t1=8, 8==8
+
+
+def test_icmp_ne_dag_reference_real_sweep():
+    def real_icmp_eqne(x, threshold, pred):
+        t1 = (x + 5) & 0xFFFFFFFF
+        th = threshold & 0xFFFFFFFF
+        return 1 if (t1 == th) == (pred == "eq") else 0
+
+    for pred in ["eq", "ne"]:
+        for x in [3, -10, 100, -1, 0, -1000, 1000, -2147483648, 2147483647]:
+            for threshold in [8, -5, 0, -1000, -2147483648, 2147483647]:
+                ir = f"""
+                define i1 @f(i32 %x) {{
+                entry:
+                  %t1 = add i32 %x, 5
+                  %t2 = add i32 %t1, 10
+                  %t3 = icmp {pred} i32 %t1, {threshold}
+                  ret i1 %t3
+                }}
+                """
+                icm, diagnostics, info = compile_llvm_ir(ir, {"x": x})
+                assert icm is not None, diagnostics
+                grid = SuperGrid(icm.records)
+                for row, col, value in info.injections:
+                    grid.inject(row, col, value)
+                for _ in range(60):
+                    grid.tick()
+                cell = grid.cells[info.result_cell]
+                got = cell._nano.out_buffer
+                expected = real_icmp_eqne(x, threshold, pred)
+                assert got == expected == info.expected_result, (
+                    f"{pred} x={x} threshold={threshold}: got {got}, expected {expected}"
+                )

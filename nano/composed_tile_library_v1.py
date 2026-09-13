@@ -631,17 +631,36 @@ composed_tile_library.register(ComposedTileSpec(
                  "'in_b' are real, dynamic external inputs; 'out' is "
                  "the real, computed boolean result.",
     subcells=[
+        # points.md #712: real restructuring, found necessary while
+        # extending general DAG routing (#701/#710) -- `diff`'s own
+        # real ports were ALREADY fully spoken for even in the
+        # ordinary case (west/north for in_a/in_b, east+south to feed
+        # cmp0/cmp1 both), so a DAG-relayed value arriving via south
+        # had nowhere free to land: a real resource conflict, not a
+        # wiring bug, confirmed directly by an actual placement
+        # collision. Fixed by inserting `fanout` directly east of
+        # `diff`, taking over the job of feeding BOTH cmp0 (east) and
+        # cmp1 (south) -- `diff` itself now offers to a single real
+        # direction (east) only, leaving its own south port genuinely
+        # free for the DAG relay's drop cell, exactly like every other
+        # DAG-reference-eligible instruction already has. Everything
+        # downstream of `diff` shifts one column east to make room;
+        # the real topology and its own real proof (two comparators
+        # against threshold 0/1, XOR'd, CMP1's own path routed two
+        # hops longer, #668) is otherwise untouched.
         SubCellPlacement(name="diff", offset=(0, 0), tile_name="subtractor",
-                          internal_directions={"out": ["e", "s"]}),
-        SubCellPlacement(name="cmp0", offset=(0, 1), tile_name="comparator",
+                          internal_directions={"out": "e"}),
+        SubCellPlacement(name="fanout", offset=(0, 1), tile_name="ram_flowing",
+                          internal_directions={"in": "w", "out": ["e", "s"]}),
+        SubCellPlacement(name="cmp0", offset=(0, 2), tile_name="comparator",
                           internal_directions={"in": "w", "out": "s"}, fixed_params={"threshold": 0}),
-        SubCellPlacement(name="cmp1", offset=(1, 0), tile_name="comparator",
+        SubCellPlacement(name="cmp1", offset=(1, 1), tile_name="comparator",
                           internal_directions={"in": "n", "out": "s"}, fixed_params={"threshold": 1}),
-        SubCellPlacement(name="relay_a", offset=(2, 0), tile_name="ram_flowing",
+        SubCellPlacement(name="relay_a", offset=(2, 1), tile_name="ram_flowing",
                           internal_directions={"in": "n", "out": "e"}),
-        SubCellPlacement(name="relay_b", offset=(2, 1), tile_name="ram_flowing",
+        SubCellPlacement(name="relay_b", offset=(2, 2), tile_name="ram_flowing",
                           internal_directions={"in": "w", "out": "n"}),
-        SubCellPlacement(name="xor_gate", offset=(1, 1), tile_name="nano_gate",
+        SubCellPlacement(name="xor_gate", offset=(1, 2), tile_name="nano_gate",
                           internal_directions={}, fixed_params={"topology": 0x0BC}),
     ],
     external_ports={
@@ -660,21 +679,26 @@ composed_tile_library.register(ComposedTileSpec(
                  "real, dynamic external inputs; 'out' is the real, "
                  "computed boolean result.",
     subcells=[
+        # points.md #712: same real fanout restructuring as icmp_eq
+        # above, for the same real reason -- see that tile's own
+        # comment for the full explanation.
         SubCellPlacement(name="diff", offset=(0, 0), tile_name="subtractor",
-                          internal_directions={"out": ["e", "s"]}),
-        SubCellPlacement(name="cmp0", offset=(0, 1), tile_name="comparator",
+                          internal_directions={"out": "e"}),
+        SubCellPlacement(name="fanout", offset=(0, 1), tile_name="ram_flowing",
+                          internal_directions={"in": "w", "out": ["e", "s"]}),
+        SubCellPlacement(name="cmp0", offset=(0, 2), tile_name="comparator",
                           internal_directions={"in": "w", "out": "s"}, fixed_params={"threshold": 0}),
-        SubCellPlacement(name="cmp1", offset=(1, 0), tile_name="comparator",
+        SubCellPlacement(name="cmp1", offset=(1, 1), tile_name="comparator",
                           internal_directions={"in": "n", "out": "s"}, fixed_params={"threshold": 1}),
-        SubCellPlacement(name="relay_a", offset=(2, 0), tile_name="ram_flowing",
+        SubCellPlacement(name="relay_a", offset=(2, 1), tile_name="ram_flowing",
                           internal_directions={"in": "n", "out": "e"}),
-        SubCellPlacement(name="relay_b", offset=(2, 1), tile_name="ram_flowing",
+        SubCellPlacement(name="relay_b", offset=(2, 2), tile_name="ram_flowing",
                           internal_directions={"in": "w", "out": "n"}),
-        SubCellPlacement(name="eq_xor", offset=(1, 1), tile_name="nano_gate",
+        SubCellPlacement(name="eq_xor", offset=(1, 2), tile_name="nano_gate",
                           internal_directions={"out": "e"}, fixed_params={"topology": 0x0BC}),
-        SubCellPlacement(name="one_const", offset=(2, 2), tile_name="ram_flowing",
+        SubCellPlacement(name="one_const", offset=(2, 3), tile_name="ram_flowing",
                           internal_directions={"out": "n"}, preload_fixed_value=1),
-        SubCellPlacement(name="ne_xor", offset=(1, 2), tile_name="nano_gate",
+        SubCellPlacement(name="ne_xor", offset=(1, 3), tile_name="nano_gate",
                           internal_directions={}, fixed_params={"topology": 0x0BC}),
     ],
     external_ports={

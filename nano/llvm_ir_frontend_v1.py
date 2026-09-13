@@ -548,6 +548,17 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 # ZERO new timing work needed.
                 is_dag_reference = True
             elif (first_is_ref and first_name in needs_relay_tap and instr.opcode == "icmp"
+                    and _icmp_predicate(instr) in ("eq", "ne")):
+                # points.md #712: eq/ne's own real diff==0 test (#668)
+                # is genuinely sign-agnostic, exactly like sge/sgt is
+                # commutative. Re-enabled here after the real, direct
+                # cause of #710/#711's own failure was fixed -- the
+                # relay drop needs `diff`'s own south port free, and
+                # `icmp_eq`/`icmp_ne`'s composed tile now leaves it
+                # free (the new `fanout` subcell takes over feeding
+                # both cmp0/cmp1, #712).
+                is_dag_reference = True
+            elif (first_is_ref and first_name in needs_relay_tap and instr.opcode == "icmp"
                     and _icmp_predicate(instr) in ("slt", "sle")):
                 # points.md #710: slt/sle use the real, order-sensitive
                 # "subtractor" tile (A-B, not commutative) -- unlike
@@ -579,23 +590,18 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     # just not one DAG references are supported for yet
                     # (either the consumer or the producer is outside
                     # add/sub's own real commutative shape).
-                    why = ("general DAG routing (#701/#710) is real but deliberately narrow so "
-                           "far: add/sub, and icmp's slt/sle/sgt/sge predicates, may reference an "
-                           "EARLIER add/sub result -- all lower onto forms where operand arrival "
-                           "order doesn't affect correctness (add/sub/sge/sgt via the commutative "
-                           "adder+negate trick, slt/sle confirmed empirically to work under the "
-                           "natural timing already present). icmp's own eq/ne predicates are "
-                           "excluded for a real, different, structural reason, found directly: "
-                           "the relay drop must sit DIRECTLY south of the diff cell (a single hop, "
-                           "the only real free side once west/north/east are spoken for), but "
-                           "icmp_eq/icmp_ne's own composed tile (#686) already occupies exactly "
-                           "that position with its own internal cmp1/xor_gate subcells -- a real "
-                           "geometric conflict, not a wiring bug, confirmed by an actual attempt "
-                           "that collided this way. select/shl/lshr each have their own real, "
-                           "separate topology/result-row convention not yet accommodated either, "
-                           "so none of the three may be a DAG reference source or consumer yet")
-                    suggestion = ("use add/sub/slt/sle/sgt/sge on both ends of the reference, or "
-                                  "wait for DAG routing to cover eq/ne/select/shl/lshr too")
+                    why = ("general DAG routing (#701/#710/#712) is real but deliberately narrow "
+                           "so far: add/sub, and icmp's slt/sle/sgt/sge/eq/ne predicates, may "
+                           "reference an EARLIER add/sub result -- all lower onto forms where "
+                           "operand arrival order doesn't affect correctness (add/sub/sge/sgt via "
+                           "the commutative adder+negate trick, slt/sle confirmed empirically to "
+                           "work under the natural timing already present, eq/ne's own real "
+                           "diff==0 test is genuinely sign-agnostic). select/shl/lshr each have "
+                           "their own real, separate topology/result-row convention not yet "
+                           "accommodated, so none of the three may be a DAG reference source or "
+                           "consumer yet")
+                    suggestion = ("use add/sub/slt/sle/sgt/sge/eq/ne on both ends of the "
+                                  "reference, or wait for DAG routing to cover select/shl/lshr too")
                 diagnostics.append(_diag(
                     problem=f"instruction {i + 1}'s own first operand is {first_name or str(operands[0])!r}, "
                              f"not the immediately preceding instruction's result ({prev_instr_name!r})",
@@ -940,7 +946,18 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 ))
                 return None, diagnostics, None
             if predicate in _EQ_NE_PREDICATES:
-                result = 1 if (first_value == second_value) == (predicate == "eq") else 0
+                # points.md #712: a real, separate sign-representation
+                # bug, same root cause as #710's own signed-comparison
+                # fix but a different symptom -- first_value (always
+                # stored unsigned via known_values) and second_value (a
+                # raw literal straight from the IR, not necessarily
+                # unsigned-masked) can represent the SAME real value in
+                # two DIFFERENT Python representations (4294967291 vs
+                # -5), making a direct `==` wrongly false. Masking both
+                # to the same unsigned 32-bit representation before
+                # comparing fixes it -- equality doesn't care about
+                # sign, only about matching representations.
+                result = 1 if ((first_value & 0xFFFFFFFF) == (second_value & 0xFFFFFFFF)) == (predicate == "eq") else 0
             else:
                 # points.md #710: a real, pre-existing sign bug found
                 # by DAG-referencing a negative computed value for the
@@ -1135,18 +1152,17 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     return None, diagnostics, None
             dag_reference_ranges.append((producer_col, diff_col, instr.name))
             tapped_producers.add(first_name)
-            # points.md #710: a real, found-empirically constraint,
-            # distinct from the generic row-2 rule above -- icmp_eq/
-            # icmp_ne's own composed tile (#686) has a real internal
-            # footprint spanning rows 1-3 relative to its own anchor
-            # (diff/cmp0 at row 1, cmp1/xor_gate at row 2, relay_a/
-            # relay_b at row 3), confirmed directly by an actual
-            # collision the first time this was tried. The relay lane
-            # moves to row 5 specifically for an eq/ne consumer,
-            # safely clear of that whole footprint (including ne's own
-            # one extra subcell); every other consumer keeps row 2.
-            is_eqne_consumer = instr.opcode == "icmp" and predicate in _EQ_NE_PREDICATES
-            relay_row = 5 if is_eqne_consumer else 2
+            # points.md #712: relay lane back to the standard row 2 for
+            # EVERY consumer, including eq/ne -- the earlier row-5
+            # workaround was needed only because icmp_eq/icmp_ne's own
+            # composed tile used to occupy (row 2, diff_col) directly.
+            # Now that `diff`'s own south port is genuinely free (the
+            # new `fanout` subcell takes over feeding cmp0/cmp1), the
+            # drop's own required position -- directly south of `diff`,
+            # at its exact column -- is clear again: icmp_eq/icmp_ne's
+            # own internal cells at row 2 now sit one and two columns
+            # further east (cmp1, xor_gate), not at diff_col itself.
+            relay_row = 2
             relay_col = producer_col
             while relay_col <= diff_col:
                 if relay_col == producer_col:
@@ -1251,7 +1267,12 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 fields=[FieldIR("in_a", "s" if is_dag_reference else "w"), FieldIR("in_b", "n"),
                         FieldIR("out", "e")],
             ))
-            col_cursor = diff_col + (3 if predicate == "ne" else 2)
+            # points.md #712: widths bumped by 1 -- icmp_eq/icmp_ne's
+            # own composed tile grew one column wider (the new
+            # `fanout` cell, freeing `diff`'s own south port for the
+            # DAG relay -- see composed_tile_library_v1.py's own real
+            # comment on this restructuring).
+            col_cursor = diff_col + (4 if predicate == "ne" else 3)
             last_result_row = 2
             prev_instr_name = instr.name
             result_positions[instr.name] = (last_result_row, col_cursor - 1)

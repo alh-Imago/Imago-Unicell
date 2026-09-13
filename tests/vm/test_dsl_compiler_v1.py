@@ -973,7 +973,7 @@ def test_dsl_can_place_icmp_eq():
     icm, diags = compile_source(src)
     assert diags == []
     assert icm is not None
-    assert len(icm.records) == 6
+    assert len(icm.records) == 7   # points.md #712: +1 for the new fanout cell
 
 
 # ── real "addon.<name>" field-routing bucket (points.md #690) ───────
