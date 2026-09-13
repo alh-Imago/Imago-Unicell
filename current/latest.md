@@ -1,4 +1,27 @@
-# Current State (as of 2026-09-08, Alan's own new idea recorded and explicitly QUEUED for later -- external, independent output confirmation via io_name (already-existing infrastructure) + real file writing, for review once work reaches the end of the current LaTeX/TRIX-family body of work. Design note only. See `points/points_active.md` #715)
+# Current State (as of 2026-09-08, `shl`/`lshr` extended to support general DAG routing as consumers -- `#714`'s own scoping prediction confirmed exactly right on the math, but building it surfaced the same real ordering bug `#712` found for `icmp_eq`/`icmp_ne`, applying here too. See `points/points_active.md` #716)
+
+## Read this first (most recent)
+
+**2026-09-08, shl/lshr DAG consumer support (#716).** `#714`'s own
+prediction held: shift's real ports were genuinely free, no
+arrival-order question with only one dynamic operand, both real
+cases correct on the first attempt once written. One real bug found
+building it, not predicted by the scoping note: the original
+emission sat entirely before the shared relay block and `continue`d
+early -- the exact same ordering bug `#712` fixed for `icmp_eq`/
+`icmp_ne`. Fixed by moving the real placement after the relay block,
+guarding the shared result-recomputation so it doesn't silently
+overwrite shl/lshr's own already-correct answer.
+
+Real, full verification across both ops plus negative/zero/INT32_MAX,
+zero mismatches. Real regression: 727 passed, 1 skipped (was 724).
+
+**Real, honest scope: consumers only.** shl/lshr as a DAG source is
+separate, smaller, not attempted here. Next: select as a DAG source
+(likely easy, per `#714`), then select's own `cond` as a consumer
+(the hard one, needs `#712`-style restructuring).
+
+## Previous state (as of 2026-09-08, Alan's own new idea recorded and explicitly QUEUED for later -- external, independent output confirmation via io_name (already-existing infrastructure) + real file writing, for review once work reaches the end of the current LaTeX/TRIX-family body of work. Design note only. See `points/points_active.md` #715)
 
 ## Read this first (most recent)
 

@@ -1435,3 +1435,52 @@ def test_icmp_ne_dag_reference_real_sweep():
                 assert got == expected == info.expected_result, (
                     f"{pred} x={x} threshold={threshold}: got {got}, expected {expected}"
                 )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #716: general DAG routing extended to shl/lshr as
+# consumers. Confirmed directly against the real emission code before
+# building (#714's own scoping pass): the shift cell's own real ports
+# are ONLY west (in) and east (out) -- no restructuring needed at all,
+# unlike icmp_eq/icmp_ne's own real port-scarcity problem (#712). Only
+# one real dynamic operand exists (the shift amount is compile-time
+# config, never a second live arrival), so there is no A-vs-B arrival-
+# order question here at all.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _run_shift_dag(op, x, n, ticks=80):
+    ir = f"""
+    define i32 @f(i32 %x) {{
+    entry:
+      %t1 = add i32 %x, 3
+      %t2 = add i32 %t1, 100
+      %t3 = {op} i32 %t1, {n}
+      ret i32 %t3
+    }}
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": x})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    return cell.ram_data_reg, info.expected_result
+
+
+def test_shl_dag_reference():
+    got, expected = _run_shift_dag("shl", 5, 2)
+    assert got == expected == 32   # t1=8, 8<<2=32
+
+
+def test_lshr_dag_reference():
+    got, expected = _run_shift_dag("lshr", 20, 2)
+    assert got == expected == 5   # t1=23, 23>>2=5
+
+
+def test_shift_dag_reference_real_sweep():
+    for op, x, n in [("shl", 5, 2), ("shl", -10, 3), ("lshr", 100, 2),
+                      ("lshr", -5, 4), ("shl", 0, 0), ("lshr", 2147483647, 1)]:
+        got, expected = _run_shift_dag(op, x, n)
+        assert got == expected, f"{op} x={x} n={n}: got {got}, expected {expected}"

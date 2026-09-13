@@ -9264,3 +9264,39 @@ real answer," needing its own real scoping pass later. Saved to
 md`. No RTL, no VM change, no file format change, nothing built --
 added to the end of the real, standing list of work for review once
 the current body of work reaches that stage.
+
+## 716. `shl`/`lshr` extended to support general DAG routing as consumers -- `#714`'s own scoping prediction confirmed exactly right, but building it surfaced the same real ordering bug `#712` found for `icmp_eq`/`icmp_ne`, applying here too. (Alan/Claude, 2026-09-08)
+
+**`#714`'s own scoping prediction held exactly:** the shift cell's own
+real ports were confirmed to be genuinely free (west/east only), and
+with only one real dynamic operand, there was no arrival-order
+question to test at all -- both real cases proven correct on the
+first real attempt once the actual placement code was written.
+
+**One real bug found in the process, not predicted by the scoping
+note:** the ORIGINAL shl/lshr emission block sat entirely BEFORE the
+shared relay-building block and ended in its own `continue` -- the
+exact same real ordering bug `#712` found and fixed for `icmp_eq`/
+`icmp_ne`, confirmed to apply here too. Fixed by moving the real
+placement (the shift+sink cell pair) to AFTER the relay block, using
+`diff_col` (already computed there) instead of a separately-tracked
+`shift_col`. A second, related fix was needed alongside it: the
+shared add/sub/icmp result-recomputation code that runs before the
+relay block would otherwise silently overwrite shl/lshr's own already-
+correct compile-time result with a wrong, sub-shaped one -- guarded
+with an explicit opcode check.
+
+**Real, full verification:** DAG references for both `shl` and
+`lshr`, plus a real sweep across negative values, zero, and
+`INT32_MAX`, all correct against an independently-computed expected
+value. One bug found in the new test itself (a copy-pasted, wrong
+hardcoded expectation), not the mechanism -- caught and fixed
+immediately by recomputing the real arithmetic by hand.
+
+**Real, honest scope: consumers only, matching `#714`'s own priority
+order.** `shl`/`lshr` as a DAG reference SOURCE (their own result
+tapped by something later) is not attempted here -- a real, separate,
+smaller piece of the same scoping note.
+
+**Real, full regression:** 3 new tests, 727 passed + 1 skipped overall
+(was 724), zero failures elsewhere.

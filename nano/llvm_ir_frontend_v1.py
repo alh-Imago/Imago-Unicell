@@ -146,7 +146,7 @@ def _compute_needs_relay_tap(body_instructions) -> Dict[str, List[str]]:
     needs_tap: Dict[str, List[str]] = {}
     for idx, instr in enumerate(body_instructions):
         producer_opcode[instr.name] = instr.opcode
-        if idx == 0 or instr.opcode not in ("add", "sub", "icmp"):
+        if idx == 0 or instr.opcode not in ("add", "sub", "icmp", "shl", "lshr"):
             continue
         operands = list(instr.operands)
         if len(operands) != 2:
@@ -593,6 +593,18 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 # delay cell needed after all; the fallback stayed
                 # unused because the direct approach already worked.
                 is_dag_reference = True
+            elif first_is_ref and first_name in needs_relay_tap and instr.opcode in ("shl", "lshr"):
+                # points.md #716: confirmed directly against the real
+                # emission code (#714's own scoping pass) before
+                # building this -- the shift cell's own real ports are
+                # ONLY west (in) and east (out); north and south are
+                # both completely free, unlike icmp_eq/icmp_ne's own
+                # real port-scarcity problem (#712). Only one real
+                # dynamic operand exists at all (the shift amount is
+                # compile-time config, never a second live arrival),
+                # so there is no A-vs-B arrival-order question here --
+                # simpler than even add/sub's own case.
+                is_dag_reference = True
             else:
                 why = ("this real, first frontend slice only supports a genuine LINEAR "
                        "ACCUMULATION CHAIN, not a general DAG (#611/#610) -- an instruction "
@@ -888,53 +900,12 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
             result = ((first_value << second_value) if instr.opcode == "shl"
                       else (first_value >> second_value)) & 0xFFFFFFFF
             known_values[instr.name] = result
-
-            # Real, minimal placement -- genuinely simpler than add/sub/
-            # icmp's own shared "diff cell" scaffold: shl/lshr have
-            # only ONE real dynamic input (the chain value, from the
-            # west) and no second delivered operand at all -- the
-            # shift amount is entirely config, not a live arrival, so
-            # none of add/sub/icmp's own two-operand same-tick-
-            # collision staggering applies here.
-            #
-            # Real, necessary SECOND cell, found empirically while
-            # testing this: the addon chain applies at OFFER time, not
-            # by mutating a cell's own stored register (confirmed
-            # directly -- the shift cell's own `ram_data_reg` stays the
-            # RAW, unshifted value; only what it OFFERS to a real
-            # downstream neighbor is actually shifted). Every other
-            # opcode in this frontend exposes its own final answer as a
-            # directly-readable register (adder's own `out_buffer`,
-            # etc.) -- matching that convention here needs a real sink
-            # cell to CAPTURE the shifted offer into its own readable
-            # register, not just the shift cell alone.
-            coarse, fine = _decompose_shift(second_value)
-            shift_col = col_cursor
-            if i == 0:
-                # No stagger needed (unlike add/sub/icmp's own i==0
-                # case): there is only ever ONE injected value here,
-                # never a second one landing on the same tick.
-                injections.append((1, shift_col, first_value))
-            statements.append(PlaceIR(
-                name=f"op_{i}_shift", tile_name="ram_flowing", row=1, col=shift_col,
-                fields=[
-                    FieldIR("in", "w"), FieldIR("out", "e"),
-                    FieldIR("addon.shift_en", 1),
-                    FieldIR("addon.direction", 1 if instr.opcode == "lshr" else 0),
-                    FieldIR("addon.shift_amt", coarse),
-                    FieldIR("addon.shift_fine", fine),
-                ],
-            ))
-            statements.append(PlaceIR(
-                name=f"op_{i}", tile_name="ram_flowing", row=1, col=shift_col + 1,
-                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
-            ))
-            col_cursor = shift_col + 2
-            last_result_row = 1
-            prev_instr_name = instr.name
-            result_positions[instr.name] = (last_result_row, col_cursor - 1)
-            prev_icmp_predicate = None
-            continue
+            # points.md #716: real placement moved to AFTER the shared
+            # relay-building block below (an earlier draft had this
+            # here, "continue"ing BEFORE that block ever ran -- the
+            # exact same real ordering bug #712 found and fixed for
+            # icmp_eq/icmp_ne, confirmed to apply here too before
+            # writing any placement code this time).
 
         if instr.opcode == "icmp":
             predicate = _icmp_predicate(instr)
@@ -996,8 +967,14 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         # Python-side expected value honestly comparable to what the
         # VM will actually compute, no silent divergence for negative/
         # overflowing intermediate results.
-        result &= 0xFFFFFFFF
-        known_values[instr.name] = result
+        if instr.opcode not in ("shl", "lshr"):
+            # points.md #716: shl/lshr already computed and stored
+            # their own correct result earlier -- this shared
+            # add/sub/icmp result computation must not run for them at
+            # all (it would silently overwrite the real answer with a
+            # wrong, sub-shaped one).
+            result &= 0xFFFFFFFF
+            known_values[instr.name] = result
 
         # ── place the real, two-operand "diff" cell every one of these
         # instructions needs (add/sub compute it directly; icmp uses it
@@ -1273,6 +1250,43 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 ))
                 descend_row -= 1
             dag_reference_count += 1
+
+        if instr.opcode in ("shl", "lshr"):
+            # points.md #716: real placement, moved here (after the
+            # shared relay-building block) so a DAG reference gets its
+            # own relay/drop/trigger machinery correctly. Genuinely
+            # simpler than add/sub/icmp's own shared "diff cell"
+            # scaffold -- shl/lshr have only ONE real dynamic input, so
+            # `in_a`-equivalent (`in`) just needs to respect
+            # `is_dag_reference` (south vs west); there is no second
+            # operand to worry about arrival order with at all.
+            coarse, fine = _decompose_shift(second_value)
+            shift_col = diff_col
+            if i == 0:
+                # No stagger needed (unlike add/sub/icmp's own i==0
+                # case): there is only ever ONE injected value here,
+                # never a second one landing on the same tick.
+                injections.append((1, shift_col, first_value))
+            statements.append(PlaceIR(
+                name=f"op_{i}_shift", tile_name="ram_flowing", row=1, col=shift_col,
+                fields=[
+                    FieldIR("in", "s" if is_dag_reference else "w"), FieldIR("out", "e"),
+                    FieldIR("addon.shift_en", 1),
+                    FieldIR("addon.direction", 1 if instr.opcode == "lshr" else 0),
+                    FieldIR("addon.shift_amt", coarse),
+                    FieldIR("addon.shift_fine", fine),
+                ],
+            ))
+            statements.append(PlaceIR(
+                name=f"op_{i}", tile_name="ram_flowing", row=1, col=shift_col + 1,
+                fields=[FieldIR("in", "w"), FieldIR("out", "e")],
+            ))
+            col_cursor = shift_col + 2
+            last_result_row = 1
+            prev_instr_name = instr.name
+            result_positions[instr.name] = (last_result_row, col_cursor - 1)
+            prev_icmp_predicate = None
+            continue
 
         if instr.opcode == "icmp" and predicate in _EQ_NE_PREDICATES:
             # points.md #710: moved to AFTER the relay-building block
