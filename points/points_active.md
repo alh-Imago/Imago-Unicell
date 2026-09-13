@@ -9186,3 +9186,45 @@ convention -- a different problem, not attempted here.
 **Real, full regression:** 2 tests added (a 2-consumer regression
 marker and a 3-consumer test), 1 obsolete test replaced, 724 passed +
 1 skipped overall (was 723), zero failures elsewhere.
+
+## 714. Real scoping pass for DAG routing's own last three excluded opcodes (`select`/`shl`/`lshr`) -- checked each one's own actual topology directly rather than treating them as one shared problem. They aren't. Design note only, no code changed. (Alan/Claude, 2026-09-08)
+
+**`shl`/`lshr` -- the easy case, confirmed directly:** the shift
+cell's own real ports are ONLY west (in) and east (out) -- north and
+south are both completely free, no restructuring needed at all,
+unlike `icmp_eq`/`icmp_ne`'s own real port-scarcity problem (`#712`).
+Also has only ONE real dynamic operand (no second live arrival), so
+the A-vs-B arrival-order question `#710` had to test empirically for
+`slt`/`sle` wouldn't even arise here. Expected to be the smallest of
+the three remaining gaps, close to `add`/`sub`'s own real effort.
+
+**`select` as a DAG reference SOURCE (its own result tapped later) --
+also likely easy:** its own real result lives on a `nano_gate`
+(`or_gate`), confirmed to have no `upstream_mask` restriction and an
+already-multi-bit `routing_mask` -- the same real "fan out to an
+extra direction" pattern already proven for `add`/`sub`'s own producer
+side.
+
+**`select`'s own `cond` as a DAG reference CONSUMER -- the real hard
+case, structurally identical to `icmp_eq`/`icmp_ne`'s own problem,
+confirmed directly:** `cond` maps onto `mask` (a subtractor) whose own
+four real ports are ALL already spoken for in the ordinary case (west/
+north for its own two operands, east+south to feed `and_true`/
+`not_mask`). No free port for a DAG relay's own drop -- the same real
+conflict `#712` fixed for `icmp_eq`/`icmp_ne`, almost certainly
+needing the identical fanout-subcell restructuring. A real, additional
+wrinkle beyond that: `select`'s own `cond` currently must be both
+adjacent AND confirmed to be an ordinary icmp (`#674`) -- a DAG
+reference would need to relax the adjacency requirement while STILL
+confirming the referenced instruction really is an icmp, a real, extra
+scope check none of the other DAG-eligible opcodes have needed.
+
+**Real, honest status: scoping only.** No RTL, no frontend code
+changed, no tests added or run. The "likely easy" framing for
+`shl`/`lshr` and `select`-as-source is a real, grounded expectation
+from confirmed topology, not a verified result the way `#710`'s own
+empirical tests were -- worth confirming by actually building before
+treating either as done. Saved to `docs/stripped-cell/design-notes/
+dag_routing_select_shl_lshr_scope.md`, with a real, honest priority
+order (`shl`/`lshr` first, `select`-as-source second, `select`'s own
+`cond` last) for whenever this gets picked up.

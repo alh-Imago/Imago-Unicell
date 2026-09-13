@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-08, `#701`'s own "at most one consumer per producer" DAG restriction lifted for real -- `#706`'s proven daisy-chain mechanism now wired into the frontend, any number of consumers per producer. Worked on the first real attempt. See `points/points_active.md` #713)
+# Current State (as of 2026-09-08, real scoping pass for DAG routing's last three excluded opcodes (select/shl/lshr) -- they turn out NOT to share one problem. shl/lshr have no port-scarcity or ordering issue at all; select's own cond hits the exact same structural conflict icmp_eq/icmp_ne had. Design note only, nothing built. See `points/points_active.md` #714)
+
+## Read this first (most recent)
+
+**2026-09-08, select/shl/lshr scoped for DAG routing (#714).** Checked
+each opcode's own real topology directly rather than treating them as
+one shared problem -- they aren't. `shl`/`lshr`: the shift cell's own
+ports are only west/east, north and south both completely free, no
+restructuring needed, likely the smallest remaining gap. `select` as
+a DAG source: its own result lives on a nano_gate, already supports
+the same multi-direction fan-out add/sub's own producer side already
+uses -- likely easy. `select`'s own `cond` as a DAG consumer: maps
+onto a subtractor (`mask`) whose four real ports are ALL already
+spoken for -- the identical structural conflict `#712` fixed for
+icmp_eq/icmp_ne, almost certainly needing the same fanout-subcell
+restructuring, plus a real, extra "is this actually an icmp" check
+none of the other DAG-eligible opcodes have needed.
+
+**Real, honest status: scoping only.** No code changed, no tests run.
+Saved to `docs/stripped-cell/design-notes/dag_routing_select_shl_
+lshr_scope.md`, with a real priority order for whenever this gets
+picked up: shl/lshr first, select-as-source second, select's own
+cond last.
+
+## Previous state (as of 2026-09-08, `#701`'s own "at most one consumer per producer" DAG restriction lifted for real -- `#706`'s proven daisy-chain mechanism now wired into the frontend, any number of consumers per producer. Worked on the first real attempt. See `points/points_active.md` #713)
 
 ## Read this first (most recent)
 
