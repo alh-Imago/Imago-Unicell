@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-08, the whole #719→#723 VIX correction arc closed out -- all 9 shells swapped to _v4c cores, a real config-off-shell timing bug found and correctly reverted, and the shell's own single addon chain proven to genuinely work end to end. All four VIX testbenches pass together. See `points/points_active.md` #723)
+# Current State (as of 2026-09-08, the 10th unified-carrier core, mul, built as BOTH _v4 and _v4c from the start -- real, promoted combinational multiplier (bitwise_multiplier_32bit.v) wrapped in the same two-stage capture protocol every core uses. Both versions verified standalone (5/5 and 4/4 checks). Not yet wired into VIX carrier. See `points/points_active.md` #724)
+
+## Read this first (most recent)
+
+**2026-09-08, mul_cell_v4/v4c built (#724).** The real multiplier
+candidate (`bitwise_multiplier_32bit.v`) promoted from docs into
+fpga/verilog/, re-verified directly (7 cases including 0xFFFFFFFF x
+0xFFFFFFFF) before building on it. mul_cell_v4.v built on adder_cell_
+v4.v's own proven shape; subtract_mode removed (no equivalent),
+offers only Product[31:0] (LLVM's own real mul truncation semantics).
+mul_cell_v4c.v built alongside it from the start this time, per
+Alan's own direct instruction -- no retrofit needed, since the
+internal addon chain was never added and the config-off-shell
+reasoning (feed from incoming_config, confirmed correct in #723) was
+right the first time.
+
+**Real, full verification, standalone:** mul_cell_v4's own new
+testbench, 5/5 checks (real multiply incl. overflow-truncation,
+targeted PROG_ID reconfig, addon chain, active=0 gating). mul_cell_
+v4c's own adapted testbench, 4/4 (same minus the addon check).
+Matching mul_shell_v1.v/mul_shell_v1c.v cardinal wrappers built.
+
+**Not yet done:** wiring mul into VIX carrier as a 10th core_select
+value -- real, separate next work, tied to the still-open "VIXb:
+mutable core count" item.
+
+## Previous state (as of 2026-09-08, the whole #719→#723 VIX correction arc closed out -- all 9 shells swapped to _v4c cores, a real config-off-shell timing bug found and correctly reverted, and the shell's own single addon chain proven to genuinely work end to end. All four VIX testbenches pass together. See `points/points_active.md` #723)
 
 ## Read this first (most recent)
 

@@ -9696,3 +9696,51 @@ rebuilt correctly as a single, efficient, shell-level mechanism
 (`#721`/`#722`), and the full integration verified end to end with a
 real bug found and fixed along the way (`#723`) -- exactly the kind of
 "inflation" Alan's own instinct predicted, found and removed for real.
+
+## 724. The 10th unified-carrier core: `mul`, built as BOTH `_v4` and `_v4c` from the start this time, per Alan's own direct instruction. Real, promoted arithmetic (`bitwise_multiplier_32bit.v`, a contributed, already-verified combinational design) wrapped in the exact same two-stage capture-and-fire protocol every other core uses. Both versions built and independently verified standalone. (Alan/Claude, 2026-09-08)
+
+**The real arithmetic, promoted and re-verified before building
+anything on top of it:** `bitwise_multiplier_32bit.v` (32 partial
+products summed through a real adder tree, purely combinational, zero
+clock cycles of latency) moved from `docs/stripped-cell/design-notes/
+future-core-candidates/` into `fpga/verilog/` as a real dependency.
+Re-verified directly against Verilog's own real 32x32 multiply
+semantics across 7 real cases (including `0xFFFFFFFF × 0xFFFFFFFF`)
+before trusting it inside a new core.
+
+**`mul_cell_v4.v` built directly on `adder_cell_v4.v`'s own proven
+shape** -- same two-stage A/B capture, same programming channel, same
+addon chain, same active/freeze gating. The one real, substantive
+difference is the core arithmetic itself. Two real, honest scope
+decisions made explicitly: `subtract_mode` has no equivalent for
+multiply and was REMOVED entirely, not left as a dead field; and this
+core offers only `Product[31:0]` (LLVM's own real `mul` truncation
+semantics, the same wraparound `add`/`sub` already use here) -- the
+real high 32 bits exist in the combinational multiplier's own output
+but aren't wired anywhere in this core, leaving room for a real,
+separate `mulh`/`umulh` core later without duplicating the multiply
+itself.
+
+**`mul_cell_v4c.v` built alongside it from the start, per Alan's own
+direct instruction** ("will need both the v4 and v4c versions") --
+unlike the other 9 cores, whose `_v4c` variants were a later
+correction (`#720`), this one didn't need retrofitting: the internal
+addon chain was never added to begin with, and the config-off-shell
+reasoning (feed from the carrier's own combinational `incoming_
+config`, not the registered `core_config` -- confirmed the hard way in
+`#723`) was documented correctly the first time.
+
+**Real, full verification, both versions:** `mul_cell_v4`'s own new
+testbench confirms real multiply (including the real low-32-bit
+overflow-truncation case, `0x10000 × 0x10000` wrapping to `0`), real
+targeted PROG_ID reconfiguration of `upstream_mask`, the real addon
+chain (`invert_en`), and real `active=0` gating -- 5/5 checks. `mul_
+cell_v4c`'s own adapted testbench confirms the same minus the
+addon-specific check -- 4/4 checks. Matching `mul_shell_v1.v`/`mul_
+shell_v1c.v` cardinal wrappers built for both.
+
+**Real, honest status: standalone verification only.** Neither
+version has been wired into VIX carrier yet -- that's real, separate,
+next work (adding `mul` as a 10th `core_select` value, which is
+exactly what `#720`'s own remaining "VIXb: mutable core count" item
+was scoped for).
