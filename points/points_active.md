@@ -9973,3 +9973,80 @@ everywhere -- it needs per-dependency awareness of which files are
 genuinely both-current-at-once versus which have a real newer/older
 relationship. Recorded precisely now so this doesn't need
 re-deriving when the fix is actually built.
+
+## 730. The priority-arbiter core built, both `priority_cell_v4.v` and `priority_cell_v4c.v`, together (Alan's own direct instruction, matching #724's own precedent). Along the way, a real, second scheduling mode -- weighted round-robin -- added as a genuine option alongside strict priority, catching and fixing a real algorithmic bug before it shipped. (Alan/Claude, 2026-09-08)
+
+**Real, structurally new core, not a template copy:** unlike every
+core before it, this one is genuinely single-stage (`data_reg`/
+`data_valid` only) rather than the two-stage `a_reg`/`a_arrived`
+capture add/mul/etc. all share -- there's no second OPERAND to wait
+for here, the "other" side of this core's own real job is a competing
+ARRIVAL, not a value to combine with. The downstream offering,
+programming channel, and (v4 only) addon chain all reused the
+established boilerplate directly; only the capture/arbitration logic
+itself is new.
+
+**Alan's own real, mid-build correction, caught and fixed before it
+shipped, not after:** the first working version used pure strict
+priority (#727's own resolved design) -- Alan pointed out directly
+that strict priority genuinely starves every lower-ranked port for as
+long as the top-ranked one keeps arriving continuously, not a corner
+case but the expected behavior of the scheme. Real fix: a second,
+selectable `scheduling_mode` bit, not a replacement -- 0 keeps the
+original strict-priority behavior exactly; 1 reinterprets the SAME
+`priority_rank_*` fields as relative WEIGHTS and switches to a real
+credit-based scheduler.
+
+**A real, second bug caught by Alan's own follow-up example ("1,2,1,2,
+1,3"), then found again independently via direct simulation before
+committing to a fix:** the first weighted-round-robin attempt
+incremented only the LOSING candidate's own credit each round and
+reset the winner fully to 0. Simulated directly rather than assumed
+correct -- this produces STRICT ALTERNATION regardless of the
+configured weight ratio (a 3:1 weight gave a 1:1 N,W,N,W,... pattern),
+since a big win margin was always fully discarded instead of carrying
+its own real surplus forward. Corrected to the real, standard "Surplus
+Round Robin" shape instead: EVERY candidate's credit gains its own
+weight EVERY round (win or lose), and only the WINNER's own credit is
+then reduced by the total weight of all real candidates that round
+(clamped at 0, never underflowing). Re-simulated and hand-verified:
+weight 3:1 now gives an exact 6:2 (3:1) service ratio over 8 real
+turns, in the pattern N,N,N,W,N,N,N,W -- genuinely interleaved, not
+clustered, matching the real, worked-through math exactly.
+
+**A real, honest, stated limitation, not oversold:** this produces a
+proportionally FAIR pattern matching the configured weight ratio, not
+an exact, arbitrary, pre-specified sequence a user might write by
+hand. An exact-sequence core would need a real, different, bigger
+design (a sequence table/generator) -- not attempted here.
+
+**A real, updated `cfg_data` field shape, adding exactly one new bit**
+(`[20] scheduling_mode`), reusing the existing rank fields as weights
+in RR mode rather than adding new ones -- `addon_config` (v4 only)
+shifted by 1 bit to make room.
+
+**Real, full verification, both versions, both modes:**
+`priority_cell_v4`'s own testbench: 10/10 checks (strict-priority
+arbitration incl. the held-arrival/served-on-its-own-turn behavior,
+targeted reprogramming, the addon chain, active=0 gating, AND the new
+weighted round-robin mode's own proportional-ratio and non-starvation
+checks). `priority_cell_v4c`'s own adapted testbench: 9/9 (same minus
+the addon-specific check). Both built and verified TOGETHER from the
+start (matching `#724`'s own `mul` precedent) -- no retrofit needed.
+Matching `priority_shell_v1.v`/`priority_shell_v1c.v` cardinal
+wrappers built for both (one real port-name mismatch from the adder
+template caught and fixed -- `status_winning_dir` is 2 bits, not the
+adder's own single-bit `status_a_arrived`).
+
+**A real, separate, useful lesson from the debugging itself, worth
+keeping:** several testbench-only failures during this build traced
+back to a fragile single-edge `ack`-pulse pattern
+(`sig=1;@(posedge clk);#1;sig=0;`) racing the exact clock edge it
+needed to be sampled on. Replaced throughout with a more robust
+two-edge hold (`sig=1;repeat(2)@(posedge clk);sig=0;`) -- worth
+carrying into the core-creation guide (`#725`) as a real, concrete
+testbench-writing tip for whoever builds the next core.
+
+**Real, honest status: standalone verification only.** Neither
+version is wired into VIX carrier yet -- that's real, separate work,
+same as `mul`'s own `#726`.

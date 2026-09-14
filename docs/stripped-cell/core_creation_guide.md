@@ -124,6 +124,17 @@ testbench already has is worth keeping:
 5. Real `active=0` gating — confirm the cell goes fully silent, not
    just that its output looks quiet.
 
+**A real, concrete testbench-writing pitfall worth naming, found while
+building the priority-arbiter core (`#730`):** a single-edge ack pulse
+written as `sig=1;@(posedge clk);#1;sig=0;` can race the exact clock
+edge it needs to be sampled on, silently failing to register with the
+DUT depending on exactly when the preceding statement resolved. A
+more robust pattern holds the signal across two full edges instead:
+`sig=1;repeat(2)@(posedge clk);sig=0;`. Several real, confusing test
+failures during that core's own build traced back to this exact
+pattern, not the RTL — worth using the robust form from the start
+rather than debugging it out failure by failure.
+
 ## Step 5 — verify `_v4` standalone before building `_v4c`
 
 Compile and run with `iverilog` directly. Every check should pass

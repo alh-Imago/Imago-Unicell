@@ -1,4 +1,46 @@
-# Current State (as of 2026-09-08, a precise clarification recorded for #728's own queued resolve_core_file() gap: carrier context (VIXb) needs the _c cores specifically, that's their whole purpose -- except the shift addon, which has both v1 and v2 genuinely current at once for two different real consumers, not a "newer supersedes older" relationship. See `points/points_active.md` #729)
+# Current State (as of 2026-09-08, the priority-arbiter core built as both priority_cell_v4.v and priority_cell_v4c.v, together. A real second scheduling mode (weighted round-robin) added alongside strict priority after Alan caught strict priority's own starvation problem; a real algorithmic bug in the first RR attempt caught and fixed via direct simulation before shipping. Both versions fully verified (10/10, 9/9). Not yet wired into VIX carrier. See `points/points_active.md` #730)
+
+## Read this first (most recent)
+
+**2026-09-08, priority_cell_v4/v4c built, with weighted round-robin
+added (#730).** Built both versions together per Alan's own direct
+instruction (matching mul's #724 precedent). Structurally new core:
+single-stage capture (data_reg/data_valid only), no second operand --
+the "other side" here is a competing arrival, not a value to combine.
+
+**Alan's own real, mid-build correction:** strict priority genuinely
+starves lower-ranked ports under sustained top-rank load -- not a
+corner case. Fixed with a real, second, selectable scheduling_mode:
+0=strict (unchanged), 1=weighted round-robin, reusing the same rank
+fields as weights.
+
+**A real algorithmic bug caught before shipping, via direct
+simulation, not assumed correct:** the first RR attempt incremented
+only the loser's credit and reset the winner to 0 -- produces STRICT
+ALTERNATION regardless of weight ratio (a 3:1 weight gave 1:1
+service). Fixed to the real "Surplus Round Robin" shape: every
+candidate's credit gains its own weight every round; only the winner's
+credit is reduced, by the total weight (clamped at 0). Re-verified:
+3:1 weight now gives exact 6:2 service over 8 turns, genuinely
+interleaved (N,N,N,W,N,N,N,W).
+
+**Real, full verification:** priority_cell_v4, 10/10 checks (strict
+mode, RR mode, addon chain, reprogramming, active=0 gating).
+priority_cell_v4c, 9/9 (same minus addon). Matching shell wrappers
+built for both. One real port-name mismatch from the adder template
+caught and fixed (status_winning_dir is 2 bits, not adder's single-bit
+status_a_arrived).
+
+**A real, separate, reusable lesson added to the core-creation guide:**
+a fragile single-edge ack-pulse testbench pattern that races the clock
+edge it needs to be sampled on -- several confusing test failures
+traced to this, not the RTL. Fixed throughout with a robust two-edge
+hold pattern instead.
+
+**Not yet done:** wiring priority into VIX carrier as an 11th core --
+real, separate work, same as mul's own #726.
+
+## Previous state (as of 2026-09-08, a precise clarification recorded for #728's own queued resolve_core_file() gap: carrier context (VIXb) needs the _c cores specifically, that's their whole purpose -- except the shift addon, which has both v1 and v2 genuinely current at once for two different real consumers, not a "newer supersedes older" relationship. See `points/points_active.md` #729)
 
 ## Read this first (most recent)
 

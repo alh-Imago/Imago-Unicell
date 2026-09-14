@@ -62,7 +62,80 @@ genuine priority encoder over whichever directions are BOTH enabled
 direction with the lowest configured rank -- not a fixed two-input
 compare, a real N-way (up to 4) configurable-priority selector.
 
-## The real idea, as originally given
+## Real, second refinement (2026-09-08): strict priority alone starves
+## lower-ranked ports under sustained load — a real, separate
+## scheduling mode added, not a replacement
+
+**The real problem, caught directly, not theoretical:** with pure
+strict priority, if the highest-ranked enabled direction has
+continuous data, the other enabled directions never get serviced at
+all — not "less often," genuinely never, for as long as the top-
+ranked input keeps arriving. A real design relying on this core for
+more than an occasional tie-break would need very careful traffic
+planning to avoid starving its own lower-priority inputs completely.
+
+**The real fix: a second, selectable scheduling mode, not a
+replacement for strict priority** — some real designs genuinely want
+"this input always wins when present" (the original, simpler
+behavior); others need real, weighted fairness. Both are real,
+legitimate needs, so both stay available via one new, real
+`scheduling_mode` bit:
+
+- `scheduling_mode = 0`: strict priority (the original design, above,
+  unchanged).
+- `scheduling_mode = 1`: weighted round-robin, reusing the SAME
+  `priority_rank_*` fields as real, configurable WEIGHTS instead of
+  absolute ranks (0 is genuinely the lowest possible weight here, not
+  "highest priority" — real, different meaning depending on mode, the
+  same field, no new field needed for weights specifically).
+
+**The real, concrete mechanism, a genuine credit accumulator (the
+same real technique real network schedulers use for weighted
+fairness, not an invented one):** one real, internal credit register
+per direction (`credit_n/s/e/w`, 8 bits — internal scheduler state,
+NOT part of `cfg_data`, not user-visible or configurable directly).
+Every real arbitration cycle:
+- Every direction that's a genuine candidate (enabled AND arrived)
+  gets its own configured weight ADDED to its own credit.
+- The candidate with the HIGHEST current credit wins (ties broken by
+  the same fixed N>S>E>W order as strict mode).
+- The WINNING direction's own credit resets to 0; every other
+  candidate's own credit keeps accumulating.
+
+**Real, honest, worked-through consequence of this mechanism, checked
+by hand before committing to it:** a port with 3x another's weight
+wins roughly 3 times for every 1 the other wins, and — because credit
+accumulates steadily every cycle rather than in a lump sum — the real
+service pattern comes out genuinely interleaved (something like
+A,A,A,B,A,A,A,B for a real 3:1 weight ratio), not clustered into "all
+of A's turns, then all of B's."
+
+**A real, honest limitation, stated plainly rather than oversold:**
+this produces a proportionally FAIR pattern matching the configured
+weight ratio, not an exact, pre-specified sequence a user might write
+down by hand (e.g. Alan's own illustrative "1,2,1,2,1,3" example for
+three weighted inputs). Building a core that reproduces an arbitrary,
+exact, user-specified sequence would need a real sequence table/
+generator — a genuinely bigger, different kind of core — not
+attempted here. The credit-accumulator approach gets the real, stated
+goal (no starvation, weight-proportional service) with a small,
+bounded, purely-additive hardware cost instead.
+
+**A real, updated `cfg_data` field shape, adding exactly one new bit:**
+```
+[5:0]   upstream_mask     — SAME real convention as every other core
+[11:6]  downstream_mask   — SAME real convention, no priority attached
+[13:12] priority_rank_n   — strict mode: 0=highest,3=lowest. RR mode:
+[15:14] priority_rank_s     relative weight, 0=lowest possible weight
+[17:16] priority_rank_e
+[19:18] priority_rank_w
+[20]    scheduling_mode   — 0=strict priority, 1=weighted round-robin
+[40:21] addon_config      — 20 bits, shifted by 1 bit from the first
+                            draft to make room for scheduling_mode
+[63:41] reserved
+```
+
+
 
 A cell with (at least) two real, distinct INPUT roles, not the usual
 symmetric cardinal wiring every existing core uses — a strict priority
