@@ -1550,3 +1550,105 @@ def test_select_cond_dag_reference_hits_the_real_structural_overlap():
     icm, diagnostics, info = compile_llvm_ir(ir, {"x": 3})
     assert icm is None
     assert any("overlaps an earlier one" in d.problem for d in diagnostics)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# points.md #718: bitwise and/or/xor added to the frontend. Confirmed
+# directly against unicell_gate_core.py's own compute_gate() before
+# writing any of this: the NOR-decomposition already does genuine, full
+# 32-bit bitwise operations (not a boolean simplification of the kind
+# used so far in select/icmp_eq), so no new hardware or RTL was needed
+# -- this is purely a compiler-integration task using the existing
+# nano_gate tile with the appropriate topology constant.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _run_bitwise(op, x, c, ticks=30):
+    ir = f"""
+    define i32 @f(i32 %x) {{
+    entry:
+      %r = {op} i32 %x, {c}
+      ret i32 %r
+    }}
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": x})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(ticks):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    return cell._nano.out_buffer, info.expected_result
+
+
+def test_and_single_instruction():
+    got, expected = _run_bitwise("and", 0b1100, 0b1010)
+    assert got == expected == 0b1000
+
+
+def test_or_single_instruction():
+    got, expected = _run_bitwise("or", 0b1100, 0b1010)
+    assert got == expected == 0b1110
+
+
+def test_xor_single_instruction():
+    got, expected = _run_bitwise("xor", 0b1100, 0b1010)
+    assert got == expected == 0b0110
+
+
+def test_bitwise_chained_with_add():
+    # add -> and -> or -> xor, exercising the ordinary chain wiring
+    # (each instruction adjacent to the one before it), not just a
+    # single isolated instruction.
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 5
+      %t2 = and i32 %t1, 255
+      %t3 = or i32 %t2, 256
+      %t4 = xor i32 %t3, 15
+      ret i32 %t4
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 10})
+    assert icm is not None, diagnostics
+    grid = SuperGrid(icm.records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    for _ in range(40):
+        grid.tick()
+    cell = grid.cells[info.result_cell]
+    assert cell._nano.out_buffer == 256 == info.expected_result   # t1=15,t2=15,t3=271,t4=256
+
+
+def test_bitwise_real_sweep_including_negative_and_extreme_values():
+    for op in ["and", "or", "xor"]:
+        for x in [-1, 0, -100, 2147483647, -2147483648, 12345]:
+            for c in [0, -1, 0x0F0F0F0F, -256]:
+                got, expected = _run_bitwise(op, x, c)
+                real = {"and": x & c, "or": x | c, "xor": x ^ c}[op] & 0xFFFFFFFF
+                assert got == expected == real, f"{op} x={x} c={c}: got {got}, expected {real}"
+
+
+def test_and_dag_reference_correctly_excluded():
+    # points.md #718: a real, honest, structural exclusion, not a gap
+    # left to fail silently -- nano_gate has no upstream_mask at all
+    # (accepts from ANY physically wired neighbor), so it can't
+    # selectively ignore the physically adjacent chain wire the way
+    # subtractor/adder can via in_a. Confirmed directly: an earlier
+    # attempt to allow this let an unrelated adjacent instruction's own
+    # value silently win the race against the intended DAG-relayed one
+    # -- a genuinely wrong answer, not a clean rejection. Reverted; this
+    # test confirms the exclusion itself, not a working DAG reference.
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 5
+      %t2 = add i32 %t1, 100
+      %t3 = and i32 %t1, 255
+      ret i32 %t3
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 10})
+    assert icm is None
+    assert any("nano_gate has no" in d.why for d in diagnostics)

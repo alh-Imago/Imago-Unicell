@@ -89,7 +89,7 @@ from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from program_ir_v1 import ProgramIR, PlaceIR, FieldIR  # noqa: E402
 from dsl_compiler_v1 import compile_program_ir  # noqa: E402
 
-_SUPPORTED_OPCODES = {"add", "sub", "icmp", "select", "shl", "lshr", "ashr"}
+_SUPPORTED_OPCODES = {"add", "sub", "icmp", "select", "shl", "lshr", "ashr", "and", "or", "xor"}
 
 # points.md #690: real, deterministic decomposition of any shift amount
 # 0-31 into (coarse, fine) -- coarse is one of shift_lane_addon_v2.v's
@@ -244,6 +244,11 @@ _ICMP_LOWERING = {
 # reopens.
 _EQ_TOPOLOGY = 0x0BC   # TOPO_XOR
 _EQ_NE_PREDICATES = ("eq", "ne")
+# points.md #718: real, confirmed-correct topology codes for LLVM's own
+# bitwise and/or/xor, checked directly against unicell_gate_core.py's
+# own compute_gate() table (verified there to do genuine, full 32-bit
+# bitwise operations, not a boolean simplification) before using them.
+_BITWISE_TOPOLOGY = {"and": 0x007, "or": 0x024, "xor": 0x0BC}
 
 
 def _diag(problem: str, what: str, why: str, suggestion: Optional[str] = None) -> CompileDiagnostic:
@@ -867,18 +872,25 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     # just not one DAG references are supported for yet
                     # (either the consumer or the producer is outside
                     # add/sub's own real commutative shape).
-                    why = ("general DAG routing (#701/#710/#712) is real but deliberately narrow "
-                           "so far: add/sub, and icmp's slt/sle/sgt/sge/eq/ne predicates, may "
-                           "reference an EARLIER add/sub result -- all lower onto forms where "
-                           "operand arrival order doesn't affect correctness (add/sub/sge/sgt via "
-                           "the commutative adder+negate trick, slt/sle confirmed empirically to "
-                           "work under the natural timing already present, eq/ne's own real "
-                           "diff==0 test is genuinely sign-agnostic). select/shl/lshr each have "
-                           "their own real, separate topology/result-row convention not yet "
-                           "accommodated, so none of the three may be a DAG reference source or "
-                           "consumer yet")
-                    suggestion = ("use add/sub/slt/sle/sgt/sge/eq/ne on both ends of the "
-                                  "reference, or wait for DAG routing to cover select/shl/lshr too")
+                    why = ("general DAG routing (#701/#710/#712/#716) is real but deliberately "
+                           "narrow so far: add/sub, icmp's slt/sle/sgt/sge/eq/ne predicates, and "
+                           "shl/lshr, may reference an EARLIER add/sub result -- all lower onto "
+                           "forms where operand arrival order doesn't affect correctness (add/"
+                           "sub/sge/sgt via the commutative adder+negate trick, slt/sle confirmed "
+                           "empirically to work under the natural timing already present, eq/ne's "
+                           "own real diff==0 test is genuinely sign-agnostic, shl/lshr have only "
+                           "one real dynamic operand at all). and/or/xor are EXCLUDED for a real, "
+                           "different, structural reason (#718), found directly: nano_gate has no "
+                           "upstream_mask at all (accepts from ANY physically wired neighbor), so "
+                           "it can't selectively ignore the physically adjacent chain wire the way "
+                           "subtractor/adder can via in_a -- confirmed by an actual compile where "
+                           "an unrelated adjacent instruction's own value silently won the race "
+                           "instead of the intended DAG-relayed one. select has its own real, "
+                           "separate result-row convention not yet accommodated, so none of the "
+                           "two may be a DAG reference source or consumer yet")
+                    suggestion = ("use add/sub/slt/sle/sgt/sge/eq/ne/shl/lshr on both ends of the "
+                                  "reference, or wait for DAG routing to cover and/or/xor/select "
+                                  "too")
                 diagnostics.append(_diag(
                     problem=f"instruction {i + 1}'s own first operand is {first_name or str(operands[0])!r}, "
                              f"not the immediately preceding instruction's result ({prev_instr_name!r})",
@@ -1211,6 +1223,16 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                     "sge": signed_first >= signed_second, "sgt": signed_first > signed_second,
                     "slt": signed_first < signed_second, "sle": signed_first <= signed_second,
                 }[predicate] else 0
+        elif instr.opcode in ("and", "or", "xor"):
+            # points.md #718: compute_gate's own real NOR-decomposition
+            # (unicell_gate_core.py) already does genuine, full 32-bit
+            # bitwise and/or/xor -- confirmed directly before writing
+            # any of this, not assumed -- so this Python-side
+            # computation can use the exact same native operators
+            # without any real risk of diverging from what the VM
+            # actually computes.
+            result = {"and": first_value & second_value, "or": first_value | second_value,
+                      "xor": first_value ^ second_value}[instr.opcode]
         else:
             result = first_value + second_value if instr.opcode == "add" else first_value - second_value
         # Real hardware is 32-bit, always -- masking here keeps the
@@ -1249,6 +1271,16 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 diff_tile, negate_north, threshold = _ICMP_LOWERING[predicate]
         elif instr.opcode == "sub":
             diff_tile, negate_north = "adder", True
+        elif instr.opcode in ("and", "or", "xor"):
+            # points.md #718: real placement happens in its own,
+            # separate special-case block below (after the shared
+            # relay-building block) -- nano_gate has no in_a/in_b
+            # named ports at all (accepts from ANY wired neighbor,
+            # #701's own tile registration), so it can't reuse the
+            # generic subtractor/adder-shaped diff-cell emission this
+            # variable feeds. Set here only so nothing downstream
+            # falls through to the misleading "adder" default.
+            diff_tile, negate_north = None, None
         else:
             diff_tile, negate_north = "adder", False
 
@@ -1349,6 +1381,42 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
                 return None, diagnostics, None
             dag_reference_count = new_count
 
+
+        if instr.opcode in ("and", "or", "xor"):
+            # points.md #718: real, minimal placement -- genuinely
+            # simpler than every other two-operand opcode so far.
+            # nano_gate has no in_a/in_b named ports at all (accepts
+            # from ANY physically wired neighbor, confirmed directly
+            # against its own real tile registration) -- there's
+            # nothing to wire differently for a DAG reference (south)
+            # vs the ordinary case (west); either way, the gate simply
+            # captures whichever two real values arrive. And/or/xor are
+            # all genuinely commutative, so arrival order never affects
+            # correctness either way -- no ordering question to test at
+            # all, unlike icmp's own slt/sle (#710).
+            #
+            # Real, found-empirically fix: BOTH the shared
+            # "value_north_i" feeder AND the i==0 west-side stagger
+            # relay (above, #611) already run unconditionally for
+            # every opcode that reaches this point -- shl/lshr never
+            # collide with either only because they never create a
+            # second operand feeder of their own at all. and/or/xor DO
+            # need one, so this reuses both already-placed feeders
+            # directly (the north feeder's own real value is already
+            # correct: `negate_north` is None/falsy here, giving
+            # `north_value == second_value`) instead of placing
+            # second, colliding ones.
+            gate_col = diff_col
+            statements.append(PlaceIR(
+                name=f"op_{i}", tile_name="nano_gate", row=1, col=gate_col,
+                fields=[FieldIR("out", "e"), FieldIR("topology", _BITWISE_TOPOLOGY[instr.opcode])],
+            ))
+            col_cursor = gate_col + 1
+            last_result_row = 1
+            prev_instr_name = instr.name
+            result_positions[instr.name] = (last_result_row, col_cursor - 1)
+            prev_icmp_predicate = None
+            continue
 
         if instr.opcode in ("shl", "lshr"):
             # points.md #716: real placement, moved here (after the

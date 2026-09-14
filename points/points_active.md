@@ -9381,3 +9381,59 @@ general DAG routing as both consumers and (for add/sub) producers,
 with shared-producer daisy chains. select's own case is the one real,
 structural exception -- correctly built, provably unreachable given
 today's supported opcode set, and clearly documented as exactly that.
+
+## 718. Bitwise `and`/`or`/`xor` added to the frontend -- confirmed directly that `compute_gate()` already does genuine, full 32-bit bitwise operations (no new hardware or RTL needed), then found and fixed two real placement bugs, then found and reverted a genuine, structural DAG-reference limitation specific to `nano_gate`. (Alan/Claude, 2026-09-08)
+
+**Confirmed before writing any code, not assumed:** read
+`unicell_gate_core.py`'s own `compute_gate()` directly -- the NOR-
+decomposition tree operates on full 32-bit Python integers via real
+bitwise `&`/`|`/`~` at every step, matching the real RTL gate-for-gate
+(verified elsewhere against both `unicell64_v3.v` and
+`unicell_stripped_v1.v`). The `TOPO_AND`/`TOPO_OR`/`TOPO_XOR` constants
+already used for BOOLEAN logic in `select`/`icmp_eq` (feeding 0/1
+values) are the exact same gate that would compute a real, full-width
+bitwise operation on any other 32-bit input -- this was purely a
+compiler-integration task, not new hardware.
+
+**Two real placement bugs found and fixed, both the same root cause:**
+the shared add/sub/icmp placement code (the `value_north_i` constant
+feeder, and the `i==0` west-side staggered relay) already runs
+UNCONDITIONALLY for every opcode that reaches that point in the loop --
+`shl`/`lshr` never collided with it only because they never needed a
+second operand feeder of their own at all. `and`/`or`/`xor` genuinely
+do, so an early draft placed a second, colliding one of each. Fixed by
+reusing the already-placed generic feeders directly instead -- their
+own real values are already correct (`negate_north` is falsy for
+these, giving `north_value == second_value`).
+
+**Real, full verification:** single-instruction cases, a real chained
+mixed-opcode program (add→and→or→xor), and a 72-case sweep across
+negative values, zero, and both `INT32` extremes -- all correct
+against an independently-computed expected value.
+
+**A real, genuine, structural DAG-reference limitation found and
+honestly reverted, not shipped broken:** `nano_gate` has no
+`upstream_mask` at all (accepts from ANY physically wired neighbor,
+confirmed directly against its own tile registration) -- unlike
+`subtractor`/`adder`, it has no way to selectively ignore the
+physically adjacent chain wire from the immediately preceding
+instruction. An attempt to extend DAG-reference support to and/or/xor
+(reasoning that this lack of restriction might make it EASIER than
+everything else, since there'd be nothing to wire differently for
+south vs west) found the exact opposite: confirmed directly by an
+actual compile where an unrelated adjacent instruction's own value
+silently won the race against the intended DAG-relayed one -- a
+genuinely wrong, silently-corrupted answer, not a clean rejection.
+Reverted cleanly rather than ship this; the diagnostic and pre-pass
+changes were rolled back together, and the general DAG-routing
+fallback diagnostic rewritten to name this precisely (and to fix
+language that had gone stale since `#716`'s own shl/lshr fix landed,
+which the exclusion message still incorrectly listed as unsupported).
+
+**Real, honest scope: `and`/`or`/`xor` support the ordinary, adjacent
+chain case only.** DAG-reference support for them is a real,
+structurally different problem from everything else in this arc --
+not scoped further here.
+
+**Real, full regression:** 6 new tests, 735 passed + 1 skipped overall
+(was 729), zero failures elsewhere.

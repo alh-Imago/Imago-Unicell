@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-08, the #701→#717 general DAG routing arc closed out -- add/sub, every real icmp predicate, and shl/lshr all genuinely support general DAG routing. select's own cond was built and wired correctly but found to be structurally unreachable given today's supported opcode set, confirmed by exhausting every plausible ordering. See `points/points_active.md` #717)
+# Current State (as of 2026-09-08, bitwise and/or/xor added to the frontend -- confirmed compute_gate() already does real, full 32-bit bitwise ops so no new hardware was needed; found and fixed two placement bugs, then found and reverted a genuine, structural DAG-reference limitation specific to nano_gate. See `points/points_active.md` #718)
+
+## Read this first (most recent)
+
+**2026-09-08, bitwise and/or/xor added (#718).** Confirmed directly
+against `compute_gate()` before writing anything: the NOR-decomposition
+already does genuine, full 32-bit bitwise operations, so this was
+purely compiler integration using the existing `nano_gate` tile with
+the right topology constant, not new hardware.
+
+**Two real placement bugs found and fixed**, both because the shared
+add/sub/icmp placement code (the constant feeder, the i==0 stagger)
+already runs unconditionally for every opcode -- shl/lshr never
+collided with it only because they never needed a second operand
+feeder at all. Fixed by reusing the already-placed generic feeders
+instead of creating colliding second ones.
+
+**A real, genuine DAG-reference limitation found and honestly
+reverted, not shipped broken:** nano_gate has no upstream_mask at all,
+so unlike subtractor/adder it can't selectively ignore the physically
+adjacent chain wire from the preceding instruction. An attempt to add
+DAG-reference support (reasoning this might be easier, since there's
+nothing to wire differently) found the opposite: an unrelated adjacent
+instruction's own value silently won the race against the intended
+relayed one -- a genuinely wrong answer. Reverted cleanly; the
+fallback diagnostic rewritten to name this precisely.
+
+**Real, honest scope: ordinary chain case only.** Real, full
+verification: single instructions, a chained mixed-opcode program, and
+a 72-case sweep including negative and extreme values, all correct.
+Real regression: 735 passed, 1 skipped (was 729).
+
+## Previous state (as of 2026-09-08, the #701→#717 general DAG routing arc closed out -- add/sub, every real icmp predicate, and shl/lshr all genuinely support general DAG routing. select's own cond was built and wired correctly but found to be structurally unreachable given today's supported opcode set, confirmed by exhausting every plausible ordering. See `points/points_active.md` #717)
 
 ## Read this first (most recent)
 
