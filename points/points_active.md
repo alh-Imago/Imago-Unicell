@@ -9785,3 +9785,59 @@ nothing built -- `mul` remains exactly where `#724` left it (both
 variants complete, standalone, not yet wired into VIX carrier). A
 real divider core, should it be picked up, has its own real starting
 point already recorded and is a separate, later piece of work.
+
+## 726. `mul` wired into VIX carrier as `SEL_MUL` (5'd9), the 10th real core -- following `#726`'s own new core-creation guide step by step (`#725`). One real bug found in the new testbench, not the RTL: a swapped downstream/upstream mask field order. All five VIX testbenches (four existing, one new) pass together. (Alan/Claude, 2026-09-08)
+
+**Real, comprehensive touch-point coverage, found by using the
+sequencer core as a template rather than guessing:** `SEL_MUL`
+localparam, `cfgv_mul`/`sel_mul`/`mul_cfg` (fed from `incoming_config`,
+matching `mul_cell_v4c`'s own documented, hard-won reasoning from
+`#723`), the full `mul_shell_v1c` instantiation, and `mul` added to
+every one of the carrier's own shared mux chains -- the single addon-
+chain `mux_dout`, `fire`, `ack`, `ready`, `program_done`, and
+`prog_ack` per direction. Confirmed via `grep` that every touch point
+sequencer had, mul now has too.
+
+**Real, full verification, in both directions:** all four existing
+VIX testbenches re-run and pass completely UNCHANGED -- zero
+regression from adding a 10th core. A new, purpose-built testbench
+(`tb_vix_carrier_mul_v1.v`) proves `SEL_MUL` genuinely routes and
+computes through the carrier's own real external ports -- a real
+multiply (`6×7=42`) and, deliberately, the same real low-32-bit
+overflow-truncation edge case (`0x10000 × 0x10000` wrapping to `0`)
+`mul_cell_v4`/`v4c`'s own standalone testbenches already confirmed --
+proven again here specifically through the carrier's own routing, not
+assumed to carry over automatically. 2/2 checks.
+
+**One real bug found and fixed in the new testbench itself, not the
+RTL:** the first attempt swapped `downstream_mask`/`upstream_mask`'s
+own field order when constructing `cfg_data`, giving a cell that never
+fired at all. Traced directly (added a debug `$display`, confirmed
+`fire_e=0`), fixed immediately once found -- the RTL wiring itself was
+correct throughout.
+
+**Real, honest status: `mul` is now a genuine 10th core, wired,
+routed, and verified -- but the underlying "hardcoded 9 cores"
+question (`VIXb`, from the original VIXa/VIXb framing) is still real
+and not resolved by this entry.** Adding `SEL_MUL` required touching
+roughly 20 separate lines across the shared carrier file by hand,
+exactly the kind of manual surgery a genuinely mutable core count was
+meant to avoid needing -- this entry is a real, concrete demonstration
+of why that item still matters, not a replacement for doing it.
+
+**A real, new idea recorded and explicitly QUEUED, not scoped or
+started, per Alan's own direction:** a future "carrier build system" --
+select which cores a given design actually needs, then build and test
+a carrier sized to exactly that set, rather than every carrier always
+carrying all cores whether a given program uses them or not. Alan's
+own framing, precisely: this idea grew directly out of doing the real
+carrier-expansion work in this entry, and is explicitly a future
+thought, not something to act on now. Real, honest scope not yet
+explored: how this would relate to `VIXb`'s own mutable-core-count
+work (a build system likely needs a mutable count as a real
+precondition, not a separate, parallel track) -- left for whenever
+this gets picked up.
+
+**Next, per Alan's own stated order:** the priority-arbiter core
+(`#707`'s own recorded design idea) -- real open questions named, no
+RTL, no scope pass done yet.

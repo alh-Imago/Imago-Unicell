@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-08, a real, reusable core-creation process guide written (drawn from the actual mul_cell_v4/v4c process), and a direct, checked answer that multiply cannot be "inverted" into divide -- genuinely different circuit shapes; a real divider candidate already exists separately with its own documented concerns. Design note only. See `points/points_active.md` #725)
+# Current State (as of 2026-09-08, mul wired into VIX carrier as SEL_MUL (5'd9), the 10th real core -- all five VIX testbenches (four existing, one new) pass together. A real "carrier build system" idea recorded and explicitly queued for later. See `points/points_active.md` #726)
+
+## Read this first (most recent)
+
+**2026-09-08, mul wired into VIX carrier (#726).** Following the new
+core-creation guide (#725) step by step, plus the sequencer core as a
+touch-point template: SEL_MUL added to every one of the carrier's own
+shared mux chains (mux_dout, fire, ack, ready, program_done,
+prog_ack), mul_cfg fed from incoming_config (matching #723's own
+hard-won reasoning). All four existing VIX testbenches re-run and
+pass UNCHANGED. A new testbench (tb_vix_carrier_mul_v1.v) proves
+SEL_MUL genuinely routes and computes through the carrier -- a real
+multiply and the real overflow-truncation edge case, both correct.
+One real bug found in the new TEST, not the RTL: a swapped
+downstream/upstream mask field order, traced and fixed immediately.
+
+**Real, honest note:** adding mul required touching ~20 separate
+lines by hand across the shared carrier file -- exactly the manual
+surgery VIXb's own "mutable core count" item was meant to avoid. This
+entry is a real demonstration of why that item still matters, not a
+substitute for doing it.
+
+**A new idea recorded and explicitly queued, not started:** a future
+"carrier build system" -- select which cores a design needs, build
+and test a carrier sized to exactly that set. Alan's own framing:
+grew directly out of doing this real expansion work, explicitly a
+future thought. Likely relates to VIXb's own mutable-count work as a
+real precondition, not explored yet.
+
+**Next, per Alan's own stated order:** the priority-arbiter core
+(#707) -- real open questions named, no RTL, no scope pass done yet.
+
+## Previous state (as of 2026-09-08, a real, reusable core-creation process guide written (drawn from the actual mul_cell_v4/v4c process), and a direct, checked answer that multiply cannot be "inverted" into divide -- genuinely different circuit shapes; a real divider candidate already exists separately with its own documented concerns. Design note only. See `points/points_active.md` #725)
 
 ## Read this first (most recent)
 
