@@ -1,4 +1,33 @@
-# Current State (as of 2026-09-08, VIXa part 1 of 2: the real, full addon chain ported into VIX carrier, previously completely absent -- confirmed by direct grep, ported from v9's own proven wiring using previously-unused reserved headroom, verified with a new testbench alongside the three existing ones, all passing. Sim-only, per the whole VIXa/VIXb/multiplier-core effort's own explicit framing. See `points/points_active.md` #719)
+# Current State (as of 2026-09-08, a real correction to #719 in progress: 8 of VIX's own 9 cores already had their own internal addon chain, so #719's shell-level chain was a genuine duplication, not a new capability. Building _v4c carrier-specific variants with the internal chain removed, base _v4 files untouched. 2 of 9 done and tested (adder, ram); 7 to go, then revert #719's shell chain and rewire properly. See `points/points_active.md` #720)
+
+## Read this first (most recent)
+
+**2026-09-08, correcting #719: the real "_v4c" cell variants (#720).**
+Alan's own direct observation -- the carrier's whole design concept is
+to hold common functionality centrally, cores just do their specific
+task -- identified that #719's own shell-level addon chain duplicated
+one already built into 8 of VIX's 9 cores internally (confirmed by
+audit, not assumed). Real fix in progress: for each core, a `_v4c`
+variant with the internal chain removed (base `_v4` files stay
+completely untouched) and a considered config-off-shell decision (the
+real fix lives at the shell level -- feed `cfg_data` from stable
+`core_config`, not transient `incoming_config` -- since these cells'
+own live-programming channel needs a writable register, unlike v9's
+simpler `_v3` cells).
+
+**Two of nine done and tested standalone:** `adder_cell_v4c` and
+`ram_cell_v4c`, each with a matching shell wrapper and an adapted
+testbench (addon-specific cases removed, everything else passing).
+Original `_v4` files and their original testbenches re-confirmed
+completely unaffected.
+
+**Remaining:** `compare`, `branch`, `accumulator`, `latch`,
+`sequencer`, `nano_gate`, `command` (7 more cores) -- then revert
+`#719`'s shell-level chain, wire one correct chain into the carrier,
+rewire every core's shell-level config source, re-test all VIX
+testbenches.
+
+## Previous state (as of 2026-09-08, VIXa part 1 of 2: the real, full addon chain ported into VIX carrier, previously completely absent -- confirmed by direct grep, ported from v9's own proven wiring using previously-unused reserved headroom, verified with a new testbench alongside the three existing ones, all passing. Sim-only, per the whole VIXa/VIXb/multiplier-core effort's own explicit framing. See `points/points_active.md` #719)
 
 ## Read this first (most recent)
 

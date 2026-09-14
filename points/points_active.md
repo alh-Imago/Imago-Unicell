@@ -9499,3 +9499,61 @@ entire VIXa/VIXb/multiplier-core body of work.
 private, transient `incoming_config` register to the shell's own
 stable config) still needs auditing across VIX's own 9 core types --
 not started, not attempted here.
+
+## 720. A real, important correction to `#719`: Alan's own direct observation ("the carrier's whole concept is to hold common functionality centrally, cores just do their specific task") identified `#719`'s own shell-level addon chain as a genuine duplication, not a new capability -- 8 of VIX's own 9 cores already had this exact chain built in internally (using the old `shift_lane_addon_v1`). Real fix in progress: `_v4c` carrier-specific variants with the internal chain removed, base `_v4` files left untouched. Two of nine complete and verified; `#719`'s own shell-level chain to be reverted once all nine are done. (Alan/Claude, 2026-09-08)
+
+**The real finding, confirmed by direct audit, not assumed:** grepping
+every one of VIX's own `_v4` cell files for addon-module instantiation
+found the identical 3-addon chain (`nibble_mask_addon_v1`/
+`shift_lane_addon_v1`/`invert_addon_v1`) built into 8 of the 9 cores
+(`command_cell_v4` correctly has none, since it does programming/
+routing, not data transformation). `#719`'s own shell-level chain,
+added because an earlier, narrower grep (scoped only to `unicell_vix_
+carrier_v1.v` itself) found no `addon_config` there, missed that each
+CORE already carried its own internal copy -- meaning `#719` added a
+second, redundant chain layered on top of one already present,
+confirmed not to have caused wrong results in `#719`'s own tests only
+because those tests never populated the internal chain's own dormant
+config bits.
+
+**A real, comprehensive audit found nothing else duplicated** beyond
+this one 3-module chain -- checked every submodule type instantiated
+across all 9 cores; each core's own unique arithmetic primitive
+(`adder_v1`, etc.) is genuinely its own job, not a copy of anything.
+
+**The real fix, per Alan's own direct naming: `_v4c` variants,
+specifically for use inside a carrier that already supplies common
+functionality.** Base `_v4` files stay completely unmodified -- still
+the real, proven, standalone cores used wherever nothing wraps them.
+Each `_v4c` file: (1) removes the internal addon chain entirely,
+`data_out_*` becomes the real computed value directly; (2) a real,
+considered decision on config-off-shell, distinct from `v9`'s own
+simpler `_v3` fix -- these cells have their own live-programming
+channel that genuinely needs a writable register, so a blind
+copy-to-continuous-wire would silence that feature. The real, correct
+fix lives at the carrier's own shell level instead: feed each cell's
+own `cfg_data` from the stable `core_config`, not the transient
+`incoming_config` -- once that's true, every `cfg_valid` latch reads
+the correct, current value, and `core_config`'s own UNION semantics
+(the same bits mean a given core's own fields only while it's
+actually selected) mean there's no real window for staleness the way
+`v9`'s own command-core-reprogramming scenario had.
+
+**Two of nine cells complete, tested standalone, per Alan's own
+sequencing (each cell in turn, before touching the carrier at all):**
+`adder_cell_v4c` and `ram_cell_v4c`, each with a matching `_v1c` shell
+wrapper and a new, adapted standalone testbench (the original
+addon-specific test cases removed, everything else kept and passing).
+The ORIGINAL `_v4` files and their ORIGINAL testbenches re-run and
+confirmed completely unaffected in both cases.
+
+**Real, honest remaining scope:** 7 more cores (`compare`, `branch`,
+`accumulator`, `latch`, `sequencer`, `nano_gate`, `command` --
+the last needs no addon removal but still wants its own `_v4c` for
+naming consistency). Once all nine are done: revert `#719`'s own
+shell-level chain, wire ONE real, correct chain into the carrier
+(using the freed reserved-headroom bits, or reconsidering that
+allocation now that the chain's real home is confirmed to be per-core
+rather than shell-broadcast), rewire the shell's own `_cfg` derivation
+from `core_config` instead of `incoming_config` for every core, and
+re-test all VIX testbenches.
