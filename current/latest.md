@@ -1,4 +1,31 @@
-# Current State (as of 2026-09-08, the 10th unified-carrier core, mul, built as BOTH _v4 and _v4c from the start -- real, promoted combinational multiplier (bitwise_multiplier_32bit.v) wrapped in the same two-stage capture protocol every core uses. Both versions verified standalone (5/5 and 4/4 checks). Not yet wired into VIX carrier. See `points/points_active.md` #724)
+# Current State (as of 2026-09-08, a real, reusable core-creation process guide written (drawn from the actual mul_cell_v4/v4c process), and a direct, checked answer that multiply cannot be "inverted" into divide -- genuinely different circuit shapes; a real divider candidate already exists separately with its own documented concerns. Design note only. See `points/points_active.md` #725)
+
+## Read this first (most recent)
+
+**2026-09-08, core-creation guide + the multiply/divide question
+(#725).** A real, reusable process guide written for creating new
+cores, per Alan's own direct ask -- drawn from the actual mul_cell_v4/
+v4c process (#724) and the real corrections found building the other
+9 _v4c variants (#720-#723), not written abstractly. Every gotcha
+named is one that was actually hit: the config-off-shell timing trap,
+the "don't assume a removed test block is safe" lesson, PROG_ID
+numbering stability, verify-before-trust discipline. Saved to
+docs/stripped-cell/core_creation_guide.md.
+
+**Direct answer, checked not assumed: multiply can't be inverted into
+divide.** The real multiplier is a wide, parallel adder-tree (genuine
+log-depth); a real restoring-division algorithm is sequential by
+nature (32 stages, each depending on the last -- genuine linear
+depth, no equivalent parallelization). Confirmed a real divider
+candidate already exists separately (bitwise_divider_32bit.v, future-
+core-candidates/), with its own real syntax bug (saved unfixed on
+purpose) and a real, serious timing concern the multiplier's own
+shape never had.
+
+**Real, honest status: documentation only**, nothing built. mul stays
+exactly where #724 left it.
+
+## Previous state (as of 2026-09-08, the 10th unified-carrier core, mul, built as BOTH _v4 and _v4c from the start -- real, promoted combinational multiplier (bitwise_multiplier_32bit.v) wrapped in the same two-stage capture protocol every core uses. Both versions verified standalone (5/5 and 4/4 checks). Not yet wired into VIX carrier. See `points/points_active.md` #724)
 
 ## Read this first (most recent)
 

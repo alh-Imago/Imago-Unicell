@@ -9744,3 +9744,44 @@ version has been wired into VIX carrier yet -- that's real, separate,
 next work (adding `mul` as a 10th `core_select` value, which is
 exactly what `#720`'s own remaining "VIXb: mutable core count" item
 was scoped for).
+
+## 725. A real, reusable process guide written for creating new cores -- Alan's own direct ask, anticipating users building their own cores. And a real, direct answer on "invert the multiplier to get a divider": no, confirmed by checking the actual algorithms, not assumed -- multiply and divide are genuinely different circuit shapes, and a real divider candidate already exists separately with its own, real, documented concerns. Design note only, no RTL changed. (Alan/Claude, 2026-09-08)
+
+**The real guide, drawn directly from the actual `mul_cell_v4`/`v4c`
+process (`#724`) and the real corrections found building the other 9
+`_v4c` variants (`#720`-`#723`), not written in the abstract:** every
+step names a real thing that was actually done, and every "gotcha" is
+one that was actually hit -- the config-off-shell timing trap
+(`core_config` vs `incoming_config`, `#723`'s own real finding), the
+"don't assume a removed test block is safe to delete" lesson
+(`accumulator_cell_v4c`'s own real inc_pulse dependency), the
+PROG_ID-numbering-stability convention, and the "verify the raw design
+before trusting it" discipline (confirmed correct by direct,
+independent check every single time a design was promoted, never
+assumed). Saved to `docs/stripped-cell/core_creation_guide.md`.
+
+**The real, direct answer on inverting the multiplier into a divider:
+no, checked against the real algorithms, not assumed.** Multiply and
+divide are not structural inverses the way `add`/`sub` are (a genuine,
+already-used real trick: negate one operand, reuse the same adder).
+The real multiplier here (`bitwise_multiplier_32bit.v`) is a wide,
+PARALLEL structure -- 32 partial products generated independently,
+summed through a real adder tree, genuine log-depth once synthesis
+collapses it. A real, standard restoring-division algorithm is
+SEQUENTIAL by its own nature -- each of 32 bit-stages depends on the
+previous stage's own running remainder, a genuine linear-depth chain
+with no equivalent parallelization. Confirmed directly: a real divider
+candidate (`bitwise_divider_32bit.v`) already exists separately in
+`future-core-candidates/`, with its own, real, already-documented
+concerns -- a literal syntax bug (saved unfixed, on purpose, so nobody
+inherits a silently-patched file) and a real, serious timing concern
+(32 sequential stages, a genuine risk to the real 200.76 MHz budget,
+`#322`) the multiplier's own shape never had to worry about. The guide
+itself now carries this as a real, standing question to ask before
+assuming any "inversion" shortcut exists for a future core.
+
+**Real, honest status: documentation only.** No RTL, no VM change,
+nothing built -- `mul` remains exactly where `#724` left it (both
+variants complete, standalone, not yet wired into VIX carrier). A
+real divider core, should it be picked up, has its own real starting
+point already recorded and is a separate, later piece of work.
