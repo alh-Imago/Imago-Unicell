@@ -9589,3 +9589,46 @@ swap all 9 shell instantiations from the plain `_v4` cores to the new
 `_v4c` ones and rewire each core's own shell-level config source from
 `incoming_config` to `core_config` (the real config-off-shell fix).
 Each step to be verified in turn before moving to the next.
+
+## 722. Step 2 of 3: one real, correctly-shaped shell-level addon chain built into VIX carrier -- a genuine correction to `#719`'s own approach, not a repeat of it. Checked before proceeding, per Alan's own explicit sequencing. (Alan/Claude, 2026-09-08)
+
+**A real, deliberate design improvement over `#719`'s own first
+attempt, not just a re-add:** `#719` instantiated the whole addon
+chain FOUR TIMES (once per direction) specifically to avoid touching
+VIX's own per-direction mux shape. Given the whole point of this
+correction is to genuinely slim the carrier down, that compromise was
+revisited directly: confirmed a cell offers the IDENTICAL computed
+value in every direction (`#611`'s own established fact, confirmed
+directly for VIX's own per-direction `_dn`/`_ds`/`_de`/`_dw` signals
+too -- every `_v4c` file built in `#720` assigns all four identically).
+Rebuilt as ONE shared mux value feeding ONE addon chain, its single
+result broadcast to all four directions -- matching `unicell_super_
+v9.v`'s own real, efficient shape exactly, a genuine ~4x reduction
+in addon-chain hardware versus `#719`'s own first attempt.
+
+**Same real bit allocation as `#719`'s own (confirmed still correct,
+only the application was wrong):** `[154:135]` = addon_config (20
+bits), `[156:155]` = shift_fine (2 bits), within VIX's own already-
+documented 27 bits of reserved headroom -- the 160-bit `VIX_LATCH`
+interface remains completely unchanged.
+
+**Real, honest scope, stated plainly before checking anything:** this
+step's own functional correctness genuinely CANNOT be verified yet --
+VIX still instantiates the plain `_v4` cores (step 3 not yet done),
+each of which still carries its own internal addon chain. Applying
+this new shell-level chain on top of that would double-transform the
+data, the exact bug class `#720` exists to fix. Checked only what
+COULD be checked at this stage: the new wiring compiles cleanly and,
+with `addon_config` left at its default zero (matching every existing
+VIX testbench, none of which touch these new reserved bits), all
+three of VIX's own original testbenches re-run and pass completely
+unchanged -- confirming this step introduces no regression, without
+yet claiming the addon chain itself works end to end.
+
+**Real, honest status: step 2 of 3 complete, checked for what it could
+be checked for, deferring the real functional proof to step 3** (swap
+all 9 shells to the new `_v4c` cores, which is also when the shell's
+own config-off-shell fix lands) -- at which point a real, purpose-
+built testbench (successor to `#719`'s own removed one) will confirm
+the addon chain genuinely works end to end with no double-
+transformation.

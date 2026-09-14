@@ -1,4 +1,34 @@
-# Current State (as of 2026-09-08, all 9 _v4c cores built and #719's own shell-level addon chain reverted cleanly (step 1 of 3), checked before proceeding per Alan's own explicit sequencing. Remaining: wire one correct chain into the carrier (now genuinely needed), then swap all 9 shells to the new _v4c cores and fix config-off-shell at the shell level. See `points/points_active.md` #721)
+# Current State (as of 2026-09-08, step 2 of 3: one correctly-shaped shell-level addon chain built into VIX carrier -- a genuine design improvement over #719's own 4x-duplicated first attempt, now a single shared chain matching v9's own efficient shape. Compiles cleanly, no regression on the 3 original VIX testbenches with addon_config left at zero -- full functional proof deferred to step 3, since the current _v4 cores still have their own internal chain. See `points/points_active.md` #722)
+
+## Read this first (most recent)
+
+**2026-09-08, step 2 of 3: one correct shell-level addon chain
+(#722).** A genuine improvement over #719's own approach, not a
+repeat: instead of instantiating the chain four times (once per
+direction, #719's own compromise to avoid touching VIX's mux shape),
+confirmed a cell offers the identical value in every direction and
+rebuilt as ONE shared value feeding ONE chain, broadcast to all four
+-- matching v9's own efficient shape, a real ~4x reduction versus
+#719's own first attempt. Same bit allocation as before (confirmed
+still correct, only the application was wrong): [154:135]/[156:155]
+within VIX's own already-documented reserved headroom.
+
+**Real, honest scope:** this step's own functional correctness can't
+be verified yet -- VIX still instantiates the plain _v4 cores (each
+still carrying its own internal addon chain), so applying this new
+shell-level chain now would double-transform the data. Checked only
+what could be checked: the wiring compiles cleanly, and with addon_
+config left at zero (matching every existing testbench), all 3
+original VIX testbenches pass unchanged -- no regression, real
+functional proof deferred to step 3.
+
+**Remaining:** step 3 -- swap all 9 shell instantiations to the new
+_v4c cores (removing the internal addon chain each still carries) and
+fix config-off-shell at the shell level (incoming_config → core_
+config). A new, purpose-built testbench will then confirm the addon
+chain genuinely works end to end with no double-transformation.
+
+## Previous state (as of 2026-09-08, all 9 _v4c cores built and #719's own shell-level addon chain reverted cleanly (step 1 of 3), checked before proceeding per Alan's own explicit sequencing. Remaining: wire one correct chain into the carrier (now genuinely needed), then swap all 9 shells to the new _v4c cores and fix config-off-shell at the shell level. See `points/points_active.md` #721)
 
 ## Read this first (most recent)
 

@@ -70,7 +70,19 @@
 //                             own real fields with ZERO reshuffling,
 //                             simpler than the old lineage needed for
 //                             nano specifically.
-//   [159:133] reserved      — 27 bits, genuine future headroom
+//   [159:133] reserved      — 27 bits, genuine future headroom.
+//                             points.md #722: 22 of these bits now
+//                             hold the real, SINGLE, shared addon
+//                             chain's own config (`[154:135]` =
+//                             addon_config, 20 bits; `[156:155]` =
+//                             shift_fine, 2 bits) -- `[159:157]`
+//                             (3 bits) still genuinely unused. See
+//                             `#720`/`#722`'s own real history: an
+//                             earlier attempt (`#719`) put this same
+//                             allocation to a redundant, four-times-
+//                             duplicated use; corrected once every
+//                             core's own internal chain was genuinely
+//                             removed (`_v4c`).
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -213,7 +225,24 @@ module unicell_vix_carrier_v1 #(
     // output mux). ──
     wire [4:0]   core_select  = vix_latch[4:0];
     wire [127:0] core_config  = vix_latch[132:5];
-    // vix_latch[159:133] deliberately unused -- reserved headroom
+    // points.md #722: real, corrected second attempt at using the
+    // previously-unused reserved headroom -- ports the FULL real
+    // addon chain (#312's own proven order: nibble_mask -> shift_fine
+    // -> shift_lane -> invert), needing exactly 22 real bits (20 for
+    // addon_config, 2 for shift_fine), matching unicell_super_v9.v's
+    // own real widths exactly. `#719`'s own first attempt at this same
+    // allocation was correct; only ITS OWN APPLICATION was wrong (a
+    // real, redundant SECOND chain layered on top of one already
+    // built into 8 of the 9 real cores, `#720`'s own real finding) --
+    // now that every core's own internal chain has been genuinely
+    // removed (`_v4c`, `#720`), this shell-level chain is the ONLY
+    // one left, applied ONCE here rather than four times (`#722`'s own
+    // real correction to `#719`'s own "instantiate per direction"
+    // compromise, see below). 5 bits of the original 27 remain
+    // genuinely reserved.
+    wire [19:0]  addon_config = vix_latch[154:135];
+    wire [1:0]   shift_fine   = vix_latch[156:155];
+    // vix_latch[159:157] still deliberately unused -- reserved headroom
 
     // ── INCOMING select/config -- the value ABOUT TO BE committed,
     // straight off cfg_data OR the real, internal select-redirect
@@ -529,18 +558,51 @@ module unicell_vix_carrier_v1 #(
     // ── Real output mux -- exactly one core's outputs ever reach the
     // external ports, selected by the SAME registered core_select
     // used for arrival/config gating. ──
-    assign data_out_n = sel_nano ? nano_dn : sel_adder ? adder_dn : sel_ram ? ram_dn :
-                         sel_compare ? compare_dn : sel_branch ? branch_dn : sel_accum ? accum_dn :
-                         sel_latch ? latch_dn : sel_seq ? seq_dn : 32'h0;
-    assign data_out_s = sel_nano ? nano_ds : sel_adder ? adder_ds : sel_ram ? ram_ds :
-                         sel_compare ? compare_ds : sel_branch ? branch_ds : sel_accum ? accum_ds :
-                         sel_latch ? latch_ds : sel_seq ? seq_ds : 32'h0;
-    assign data_out_e = sel_nano ? nano_de : sel_adder ? adder_de : sel_ram ? ram_de :
-                         sel_compare ? compare_de : sel_branch ? branch_de : sel_accum ? accum_de :
-                         sel_latch ? latch_de : sel_seq ? seq_de : 32'h0;
-    assign data_out_w = sel_nano ? nano_dw : sel_adder ? adder_dw : sel_ram ? ram_dw :
-                         sel_compare ? compare_dw : sel_branch ? branch_dw : sel_accum ? accum_dw :
-                         sel_latch ? latch_dw : sel_seq ? seq_dw : 32'h0;
+    //
+    // points.md #722: real, corrected shape -- a cell offers the
+    // IDENTICAL computed value in every direction (#611's own
+    // established fact; confirmed directly for VIX's own per-
+    // direction _dn/_ds/_de/_dw signals too, which are always the
+    // same value for any given core, just gated differently per
+    // direction via fire_n/s/e/w rather than carrying different data).
+    // `#719`'s own first attempt didn't rely on this and instantiated
+    // the whole addon chain FOUR TIMES, once per direction, to avoid
+    // touching this mux's own shape -- a real, ~4x area cost, now
+    // corrected: ONE shared mux output feeds ONE addon chain, whose
+    // single result is broadcast to all four directions, matching
+    // unicell_super_v9.v's own real, efficient shape exactly.
+    wire [31:0] mux_dout = sel_nano ? nano_dn : sel_adder ? adder_dn : sel_ram ? ram_dn :
+                           sel_compare ? compare_dn : sel_branch ? branch_dn : sel_accum ? accum_dn :
+                           sel_latch ? latch_dn : sel_seq ? seq_dn : 32'h0;
+
+    wire [31:0] after_mask, after_fineshift, after_shiftlane, addon_out;
+    wire [1:0]  shift_fine_applied;
+
+    nibble_mask_addon_v1 ADDON_NM (
+        .mask_en(addon_config[8]), .nibble_mask(addon_config[7:0]),
+        .data_in(mux_dout), .data_out(after_mask)
+    );
+    shift_fine_addon_v1 ADDON_SF (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amount(shift_fine),
+        .data_in(after_mask), .data_out(after_fineshift),
+        .shift_amount_out(shift_fine_applied)
+    );
+    shift_lane_addon_v2 ADDON_SL (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amt(addon_config[13:9]), .lane_cut(addon_config[18:16]),
+        .shift_fine_in(shift_fine_applied),
+        .data_in(after_fineshift), .data_out(after_shiftlane)
+    );
+    invert_addon_v1 ADDON_INV (
+        .invert_en(addon_config[19]),
+        .data_in(after_shiftlane), .data_out(addon_out)
+    );
+
+    assign data_out_n = addon_out;
+    assign data_out_s = addon_out;
+    assign data_out_e = addon_out;
+    assign data_out_w = addon_out;
 
     assign fire_n = sel_nano ? nano_fn : sel_adder ? adder_fn : sel_ram ? ram_fn :
                     sel_compare ? compare_fn : sel_branch ? branch_fn : sel_accum ? accum_fn :
