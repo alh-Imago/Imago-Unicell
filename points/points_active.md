@@ -9938,3 +9938,38 @@ not a rushed regex patch. Queued as its own, real, separate item.
 
 **Real, honest status:** the folder is reorganized and re-verified;
 the `resolve_core_file()` gap is named precisely but not yet fixed.
+
+## 729. A real, precise clarification from Alan on `#728`'s own queued `resolve_core_file()` gap, recorded before it's forgotten: when VIX carrier is the real target, the tool needs the `_c` cores specifically -- that's their whole real purpose, built to use the carrier's own shared resources -- with one real, named exception: the shift addon, which doesn't follow that rule at all. (Alan/Claude, 2026-09-08)
+
+**The real rule, for every core cell/shell pair:** when building for
+VIX carrier (or any future carrier sharing this same real convention),
+resolve the `_v4c`/`_v1c` variant, not the plain `_v4`/`_v1` one --
+this is precisely what the `_c` variants were designed for (`#720`'s
+own real finding: a carrier that holds common functionality centrally,
+so wrapped cores shouldn't carry their own redundant copy of it).
+Selecting the plain, standalone version for a carrier build would be
+building the WRONG core for that context, not just a suboptimal one.
+
+**The real, named exception, worth keeping precise so it isn't
+flattened into the same rule by mistake later:** the shift addon does
+NOT follow "carrier context picks the newer/c one" -- `shift_lane_
+addon_v1.v` and `shift_lane_addon_v2.v` are both genuinely CURRENT,
+simultaneously, for two real, different consumers: `v1` is the real
+dependency every plain (non-carrier) `_v4` core still uses internally
+for its own addon chain; `v2` (the fine-shift-aware fix) is what the
+carrier's own single, shared, shell-level chain uses (`#722`). Neither
+one is "the newer version superseding the other" the way `_v4c`
+supersedes `_v4` for carrier use -- they're both real, live
+dependencies of two different, real consumers at once. Confirmed
+directly in `#728`'s own reorganization work: `shift_lane_addon_v1.v`
+had to be restored to the root specifically because the plain `_v4`
+cores still need it, even with `_v2` also present and current.
+
+**Real, honest status: still queued, not built.** This clarifies HALF
+of `#728`'s own open question (carrier context → `_c` cores, settled)
+but the addon-specific exception means `resolve_core_file()`'s own
+real fix can't be a single, uniform "prefer newer/c" rule applied
+everywhere -- it needs per-dependency awareness of which files are
+genuinely both-current-at-once versus which have a real newer/older
+relationship. Recorded precisely now so this doesn't need
+re-deriving when the fix is actually built.

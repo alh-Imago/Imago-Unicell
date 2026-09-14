@@ -1,4 +1,26 @@
-# Current State (as of 2026-09-08, fpga/verilog/ reorganized -- 238 historical files (312 total) moved into per-family subfolders, 73 current-build files left in the root, all five VIX testbenches re-verified passing. A real, separate resolve_core_file() gap found (no _v4c support at all) and deliberately queued rather than rushed. See `points/points_active.md` #728)
+# Current State (as of 2026-09-08, a precise clarification recorded for #728's own queued resolve_core_file() gap: carrier context (VIXb) needs the _c cores specifically, that's their whole purpose -- except the shift addon, which has both v1 and v2 genuinely current at once for two different real consumers, not a "newer supersedes older" relationship. See `points/points_active.md` #729)
+
+## Read this first (most recent)
+
+**2026-09-08, resolve_core_file() gap clarified (#729).** Alan's own
+precise rule: when VIX carrier is the target, resolve the _c variant
+of each core -- that's precisely what they were built for (#720's own
+"carrier holds common functionality" finding). Real, named exception:
+the shift addon does NOT follow this -- v1 and v2 are BOTH genuinely
+current at once, for two different real consumers (v1 for the plain
+_v4 cores' own internal chain, v2 for the carrier's own shared, shell-
+level chain, #722) -- not a newer-supersedes-older relationship the
+way _v4c supersedes _v4 for carrier use. Confirmed directly in #728's
+own reorganization: shift_lane_addon_v1.v had to be restored to the
+root specifically because the plain _v4 cores still need it.
+
+**Real, honest status: still queued, not built.** resolve_core_file()
+can't be a single uniform "prefer newer/c" rule -- it needs per-
+dependency awareness of which files are genuinely both-current-at-once
+versus which have a real supersession relationship. Recorded precisely
+so this doesn't need re-deriving later.
+
+## Previous state (as of 2026-09-08, fpga/verilog/ reorganized -- 238 historical files (312 total) moved into per-family subfolders, 73 current-build files left in the root, all five VIX testbenches re-verified passing. A real, separate resolve_core_file() gap found (no _v4c support at all) and deliberately queued rather than rushed. See `points/points_active.md` #728)
 
 ## Read this first (most recent)
 
