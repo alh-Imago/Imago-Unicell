@@ -70,7 +70,13 @@
 //                             own real fields with ZERO reshuffling,
 //                             simpler than the old lineage needed for
 //                             nano specifically.
-//   [159:133] reserved      — 27 bits, genuine future headroom
+//   [159:133] reserved      — 27 bits, genuine future headroom.
+//                             points.md #719: 22 of these bits now
+//                             hold the real addon chain's own config
+//                             (`[154:135]` = addon_config, 20 bits;
+//                             `[156:155]` = shift_fine, 2 bits) --
+//                             `[159:157]` (3 bits) still genuinely
+//                             unused.
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -213,7 +219,18 @@ module unicell_vix_carrier_v1 #(
     // output mux). ──
     wire [4:0]   core_select  = vix_latch[4:0];
     wire [127:0] core_config  = vix_latch[132:5];
-    // vix_latch[159:133] deliberately unused -- reserved headroom
+    // points.md #719: real, first use of the previously-unused
+    // reserved headroom -- ports the FULL real addon chain (#312's
+    // own proven order: nibble_mask -> shift_fine -> shift_lane ->
+    // invert), confirmed directly against unicell_super_v9.v's own
+    // real wiring, needing exactly 22 real bits (20 for addon_config,
+    // 2 for shift_fine) before this. VIX had NONE of these four addons
+    // wired at all -- confirmed directly, not assumed, by a real grep
+    // turning up zero matches for any of them anywhere in this file.
+    // 5 bits of the original 27 remain genuinely reserved.
+    wire [19:0]  addon_config = vix_latch[154:135];
+    wire [1:0]   shift_fine   = vix_latch[156:155];
+    // vix_latch[159:157] still deliberately unused -- reserved headroom
 
     // ── INCOMING select/config -- the value ABOUT TO BE committed,
     // straight off cfg_data OR the real, internal select-redirect
@@ -529,18 +546,131 @@ module unicell_vix_carrier_v1 #(
     // ── Real output mux -- exactly one core's outputs ever reach the
     // external ports, selected by the SAME registered core_select
     // used for arrival/config gating. ──
-    assign data_out_n = sel_nano ? nano_dn : sel_adder ? adder_dn : sel_ram ? ram_dn :
+    wire [31:0] mux_dout_n, mux_dout_s, mux_dout_e, mux_dout_w;
+    assign mux_dout_n = sel_nano ? nano_dn : sel_adder ? adder_dn : sel_ram ? ram_dn :
                          sel_compare ? compare_dn : sel_branch ? branch_dn : sel_accum ? accum_dn :
                          sel_latch ? latch_dn : sel_seq ? seq_dn : 32'h0;
-    assign data_out_s = sel_nano ? nano_ds : sel_adder ? adder_ds : sel_ram ? ram_ds :
+    assign mux_dout_s = sel_nano ? nano_ds : sel_adder ? adder_ds : sel_ram ? ram_ds :
                          sel_compare ? compare_ds : sel_branch ? branch_ds : sel_accum ? accum_ds :
                          sel_latch ? latch_ds : sel_seq ? seq_ds : 32'h0;
-    assign data_out_e = sel_nano ? nano_de : sel_adder ? adder_de : sel_ram ? ram_de :
+    assign mux_dout_e = sel_nano ? nano_de : sel_adder ? adder_de : sel_ram ? ram_de :
                          sel_compare ? compare_de : sel_branch ? branch_de : sel_accum ? accum_de :
                          sel_latch ? latch_de : sel_seq ? seq_de : 32'h0;
-    assign data_out_w = sel_nano ? nano_dw : sel_adder ? adder_dw : sel_ram ? ram_dw :
+    assign mux_dout_w = sel_nano ? nano_dw : sel_adder ? adder_dw : sel_ram ? ram_dw :
                          sel_compare ? compare_dw : sel_branch ? branch_dw : sel_accum ? accum_dw :
                          sel_latch ? latch_dw : sel_seq ? seq_dw : 32'h0;
+
+    // ── points.md #719: the real, full addon chain (#312's own proven
+    // order), ported from unicell_super_v9.v -- previously completely
+    // absent from VIX. Real, honest tradeoff, stated plainly rather
+    // than silently accepted: v9 runs this chain ONCE (a cell offers
+    // the identical computed value in every direction, #611's own
+    // established fact) and broadcasts the single result to all four
+    // directions; this port instead instantiates the chain FOUR TIMES,
+    // once per direction, to avoid restructuring VIX's own existing
+    // per-direction mux pattern (a bigger, riskier change for a first,
+    // sim-only port). Functionally correct -- all four directions
+    // genuinely compute the identical result, confirmed by construction
+    // (same real addon_config/shift_fine feed all four) -- but a real,
+    // known area cost (roughly 4x the addon logic) worth collapsing
+    // back to v9's own single-chain shape in a later pass, once this
+    // is confirmed correct in sim.
+    wire [31:0] addon_n_mask, addon_n_fine, addon_n_lane, addon_dout_n;
+    wire [1:0]  addon_n_fine_applied;
+    nibble_mask_addon_v1 ADDON_NM_N (
+        .mask_en(addon_config[8]), .nibble_mask(addon_config[7:0]),
+        .data_in(mux_dout_n), .data_out(addon_n_mask)
+    );
+    shift_fine_addon_v1 ADDON_SF_N (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amount(shift_fine),
+        .data_in(addon_n_mask), .data_out(addon_n_fine),
+        .shift_amount_out(addon_n_fine_applied)
+    );
+    shift_lane_addon_v2 ADDON_SL_N (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amt(addon_config[13:9]), .lane_cut(addon_config[18:16]),
+        .shift_fine_in(addon_n_fine_applied),
+        .data_in(addon_n_fine), .data_out(addon_n_lane)
+    );
+    invert_addon_v1 ADDON_INV_N (
+        .invert_en(addon_config[19]),
+        .data_in(addon_n_lane), .data_out(addon_dout_n)
+    );
+
+    wire [31:0] addon_s_mask, addon_s_fine, addon_s_lane, addon_dout_s;
+    wire [1:0]  addon_s_fine_applied;
+    nibble_mask_addon_v1 ADDON_NM_S (
+        .mask_en(addon_config[8]), .nibble_mask(addon_config[7:0]),
+        .data_in(mux_dout_s), .data_out(addon_s_mask)
+    );
+    shift_fine_addon_v1 ADDON_SF_S (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amount(shift_fine),
+        .data_in(addon_s_mask), .data_out(addon_s_fine),
+        .shift_amount_out(addon_s_fine_applied)
+    );
+    shift_lane_addon_v2 ADDON_SL_S (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amt(addon_config[13:9]), .lane_cut(addon_config[18:16]),
+        .shift_fine_in(addon_s_fine_applied),
+        .data_in(addon_s_fine), .data_out(addon_s_lane)
+    );
+    invert_addon_v1 ADDON_INV_S (
+        .invert_en(addon_config[19]),
+        .data_in(addon_s_lane), .data_out(addon_dout_s)
+    );
+
+    wire [31:0] addon_e_mask, addon_e_fine, addon_e_lane, addon_dout_e;
+    wire [1:0]  addon_e_fine_applied;
+    nibble_mask_addon_v1 ADDON_NM_E (
+        .mask_en(addon_config[8]), .nibble_mask(addon_config[7:0]),
+        .data_in(mux_dout_e), .data_out(addon_e_mask)
+    );
+    shift_fine_addon_v1 ADDON_SF_E (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amount(shift_fine),
+        .data_in(addon_e_mask), .data_out(addon_e_fine),
+        .shift_amount_out(addon_e_fine_applied)
+    );
+    shift_lane_addon_v2 ADDON_SL_E (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amt(addon_config[13:9]), .lane_cut(addon_config[18:16]),
+        .shift_fine_in(addon_e_fine_applied),
+        .data_in(addon_e_fine), .data_out(addon_e_lane)
+    );
+    invert_addon_v1 ADDON_INV_E (
+        .invert_en(addon_config[19]),
+        .data_in(addon_e_lane), .data_out(addon_dout_e)
+    );
+
+    wire [31:0] addon_w_mask, addon_w_fine, addon_w_lane, addon_dout_w;
+    wire [1:0]  addon_w_fine_applied;
+    nibble_mask_addon_v1 ADDON_NM_W (
+        .mask_en(addon_config[8]), .nibble_mask(addon_config[7:0]),
+        .data_in(mux_dout_w), .data_out(addon_w_mask)
+    );
+    shift_fine_addon_v1 ADDON_SF_W (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amount(shift_fine),
+        .data_in(addon_w_mask), .data_out(addon_w_fine),
+        .shift_amount_out(addon_w_fine_applied)
+    );
+    shift_lane_addon_v2 ADDON_SL_W (
+        .direction(addon_config[15]), .shift_en(addon_config[14]),
+        .shift_amt(addon_config[13:9]), .lane_cut(addon_config[18:16]),
+        .shift_fine_in(addon_w_fine_applied),
+        .data_in(addon_w_fine), .data_out(addon_w_lane)
+    );
+    invert_addon_v1 ADDON_INV_W (
+        .invert_en(addon_config[19]),
+        .data_in(addon_w_lane), .data_out(addon_dout_w)
+    );
+
+    assign data_out_n = addon_dout_n;
+    assign data_out_s = addon_dout_s;
+    assign data_out_e = addon_dout_e;
+    assign data_out_w = addon_dout_w;
 
     assign fire_n = sel_nano ? nano_fn : sel_adder ? adder_fn : sel_ram ? ram_fn :
                     sel_compare ? compare_fn : sel_branch ? branch_fn : sel_accum ? accum_fn :

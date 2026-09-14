@@ -9437,3 +9437,65 @@ not scoped further here.
 
 **Real, full regression:** 6 new tests, 735 passed + 1 skipped overall
 (was 729), zero failures elsewhere.
+
+## 719. VIXa (part 1 of 2): the real, full addon chain ported into VIX carrier -- confirmed directly that VIX had NONE of the four addons wired at all (not just an outdated shift-addon), ported all four from v9's own proven wiring using previously-unused reserved headroom, and verified with a new, purpose-built testbench alongside the three existing ones. (Alan/Claude, 2026-09-08)
+
+**Confirmed before writing any RTL, not assumed:** a direct grep for
+`addon_config` anywhere in `unicell_vix_carrier_v1.v` returned zero
+matches -- VIX's own `data_out_n`/`s`/`e`/`w` went straight from the
+core-select mux to the external ports, with no addon chain at all.
+Alan's own framing ("port the shift-addon fix") turned out to
+understate the real gap -- ALL FOUR real addons (`nibble_mask`,
+`shift_fine`, `shift_lane`, `invert`) were missing, not just an
+outdated shift-lane version.
+
+**The real bit allocation, confirmed to fit without any interface
+change:** `v9`'s own full addon chain needs exactly 22 real bits
+(`addon_config`, 20 bits, `super_latch[66:47]`; `shift_fine`, 2 bits,
+`super_latch[68:67]`) -- confirmed directly against `v9`'s own RTL.
+VIX's own header already documented 27 bits of genuinely unused
+reserved headroom at `[159:133]`. Allocated `[154:135]` for
+`addon_config` and `[156:155]` for `shift_fine`, leaving `[159:157]`
+(3 bits) still genuinely reserved -- the 160-bit `VIX_LATCH` interface
+width itself is completely unchanged, a real, contained wiring task,
+not a breaking change.
+
+**A real, honest tradeoff, stated plainly in the RTL itself, not
+hidden:** `v9` runs the addon chain ONCE (a cell offers the identical
+computed value in every direction, `#611`'s own established fact) and
+broadcasts the result to all four directions. This port instead
+instantiates the full chain FOUR TIMES, once per direction, to avoid
+restructuring VIX's own existing per-direction mux pattern for a
+first, sim-only port -- functionally correct (all four directions
+compute the identical result by construction, since the same
+`addon_config`/`shift_fine` feed all four), but a real, known ~4x area
+cost worth collapsing back to `v9`'s own single-chain shape in a later
+pass, once confirmed correct in sim (this entry).
+
+**Real, full verification, in both directions:** the three existing
+VIX testbenches (`tb_unicell_vix_carrier_v1`, `tb_vix_carrier_mesh_v1`,
+`tb_vix_carrier_select_redirect_v1`) all re-run via `iverilog` and
+confirmed passing UNCHANGED -- zero regressions from the port. A new,
+purpose-built testbench (`tb_vix_carrier_addon_chain_v1.v`) proves the
+new capability itself, not just its absence of breakage: the chain is
+a genuine no-op when disabled (not silently always-on), a real
+nibble-aligned right-shift by 8 and left-shift by 4 through the actual
+carrier's own external ports, and nibble-mask-plus-invert together
+(the two addons the shift cases don't exercise). 4/4 real checks pass.
+
+**One real bug found and fixed in the new test itself, not the RTL:**
+the first attempt sent only one arrival per case and every check
+failed -- traced directly to `nano_gate` genuinely needing TWO
+arrivals to fire (a two-input gate) even when the configured topology
+(`TOPO_PASS_A`) only uses the first. Fixed immediately once found.
+
+**Real, honest status: sim-only, matching this whole effort's own
+explicit framing.** Not run through Quartus, not verified on real
+hardware -- `iverilog` simulation only, as stated up front for this
+entire VIXa/VIXb/multiplier-core body of work.
+
+**Real, remaining scope for VIXa (part 2):** the config-off-shell fix
+(`#699`'s own real correctness fix for v9, switching cores from a
+private, transient `incoming_config` register to the shell's own
+stable config) still needs auditing across VIX's own 9 core types --
+not started, not attempted here.

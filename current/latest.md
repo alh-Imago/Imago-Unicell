@@ -1,4 +1,37 @@
-# Current State (as of 2026-09-08, bitwise and/or/xor added to the frontend -- confirmed compute_gate() already does real, full 32-bit bitwise ops so no new hardware was needed; found and fixed two placement bugs, then found and reverted a genuine, structural DAG-reference limitation specific to nano_gate. See `points/points_active.md` #718)
+# Current State (as of 2026-09-08, VIXa part 1 of 2: the real, full addon chain ported into VIX carrier, previously completely absent -- confirmed by direct grep, ported from v9's own proven wiring using previously-unused reserved headroom, verified with a new testbench alongside the three existing ones, all passing. Sim-only, per the whole VIXa/VIXb/multiplier-core effort's own explicit framing. See `points/points_active.md` #719)
+
+## Read this first (most recent)
+
+**2026-09-08, VIX carrier's real addon chain ported (#719), VIXa part
+1 of 2.** Confirmed directly (zero grep matches) that VIX had NONE of
+the four real addons wired at all, not just an outdated shift version.
+Ported all four (nibble_mask/shift_fine/shift_lane_v2/invert) from
+v9's own proven wiring, using 22 of VIX's own 27 already-reserved,
+previously-unused headroom bits (`[154:135]`=addon_config,
+`[156:155]`=shift_fine) -- the 160-bit interface itself is unchanged.
+
+**A real, honest tradeoff stated plainly:** the chain is instantiated
+FOUR TIMES (once per direction) rather than once-and-broadcast like
+v9 does, to avoid restructuring VIX's own existing per-direction mux
+for a first sim-only pass -- correct by construction, but a known
+~4x area cost worth collapsing later.
+
+**Real, full verification:** the three existing VIX testbenches all
+re-run and pass UNCHANGED (zero regressions). A new, purpose-built
+testbench proves the actual new capability -- disabled is a genuine
+no-op, both shift directions work, mask+invert work -- 4/4 checks.
+One real bug found and fixed in the TEST itself (nano_gate needs two
+arrivals to fire, not one), not the RTL.
+
+**Real, honest status: sim-only**, matching this whole VIXa/VIXb/
+multiplier-core effort's own explicit framing -- not run through
+Quartus, not on real hardware.
+
+**Remaining for VIXa:** the config-off-shell fix (`#699`'s own real
+correctness fix) still needs auditing across VIX's 9 core types --
+not started. Then VIXb (mutable core count), then the multiplier core.
+
+## Previous state (as of 2026-09-08, bitwise and/or/xor added to the frontend -- confirmed compute_gate() already does real, full 32-bit bitwise ops so no new hardware was needed; found and fixed two placement bugs, then found and reverted a genuine, structural DAG-reference limitation specific to nano_gate. See `points/points_active.md` #718)
 
 ## Read this first (most recent)
 
