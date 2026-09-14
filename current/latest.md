@@ -1,4 +1,26 @@
-# Current State (as of 2026-09-08, the priority-arbiter core's own design questions resolved -- separate core, not a shell function (settled by checking the actual RTL structure), then genuinely sharpened by Alan's own follow-up into using the same upstream_mask/downstream_mask convention every other core has, with a real, per-direction configurable priority rank instead of fixed roles. Design note updated, no RTL built yet. See `points/points_active.md` #727)
+# Current State (as of 2026-09-08, fpga/verilog/ reorganized -- 238 historical files (312 total) moved into per-family subfolders, 73 current-build files left in the root, all five VIX testbenches re-verified passing. A real, separate resolve_core_file() gap found (no _v4c support at all) and deliberately queued rather than rushed. See `points/points_active.md` #728)
+
+## Read this first (most recent)
+
+**2026-09-08, fpga/verilog/ reorganized (#728).** 312 files down to 73
+in the root -- only the current build (VIX carrier, every _v4/_v4c
+core+shell, real shared dependencies) stays directly there; 238
+historical files moved into per-family subfolders via git mv (real
+rename history preserved). One real gap caught before finishing: shift
+_lane_addon_v1.v was initially moved out, but it's a genuine
+dependency of the plain _v4 cores' own internal chain -- caught by an
+actual failed compile, restored immediately. All five VIX testbenches
+re-verified passing after the move.
+
+**A real, separate tooling gap found, deliberately not rushed:**
+tools/project_assemble_v1.py's own resolve_core_file() can't match any
+_v4c file at all (its regex only recognizes purely numeric versions).
+Real, pre-existing, independent of this reorganization -- fixing it
+needs a real, considered choice about whether _v4c should ever
+outrank plain _v4 automatically, not a rushed patch under time
+pressure. Queued as its own item.
+
+## Previous state (as of 2026-09-08, the priority-arbiter core's own design questions resolved -- separate core, not a shell function (settled by checking the actual RTL structure), then genuinely sharpened by Alan's own follow-up into using the same upstream_mask/downstream_mask convention every other core has, with a real, per-direction configurable priority rank instead of fixed roles. Design note updated, no RTL built yet. See `points/points_active.md` #727)
 
 ## Read this first (most recent)
 

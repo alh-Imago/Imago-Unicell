@@ -9893,3 +9893,48 @@ open, unchanged from the original note -- not attempted here. Saved to
 `docs/stripped-cell/design-notes/future-core-candidates/priority_
 arbiter_core.md`, with the original, now-superseded framing kept
 in place for its own real history rather than deleted.
+
+## 728. `fpga/verilog/` reorganized -- 238 historical RTL files (312 total, down to 73 in the root) moved into per-family subfolders via `git mv` (real rename history preserved), leaving only the current build (VIX carrier, every `_v4`/`_v4c` core and shell, and their real shared dependencies) directly in the root. A real, separate tooling gap found and flagged, not rushed: `resolve_core_file()` cannot find any `_v4c` file at all. (Alan/Claude, 2026-09-08)
+
+**The real scale, confirmed before touching anything:** 312 files in
+`fpga/verilog/`, roughly 184 distinct "families" once version suffixes
+and the `tb_` prefix are stripped -- genuinely large, not an
+exaggeration.
+
+**The real categorization rule:** a file stays in the root if it's
+part of the current build -- `unicell_vix_carrier_v1.v` itself, every
+core's own real `_v4`/`_v4c` cell and `_v1`/`_v1c` shell, their
+matching testbenches, and the real shared dependencies those files
+actually need (the four addon modules including BOTH `shift_lane_
+addon_v1` for the plain `_v4` cores' own internal chain AND `_v2` for
+the carrier's own shell-level chain, `adder_v1.v`, and `bitwise_
+multiplier_32bit.v`). Everything else -- every real `_v1`/`_v2`/`_v3`
+predecessor, every diff testbench, every abandoned or superseded
+experiment -- moved into a folder named for its own real family.
+
+**One real gap in the first categorization pass, found and fixed
+before finishing, not after:** `shift_lane_addon_v1.v` was initially
+moved out, since it isn't the newest version of anything -- but it's
+still a genuine, real dependency of the plain (non-carrier) `_v4`
+cores' own internal addon chain. Caught by an actual failed compile
+(`iverilog`, not assumed clean), restored to the root immediately.
+
+**Real, full verification after the move:** all five VIX testbenches
+(the four from `#726` plus the new mul one) recompiled from their
+real, moved-and-restored dependency set and re-run, all passing --
+confirming the reorganization changed nothing about what actually
+works, only where the historical files live.
+
+**A real, separate tooling gap found along the way, deliberately NOT
+rushed to fix under time pressure:** `tools/project_assemble_v1.py`'s
+own `resolve_core_file()` scans a single directory (non-recursive) for
+files matching `{base_name}_v(\d+)\.v` and picks the highest numeric
+version -- its own regex has no way to match a `_v4c` file at ALL,
+regardless of this reorganization. This is real, pre-existing, and
+independent of where files live on disk; fixing it properly needs a
+real, considered choice about whether a `_v4c` variant should ever
+automatically outrank a plain `_v4` (or vice versa) when both exist --
+not a rushed regex patch. Queued as its own, real, separate item.
+
+**Real, honest status:** the folder is reorganized and re-verified;
+the `resolve_core_file()` gap is named precisely but not yet fixed.
