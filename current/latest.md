@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-08, step 2 of 3: one correctly-shaped shell-level addon chain built into VIX carrier -- a genuine design improvement over #719's own 4x-duplicated first attempt, now a single shared chain matching v9's own efficient shape. Compiles cleanly, no regression on the 3 original VIX testbenches with addon_config left at zero -- full functional proof deferred to step 3, since the current _v4 cores still have their own internal chain. See `points/points_active.md` #722)
+# Current State (as of 2026-09-08, the whole #719→#723 VIX correction arc closed out -- all 9 shells swapped to _v4c cores, a real config-off-shell timing bug found and correctly reverted, and the shell's own single addon chain proven to genuinely work end to end. All four VIX testbenches pass together. See `points/points_active.md` #723)
+
+## Read this first (most recent)
+
+**2026-09-08, #719→#723 VIX correction arc closed out (#723).** All 9
+shell instantiations swapped to their real `_v4c` variants. A real,
+genuine bug found by an ACTUAL failing testbench, not assumed: an
+attempt to also rewire each core's own cfg_data source from incoming_
+config to core_config (by direct analogy to v9's own #699 fix) broke
+immediately -- core_config is registered and only reflects a new
+commit one cycle after cfg_valid fires, while each core's own cfg_
+valid pulse is combinational, asserted the same cycle. A core latching
+on its own cfg_valid this way would capture the old value, one cycle
+late. v9's own _v3 cells never hit this because they read continuously
+rather than latching once -- the fix correct for a continuous reader
+is wrong for a one-shot latcher. Reverted cleanly to incoming_config
+(correct before this arc, correct now); all three original VIX
+testbenches pass again, the earlier hang gone too.
+
+**The real, final proof, via a new, purpose-built testbench** (the
+real successor to the one removed in #721): with every core now a
+_v4c variant carrying no internal addon chain, the shell's own single,
+corrected chain (#722) genuinely transforms data correctly through
+the carrier's own real ports -- disabled is a genuine no-op, both
+shift directions and mask+invert work, no double-transformation
+possible anymore. 4/4 checks pass. All four VIX testbenches together:
+all pass.
+
+**This closes the whole arc:** #719's premature shell-level chain →
+Alan's own direct architectural observation → 9 real _v4c cores built
+and tested (#720) → the chain reverted and rebuilt correctly, once,
+efficiently (#721/#722) → the full integration verified end to end
+with a real bug found and fixed along the way (#723). Real, genuine
+"inflation" found and removed, exactly as predicted.
+
+## Previous state (as of 2026-09-08, step 2 of 3: one correctly-shaped shell-level addon chain built into VIX carrier -- a genuine design improvement over #719's own 4x-duplicated first attempt, now a single shared chain matching v9's own efficient shape. Compiles cleanly, no regression on the 3 original VIX testbenches with addon_config left at zero -- full functional proof deferred to step 3, since the current _v4 cores still have their own internal chain. See `points/points_active.md` #722)
 
 ## Read this first (most recent)
 

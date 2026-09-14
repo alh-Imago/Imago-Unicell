@@ -9632,3 +9632,67 @@ own config-off-shell fix lands) -- at which point a real, purpose-
 built testbench (successor to `#719`'s own removed one) will confirm
 the addon chain genuinely works end to end with no double-
 transformation.
+
+## 723. Step 3 of 3, and closure of the whole #719→#723 VIX correction arc: all 9 shell instantiations swapped to their real `_v4c` variants; a genuine, real config-off-shell timing bug found by an actual failing testbench (not assumed), diagnosed precisely, and correctly reverted; the shell's own addon chain proven to genuinely work end to end with a new, purpose-built testbench. All four VIX testbenches pass together. (Alan/Claude, 2026-09-08)
+
+**The real shell swap, confirmed clean:** all 9 `unicell_vix_carrier_
+v1.v` instantiations moved from the plain `_shell_v1` wrappers to the
+new `_shell_v1c` ones (`#720`'s own real, per-core work), each of
+which now instantiates its own `_v4c` cell -- confirmed by direct grep
+that zero old instantiations remained.
+
+**A real, genuine bug found and correctly reverted, not assumed away:**
+the first attempt at this step also rewired each core's own `cfg_data`
+source from `incoming_config` to `core_config`, reasoning by direct
+analogy to `unicell_super_v9.v`'s own real `#699` fix. An ACTUAL
+failing testbench (not a hypothetical) caught this immediately: the
+very first check failed, and the simulation later hung entirely.
+Traced precisely, not guessed at: `core_config` is a REGISTERED value
+that only reflects a new commit ONE CLOCK CYCLE AFTER `cfg_valid`
+fires (updated via the same posedge that commits `vix_latch`), while
+each core's own `cfg_valid` pulse (`cfgv_nano` etc.) is COMBINATIONAL,
+asserted during the SAME cycle as the external `cfg_valid` -- meaning
+a core latching `cfg_data` on its OWN `cfg_valid` would capture the
+OLD, pre-commit value, one cycle late. `v9`'s own `_v3` cells never
+hit this because they read `core_config` CONTINUOUSLY rather than
+latching once; the fix that's correct for a continuous reader is
+genuinely wrong for a one-shot latcher. Reverted cleanly back to
+`incoming_config` (the combinational, "about to be committed" value,
+correct for these `_v4c` cores' own real atomic boot-load path) --
+confirmed by re-running all three original VIX testbenches, all
+passing again, with the earlier hang gone too.
+
+**Real, honest scope on config-off-shell, stated plainly: this step
+does NOT change how each core's own boot-load config is sourced** --
+`incoming_config` was correct before this whole arc and remains
+correct now. What DID change, and matters: each `_v4c` core's own
+internal addon chain (the real source of the original `#720` finding)
+is gone, so there's no longer a redundant, second transformation
+happening inside the cell regardless of which config-source convention
+the shell uses for the boot-load path.
+
+**The real, final proof this whole arc was aimed at, via a new,
+purpose-built testbench** (`tb_vix_carrier_addon_chain_v1.v`, the real
+successor to the one removed in `#721`): with every core now a `_v4c`
+variant (none carrying an internal chain), the shell's own single,
+corrected addon chain (`#722`) is confirmed to genuinely transform
+data correctly through the carrier's own real external ports --
+disabled is a genuine no-op, both shift directions and nibble_mask+
+invert together all work, with no double-transformation possible
+anymore since there's nothing left to double it with. 4/4 checks pass.
+
+**Real, full, comprehensive verification: all four VIX testbenches
+(the three original plus this one) run together and pass completely**
+-- confirming the corrected, properly-slimmed carrier design works end
+to end, not just in isolated pieces.
+
+**This closes out the entire `#719`→`#723` arc.** What started as
+`#719`'s own well-intentioned but premature shell-level addon chain
+became, through Alan's own direct architectural observation ("the
+carrier's whole concept is to hold common functionality centrally"),
+a genuine, verified correction: 9 real `_v4c` cores built and
+individually tested (`#720`), the redundant chain reverted and
+rebuilt correctly as a single, efficient, shell-level mechanism
+(`#721`/`#722`), and the full integration verified end to end with a
+real bug found and fixed along the way (`#723`) -- exactly the kind of
+"inflation" Alan's own instinct predicted, found and removed for real.

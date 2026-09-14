@@ -306,6 +306,26 @@ module unicell_vix_carrier_v1 #(
     // field map already starts at bit 0 of its own space, so zero
     // reshuffling is needed either way -- only the source register
     // was wrong. ──
+    // points.md #723: a real, genuine bug found and reverted directly
+    // -- an earlier attempt at this same "config-off-shell" fix fed
+    // each core's own cfg_data from core_config (the shell's own
+    // STABLE, REGISTERED value), reasoning by direct analogy to
+    // unicell_super_v9.v's own #699 fix. Confirmed by an actual failing
+    // testbench, not assumed correct: core_config only reflects a new
+    // commit ONE CLOCK CYCLE AFTER cfg_valid fires (a registered value,
+    // updated via the SAME posedge that commits vix_latch), while each
+    // core's own cfg_valid pulse (cfgv_nano etc.) is COMBINATIONAL,
+    // asserted during the SAME cycle as the external cfg_valid --
+    // meaning a core latching cfg_data on ITS OWN cfg_valid would
+    // capture the OLD, pre-commit core_config value, one cycle late.
+    // v9's own _v3 cells never hit this, since they read core_config
+    // CONTINUOUSLY rather than latching once on cfg_valid -- the fix
+    // that's correct for a continuous reader is wrong for a one-shot
+    // latcher. incoming_config (combinational, reflecting the value
+    // ABOUT to be committed at the exact moment cfg_valid fires) is the
+    // real, correct source for these _v4c cores' own atomic boot-load
+    // path -- restored here, unchanged from before this file's own
+    // #719/#722 history.
     wire [127:0] nano_cfg    = incoming_config[127:0];
     wire [63:0]  adder_cfg   = incoming_config[63:0];
     wire [79:0]  ram_cfg     = incoming_config[79:0];
@@ -355,7 +375,7 @@ module unicell_vix_carrier_v1 #(
     wire [31:0] command_pdon, command_pdos, command_pdoe, command_pdow;
     wire command_paon, command_paos, command_paoe, command_paow;
 
-    nano_shell_v1 #(.CELL_ID(CELL_ID), .ENABLE_DYNAMIC_ROUTING(1'b0)) CORE_NANO (
+    nano_shell_v1c #(.CELL_ID(CELL_ID), .ENABLE_DYNAMIC_ROUTING(1'b0)) CORE_NANO (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
@@ -381,7 +401,7 @@ module unicell_vix_carrier_v1 #(
         .prog_ack_out_n(nano_pan), .prog_ack_out_s(nano_pas), .prog_ack_out_e(nano_pae), .prog_ack_out_w(nano_paw)
     );
 
-    adder_shell_v1 #(.CELL_ID(CELL_ID)) CORE_ADDER (
+    adder_shell_v1c #(.CELL_ID(CELL_ID)) CORE_ADDER (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
@@ -403,7 +423,7 @@ module unicell_vix_carrier_v1 #(
         .status_data_valid(), .status_a_arrived()
     );
 
-    ram_shell_v1 #(.CELL_ID(CELL_ID)) CORE_RAM (
+    ram_shell_v1c #(.CELL_ID(CELL_ID)) CORE_RAM (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
@@ -425,7 +445,7 @@ module unicell_vix_carrier_v1 #(
         .status_data_valid()
     );
 
-    compare_shell_v1 #(.CELL_ID(CELL_ID)) CORE_COMPARE (
+    compare_shell_v1c #(.CELL_ID(CELL_ID)) CORE_COMPARE (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
@@ -447,7 +467,7 @@ module unicell_vix_carrier_v1 #(
         .status_data_valid()
     );
 
-    branch_shell_v1 #(.CELL_ID(CELL_ID)) CORE_BRANCH (
+    branch_shell_v1c #(.CELL_ID(CELL_ID)) CORE_BRANCH (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
@@ -469,7 +489,7 @@ module unicell_vix_carrier_v1 #(
         .status_data_valid()
     );
 
-    accumulator_shell_v1 #(.CELL_ID(CELL_ID)) CORE_ACCUM (
+    accumulator_shell_v1c #(.CELL_ID(CELL_ID)) CORE_ACCUM (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
@@ -490,7 +510,7 @@ module unicell_vix_carrier_v1 #(
         .ready_out(accum_ready), .status_negative()
     );
 
-    latch_shell_v1 #(.CELL_ID(CELL_ID)) CORE_LATCH (
+    latch_shell_v1c #(.CELL_ID(CELL_ID)) CORE_LATCH (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
@@ -511,7 +531,7 @@ module unicell_vix_carrier_v1 #(
         .ready_out(latch_ready), .status_latched()
     );
 
-    sequencer_shell_v1 #(.CELL_ID(CELL_ID)) CORE_SEQ (
+    sequencer_shell_v1c #(.CELL_ID(CELL_ID)) CORE_SEQ (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
@@ -532,7 +552,7 @@ module unicell_vix_carrier_v1 #(
         .ready_out(seq_ready), .status_seq_index()
     );
 
-    command_shell_v1 #(.CELL_ID(CELL_ID)) CORE_COMMAND (
+    command_shell_v1c #(.CELL_ID(CELL_ID)) CORE_COMMAND (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
