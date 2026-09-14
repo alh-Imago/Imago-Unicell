@@ -1,4 +1,34 @@
-# Current State (as of 2026-09-08, mul wired into VIX carrier as SEL_MUL (5'd9), the 10th real core -- all five VIX testbenches (four existing, one new) pass together. A real "carrier build system" idea recorded and explicitly queued for later. See `points/points_active.md` #726)
+# Current State (as of 2026-09-08, the priority-arbiter core's own design questions resolved -- separate core, not a shell function (settled by checking the actual RTL structure), then genuinely sharpened by Alan's own follow-up into using the same upstream_mask/downstream_mask convention every other core has, with a real, per-direction configurable priority rank instead of fixed roles. Design note updated, no RTL built yet. See `points/points_active.md` #727)
+
+## Read this first (most recent)
+
+**2026-09-08, priority-arbiter core design resolved (#727).** Re-read
+#707's own original note directly: every existing core's arrival
+logic is baked into its own RTL, not separable like the addon chain
+was -- a shell-level version would mean touching all 10 real cores
+for a benefit most designs wouldn't use. Resolved: a separate core.
+
+**Three real refinements from Alan's own direct follow-up, sharpening
+rather than just adding to the original framing:** uses the SAME
+upstream_mask/downstream_mask convention every other core has (not
+fixed asymmetric roles); at least two real inputs must be enabled or
+there's no point (documented, not hardware-enforced); priority order
+itself is a real, per-direction configurable rank (2 bits each), not
+a fixed value -- a hardcoded priority would force every design using
+it into one specific physical layout.
+
+**A real, updated cfg_data field shape recorded** -- the same mask
+fields every other core uses, plus four 2-bit priority_rank fields.
+The real arbitration logic this implies: an up-to-4-way priority
+encoder over enabled-and-arrived directions, not a fixed two-input
+compare.
+
+**Real, honest status: design resolved, nothing built.** The real
+timing question (does this fit the 200.76 MHz budget) remains open,
+unchanged from the original note. Saved to docs/stripped-cell/design-
+notes/future-core-candidates/priority_arbiter_core.md.
+
+## Previous state (as of 2026-09-08, mul wired into VIX carrier as SEL_MUL (5'd9), the 10th real core -- all five VIX testbenches (four existing, one new) pass together. A real "carrier build system" idea recorded and explicitly queued for later. See `points/points_active.md` #726)
 
 ## Read this first (most recent)
 

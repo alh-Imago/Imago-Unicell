@@ -1,6 +1,68 @@
 # Priority-arbiter core — a real candidate, not yet built (Alan, 2026-09-08)
 
-## The real idea, as given
+## Real, resolved decision (2026-09-08): a separate core, not a shell function
+
+Checked directly, not assumed: every existing core's own arrival logic
+(`upstream_val = (sel_n?data_in_n:0)|(sel_s?...)|...`) is baked into
+each core's own RTL file, and every existing core's own cardinal ports
+are symmetric by convention (any of N/S/E/W can be upstream or
+downstream, per instance). A shell-level version of this would mean
+ripping out and replacing that logic inside every one of the 10 real
+cores, for a benefit only some designs would ever use -- a much
+bigger, riskier change than the addon chain's own shell-level move
+ever was (that was pure OUTPUT transformation, inserted cleanly after
+an already-existing mux; this is INPUT handling, genuinely different
+in kind). Real, honest conclusion: this becomes its own core, its own
+cell -- the "new carrier function, or a modification to existing
+cores" question this note originally left open is resolved.
+
+## Real refinements to the original idea, from Alan's own direct
+## follow-up, each correcting or sharpening the original framing
+
+- **Uses the same real `upstream_mask`/`downstream_mask` convention
+  every other core already has, not a bespoke addressing scheme.**
+  The core needs to be aware of whatever real connections the shell
+  has configured for it, the same way every other core already is --
+  not a foreign, incompatible port model layered on top.
+- **A real, documented expectation, not a hardware-enforced check:**
+  at least TWO real input directions need to be enabled via
+  `upstream_mask`, or there's genuinely no point using this core --
+  with only one real input, it degrades to a plain relay carrying
+  more complexity than it needs. Named plainly for whoever configures
+  it, the same way no other core validates its own config either.
+- **Priority order must be a real, configurable field, NOT a fixed
+  value.** A hardcoded "west always wins" would force every design
+  using this core to physically route its own priority signal to one
+  specific side regardless of what's actually convenient for that
+  design's own layout -- a real planning trap, not a minor
+  inconvenience. Instead: each of the four real cardinal directions
+  gets its own small, configurable rank field (2 bits is enough for 4
+  real ranks) -- priority becomes a genuine per-instance
+  configuration, like every other field on every other core, not a
+  constraint baked into the floorplan.
+- **The real output side needs nothing new at all.** A normal
+  `downstream_mask`, exactly like every other core already has -- no
+  priority semantics attached to output, only to which of the
+  (multiple) real, competing inputs gets taken first.
+
+**A real, updated `cfg_data` field shape, following directly from the
+above (not yet built, a real starting point for whenever this is
+picked up):**
+```
+[5:0]   upstream_mask     — SAME real convention as every other core
+[11:6]  downstream_mask   — SAME real convention, no priority attached
+[13:12] priority_rank_n   — 0 = highest priority, 3 = lowest
+[15:14] priority_rank_s
+[17:16] priority_rank_e
+[19:18] priority_rank_w
+```
+Real, honest scope for the actual arbitration logic this implies: a
+genuine priority encoder over whichever directions are BOTH enabled
+(`upstream_mask`) AND currently arrived, selecting the arrived
+direction with the lowest configured rank -- not a fixed two-input
+compare, a real N-way (up to 4) configurable-priority selector.
+
+## The real idea, as originally given
 
 A cell with (at least) two real, distinct INPUT roles, not the usual
 symmetric cardinal wiring every existing core uses — a strict priority
@@ -20,6 +82,12 @@ order between them, not a merge:
 Alan's own real framing of the tradeoff: this means some chains would
 have to wait their turn rather than proceed immediately — a real,
 deliberate cost, not an oversight.
+
+**Real, honest note (2026-09-08): the fixed-role framing above is
+superseded by the refinements section above it** — the real, current
+design uses configurable ranks over the normal symmetric port
+convention, not fixed west/north/east roles. Kept here for its own
+real history, not as the current plan.
 
 ## Confirmed directly before writing anything else: nothing like this
 ## exists in the current lineage
@@ -59,32 +127,25 @@ come from the arbitration RULE itself (west always wins, north always
 waits), not from getting relay-path lengths exactly right. That is a
 real, substantial simplification if it holds, not a minor convenience.
 
-## Real, open questions Alan raised, not yet resolved here
+## Real, open questions Alan raised — status as of 2026-09-08
 
 - **New carrier function, or a modification to existing cores?**
-  Alan's own framing: "a new carrier function... if there is space."
-  Genuinely undecided whether this should be a brand new, distinct
-  core type added alongside `ram`/`adder`/etc., or a variant/mode
-  applied to an existing core. Real cost implications either way —
-  a new core type means a new `core_select` value and its own real
-  RTL from scratch; a mode on an existing core means touching
-  already-proven, working RTL.
-- **Universal, or scoped to one core?** Alan's own framing: "extend
-  the ability across all cores simultaneously." Genuinely undecided
-  whether this priority-input behavior should be a property every
-  core in the shell gains, or something scoped to a specific new core
-  used only where the priority behavior is actually needed. A
-  universal change touches every core's own RTL; a scoped one is a
-  smaller, more contained addition.
-- **Fixed IN/IN/OUT roles need real, new port semantics.** Every
-  existing core's own cardinal ports are symmetric by convention
-  (any of N/S/E/W can be configured as upstream OR downstream,
-  per-instance). This idea needs asymmetric, FIXED roles per port
-  (west = priority in, north = secondary in, east = the only real
-  out) — a genuinely different port model, not just a new field on
-  the existing one. Worth real thought about whether the remaining
-  two directions (south, and whichever of west/north isn't already a
-  role) get any real role at all, or sit unused.
+  RESOLVED (2026-09-08, see above): a separate core. The structural
+  mismatch (input-arrival logic baked into each core's own RTL, plus
+  the port-role question below) settles this for real.
+- **Universal, or scoped to one core?** RESOLVED (2026-09-08): scoped
+  to its own, separate core -- a universal shell-level change would
+  touch every core's own timing-critical arrival path for a benefit
+  most designs would never use.
+- **Fixed IN/IN/OUT roles need real, new port semantics.** RESOLVED
+  DIFFERENTLY than first framed (2026-09-08): not fixed roles at all
+  -- the real, current design (see refinements section above) uses
+  the SAME symmetric `upstream_mask`/`downstream_mask` convention
+  every other core has, with a real, per-direction configurable
+  priority RANK instead of a hardcoded role. This is a genuine
+  improvement on the original framing, not just a resolution of it --
+  a fixed-role core would have forced every design using it into a
+  specific physical layout; a configurable-rank one doesn't.
 
 ## A real, honest timing concern worth naming before this goes further
 
@@ -101,6 +162,17 @@ unanswered question — not something to discover after building it.
 
 ## Status
 
-Design idea only. No RTL, no VM model, no scoping pass, no core_select
-assignment. A real candidate for whenever there's real time to work
-through the open questions above properly — not attempted here.
+Real, resolved design decisions (2026-09-08): a separate core (not a
+shell function), using the standard `upstream_mask`/`downstream_mask`
+convention with a real, per-direction configurable priority rank
+instead of fixed roles -- see the refinements section above for the
+real, updated `cfg_data` field shape this implies.
+
+Still genuinely open, not attempted here: the real timing question
+(does a configurable, up-to-4-way priority encoder fit the real
+200.76 MHz budget, `#322`, any better or worse than the original
+two-input framing did -- not yet checked either way) and the actual
+RTL itself. No RTL, no VM model, no `core_select` assignment yet. A
+real candidate for a real scoping-then-build-then-test pass whenever
+there's time to do it properly -- the design itself is now settled
+enough to start that pass from, which it wasn't before today.

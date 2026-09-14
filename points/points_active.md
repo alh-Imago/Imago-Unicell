@@ -9841,3 +9841,55 @@ this gets picked up.
 **Next, per Alan's own stated order:** the priority-arbiter core
 (`#707`'s own recorded design idea) -- real open questions named, no
 RTL, no scope pass done yet.
+
+## 727. The priority-arbiter core's own real design questions resolved -- shell function vs separate core, settled by checking the actual RTL structure, not by preference; then genuinely sharpened by Alan's own direct follow-up into a design that's compatible with every other core's own real conventions rather than a structural outlier. Design note updated, no RTL built yet. (Alan/Claude, 2026-09-08)
+
+**The real "shell vs core" question, resolved by structural fact, not
+opinion:** re-read `#707`'s own original note directly, confirming
+every existing core's own arrival logic (`upstream_val = OR of
+matched, arrived directions`) is baked into each core's own RTL file,
+not a separable, shared mechanism the way the addon chain always was.
+A shell-level version would mean ripping out and replacing that logic
+inside all 10 real cores, for a benefit most designs would never use
+-- genuinely different in kind from the addon chain's own real shell
+move (that was pure OUTPUT transformation, cleanly insertable after an
+existing mux; this is INPUT handling). Real, resolved conclusion:
+a separate core.
+
+**Three real refinements from Alan's own direct follow-up, each
+correcting or sharpening the original framing, not just adding
+detail:**
+1. **Uses the SAME real `upstream_mask`/`downstream_mask` convention
+   every other core already has**, rather than the original framing's
+   own fixed, asymmetric port roles (west=priority-in, north=
+   secondary-in, east=only-out). This is a genuine improvement, not
+   just a resolution -- a fixed-role core would have forced every
+   design using it into one specific physical layout; a configurable
+   one doesn't.
+2. **A real, documented (not hardware-enforced) expectation:** at
+   least two real input directions must be enabled, or the core
+   degrades to a plain relay carrying unneeded complexity -- named
+   plainly, the same way no other core validates its own config.
+3. **Priority order itself must be a real, per-direction configurable
+   field (2 bits per direction, up to 4 real ranks), not a fixed
+   value.** A hardcoded priority would be a real planning trap --
+   every design using the core would need its own layout built around
+   which physical side happened to be "the" priority input.
+
+**A real, updated `cfg_data` field shape recorded, following directly
+from the above** (`upstream_mask`/`downstream_mask` at the same real
+bit positions every other core uses, four 2-bit `priority_rank`
+fields) -- not yet built, but a real, concrete starting point for
+whenever this is picked up, replacing the vaguer "fixed roles" framing
+the original note had. The real arbitration logic this implies is
+named precisely too: a genuine N-way (up to 4) priority encoder over
+whichever directions are both enabled and currently arrived, not a
+fixed two-input compare.
+
+**Real, honest status: design decisions resolved, nothing built.** The
+real timing question (does an up-to-4-way configurable priority
+encoder fit the real 200.76 MHz budget, `#322`) remains genuinely
+open, unchanged from the original note -- not attempted here. Saved to
+`docs/stripped-cell/design-notes/future-core-candidates/priority_
+arbiter_core.md`, with the original, now-superseded framing kept
+in place for its own real history rather than deleted.
