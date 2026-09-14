@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-08, a real correction to #719 in progress: 8 of VIX's own 9 cores already had their own internal addon chain, so #719's shell-level chain was a genuine duplication, not a new capability. Building _v4c carrier-specific variants with the internal chain removed, base _v4 files untouched. 2 of 9 done and tested (adder, ram); 7 to go, then revert #719's shell chain and rewire properly. See `points/points_active.md` #720)
+# Current State (as of 2026-09-08, all 9 _v4c cores built and #719's own shell-level addon chain reverted cleanly (step 1 of 3), checked before proceeding per Alan's own explicit sequencing. Remaining: wire one correct chain into the carrier (now genuinely needed), then swap all 9 shells to the new _v4c cores and fix config-off-shell at the shell level. See `points/points_active.md` #721)
+
+## Read this first (most recent)
+
+**2026-09-08, #720's own real integration begins (#721).** All 9
+`_v4c` cores are built and individually verified (see #720's own
+entries). Step 1, per Alan's own direction ("start at the top, revert
+and check each step"): `#719`'s own shell-level addon chain reverted
+cleanly from `unicell_vix_carrier_v1.v` -- confirmed via `git diff`
+the file hadn't changed since, checked out to its pre-`#719` state,
+zero remaining addon references confirmed by direct grep.
+
+**Real, full verification of the revert, checked before moving on:**
+all three of VIX's own original testbenches re-run and pass completely
+unchanged. `#719`'s own addon-chain testbench, as expected, now fails
+-- a real, correct consequence of removing exactly the mechanism it
+tested, not a new bug. Removed as obsolete rather than left failing.
+
+**Remaining, in order, each to be verified before the next:** (2)
+wire one correct addon chain into the carrier -- now genuinely needed,
+since none of the 9 `_v4c` cores have their own anymore; (3) swap all
+9 shell instantiations to the new `_v4c` cores and fix config-off-
+shell at the shell level (`incoming_config` → `core_config`).
+
+## Previous state (as of 2026-09-08, a real correction to #719 in progress: 8 of VIX's own 9 cores already had their own internal addon chain, so #719's shell-level chain was a genuine duplication, not a new capability. Building _v4c carrier-specific variants with the internal chain removed, base _v4 files untouched. 2 of 9 done and tested (adder, ram); 7 to go, then revert #719's shell chain and rewire properly. See `points/points_active.md` #720)
 
 ## Read this first (most recent)
 

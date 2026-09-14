@@ -9557,3 +9557,35 @@ allocation now that the chain's real home is confirmed to be per-core
 rather than shell-broadcast), rewire the shell's own `_cfg` derivation
 from `core_config` instead of `incoming_config` for every core, and
 re-test all VIX testbenches.
+
+## 721. `#720`'s own real integration begins: step 1 of 3, checked before proceeding, per Alan's own direction ("start at the top, revert and check each step"). `#719`'s own shell-level addon chain reverted cleanly from `unicell_vix_carrier_v1.v` -- all 9 `_v4c` cores are now built and ready for the next two steps. (Alan/Claude, 2026-09-08)
+
+**The real revert, done precisely, not approximately:** `git diff` against
+`#719`'s own commit confirmed `unicell_vix_carrier_v1.v` had not been
+touched since, so the file was checked out cleanly to its pre-`#719`
+state rather than hand-editing hunks -- a direct grep afterward
+confirmed zero remaining references to `addon_config`/any of the four
+addon modules. `vix_latch[159:133]`'s own header documentation is back
+to "27 bits, genuine future headroom," matching its real state before
+`#719` ever touched it.
+
+**Real, full verification of the revert itself, checked before moving
+on, exactly as directed:** all three of VIX's own original testbenches
+(`tb_unicell_vix_carrier_v1`, `tb_vix_carrier_mesh_v1`, `tb_vix_carrier_
+select_redirect_v1`) re-run via `iverilog` and pass completely
+unchanged -- confirming the revert itself introduced no regression.
+`#719`'s own addon-chain testbench, as expected, now fails (3 of 4
+checks) -- a real, correct consequence of removing the exact mechanism
+it was built to test, not a new bug. That testbench is now obsolete
+(its own tested mechanism no longer exists in this shape) and was
+removed rather than left failing in the tree.
+
+**Real, honest status: step 1 of 3 complete and confirmed correct
+before proceeding, matching Alan's own explicit sequencing.**
+Remaining: (2) wire ONE correct addon chain into the carrier, this
+time genuinely needed (feeding whichever `_v4c` core is selected, none
+of which have their own chain anymore) rather than redundant; (3)
+swap all 9 shell instantiations from the plain `_v4` cores to the new
+`_v4c` ones and rewire each core's own shell-level config source from
+`incoming_config` to `core_config` (the real config-off-shell fix).
+Each step to be verified in turn before moving to the next.
