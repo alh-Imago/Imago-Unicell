@@ -1,4 +1,46 @@
-# Current State (as of 2026-09-15, the hierarchical ICM design tried against a real, small example, ported through a real prototype loader into the real, existing VM -- worked end to end on the first complete attempt, including a deliberate negative test proving the value of pattern-based reuse. See `points/points_active.md` #740)
+# Current State (as of 2026-09-15, a larger, structurally different example built and run -- a 4-lane parallel reduction tree -- surfacing a real per-instance-override gap (io_name) that the small example didn't, plus an optional, honest MAN-file check confirming the VM genuinely shapes itself to whatever the design contains. See `points/points_active.md` #741)
+
+## Read this first (most recent)
+
+**2026-09-15, larger example built, real gap surfaced and fixed
+(#741).** A genuinely different shape this time: nano/examples/
+parallel_reduction_tree.icm-hier.json -- 4 parallel "lane" instances
+feeding a real adder spine that sums them. 12 cells, 4 patterns, 8
+placements.
+
+**Real gap found immediately:** io_name is per-INSTANCE, not per-
+SHAPE -- all 4 lanes need unique names but share one pattern
+definition. Fixed with an optional 'overrides' dict on a design-map
+placement, keyed by internal cell_id -- a principled exception (io_name
+isn't part of a cell's computational shape), not a crack in the
+"every shape is a pattern" rule.
+
+**Re-ran both examples, no regression.** New example: 4 real values
+(10/20/30/40) injected concurrently, correct sum (100) arrived after 6
+ticks -- genuine parallel processing, not just a longer chain.
+
+**A real bug found in the TEST script itself:** a None-fallback check
+failed because SuperCell's fields are always present (defaulting to 0,
+never None) regardless of core type -- produced a false mismatch even
+though the correct value was already in the diff snapshot. Fixed by
+checking the record's own real core field directly.
+
+**Negative test repeated at scale:** broke the twice-used spine_middle
+pattern -- both affected connections flagged, unrelated ones left
+alone. Same property holds at bigger scale.
+
+**Optional MAN-file check added, honestly scoped:** confirmed the VM
+has zero pre-allocation (SuperGrid is a pure sparse dict) -- a fixed
+size only exists if deliberately checked against a real target. Reuses
+project_assemble_v1.py's own load_man(); scope kept modest -- a
+cell-count sanity check, explicitly not a precise ALM estimate, since
+per-core ALM data doesn't exist for every core yet.
+
+**Status: tried twice, two real scales/shapes, both worked, one real
+refinement added along the way.** Still no RTL, no format spec, no
+production loader. CORDIC remains the natural next test.
+
+## Previous state (as of 2026-09-15, the hierarchical ICM design tried against a real, small example, ported through a real prototype loader into the real, existing VM -- worked end to end on the first complete attempt, including a deliberate negative test proving the value of pattern-based reuse. See `points/points_active.md` #740)
 
 ## Read this first (most recent)
 

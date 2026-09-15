@@ -1,0 +1,64 @@
+{
+  "format_version": "icm-v4-hierarchical-prototype",
+  "description": "points.md #741: a larger, more complex real example -- a 4-lane parallel reduction (sum) tree. 4 real, parallel 'lane' pattern instances (genuine repetition) each feed a real, linear 'spine' of adders that accumulates a running total (spine_first relays lane 0's own value with nothing to add yet; spine_middle, used twice, adds the running total to each subsequent lane; spine_last is the same shape with no further downstream, marked as the real output). Surfaces a real gap the small relay-chain example (#740) didn't: io_name is genuinely per-INSTANCE (each lane needs its own unique external name), not per-SHAPE, so it can't live in a shared pattern definition the way core_config can -- the design_map's own placements now carry an optional 'overrides' dict for exactly this.",
+  "header": {
+    "cores_used": ["ram", "adder"],
+    "cell_count": 12
+  },
+  "patterns": {
+    "lane": {
+      "cells": [
+        {"cell_id": "in", "rel_row": 0, "rel_col": 0, "core": "ram",
+         "core_config": {"downstream_mask": ["E"], "fixed_mode": 0}},
+        {"cell_id": "out", "rel_row": 0, "rel_col": 1, "core": "ram",
+         "core_config": {"upstream_mask": ["W"], "downstream_mask": ["E"], "fixed_mode": 0}}
+      ]
+    },
+    "spine_first": {
+      "cells": [
+        {"cell_id": "relay", "rel_row": 0, "rel_col": 0, "core": "ram",
+         "core_config": {"upstream_mask": ["W"], "downstream_mask": ["S"], "fixed_mode": 0}}
+      ]
+    },
+    "spine_middle": {
+      "cells": [
+        {"cell_id": "add", "rel_row": 0, "rel_col": 0, "core": "adder",
+         "core_config": {"upstream_mask": ["N", "W"], "downstream_mask": ["S"]}}
+      ]
+    },
+    "spine_last": {
+      "cells": [
+        {"cell_id": "add", "rel_row": 0, "rel_col": 0, "core": "adder",
+         "core_config": {"upstream_mask": ["N", "W"]}}
+      ]
+    }
+  },
+  "design_map": {
+    "placements": [
+      {"instance": "lane_0", "pattern": "lane", "at": [0, 0],
+       "overrides": {"in": {"io_name": "input_0"}}},
+      {"instance": "lane_1", "pattern": "lane", "at": [1, 0],
+       "overrides": {"in": {"io_name": "input_1"}}},
+      {"instance": "lane_2", "pattern": "lane", "at": [2, 0],
+       "overrides": {"in": {"io_name": "input_2"}}},
+      {"instance": "lane_3", "pattern": "lane", "at": [3, 0],
+       "overrides": {"in": {"io_name": "input_3"}}},
+
+      {"instance": "spine_0", "pattern": "spine_first", "at": [0, 2]},
+      {"instance": "spine_1", "pattern": "spine_middle", "at": [1, 2]},
+      {"instance": "spine_2", "pattern": "spine_middle", "at": [2, 2]},
+      {"instance": "spine_3", "pattern": "spine_last", "at": [3, 2],
+       "overrides": {"add": {"io_name": "output"}}}
+    ],
+    "connections": [
+      {"from": ["lane_0", 0, 1, "E"], "to": ["spine_0", 0, 0, "W"]},
+      {"from": ["lane_1", 0, 1, "E"], "to": ["spine_1", 0, 0, "W"]},
+      {"from": ["lane_2", 0, 1, "E"], "to": ["spine_2", 0, 0, "W"]},
+      {"from": ["lane_3", 0, 1, "E"], "to": ["spine_3", 0, 0, "W"]},
+
+      {"from": ["spine_0", 0, 0, "S"], "to": ["spine_1", 0, 0, "N"]},
+      {"from": ["spine_1", 0, 0, "S"], "to": ["spine_2", 0, 0, "N"]},
+      {"from": ["spine_2", 0, 0, "S"], "to": ["spine_3", 0, 0, "N"]}
+    ]
+  }
+}

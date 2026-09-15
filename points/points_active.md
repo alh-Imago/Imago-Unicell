@@ -10593,3 +10593,70 @@ example (the CORDIC pipeline this whole line of notes has pointed
 toward) to find whatever this small, deliberately simple case was too
 small to surface. Updated in place at `docs/stripped-cell/design-notes/
 hierarchical_icm_and_state_save_scope.md`.
+
+## 741. A real, larger, structurally different example built and run -- a 4-lane parallel reduction (sum) tree, not just a longer chain -- surfacing a real gap the small example (#740) didn't, and confirming the design's own real properties hold at bigger scale, not just in the small case. The loader also gained an optional, honest check against a real, fixed hardware target, per Alan's own direct point about how the VM actually shapes itself. (Alan/Claude, 2026-09-15)
+
+**A genuinely bigger, structurally different design, not just more of
+the same:** `nano/examples/parallel_reduction_tree.icm-hier.json` --
+four real, parallel uses of a `lane` pattern (four separate values
+flowing concurrently, not sequentially) feeding a real, linear "spine"
+of `adder` cells (`spine_first`, `spine_middle` used twice,
+`spine_last`) that accumulates a running total. 12 real cells, 4
+distinct patterns, 8 placements.
+
+**A real gap surfaced immediately, exactly the point of building
+something bigger:** `io_name` is genuinely per-INSTANCE, not per-
+SHAPE -- all four `lane` instances need their own unique external name,
+but share the SAME pattern definition, which by `#738`'s own rule is
+supposed to be identical everywhere it's used. Real, honest
+resolution: an optional `overrides` dict added to a design-map
+placement, keyed by the pattern's own internal `cell_id`, supplying
+real per-instance facts (`io_name`, and by the same reasoning
+`preload_value`) on top of the shared definition -- a real, principled
+exception, not a crack in the rule: `io_name` isn't part of a cell's
+own computational SHAPE, it's metadata about one specific instance's
+own external use.
+
+**The loader refined and re-run against both examples, no
+regression:** the small relay chain still passes unchanged. The new,
+larger example: 12 cells flattened correctly, advisory check passed
+cleanly, four real values (10/20/30/40) injected concurrently, the
+real, correct sum (100) arrived after 6 real ticks -- genuine parallel
+processing through a real reduction topology.
+
+**A real bug found in the TEST script itself, not the design or the
+VM, worth naming as a real, instructive mistake:** the first output
+check used a `None`-fallback pattern to distinguish a `ram` cell's own
+field from an `adder`'s -- but `SuperCell` is a single, shared
+dataclass with every core's own fields always present, defaulting to
+`0`, never absent. Produced a confusing false "MISMATCH (got 0)" even
+though the correct sum was sitting in the diff snapshot the whole
+time. Fixed by checking the record's own real `core` field directly,
+the same discipline this project already applies elsewhere.
+
+**The negative test repeated at the larger scale, confirming the same
+real property holds:** broke `spine_middle` (used twice) directly --
+both real, affected connections (`spine_1`, `spine_2`) were flagged;
+the two unrelated patterns were correctly left alone.
+
+**A real, honest, optional check against a fixed hardware target,
+per Alan's own direct point:** the VM is genuinely, dynamically shaped
+to whatever a design contains -- confirmed directly, `SuperGrid`'s own
+`cells` dict has no pre-allocation at all. A fixed-size unit only
+exists if deliberately checked against a real target. Added
+`check_against_man()`, reusing `tools/project_assemble_v1.py`'s own
+already-existing `load_man()` rather than re-deriving the real ALM
+figure -- scope kept deliberately modest: a cell-count sanity check
+against the device's own real `alm_total`, explicitly not a precise
+ALM estimate, since real, measured per-core ALM costs don't exist for
+every core type yet (`mul`/`priority` have none, `#732`'s own status
+table) -- overclaiming precision here would be dishonest.
+
+**Real, honest status: the design has now been tried twice, at two
+real, different scales and shapes, and both times it worked, with one
+real, principled refinement added along the way rather than needed as
+a patch.** Still no RTL, no format spec, no production loader. The
+CORDIC pipeline remains the natural next, bigger test, likely to
+exercise real, varying per-stage configuration neither example so far
+has needed. Updated in place at `docs/stripped-cell/design-notes/
+hierarchical_icm_and_state_save_scope.md`.

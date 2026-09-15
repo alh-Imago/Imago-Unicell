@@ -440,14 +440,106 @@ patterns, no diff-file loading (only a snapshot demonstrated, not a
 real round-trip save/restore). It exists to test the DESIGN's own real
 shape against a real VM, not as a draft of the real, eventual loader.
 
-**Real, honest status: the design has now been tried against a real,
-working example, not just reasoned about.** Every real mechanic
-discussed across `#737`-`#739` -- patterns (including single-use ones),
-multi-cell port attachment, direct (non-solved) placement, the
-advisory connection check (both confirming a correct design and
-catching a real, deliberate break), and a `cell_id`-keyed diff
-snapshot -- worked, on the first complete attempt, against the real,
-existing VM. Still no RTL, no format spec, no production loader. The
-real next step: a genuinely bigger example (the CORDIC pipeline this
-whole line of notes has pointed toward) to find whatever this small,
-deliberately simple case was too small to surface.
+**Real, honest status (superseded below): the design has now been
+tried against a real, working example, not just reasoned about.**
+Every real mechanic discussed across `#737`-`#739` -- patterns
+(including single-use ones), multi-cell port attachment, direct
+(non-solved) placement, the advisory connection check (both confirming
+a correct design and catching a real, deliberate break), and a
+`cell_id`-keyed diff snapshot -- worked, on the first complete attempt,
+against the real, existing VM. Still no RTL, no format spec, no
+production loader. The real next step: a genuinely bigger example
+(the CORDIC pipeline this whole line of notes has pointed toward) to
+find whatever this small, deliberately simple case was too small to
+surface.
+
+## A real, larger, more complex example (2026-09-15), and a real gap it surfaced that the small one didn't
+
+**A genuinely bigger, structurally different design built**
+(`nano/examples/parallel_reduction_tree.icm-hier.json`): a 4-lane
+parallel reduction (sum) tree, not just a longer linear chain. Four
+real, parallel uses of a `lane` pattern (genuine repetition, exercised
+meaningfully this time -- four separate values flowing concurrently,
+not sequentially), feeding a real, linear "spine" of `adder` cells
+(three real, distinct spine patterns: `spine_first` which has nothing
+yet to add, `spine_middle` used twice, `spine_last` which is the real
+output) that accumulates a running total. 12 real cells, 4 distinct
+patterns, 8 placements -- a genuinely more complex shape than the
+small relay chain's own single linear pipeline.
+
+**A real gap surfaced immediately, exactly the point of building
+something bigger:** `io_name` is genuinely per-INSTANCE, not per-
+SHAPE, and the original design had no way to express that. All four
+`lane` instances need their own, real, unique external name
+(`input_0` through `input_3`) -- but they all share the SAME `lane`
+pattern DEFINITION, which by this whole design's own rule (`#738`) is
+supposed to be identical everywhere it's used. `io_name` baked into
+the shared definition would give every instance the same name, which
+is simply wrong. **Real, honest resolution: an optional `overrides`
+dict added to a placement in the design map**, keyed by the pattern's
+own internal `cell_id`, supplying real, per-instance facts (`io_name`,
+and by the same real reasoning `preload_value`) on top of the shared
+pattern's own definition -- never replacing it wholesale, just
+supplying the one real thing that genuinely can't be shared. This is a
+real, principled exception, not a crack in the "every shape is a
+pattern" rule: `io_name` isn't part of a cell's own real computational
+SHAPE at all, it's metadata about how one specific instance is being
+used externally.
+
+**The real loader refined to match**, and re-run against BOTH examples
+to confirm no regression: the small relay chain (`#740`) still passes
+end to end unchanged. The new, larger example: 12 cells flattened
+correctly, the advisory check passed cleanly, four real values
+(10/20/30/40) injected concurrently, and the real, correct sum (100)
+arrived at the real output cell after 6 real ticks -- genuine parallel
+processing through a real reduction topology, not just a longer serial
+chain.
+
+**A real bug found in the TEST script itself along the way, not the
+design or the VM, worth naming since it's a real, instructive
+mistake:** the first attempt at checking the output value used
+`getattr(cell, "ram_data_reg", None)` with a fallback to the adder's
+own field if that came back `None` -- but `SuperCell` is a single,
+shared dataclass with every core type's own fields always present,
+defaulting to `0`, not absent. An adder cell's own `ram_data_reg`
+field returns `0`, not `None`, so the fallback never triggered,
+producing a real, confusing "MISMATCH (got 0)" even though the real,
+correct sum (`0x64` = 100) was sitting right there in the diff
+snapshot the whole time. Fixed by checking the record's own real
+`core` field directly rather than probing for `None`, the same
+discipline this whole project already applies elsewhere.
+
+**The negative test repeated against the larger example, confirming
+the same real property holds at bigger scale:** broke `spine_middle`
+(the pattern used twice) directly, re-ran the check -- both real,
+affected connections (`spine_1`, `spine_2`) were flagged; the two
+unrelated patterns (`spine_first`, `spine_last`) were correctly left
+alone. Pattern-based reuse's own real benefit holds at this larger,
+more structurally complex scale too, not just in the small, linear
+case.
+
+**A real, honest, optional check against a fixed hardware target,
+per Alan's own direct point:** the VM itself is genuinely,
+dynamically shaped to whatever a design actually contains -- confirmed
+directly (`SuperGrid`'s own `cells` dict has no pre-allocation
+whatsoever; two cells placed 500 apart cost nothing extra). A fixed-
+size unit only exists if a design is deliberately checked against a
+specific, real hardware target. Added `check_against_man()`, reusing
+`tools/project_assemble_v1.py`'s own already-existing `load_man()`
+rather than re-deriving the real ALM figure -- real, honest scope
+kept deliberately modest: a cell-count sanity check against the
+device's own real `alm_total`, explicitly NOT a precise ALM estimate,
+since real, measured per-core ALM costs don't exist for every core
+type yet (`mul`/`priority` have none at all, `#732`'s own status
+table) -- overclaiming precision here would be dishonest.
+
+**Real, honest status: the design has now been tried twice, at two
+real, different scales and shapes, and both times it worked, with one
+real, principled refinement (per-instance overrides) added along the
+way rather than needed as a patch.** Still no RTL, no format spec, no
+production loader -- this remains a real, working prototype built to
+find problems, not a finished implementation. The CORDIC pipeline this
+line of notes keeps pointing toward remains the natural next, bigger
+test, likely to exercise real, varying per-stage configuration
+(different shift amounts per iteration) that neither example so far
+has needed.

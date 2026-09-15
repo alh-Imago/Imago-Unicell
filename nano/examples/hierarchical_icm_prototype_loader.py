@@ -30,7 +30,20 @@ def flatten(doc):
     'at' coordinates are direct, given anchors, not derived. Returns
     (records, instance_index) where instance_index maps
     (instance_name, rel_row, rel_col) -> real (row, col), used by the
-    advisory check below."""
+    advisory check below.
+
+    points.md #741: real, per-instance overrides added -- a real gap
+    the small relay-chain example (#740) didn't surface. `io_name`
+    (and by extension `preload_value`) are genuinely per-INSTANCE
+    facts, not per-SHAPE ones -- four real, parallel uses of the same
+    'lane' pattern each need their own, real, unique external name,
+    which can't live in the shared pattern definition the way
+    core_config can (every instance of a shape needs the SAME
+    core_config to be the same shape; `io_name` is the opposite -- it
+    HAS to differ per instance to mean anything). An optional
+    'overrides' dict on a placement, keyed by the pattern-internal
+    cell_id, supplies exactly this -- applied on top of the pattern's
+    own real cell definition, never replacing it wholesale."""
     patterns = doc["patterns"]
     records = []
     instance_index = {}
@@ -38,16 +51,20 @@ def flatten(doc):
         inst = placement["instance"]
         pat = patterns[placement["pattern"]]
         anchor_row, anchor_col = placement["at"]
+        overrides = placement.get("overrides", {})
         for cell in pat["cells"]:
             row = anchor_row + cell["rel_row"]
             col = anchor_col + cell["rel_col"]
             global_id = f"{inst}.{cell['cell_id']}"
             instance_index[(inst, cell["rel_row"], cell["rel_col"])] = (row, col)
+            cell_overrides = overrides.get(cell["cell_id"], {})
+            io_name = cell_overrides.get("io_name", cell.get("io_name"))
+            preload_value = cell_overrides.get("preload_value", cell.get("preload_value"))
             records.append(v3.IcmV3Record(
                 cell_id=global_id, row=row, col=col, core=cell["core"],
                 core_config=dict(cell.get("core_config", {})),
                 addon_config=dict(cell.get("addon_config", {})),
-                io_name=cell.get("io_name"),
+                io_name=io_name, preload_value=preload_value,
             ))
     return records, instance_index
 
@@ -94,9 +111,38 @@ def check_connections(doc, records, instance_index):
     return warnings
 
 
+def check_against_man(records, man_path):
+    """points.md #741: a real, honest, OPTIONAL check against a fixed,
+    real hardware target -- per Alan's own direct point that the VM
+    itself shapes to whatever the design actually contains (confirmed
+    directly: SuperGrid's own cells dict has no pre-allocation, no
+    fixed bound at all -- two cells 500 apart place with zero issue),
+    and a fixed-size unit only exists if you deliberately check a
+    design against a specific, real MAN file. Reuses the real, already-
+    existing `load_man()` from tools/project_assemble_v1.py rather than
+    re-deriving the real ALM figure. Real, honest scope: checks real
+    CELL COUNT against the real device's own alm_total as a simple,
+    honest proxy -- NOT a precise ALM estimate, since real, measured
+    per-core ALM costs don't exist yet for every core type (mul/
+    priority have no real Quartus data at all, #732's own status
+    table), and overclaiming precision here would be dishonest."""
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "tools"))
+    import project_assemble_v1 as pa
+    man = pa.load_man(man_path)
+    real_cell_count = len(records)
+    print(f"\nChecking against real MAN file: {man.get('card_id', '?')}")
+    print(f"  Real design cell count: {real_cell_count}")
+    print(f"  Real device ALM total: {man['alm_total']:,}")
+    print(f"  Real, honest note: this is a cell-count sanity check, NOT a precise ALM estimate -- "
+          f"per-core real ALM costs vary and aren't all measured yet (mul/priority have none).")
+    return real_cell_count
+
+
 if __name__ == "__main__":
-    doc = load_hierarchical(sys.argv[1] if len(sys.argv) > 1 else
-                             os.path.join(os.path.dirname(__file__), "small_relay_chain.icm-hier.json"))
+    path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "small_relay_chain.icm-hier.json")
+    man_path = sys.argv[2] if len(sys.argv) > 2 else None
+
+    doc = load_hierarchical(path)
     records, index = flatten(doc)
     print(f"Flattened {len(records)} real cells from {len(doc['patterns'])} patterns "
           f"({len(doc['design_map']['placements'])} placements).")
@@ -109,22 +155,57 @@ if __name__ == "__main__":
     else:
         print("\nAdvisory connection check: all declared connections agree with the real, configured core_config bits.")
 
+    if man_path:
+        check_against_man(records, man_path)
+
     grid = VixCarrierGrid(records)
     print(f"\nReal VM grid built: {len(grid.cells)} cells at {sorted(grid.cells.keys())}")
 
-    input_cell = next(r for r in records if r.io_name == "input")
-    output_cell = next(r for r in records if r.io_name == "output")
-    print(f"\nInjecting 0x2A at the real 'input' cell ({input_cell.row},{input_cell.col})...")
-    grid.inject(input_cell.row, input_cell.col, 0x2A)
+    # Real, generic handling for however many named "input_N" and
+    # "output" cells this particular design actually has -- the small
+    # relay-chain example (#740) has one of each; this larger example
+    # (#741) has four inputs feeding one real, shared output.
+    input_cells = sorted((r for r in records if r.io_name and r.io_name.startswith("input")),
+                          key=lambda r: r.io_name)
+    output_cells = [r for r in records if r.io_name == "output"]
 
-    for i in range(20):
-        grid.tick()
-        out = grid.cells[(output_cell.row, output_cell.col)]
-        if getattr(out, "ram_data_valid", False):
-            print(f"Tick {i+1}: real 'output' cell now holds 0x{out.ram_data_reg:X} (valid={out.ram_data_valid})")
+    if input_cells and output_cells:
+        values = [10 * (i + 1) for i in range(len(input_cells))]  # 10, 20, 30, 40, ...
+        expected = sum(values)
+        print(f"\nInjecting real values {values} at the {len(input_cells)} real 'input_N' cell(s) "
+              f"(expected real sum: {expected})...")
+        for cell, val in zip(input_cells, values):
+            grid.inject(cell.row, cell.col, val)
+
+        out_rec = output_cells[0]
+        for i in range(40):
+            grid.tick()
+            out = grid.cells[(out_rec.row, out_rec.col)]
+            if out_rec.core == "ram" and getattr(out, "ram_data_valid", False):
+                got = out.ram_data_reg
+            elif out_rec.core == "adder" and getattr(out, "adder_data_valid", False):
+                got = out.adder_out_buffer
+            else:
+                continue
+            print(f"Tick {i+1}: real 'output' cell now holds {got} (expected {expected}) "
+                  f"-- {'CORRECT' if got == expected else 'MISMATCH'}")
             break
+        else:
+            print("Value never reached the real output cell within 40 ticks.")
     else:
-        print("Value never reached the real output cell within 20 ticks.")
+        # Fall back to the original single input/output shape (#740's own small example).
+        input_cell = next(r for r in records if r.io_name == "input")
+        output_cell = next(r for r in records if r.io_name == "output")
+        print(f"\nInjecting 0x2A at the real 'input' cell ({input_cell.row},{input_cell.col})...")
+        grid.inject(input_cell.row, input_cell.col, 0x2A)
+        for i in range(20):
+            grid.tick()
+            out = grid.cells[(output_cell.row, output_cell.col)]
+            if getattr(out, "ram_data_valid", False):
+                print(f"Tick {i+1}: real 'output' cell now holds 0x{out.ram_data_reg:X} (valid={out.ram_data_valid})")
+                break
+        else:
+            print("Value never reached the real output cell within 20 ticks.")
 
     # A real, small diff-section snapshot, per #737's own design --
     # cell_id -> current latch value, for whichever real cells hold a
@@ -134,4 +215,6 @@ if __name__ == "__main__":
         cell = grid.cells[(r.row, r.col)]
         if r.core == "ram" and getattr(cell, "ram_data_valid", False):
             diff[r.cell_id] = f"0x{cell.ram_data_reg:X}"
+        elif r.core == "adder" and getattr(cell, "adder_data_valid", False):
+            diff[r.cell_id] = f"0x{cell.adder_out_buffer:X}"
     print(f"\nReal diff-section snapshot (cell_id -> current value): {diff}")
