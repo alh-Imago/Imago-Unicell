@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-15, the carrier build system's own frontend designed -- two selection modes (manual core list, or derived from an ICM file). Checking the real ICM v3 implementation directly surfaced a genuine prerequisite: no ICM format exists for VIX Carrier yet, so Mode B can't work until that's built. Fully-loaded-vs-trimmed and FPGA/VM-vs-ASIC distinctions baked in directly. Design note only. See `points/points_active.md` #736)
+# Current State (as of 2026-09-15, a hierarchical, structure-aware ICM format worked through -- per Alan's own observation that compiled LLVM IR output will have genuinely repeating structures. Not a compression problem (Onion already solves that); a semantic/structural one. Static structure vs runtime state kept deliberately separate, with cell_id confirmed as the right stable anchor for a diff-based save. Design note only. See `points/points_active.md` #737)
+
+## Read this first (most recent)
+
+**2026-09-15, hierarchical ICM format worked through (#737).** Direct
+follow-up to #736's own named prerequisite. Real, important
+distinction made first: this isn't (only) a compression problem --
+tools/onion's own LZ77/Huffman already solves repeated-bytes bloat,
+today, with zero format changes, but gives no name to "this is a
+CORDIC stage" and doesn't help a compiler regenerate one structure
+without touching every instance. Complementary to a structural
+redesign, not a substitute for it.
+
+**Four real design questions for the "header, structure map, full map"
+shape:** the central, still-open one is whether structure instances
+need per-instance overrides (almost certainly yes -- pipeline edge
+stages need different external wiring than middle ones); structure
+ports likely reuse the existing upstream_mask/downstream_mask
+convention one level up; nesting depth left open pending a real
+example; the header's own summary should be derived from the instance
+list (matching minimum_shell_version()'s own precedent), not a
+hand-maintained field that can go stale.
+
+**The real, separate save/state question, resolved with a checked
+reason:** structure and state are orthogonal -- a shared template can't
+hold one run's own current values directly. Alan's own diff-file idea
+confirmed right by checking the actual format: IcmV3Record.cell_id
+already exists as a stable per-cell identifier, so cell_id->value
+diffs work whether the structure is flat or hierarchical -- the one
+real requirement is cell_id staying stable even inside nested
+structure instances.
+
+**Status: design question feeding #736's own prerequisite, not
+decided.** No RTL, no format spec, no code. Real next step: work the
+central open question against an actual compiled example. Saved to
+docs/stripped-cell/design-notes/hierarchical_icm_and_state_save_scope.md.
+
+## Previous state (as of 2026-09-15, the carrier build system's own frontend designed -- two selection modes (manual core list, or derived from an ICM file). Checking the real ICM v3 implementation directly surfaced a genuine prerequisite: no ICM format exists for VIX Carrier yet, so Mode B can't work until that's built. Fully-loaded-vs-trimmed and FPGA/VM-vs-ASIC distinctions baked in directly. Design note only. See `points/points_active.md` #736)
 
 ## Read this first (most recent)
 

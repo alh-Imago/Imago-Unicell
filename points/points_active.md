@@ -10360,3 +10360,71 @@ output from the same generator -- a real tradeoff, not resolved here.
 recommendation, not a build plan.** No RTL, no ICM format changes, no
 generator, nothing built. Saved to `docs/stripped-cell/design-notes/
 carrier_build_frontend_scope.md`.
+
+## 737. A real, direct follow-up to `#736`'s own named prerequisite -- what a hierarchical, structure-aware ICM format should actually look like, per Alan's own real observation that compiled LLVM IR output will have genuinely repeating structures. Two deliberately separate real questions worked through: static structure representation, and how a runtime state save relates to it. Design note only, nothing built. (Alan/Claude, 2026-09-15)
+
+**Real, important distinction made before designing anything: this is
+NOT (only) a compression problem, checked against what's already
+built.** `tools/onion`'s own real, working LZ77/Huffman implementation
+already solves "repeated bytes bloat a file," today, with zero format
+changes. But it gives no name to "this is a CORDIC stage," doesn't let
+a compiler regenerate one structure's own definition without touching
+every instance, and doesn't make a file's own shape legible by reading
+it. Named directly: the two are complementary, not competing --
+Onion-compressing a hierarchical ICM afterward is still a real, later,
+orthogonal option.
+
+**Four real design questions worked through for the "header, structure
+map, full map" shape Alan described:** (1) the single most important,
+genuinely unresolved one -- do structure instances need real,
+per-instance overrides (almost certainly yes; a real N-stage pipeline's
+own first/last stages need different external wiring than its middle
+ones, which pure verbatim-repetition can't represent); (2) how a
+structure declares its own external ports -- likely just the existing
+`upstream_mask`/`downstream_mask` convention one level up, not a new
+naming layer; (3) whether nesting goes more than one level deep, left
+genuinely open pending a real example; (4) the header's own "structures
+used and counts" doesn't need to be a hand-maintained field that can
+go stale (`#734`'s own real lesson) -- it can be derived from the
+instance list, the same real pattern `minimum_shell_version()`
+(`#736`'s own finding) already uses.
+
+**The real, separate save/state question, resolved with a clear,
+checked reason, not just a preference:** program structure and runtime
+state are genuinely orthogonal -- a named structure is by definition a
+SHARED template, so per-run current values can't live inside it
+directly (different instances hold different real values at any
+moment). Alan's own second option (original structure file unchanged,
+plus a diff file of just the values that differ) is confirmed the
+right one by checking the actual existing format: `IcmV3Record.cell_id`
+already exists today as a real, stable, per-cell identifier, so a
+`cell_id -> value` diff works cleanly whether the underlying structure
+is flat (today) or hierarchical (this note's own proposal) -- the one
+real requirement is that `cell_id` stays genuinely stable and unique
+for every cell, including ones inside a named structure instance, not
+just top-level loose cells.
+
+**Real, honest complexity named directly, not smoothed away:** the
+diff approach doesn't eliminate the real work of resolving a `cell_id`
+back to a live cell inside a possibly-nested structure hierarchy -- it
+isolates that work to one well-defined operation instead of smearing
+"how does state live inside a template" across the whole format.
+
+**Real, honest, unresolved questions, stated precisely:** the
+per-instance override shape (the real central question everything else
+is comparatively mechanical once answered); whether `cell_id` needs a
+real, structured naming convention once cells live inside nested
+structures; whether the VM's own loader needs to materialize a full
+flat cell list regardless of the file's own hierarchical shape (likely
+yes, since `SuperGrid`/`VixCarrierGrid` already model flat grids --
+meaning this redesign's own real value is at the FILE level, not
+necessarily a VM runtime-representation change, stated plainly rather
+than implied otherwise).
+
+**Real, honest status: another design question feeding `#736`'s own
+named prerequisite, not a decision.** No RTL, no format spec, no code.
+The real next step named directly: work through the central open
+question against a real, concrete example (a compiled CORDIC
+pipeline's own actual record shape) rather than in the abstract. Saved
+to `docs/stripped-cell/design-notes/hierarchical_icm_and_state_save_
+scope.md`.
