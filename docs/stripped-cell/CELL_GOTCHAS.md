@@ -109,6 +109,36 @@ timing hazard as the branch/zero-reference gotcha above, one level
 over: a "matched pair" capture core needs its two real deliveries
 genuinely sequenced, not simultaneous, regardless of which core it is.
 
+### Adder/mul core — TWO PRELOADED constants converging on the same consumer ALSO collide, not just a "dynamic vs. constant" case (`#750`)
+**Real, sharpened generalization of the gotcha immediately above,
+confirmed directly while hand-building the smallest real DAG that
+isn't a linear chain.** The gotcha above frames the fix as "stagger
+the dynamic operand" — but a real, direct test showed the SAME
+collision happens with ZERO dynamic operands at all: two flowing-mode
+`ram` cells, each seeded via `preload_value` (the correct, established
+fix for re-contamination), are BOTH already `ram_data_valid=True` at
+construction time — neither needs a trigger or injection to become
+ready, each simply IS ready from tick zero. If both feed the SAME
+consumer at the SAME real distance, both offer on the very first real
+tick and OR-combine, exactly like the fully-dynamic case above, for a
+genuinely separate reason: `preload_value` fixes re-contamination (a
+drained cell won't keep re-offering forever); it does NOT, by itself,
+fix simultaneous FIRST arrival between two independently-ready
+sources. **The real, fully general rule, confirmed by building and
+tracing a working fix (`#750`):** ANY two real values converging on
+the same consumer — both dynamic, both constant, or one of each —
+need genuinely different real path lengths to that consumer, full
+stop; there is no "safe" combination that skips this. The working fix
+is the same one already named above (pad one path with a real relay
+hop) — this entry exists because the ORIGINAL framing ("stagger the
+dynamic operand") could be misread as "two constants are safe," which
+a real, direct test showed is false. **Any placement/codegen pass
+generating a real convergence point — dataflow-depth-based grouping
+or otherwise — must check every pair of paths converging on a shared
+consumer for equal length, regardless of whether either side is a
+compile-time constant.** Real, working example preserved at
+`nano/examples/dag_diamond_hand_built.py`.
+
 ### Branch/comparator core — `in+N` direction resolution (`#494`)
 **Status: designed, not yet built.** `in+1`/`in+2`/`in+3` (relative to
 the arrival direction) is resolved to a real, ABSOLUTE direction mask

@@ -11159,3 +11159,84 @@ person or a future simulation-aware check needs to catch, not this one.
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression from this turn's changes to
 `icm_vix_v1.py`, `workbench_v1.py`, and the three scope documents.
+
+## 750. The smallest real DAG, built and solved by hand for the first time -- Alan's own direct correction confirmed the LLVM frontend was NOT "sort of complete" (general DAG data flow remains explicitly rejected today, per its own header), and the real decision to fill this hole on the proven old lineage before extending anything to VIX. A real "diamond" convergence (`t3 = (a+b)+(c+d)`) built, traced, and correctly solved -- surfacing one genuinely new, generalized timing hazard beyond what `#611`/`#742`/`#748` already documented. (Alan/Claude, 2026-09-15)
+
+**Confirmed precisely, directly against the frontend's own header, not
+assumed:** `nano/llvm_ir_frontend_v1.py` genuinely works and is well-
+tested for exactly one function, one straight-line block or one narrow
+3-block counting loop, `add`/`sub`/`select`/`icmp`/`shl`/`lshr`/`ashr`
+-- but a real, linear-accumulation-chain restriction is enforced
+explicitly: any genuine DAG (`t3 = add t1, t2` where both are separate
+prior results) produces a real, clear diagnostic, never a silent wrong
+answer. "Sort of complete" undersold how real and well-tested the
+narrow slice is, and oversold how much of general programming it
+covers -- both real facts, not in tension.
+
+**Real, deliberate decision, per Alan's own direct point:** fill this
+hole on the OLD lineage first (where the frontend/backend already work
+and are tested), before extending anything to VIX -- matching `#611`'s
+own established method exactly: build the smallest real case, trace it
+tick by tick, discover the real hazards directly, don't theorize first.
+
+**The smallest real DAG that isn't a linear chain:** `t3 = (a+b) +
+(c+d)` -- a real "diamond," two independent sub-computations
+converging at a third. Built with `super_tile_library_v1.py`'s own
+real `adder`/`ram_flowing` tiles, verified collision-free and
+face-adjacency-correct with a real, systematic Python check (the same
+discipline `#742`'s own CORDIC build used) BEFORE ever running it.
+
+**Real, honest attempt #1 failed, directly re-confirming an already-
+known hazard:** `ram_constant` (`fixed_mode=1`) for the four real
+constants produced `14`, not the correct `8` -- exactly `#611`/`#742`/
+`#748`'s own documented "continuously-live source OR-combines, then
+re-contaminates" hazard, independently re-derived.
+
+**Real, honest attempt #2 surfaced a genuinely NEW hazard, not
+previously documented anywhere in this project:** switching to
+flowing-mode `ram` + `preload_value` (the correct, established fix for
+re-contamination) STILL produced the wrong result (`7`, not `8`).
+Traced directly: a preloaded, flowing-mode cell is already `ram_data_
+valid=True` at construction -- it needs no trigger to become ready, it
+just IS ready from tick zero. Two such cells feeding the same real
+consumer are BOTH ready and BOTH offer on the very first tick,
+OR-combining -- the same collision `fixed_mode` causes, for a
+genuinely separate reason. `preload_value` fixes re-contamination; it
+does NOT, by itself, fix simultaneous first arrival between two
+independently-ready sources.
+
+**Real, working fix, confirmed by tracing the actual result:** pad ONE
+of the two paths into each real convergence point with an extra relay
+hop. Re-built with all three real convergence points (a+b at t1, c+d
+at t2, t1+t2 at t3) properly staggered: `t1=8`, `t2=30`, `t3=38` --
+all exactly correct, `t3.adder_a_reg=8` directly confirming `t1`
+genuinely arrived and was captured first.
+
+**The real, sharpened, generalized rule this proves:** ANY two real
+values converging on the same consumer -- both dynamic, both constant,
+or one of each -- need genuinely different real path lengths, full
+stop; there is no combination that's safe by default. `#611`'s own
+original "stagger the dynamic operand" framing undersold this --
+two compile-time constants converging directly collide too, with no
+dynamic operand at all to blame. A new, real `CELL_GOTCHAS.md` entry
+records this precisely (distinct from, and sharpening, `#748`'s own
+entry), and a real, permanent example preserved at `nano/examples/
+dag_diamond_hand_built.py` with 3 new regression tests.
+
+**A real, new "Addendum 8" added to `llvm_ir_compiler_scope.md`**,
+recording the full real trace (both failed attempts and the working
+fix) in place, matching the document's own established addendum
+discipline -- and naming the real, honest next step precisely: this
+confirms the shape of the problem and proves a real, hand-built
+instance works, but does NOT yet generalize into a real algorithm
+the frontend could run automatically. The old placer's own real
+"dataflow-depth grouping" rule (`Addendum 2`, `COMPILER_TILE_CONFIG.
+md`) remains the right real starting shape for that generalization --
+assign every node a depth, ensure any two nodes at the same depth
+converging on a shared consumer get deliberately different path
+lengths -- turning that into a real, working placement algorithm is
+real, separate, concrete work, not attempted in this entry.
+
+**Real, honest verification: full project suite re-run** (772 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

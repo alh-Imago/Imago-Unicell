@@ -1,4 +1,52 @@
-# Current State (as of 2026-09-15, the known cell gotchas turned into a real, static, automatic check -- not just documentation. check_known_gotchas() built, wired into the workbench today, and made a real, load-bearing requirement in all three compiler scope documents, not deferred to when a compiler exists. See `points/points_active.md` #749)
+# Current State (as of 2026-09-16, the smallest real DAG built and solved by hand for the first time -- confirming general DAG data flow is a genuine, unfilled hole in the LLVM frontend, and surfacing a new, generalized timing hazard: two PRELOADED constants converging on the same consumer collide too, not just dynamic-vs-constant. See `points/points_active.md` #750)
+
+## Read this first (most recent)
+
+**2026-09-16, first real DAG solved by hand (#750).** Alan's own
+direct correction: the LLVM frontend was thought "sort of complete"
+before VIX/tile-library work -- confirmed directly against the
+frontend's own header that it genuinely isn't. General DAG data flow
+(t3 = add t1, t2 where both are separate prior results) is explicitly,
+deliberately rejected today with a clear diagnostic, not silently
+wrong -- but it's a real, unfilled hole. Real decision: fill it on the
+old lineage first, where the frontend/backend already work and are
+tested, before extending anything to VIX -- matching #611's own
+established method exactly (build the smallest case, trace tick by
+tick, discover the real hazards directly).
+
+**The smallest real DAG:** t3 = (a+b) + (c+d), a real diamond
+convergence. Built with super_tile_library_v1.py's own real tiles,
+collision/adjacency-checked before running.
+
+**Attempt #1 failed, re-confirming an already-known hazard:**
+fixed_mode constants OR-combine then re-contaminate -- exactly #611/
+#742/#748's own documented pattern, independently re-derived.
+
+**Attempt #2 surfaced a genuinely NEW hazard:** switching to flowing-
+mode + preload_value (the correct fix for re-contamination) STILL
+failed -- two preloaded cells are both already "ready" at construction
+and both offer on tick one, OR-combining regardless. preload_value
+fixes re-contamination, not simultaneous first arrival.
+
+**Working fix, confirmed by tracing:** pad one path per convergence
+point with an extra relay hop. Result: t1=8, t2=30, t3=38, all exact.
+
+**The generalized rule:** ANY two values converging on the same
+consumer need genuinely different path lengths -- dynamic, constant,
+or mixed, no safe combination exists by default. New CELL_GOTCHAS.md
+entry, permanent example (nano/examples/dag_diamond_hand_built.py),
+3 new regression tests, and a new Addendum 8 in llvm_ir_compiler_scope
+.md recording the full trace.
+
+**Real, honest next step named directly:** this proves one hand-built
+instance works -- it does NOT yet generalize into a real algorithm.
+The old placer's own dataflow-depth-grouping rule is the right
+starting shape for that; turning it into a working placement algorithm
+is separate, real work, not attempted here.
+
+**Status: 772 tests pass, zero regression.**
+
+## Previous state (as of 2026-09-15, the known cell gotchas turned into a real, static, automatic check -- not just documentation. check_known_gotchas() built, wired into the workbench today, and made a real, load-bearing requirement in all three compiler scope documents, not deferred to when a compiler exists. See `points/points_active.md` #749)
 
 ## Read this first (most recent)
 
