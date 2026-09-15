@@ -10798,3 +10798,45 @@ ensures the facts are on record and linked from the right places
 before either one is built further, rather than needing to be
 rediscovered the same way building the real CORDIC example just
 required.
+
+## 744. A real, consolidated roadmap captured, per Alan's own direct sequencing after a substantial session (LLVM IR, compiler design, loader, save mechanism, frontend, workbench expansion, separate chains, data entry/results, then LaTeX/Trix) -- checked against what actually exists rather than assumed, turning up one genuinely useful finding: the workbench is less green-field than "needs the same functionality as the earlier iteration" suggested. Documentation only, nothing built. (Alan/Claude, 2026-09-15)
+
+**Every item checked directly against real code before writing anything
+down, not assumed from the framing alone:**
+- The save mechanism (structure ICM reference + a diff file, keyed by
+  the already-existing, stable `cell_id`) is confirmed as `#737`'s own
+  already-resolved design, restated by Alan directly -- `#742`'s own
+  prototype demonstrated a real snapshot but never a full round-trip
+  (write, reload, replay); that's the real, remaining, concrete piece.
+- The frontend's own "open a MAN file, arbitrary size, no extras" is a
+  real, NEW requirement, not previously recorded anywhere -- a genuine,
+  first-class "no MAN constraint" option, distinct from `load_man()`/
+  `check_against_man()` (`#734`/`#741`), which both assume a real,
+  specific hardware profile is always given.
+- **The real, most useful finding: workbench expansion is genuinely
+  less green-field than it looked.** Checked `nano/workbench_v1.py`
+  and `nano/vm_ai_port_v1.py` directly rather than assuming a rebuild
+  was needed -- `load_icm`/`save_icm`, `step`/`start_run`/`pause_run`
+  (with real `ticks_per_sec` -- "slow" already exists), `inject`/
+  `deliver` (real data entry), `state` (real results), and even
+  `load_region`/`list_regions`/`clear_region` (substantial groundwork
+  for "separate chains," already built) all real and already exposed.
+  A real, underlying `describe_cell(row,col)` already exists too, just
+  not yet exposed through the workbench controller's own API. The
+  real, narrower, genuine gaps: `freeze`/`unfreeze` exist at the VM
+  level but aren't exposed through the workbench at all; no real "show
+  connections" capability was found anywhere; and none of cell
+  inspection, freeze, or connections has been checked against the NEW
+  hierarchical ICM format's own real shape at all.
+- Region-based "separate chains" real, unchecked open question named
+  precisely: do regions support genuinely independent run control
+  (pause one, step another) or only independent loading into a shared,
+  single-stepped grid -- not verified either way, a real, concrete
+  follow-up before assuming this item is further along than it is.
+
+**Real, honest status: a consolidated roadmap, not a build plan for
+any one item.** Every numbered item is its own, separately-sized piece
+of real work -- Alan's own framing of item 1 (LLVM IR) as "a whole
+other session by itself" applies to the rest too, none of them
+smaller. Saved to `docs/stripped-cell/design-notes/full_roadmap_2026_
+09_15.md`.

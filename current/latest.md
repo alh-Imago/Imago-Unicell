@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-15, #742's own real, hard-won lessons carried forward into the compiler-facing documentation -- three new CELL_GOTCHAS.md entries plus pointers from all three real compiler scope documents (LLVM IR compiler, DSL compiler, LLVM frontend completion). Documentation only. See `points/points_active.md` #743)
+# Current State (as of 2026-09-15, a real, consolidated roadmap captured -- Alan's own direct sequencing (LLVM IR, compiler design, loader, save mechanism, frontend, workbench expansion, separate chains, data entry/results, then LaTeX/Trix), checked against what actually exists. Real finding: the workbench is less green-field than expected. See `points/points_active.md` #744)
+
+## Read this first (most recent)
+
+**2026-09-15, consolidated roadmap captured (#744).** Alan's own real
+sequence after a substantial session, checked against real code
+before writing anything down, not assumed.
+
+**Save mechanism:** confirmed as #737's own already-resolved design
+(structure ICM reference + cell_id-keyed diff file) -- #742's own
+prototype only demonstrated a snapshot, not a full write/reload/replay
+round-trip. That's the real remaining piece.
+
+**Frontend "open a MAN file, arbitrary size, no extras":** a genuine
+NEW requirement, not previously recorded -- distinct from load_man()/
+check_against_man(), which both assume a specific hardware profile is
+always given.
+
+**The most useful finding: workbench expansion is less green-field
+than it looked.** Checked nano/workbench_v1.py and vm_ai_port_v1.py
+directly -- load_icm/save_icm, step/start_run/pause_run (real "slow"
+already exists via ticks_per_sec), inject/deliver, state, and even
+load_region/list_regions/clear_region (real groundwork for "separate
+chains") are all already built and exposed. describe_cell() exists at
+the VM level, just not exposed through the workbench API yet. The real
+gaps: freeze/unfreeze exist at the VM level but aren't exposed through
+the workbench at all; no "show connections" capability was found
+anywhere; and none of this has been checked against the new
+hierarchical ICM format's own shape.
+
+**Status: a consolidated roadmap, not a build plan.** Every item is
+its own, separately-sized piece of real work -- none of them smaller
+than the LLVM IR item Alan named as "a whole other session by itself."
+Saved to docs/stripped-cell/design-notes/full_roadmap_2026_09_15.md.
+
+## Previous state (as of 2026-09-15, #742's own real, hard-won lessons carried forward into the compiler-facing documentation -- three new CELL_GOTCHAS.md entries plus pointers from all three real compiler scope documents (LLVM IR compiler, DSL compiler, LLVM frontend completion). Documentation only. See `points/points_active.md` #743)
 
 ## Read this first (most recent)
 
