@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-15, core-selection tooling caught up -- started as the queued resolve_core_file()/VIX-dependency fix, widened once testing surfaced #728's own real, previously-unnoticed regression across v3/v4 project generation and several nano/-side VM tests. Full suite (735 tests) and a real generated VIX project both confirmed clean. See `points/points_active.md` #734)
+# Current State (as of 2026-09-15, VIXb's own first real scoping pass done, per Alan's own direct framing as a core unit of the whole design. Two options weighed honestly (Verilog parameterization vs a Python RTL generator); Option B recommended for review, not decided unilaterally -- it's the same real idea as #726's own already-queued "carrier build system." No RTL, nothing built. See `points/points_active.md` #735)
+
+## Read this first (most recent)
+
+**2026-09-15, VIXb scoped for the first time (#735).** Checked
+directly first: "VIXb" was only ever a short label since the original
+VIXa/VIXb split -- never actually scoped in detail before. The real
+problem, precisely evidenced (not estimated): mul and priority each
+cost the same ~20 hand-coordinated edits across unicell_vix_carrier_v1
+.v's own 775 lines, confirmed twice. Seven real touch points
+enumerated exactly, including the real, genuinely-varying cfg_data
+width per core (64/80/128 bits) and per-core status-port differences
+that can't be assumed.
+
+**Two real options weighed honestly:** (A) true Verilog
+parameterization -- the more hardware-native answer, but genuinely
+obstructed by real per-core width/port differences; would mean either
+rewriting all 11 already-verified shells to a uniform interface, or a
+generate/case structure no simpler than today's hand-written chains.
+(B) a Python-side RTL generator extending project_assemble_v1.py's own
+already-proven generation pattern -- doesn't touch any existing,
+working RTL, and is directly the same idea as #726's own already-
+queued "carrier build system," not a separate problem.
+
+**Recommendation offered for review, not decided unilaterally:**
+Option B, since it avoids touching 11 files that already work. Real,
+open questions named precisely: generator input shape, whether core_
+select's width should be computed, whether a generated carrier needs
+its own generated testbench, where the tool lives, and a real, separate
+necessary piece of groundwork either way -- CORE_REGISTRY currently
+describes the OLD lineage, not the _v4c family, and needs rebuilding
+against the real RTL first.
+
+**Status: scoping pass only.** No RTL, no generator, no registry.
+Saved to docs/stripped-cell/design-notes/vixb_mutable_core_count_scope.md.
+
+## Previous state (as of 2026-09-15, core-selection tooling caught up -- started as the queued resolve_core_file()/VIX-dependency fix, widened once testing surfaced #728's own real, previously-unnoticed regression across v3/v4 project generation and several nano/-side VM tests. Full suite (735 tests) and a real generated VIX project both confirmed clean. See `points/points_active.md` #734)
 
 ## Read this first (most recent)
 

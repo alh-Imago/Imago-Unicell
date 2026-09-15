@@ -10245,3 +10245,57 @@ real fallout and the originally-queued `resolve_core_file()`/`#729`
 item together.** `VIXb` itself -- the real, still-open "mutable core
 count" RTL question -- remains completely untouched and unresolved by
 this entry; this was tooling correctness, not carrier architecture.
+
+## 735. VIXb -- the real, first proper scoping pass, per Alan's own direct framing ("a core unit of the whole design," worth doing before anything else). Checked directly first: "VIXb" has only ever existed as a short label since the original VIXa/VIXb split -- no prior note actually scoped it in detail. Two real, genuinely different approaches identified and weighed honestly, with a working recommendation offered for review, not decided unilaterally. Design note only, nothing built. (Alan/Claude, 2026-09-15)
+
+**The real problem, precisely stated with real evidence, not
+estimated:** wiring in `mul` and `priority` each cost the exact same
+~20 real, hand-coordinated edits across `unicell_vix_carrier_v1.v`'s
+own 775 real lines -- confirmed by actually doing it twice, not
+assumed to generalize from one instance. Every one of seven real touch
+points enumerated precisely: the `SEL_<NAME>` value, `cfgv_<name>`/
+`sel_<name>` wires, the `<name>_cfg` slice (whose real width GENUINELY
+varies per core -- 64/80/128 bits, confirmed directly, not a
+convention this file could assume), 14 new output wire declarations,
+the full shell instantiation (confirmed the hard way that status-port
+names genuinely differ per core, not assumable), and insertion into
+all 14 of the carrier's own shared mux chains.
+
+**Two real, honestly-weighed options, not a foregone conclusion:**
+(A) true Verilog parameterization -- the more hardware-native answer,
+but genuinely obstructed by real, differing `cfg_data` widths and
+status-port shapes across cores; making it work would mean either
+rewriting all 11 already-verified `_v4c` shells to a uniform interface
+(large, risky, for something whose whole point is reducing risk) or a
+`generate`/`case` structure no simpler than today's hand-written mux
+chains. (B) a real, Python-side RTL generator, extending `tools/
+project_assemble_v1.py`'s own already-proven generation pattern
+(`generate_single_core_top()`, `generate_top_vix()`, `derive_vix_
+dependencies()` from `#734`) -- doesn't touch any existing, working
+RTL at all, and is directly, deliberately the SAME real idea as `#726`'s
+own already-queued "carrier build system," not a separate problem that
+happens to overlap it.
+
+**A real, working recommendation offered, not a decision made
+unilaterally:** Option B, for one concrete reason -- it doesn't
+require touching or re-verifying 11 files that already work. Stated
+explicitly as a starting point for Alan's own review, matching this
+project's own established discipline for architectural forks at this
+level of weight.
+
+**Real, honest, open questions named precisely, not glossed over for
+the sake of a clean recommendation:** what the generator's own real
+input shape looks like (plain core-name list vs. something richer);
+whether `core_select`'s own 5-bit width should become generator-
+computed or stay fixed; whether a generated carrier needs its own
+generated testbench too (`#726`'s own "build AND test" framing implies
+yes, but the real shape of that is unscoped); where the tool should
+actually live; and a real, necessary, separate piece of groundwork
+regardless of every other answer -- `project_assemble_v1.py`'s own
+`CORE_REGISTRY` currently describes the OLD lineage's cores, not the
+`_v4c` family at all, and would need a real, current registry built
+and checked against the actual RTL before any generator could use it.
+
+**Real, honest status: a scoping pass, not a build plan.** No RTL, no
+generator code, no registry written. Saved to `docs/stripped-cell/
+design-notes/vixb_mutable_core_count_scope.md`.
