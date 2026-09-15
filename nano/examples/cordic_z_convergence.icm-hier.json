@@ -1,5 +1,5 @@
 {
-  "format_version": "icm-v4-hierarchical-prototype",
+  "format_version": "icm-vix-v1",
   "description": "points.md #742: a real, structurally faithful CORDIC z-only convergence pipeline -- 4 real, genuinely DISTINCT stage patterns (each carries its own real atan(2^-i) constant, testing the OPPOSITE case from #740/#741: nothing repeats). Each stage: a real branch cell dynamically routes z based on its own live sign to one of two real adder paths (always ADD a signed +/-atan_i constant, deliberately avoiding adder's own arrival-order-dependent subtract entirely). A real, dedicated 'merge' cell feeds branch, since branch's own real delivery logic (confirmed directly against _deliver_branch()) only ever accepts genuine cardinal arrivals, never a direct external injection -- so each stage's own zero-reference has to arrive as a real delivery from a dedicated zero_source cell, same as the real z value does.",
   "header": {
     "cores_used": [

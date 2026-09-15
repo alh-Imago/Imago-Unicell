@@ -133,6 +133,7 @@ from python_ast_frontend_v1 import compile_python_source
 from unicell_super_automaton_v1 import SuperGrid
 from unicell_automaton_v1 import N, S, E, W
 from loader_v1 import bind_shape
+import icm_vix_v1 as vix
 from host_registry_v1 import HostResourceRegistry
 import vm_mirror_v1
 import shell_compat_v1
@@ -306,6 +307,16 @@ class WorkbenchController:
         self._run_active: bool = False
         self._run_ticks_per_sec: float = 0.0
         self._run_tick_count: int = 0
+        # points.md #747: real, honest tracking of the ORIGINAL
+        # hierarchical structure file path, if the current session was
+        # loaded via load_icm_vix() -- needed so save_state_vix() can
+        # save a real diff referencing that structure (per #737's own
+        # design: the structure stays on disk, unchanged; only a real,
+        # separate diff is ever written). None means the current
+        # session was NOT loaded from a hierarchical file (a flat ICM
+        # v3 load, a DSL compile, etc.) -- save_state_vix() refuses
+        # rather than guessing at a structure path that doesn't exist.
+        self._vix_structure_path: Optional[str] = None
 
     # ── real target reflection (points.md #605) ────────────────────
     #
@@ -653,6 +664,102 @@ class WorkbenchController:
             "region": {"name": name, "positions": positions},
             "state": self.session.describe(),
         }
+
+    def load_icm_vix(self, path: str) -> Dict[str, Any]:
+        """points.md #747: real, honest load for the real, formalized
+        hierarchical ICM format -- REPLACES the whole session, mirroring
+        load_icm()'s own real "REPLACES the whole session" semantics.
+        Flattens the hierarchical document (patterns + design map) into
+        real IcmV3Record objects via icm_vix_v1.IcmVixFile.flatten(),
+        then builds a session from those exactly the same way
+        VMSession.from_icm_file() already does for a flat ICM v3 file
+        -- no new session-construction path, a thin, direct reuse.
+        Runs the real, advisory connection check (icm_vix_v1's own
+        check_connections()) and returns any warnings as
+        connection_hints, the same real shape load_icm()/
+        load_icm_region() already use for the old lineage's own shell/
+        connection checks -- never blocks the load on an advisory
+        mismatch, matching #739's own established, non-authoritative
+        role for this check."""
+        try:
+            icm = vix.IcmVixFile.load(path)
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            return {"ok": False, "error": str(e)}
+
+        try:
+            records, _ = icm.flatten()
+        except vix.IcmVixFormatError as e:
+            return {"ok": False, "error": f"real, structural problem: {e}"}
+
+        connection_hints = icm.check_connections()
+
+        self.session = VMSession(SuperGrid(records))
+        self.regions = {}
+        self._records = {(r.row, r.col): r for r in records}
+        self.registry = HostResourceRegistry()
+        self._vix_structure_path = path
+        return {
+            "ok": True,
+            "name": icm.name,
+            "header": icm.header(),
+            "connection_hints": connection_hints,
+            "state": self.session.describe(),
+        }
+
+    def save_state_vix(self, diff_path: str) -> Dict[str, Any]:
+        """points.md #747: the real, separate save mechanism (#737's
+        own design, fully implemented #747) -- the structure file stays
+        exactly as it is on disk; only a real, separate diff (current
+        runtime values, keyed by each cell's own real, stable cell_id)
+        gets written here. Real, honest refusal, not a guess: only
+        works if the current session was actually loaded via
+        load_icm_vix() (self._vix_structure_path set) -- there is no
+        real structure file to reference otherwise (a DSL compile or a
+        flat ICM v3 load has no hierarchical structure at all)."""
+        if self._vix_structure_path is None:
+            return {"ok": False, "error": "no hierarchical structure currently loaded -- "
+                                           "use load_icm_vix() first, or save_icm() for a flat ICM v3 file"}
+        if self.session is None or not self._records:
+            return {"ok": False, "error": "no cells loaded -- nothing to save"}
+        try:
+            vix.save_state(self._vix_structure_path, diff_path,
+                            list(self._records.values()), self.session.grid)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "structure_path": self._vix_structure_path, "diff_path": diff_path}
+
+    def load_state_vix(self, diff_path: str) -> Dict[str, Any]:
+        """points.md #747: the real, full round trip -- loads the diff
+        file, loads the ORIGINAL structure it references fresh from
+        disk (never assumes it's already in memory), builds a
+        COMPLETELY FRESH session from it, and replays the diff onto
+        that fresh session -- exactly the real round trip
+        test_full_state_save_and_restore_round_trip already proves
+        works. REPLACES the whole session, same real semantics as
+        load_icm()/load_icm_vix()."""
+        try:
+            icm, records, diff = vix.load_state(diff_path)
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            return {"ok": False, "error": str(e)}
+
+        session = VMSession(SuperGrid(records))
+        missing = vix.apply_diff(records, session.grid, diff)
+
+        self.session = session
+        self.regions = {}
+        self._records = {(r.row, r.col): r for r in records}
+        self.registry = HostResourceRegistry()
+        self._vix_structure_path = None  # loaded via a saved state, not directly from a structure file
+        result: Dict[str, Any] = {
+            "ok": True,
+            "name": icm.name,
+            "header": icm.header(),
+            "diff_entries_applied": len(diff) - len(missing),
+            "state": self.session.describe(),
+        }
+        if missing:
+            result["missing_cell_ids"] = missing
+        return result
 
     def clear_region(self, name: str) -> Dict[str, Any]:
         if self.session is None or name not in self.regions:

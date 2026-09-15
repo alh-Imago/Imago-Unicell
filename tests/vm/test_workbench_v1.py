@@ -1037,6 +1037,75 @@ def test_real_server_save_load_icm_end_to_end(tmp_path):
         server.shutdown()
 
 
+# ── points.md #747: real, direct tests for the new hierarchical (VIX) ──
+# ── load and state save/restore methods, against the same real, ──
+# ── proven examples icm_vix_v1's own test suite already uses. ──
+
+_EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "nano", "examples")
+
+
+def test_load_icm_vix_loads_real_hierarchical_file():
+    ctrl = WorkbenchController()
+    result = ctrl.load_icm_vix(os.path.join(_EXAMPLES_DIR, "cordic_z_convergence.icm-hier.json"))
+    assert result["ok"] is True
+    assert result["header"] == {"cores_used": ["adder", "branch", "ram"], "cell_count": 40}
+    assert result["connection_hints"] == []
+    assert len(ctrl._records) == 40
+
+
+def test_load_icm_vix_reports_advisory_warnings_without_blocking():
+    import icm_vix_v1 as vix
+    import tempfile
+    icm = vix.IcmVixFile.load(os.path.join(_EXAMPLES_DIR, "parallel_reduction_tree.icm-hier.json"))
+    icm.patterns["spine_middle"].cells[0].core_config["upstream_mask"] = ["N"]  # deliberately break it
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "broken.icm-vix.json")
+        icm.save(path)
+        ctrl = WorkbenchController()
+        result = ctrl.load_icm_vix(path)
+    assert result["ok"] is True  # advisory mismatch never blocks a load
+    assert len(result["connection_hints"]) == 2
+
+
+def test_save_state_vix_refuses_without_a_loaded_structure():
+    ctrl = WorkbenchController()
+    result = ctrl.save_state_vix("/tmp/should_not_be_written.json")
+    assert result["ok"] is False
+    assert "load_icm_vix" in result["error"]
+
+
+def test_full_state_save_and_restore_round_trip_via_workbench(tmp_path):
+    """The same real round trip icm_vix_v1's own test suite proves,
+    driven end to end through the workbench's own real, exposed API --
+    a fresh, second WorkbenchController instance restoring the exact
+    same, known-correct CORDIC result from a saved diff."""
+    ctrl = WorkbenchController()
+    load_result = ctrl.load_icm_vix(os.path.join(_EXAMPLES_DIR, "cordic_z_convergence.icm-hier.json"))
+    assert load_result["ok"] is True
+
+    input_cell = next(r for r in ctrl._records.values() if r.io_name == "z_input")
+    output_cell = next(r for r in ctrl._records.values() if r.io_name == "z_output")
+    for _ in range(6):
+        ctrl.session.grid.tick()
+    ctrl.session.grid.inject(input_cell.row, input_cell.col, 50000 & 0xFFFFFFFF)
+    for _ in range(20):
+        ctrl.session.grid.tick()
+
+    diff_path = str(tmp_path / "state.diff.json")
+    save_result = ctrl.save_state_vix(diff_path)
+    assert save_result["ok"] is True
+
+    ctrl2 = WorkbenchController()  # a genuinely separate, fresh controller
+    restore_result = ctrl2.load_state_vix(diff_path)
+    assert restore_result["ok"] is True
+    assert restore_result["diff_entries_applied"] == 1
+    assert restore_result.get("missing_cell_ids") is None
+
+    out = ctrl2.session.grid.cells[(output_cell.row, output_cell.col)]
+    got = out.ram_data_reg - (1 << 32) if out.ram_data_reg >= (1 << 31) else out.ram_data_reg
+    assert out.ram_data_valid and got == -404
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))

@@ -1,4 +1,48 @@
-# Current State (as of 2026-09-15, the LLVM IR side scoped for real while Alan's on the road -- traced the actual pipeline end to end, confirming both LLVM and DSL frontends share one backend, entirely scoped to the old, flat ICM lineage, zero path to VIX/hierarchical anywhere. Three separate pieces of work identified with one genuine, hard sequencing dependency. Scoping only. See `points/points_active.md` #746)
+# Current State (as of 2026-09-15, the hierarchical ICM format formalized, given a real production module, and wired into the workbench -- spec, loader, the full save/state round trip, and workbench integration all real and tested. 753 tests pass, zero regression. See `points/points_active.md` #747)
+
+## Read this first (most recent)
+
+**2026-09-15, ICM VIX formalized, loader/save built, workbench wired
+(#747).** Per Alan's own direct ask: formalize the spec, get the
+loader/save mechanisms into a correct working method, tie it to the
+frontend through the workbench. All three delivered as real, tested
+code, not scoping.
+
+**Spec:** docs/stripped-cell/ICM_VIX_FORMAT.md, matching ICM_V3_FORMAT
+.md's own rigor. Named icm-vix-v1 -- confirmed icm_v4 was already
+taken by a real, separate extension before naming anything.
+
+**Module:** nano/icm_vix_v1.py, a real production module replacing the
+prototype -- patterns, placements, connections (NC now a checkable
+claim, not an escape hatch), derived headers (never hand-maintained),
+record_hash integrity checking matching icm_v3.py's own discipline.
+
+**Save/state round trip, the piece #744 named as never attempted:**
+snapshot_diff/save_state/load_state/apply_diff. Verified as a genuinely
+complete round trip -- ran CORDIC partway, saved (structure + diff),
+loaded the diff, rebuilt the structure fresh from disk, built a
+completely new grid, replayed the diff -- exact known-correct result
+(z_output=-404) reappeared.
+
+**14 new module tests, all three real examples loading clean AND
+running to their own known-correct result**, format_version strings
+corrected in all three example files.
+
+**Workbench integration:** load_icm_vix/save_state_vix/load_state_vix,
+4 new tests including the full round trip through two genuinely
+separate WorkbenchController instances.
+
+**One honest thing flagged directly:** an early edit accidentally
+deleted clear_region()'s own real safety check -- caught immediately
+via diff check before running tests, restored, re-inserted more
+carefully with a longer, unambiguous anchor.
+
+**Status: 753 tests pass, zero regression.** What's still open, stated
+plainly: no compiler emits this format yet (#746's own finding stands
+-- the backend still targets icm_v3/icm_v4 only); no VIX-specific tile
+library; nested patterns still deliberately out of scope.
+
+## Previous state (as of 2026-09-15, the LLVM IR side scoped for real while Alan's on the road -- traced the actual pipeline end to end, confirming both LLVM and DSL frontends share one backend, entirely scoped to the old, flat ICM lineage, zero path to VIX/hierarchical anywhere. Three separate pieces of work identified with one genuine, hard sequencing dependency. Scoping only. See `points/points_active.md` #746)
 
 ## Read this first (most recent)
 

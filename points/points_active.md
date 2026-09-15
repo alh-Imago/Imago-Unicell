@@ -10929,3 +10929,90 @@ genuine, hard dependency in this whole roadmap item: the backend's own
 hierarchical-ICM emit path cannot start until the format itself is
 pinned down in writing. Saved to `docs/stripped-cell/design-notes/
 llvm_ir_vix_targeting_scope.md`.
+
+## 747. The hierarchical ICM format formalized, given a real, production module, and wired into the workbench -- per Alan's own direct ask: formalize the spec, get the loader/save mechanisms into a correct working method, tie it to the frontend through the workbench. All three delivered, real, and tested. Nothing left as a prototype. (Alan/Claude, 2026-09-15)
+
+**A real, formal spec written** (`docs/stripped-cell/ICM_VIX_FORMAT.md`,
+matching `ICM_V3_FORMAT.md`'s own established style and rigor) -- named
+`icm-vix-v1`, a genuinely new, differently-named format rather than a
+silent extension, since `icm_v4` was already taken by a real, separate
+extension (DSP wrapper cells, still old lineage) -- confirmed directly
+before naming anything, avoiding a real collision the prototype's own
+`"icm-v4-hierarchical-prototype"` string had already, unknowingly, been
+heading toward.
+
+**A real, production module built** (`nano/icm_vix_v1.py`, replacing
+the prototype loader as the real implementation): `HierCell`/
+`HierPattern`/`HierPlacement`/`HierConnection`/`IcmVixFile` dataclasses,
+real `flatten()` (raises `IcmVixFormatError` for genuine structural
+problems -- unknown pattern reference, position collision -- never for
+an advisory mismatch), real `check_connections()` (the advisory check,
+now also handling the `NC` case as a real, checkable claim, not an
+unchecked escape hatch -- flags a declared `NC` whose source cell
+actually has that face configured), a real, derived `header()` (never
+hand-maintained, `#734`'s own lesson applied from day one), and a real
+`record_hash()`/`save()`/`load()` matching `icm_v3.py`'s own integrity
+discipline exactly -- confirmed directly to catch a hand-edited file.
+
+**The real save/state mechanism, `#737`'s own design, given its first
+full, tested round trip** (`#744`'s own named, never-attempted piece):
+`snapshot_diff()`, `save_state()`, `load_state()`, `apply_diff()`.
+Verified as a genuinely complete round trip, not separate pieces:
+ran the real CORDIC pipeline (`#742`) partway, saved (structure
+reference + diff), then loaded the diff, loaded the ORIGINAL structure
+fresh from disk, built a COMPLETELY NEW grid that never ran anything,
+replayed the diff -- the exact known-correct result (`z_output=-404`)
+reappeared.
+
+**14 real, new tests** (`tests/vm/test_icm_vix_v1.py`): all three real
+example files (`#740`-`#742`) loading clean AND actually running to
+their own known-correct result (not just "it loads"); the advisory
+check catching both a real, deliberate broken shared pattern (both
+affected instances flagged) and a false `NC` claim; per-instance
+overrides; structural-error raising; the structure save/load round
+trip with `record_hash` corruption detection; and the full state
+round trip. All three example files' own stale `format_version`
+(`"icm-v4-hierarchical-prototype"`) corrected to the real, formal
+`"icm-vix-v1"`.
+
+**Wired into the workbench**, per Alan's own direct ask ("tie that to
+the frontend system, through the workbench"): three new, real
+`WorkbenchController` methods -- `load_icm_vix()` (REPLACES the whole
+session, mirroring `load_icm()`'s own real semantics, returns advisory
+`connection_hints`, never blocks on a mismatch), `save_state_vix()`
+(real, honest refusal if no hierarchical structure was actually
+loaded -- no path to guess at), `load_state_vix()` (the full round
+trip, exposed as one real, workbench-level operation). A new
+`self._vix_structure_path` attribute tracks which structure a loaded
+session came from, so a save knows what to reference. 4 real, new
+tests (`tests/vm/test_workbench_v1.py`), including the full round trip
+driven through two genuinely separate `WorkbenchController` instances
+(load, run, save, then a FRESH controller restoring the same, exact
+`-404` result).
+
+**A real, honest, self-caught mistake along the way, worth naming
+plainly:** an early insertion attempt accidentally deleted `clear_
+region()`'s own real safety check (`if self.session is None or name
+not in self.regions`). Caught immediately by checking the diff right
+after the edit, before running any tests -- restored, then the new
+methods were inserted again using a longer, unambiguous anchor
+spanning both surrounding functions. A real, useful reminder that even
+a small, well-intentioned edit near existing code needs its own diff
+checked, not just the new code's own correctness.
+
+**Real, honest verification discipline throughout:** every new piece
+tested immediately after writing it, not batched to the end -- the
+module against the three real examples, the workbench methods via a
+direct, manual smoke test before the automated tests existed, then the
+full project suite (753 passed, 1 skipped -- same pre-existing skip,
+4 warnings -- same pre-existing, unrelated) re-run as the final,
+whole-project check.
+
+**Real, honest status: three of the roadmap's own real items (`#744`)
+delivered as real, tested, working code, not scoping.** What remains,
+stated precisely, not glossed over: no LLVM IR or DSL compiler emits
+this format yet (`#746`'s own real finding stands -- the entire
+current backend still targets `icm_v3`/`icm_v4` only); no VIX-specific
+tile library exists; nested patterns remain deliberately out of scope,
+per `#737`'s own still-open question, since none of the three real
+examples ever needed more than one level.

@@ -1,47 +1,182 @@
 {
-  "format_version": "icm-v4-hierarchical-prototype",
+  "format_version": "icm-vix-v1",
   "description": "points.md #740: a small, real example built to test the hierarchical ICM design (#737-#739) against an actual VM run, not just abstract discussion. A linear chain: one entry point, three uses of a real, 2-cell 'relay' pattern (testing multi-cell port attachment), one exit point.",
   "header": {
-    "cores_used": ["ram"],
+    "cores_used": [
+      "ram"
+    ],
     "cell_count": 8
   },
   "patterns": {
     "entry": {
       "cells": [
-        {"cell_id": "entry_c0", "rel_row": 0, "rel_col": 0, "core": "ram",
-         "core_config": {"downstream_mask": ["E"], "fixed_mode": 0},
-         "io_name": "input"}
+        {
+          "cell_id": "entry_c0",
+          "rel_row": 0,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "E"
+            ],
+            "fixed_mode": 0
+          },
+          "io_name": "input"
+        }
       ]
     },
     "relay": {
       "cells": [
-        {"cell_id": "in", "rel_row": 0, "rel_col": 0, "core": "ram",
-         "core_config": {"upstream_mask": ["W"], "downstream_mask": ["E"], "fixed_mode": 0}},
-        {"cell_id": "out", "rel_row": 0, "rel_col": 1, "core": "ram",
-         "core_config": {"upstream_mask": ["W"], "downstream_mask": ["E"], "fixed_mode": 0}}
+        {
+          "cell_id": "in",
+          "rel_row": 0,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "E"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "out",
+          "rel_row": 0,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "E"
+            ],
+            "fixed_mode": 0
+          }
+        }
       ]
     },
     "exit": {
       "cells": [
-        {"cell_id": "exit_c0", "rel_row": 0, "rel_col": 0, "core": "ram",
-         "core_config": {"upstream_mask": ["W"], "fixed_mode": 0},
-         "io_name": "output"}
+        {
+          "cell_id": "exit_c0",
+          "rel_row": 0,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "fixed_mode": 0
+          },
+          "io_name": "output"
+        }
       ]
     }
   },
   "design_map": {
     "placements": [
-      {"instance": "entry_1", "pattern": "entry", "at": [0, 0]},
-      {"instance": "relay_1", "pattern": "relay", "at": [0, 1]},
-      {"instance": "relay_2", "pattern": "relay", "at": [0, 3]},
-      {"instance": "relay_3", "pattern": "relay", "at": [0, 5]},
-      {"instance": "exit_1",  "pattern": "exit",  "at": [0, 7]}
+      {
+        "instance": "entry_1",
+        "pattern": "entry",
+        "at": [
+          0,
+          0
+        ]
+      },
+      {
+        "instance": "relay_1",
+        "pattern": "relay",
+        "at": [
+          0,
+          1
+        ]
+      },
+      {
+        "instance": "relay_2",
+        "pattern": "relay",
+        "at": [
+          0,
+          3
+        ]
+      },
+      {
+        "instance": "relay_3",
+        "pattern": "relay",
+        "at": [
+          0,
+          5
+        ]
+      },
+      {
+        "instance": "exit_1",
+        "pattern": "exit",
+        "at": [
+          0,
+          7
+        ]
+      }
     ],
     "connections": [
-      {"from": ["entry_1", 0, 0, "E"], "to": ["relay_1", 0, 0, "W"]},
-      {"from": ["relay_1", 0, 1, "E"], "to": ["relay_2", 0, 0, "W"]},
-      {"from": ["relay_2", 0, 1, "E"], "to": ["relay_3", 0, 0, "W"]},
-      {"from": ["relay_3", 0, 1, "E"], "to": ["exit_1",  0, 0, "W"]}
+      {
+        "from": [
+          "entry_1",
+          0,
+          0,
+          "E"
+        ],
+        "to": [
+          "relay_1",
+          0,
+          0,
+          "W"
+        ]
+      },
+      {
+        "from": [
+          "relay_1",
+          0,
+          1,
+          "E"
+        ],
+        "to": [
+          "relay_2",
+          0,
+          0,
+          "W"
+        ]
+      },
+      {
+        "from": [
+          "relay_2",
+          0,
+          1,
+          "E"
+        ],
+        "to": [
+          "relay_3",
+          0,
+          0,
+          "W"
+        ]
+      },
+      {
+        "from": [
+          "relay_3",
+          0,
+          1,
+          "E"
+        ],
+        "to": [
+          "exit_1",
+          0,
+          0,
+          "W"
+        ]
+      }
     ]
   }
 }
