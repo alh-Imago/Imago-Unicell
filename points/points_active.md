@@ -10534,3 +10534,62 @@ understood as advisory, not authoritative. Still no RTL, no format
 spec, no code. Real next step unchanged: try this shape against one
 real, concrete compiled example. Updated in place at `docs/stripped-
 cell/design-notes/hierarchical_icm_and_state_save_scope.md`.
+
+## 740. The hierarchical ICM design tried against a real, small example, ported through a real prototype loader, into the real, existing VM -- per Alan's own direct ask to stop refining in the abstract and see what actually comes out. Worked end to end on the first complete attempt, including a real, deliberate negative test proving the whole point of pattern-based reuse. (Alan/Claude, 2026-09-15)
+
+**A real, small, concrete example built**
+(`nano/examples/small_relay_chain.icm-hier.json`): a linear, 8-cell
+chain -- a single-use `entry` pattern, a real 2-cell `relay` pattern
+used three times (specifically chosen to exercise multi-cell port
+attachment, `#739`'s own central resolved question), a single-use
+`exit` pattern. Real `ram` cores throughout, the minimum needed to
+test the format's own mechanics without also standing up new core
+semantics.
+
+**A real, small prototype loader written**
+(`nano/examples/hierarchical_icm_prototype_loader.py`) -- flattens the
+hierarchical document into real `IcmV3Record` objects via direct
+placement (no solving, exactly matching `#739`'s own clarification),
+runs the real advisory connection check that clarification described,
+then hands the flattened records to the real, EXISTING `VixCarrierGrid`
+to actually execute. Reused the real VM's own already-proven API
+throughout (`IcmV3Record`, `.inject()`/`.tick()`) -- nothing new built
+in the VM itself, confirming this whole line of notes' own earlier
+prediction that the format's real value sits at the file level, not a
+VM runtime change.
+
+**What actually came out, run directly, not assumed:** 8 real cells
+flattened from 3 patterns/5 placements; the advisory check confirmed
+all declared connections agree with the real, configured `core_config`
+bits; a real VM grid built and an injected value (`0x2A`) propagated
+correctly through all 8 real cells in 8 real ticks (one hop per tick,
+exactly right for a flowing-mode relay chain); a real `cell_id`-keyed
+diff snapshot captured the output cell's own current value. The whole
+pipeline worked on the first complete attempt.
+
+**A real, deliberate negative test, not just a happy-path run:** broke
+`relay`'s own shared pattern DEFINITION directly (cleared one cell's
+own `downstream_mask`), re-ran the check. It correctly flagged all
+three real, affected connections (every instance using the now-broken
+shared pattern), not just one -- real, concrete, positive evidence for
+the whole point of pattern-based reuse: a mistake in one shared
+definition is caught consistently everywhere it's used, not needing
+independent discovery in N separate, flat places.
+
+**Real, honest limits of this prototype, stated directly, not
+glossed over:** deliberately minimal -- no `NC` handling, no nested
+patterns, no real diff-file round-trip (only a snapshot demonstrated).
+Built to test the DESIGN's own real shape against a real VM, not as a
+draft of the eventual, production loader.
+
+**Real, honest status: the design has now been tried against a real,
+working example, not just reasoned about.** Every real mechanic from
+`#737`-`#739` -- patterns including single-use ones, multi-cell port
+attachment, direct placement, the advisory check (both confirming
+correctness and catching a real, deliberate break), and a diff
+snapshot -- worked on the first complete attempt. Still no RTL, no
+format spec, no production loader. Real next step: a genuinely bigger
+example (the CORDIC pipeline this whole line of notes has pointed
+toward) to find whatever this small, deliberately simple case was too
+small to surface. Updated in place at `docs/stripped-cell/design-notes/
+hierarchical_icm_and_state_save_scope.md`.

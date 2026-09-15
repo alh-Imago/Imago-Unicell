@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-15, precise (row,col,face) connection addressing added and NC replacing "BLANK" -- then a key clarification, confirmed via direct question rather than assumed: the connection notation is advisory documentation/cross-checking, not the authoritative wiring mechanism (which stays per-cell core_config bits, exactly as today). Genuinely simplifies the loader's own job. Design note only. See `points/points_active.md` #739)
+# Current State (as of 2026-09-15, the hierarchical ICM design tried against a real, small example, ported through a real prototype loader into the real, existing VM -- worked end to end on the first complete attempt, including a deliberate negative test proving the value of pattern-based reuse. See `points/points_active.md` #740)
+
+## Read this first (most recent)
+
+**2026-09-15, hierarchical ICM tried for real (#740).** Per Alan's own
+direct ask to stop refining in the abstract and see what comes out.
+Built a small, real example (nano/examples/small_relay_chain.icm-hier
+.json) -- an 8-cell linear chain: single-use entry pattern, a real
+2-cell "relay" pattern used 3 times (chosen to exercise multi-cell
+port attachment), single-use exit pattern. Wrote a small prototype
+loader (nano/examples/hierarchical_icm_prototype_loader.py) that
+flattens the hierarchy into real IcmV3Record objects via direct
+placement (no solving), runs the advisory connection check, then hands
+the result to the real, existing VixCarrierGrid.
+
+**What actually came out:** 8 cells flattened from 3 patterns/5
+placements; advisory check confirmed all connections agree with the
+real configured bits; an injected value (0x2A) propagated correctly
+through all 8 cells in 8 ticks; a real cell_id-keyed diff snapshot
+captured the output. Worked on the first complete attempt -- nothing
+new needed in the VM itself, confirming the format's real value sits
+at the file level.
+
+**A real, deliberate negative test:** broke the shared "relay"
+pattern's own definition once, re-ran the check -- it correctly
+flagged all three affected connections (every instance using the
+broken pattern), not just one. Real, concrete proof of the whole point
+of pattern-based reuse.
+
+**Status: the design has been tried against a real, working example,
+not just reasoned about.** Every mechanic from #737-#739 worked. Real,
+honest limits of the prototype stated directly (no NC handling, no
+nesting, no real diff round-trip). Real next step: a genuinely bigger
+example (the CORDIC pipeline) to find what this small case was too
+simple to surface.
+
+## Previous state (as of 2026-09-15, precise (row,col,face) connection addressing added and NC replacing "BLANK" -- then a key clarification, confirmed via direct question rather than assumed: the connection notation is advisory documentation/cross-checking, not the authoritative wiring mechanism (which stays per-cell core_config bits, exactly as today). Genuinely simplifies the loader's own job. Design note only. See `points/points_active.md` #739)
 
 ## Read this first (most recent)
 

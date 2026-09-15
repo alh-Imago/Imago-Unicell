@@ -367,7 +367,7 @@ COMPUTE anything. A mismatch is a real, catchable, advisory warning
 block, since the real compile/RTL remains authoritative either way),
 not a silent failure and not something requiring a real solver.
 
-## Real, honest status
+## Real, honest status (superseded below -- the design was actually tried)
 
 The design's own real shape is now settled enough to be genuinely
 useful: patterns (even single-use ones) as the one, uniform unit;
@@ -380,3 +380,74 @@ tooling-facing documentation, not the authoritative wiring mechanism
 bits). Still no RTL, no format spec, no code. The real next step
 remains the same: try this shape against one real, concrete compiled
 example before writing anything resembling a spec.
+
+## Real, actual result of trying it (2026-09-15) -- a small, real example, ported through a real prototype loader, into the real, existing VM
+
+**A real, small, concrete example built** (`nano/examples/small_relay_
+chain.icm-hier.json`): a linear, 8-cell chain -- a single-use `entry`
+pattern, a real 2-cell `relay` pattern used three times (specifically
+to exercise multi-cell port attachment, `#739`'s own central question),
+and a single-use `exit` pattern. Real `ram` cores throughout (flowing
+mode), the only core type needed to test the format's own real
+mechanics without needing to also stand up new core semantics.
+
+**A real, small prototype loader written** (`nano/examples/
+hierarchical_icm_prototype_loader.py`) -- flattens the hierarchical
+document into real `IcmV3Record` objects (direct placement, no
+solving, matching `#739`'s own clarification exactly), runs the real
+advisory connection check described above, then hands the flattened
+records to the real, existing `VixCarrierGrid` to actually execute.
+Reused the real VM's own existing, already-proven API throughout
+(`IcmV3Record`, `VixCarrierGrid.inject()`/`.tick()`) -- nothing new
+built in the VM itself, confirming this note's own earlier prediction
+that the hierarchical format's real value sits at the file level, not
+as a VM runtime change.
+
+**What actually came out, run directly, not assumed:**
+```
+Flattened 8 real cells from 3 patterns (5 placements).
+
+Advisory connection check: all declared connections agree with the
+real, configured core_config bits.
+
+Real VM grid built: 8 cells at [(0,0)...(0,7)]
+
+Injecting 0x2A at the real 'input' cell (0,0)...
+Tick 8: real 'output' cell now holds 0x2A (valid=True)
+
+Real diff-section snapshot (cell_id -> current value): {'exit_1.exit_c0': '0x2A'}
+```
+The injected value propagated correctly through all 8 real cells in 8
+real ticks (one hop per tick, exactly as a flowing-mode relay chain
+should behave) -- the whole pipeline (hierarchical JSON -> flattened
+records -> real VM execution) worked end to end on the first real,
+complete attempt.
+
+**A real, deliberate negative test, not just a happy-path run:** broke
+`relay`'s own pattern DEFINITION directly (cleared one cell's own
+`downstream_mask`), then re-ran the advisory check. It correctly
+flagged all three real, affected connections (`relay_1`, `relay_2`,
+`relay_3` -- every instance using the now-broken shared pattern), not
+just one. This is real, concrete, positive evidence for the whole
+point of pattern-based reuse: a real mistake in one shared definition
+is caught consistently everywhere it's used, rather than needing
+independent discovery in N separate, flat places.
+
+**Real, honest limits of this prototype, stated directly:** this
+loader is deliberately minimal -- no `NC` handling, no io_name-based
+external injection beyond the one hardcoded example, no nested
+patterns, no diff-file loading (only a snapshot demonstrated, not a
+real round-trip save/restore). It exists to test the DESIGN's own real
+shape against a real VM, not as a draft of the real, eventual loader.
+
+**Real, honest status: the design has now been tried against a real,
+working example, not just reasoned about.** Every real mechanic
+discussed across `#737`-`#739` -- patterns (including single-use ones),
+multi-cell port attachment, direct (non-solved) placement, the
+advisory connection check (both confirming a correct design and
+catching a real, deliberate break), and a `cell_id`-keyed diff
+snapshot -- worked, on the first complete attempt, against the real,
+existing VM. Still no RTL, no format spec, no production loader. The
+real next step: a genuinely bigger example (the CORDIC pipeline this
+whole line of notes has pointed toward) to find whatever this small,
+deliberately simple case was too small to surface.
