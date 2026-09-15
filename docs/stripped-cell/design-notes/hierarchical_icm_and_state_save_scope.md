@@ -154,7 +154,7 @@ across "how do I even represent state inside a template."
   resulting file for storage/transfer, not something this format
   redesign needs to accommodate directly.
 
-## Real, honest status
+## Real, honest status (superseded by the concrete shape below, kept for its own real history)
 
 Another real design question feeding the same prerequisite `#736`
 already named -- a VIX-compatible ICM format needs to exist before
@@ -164,3 +164,146 @@ format spec, no code. The central open question (per-instance
 overrides) is the right next thing to work through, ideally against a
 real, concrete example (a compiled CORDIC pipeline's own actual
 record shape) rather than in the abstract.
+
+## Alan's own concrete shape (2026-09-15), and the real question it resolves
+
+**A real, direct answer to this note's own central open question, not
+a new one: every real cell shape becomes a pattern, even one used
+exactly once.** This removes the per-instance-override problem
+entirely, rather than solving it -- there is no shared template with
+per-instance variation to design, because a pipeline's first stage,
+middle stages, and last stage simply become three real, separate
+patterns (say, `pattern_1`, `pattern_2` used 30 times, `pattern_3`),
+each internally fixed and exact. The real cost of this simplicity is
+honest and worth naming: a design with many genuinely distinct shapes
+produces many real pattern entries, some used only once -- but that's
+still a real, structural improvement over today's fully flat format,
+since even a single-use "pattern" is a named, legible unit instead of
+an anonymous cluster of records, and any shape that DOES repeat still
+collapses to one real definition plus N cheap references.
+
+**Alan's own real, four-part shape, worked through directly:**
+
+```
+Header
+    Cores used
+    Cell Count
+
+Pattern 1
+    Layout by cell type (pattern map)
+Pattern 2
+    Layout by cell type (pattern map)
+...
+
+Design Map
+    Location start (0,0)   {relative offsets}
+        Pattern 1 > N > Pattern 2
+                  > S > Pattern 45
+                  > W > Data entry point
+                  > E > BLANK
+...
+
+Diff Section
+    Cell ID  Latch(0)  &01100110000111
+...
+```
+
+**Real, direct mapping onto what's already established, confirmed
+before sketching JSON:** the Design Map's own N/S/E/W links between
+pattern INSTANCES is the same real cardinal-adjacency model every
+single cell in this whole architecture already uses, one level up --
+not a new addressing scheme, a genuine reuse of the project's own
+central idea ("topology is computation") at the pattern-instance
+level instead of the cell level. The header's own "cores used"/"cell
+count" stays a real, DERIVED summary (matching `minimum_shell_
+version()`'s own precedent, `#736`) rather than a hand-maintained
+field -- computed by walking the pattern definitions and the design
+map's own instance list, not written by hand and left to go stale.
+
+**A real, concrete JSON sketch, illustrative not final, to make this
+tangible enough to find real problems in:**
+
+```json
+{
+  "format_version": "icm-v4-hierarchical",
+  "header": {
+    "cores_used": ["ram", "adder", "mul"],
+    "cell_count": 47
+  },
+  "patterns": {
+    "pattern_1": {
+      "cells": [
+        {"cell_id": "c001", "rel_row": 0, "rel_col": 0,
+         "core": "ram", "core_config": {"...": "..."}, "io_name": "data_in"}
+      ]
+    },
+    "pattern_2": {
+      "cells": [
+        {"cell_id": "c010", "rel_row": 0, "rel_col": 0,
+         "core": "adder", "core_config": {"...": "..."}},
+        {"cell_id": "c011", "rel_row": 0, "rel_col": 1,
+         "core": "mul", "core_config": {"...": "..."}}
+      ]
+    }
+  },
+  "design_map": {
+    "origin": {"row": 0, "col": 0},
+    "root_instance": "inst_1",
+    "instances": {
+      "inst_1": {"pattern": "pattern_1",
+                  "links": {"N": "inst_2", "S": "inst_45", "W": null, "E": "BLANK"}},
+      "inst_2": {"pattern": "pattern_2", "links": {"S": "inst_1"}}
+    }
+  },
+  "diff": {
+    "c010": {"latch_0": "0b01100110000111"}
+  }
+}
+```
+
+**Real, honest questions this concrete shape surfaces, sharper than
+the abstract version could:**
+- **Which cell, inside a multi-cell pattern, does a cardinal link
+  actually attach to?** `"Pattern 1 > N > Pattern 2"` is clear when a
+  pattern is one cell; `pattern_2` above has two. A real link needs to
+  name which of `pattern_2`'s own internal cells sits at the real,
+  physical boundary the link crosses -- either an explicit per-pattern
+  port declaration (a real, small addition: `"ports": {"S": "c010"}`
+  inside the pattern definition itself) or a convention (e.g. "the
+  cell at the pattern's own geometric edge facing that direction"),
+  checked against real, actual multi-cell pattern shapes before
+  picking one.
+- **Are "Data entry point" and "BLANK" real, first-class instances of
+  something, or a genuinely different, third kind of link target?**
+  Given "even one cell becomes a pattern," a real, single, named
+  external entry point plausibly IS just another one-cell pattern
+  (`io_name` already exists on a per-cell basis, per the current
+  format) -- but "BLANK" (no connection at all in that direction) is
+  categorically different, a real absence rather than a reference to
+  anything. Worth keeping these conceptually distinct in the eventual
+  spec: a link is either a real pattern-instance reference, or
+  genuinely null, not a third kind of magic string doing double duty.
+- **Are the Design Map's own offsets relative to the immediately-
+  linked pattern, or all relative to the one real, global origin?**
+  Alan's own "(0,0) {locations given as relative offsets}" reads as
+  the former -- each pattern instance's own real position is computed
+  from whatever it's linked FROM, not restated in absolute grid
+  coordinates. Real, genuine benefit if so: the whole design can be
+  moved to a different real starting position by changing exactly one
+  value, without touching every instance -- worth confirming directly
+  before committing to it, since it changes how a loader has to walk
+  the structure (a real, necessary graph traversal from the root
+  outward, not a flat pass over independent absolute coordinates).
+
+**Real, honest status, updated:** the central open question from this
+note's own earlier draft (per-instance overrides) is genuinely
+resolved by Alan's own "every shape is its own pattern" rule -- a real
+step forward, not just a restatement. What remains open is narrower
+and more concrete: pattern-internal port/link attachment for multi-
+cell patterns, the real distinction between a null link and an
+external-entry-point link, and confirming relative-vs-absolute
+placement semantics. Still no RTL, no format spec, no code -- but the
+real shape is close enough now that the next useful step is probably
+trying this JSON shape against one real, actual compiled example
+(the CORDIC pipeline this whole line of notes keeps returning to)
+rather than refining it further in the abstract.

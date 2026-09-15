@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-15, a hierarchical, structure-aware ICM format worked through -- per Alan's own observation that compiled LLVM IR output will have genuinely repeating structures. Not a compression problem (Onion already solves that); a semantic/structural one. Static structure vs runtime state kept deliberately separate, with cell_id confirmed as the right stable anchor for a diff-based save. Design note only. See `points/points_active.md` #737)
+# Current State (as of 2026-09-15, #737's own central open question genuinely resolved -- every real cell shape becomes a named pattern, even used once, removing the per-instance-override problem entirely. A concrete four-part shape (header/patterns/design map/diff) worked through with a real JSON sketch, surfacing three sharper, narrower questions. Design note only. See `points/points_active.md` #738)
+
+## Read this first (most recent)
+
+**2026-09-15, hierarchical ICM's central question resolved (#738).**
+Alan's own direct rule: every cell shape becomes a pattern, even one
+used exactly once -- a pipeline's first/middle/last stages just become
+three separate, internally-fixed patterns instead of one shared
+template needing per-instance overrides. Real cost named honestly:
+many distinct shapes means many pattern entries, some used once -- but
+even that beats an anonymous flat cluster, and real repetition still
+collapses to one definition plus cheap references.
+
+**Design Map's own N/S/E/W links between pattern instances reuses the
+same cardinal-adjacency model every cell already uses, one level up**
+-- not a new addressing scheme. Header's own summary stays derived
+(matching minimum_shell_version()'s precedent), not hand-maintained.
+
+**A real, concrete JSON sketch built against Alan's own four-part
+prose shape** (header, patterns, design map, cell_id-keyed diff) --
+illustrative, not final, but concrete enough to surface real
+problems.
+
+**Three sharper, narrower open questions the concrete shape surfaced:**
+which internal cell a link attaches to for multi-cell patterns; whether
+a named external entry point is itself a one-cell pattern versus
+"BLANK" being a genuinely different, categorical absence; whether
+Design Map offsets are relative to each link-parent (implying a real
+graph-traversal loader) or one global origin.
+
+**Status: earlier central question genuinely resolved, not restated.**
+No RTL, no format spec, no code. Real next step: try this JSON shape
+against an actual compiled example (the CORDIC pipeline). Updated in
+place at docs/stripped-cell/design-notes/hierarchical_icm_and_state_
+save_scope.md.
+
+## Previous state (as of 2026-09-15, a hierarchical, structure-aware ICM format worked through -- per Alan's own observation that compiled LLVM IR output will have genuinely repeating structures. Not a compression problem (Onion already solves that); a semantic/structural one. Static structure vs runtime state kept deliberately separate, with cell_id confirmed as the right stable anchor for a diff-based save. Design note only. See `points/points_active.md` #737)
 
 ## Read this first (most recent)
 

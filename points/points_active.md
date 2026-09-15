@@ -10428,3 +10428,55 @@ question against a real, concrete example (a compiled CORDIC
 pipeline's own actual record shape) rather than in the abstract. Saved
 to `docs/stripped-cell/design-notes/hierarchical_icm_and_state_save_
 scope.md`.
+
+## 738. `#737`'s own central open question genuinely resolved, not just restated -- Alan's own direct rule: every real cell shape becomes a named pattern, even one used exactly once. Removes the per-instance-override problem entirely rather than solving it. A concrete four-part shape (header/patterns/design map/diff) worked through with a real JSON sketch, surfacing three sharper, narrower open questions than the abstract version could. Design note only, nothing built. (Alan/Claude, 2026-09-15)
+
+**The real resolution, checked against what it actually removes:** a
+pipeline's first stage, middle stages, and last stage simply become
+three real, separate, internally-fixed patterns (say, one used once,
+one used 30 times, one used once) rather than needing a single shared
+template plus a per-instance override mechanism. Real, honest cost
+named directly: a design with many genuinely distinct shapes produces
+many pattern entries, some used only once -- but even a single-use
+"pattern" is a named, legible unit instead of an anonymous cluster of
+flat records, and any shape that DOES repeat still collapses to one
+real definition plus N cheap references.
+
+**Real, direct mapping onto what's already established, confirmed
+before sketching JSON:** the Design Map's own N/S/E/W links between
+pattern INSTANCES is the same real cardinal-adjacency model every cell
+in this architecture already uses, one level up -- a genuine reuse of
+"topology is computation," not a new addressing scheme. The header's
+own "cores used"/"cell count" stays a real, DERIVED summary (matching
+`minimum_shell_version()`'s own precedent, `#736`), not a hand-
+maintained field left to go stale (`#734`'s own real lesson).
+
+**A real, concrete JSON sketch built and checked against Alan's own
+four-part prose shape** (header, named patterns, a design map linking
+pattern instances by cardinal direction from a real origin, and a
+`cell_id`-keyed diff section) -- illustrative, not final, but concrete
+enough to surface real problems the abstract version couldn't.
+
+**Three real, sharper, narrower open questions this concrete shape
+surfaced, not answered here:** (1) which internal cell a cardinal link
+actually attaches to when a pattern spans more than one cell -- an
+explicit per-pattern port declaration versus a geometric-edge
+convention, undecided; (2) whether a named external entry point is
+itself just another one-cell pattern (plausible, given "even one cell
+becomes a pattern") versus "BLANK" (a genuine absence of connection,
+categorically different, not a third kind of link) -- worth keeping
+these conceptually distinct in the eventual spec; (3) whether the
+Design Map's own offsets are relative to each pattern's own immediate
+link-parent (Alan's own framing suggests yes -- real, genuine benefit:
+moving the whole design means changing one value, but it means a
+loader has to walk the structure as a real graph traversal from the
+root, not a flat pass over independent coordinates) versus all
+relative to one global origin.
+
+**Real, honest status: the note's own earlier central question is
+genuinely resolved, not restated.** What remains is narrower and more
+concrete. Still no RTL, no format spec, no code. Real next step named
+directly: try this JSON shape against one real, actual compiled
+example (the CORDIC pipeline this whole line of notes keeps returning
+to) rather than refining further in the abstract. Updated in place at
+`docs/stripped-cell/design-notes/hierarchical_icm_and_state_save_scope.md`.
