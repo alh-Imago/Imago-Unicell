@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-15, CORES_AND_WRAPPERS_REFERENCE.md's own VIX Carrier section brought fully current -- 11 real core types, the corrected shared addon chain, config-off-shell fix, mul and priority both documented. See `points/points_active.md` #732)
+# Current State (as of 2026-09-15, CORDIC revisited -- what mul and priority actually unlock beyond #513's own original scoping from before either core existed. Two real, precise answers: mul cheapens gain-correction and repeated-squaring; priority closes a real gap in #513's own reusable-loop idea, adding a genuine third topology option. Design note only. See `points/points_active.md` #733)
+
+## Read this first (most recent)
+
+**2026-09-15, CORDIC revisited (#733).** Checked #513 (2026-08-25)
+directly first -- it already established CORDIC needs no
+multiplication at all (shift/add/branch cover the core algorithm).
+The real question: what do mul/priority change, now that both exist?
+
+**mul: two real wins.** Gain correction (~0.6072 constant multiply)
+becomes direct instead of a decomposed shift-add sequence. Integer
+exponentiation via repeated squaring gets genuinely cheaper -- each
+squaring step was a multi-cycle repeated-addition loop before a real
+multiply core existed; now it's one real mul call. A third,
+speculative possibility (higher-radix CORDIC) named honestly as
+unresolved, no real numbers behind it.
+
+**priority: closes a real gap #513 left open.** #513's own loop
+topology was framed as reusable but never addressed multiple
+DIFFERENT vectors competing for the same shared loop -- every core's
+own arrival logic OR-combines simultaneous inputs, genuinely wrong
+when the values actually differ. priority at the loop's own entry
+point arbitrates injection -- strict mode for urgent streams, weighted
+round-robin for fair sharing. Real consequence: a genuine third
+topology option beyond #513's own strict loop-vs-pipeline binary.
+
+**Real, honest open questions:** no identified atan lookup mechanism
+yet (sequencer's own 4-value limit likely too small); no real cell-
+count/timing comparison between the three topologies; whether
+arbitrated injection preserves a dedicated loop's own per-vector
+iteration guarantee is real, unaddressed structural work.
+
+**Status: design possibility sharpened, not a build plan.** Nothing
+built. Saved to docs/stripped-cell/design-notes/cordic_via_mul_and_
+priority.md.
+
+## Previous state (as of 2026-09-15, CORES_AND_WRAPPERS_REFERENCE.md's own VIX Carrier section brought fully current -- 11 real core types, the corrected shared addon chain, config-off-shell fix, mul and priority both documented. See `points/points_active.md` #732)
 
 ## Read this first (most recent)
 

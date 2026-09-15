@@ -10125,3 +10125,58 @@ confirmed by their own headers before leaving them untouched.
 WRAPPERS_REFERENCE.md`'s own dedicated section for detail and already
 records the real, still-open "variable carrier width" item -- also
 left as-is, its own real job already done correctly.
+
+## 733. CORDIC revisited, per Alan's own direct ask: what `mul` and `priority` actually unlock beyond `#513`'s own original scoping (2026-08-25, written before either core existed). Two real, separate, precise answers found -- not a restatement of the old note, a genuine extension of it. Design note only, nothing built. (Alan/Claude, 2026-09-15)
+
+**Checked the actual prior art directly before writing anything new:**
+`#513` already established the real result CORDIC needs no
+multiplication at all -- shift, add/subtract, and a branch-cell
+rotation decision cover the core algorithm entirely, a fact this note
+leaves completely unchanged. The real, honest question was narrower:
+given `mul`/`priority` are now real, built cores, what do they change?
+
+**`mul`'s real contribution, two separate, genuine wins:** (1) CORDIC's
+own real gain-correction step (multiply the final result by a fixed
+~0.6072 constant) becomes a direct multiply instead of a decomposed
+shift-add sequence -- doesn't change whether CORDIC works, changes how
+many real cells the correction step costs. (2) Integer exponentiation
+via repeated squaring (`#513`'s own named technique) gets genuinely
+cheaper, not just simpler -- each squaring step was previously its own
+multi-cycle repeated-addition loop (`#506`'s own real technique before
+a real multiply core existed); now it's one real, single-cycle `mul`
+call. A third, real but speculative possibility named honestly as
+unresolved: higher-radix CORDIC variants trading more pure-shift-add
+iterations for fewer, slightly-costlier ones -- no real numbers exist
+to say whether that tradeoff is worth it here.
+
+**`priority`'s real contribution: closes a genuine gap `#513` left
+open, rather than just adding a safety fix.** `#513`'s own loop
+topology was explicitly framed as reusable ("cells not tied up
+permanently") but never addressed what happens when multiple, real,
+DIFFERENT vectors want to use the same shared loop close together --
+every core's own arrival logic in this family OR-combines simultaneous
+inputs, which is genuinely wrong (not just contended) when the
+competing values are actually different. Placed at a shared loop's own
+entry point, `priority` arbitrates which vector gets injected next --
+strict mode for genuinely urgent streams, weighted round-robin
+(`#730`'s own real, worked 3:1→6:2 example) for fair, proportional
+sharing among comparable streams. Real, honest consequence named
+directly: this creates a genuine THIRD topology option (`#513`'s own
+choice was a strict loop-vs-pipeline binary) -- a shared, arbitrated
+loop, cheaper than N separate loops, less throughput than a dedicated
+pipeline, real fairness for concurrent use.
+
+**Real, honest open questions, named precisely rather than glossed
+over:** the atan lookup table CORDIC's rotation mode needs has no
+identified real mechanism yet (`sequencer_cell_v4`'s own real 4-value
+limit is almost certainly too small for a real table, worth
+investigating later, not assumed solved); no real cell-count/timing
+comparison exists between the three topology options for any actual
+target; whether arbitrated injection can genuinely preserve a
+dedicated loop's own per-vector iteration guarantee (no mid-sequence
+overwrite hazard) is real, unaddressed structural work, not assumed
+safe by analogy to `priority`'s own simpler, already-tested use case.
+
+**Real, honest status: design possibility sharpened, not a build
+plan.** Nothing built, nothing scoped into RTL steps. Saved to
+`docs/stripped-cell/design-notes/cordic_via_mul_and_priority.md`.
