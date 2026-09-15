@@ -104,10 +104,20 @@ def check_connections(doc, records, instance_index):
                 warnings.append(f"connection {conn}: source cell at {f_pos} declares a link {f_face}, "
                                  f"but its own real downstream_mask is {dmask} -- doesn't actually offer that way")
         if t_rec is not None:
-            umask = t_rec.core_config.get("upstream_mask", [])
+            # points.md #742: real, genuine gap found by actually
+            # running this check against a branch-cell design --
+            # branch's own real field is `upstream_dir` (a SINGLE
+            # direction, unlike every other core's own upstream_mask
+            # list, per its own established real convention). The
+            # check needs to look at whichever field this core type
+            # actually has, not assume every core uses upstream_mask.
+            if "upstream_dir" in t_rec.core_config:
+                umask = list(t_rec.core_config.get("upstream_dir", []))
+            else:
+                umask = t_rec.core_config.get("upstream_mask", [])
             if t_face not in umask:
                 warnings.append(f"connection {conn}: destination cell at {t_pos} declares a link {t_face}, "
-                                 f"but its own real upstream_mask is {umask} -- doesn't actually listen that way")
+                                 f"but its own real upstream is {umask} -- doesn't actually listen that way")
     return warnings
 
 

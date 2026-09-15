@@ -1,4 +1,43 @@
-# Current State (as of 2026-09-15, a larger, structurally different example built and run -- a 4-lane parallel reduction tree -- surfacing a real per-instance-override gap (io_name) that the small example didn't, plus an optional, honest MAN-file check confirming the VM genuinely shapes itself to whatever the design contains. See `points/points_active.md` #741)
+# Current State (as of 2026-09-15, a real CORDIC design built and run -- 4 genuinely distinct stage patterns, dynamic sign-based branching, exact independently-verified result (-404). Five real, genuine bugs found and fixed along the way, none of them format flaws. See `points/points_active.md` #742)
+
+## Read this first (most recent)
+
+**2026-09-15, real CORDIC design built and run (#742).** 4 genuinely
+DISTINCT stage patterns (each its own atan constant, nothing repeats
+-- the opposite case from #740/#741). Independently computed in Python
+first (z0=50000 -> expected z=-404) for a known-correct answer to
+check against.
+
+**Five real bugs found and fixed, none of them format flaws:** (1)
+branch can't be directly injected into (_deliver_branch only checks
+directional arrivals, never `injected`) -- fixed with a dedicated
+merge cell. (2) A single relay can't sequence two separate values
+(ram OR-combines same-tick arrivals) -- fixed by letting the zero-
+reference settle on separate ticks before injecting the real angle.
+(3) A real off-by-direction mistake in the geometry, caught by
+systematic adjacency verification before ever running it. (4) A
+fixed_mode ram continuously re-offering double-counts at an adder --
+fixed with flowing-mode + preload_value instead (offers exactly
+once). (5) VixCarrierGrid has a real, genuine gap -- its own __init__
+never calls super().__init__(), so preload_value silently does
+nothing under it. Switched to base SuperGrid (the correct, honest
+choice here, no VIX-specific core needed) -- the VixCarrierGrid gap
+itself recorded as a separate, real finding.
+
+**Result: z_output = -404 exactly**, matching the independent
+computation. All three examples re-run together, zero regression --
+the advisory check's own upstream_dir fix is a permanent loader
+improvement.
+
+**Real, honest reflection:** every bug was a genuine, non-obvious
+interaction between real, existing VM mechanics -- the hierarchical
+format itself held up completely across all three tests.
+
+**Status: tried three times, three genuinely different shapes, held
+up each time.** Still no RTL, no format spec, no production loader.
+VixCarrierGrid's own preload gap recorded, not fixed here.
+
+## Previous state (as of 2026-09-15, a larger, structurally different example built and run -- a 4-lane parallel reduction tree -- surfacing a real per-instance-override gap (io_name) that the small example didn't, plus an optional, honest MAN-file check confirming the VM genuinely shapes itself to whatever the design contains. See `points/points_active.md` #741)
 
 ## Read this first (most recent)
 

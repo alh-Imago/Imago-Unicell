@@ -533,13 +533,105 @@ since real, measured per-core ALM costs don't exist for every core
 type yet (`mul`/`priority` have none at all, `#732`'s own status
 table) -- overclaiming precision here would be dishonest.
 
-**Real, honest status: the design has now been tried twice, at two
-real, different scales and shapes, and both times it worked, with one
-real, principled refinement (per-instance overrides) added along the
-way rather than needed as a patch.** Still no RTL, no format spec, no
-production loader -- this remains a real, working prototype built to
-find problems, not a finished implementation. The CORDIC pipeline this
-line of notes keeps pointing toward remains the natural next, bigger
-test, likely to exercise real, varying per-stage configuration
-(different shift amounts per iteration) that neither example so far
-has needed.
+**Real, honest status (superseded below): the design has now been
+tried twice, at two real, different scales and shapes, and both times
+it worked, with one real, principled refinement (per-instance
+overrides) added along the way rather than needed as a patch.** Still
+no RTL, no format spec, no production loader -- this remains a real,
+working prototype built to find problems, not a finished
+implementation. The CORDIC pipeline this line of notes keeps pointing
+toward remains the natural next, bigger test, likely to exercise real,
+varying per-stage configuration (different shift amounts per
+iteration) that neither example so far has needed.
+
+## A real CORDIC design, and five real bugs found building it (2026-09-15)
+
+**A genuinely different test from the first two, by design:** a real,
+structurally faithful CORDIC z-only angle-convergence pipeline
+(`nano/examples/cordic_z_convergence.icm-hier.json`) -- 4 real,
+genuinely DISTINCT stage patterns, each carrying its own real
+`atan(2^-i)` constant, so NOTHING repeats -- the opposite case from
+`#740`/`#741`'s own real repetition, testing whether "every shape is a
+pattern" still earns its keep when every shape genuinely differs.
+Independently verified in plain Python first (`z0=50000` → expected
+final `z=-404` after 4 real iterations) to have a real, known-correct
+answer to check the simulation against, not just "does it run."
+
+**Five real, genuine bugs found and fixed while building this, in
+order, each one only surfacing because the design was actually run,
+not just written down:**
+
+1. **`branch` cannot be directly injected into at all.** Confirmed
+   directly against `_deliver_branch()`: it only ever checks real,
+   directional `arrivals`, never the separate `injected` parameter
+   `grid.inject()` uses (unlike `ram`'s own `_deliver_ram`, which
+   explicitly handles both). A dedicated `merge` cell (a real `ram`)
+   was added per stage to receive the real, external/prior-stage value
+   and hand it to `branch` as a genuine cardinal arrival instead.
+2. **A single relay cell can't sequence two separate values.** `ram`'s
+   own real "matched" delivery logic OR-combines whatever arrives on a
+   given tick into ONE value -- it can't hand `branch` "0, then z"
+   as two genuinely separate deliveries. Real, correct fix: let
+   `branch`'s own zero-reference settle first (several real ticks),
+   THEN inject the real angle afterward, on separate ticks -- not a
+   design flaw, a real, necessary sequencing fact about how `branch`'s
+   own reference-then-compare mechanism actually works.
+3. **A real, genuine off-by-direction mistake in the geometry itself**
+   -- `merge`'s own `upstream_mask` was written as `["S","W"]` when
+   `zero_source` actually sits NORTH of it, needing `["N","W"]`.
+   Found by direct, systematic collision/adjacency verification
+   (checking every declared link's own real offset against the
+   configured face) before ever running the simulation -- caught
+   before it could produce a confusing runtime symptom.
+4. **A `fixed_mode` ("permanent ROM-style") ram cell continuously
+   re-offering the same constant double-counts at a real adder.**
+   `adder`'s own real two-arrival capture (`a_reg` then `b`) doesn't
+   care WHERE two arrivals came from -- if a constant source keeps
+   re-offering every tick, the adder can capture it twice (as both `a`
+   and `b`) before the real, dynamic operand ever gets a chance to
+   arrive. Real, correct fix: use flowing-mode (`fixed_mode=0`) `ram`
+   cells with a real `preload_value` instead -- offers exactly once,
+   matching what a true constant source actually needs to do.
+5. **`VixCarrierGrid` has a real, genuine gap: it never runs the
+   real freeze/preload/unfreeze logic at all.** Its own `__init__`
+   completely overrides `SuperGrid`'s own `__init__` without calling
+   `super().__init__()`, so `preload_value` (needed by fix #4) silently
+   does nothing under `VixCarrierGrid`. Confirmed directly by reading
+   both classes' own real `__init__` methods side by side. This
+   design uses no VIX-specific core (no `command` cell), so switching
+   to the base `SuperGrid` was the correct, honest choice here, not a
+   workaround -- but the real gap in `VixCarrierGrid` itself is a
+   separate, genuine finding, recorded plainly rather than silently
+   routed around for good.
+
+**What actually came out, once all five were fixed:** `z_output`
+holds exactly `-404` after 20 real ticks -- matching the independently
+computed Python result exactly, not approximately. All three examples
+(`#740`, `#741`, and this one) re-run together afterward, confirming
+zero regression from the loader's own real fixes along the way (the
+advisory check's own `upstream_dir`-vs-`upstream_mask` gap, fix #1
+above, is itself a real, permanent improvement to the shared loader,
+not scoped to just this one example).
+
+**Real, honest reflection on what this found, beyond the CORDIC
+result itself:** every one of the five bugs above was a genuine,
+non-obvious interaction between real, existing VM mechanics -- none
+of them were format design flaws. The hierarchical ICM format itself
+(patterns, `(row,col,face)` links, the advisory check, direct
+placement) held up completely; what needed real work was correctly
+modeling how `branch`/`adder`/fixed-vs-flowing `ram` actually behave
+when composed into a genuinely dynamic, sign-dependent pipeline --
+exactly the kind of real, structural knowledge that's easy to get
+subtly wrong reasoning abstractly, and hard to get wrong once you've
+actually run it and watched precisely where it diverges from a known-
+correct answer.
+
+**Real, honest status: the design has now been tried three times, at
+three genuinely different scales and shapes -- linear repetition,
+parallel reduction, and now dynamic, per-stage-distinct, sign-
+dependent branching -- and held up completely each time.** Still no
+RTL, no format spec, no production loader. A real, separate, genuine
+VM gap (`VixCarrierGrid`'s own missing preload support) was found and
+recorded, not fixed here -- real, separate work for whenever `VixCarrierGrid`
+itself needs preload support for something that actually requires its
+own VIX-specific mechanics.

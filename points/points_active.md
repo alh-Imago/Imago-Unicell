@@ -10660,3 +10660,82 @@ CORDIC pipeline remains the natural next, bigger test, likely to
 exercise real, varying per-stage configuration neither example so far
 has needed. Updated in place at `docs/stripped-cell/design-notes/
 hierarchical_icm_and_state_save_scope.md`.
+
+## 742. A real CORDIC design, per Alan's own direct ask -- the pipeline this whole line of notes had been pointing toward. Five real, genuine bugs found and fixed building it, none of them format flaws, all of them non-obvious interactions between real, existing VM mechanics -- exactly the kind of thing that's easy to miss reasoning abstractly and hard to miss once actually run against a known-correct answer. Ended with an exact, independently-verified correct result. (Alan/Claude, 2026-09-15)
+
+**A genuinely different test by design, not just a bigger one:** a
+real, structurally faithful CORDIC z-only angle-convergence pipeline
+(`nano/examples/cordic_z_convergence.icm-hier.json`) -- 4 real,
+genuinely DISTINCT stage patterns, each carrying its own real
+`atan(2^-i)` constant, so nothing repeats at all -- the opposite case
+from `#740`/`#741`'s own real repetition. Independently computed in
+plain Python first (`z0=50000` -> expected final `z=-404` after 4 real
+iterations), giving a real, known-correct answer to check the
+simulation against rather than just confirming "it runs."
+
+**Five real, genuine bugs found and fixed in order, each one only
+surfacing because the design was actually run, not written down and
+trusted:**
+1. `branch` cannot be directly injected into -- confirmed directly
+   against `_deliver_branch()`, it only ever checks real directional
+   `arrivals`, never the separate `injected` parameter `grid.inject()`
+   uses (unlike `ram`'s own `_deliver_ram`). Fixed with a dedicated
+   `merge` (`ram`) cell per stage, handing `branch` a genuine cardinal
+   arrival instead.
+2. A single relay cell can't sequence two separate values -- `ram`'s
+   own real "matched" logic OR-combines whatever arrives on a given
+   tick into one value, so "0, then z" as two genuinely separate
+   deliveries needed real, separate ticks (let the zero-reference
+   settle first, then inject the real angle) -- a real, necessary
+   sequencing fact about `branch`'s own reference-then-compare
+   mechanism, not a design flaw.
+3. A real, genuine off-by-direction mistake in the geometry itself --
+   `merge`'s own `upstream_mask` written as `["S","W"]` when
+   `zero_source` actually sits NORTH of it. Found by direct,
+   systematic collision/adjacency verification (checking every
+   declared link's own real offset against its configured face)
+   BEFORE ever running the simulation.
+4. A `fixed_mode` ram cell continuously re-offering the same constant
+   double-counts at a real adder -- `adder`'s own two-arrival capture
+   doesn't care where two arrivals came from, so a constant source
+   re-offering every tick can get captured twice (as both real
+   operands) before the dynamic operand ever arrives. Real fix:
+   flowing-mode (`fixed_mode=0`) `ram` with a real `preload_value`
+   instead -- offers exactly once, matching what a true constant
+   source actually needs.
+5. `VixCarrierGrid` has a real, genuine gap: its own `__init__`
+   completely overrides `SuperGrid`'s own `__init__` without calling
+   `super().__init__()` at all, so the real freeze/preload/unfreeze
+   logic `preload_value` depends on silently never runs under
+   `VixCarrierGrid`. Confirmed directly by reading both classes' own
+   real `__init__` side by side. This design uses no VIX-specific
+   core, so switching to the base `SuperGrid` was the correct, honest
+   choice -- but the real gap in `VixCarrierGrid` itself is recorded
+   as its own, separate, genuine finding, not silently routed around
+   for good.
+
+**What actually came out, once all five were fixed:** `z_output` holds
+exactly `-404` after 20 real ticks -- matching the independently
+computed result exactly, not approximately. All three real examples
+(`#740`, `#741`, this one) re-run together afterward with zero
+regression -- the advisory check's own real `upstream_dir`-vs-
+`upstream_mask` gap found and fixed along the way (bug #1's own
+consequence for the shared loader) is a real, permanent improvement,
+not scoped to just this example.
+
+**Real, honest reflection: every one of the five bugs was a genuine,
+non-obvious interaction between real, existing VM mechanics -- none of
+them were format design flaws.** The hierarchical ICM format itself
+(patterns, `(row,col,face)` links, the advisory check, direct
+placement) held up completely across all three real tests; what needed
+real work was correctly modeling how `branch`/`adder`/fixed-vs-
+flowing `ram` actually behave when composed into a genuinely dynamic,
+sign-dependent pipeline.
+
+**Real, honest status: tried three times now, at three genuinely
+different scales and shapes -- linear repetition, parallel reduction,
+dynamic sign-dependent branching -- and held up completely each time.**
+Still no RTL, no format spec, no production loader. `VixCarrierGrid`'s
+own real, separate preload gap recorded, not fixed here. Updated in
+place at `docs/stripped-cell/design-notes/hierarchical_icm_and_state_
+save_scope.md`.

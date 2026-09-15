@@ -1,0 +1,749 @@
+{
+  "format_version": "icm-v4-hierarchical-prototype",
+  "description": "points.md #742: a real, structurally faithful CORDIC z-only convergence pipeline -- 4 real, genuinely DISTINCT stage patterns (each carries its own real atan(2^-i) constant, testing the OPPOSITE case from #740/#741: nothing repeats). Each stage: a real branch cell dynamically routes z based on its own live sign to one of two real adder paths (always ADD a signed +/-atan_i constant, deliberately avoiding adder's own arrival-order-dependent subtract entirely). A real, dedicated 'merge' cell feeds branch, since branch's own real delivery logic (confirmed directly against _deliver_branch()) only ever accepts genuine cardinal arrivals, never a direct external injection -- so each stage's own zero-reference has to arrive as a real delivery from a dedicated zero_source cell, same as the real z value does.",
+  "header": {
+    "cores_used": [
+      "branch",
+      "ram",
+      "adder"
+    ],
+    "cell_count": 40
+  },
+  "patterns": {
+    "stage_0": {
+      "cells": [
+        {
+          "cell_id": "merge",
+          "rel_row": 0,
+          "rel_col": -1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "W"
+            ],
+            "downstream_mask": [
+              "E"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "zero_source",
+          "rel_row": -1,
+          "rel_col": -1,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 0
+        },
+        {
+          "cell_id": "branch",
+          "rel_row": 0,
+          "rel_col": 0,
+          "core": "branch",
+          "core_config": {
+            "upstream_dir": [
+              "W"
+            ],
+            "value_source_low": 0,
+            "value_source_equal": 0,
+            "value_source_high": 0,
+            "emit_low": 1,
+            "emit_equal": 1,
+            "emit_high": 1,
+            "route_low": [
+              "S"
+            ],
+            "route_equal": [
+              "S"
+            ],
+            "route_high": [
+              "N"
+            ],
+            "rolling_mode": 0
+          }
+        },
+        {
+          "cell_id": "add_pos",
+          "rel_row": 1,
+          "rel_col": 0,
+          "core": "adder",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "S"
+            ],
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        },
+        {
+          "cell_id": "const_pos",
+          "rel_row": 2,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "N"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 45000
+        },
+        {
+          "cell_id": "turn_pos",
+          "rel_row": 1,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "N"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "add_neg",
+          "rel_row": -1,
+          "rel_col": 0,
+          "core": "adder",
+          "core_config": {
+            "upstream_mask": [
+              "S",
+              "N"
+            ],
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        },
+        {
+          "cell_id": "const_neg",
+          "rel_row": -2,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 4294922296
+        },
+        {
+          "cell_id": "turn_neg",
+          "rel_row": -1,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "gather",
+          "rel_row": 0,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "S"
+            ],
+            "fixed_mode": 0,
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        }
+      ]
+    },
+    "stage_1": {
+      "cells": [
+        {
+          "cell_id": "merge",
+          "rel_row": 0,
+          "rel_col": -1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "W"
+            ],
+            "downstream_mask": [
+              "E"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "zero_source",
+          "rel_row": -1,
+          "rel_col": -1,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 0
+        },
+        {
+          "cell_id": "branch",
+          "rel_row": 0,
+          "rel_col": 0,
+          "core": "branch",
+          "core_config": {
+            "upstream_dir": [
+              "W"
+            ],
+            "value_source_low": 0,
+            "value_source_equal": 0,
+            "value_source_high": 0,
+            "emit_low": 1,
+            "emit_equal": 1,
+            "emit_high": 1,
+            "route_low": [
+              "S"
+            ],
+            "route_equal": [
+              "S"
+            ],
+            "route_high": [
+              "N"
+            ],
+            "rolling_mode": 0
+          }
+        },
+        {
+          "cell_id": "add_pos",
+          "rel_row": 1,
+          "rel_col": 0,
+          "core": "adder",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "S"
+            ],
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        },
+        {
+          "cell_id": "const_pos",
+          "rel_row": 2,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "N"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 26565
+        },
+        {
+          "cell_id": "turn_pos",
+          "rel_row": 1,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "N"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "add_neg",
+          "rel_row": -1,
+          "rel_col": 0,
+          "core": "adder",
+          "core_config": {
+            "upstream_mask": [
+              "S",
+              "N"
+            ],
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        },
+        {
+          "cell_id": "const_neg",
+          "rel_row": -2,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 4294940731
+        },
+        {
+          "cell_id": "turn_neg",
+          "rel_row": -1,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "gather",
+          "rel_row": 0,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "S"
+            ],
+            "fixed_mode": 0,
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        }
+      ]
+    },
+    "stage_2": {
+      "cells": [
+        {
+          "cell_id": "merge",
+          "rel_row": 0,
+          "rel_col": -1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "W"
+            ],
+            "downstream_mask": [
+              "E"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "zero_source",
+          "rel_row": -1,
+          "rel_col": -1,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 0
+        },
+        {
+          "cell_id": "branch",
+          "rel_row": 0,
+          "rel_col": 0,
+          "core": "branch",
+          "core_config": {
+            "upstream_dir": [
+              "W"
+            ],
+            "value_source_low": 0,
+            "value_source_equal": 0,
+            "value_source_high": 0,
+            "emit_low": 1,
+            "emit_equal": 1,
+            "emit_high": 1,
+            "route_low": [
+              "S"
+            ],
+            "route_equal": [
+              "S"
+            ],
+            "route_high": [
+              "N"
+            ],
+            "rolling_mode": 0
+          }
+        },
+        {
+          "cell_id": "add_pos",
+          "rel_row": 1,
+          "rel_col": 0,
+          "core": "adder",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "S"
+            ],
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        },
+        {
+          "cell_id": "const_pos",
+          "rel_row": 2,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "N"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 14036
+        },
+        {
+          "cell_id": "turn_pos",
+          "rel_row": 1,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "N"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "add_neg",
+          "rel_row": -1,
+          "rel_col": 0,
+          "core": "adder",
+          "core_config": {
+            "upstream_mask": [
+              "S",
+              "N"
+            ],
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        },
+        {
+          "cell_id": "const_neg",
+          "rel_row": -2,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 4294953260
+        },
+        {
+          "cell_id": "turn_neg",
+          "rel_row": -1,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "gather",
+          "rel_row": 0,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "S"
+            ],
+            "fixed_mode": 0,
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        }
+      ]
+    },
+    "stage_3": {
+      "cells": [
+        {
+          "cell_id": "merge",
+          "rel_row": 0,
+          "rel_col": -1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "W"
+            ],
+            "downstream_mask": [
+              "E"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "zero_source",
+          "rel_row": -1,
+          "rel_col": -1,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 0
+        },
+        {
+          "cell_id": "branch",
+          "rel_row": 0,
+          "rel_col": 0,
+          "core": "branch",
+          "core_config": {
+            "upstream_dir": [
+              "W"
+            ],
+            "value_source_low": 0,
+            "value_source_equal": 0,
+            "value_source_high": 0,
+            "emit_low": 1,
+            "emit_equal": 1,
+            "emit_high": 1,
+            "route_low": [
+              "S"
+            ],
+            "route_equal": [
+              "S"
+            ],
+            "route_high": [
+              "N"
+            ],
+            "rolling_mode": 0
+          }
+        },
+        {
+          "cell_id": "add_pos",
+          "rel_row": 1,
+          "rel_col": 0,
+          "core": "adder",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "S"
+            ],
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        },
+        {
+          "cell_id": "const_pos",
+          "rel_row": 2,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "N"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 7125
+        },
+        {
+          "cell_id": "turn_pos",
+          "rel_row": 1,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "N"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "add_neg",
+          "rel_row": -1,
+          "rel_col": 0,
+          "core": "adder",
+          "core_config": {
+            "upstream_mask": [
+              "S",
+              "N"
+            ],
+            "downstream_mask": [
+              "E"
+            ]
+          }
+        },
+        {
+          "cell_id": "const_neg",
+          "rel_row": -2,
+          "rel_col": 0,
+          "core": "ram",
+          "core_config": {
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          },
+          "preload_value": 4294960171
+        },
+        {
+          "cell_id": "turn_neg",
+          "rel_row": -1,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "W"
+            ],
+            "downstream_mask": [
+              "S"
+            ],
+            "fixed_mode": 0
+          }
+        },
+        {
+          "cell_id": "gather",
+          "rel_row": 0,
+          "rel_col": 1,
+          "core": "ram",
+          "core_config": {
+            "upstream_mask": [
+              "N",
+              "S"
+            ],
+            "fixed_mode": 0
+          }
+        }
+      ]
+    }
+  },
+  "design_map": {
+    "placements": [
+      {
+        "instance": "s0",
+        "pattern": "stage_0",
+        "at": [
+          0,
+          0
+        ],
+        "overrides": {
+          "merge": {
+            "io_name": "z_input"
+          }
+        }
+      },
+      {
+        "instance": "s1",
+        "pattern": "stage_1",
+        "at": [
+          0,
+          3
+        ]
+      },
+      {
+        "instance": "s2",
+        "pattern": "stage_2",
+        "at": [
+          0,
+          6
+        ]
+      },
+      {
+        "instance": "s3",
+        "pattern": "stage_3",
+        "at": [
+          0,
+          9
+        ],
+        "overrides": {
+          "gather": {
+            "io_name": "z_output"
+          }
+        }
+      }
+    ],
+    "connections": [
+      {
+        "from": [
+          "s0",
+          0,
+          1,
+          "E"
+        ],
+        "to": [
+          "s1",
+          0,
+          -1,
+          "W"
+        ]
+      },
+      {
+        "from": [
+          "s1",
+          0,
+          1,
+          "E"
+        ],
+        "to": [
+          "s2",
+          0,
+          -1,
+          "W"
+        ]
+      },
+      {
+        "from": [
+          "s2",
+          0,
+          1,
+          "E"
+        ],
+        "to": [
+          "s3",
+          0,
+          -1,
+          "W"
+        ]
+      }
+    ]
+  }
+}
