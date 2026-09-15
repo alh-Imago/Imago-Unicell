@@ -10840,3 +10840,41 @@ of real work -- Alan's own framing of item 1 (LLVM IR) as "a whole
 other session by itself" applies to the rest too, none of them
 smaller. Saved to `docs/stripped-cell/design-notes/full_roadmap_2026_
 09_15.md`.
+
+## 745. A real, honest correction to `#744`'s own item 5 -- "open a MAN file, arbitrary size, no extras" is NOT a new, un-scoped requirement, per Alan's own direct correction: this was already decided very early (`points.md` #19/#23, 2026-07-08), and the real mechanism already exists. Checked directly rather than taking the correction at face value. (Alan/Claude, 2026-09-15)
+
+**Found the real, original decision first:** `points.md` #23
+(2026-07-08) already establishes MAN as a lean, resource-facts-only
+artifact, cleanly separate from ICM (the model) and SHAPE (the
+placement) -- its whole real job is answering "does this card have
+enough capacity," matching `#741`'s own `check_against_man()` exactly.
+
+**Confirmed the real generation mechanism directly, not assumed from
+Alan's own description alone:** `tools/man_generate_v1.py`'s own
+`build_man()` already treats almost every field as real, optional
+data -- `part`, `family`, `jtag_idcode`, `dsp_total`, `m20k_bits`,
+`clk_pin`, `led0_pin`, `led1_pin` all accept `None` cleanly, with the
+rest of the schema (package, board name, PCIe, DDR4) already
+defaulting to `null`/empty regardless. Directly tested: calling
+`build_man(card_id="unconstrained-virtual", alm_total=1_000_000, ...
+everything else None)` produces a real, valid, loadable "just cells"
+MAN file -- and it loads and checks cleanly through the existing
+`load_man()`/`check_against_man()` (`#741`) machinery with zero
+changes needed anywhere.
+
+**The one real, narrow, genuine gap, named precisely rather than
+inflated into a bigger requirement:** `man_generate_v1.py`'s own CLI
+marks several of these fields `required=True` -- a real, deliberate
+choice for a human hand-authoring a REAL card's own file, but a minor,
+real obstacle to generating an "arbitrary size" MAN file directly from
+the command line today. A small CLI relaxation (or a dedicated
+convenience flag) is the only real, remaining work -- not new design,
+not a new mechanism.
+
+**Real, honest status: `#744`'s own item 5 corrected in place,
+directly, not left standing as a wrong claim alongside a footnote.**
+Updated at `docs/stripped-cell/design-notes/full_roadmap_2026_09_15.md`,
+including its own closing summary. A real, useful reminder: checking
+existing tooling before declaring something "new, unscoped work" is
+worth doing even inside a roadmap-capturing pass, not just when
+building.

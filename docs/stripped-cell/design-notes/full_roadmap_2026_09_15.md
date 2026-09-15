@@ -60,17 +60,30 @@ onto a fresh grid) — that round-trip is real, remaining, concrete work,
 not yet attempted.
 
 **5. The frontend system, including "open a MAN file, arbitrary size,
-no extras."** Real, existing building blocks: `tools/project_
-assemble_v1.py`'s own `load_man()`, and the prototype loader's own
-`check_against_man()` (`#741`) — both real, but neither is wired into
-any real, user-facing "open" flow. Alan's own real, new requirement,
-not previously recorded anywhere: the frontend needs a genuine,
-first-class "no MAN constraint" option — arbitrary size, matching how
-the VM itself already, genuinely has no pre-allocation or fixed bound
-(confirmed directly, `#741`: two cells placed 500 apart cost nothing
-extra) — not just "pick from a list of real hardware profiles." This
-is a real, new, un-scoped requirement, worth naming precisely rather
-than assuming an existing MAN-file mechanism already covers it.
+no extras." Real, honest correction, checked directly rather than
+re-asserted: this was already decided back at `points.md` #19/#23**
+(2026-07-08 — genuinely early, exactly as Alan recalled), and the real
+mechanism already exists, not a new requirement as this note first,
+wrongly, claimed. `tools/man_generate_v1.py`'s own `build_man()`
+already treats almost every field as real, optional data — `part`,
+`family`, `jtag_idcode`, `dsp_total`, `m20k_bits`, `clk_pin`, `led0_
+pin`, `led1_pin` all accept `None` cleanly, with the schema's own
+other fields (package, board name, PCIe, DDR4) already defaulting to
+`null`/empty regardless. Confirmed directly, not assumed: calling
+`build_man(card_id="unconstrained-virtual", alm_total=1_000_000, ...
+everything else None)` produces a real, valid, loadable "just cells"
+MAN file, and it loads and checks cleanly through the existing
+`load_man()`/`check_against_man()` (`#741`) machinery with zero
+changes needed. **The one real, narrow, genuine gap:** `man_generate_
+v1.py`'s own CLI marks several of these as `required=True` (`--part`,
+`--alm-total`, `--dsp-total`, `--clk-pin`, `--led0-pin`, `--led1-pin`)
+— a real, deliberate choice for a human hand-authoring a REAL card's
+own MAN file (forcing explicit values rather than silent defaults),
+but a genuine, minor obstacle to generating an "arbitrary size" MAN
+file directly from the command line today. The underlying mechanism
+needs no new design at all — a small, real CLI relaxation (or a
+dedicated `--arbitrary-size ALM_TOTAL` convenience flag) is the only
+real, remaining work here, not a genuine, un-scoped requirement.
 
 **6. Workbench expansion (cell inspection, freeze, slow, connections)
 — genuinely less green-field than it might look, checked directly
@@ -122,10 +135,15 @@ record precisely as stated.
 A consolidated roadmap, not a build plan for any one item. Every
 number above is its own, real, separately-sized piece of work — item 1
 alone was named by Alan as "a whole other session by itself," and nothing
-here suggests any of the rest is smaller. The real, useful finding from
-checking rather than assuming: item 6 (workbench expansion) is
-genuinely less green-field than "needs the same functionality as the
-earlier iteration" implies — most of the real infrastructure already
-exists; freeze-exposure, connection-visualization, and hierarchical-
-format compatibility are the real, narrower, named gaps, not a full
-rebuild.
+here suggests any of the rest is smaller. Two real findings from
+checking rather than assuming, both corrections to this note's own
+first draft: item 5 ("open a MAN file, arbitrary size") is NOT a new
+requirement — it was already decided at `points.md` #19/#23, and the
+real mechanism (`man_generate_v1.py`'s own `build_man()`, almost every
+field genuinely optional) already exists and was confirmed working
+directly, with only a small, real CLI convenience gap remaining. Item
+6 (workbench expansion) is genuinely less green-field than "needs the
+same functionality as the earlier iteration" implies — most of the
+real infrastructure already exists; freeze-exposure, connection-
+visualization, and hierarchical-format compatibility are the real,
+narrower, named gaps, not a full rebuild.

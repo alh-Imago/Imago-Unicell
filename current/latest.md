@@ -1,4 +1,31 @@
-# Current State (as of 2026-09-15, a real, consolidated roadmap captured -- Alan's own direct sequencing (LLVM IR, compiler design, loader, save mechanism, frontend, workbench expansion, separate chains, data entry/results, then LaTeX/Trix), checked against what actually exists. Real finding: the workbench is less green-field than expected. See `points/points_active.md` #744)
+# Current State (as of 2026-09-15, a real correction to the roadmap's own item 5 -- "open a MAN file, arbitrary size" is NOT new work, per Alan's own direct correction: decided very early (points.md #19/#23), and the real mechanism already exists in man_generate_v1.py, confirmed working directly. See `points/points_active.md` #745)
+
+## Read this first (most recent)
+
+**2026-09-15, MAN-file roadmap item corrected (#745).** Alan's own
+direct correction: "open a MAN file, arbitrary size, no extras" was
+already decided very early (points.md #19/#23, 2026-07-08), not a new
+requirement as #744 first, wrongly, claimed.
+
+**Confirmed directly, not taken on faith:** man_generate_v1.py's own
+build_man() already treats almost every field as optional -- part,
+family, jtag_idcode, dsp_total, m20k_bits, clk/led pins all accept
+None cleanly. Tested directly: build_man(card_id="unconstrained-
+virtual", alm_total=1_000_000, everything else None) produces a real,
+valid, loadable "just cells" MAN file, and it loads/checks cleanly
+through the existing load_man()/check_against_man() machinery with
+zero changes needed.
+
+**The one real, narrow gap:** the CLI itself marks several fields
+required=True (a deliberate choice for hand-authoring a real card's
+file) -- a small CLI relaxation or convenience flag is the only real
+remaining work, not new design.
+
+**Status: #744's own item 5 corrected in place**, including its
+closing summary. Updated at docs/stripped-cell/design-notes/full_
+roadmap_2026_09_15.md.
+
+## Previous state (as of 2026-09-15, a real, consolidated roadmap captured -- Alan's own direct sequencing (LLVM IR, compiler design, loader, save mechanism, frontend, workbench expansion, separate chains, data entry/results, then LaTeX/Trix), checked against what actually exists. Real finding: the workbench is less green-field than expected. See `points/points_active.md` #744)
 
 ## Read this first (most recent)
 
