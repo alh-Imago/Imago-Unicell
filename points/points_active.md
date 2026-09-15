@@ -10299,3 +10299,64 @@ and checked against the actual RTL before any generator could use it.
 **Real, honest status: a scoping pass, not a build plan.** No RTL, no
 generator code, no registry written. Saved to `docs/stripped-cell/
 design-notes/vixb_mutable_core_count_scope.md`.
+
+## 736. The carrier build system's own real frontend design -- two selection modes, per Alan's own direct follow-up to `#735`: (A) the person names cores directly, (B) the system derives them from an already-existing ICM file. Checked the actual ICM v3 implementation directly before designing anything, surfacing a real, necessary prerequisite Mode B depends on that doesn't exist yet. Design note only, nothing built. (Alan/Claude, 2026-09-15)
+
+**Real, checked-first finding, not assumed from what the format
+"should" have:** read `nano/icm_v3.py` directly rather than trust
+Alan's own description of a "header record" -- ICM v3 has no separate
+field listing structures/counts; each placed cell is one `IcmV3Record`
+carrying its own `core: str`, and the SET of cores in use is derived by
+scanning every record. A real, direct precedent for exactly this
+derivation already exists: `minimum_shell_version(records)` already
+scans `{r.core for r in records}` to compute the minimum old-lineage
+shell version needed -- Mode B needs the same shape of function,
+returning the real core set itself.
+
+**The real gap this surfaced, named plainly rather than glossed over:**
+ICM v3/v4 are scoped to the OLD lineage only -- confirmed directly.
+There is no ICM format for VIX Carrier at all yet, and `mul`/`priority`
+aren't valid `core` values in any existing format. Mode B genuinely
+cannot work today, not because the derivation logic is hard, but
+because the file format it would read from doesn't cover VIX yet -- a
+real, separate, necessary prerequisite, not a detail inside the
+frontend.
+
+**The real design, both modes converging on one input:** Mode A takes
+an explicit core list; Mode B derives the same shape of list from an
+ICM file's own real, actual core usage. Both feed the SAME generator
+`#735`'s own recommendation (Option B) would build -- Mode B is a
+different real SOURCE for the same input, not a separate code path.
+
+**Alan's own real, important architectural points, baked directly into
+the design, not left as asides:** (1) fully-loaded vs. trimmed is a
+real, separate, THIRD choice made by whoever does the building, not
+fixed at ICM-creation time -- the same ICM file can be handed to a
+different person who independently picks either, since a fully-loaded
+carrier is a real, strict superset of any trimmed one's own capability
+(an ICM built for a trimmed set always runs on a fully-loaded carrier;
+the reverse isn't true, the same real direction `minimum_shell_
+version()`'s own shell-compatibility check already establishes). (2)
+Trimming is only ever meaningful on FPGA or in VM simulation -- an
+ASIC, once fabricated, is fixed; there's no real way to "not include" a
+core after the die is cast. An ASIC target is therefore ALWAYS the
+fully-loaded case by necessity, using the same real `core_select`
+mechanism already in place to choose which of its own fixed cores get
+used at runtime -- meaning an ASIC build never needs either mode's own
+trimming decision at all, only the choice of what to place in the
+ICM's own program.
+
+**Real, honest, open questions and prerequisites, named precisely:**
+a VIX-compatible ICM format is real, separate, necessary work Mode B
+can't route around; `#735`'s own generator itself remains unbuilt,
+which this frontend design assumes exists; what happens when an ICM
+requests a core with no real `_v4c` variant (a clear error, matching
+`resolve_core_file()`'s own precedent, `#734`, but not yet built); and
+whether "fully loaded" means the existing, already-verified
+`unicell_vix_carrier_v1.v` directly or a freshly-generated "all cores"
+output from the same generator -- a real tradeoff, not resolved here.
+
+**Real, honest status: a frontend design extending `#735`'s own
+recommendation, not a build plan.** No RTL, no ICM format changes, no
+generator, nothing built. Saved to `docs/stripped-cell/design-notes/
+carrier_build_frontend_scope.md`.

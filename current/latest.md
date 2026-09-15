@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-15, VIXb's own first real scoping pass done, per Alan's own direct framing as a core unit of the whole design. Two options weighed honestly (Verilog parameterization vs a Python RTL generator); Option B recommended for review, not decided unilaterally -- it's the same real idea as #726's own already-queued "carrier build system." No RTL, nothing built. See `points/points_active.md` #735)
+# Current State (as of 2026-09-15, the carrier build system's own frontend designed -- two selection modes (manual core list, or derived from an ICM file). Checking the real ICM v3 implementation directly surfaced a genuine prerequisite: no ICM format exists for VIX Carrier yet, so Mode B can't work until that's built. Fully-loaded-vs-trimmed and FPGA/VM-vs-ASIC distinctions baked in directly. Design note only. See `points/points_active.md` #736)
+
+## Read this first (most recent)
+
+**2026-09-15, carrier build frontend designed (#736).** Two modes per
+Alan's own direct follow-up to #735: (A) person names cores directly,
+(B) system derives them from an existing ICM file. Checked nano/icm_v3
+.py directly before designing anything -- ICM v3 has no separate
+header field for structures/counts; the core set is derived by
+scanning each record's own `core` field, the same way minimum_shell_
+version() already does for shell-version compatibility.
+
+**The real gap this surfaced:** ICM v3/v4 are scoped to the OLD lineage
+only -- no ICM format exists for VIX Carrier at all yet, and mul/
+priority aren't valid core values anywhere. Mode B genuinely can't
+work today until that format exists -- named as a real, separate
+prerequisite, not glossed into the frontend design.
+
+**Both modes converge on one input, feeding #735's own recommended
+generator** (still unbuilt) -- Mode B is a different source for the
+same shape of input, not a separate code path.
+
+**Alan's own architectural points baked directly in:** fully-loaded vs
+trimmed is a real, separate, third choice made by whoever builds, not
+fixed at ICM-creation time -- a fully-loaded carrier is a strict
+superset of any trimmed one, so the same ICM works on either (not the
+reverse). Trimming only means anything on FPGA/VM -- an ASIC is always
+fully-loaded by necessity (silicon can't be un-included after
+fabrication), using core_select to choose what actually runs, exactly
+as it already works today.
+
+**Real, honest status: frontend design only, nothing built.** Real
+open questions named precisely (the ICM format gap, the still-unbuilt
+generator, error handling for unknown cores, what "fully loaded" means
+concretely). Saved to docs/stripped-cell/design-notes/carrier_build_
+frontend_scope.md.
+
+## Previous state (as of 2026-09-15, VIXb's own first real scoping pass done, per Alan's own direct framing as a core unit of the whole design. Two options weighed honestly (Verilog parameterization vs a Python RTL generator); Option B recommended for review, not decided unilaterally -- it's the same real idea as #726's own already-queued "carrier build system." No RTL, nothing built. See `points/points_active.md` #735)
 
 ## Read this first (most recent)
 
