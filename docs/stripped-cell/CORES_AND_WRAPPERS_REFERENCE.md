@@ -207,7 +207,7 @@ config-time selectable, not synthesis-time fixed.
 - **Sim-only, no Quartus attempt yet:** `shift_lane_addon_v1.v`, `nibble_mask_addon_v1.v`, `invert_addon_v1.v` — the first real ADDON instances (`#311`), faithfully ported and testbench-verified, not yet wired into any cell or built in Quartus.
 - **A genuinely different SHELL (see its own section above), real at the RTL level, sim-only above it:** the super carrier shell itself is Quartus-confirmed real silicon (`#320`-`#323`); everything built on top of it this session (ICM v3, the VM, the tile library, the compiler) is real and tested in software/simulation, not yet independently Quartus/silicon-confirmed as those specific multi-cell layouts.
 
-## The VIX Carrier — a real, third, newest generation, distinct from both tables above (`points.md` #628-#666, 2026-09-04/05/06)
+## The VIX Carrier — a real, third, newest generation, distinct from both tables above (`points.md` #628-#666, #719-#731, 2026-09-04 through 2026-09-15)
 
 **Real, important naming warning, stated up front:** this is a
 GENUINELY separate lineage from the super carrier shell above, not an
@@ -220,18 +220,22 @@ avoided before any VIX Carrier RTL was written (`unicell_vix_carrier_
 v1.v`'s own header), not discovered after the fact. When in doubt,
 check which FILE is meant, not just the version number attached to it.
 
-**What it actually is:** a full second, parallel core family —
-`nano_gate_v4.v`, `ram_cell_v4.v`, `adder_cell_v4.v`, `accumulator_
-cell_v4.v`, `compare_cell_v4.v`, `latch_cell_v4.v`, `sequencer_cell_
-v4.v`, `branch_cell_v4.v`, and the genuinely new 9th core, `command_
-cell_v4.v` — each wrapped in its own real CARDINAL CONTROL SHELL
-(`nano_shell_v1.v`, `ram_shell_v1.v`, `adder_shell_v1.v`,
-`accumulator_shell_v1.v`, `compare_shell_v1.v`, `latch_shell_v1.v`,
-`sequencer_shell_v1.v`, `branch_shell_v1.v`, `command_shell_v1.v`,
-`points.md` #639/#645/#646), then all 9 combined into one real,
+**What it actually is, current as of `#731`: a full second, parallel
+core family, now 11 real core types wide, each with TWO real, distinct
+variants.** Every core type has its own standalone `_v4` file (its own
+internal 3-addon chain, usable wired into any shell context) AND its
+own carrier-specific `_v4c` file (no internal addon chain — the
+carrier provides one, shared, `#722`), each wrapped in its own matching
+cardinal control shell (`_shell_v1`/`_shell_v1c`). `nano_gate`, `adder`,
+`ram`, `compare`, `branch`, `accumulator`, `latch`, `sequencer`, and
+`command` were the original 9 (`#628`-`#666`); `mul` (`#724`) and
+`priority` (`#730`) are the two newest, each built with `_v4`/`_v4c`
+together from the start rather than needing the retrofit the original
+9 required. All 11 `_v4c` variants are combined into one real,
 mutually-exclusive, runtime-`core_select`ed physical cell:
-`unicell_vix_carrier_v1.v` ("V" for version, "IX" for the real 9th-core
-count — Alan's own naming, `#647`).
+`unicell_vix_carrier_v1.v` ("V" for version, "IX" for the real
+originally-9-core count — Alan's own naming, `#647` — the name
+predates `mul`/`priority` and is kept as historical, not re-derived).
 
 **Why the cardinal control shells exist, the real reason, not
 cosmetic:** per Alan's own direct design call, every one of a core's
@@ -257,14 +261,79 @@ instances in a real topology (the same pattern `ram_cell_v4.v`'s own
   DRIVE side of the programming handshake every other core only ever
   RECEIVES, new to this core alone in the family.
 
-**`VIX_LATCH[159:0]`, the real config register, a deliberately round
-number with real reserved headroom, not packed tight:**
+**`mul` — the 10th core (`#724`/`#726`), genuinely different in kind
+from every core before it, not just a new arithmetic op:** wraps
+`bitwise_multiplier_32bit.v` (a real, promoted, purely-combinational
+32×32 adder-tree multiplier, re-verified before use). Built on
+`adder_cell_v4.v`'s own proven two-stage capture shape; `subtract_
+mode` has no equivalent for multiply and was removed entirely rather
+than left dead; offers only `Product[31:0]`, matching LLVM's own real
+`mul` truncation semantics (the real high 32 bits exist in the
+multiplier's own output but aren't wired anywhere in this core).
+
+**`priority` — the 11th core (`#727`/`#730`/`#731`), structurally the
+most different core in the whole family:** the first core with NO
+second operand at all — single-stage capture (`data_reg`/`data_valid`
+only), since the "other side" of its own real job is a competing
+ARRIVAL, not a value to combine with. Arbitrates among whichever
+`upstream_mask`-enabled directions have real, simultaneous arrivals,
+using the SAME symmetric port convention every other core has (not the
+fixed, asymmetric roles the original design idea called for — a real,
+deliberate improvement, `#727`). Two real, selectable scheduling
+modes, a genuine option added mid-build after Alan caught a real
+starvation problem with the first (`#730`):
+- **Strict priority** (`scheduling_mode=0`): each direction has a real,
+  per-direction configurable rank (`priority_rank_n/s/e/w`, 2 bits
+  each, 0=highest); the highest-ranked arrived candidate always wins.
+  A losing candidate's own arrival is genuinely HELD, not lost, not
+  merged — served on its own turn once the winner's own offer drains.
+- **Weighted round-robin** (`scheduling_mode=1`): the SAME rank fields
+  reinterpreted as relative WEIGHTS; a real, live credit accumulator
+  per direction (the "Surplus Round Robin" technique — every
+  candidate's own credit gains its own weight every round, only the
+  winner's own credit is then reduced by the total weight, clamped at
+  0) gives a genuinely proportional, interleaved service pattern (a
+  3:1 weight gives an exact 6:2 ratio over 8 turns, in the pattern
+  N,N,N,W,N,N,N,W — not clustered). Real, honest limit: this is
+  proportional fairness, not an arbitrary, exact, pre-specified
+  sequence — that would need a genuinely different, bigger core.
+
+**`#719`-`#723`: the real, corrected shape of the shared addon chain
+and config-off-shell wiring — the single most important structural
+fact for anyone extending this family, worth reading in full even
+though it's compressed here.** An early attempt (`#719`) added a
+shell-level addon chain to the carrier, reasoning it was a genuinely
+new capability — an actual architectural review (Alan's own direct
+observation: "the carrier's whole concept is to hold common
+functionality centrally") found this was WRONG: 8 of the original 9
+cores already carried their own internal addon chain, so the
+shell-level one was pure duplication (`#720`). The real fix took three
+checked, sequenced steps (`#721`-`#723`): (1) revert the redundant
+shell-level chain; (2) rebuild it correctly — ONE shared chain, fed by
+a single mux value common to all four directions (not the original
+attempt's own 4x-duplicated, one-per-direction version), broadcast to
+all four outputs; (3) swap all shell instantiations to the `_v4c`
+cores (whose OWN internal chain is genuinely removed, not just
+unused) and — a real, separate, hard-won bug found by an ACTUAL
+failing testbench, not assumed correct — confirm each core's own
+`cfg_data` is fed from the carrier's COMBINATIONAL `incoming_config`,
+not the REGISTERED `core_config`: a core that latches its own config
+once on `cfg_valid` needs the value about to be committed, not the one
+already committed one cycle earlier (`v9`'s own `_v3` cells never hit
+this, since they read `core_config` continuously rather than
+latching). Every core built since (`mul`, `priority`) uses this
+corrected shape from the start.
+
+**`VIX_LATCH[159:0]`, the real config register, current field layout
+as of `#722`/`#731`:**
 
 | Field | Bits | Meaning |
 |---|---|---|
-| `core_select` | `[4:0]` | `0`=nano `1`=adder `2`=ram `3`=compare `4`=branch `5`=accumulator `6`=latch `7`=sequencer `8`=command; `9`-`31` reserved |
+| `core_select` | `[4:0]` | `0`=nano `1`=adder `2`=ram `3`=compare `4`=branch `5`=accumulator `6`=latch `7`=sequencer `8`=command `9`=mul `10`=priority; `11`-`31` reserved |
 | `core_config` | `[132:5]` | 128 bits, a UNION not a struct — sized to the single widest real core (nano), reinterpreted per `core_select`, zero reshuffling since every core's own real field layout already starts at bit 0 of its own space |
-| reserved | `[159:133]` | 27 bits, genuine future headroom |
+| `addon_config` | `[154:135]` | 20 bits, the real, single, SHARED addon-chain config (`#722`) — nibble-mask, shift-lane, and invert fields, same real layout every standalone `_v4` core's own internal chain already used |
+| `shift_fine` | `[156:155]` | 2 bits, fine-shift amount for the shared chain's own `shift_fine_addon_v1.v` stage |
+| reserved | `[159:157]` | 5 bits, genuine future headroom (down from the original 27 once the shared addon chain claimed its own 22, `#722`) |
 
 **Real, genuinely new mechanisms beyond the old lineage, not just a
 bigger clone of it:** (1) the cardinal control shells above; (2)
@@ -276,16 +345,19 @@ mutual-exclusion principle `cfg_valid` already used, extended to the
 live reprogramming channel; (3) `core_config` widened to 128 real bits
 (nano's own real width), not the old lineage's 42-bit union; (4) the
 command core's own genuinely new external ports (`freeze_out_*`, the
-drive-side programming channel).
+drive-side programming channel); (5) the single, shared, shell-level
+addon chain (`#722`), genuinely different from — and a real
+improvement on — the old lineage's per-core addon instances.
 
 **Real, current status, honestly stated:**
 
 | | Status |
 |---|---|
-| RTL (all 9 cores + 9 cardinal shells + the carrier itself) | **Real, sim-verified** — every core's testbench passes, plus a full carrier-level testbench (`tb_unicell_vix_carrier_v1.v`) and real end-to-end tests (a real, bounded loop-ring construction wired through the cardinal shells, `#640`; a command core genuinely programming a fresh, never-configured target end to end, `#644`) |
-| Quartus/real silicon | **Not yet run.** `project_assemble_v1.py --shell vix` (`#648`) exists and can generate a real N-cell VIX Carrier project, but the Quartus license expired (`#649`) before it could be run — no real ALM/Fmax numbers exist for this family yet |
-| VM (`VixCarrierCell`/`VixCarrierGrid`/`VixCarrierSlot`) | **Real, tested** — genuinely subclasses `SuperCell` (the 8 already-modeled core types keep their own proven dispatch, inherited for free), adding only the command core as new mechanism (`#655`-`#658`, `#660`) |
+| RTL (all 11 core types × 2 real variants each + matching shells + the carrier itself) | **Real, sim-verified** — every `_v4` and `_v4c` core's own standalone testbench passes; the carrier level has six real testbenches: the original full-carrier test, a mesh test, a select-redirect test, the corrected shared-addon-chain test (`#723`), and one each proving `mul`/`priority` genuinely route and compute/arbitrate through the carrier's own real ports (`#726`/`#731`) |
+| Quartus/real silicon | **Not yet run.** `project_assemble_v1.py --shell vix` (`#648`) exists and can generate a real N-cell VIX Carrier project, but the Quartus license expired (`#649`) before it could be run — no real ALM/Fmax numbers exist for this family yet. `#728`'s own reorganization also surfaced a real, separate gap: `resolve_core_file()` cannot find any `_v4c` file at all (its own regex only matches purely numeric versions) — a real, considered fix is queued (`#728`/`#729`), not yet built |
+| VM (`VixCarrierCell`/`VixCarrierGrid`/`VixCarrierSlot`) | **Real, tested** — genuinely subclasses `SuperCell` (the 8 already-modeled core types keep their own proven dispatch, inherited for free), adding only the command core as new mechanism (`#655`-`#658`, `#660`). Not yet extended to model `mul`/`priority` — real, separate, unstarted work |
 | ICM file format | **Does not exist yet.** ICM v3/v4 (below) are scoped to the OLD core lineage only — the VIX Carrier has no portable, on-disk program format of its own; it lives in RTL simulation and the VM's own in-memory classes only |
 | Compiler/DSL reachability | **Not yet wired in.** The DSL/LLVM-IR frontends target the OLD lineage's tile library; promoting any of this to a compiler target is real, separate, unstarted work |
+| "Mutable core count" (`VIXb`) | **Real, still open, now demonstrated twice.** Wiring in both `mul` and `priority` each required the same ~20 lines of hand-coordinated edits across the shared carrier file (`#726`/`#731`) — a genuine, repeated cost a real mutable-count mechanism was always meant to remove. A further, related idea (a "carrier build system" — select which cores a given design needs, build and test a carrier sized to exactly that set) is recorded and explicitly queued, not started (`#726`'s own note) |
 
 

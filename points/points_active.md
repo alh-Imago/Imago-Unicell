@@ -10094,3 +10094,34 @@ underlying "hardcoded core count" question (`VIXb`) remains real and
 unresolved by this entry -- adding this 11th core required the same
 roughly 20 lines of hand-coordinated edits `mul`'s own `#726` needed,
 a second, concrete demonstration of why that item still matters.
+
+## 732. `CORES_AND_WRAPPERS_REFERENCE.md`'s own dedicated VIX Carrier section brought current -- it was written for the original 9-core, pre-correction shape and had gone stale across the entire `#719`-`#731` arc (the addon-chain correction, the config-off-shell fix, and both new cores). The other two dated `unified_carrier_*.md` design notes checked and confirmed correctly left as historical snapshots, not updated. (Alan/Claude, 2026-09-15)
+
+**Real, comprehensive update, not a patch:** the whole VIX Carrier
+section rewritten to reflect the family as it actually stands --
+11 real core types (the original 9 plus `mul`/`priority`), each with
+its own real `_v4`/`_v4c` pair; the real, corrected shape of the
+single, shared, shell-level addon chain and the config-off-shell fix
+(`#719`-`#723`, compressed but complete, including the real
+`incoming_config`-vs-`core_config` timing bug that was actually found
+and fixed, not glossed over); `mul`'s own real design (`#724`/`#726`);
+`priority`'s own real design, including both scheduling modes
+(`#727`/`#730`/`#731`). The `VIX_LATCH` field table updated with the
+real, current `core_select` assignments (`9`=mul, `10`=priority) and
+the real, current addon-chain bit allocation (`[154:135]`=addon_
+config, `[156:155]`=shift_fine, only 5 bits genuinely reserved now,
+down from the original 27). The status table updated with the real,
+current testbench count (six, not one) and a new, explicit row
+naming `VIXb`'s own "mutable core count" item as demonstrated twice
+now, not just once.
+
+**Real, deliberate restraint, checked before touching anything else:**
+the other two `unified_carrier_*.md` design notes (`capability_table`,
+`configuration_space`) are explicitly dated snapshots ("captured
+2026-09-03"), matching this project's own established convention that
+design notes are point-in-time records, not living documents --
+confirmed by their own headers before leaving them untouched.
+`unified_carrier_scope.md` already correctly defers to `CORES_AND_
+WRAPPERS_REFERENCE.md`'s own dedicated section for detail and already
+records the real, still-open "variable carrier width" item -- also
+left as-is, its own real job already done correctly.

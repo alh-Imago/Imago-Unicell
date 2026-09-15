@@ -1,4 +1,25 @@
-# Current State (as of 2026-09-15, priority wired into VIX carrier as SEL_PRIORITY (5'd10), the 11th real core, following mul's own #726 wiring precedent exactly. All six VIX testbenches (five existing, one new) pass together. See `points/points_active.md` #731)
+# Current State (as of 2026-09-15, CORES_AND_WRAPPERS_REFERENCE.md's own VIX Carrier section brought fully current -- 11 real core types, the corrected shared addon chain, config-off-shell fix, mul and priority both documented. See `points/points_active.md` #732)
+
+## Read this first (most recent)
+
+**2026-09-15, VIX Carrier documentation brought current (#732).** The
+main living reference's own VIX Carrier section was written for the
+original 9-core, pre-correction shape and had gone stale across the
+entire #719-#731 arc. Rewritten comprehensively: 11 real core types
+(original 9 + mul + priority), the corrected shared addon chain and
+config-off-shell fix, updated VIX_LATCH field table (core_select 9=mul,
+10=priority; only 5 bits genuinely reserved now, down from 27), and an
+explicit new status row naming VIXb's "mutable core count" item as
+demonstrated twice now.
+
+**Real, deliberate restraint:** the other two dated unified_carrier_*.md
+design notes are explicitly point-in-time snapshots ("captured
+2026-09-03") -- checked and correctly left untouched, matching this
+project's own convention that design notes record state, not track it
+live. unified_carrier_scope.md already defers correctly and already
+records the real "variable carrier width" item.
+
+## Previous state (as of 2026-09-15, priority wired into VIX carrier as SEL_PRIORITY (5'd10), the 11th real core, following mul's own #726 wiring precedent exactly. All six VIX testbenches (five existing, one new) pass together. See `points/points_active.md` #731)
 
 ## Read this first (most recent)
 
