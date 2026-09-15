@@ -80,6 +80,35 @@ no separate reference-establishment delivery at all — the better
 choice for this exact use case, confirmed the hard way building a real
 CORDIC pipeline, `#742`).
 
+### Adder/mul core — two real operands arriving on the SAME tick silently loses one (`#748`)
+**Real, confirmed directly, matters for any code generator or hand-
+built design placing two operand sources equidistant from an adder (or
+`mul`) cell.** `_deliver_adder()`'s own real logic processes only ONE
+matched arrival per call: `if not self.adder_a_arrived: capture as A,
+return` — it never checks whether a SECOND, different-direction
+arrival landed in the very same `matched` dict on the same tick. If
+both real operand sources are the same real distance from the adder
+(e.g. both one hop away, injected at the same moment), both arrivals
+land on the adder's own upstream on the exact same tick — but only
+ONE of them gets captured as `A`; the other is silently dropped,
+never becoming `B`, and the adder never fires at all (waiting forever
+for a real "second" arrival that already came and went). **Real,
+correct fix, confirmed by building and testing a real, working example
+(`#748`):** stagger the two operand deliveries in real time — inject
+(or let the first arrive) fully before the second is injected or
+arrives, even by just one real tick. A design where the two operand
+paths are genuinely different lengths (naturally staggered by the
+real topology) avoids this without any explicit sequencing at all;
+a design where they're equidistant (or one is a compile-time constant
+injected at the same moment as the other) needs a real, deliberate
+delay on one side. **Any compiler generating a two-operand placement
+should default to giving the two operand paths genuinely different
+real lengths, or explicitly stagger a same-tick injection/constant
+delivery by at least one tick** — this is the same real class of
+timing hazard as the branch/zero-reference gotcha above, one level
+over: a "matched pair" capture core needs its two real deliveries
+genuinely sequenced, not simultaneous, regardless of which core it is.
+
 ### Branch/comparator core — `in+N` direction resolution (`#494`)
 **Status: designed, not yet built.** `in+1`/`in+2`/`in+3` (relative to
 the arrival direction) is resolved to a real, ABSOLUTE direction mask

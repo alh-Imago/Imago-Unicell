@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-15, the hierarchical ICM format formalized, given a real production module, and wired into the workbench -- spec, loader, the full save/state round trip, and workbench integration all real and tested. 753 tests pass, zero regression. See `points/points_active.md` #747)
+# Current State (as of 2026-09-15, a real, working VIX Carrier tile library built -- #746's own named gap, 10 real data-flow cores, each field map checked directly against actual RTL. Two real bugs found by actually running tiles through the VM, both fixed. LLVM IR side deliberately deferred to a future session. See `points/points_active.md` #748)
+
+## Read this first (most recent)
+
+**2026-09-15, VIX tile library built (#748).** Per Alan's own direct
+sequencing: the smaller, standalone task, leaving the LLVM side for
+the next usage round. A new module (nano/vix_tile_library_v1.py), not
+a fourth target= value on SuperTileSpec -- confirmed VIX's own _v4c
+cores have genuinely different cfg_data widths/shapes from the old
+lineage's unified union. 10 real tiles, each field map confirmed
+directly against the actual _v4c RTL header comment, not assumed --
+branch's own genuinely different upstream_dir, mul's confirmed absence
+of subtract_mode, priority's confirmed bit-position swap, comparator's
+real dispatched core string confirmed against SuperCell.from_record().
+command deliberately excluded, named directly as a real scope limit.
+
+**Two real bugs found by actually running tiles through the VM:**
+(1) icm_vix_v1.py's check_connections() was case-sensitive -- a tile-
+produced lowercase direction failed to match an uppercase connection
+declaration even though the VM itself treats them identically. Fixed.
+(2) A real, generalizable timing hazard, new to CELL_GOTCHAS.md: two
+operands arriving at an adder on the exact same tick silently loses
+one -- _deliver_adder() only ever processes one matched arrival per
+call. Found via a real, hand-built test; fixed by staggering the
+injections; documented as a standing fact for future codegen.
+
+**11 new tests**, including two real, functional end-to-end tests: the
+tile library rebuilding the small relay chain example, and a real,
+correctly-staggered two-operand adder producing the exact sum.
+
+**Status: 764 tests pass, zero regression.** #746's own items 2/3
+(backend emit path, frontend language coverage) remain deliberately
+deferred to a future LLVM-focused session -- this tile library is
+independently useful groundwork for that session, not blocked on it.
+
+## Previous state (as of 2026-09-15, the hierarchical ICM format formalized, given a real production module, and wired into the workbench -- spec, loader, the full save/state round trip, and workbench integration all real and tested. 753 tests pass, zero regression. See `points/points_active.md` #747)
 
 ## Read this first (most recent)
 

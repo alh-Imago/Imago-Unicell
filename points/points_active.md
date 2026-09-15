@@ -11016,3 +11016,85 @@ current backend still targets `icm_v3`/`icm_v4` only); no VIX-specific
 tile library exists; nested patterns remain deliberately out of scope,
 per `#737`'s own still-open question, since none of the three real
 examples ever needed more than one level.
+
+## 748. A real, working VIX Carrier tile library built -- `#746`'s own real, named gap, deliberately left for a smaller, standalone task after the LLVM IR side, per Alan's own direct sequencing. 10 real data-flow cores, each field map checked directly against the actual `_v4c` RTL header comment, not assumed. Two real, genuine bugs found and fixed by actually running the tiles through the VM, not just checking they place() without error. (Alan/Claude, 2026-09-15)
+
+**A new, separate module built** (`nano/vix_tile_library_v1.py`), not a
+fourth `target=` value bolted onto `super_tile_library_v1.py`'s own
+`SuperTileSpec` -- confirmed directly first that VIX Carrier's own
+`_v4c` cores have genuinely different `cfg_data` widths per core
+(64/80/128 bits) and, for several cores, entirely different field
+semantics, from the old lineage's own unified 42-bit union. A real
+`VixTileSpec`/`place()` pair, reusing `super_tile_library_v1._resolve()`
+directly for port/param validation (the same real contract, not
+re-derived) -- `place()` returns a real `icm_vix_v1.HierCell` (local
+`rel_row`/`rel_col`), not an `IcmV3Record`, matching the hierarchical
+format's own real placement unit.
+
+**10 real tiles registered** (nano, ram_flowing, ram_constant, adder,
+subtractor, mul, comparator, branch, accumulator, latch, sequencer,
+priority -- 12 entries, 10 distinct core types), each field map
+confirmed directly against the actual `_v4c` RTL header comment, not
+assumed from the old lineage's own field names: `ram_cell_v4c.v`'s own
+80-bit map, `branch_cell_v4c.v`'s own genuinely different `upstream_
+dir` (single direction, not a mask, `#742`'s own real finding carried
+forward), `mul_cell_v4c.v`'s own confirmed absence of a subtract-mode
+equivalent, `priority_cell_v4c.v`'s own real, confirmed bit-position
+swap relative to every other core's convention. `comparator`'s own
+real, dispatched core string confirmed directly against `SuperCell.
+from_record()` -- the RTL's own `SEL_COMPARE` localparam is a Verilog-
+internal label only, not the real ICM-level `core` string.
+
+**A real, deliberate, stated scope limit:** `command` (the mode-
+selected, dual-instance programming/routing core) excluded -- a
+data-flow-computation tile library has no real use for it yet, and
+it's genuinely more complex than every other core here. Named
+directly, not silently omitted.
+
+**Two real, genuine bugs found by actually running tiles through the
+VM, not just confirming `place()` runs without error:**
+1. `icm_vix_v1.py`'s own `check_connections()` was case-sensitive --
+   a tile-produced lowercase direction (`_resolve()`'s own real
+   normalization) failed to match a hand-written uppercase connection
+   declaration, even though the VM itself already treats the two
+   identically (`icm_v3.pack_dirmask()`). Fixed by normalizing to
+   uppercase before comparison in `_upstream_or_downstream()`.
+2. **A real, generalizable timing hazard, new to `CELL_GOTCHAS.md`:**
+   two real operands arriving at an adder (or `mul`) on the exact same
+   tick silently loses one -- `_deliver_adder()`'s own real logic only
+   ever processes ONE matched arrival per call, with no check for a
+   second, simultaneous one. Found directly: a real, hand-built test
+   with both operand sources equidistant from the adder produced
+   `adder_data_valid=False` forever (one operand's value silently
+   dropped, the adder waiting for a "second" arrival that already came
+   and went). Fixed the real test by staggering the injections; also
+   added as a new, real `CELL_GOTCHAS.md` entry (same real timing-
+   hazard family as the branch/zero-reference gotcha, `#742`, one
+   level over) since this is a real, standing fact any future
+   placement/codegen pass needs to respect -- default to genuinely
+   different operand-path lengths, or an explicit stagger.
+
+**11 real, new tests** (`tests/vm/test_vix_tile_library_v1.py`):
+structural checks for every registered tile (all 10 core types
+present, missing-port/unknown-param rejection, the adder's own shared-
+field OR-combine, mul's own confirmed absence of subtract_mode,
+branch's own confirmed absence of upstream_mask, priority's own real
+field-direction confirmation, nano's own confirmed missing "in" port),
+and two real, functional end-to-end tests: the tile library rebuilding
+`#740`'s own small relay chain (confirming zero advisory warnings after
+the case-insensitivity fix) and a real, working two-operand adder,
+correctly staggered, producing the exact correct sum.
+
+**Real, honest verification discipline: full project suite re-run
+after every real change** (764 passed, 1 skipped -- same pre-existing
+skip, 4 warnings -- same pre-existing, unrelated), confirming zero
+regression from the case-insensitivity fix and the two new modules
+together.
+
+**Real, honest status: `#746`'s own item 1 (VIX tile library) is now
+real, tested, working code.** `#746`'s own items 2 (the backend's
+hierarchical-ICM emit path) and 3 (frontend language-coverage work)
+remain deliberately deferred to a future LLVM-focused session, per
+Alan's own direct sequencing -- this tile library is independently
+useful groundwork for that session, not something that needed to wait
+for it.

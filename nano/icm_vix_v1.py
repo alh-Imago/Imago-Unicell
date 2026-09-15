@@ -330,11 +330,19 @@ class IcmVixFile:
         field shape (`upstream_dir`, a single direction, not a mask --
         confirmed directly against `_deliver_branch()`, #742's own
         real finding) alongside every other core's own real
-        `upstream_mask`/`downstream_mask`."""
+        `upstream_mask`/`downstream_mask`. Real, case-insensitive
+        comparison throughout -- matching `super_tile_library_v1.
+        _resolve()`'s own real normalization (`d.lower()`), confirmed
+        as a real, necessary fix (#748) after a tile-produced lowercase
+        direction failed to match a hand-written uppercase connection
+        declaration, even though the VM itself already treats the two
+        identically via `icm_v3.pack_dirmask()`."""
         if which == "upstream" and "upstream_dir" in rec.core_config:
-            return list(rec.core_config.get("upstream_dir", []))
-        key = "downstream_mask" if which == "downstream" else "upstream_mask"
-        return list(rec.core_config.get(key, []))
+            raw = rec.core_config.get("upstream_dir", [])
+        else:
+            key = "downstream_mask" if which == "downstream" else "upstream_mask"
+            raw = rec.core_config.get(key, [])
+        return [d.upper() if isinstance(d, str) else d for d in raw]
 
     # ---- real, whole-file serialization ----
 
