@@ -10878,3 +10878,54 @@ including its own closing summary. A real, useful reminder: checking
 existing tooling before declaring something "new, unscoped work" is
 worth doing even inside a roadmap-capturing pass, not just when
 building.
+
+## 746. The LLVM IR side scoped for real, per Alan's own direct ask before heading out -- item 1 on `#744`'s own roadmap. Traced the actual, current pipeline end to end rather than assumed from the existing scope documents alone, confirming both frontends (LLVM and DSL) share one backend, and that ENTIRE backend targets the old lineage's flat ICM format only, with zero path anywhere to VIX Carrier or the hierarchical ICM format. Three real, separate pieces of work identified, with one genuine, hard sequencing dependency named precisely. Scoping only, nothing built. (Alan/Claude, 2026-09-15)
+
+**The real, confirmed pipeline, traced directly:** both `nano/llvm_ir_
+frontend_v1.py` and the DSL frontend compile down to the SAME shared
+`ProgramIR` (`nano/program_ir_v1.py`, deliberately extracted from the
+DSL parser so a second frontend could plug in without duplicating
+logic), handed to ONE shared backend (`nano/dsl_compiler_v1.py`'s own
+`compile_program_ir()`), which resolves placements against tiles from
+`nano/super_tile_library_v1.py`. Confirmed directly, not assumed:
+`compile_program_ir()`'s own real return type is `v3.IcmV3File |
+v4.IcmV4File`, and the tile library's own header states its purpose
+explicitly as producing `icm_v3.IcmV3Record`s. The entire pipeline,
+both frontends, one shared backend, targets the OLD lineage's flat
+format only -- a complete gap to VIX/hierarchical, not a partial one.
+
+**Three real, separate pieces of work, confirmed genuinely distinct:**
+(1) new tiles for the VIX/`_v4c` core family -- `mul`/`priority` have
+no tile at all. A real, positive finding worth building on: every
+`SuperTileSpec` already carries a real `target` field with three
+existing values (`universal`/`super-only`/`nano-full`), used for live
+dispatch logic today -- adding a fourth (`vix`) is a natural extension
+of an already-existing mechanism, not a new kind of one, though each
+tile's own real port/field shape still needs checking against actual
+RTL the same way the existing tiles' own header comments show was done
+originally. (2) the backend's own real emit path targeting the
+hierarchical ICM format -- confirmed BLOCKED, not just unstarted: no
+formal, written spec exists yet for that format (`#736`'s own named
+prerequisite still stands), only a real, working prototype explicitly
+built to test the design, not to be production code. (3) the
+frontend's own real language-coverage gaps (`llvm_ir_frontend_
+completion_scope.md`'s own already-tiered A/B/C inventory) -- confirmed
+genuinely orthogonal, "vix" appears nowhere in that document, and a
+frontend that could target VIX perfectly would still only express the
+same narrow set of programs it does today without this separate axis
+of work.
+
+**Real, honest sequencing given what's actually blocked:** formalize
+the hierarchical ICM format spec first (drawing on `#737`-`#742`'s own
+three real, tested examples, not starting from the abstract notes
+alone) -- only then can the backend's own new emit path be built. Tile
+work (item 1) and frontend language-coverage work (item 3) can each
+proceed independently, in parallel with everything else, since neither
+depends on the format spec or on each other.
+
+**Real, honest status: a scoping pass, not a build plan.** No RTL, no
+tile code, no backend changes, no format spec written. The one
+genuine, hard dependency in this whole roadmap item: the backend's own
+hierarchical-ICM emit path cannot start until the format itself is
+pinned down in writing. Saved to `docs/stripped-cell/design-notes/
+llvm_ir_vix_targeting_scope.md`.

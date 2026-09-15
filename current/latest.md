@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-15, a real correction to the roadmap's own item 5 -- "open a MAN file, arbitrary size" is NOT new work, per Alan's own direct correction: decided very early (points.md #19/#23), and the real mechanism already exists in man_generate_v1.py, confirmed working directly. See `points/points_active.md` #745)
+# Current State (as of 2026-09-15, the LLVM IR side scoped for real while Alan's on the road -- traced the actual pipeline end to end, confirming both LLVM and DSL frontends share one backend, entirely scoped to the old, flat ICM lineage, zero path to VIX/hierarchical anywhere. Three separate pieces of work identified with one genuine, hard sequencing dependency. Scoping only. See `points/points_active.md` #746)
+
+## Read this first (most recent)
+
+**2026-09-15, LLVM IR side scoped (#746).** Per Alan's own direct ask
+before heading out -- item 1 on #744's own roadmap. Traced the real
+pipeline: both nano/llvm_ir_frontend_v1.py and the DSL frontend
+compile to the SAME shared ProgramIR, handed to ONE shared backend
+(dsl_compiler_v1.py's compile_program_ir()), resolving tiles from
+super_tile_library_v1.py. Confirmed directly: the backend's own real
+return type is IcmV3File|IcmV4File, and the tile library's own header
+states it produces IcmV3Records explicitly. The entire pipeline is
+scoped to the OLD lineage only -- zero path anywhere to VIX Carrier or
+the hierarchical ICM format.
+
+**Three real, separate pieces of work:** (1) new tiles for VIX/_v4c
+cores (mul/priority have none at all) -- a real, positive finding: the
+tile spec already has a `target` field with 3 existing values used for
+live dispatch, so adding a 4th ("vix") extends an existing mechanism
+rather than inventing a new one. (2) the backend's own new emit path
+for the hierarchical format -- confirmed BLOCKED, not just unstarted:
+no formal written spec exists yet, only a real, working prototype
+explicitly built to test the design. (3) the frontend's own language-
+coverage gaps (the existing Tier A/B/C inventory) -- confirmed
+genuinely orthogonal, "vix" appears nowhere in that document.
+
+**Real sequencing:** formalize the hierarchical ICM spec first (built
+on #737-#742's own three tested examples) -- only then can the
+backend's new emit path be built. Tile work and frontend language
+work can each proceed independently, in parallel, right away.
+
+**Status: scoping only, nothing built.** The one genuine, hard
+dependency: the backend's own emit path can't start until the format
+is pinned down in writing. Saved to docs/stripped-cell/design-notes/
+llvm_ir_vix_targeting_scope.md.
+
+## Previous state (as of 2026-09-15, a real correction to the roadmap's own item 5 -- "open a MAN file, arbitrary size" is NOT new work, per Alan's own direct correction: decided very early (points.md #19/#23), and the real mechanism already exists in man_generate_v1.py, confirmed working directly. See `points/points_active.md` #745)
 
 ## Read this first (most recent)
 
