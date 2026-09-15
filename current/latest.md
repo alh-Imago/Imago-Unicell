@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-15, #737's own central open question genuinely resolved -- every real cell shape becomes a named pattern, even used once, removing the per-instance-override problem entirely. A concrete four-part shape (header/patterns/design map/diff) worked through with a real JSON sketch, surfacing three sharper, narrower questions. Design note only. See `points/points_active.md` #738)
+# Current State (as of 2026-09-15, precise (row,col,face) connection addressing added and NC replacing "BLANK" -- then a key clarification, confirmed via direct question rather than assumed: the connection notation is advisory documentation/cross-checking, not the authoritative wiring mechanism (which stays per-cell core_config bits, exactly as today). Genuinely simplifies the loader's own job. Design note only. See `points/points_active.md` #739)
+
+## Read this first (most recent)
+
+**2026-09-15, connection precision + a key clarification (#739).**
+`Pattern 45 (0,1,N) > Pattern 1 (2,1,S)` resolves the exact cell/face a
+link attaches to for multi-cell patterns. `NC` (borrowed real hardware
+convention) replaces "BLANK" as a genuinely categorical absence.
+
+**The important part: asked directly rather than assumed, and it
+matters.** Confirmed the connection notation and placement list are
+NOT what makes cells connect -- the real, authoritative mechanism stays
+exactly what it already is today: each cell's own core_config bits
+(upstream_mask/downstream_mask, nano's routing_mask/cardinal_edge).
+This layer is human-readable documentation and machine-checkable
+cross-referencing, confirming placement and actual configured bits
+agree -- not driving the connection itself.
+
+**Directly the same pattern this project already trusts:**
+project_assemble_v1.py's own discover_instantiated_modules()/
+check_dependency_compatibility() (#590) already does exactly this
+shape of thing -- real, useful, advisory, never authoritative.
+
+**Real consequence: this removes a complexity concern raised earlier
+in the same conversation.** No solver needed to derive placement from
+a connection graph -- placement gives direct coordinates already; the
+connection notation just checks they agree with the real config bits.
+A mismatch is a real, catchable advisory warning, not a silent failure
+and not something requiring constraint-solving.
+
+**Status: the design's own shape is now settled enough to be useful.**
+Still no RTL, no format spec, no code. Real next step unchanged: try
+this against one real, concrete compiled example. Updated in place at
+docs/stripped-cell/design-notes/hierarchical_icm_and_state_save_scope.md.
+
+## Previous state (as of 2026-09-15, #737's own central open question genuinely resolved -- every real cell shape becomes a named pattern, even used once, removing the per-instance-override problem entirely. A concrete four-part shape (header/patterns/design map/diff) worked through with a real JSON sketch, surfacing three sharper, narrower questions. Design note only. See `points/points_active.md` #738)
 
 ## Read this first (most recent)
 

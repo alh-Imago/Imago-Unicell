@@ -295,15 +295,88 @@ the abstract version could:**
   the structure (a real, necessary graph traversal from the root
   outward, not a flat pass over independent absolute coordinates).
 
-**Real, honest status, updated:** the central open question from this
-note's own earlier draft (per-instance overrides) is genuinely
-resolved by Alan's own "every shape is its own pattern" rule -- a real
-step forward, not just a restatement. What remains open is narrower
-and more concrete: pattern-internal port/link attachment for multi-
-cell patterns, the real distinction between a null link and an
-external-entry-point link, and confirming relative-vs-absolute
-placement semantics. Still no RTL, no format spec, no code -- but the
-real shape is close enough now that the next useful step is probably
-trying this JSON shape against one real, actual compiled example
-(the CORDIC pipeline this whole line of notes keeps returning to)
-rather than refining it further in the abstract.
+**Real, honest status, updated (superseded again below):** the central
+open question from this note's own earlier draft (per-instance
+overrides) is genuinely resolved by Alan's own "every shape is its own
+pattern" rule -- a real step forward, not just a restatement. What
+remains open is narrower and more concrete: pattern-internal port/link
+attachment for multi-cell patterns, the real distinction between a
+null link and an external-entry-point link, and confirming relative-
+vs-absolute placement semantics. Still no RTL, no format spec, no
+code -- but the real shape is close enough now that the next useful
+step is probably trying this JSON shape against one real, actual
+compiled example (the CORDIC pipeline this whole line of notes keeps
+returning to) rather than refining it further in the abstract.
+
+## A real, important clarification (2026-09-15) that simplifies the loader's own job significantly
+
+**The two open questions above (per-cell link attachment, `NC` vs. an
+entry point) are genuinely resolved by Alan's own direct follow-up,**
+using exactly the (row, col, face) precision this note's own JSON
+sketch was missing:
+
+```
+Pattern 45 (0,1,N) > Pattern 1 (2,1,S)
+Pattern 42 (2,1,S) > NC
+```
+
+Read directly: Pattern 45's own cell at its local (0,1), specifically
+its north face, connects to Pattern 1's own cell at its local (2,1),
+its south face. `NC` ("not connected" -- borrowed directly and
+deliberately from real, standard hardware/schematic notation, not
+invented) replaces "BLANK" as the genuinely different, categorical
+case: a real absence of any link, not a reference to anything.
+
+**The real, important clarification underneath this, confirmed
+directly rather than assumed, and it changes what kind of mechanism
+this whole layer actually is:** the connection notation and the
+placement list (`at (0,0) Load Pattern 1`, etc.) are NOT what makes
+cells actually connect. The real, authoritative wiring mechanism is
+exactly the one that already exists today and needs no reinvention --
+each cell's own `core_config` bits (`upstream_mask`/`downstream_mask`,
+or nano's own `routing_mask`/`cardinal_edge`). **This layer's own real
+job is human-readable documentation and machine-checkable
+cross-referencing** -- confirming that a given placement's own real,
+configured connection bits actually agree with what the design says
+should be connected, catching a real mismatch (a cell placed as if it
+connects north, but its own real `upstream_mask` doesn't actually
+listen north) rather than driving the connection itself.
+
+**This is directly, precisely the same real pattern this project
+already trusts elsewhere, not a new kind of mechanism:**
+`tools/project_assemble_v1.py`'s own `discover_instantiated_modules()`/
+`check_dependency_compatibility()` (`#590`) already does exactly this
+shape of thing -- a real, useful, best-effort ADVISORY check, never
+the authoritative source of truth, which stays the actual RTL/config
+bits either way. The same real, honest framing applies here directly:
+this connection notation is a real, valuable sanity check a loader (or
+a separate validator) can run, catching likely mistakes before they
+become silent, wrong behavior -- but the cell's own real `core_config`
+bits remain what actually determines behavior, exactly as today.
+
+**Real, honest consequence, worth stating plainly: this genuinely
+simplifies the loader's own job, removing a real complexity concern
+raised (then withdrawn) earlier in this same conversation.** A loader
+does NOT need to solve a real, potentially-ambiguous constraint/graph-
+layout problem to derive placement from the connection graph -- the
+placement list (`at (X,Y), Load Pattern N`) gives real, direct
+coordinates already; the connection notation is there to CHECK those
+coordinates and the actual configured `core_config` bits agree, not to
+COMPUTE anything. A mismatch is a real, catchable, advisory warning
+(matching `#590`'s own real, established warning shape: never a hard
+block, since the real compile/RTL remains authoritative either way),
+not a silent failure and not something requiring a real solver.
+
+## Real, honest status
+
+The design's own real shape is now settled enough to be genuinely
+useful: patterns (even single-use ones) as the one, uniform unit;
+explicit `(row,col,face)` addressing for real, precise cross-checking
+of connections; `NC` for a genuine absence, distinct from a reference;
+direct, explicit placement coordinates (not solver-derived); and the
+whole connection layer understood correctly as advisory, human/
+tooling-facing documentation, not the authoritative wiring mechanism
+(which stays exactly what it already is today, per-cell `core_config`
+bits). Still no RTL, no format spec, no code. The real next step
+remains the same: try this shape against one real, concrete compiled
+example before writing anything resembling a spec.

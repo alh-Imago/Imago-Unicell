@@ -10480,3 +10480,57 @@ directly: try this JSON shape against one real, actual compiled
 example (the CORDIC pipeline this whole line of notes keeps returning
 to) rather than refining further in the abstract. Updated in place at
 `docs/stripped-cell/design-notes/hierarchical_icm_and_state_save_scope.md`.
+
+## 739. Real, precise `(row,col,face)` connection addressing added, per Alan's own direct follow-up -- `Pattern 45(0,1,N) > Pattern 1(2,1,S)`, `NC` (a real, borrowed hardware convention) replacing the earlier, vaguer "BLANK." Cleanly resolves both of `#738`'s own remaining precision questions. Then a genuinely important clarification, confirmed directly before writing it down, that simplifies the whole layer's own real role: this connection notation is advisory documentation/cross-checking, not the authoritative wiring mechanism -- which stays exactly what it already is today, per-cell `core_config` bits. Design note only, nothing built. (Alan/Claude, 2026-09-15)
+
+**The real, precise addressing, resolving the exact ambiguity `#738`
+flagged:** `Pattern 45 (0,1,N) > Pattern 1 (2,1,S)` reads directly --
+Pattern 45's own cell at its local (0,1), north face, connects to
+Pattern 1's own cell at its local (2,1), south face. No convention
+needed, no ambiguity for multi-cell patterns. `NC` replaces "BLANK,"
+borrowed directly from real, standard hardware/schematic notation
+rather than invented -- a genuinely different, categorical case (no
+link at all) from a reference to another pattern.
+
+**A real, important clarification, checked directly via a clarifying
+question before writing it into the note as settled, not assumed:**
+Alan's own direct answer confirmed the connection notation and the
+placement list are NOT what makes cells actually connect. The real,
+authoritative wiring mechanism is exactly the one that already exists
+today, needing no reinvention -- each cell's own `core_config` bits
+(`upstream_mask`/`downstream_mask`, nano's own `routing_mask`/
+`cardinal_edge`). This layer's own real job is human-readable
+documentation and machine-checkable cross-referencing -- confirming a
+given placement's own real, configured bits actually agree with what
+the design says should connect, catching a real mismatch rather than
+driving the connection itself.
+
+**Confirmed this is directly, precisely the same real pattern this
+project already trusts elsewhere, not a new kind of mechanism:**
+`tools/project_assemble_v1.py`'s own `discover_instantiated_modules()`/
+`check_dependency_compatibility()` (`#590`) already does exactly this
+shape of thing -- a real, useful, best-effort ADVISORY check, never
+the authoritative source of truth. The same real, honest framing
+applies here directly.
+
+**Real, honest consequence, worth stating plainly: this genuinely
+simplifies the loader's own job, removing a real complexity concern
+raised (then withdrawn) earlier in the same conversation.** A loader
+does NOT need to solve a real, potentially-ambiguous constraint/graph-
+layout problem to derive placement from the connection graph -- the
+placement list gives real, direct coordinates already; the connection
+notation checks those coordinates and the actual configured bits agree,
+it doesn't compute anything. A mismatch is a real, catchable, advisory
+warning (matching `#590`'s own established shape -- never a hard
+block, the real compile/RTL stays authoritative either way), not a
+silent failure and not something requiring a real solver.
+
+**Real, honest status: the design's own real shape is now settled
+enough to be genuinely useful** -- patterns (even single-use ones) as
+the one uniform unit; explicit `(row,col,face)` addressing for precise
+cross-checking; `NC` for a genuine absence; direct, explicit placement
+coordinates (not solver-derived); the connection layer correctly
+understood as advisory, not authoritative. Still no RTL, no format
+spec, no code. Real next step unchanged: try this shape against one
+real, concrete compiled example. Updated in place at `docs/stripped-
+cell/design-notes/hierarchical_icm_and_state_save_scope.md`.
