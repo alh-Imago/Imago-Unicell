@@ -10050,3 +10050,47 @@ testbench-writing tip for whoever builds the next core.
 **Real, honest status: standalone verification only.** Neither
 version is wired into VIX carrier yet -- that's real, separate work,
 same as `mul`'s own `#726`.
+
+## 731. `priority` wired into VIX carrier as `SEL_PRIORITY` (5'd10), the 11th real core -- following `#726`'s own `mul`-wiring precedent exactly, using `mul`'s own touch points as the direct template. All six VIX testbenches (five existing, one new) pass together. (Alan/Claude, 2026-09-15)
+
+**Real, comprehensive touch-point coverage, found by grepping `mul`'s
+own real wiring rather than re-deriving it from scratch:** `SEL_
+PRIORITY` localparam, `cfgv_priority`/`sel_priority`/`priority_cfg`
+(fed from `incoming_config`, matching `priority_cell_v4c`'s own
+documented reasoning from `#730`/`#723`), the full `priority_shell_
+v1c` instantiation, and `priority` added to every one of the
+carrier's own 14 shared mux chains -- the single addon-chain `mux_
+dout`, `fire`, `ack`, `ready`, `program_done`, and `prog_ack` per
+direction. One real port-name difference from `mul`'s own template,
+handled correctly: `priority_shell_v1c`'s own status ports are `status_
+data_valid`/`status_winning_dir` (2 bits), not `mul`'s own `status_
+data_valid`/`status_a_arrived` -- left genuinely unconnected at the
+carrier level (a real, internal diagnostic only, not part of this
+core's own real external contract).
+
+**Real, full verification, both directions:** all five existing VIX
+testbenches re-run and pass completely UNCHANGED -- zero regression
+from adding an 11th core. A new, purpose-built testbench (`tb_vix_
+carrier_priority_v1.v`) proves `SEL_PRIORITY` genuinely arbitrates
+through the carrier's own real external ports in BOTH real scheduling
+modes -- strict priority (higher-rank value served first, the other
+genuinely held and served on its own turn) and weighted round-robin
+(a real, proportional 3:1 service ratio) -- not just standalone. 3/3
+checks.
+
+**One real bug found and fixed in the new testbench itself, not the
+RTL, the SAME CLASS of mistake as `mul`'s own field-order bug in
+`#726`:** the round-robin case's own `cfg_d` construction placed
+`rank_w` at the wrong bit position (`priority_rank_e`'s own slot
+instead of its own real `[19:18]`), leaving W's real configured
+weight at 0 -- meaning W's own credit never accumulated and it never
+won a single turn (`n_wins=8, w_wins=0` in the failing run). Traced
+directly via a debug `$display` of the actual win counts, fixed
+immediately once found by correcting the concatenation order.
+
+**Real, honest status: `priority` is now a genuine 11th core, wired,
+routed, and verified in both its real scheduling modes.** The
+underlying "hardcoded core count" question (`VIXb`) remains real and
+unresolved by this entry -- adding this 11th core required the same
+roughly 20 lines of hand-coordinated edits `mul`'s own `#726` needed,
+a second, concrete demonstration of why that item still matters.

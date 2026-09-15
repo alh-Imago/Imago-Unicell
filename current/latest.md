@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-08, the priority-arbiter core built as both priority_cell_v4.v and priority_cell_v4c.v, together. A real second scheduling mode (weighted round-robin) added alongside strict priority after Alan caught strict priority's own starvation problem; a real algorithmic bug in the first RR attempt caught and fixed via direct simulation before shipping. Both versions fully verified (10/10, 9/9). Not yet wired into VIX carrier. See `points/points_active.md` #730)
+# Current State (as of 2026-09-15, priority wired into VIX carrier as SEL_PRIORITY (5'd10), the 11th real core, following mul's own #726 wiring precedent exactly. All six VIX testbenches (five existing, one new) pass together. See `points/points_active.md` #731)
+
+## Read this first (most recent)
+
+**2026-09-15, priority wired into VIX carrier (#731).** Following
+mul's own #726 wiring exactly (grepped mul's own touch points as the
+template): SEL_PRIORITY added to every one of the carrier's 14 shared
+mux chains, priority_cfg fed from incoming_config (matching #730's own
+documented reasoning). All five existing VIX testbenches re-run and
+pass UNCHANGED. A new testbench (tb_vix_carrier_priority_v1.v) proves
+SEL_PRIORITY genuinely arbitrates through the carrier in BOTH real
+scheduling modes -- strict priority and weighted round-robin (3:1
+ratio) -- through the carrier's own real ports, not just standalone.
+
+**One real bug found in the new TEST, same class as mul's own #726
+bug:** the round-robin case's own cfg_d construction placed rank_w at
+the wrong bit position, leaving its real configured weight at 0 (W
+never won a single turn). Traced via debug output, fixed immediately.
+
+**Real, honest note, same as mul's own #726:** adding priority
+required the same ~20 lines of hand-coordinated edits across the
+shared carrier file mul needed -- a second, concrete demonstration of
+why the still-open "mutable core count" (VIXb) item matters.
+
+## Previous state (as of 2026-09-08, the priority-arbiter core built as both priority_cell_v4.v and priority_cell_v4c.v, together. A real second scheduling mode (weighted round-robin) added alongside strict priority after Alan caught strict priority's own starvation problem; a real algorithmic bug in the first RR attempt caught and fixed via direct simulation before shipping. Both versions fully verified (10/10, 9/9). Not yet wired into VIX carrier. See `points/points_active.md` #730)
 
 ## Read this first (most recent)
 
