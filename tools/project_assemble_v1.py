@@ -107,37 +107,130 @@ V4_DEPENDENCIES = [
 # (adder_cell_v4's own internal dependency). Confirmed directly against
 # the real iverilog regression command line used throughout #647's own
 # session, not assumed.
-VIX_DEPENDENCIES = [
-    "adder_v1.v",
-    "nibble_mask_addon_v1.v",
-    "shift_lane_addon_v1.v",
-    "invert_addon_v1.v",
-    "nano_gate_v4.v",
-    "adder_cell_v4.v",
-    "ram_cell_v4.v",
-    "compare_cell_v4.v",
-    "branch_cell_v4.v",
-    "accumulator_cell_v4.v",
-    "latch_cell_v4.v",
-    "sequencer_cell_v4.v",
-    "command_cell_v4.v",
-    "nano_shell_v1.v",
-    "adder_shell_v1.v",
-    "ram_shell_v1.v",
-    "compare_shell_v1.v",
-    "branch_shell_v1.v",
-    "accumulator_shell_v1.v",
-    "latch_shell_v1.v",
-    "sequencer_shell_v1.v",
-    "command_shell_v1.v",
-    "unicell_vix_carrier_v1.v",
-    "debug_issp_probe_v1.v",
-]
+# points.md #734: VIX_DEPENDENCIES (the old, hand-maintained static
+# list) removed entirely -- it had silently gone stale across the
+# whole #719-#731 correction arc (still the pre-correction _v4/
+# _shell_v1 files, missing mul/priority, missing the corrected addon
+# set), with nothing forcing an update when new cores were added. See
+# derive_vix_dependencies() below: the real, current list is now
+# derived fresh from unicell_vix_carrier_v1.v's own actual
+# instantiations every time it's needed, so it can't go stale the
+# same way again.
+
+def find_dependency_file(basename, src_dir):
+    """points.md #734: real, general dependency-file resolver -- a
+    direct fix for a real, wider regression #728's own reorganization
+    introduced (found while fixing the VIX-specific dependency-list
+    staleness above): #728 moved every historical RTL file into a
+    per-family subfolder, leaving only the CURRENT VIX Carrier build
+    directly in fpga/verilog/'s own root. V3_DEPENDENCIES/V4_
+    DEPENDENCIES (the old lineage's own static lists) still pointed at
+    the root directly, so every real v3/v4 project generation silently
+    broke the moment #728 landed -- confirmed directly (10 of 15 real
+    files missing for each) before writing this fix, not assumed.
+    Checks src_dir directly first (the common, fast case for the
+    current VIX build); if not found there, searches src_dir's own
+    real, immediate subdirectories (matching #728's own real, one-level-
+    deep reorganization shape) and returns the first real match.
+    Raises FileNotFoundError with a clear, real path if genuinely not
+    found anywhere -- never silently returns a guessed path."""
+    direct = os.path.join(src_dir, basename)
+    if os.path.exists(direct):
+        return direct
+    for entry in sorted(os.listdir(src_dir)):
+        subdir = os.path.join(src_dir, entry)
+        if os.path.isdir(subdir):
+            candidate = os.path.join(subdir, basename)
+            if os.path.exists(candidate):
+                return candidate
+    raise FileNotFoundError(
+        f"real dependency file not found: {basename} (searched {src_dir} directly "
+        f"and its own real, immediate subdirectories)"
+    )
+
+
+def build_module_index(search_dir):
+    """points.md #734: real, full index of every module DECLARED
+    anywhere in search_dir -- module_name -> filename. Built by
+    scanning every real .v file directly (reusing MODULE_DECL_RE, the
+    same regex discover_declared_modules() already uses), not by
+    assuming a module's own name matches its own filename. This is
+    the real building block a recursive dependency walk needs: given
+    an instantiated module NAME, find which real FILE declares it."""
+    index = {}
+    for fname in os.listdir(search_dir):
+        if not fname.endswith(".v"):
+            continue
+        path = os.path.join(search_dir, fname)
+        with open(path) as f:
+            text = f.read()
+        for m in MODULE_DECL_RE.finditer(text):
+            index[m.group(1)] = fname
+    return index
+
+
+def derive_dependencies_recursive(top_file, search_dir):
+    """points.md #734: real, automatic dependency derivation, a direct
+    fix for the exact class of bug that motivated it -- VIX_DEPENDENCIES
+    was a hand-maintained list that silently went stale the moment new
+    cores (mul, priority) or the corrected _v4c/_shell_v1c file set
+    replaced what it originally pointed at (#719-#731), with nothing
+    forcing it to be updated. This walks the REAL, actual file
+    (top_file) and its own real, transitive instantiations, using the
+    same discover_instantiated_modules()/build_module_index() machinery
+    already proven for the --shell-file advisory check (#590) -- so
+    the real dependency list is always derived from what the shell
+    file ACTUALLY instantiates today, not from what someone remembered
+    to update by hand. Real, honest limits, inherited directly from
+    discover_instantiated_modules()'s own documented heuristic: this is
+    a best-effort regex scan, not a real parser -- it can miss a real
+    dependency or include a false positive. Returns a real, ordered
+    list of filenames (top_file's own basename first, then every real
+    transitive dependency found, alphabetically after that) -- NOT a
+    substitute for a real compile, which remains the only authoritative
+    confirmation, same as every other check in this file."""
+    index = build_module_index(search_dir)
+    top_basename = os.path.basename(top_file)
+    visited_files = {top_basename}
+    to_scan = [top_file]
+    while to_scan:
+        current = to_scan.pop()
+        instantiated = discover_instantiated_modules(current)
+        for module_name in instantiated:
+            fname = index.get(module_name)
+            if fname is None:
+                continue  # real, honest gap -- module not found in this
+                          # search_dir; discover_instantiated_modules()'s
+                          # own false-positive risk means this is
+                          # expected sometimes, not always a real bug
+            if fname not in visited_files:
+                visited_files.add(fname)
+                to_scan.append(os.path.join(search_dir, fname))
+    return [top_basename] + sorted(visited_files - {top_basename})
+
+
+def derive_vix_dependencies(src_dir):
+    """points.md #734: the real, current VIX Carrier dependency list,
+    derived fresh from unicell_vix_carrier_v1.v's own actual real
+    instantiations every time this is called -- replaces the old,
+    hand-maintained VIX_DEPENDENCIES constant, which had silently gone
+    stale across the entire #719-#731 correction arc (still pointing
+    at the pre-correction _v4/_shell_v1 files, missing mul/priority
+    entirely, missing the corrected addon set). debug_issp_probe_v1.v
+    is added explicitly -- a real, separate host-bridge dependency the
+    carrier file itself never instantiates directly, so the recursive
+    scan can't find it on its own."""
+    top_file = os.path.join(src_dir, "unicell_vix_carrier_v1.v")
+    deps = derive_dependencies_recursive(top_file, src_dir)
+    if "debug_issp_probe_v1.v" not in deps:
+        deps.append("debug_issp_probe_v1.v")
+    return deps
+
 
 SHELL_REGISTRY = {
     "v3": {"module": "unicell_super_v3", "dependencies": V3_DEPENDENCIES},
     "v4": {"module": "unicell_super_v4", "dependencies": V4_DEPENDENCIES},
-    "vix": {"module": "unicell_vix_carrier_v1", "dependencies": VIX_DEPENDENCIES},
+    "vix": {"module": "unicell_vix_carrier_v1", "dependencies": None},  # points.md #734: derived, not hardcoded -- see resolve_shell_dependencies()
 }
 
 # points.md #590: real, custom-dependency-list support, per Alan's own
@@ -211,9 +304,7 @@ def discover_declared_modules(src_dir, filenames):
     better than a confusing Quartus-side "missing file" error later."""
     declared = {}
     for fname in filenames:
-        path = os.path.join(src_dir, fname)
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"real dependency file not found: {path}")
+        path = find_dependency_file(fname, src_dir)
         with open(path) as f:
             text = f.read()
         for m in MODULE_DECL_RE.finditer(text):
@@ -1062,8 +1153,24 @@ def generate_qsf(man, top_name, probe_name=None, shell="v3", logiclock=False, ce
                   ll_fixed_alm=None, ll_headroom=1.25, custom_dependencies=None):
     # points.md #590: custom_dependencies, when given, overrides
     # SHELL_REGISTRY's own registered list entirely -- see
-    # resolve_dependency_list().
-    dependencies = custom_dependencies if custom_dependencies is not None else SHELL_REGISTRY[shell]["dependencies"]
+    # resolve_dependency_list(). points.md #734: "vix" no longer has a
+    # real static list here at all (SHELL_REGISTRY["vix"]["dependencies"]
+    # is None) -- its own real dependency list is derived fresh from
+    # the actual file (derive_vix_dependencies(), called by this
+    # function's own real caller before reaching here). A direct call
+    # to generate_qsf() with shell="vix" and no custom_dependencies is
+    # a genuine caller error, not a case to silently paper over with a
+    # stale fallback.
+    if custom_dependencies is not None:
+        dependencies = custom_dependencies
+    elif SHELL_REGISTRY[shell]["dependencies"] is None:
+        raise ValueError(
+            f"generate_qsf() called with shell='{shell}' and no custom_dependencies -- "
+            f"'{shell}' has no real static dependency list; its caller must derive one "
+            f"(e.g. derive_vix_dependencies(src_dir) for 'vix') and pass it explicitly."
+        )
+    else:
+        dependencies = SHELL_REGISTRY[shell]["dependencies"]
     out = QSF_BOILERPLATE.format(
         family=man["family"], device=man["device"], top=top_name,
         clk_pin=man["clk_pin"], led0_pin=man["led0_pin"], led1_pin=man["led1_pin"],
@@ -1203,13 +1310,11 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
 
         shutil.copy(os.path.join(src_dir, resolved), os.path.join(output, resolved))
         for dep in info["extra_deps"]:
-            dep_src = os.path.join(src_dir, dep)
-            if not os.path.exists(dep_src):
-                raise FileNotFoundError(f"missing real dependency {dep_src}")
+            dep_src = find_dependency_file(dep, src_dir)
             shutil.copy(dep_src, os.path.join(output, dep))
         files_written = 1 + len(info["extra_deps"])
         if probe_name:
-            probe_src = os.path.join(VERILOG_DIR, "debug_issp_probe_v1.v")
+            probe_src = find_dependency_file("debug_issp_probe_v1.v", VERILOG_DIR)
             shutil.copy(probe_src, os.path.join(output, "debug_issp_probe_v1.v"))
             files_written += 1
 
@@ -1247,7 +1352,14 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     # back to SHELL_REGISTRY's own registered default for `shell`.
     dependencies = resolve_dependency_list(file_list, files_string)
     if dependencies is None:
-        dependencies = SHELL_REGISTRY[shell]["dependencies"]
+        if shell == "vix" and shell_module is None:
+            # points.md #734: vix has no real static dependency list
+            # anymore -- derive it fresh from the real, actual file,
+            # every time, so it can never silently go stale again the
+            # way VIX_DEPENDENCIES did across the whole #719-#731 arc.
+            dependencies = derive_vix_dependencies(src_dir)
+        else:
+            dependencies = SHELL_REGISTRY[shell]["dependencies"]
 
     real_module_name = shell_module if shell_module else SHELL_REGISTRY[shell]["module"]
 
@@ -1286,9 +1398,7 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     for dep in dependencies:
         if dep == "debug_issp_probe_v1.v" and not probe_name:
             continue
-        src = os.path.join(src_dir, dep)
-        if not os.path.exists(src):
-            raise FileNotFoundError(f"missing real dependency {src}")
+        src = find_dependency_file(dep, src_dir)
         shutil.copy(src, os.path.join(output, dep))
         files_written += 1
 

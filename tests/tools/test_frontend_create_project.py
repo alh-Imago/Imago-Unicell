@@ -86,7 +86,7 @@ def test_create_project_custom_shell_file_end_to_end(tmp_path):
     resolution, compat check) wires through from the frontend."""
     controller = frontend_v1.FrontendController()
     out = tmp_path / "proj"
-    shell_file = os.path.join(REPO_ROOT, "fpga", "verilog", "unicell_super_v7.v")
+    shell_file = os.path.join(REPO_ROOT, "fpga", "verilog", "unicell_super", "unicell_super_v7.v")
     result = controller.create_project({
         "man_path": REAL_MAN, "cells": "1", "output": str(out),
         "shell_file": shell_file, "shell_module": "unicell_super_v7",

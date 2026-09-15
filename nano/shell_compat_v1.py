@@ -63,13 +63,27 @@ def discover_shell_versions(verilog_dir: Optional[str] = None) -> Dict[str, str]
     v` file present -- deliberately excludes experimental/wrapped
     variants (`unicell_super_v3_wrapped_experimental.v`), which aren't
     real, buildable shell targets. Returns {"v1": "/path/to/
-    unicell_super_v1.v", ...}, sorted by version number."""
+    unicell_super_v1.v", ...}, sorted by version number.
+
+    Real, direct fix (points.md #734): #728's own reorganization moved
+    every real unicell_super_v<N>.v file into its own real
+    fpga/verilog/unicell_super/ subfolder (they're all historical now,
+    superseded by the VIX Carrier lineage) -- this scans verilog_dir
+    directly first (the pre-#728 flat layout, kept for real
+    compatibility with any caller still using it), then checks a real
+    unicell_super/ subfolder if one exists, so this keeps working
+    regardless of which real layout is present."""
     verilog_dir = verilog_dir or _VERILOG_DIR_DEFAULT
     versions = {}
-    for fname in os.listdir(verilog_dir):
-        m = _SHELL_FILE_RE.match(fname)
-        if m:
-            versions[f"v{m.group(1)}"] = os.path.join(verilog_dir, fname)
+    search_dirs = [verilog_dir]
+    subdir = os.path.join(verilog_dir, "unicell_super")
+    if os.path.isdir(subdir):
+        search_dirs.append(subdir)
+    for d in search_dirs:
+        for fname in os.listdir(d):
+            m = _SHELL_FILE_RE.match(fname)
+            if m:
+                versions[f"v{m.group(1)}"] = os.path.join(d, fname)
     return dict(sorted(versions.items(), key=lambda kv: int(kv[0][1:])))
 
 

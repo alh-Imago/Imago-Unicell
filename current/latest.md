@@ -1,4 +1,35 @@
-# Current State (as of 2026-09-15, CORDIC revisited -- what mul and priority actually unlock beyond #513's own original scoping from before either core existed. Two real, precise answers: mul cheapens gain-correction and repeated-squaring; priority closes a real gap in #513's own reusable-loop idea, adding a genuine third topology option. Design note only. See `points/points_active.md` #733)
+# Current State (as of 2026-09-15, core-selection tooling caught up -- started as the queued resolve_core_file()/VIX-dependency fix, widened once testing surfaced #728's own real, previously-unnoticed regression across v3/v4 project generation and several nano/-side VM tests. Full suite (735 tests) and a real generated VIX project both confirmed clean. See `points/points_active.md` #734)
+
+## Read this first (most recent)
+
+**2026-09-15, core-selection tooling fixed, wider than originally
+scoped (#734).** VIX_DEPENDENCIES (hand-maintained, stale) replaced by
+derive_vix_dependencies() -- walks unicell_vix_carrier_v1.v's own real
+instantiations automatically every time, verified to find all 11
+_v4c core+shell pairs correctly plus the right shared addon set.
+
+**Testing the full suite (not just the direct fix) surfaced 22 more
+real failures, all the same root cause:** #728's own reorganization
+broke three more hardcoded, flat-layout path assumptions --
+V3_DEPENDENCIES/V4_DEPENDENCIES (10 of 15 files missing each, fixed
+via a new find_dependency_file() helper that checks subfolders),
+root_definition_extractor_v1.py's own CORE_RTL_FILES/SUPER_LATCH_
+RTL_FILE (9 hardcoded paths, updated directly), and shell_compat_v1.
+py's own discover_shell_versions() (returned empty -- fixed to also
+check the real unicell_super/ subfolder). One small test file also had
+a hardcoded pre-reorganization path, fixed.
+
+**Verified properly:** every fix confirmed via its own failing tests,
+then the full suite (735 passed, 1 skipped, same pre-existing skip),
+then a fresh end-to-end --shell vix CLI run with the output directory
+inspected directly.
+
+**Real, honest status:** this closes the tooling side of #728's own
+fallout and the resolve_core_file()/#729 item together. VIXb itself --
+the real "mutable core count" RTL question -- is completely untouched,
+this was tooling correctness, not carrier architecture.
+
+## Previous state (as of 2026-09-15, CORDIC revisited -- what mul and priority actually unlock beyond #513's own original scoping from before either core existed. Two real, precise answers: mul cheapens gain-correction and repeated-squaring; priority closes a real gap in #513's own reusable-loop idea, adding a genuine third topology option. Design note only. See `points/points_active.md` #733)
 
 ## Read this first (most recent)
 
