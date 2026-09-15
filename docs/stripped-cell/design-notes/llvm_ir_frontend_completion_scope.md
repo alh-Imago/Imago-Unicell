@@ -256,7 +256,7 @@ actually grown. This is offered as a real, alternative milestone, not
 a substitute answer to the literal question — the literal one stays
 open, correctly flagged as Tier C, not quietly redefined away.
 
-## Real, hard-won placement constraints any future codegen work here needs to respect (`points.md` #742)
+## Real, hard-won placement constraints any future codegen work here needs to respect (`points.md` #742), now with a real, already-built check (`#749`)
 
 Confirmed by actually building and debugging a real CORDIC pipeline
 through the hierarchical ICM prototype, recorded in full in `CELL_
@@ -273,6 +273,17 @@ operands or comparison-against-a-constant will hit these same three
 shapes directly -- worth building the correct pattern in from the
 start rather than rediscovering them the way building a real, working
 example did.
+
+**A real, load-bearing requirement, not just advice: `icm_vix_v1.
+IcmVixFile.check_known_gotchas()` already exists and catches the first
+and third of these three patterns statically** (confirmed directly
+against a deliberately broken example and zero false positives across
+all three of `#740`-`#742`'s own real, known-good ones). Any real emit
+path this frontend eventually builds MUST call `check_known_gotchas()`
+on its own generated output before treating it as final -- already
+wired into `nano/workbench_v1.py`'s own `load_icm_vix()` today
+(`gotcha_warnings`), so this runs automatically for anything loaded
+through the workbench regardless of whether this frontend exists yet.
 
 ## Status
 

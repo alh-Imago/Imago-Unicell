@@ -680,7 +680,14 @@ class WorkbenchController:
         load_icm_region() already use for the old lineage's own shell/
         connection checks -- never blocks the load on an advisory
         mismatch, matching #739's own established, non-authoritative
-        role for this check."""
+        role for this check.
+
+        points.md #749: also runs check_known_gotchas() -- a real,
+        separate, static check for the specific known-bad patterns
+        CELL_GOTCHAS.md records (#742, #748), surfaced here as
+        gotcha_warnings so every design loaded through the workbench
+        gets this check automatically, without needing a compiler to
+        exist that calls it first."""
         try:
             icm = vix.IcmVixFile.load(path)
         except (FileNotFoundError, ValueError, KeyError) as e:
@@ -692,6 +699,7 @@ class WorkbenchController:
             return {"ok": False, "error": f"real, structural problem: {e}"}
 
         connection_hints = icm.check_connections()
+        gotcha_warnings = icm.check_known_gotchas()
 
         self.session = VMSession(SuperGrid(records))
         self.regions = {}
@@ -703,6 +711,7 @@ class WorkbenchController:
             "name": icm.name,
             "header": icm.header(),
             "connection_hints": connection_hints,
+            "gotcha_warnings": gotcha_warnings,
             "state": self.session.describe(),
         }
 

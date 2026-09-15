@@ -1,4 +1,45 @@
-# Current State (as of 2026-09-15, a real, working VIX Carrier tile library built -- #746's own named gap, 10 real data-flow cores, each field map checked directly against actual RTL. Two real bugs found by actually running tiles through the VM, both fixed. LLVM IR side deliberately deferred to a future session. See `points/points_active.md` #748)
+# Current State (as of 2026-09-15, the known cell gotchas turned into a real, static, automatic check -- not just documentation. check_known_gotchas() built, wired into the workbench today, and made a real, load-bearing requirement in all three compiler scope documents, not deferred to when a compiler exists. See `points/points_active.md` #749)
+
+## Read this first (most recent)
+
+**2026-09-15, gotchas made real and enforced, not just documented
+(#749).** Per Alan's own direct closing point: the gotchas need to be
+actively highlighted/used by both the DSL compiler and the LLVM IR
+frontend, not just sit as reference material. Built the checkable part
+now, rather than waiting for a compiler to exist.
+
+**A new method built:** icm_vix_v1.IcmVixFile.check_known_gotchas() --
+separate from check_connections() (wiring consistency). Checks two
+currently-checkable patterns: branch cells marked as external entry
+points, and adder/mul/branch cells fed directly by a fixed_mode=1 ram
+neighbor. Real, honest scope stated directly: a static check, not a
+substitute for running the VM.
+
+**Confirmed directly:** zero warnings on all three real examples,
+including CORDIC's own correct flowing-mode+preload_value pattern
+(confirming no false positive on the exact correct fix already
+applied). Both real violations correctly caught when constructed. 4
+new tests.
+
+**Wired into what already exists today:** workbench's load_icm_vix()
+now calls this automatically, surfaced as gotcha_warnings alongside
+connection_hints -- never blocks a load. 1 new workbench test.
+
+**All three compiler scope documents updated** from "a real
+opportunity this compiler could build" to "a real, load-bearing
+requirement, already built" -- any real emit path either compiler
+eventually builds MUST call check_known_gotchas() before treating its
+output final.
+
+**Real, honest gap stated directly:** the third gotcha (branch's
+reference needing genuinely separate, sequenced delivery) isn't
+statically checkable from structure alone -- it depends on real,
+dynamic timing, not just adjacency. Named as a real, remaining limit,
+not silently skipped.
+
+**Status: 769 tests pass, zero regression.**
+
+## Previous state (as of 2026-09-15, a real, working VIX Carrier tile library built -- #746's own named gap, 10 real data-flow cores, each field map checked directly against actual RTL. Two real bugs found by actually running tiles through the VM, both fixed. LLVM IR side deliberately deferred to a future session. See `points/points_active.md` #748)
 
 ## Read this first (most recent)
 

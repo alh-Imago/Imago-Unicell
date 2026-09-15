@@ -672,3 +672,20 @@ in this note) deliberately EXPLOITS on purpose in a different context
 -- the same real mechanism is a useful trick when intentional and a
 silent bug when not. Any placement pass this compiler builds needs to
 tell the two apart deliberately, not by accident.
+
+**A real, load-bearing requirement, now with a real, already-built
+check, not just a description of the hazard (`#749`):**
+`icm_vix_v1.IcmVixFile.check_known_gotchas()` already catches the
+first and third of these three real patterns statically -- confirmed
+directly against a deliberately broken example (zero false positives
+across all three of `#740`-`#742`'s own real, known-good examples,
+including CORDIC's own correct flowing-mode/preload constant pattern,
+which looks superficially similar but genuinely isn't the hazard being
+checked for). Any real emit path this compiler eventually builds for
+the hierarchical format MUST call `check_known_gotchas()` (alongside
+`check_connections()`, the separate, already-established advisory
+wiring check) on its own generated output before treating that output
+as final. Already wired into `nano/workbench_v1.py`'s own
+`load_icm_vix()` today (surfaced as `gotcha_warnings`) -- this same
+real check already runs automatically for anything loaded through the
+workbench, whether or not this compiler exists yet.

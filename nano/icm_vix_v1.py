@@ -324,6 +324,55 @@ class IcmVixFile:
                         f"listen that way")
         return warnings
 
+    def check_known_gotchas(self) -> List[str]:
+        """points.md #749: a real, STATIC check for the exact, known-
+        bad patterns `CELL_GOTCHAS.md` records (`#742`, `#748`) --
+        found the hard way by actually building and debugging real
+        designs, now checked automatically here so nobody else has to
+        rediscover them by hand. Real, honest scope: this catches what
+        is genuinely checkable from the flattened, static structure
+        alone -- it does NOT run the VM, and does not replace actually
+        simulating a design to confirm correctness. A clean result here
+        means "no KNOWN bad pattern was found," not "this design is
+        proven correct." Any future compiler backend or LLVM IR
+        frontend emitting this format is expected to call this (or the
+        equivalent check in its own pipeline) before treating its own
+        generated output as final -- the same real, load-bearing
+        requirement `docs/stripped-cell/design-notes/llvm_ir_compiler_
+        scope.md`/`unicell_s_dsl_and_compiler_scope.md`/`llvm_ir_
+        frontend_completion_scope.md` already name directly (`#743`)."""
+        records, _ = self.flatten()
+        by_pos = {(r.row, r.col): r for r in records}
+        warnings: List[str] = []
+
+        for rec in records:
+            # Gotcha #1 (#742): branch can never be a real external
+            # entry point -- its own delivery logic never accepts a
+            # direct injection, only a genuine cardinal arrival.
+            if rec.core == "branch" and rec.io_name is not None:
+                warnings.append(
+                    f"known gotcha: {rec.cell_id} is a branch cell with io_name={rec.io_name!r} -- "
+                    f"branch can never be a real external entry/exit point (its own real delivery "
+                    f"logic never accepts a direct injection); route through a real ram relay instead")
+
+            # Gotcha #2 (#742/#748): a two-arrival capture core
+            # (adder/mul/branch) fed directly by a continuously-live
+            # (fixed_mode) ram source risks a real double-capture --
+            # the exact class of bug #742 found building CORDIC.
+            if rec.core in ("adder", "mul", "branch"):
+                upstream = self._upstream_or_downstream(rec, "upstream")
+                for face in upstream:
+                    nr, nc = rec.row + FACE_OFFSET[face.upper()][0], rec.col + FACE_OFFSET[face.upper()][1]
+                    neighbor = by_pos.get((nr, nc))
+                    if neighbor is not None and neighbor.core == "ram" and neighbor.core_config.get("fixed_mode"):
+                        warnings.append(
+                            f"known gotcha: {rec.cell_id} (a {rec.core} cell) is fed directly by "
+                            f"{neighbor.cell_id}, a continuously-live (fixed_mode) ram cell -- "
+                            f"real risk of a double-capture if the real, dynamic operand arrives "
+                            f"even one tick late; prefer a flowing-mode ram seeded with "
+                            f"preload_value instead, which offers exactly once")
+        return warnings
+
     @staticmethod
     def _upstream_or_downstream(rec: "v3.IcmV3Record", which: str) -> List[str]:
         """Real, direct handling of `branch`'s own genuinely different

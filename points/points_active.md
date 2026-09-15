@@ -11098,3 +11098,64 @@ remain deliberately deferred to a future LLVM-focused session, per
 Alan's own direct sequencing -- this tile library is independently
 useful groundwork for that session, not something that needed to wait
 for it.
+
+## 749. The known cell gotchas turned into a real, static, automatic check -- not just documentation for someone to remember, per Alan's own direct closing point: the gotchas need to be actively highlighted/used by both the DSL compiler system and the LLVM IR frontend to ensure stable, correct output. Built the real, checkable part now, wired it into what already exists (the workbench), and made calling it a real, load-bearing requirement in all three compiler scope documents -- not deferred to when a compiler exists. (Alan/Claude, 2026-09-15)
+
+**A real, new method built** (`icm_vix_v1.IcmVixFile.check_known_
+gotchas()`), separate from `check_connections()` (which checks
+declared-vs-configured wiring consistency) -- this checks the flattened,
+static structure against the SPECIFIC, ALREADY-DOCUMENTED bad patterns
+in `CELL_GOTCHAS.md`, not general consistency. Two real, currently-
+checkable patterns implemented: (1) any `branch` cell with `io_name`
+set (`#742`'s own real finding: branch's delivery logic never accepts
+direct injection); (2) any `adder`/`mul`/`branch` cell fed directly, in
+the flattened grid, by a `fixed_mode=1` ram neighbor (`#742`/`#748`'s
+own real, confirmed double-capture hazard). Real, honest scope stated
+directly in the method's own docstring: this is a static check, not a
+substitute for actually running the VM -- a clean result means "no
+KNOWN bad pattern found," not "proven correct."
+
+**Confirmed directly, not assumed:** zero warnings on all three real,
+proven examples (`#740`-`#742`), including CORDIC's own correct
+flowing-mode+`preload_value` constant pattern -- confirming the check
+targets the real hazard (`fixed_mode`) specifically, not "ram feeding
+an adder" generally, avoiding a false positive on the exact correct
+fix `#742` already applied. Both real violations (branch-as-entry-
+point, fixed-mode-feeding-adder) correctly caught when deliberately
+constructed. 4 new tests added to `tests/vm/test_icm_vix_v1.py`.
+
+**Wired into what already exists, today, without waiting for a
+compiler:** `nano/workbench_v1.py`'s own `load_icm_vix()` now calls
+`check_known_gotchas()` automatically on every real load, surfaced as
+`gotcha_warnings` alongside the existing `connection_hints` -- never
+blocks the load, matching the same non-authoritative, advisory role
+`connection_hints` already has. 1 new workbench test confirms this
+end to end (a deliberately broken design loaded through the workbench,
+the gotcha correctly surfaced).
+
+**All three compiler-facing scope documents updated from "a real
+opportunity this compiler could build" to "a real, load-bearing
+requirement, already built":** `llvm_ir_compiler_scope.md`,
+`unicell_s_dsl_and_compiler_scope.md`, `llvm_ir_frontend_completion_
+scope.md` each now state directly that any real emit path either
+compiler eventually builds MUST call `check_known_gotchas()` on its
+own generated output before treating it final -- not a suggestion,
+and not something that needs the compiler to exist first, since the
+same real check already runs automatically for anything loaded through
+the workbench today.
+
+**Real, honest, remaining gap, stated directly, not glossed over:**
+the third documented gotcha (branch's own reference needing a genuinely
+separate, sequenced delivery, not simultaneous arrival) is NOT
+statically checkable from the flattened structure alone with the
+information currently available -- it depends on real, dynamic timing
+(which tick each of two values actually arrives on), not just which
+cells are adjacent to which. Real, honest scope limit named, not
+silently skipped: `check_known_gotchas()` catches what's genuinely
+checkable structurally; the branch-timing gotcha remains something a
+person or a future simulation-aware check needs to catch, not this one.
+
+**Real, honest verification: full project suite re-run** (769 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression from this turn's changes to
+`icm_vix_v1.py`, `workbench_v1.py`, and the three scope documents.

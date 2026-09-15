@@ -252,7 +252,7 @@ every pipeline stage exists and the diagnostics design actually works
 end to end, before the grammar grows to cover `use`/`expose`/multi-cell
 programs.
 
-## Real, hard-won placement constraints this compiler's own place() needs to respect (`points.md` #742)
+## Real, hard-won placement constraints this compiler's own place() needs to respect (`points.md` #742), and a real, already-built check for exactly this (`#749`)
 
 Confirmed by actually building and debugging a real CORDIC pipeline,
 recorded in full in `CELL_GOTCHAS.md` -- any real `place()`/placement
@@ -264,9 +264,24 @@ default for "compare against a compile-time constant" (no separate
 reference-settling step needed); and never feed a continuously-live
 (`fixed_mode`) constant into `adder` without real awareness of the
 OR-combine/double-capture hazard -- default to a flowing-mode `ram`
-seeded via `preload_value` instead, which offers exactly once. A real,
-useful diagnostic this compiler could genuinely emit: flag any
-generated placement matching these three known-bad shapes before ever
-handing the result to the VM, the same real, advisory-check spirit
-`tools/project_assemble_v1.py`'s own dependency-compatibility check
-(`#590`) already uses elsewhere in this project.
+seeded via `preload_value` instead, which offers exactly once.
+
+**This is no longer a diagnostic this compiler merely COULD emit --
+`icm_vix_v1.IcmVixFile.check_known_gotchas()` already exists and
+catches the first and third of these three patterns statically,
+confirmed directly against both a real, deliberately broken example
+and all three of `#740`-`#742`'s own known-good ones (zero false
+positives, including on CORDIC's own correct flowing-mode/preload
+constant pattern, which looks superficially similar to the hazard
+being checked for but genuinely isn't one).** Any real emit path this
+compiler eventually builds for the hierarchical format MUST call
+`check_known_gotchas()` (alongside `check_connections()`, the
+separate, already-established advisory wiring check) on its own
+generated output before treating that output as final -- a real, load-
+bearing requirement, not a suggestion, matching the same real,
+advisory-check spirit `tools/project_assemble_v1.py`'s own dependency-
+compatibility check (`#590`) already uses elsewhere in this project.
+`check_known_gotchas()` is already wired into `nano/workbench_v1.py`'s
+own `load_icm_vix()`, surfaced as `gotcha_warnings` on every real load
+-- so this same real check already runs automatically today for
+anything loaded through the workbench, compiler or no compiler yet.

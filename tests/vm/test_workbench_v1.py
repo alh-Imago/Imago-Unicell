@@ -1050,7 +1050,33 @@ def test_load_icm_vix_loads_real_hierarchical_file():
     assert result["ok"] is True
     assert result["header"] == {"cores_used": ["adder", "branch", "ram"], "cell_count": 40}
     assert result["connection_hints"] == []
+    assert result["gotcha_warnings"] == []
     assert len(ctrl._records) == 40
+
+
+def test_load_icm_vix_surfaces_known_gotcha_warnings():
+    """points.md #749: a design with a real, known-bad pattern (a
+    branch cell marked as an external entry point) should surface a
+    real gotcha_warning through the workbench's own load path,
+    automatically -- no compiler or caller needs to remember to ask
+    for this check separately."""
+    import icm_vix_v1 as vix
+    import tempfile
+    icm = vix.IcmVixFile(
+        patterns={"p": vix.HierPattern(cells=[
+            vix.HierCell(cell_id="b", rel_row=0, rel_col=0, core="branch",
+                         core_config={"upstream_dir": ["w"]}, io_name="bad_entry"),
+        ])},
+        placements=[vix.HierPlacement(instance="i1", pattern="p", at=(0, 0))],
+    )
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "gotcha.icm-vix.json")
+        icm.save(path)
+        ctrl = WorkbenchController()
+        result = ctrl.load_icm_vix(path)
+    assert result["ok"] is True  # a known gotcha never blocks a load, same as a connection_hint
+    assert len(result["gotcha_warnings"]) == 1
+    assert "branch" in result["gotcha_warnings"][0]
 
 
 def test_load_icm_vix_reports_advisory_warnings_without_blocking():

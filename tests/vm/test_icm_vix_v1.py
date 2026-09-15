@@ -136,6 +136,66 @@ def test_advisory_check_catches_false_nc_claim():
     assert "NC" in warnings[0]
 
 
+# ---- the real, static known-gotcha check (#749) ----
+
+def test_known_gotchas_clean_on_all_three_real_examples():
+    """All three real, proven examples should show ZERO known-gotcha
+    warnings -- confirms the check doesn't false-positive on CORDIC's
+    own correct flowing-mode+preload_value constant pattern, which
+    looks superficially similar to the fixed_mode hazard it's checking
+    for but genuinely isn't one."""
+    for name in ("small_relay_chain.icm-hier.json", "parallel_reduction_tree.icm-hier.json",
+                 "cordic_z_convergence.icm-hier.json"):
+        icm = vix.IcmVixFile.load(_example(name))
+        assert icm.check_known_gotchas() == [], f"{name} should have zero known-gotcha warnings"
+
+
+def test_known_gotchas_catches_branch_as_external_entry_point():
+    icm = vix.IcmVixFile(
+        patterns={"p": vix.HierPattern(cells=[
+            vix.HierCell(cell_id="b", rel_row=0, rel_col=0, core="branch",
+                         core_config={"upstream_dir": ["w"]}, io_name="bad_entry"),
+        ])},
+        placements=[vix.HierPlacement(instance="i1", pattern="p", at=(0, 0))],
+    )
+    warnings = icm.check_known_gotchas()
+    assert len(warnings) == 1
+    assert "branch" in warnings[0] and "io_name" in warnings[0]
+
+
+def test_known_gotchas_catches_fixed_mode_feeding_adder():
+    icm = vix.IcmVixFile(
+        patterns={"p": vix.HierPattern(cells=[
+            vix.HierCell(cell_id="const", rel_row=0, rel_col=0, core="ram",
+                         core_config={"downstream_mask": ["E"], "fixed_mode": 1,
+                                      "init_data": 5, "load_data_valid": 1}),
+            vix.HierCell(cell_id="add", rel_row=0, rel_col=1, core="adder",
+                         core_config={"upstream_mask": ["W", "N"]}),
+        ])},
+        placements=[vix.HierPlacement(instance="i1", pattern="p", at=(0, 0))],
+    )
+    warnings = icm.check_known_gotchas()
+    assert len(warnings) == 1
+    assert "fixed_mode" in warnings[0]
+
+
+def test_known_gotchas_does_not_flag_flowing_mode_preload_constant():
+    """The CORRECT constant pattern (flowing-mode ram, preload_value)
+    must NOT be flagged -- confirms the check targets the real hazard
+    specifically (fixed_mode), not "ram feeding an adder" generally."""
+    icm = vix.IcmVixFile(
+        patterns={"p": vix.HierPattern(cells=[
+            vix.HierCell(cell_id="const", rel_row=0, rel_col=0, core="ram",
+                         core_config={"downstream_mask": ["E"], "fixed_mode": 0},
+                         preload_value=5),
+            vix.HierCell(cell_id="add", rel_row=0, rel_col=1, core="adder",
+                         core_config={"upstream_mask": ["W", "N"]}),
+        ])},
+        placements=[vix.HierPlacement(instance="i1", pattern="p", at=(0, 0))],
+    )
+    assert icm.check_known_gotchas() == []
+
+
 # ---- per-instance overrides (io_name/preload_value can't live in a shared pattern) ----
 
 def test_per_instance_overrides_apply_correctly():
