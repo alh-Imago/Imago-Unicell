@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-15, a real CORDIC design built and run -- 4 genuinely distinct stage patterns, dynamic sign-based branching, exact independently-verified result (-404). Five real, genuine bugs found and fixed along the way, none of them format flaws. See `points/points_active.md` #742)
+# Current State (as of 2026-09-15, #742's own real, hard-won lessons carried forward into the compiler-facing documentation -- three new CELL_GOTCHAS.md entries plus pointers from all three real compiler scope documents (LLVM IR compiler, DSL compiler, LLVM frontend completion). Documentation only. See `points/points_active.md` #743)
+
+## Read this first (most recent)
+
+**2026-09-15, CORDIC lessons carried into compiler docs (#743).** Per
+Alan's own direct point: both the DSL compiler and LLVM IR frontend
+will eventually place cells and hit the same real wiring patterns a
+person just discovered by hand -- they need these constraints in
+advance. Found the already-right home first (CELL_GOTCHAS.md's own
+stated purpose matches exactly) rather than inventing a new document.
+
+**Three new CELL_GOTCHAS.md entries:** branch can never be a real
+external entry point (its delivery logic never accepts direct
+injection); establishing branch's own reference needs a genuinely
+separate, sequenced delivery -- comparator named directly as the
+better default tool for "compare against a compile-time constant";
+a continuously-live (fixed_mode) constant double-counts at adder
+unless using flowing-mode + preload_value instead (offers exactly
+once) -- the same OR-combine mechanism the old lineage's own select
+trick deliberately exploits elsewhere, useful when intentional, a
+silent bug when not.
+
+**Pointers added to all three real compiler scope documents**
+(llvm_ir_compiler_scope.md, unicell_s_dsl_and_compiler_scope.md,
+llvm_ir_frontend_completion_scope.md), each summarizing the three
+constraints and linking back to CELL_GOTCHAS.md rather than
+duplicating the explanation three times. The DSL scope document also
+names a real opportunity: a placement-time diagnostic flagging these
+three known-bad shapes automatically, the same advisory-check spirit
+project_assemble_v1.py's own dependency check already uses.
+
+**Status: documentation only, carrying forward already-confirmed
+facts.** Neither compiler exists yet in a form that could act on these
+today -- this just makes sure the facts are on record and linked
+before either one needs them.
+
+## Previous state (as of 2026-09-15, a real CORDIC design built and run -- 4 genuinely distinct stage patterns, dynamic sign-based branching, exact independently-verified result (-404). Five real, genuine bugs found and fixed along the way, none of them format flaws. See `points/points_active.md` #742)
 
 ## Read this first (most recent)
 

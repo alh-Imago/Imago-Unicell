@@ -251,3 +251,22 @@ and a genuinely helpful `why`. That's the smallest slice that proves
 every pipeline stage exists and the diagnostics design actually works
 end to end, before the grammar grows to cover `use`/`expose`/multi-cell
 programs.
+
+## Real, hard-won placement constraints this compiler's own place() needs to respect (`points.md` #742)
+
+Confirmed by actually building and debugging a real CORDIC pipeline,
+recorded in full in `CELL_GOTCHAS.md` -- any real `place()`/placement
+pass this compiler builds needs to enforce these automatically, not
+leave them for a person to rediscover by hand: `branch` can never be a
+design's own real external entry point (its own delivery logic never
+accepts a direct injection); prefer `comparator` over `branch` by
+default for "compare against a compile-time constant" (no separate
+reference-settling step needed); and never feed a continuously-live
+(`fixed_mode`) constant into `adder` without real awareness of the
+OR-combine/double-capture hazard -- default to a flowing-mode `ram`
+seeded via `preload_value` instead, which offers exactly once. A real,
+useful diagnostic this compiler could genuinely emit: flag any
+generated placement matching these three known-bad shapes before ever
+handing the result to the VM, the same real, advisory-check spirit
+`tools/project_assemble_v1.py`'s own dependency-compatibility check
+(`#590`) already uses elsewhere in this project.

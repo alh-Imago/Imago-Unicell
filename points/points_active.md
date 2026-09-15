@@ -10739,3 +10739,62 @@ Still no RTL, no format spec, no production loader. `VixCarrierGrid`'s
 own real, separate preload gap recorded, not fixed here. Updated in
 place at `docs/stripped-cell/design-notes/hierarchical_icm_and_state_
 save_scope.md`.
+
+## 743. `#742`'s own real, hard-won lessons carried forward into the compiler-facing documentation, per Alan's own direct point: both the DSL compiler and the LLVM IR frontend will eventually place cells and generate the same real wiring patterns a person just had to discover by hand -- they need to know these constraints in advance, not rediscover them the same way. Documentation only, no code. (Alan/Claude, 2026-09-15)
+
+**Found the already-established, correct home first, rather than
+inventing a new document:** `CELL_GOTCHAS.md`'s own real, stated
+purpose ("for a specific cell or mechanism, what do you have to
+already know, or you will not get the correct working result, even
+though nothing looks wrong") is exactly what three of `#742`'s own
+five bugs are. Added there directly, in the file's own existing,
+established two-category structure (single-cell behavioral vs. wiring/
+structural), not a new, separate document duplicating its own real
+purpose.
+
+**Three real, new `CELL_GOTCHAS.md` entries, each generalized from a
+specific bug into a real, standing fact any future placement/codegen
+pass needs to respect:**
+- `branch` can never be a design's own real external entry point --
+  its own delivery logic never accepts a direct injection, confirmed
+  directly against `_deliver_branch()`.
+- Establishing `branch`'s own comparison reference needs a genuinely
+  separate, sequenced delivery, not simultaneous arrival with the real
+  value being compared -- and `comparator` (a real, static, configured
+  threshold, no separate reference-establishment step at all) is
+  named directly as the better default tool for "compare against a
+  compile-time constant," the exact use CORDIC's own z-sign check
+  needed.
+- A continuously-live (`fixed_mode`) constant source double-counts at
+  a two-arrival capture core (`adder`) if the real, dynamic operand is
+  even one tick late -- the correct, default codegen pattern is a
+  flowing-mode `ram` seeded via `preload_value`, offering exactly
+  once, not a `fixed_mode` source re-offering forever. A real,
+  worthwhile connection made directly: this is the SAME OR-combine
+  mechanism the old lineage's own two-`AND`-cells select trick already
+  deliberately exploits elsewhere in this project -- useful when
+  intentional, a silent bug when not, and a real compiler needs to
+  tell the two apart on purpose.
+
+**Real, concrete pointers added to all three real compiler-facing
+scope documents** (`llvm_ir_compiler_scope.md`, `unicell_s_dsl_and_
+compiler_scope.md`, `llvm_ir_frontend_completion_scope.md` -- the more
+current, active LLVM scoping document, per its own header noting the
+older file may be partially superseded) -- each summarizing the same
+three real constraints and pointing back to `CELL_GOTCHAS.md`'s own
+full entries, rather than duplicating the full explanation three
+times. The DSL scope document's own pointer additionally names a real,
+concrete, honest opportunity: a real placement-time diagnostic that
+flags these three known-bad shapes automatically, before ever handing
+a generated design to the VM -- the same real, advisory-check spirit
+`project_assemble_v1.py`'s own dependency-compatibility check
+(`#590`) already uses elsewhere in this project, not a new kind of
+mechanism.
+
+**Real, honest status: documentation only, carrying forward already-
+confirmed facts, not new design or new code.** Neither compiler exists
+yet in a form that could act on these constraints today -- this
+ensures the facts are on record and linked from the right places
+before either one is built further, rather than needing to be
+rediscovered the same way building the real CORDIC example just
+required.

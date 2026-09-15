@@ -40,6 +40,46 @@ you want to change what a branch cell is comparing against mid-run,
 you must reprogram it; the held value passes through normally on
 release, and the very next arrival becomes the new reference.
 
+### Branch core — cannot be a direct external injection/entry point (`#742`)
+**Real, confirmed directly against the VM's own `_deliver_branch()`,
+matters for ANY code generator (LLVM IR frontend, DSL compiler,
+hand-written ICM) placing a branch cell.** Every other real core's own
+delivery handler checks a separate `injected` parameter alongside real
+directional `arrivals` (`ram`'s own `_deliver_ram`, for instance,
+explicitly ORs `injected` into the captured value). `branch` does not
+— its own real delivery logic (`matched = [d for d in arrivals if d ==
+self.br_upstream_dir]`) never looks at `injected` at all. **A branch
+cell can never be marked as a real external entry point (`io_name`) or
+receive a value via direct injection — it must always be fed by a
+genuine cardinal neighbor**, even if that neighbor's own only job is
+relaying an externally-injected or upstream-delivered value onward. Any
+placement algorithm that tries to mark a branch cell itself as a design's
+own real input point will silently fail (the value never arrives, with
+no error) — this needs to be a real, checked PLACEMENT RESTRICTION a
+compiler enforces before generation, not discovered by a person
+debugging a stalled pipeline afterward.
+
+### Branch core — establishing its own reference needs two, genuinely SEPARATE deliveries (`#742`)
+**Real, confirmed directly, matters for scheduling/sequencing in any
+real code generator, not just manual test harnesses.** Because a
+branch cell's own held reference is "whatever arrived first" (see the
+gotcha above this one), and because a single upstream `ram` relay's
+own real delivery logic OR-combines whatever arrives on the SAME tick
+into one value (it cannot hand branch "0, then the real value" as two
+distinct deliveries if both would otherwise arrive together), a real
+"compare a dynamic value against zero" pattern needs its own zero-
+reference source to settle through to branch on ITS OWN, separate real
+tick(s), BEFORE the real, dynamic value is ever injected or arrives.
+Injecting both at once (or close enough in real time that they land
+on the branch cell's own upstream on the same tick) OR-combines them
+into a single, wrong reference. **Any compiler targeting `branch` for
+a "compare against a compile-time-known constant" pattern needs to
+generate a real settle/sequencing step** (or use `comparator` instead,
+which takes its own threshold as a real, static config field, needing
+no separate reference-establishment delivery at all — the better
+choice for this exact use case, confirmed the hard way building a real
+CORDIC pipeline, `#742`).
+
 ### Branch/comparator core — `in+N` direction resolution (`#494`)
 **Status: designed, not yet built.** `in+1`/`in+2`/`in+3` (relative to
 the arrival direction) is resolved to a real, ABSOLUTE direction mask
@@ -86,6 +126,33 @@ super-carrier" section for the full rule.
 ---
 
 ## Wiring/structural gotchas — real, enforced by a composed tile, not just described here
+
+### A continuously-live constant source double-counts at a two-arrival (matched-pair) core (`#742`)
+**Real, confirmed directly, matters for ANY code generator feeding a
+compile-time-known constant into `adder` (or any future core with the
+same real "capture A, then capture B" shape).** `adder`'s own real
+two-arrival capture doesn't care WHERE its two arrivals came from —
+only that two real, separate delivery events happened. A `ram` cell
+in `fixed_mode` ("permanent ROM-style") re-offers its own held value
+EVERY tick, forever, never draining. If that continuously-live source
+is the only thing feeding one of `adder`'s own two upstream directions,
+and the real, dynamic operand (from elsewhere) is even one tick late,
+the fixed source's own repeated offers get captured as BOTH `a` and
+`b` — silently producing `2×constant` instead of `constant + dynamic`,
+with no error at all. **Real, correct fix, confirmed working end to
+end building a real CORDIC pipeline (`#742`):** use a flowing-mode
+(`fixed_mode=0`) `ram` cell seeded via the real, existing
+`preload_value` mechanism instead of `fixed_mode`/`init_data` — a
+flowing cell offers its own preloaded value exactly ONCE, then goes
+quiet until something re-captures it, matching what a genuine
+compile-time constant actually needs to do. **Any placement/codegen
+routine generating a "feed this adder a fixed constant" pattern must
+default to flowing-mode + `preload_value`, never `fixed_mode`, unless
+the constant is genuinely meant to be re-offered forever** (a real,
+different, rarer use case). *(No composed tile exists for this yet —
+a real, concrete follow-up: a `const_feed` composed tile pairing a
+flowing, preloaded `ram` with whichever consuming core needs a
+one-shot constant, so this can't be hand-wired wrong.)*
 
 ### The recombiner — narrow branch-cell outputs into one wide word (`#497`)
 **Status: designed, not yet built.** Reconstitutes a 32-bit word from

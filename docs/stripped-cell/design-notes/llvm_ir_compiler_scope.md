@@ -635,3 +635,40 @@ own real two-arrival-per-cell model (the old system's own wired-OR bus
 may be architecturally different at the mechanical level, not just
 larger) -- a real, concrete, worthwhile next investigation, not
 attempted here.
+
+## Real, hard-won placement constraints, confirmed while building an actual CORDIC pipeline (`points.md` #742) -- this compiler needs to know these, not just a person hand-wiring cells
+
+Three real, confirmed-by-actually-building-and-debugging facts, now
+recorded in full in `CELL_GOTCHAS.md` -- summarized here because any
+real placement/codegen pass this compiler ever builds needs to
+respect them automatically, the way a person building by hand had to
+discover them the hard way:
+
+- **`branch` can never be placed as a design's own real external entry
+  point.** Its own real delivery logic only ever accepts genuine
+  cardinal arrivals, never a direct injection -- a real, checked
+  placement restriction, not a runtime error waiting to happen (the
+  value simply never arrives, with nothing visibly wrong).
+- **Comparing a dynamic value against a compile-time-known constant
+  should target `comparator`, not `branch`, by default.** `comparator`
+  takes its own threshold as a real, static config field -- no
+  separate reference-establishment delivery, no real settle/sequencing
+  step needed. `branch`'s own reference-from-first-arrival mechanism
+  is the right tool for a genuinely different real use (comparing two
+  DYNAMIC values against each other over time), not this one.
+- **Never feed a continuously-live (`fixed_mode`) constant source into
+  a two-arrival capture core (`adder`) without real, careful
+  awareness of the OR-combine/double-capture hazard.** The correct,
+  default codegen pattern for "feed this adder a fixed constant" is a
+  flowing-mode `ram` seeded via `preload_value`, offering exactly
+  once -- not a continuously-re-offering `fixed_mode` source, which
+  will silently double-count the constant if the real, dynamic operand
+  is even one tick late.
+
+A real, related, useful connection worth naming directly: the SAME
+real OR-combine mechanism that causes the third hazard above is what
+the old lineage's own two-`AND`-cells select trick (described earlier
+in this note) deliberately EXPLOITS on purpose in a different context
+-- the same real mechanism is a useful trick when intentional and a
+silent bug when not. Any placement pass this compiler builds needs to
+tell the two apart deliberately, not by accident.

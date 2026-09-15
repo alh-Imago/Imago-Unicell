@@ -256,6 +256,24 @@ actually grown. This is offered as a real, alternative milestone, not
 a substitute answer to the literal question — the literal one stays
 open, correctly flagged as Tier C, not quietly redefined away.
 
+## Real, hard-won placement constraints any future codegen work here needs to respect (`points.md` #742)
+
+Confirmed by actually building and debugging a real CORDIC pipeline
+through the hierarchical ICM prototype, recorded in full in `CELL_
+GOTCHAS.md`: `branch` can never be a design's own real external entry
+point (its own delivery logic never accepts a direct injection, only
+genuine cardinal arrivals); prefer `comparator` over `branch` for
+"compare a dynamic value against a compile-time constant" (no separate
+reference-settling delivery needed); and never feed a continuously-
+live (`fixed_mode`) constant into `adder` without real awareness of
+the OR-combine/double-capture hazard -- default to a flowing-mode
+`ram` seeded via `preload_value`, which offers exactly once. Whatever
+real lowering logic this frontend eventually generates for constant
+operands or comparison-against-a-constant will hit these same three
+shapes directly -- worth building the correct pattern in from the
+start rather than rediscovering them the way building a real, working
+example did.
+
 ## Status
 
 Design/scoping note only. Nothing built. Real, concrete next step
