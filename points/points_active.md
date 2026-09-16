@@ -11847,3 +11847,78 @@ future composition/matching placement algorithm will need to encode
 as real, explicit rules, not assumptions. Full project suite re-run
 (788 passed, 1 skipped -- same pre-existing skip, 4 warnings -- same
 pre-existing, unrelated), confirming zero regression.
+
+## 760. A real, general Manhattan router built and proven -- the "loose" half of Alan's own proposed "rat's nest" placement approach (place things loosely with generous slack first, tighten toward a minimum footprint afterward). Confirmed end to end: the same N=4 reduction problem from `#759`, rebuilt with generously loose, far-apart placement (leaves and combine units placed dozens of cells apart, no attempt at compactness at all), still computes correctly using the new router to bridge every gap. Three real, concrete bugs found and fixed while building it. The "tighten toward minimum" half remains real, separate, unbuilt work. (Alan/Claude, 2026-09-16)
+
+**Real goal, per Alan's own direct proposal:** rather than deducing
+exact positions analytically upfront (the approach that took several
+real, concrete geometric mistakes to get right by hand in `#759`),
+place things loosely first with generous slack, observe where the
+real "nexus points" (convergence/branch points) fall out, then
+iteratively shrink each loose connection while re-checking correctness
+at each step -- drawing the final shape toward a minimum footprint, the
+same real technique real PCB/chip-layout tools already use (force-
+directed / relaxation-based placement).
+
+**The real, reusable primitive this needs first, built and proven:** a
+general Manhattan router (`nano/rats_nest_router_v1.py`,
+`manhattan_route()`) connecting any two real, non-adjacent positions
+via a straight-then-turn relay chain (at most one turn -- confirmed
+directly, this grid has no diagonal moves, matching `#759`'s own "a
+relay can only go straight" finding).
+
+**Three real, concrete bugs found and fixed while building it, each
+genuinely instructive:**
+1. **The turning relay's own real 'in' direction.** At the point a
+   route switches from closing the column gap to closing the row gap,
+   the turning cell's own real upstream direction must be the
+   direction it actually receives from (the PREVIOUS segment's own
+   direction), not inferred from its own NEW segment's direction.
+   Confirmed directly: a first attempt silently misconfigured this,
+   leaving a value permanently stuck one cell before the turn.
+2. **A "skip the last hop" optimization was genuinely buggy, not just
+   unnecessary.** An early version tried to save one relay cell by
+   assuming the last-emitted relay would already be adjacent to the
+   real destination -- confirmed directly this assumption is false in
+   general (it left a real, 2-cell gap in one test), and the
+   simpler, un-optimized version (emit a relay at every real position
+   strictly between start and end) is not just simpler but actually
+   correct where the optimization was not.
+3. **A route's own `start_pos` must be the real PRODUCER's own
+   position, not where its output happens to land.** The router
+   already advances one hop internally from `start_pos` -- passing
+   the position one step past the actual producer (confusing "where
+   the producer sits" with "where its output lands") silently starts
+   the route one real cell short of anything real, leaving the whole
+   downstream chain permanently starved.
+
+**Real, end-to-end proof, not just "the router works in isolation":**
+rebuilt `#759`'s own N=4 reduction problem (`t = a+b+c+d` via two
+levels of `priority`-arbitrated pairwise adds) with deliberately loose,
+generous placement -- leaves and combine units placed dozens of real
+cells apart, zero attempt at a compact layout -- routed entirely via
+the new, general router. Result: `100` (`10+20+30+40`), exactly
+correct, zero `check_connections()`/`check_known_gotchas()` warnings,
+across a real, 186-cell layout. 3 new, permanent tests (`tests/vm/
+test_rats_nest_router_v1.py`): a straight-line route, a real L-shaped
+(turning) route -- a direct regression test for bug #1 above -- and
+the full, loose reduction tree.
+
+**Real, honest status: this is the "loose" half only.** Confirmed the
+core, real claim of Alan's own proposal -- generous, loose, easy-to-
+get-right placement, connected by a general router, genuinely works
+and sidesteps the exact class of hand-derivation errors `#759`
+surfaced. The "iteratively tighten toward a minimum footprint while
+re-validating correctness" half -- the part that would actually make
+this a real PLACEMENT algorithm rather than just a correct-but-
+wasteful router -- is real, separate, substantial work, not attempted
+in this entry. Also real and unaddressed here: automatically
+identifying "nexus points" from a loose layout (this entry's own
+convergence points were still chosen by hand, matching `#759`'s own
+structure, not discovered algorithmically) and timing/arrival-
+collision checking during routing (`manhattan_route()` itself does
+none -- purely geometric, by explicit, stated design).
+
+**Real, honest verification: full project suite re-run** (791 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

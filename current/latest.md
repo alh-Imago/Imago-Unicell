@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-16, first real, hand-built N=4 reduction tree using priority at both convergence levels -- exploratory build surfacing three genuine geometric lessons for the composition/matching placement system. See `points/points_active.md` #759)
+# Current State (as of 2026-09-16, a real, general Manhattan router built and proven -- the "loose" half of the rat's-nest placement approach. The N=4 reduction problem rebuilt with deliberately loose, generous spacing still computes correctly. See `points/points_active.md` #760)
+
+## Read this first (most recent)
+
+**2026-09-16, general Manhattan router built, rat's-nest "loose" half
+proven (#760).** Per Alan's own direct proposal: place loosely first
+with generous slack (easy to get right), tighten toward a minimum
+footprint afterward, the same technique real PCB/chip-layout tools
+use (force-directed placement).
+
+**Built the real, reusable primitive first:** a general Manhattan
+router (nano/rats_nest_router_v1.py) connecting any two positions via
+a straight-then-turn relay chain. Three real bugs found and fixed:
+(1) the turning relay's own 'in' must be the direction it actually
+receives from, not its own new segment's direction; (2) a "skip the
+last hop" optimization was genuinely buggy, not just unneeded -- the
+simpler, un-optimized version is correct where it wasn't; (3) a
+route's start_pos must be the real producer's own position, not where
+its output happens to land -- confusing the two silently starts the
+route one cell short.
+
+**Real, end-to-end proof:** rebuilt #759's own N=4 reduction problem
+with deliberately loose, generous placement -- leaves and combine
+units dozens of cells apart, zero attempt at compactness -- routed
+entirely via the new router. Result: 100, exactly correct, zero
+warnings, across a real 186-cell layout. 3 new tests.
+
+**Status: this is the "loose" half only.** The core claim is proven --
+generous, easy-to-get-right placement plus a general router genuinely
+works and sidesteps the hand-derivation errors from #759. The
+"iteratively tighten toward minimum while re-validating" half remains
+real, separate, unbuilt work. Also unaddressed: automatic nexus-point
+detection (still hand-chosen here) and timing/arrival-collision
+checking during routing (the router is purely geometric by design).
+791 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, first real, hand-built N=4 reduction tree using priority at both convergence levels -- exploratory build surfacing three genuine geometric lessons for the composition/matching placement system. See `points/points_active.md` #759)
 
 ## Read this first (most recent)
 
