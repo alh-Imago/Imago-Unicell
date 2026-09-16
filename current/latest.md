@@ -1,4 +1,45 @@
-# Current State (as of 2026-09-16, a real, concrete gap found and fixed -- priority's own introspection path (the Composer's own rendering dependency) was genuinely broken, plus a wider, pre-existing gap affecting branch/sequencer too. Both fixed and tested. See `points/points_active.md` #753)
+# Current State (as of 2026-09-16, free-format design targets, per-core selection, and real project workspaces scoped -- checkbox on the real MAN page (cell count not ALM/LUTs), per-core selection connecting to VIXb's own carrier build system, and the real, additional complexity of persistent projects reaching back to shared components. Scoping only. See `points/points_active.md` #754)
+
+## Read this first (most recent)
+
+**2026-09-16, free-format/core-selection/projects scoped (#754).** Per
+Alan's own direct proposal, confirmed as direct extensions of already-
+scoped work, not new ideas in isolation.
+
+**Part 1 (free-format checkbox):** the real, concrete UI fix #745
+already predicted was needed -- hides card-specific fields, uses cell
+count instead of ALM/LUTs, matching #741's own honest "sanity check,
+not a false estimate" precedent. Buildable now, no new backend needed.
+
+**Part 2 (per-core selection):** the real frontend for #735/#736's own
+"carrier build system" idea -- all-selected is today's fully-loaded
+carrier, deselecting is the still-ungenerated "trimmed" case. Real
+sequencing dependency: buildable as a recorded selection today, only
+becomes functional trimming once #735's own generator exists. No
+cores_selected field exists in the MAN schema yet -- confirmed
+directly.
+
+**Part 3:** extending load_man()/check_against_man() with
+cores_selected gives every consumer (workbench, Composer, tile
+library, #752's pattern ladder) one shared source of truth -- the same
+discipline #734's stale-dependency lesson already taught.
+
+**Part 4 (real project workspaces) -- the most substantial, least-
+scoped piece:** what lives in a project folder vs. what must stay
+shared (tile libraries, the pattern library, core RTL) without
+duplication. Real, open mechanism question named precisely: how a
+project reaches back to shared components (path reference vs.
+versioned reference), not resolved here.
+
+**A real naming collision found and named directly:** create_project()
+already exists but means something narrower (a one-shot Quartus
+output) -- the new, persistent workspace concept needs its own name.
+
+**Status: scoping only.** No RTL, no schema, no UI, no project
+structure built. Most immediately actionable piece: the free-format
+checkbox alone (Part 1).
+
+## Previous state (as of 2026-09-16, a real, concrete gap found and fixed -- priority's own introspection path (the Composer's own rendering dependency) was genuinely broken, plus a wider, pre-existing gap affecting branch/sequencer too. Both fixed and tested. See `points/points_active.md` #753)
 
 ## Read this first (most recent)
 

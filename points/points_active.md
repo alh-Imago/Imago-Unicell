@@ -11461,3 +11461,71 @@ code exists for any of this yet") -- not something this fix touches.
 **Real, honest verification: full project suite re-run** (778 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 754. Free-format design targets, per-core selection, and real project workspaces scoped -- per Alan's own direct proposal: a checkbox on the real MAN-creation page moving it from a real card to free-format (cell count, not ALM/LUTs), a per-core selection checkbox set defaulting to all-selected, and everything downstream (workbench, Composer) working off that single definition -- plus the real, additional complexity this creates: persistent, folder-based "projects" that must reach back to shared components without duplicating them. Confirmed direct connections to `#735`/`#736`/`#741`/`#745`/`#747`/`#752`, not a new idea in isolation. Scoping only, nothing built. (Alan/Claude, 2026-09-16)
+
+**Checked the real, existing starting point directly, not assumed:**
+`nano/frontend_v1.py`'s own `page_man()` is the real page Alan means --
+confirmed it currently requires exactly the same fields `#745` already
+named as the one remaining obstacle to an "arbitrary size" MAN file.
+Alan's own checkbox proposal is precisely the concrete UI fix `#745`
+already predicted, not a new idea layered on top.
+
+**A real naming collision found and named directly, not glossed
+over:** `create_project()` already exists in `frontend_v1.py`, but is
+a real, one-shot, thin wrapper around `project_assemble_v1.assemble()`
+-- a single Quartus output, NOT the persistent, multi-session
+workspace Alan is now proposing. Whatever this new concept is called
+needs its own real name.
+
+**Part 1 (free-format checkbox):** hides card-specific fields,
+replaces `alm_total` with a real, direct cell-count field -- matching
+`#741`'s own already-established honesty precedent (a cell-count
+sanity check, not a false ALM estimate). Real, direct implementation
+path already proven end to end by `#745`'s own confirmed `build_man()`
+call shape -- a thin, front-end-only translation, no new backend
+mechanism. The most immediately buildable piece of this whole note.
+
+**Part 2 (per-core selection):** the real, concrete frontend for
+`#735`/`#736`'s own already-scoped "carrier build system" idea --
+all-selected-by-default is the real, fully-loaded case (today's actual
+`unicell_vix_carrier_v1.v`); deselecting is the "trimmed" case those
+notes discussed at length but never built a generator for. Real,
+honest sequencing dependency named directly: buildable as a real,
+recorded SELECTION today, but only becomes a functional TRIMMING
+mechanism once `#735`'s own still-unbuilt generator exists. Confirmed
+directly: no `cores_selected`-style field exists anywhere in `man_
+generate_v1.py`'s own current schema -- a real, small, well-scoped
+extension needed.
+
+**Part 3 (single source of truth):** extending `load_man()`/`check_
+against_man()` to also carry `cores_selected` gives every real
+consumer (workbench, Composer, tile-library resolve/place, `#752`'s
+own pattern-library ladder) one shared place to read "what does this
+target support" from -- the same real, single-source-of-truth
+discipline `#734`'s own stale-dependency-list lesson already taught
+this project, applied here before a new kind of fact gets the chance
+to go stale the same way.
+
+**Part 4 (real project workspaces) -- the real, most substantial,
+least-scoped piece, named as its own real design question, not a free
+consequence of Parts 1-3:** what lives IN a project folder (MAN file,
+ICM structures, saved diff/state files, eventual Composer output)
+versus what must stay SHARED across all projects (tile libraries, the
+`#752` pattern library, the core RTL itself) -- duplicating any of the
+shared pieces per project would directly undermine the reason they're
+shared in the first place. The real, genuinely open mechanism question
+named precisely, not resolved: how a project folder "reaches back" to
+shared components -- a simple path reference (fragile if the shared
+library ever moves) versus a real, versioned reference (more robust,
+real added bookkeeping) -- and whether a project should be able to pin
+a specific shared-library version at all.
+
+**Real, honest status: a scoping pass connecting a new proposal
+directly to real, already-existing code and already-scoped prior
+work, not inventing new concepts in isolation.** No RTL, no schema
+changes, no UI code, no project-folder structure built. Real, most
+immediately actionable next step named directly: the free-format
+checkbox alone (Part 1), buildable now, useful on its own before the
+core-selection and project-workspace pieces are resolved. Saved to
+`docs/stripped-cell/design-notes/free_format_and_projects_scope.md`.
