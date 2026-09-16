@@ -160,6 +160,22 @@ def cell_to_dict(cell) -> Dict[str, Any]:
             "active_route": cell.br_active_route,
             "rolling_mode": cell.br_rolling_mode,
         }
+    elif cell.core == "priority":
+        # points.md #751: real VM model for priority_cell_v4c.v (#730).
+        # Field names checked directly against SuperCell's own real
+        # pri_* dataclass fields, not guessed.
+        base["priority"] = {
+            "upstream_mask": cell.pri_upstream_mask,
+            "downstream_mask": cell.pri_downstream_mask,
+            "rank_n": cell.pri_rank_n, "rank_s": cell.pri_rank_s,
+            "rank_e": cell.pri_rank_e, "rank_w": cell.pri_rank_w,
+            "scheduling_mode": cell.pri_scheduling_mode,
+            "credit_n": cell.pri_credit_n, "credit_s": cell.pri_credit_s,
+            "credit_e": cell.pri_credit_e, "credit_w": cell.pri_credit_w,
+            "data_reg": cell.pri_data_reg,
+            "data_valid": cell.pri_data_valid,
+            "winning_dir": cell.pri_winning_dir,
+        }
     else:
         raise ValueError(f"unrecognized core {cell.core!r} -- introspection doesn't "
                           f"know this core's own field names yet")

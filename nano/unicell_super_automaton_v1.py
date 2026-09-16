@@ -685,10 +685,22 @@ class SuperCell:
 
     @property
     def downstream_mask(self) -> int:
+        # points.md #752: real, wider gap found and fixed while auditing
+        # VIX-carrier component coverage -- branch/sequencer/priority
+        # were all missing here already (branch/sequencer predate this
+        # entry; priority is #751's own new core), meaning any generic
+        # caller reading this property (vm_introspection_v1.py's own
+        # cell_to_dict(), for one real, concrete example) silently got
+        # 0 instead of the real, configured mask for any of these three
+        # core types. branch's own real "downstream" is br_active_route
+        # (the real, dynamically-routed mask decided per-outcome at
+        # capture time, #497 -- not a static config field, matching
+        # _offer_state_branch()'s own real comment exactly).
         return {
             "ram": self.ram_downstream_mask, "adder": self.adder_downstream_mask,
             "accumulator": self.acc_downstream_mask, "comparator": self.cmp_downstream_mask,
-            "latch": self.latch_downstream_mask,
+            "latch": self.latch_downstream_mask, "sequencer": self.seq_downstream_mask,
+            "branch": self.br_active_route, "priority": self.pri_downstream_mask,
         }.get(self.core, 0)
 
     def deliver(self, arrivals: Dict[int, int], injected: Optional[int] = None

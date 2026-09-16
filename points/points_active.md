@@ -11394,3 +11394,70 @@ register `#750`'s and `#751`'s own two known patterns as its first
 real entries -- everything else in the ladder depends on that schema
 existing first. Saved to `docs/stripped-cell/design-notes/pattern_
 library_escalation_scope.md`.
+
+## 753. A real, concrete gap found and fixed, prompted directly by Alan's own follow-up question ("ensure all components now use the VIX carrier") -- checked `priority`'s own introspection path (the exact thing the Composer's own human-facing rendering depends on) and found it genuinely broken: no real "priority" block in `cell_to_dict()`, and the shared `downstream_mask` property silently returned 0 for priority (and, found along the way, branch and sequencer too, a wider pre-existing gap, not something introduced today). Fixed and tested. (Alan/Claude, 2026-09-16)
+
+**Checked directly, not assumed:** `#751`'s own new `priority` core
+had a real, working computation model (deliver/offer), but its own
+introspection path -- `vm_introspection_v1.py`'s own `cell_to_dict()`,
+the exact function `nano/workbench_v1.py`'s own `describe()` (the
+Composer's own real, already-shipped rendering, confirmed via
+`composer_full_editor_scope.md`: "'Composer' today is a real set of
+features extending `nano/workbench_v1.py` directly") depends on to
+show a person what's happening -- had no real branch for it at all.
+Confirmed the existing code's own real discipline held even in the
+gap: it raised a real, clear `ValueError` for an unrecognized core,
+never a silent wrong render.
+
+**A real, wider, PRE-EXISTING gap found along the way, not introduced
+today:** `SuperCell`'s own shared `downstream_mask` property already
+omitted `branch` and `sequencer` before this session touched anything
+-- silently returning `0` instead of each core's own real, configured
+mask. `priority` was simply the third, newest omission from the same
+already-incomplete dict.
+
+**Both fixed directly:** a real `"priority"` block added to `cell_to_
+dict()` (upstream_mask, downstream_mask, all four ranks, scheduling_
+mode, all four credits, data_reg, data_valid, winning_dir -- every
+field checked directly against `SuperCell`'s own real `pri_*`
+dataclass fields). The shared `downstream_mask` property extended to
+cover `sequencer` (`seq_downstream_mask`), `branch` (`br_active_route`
+-- its own real, dynamically-routed mask, not a static field, matching
+`_offer_state_branch()`'s own established comment), and `priority`
+(`pri_downstream_mask`).
+
+**Confirmed working end to end, not just "doesn't crash":** a real
+priority cell run through the actual VM, introspected via `vi.cell_at()`
+-- the real captured value (100), validity, winning direction, and the
+top-level `downstream_mask` (4, matching the real, configured "e"
+direction, not the old, silent 0) all now render correctly. A new,
+permanent test added (`tests/vm/test_vm_introspection_v1.py::test_
+priority_cell_reflects_real_state_and_downstream_mask`).
+
+**Real, honest significance, directly answering Alan's own question:**
+this closes a real gap that would have broken the human-fallback step
+of `#752`'s own escalation ladder specifically -- a person directed to
+review a `priority`-using design through the Composer/workbench would
+have hit a real, hard error trying to inspect it, before this fix.
+
+**Real, honest status of the wider "does everything use VIX" audit
+this prompted, stated plainly, not glossed over:** the LLVM IR
+frontend and DSL compiler backend still target the OLD lineage only
+(`#746`'s own confirmed finding, unchanged); two real, separate tile
+libraries exist (`super_tile_library_v1.py` old-lineage, `vix_tile_
+library_v1.py` VIX, `#748`); two real, separate ICM formats exist
+(`icm_v3`/`icm_v4` old-lineage, `icm_vix_v1` VIX, `#747`); the
+workbench (and therefore the Composer, since it's the same file)
+already supports BOTH lineages today, confirmed directly working for
+VIX via `#747`'s own real `load_icm_vix()`/`save_state_vix()`/`load_
+state_vix()`, now with this introspection fix closing the one real gap
+found in that VIX path specifically. `VixCarrierGrid`'s own separate,
+already-named preload gap (`#742`) remains unfixed, real, separate
+work. The Composer's own FULL drag-and-drop editor (as opposed to the
+minimal, already-shipped review/confirm pass) remains entirely unbuilt,
+per `composer_full_editor_scope.md`'s own real, current status ("no
+code exists for any of this yet") -- not something this fix touches.
+
+**Real, honest verification: full project suite re-run** (778 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

@@ -1,4 +1,45 @@
-# Current State (as of 2026-09-16, a real pattern-library/escalation mechanism scoped -- connects Tier 1 of the tile library, the TRIX family's own "shape over semantics" principle, and the Composer's own already-confirmed, NP-complete-justified human fallback into one real system. Scoping only. See `points/points_active.md` #752)
+# Current State (as of 2026-09-16, a real, concrete gap found and fixed -- priority's own introspection path (the Composer's own rendering dependency) was genuinely broken, plus a wider, pre-existing gap affecting branch/sequencer too. Both fixed and tested. See `points/points_active.md` #753)
+
+## Read this first (most recent)
+
+**2026-09-16, priority introspection gap found and fixed (#753).**
+Prompted directly by Alan's own question about ensuring all
+components use the VIX carrier -- checked priority's own introspection
+path (exactly what the Composer's own rendering depends on, confirmed:
+"Composer" today IS nano/workbench_v1.py) and found it genuinely
+broken: no real "priority" block in cell_to_dict(), and the shared
+downstream_mask property silently returned 0 for priority.
+
+**A real, wider, pre-existing gap found along the way:** the same
+downstream_mask property already omitted branch and sequencer before
+today -- priority was just the newest, third omission from an
+already-incomplete dict.
+
+**Both fixed:** a real "priority" introspection block added (all real
+pri_* fields), and downstream_mask extended to cover sequencer,
+branch (its own real br_active_route), and priority. Confirmed working
+end to end -- a real priority cell's captured value, validity, winning
+direction, and correct downstream_mask (4, not the old silent 0) all
+now render correctly. New permanent test added.
+
+**Real significance:** this closes a gap that would have broken the
+human-fallback step of #752's own escalation ladder specifically --
+reviewing a priority-using design through the Composer would have hit
+a hard error before this fix.
+
+**Honest status of the wider "does everything use VIX" audit:** LLVM
+frontend/DSL backend still target old lineage only (#746, unchanged);
+two separate tile libraries and two separate ICM formats exist by
+design; the workbench (= the Composer) already supports both lineages
+today, now with this one real gap in the VIX path closed.
+VixCarrierGrid's own separate preload gap (#742) remains unfixed. The
+Composer's own FULL drag-and-drop editor remains entirely unbuilt, per
+composer_full_editor_scope.md's own current status -- untouched by
+this fix.
+
+**Status: 778 tests pass, zero regression.**
+
+## Previous state (as of 2026-09-16, a real pattern-library/escalation mechanism scoped -- connects Tier 1 of the tile library, the TRIX family's own "shape over semantics" principle, and the Composer's own already-confirmed, NP-complete-justified human fallback into one real system. Scoping only. See `points/points_active.md` #752)
 
 ## Read this first (most recent)
 

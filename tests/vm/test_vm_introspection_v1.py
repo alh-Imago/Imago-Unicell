@@ -124,6 +124,33 @@ def test_addon_config_appears_in_introspection():
     assert d["addon_config"] == {"invert_en": 1}
 
 
+def test_priority_cell_reflects_real_state_and_downstream_mask():
+    """points.md #752: real, found-and-fixed gap -- priority (#751's
+    own new core) had no real introspection block at all, and the
+    generic `downstream_mask` property didn't know about it either
+    (silently returning 0 instead of the real, configured mask).
+    Confirms both are fixed: the real captured value, validity, and
+    winning direction all appear, and the top-level downstream_mask
+    reflects the real, configured value, not 0."""
+    import icm_v3 as v3
+    records = [
+        v3.IcmV3Record(cell_id="n_src", row=-1, col=0, core="ram",
+                        core_config={"downstream_mask": ["s"], "fixed_mode": 0}, preload_value=100),
+        v3.IcmV3Record(cell_id="pri", row=0, col=0, core="priority",
+                        core_config={"upstream_mask": ["n"], "downstream_mask": ["e"],
+                                     "priority_rank_n": 0, "scheduling_mode": 0}),
+    ]
+    grid = SuperGrid(records)
+    for _ in range(3):
+        grid.tick()
+    d = vi.cell_at(grid, 0, 0)
+    assert d["core"] == "priority"
+    assert d["downstream_mask"] == 4  # "e" -- the real, configured mask, not the old, silent 0
+    assert d["priority"]["data_reg"] == 100
+    assert d["priority"]["data_valid"] is True
+    assert d["priority"]["winning_dir"] == 0  # N
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-v"]))
