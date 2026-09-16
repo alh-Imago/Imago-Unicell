@@ -12487,3 +12487,56 @@ predictable.
 Full project suite re-run (822 passed, 1 skipped -- same pre-existing
 skip, 4 warnings -- same pre-existing, unrelated), confirming zero
 regression.
+
+## 770. A real, important correction to `#751`'s own earlier, overstated claim, caught directly by Alan's own precise observation -- "an add is fine but a subtract would not, so in some respects the ordering becomes a limiting factor here." `#751` claimed non-commutative operand order was "a real, explicit, deterministic choice (`priority_rank_*`), not an emergent fact of physical path length" -- confirmed directly, by building and running the exact counter-case, that this was only ever true under the narrow condition originally tested (both real operands equidistant); it is FALSE in general. (Alan/Claude, 2026-09-16)
+
+**The real, direct test that disproved the earlier claim:** built a
+real subtractor fed by one `priority` cell with two real sources --
+`a` (value `100`) configured with rank `0` (the intended WINNER,
+meant to become the real subtractor's own "A"/minuend), but placed 3
+real relay hops away; `b` (value `3`) configured with rank `1` (the
+intended LOSER), but placed directly adjacent (0 real hops). Confirmed
+directly: `b` arrives first (simply because it's closer) and becomes
+the real subtractor's own "A", REGARDLESS of its own losing configured
+rank -- the real result is `3 - 100` (wrapping in 32-bit unsigned), the
+exact OPPOSITE of what the configured ranks alone would suggest.
+
+**The real, corrected fact, stated precisely:** `priority_rank_*` only
+governs which real candidate wins when BOTH are genuinely,
+simultaneously PRESENT at the moment of real arbitration. It has no
+way to "reach back in time" and prefer a candidate that simply hasn't
+arrived yet -- whichever real value gets there first is captured
+immediately, since a `priority` cell (like every other real, single-
+capture core) becomes unavailable to arbitrate further the instant it
+captures anything. `#751`'s own original 2-way test never surfaced
+this because both of its own real operands were equidistant
+(genuinely, simultaneously present from the very first real tick) --
+a real, narrow condition that happened to hold there, not a general
+guarantee the mechanism itself provides.
+
+**Real, honest, practical implication for any future compiler
+integration, named directly:** using `priority` for a genuine, non-
+commutative operation (`subtract`, and anything else where operand
+identity matters) requires the compiler to ALSO guarantee both real
+operand paths have EQUAL real length reaching the `priority` cell --
+`priority_rank_*` alone is not sufficient on its own. This is a real,
+additional constraint beyond what `#751` claimed, not a free property
+of the mechanism. A real, honest, additional consequence worth naming:
+`#765`'s own N-way reduction compiler has only ever been built and
+tested for `add` (commutative -- operand identity never mattered, so
+this real gap never had a chance to surface there); extending that
+same compiler to `subtract` would need this real constraint enforced
+explicitly, not inherited for free from the existing tightening
+machinery as currently built.
+
+**1 new, permanent test** (`test_configured_rank_does_not_override_
+real_arrival_order`, added to `tests/vm/test_priority_multiway_v1.py`)
+confirming this precisely, with an exact, predicted-wrong numeric
+result (`3 - 100`, not `100 - 3`), not just "the order was different."
+
+**Real, honest verification: full project suite re-run** (823 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression. `#751`'s own original ledger
+entry left as historical record, per this project's own established
+practice of correcting forward with a new, dated entry rather than
+silently editing a past one.

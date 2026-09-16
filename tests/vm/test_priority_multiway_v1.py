@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import vix_tile_library_v1 as vtl  # noqa: E402
 import icm_vix_v1 as vix  # noqa: E402
 from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
+from rats_nest_router_v1 import manhattan_route  # noqa: E402
 
 
 def test_single_cell_three_way_priority_serves_in_rank_order():
@@ -147,3 +148,56 @@ def test_composed_two_level_priority_delivers_all_five_values():
     # priority cells, not a simple, global rank order -- a real, honest
     # fact this test exists specifically to surface, not paper over.
     assert sorted(served) == [1, 2, 3, 4, 5]
+
+
+def test_configured_rank_does_not_override_real_arrival_order():
+    """points.md #770: the real, important correction to #751's own
+    earlier claim that priority solves non-commutative operand order
+    'for free.' That claim was only ever tested with two EQUIDISTANT
+    real operands. Confirmed directly here: when the two real paths
+    have DIFFERENT real lengths, whichever operand arrives FIRST wins
+    the real 'A' slot at a downstream subtractor, REGARDLESS of its own
+    configured priority_rank_* -- rank only decides among candidates
+    that are genuinely, simultaneously PRESENT at the moment of real
+    arbitration; it cannot reach back in time to prefer a candidate
+    that simply hasn't arrived yet."""
+    occ = {}
+    cells = []
+    pri = vtl.place(vtl.TILE_PRIORITY, {"in": ["n", "s"], "out": "e"},
+                     params={"priority_rank_n": 0, "priority_rank_s": 1,
+                             "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": 0},
+                     cell_id="pri", rel_row=0, rel_col=0)
+    sub = vtl.place(vtl.TILE_SUBTRACTOR, {"in_a": "w", "in_b": "w", "out": "e"}, cell_id="sub", rel_row=0, rel_col=1)
+    cells += [pri, sub]
+    occ[(0, 0)] = "pri"
+    occ[(0, 1)] = "sub"
+
+    # a (value 100): rank 0 -- configured to WIN -- but 3 real relay
+    # hops away (should arrive LATE if rank were irrelevant to timing).
+    a_src = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "s"}, cell_id="a_src", rel_row=-4, rel_col=0, preload_value=100)
+    cells.append(a_src)
+    occ[(-4, 0)] = "a_src"
+    cells += manhattan_route((-4, 0), "s", (-1, 0), "s", "ra", occ)
+
+    # b (value 3): rank 1 -- configured to LOSE -- but directly
+    # adjacent (0 real hops, arrives immediately).
+    b_src = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "n"}, cell_id="b_src", rel_row=1, rel_col=0, preload_value=3)
+    cells.append(b_src)
+    occ[(1, 0)] = "b_src"
+
+    icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=cells)},
+                          placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                          name="order_race_test")
+    assert icm.check_connections() == []
+    records, _ = icm.flatten()
+    grid = SuperGrid(records)
+    sub_cell = grid.cells[(0, 1)]
+    for _ in range(15):
+        grid.tick()
+    # b (rank 1, the configured LOSER) arrives first and becomes "A" --
+    # the real result is 3 - 100 (wrapping in 32-bit unsigned), NOT
+    # 100 - 3 -- confirming rank alone did NOT determine operand order
+    # once the two real paths had different real lengths.
+    expected_wrong_order = (3 - 100) & 0xFFFFFFFF
+    assert sub_cell.adder_out_buffer == expected_wrong_order
+    assert sub_cell.adder_a_reg == 3  # b, the configured loser, became "A"

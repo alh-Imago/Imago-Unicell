@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-16, 3-way and 5-way priority convergence tested directly before any compiler integration -- a plain adder does NOT sum 3+ arbitrated values (only the first two combine); 5-way requires composing two priority cells. See `points/points_active.md` #769)
+# Current State (as of 2026-09-16, a real correction to #751's own earlier, overstated claim -- priority_rank_* does NOT guarantee non-commutative operand order in general, only when both operand paths are equidistant. Confirmed by building and running the exact counter-case. See `points/points_active.md` #770)
+
+## Read this first (most recent)
+
+**2026-09-16, #751's operand-order claim corrected (#770).** Per
+Alan's own precise observation: "an add is fine but a subtract would
+not, so in some respects the ordering becomes a limiting factor here."
+#751 claimed non-commutative operand order was solved "for free" by
+priority_rank_* -- confirmed directly, by building the exact
+counter-case, that this was only ever true under the narrow condition
+originally tested.
+
+**The test:** a subtractor fed by one priority cell -- a (value 100,
+rank 0, intended winner) placed 3 relay hops away; b (value 3, rank 1,
+intended loser) placed directly adjacent. Result: b arrives first
+(simply closer) and becomes "A" regardless of its losing rank -- the
+real output is 3-100, the exact opposite of what rank alone suggests.
+
+**The corrected fact:** priority_rank_* only governs which candidate
+wins when BOTH are simultaneously present. It cannot prefer a
+candidate that hasn't arrived yet. #751's own original test never
+surfaced this because both operands there happened to be equidistant
+-- a narrow condition, not a guarantee the mechanism provides.
+
+**Real, practical implication:** using priority for a genuine non-
+commutative operation requires the compiler to ALSO guarantee equal
+real path length to both operands -- rank alone is not sufficient. The
+existing N-way reduction compiler (#765) has only ever been tested
+with add (commutative, so this gap never surfaced there); extending it
+to subtract would need this constraint enforced explicitly.
+
+**Status: 1 new test confirming this precisely with an exact,
+predicted-wrong numeric result.** 823 tests pass, zero regression.
+#751's own entry left as historical record, corrected forward rather
+than edited.
+
+## Previous state (as of 2026-09-16, 3-way and 5-way priority convergence tested directly before any compiler integration -- a plain adder does NOT sum 3+ arbitrated values (only the first two combine); 5-way requires composing two priority cells. See `points/points_active.md` #769)
 
 ## Read this first (most recent)
 
