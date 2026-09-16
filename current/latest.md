@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-16, a real correction to #751's own earlier, overstated claim -- priority_rank_* does NOT guarantee non-commutative operand order in general, only when both operand paths are equidistant. Confirmed by building and running the exact counter-case. See `points/points_active.md` #770)
+# Current State (as of 2026-09-16, the real fix for #770's operand-order problem confirmed working -- pad the shorter path so both operands arrive with equal real length, restoring priority_rank_* as the genuine decider. Same failing case from #770, now correct. See `points/points_active.md` #771)
+
+## Read this first (most recent)
+
+**2026-09-16, operand-order fix confirmed (#771).** Per Alan's own
+direct proposal, tested immediately against #770's own exact failing
+case: pad the shorter real path (right before the priority cell) so
+both operands arrive with equal real length -- restoring rank as the
+genuine decider, since #770 confirmed rank only governs when both
+candidates are simultaneously present.
+
+**Confirmed directly:** same values and ranks as #770's failing case
+(a=100 rank 0, b=3 rank 1) -- both now padded to equal 3-hop length.
+Result: a correctly wins first, becomes "A" -- output 97 (100-3), not
+#770's own wrong, wrapped 3-100.
+
+**Real, practical statement:** this is the SAME relay-padding
+technique #750 already proved for avoiding timing collisions, applied
+here for a different reason -- guaranteeing rank governs order. The
+compiler's own existing placement/tightening machinery (#761-#765)
+already knows how to produce equal-length paths -- confirming that
+same capability is the correct, sufficient fix, not a new mechanism.
+
+**Status: 1 new test, same failing case now correct.** 824 tests pass,
+zero regression.
+
+## Previous state (as of 2026-09-16, a real correction to #751's own earlier, overstated claim -- priority_rank_* does NOT guarantee non-commutative operand order in general, only when both operand paths are equidistant. Confirmed by building and running the exact counter-case. See `points/points_active.md` #770)
 
 ## Read this first (most recent)
 

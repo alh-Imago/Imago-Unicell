@@ -201,3 +201,52 @@ def test_configured_rank_does_not_override_real_arrival_order():
     expected_wrong_order = (3 - 100) & 0xFFFFFFFF
     assert sub_cell.adder_out_buffer == expected_wrong_order
     assert sub_cell.adder_a_reg == 3  # b, the configured loser, became "A"
+
+
+def test_equalizing_path_lengths_restores_rank_as_the_real_decider():
+    """points.md #771: Alan's own direct proposed fix for #770's own
+    real finding -- pad the SHORTER real path (right before the
+    priority cell, not anywhere else) so both real operands arrive
+    with EQUAL real length. Confirmed directly: this genuinely restores
+    priority_rank_* as the real decider, since both real candidates are
+    now genuinely, simultaneously present at the moment of real
+    arbitration, which is the exact real condition #770 found rank
+    actually depends on. Same real values and ranks as #770's own
+    failing case -- only the real path lengths are now equal."""
+    occ = {}
+    cells = []
+    pri = vtl.place(vtl.TILE_PRIORITY, {"in": ["n", "s"], "out": "e"},
+                     params={"priority_rank_n": 0, "priority_rank_s": 1,
+                             "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": 0},
+                     cell_id="pri", rel_row=0, rel_col=0)
+    sub = vtl.place(vtl.TILE_SUBTRACTOR, {"in_a": "w", "in_b": "w", "out": "e"}, cell_id="sub", rel_row=0, rel_col=1)
+    cells += [pri, sub]
+    occ[(0, 0)] = "pri"
+    occ[(0, 1)] = "sub"
+
+    # a (value 100): rank 0 -- 3 real relay hops, same as #770.
+    a_src = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "s"}, cell_id="a_src", rel_row=-4, rel_col=0, preload_value=100)
+    cells.append(a_src)
+    occ[(-4, 0)] = "a_src"
+    cells += manhattan_route((-4, 0), "s", (-1, 0), "s", "ra", occ)
+
+    # b (value 3): rank 1 -- NOW also padded to 3 real relay hops,
+    # matching a's own real length exactly (the real fix).
+    b_src = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "n"}, cell_id="b_src", rel_row=4, rel_col=0, preload_value=3)
+    cells.append(b_src)
+    occ[(4, 0)] = "b_src"
+    cells += manhattan_route((4, 0), "n", (1, 0), "n", "rb", occ)
+
+    icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=cells)},
+                          placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                          name="equalized_order_test")
+    assert icm.check_connections() == []
+    records, _ = icm.flatten()
+    grid = SuperGrid(records)
+    sub_cell = grid.cells[(0, 1)]
+    for _ in range(15):
+        grid.tick()
+    # With equal real path lengths, a (rank 0, the configured winner)
+    # now genuinely wins and becomes "A" -- the correct real result.
+    assert sub_cell.adder_out_buffer == 97  # 100 - 3, correct
+    assert sub_cell.adder_a_reg == 100  # a, the configured winner, correctly became "A"

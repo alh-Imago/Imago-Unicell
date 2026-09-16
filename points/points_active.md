@@ -12540,3 +12540,45 @@ unrelated), confirming zero regression. `#751`'s own original ledger
 entry left as historical record, per this project's own established
 practice of correcting forward with a new, dated entry rather than
 silently editing a past one.
+
+## 771. The real, direct fix for `#770`'s own found problem, proposed by Alan and confirmed working immediately: pad the SHORTER real path (right before the priority cell itself) so both real operands arrive with equal real length -- restoring `priority_rank_*` as the genuine decider of operand order. Same real values, same ranks, same failing case from `#770` -- only the real path lengths equalized. (Alan/Claude, 2026-09-16)
+
+**The real, direct mechanism, per Alan's own proposal:** since `#770`
+confirmed rank only governs when both real candidates are genuinely,
+simultaneously present at the moment of arbitration, the real fix is
+to guarantee that condition directly -- pad whichever real operand path
+is shorter with real relay hops until both paths reaching the
+`priority` cell are exactly equal in real length. This is the SAME
+real technique already proven for a different real purpose (`#750`'s
+own relay-padding to avoid a timing COLLISION) -- applied here
+precisely to guarantee correct real ORDER instead.
+
+**Confirmed directly, using the exact same failing case from `#770`,
+not a fresh, more favorable example:** `a` (value `100`, rank `0`) and
+`b` (value `3`, rank `1`) -- both now padded to the SAME real 3-hop
+length. Result: `a` now genuinely wins first (`winning_dir=0`,
+captured as the real subtractor's own "A"), `b` served second -- the
+real, correct result `97` (`100 - 3`), not `#770`'s own wrong,
+wrapped-around `3 - 100`.
+
+**Real, honest, practical statement of the fix, for any future
+compiler integration:** a genuine, non-commutative operation using
+`priority`-based convergence needs the SAME real path-length
+equalization discipline `#750`'s own relay-padding technique already
+established for timing collisions -- just applied here for a different
+real reason (guaranteeing rank governs, not avoiding an OR-combine
+hazard). The compiler's own real placement/tightening machinery
+already knows how to produce equal-length paths (`#761`-`#765`'s own
+proven techniques) -- this confirms that same real capability is also
+the correct, sufficient fix for `#770`'s own real problem, not a
+separate, new mechanism that needs building from scratch.
+
+**1 new, permanent test** (`test_equalizing_path_lengths_restores_
+rank_as_the_real_decider`, added directly alongside `#770`'s own
+failing-case test in `tests/vm/test_priority_multiway_v1.py`) --
+same real inputs and ranks as the failing case, only the real path
+lengths equalized, confirmed to produce the real, correct result.
+
+**Real, honest verification: full project suite re-run** (824 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
