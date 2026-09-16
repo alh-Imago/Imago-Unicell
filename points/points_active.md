@@ -12117,3 +12117,64 @@ for THIS specific, priority-based case, not that it's never needed.
 Full project suite re-run (797 passed, 1 skipped -- same pre-existing
 skip, 4 warnings -- same pre-existing, unrelated), confirming zero
 regression.
+
+## 764. The real, symbolic timing model built and proven -- applying the same rat's-nest concepts to the case named as needing it: a plain, relay-padded convergence (no `priority`), where `#750`'s own real timing hazard genuinely applies. Per Alan's own direct proposal: the timing check runs after the structural check, using a lightweight, no-VM model. Grounded against real VM ground truth first, then proven necessary with a direct, empirical negative case -- naive, uncoordinated tightening really does reproduce the real collision. (Alan/Claude, 2026-09-16)
+
+**Real ground truth established first, before writing a single line of
+the model, not derived from theory alone:** built a small, direct
+two-source-into-one-adder test (no `priority`) and traced the actual
+VM tick by tick. Confirmed precisely: a preloaded source directly
+adjacent to a real, two-arrival consumer is captured at real tick 2
+(not tick 1 -- a real, fixed one-tick offset for the VM's own offer-
+then-deliver cycle); each additional real relay hop adds exactly one
+more real tick, confirmed for hop counts 0, 1, and 3, exact match every
+time; and, sharpening `#750`'s own real finding with a direct trace:
+two real paths with EQUAL hop counts genuinely collide (`#750`'s own
+already-documented hazard, now independently reproduced and precisely
+measured, not just cited).
+
+**The real, symbolic model built directly from this grounded data**
+(`nano/rats_nest_timing_v1.py`): `symbolic_arrival_tick(hops) = 2 +
+hops`; `would_collide(hops_a, hops_b)` is true exactly when the two
+real arrival ticks are equal, which reduces to `hops_a == hops_b` given
+they share the same real base offset. A real, minor helper (`min_safe_
+hop_count()`) suggests the nearest real, non-colliding hop count for a
+side that needs to change. 4 new, permanent tests, each one confirmed
+against a REAL VM run, not just internal self-consistency.
+
+**The real tightening mechanism, `tighten_pair_with_timing()`, built
+exactly per Alan's own proposed pipeline order:** tighten one side
+fully first (nothing to collide with yet -- identical to `#762`'s own
+`tighten_leaf_connection_fast()`), then tighten the second side,
+rejecting any candidate step -- AFTER it already passes the real
+structural/collision check -- whose own real hop count would equal the
+first side's now-fixed count. Confirmed directly, not assumed: this
+correctly stopped the second side one real step short of its own
+naive minimum (hop count 2, not 1), precisely to stay one real hop
+away from the first side's own hop count of 1.
+
+**The real, necessary NEGATIVE proof, confirmed directly, not
+asserted:** built the SAME real scenario using the already-proven,
+purely structural `tighten_leaf_connection_fast()` independently for
+both sides, with zero coordination between them -- both naturally
+reached their own real minimum (1 hop each), landing on the SAME real
+hop count. Confirmed directly: `check_connections()` reports the
+result as structurally perfect, and the real VM run still produces
+`0`, not the correct `15` -- a real, silent, wrong answer that passes
+every structural check and fails only in real, running time. This is
+the real, concrete demonstration that the timing check in `#764` is
+genuinely necessary for this class of design, not a precaution against
+a hypothetical -- exactly the class of bug `#750` originally found by
+hand, now reproduced automatically and predictably by two independent,
+uncoordinated tightening passes.
+
+**Real, honest status: this is the real, working symbolic timing model
+`#762` named as necessary for the non-`priority` case, now built and
+proven.** Scope confirmed precise, not overclaimed: covers two
+preloaded sources converging via straight relay chains on one plain,
+two-arrival core; does not yet model a source that is itself the
+output of an upstream computation (a real, additional delay term not
+yet computed) -- real, separate, not-yet-tested work, named directly
+rather than glossed over. Full project suite re-run (803 passed, 1
+skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

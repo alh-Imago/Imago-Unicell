@@ -27,6 +27,7 @@ import vix_tile_library_v1 as vtl
 import icm_vix_v1 as vix
 from unicell_super_automaton_v1 import SuperGrid
 from rats_nest_router_v1 import manhattan_route, _DIR_STEP, _OPP
+from rats_nest_timing_v1 import would_collide
 
 
 def find_nexus_points(cells: List[vix.HierCell]) -> List[vix.HierCell]:
@@ -261,3 +262,105 @@ def tighten_nexus_to_nexus(pri_cell_id: str, add_cell_id: str, add_out_dir: str,
     for c in current:
         occupied[(c.rel_row, c.rel_col)] = c.cell_id
     return (row, col), current
+
+
+def tighten_pair_with_timing(leaf_value_a: int, start_a: Tuple[int, int],
+                              leaf_value_b: int, start_b: Tuple[int, int],
+                              consumer_pos: Tuple[int, int],
+                              occupied: Dict[Tuple[int, int], str], uid_prefix: str
+                              ) -> Tuple[Tuple[int, int], Tuple[int, int], List[vix.HierCell]]:
+    """Points.md #764: real tightening for a PLAIN, two-arrival
+    consumer (`adder`/`subtractor`/`mul`, no `priority`) -- the
+    genuinely harder case where real TIMING, not just geometry, decides
+    correctness (`#750`'s own entire subject). Per Alan's own direct
+    proposal: the real timing check runs AFTER the real structural/
+    collision check, using the lightweight, no-VM symbolic model
+    (`rats_nest_timing_v1.would_collide()`) rather than a full VM run
+    per candidate step.
+
+    Real, deliberate strategy, kept simple on purpose: tighten leaf A
+    fully first (nothing to collide with yet, identical to `tighten_
+    leaf_connection_fast()`), THEN tighten leaf B -- but skip (not
+    accept) any candidate step for B that would land it on the SAME
+    real hop count as A's own, now-fixed count; keep trying shorter
+    steps until one is found that is both structurally valid AND
+    timing-safe, or stop once none remain."""
+    (final_a_pos, hops_a), route_a = _tighten_one_side(
+        leaf_value_a, start_a, consumer_pos, "e", occupied, f"{uid_prefix}_a", forbidden_hops=None)
+
+    (final_b_pos, hops_b), route_b = _tighten_one_side(
+        leaf_value_b, start_b, consumer_pos, "s", occupied, f"{uid_prefix}_b", forbidden_hops=hops_a)
+
+    return final_a_pos, final_b_pos, route_a + route_b
+
+
+def _tighten_one_side(leaf_value: int, start_pos: Tuple[int, int],
+                       consumer_pos: Tuple[int, int], side: str,
+                       occupied: Dict[Tuple[int, int], str], uid_prefix: str,
+                       forbidden_hops: Optional[int]
+                       ) -> Tuple[Tuple[Tuple[int, int], int], List[vix.HierCell]]:
+    """Real, shared tightening logic for one side of a pair -- `side`
+    is 'e' (feeds the consumer's own west face, approaching from the
+    west) or 's' (feeds the consumer's own north face, approaching from
+    the north). If `forbidden_hops` is given, any candidate step whose
+    own real hop count would equal it is rejected -- the real timing
+    check, applied strictly AFTER the structural check on each
+    candidate, per Alan's own direct proposal."""
+    target = (consumer_pos[0], consumer_pos[1] - 1) if side == "e" else (consumer_pos[0] - 1, consumer_pos[1])
+    sink_in = "w" if side == "e" else "n"
+
+    def try_at(r, c):
+        test_occ = {k: v for k, v in occupied.items()}
+        if (r, c) in test_occ:
+            return None
+        if c != target[1]:
+            leaf_out = "e" if target[1] > c else "w"
+        elif r != target[0]:
+            leaf_out = "s" if target[0] > r else "n"
+        else:
+            return None
+        src = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": leaf_out}, cell_id=f"{uid_prefix}_leaf",
+                         rel_row=r, rel_col=c, preload_value=leaf_value)
+        test_occ[(r, c)] = src.cell_id
+        route = manhattan_route((r, c), leaf_out, target, side, f"{uid_prefix}_r", test_occ)
+        for cell in route:
+            if (cell.rel_row, cell.rel_col) in occupied:
+                return None
+        sink = vtl.place(vtl.TILE_RAM_FLOWING, {"in": sink_in, "out": "e"}, cell_id=f"{uid_prefix}_sink",
+                          rel_row=consumer_pos[0], rel_col=consumer_pos[1])
+        icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=[src] + route + [sink])},
+                              placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                              name="side_probe")
+        try:
+            if icm.check_connections():
+                return None
+            icm.flatten()
+        except vix.IcmVixFormatError:
+            return None
+        new_hops = len(route)
+        if forbidden_hops is not None and would_collide(new_hops, forbidden_hops):
+            return None  # the real, lightweight timing check, applied after the structural one
+        return [src] + route, new_hops
+
+    row, col = start_pos
+    current = try_at(row, col)
+    assert current is not None, "starting position must already be valid"
+
+    while True:
+        new_row, new_col = row, col
+        if new_col != target[1]:
+            new_col += 1 if target[1] > new_col else -1
+        elif new_row != target[0]:
+            new_row += 1 if target[0] > new_row else -1
+        else:
+            break
+        if (new_row, new_col) == target:
+            break
+        candidate = try_at(new_row, new_col)
+        if candidate is None:
+            break
+        row, col, current = new_row, new_col, candidate
+
+    for cell in current[0]:
+        occupied[(cell.rel_row, cell.rel_col)] = cell.cell_id
+    return ((row, col), current[1]), current[0]

@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-16, real, full nexus-to-nexus tightening built and proven -- the harder case #761 deferred. The full N=4 reduction tree tightened all the way from 186 loose cells to 34, an 82% reduction, still computing correctly. See `points/points_active.md` #763)
+# Current State (as of 2026-09-16, the real, symbolic timing model built and proven for the case that genuinely needs it -- plain, relay-padded convergence. Grounded against real VM ground truth, then proven necessary with a direct negative case: naive tightening really does reproduce the #750 collision. See `points/points_active.md` #764)
+
+## Read this first (most recent)
+
+**2026-09-16, symbolic timing model built and proven (#764).** Per
+Alan's own direct proposal: apply the same rat's-nest concepts where
+timing genuinely matters -- a plain, relay-padded convergence (no
+priority), where #750's own real hazard applies. The timing check
+runs after the structural check, using a lightweight, no-VM model.
+
+**Ground truth established first:** a preloaded source directly
+adjacent to a two-arrival consumer is captured at real tick 2; each
+relay hop adds exactly one more tick (confirmed for 0, 1, 3 hops,
+exact match); two equal-length paths genuinely collide -- #750's
+hazard, now independently reproduced and precisely measured.
+
+**The real model:** symbolic_arrival_tick(hops) = 2 + hops;
+would_collide() reduces to hops_a == hops_b. tighten_pair_with_timing()
+tightens one side fully first, then tightens the second, rejecting any
+step whose hop count would equal the first side's -- confirmed it
+correctly stopped one step short of its own naive minimum to stay
+safe.
+
+**The necessary negative proof:** running the already-proven,
+purely-structural tightening independently on both sides, with zero
+coordination, really does land both on the same hop count -- passes
+every structural check, and the real VM run still produces the wrong
+answer (0, not 15). A real, silent, wrong result that only fails in
+running time -- exactly the bug class #750 found by hand, now
+reproduced automatically.
+
+**Status: this is the real, working timing model #762 named as
+necessary, now built and proven precise in scope** -- doesn't yet
+model a source that is itself an upstream computation's output, named
+directly as separate, untested work. 803 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, real, full nexus-to-nexus tightening built and proven -- the harder case #761 deferred. The full N=4 reduction tree tightened all the way from 186 loose cells to 34, an 82% reduction, still computing correctly. See `points/points_active.md` #763)
 
 ## Read this first (most recent)
 
