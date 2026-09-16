@@ -1,4 +1,52 @@
-# Current State (as of 2026-09-16, priority given a real VM model and confirmed as a genuinely better alternative to relay-path-length engineering for DAG convergence -- Alan's own direct insight, worked through to a real architectural decision, then built. The full three-level diamond DAG rebuilt with ZERO relay padding. See `points/points_active.md` #751)
+# Current State (as of 2026-09-16, a real pattern-library/escalation mechanism scoped -- connects Tier 1 of the tile library, the TRIX family's own "shape over semantics" principle, and the Composer's own already-confirmed, NP-complete-justified human fallback into one real system. Scoping only. See `points/points_active.md` #752)
+
+## Read this first (most recent)
+
+**2026-09-16, pattern-library escalation mechanism scoped (#752).**
+Per Alan's own direct proposal after #751: a library of known,
+verified placement patterns, shape (not semantics) as the identifier,
+a full escalation ladder when nothing matches. Confirmed directly this
+connects three already-real, separately-scoped ideas rather than
+inventing anything new.
+
+**Confirmed already-named architecture:** super_tile_library_v1.py's
+own header already names "Tier 1 (multi-cell composed tiles)" as the
+harder problem beyond Tier 0 -- this is precisely that, given a real
+shape for the first time.
+
+**Shape-as-identifier confirmed as the TRIX family's own proven
+principle, different reference point:** checked directly against
+mathtrix_mif_connection.md's own quoted vision -- push domain-specific
+complexity to a boundary, compute on the same generic substrate after.
+TRIX's shape is data representation; a placement pattern's shape is
+graph topology -- same principle, different axis.
+
+**Full escalation ladder recorded:** known local pattern = clear
+winner (same precedent as the old full-cell compiler's premade,
+verified artifacts); multiple equally-valid patterns disambiguated by
+real, measured size/depth constraints (the same currency this project
+already tracks -- MAN-file/ALM budget, real tick latency, exactly
+#751's own "extra cell + extra tick" trade-off); no local match checks
+a shared, git-hosted library; still no match forks to an attached AI
+researching a candidate, or -- named as the more likely real case --
+describing the problem precisely enough for a person, directed to the
+Composer.
+
+**Composer connection confirmed real and already scoped, not grafted
+on:** its own real premise is justified by a CONFIRMED NP-complete
+fact (Numberlink) -- a human fallback is a structural necessity of the
+domain, not a stopgap. A real, already-written addendum there names
+this exact use case directly, flagged as ready "once there's a real
+tile library substantial enough" -- real assessment: that threshold
+may now be close to met.
+
+**Status: scoping only, connecting real architecture.** No RTL, no
+schema, no code. Real next step: design the real shape schema precise
+enough to register #750's and #751's own two known patterns as its
+first entries. Saved to docs/stripped-cell/design-notes/pattern_
+library_escalation_scope.md.
+
+## Previous state (as of 2026-09-16, priority given a real VM model and confirmed as a genuinely better alternative to relay-path-length engineering for DAG convergence -- Alan's own direct insight, worked through to a real architectural decision, then built. The full three-level diamond DAG rebuilt with ZERO relay padding. See `points/points_active.md` #751)
 
 ## Read this first (most recent)
 

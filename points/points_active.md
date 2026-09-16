@@ -11322,3 +11322,75 @@ Full project suite re-run (777 passed, 1 skipped -- same pre-existing
 skip, 4 warnings -- same pre-existing, unrelated), confirming zero
 regression. Addendum 9 added to `llvm_ir_compiler_scope.md` recording
 the full real decision process and result.
+
+## 752. A real pattern-library/escalation mechanism scoped, per Alan's own direct proposal after `#751` -- a library of known, verified placement patterns, with shape (not semantics) as the identifier, and a full real escalation ladder when no known pattern matches. Confirmed directly, not invented fresh: this connects three separately-scoped ideas already real in this project into one system for the first time -- Tier 1 of the tile library, the TRIX family's own proven "shape over semantics" principle, and the Composer's own already-confirmed, NP-complete-justified human fallback role. Scoping only, nothing built. (Alan/Claude, 2026-09-16)
+
+**Confirmed directly this is already-named architecture, not a new
+concept:** `super_tile_library_v1.py`'s own header and `SuperTileSpec`'s
+own docstring already name "Tier 1 (multi-cell, relative-position
+composed tiles)" as the harder problem beyond Tier 0's own single-cell
+primitives -- Alan's own proposal is precisely that Tier 1, given a
+real, concrete shape for the first time.
+
+**Shape-as-identifier confirmed as the same real principle the TRIX
+family already proved, at a different reference point:** Alan's own
+"data is just data, once you take out the semantics... it's the shape
+of the design that becomes the identifier" is checked directly against
+`mathtrix_mif_connection.md`'s own quoted real vision -- push domain-
+specific complexity to a boundary, then compute on the same generic
+substrate regardless of whether the original domain was floats, DNA,
+chemistry, physics, or finance. TRIX's own shape is about data
+REPRESENTATION; a placement pattern's own shape is about graph
+TOPOLOGY -- a different axis, the same real principle: strip
+semantics, keep the reusable structural identifier.
+
+**A real, full escalation ladder recorded precisely, per Alan's own
+direct proposal:** (1) a known shape in the local library is a clear
+winner, applied directly -- the same real precedent `Addendum 2`
+already found in the old full-cell compiler (premade, pre-verified
+artifacts composed rather than re-solved per program); (2) multiple
+equally-valid known patterns disambiguated by real, MEASURED
+constraints -- size and depth, per Alan's own direct framing, the same
+real currency this project already tracks (MAN-file/ALM budget for
+size, real tick latency for depth -- `#751`'s own real "extra cell +
+extra tick" trade-off is exactly this, already named); (3) no local
+match checks a real, shared, git-hosted library of community-
+contributed patterns first; (4) still no match anywhere forks
+honestly, by Alan's own named likelihood -- an attached AI can
+research a real candidate model (the same kind of reasoning this whole
+session has done by hand); without one (named directly as the more
+likely real position for most users), the system's own job becomes
+describing the problem precisely enough for a person to design an
+answer, directed to the Composer.
+
+**The Composer connection confirmed real and already scoped, not
+grafted on:** `composer_scope.md`'s own real premise (a human-in-the-
+loop tool for placing/routing an already-compiled model) is justified
+there by a real, confirmed fact, not a convenience -- the underlying
+placement/connection problem is CONFIRMED NP-complete (`#385`,
+Numberlink), meaning a human fallback is a structural necessity of the
+domain, not a stopgap for an unfinished compiler. A real, already-
+written addendum to that same document names this EXACT use case
+directly ("browse/understand/compose-around an existing library"),
+flagged as "a real candidate for a future scoping pass of its own,
+once there's a real tile library substantial enough" -- real, honest
+assessment: that threshold may now be close to met, given the real
+tile libraries and the two real, verified patterns (`#750`, `#751`)
+now on record for one real shape.
+
+**Real, honest, open questions named precisely, not resolved:** the
+real, concrete schema for "shape" itself (not yet designed); how a
+shared, git-hosted library would mechanically work and how a
+contributed pattern gets verified before being trusted; what "describe
+the problem in enough detail" means as a concrete artifact the
+Composer could consume; whether a resolved answer feeds back into the
+library automatically.
+
+**Real, honest status: a scoping pass connecting real, existing
+architecture, not inventing new concepts.** No RTL, no schema, no
+code, no shared-library infrastructure. The real, concrete next step
+named directly: design the real shape schema precisely enough to
+register `#750`'s and `#751`'s own two known patterns as its first
+real entries -- everything else in the ladder depends on that schema
+existing first. Saved to `docs/stripped-cell/design-notes/pattern_
+library_escalation_scope.md`.
