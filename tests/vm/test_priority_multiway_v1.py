@@ -250,3 +250,66 @@ def test_equalizing_path_lengths_restores_rank_as_the_real_decider():
     # now genuinely wins and becomes "A" -- the correct real result.
     assert sub_cell.adder_out_buffer == 97  # 100 - 3, correct
     assert sub_cell.adder_a_reg == 100  # a, the configured winner, correctly became "A"
+
+
+def test_sequenced_channel_mode_guarantees_order_without_path_equalization():
+    """points.md #772: Alan's own direct, alternative proposal to
+    #771's path-equalization fix -- a real, third priority mode
+    ('sequenced channel', scheduling_mode=2) that doesn't arbitrate by
+    rank among whoever's present at all. Instead, much like sequencer's
+    own fixed, cyclic seq_index, it holds a real, fixed turn order and
+    ONLY ever accepts the currently-due direction, ignoring any other
+    real arrival no matter how early it shows up.
+
+    Confirmed directly against the EXACT SAME real scenario #770/#771
+    used -- a (value 100) 3 real relay hops away, b (value 3) directly
+    adjacent -- but this time with NO path-length equalization at all.
+    The sequenced-channel mode correctly waits for a's own turn (4
+    real ticks after b has already been sitting, unconsumed, since
+    tick 1), then serves b second -- the real, correct result (97,
+    100-3), guaranteed by the cell's own real, internal state machine
+    rather than by the compiler equalizing physical distance.
+
+    Real, honest, deliberate trade-off named directly: this is REAL,
+    genuine head-of-line blocking -- b's own real value sat completely
+    unconsumed for the entire real time a's own value was still in
+    transit. #771's own path-equalization fix has no such delay (both
+    real values arrive together); this mode trades that away for a
+    real guarantee that doesn't depend on the compiler getting
+    distances exactly right.
+
+    Real, honest scope: this is a real, working VM PROTOTYPE only --
+    priority_cell_v4c.v's own real RTL has no such mode today
+    (scheduling_mode is a real, single hardware bit, strict/weighted-RR
+    only) -- a genuine third mode would need real, separate RTL work,
+    not attempted here."""
+    import icm_v3 as v3
+    from unicell_super_automaton_v1 import N, S
+
+    records = [
+        v3.IcmV3Record(cell_id="a_src", row=-4, col=0, core="ram",
+                        core_config={"downstream_mask": ["s"], "fixed_mode": 0}, preload_value=100),
+        v3.IcmV3Record(cell_id="ra1", row=-3, col=0, core="ram",
+                        core_config={"upstream_mask": ["n"], "downstream_mask": ["s"]}),
+        v3.IcmV3Record(cell_id="ra2", row=-2, col=0, core="ram",
+                        core_config={"upstream_mask": ["n"], "downstream_mask": ["s"]}),
+        v3.IcmV3Record(cell_id="ra3", row=-1, col=0, core="ram",
+                        core_config={"upstream_mask": ["n"], "downstream_mask": ["s"]}),
+        v3.IcmV3Record(cell_id="b_src", row=1, col=0, core="ram",
+                        core_config={"downstream_mask": ["n"], "fixed_mode": 0}, preload_value=3),
+        v3.IcmV3Record(cell_id="pri", row=0, col=0, core="priority",
+                        core_config={"upstream_mask": ["n", "s"], "downstream_mask": ["e"],
+                                     "priority_rank_n": 0, "priority_rank_s": 0, "scheduling_mode": 2}),
+        v3.IcmV3Record(cell_id="sub", row=0, col=1, core="adder",
+                        core_config={"upstream_mask": ["w"], "downstream_mask": [], "subtract_mode": 1}),
+    ]
+    grid = SuperGrid(records)
+    pri_cell = grid.cells[(0, 0)]
+    assert pri_cell.pri_scheduling_mode == 2  # confirms the real int, not cast to a bool
+    pri_cell.pri_seq_order = (N, S)  # a (north) due first, then b (south)
+
+    sub_cell = grid.cells[(0, 1)]
+    for _ in range(15):
+        grid.tick()
+    assert sub_cell.adder_out_buffer == 97  # 100 - 3, correct
+    assert sub_cell.adder_a_reg == 100  # a correctly became "A", despite b arriving first

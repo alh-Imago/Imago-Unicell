@@ -1,4 +1,40 @@
-# Current State (as of 2026-09-16, the real fix for #770's operand-order problem confirmed working -- pad the shorter path so both operands arrive with equal real length, restoring priority_rank_* as the genuine decider. Same failing case from #770, now correct. See `points/points_active.md` #771)
+# Current State (as of 2026-09-16, a genuinely different alternative fix for #770 -- a real, third "sequenced channel" priority mode built and proven as a VM prototype, guaranteeing operand order via a fixed turn order rather than path-length equalization. A real bug (scheduling_mode silently cast to bool) found and fixed along the way. See `points/points_active.md` #772)
+
+## Read this first (most recent)
+
+**2026-09-16, sequenced-channel priority mode built and proven (#772).**
+Per Alan's own direct proposal: a third priority mode, much like
+sequencer's own fixed, cyclic index, that holds a real turn order and
+only ever accepts the currently-due direction -- ignoring any other
+real arrival no matter how early it shows up.
+
+**A real bug found and fixed while wiring this in:** from_record()'s
+own priority dispatch was calling bool(cfg.get("scheduling_mode", 0)),
+silently collapsing scheduling_mode=2 down to bool(2)==True==1 -- the
+new mode was completely unreachable. Caught by the first real test
+attempt, not assumed working from the code. Fixed by storing the real
+int value instead.
+
+**Real, end-to-end proof, same exact failing scenario as #770/#771:**
+a (100) 3 relay hops away, b (3) directly adjacent, sequence
+configured as (north, south). Confirmed: b's own offer sits completely
+unconsumed from tick 1 to tick 7 while the cell specifically waits for
+a (arriving at tick 5) -- then serves b second. Result: 97 (100-3),
+with ZERO path-length equalization anywhere.
+
+**The real, honest trade-off, named directly:** this is genuine
+head-of-line blocking -- b sat idle the whole time a was in transit, a
+cost #771's path-equalization fix doesn't have. Neither fix is
+strictly better: #771 needs exact distances but zero waiting; #772
+needs no distance engineering but pays a potentially unbounded latency
+cost whenever the due operand is the farther one.
+
+**Real, honest scope: a real, working VM PROTOTYPE only.**
+priority_cell_v4c.v's own real RTL has no such mode today -- a genuine
+third mode would need real, separate hardware work, not attempted
+here. 1 new test. 825 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, the real fix for #770's operand-order problem confirmed working -- pad the shorter path so both operands arrive with equal real length, restoring priority_rank_* as the genuine decider. Same failing case from #770, now correct. See `points/points_active.md` #771)
 
 ## Read this first (most recent)
 

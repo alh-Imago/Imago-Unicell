@@ -12582,3 +12582,78 @@ lengths equalized, confirmed to produce the real, correct result.
 **Real, honest verification: full project suite re-run** (824 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 772. A real, genuinely different alternative fix for `#770`'s own problem, proposed by Alan and built and confirmed working as a real VM prototype -- a third `priority` mode, "sequenced channel" (`scheduling_mode=2`), that doesn't arbitrate by rank among whoever's present at all. Much like `sequencer`'s own fixed, cyclic `seq_index`, it holds a real, fixed turn order and ONLY ever accepts the currently-due direction, ignoring any other real arrival no matter how early it shows up -- guaranteeing operand order by the cell's own internal state machine, with zero path-length equalization needed. A real, genuine bug found and fixed along the way: `from_record()` was silently casting `scheduling_mode` to `bool`, meaning `2` collapsed to `1`. (Alan/Claude, 2026-09-16)
+
+**The real, direct mechanism, per Alan's own proposal:** "add another
+mode to the priority cell itself... it has the ins, and is set as
+normal, but swaps to the next much like the sequencer, so it becomes a
+sequenced channel, not priority channel." Built directly as a real,
+new branch in `_deliver_priority()`: a new `pri_seq_order` (the
+configured, fixed cyclic order of directions) and `pri_seq_index`
+(current position) pair of real state fields. When `pri_scheduling_
+mode == 2`, the cell computes the currently-due direction from `pri_
+seq_order[pri_seq_index]` and treats ONLY that direction as a real,
+valid candidate -- if it hasn't arrived, the cell captures nothing at
+all THIS tick, regardless of what else has genuinely arrived; once it
+does arrive, the cell captures it and advances `pri_seq_index` to the
+next real position in the cycle.
+
+**A real, genuine bug found and fixed while wiring this in, not a
+hypothetical:** `from_record()`'s own real "priority" dispatch branch
+was calling `bool(cfg.get("scheduling_mode", 0))` -- silently
+collapsing a real, intended `scheduling_mode=2` down to `bool(2) ==
+True == 1`, meaning the new mode was completely unreachable through
+the normal placement path. Caught immediately by a first, real test
+attempt (the sequenced behavior simply never activated) rather than
+assumed to be working from the code alone. Fixed by storing the real,
+full integer value (`int(cfg.get("scheduling_mode", 0))`) instead --
+confirmed directly this doesn't disturb the existing modes, since
+`0`/`1` behave identically as `int` or as the old `bool`.
+
+**Real, end-to-end proof, using the EXACT SAME failing scenario `#770`/
+`#771` already used, not a fresh, more favorable case:** `a` (value
+`100`) 3 real relay hops away, `b` (value `3`) directly adjacent --
+`pri_seq_order` configured as `(north, south)`, so `a` is due first.
+Confirmed directly: `b`'s own real offer sits completely unconsumed
+from real tick 1 all the way to tick 7, while the cell waits
+specifically for `a` (which only arrives at tick 5, after its own 3
+real relay hops) -- then, and only then, serves `b` second. The real,
+correct result: `97` (`100 - 3`), with ZERO path-length equalization
+anywhere in the design -- order guaranteed entirely by the cell's own
+internal turn-tracking, not by the compiler's own placement discipline
+at all.
+
+**Real, honest, deliberate trade-off named directly, not glossed
+over:** this is genuine head-of-line blocking -- `b`'s own real value
+sat completely idle for the entire real duration `a` was still in
+transit, a real cost `#771`'s own path-equalization fix does not have
+(there, both real values arrive together, with no such wait). The two
+real fixes are genuinely different trade-offs, not one strictly better
+than the other: `#771` needs the compiler to get real distances exactly
+right but has zero waiting once it does; `#772` needs no distance
+engineering at all but pays a real, potentially unbounded latency cost
+whenever the due operand happens to be the farther one.
+
+**Real, honest scope, stated precisely: this is a real, working VM
+PROTOTYPE only.** `priority_cell_v4c.v`'s own real RTL has no such mode
+today -- `scheduling_mode` is a real, single hardware bit there
+(strict/weighted-RR only). A genuine, real third mode would need real,
+separate RTL work -- a real, concrete FPGA change, not something this
+entry attempts or claims to have built in hardware. The `SuperCell`
+dataclass field itself, `pri_scheduling_mode`, was widened from `bool`
+to `int` to even represent a third value at the VM level -- a real,
+necessary, but purely software-side change.
+
+**1 new, permanent test** (`test_sequenced_channel_mode_guarantees_
+order_without_path_equalization`, added directly alongside `#770`'s
+own failing-case and `#771`'s own fix test in `tests/vm/test_priority_
+multiway_v1.py`) -- confirms both the real, correct numeric result and
+that `pri_scheduling_mode` genuinely holds the real integer `2`, not a
+value collapsed by the bug this entry also fixed.
+
+**Real, honest verification: full project suite re-run** (825 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression from the `pri_scheduling_mode`
+type widening and the `from_record()` fix, across every existing
+`priority`-using test in the whole suite.

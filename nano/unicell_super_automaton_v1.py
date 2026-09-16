@@ -403,7 +403,7 @@ class SuperCell:
     pri_rank_s: int = 0
     pri_rank_e: int = 0
     pri_rank_w: int = 0
-    pri_scheduling_mode: bool = False   # 0=strict, 1=weighted round-robin
+    pri_scheduling_mode: int = 0   # 0=strict, 1=weighted round-robin, 2=sequenced channel (#772)
     pri_credit_n: int = 0
     pri_credit_s: int = 0
     pri_credit_e: int = 0
@@ -411,6 +411,18 @@ class SuperCell:
     pri_data_reg: int = 0
     pri_data_valid: bool = False
     pri_winning_dir: int = 0
+    # Points.md #772: a real, THIRD priority mode Alan proposed directly
+    # -- "sequenced channel," not arbitrated by rank among whoever's
+    # present, but a fixed, cyclic turn order (much like sequencer's own
+    # seq_index) that ONLY ever accepts the currently-due direction,
+    # ignoring any other real arrival regardless of how early it shows
+    # up. Real, deliberate scope: this is a real, tested VM PROTOTYPE
+    # only -- priority_cell_v4c.v's own real RTL has no such mode today
+    # (scheduling_mode is a real, single bit -- strict/weighted-RR only);
+    # a genuine third mode would need real, separate RTL work, not
+    # attempted here.
+    pri_seq_order: tuple = ()
+    pri_seq_index: int = 0
 
     freeze_in: bool = False
     #: points.md #660: real, generic live-PROG_ID state for the 8 core
@@ -660,7 +672,7 @@ class SuperCell:
             cell.pri_rank_s = int(cfg.get("priority_rank_s", 0)) & 0x3
             cell.pri_rank_e = int(cfg.get("priority_rank_e", 0)) & 0x3
             cell.pri_rank_w = int(cfg.get("priority_rank_w", 0)) & 0x3
-            cell.pri_scheduling_mode = bool(cfg.get("scheduling_mode", 0))
+            cell.pri_scheduling_mode = int(cfg.get("scheduling_mode", 0))
             cell.pri_credit_n = 0
             cell.pri_credit_s = 0
             cell.pri_credit_e = 0
@@ -944,6 +956,27 @@ class SuperCell:
         candidates = {d: v for d, v in arrivals.items() if (self.pri_upstream_mask >> _DIR_BIT[d]) & 1}
         if not candidates:
             return (set(), None)
+
+        # Points.md #772: real, third "sequenced channel" mode --
+        # ONLY the currently-due direction (per a real, fixed, cyclic
+        # turn order) is ever a valid candidate, regardless of who else
+        # has genuinely arrived. This is the real, deliberate trade-off
+        # against #771's own path-equalization fix: order is guaranteed
+        # by the cell's OWN internal state machine, not by the
+        # compiler's own real placement discipline -- at the real cost
+        # of head-of-line blocking (an out-of-turn arrival simply waits,
+        # unconsumed, no matter how long the due direction takes).
+        if self.pri_scheduling_mode == 2:
+            if not self.pri_seq_order:
+                return (set(), None)  # no real sequence configured -- never captures
+            due_dir = self.pri_seq_order[self.pri_seq_index % len(self.pri_seq_order)]
+            if due_dir not in candidates:
+                return (set(), None)  # the due direction hasn't arrived yet -- wait, ignore everyone else
+            self.pri_data_reg = arrivals[due_dir] & _MASK32
+            self.pri_data_valid = True
+            self.pri_winning_dir = due_dir
+            self.pri_seq_index = (self.pri_seq_index + 1) % len(self.pri_seq_order)
+            return ({due_dir}, None)
 
         rank = {N: self.pri_rank_n, S: self.pri_rank_s, E: self.pri_rank_e, W: self.pri_rank_w}
         credit = {N: self.pri_credit_n, S: self.pri_credit_s, E: self.pri_credit_e, W: self.pri_credit_w}
