@@ -11781,3 +11781,69 @@ real placement algorithm, not yet attempted.
 unrelated), confirming zero regression. This closes the one, real,
 named prerequisite before starting the composition/matching design
 work, per Alan's own direct sequencing.
+
+## 759. First real, hand-built N=4 reduction tree using `priority` at both real convergence levels -- exploratory work, per Alan's own direct "let's go and see what it turns up," building on the "hierarchical aggregate" composition idea directly. Three genuine, concrete geometric bugs found and fixed by actually attempting the build, each a real, generalizable lesson for whatever composition/matching placement system gets built next. (Alan/Claude, 2026-09-16)
+
+**Real goal:** confirm the "solved pair becomes the next whole piece"
+idea concretely -- `t = ((a+b) via priority) + ((c+d) via priority)`,
+via priority-arbitrated pairwise adds -- rather than theorize about a
+general algorithm in the abstract.
+
+**Three real, concrete bugs found, each genuinely instructive, not
+just "typos":**
+1. **Wrong leaf column.** `priority` arbitrates N/S only in this
+   configuration -- its own two real sources must sit DIRECTLY north/
+   south of it, same column. Placing leaves one column west (assuming
+   a "feeds in from the side" shape) meant nothing ever arrived at
+   all -- confirmed the real cost of assuming a port's own physical
+   direction rather than checking the tile's actual configured
+   `upstream_mask`.
+2. **A naive, perfectly-adjacent binary tree layout genuinely doesn't
+   work past N=2.** Level-1's own two results land 4 rows apart, but
+   level-2's own `priority` cell needs its two sources exactly 2 rows
+   apart to sandwich them directly. This is a real, structural fact,
+   not a placement mistake -- the "vertical spacing doubles per level"
+   rule real tree-drawing algorithms already use, now confirmed as a
+   genuine, physical constraint of this architecture, not just an
+   aesthetic one. Real fix: relay bridging (`#750`'s own proven
+   technique), not a cleverer layout that avoids it entirely.
+3. **A relay cannot turn a corner in one hop.** Bridging a genuinely
+   diagonal offset (row AND column both need to change) needs TWO
+   relay cells -- one to change row, one to change column -- confirmed
+   directly after a first, single-relay attempt left values
+   permanently stuck (the producer kept offering to an empty cell).
+   This is a real, Manhattan-distance fact about this grid's own
+   geometry any general router will need to account for explicitly,
+   not something a diagonal "as the crow flies" distance calculation
+   could paper over.
+
+**A fourth, smaller but real bug, caught immediately by the same
+symptom as #3:** the `combine_unit`'s own helper function hardcoded
+its adder's real output direction to a fixed default, rather than
+taking it as a real parameter -- every combine unit in a tree needs
+its own real output direction chosen to match wherever its own real
+consumer actually sits; there is no safe universal default.
+
+**The real, already-proven verification method from `#750`/`#751`
+(programmatic collision + adjacency checking before ever running the
+VM) is what made finding and fixing all of these fast, not luck** --
+confirmed each layout change against a real, explicit position table
+and adjacency check before building the actual cells, catching the
+bridge-relay misalignment immediately rather than discovering it via
+a confusing, silently-stuck simulation trace.
+
+**Real, end-to-end result:** `t = 10+20+30+40 = 100`, exactly correct,
+using `priority` at every real convergence point -- zero
+`check_connections()`/`check_known_gotchas()` warnings. 2 new,
+permanent tests (`tests/vm/test_reduction_tree_hand_built_v1.py`).
+
+**Real, honest status: this remains exploratory, hand-traced work,
+not a general algorithm** -- exactly the same real caveat `#750`'s own
+diamond carried. What it adds concretely: three real, generalizable
+geometric facts (N/S-only arbitrators need same-column sources;
+naive adjacent stacking fails past N=2, needing real relay bridging;
+a relay only goes straight, so diagonal bridging needs two hops) any
+future composition/matching placement algorithm will need to encode
+as real, explicit rules, not assumptions. Full project suite re-run
+(788 passed, 1 skipped -- same pre-existing skip, 4 warnings -- same
+pre-existing, unrelated), confirming zero regression.

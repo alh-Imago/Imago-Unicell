@@ -1,4 +1,44 @@
-# Current State (as of 2026-09-16, the real, missing nano_hold_trigger VIX tile added -- fan-out/non-adjacent-reference DAG support now works for VIX targeting too, closing the one named prerequisite before the composition/matching design work begins. See `points/points_active.md` #758)
+# Current State (as of 2026-09-16, first real, hand-built N=4 reduction tree using priority at both convergence levels -- exploratory build surfacing three genuine geometric lessons for the composition/matching placement system. See `points/points_active.md` #759)
+
+## Read this first (most recent)
+
+**2026-09-16, first N=4 reduction tree built, real lessons surfaced
+(#759).** Per Alan's own "let's go and see what it turns up" --
+building the "hierarchical aggregate" composition idea concretely
+rather than theorizing. Three real, generalizable bugs found by
+actually attempting it:
+
+1. priority arbitrates N/S only -- its two sources must sit directly
+   above/below it, same column. Assuming a "feeds from the side" shape
+   meant nothing arrived at all.
+2. A naive, perfectly-adjacent binary tree doesn't work past N=2 --
+   level-1's results land too far apart for level-2's priority to
+   directly sandwich. A real, structural fact (matching the classic
+   "spacing doubles per level" tree-layout rule), not a mistake --
+   fixed with relay bridging.
+3. A relay can't turn a corner in one hop -- a genuinely diagonal
+   offset needs two relay cells (one per axis), a real Manhattan-
+   distance fact about this grid any future router must account for.
+
+Plus a fourth: the combine-unit helper hardcoded its own output
+direction rather than taking it as a real parameter -- every combine
+unit needs its own output direction chosen for where its consumer
+actually sits.
+
+**The same programmatic collision/adjacency verification from
+#750/#751 is what made finding these fast** -- catching the bridge
+misalignment immediately rather than via a confusing, silently-stuck
+trace.
+
+**Real result:** t=10+20+30+40=100, exactly correct, zero warnings,
+using priority throughout. 2 new tests.
+
+**Status: still exploratory, hand-traced work, not a general
+algorithm** -- but now with three real, concrete geometric rules any
+future composition/matching system needs to encode explicitly. 788
+tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, the real, missing nano_hold_trigger VIX tile added -- fan-out/non-adjacent-reference DAG support now works for VIX targeting too, closing the one named prerequisite before the composition/matching design work begins. See `points/points_active.md` #758)
 
 ## Read this first (most recent)
 
