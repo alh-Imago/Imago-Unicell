@@ -146,22 +146,64 @@ would directly undermine; the core RTL itself (`fpga/verilog/`) — one
 real, shared source of truth for what a `_v4c` core actually is,
 never project-local.
 
-**The real, genuinely open design question this creates, not resolved
-here:** HOW does a project's own folder "reach back" to shared
-components mechanically? Two real, honest options, not decided
-between here:
-- A real, relative or absolute PATH reference stored in the project's
-  own metadata (simple, but fragile if the shared library's own
-  location ever moves relative to a given project).
-  - A real, versioned reference (which real version/commit of the
-    shared tile library or pattern library this project was built
-    against) — more robust, but real, additional bookkeeping the
-    simpler path-only approach doesn't need.
-- Real, honest, unresolved: whether a project should be allowed to
-  pin a specific shared-library version at all, or whether it should
-  always resolve against whatever the shared library's own current
-  state is (simpler, but means a shared-library change could silently
-  change what an existing project's own design resolves to later).
+**The real design question above, now given a real, concrete answer,
+per Alan's own direct follow-up (2026-09-16) — not fully settled, but
+genuinely resolved in shape, not left open the way it was above.**
+
+**The real, load-bearing fact this answer rests on: the workbench
+always runs from a known, fixed point inside a git clone.** A user
+who clones the repository and starts the workbench gives it a real,
+concrete anchor — `nano/workbench_v1.py`'s own real, running location
+— from which every shared component's own real path is already a
+short, stable, KNOWN relative hop, confirmed directly rather than
+assumed: `../fpga/verilog` (core RTL), `../docs/stripped-cell` (design
+notes, `CELL_GOTCHAS.md`), `super_tile_library_v1.py`/`vix_tile_
+library_v1.py` (both already siblings of the workbench itself). This
+is already the same real pattern this whole project's own test suite
+already uses (`os.path.join(os.path.dirname(__file__), "..", ...)`
+throughout) — Alan's own proposal formalizes an already-proven pattern
+into a real, first-class mechanism, not a new one.
+
+**The real, concrete mechanism, per Alan's own direct proposal:**
+- **A real path-tree file** — a real, structured manifest recording
+  where each real, shared component lives, relative to the workbench's
+  own location, not duplicated as scattered, independent path
+  constants across every consumer. If the repo's own real structure
+  ever changes (a directory renamed or moved), this ONE file gets
+  edited once, rather than every individual reference needing to be
+  found and fixed independently — the same real, single-source-of-
+  truth discipline `#734`'s own stale-dependency-list lesson already
+  taught this project, applied here to filesystem layout instead of a
+  dependency list.
+- **A real path-picker/folder-creation UI added to the frontend** —
+  letting a user either CREATE a new project (name it, choose or
+  accept a real, default location) or OPEN an existing one (point at
+  a real, existing project folder). Real, honest, worth naming
+  directly: since the workbench is an HTTP-based frontend, not a
+  native desktop application, a real "path picker" here almost
+  certainly means a real, validated TEXT field (a real path the
+  server-side process can check exists/is writable), not a native
+  OS-level file-browser dialog — a real, small but genuine UI-
+  architecture constraint worth stating plainly rather than assuming
+  a native-app-style picker is available.
+- **The path-tree file itself stays editable**, per Alan's own direct
+  point — if a user's own real setup ever DOES move something (a
+  relocated clone, a reorganized shared-library location), the one
+  real file recording relative paths can be corrected directly,
+  rather than the whole mechanism breaking silently.
+
+**Real, honest, still-open pieces, even with the shape now resolved:**
+whether the path-tree file lives once, globally, per-workbench-
+instance (the more natural reading of "relative to the workbench," and
+the simpler real design), or could ever need to be genuinely per-
+project (not indicated by anything Alan's said, but worth naming as a
+real, deliberately-excluded alternative rather than silently assumed
+away); the real, exact schema the path-tree file itself would use;
+and the still-real, separate question `#754`'s own original note
+already named and this doesn't resolve — whether a project should ever
+pin a specific SHARED-LIBRARY VERSION (not just its real location) —
+Alan's own proposal answers "where do I find it," not "which version
+of it," and the two are genuinely different real questions.
 
 ## Real, honest, open questions overall — not resolved here
 
@@ -195,3 +237,27 @@ immediately actionable next step, if picked up: the free-format
 checkbox alone (Part 1) — small, well-understood, and useful on its
 own even before the core-selection and project-workspace pieces are
 resolved.
+
+**Update, 2026-09-16, per Alan's own direct follow-up:** Part 4's own
+real, open "how does a project reach shared components" question is
+now resolved in SHAPE, not just named — a real path-tree file,
+relative to the workbench's own known, fixed location inside a git
+clone (the same real pattern this project's own test suite already
+uses throughout, formalized rather than invented), plus a real path-
+picker/folder-creation UI for creating or opening a project. Real,
+narrower open pieces remain (the exact schema, whether the path-tree
+file is global-per-workbench or ever per-project, and the real,
+separate, still-unresolved question of pinning a shared-library
+VERSION rather than just its location) — see the updated Part 4
+above for the real, full detail.
+
+**A real, separate, worthwhile observation, made directly by Alan and
+recorded here rather than lost:** the eventual user manual for
+everything this session's own work (and the sessions before it) has
+accumulated — the hierarchical ICM format, the tile libraries, the
+priority core, the DAG-convergence/pattern-library mechanism, MAN/
+project workflows, the Composer — is genuinely going to be a
+substantial volume of real documentation work in its own right. Not
+scoped or attempted here; a real, honest acknowledgment that this is
+real, additional work still ahead, distinct from any of the building
+this note or its siblings describe.

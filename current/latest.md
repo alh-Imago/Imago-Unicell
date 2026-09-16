@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-16, free-format design targets, per-core selection, and real project workspaces scoped -- checkbox on the real MAN page (cell count not ALM/LUTs), per-core selection connecting to VIXb's own carrier build system, and the real, additional complexity of persistent projects reaching back to shared components. Scoping only. See `points/points_active.md` #754)
+# Current State (as of 2026-09-16, #754's own "how does a project reach shared components" question resolved in shape -- workbench-relative paths via a real path-tree file plus a path-picker/folder-creation UI, formalizing an already-proven pattern this project's own test suite already uses. Also recorded: the eventual user manual is real, substantial, separate work. Scoping only. See `points/points_active.md` #755)
+
+## Read this first (most recent)
+
+**2026-09-16, project-to-shared-library mechanism resolved in shape
+(#755).** Per Alan's own direct follow-up: since the workbench always
+runs from a known, fixed point inside a git clone, a real path-tree
+file relative to that location, plus a real path-picker/folder-
+creation UI, is enough for the basic case -- no version-pinning
+needed.
+
+**Confirmed directly:** computed the real relative paths from
+workbench_v1.py to every shared component named in #754 -- all short,
+stable, single/two-hop paths. This is the SAME pattern this project's
+own entire test suite already uses (os.path.dirname(__file__)-relative
+paths throughout) -- formalizing an already-proven pattern, not
+inventing one.
+
+**The mechanism:** a real, structured path-tree file (edited once if
+layout ever changes, matching #734's own single-source-of-truth
+discipline); a real path-picker/folder-creation UI for creating or
+opening a project. Real UI-architecture point named directly: HTTP-
+based frontend means a real, server-validated text field, not a
+native file browser.
+
+**Real, narrower pieces still open:** the exact path-tree schema;
+global-per-workbench vs. per-project; and the real, separate question
+#754 already named and this doesn't answer -- pinning a specific
+shared-library VERSION vs. just its location.
+
+**A real, separate observation recorded:** the eventual user manual
+for everything accumulated this session is going to be substantial,
+real work in its own right -- not scoped here, just honestly
+acknowledged.
+
+**Status: #754's own Part 4 updated in place, not superseded.** Still
+no RTL, no schema, no UI code, no path-tree file built.
+
+## Previous state (as of 2026-09-16, free-format design targets, per-core selection, and real project workspaces scoped -- checkbox on the real MAN page (cell count not ALM/LUTs), per-core selection connecting to VIXb's own carrier build system, and the real, additional complexity of persistent projects reaching back to shared components. Scoping only. See `points/points_active.md` #754)
 
 ## Read this first (most recent)
 

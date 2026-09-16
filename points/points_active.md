@@ -11529,3 +11529,56 @@ immediately actionable next step named directly: the free-format
 checkbox alone (Part 1), buildable now, useful on its own before the
 core-selection and project-workspace pieces are resolved. Saved to
 `docs/stripped-cell/design-notes/free_format_and_projects_scope.md`.
+
+## 755. `#754`'s own real, open "how does a project reach shared components" question resolved in shape, per Alan's own direct follow-up: since the workbench always runs from a known, fixed point inside a git clone, a real path-tree file relative to that location, plus a real path-picker/folder-creation UI for creating or opening a project, is enough -- no versioned pinning or per-project bookkeeping needed for the basic case. Confirmed directly this formalizes an already-proven pattern (relative-to-file-location paths, already used throughout this project's own test suite) rather than inventing a new one. Also recorded, as a real, separate observation: the eventual user manual for everything this session has accumulated is going to be substantial work in its own right. Scoping only, nothing built. (Alan/Claude, 2026-09-16)
+
+**The real, load-bearing fact this rests on, confirmed directly, not
+assumed:** computed the real, actual relative paths from `nano/
+workbench_v1.py`'s own location to every real, shared component named
+in `#754` -- `../fpga/verilog` (core RTL), `../docs/stripped-cell`
+(design notes, `CELL_GOTCHAS.md`), `super_tile_library_v1.py`/`vix_
+tile_library_v1.py` (already siblings of the workbench itself). All
+short, stable, single-hop or two-hop paths -- confirming Alan's own
+"paths relative to the workbench" framing is genuinely sound, not
+just convenient-sounding. **This is the same real pattern this
+project's own entire test suite already uses** (`os.path.join(os.path.
+dirname(__file__), "..", ...)` throughout every test file written this
+session) -- Alan's own proposal formalizes an already-proven,
+already-working pattern into a real, first-class mechanism, not a new
+one invented from scratch.
+
+**The real, concrete mechanism recorded:** a real path-tree file
+(a real, structured manifest, edited once if the repo's own real
+layout ever changes, rather than every scattered reference needing
+independent fixing -- the same real, single-source-of-truth discipline
+`#734`'s own stale-dependency-list lesson already taught, applied here
+to filesystem layout); a real path-picker/folder-creation UI on the
+frontend for creating a new project or opening an existing one. A
+real, honest UI-architecture point named directly: since the workbench
+is HTTP-based, not a native desktop app, a real "path picker" almost
+certainly means a real, server-validated text field, not a native
+OS-level file browser -- worth stating plainly rather than assuming
+otherwise.
+
+**Real, honest, narrower pieces still open, even with the shape now
+resolved:** the exact schema the path-tree file itself would use;
+whether it's global-per-workbench (the more natural reading) or ever
+needs to be per-project; and the real, separate, still-unresolved
+question `#754`'s own original note already named and this doesn't
+answer -- whether a project should ever pin a specific SHARED-LIBRARY
+VERSION, not just its location. Alan's own answer here resolves "where
+do I find it," not "which version of it" -- genuinely different real
+questions.
+
+**A real, separate observation recorded, not lost:** Alan's own direct
+point that the eventual user manual for everything accumulated this
+session (the hierarchical ICM format, tile libraries, `priority`, the
+DAG/pattern-library mechanism, MAN/project workflows, the Composer) is
+going to be a genuinely substantial volume of real documentation work
+-- not scoped or attempted here, a real, honest acknowledgment of real,
+separate work still ahead.
+
+**Real, honest status: `#754`'s own Part 4 open question updated in
+place, not superseded by a new note.** Updated directly at `docs/
+stripped-cell/design-notes/free_format_and_projects_scope.md`. Still
+no RTL, no schema, no UI code, no path-tree file built.
