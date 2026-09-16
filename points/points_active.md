@@ -11582,3 +11582,102 @@ separate work still ahead.
 place, not superseded by a new note.** Updated directly at `docs/
 stripped-cell/design-notes/free_format_and_projects_scope.md`. Still
 no RTL, no schema, no UI code, no path-tree file built.
+
+## 756. The real, first LLVM IR -> VIX Carrier compilation path built and proven, per Alan's own direct ask to start with foundation work ("a path we have trodden before"). A genuine, important correction to `#746`/`#750`'s own earlier framing found and confirmed directly along the way, not glossed over: "general DAG data flow" was imprecise -- one real DAG shape (fan-out: one producer, multiple non-adjacent consumers) was already solved on the old lineage since `#700`-`#717`, months before this session's own `#746`/`#750`; the genuinely unsolved shape is specifically convergence (multiple, independent producers meeting at one consumer), which is what `#750`/`#751`'s own work actually addressed and remains real, necessary, non-wasted work. (Alan/Claude, 2026-09-16)
+
+**The correction, found and verified directly, not assumed either
+way:** re-reading `llvm_ir_frontend_v1.py`'s own full code (not just
+its own header docstring, which turned out to be stale) surfaced a
+real, working `_build_dag_relay()` mechanism, referencing `#700`-
+`#717` (2026-09-08) -- a real "hold + explicit trigger" primitive that
+decouples relay path LENGTH from delivery TIMING entirely, already
+wired into the frontend for `add`/`sub`/`icmp`/`shl`/`lshr`. Directly
+ran both the historically-passing tests to confirm they're STILL
+accurate today, not just trust either the code comments or the ledger
+blindly: `test_non_chain_dag_rejected` (the real "diamond" shape --
+`t3 = add t1, t2` where t1/t2 are separate, independent chains --
+`#746`/`#750`'s own actual subject) still correctly rejects; `test_
+dag_reference_to_a_non_adjacent_earlier_add_result` (one producer,
+multiple non-adjacent consumers on the SAME chain) already, genuinely
+passes. **Both `#746`'s own core claim and `#750`'s own hand-built
+work remain accurate and non-wasted** -- what `#746` should have named
+more precisely is that fan-out and convergence are two genuinely
+different DAG shapes, not lumped under one "general DAG data flow"
+label; `#700`-`#717` solved the first, `#750`/`#751` are solving the
+second.
+
+**The real, new foundation work built, per Alan's own direct request
+to start there before exploring further:** a new module (`nano/vix_
+compiler_v1.py`, `compile_program_ir_vix()`) mirroring `dsl_compiler_
+v1.py`'s own real `compile_program_ir()` exactly for the shape it
+already handles correctly -- Tier-0 tiles only, absolute placement
+already decided by the frontend (confirmed directly: `ProgramIR`'s own
+`PlaceIR` already carries ABSOLUTE `row`/`col` -- the backend has
+never done placement at all, a real, important correction to my own
+working assumption going in), resolved against `vix_tile_library_
+v1.py` instead of `super_tile_library_v1.py`, wrapped into one, single,
+whole-program `HierPattern` for this first, bounded pass (real,
+deliberate simplification -- pattern deduplication across multiple
+placements is real, separate, deferred work, not attempted here).
+
+**A real, genuine, necessary gap found and fixed along the way, not
+glossed over:** no way existed to express "preload this compile-time
+constant" through the tile/field mechanism at all -- `preload_value`
+lives on `HierCell` directly, not in any tile's own port/param
+contract. A first, naive test using `ram_constant` (`fixed_mode=1`)
+reproduced the exact, already-known hazard (`#742`/`#748`/`#750`):
+silently produced `60`, not the real, correct `42`. A second attempt
+using `ram_flowing` failed differently -- that tile hard-requires a
+real `in` port a genuine constant source doesn't have. Fixed properly,
+not worked around: a real, new `ram_preload` tile added to `vix_tile_
+library_v1.py` (flowing-mode, no `in` port, genuinely distinct from
+`ram_constant`), plus a real, dedicated `preload` field convention in
+the new compiler (matching the existing `addon.` field convention's
+own precedent) routing straight to `HierCell.preload_value`.
+
+**A real, backward-compatible `target` parameter added to `compile_
+llvm_ir()`** (`target="old"` default, `target="vix"` new) -- confirmed
+directly, not assumed, that the frontend's own real parse/lower logic
+is identical regardless of target; only the final backend call
+differs, avoiding ~1400 lines of duplication. A real regression found
+and fixed immediately: the loop-handling code path lives in a
+genuinely separate function (`_compile_single_counting_loop()`) that
+didn't receive `target` at all -- caught immediately by running the
+full existing test suite right after the first edit (10 real
+failures, all the same `NameError`), fixed by threading `target`
+through properly, confirmed clean on re-run (88/88 passed).
+
+**Real, end-to-end proof, not just "it compiles":** a real LLVM IR
+program (`t1 = add x, 5; t2 = add t1, 10; ret t2`) compiled with
+`target="vix"`, producing a real `icm_vix_v1.IcmVixFile`, zero
+`check_connections()`/`check_known_gotchas()` warnings, run through
+the actual VM -- the exact correct result (`18` for `x=3`). 6 real,
+new, permanent tests (`tests/vm/test_llvm_ir_vix_target_v1.py`):
+single-add and multi-instruction linear chains targeting VIX
+correctly; confirming the real output TYPE is genuinely `IcmVixFile`,
+not the old format; confirming the default (`target="old"`) path is
+completely unaffected; and two real, honest negative tests --
+fan-out (`nano_hold_trigger` doesn't exist for VIX yet) producing a
+real, clear diagnostic, never a crash; and the still-genuinely-
+unsolved convergence shape still correctly rejected for VIX too, the
+same real restriction the old-lineage target already enforces.
+
+**Real, honest, remaining gaps, named precisely, not smoothed over:**
+fan-out (`#700`-`#717`'s own mechanism) needs a real `nano_hold_
+trigger` VIX tile before it can be ported -- real, separate, bounded
+work, not attempted here. The loop case (`_compile_single_counting_
+loop`) needs its own real loop tiles (`nano_loop_var`/`nano_loop_ctrl`/
+etc.) ported to VIX before `target="vix"` can support it at all --
+untouched here. Composed (Tier-1) tiles remain unsupported by the new
+VIX backend, matching `vix_tile_library_v1.py`'s own real, stated
+Tier-0-only scope (`#748`). And the real, central, still-unsolved
+problem `#750`/`#751`/`#752` already named stands exactly where it
+was: a general placement ALGORITHM for arbitrary convergence shapes
+(as opposed to the two real, hand-verified instances now proven) is
+real, separate, harder work, not attempted in this entry.
+
+**Real, honest verification: full project suite re-run** (784 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression from every change in this
+entry, including the shared `compile_llvm_ir()` signature change
+affecting every existing caller.

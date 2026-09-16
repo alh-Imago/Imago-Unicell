@@ -192,6 +192,30 @@ TILE_RAM_CONSTANT = register(VixTileSpec(
     fixed_core_config={"fixed_mode": 1, "load_data_valid": 1},
 ))
 
+TILE_RAM_PRELOAD = register(VixTileSpec(
+    name="ram_preload", core="ram",
+    description="Points.md #756: a real, dedicated, ONE-SHOT constant "
+                 "source -- flowing-mode (fixed_mode=0), no real 'in' "
+                 "port at all (a genuine compile-time constant has no "
+                 "real upstream to wire), seeded via HierCell's own "
+                 "real preload_value field, not a core_config param. "
+                 "Offers exactly once, then goes quiet until re-captured "
+                 "-- the real, correct default for feeding a compile-"
+                 "time constant into a two-arrival core (adder/mul), "
+                 "confirmed directly (#750): even TWO such preloaded "
+                 "cells converging on the same real consumer still need "
+                 "a genuinely different real path length each, since "
+                 "both are already 'ready' from tick zero -- this tile "
+                 "fixes RE-CONTAMINATION, not simultaneous first "
+                 "arrival, which stays a real, separate placement "
+                 "concern. Real, honest distinction from ram_constant: "
+                 "that one is fixed_mode=1 (continuously re-offering,"
+                 " never safe feeding a two-arrival core directly); this "
+                 "one is fixed_mode=0, preloaded, one-shot.",
+    ports=[TilePort("out", "out", "downstream_mask")],
+    fixed_core_config={"fixed_mode": 0},
+))
+
 TILE_ADDER = register(VixTileSpec(
     name="adder", core="adder",
     description="Two-operand 32-bit adder. in_a/in_b share the SAME "

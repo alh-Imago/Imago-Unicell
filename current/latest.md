@@ -1,4 +1,52 @@
-# Current State (as of 2026-09-16, #754's own "how does a project reach shared components" question resolved in shape -- workbench-relative paths via a real path-tree file plus a path-picker/folder-creation UI, formalizing an already-proven pattern this project's own test suite already uses. Also recorded: the eventual user manual is real, substantial, separate work. Scoping only. See `points/points_active.md` #755)
+# Current State (as of 2026-09-16, the real, first LLVM IR -> VIX Carrier compilation path built and proven -- linear chains compile correctly end to end. A genuine correction to #746/#750's own earlier framing found and confirmed: fan-out (one producer, many consumers) was already solved since #700-#717; convergence (many producers, one consumer) is the genuinely unsolved shape #750/#751 actually address. See `points/points_active.md` #756)
+
+## Read this first (most recent)
+
+**2026-09-16, first real LLVM IR -> VIX path built (#756).** Per
+Alan's own direct ask to start with foundation work -- "a path we
+have trodden before."
+
+**A real correction found and verified directly, not assumed either
+way:** re-reading the frontend's own full code (not just its stale
+header docstring) surfaced a real, working fan-out mechanism already
+built since #700-#717 (one producer, multiple non-adjacent consumers
+on the SAME chain) -- genuinely different from the "diamond"
+convergence shape (#746/#750's own actual subject: separate producers
+meeting at one consumer), which remains correctly rejected today, on
+both lineages. Directly ran the historical tests to confirm both are
+still accurate now, not trusted blindly. Neither #746's core claim nor
+#750/#751's work was wasted -- #746 should have distinguished the two
+shapes more precisely, that's the real correction.
+
+**The new foundation work:** nano/vix_compiler_v1.py's compile_
+program_ir_vix(), mirroring the old backend exactly for Tier-0 tiles
+-- confirmed directly that placement was always the frontend's job,
+never the backend's. A real, necessary ram_preload tile added (no `in`
+port, the correct one-shot constant source) after two real, instructive
+failures (ram_constant's known double-counting hazard; ram_flowing's
+hard-required `in` port). A real target= parameter added to compile_
+llvm_ir(), with one real regression found and fixed immediately (the
+loop path is a separate function that needed target threaded through
+too -- caught by running the full suite right after the first edit).
+
+**Real, end-to-end proof:** a real LLVM IR linear chain compiled with
+target="vix" produces a real IcmVixFile, zero advisory/gotcha
+warnings, runs through the actual VM to the exact correct answer. 6
+new tests, including two honest negative cases -- fan-out gives a
+clear error (missing tile, not a crash), and true convergence stays
+correctly rejected for VIX too.
+
+**Real, remaining gaps named precisely:** fan-out needs a real nano_
+hold_trigger VIX tile before porting; the loop case needs its own loop
+tiles ported; composed tiles remain unsupported (matching the tile
+library's own stated scope); and the real, central problem stands
+exactly where it was -- a general placement algorithm for arbitrary
+convergence shapes remains real, separate, harder work.
+
+**Status: 784 tests pass, zero regression**, including the shared
+signature change affecting every existing caller.
+
+## Previous state (as of 2026-09-16, #754's own "how does a project reach shared components" question resolved in shape -- workbench-relative paths via a real path-tree file plus a path-picker/folder-creation UI, formalizing an already-proven pattern this project's own test suite already uses. Also recorded: the eventual user manual is real, substantial, separate work. Scoping only. See `points/points_active.md` #755)
 
 ## Read this first (most recent)
 

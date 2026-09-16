@@ -88,6 +88,7 @@ import llvmlite.binding as llvm  # noqa: E402
 from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from program_ir_v1 import ProgramIR, PlaceIR, FieldIR  # noqa: E402
 from dsl_compiler_v1 import compile_program_ir  # noqa: E402
+from vix_compiler_v1 import compile_program_ir_vix  # noqa: E402
 
 _SUPPORTED_OPCODES = {"add", "sub", "icmp", "select", "shl", "lshr", "ashr", "and", "or", "xor"}
 
@@ -495,7 +496,7 @@ def _build_dag_relay(instr_name: str, first_name: str, diff_col: int,
     return dag_reference_count + 1
 
 
-def compile_llvm_ir(source: str, argument_values: Dict[str, int]
+def compile_llvm_ir(source: str, argument_values: Dict[str, int], target: str = "old"
                      ) -> Tuple[Optional[Any], List[CompileDiagnostic], Optional[LlvmLoweringInfo]]:
     """The whole real pipeline: parse real LLVM IR text, enforce the
     real chain-shape restriction, build a real `ProgramIR`, hand off to
@@ -527,7 +528,7 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
 
     blocks = list(fn.blocks)
     if len(blocks) == 3:
-        return _compile_single_counting_loop(fn, argument_values)
+        return _compile_single_counting_loop(fn, argument_values, target)
     if len(blocks) != 1:
         diagnostics.append(_diag(
             problem=f"function {fn.name!r} has {len(blocks)} basic blocks, expected exactly 1 "
@@ -1537,7 +1538,10 @@ def compile_llvm_ir(source: str, argument_values: Dict[str, int]
         return None, diagnostics, None
 
     program_ir = ProgramIR(name=fn.name, statements=statements)
-    icm, backend_diags = compile_program_ir(program_ir, program_name_hint=fn.name)
+    if target == "vix":
+        icm, backend_diags = compile_program_ir_vix(program_ir, program_name_hint=fn.name)
+    else:
+        icm, backend_diags = compile_program_ir(program_ir, program_name_hint=fn.name)
     diagnostics.extend(backend_diags)
     if icm is None:
         return None, diagnostics, None
@@ -1618,7 +1622,7 @@ def _conditional_br_targets(instr) -> Optional[Tuple[str, str, str]]:
     return ops[0].name, ops[1].name, ops[2].name
 
 
-def _compile_single_counting_loop(fn, argument_values: Dict[str, int]
+def _compile_single_counting_loop(fn, argument_values: Dict[str, int], target: str = "old"
                                     ) -> Tuple[Optional[Any], List[CompileDiagnostic], Optional[LlvmLoopLoweringInfo]]:
     diagnostics: List[CompileDiagnostic] = []
     blocks = {b.name: b for b in fn.blocks}
@@ -1852,7 +1856,10 @@ def _compile_single_counting_loop(fn, argument_values: Dict[str, int]
     ]
 
     program_ir = ProgramIR(name=fn.name, statements=statements)
-    icm, backend_diags = compile_program_ir(program_ir, program_name_hint=fn.name)
+    if target == "vix":
+        icm, backend_diags = compile_program_ir_vix(program_ir, program_name_hint=fn.name)
+    else:
+        icm, backend_diags = compile_program_ir(program_ir, program_name_hint=fn.name)
     diagnostics.extend(backend_diags)
     if icm is None:
         return None, diagnostics, None
