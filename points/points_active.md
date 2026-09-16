@@ -11731,3 +11731,53 @@ composition/matching system itself remains real, separate, unattempted
 work. Full project suite re-run (785 passed, 1 skipped -- same
 pre-existing skip, 4 warnings -- same pre-existing, unrelated),
 confirming zero regression.
+
+## 758. The real, missing `nano_hold_trigger` VIX tile added, per Alan's own direct ask to close this named gap before starting the composition/matching design work -- the real fan-out/non-adjacent-reference mechanism (`#700`-`#717`) now works for VIX targeting too, not just the old lineage, confirmed with the same rigorous "holds the value, not instant pass-through" test the old lineage already uses. (Alan/Claude, 2026-09-16)
+
+**A real, direct port, not a re-derivation:** `super_tile_library_
+v1.py`'s own `nano_hold_trigger` tile is just `core="nano"` with a
+specific, real config (`{"topology": 0, "ready": 1, "hold_in": 1,
+"a_reemit_in": 1}`) -- confirmed directly, not assumed, that `hold_in`/
+`a_reemit_in` are real, recognized fields in the SHARED `nano`
+dispatch (`unicell_super_automaton_v1.py`), not lineage-specific, and
+that `nano_gate_v4c.v`'s own real `cmd_latch` field map was already
+confirmed identical to the old lineage's (`#748`). The same exact
+`fixed_core_config` ported directly to `vix_tile_library_v1.py`,
+`arrivals_needed=2` set correctly (a real, genuine hold-then-trigger
+shape -- the first real arrival is held with no output; only the
+second, the explicit trigger, causes real delivery -- exactly matching
+`#757`'s own newly-formalized contract field).
+
+**A real, own bug found and fixed immediately while adding this:**
+`#757`'s own new `test_arrivals_needed_matches_the_actual_vm_delivery_
+logic` test categorized tiles by CORE name, not TILE name -- broke the
+moment `nano_hold_trigger` (arrivals_needed=2) was added, since it
+shares `core="nano"` with `nano_gate` (arrivals_needed=1). A real,
+useful confirmation that `arrivals_needed` is genuinely a per-
+CONFIGURATION fact, not a per-core one -- the test's own logic was
+wrong, not the new tile; fixed to check by tile name.
+
+**Real, end-to-end proof, not just "the tile exists":** the exact
+real LLVM IR program `#756`'s own fan-out test named as blocked (`t1`
+feeding both `t2` and `t3` non-adjacently) now compiles cleanly with
+`target="vix"`, zero `check_connections()`/`check_known_gotchas()`
+warnings, and produces the correct result (`18` for `x=10`) when run
+through the actual VM. The real, existing "expects a clear error" test
+from `#756` replaced with a real, positive, working test, plus a NEW,
+more rigorous test mirroring the old lineage's own real discipline --
+directly inspecting the drop cell's own internal `_nano` state across
+many ticks, confirming it genuinely HOLDS the relayed value (not an
+instant pass-through) until the real, explicit trigger arrives.
+
+**Real, honest, remaining gaps, unchanged by this entry:** the loop
+case still needs its own real loop tiles ported to VIX; composed
+(Tier-1) tiles remain unsupported; and the real, central problem
+(`#750`/`#751`/`#752`/`#757`) stands exactly where it was -- fan-out is
+now solved for both lineages, but general convergence still needs a
+real placement algorithm, not yet attempted.
+
+**Real, honest verification: full project suite re-run** (786 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression. This closes the one, real,
+named prerequisite before starting the composition/matching design
+work, per Alan's own direct sequencing.

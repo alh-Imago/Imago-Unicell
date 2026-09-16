@@ -101,12 +101,17 @@ def test_arrivals_needed_matches_the_actual_vm_delivery_logic():
     """points.md #757: the real, third tile-contract field a placement
     algorithm needs (shape, ports, timing) -- confirmed here against
     every real tile's own actual VM behavior, not just trusted as a
-    static number. Two arrivals for the real 'capture A, then B'
-    cores; zero for sequencer (continuously live from config, never
-    arrival-triggered); one for everything else."""
-    two_arrival_cores = {"adder", "subtractor", "mul", "branch"}
+    static number. Checked by TILE name, not core name -- two tiles
+    can share the same real core (nano_gate/nano_hold_trigger both
+    core='nano') with genuinely different arrivals_needed, since it's
+    a per-CONFIGURATION fact, not a per-core one (#757's own real
+    nano_hold_trigger addition confirmed this directly). Two arrivals
+    for the real 'capture A, then B' cores and the real hold-then-
+    trigger relay; zero for sequencer (continuously live from config,
+    never arrival-triggered); one for everything else."""
+    two_arrival_tiles = {"adder", "subtractor", "mul", "branch", "nano_hold_trigger"}
     for name, tile in vtl.vix_tile_library.items():
-        if name in two_arrival_cores:
+        if name in two_arrival_tiles:
             assert tile.arrivals_needed == 2, name
         elif name == "sequencer":
             assert tile.arrivals_needed == 0, name

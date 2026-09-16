@@ -1,4 +1,35 @@
-# Current State (as of 2026-09-16, real, third tile-contract field (arrivals_needed) added -- timing, alongside shape and ports -- tracing back to points.md #17, this project's own very first placement rule from 2026-07-07. Confirmed directly against every real tile's own actual VM delivery logic. See `points/points_active.md` #757)
+# Current State (as of 2026-09-16, the real, missing nano_hold_trigger VIX tile added -- fan-out/non-adjacent-reference DAG support now works for VIX targeting too, closing the one named prerequisite before the composition/matching design work begins. See `points/points_active.md` #758)
+
+## Read this first (most recent)
+
+**2026-09-16, nano_hold_trigger ported to VIX (#758).** Per Alan's own
+direct ask to close this named gap first. A real, direct port -- the
+old lineage's own tile is just core="nano" with a specific config;
+confirmed directly that hold_in/a_reemit_in are real, shared (not
+lineage-specific) fields, and nano_gate_v4c.v's own field map was
+already confirmed identical (#748). Ported the same config directly,
+arrivals_needed=2 (a genuine hold-then-trigger shape).
+
+**A real bug in #757's own new test found and fixed immediately:**
+it categorized by CORE name, not TILE name -- broke the moment
+nano_hold_trigger (needs 2) was added, sharing core="nano" with
+nano_gate (needs 1). Confirmed arrivals_needed is genuinely a per-
+configuration fact, not per-core; fixed the test's own logic.
+
+**Real, end-to-end proof:** the exact fan-out program #756 named as
+blocked now compiles cleanly to VIX, zero warnings, correct result.
+The old "expects an error" test replaced with a real, positive one,
+plus a new, more rigorous test mirroring the old lineage's own
+discipline -- directly confirming the drop cell genuinely HOLDS the
+value (not instant pass-through) until the real trigger arrives.
+
+**Status: 786 tests pass, zero regression.** This closes the one
+named prerequisite before the composition/matching design work, per
+Alan's own direct sequencing. Real, remaining gaps unchanged: loop
+tiles, composed tiles, and the real, central convergence-placement
+problem still ahead.
+
+## Previous state (as of 2026-09-16, real, third tile-contract field (arrivals_needed) added -- timing, alongside shape and ports -- tracing back to points.md #17, this project's own very first placement rule from 2026-07-07. Confirmed directly against every real tile's own actual VM delivery logic. See `points/points_active.md` #757)
 
 ## Read this first (most recent)
 

@@ -89,11 +89,12 @@ def test_old_target_is_unaffected_default_behavior():
     assert isinstance(icm_old, v3.IcmV3File)
 
 
-def test_fan_out_dag_reference_gives_a_real_clear_error_for_vix_not_a_crash():
-    """The fan-out/non-adjacent-reference mechanism (#700-#717) relies
-    on a real 'nano_hold_trigger' tile that doesn't exist in vix_tile_
-    library_v1.py yet -- confirmed here to produce a real, clear
-    diagnostic, never a crash or a silently wrong compile."""
+def test_fan_out_dag_reference_now_works_for_vix_too():
+    """points.md #757: the real, missing nano_hold_trigger VIX tile
+    added -- the fan-out/non-adjacent-reference mechanism (#700-#717)
+    now works for VIX targeting too, the same real mechanism the old
+    lineage already proved (one producer, multiple non-adjacent
+    consumers on the same chain)."""
     ir = """
     define i32 @f(i32 %x) {
     entry:
@@ -103,9 +104,43 @@ def test_fan_out_dag_reference_gives_a_real_clear_error_for_vix_not_a_crash():
       ret i32 %t3
     }
     """
-    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 10}, target="vix")
-    assert icm is None
-    assert any("nano_hold_trigger" in d.problem for d in diagnostics)
+    assert _run_vix(ir, {"x": 10}, ticks=60) == 18  # 10+5+3
+
+
+def test_dag_reference_holds_and_only_delivers_on_the_real_explicit_trigger_vix():
+    """Real, direct confirmation this isn't an accidental instant
+    pass-through for VIX either -- the same real rigor test_llvm_ir_
+    frontend_v1.py's own equivalent old-lineage test already applies:
+    inspects the drop cell's own internal nano state directly across
+    many ticks, confirming it holds the real relayed value the whole
+    time before the program's own real trigger fires."""
+    ir = """
+    define i32 @f(i32 %x) {
+    entry:
+      %t1 = add i32 %x, 1
+      %t2 = add i32 %t1, 2
+      %t3 = add i32 %t2, 3
+      %t4 = add i32 %t3, 4
+      %t5 = add i32 %t1, 100
+      ret i32 %t5
+    }
+    """
+    icm, diagnostics, info = compile_llvm_ir(ir, {"x": 5}, target="vix")
+    assert icm is not None, diagnostics
+    records, _ = icm.flatten()
+    grid = SuperGrid(records)
+    for row, col, value in info.injections:
+        grid.inject(row, col, value)
+    drop_pos = next((r.row, r.col) for r in records if "relay_drop" in r.cell_id)
+    for t in range(1, 60):
+        grid.tick()
+        if t == 20:
+            drop_state = grid.cells[drop_pos]._nano
+            assert drop_state.a_arrived is True
+            assert drop_state.a_data == 6   # x+1
+    cell = grid.cells[info.result_cell]
+    assert cell.adder_out_buffer == 106
+    assert cell.adder_data_valid is True
 
 
 def test_non_chain_dag_still_rejected_for_vix_too():

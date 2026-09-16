@@ -203,6 +203,27 @@ TILE_NANO_GATE = register(VixTileSpec(
     fixed_core_config={"ready": 1},
 ))
 
+TILE_NANO_HOLD_TRIGGER = register(VixTileSpec(
+    name="nano_hold_trigger", core="nano",
+    description="Points.md #757: real, direct port of the OLD lineage's "
+                 "own proven DAG-relay drop cell (#700/#701) -- holds its "
+                 "first real arrival, delivers it (unchanged) only on a "
+                 "separate, later, explicit trigger arrival, decoupling "
+                 "relay path LENGTH from delivery TIMING entirely. Same "
+                 "real fixed_core_config as super_tile_library_v1.py's "
+                 "own nano_hold_trigger tile -- confirmed directly that "
+                 "hold_in/a_reemit_in are real, recognized fields in the "
+                 "SHARED nano dispatch (unicell_super_automaton_v1.py), "
+                 "not lineage-specific, and nano_gate_v4c.v's own real "
+                 "cmd_latch field map is already confirmed identical to "
+                 "the old lineage's (#748). arrivals_needed=2 matches "
+                 "this real, genuine hold-then-trigger shape exactly.",
+    ports=[TilePort("out", "out", "routing_mask")],
+    param_names=[],
+    fixed_core_config={"topology": 0, "ready": 1, "hold_in": 1, "a_reemit_in": 1},
+    arrivals_needed=2,
+))
+
 TILE_RAM_FLOWING = register(VixTileSpec(
     name="ram_flowing", core="ram",
     description="Single-arrival capture, held until drained, then "
