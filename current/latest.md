@@ -1,4 +1,41 @@
-# Current State (as of 2026-09-16, the real, symbolic timing model built and proven for the case that genuinely needs it -- plain, relay-padded convergence. Grounded against real VM ground truth, then proven necessary with a direct negative case: naive tightening really does reproduce the #750 collision. See `points/points_active.md` #764)
+# Current State (as of 2026-09-16, the timing model generalized to composed sources, then wired into a real, general N-way reduction compiler -- confirmed correct for N=2, 4, 8, 16. This is the concrete "known start" for N-space generalization. See `points/points_active.md` #765)
+
+## Read this first (most recent)
+
+**2026-09-16, timing model generalized + N-way reduction compiler
+built (#765).** Per Alan's own direct sequencing: fold the composed-
+piece timing gap first, then add the technique to the compiler side.
+
+**Part 1:** grounded against real VM ground truth first -- a two-level
+convergence (adder feeding a downstream consumer through relay hops)
+confirmed the same formula (source_ready_tick + hops + 1) applies to a
+composed source as to a leaf. rats_nest_timing_v1.py generalized:
+symbolic_arrival_tick() now takes an optional source_ready_tick;
+new composed_output_ready_tick() returns when a two-arrival core's own
+output becomes ready (confirmed: the exact same tick its second input
+is captured, no extra delay).
+
+**Part 2:** a real, general N-way reduction compiler (nano/vix_n_way_
+reduction_v1.py), generalizing #759-#763's hand-built N=4 example to
+arbitrary N (power of 2). Same real structure: loose build, then
+tighten level by level. Confirmed correct for N=2 (15), N=4 (100,
+exact same cell count as #763's hand-built result -- 34), N=8 (36,
+genuinely new territory), N=16 (136, four levels). 6 new tests
+including honest negative cases (non-power-of-2, too few leaves both
+rejected clearly).
+
+**Two small bugs found and fixed:** a wrong unpacking count for
+tighten_nexus_to_nexus()'s real return value (caught immediately by
+the first test run); an abandoned placeholder replaced once it was
+clear the tightening functions already return final cells directly.
+
+**Status: the concrete "known start" for N-space work now exists.**
+Real, honest scope: power-of-2, all-priority, all-constant-leaf case
+fully covered. Not yet covered: non-power-of-2 N, dynamic leaves,
+mixed priority/relay-padded designs, 3+-way single-nexus convergence.
+810 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, the real, symbolic timing model built and proven for the case that genuinely needs it -- plain, relay-padded convergence. Grounded against real VM ground truth, then proven necessary with a direct negative case: naive tightening really does reproduce the #750 collision. See `points/points_active.md` #764)
 
 ## Read this first (most recent)
 

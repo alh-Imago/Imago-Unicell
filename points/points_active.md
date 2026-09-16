@@ -12178,3 +12178,80 @@ yet computed) -- real, separate, not-yet-tested work, named directly
 rather than glossed over. Full project suite re-run (803 passed, 1
 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 765. Two real pieces built, per Alan's own direct sequencing -- fold the composed-piece timing gap first, then wire the technique into the compiler side: (1) the symbolic timing model generalized to cover a source that is itself a composed piece's own output, grounded against real VM ground truth for a genuine two-level convergence; (2) a real, general N-way reduction compiler built on the rats-nest pipeline, confirmed correct for N=2, 4, 8, and 16 -- N=4 reproducing `#763`'s own hand-built result exactly (same answer, same final cell count), N=8/16 genuinely new, never-hand-built territory. This is the concrete "known start" for the N-space generalization Alan asked for. (Alan/Claude, 2026-09-16)
+
+**Part 1 -- the composed-piece timing gap closed, grounded against real
+VM ground truth first, not derived from theory:** built a real, small
+two-level test (a real adder `t1 = a+b`, its own output feeding a
+downstream consumer through a known number of relay hops) and traced
+the actual VM. Confirmed precisely: `t1`'s own `data_valid` becomes
+True at a real, fixed tick regardless of downstream hop count (as
+expected); the downstream consumer's own real capture delay past `t1`
+follows the EXACT SAME formula as past a preloaded leaf --
+`source_ready_tick + hop_count + 1` -- confirmed for 0, 1, 2, and 3
+real relay hops, exact match every time. `rats_nest_timing_v1.py`
+updated: `symbolic_arrival_tick()` now takes an optional real
+`source_ready_tick` (defaulting to `1`, reproducing the original,
+leaf-only formula exactly for backward compatibility); a new, real
+`composed_output_ready_tick(input_a_tick, input_b_tick)` function
+returns the real tick a two-arrival core's own output becomes ready --
+confirmed directly against the VM: the EXACT SAME tick its own second,
+later-arriving input is captured, no additional real delay. `would_
+collide()` extended with optional `source_ready_a`/`source_ready_b`
+parameters for the same real reason. 1 new, permanent test confirming
+the generalized formula against real VM ground truth for a genuine
+composed source, not just a leaf.
+
+**Part 2 -- the real, general N-way reduction compiler
+(`nano/vix_n_way_reduction_v1.py`), generalizing `#759`-`#763`'s own
+hand-built N=4 example to arbitrary N (a power of 2, for this first,
+bounded version):** builds the SAME real, loose-then-tighten structure
+automatically -- level 0 leaves loosely spaced, each subsequent level
+pairing up the previous level's own real results into new, loosely-
+placed combine units, then tightened level by level (leaf-to-nexus via
+`#762`'s fast, structural-only method; nexus-to-nexus via `#763`'s
+rigid-block method). Because every real convergence point uses
+`priority`, the symbolic timing model from Part 1 was confirmed NOT
+needed for correctness in this specific reduction shape -- a real,
+honest, stated scope limit, not an oversight.
+
+**Real, escalating proof, not stopping at one case:** N=2 (`15`,
+correct); N=4 (`100`, correct, AND the exact same real, final cell
+count as `#763`'s own hand-built result -- `34` -- confirming the
+generalization loses none of the hand-tuned tightening quality); N=8
+(`36`, correct, genuinely new territory -- three real levels of
+reduction, never hand-built before this entry); N=16 (`136`, correct,
+four real levels). 6 new, permanent tests (`tests/vm/test_vix_n_way_
+reduction_v1.py`), including two real, honest negative tests
+confirming non-power-of-2 and too-few-leaves inputs are rejected with
+a real, clear error, not a silent wrong compile.
+
+**Two real, small bugs found and fixed while building this, worth
+naming:** an early version tried to unpack `tighten_nexus_to_nexus()`'s
+own real return value as 3 items, when it actually returns 2 -- caught
+immediately by the real `ValueError` at the very first N=4 test, fixed
+by checking the function's own actual signature directly rather than
+assuming; and an earlier, abandoned attempt at collecting final cells
+via a `_rebuild_cells_from_occ()` placeholder was replaced entirely
+once it became clear the tightening functions already return the real,
+final `HierCell` objects directly -- no reconstruction needed, just
+correct collection.
+
+**Real, honest, stated scope -- what this genuinely gives, and what it
+doesn't yet:** this is the concrete "known start" Alan asked for to
+work on N-space connections -- a real, working, tested compiler-side
+function that handles the balanced, power-of-2, all-`priority`,
+all-constant-leaf case completely. Real, separate, explicitly NOT yet
+covered: N that isn't a power of 2 (an unbalanced tree); dynamic
+(non-constant) leaves; mixing `priority` and relay-padded convergence
+within one design (where Part 1's own generalized timing model would
+actually be needed); and genuine 3-or-more-way convergence at a single
+nexus (`priority`'s own arbitration already supports this per `#751`'s
+own direct test, but the tightening machinery has only ever moved
+two-source combine units) -- real, separate, named work, not attempted
+here.
+
+**Real, honest verification: full project suite re-run** (810 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression from every change in this entry.

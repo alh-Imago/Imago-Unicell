@@ -11,7 +11,7 @@ import vix_tile_library_v1 as vtl  # noqa: E402
 import icm_vix_v1 as vix  # noqa: E402
 from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
 from rats_nest_router_v1 import manhattan_route  # noqa: E402
-from rats_nest_timing_v1 import symbolic_arrival_tick, would_collide, min_safe_hop_count  # noqa: E402
+from rats_nest_timing_v1 import symbolic_arrival_tick, would_collide, min_safe_hop_count, composed_output_ready_tick  # noqa: E402
 
 
 def _build_and_run(hop_a, hop_b, val_a=5, val_b=10, ticks=15):
@@ -160,3 +160,45 @@ def test_naive_uncoordinated_tightening_really_does_collide():
         grid.tick()
     result = grid.cells[(15, 15)]
     assert result.adder_out_buffer != 15  # the real, silent, wrong collision
+
+
+def test_composed_source_timing_matches_real_vm_ground_truth():
+    """points.md #765: the real, generalized case -- a source that is
+    itself a composed piece's own output (an upstream adder), not a
+    preloaded leaf. Confirmed directly against real VM ground truth:
+    the downstream capture delay past a composed piece follows the
+    exact same formula as past a leaf, given that piece's own real
+    ready tick."""
+    import vix_tile_library_v1 as vtl
+    import icm_vix_v1 as vix
+    from unicell_super_automaton_v1 import SuperGrid
+
+    def build_and_trace(n_relays):
+        a = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "e"}, cell_id="a", rel_row=0, rel_col=-1, preload_value=3)
+        b = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "s"}, cell_id="b", rel_row=-2, rel_col=0, preload_value=5)
+        b_relay = vtl.place(vtl.TILE_RAM_FLOWING, {"in": "n", "out": "s"}, cell_id="b_relay", rel_row=-1, rel_col=0)
+        t1 = vtl.place(vtl.TILE_ADDER, {"in_a": "w", "in_b": "n", "out": "e"}, cell_id="t1", rel_row=0, rel_col=0)
+        cells = [a, b, b_relay, t1]
+        for i in range(n_relays):
+            cells.append(vtl.place(vtl.TILE_RAM_FLOWING, {"in": "w", "out": "e"}, cell_id=f"r{i}", rel_row=0, rel_col=1 + i))
+        consumer_col = 1 + n_relays
+        cells.append(vtl.place(vtl.TILE_RAM_FLOWING, {"in": "w", "out": "e"}, cell_id="consumer", rel_row=0, rel_col=consumer_col))
+        icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=cells)},
+                              placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                              name="composed_test")
+        assert icm.check_connections() == []
+        records, _ = icm.flatten()
+        grid = SuperGrid(records)
+        t1_ready = consumer_ready = None
+        for t in range(1, 20):
+            grid.tick()
+            if grid.cells[(0, 0)].adder_data_valid and t1_ready is None:
+                t1_ready = t
+            if grid.cells[(0, consumer_col)].ram_data_valid and consumer_ready is None:
+                consumer_ready = t
+        return t1_ready, consumer_ready
+
+    for n_relays in [0, 1, 2, 3]:
+        t1_ready, consumer_ready = build_and_trace(n_relays)
+        predicted = symbolic_arrival_tick(n_relays, source_ready_tick=t1_ready)
+        assert consumer_ready == predicted, f"n_relays={n_relays}: predicted {predicted}, got {consumer_ready}"
