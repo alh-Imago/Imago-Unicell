@@ -1,4 +1,50 @@
-# Current State (as of 2026-09-16, the smallest real DAG built and solved by hand for the first time -- confirming general DAG data flow is a genuine, unfilled hole in the LLVM frontend, and surfacing a new, generalized timing hazard: two PRELOADED constants converging on the same consumer collide too, not just dynamic-vs-constant. See `points/points_active.md` #750)
+# Current State (as of 2026-09-16, priority given a real VM model and confirmed as a genuinely better alternative to relay-path-length engineering for DAG convergence -- Alan's own direct insight, worked through to a real architectural decision, then built. The full three-level diamond DAG rebuilt with ZERO relay padding. See `points/points_active.md` #751)
+
+## Read this first (most recent)
+
+**2026-09-16, priority core VM model built, DAG convergence solved
+better (#751).** Alan's own direct insight after #750: the VIX
+Carrier's priority core could organize/stagger arrivals via configured
+rank/order. Confirmed directly against priority_cell_v4c.v: only the
+real winner gets acked; the loser's offer stays genuinely pending,
+served on its own later turn.
+
+**Real architectural question worked through before building:** does
+this generalize to other cores? No -- adder/accumulator/latch all
+process every real arrival unconditionally; priority is the only core
+whose job is selective rejection. Resolved: priority stays a dedicated
+core (the addon chain's carrier-level sharing works because it's a
+uniform OUTPUT transform; arbitration would need to sit ahead of every
+core's own different INPUT capture logic -- a harder generalization,
+not attempted).
+
+**The real, minimal tick() extension, per Alan's own framing** ("all
+except priority tie the 4 lines together, only priority treats it
+differently"): deliver()'s accepted return now supports a real set of
+specific directions, alongside the existing True/False. Every existing
+core unchanged -- confirmed directly, the full 772-test suite passed
+unchanged immediately after this edit, before priority's own model
+existed.
+
+**priority's own real VM model built and verified against actual
+RTL:** strict-rank arbitration, the loser genuinely held and served
+later (confirmed by direct trace), weighted RR reproducing the exact
+NNNW pattern #730 documented. One real, genuine edge case found (a
+cell with no downstream never drains -- matches real RTL, not a bug).
+
+**The real payoff: priority resolves DAG convergence with ZERO relay-
+path-length engineering.** Rebuilt #750's own diamond DAG this way:
+t3=38, exactly correct, using only direct adjacency. Also solves
+non-commutative operand order for free (explicit rank, not emergent
+path length).
+
+**Status: a genuinely better primitive, not a solved problem.** A real
+compiler still needs to decide per convergence point whether the extra
+cell + one tick of latency is worth it vs. a staggered bare adder --
+that placement algorithm is real, separate work. 5 new tests, 777
+total pass, zero regression.
+
+## Previous state (as of 2026-09-16, the smallest real DAG built and solved by hand for the first time -- confirming general DAG data flow is a genuine, unfilled hole in the LLVM frontend, and surfacing a new, generalized timing hazard: two PRELOADED constants converging on the same consumer collide too, not just dynamic-vs-constant. See `points/points_active.md` #750)
 
 ## Read this first (most recent)
 

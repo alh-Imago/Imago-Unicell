@@ -770,3 +770,136 @@ real, separate, concrete work, not attempted in this entry. Real,
 working example preserved as `nano/examples/dag_diamond_hand_built.py`
 (a real, direct, hand-traced build, not yet a frontend-generated one)
 for whenever that generalization is picked up.
+
+## Addendum 9 (2026-09-16): `priority` (VIX Carrier, `#730`) as a real, working alternative to relay-path-length engineering for DAG convergence -- Alan's own direct insight, confirmed by building it
+
+Per Alan's own direct observation, immediately after `Addendum 8`'s
+own hand-solved diamond DAG: the new VIX Carrier `priority` core
+"may help in organising and staggering arrivals... as we can fix the
+pattern of choice/order." Checked directly against `priority_cell_
+v4c.v`'s own real RTL before building anything -- confirmed exactly:
+`ack_out_X = capture_now && win_X` means only the real winner gets
+acked; a losing candidate's own offer stays genuinely pending,
+unacknowledged, to be served on its own later turn once `priority`
+drains and re-arms. This is precisely the mechanism needed to
+guarantee sequenced, non-simultaneous delivery to a two-arrival
+consumer -- without needing to engineer distinct real path lengths at
+all.
+
+**A real, genuine architectural snag found and resolved before any of
+this could be tested, not glossed over:** `priority`/`mul` had NO real
+VM simulation model at all (`#732`'s own already-noted status,
+confirmed directly, not assumed). Building one surfaced a real,
+deeper question, worked through carefully with Alan directly before
+writing any code: `priority`'s own real job is SELECTIVE, per-
+direction acceptance (accept the winner, leave the loser pending) --
+but the VM's own shared `tick()` dispatch returns one single
+`accepted: bool` per cell per tick, with no way to accept one real
+direction while rejecting another within the same call. Checked
+directly whether this was a general problem (does any OTHER existing
+core need this?) -- no: `adder`'s shared `in_a`/`in_b` field accepts
+every real arrival it sees, `accumulator`'s independent `inc_dir`/
+`dec_dir` and `latch`'s independent `set`/`clear`/`toggle` all process
+every real arrival unconditionally. `priority` is the only core whose
+entire real job is selective rejection.
+
+**Real, deliberate architectural decision, confirmed with Alan
+directly before building:** `priority` stays exactly what it already
+is -- a dedicated, separate core, not carrier-level shared
+infrastructure. The carrier's own addon chain works as shared
+infrastructure because it's a uniform, OUTPUT-side transform, applying
+identically regardless of which core is active; arrival arbitration
+would need to sit on the INPUT side, ahead of each core's own
+internal capture logic -- and every core's real capture semantics
+differ fundamentally from each other (`branch`'s single-direction
+reference-compare, `adder`'s ordered two-stage shared-field capture,
+`accumulator`'s independent parallel captures). Generalizing
+arbitration to sit compatibly in front of all of these would be a
+materially harder problem than the addon chain's own real
+generalization, not a smaller version of the same idea. "The carrier
+just exposes the lines to each core" is, in this sense, already true
+today -- `priority` is one more core the carrier exposes real lines
+to, doing its own complete job internally, the same as every other
+core.
+
+**The real, minimal, backward-compatible `tick()` extension, per
+Alan's own direct framing -- "if the ack side is already extended to
+each core, all except priority handle it the same way, tie all 4
+lines together... only priority treats it differently":** `deliver()`'s
+own return value for `accepted` now supports a real, third shape
+alongside `True`/`False` -- a real SET of the specific integer
+directions genuinely accepted this tick. `True` still means "every
+real direction in this tick's own arrivals, accepted together" (every
+EXISTING core, completely unchanged, zero edits needed to any of
+them); `False` still means "none accepted, retry everything" (also
+unchanged). Only `priority`'s own new `_deliver_priority()` ever
+returns the third shape (a real, one-element set containing just the
+winner, or an empty set when there's no real win this tick) --
+confirmed directly, not assumed: the full project test suite (772
+tests, before `priority`'s own model was added) passed unchanged
+immediately after this `tick()` edit, proving the extension is
+genuinely additive, not a behavioral change to anything already built.
+
+**`priority`'s own real VM model built and verified against the actual
+RTL logic precisely** (`SuperCell._deliver_priority()`/`_offer_state_
+priority()`, `#751`) -- real candidate detection (`upstream_mask` AND
+a real arrival), the shared strict/weighted-RR score structure
+(`3-rank` for strict, live credit for RR), the real, fixed N>S>E>W
+tie-break, the real Surplus Round Robin credit update (every
+candidate's own credit gains its own weight every round; only the
+winner's own credit is reduced, clamped at zero). Verified directly,
+not assumed: strict mode correctly picks the higher-ranked arrival
+first (`test_strict_priority_picks_the_higher_ranked_arrival_first`);
+the loser is genuinely held and served on its own next turn once
+`priority` drains (`test_the_loser_is_genuinely_held_and_served_on_
+its_own_later_turn`); weighted RR reproduces the exact `NNNW` pattern
+`#730`'s own original RTL simulation documented
+(`test_weighted_round_robin_produces_the_documented_surplus_pattern`).
+
+**A real, genuine edge case found and understood while testing RR
+mode, not a bug:** a `priority` cell with no real downstream
+(`downstream_mask=0`) never drains at all -- `pending_ack` never
+transitions from nonzero to zero (since `downstream_mask & anything`
+is always `0`), so the drain-detection Pass 3 never fires. This
+matches the real RTL's own logic exactly (a cell with nothing to wait
+acks from genuinely has no real "offer complete" transition to
+detect) -- not a VM bug, a real, accurate reflection of what the
+hardware would do. Every isolated `priority` test needed a real,
+draining downstream to observe more than one real arbitration round.
+
+**The real payoff, confirmed directly: `priority` resolves DAG
+convergence with ZERO relay-path-length engineering, a real,
+substantial simplification over `Addendum 8`'s own hand-padded
+solution.** Two operand sources feed ONE `priority` cell directly;
+`priority`'s own single output feeds the consuming `adder` from ONE
+direction -- `adder`'s own real "capture A, then capture B" logic
+doesn't care that both real values arrive from the same physical
+direction, only that they arrive on separate ticks, which `priority`
+already guarantees by construction. Rebuilt `Addendum 8`'s own real
+diamond (`t3 = (a+b) + (c+d)`) this way: `t3 = 38`, exactly correct,
+using only DIRECT adjacency throughout -- no engineered path lengths,
+no dataflow-depth bookkeeping, no risk of an unnoticed equal-length
+collision anywhere in the graph. **This also solves, for free, a
+second real problem `#611`'s own original addendum named separately:**
+non-commutative operand order (which value becomes `adder`'s own "A"
+vs "B") is now a real, EXPLICIT, deterministic choice (`priority_
+rank_*`), not an emergent fact of physical path length a compiler
+would have to reason about after the fact.
+
+**Real, honest status, and what this changes going forward:** this is
+a genuinely better real primitive for DAG convergence than relay-path
+padding, confirmed by building both and comparing directly -- but it
+does NOT eliminate the real placement problem entirely. A real
+compiler still needs to decide, for every point where two or more
+values converge, whether to use a `priority` cell (now the clearly
+preferred default, given zero path-length risk and explicit order
+control) or accept the real cost of an extra cell + one real tick of
+added latency per convergence point compared to a bare adder (`priority`
+genuinely serializes, so a convergence via `priority` costs a real,
+additional cycle relative to two already-staggered direct arrivals).
+Real, separate, concrete work, not attempted here: a real placement
+algorithm that decides this trade-off automatically for an arbitrary
+DAG, and whether `priority` scales cleanly to genuine 3-and-4-way
+convergences (its own real arbitration already supports up to 4 real
+directions, untested here beyond the 2-way case). 5 real, permanent
+tests preserved at `tests/vm/test_priority_core_v1.py`.

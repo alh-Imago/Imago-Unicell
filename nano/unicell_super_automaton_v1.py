@@ -390,6 +390,28 @@ class SuperCell:
                                      # (this core has nothing to drain-and-reclose --
                                      # it just advances to the next value on drain)
 
+    # ── priority: priority_cell_v4c.v's own real registers exactly
+    # (points.md #730, VM model added #751). upstream_mask/downstream_
+    # mask, unlike every other core, are SWAPPED in real RTL bit
+    # position relative to the usual convention -- confirmed directly
+    # against the actual RTL (#748's own real finding) -- but that's a
+    # cfg_data bit-layout fact, irrelevant here since this VM reads
+    # named core_config fields, not raw bit offsets. ──
+    pri_upstream_mask: int = 0
+    pri_downstream_mask: int = 0
+    pri_rank_n: int = 0
+    pri_rank_s: int = 0
+    pri_rank_e: int = 0
+    pri_rank_w: int = 0
+    pri_scheduling_mode: bool = False   # 0=strict, 1=weighted round-robin
+    pri_credit_n: int = 0
+    pri_credit_s: int = 0
+    pri_credit_e: int = 0
+    pri_credit_w: int = 0
+    pri_data_reg: int = 0
+    pri_data_valid: bool = False
+    pri_winning_dir: int = 0
+
     freeze_in: bool = False
     #: points.md #660: real, generic live-PROG_ID state for the 8 core
     #: types that don't delegate to an internal `_nano` object.
@@ -631,6 +653,19 @@ class SuperCell:
             cell.br_route_equal = dm(cfg.get("route_equal", 0))
             cell.br_route_high = dm(cfg.get("route_high", 0))
             cell.br_rolling_mode = bool(cfg.get("rolling_mode", 0))
+        elif core == "priority":
+            cell.pri_upstream_mask = dm(cfg.get("upstream_mask", 0))
+            cell.pri_downstream_mask = dm(cfg.get("downstream_mask", 0))
+            cell.pri_rank_n = int(cfg.get("priority_rank_n", 0)) & 0x3
+            cell.pri_rank_s = int(cfg.get("priority_rank_s", 0)) & 0x3
+            cell.pri_rank_e = int(cfg.get("priority_rank_e", 0)) & 0x3
+            cell.pri_rank_w = int(cfg.get("priority_rank_w", 0)) & 0x3
+            cell.pri_scheduling_mode = bool(cfg.get("scheduling_mode", 0))
+            cell.pri_credit_n = 0
+            cell.pri_credit_s = 0
+            cell.pri_credit_e = 0
+            cell.pri_credit_w = 0
+            cell.pri_data_valid = False
         else:
             raise ValueError(f"unsupported core {core!r} for VM dispatch (reserved core_select, #317)")
         return cell
@@ -874,6 +909,62 @@ class SuperCell:
         values = (self.seq_value_0, self.seq_value_1, self.seq_value_2, self.seq_value_3)
         self.seq_out_buffer = values[self.seq_index]
 
+    # ── priority: priority_cell_v4c.v's own real arbitration logic
+    # (points.md #730, VM model added #751). REAL, GENUINE DIFFERENCE
+    # from every other core's own deliver() -- this is the one core
+    # whose real job is selective, per-direction acceptance: only the
+    # real winner gets accepted (and therefore acked); a losing
+    # candidate's own offer stays genuinely pending, unacknowledged,
+    # to be served on its own later turn once this cell drains and
+    # re-arms. Confirmed directly against the RTL, not assumed:
+    # `ack_out_X = capture_now && win_X` -- capture_now itself requires
+    # `!data_valid` (this core holds exactly one value at a time, same
+    # as every other single-shot core), so a real win can only happen
+    # when this cell isn't already full. Returns a real SET of the
+    # specific directions accepted (empty if no real win this tick),
+    # matching tick()'s own new, real per-direction dispatch (#751) --
+    # every OTHER existing core still returns a plain True/False, since
+    # accepting all-or-nothing together is their own real, correct
+    # behavior; only this core genuinely needs the distinction. ──
+    def _deliver_priority(self, arrivals, injected):
+        if self.pri_data_valid:
+            return (set(), None)   # already full -- capture_now's own real !data_valid gate
+        candidates = {d: v for d, v in arrivals.items() if (self.pri_upstream_mask >> _DIR_BIT[d]) & 1}
+        if not candidates:
+            return (set(), None)
+
+        rank = {N: self.pri_rank_n, S: self.pri_rank_s, E: self.pri_rank_e, W: self.pri_rank_w}
+        credit = {N: self.pri_credit_n, S: self.pri_credit_s, E: self.pri_credit_e, W: self.pri_credit_w}
+        # Real, shared score structure (#730's own 2nd refinement): strict
+        # mode uses (3-rank) so a LOWER configured rank scores HIGHER
+        # ("0 = highest priority"); weighted RR uses the real, live
+        # credit value directly. Every real candidate's own credit gains
+        # its own configured weight this round regardless of who wins
+        # (Surplus Round Robin, confirmed correct by direct simulation
+        # in the original RTL work, #730) -- computed here the same way.
+        credit_inc = {d: (credit[d] + rank[d]) for d in (N, S, E, W)}
+        total_weight = sum(rank[d] for d in candidates)
+        score = {d: (credit_inc[d] if self.pri_scheduling_mode else (3 - rank[d])) for d in candidates}
+
+        # Real, fixed N>S>E>W tie-break, matching the RTL's own real
+        # win_n/win_s/win_e/win_w priority-encoder structure exactly.
+        winner = max(sorted(candidates, key=lambda d: (N, S, E, W).index(d)), key=lambda d: score[d])
+
+        self.pri_data_reg = arrivals[winner] & _MASK32
+        self.pri_data_valid = True
+        self.pri_winning_dir = winner
+
+        if self.pri_scheduling_mode:
+            self.pri_credit_n = max(0, credit_inc[N] - total_weight) if winner == N else credit_inc[N]
+            self.pri_credit_s = max(0, credit_inc[S] - total_weight) if winner == S else credit_inc[S]
+            self.pri_credit_e = max(0, credit_inc[E] - total_weight) if winner == E else credit_inc[E]
+            self.pri_credit_w = max(0, credit_inc[W] - total_weight) if winner == W else credit_inc[W]
+
+        return ({winner}, None)
+
+    def _offer_state_priority(self) -> Tuple[int, bool, int]:
+        return (self.pri_data_reg, self.pri_data_valid, self.pri_downstream_mask)
+
     # ── generic offer-pass state, dispatch by core (points.md #358: via
     # the registry, not an if/elif chain -- see _CORE_HANDLERS below) ──
     def _offer_state(self) -> Tuple[int, bool, int]:
@@ -938,6 +1029,9 @@ class SuperCell:
 
     def _clear_valid_adder(self) -> None:
         self.adder_data_valid = False
+
+    def _clear_valid_priority(self) -> None:
+        self.pri_data_valid = False
 
     def _clear_valid_comparator(self) -> None:
         self.cmp_data_valid = False
@@ -1010,6 +1104,9 @@ register_core_handler("accumulator", CoreHandler(
 register_core_handler("comparator", CoreHandler(
     deliver=SuperCell._deliver_comparator, offer_state=SuperCell._offer_state_comparator,
     continuously_live=False, clear_valid=SuperCell._clear_valid_comparator))
+register_core_handler("priority", CoreHandler(
+    deliver=SuperCell._deliver_priority, offer_state=SuperCell._offer_state_priority,
+    continuously_live=False, clear_valid=SuperCell._clear_valid_priority))
 register_core_handler("latch", CoreHandler(
     deliver=SuperCell._deliver_latch, offer_state=SuperCell._offer_state_latch,
     continuously_live=True))
@@ -1154,14 +1251,44 @@ class SuperGrid:
             real_dirs = {d: v for d, (_o, v) in by_dir.items()}
             accepted, result = cell.deliver(real_dirs, injected=injected_val)
 
-            if not accepted:
-                for d, (origin, value) in by_dir.items():
+            # ── Real, backward-compatible extension (points.md #751):
+            # `accepted` is normally True/False (every core built before
+            # this, unchanged) -- meaning "every real direction in this
+            # tick's own arrivals, accept or reject together." A real,
+            # genuine exception now exists: `priority` returns a real
+            # SET of the specific integer directions it actually
+            # accepted (its own winner only), confirmed directly
+            # against priority_cell_v4c.v's own real RTL (`ack_out_X =
+            # capture_now && win_X` -- only the winner is acked; a
+            # losing candidate's own offer stays genuinely pending,
+            # unacknowledged, to be served on its own later turn). No
+            # other existing core needs this -- adder/accumulator/latch/
+            # branch/etc. all accept or reject every real direction in
+            # a given tick's arrivals as one unit, matching their own
+            # real RTL exactly; only `priority`'s own real job is
+            # selective, per-direction arbitration. ──
+            if accepted is True:
+                accepted_dirs = set(by_dir.keys())
+                injected_accepted = True
+            elif accepted is False:
+                accepted_dirs = set()
+                injected_accepted = False
+            else:
+                accepted_dirs = accepted
+                injected_accepted = False  # no real core needs partial-accept + injected together yet
+
+            for d in by_dir:
+                if d not in accepted_dirs:
+                    origin, value = by_dir[d]
                     retry.setdefault(pos, []).append((origin, d, value))
-                if injected_val is not None:
-                    retry.setdefault(pos, []).append((injected_origin, None, injected_val))
+            if injected_val is not None and not injected_accepted:
+                retry.setdefault(pos, []).append((injected_origin, None, injected_val))
+
+            if not accepted_dirs and not injected_accepted:
                 continue
 
-            for d, (origin, _v) in by_dir.items():
+            for d in accepted_dirs:
+                origin, _v = by_dir[d]
                 if origin is not None:
                     opp_bit = _DIR_BIT[_OPPOSITE[d]]
                     self.cells[origin].pending_ack &= ~(1 << opp_bit) & _MASK4
