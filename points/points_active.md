@@ -12371,3 +12371,46 @@ all `"priority"`, matching a binary tree's own real internal-node
 count exactly). Full project suite re-run (819 passed, 1 skipped --
 same pre-existing skip, 4 warnings -- same pre-existing, unrelated),
 confirming zero regression from the signature change to every caller.
+
+## 768. The pure-priority tightening strategy renamed from `"fast"` to `"tracing"`, per Alan's own direct restatement of the three-tier dispatch rule -- "if a mix then use the timing test, if delay line time and test, if pure priority this step can be moved to a simple tracing side of things." Confirmed directly against the actual code first, not assumed: the existing behavior already matched this three-tier split exactly; only the NAME for the pure-priority case was wrong, describing its effect (speed) rather than its real mechanism (structural connection tracing, no timing math at all). (Alan/Claude, 2026-09-16)
+
+**Real, direct confirmation before renaming anything, not assumed:**
+checked `choose_tightening_strategy()`'s own actual code first. The
+three-tier split Alan restated was already exactly what the function
+does: mixed style -> `"timing"`; all-relay-padded ("delay line") ->
+`"timing"` (compute the predicted arrival tick, then test it -- exactly
+`#764`'s own real "time and test" pairing: `symbolic_arrival_tick()`
+predicts, `would_collide()`/the real VM ground-truth tests confirm);
+all-priority -> the fast path. Nothing about the DISPATCH LOGIC needed
+to change -- only the name of that third branch.
+
+**The real, honest naming problem, named precisely:** `"fast"`
+described the pure-priority path's own EFFECT (it happens to be
+quicker), not its real MECHANISM. Alan's own term -- "simple tracing"
+-- names what the path actually DOES: `#762`'s own real, structural-
+only validation (`check_connections()`/`flatten()`) traces whether
+each real connection's declared direction actually lines up with a
+physically adjacent neighbor, with zero timing math involved anywhere,
+because a `priority` nexus genuinely has nothing for a timing check to
+catch. "Fast" was true but incomplete as a name; "tracing" is the real,
+accurate description of the mechanism itself.
+
+**The real rename, made consistently, not just in one place:**
+`choose_tightening_strategy()`'s own return value changed from
+`"fast"` to `"tracing"` (`nano/rats_nest_timing_v1.py`); `compile_n_
+way_reduction()`'s own internal, self-consistency assertion updated to
+match (`nano/vix_n_way_reduction_v1.py`); both real tests exercising
+the pure-priority case renamed and updated (`tests/vm/test_rats_nest_
+timing_v1.py`). A real, small, unrelated string -- a UID prefix
+literally named `"fast"` in `test_rats_nest_tighten_v1.py`, for cell
+naming, not the strategy value -- checked directly and correctly left
+untouched, confirming the rename didn't overreach into something that
+merely shared a string value by coincidence.
+
+**Real, honest status: this was a naming correction, not a behavior
+change.** Every real test still passes with the exact same real
+dispatch decisions as before -- only the label attached to one of the
+three real outcomes changed, to match Alan's own precise, mechanism-
+first framing rather than an effect-first one. Full project suite
+re-run (819 passed, 1 skipped -- same pre-existing skip, 4 warnings --
+same pre-existing, unrelated), confirming zero regression.

@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-16, a real architectural correction -- the compiler tracks its own convergence-strategy choices directly, rather than needing a separate classifier to inspect a finished design. "The compiler does the heavy lifting so the unicell doesn't have to." See `points/points_active.md` #767)
+# Current State (as of 2026-09-16, pure-priority tightening renamed from "fast" to "tracing" -- confirmed the existing three-tier dispatch already matched Alan's own restated rule exactly; only the name for the pure-priority case was wrong (effect, not mechanism). See `points/points_active.md` #768)
+
+## Read this first (most recent)
+
+**2026-09-16, strategy naming corrected (#768).** Per Alan's own direct
+restatement: mixed -> timing test, delay-line (relay-padded) -> time
+and test, pure priority -> simple tracing. Checked the actual code
+first -- the dispatch logic already matched this exactly; only the name
+of the pure-priority branch was wrong.
+
+**The real naming problem:** "fast" described an effect (it happens to
+be quicker), not the real mechanism -- structural connection tracing
+(check_connections()/flatten()), zero timing math, because a priority
+nexus genuinely has nothing for a timing check to catch. Renamed to
+"tracing" throughout: the function's own return value, the N-way
+compiler's own internal consistency assertion, and both affected
+tests. A coincidentally-named, unrelated "fast" string (a cell-naming
+UID prefix elsewhere) checked directly and correctly left alone.
+
+**Status: a naming correction, not a behavior change.** Every dispatch
+decision is identical to before; only the label changed to match
+Alan's own precise, mechanism-first framing. 819 tests pass, zero
+regression.
+
+## Previous state (as of 2026-09-16, a real architectural correction -- the compiler tracks its own convergence-strategy choices directly, rather than needing a separate classifier to inspect a finished design. "The compiler does the heavy lifting so the unicell doesn't have to." See `points/points_active.md` #767)
 
 ## Read this first (most recent)
 

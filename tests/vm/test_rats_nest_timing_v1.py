@@ -205,8 +205,8 @@ def test_composed_source_timing_matches_real_vm_ground_truth():
         assert consumer_ready == predicted, f"n_relays={n_relays}: predicted {predicted}, got {consumer_ready}"
 
 
-def test_choose_tightening_strategy_all_priority_uses_fast():
-    assert choose_tightening_strategy(["priority", "priority", "priority"]) == "fast"
+def test_choose_tightening_strategy_all_priority_uses_tracing():
+    assert choose_tightening_strategy(["priority", "priority", "priority"]) == "tracing"
 
 
 def test_choose_tightening_strategy_all_relay_padded_uses_timing():
@@ -219,7 +219,7 @@ def test_choose_tightening_strategy_mixed_falls_back_to_timing():
 
 
 def test_choose_tightening_strategy_single_kind():
-    assert choose_tightening_strategy(["priority"]) == "fast"
+    assert choose_tightening_strategy(["priority"]) == "tracing"
     assert choose_tightening_strategy(["relay_padded"]) == "timing"
 
 

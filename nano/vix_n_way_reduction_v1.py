@@ -178,13 +178,15 @@ def compile_n_way_reduction(leaves: List[int]) -> Tuple[vix.IcmVixFile, Tuple[in
     # compiler already knows every real strategy it chose above, so it
     # decides its own tightening approach directly from that -- no
     # separate inspection of the finished design needed. Today this
-    # always resolves to "fast" (every real convergence point used
-    # priority) -- confirmed directly, not assumed, since the tightening
-    # calls above already used the fast, structural-only method
-    # throughout; this call makes that real, existing fact explicit and
-    # verifiable rather than implicit.
+    # always resolves to "tracing" (every real convergence point used
+    # priority, so validating each candidate step needed only real
+    # structural connection-tracing, no timing math at all, #768) --
+    # confirmed directly, not assumed, since the tightening calls above
+    # already used the fast, structural-only method throughout; this
+    # call makes that real, existing fact explicit and verifiable
+    # rather than implicit.
     strategy = choose_tightening_strategy(convergence_kinds)
-    assert strategy == "fast", (
+    assert strategy == "tracing", (
         "compile_n_way_reduction only ever builds priority-based convergence "
         "today -- a real, unexpected 'timing' result here would mean this "
         "function's own real tightening calls above no longer match its own "
