@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import vix_tile_library_v1 as vtl  # noqa: E402
 import icm_vix_v1 as vix  # noqa: E402
 from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
-from rats_nest_tighten_v1 import find_nexus_points, tighten_leaf_connection  # noqa: E402
+from rats_nest_tighten_v1 import find_nexus_points, tighten_leaf_connection, tighten_leaf_connection_fast  # noqa: E402
 
 
 def _combine_unit(row, col, uid, out_dir="e"):
@@ -66,6 +66,32 @@ def test_tighten_leaf_connection_still_delivers_the_correct_value():
     # the value was correctly captured downstream, not priority's own
     # (by-then-drained) internal state.
     assert grid.cells[(5, 21)].adder_a_reg == 10
+
+
+def test_fast_version_produces_identical_results_to_the_vm_backed_version():
+    """points.md #762: the real, central claim -- for an isolated
+    connection, structural checks alone (no VM run) produce the exact
+    same tightened result as the full VM-backed version. Confirmed
+    directly here across all 4 real leaf connections from the full
+    reduce4 layout, not just one."""
+    leaves = [10, 20, 30, 40]
+    leaf_start = [(0, 0), (10, 0), (20, 0), (30, 0)]
+    targets = [((4, 20), "s"), ((6, 20), "n"), ((24, 20), "s"), ((26, 20), "n")]
+
+    def run(fn, prefix):
+        occ = {}
+        fixed = _combine_unit(5, 20, "L1a") + _combine_unit(25, 20, "L1b") + _combine_unit(15, 50, "L2")
+        for c in fixed:
+            occ[(c.rel_row, c.rel_col)] = c.cell_id
+        positions = []
+        for i, (v, start, (target, out_dir)) in enumerate(zip(leaves, leaf_start, targets)):
+            pos, _ = fn(v, start, target, out_dir, occ, f"{prefix}{i}")
+            positions.append(pos)
+        return positions
+
+    slow_positions = run(tighten_leaf_connection, "slow")
+    fast_positions = run(tighten_leaf_connection_fast, "fast")
+    assert slow_positions == fast_positions
 
 
 def test_full_reduce4_tightens_from_loose_and_still_computes_correctly():

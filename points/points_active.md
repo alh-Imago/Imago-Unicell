@@ -11993,3 +11993,72 @@ deferred, not attempted here -- `rA`/`rB` in this entry's own result
 are still their original, loose, un-tightened length. Full project
 suite re-run (795 passed, 1 skipped -- same pre-existing skip, 4
 warnings -- same pre-existing, unrelated), confirming zero regression.
+
+## 762. Alan's own "would tokenizing be worth it, or just an extra step" question answered with real, measured evidence, not speculation: for an ISOLATED connection, the full VM run turned out to be provably unnecessary -- every one of `#761`'s own four bugs was a structural problem, none a timing bug. A faster, structural-only twin (`tighten_leaf_connection_fast()`) confirmed to produce the exact same real result, roughly 6x faster measured directly. The real lesson: it's not the DATA FORMAT that was expensive, it's the VM's own tick-by-tick simulation loop -- and that lesson only holds for isolated connections, not the nexus-to-nexus tightening named as the actual next step. (Alan/Claude, 2026-09-16)
+
+**Real, honest answer to the tokenization question, tested directly
+rather than argued in the abstract:** built a real, parallel version of
+`tighten_leaf_connection()` that validates every candidate step using
+ONLY `check_connections()`/`flatten()`'s own structural checks --
+never running the VM at all. Confirmed directly: identical final,
+tightened positions across all 4 real leaf connections in the full
+`reduce4` layout, and the resulting layout still runs correctly end to
+end through the real VM afterward (`100`, exactly correct). Measured
+directly: ~6x faster (0.050s -> 0.008s) for this session's own real
+example.
+
+**Why this worked, confirmed by re-examining `#761`'s own four bugs
+directly, not assumed:** every single one was a real, STRUCTURAL
+problem (a position collision, or a test-harness logic error) --
+`flatten()`'s own exception, the leaf-output-direction overshoot (which
+manifests as a self-collision), the sink-position mismatch, the
+sink-stand-in false rejection. None of the four were TIMING bugs the
+VM's own tick-by-tick simulation was actually needed to catch. For an
+isolated, uncontested connection, `check_connections()` (adjacency +
+facing-direction correctness) plus `flatten()`'s own position-collision
+check are already sufficient to guarantee a value will arrive
+correctly -- the VM run was confirming something the structural checks
+already guaranteed.
+
+**The real, honest limit of this finding, stated precisely, not
+glossed over:** this speedup holds ONLY for isolated connections with
+no real convergence. The moment two real paths converge on the same
+consumer, correctness depends on real TIMING (which arrives first,
+whether the lengths differ correctly), not just geometry -- exactly
+`#750`/`#751`'s own entire subject. A purely structural check cannot
+catch a `#750`-style arrival-collision hazard, since two geometrically
+perfect, fully valid connections can still collide in time. This means
+the real, honest recommendation for `#761`'s own next, harder step
+(nexus-to-nexus tightening, where both ends move and real contention
+is the central concern) is NOT to drop the VM entirely -- it's to
+build a real, SYMBOLIC timing model instead (using `#757`'s own now-
+real `arrivals_needed` data and simple relay-hop counting to predict
+arrival ticks and detect collisions analytically), which would give a
+similar real speedup for the harder case without sacrificing the
+timing correctness a purely geometric check cannot provide.
+
+**Direct answer to Alan's own question, stated plainly:** the specific
+token FORMAT proposed (a compact string encoding of pattern/type/
+cardinality) would likely be "an extra step for the sake of an extra
+step," confirmed by this session's own direct comparison -- Python's
+existing `HierCell` dataclass representation is already cheap; the
+real cost was never the DATA FORMAT, it was running the VM's own
+simulation loop unnecessarily. But the underlying INSTINCT behind the
+question -- something lighter than a full VM run should be possible --
+was correct, and is now proven, for the case it applies to. The
+compact, token-like idea's own real, future value isn't as a faster
+data format; it's as the natural substrate for a symbolic timing
+analyzer, once that gets built for the harder, nexus-to-nexus case.
+
+**Real, concrete artifact from this entry:** `tighten_leaf_connection_
+fast()` added alongside the existing, VM-backed version in `nano/
+rats_nest_tighten_v1.py`, both real and available -- the fast path for
+isolated connections (proven, safe to use), the VM-backed path kept as
+the real, necessary fallback for anything where convergence/timing
+might matter. 1 new, permanent test (`test_fast_version_produces_
+identical_results_to_the_vm_backed_version`) confirming both agree
+exactly, not just "look similar."
+
+**Real, honest verification: full project suite re-run** (796 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

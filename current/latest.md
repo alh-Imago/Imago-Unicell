@@ -1,4 +1,45 @@
-# Current State (as of 2026-09-16, the full rat's-nest approach proven end to end -- automatic nexus detection plus iterative shrink-and-revalidate tightening. The N=4 reduction tree tightened from 186 loose cells to 90, still computing correctly. See `points/points_active.md` #761)
+# Current State (as of 2026-09-16, the "would tokenizing help" question answered with real, measured evidence -- for isolated connections, the full VM run is provably unnecessary; a structural-only version is ~6x faster with identical results. The limit is precise: this doesn't extend to nexus-to-nexus tightening, where real timing (not just geometry) decides correctness. See `points/points_active.md` #762)
+
+## Read this first (most recent)
+
+**2026-09-16, tokenization question tested empirically (#762).** Per
+Alan's own question about a lighter, tokenized representation for
+tightening -- tested directly rather than argued abstractly.
+
+**Built a real, parallel structural-only version** of tighten_leaf_
+connection(), validating each step with check_connections()/flatten()
+alone, never running the VM. Confirmed: identical final positions
+across all 4 real leaf connections, the resulting layout still runs
+correctly end to end (100, exact). Measured: ~6x faster (0.050s ->
+0.008s).
+
+**Why it worked, confirmed by re-examining #761's own four bugs
+directly:** every one was a structural problem (a collision, or a
+test-harness logic error) -- none were timing bugs the VM was actually
+needed to catch. For an isolated, uncontested connection, structural
+checks alone already guarantee correct delivery.
+
+**The honest limit, stated precisely:** this only holds where there's
+no real convergence. The moment two paths meet at the same consumer,
+correctness depends on TIMING (#750/#751's entire subject), which a
+purely structural check cannot see. So the real recommendation for the
+actual next step (nexus-to-nexus tightening) isn't to drop the VM --
+it's to build a real, symbolic timing model using #757's arrivals_
+needed data, which would give a similar speedup without losing timing
+correctness.
+
+**Direct answer to the question as asked:** the specific token FORMAT
+proposed would likely be extra work for no real gain -- the cost was
+never the data representation, it was the unnecessary VM simulation
+loop. But the underlying instinct (something lighter should be
+possible) was correct, and is now proven for the case it applies to.
+
+**Real artifact:** tighten_leaf_connection_fast() added alongside the
+existing VM-backed version -- both real, both available, used for
+different real cases. 1 new test confirming they agree exactly. 796
+tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, the full rat's-nest approach proven end to end -- automatic nexus detection plus iterative shrink-and-revalidate tightening. The N=4 reduction tree tightened from 186 loose cells to 90, still computing correctly. See `points/points_active.md` #761)
 
 ## Read this first (most recent)
 
