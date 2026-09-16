@@ -1,4 +1,35 @@
-# Current State (as of 2026-09-16, the timing model generalized to composed sources, then wired into a real, general N-way reduction compiler -- confirmed correct for N=2, 4, 8, 16. This is the concrete "known start" for N-space generalization. See `points/points_active.md` #765)
+# Current State (as of 2026-09-16, two real outliers tidied -- the free-format checkbox from #754 built for real, and a stated dispatch rule for mixed priority/relay-padded designs. See `points/points_active.md` #766)
+
+## Read this first (most recent)
+
+**2026-09-16, free-format checkbox built + mixed-strategy dispatcher
+(#766).** Per Alan's own direct ask to tidy the outliers.
+
+**Part 1:** the real free-format checkbox from #754's own scoping note
+built for the first time -- page_man() now toggles between card mode
+(unchanged) and free-format mode (cell count instead of alm_total, no
+card-specific fields). Thin, front-end-only translation of #745's
+already-proven build_man() call shape. Also fixed dsp_total to be
+genuinely optional in card mode too, matching what #745 already
+confirmed the backend supports. 4 new tests, 9 pre-existing tests
+re-run clean.
+
+**Part 2:** choose_tightening_strategy() built exactly per Alan's
+stated rule -- all-priority uses the fast path; all-relay-padded or any
+real mix falls back to the timing-aware path uniformly for the whole
+design. A real correction caught before committing: an early docstring
+overclaimed "timing check never rejects a valid priority step" without
+verifying it -- corrected once it became clear priority's two inputs
+arrive on different physical directions entirely, so #750's hazard
+doesn't apply to it at all, not just harmlessly.
+
+**Status: a real, stated decision rule, not yet an automatic
+classifier** -- it takes the convergence-style list as given input;
+scanning an actual design to determine those styles automatically
+remains real, separate, unbuilt work. 6 new tests. 818 tests pass,
+zero regression.
+
+## Previous state (as of 2026-09-16, the timing model generalized to composed sources, then wired into a real, general N-way reduction compiler -- confirmed correct for N=2, 4, 8, 16. This is the concrete "known start" for N-space generalization. See `points/points_active.md` #765)
 
 ## Read this first (most recent)
 

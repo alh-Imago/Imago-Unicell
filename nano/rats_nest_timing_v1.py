@@ -117,3 +117,37 @@ def min_safe_hop_count(fixed_hop_count: int, other_hop_count: int) -> Optional[i
     if other_hop_count > fixed_hop_count:
         return fixed_hop_count + 1
     return fixed_hop_count + 1  # equal today -- the real, minimal fix is one hop longer
+
+
+def choose_tightening_strategy(convergence_kinds: "list[str]") -> str:
+    """Points.md #766: the real, stated dispatch rule Alan gave
+    directly for a design where convergence points might use EITHER
+    real style -- `priority`-arbitrated (`#761`/`#763`, no timing check
+    needed, `priority` absorbs any real mismatch by design) or plain,
+    relay-padded (`#750`/`#764`, where real timing genuinely decides
+    correctness). Each item in `convergence_kinds` is the real style
+    used at one real convergence point in the design: `"priority"` or
+    `"relay_padded"`.
+
+    Returns `"fast"` if every real convergence point in the design uses
+    `priority` (safe to use the fast, structural-only tightening
+    throughout, `#762`); `"timing"` otherwise. Real, honest reasoning
+    for the mixed case, stated precisely rather than overclaimed: a
+    `priority` nexus's own two real inputs arrive on genuinely
+    different physical directions (its own N/S faces), never sharing
+    one direction the way `adder`'s `in_a`/`in_b` do -- so `#750`'s own
+    real hazard (`would_collide()`'s own real subject) doesn't apply to
+    it at all, not merely "harmlessly." Alan's own real point stands
+    regardless: for a MIXED design, using the relay-padded-style,
+    timing-aware tightening path (`#764`) UNIFORMLY -- rather than
+    dispatching per convergence point -- is a real, simpler, single
+    code path that correctly covers the relay-padded points (where it's
+    required) at the real cost of not using `priority`'s own faster
+    path where it would have been available. Slower, but one real,
+    uniform mechanism handling both real cases at once, exactly as
+    Alan proposed."""
+    if not convergence_kinds:
+        raise ValueError("choose_tightening_strategy: no convergence points given")
+    if all(k == "priority" for k in convergence_kinds):
+        return "fast"
+    return "timing"

@@ -12255,3 +12255,67 @@ here.
 **Real, honest verification: full project suite re-run** (810 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression from every change in this entry.
+
+## 766. Two real outliers tidied, per Alan's own direct ask: (1) the real, free-format checkbox from `#754`'s own scoping note, built for the first time -- a real, working toggle on the actual MAN-creation page; (2) a real dispatch rule for a design that mixes `priority`-based and relay-padded convergence points, per Alan's own precise, stated rule -- all-priority uses the fast path, all-relay-padded or any real mix uses the timing-aware path uniformly. (Alan/Claude, 2026-09-16)
+
+**Part 1 -- the real free-format checkbox built, closing `#754`'s own
+named gap:** `nano/frontend_v1.py`'s own real `page_man()` now has a
+real, working checkbox toggling between card mode (unchanged) and
+free-format mode (hides card-specific fields, replaces `alm_total`
+with a real, direct "cell count" field). The real backend change is a
+thin, front-end-only translation of `#745`'s own already-proven
+`build_man()` call shape -- no new backend mechanism, confirmed by
+running the real controller path directly: a real, valid MAN file
+produced with `alm_total=500`, every card-specific field `None`.
+
+**A real, small, related fix made along the way, matching `#754`'s
+own original scoping exactly:** `dsp_total` made genuinely optional in
+CARD mode too (it was still hard-`required` in the HTML despite `#745`
+already confirming the backend supports `None` there) -- the HTML
+`required` attribute removed, the controller's own `required` list and
+CLI-string builder updated to match. 4 new, permanent tests (`tests/
+tools/test_frontend_pin_table.py`): free-format success, free-format
+missing-field rejection, and confirming card mode still works with
+`dsp_total` genuinely absent. All 9 pre-existing tests in that file
+re-run clean, confirming zero regression to the real, already-working
+card-mode path.
+
+**Part 2 -- the real, stated dispatch rule for a MIXED design, built
+exactly as Alan gave it:** `choose_tightening_strategy()` (`nano/
+rats_nest_timing_v1.py`) takes a real list of each convergence point's
+own real style (`"priority"` or `"relay_padded"`) and returns `"fast"`
+only when every one is `priority`-based (safe to use `#762`'s own
+structural-only tightening throughout); `"timing"` otherwise -- either
+a genuinely all-relay-padded design (where the timing check is
+required), or a real mix, in which case Alan's own direct rule applies:
+fall back to the timing-aware path (`#764`) for the WHOLE design, one
+real, uniform, slower-but-correct code path rather than dispatching
+per convergence point.
+
+**A real, honest correction made to my own first draft of this
+function's own docstring, caught before committing, not after:** an
+initial version claimed "the real timing check never rejects a valid
+`priority` step" as the justification for why applying it uniformly is
+safe -- checked this claim directly rather than letting it stand
+unverified, and found it wasn't even the right framing: a `priority`
+nexus's own two real inputs arrive on genuinely different physical
+directions (its own N/S faces), never sharing one direction the way
+`adder`'s `in_a`/`in_b` do, so `#750`'s own real hazard doesn't apply
+to it AT ALL, not merely "harmlessly." Corrected to state this
+precisely rather than overclaim a property that was never actually
+tested.
+
+**Real, honest status: this is a real, stated decision rule, not yet a
+full, automatic classifier.** `choose_tightening_strategy()` takes the
+real convergence-style list as a given input -- it does not itself scan
+an arbitrary design and determine which real style each convergence
+point uses. Real, separate, not-yet-built work: a real function that
+inspects an actual `IcmVixFile`/cell list and classifies each real
+convergence point automatically, feeding this dispatcher's own real
+input. 6 new, permanent tests (`tests/vm/test_rats_nest_timing_v1.py`)
+covering all-priority, all-relay-padded, mixed, single-kind, and the
+real, honest empty-input rejection.
+
+**Real, honest verification: full project suite re-run** (818 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression from every change in this entry.

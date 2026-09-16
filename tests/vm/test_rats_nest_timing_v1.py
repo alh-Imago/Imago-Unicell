@@ -11,7 +11,8 @@ import vix_tile_library_v1 as vtl  # noqa: E402
 import icm_vix_v1 as vix  # noqa: E402
 from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
 from rats_nest_router_v1 import manhattan_route  # noqa: E402
-from rats_nest_timing_v1 import symbolic_arrival_tick, would_collide, min_safe_hop_count, composed_output_ready_tick  # noqa: E402
+from rats_nest_timing_v1 import (symbolic_arrival_tick, would_collide, min_safe_hop_count,  # noqa: E402
+                                    composed_output_ready_tick, choose_tightening_strategy)
 
 
 def _build_and_run(hop_a, hop_b, val_a=5, val_b=10, ticks=15):
@@ -202,3 +203,27 @@ def test_composed_source_timing_matches_real_vm_ground_truth():
         t1_ready, consumer_ready = build_and_trace(n_relays)
         predicted = symbolic_arrival_tick(n_relays, source_ready_tick=t1_ready)
         assert consumer_ready == predicted, f"n_relays={n_relays}: predicted {predicted}, got {consumer_ready}"
+
+
+def test_choose_tightening_strategy_all_priority_uses_fast():
+    assert choose_tightening_strategy(["priority", "priority", "priority"]) == "fast"
+
+
+def test_choose_tightening_strategy_all_relay_padded_uses_timing():
+    assert choose_tightening_strategy(["relay_padded", "relay_padded"]) == "timing"
+
+
+def test_choose_tightening_strategy_mixed_falls_back_to_timing():
+    assert choose_tightening_strategy(["priority", "relay_padded"]) == "timing"
+    assert choose_tightening_strategy(["priority", "priority", "relay_padded"]) == "timing"
+
+
+def test_choose_tightening_strategy_single_kind():
+    assert choose_tightening_strategy(["priority"]) == "fast"
+    assert choose_tightening_strategy(["relay_padded"]) == "timing"
+
+
+def test_choose_tightening_strategy_rejects_empty():
+    import pytest
+    with pytest.raises(ValueError):
+        choose_tightening_strategy([])

@@ -90,3 +90,50 @@ def test_generate_man_malformed_pin_table_returns_error_not_exception():
     result = controller.generate_man(fields)
     assert not result["ok"]
     assert "pin table line 1" in result["error"]
+
+
+def test_generate_man_free_format_produces_a_real_valid_man_file(tmp_path):
+    """points.md #754/#766: the real, free-format checkbox path -- a
+    virtual target sized by cell count, no real card fields at all.
+    Confirms the real, existing build_man() call shape #745 already
+    proved works is reachable from the frontend with none of the
+    card-specific fields supplied."""
+    controller = frontend_v1.FrontendController()
+    output = str(tmp_path / "virtual.man.json")
+    fields = {
+        "free_format": "1", "card_id_free": "virtual-target",
+        "cell_count": "500", "output": output, "pin_table": "",
+    }
+    result = controller.generate_man(fields)
+    assert result["ok"], result
+    with open(output) as f:
+        man = json.load(f)
+    assert man["card_id"] == "virtual-target"
+    assert man["device"]["alm_total"] == 500
+    assert man["device"]["part"] is None
+    assert man["board"]["clock"]["CLK_100M"]["pin"] is None
+
+
+def test_generate_man_free_format_missing_cell_count_returns_error():
+    controller = frontend_v1.FrontendController()
+    fields = {"free_format": "1", "card_id_free": "virtual-target", "output": "/tmp/unused.man.json"}
+    result = controller.generate_man(fields)
+    assert not result["ok"]
+    assert "cell_count" in result["error"]
+
+
+def test_generate_man_card_mode_no_longer_requires_dsp_total():
+    """points.md #766: dsp_total made optional in card mode too,
+    matching the real, existing build_man() support #745 already
+    confirmed -- the HTML form's own required attribute was removed to
+    match."""
+    controller = frontend_v1.FrontendController()
+    output = "/tmp/unused_card.man.json"
+    fields = {
+        "card_id": "web-test", "part": "10AX066H2F34E2SG",
+        "alm_total": "251680",
+        "clk_pin": "PIN_E23", "led0_pin": "PIN_AE7", "led1_pin": "PIN_AH2",
+        "pin_table": "", "output": output,
+    }
+    result = controller.generate_man(fields)
+    assert result["ok"], result

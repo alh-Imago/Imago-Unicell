@@ -80,7 +80,39 @@ class FrontendController:
         return groups
 
     def generate_man(self, fields: Dict[str, Any]) -> Dict[str, Any]:
-        required = ["card_id", "part", "alm_total", "dsp_total", "clk_pin", "led0_pin", "led1_pin", "output"]
+        # Points.md #754/#745: free-format mode is a thin, front-end-
+        # only translation of the same real build_man() call shape
+        # #745 already confirmed works -- a real, virtual target sized
+        # by cell count, no real card at all. No new backend mechanism.
+        free_format = bool(fields.get("free_format"))
+        if free_format:
+            required = ["card_id_free", "cell_count", "output"]
+            missing = [k for k in required if not fields.get(k)]
+            if missing:
+                return {"ok": False, "error": f"missing required field(s): {', '.join(missing)}"}
+            try:
+                pins = self._parse_pin_table(fields.get("pin_table") or "")
+            except ValueError as e:
+                return {"ok": False, "error": str(e)}
+            try:
+                man = man_generate_v1.build_man(
+                    card_id=fields["card_id_free"], part=None, family=None,
+                    jtag_idcode=fields.get("jtag_idcode") or None,
+                    alm_total=int(fields["cell_count"]), dsp_total=None, m20k_bits=None,
+                    clk_pin=None, led0_pin=None, led1_pin=None,
+                    jtag_pins=pins["jtag"], config_pins=pins["config"], extra_pins=pins["extra"],
+                )
+                with open(fields["output"], "w") as f:
+                    json.dump(man, f, indent=2)
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+            cli = (
+                f"python3 tools/man_generate_v1.py --card-id {fields['card_id_free']} "
+                f"--alm-total {fields['cell_count']} -o {fields['output']}"
+            )
+            return {"ok": True, "output": fields["output"], "cli_equivalent": cli}
+
+        required = ["card_id", "part", "alm_total", "clk_pin", "led0_pin", "led1_pin", "output"]
         missing = [k for k in required if not fields.get(k)]
         if missing:
             return {"ok": False, "error": f"missing required field(s): {', '.join(missing)}"}
@@ -93,7 +125,7 @@ class FrontendController:
                 card_id=fields["card_id"], part=fields["part"],
                 family=fields.get("family") or "Arria 10",
                 jtag_idcode=fields.get("jtag_idcode") or None,
-                alm_total=int(fields["alm_total"]), dsp_total=int(fields["dsp_total"]),
+                alm_total=int(fields["alm_total"]), dsp_total=int(fields["dsp_total"]) if fields.get("dsp_total") else None,
                 m20k_bits=int(fields["m20k_bits"]) if fields.get("m20k_bits") else None,
                 clk_pin=fields["clk_pin"], led0_pin=fields["led0_pin"], led1_pin=fields["led1_pin"],
                 jtag_pins=pins["jtag"], config_pins=pins["config"], extra_pins=pins["extra"],
@@ -106,10 +138,12 @@ class FrontendController:
         cli = (
             f"python3 tools/man_generate_v1.py --card-id {fields['card_id']} "
             f"--part {fields['part']} --family \"{fields.get('family') or 'Arria 10'}\" "
-            f"--alm-total {fields['alm_total']} --dsp-total {fields['dsp_total']} "
+            f"--alm-total {fields['alm_total']} "
             f"--clk-pin {fields['clk_pin']} --led0-pin {fields['led0_pin']} --led1-pin {fields['led1_pin']} "
             f"-o {fields['output']}"
         )
+        if fields.get("dsp_total"):
+            cli += f" --dsp-total {fields['dsp_total']}"
         for name, loc in pins["jtag"].items():
             cli += f" --jtag-pin {name}={loc}"
         for name, loc in pins["config"].items():
@@ -316,15 +350,41 @@ so nothing here is asked for without a stated reason.</p>
 </table>
 
 <form method="post" action="/man">
-<label>Card ID<input name="card_id" required></label>
-<label>Device part (e.g. 10AX066H2F34E2SG)<input name="part" required></label>
+<label><input type="checkbox" name="free_format" value="1" id="free_format_cb"
+onchange="document.getElementById('card_fields').style.display = this.checked ? 'none' : '';
+document.getElementById('free_format_fields').style.display = this.checked ? '' : 'none';
+document.getElementById('card_id_field').required = !this.checked;
+document.getElementById('alm_field').required = !this.checked;
+document.getElementById('part_field').required = !this.checked;
+document.getElementById('clk_field').required = !this.checked;
+document.getElementById('led0_field').required = !this.checked;
+document.getElementById('led1_field').required = !this.checked;
+document.getElementById('cell_count_field').required = this.checked;
+document.getElementById('free_card_id_field').required = this.checked;"> Free-format design
+(no real card -- a virtual target sized by cell count instead of a real
+device's own ALM/LUT budget. Points.md #745/#754: the same real,
+already-supported <code>build_man()</code> call shape this project's own
+"arbitrary size" MAN files already use -- this checkbox is a thin,
+front-end-only convenience over it, no new backend mechanism.)</label>
+
+<div id="free_format_fields" style="display:none;">
+<label>Card ID<input name="card_id_free" id="free_card_id_field"></label>
+<label>Cell count (a real, honest cell-count budget -- <code>check_against_
+man()</code>'s own real scope is a cell-count sanity check, never a precise
+ALM estimate, #741)<input name="cell_count" id="cell_count_field" type="number"></label>
+</div>
+
+<div id="card_fields">
+<label>Card ID<input name="card_id" id="card_id_field" required></label>
+<label>Device part (e.g. 10AX066H2F34E2SG)<input name="part" id="part_field" required></label>
 <label>Quartus FAMILY string (e.g. "Arria 10" -- the exact value Quartus expects)<input name="family" value="Arria 10"></label>
-<label>Total ALMs<input name="alm_total" type="number" required></label>
-<label>Total DSP blocks<input name="dsp_total" type="number" required></label>
+<label>Total ALMs<input name="alm_total" id="alm_field" type="number" required></label>
+<label>Total DSP blocks<input name="dsp_total" type="number"></label>
 <label>Total M20K bits (optional)<input name="m20k_bits" type="number"></label>
-<label>CLK_100M pin (e.g. PIN_E23)<input name="clk_pin" required></label>
-<label>LED0_N pin (e.g. PIN_AE7)<input name="led0_pin" required></label>
-<label>LED1_N pin (e.g. PIN_AH2)<input name="led1_pin" required></label>
+<label>CLK_100M pin (e.g. PIN_E23)<input name="clk_pin" id="clk_field" required></label>
+<label>LED0_N pin (e.g. PIN_AE7)<input name="led0_pin" id="led0_field" required></label>
+<label>LED1_N pin (e.g. PIN_AH2)<input name="led1_pin" id="led1_field" required></label>
+</div>
 <label>JTAG IDCODE (optional, e.g. 0x02E250DD)<input name="jtag_idcode"></label>
 <label>Additional pin locations (optional -- one per line, <code>group.name = LOCATION</code>.
 Recognized groups: <code>jtag</code> (device pins, e.g. <code>jtag.tck = PIN_AH12</code>),
