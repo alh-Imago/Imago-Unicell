@@ -12414,3 +12414,76 @@ three real outcomes changed, to match Alan's own precise, mechanism-
 first framing rather than an effect-first one. Full project suite
 re-run (819 passed, 1 skipped -- same pre-existing skip, 4 warnings --
 same pre-existing, unrelated), confirming zero regression.
+
+## 769. 3-way and 5-way `priority` convergence tested directly, per Alan's own direct ask, BEFORE any of this gets wired into the LLVM/DSL compiler -- "that will determine how they are applied." Real, substantial findings, none assumed: a single `priority` cell physically maxes out at 3 real upstream directions; feeding 3+ arbitrated values into one plain, two-arrival `adder` does NOT sum them all (only the first two combine); `accumulator` isn't a substitute either (fixed step, not the arriving value); a genuine 5-way convergence requires COMPOSING two `priority` cells, confirmed working once a real geometry mistake (the same class `#759` already found) was caught and fixed. (Alan/Claude, 2026-09-16)
+
+**Finding 1 -- single-cell 3-way arbitration confirmed working
+correctly:** a `priority` cell configured with three real upstream
+directions (`n`, `s`, `w`) correctly serves all three real, distinct
+arrivals in exact configured rank order (`10, 20, 30` for ranks
+`0, 1, 2`), all the way through to a downstream consumer. A single
+`priority` cell physically maxes out here -- 4 real faces, one reserved
+for its own real output, leaving 3 real upstream directions at most.
+
+**Finding 2 -- the real, central discovery: a plain, two-arrival
+`adder` does NOT sum 3+ arbitrated values.** Feeding the same 3-way
+`priority` output into one `adder` produces `30` (`10+20`, the first
+two real arrivals only), NOT `60`. Traced directly, not assumed: the
+`adder`'s own real "capture A, then B" cycle completes and produces its
+own real output on the second arrival; the THIRD real arrival (`30`,
+from `w`) then starts a genuinely NEW, separate capture round (`adder_
+a_reg` becomes `30`, `adder_a_arrived` becomes `True` again) -- it does
+not accumulate into the existing sum at all. This rules out "one wide
+`priority` feeding one `adder`" as a way to sum N>2 real values --
+confirming the binary-tree composition already proven (`#759`-`#767`)
+remains the correct, real pattern for that job, not a shortcut via a
+single, wide nexus.
+
+**Finding 3 -- `accumulator` checked directly and ruled out too:**
+its own real, documented shape (`vix_tile_library_v1.py`'s own
+`TILE_ACCUMULATOR`) adds a fixed real `step_amount` per real arrival,
+regardless of the arriving value itself -- genuinely different from
+"sum the arriving values," so it cannot substitute for summing 3+
+arbitrary, distinct real values either.
+
+**Finding 4 -- a genuine 5-way convergence requires COMPOSING two real
+`priority` cells, confirmed working after a real, instructive mistake
+caught and fixed:** a first attempt placed two `priority` cells two
+columns apart with nothing bridging them -- the exact same class of
+geometry error `#759` already found (a real offer landing on empty
+space, `pending_ack` never clearing). Fixed with a real relay bridging
+the gap (matching `#759`'s own established fix); confirmed all 5 real,
+distinct values (`1`-`5`) delivered to the final consumer, none lost,
+none duplicated.
+
+**A real, honest, additional finding worth stating precisely, not
+glossed over:** the real SERVED ORDER through the composed structure
+(`[4, 1, 2, 3, 5]`) is NOT a simple, global rank order across the whole
+design -- it is genuinely subject to real timing races. `d` (a direct
+source already valid from construction) won first purely because
+`pri1`'s own queue hadn't started feeding through yet when `pri2` first
+arbitrated, even though `pri1`'s own real values (rank `0`-`2` at
+`pri2`) all outrank `e` (rank `2`) once actually present. This is a
+real, important fact for any future compiler integration: "priority
+order" in a composed structure is local to each nexus's own,
+currently-present real candidates at the moment of arbitration, not a
+predictable, global sequence -- a real design constraint, not a bug.
+
+**Real, honest, direct answer to what this means for compiler
+integration, per Alan's own own stated reason for testing this first:**
+priority-based N-way arbitration (N up to 3 at one cell, composed
+further for more) is a real, proven, correct mechanism for SEQUENCING/
+fan-in routing -- but summing N>2 real values still requires the
+already-proven binary-TREE composition, not a single, wide nexus feeding
+one adder directly. Any future compiler integration targeting a
+genuine N-way SUM must keep using pairwise combine units (`#765`'s own
+real, working approach), while N-way ARBITRATION/sequencing (routing,
+not summing) can genuinely use a single, wider `priority` cell (up to
+3 real sources) or a composed chain (for more), with the real, honest
+caveat that delivery order across a composed chain is not globally
+predictable.
+
+**3 new, permanent tests** (`tests/vm/test_priority_multiway_v1.py`).
+Full project suite re-run (822 passed, 1 skipped -- same pre-existing
+skip, 4 warnings -- same pre-existing, unrelated), confirming zero
+regression.

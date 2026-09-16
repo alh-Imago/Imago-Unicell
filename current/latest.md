@@ -1,4 +1,44 @@
-# Current State (as of 2026-09-16, pure-priority tightening renamed from "fast" to "tracing" -- confirmed the existing three-tier dispatch already matched Alan's own restated rule exactly; only the name for the pure-priority case was wrong (effect, not mechanism). See `points/points_active.md` #768)
+# Current State (as of 2026-09-16, 3-way and 5-way priority convergence tested directly before any compiler integration -- a plain adder does NOT sum 3+ arbitrated values (only the first two combine); 5-way requires composing two priority cells. See `points/points_active.md` #769)
+
+## Read this first (most recent)
+
+**2026-09-16, 3-way/5-way priority convergence tested (#769).** Per
+Alan's own direct ask, before wiring any of this into the LLVM/DSL
+compiler: "test the 3 or 5 way connections first, that will determine
+how they are applied."
+
+**Finding 1:** a single priority cell physically maxes out at 3 real
+upstream directions (4 faces, one reserved for output) -- confirmed
+working correctly, serving 3 distinct arrivals in exact rank order.
+
+**Finding 2 -- the central discovery:** a plain, two-arrival adder fed
+by a 3-way priority does NOT sum all three values. Only the first two
+combine (30 = 10+20); the third starts a genuinely NEW, separate
+capture round. This rules out "one wide priority feeding one adder" as
+a way to sum N>2 values -- the binary-tree composition already proven
+(#759-#767) remains the correct pattern for summing.
+
+**Finding 3:** accumulator checked and ruled out too -- it adds a fixed
+step_amount per arrival, not the arriving value itself.
+
+**Finding 4:** a genuine 5-way convergence requires composing two
+priority cells. A first attempt hit the exact same geometry mistake
+#759 already found (two cells with nothing bridging them) -- fixed
+with a relay, confirmed all 5 distinct values delivered, none lost.
+
+**A real, honest additional finding:** the served order through a
+composed structure isn't a global rank order -- it's genuinely subject
+to timing races (whichever candidate is present first at the moment of
+arbitration wins). A real design constraint for future compiler
+integration, not a bug.
+
+**Direct answer for compiler integration:** priority-based N-way
+arbitration is proven correct for sequencing/routing (up to 3 at one
+cell, composed further for more) -- but summing N>2 values still
+requires the pairwise binary-tree approach, not a single wide nexus.
+3 new tests. 822 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, pure-priority tightening renamed from "fast" to "tracing" -- confirmed the existing three-tier dispatch already matched Alan's own restated rule exactly; only the name for the pure-priority case was wrong (effect, not mechanism). See `points/points_active.md` #768)
 
 ## Read this first (most recent)
 
