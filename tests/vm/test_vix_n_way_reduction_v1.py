@@ -14,9 +14,11 @@ from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
 
 
 def _run(leaves, ticks):
-    icm, result_pos = compile_n_way_reduction(leaves)
+    icm, result_pos, convergence_kinds = compile_n_way_reduction(leaves)
     assert icm.check_connections() == []
     assert icm.check_known_gotchas() == []
+    n_expected_combines = len(leaves) - 1  # a binary tree of N leaves has N-1 internal nodes
+    assert convergence_kinds == ["priority"] * n_expected_combines
     records, _ = icm.flatten()
     grid = SuperGrid(records)
     for _ in range(ticks):
@@ -66,3 +68,16 @@ def test_rejects_too_few_leaves():
     import pytest
     with pytest.raises(ValueError):
         compile_n_way_reduction([1])
+
+
+def test_compiler_tracks_its_own_convergence_strategy_directly():
+    """points.md #767: the real, central architectural point -- the
+    compiler already knows which strategy it used at each real
+    convergence point, at the moment it builds it. No separate
+    inspection of the finished design is needed to answer 'what kind of
+    convergence is this.'"""
+    icm, result_pos, convergence_kinds = compile_n_way_reduction([1, 2, 3, 4])
+    assert convergence_kinds == ["priority", "priority", "priority"]
+    # And the compiler used that same, self-tracked knowledge to decide
+    # its own tightening strategy -- confirmed by the fact this function
+    # asserts internally that choose_tightening_strategy() agrees.

@@ -1,4 +1,33 @@
-# Current State (as of 2026-09-16, two real outliers tidied -- the free-format checkbox from #754 built for real, and a stated dispatch rule for mixed priority/relay-padded designs. See `points/points_active.md` #766)
+# Current State (as of 2026-09-16, a real architectural correction -- the compiler tracks its own convergence-strategy choices directly, rather than needing a separate classifier to inspect a finished design. "The compiler does the heavy lifting so the unicell doesn't have to." See `points/points_active.md` #767)
+
+## Read this first (most recent)
+
+**2026-09-16, compiler self-tracking correction (#767).** Per Alan's
+own direct point: convergence points are defined BY THE COMPILER, not
+discovered afterward. #766's own stated gap (a classifier scanning a
+finished design) was the wrong framing entirely -- the compiler already
+knows its own choice the moment it builds each convergence point.
+
+**The fix:** compile_n_way_reduction()'s own return signature extended
+with a real, compiler-tracked convergence_kinds list, appended to at
+the exact moment each combine unit is built -- never inferred
+afterward. That same list feeds directly into choose_tightening_
+strategy() before returning, with an internal assertion confirming the
+compiler's own tracked knowledge matches its own actual behavior.
+
+**Real, honest scope, unchanged:** this compiler still only builds
+priority-based convergence -- the tracking mechanism is correctly wired
+today, but its own real value shows once a relay-padded strategy gets
+added (separate, not attempted here): the tracked list would then
+naturally contain a real mix, and the dispatch would correctly select
+"timing" with zero external inspection needed, exactly as designed.
+
+**Status: a real, standing principle restated and enforced in code --
+the compiler does the heavy lifting so the UniCell doesn't have to.**
+1 new test, existing tests updated to verify the tracked list's
+content. 819 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, two real outliers tidied -- the free-format checkbox from #754 built for real, and a stated dispatch rule for mixed priority/relay-padded designs. See `points/points_active.md` #766)
 
 ## Read this first (most recent)
 

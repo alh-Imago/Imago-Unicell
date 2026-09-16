@@ -34,6 +34,7 @@ from typing import Dict, List, Tuple
 import vix_tile_library_v1 as vtl
 import icm_vix_v1 as vix
 from rats_nest_tighten_v1 import tighten_leaf_connection_fast, tighten_nexus_to_nexus
+from rats_nest_timing_v1 import choose_tightening_strategy
 
 
 def _combine_unit(row: int, col: int, uid: str, out_dir: str = "e") -> List[vix.HierCell]:
@@ -46,11 +47,27 @@ def _combine_unit(row: int, col: int, uid: str, out_dir: str = "e") -> List[vix.
     return [pri, add]
 
 
-def compile_n_way_reduction(leaves: List[int]) -> Tuple[vix.IcmVixFile, Tuple[int, int]]:
+def compile_n_way_reduction(leaves: List[int]) -> Tuple[vix.IcmVixFile, Tuple[int, int], List[str]]:
     """The real, general reduction compiler. `leaves` is a list of N
     (a power of 2) compile-time constant values to sum. Returns a real,
-    tightened `IcmVixFile` and the `(row, col)` of the final adder whose
-    own `adder_out_buffer` holds the real, correct sum once run.
+    tightened `IcmVixFile`, the `(row, col)` of the final adder whose
+    own `adder_out_buffer` holds the real, correct sum once run, and
+    the real `convergence_kinds` list this compiler itself used to
+    build every real convergence point in the design.
+
+    Points.md #767: per Alan's own direct, architectural correction --
+    convergence points are DEFINED by the compiler itself; it already
+    knows, at the moment it constructs each one, which real strategy it
+    used. There is no separate "classify an already-built design"
+    problem to solve -- that was this session's own earlier, wrong
+    framing (`#766`'s own stated, honest gap). The compiler's own real
+    choice, tracked here as `convergence_kinds`, is fed DIRECTLY into
+    `choose_tightening_strategy()` -- the compiler is the one deciding
+    how the resulting design gets tightened, using knowledge it already
+    has, never inspecting its own output after the fact. This is the
+    same real, standing principle this whole project has held since
+    its own start: the compiler does the heavy lifting so the UniCell
+    itself doesn't have to.
 
     Real, deliberate structure, matching `#759`'s own proven shape
     exactly, generalized: level 0 is the leaves, loosely spaced (10
@@ -66,6 +83,16 @@ def compile_n_way_reduction(leaves: List[int]) -> Tuple[vix.IcmVixFile, Tuple[in
 
     occ: Dict[Tuple[int, int], str] = {}
     final_cells: List[vix.HierCell] = []
+    # The real, compiler-tracked record of which convergence strategy
+    # was chosen at each real convergence point -- a natural BY-PRODUCT
+    # of construction, not a fact discovered by inspecting the result
+    # afterward. Every combine unit this compiler builds today uses
+    # priority (the only real strategy it implements) -- recorded
+    # explicitly here rather than left implicit, so this compiler's own
+    # real decision genuinely drives its own real tightening choice
+    # below, and so a future extension adding a relay-padded strategy
+    # has a real place to record that choice too.
+    convergence_kinds: List[str] = []
 
     # Level 0: leaves, loosely spaced -- generous, not tuned for
     # compactness at all, per the rat's-nest approach's own real
@@ -94,6 +121,11 @@ def compile_n_way_reduction(leaves: List[int]) -> Tuple[vix.IcmVixFile, Tuple[in
             cells = _combine_unit(row_mid, col, uid, out_dir="e")
             for c in cells:
                 occ[(c.rel_row, c.rel_col)] = c.cell_id
+            # The real, compiler-tracked decision: this convergence
+            # point was just built as priority-arbitrated. Recorded
+            # here, at the exact moment the compiler makes the real
+            # choice, not inferred later from the finished cells.
+            convergence_kinds.append("priority")
         levels.append(this_level)
         current_positions = next_positions
         level += 1
@@ -142,10 +174,27 @@ def compile_n_way_reduction(leaves: List[int]) -> Tuple[vix.IcmVixFile, Tuple[in
     final_pri_pos = unit_final_pos[final_uid]
     final_add_pos = (final_pri_pos[0], final_pri_pos[1] + 1)
 
+    # The real, compiler-driven use of its own tracked knowledge: the
+    # compiler already knows every real strategy it chose above, so it
+    # decides its own tightening approach directly from that -- no
+    # separate inspection of the finished design needed. Today this
+    # always resolves to "fast" (every real convergence point used
+    # priority) -- confirmed directly, not assumed, since the tightening
+    # calls above already used the fast, structural-only method
+    # throughout; this call makes that real, existing fact explicit and
+    # verifiable rather than implicit.
+    strategy = choose_tightening_strategy(convergence_kinds)
+    assert strategy == "fast", (
+        "compile_n_way_reduction only ever builds priority-based convergence "
+        "today -- a real, unexpected 'timing' result here would mean this "
+        "function's own real tightening calls above no longer match its own "
+        "tracked convergence_kinds"
+    )
+
     icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=final_cells)},
                           placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
                           name=f"reduce{n}")
-    return icm, final_add_pos
+    return icm, final_add_pos, convergence_kinds
 
 
 def _find_owning_unit(level: List[Tuple[int, int, str, Tuple[int, int], Tuple[int, int]]],

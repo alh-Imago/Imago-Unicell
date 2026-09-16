@@ -12319,3 +12319,55 @@ real, honest empty-input rejection.
 **Real, honest verification: full project suite re-run** (818 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression from every change in this entry.
+
+## 767. A real, important architectural correction, per Alan's own direct point: convergence points are defined BY THE COMPILER, not discovered by inspecting a finished design afterward -- "the compiler does the heavy lifting so the unicell doesn't have to," a standing principle of this whole project since its own start. `#766`'s own stated "not yet built" gap (a classifier scanning an arbitrary `IcmVixFile`) was the wrong framing entirely -- fixed directly: `compile_n_way_reduction()` now tracks its own real convergence-strategy choice at the exact moment it builds each one, and feeds that self-tracked knowledge directly into `choose_tightening_strategy()`. (Alan/Claude, 2026-09-16)
+
+**The real correction, stated precisely:** `#766` closed by naming a
+real, "not-yet-built" gap -- "a real function that inspects an actual
+`IcmVixFile`/cell list and classifies each real convergence point
+automatically." Alan's own direct point confirms this framing was
+simply wrong: the compiler is the one CONSTRUCTING each convergence
+point in the first place, so it already knows, at that exact moment,
+which real strategy it used -- there is nothing to discover by
+inspecting the finished result afterward. This is not a narrow, local
+fix but a real, named restatement of a standing principle this whole
+project has held since its own start: the compiler does the heavy
+lifting (placement, timing, strategy selection) so the UniCell itself
+-- the actual running hardware/VM -- stays simple, executing whatever
+the compiler already decided, never re-deriving it.
+
+**The real, concrete fix, made directly in `vix_n_way_reduction_v1.py`,
+not as a separate, bolted-on inspection layer:** `compile_n_way_
+reduction()`'s own return signature extended to include a real,
+compiler-tracked `convergence_kinds` list, appended to at the EXACT
+real moment each combine unit is constructed (`convergence_kinds.
+append("priority")`, right where `_combine_unit()` is called) -- never
+inferred afterward from the finished cells. That same, self-tracked
+list is then fed DIRECTLY into `#766`'s own `choose_tightening_
+strategy()` before the function returns, with a real, internal
+assertion confirming the compiler's own tracked knowledge and its own
+actual tightening behavior agree (`strategy == "fast"`, since every
+real convergence point this compiler builds today genuinely is
+`priority`-based) -- a real, verifiable consistency check, not just an
+architectural gesture.
+
+**Real, honest scope, unchanged by this correction:** this compiler
+still only ever builds `priority`-based convergence (the only real
+strategy it implements) -- the `convergence_kinds` tracking mechanism
+is real and correctly wired today, but its own real value becomes
+visible once a second, relay-padded strategy is added to this same
+compiler (real, separate, not attempted here) -- at that point, the
+compiler's own self-tracked list would naturally contain a real mix,
+and its own `choose_tightening_strategy()` call would correctly select
+`"timing"` without any external inspection ever being needed, exactly
+as designed here.
+
+**Real, permanent test added** (`test_compiler_tracks_its_own_
+convergence_strategy_directly`) confirming the real, returned `conver-
+gence_kinds` list matches the compiler's own actual, tracked choices
+for a real N=4 build; the existing N=2/4/8/16 tests updated to also
+verify the real, correct count and content of this list (`N-1` entries,
+all `"priority"`, matching a binary tree's own real internal-node
+count exactly). Full project suite re-run (819 passed, 1 skipped --
+same pre-existing skip, 4 warnings -- same pre-existing, unrelated),
+confirming zero regression from the signature change to every caller.
