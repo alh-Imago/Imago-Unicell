@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import vix_tile_library_v1 as vtl  # noqa: E402
 import icm_vix_v1 as vix  # noqa: E402
 from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
-from rats_nest_tighten_v1 import find_nexus_points, tighten_leaf_connection, tighten_leaf_connection_fast  # noqa: E402
+from rats_nest_tighten_v1 import (find_nexus_points, tighten_leaf_connection,  # noqa: E402
+                                    tighten_leaf_connection_fast, tighten_nexus_to_nexus)
 
 
 def _combine_unit(row, col, uid, out_dir="e"):
@@ -92,6 +93,56 @@ def test_fast_version_produces_identical_results_to_the_vm_backed_version():
     slow_positions = run(tighten_leaf_connection, "slow")
     fast_positions = run(tighten_leaf_connection_fast, "fast")
     assert slow_positions == fast_positions
+
+
+def test_nexus_to_nexus_tightening_full_reduce4():
+    """points.md #763: the real, full proof of nexus-to-nexus
+    tightening -- the harder case #761 explicitly deferred. Moves a
+    whole combine unit (priority + adder) as one rigid block, per
+    Alan's own direct proposal, re-routing both of its own real
+    upstream connections at every candidate step. Structural checks
+    only (no VM per step) -- correct here because priority already
+    absorbs any real timing mismatch between its own two sources.
+    Confirmed end to end: the loose #760 layout (186 cells) tightens
+    all the way down to 34, with the exact same correct result."""
+    occ = {}
+    L1a = _combine_unit(3, 20, "L1a", out_dir="e")
+    L1b = _combine_unit(23, 20, "L1b", out_dir="e")
+    for c in L1a + L1b:
+        occ[(c.rel_row, c.rel_col)] = c.cell_id
+
+    leaves = [10, 20, 30, 40]
+    leaf_start = [(0, 0), (10, 0), (20, 0), (30, 0)]
+    targets = [((2, 20), "s"), ((4, 20), "n"), ((22, 20), "s"), ((24, 20), "n")]
+    all_cells = list(L1a) + list(L1b)
+    for i, (v, start, (target, out_dir)) in enumerate(zip(leaves, leaf_start, targets)):
+        _, chain = tighten_leaf_connection_fast(v, start, target, out_dir, occ, f"leaf{i}")
+        all_cells += chain
+
+    L2 = _combine_unit(15, 50, "L2", out_dir="e")
+    for c in L2:
+        occ[(c.rel_row, c.rel_col)] = c.cell_id
+    all_cells += L2
+
+    final_pos, l2_final = tighten_nexus_to_nexus(
+        "pri_L2", "add_L2", "e", (15, 50), (3, 21), (23, 21), row_bias=14,
+        occupied=occ, uid_prefix="l2t")
+
+    all_cells = [c for c in all_cells if c.cell_id not in ("pri_L2", "add_L2")] + l2_final
+    icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=all_cells)},
+                          placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                          name="full_nexus_tightened")
+    assert icm.check_connections() == []
+    assert icm.check_known_gotchas() == []
+    assert len(all_cells) < 90  # meaningfully fewer than leaf-only tightening (#761/#762)
+    records, _ = icm.flatten()
+    grid = SuperGrid(records)
+    for _ in range(60):
+        grid.tick()
+    add_l2_pos = (final_pos[0], final_pos[1] + 1)
+    result = grid.cells[add_l2_pos]
+    assert result.adder_data_valid is True
+    assert result.adder_out_buffer == sum(leaves)
 
 
 def test_full_reduce4_tightens_from_loose_and_still_computes_correctly():

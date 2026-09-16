@@ -177,3 +177,87 @@ def _tighten_leaf_connection_impl(leaf_value: int, start_pos: Tuple[int, int],
     for cell in current:
         occupied[(cell.rel_row, cell.rel_col)] = cell.cell_id
     return (row, col), current
+
+
+def tighten_nexus_to_nexus(pri_cell_id: str, add_cell_id: str, add_out_dir: str,
+                            start_pos: Tuple[int, int],
+                            src_a_pos: Tuple[int, int], src_b_pos: Tuple[int, int],
+                            row_bias: int, occupied: Dict[Tuple[int, int], str],
+                            uid_prefix: str
+                            ) -> Tuple[Tuple[int, int], List[vix.HierCell]]:
+    """Points.md #763: real nexus-to-nexus tightening -- the harder
+    case `#761` explicitly deferred, where the moving end is itself a
+    nexus with its OWN two upstream connections, not a freely-movable
+    leaf. Per Alan's own direct proposal: move the whole combine unit
+    (priority + its own adder) as one rigid block -- the same real
+    'solved piece becomes the next whole piece' framing already
+    established -- re-routing both of its own real upstream
+    connections from their own FIXED source positions at every
+    candidate step.
+
+    Real, honest, deliberately narrow scope, confirmed directly, not
+    assumed: this uses ONLY structural checks (`check_connections()`/
+    `flatten()`), never the VM. That is correct here specifically
+    because both real sources feed into a `priority` cell, which
+    already absorbs any real timing mismatch between them by design
+    (`#751`'s own entire point) -- there is no `#750`-style arrival-
+    collision hazard to check for. This does NOT generalize to a
+    relay-padded design where two paths must keep genuinely different
+    lengths to stay correct -- that case still needs a real, symbolic
+    timing check (or the VM), not attempted here.
+
+    `row_bias` sets which row the priority cell settles on once its own
+    column reaches `src_a_pos`'s (its own real N-neighbor's column) --
+    typically the real midpoint between the two source rows, so the
+    priority cell can directly sandwich both once fully tightened."""
+    row, col = start_pos
+
+    def move_unit(new_row, new_col):
+        new_pri = vtl.place(vtl.TILE_PRIORITY, {"in": ["n", "s"], "out": "e"},
+                             params={"priority_rank_n": 0, "priority_rank_s": 1,
+                                     "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": 0},
+                             cell_id=pri_cell_id, rel_row=new_row, rel_col=new_col)
+        new_add = vtl.place(vtl.TILE_ADDER, {"in_a": "w", "in_b": "w", "out": add_out_dir},
+                             cell_id=add_cell_id, rel_row=new_row, rel_col=new_col + 1)
+        return [new_pri, new_add]
+
+    def try_at(new_row, new_col):
+        moved = move_unit(new_row, new_col)
+        test_occ = {k: v for k, v in occupied.items() if v not in (pri_cell_id, add_cell_id)}
+        for c in moved:
+            if (c.rel_row, c.rel_col) in test_occ:
+                return None
+            test_occ[(c.rel_row, c.rel_col)] = c.cell_id
+        route_a = manhattan_route(src_a_pos, "e", (new_row - 1, new_col), "s", f"{uid_prefix}_a", test_occ)
+        route_b = manhattan_route(src_b_pos, "e", (new_row + 1, new_col), "n", f"{uid_prefix}_b", test_occ)
+        all_cells = moved + route_a + route_b
+        icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=all_cells)},
+                              placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                              name="nexus_probe")
+        try:
+            if icm.check_connections():
+                return None
+            icm.flatten()
+        except vix.IcmVixFormatError:
+            return None
+        return all_cells
+
+    current = try_at(row, col)
+    assert current is not None, "starting position must already be valid"
+
+    while True:
+        new_row, new_col = row, col
+        if new_col > src_a_pos[1] + 1:
+            new_col -= 1
+        elif new_row != row_bias:
+            new_row += 1 if row_bias > new_row else -1
+        else:
+            break
+        candidate = try_at(new_row, new_col)
+        if candidate is None:
+            break
+        row, col, current = new_row, new_col, candidate
+
+    for c in current:
+        occupied[(c.rel_row, c.rel_col)] = c.cell_id
+    return (row, col), current

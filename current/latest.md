@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-16, the "would tokenizing help" question answered with real, measured evidence -- for isolated connections, the full VM run is provably unnecessary; a structural-only version is ~6x faster with identical results. The limit is precise: this doesn't extend to nexus-to-nexus tightening, where real timing (not just geometry) decides correctness. See `points/points_active.md` #762)
+# Current State (as of 2026-09-16, real, full nexus-to-nexus tightening built and proven -- the harder case #761 deferred. The full N=4 reduction tree tightened all the way from 186 loose cells to 34, an 82% reduction, still computing correctly. See `points/points_active.md` #763)
+
+## Read this first (most recent)
+
+**2026-09-16, nexus-to-nexus tightening built and proven (#763).** Per
+Alan's own direct proposal: move a whole hierarchical piece (priority
++ its own adder) as one rigid block, re-routing both its own upstream
+connections at every step -- "the solved piece becomes the next whole
+piece," now built concretely for the first time.
+
+**Real, honest scoping decision, checked directly:** for THIS specific
+design (every nexus is priority), only structural checks are needed --
+priority already absorbs any real arrival-order mismatch by design,
+so there's no #750-style collision hazard here. Stated precisely: this
+does NOT generalize to a relay-padded design, where two paths must
+keep genuinely different lengths -- that case still needs a real
+timing check, not attempted here.
+
+**Real, end-to-end proof:** the full N=4 tree -- leaves tightened via
+#761/#762's fast method, then the top-level L2 unit tightened via this
+new mechanism, 29 independently-validated steps from (15,50) down to
+(14,22). Confirmed by a real VM run: 100, exactly correct, zero
+warnings. Total cells: 186 (loose) -> 90 (leaves tightened) -> 34
+(fully tightened) -- an 82% reduction from the original loose build.
+
+**Status: the full rat's-nest loop (loose build -> nexus scan -> leaf
+tightening -> nexus-to-nexus tightening) is now proven end to end for
+this session's priority-based case.** The general symbolic timing
+model still needed for non-priority designs remains real, separate,
+unbuilt -- this entry found it wasn't needed HERE, not that it's never
+needed. 797 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, the "would tokenizing help" question answered with real, measured evidence -- for isolated connections, the full VM run is provably unnecessary; a structural-only version is ~6x faster with identical results. The limit is precise: this doesn't extend to nexus-to-nexus tightening, where real timing (not just geometry) decides correctness. See `points/points_active.md` #762)
 
 ## Read this first (most recent)
 

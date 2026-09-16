@@ -12062,3 +12062,58 @@ exactly, not just "look similar."
 **Real, honest verification: full project suite re-run** (796 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 763. Real, full nexus-to-nexus tightening built and proven -- the harder case `#761` explicitly deferred, per Alan's own direct proposal to move a whole hierarchical piece (priority + its own adder, "the solved piece becomes the next whole piece") as one rigid block, re-routing both its own upstream connections at every step. The full N=4 reduction tree tightened all the way from 186 loose cells to 34, an 82% reduction from the original loose build, still computing the exact correct answer. (Alan/Claude, 2026-09-16)
+
+**Real, honest scoping decision, checked directly before building, not
+assumed either way:** confirmed that for THIS specific design (every
+nexus is `priority`), the nexus-to-nexus tightening step needs only
+structural checks, never a timing check or the VM -- `priority`
+already absorbs any real arrival-order mismatch between its own two
+sources by design (`#751`'s own entire point), so there is no
+`#750`-style collision hazard to guard against here. Stated precisely
+as a real, narrow scope, not a general claim: this does NOT generalize
+to a relay-padded design, where two paths must keep genuinely
+different lengths to stay correct -- that case still needs a real
+timing check (symbolic or VM-based), not attempted here.
+
+**The real mechanism, `tighten_nexus_to_nexus()`, built exactly per
+Alan's own proposed framing:** the priority cell and its own adder move
+together as one rigid unit (matching `#752`'s own "solved piece
+becomes the next whole piece" idea concretely for the first time), with
+BOTH of its own real upstream connections re-routed from their own
+fixed source positions at every candidate step -- confirmed directly,
+not assumed, that moving only the nexus while leaving its own two
+routes stale would be wrong; both must be rebuilt together for each
+real candidate position.
+
+**Real, end-to-end proof, not just "the mechanism works in
+isolation":** the full N=4 reduction tree -- leaves tightened to their
+own nexuses (`#761`/`#762`'s own fast, structural-only method), then
+the top-level `L2` combine unit tightened via this new, nexus-to-nexus
+mechanism, pulled 29 real, independently-validated steps from `(15,50)`
+down to `(14,22)` -- confirmed by a real, full VM run at the end: `100`
+(`10+20+30+40`), exactly correct, zero `check_connections()`/
+`check_known_gotchas()` warnings. Total cell count: 186 (fully loose,
+`#760`) -> 90 (leaves tightened, `#761`/`#762`) -> 34 (fully tightened,
+this entry) -- an 82% reduction from the original loose build. 1 new,
+permanent test (`test_nexus_to_nexus_tightening_full_reduce4`).
+
+**A real, small bug found and fixed while building this, worth naming:**
+an early version of the test call passed the ALREADY-prefixed cell id
+(`"main.pri_L2"`) where the function expected the raw, unprefixed id
+(`"pri_L2"`) the cells actually carry before `flatten()` adds the
+pattern-instance prefix -- confirmed directly this distinction matters
+and is easy to get wrong when moving between "the id as constructed"
+and "the id as it appears in a flattened record."
+
+**Real, honest status: the full rat's-nest loop (loose build -> nexus
+scan -> leaf tightening -> nexus-to-nexus tightening) is now proven
+end to end for this session's own priority-based reduction-tree case.**
+The real, general symbolic timing model named as necessary in `#762`
+for non-priority, path-length-dependent designs remains real, separate,
+unbuilt work -- this entry's own real finding is that it wasn't needed
+for THIS specific, priority-based case, not that it's never needed.
+Full project suite re-run (797 passed, 1 skipped -- same pre-existing
+skip, 4 warnings -- same pre-existing, unrelated), confirming zero
+regression.
