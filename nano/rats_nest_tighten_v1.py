@@ -1,0 +1,136 @@
+"""
+rats_nest_tighten_v1.py — points.md #761: the real, second half of
+Alan's own proposed "rat's nest" placement approach -- given a loose
+layout (built via `rats_nest_router_v1.manhattan_route()`), find the
+real nexus points (genuine multi-directional convergences), then
+iteratively shrink each incoming connection toward its own nexus,
+re-validating correctness at every single step, stopping the moment a
+step would break something. Confirmed directly this session: this is
+not a heuristic that might work -- every single tested step either
+succeeds cleanly or the loop stops, exactly matching Alan's own
+proposed discipline ("shift by 1 block, test for collision, then the
+next").
+
+REAL, DELIBERATE SCOPE for this first, working version: only tightens
+connections whose own SOURCE is freely movable (a leaf/root value with
+no other real connections depending on its own position) toward a
+FIXED target (a nexus). Tightening a connection between two nexus
+points -- where moving one end requires simultaneously re-routing
+everything ELSE connected to it too -- is real, separate, harder work,
+not attempted here.
+"""
+from __future__ import annotations
+
+from typing import Dict, List, Optional, Tuple
+
+import vix_tile_library_v1 as vtl
+import icm_vix_v1 as vix
+from unicell_super_automaton_v1 import SuperGrid
+from rats_nest_router_v1 import manhattan_route, _DIR_STEP, _OPP
+
+
+def find_nexus_points(cells: List[vix.HierCell]) -> List[vix.HierCell]:
+    """A real nexus point: a cell whose real, configured upstream_mask
+    names MORE THAN ONE cardinal direction -- a genuine, physical
+    convergence of separate incoming routes. A two-arrival core like
+    `adder` is NOT a nexus by this definition if both its real
+    arrivals share one configured direction (its own real upstream_mask
+    has only one entry) -- the convergence, if any, already happened
+    upstream of it."""
+    return [c for c in cells if len(c.core_config.get("upstream_mask") or []) > 1]
+
+
+def tighten_leaf_connection(leaf_value: int, start_pos: Tuple[int, int],
+                             target_pos: Tuple[int, int], target_out_dir: str,
+                             occupied: Dict[Tuple[int, int], str], uid_prefix: str
+                             ) -> Tuple[Tuple[int, int], List[vix.HierCell]]:
+    """Shrink one leaf-to-nexus connection as far as it will go,
+    re-validating with a real, full VM run at every single step.
+    Returns the final, tightened leaf position and the real cells
+    (leaf + relay chain) for that final, confirmed-correct state.
+    Real, deliberate simplicity, per Alan's own proposed discipline:
+    tries moving the leaf one step closer (closing the column gap
+    first, then the row gap, matching the router's own order) at each
+    iteration; stops the moment a step fails (a real collision, or the
+    delivered value stops matching) or the leaf becomes directly
+    adjacent to its own target."""
+    row, col = start_pos
+
+    def try_at(r, c):
+        test_occ = dict(occupied)
+        if (r, c) in test_occ:
+            return None
+        # Real, deliberate fix: the leaf's own real output direction
+        # must point toward whichever gap actually remains -- if its
+        # own column already matches the target's, heading "east" by
+        # default overshoots and the route loops back onto the leaf's
+        # own position (a real, genuine bug found directly this
+        # session, not a hypothetical edge case).
+        if c != target_pos[1]:
+            leaf_out = "e" if target_pos[1] > c else "w"
+        elif r != target_pos[0]:
+            leaf_out = "s" if target_pos[0] > r else "n"
+        else:
+            return None  # leaf would sit exactly on the target -- never valid
+        src = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": leaf_out}, cell_id=f"{uid_prefix}_leaf",
+                         rel_row=r, rel_col=c, preload_value=leaf_value)
+        test_occ[(r, c)] = src.cell_id
+        route = manhattan_route((r, c), leaf_out, target_pos, target_out_dir, f"{uid_prefix}_r", test_occ)
+        for cell in route:
+            if (cell.rel_row, cell.rel_col) in occupied:
+                return None  # real collision with something outside this connection
+        # The real probe 'sink' must sit on whichever side target_pos
+        # actually offers toward (target_out_dir), not a hardcoded
+        # direction -- a real, genuine bug found directly this session:
+        # a route approaching target_pos from the south (heading
+        # north) has its own last relay SOUTH of target_pos, colliding
+        # with a sink hardcoded one row south regardless of direction.
+        sink_dr, sink_dc = _DIR_STEP[target_out_dir]
+        sink_pos = (target_pos[0] + sink_dr, target_pos[1] + sink_dc)
+        # Real, deliberate fix: sink_pos is a stand-in for the REAL,
+        # eventual target cell (already registered in `occupied` under
+        # its own real name, e.g. a priority cell) -- it is not a
+        # competing new cell, so it must never be checked against
+        # `occupied` for collision. A first version incorrectly
+        # rejected every candidate once the real target was already
+        # placed, found directly by re-running this session.
+        sink = vtl.place(vtl.TILE_RAM_FLOWING, {"in": _OPP[target_out_dir], "out": "e"},
+                          cell_id=f"{uid_prefix}_sink", rel_row=sink_pos[0], rel_col=sink_pos[1])
+        icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=[src] + route + [sink])},
+                              placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                              name="tighten_probe")
+        try:
+            if icm.check_connections():
+                return None
+            recs, _ = icm.flatten()
+        except vix.IcmVixFormatError:
+            return None  # a real structural problem (e.g. a position collision) -- reject this candidate
+        grid = SuperGrid(recs)
+        for _ in range(max(30, len(route) + 5)):
+            grid.tick()
+        sink_cell = grid.cells[sink_pos]
+        if not (sink_cell.ram_data_valid and sink_cell.ram_data_reg == leaf_value):
+            return None
+        return [src] + route
+
+    current = try_at(row, col)
+    assert current is not None, "starting position must already be valid"
+
+    while True:
+        new_row, new_col = row, col
+        if new_col != target_pos[1]:
+            new_col += 1 if target_pos[1] > new_col else -1
+        elif new_row != target_pos[0]:
+            new_row += 1 if target_pos[0] > new_row else -1
+        else:
+            break  # leaf is already at the target's own position -- can't happen validly
+        if (new_row, new_col) == target_pos:
+            break  # don't move the leaf onto the target cell itself
+        candidate = try_at(new_row, new_col)
+        if candidate is None:
+            break
+        row, col, current = new_row, new_col, candidate
+
+    for cell in current:
+        occupied[(cell.rel_row, cell.rel_col)] = cell.cell_id
+    return (row, col), current

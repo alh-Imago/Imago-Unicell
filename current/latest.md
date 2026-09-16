@@ -1,4 +1,45 @@
-# Current State (as of 2026-09-16, a real, general Manhattan router built and proven -- the "loose" half of the rat's-nest placement approach. The N=4 reduction problem rebuilt with deliberately loose, generous spacing still computes correctly. See `points/points_active.md` #760)
+# Current State (as of 2026-09-16, the full rat's-nest approach proven end to end -- automatic nexus detection plus iterative shrink-and-revalidate tightening. The N=4 reduction tree tightened from 186 loose cells to 90, still computing correctly. See `points/points_active.md` #761)
+
+## Read this first (most recent)
+
+**2026-09-16, rat's-nest tightening built and proven (#761).** Per
+Alan's own direct proposal: scan for nexus points, then pull
+connections in one block at a time, testing for collision at each
+step.
+
+**Nexus detection is exactly as simple as proposed:** a nexus is a
+cell whose upstream_mask names more than one direction -- one scan,
+correctly found all 3 real convergence points automatically, no hand
+identification. Confirmed a precise distinction: adder needs 2
+arrivals but from ONE shared direction, so it is NOT a nexus -- the
+real convergence already happened at priority, upstream of it.
+
+**The tightening loop does exactly what was proposed:** move one step
+closer, re-validate with a full VM run, keep if valid, stop on
+failure. One connection shrank from 24 relay cells to 1, every step
+independently re-validated.
+
+**Four real bugs found and fixed:** (1) flatten() raises a real
+exception for collisions, not a returned list -- an uncaught exception
+crashed the loop instead of rejecting one step; (2) a leaf's own
+output direction must be chosen dynamically, not fixed -- once its
+column matches the target's, continuing "east" overshoots and loops
+back onto itself; (3) the probe's "sink" position must derive from
+the real approach direction, not be hardcoded to one side; (4) the
+sink stand-in must never be checked against occupied -- it simulates
+the real, already-registered target, not a competing cell.
+
+**Real, end-to-end proof:** the full N=4 tree from #760, tightened --
+186 cells down to 90, zero warnings, result still exactly 100. 4 new
+tests.
+
+**Status: the full loop is proven for its stated case** -- freely-
+movable leaves tightening toward fixed nexuses. Tightening between two
+nexus points (both ends need re-routing simultaneously) remains real,
+separate, harder work, explicitly deferred. 795 tests pass, zero
+regression.
+
+## Previous state (as of 2026-09-16, a real, general Manhattan router built and proven -- the "loose" half of the rat's-nest placement approach. The N=4 reduction problem rebuilt with deliberately loose, generous spacing still computes correctly. See `points/points_active.md` #760)
 
 ## Read this first (most recent)
 

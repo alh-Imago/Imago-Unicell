@@ -11922,3 +11922,74 @@ none -- purely geometric, by explicit, stated design).
 **Real, honest verification: full project suite re-run** (791 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 761. The real, second half of the rat's-nest approach built and proven: automatic nexus-point detection plus iterative shrink-and-revalidate tightening, per Alan's own direct proposal ("scan through the array will give the nexus points... pulling the bits around it in, shift by 1 block, test for collision, then the next"). The full N=4 reduction tree, built loose from `#760`, automatically tightened from 186 cells to 90, still computing the exact correct answer. Four real, concrete bugs found and fixed along the way. (Alan/Claude, 2026-09-16)
+
+**Nexus detection confirmed simple and correct, exactly as Alan
+proposed:** a real nexus point is a cell whose configured
+`upstream_mask` names more than one cardinal direction -- a genuine,
+physical convergence, computed by a single scan over the cell list. A
+real, precise distinction confirmed and tested directly: `adder`
+genuinely needs 2 real arrivals (`#757`) but shares ONE configured
+upstream direction, so it is NOT a nexus by this definition -- any
+real convergence already happened upstream of it, at the `priority`
+cell. The scan correctly found all 3 real convergence points in the
+loose `#760` layout automatically, with zero hand-identification.
+
+**The tightening loop, `tighten_leaf_connection()`, built exactly to
+Alan's own proposed discipline** -- move one step closer, re-validate
+with a REAL, full VM run (not just a geometric check), keep the change
+if valid, stop the moment a step fails. Confirmed directly: shrank one
+real connection from 24 relay cells down to 1 (leaf directly adjacent
+to its own target), every single intermediate step independently
+re-validated and passing.
+
+**Four real, concrete bugs found and fixed, each genuinely
+instructive:**
+1. `icm_vix_v1.py`'s own `flatten()` raises a real EXCEPTION for
+   structural problems (a position collision), not a returned list of
+   advisories -- a first version let this exception propagate and
+   crash the whole tightening loop instead of correctly rejecting that
+   one candidate step. Fixed by catching `IcmVixFormatError` explicitly.
+2. **A leaf's own real output direction must be chosen dynamically,**
+   not fixed. Once a leaf's own column reaches its target's column
+   (having closed that gap during tightening), continuing to output
+   "east" by default overshoots past the target and the route loops
+   back onto the leaf's own position -- a real, genuine collision, not
+   a hypothetical edge case, caught directly by the collision-detection
+   this session already had in place.
+3. **The probe's own "sink" position must be derived from
+   `target_out_dir`, not hardcoded.** A first version assumed every
+   route approaches its target from the north; a route approaching
+   from the south (heading north, as in the real, second leaf
+   connection tested) has its own last relay on the opposite side,
+   colliding with a sink hardcoded one row south regardless of real
+   approach direction.
+4. **The probe's own "sink" stand-in must never be checked against
+   `occupied` for collision.** It exists to simulate the REAL,
+   eventual target cell (already correctly registered in `occupied`
+   under its own real name, e.g. a `priority` cell) -- a first version
+   incorrectly rejected every single candidate once the real target
+   was already placed, since the stand-in always "collided" with the
+   thing it was standing in for.
+
+**Real, end-to-end proof, not just "each piece works alone":** the
+full N=4 reduction tree from `#760`, all 4 leaf-to-nexus connections
+independently tightened (each shrinking from a long, loose chain down
+to a single relay cell), combined with the still-loose nexus-to-nexus
+bridges (`rA`/`rB`, real, separate, harder work, not attempted here) --
+total cell count dropped from 186 (fully loose) to 90, with `check_
+connections()`/`check_known_gotchas()` both clean and the real,
+correct result (`100 = 10+20+30+40`) unchanged. 4 new, permanent
+tests (`tests/vm/test_rats_nest_tighten_v1.py`).
+
+**Real, honest status: the full rat's-nest loop (loose build → nexus
+scan → iterative tighten) is now proven end to end for the case it was
+built for -- freely-movable leaf sources tightening toward fixed
+nexuses.** Tightening a connection between two NEXUS points (where
+moving one end requires simultaneously re-routing everything else
+connected to it) remains real, separate, harder work, explicitly
+deferred, not attempted here -- `rA`/`rB` in this entry's own result
+are still their original, loose, un-tightened length. Full project
+suite re-run (795 passed, 1 skipped -- same pre-existing skip, 4
+warnings -- same pre-existing, unrelated), confirming zero regression.
