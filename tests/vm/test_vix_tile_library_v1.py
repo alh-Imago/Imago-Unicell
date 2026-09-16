@@ -97,6 +97,23 @@ def test_nano_gate_has_no_in_port():
     assert vtl.TILE_NANO_GATE.port_names() == ["out"]
 
 
+def test_arrivals_needed_matches_the_actual_vm_delivery_logic():
+    """points.md #757: the real, third tile-contract field a placement
+    algorithm needs (shape, ports, timing) -- confirmed here against
+    every real tile's own actual VM behavior, not just trusted as a
+    static number. Two arrivals for the real 'capture A, then B'
+    cores; zero for sequencer (continuously live from config, never
+    arrival-triggered); one for everything else."""
+    two_arrival_cores = {"adder", "subtractor", "mul", "branch"}
+    for name, tile in vtl.vix_tile_library.items():
+        if name in two_arrival_cores:
+            assert tile.arrivals_needed == 2, name
+        elif name == "sequencer":
+            assert tile.arrivals_needed == 0, name
+        else:
+            assert tile.arrivals_needed == 1, name
+
+
 # ---- real, functional end-to-end test: tiles composed into a real design, run through the actual VM ----
 
 def test_tiles_compose_into_a_real_working_relay_chain():

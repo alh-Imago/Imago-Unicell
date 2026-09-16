@@ -106,7 +106,41 @@ class VixTileSpec:
     ports, named parameters -- the same real port/param CONTRACT
     `super_tile_library_v1.SuperTileSpec` already establishes, applied
     to the VIX Carrier lineage's own, structurally different core_config
-    shapes rather than shoehorned into that same dataclass."""
+    shapes rather than shoehorned into that same dataclass.
+
+    `arrivals_needed` (points.md #757) is the real, third contract
+    field a placement algorithm needs alongside shape and ports --
+    Alan's own original design principle, established at the very
+    start of this whole project (`points.md` #17, 2026-07-07): "zero
+    same-depth co-locations" -- two cells at the same real dataflow
+    depth fire on the same tick, colliding if they share a consumer.
+    Depth itself is a per-PLACEMENT property (computed from the real
+    graph, not the tile), but computing it correctly requires knowing
+    each tile's own real, fixed CONSUMPTION count first -- how many
+    separate real arrival events a tile needs before it produces real
+    output, confirmed directly against each core's own actual
+    `_deliver_*()` implementation, not assumed from its own name or
+    port count:
+    - Most cores (`ram`, `comparator`, `accumulator`, `latch`,
+      `nano_gate`, `priority`) need exactly 1 real arrival -- their
+      own real output becomes valid on the SAME tick that arrival is
+      processed.
+    - `adder`/`subtractor`/`mul` need 2 -- a real, sequential "capture
+      A, then capture B" shape (`#513`'s own "matched pair" framing),
+      confirmed directly against `_deliver_adder()`.
+    - `branch` is a real, honest special case: its FIRST-ever real use
+      needs 2 (the first arrival only establishes its held reference,
+      producing no real output at all; only the second genuinely
+      compares and emits) -- but every SUBSEQUENT real comparison,
+      once that reference is already held, needs only 1. Recorded here
+      as 2 (the real, worst-case, first-use shape) since a placement
+      algorithm needs to know about the one-time reference-settling
+      cost when scheduling a branch-based convergence point (the exact
+      real "settle" phase `#742`'s own CORDIC build already needed by
+      hand).
+    - `sequencer` needs 0 -- its own real output is already live from
+      the moment it's configured, never arrival-triggered at all.
+    """
     name: str
     core: str
     description: str
@@ -114,6 +148,7 @@ class VixTileSpec:
     param_names: List[str] = field(default_factory=list)
     fixed_core_config: dict = field(default_factory=dict)
     proven: str = "sim-only"  # matches CORES_AND_WRAPPERS_REFERENCE.md's own vocabulary
+    arrivals_needed: int = 1
 
     def port_names(self) -> List[str]:
         return [p.name for p in self.ports]
@@ -224,6 +259,7 @@ TILE_ADDER = register(VixTileSpec(
                  "arrival lands FIRST becomes A, the second B.",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
+    arrivals_needed=2,
 ))
 
 TILE_SUBTRACTOR = register(VixTileSpec(
@@ -233,6 +269,7 @@ TILE_SUBTRACTOR = register(VixTileSpec(
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
     fixed_core_config={"subtract_mode": 1},
+    arrivals_needed=2,
 ))
 
 TILE_MUL = register(VixTileSpec(
@@ -245,6 +282,7 @@ TILE_MUL = register(VixTileSpec(
                  "exists (bit [12] is genuine reserved headroom).",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
+    arrivals_needed=2,
 ))
 
 TILE_COMPARATOR = register(VixTileSpec(
@@ -286,6 +324,7 @@ TILE_BRANCH = register(VixTileSpec(
            TilePort("route_high", "out", "route_high")],
     param_names=["value_source_low", "value_source_equal", "value_source_high",
                  "emit_low", "emit_equal", "emit_high", "rolling_mode"],
+    arrivals_needed=2,  # real, worst-case first-use shape (#757) -- see VixTileSpec's own docstring
 ))
 
 TILE_ACCUMULATOR = register(VixTileSpec(
@@ -320,6 +359,7 @@ TILE_SEQUENCER = register(VixTileSpec(
                  "it names an upstream field at all.",
     ports=[TilePort("out", "out", "downstream_mask")],
     param_names=["VALUE_0", "VALUE_1", "VALUE_2", "VALUE_3", "SEQUENCE_LEN"],
+    arrivals_needed=0,  # continuously live from config, never arrival-triggered (#757)
 ))
 
 TILE_PRIORITY = register(VixTileSpec(

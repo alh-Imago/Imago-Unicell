@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-16, the real, first LLVM IR -> VIX Carrier compilation path built and proven -- linear chains compile correctly end to end. A genuine correction to #746/#750's own earlier framing found and confirmed: fan-out (one producer, many consumers) was already solved since #700-#717; convergence (many producers, one consumer) is the genuinely unsolved shape #750/#751 actually address. See `points/points_active.md` #756)
+# Current State (as of 2026-09-16, real, third tile-contract field (arrivals_needed) added -- timing, alongside shape and ports -- tracing back to points.md #17, this project's own very first placement rule from 2026-07-07. Confirmed directly against every real tile's own actual VM delivery logic. See `points/points_active.md` #757)
+
+## Read this first (most recent)
+
+**2026-09-16, real timing data added to the tile contract (#757).** Per
+Alan's own direct ask, tracing back to a real, foundational rule he
+recalled establishing at the very start of this whole project -- found
+directly: points.md #17 (2026-07-07), "zero same-depth co-locations,"
+the exact same real principle llvm_ir_compiler_scope.md's own Addendum
+2 already cited as prior art for the placement problem, now traced all
+the way back to its own original statement.
+
+**The real gap this closes:** dataflow depth is a per-placement
+property, but computing it needs each tile's own real, fixed
+consumption count first. Confirmed directly against every tile's
+actual _deliver_*() implementation, not guessed: adder/subtractor/mul
+need 2 real arrivals; branch needs 2 as a real, honest worst-case
+(first use only establishes a reference; every subsequent comparison
+needs just 1, recorded precisely rather than smoothed over);
+sequencer needs 0 (continuously live from config); everything else
+needs 1.
+
+**A new, real arrivals_needed field added to VixTileSpec**, every one
+of 13 tiles' own value confirmed directly. New permanent test checks
+every tile against its actual, confirmed category.
+
+**Status: the real, necessary third field (shape, ports, timing) any
+future placement algorithm needs -- not the algorithm itself.**
+Grounds the direction #750-#752 already pointed toward. Full suite
+re-run (785 passed, 1 skipped -- same pre-existing skip), zero
+regression.
+
+## Previous state (as of 2026-09-16, the real, first LLVM IR -> VIX Carrier compilation path built and proven -- linear chains compile correctly end to end. A genuine correction to #746/#750's own earlier framing found and confirmed: fan-out (one producer, many consumers) was already solved since #700-#717; convergence (many producers, one consumer) is the genuinely unsolved shape #750/#751 actually address. See `points/points_active.md` #756)
 
 ## Read this first (most recent)
 

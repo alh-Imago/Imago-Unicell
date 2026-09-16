@@ -11681,3 +11681,53 @@ real, separate, harder work, not attempted in this entry.
 unrelated), confirming zero regression from every change in this
 entry, including the shared `compile_llvm_ir()` signature change
 affecting every existing caller.
+
+## 757. Real, third tile-contract field (`arrivals_needed`) added -- timing, alongside shape and ports -- per Alan's own direct ask, tracing back to a real, foundational rule established at the very start of this whole project (`points.md` #17, 2026-07-07, Alan's own original pentacross placement rules): "zero same-depth co-locations," where dataflow depth and each cell's own real consumption count are the two facts that determine when a placement collision can happen. Confirmed directly against every real tile's own actual VM delivery logic, not guessed from names or port counts. (Alan/Claude, 2026-09-16)
+
+**Found the real, original source first, not invented fresh:** Alan's
+own recollection ("timing is the new metric... based on depth and
+consumption rate") led directly to `points.md` #17 -- the real, first
+placement rule this entire project was ever built on, from the old
+full-cell compiler: "zero same-depth co-locations... same-depth cells
+fire on the same tick" and "checkpoint/fan-out cells ride their
+producer's cluster and multicast to consumers, never pool into a hub."
+This is the exact same real principle `llvm_ir_compiler_scope.md`'s
+own `Addendum 2` already cited as prior art for the still-unsolved
+placement problem (`#750`/`#751`/`#752`) -- now traced all the way
+back to its own real, original statement, seven weeks earlier in this
+project's own real history.
+
+**The real, concrete gap this closes:** dataflow depth is a real,
+per-PLACEMENT property (computed from the graph), but computing it
+correctly requires knowing each tile's own real, fixed CONSUMPTION
+count first -- how many separate real arrival events a tile needs
+before it produces real output. Confirmed directly, not assumed,
+against every real tile's own actual `_deliver_*()` implementation:
+`adder`/`subtractor`/`mul` need 2 (a real, sequential "capture A, then
+B" shape, `#513`'s own "matched pair" framing); `branch` needs 2 as a
+real, honest worst-case (its first-ever use only establishes a held
+reference, producing no output at all -- every SUBSEQUENT comparison,
+once that reference already holds, needs only 1, recorded precisely
+in the field's own docstring rather than smoothed over); `sequencer`
+needs 0 (continuously live from config, never arrival-triggered at
+all); every other real tile (`ram`, `comparator`, `accumulator`,
+`latch`, `nano_gate`, `priority`) needs exactly 1.
+
+**A new, real `arrivals_needed: int = 1` field added to `VixTileSpec`**
+(`vix_tile_library_v1.py`), with every one of the 13 real, registered
+tiles' own value confirmed directly rather than left at the default
+where it didn't apply. A new, permanent test (`test_arrivals_needed_
+matches_the_actual_vm_delivery_logic`) checks every real tile's own
+value against its actual, confirmed category, not just a handful of
+spot checks.
+
+**Real, honest status: this is the real, necessary third field
+(shape, ports, timing) any future placement algorithm needs, not the
+algorithm itself.** Confirms and grounds the direction `#750`-`#752`
+already pointed toward -- a real, hierarchical, Tetris-like placement
+system where solved sub-pieces compose into larger ones, each carrying
+a real footprint and a real timing signature -- but building that
+composition/matching system itself remains real, separate, unattempted
+work. Full project suite re-run (785 passed, 1 skipped -- same
+pre-existing skip, 4 warnings -- same pre-existing, unrelated),
+confirming zero regression.
