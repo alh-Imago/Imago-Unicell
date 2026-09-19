@@ -313,3 +313,137 @@ def test_sequenced_channel_mode_guarantees_order_without_path_equalization():
         grid.tick()
     assert sub_cell.adder_out_buffer == 97  # 100 - 3, correct
     assert sub_cell.adder_a_reg == 100  # a correctly became "A", despite b arriving first
+
+
+def test_non_power_of_two_leftover_needs_extra_padding_not_just_equal_hops():
+    """points.md #773: Alan's own direct, precise concern -- for a
+    non-power-of-2 reduction (N=3 here: (1-2)-3, left-to-right
+    subtraction), the 'leftover' value (3) must land as the real
+    subtrahend/B at the second real subtractor, with t1's own output
+    (1-2) correctly landing as the real minuend/A -- regardless of
+    which one physically arrives first.
+
+    Confirmed directly, and confirmed MORE SUBTLE than #771's own
+    simple two-leaf case: EQUAL real hop counts are NOT enough here,
+    because t1 is a real, COMPOSED piece (a subtractor's own output),
+    which becomes ready at a real, LATER tick than a raw, preloaded
+    leaf like the leftover -- exactly the real distinction `#765`'s own
+    `composed_output_ready_tick()` already names. The leftover's own
+    real path needed MORE hops than t1's own path (8 vs 4, empirically
+    found here) to correctly arrive second, not merely an equal count."""
+    occ = {}
+    cells = []
+    pri1 = vtl.place(vtl.TILE_PRIORITY, {"in": ["n", "s"], "out": "e"},
+                      params={"priority_rank_n": 0, "priority_rank_s": 1,
+                              "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": 0},
+                      cell_id="pri1", rel_row=0, rel_col=0)
+    sub1 = vtl.place(vtl.TILE_SUBTRACTOR, {"in_a": "w", "in_b": "w", "out": "n"}, cell_id="sub1", rel_row=0, rel_col=1)
+    cells += [pri1, sub1]
+    occ[(0, 0)] = "pri1"
+    occ[(0, 1)] = "sub1"
+    one = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "s"}, cell_id="one", rel_row=-1, rel_col=0, preload_value=1)
+    two = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "n"}, cell_id="two", rel_row=1, rel_col=0, preload_value=2)
+    cells += [one, two]
+    occ[(-1, 0)] = "one"
+    occ[(1, 0)] = "two"
+
+    pri2 = vtl.place(vtl.TILE_PRIORITY, {"in": ["n", "s"], "out": "e"},
+                      params={"priority_rank_n": 0, "priority_rank_s": 1,
+                              "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": 0},
+                      cell_id="pri2", rel_row=0, rel_col=4)
+    sub2 = vtl.place(vtl.TILE_SUBTRACTOR, {"in_a": "w", "in_b": "w", "out": "e"}, cell_id="sub2", rel_row=0, rel_col=5)
+    cells += [pri2, sub2]
+    occ[(0, 4)] = "pri2"
+    occ[(0, 5)] = "sub2"
+
+    route_t1 = manhattan_route((0, 1), "n", (-1, 4), "s", "rt1", occ)  # 4 real hops
+    cells += route_t1
+
+    # The leftover (3): a real, empirically-confirmed EXTRA-padded
+    # path (8 real hops, not the naive "equal to t1's 4") is required
+    # to correctly arrive second.
+    three_src = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "e"}, cell_id="three", rel_row=6, rel_col=1, preload_value=3)
+    occ[(6, 1)] = "three"
+    route_3 = manhattan_route((6, 1), "e", (1, 4), "n", "r3", occ)
+    cells.append(three_src)
+    cells += route_3
+
+    icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=cells)},
+                          placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                          name="n3_subtract")
+    assert icm.check_connections() == []
+    records, _ = icm.flatten()
+    grid = SuperGrid(records)
+    for _ in range(25):
+        grid.tick()
+    sub2_cell = grid.cells[(0, 5)]
+    # (1-2)-3 = -4, wrapped in 32-bit unsigned.
+    assert sub2_cell.adder_out_buffer == ((-4) & 0xFFFFFFFF)
+    assert sub2_cell.adder_a_reg == ((1 - 2) & 0xFFFFFFFF)  # t1's own output, correctly "A"
+
+
+def test_sequential_fold_for_non_power_of_two_n_hits_the_same_order_race():
+    """points.md #773: Alan's own direct, precise prediction confirmed
+    directly -- for N that isn't a power of 2 (e.g. N=3), a sequential
+    FOLD is needed: t1 = v1-v2 (two raw leaves), then t2 = t1-v3 (t1 is
+    now a COMPUTED RESULT, not a raw leaf, converging with a fresh raw
+    leaf v3). Alan's own words: 'the arrival order of 1,2,3... now the
+    next step is 1, so that value now has to be the second, so the step
+    of 3 will become a problem for the two arrival models.'
+
+    Confirmed directly: v3 (ready from tick 1) races ahead of t1's own
+    computed result (not ready until tick 3, arriving at t2 even later)
+    and wrongly wins the real 'A' slot -- the exact same real hazard
+    #770 found for two raw leaves, now confirmed to recur identically
+    when one operand is itself a prior computation's own result."""
+    import icm_v3 as v3
+    records = [
+        v3.IcmV3Record(cell_id="v1", row=0, col=-1, core="ram", core_config={"downstream_mask": ["e"], "fixed_mode": 0}, preload_value=10),
+        v3.IcmV3Record(cell_id="v2", row=2, col=0, core="ram", core_config={"downstream_mask": ["n"], "fixed_mode": 0}, preload_value=3),
+        v3.IcmV3Record(cell_id="v2_relay", row=1, col=0, core="ram", core_config={"upstream_mask": ["s"], "downstream_mask": ["n"]}),
+        v3.IcmV3Record(cell_id="t1", row=0, col=0, core="adder",
+                        core_config={"upstream_mask": ["w", "s"], "downstream_mask": ["e"], "subtract_mode": 1}),
+        v3.IcmV3Record(cell_id="v3", row=1, col=1, core="ram", core_config={"downstream_mask": ["n"], "fixed_mode": 0}, preload_value=2),
+        v3.IcmV3Record(cell_id="t2", row=0, col=1, core="adder",
+                        core_config={"upstream_mask": ["w", "s"], "downstream_mask": [], "subtract_mode": 1}),
+    ]
+    grid = SuperGrid(records)
+    for _ in range(15):
+        grid.tick()
+    t2_cell = grid.cells[(0, 1)]
+    # v3 wrongly won the real "A" slot -- the real, wrong result is
+    # v3 - t1's_result (2 - 7 = -5), NOT the intended t1's_result - v3.
+    assert t2_cell.adder_out_buffer == ((2 - 7) & 0xFFFFFFFF)
+    assert t2_cell.adder_a_reg == 2  # v3, the raw leaf, wrongly became "A"
+
+
+def test_sequenced_channel_priority_fixes_the_sequential_fold_order():
+    """points.md #773: confirms the sequenced-channel mode (#772)
+    generalizes correctly to the sequential-fold case -- inserting one
+    real priority cell (scheduling_mode=2) between t1's own result and
+    t2, configured to wait specifically for t1's own direction first,
+    correctly holds v3 (which arrives far earlier) until t1's own
+    result is genuinely ready, regardless of the real timing gap."""
+    import icm_v3 as v3
+    from unicell_super_automaton_v1 import W, S
+    records = [
+        v3.IcmV3Record(cell_id="v1", row=0, col=-1, core="ram", core_config={"downstream_mask": ["e"], "fixed_mode": 0}, preload_value=10),
+        v3.IcmV3Record(cell_id="v2", row=2, col=0, core="ram", core_config={"downstream_mask": ["n"], "fixed_mode": 0}, preload_value=3),
+        v3.IcmV3Record(cell_id="v2_relay", row=1, col=0, core="ram", core_config={"upstream_mask": ["s"], "downstream_mask": ["n"]}),
+        v3.IcmV3Record(cell_id="t1", row=0, col=0, core="adder",
+                        core_config={"upstream_mask": ["w", "s"], "downstream_mask": ["e"], "subtract_mode": 1}),
+        v3.IcmV3Record(cell_id="v3", row=1, col=1, core="ram", core_config={"downstream_mask": ["n"], "fixed_mode": 0}, preload_value=2),
+        v3.IcmV3Record(cell_id="pri", row=0, col=1, core="priority",
+                        core_config={"upstream_mask": ["w", "s"], "downstream_mask": ["e"],
+                                     "priority_rank_n": 0, "priority_rank_s": 0, "scheduling_mode": 2}),
+        v3.IcmV3Record(cell_id="t2", row=0, col=2, core="adder",
+                        core_config={"upstream_mask": ["w"], "downstream_mask": [], "subtract_mode": 1}),
+    ]
+    grid = SuperGrid(records)
+    pri_cell = grid.cells[(0, 1)]
+    pri_cell.pri_seq_order = (W, S)  # t1's own result (west) due first, v3 (south) second
+    for _ in range(20):
+        grid.tick()
+    t2_cell = grid.cells[(0, 2)]
+    assert t2_cell.adder_out_buffer == 5  # (10-3)-2, correct
+    assert t2_cell.adder_a_reg == 7  # t1's own result correctly became "A"

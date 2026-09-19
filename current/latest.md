@@ -1,4 +1,38 @@
-# Current State (as of 2026-09-16, a genuinely different alternative fix for #770 -- a real, third "sequenced channel" priority mode built and proven as a VM prototype, guaranteeing operand order via a fixed turn order rather than path-length equalization. A real bug (scheduling_mode silently cast to bool) found and fixed along the way. See `points/points_active.md` #772)
+# Current State (as of 2026-09-16, Alan's own precise prediction confirmed by building it -- non-power-of-2 N requires a sequential fold, and the same #770 order-race hazard recurs when one operand is a computed result, not just a raw leaf. The sequenced-channel fix generalizes correctly to this case too. See `points/points_active.md` #773)
+
+## Read this first (most recent)
+
+**2026-09-16, sequential-fold order hazard confirmed (#773).** Alan's
+own direct prediction: "the step of 3 will become a problem for the
+two arrival models," for N that isn't a power of 2. Built and
+confirmed directly: t1=v1-v2 (raw leaves), t2=t1-v3 (t1 is now a
+computed result) -- v3 races ahead of t1's own result and wrongly wins
+the "A" slot, exactly the #770 hazard recurring for a computed operand,
+not just raw leaves. Wrong result confirmed exactly (2-7, not 7-2).
+
+**The fix generalizes correctly:** the sequenced-channel priority mode
+(#772), inserted between t1 and t2 and configured to wait for t1's own
+direction first, correctly holds v3 until t1 is genuinely ready.
+Result: 5 ((10-3)-2), correct.
+
+**Real, practical implication:** a compiler extending #765's balanced-
+tree approach to non-power-of-2 N via a sequential fold must apply the
+same operand-order discipline (#771 or #772) at EVERY convergence
+point, not just the obvious ones -- a computed result competing with a
+fresh leaf is exactly as real a hazard as two raw leaves.
+
+**A third, independently-built test confirming an even more precise
+lesson:** a priority-fronted version of the same N=3 case found that
+EQUAL hop counts between the leftover and t1's own path are NOT
+sufficient -- the leftover needed strictly MORE hops (8 vs t1's own 4)
+to correctly arrive second, since t1 is a composed result with its own
+later ready tick, not a raw leaf. For a composed source, "equal" means
+equal arrival TICK, not equal hop COUNT.
+
+**Status: 3 new tests (failure + fix + the sharpened padding lesson).**
+828 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, a genuinely different alternative fix for #770 -- a real, third "sequenced channel" priority mode built and proven as a VM prototype, guaranteeing operand order via a fixed turn order rather than path-length equalization. A real bug (scheduling_mode silently cast to bool) found and fixed along the way. See `points/points_active.md` #772)
 
 ## Read this first (most recent)
 

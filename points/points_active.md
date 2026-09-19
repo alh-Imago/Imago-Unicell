@@ -12657,3 +12657,64 @@ value collapsed by the bug this entry also fixed.
 unrelated), confirming zero regression from the `pri_scheduling_mode`
 type widening and the `from_record()` fix, across every existing
 `priority`-using test in the whole suite.
+
+## 773. Alan's own precise, direct prediction confirmed by building it: for N that isn't a power of 2, a sequential FOLD is needed (t1=v1-v2, then t2=t1-v3), and "the step of 3 will become a problem for the two arrival models" -- confirmed directly, the exact same `#770` order-race hazard recurs when one real operand is itself a prior computation's own result, not just when both are raw leaves. The sequenced-channel fix (`#772`) confirmed to generalize correctly to this case too. (Alan/Claude, 2026-09-16)
+
+**Alan's own precise, direct prediction, quoted exactly:** "the arrival
+order of 1,2,3 with 1 being the first, 2 being the second, and 3 being
+the first value again, now the next step is 1 so that value now have
+to be the second, so the step of 3 will become a problem for the two
+arrival models." Built and confirmed directly, not assumed: a real,
+sequential fold for N=3 (`t1 = v1 - v2`, both raw leaves, correctly
+staggered; then `t2 = t1 - v3`, where `t1` is now a real, COMPUTED
+result, not a raw leaf) hits the exact same real hazard `#770` already
+found for two raw leaves -- `v3` (ready from real tick 1) races ahead
+of `t1`'s own real result (not ready until tick 3, arriving at `t2`
+even later) and wrongly wins the real "A" slot. The real, wrong result:
+`2 - 7` (`v3` minus `t1`'s own result), not the intended `t1`'s own
+result minus `v3` -- confirming this is not a special property of two
+raw leaves, but a real, general fact about the "two arrival models"
+(`adder`/`subtractor`) whenever operand identity matters, regardless of
+whether an operand is a leaf or a prior result.
+
+**The sequenced-channel fix (`#772`) confirmed to generalize correctly
+to this harder case, not just the original two-leaf one:** a real
+`priority` cell (`scheduling_mode=2`) inserted between `t1`'s own
+result and `t2`, configured to wait specifically for `t1`'s own
+direction first, correctly holds `v3`'s own real, already-arrived
+offer (unconsumed) until `t1`'s own result is genuinely ready --
+regardless of the real timing gap between them. The real, correct
+result: `5` (`(10-3)-2`), confirmed directly.
+
+**2 new, permanent tests** (`tests/vm/test_priority_multiway_v1.py`):
+one reproducing the real failure precisely (with an exact, predicted-
+wrong numeric result), one confirming the real fix.
+
+**A third, real, additional test built independently, confirming an
+even more precise, quantified version of the same lesson:** a real,
+priority-fronted two-level subtraction chain for the same N=3 case
+(`(1-2)-3`) -- confirmed directly that EQUAL real hop counts between
+the leftover and `t1`'s own path are NOT sufficient to fix the order
+(the leftover still won the wrong slot with matching hop counts);
+the leftover's own real path needed strictly MORE hops (8 vs `t1`'s
+own 4, found empirically) to correctly arrive second, precisely
+because `t1` is a real, composed result with its own real, later
+ready tick (`#765`'s own `composed_output_ready_tick()` distinction),
+not a raw leaf ready from construction. A real, concrete sharpening of
+`#771`'s own "equalize the paths" fix: for a composed source, "equal"
+means equal real ARRIVAL TICK, not equal real hop COUNT -- the two are
+only the same thing when both sources are raw leaves.
+
+**Real, honest, practical implication for any future compiler
+integration, stated directly:** a real N-way reduction compiler
+targeting a non-commutative operation cannot simply extend `#765`'s
+own balanced-binary-tree approach naively to non-power-of-2 N via a
+sequential fold -- EVERY real convergence point in such a fold, not
+just the "obviously tricky" ones, needs the same real operand-order
+discipline (`#771`'s path-equalization or `#772`'s sequenced-channel
+mode) applied consistently, since a computed result competing with a
+fresh leaf is exactly as real a hazard as two raw leaves competing.
+
+**Real, honest verification: full project suite re-run** (828 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
