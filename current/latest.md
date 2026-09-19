@@ -1,4 +1,54 @@
-# Current State (as of 2026-09-16, shape orientation confirmed to matter, measurably -- a mismatched fixed orientation costs 50% more cells and 75% more relay hops than orienting a shape's ports to match its real neighbors. A real, tested orientation-selection helper built. See `points/points_active.md` #778)
+# Current State (as of 2026-09-16, the real DAG dispatcher built and verified end to end -- Alan's "growing frontier" architecture completely eliminates the routing-collision class the first attempt kept hitting. All four shapes (plain chain, fan-out, commutative and non-commutative convergence) compile and run correctly. See `points/points_active.md` #780)
+
+## Read this first (most recent)
+
+**2026-09-16, DAG dispatcher built and verified (#779/#780).** Per
+Alan's own instruction to start the dispatcher, then his own direct
+architectural correction after the first attempt kept hitting routing
+collisions: "place the first shape... add a few padding cells, then
+add the next shape... if there is a divergence, then do one path and
+then revisit the second."
+
+**First attempt (#779):** pre-computed absolute positions per
+instruction, routed blindly between them. Genuine fan-out combined
+with genuine convergence repeatedly produced real collisions --
+independently-computed, long-distance routes crossing each other.
+
+**Rebuilt (#780) around a "growing frontier" model:** each instruction
+tracks a real Frontier (position + facing direction); new instructions
+grow immediately adjacent to a known frontier via a few padding cells.
+Fan-out uses a real _TapPoint: the first consumer grows one direction;
+later consumers revisit the same point and claim a genuinely different
+direction, so branches physically cannot cross. Convergence brings two
+already-known frontiers together with a short, local connection.
+
+**Confirmed end to end, real VM execution:** plain chains, isolated
+commutative convergence, the exact combined fan-out+convergence case
+that repeatedly collided before (now zero collisions), and non-
+commutative convergence (subtract) with correct operand order.
+
+**Two further real bugs found and fixed:** a tap-mutation bug (fan-out
+consumers claimed directions logically but never updated the real
+producer's own downstream_mask, silently losing a branch's value); a
+pri_seq_order wiring gap (it's a runtime-only field with no schema-
+validated core_config counterpart -- fixed by returning a seq_orders
+dict for the caller to apply post-construction, matching #772/#774/
+#775's own established pattern).
+
+**One honest, deliberate scope-narrowing:** STAGGER is confirmed
+unsafe in this architecture (natural branch lengths aren't guaranteed
+equal), so the dispatcher always uses SEQUENCER for non-commutative
+convergence instead -- correct and safe, at the cost of not yet using
+STAGGER's zero-blocking advantage. Computing real per-branch timing to
+safely re-enable STAGGER is named, separate follow-on work.
+
+**Status: 4 new tests covering all four shapes end to end.** Real,
+remaining scope: the tightening pass isn't yet invoked after
+placement (correct but not minimal layouts); wiring this into the
+actual LLVM IR frontend remains unbuilt. 847 tests pass, zero
+regression.
+
+## Previous state (as of 2026-09-16, shape orientation confirmed to matter, measurably -- a mismatched fixed orientation costs 50% more cells and 75% more relay hops than orienting a shape's ports to match its real neighbors. A real, tested orientation-selection helper built. See `points/points_active.md` #778)
 
 ## Read this first (most recent)
 

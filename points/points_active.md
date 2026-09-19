@@ -13035,3 +13035,107 @@ call.
 **Real, honest verification: full project suite re-run** (843 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 779. The real DAG dispatcher system built, per Alan's own direct instruction: "go ahead and write dispatcher system, start there." First attempt independently pre-computed each instruction's own absolute position and routed blindly between them -- confirmed to repeatedly, coincidentally collide once genuine fan-out and convergence combined in one design. (Alan/Claude, 2026-09-16)
+
+**The real, concrete first attempt, and why it kept failing:** built
+`nano/vix_dag_dispatcher_v1.py` on `#777`'s shape catalog and `#778`'s
+orientation helper, placing each instruction at a pre-computed,
+level-based absolute position and connecting operands via
+`manhattan_route()` across the shared grid. Genuine fan-out (`t1`
+feeding both `t2` and `t3`) combined with genuine convergence (`t3 =
+t1 + t2`) repeatedly produced real position collisions -- independently
+computed, long-distance routes crossing each other's own territory.
+Several real, genuine bugs were found and fixed along the way (a sign
+error in `face_pos` computation, a stale `end_out_dir` convention
+carried over incorrectly, missing `"dynamic"` operand handling in the
+plain-chain path, a wasted fan-out direction from a bad tap default) --
+each one real and worth fixing, but the underlying architecture itself
+kept producing new, coincidental collisions as complexity grew.
+
+**Real, honest scope at this point:** the shape/orientation decision
+logic (`#777`/`#778`) was confirmed correct in isolation; the
+PLACEMENT strategy built around it was the real, root problem.
+
+## 780. The real, rebuilt DAG dispatcher, on Alan's own direct architectural correction: "place the first shape, you know where it ends and what it connects to, add a few padding cells, then add the next shape... if there is a divergence, then do one path and then revisit the second." Confirmed directly: this "growing frontier" model completely eliminates the routing-collision class `#779` kept hitting. All four real shapes (plain chain, fan-out, commutative and non-commutative convergence) now compile and run correctly end to end, with zero collisions. (Alan/Claude, 2026-09-16)
+
+**The real, central redesign:** rather than pre-computing absolute
+positions independently and routing blindly afterward, the dispatcher
+now grows the whole design as ONE connected, incremental structure.
+Each instruction tracks a real `Frontier` (position + facing
+direction); a new instruction is placed immediately adjacent (via a
+few real padding cells) to the known, current frontier of whatever it
+depends on. Genuine fan-out is handled by a real `_TapPoint`: the
+first consumer of a shared frontier grows in one real direction; any
+later consumer revisits the SAME original point and claims a
+genuinely different real direction (a fixed rotation, `e`/`s`/`n`/`w`)
+-- the two branches physically cannot cross, since each only ever
+grows in its own claimed direction from a shared, known point. Genuine
+convergence brings two already-known, already-grown frontiers together
+with a short, local connection, using `#777`'s shape catalog and
+`#778`'s orientation helper -- never a blind, long-distance route.
+
+**Confirmed directly, end to end, with real VM execution:**
+- Plain chain: `t1 = x+5` (dynamic), `t2 = t1+10` -> `t1=6, t2=16`.
+- Isolated commutative convergence (PRIORITY): two independent leaves
+  -> correct sum.
+- The exact combined case that repeatedly collided in `#779`: `t1`
+  feeding both `t2` (chain) and `t3` (convergence with `t2`) -> `t1=6,
+  t2=16, t3=22`, zero real position collisions.
+- Non-commutative convergence (subtract): `t3 = t1 - t2` -> `t3=96`,
+  with `t1` correctly landing as the real minuend regardless of
+  arrival order.
+
+**Two further real, genuine bugs found and fixed while verifying this,
+both instructive:**
+1. **The tap-mutation bug:** `_TapPoint` tracked which real directions
+   were logically claimed, but never actually mutated the real
+   producer cell's own `downstream_mask` to include them -- the second
+   real consumer's connection pointed at a face the producer never
+   physically offered, silently losing that branch's own value
+   entirely. Fixed by having `_TapPoint` hold the actual real
+   `HierCell` object and genuinely update its own `downstream_mask`
+   each time a new direction is claimed.
+2. **The `pri_seq_order` wiring gap:** `pri_seq_order` is a real,
+   runtime-only `SuperCell` field (`#772`'s own proven VM prototype) --
+   it has no real, schema-validated `core_config` field, so setting it
+   on the placement-time `HierCell` silently did nothing. Fixed
+   honestly, not by adding an unvalidated schema field: `compile_dag()`
+   now returns a real `seq_orders` dict the caller applies to the
+   correct `SuperCell` after `SuperGrid()` construction, matching the
+   exact pattern `#772`/`#774`/`#775`'s own tests already established.
+
+**One real, deliberate, honest scope-narrowing made along the way, not
+glossed over:** the `STAGGER` shape (`#773`'s relay-padding approach)
+was confirmed UNSAFE in this dispatcher's current form -- a fixed,
+small extra-hop offset on operand `b` only guarantees correct operand
+order when both branches' own natural path lengths are already equal,
+which this incremental-growth architecture does not guarantee (two
+independently-grown branches can differ in length arbitrarily).
+Confirmed directly: assuming otherwise produced a real, wrong result
+(operand order reversed). Rather than ship something subtly incorrect,
+the dispatcher currently, honestly treats arrival ticks as never
+reliably knowable, so `SEQUENCER` (`#774`'s own proven, timing-
+independent shape) is chosen for every real non-commutative
+convergence -- correct and safe, at the real cost of not yet using
+`STAGGER`'s own zero-head-of-line-blocking advantage. Computing real,
+precise per-branch arrival-tick formulas (`#773`'s own generalized
+`symbolic_arrival_tick()`) to safely re-enable `STAGGER` here is real,
+separate, named follow-on work.
+
+**4 new, permanent tests** (`tests/vm/test_vix_dag_dispatcher_v1.py`)
+covering all four real shapes end to end, including an explicit check
+that non-commutative convergence genuinely dispatches to `SEQUENCER`
+(not `STAGGER`).
+
+**Real, honest, remaining scope, not resolved here:** the real
+tightening pass (`#761`-`#767`) is not yet invoked after loose,
+incremental placement -- this dispatcher produces a correct, but not
+minimal, layout. Non-power-of-2 N, deeper DAGs beyond 3 instructions,
+and wiring this dispatcher into the actual LLVM IR frontend (parsing
+real LLVM IR text into `DagInstr`/`DagOperand`) all remain real,
+separate, unbuilt work.
+
+**Real, honest verification: full project suite re-run** (847 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
