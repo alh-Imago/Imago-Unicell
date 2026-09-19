@@ -1,4 +1,39 @@
-# Current State (as of 2026-09-16, the real, formalized convergence shape catalog built -- unifying every rule proven across #750-#776 into one, concrete decision function. One nuance sharpened: stagger and sequencer are two different shapes chosen by whether timing is knowable, not simply "order-sensitive or not." See `points/points_active.md` #777)
+# Current State (as of 2026-09-16, shape orientation confirmed to matter, measurably -- a mismatched fixed orientation costs 50% more cells and 75% more relay hops than orienting a shape's ports to match its real neighbors. A real, tested orientation-selection helper built. See `points/points_active.md` #778)
+
+## Read this first (most recent)
+
+**2026-09-16, shape orientation quantified and formalized (#778).**
+Per Alan's own direct question: does a library shape's fixed port
+orientation matter, or can it always be routed around cheaply?
+
+**Confirmed directly, quantitatively:** the exact same real
+convergence built two ways -- ports oriented to match real neighbor
+positions (12 cells, 8 hops) vs. this session's own previously-
+hardcoded fixed orientation, forced into a real detour (18 cells, 14
+hops). Both correct; the mismatch costs 50% more cells.
+
+**Three real bugs found and fixed while building the comparison:** a
+detour route colliding with the target cell itself; chained route
+segments needing matching end/start directions (an initial mismatch
+silently misrouted the chain); confirmed via full tracing once the
+numeric result looked wrong.
+
+**The real artifact:** nano/vix_shape_orientation_v1.py --
+choose_two_way_orientation() computes which cardinal directions a
+2-way combine unit's ports should use based on real neighbor
+positions, confirmed to recommend the exact same orientation
+independently measured as cheaper. A real, honest tie-break for same-
+direction sources; a real, named limitation that optimal output-
+direction choice would need the downstream consumer's position too.
+
+**Status: 5 new tests**, including a randomized fuzz test confirming
+all three chosen directions are always distinct across 50 configs.
+Together with #777's shape catalog (WHICH shape) this gives the future
+compiler dispatcher (#776) both real decisions it needs per
+convergence point: which shape, and how to orient it. 843 tests pass,
+zero regression.
+
+## Previous state (as of 2026-09-16, the real, formalized convergence shape catalog built -- unifying every rule proven across #750-#776 into one, concrete decision function. One nuance sharpened: stagger and sequencer are two different shapes chosen by whether timing is knowable, not simply "order-sensitive or not." See `points/points_active.md` #777)
 
 ## Read this first (most recent)
 

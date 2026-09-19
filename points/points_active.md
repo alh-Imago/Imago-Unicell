@@ -12965,3 +12965,73 @@ choice ad hoc or undocumented.
 **Real, honest verification: full project suite re-run** (838 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 778. Alan's own direct question, tested and confirmed: does a library shape's fixed port orientation matter? Yes, measurably -- the exact same real convergence costs 50% more real cells (18 vs 12) and 75% more relay hops (14 vs 8) when a shape's ports are forced into a fixed orientation that doesn't match where its actual neighbors sit, versus orienting the shape to match. A real, concrete `choose_two_way_orientation()` helper built, confirmed to recommend the exact same efficient orientation directly measured. (Alan/Claude, 2026-09-16)
+
+**Alan's own direct question, quoted precisely:** "move into the
+compiler side, and examine the orientation of the shape, that may have
+an effect overall."
+
+**Confirmed directly, quantitatively, not just plausibly:** built the
+exact same real convergence (two preloaded sources, one generally west
+of the target combine-unit position, one generally south) two ways --
+(1) the `priority` cell's own ports oriented to MATCH where the real
+sources actually sit (`in=["w","s"]`), and (2) the SAME fixed
+orientation this session's own earlier work always hardcoded
+(`in=["n","s"]`, `#759`-`#767`), forcing the real west source into a
+genuine, 3-segment detour to reach the mismatched north face instead.
+Both produce the exact correct result (`10 = 7+3`) -- but the
+matched orientation costs 12 real cells / 8 relay hops, while the
+fixed, mismatched one costs 18 real cells / 14 relay hops -- a real,
+measured 50% increase in cells purely from orientation, with zero
+change to correctness.
+
+**Three real, genuine bugs found and fixed while building this
+comparison, each instructive, each a real geometry mistake, not a
+system fault:** (1) an initial detour attempt collided with `pri`
+itself, since the router's own column-first default path happened to
+pass straight through it -- fixed with an explicit, real, multi-segment
+detour route; (2) chaining multiple real `manhattan_route()` segments
+together requires the END direction of one segment to match the START
+direction of the next (the same real physical cell is both) -- an
+initial attempt gave the first segment the wrong end direction,
+silently misrouting the whole chain; (3) confirmed via full, real
+tracing rather than assumed once the numeric result looked wrong.
+
+**The real, concrete, practical artifact:** `nano/vix_shape_
+orientation_v1.py` -- a real `choose_two_way_orientation(target_pos,
+src_a_pos, src_b_pos)` function computing which of the 4 real cardinal
+directions each of a 2-way combine unit's own two real inputs (and its
+own remaining output) should use, based on the real, general direction
+from the target to each real source (whichever axis has the larger
+real distance, the same real, practical rule real PCB/schematic tools
+already use for pin-side assignment). Confirmed directly: recommends
+the EXACT SAME orientation independently measured to be the cheaper
+one (`in_a=w, in_b=s`), not merely a plausible-looking guess. A real,
+honest tie-break rule for when both real sources fall on the same
+general direction (assign the next direction in a fixed rotation,
+rather than colliding on the same face) -- and a real, honestly-named
+limitation: choosing the OUTPUT direction optimally would need to know
+the target's own real downstream consumer's position too, which this
+function does not yet take as an input -- real, separate, unattempted
+work.
+
+**5 new, permanent tests** across `tests/vm/test_shape_orientation_
+v1.py` (the direct, measured cost comparison) and `tests/vm/test_vix_
+shape_orientation_v1.py` (the helper function itself, including a
+real, randomized fuzz test confirming all three chosen directions are
+always mutually distinct across 50 real, random configurations).
+
+**Real, honest, significant implication for the actual compiler
+integration, stated directly:** `#777`'s own shape catalog answers
+WHICH shape a convergence point needs; this entry answers HOW that
+shape's own ports should be oriented once placed -- together, these
+are the two real, concrete decisions a future "library lookup, place
+loosely, tighten" dispatcher (`#776`'s own named next step) needs to
+make for every real convergence point it encounters. Neither decision
+was previously formalized; both now have a real, tested function to
+call.
+
+**Real, honest verification: full project suite re-run** (843 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
