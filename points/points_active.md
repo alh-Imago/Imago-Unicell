@@ -12778,3 +12778,48 @@ a real, arbitrary, unpredictable-in-advance injection tick.
 **Real, honest verification: full project suite re-run** (829 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 775. Alan's own direct, precise question answered by testing it: does sequenced-channel mode (`#772`) automatically account for a third value, or does folding 3+ values still need a real, composed reduction tree? Confirmed directly: sequenced-channel mode inherits `#769`'s own central finding exactly -- it controls real ORDER, never HOW MANY a plain, two-arrival `adder` can genuinely combine. A single sequenced-channel `priority` cycling through 3 real directions still only combines the first two; the third starts a genuinely new, separate round. A real, composed reduction structure -- already built and proven in `#773`'s own sequential-fold test -- is confirmed to be the real, necessary answer, not a single, wider nexus. (Alan/Claude, 2026-09-16)
+
+**Alan's own precise question, quoted directly:** "And the 3rd value,
+if used is accounted for? Or would this mean a reduction tree of
+sequencer to ensure only 2 arrivals at the right time?"
+
+**Confirmed directly, not assumed:** built the exact real case -- a
+single `priority` cell configured with `scheduling_mode=2` and a real,
+3-direction sequence order (`v1`, `v2`, `v3`), feeding one plain,
+two-arrival subtractor. Result: `out=7` (`10-3`, the first two real
+values only); `v3` (value `2`) is correctly served in its own real
+turn but starts a genuinely NEW, separate capture round at the
+subtractor (`adder_a_reg` becomes `2`, `adder_a_arrived` becomes
+`True` again) -- it never combines with the existing result at all.
+This is the EXACT SAME real limitation `#769` already found for
+strict-rank mode, now confirmed to apply identically to sequenced-
+channel mode -- the sequencing mechanism controls WHICH value arrives
+WHEN and in WHAT real order, but it has no bearing at all on how many
+real values a downstream, plain two-arrival core can actually combine
+into one result.
+
+**The real, direct answer to Alan's own question, stated precisely:**
+YES -- Alan's own second framing is the correct one. A single, wide
+nexus (whether strict-rank or sequenced-channel) cannot fold 3+ values
+by itself; a real, composed reduction structure IS needed, with each
+real convergence point genuinely receiving exactly 2 real arrivals
+before combining. This is not new, unbuilt work -- `#773`'s own
+sequential-fold test already built and proved exactly this real
+structure (a first sequenced-channel-fed subtractor computing `t1 =
+v1-v2`, its own real result then correctly folding with `v3` at a
+SECOND sequenced-channel-fed subtractor, via a real, composed chain,
+not a single, wider cell) -- confirmed there to produce the real,
+correct, fully left-to-right result (`5 = (10-3)-2`).
+
+**1 new, permanent test** (`test_a_single_sequenced_channel_still_
+only_combines_the_first_two_of_three`, added to `tests/vm/test_
+priority_multiway_v1.py`) confirming the real, negative case directly
+-- a single, wide sequenced-channel nexus genuinely fails to fold a
+third value, closing the loop on Alan's own question with a real,
+concrete, tested answer rather than an assumption either way.
+
+**Real, honest verification: full project suite re-run** (830 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

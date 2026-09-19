@@ -434,6 +434,47 @@ def test_sequenced_channel_handles_a_genuinely_dynamic_unpredictable_arrival():
     assert sub.adder_a_reg == 250  # the dynamic value correctly became "A"
 
 
+def test_a_single_sequenced_channel_still_only_combines_the_first_two_of_three():
+    """points.md #775: confirms sequenced-channel mode (#772) inherits
+    #769's own real, central finding exactly -- it controls real
+    ORDER (which value becomes A vs B), never HOW MANY a plain,
+    two-arrival adder can genuinely combine. A single sequenced-channel
+    priority cycling through 3 real directions (v1, v2, v3, in that
+    configured order) feeding one plain subtractor still only combines
+    the FIRST TWO (10-3=7); the third value (2) starts a genuinely new,
+    separate capture round, exactly as #769 found for strict-rank mode.
+    This is the real, direct answer to Alan's own question: a third
+    value is NOT automatically accounted for -- a real, composed
+    reduction structure is needed, confirmed working already in #773's
+    own sequential-fold test."""
+    import icm_v3 as v3
+    from unicell_super_automaton_v1 import N, S, W
+
+    records = [
+        v3.IcmV3Record(cell_id="v1", row=-1, col=0, core="ram",
+                        core_config={"downstream_mask": ["s"], "fixed_mode": 0}, preload_value=10),
+        v3.IcmV3Record(cell_id="v2", row=1, col=0, core="ram",
+                        core_config={"downstream_mask": ["n"], "fixed_mode": 0}, preload_value=3),
+        v3.IcmV3Record(cell_id="v3", row=0, col=-1, core="ram",
+                        core_config={"downstream_mask": ["e"], "fixed_mode": 0}, preload_value=2),
+        v3.IcmV3Record(cell_id="pri", row=0, col=0, core="priority",
+                        core_config={"upstream_mask": ["n", "s", "w"], "downstream_mask": ["e"],
+                                     "priority_rank_n": 0, "priority_rank_s": 0, "priority_rank_w": 0,
+                                     "scheduling_mode": 2}),
+        v3.IcmV3Record(cell_id="sub", row=0, col=1, core="adder",
+                        core_config={"upstream_mask": ["w"], "downstream_mask": [], "subtract_mode": 1}),
+    ]
+    grid = SuperGrid(records)
+    pri = grid.cells[(0, 0)]
+    pri.pri_seq_order = (N, S, W)
+
+    sub = grid.cells[(0, 1)]
+    for _ in range(14):
+        grid.tick()
+    assert sub.adder_out_buffer == 7  # 10 - 3 only, NOT (10-3)-2
+    assert sub.adder_a_reg == 2  # v3 started a genuinely new, separate round
+
+
 def test_sequential_fold_for_non_power_of_two_n_hits_the_same_order_race():
     """points.md #773: Alan's own direct, precise prediction confirmed
     directly -- for N that isn't a power of 2 (e.g. N=3), a sequential

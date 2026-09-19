@@ -1,4 +1,29 @@
-# Current State (as of 2026-09-16, a real architectural simplification for dynamic values confirmed -- normalize into a real ram queue, collapsing "dynamic" into the same shape as a composed result. Confirmed sequenced-channel mode is the ONLY robust fix once real arrival timing is genuinely unpredictable at compile time -- path-equalization is structurally inapplicable there. See `points/points_active.md` #774)
+# Current State (as of 2026-09-16, Alan's own direct question answered by testing it -- sequenced-channel mode controls order, never how many a plain adder can combine; a third value needs a real, composed reduction tree, already proven in #773. See `points/points_active.md` #775)
+
+## Read this first (most recent)
+
+**2026-09-16, "does the 3rd value get accounted for" answered directly
+(#775).** Per Alan's own precise question: does sequenced-channel mode
+automatically handle a third value, or is a real reduction tree still
+needed?
+
+**Confirmed directly:** a single sequenced-channel priority cycling
+through 3 real directions, feeding one plain subtractor, still only
+combines the first two (10-3=7) -- the third value starts a genuinely
+new, separate round, exactly the same limitation #769 already found
+for strict-rank mode. Sequencing controls WHICH value arrives WHEN,
+never HOW MANY a two-arrival core can combine.
+
+**Direct answer: yes, a real, composed reduction structure is needed**
+-- and it's not new, unbuilt work. #773's own sequential-fold test
+already built and proved exactly this (two chained sequenced-channel
+subtractors), producing the correct, fully left-to-right result
+(5 = (10-3)-2).
+
+**Status: 1 new, confirming negative test.** 830 tests pass, zero
+regression.
+
+## Previous state (as of 2026-09-16, a real architectural simplification for dynamic values confirmed -- normalize into a real ram queue, collapsing "dynamic" into the same shape as a composed result. Confirmed sequenced-channel mode is the ONLY robust fix once real arrival timing is genuinely unpredictable at compile time -- path-equalization is structurally inapplicable there. See `points/points_active.md` #774)
 
 ## Read this first (most recent)
 
