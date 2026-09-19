@@ -382,6 +382,58 @@ def test_non_power_of_two_leftover_needs_extra_padding_not_just_equal_hops():
     assert sub2_cell.adder_a_reg == ((1 - 2) & 0xFFFFFFFF)  # t1's own output, correctly "A"
 
 
+def test_sequenced_channel_handles_a_genuinely_dynamic_unpredictable_arrival():
+    """points.md #774: Alan's own direct, further insight -- a genuinely
+    DYNAMIC value (a runtime input, not a compile-time constant) should
+    first be normalized into a real `ram` queue cell, becoming just
+    another single-arrival source -- collapsing the 'dynamic leaf'
+    problem into the same shape `#773` already solved for a composed
+    result. Confirmed here for the sharper, harder version of that
+    claim: the dynamic value's own real arrival tick is not just LATER
+    than a leaf's, it is genuinely UNPREDICTABLE at compile time (an
+    arbitrary tick, standing in for a real runtime event nobody could
+    have computed a hop-count for in advance).
+
+    Confirmed directly: `#771`'s own path-equalization fix is
+    structurally inapplicable here -- there is no real path length to
+    equalize against an unknown arrival tick. The sequenced-channel
+    mode (`#772`), by contrast, needs no such knowledge at all: it
+    simply waits for its own configured turn, however long that takes,
+    and correctly ignores an already-ready competing value (`fixed_
+    src`, ready since tick 1) the entire time. Result: the genuinely
+    unpredictable value correctly becomes the real subtractor's own
+    "A", regardless of the arbitrary tick it happened to arrive on."""
+    import icm_v3 as v3
+    from unicell_super_automaton_v1 import N, S
+
+    records = [
+        v3.IcmV3Record(cell_id="dyn_queue", row=-1, col=0, core="ram",
+                        core_config={"upstream_mask": [], "downstream_mask": ["s"]}),
+        v3.IcmV3Record(cell_id="fixed_src", row=1, col=0, core="ram",
+                        core_config={"downstream_mask": ["n"], "fixed_mode": 0}, preload_value=100),
+        v3.IcmV3Record(cell_id="pri", row=0, col=0, core="priority",
+                        core_config={"upstream_mask": ["n", "s"], "downstream_mask": ["e"],
+                                     "priority_rank_n": 0, "priority_rank_s": 0, "scheduling_mode": 2}),
+        v3.IcmV3Record(cell_id="sub", row=0, col=1, core="adder",
+                        core_config={"upstream_mask": ["w"], "downstream_mask": [], "subtract_mode": 1}),
+    ]
+    grid = SuperGrid(records)
+    pri = grid.cells[(0, 0)]
+    pri.pri_seq_order = (N, S)  # the dynamic queue (north) due first, fixed_src (south) second
+
+    sub = grid.cells[(0, 1)]
+    dyn_cell = grid.cells[(-1, 0)]
+
+    inject_tick = 9  # a real, arbitrary, unpredictable-in-advance tick
+    for t in range(1, 20):
+        grid.tick()
+        if t == inject_tick:
+            dyn_cell.ram_data_reg = 250
+            dyn_cell.ram_data_valid = True
+    assert sub.adder_out_buffer == 150  # 250 - 100
+    assert sub.adder_a_reg == 250  # the dynamic value correctly became "A"
+
+
 def test_sequential_fold_for_non_power_of_two_n_hits_the_same_order_race():
     """points.md #773: Alan's own direct, precise prediction confirmed
     directly -- for N that isn't a power of 2 (e.g. N=3), a sequential

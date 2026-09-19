@@ -1,4 +1,36 @@
-# Current State (as of 2026-09-16, Alan's own precise prediction confirmed by building it -- non-power-of-2 N requires a sequential fold, and the same #770 order-race hazard recurs when one operand is a computed result, not just a raw leaf. The sequenced-channel fix generalizes correctly to this case too. See `points/points_active.md` #773)
+# Current State (as of 2026-09-16, a real architectural simplification for dynamic values confirmed -- normalize into a real ram queue, collapsing "dynamic" into the same shape as a composed result. Confirmed sequenced-channel mode is the ONLY robust fix once real arrival timing is genuinely unpredictable at compile time -- path-equalization is structurally inapplicable there. See `points/points_active.md` #774)
+
+## Read this first (most recent)
+
+**2026-09-16, dynamic-value normalization confirmed (#774).** Per
+Alan's own direct proposal: a genuinely dynamic value should first be
+placed into a real ram queue cell, becoming just another single-
+arrival source -- collapsing "dynamic leaf" into the same shape #773
+already solved for a composed result.
+
+**The sharper version tested directly:** a dynamic value's real
+arrival tick can be genuinely UNPREDICTABLE at compile time, not just
+later than a leaf's. Modeled with a real ram cell injected at an
+arbitrary tick (9), competing against a source ready since tick 1.
+
+**Confirmed: #771's path-equalization is structurally inapplicable
+here** -- there's no real path length to equalize against an unknown
+quantity. **Confirmed: #772's sequenced-channel mode handles it
+correctly with zero changes needed** -- it waited for the dynamic
+value's own turn the entire time, ignoring the already-ready
+competitor, and correctly captured it once it arrived. Result: 150
+(250-100), correct, regardless of exactly when the value showed up.
+
+**Real, practical implication:** a compiler should default to
+sequenced-channel mode for any convergence point involving a
+genuinely dynamic operand -- path-equalization isn't just harder
+there, it's the wrong tool entirely. Path-equalization stays the
+right, simpler choice for compile-time-known sources (leaves and
+composed results, per #773's own sharpened formula).
+
+**Status: 1 new test.** 829 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, Alan's own precise prediction confirmed by building it -- non-power-of-2 N requires a sequential fold, and the same #770 order-race hazard recurs when one operand is a computed result, not just a raw leaf. The sequenced-channel fix generalizes correctly to this case too. See `points/points_active.md` #773)
 
 ## Read this first (most recent)
 

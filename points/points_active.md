@@ -12718,3 +12718,63 @@ fresh leaf is exactly as real a hazard as two raw leaves competing.
 **Real, honest verification: full project suite re-run** (828 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 774. A real, valuable architectural simplification, proposed by Alan and confirmed directly: a genuinely DYNAMIC (runtime, non-compile-time-constant) value should first be normalized into a real `ram` queue cell, collapsing the "dynamic leaf" problem into the same shape `#773` already solved for a composed result. Confirmed for the sharper, harder version of the claim: `#772`'s sequenced-channel mode is the ONLY robust fix once the real arrival tick is genuinely unpredictable at compile time, not just later than a leaf's -- `#771`'s own path-equalization fix is structurally inapplicable, since there is no real path length to equalize against an unknown quantity. (Alan/Claude, 2026-09-16)
+
+**Alan's own real, direct proposal, confirmed to be exactly right:**
+"if this is a dynamic value, then it needs to be computed then placed
+into a ram queue and used that way... so that would become a computed
+queue, just another input." Confirmed directly: once a genuinely
+dynamic value is captured into a real `ram` cell, it behaves exactly
+like any other single-arrival source (`#757`'s own established
+contract) -- the SAME real machinery already proven for a composed
+result (`#773`) applies without any new mechanism needing to be built.
+
+**The sharper, harder version of the claim, tested directly, not
+assumed:** a dynamic value's real arrival tick isn't merely LATER than
+a leaf's (like a composed result, `#773`'s own subject) -- it can be
+genuinely UNPREDICTABLE, with no real hop-count or formula the
+compiler could compute in advance at all. Modeled directly: a real
+`ram` queue cell injected with a real value at an arbitrary, real tick
+(`9`, standing in for an unknowable runtime event), competing against
+a `fixed_src` that has been ready since tick `1`.
+
+**Confirmed directly: `#771`'s own path-equalization fix cannot apply
+here at all, structurally, not just practically.** There is no real
+path length to pad, because there is no real, known quantity to
+equalize AGAINST -- the whole mechanism depends on the compiler
+computing a real, predictable arrival tick for both sides, which a
+genuinely dynamic value does not have.
+
+**Confirmed directly: `#772`'s sequenced-channel mode handles this
+case correctly, with zero change needed to the mechanism itself.**
+Configured to wait for the dynamic queue's own direction first, the
+`priority` cell correctly ignored `fixed_src`'s own already-ready
+value for the entire real duration between tick `1` and the dynamic
+value's own arbitrary arrival at tick `9`, then correctly captured it
+as the real subtractor's own "A" -- the real, correct result (`150 =
+250 - 100`), regardless of exactly when the dynamic value happened to
+show up. This is the real, structural reason sequenced-channel mode
+is not merely an alternative to path-equalization for dynamic inputs,
+but the ONLY one of the two that can work at all -- it needs no
+advance knowledge of timing whatsoever, only a real, configured turn
+order.
+
+**Real, honest, practical implication for any future compiler
+integration, stated directly:** a compiler encountering a genuinely
+dynamic operand in a non-commutative operation should default to
+sequenced-channel mode for that convergence point, not attempt path-
+equalization -- the latter is not just harder there, it is the wrong
+tool entirely. Path-equalization remains the right, simpler choice
+specifically for compile-time-known sources (leaves and composed
+results alike, per `#773`'s own sharpened formula), where the real
+arrival tick genuinely can be computed and equalized in advance.
+
+**1 new, permanent test** (`test_sequenced_channel_handles_a_
+genuinely_dynamic_unpredictable_arrival`, added to `tests/vm/test_
+priority_multiway_v1.py`) confirming the real, correct result across
+a real, arbitrary, unpredictable-in-advance injection tick.
+
+**Real, honest verification: full project suite re-run** (829 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
