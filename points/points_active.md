@@ -12823,3 +12823,81 @@ concrete, tested answer rather than an assumption either way.
 **Real, honest verification: full project suite re-run** (830 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 776. A real, major architectural correction, per Alan's own direct challenge: "the compiler would see the function and say, oh I have that in the library, place it, then move to the next, loose joins between each, then rub the shrinkage -- is that not easier?" Confirmed directly, decisively: YES. Fan-out (one producer, two consumers) -- the exact real shape `#700`-`#717` built an entire, dedicated relay/tap/drop/trigger mechanism for -- works completely correctly using ONLY ordinary, already-proven tools (multicast `downstream_mask` + the general router, `#760`), with ZERO special machinery of any kind. This strongly suggests the old frontend's own elaborate, special-cased DAG machinery may exist primarily to compensate for its own rigid, fixed-port, immediately-adjacent placement model -- not because the underlying problem is genuinely hard. (Alan/Claude, 2026-09-16)
+
+**The real, direct challenge, quoted precisely:** Alan questioned why
+this session's own attempted integration was fixing routing/port
+placement rigidly at all, when the already-proven rats-nest philosophy
+(treat each operation as a known library shape, place loosely, connect
+with loose joins, tighten afterward) was sitting right there, already
+built and proven for exactly this class of problem.
+
+**The real, concrete trigger for this challenge, found directly while
+attempting the old-frontend integration:** discovered that the OLD
+frontend's own `diff` cell (the `add`/`sub` tile) has all 4 real
+physical faces ALREADY fully allocated -- west/south for `in_a`
+(including the existing fan-out mechanism's own relay tap on south),
+north for `in_b`, east for output. There is no real, spare face left
+to route a genuine second DAG reference into. This is a real, direct,
+structural consequence of the old frontend's own "everything placed
+immediately, adjacently, with zero slack" philosophy -- confirmed
+directly, not assumed, to be the actual root cause blocking the
+integration attempt, not an incidental implementation detail.
+
+**Confirmed directly, decisively: fan-out needs NONE of `#700`-`#717`'s
+own elaborate machinery when built the rats-nest way.** `t1 = x+5`
+feeding two separate real consumers (`t2 = t1+10`, `t3 = t1+20`) --
+built using only a real, multicast `downstream_mask` (`#17`'s own
+original "routing_mask's 4 bits are simultaneous multicast" finding,
+confirmed still true) offering to both real consumers at once, plus
+the general Manhattan router (`#760`) connecting each to wherever it
+actually sits, however far away. Result: `t1=6`, `t2=16`, `t3=26`, all
+exactly correct, with zero relay/tap/drop/trigger machinery of any
+kind -- a real, substantial simplification over the ~400 real lines of
+special-cased fan-out logic `#700`-`#717` built specifically because
+the old frontend's own rigid geometry offered no other way to reach a
+non-adjacent producer.
+
+**A real, genuine timing hazard found and fixed along the way, not
+glossed over:** two real values arriving on the SAME real tick at a
+shared-upstream `adder` still collide and silently lose one, even when
+they arrive from TWO DIFFERENT physical directions, not just the same
+one (`#750`'s own original case). Confirmed directly: `x` (west) and
+`five` (north), both preloaded, both ready from tick 1, collided --
+`five`'s value was captured, `x`'s own real offer was acked and
+silently, permanently lost, never retried. Staggering `x`'s own path
+by a single real relay hop fixed it completely -- the exact same real
+technique already proven throughout this project (`#750`/`#764`), now
+confirmed to generalize across different colliding directions, not
+just the same one.
+
+**Real, honest, significant implication for the actual compiler
+integration path, stated directly:** this strongly suggests the right
+foundation for genuine DAG support (both fan-out and convergence) in
+VIX targeting is NOT retrofitting the old frontend's own rigid,
+adjacency-first placement model -- it is building (or extending) the
+compiler around the ALREADY-PROVEN rats-nest pipeline itself (library
+tile lookup, loose placement, general routing, tightening) as the core
+placement strategy from the start. The old frontend's own elaborate
+DAG machinery may be, in real, substantial part, a consequence of a
+placement philosophy that never had room to work with in the first
+place, not evidence that the underlying problem itself is this hard.
+
+**3 new, permanent tests** (`tests/vm/test_fanout_via_rats_nest_v1.py`):
+one isolating and confirming the real, cross-direction collision
+hazard; one confirming the real, one-hop stagger fix; one proving the
+full, real fan-out case end to end with zero special machinery.
+
+**Real, honest, remaining scope, not resolved here:** this entry
+confirms the ARCHITECTURAL DIRECTION is right and demonstrates it for
+fan-out specifically -- it does not yet build the actual compiler-side
+integration (a real "library lookup" dispatcher recognizing each LLVM
+IR opcode, loosely placing its own known tile, then invoking the
+tightening pass) that would make this automatic for real LLVM IR
+programs. That real, substantial, but now much better-grounded
+integration work remains the next real step.
+
+**Real, honest verification: full project suite re-run** (833 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-16, Alan's own direct question answered by testing it -- sequenced-channel mode controls order, never how many a plain adder can combine; a third value needs a real, composed reduction tree, already proven in #773. See `points/points_active.md` #775)
+# Current State (as of 2026-09-16, a major architectural correction confirmed -- fan-out works completely correctly via ordinary multicast + the general router, zero special machinery needed. Strongly suggests the old frontend's elaborate DAG machinery exists to compensate for its own rigid placement model, not because the problem itself is hard. See `points/points_active.md` #776)
+
+## Read this first (most recent)
+
+**2026-09-16, major architectural correction confirmed (#776).** Per
+Alan's own direct challenge: why fix routing/ports rigidly at all, when
+the already-proven rats-nest philosophy (known library shape, loose
+placement, loose joins, tighten afterward) was sitting right there?
+
+**The real trigger:** discovered mid-integration-attempt that the old
+frontend's own diff cell has all 4 faces already fully allocated --
+zero spare face for a genuine second DAG reference. A direct,
+structural consequence of "everything placed immediately, adjacently,
+zero slack."
+
+**Confirmed decisively: fan-out needs NONE of #700-#717's own
+elaborate machinery when built the rats-nest way.** t1=x+5 feeding two
+separate consumers, built with only ordinary multicast downstream_mask
++ the general router -- zero relay/tap/drop/trigger machinery. All
+three results exactly correct.
+
+**A real timing hazard found along the way:** two values arriving on
+the same tick from DIFFERENT directions (not just the same one) still
+collide and silently lose one -- confirmed and fixed with the same
+one-hop stagger technique already proven throughout this project.
+
+**Real, significant implication:** the right foundation for genuine
+DAG support in VIX targeting is building the compiler around the
+already-proven rats-nest pipeline directly, not retrofitting the old
+frontend's rigid model. The old frontend's own elaborate DAG machinery
+may largely be compensating for a placement philosophy with no room to
+work in, not evidence the underlying problem is this hard.
+
+**Status: 3 new tests confirming the hazard, the fix, and the full
+fan-out case.** The actual compiler-side integration (a real "library
+lookup" dispatcher) remains the next real step -- this confirms the
+right foundation to build it on. 833 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, Alan's own direct question answered by testing it -- sequenced-channel mode controls order, never how many a plain adder can combine; a third value needs a real, composed reduction tree, already proven in #773. See `points/points_active.md` #775)
 
 ## Read this first (most recent)
 
