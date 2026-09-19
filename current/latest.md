@@ -1,4 +1,42 @@
-# Current State (as of 2026-09-16, a major architectural correction confirmed -- fan-out works completely correctly via ordinary multicast + the general router, zero special machinery needed. Strongly suggests the old frontend's elaborate DAG machinery exists to compensate for its own rigid placement model, not because the problem itself is hard. See `points/points_active.md` #776)
+# Current State (as of 2026-09-16, the real, formalized convergence shape catalog built -- unifying every rule proven across #750-#776 into one, concrete decision function. One nuance sharpened: stagger and sequencer are two different shapes chosen by whether timing is knowable, not simply "order-sensitive or not." See `points/points_active.md` #777)
+
+## Read this first (most recent)
+
+**2026-09-16, convergence shape catalog formalized (#777).** Per
+Alan's own complete architectural synthesis: "if there is an adder...
+and it has an order, like the subtract, it needs a sequencer... if not
+it can use priority or just 1 chain in if all the data is in order...
+if it needs a set stagger, that's the shape in the library... you
+chain these together and shrink."
+
+**The real, four-way decision table, every branch already proven:**
+no real convergence -> PLAIN CHAIN (#756); commutative convergence ->
+PRIORITY (#751/#765); non-commutative with knowable timing -> STAGGER
+(#750/#771/#773); non-commutative with unknowable timing -> SEQUENCER
+(#772, confirmed the only option in #774).
+
+**One real sharpening made, confirmed by re-checking #773/#774
+directly:** stagger and sequencer are NOT interchangeable for "order
+matters" -- they're chosen by a separate, third fact (is arrival
+timing knowable at compile time). Stagger has zero head-of-line-
+blocking cost but needs exact timing; sequencer needs no timing
+knowledge but can block. #774 already proved stagger is structurally
+inapplicable once timing is genuinely unknowable -- sequencer is the
+necessary fallback specifically then, not a universal substitute.
+
+**The real artifact:** nano/vix_convergence_shapes_v1.py -- a real
+ConvergenceShape enum and choose_convergence_shape() function
+implementing the exact table above, each input a compile-time-
+answerable fact, not a heuristic.
+
+**Status: 5 new tests, including a full exhaustiveness check across
+all 8 input combinations.** Real, honest remaining scope: this
+formalizes the decision rule -- it does not yet wire into the LLVM IR
+frontend or vix_compiler_v1.py. That integration (#776's own named
+next step) now has a precise, tested decision function to call rather
+than an ad hoc choice. 838 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, a major architectural correction confirmed -- fan-out works completely correctly via ordinary multicast + the general router, zero special machinery needed. Strongly suggests the old frontend's elaborate DAG machinery exists to compensate for its own rigid placement model, not because the problem itself is hard. See `points/points_active.md` #776)
 
 ## Read this first (most recent)
 

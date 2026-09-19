@@ -12901,3 +12901,67 @@ integration work remains the next real step.
 **Real, honest verification: full project suite re-run** (833 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 777. The real, formalized convergence shape catalog, per Alan's own complete architectural synthesis -- "if there is an adder... and it has an order, like the subtract, it needs a sequencer... if not it can use priority or just 1 chain in if all the data is in order... if it needs a set stagger, that's the shape in the library... you chain these together and shrink." Unifies every rule proven across `#750`-`#776` into one, real, concrete decision function -- with one nuance sharpened directly: "stagger" and "sequencer" are two DIFFERENT real shapes, chosen by whether real arrival timing is knowable at compile time, not simply "order-sensitive or not." (Alan/Claude, 2026-09-16)
+
+**Alan's own real synthesis, quoted precisely, confirmed to unify
+everything correctly:** a real, four-way decision table, each branch
+already proven, none newly invented:
+- No real convergence at all -> **PLAIN CHAIN** (`#756`'s own already-
+  proven linear compilation -- no arbitration cell needed).
+- Real convergence, commutative (`add`/`mul`) -> **PRIORITY** (`#751`/
+  `#765`'s own rank-based arbitration -- operand identity never
+  matters, so no timing concern at all).
+- Real convergence, non-commutative (`subtract`), real arrival ticks
+  KNOWABLE at compile time -> **STAGGER** (`#750`/`#771`/`#773`'s own
+  relay-padding, equalized to the real, correct arrival TICK, not
+  merely equal hop count).
+- Real convergence, non-commutative, arrival tick genuinely UNKNOWABLE
+  (a dynamic, runtime operand) -> **SEQUENCER** (`#772`'s own
+  sequenced-channel mode -- the only real shape needing no advance
+  timing knowledge at all, confirmed in `#774`).
+
+**One real, deliberate sharpening, confirmed by re-checking `#773`/
+`#774` directly rather than assumed:** Alan's own spoken framing
+grouped "needs an order, like subtract -> needs a sequencer" as one
+real case -- but `#773` already proved a real, DIFFERENT, viable shape
+(stagger) exists for the order-sensitive case too, whenever timing is
+knowable, with a real, meaningful advantage (zero head-of-line-
+blocking cost) `#772`'s own sequencer doesn't have. Recorded precisely
+as two distinct real shapes, chosen by a real, separate, third fact
+(is timing knowable), not collapsed into one -- since `#774` already
+proved they are NOT interchangeable: stagger is structurally
+inapplicable the moment timing becomes genuinely unknowable, and
+sequencer is the correct, necessary fallback specifically then, not a
+universal substitute for stagger.
+
+**The real, concrete artifact:** `nano/vix_convergence_shapes_v1.py`
+-- a real `ConvergenceShape` enum (four real, named values, each with
+its own real, cited justification in its own docstring) and a real
+`choose_convergence_shape(has_real_convergence, is_commutative,
+all_arrival_ticks_knowable)` function implementing the exact real
+decision table above. Each of the three real input facts is itself a
+real, compile-time-answerable question about a specific convergence
+point -- not a heuristic or a guess.
+
+**5 new, permanent tests** (`tests/vm/test_vix_convergence_shapes_
+v1.py`): one per real shape, confirmed against the exact real
+conditions `#750`-`#776` established each one for, plus a real,
+direct exhaustiveness check confirming all 8 real combinations of the
+three input facts map to exactly one of the four real shapes, with no
+ambiguous or undefined case.
+
+**Real, honest, remaining scope, stated directly, not glossed over:**
+this formalizes the real DECISION RULE and a real, minimal shape
+catalog -- it does NOT yet wire any of this into the LLVM IR frontend
+or `vix_compiler_v1.py`. That real, substantial integration work
+(`#776`'s own named next step: a real "library lookup" dispatcher
+recognizing each real LLVM IR opcode's own real shape, placing it
+loosely, then invoking the tightening pass) remains real, separate,
+unbuilt work -- this entry gives that future work a real, precise,
+already-tested decision function to call, rather than leaving the
+choice ad hoc or undocumented.
+
+**Real, honest verification: full project suite re-run** (838 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
