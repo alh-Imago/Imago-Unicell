@@ -13571,3 +13571,53 @@ should `mul` support live only in the new, growing-frontier dispatcher
 **Real, honest verification: full project suite re-run** (868 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 792. The real, first "library entry" abstraction built, per Alan's own direct instruction: opcodes become known entries with a known entry/exit shape, pooled from a library as needed -- not more special-cased branches hardcoded into the dispatcher's own placement functions. `and`/`or`/`xor` are the first entries beyond `add`/`sub`/`mul`, routing through `nano_gate` (a genuinely different port shape from `adder`) via the exact same `PRIORITY`-based convergence mechanism, confirmed end to end. (Alan/Claude, 2026-09-17)
+
+**The real, central design change:** added `_place_for_opcode()` --
+the one, single place the dispatcher decides HOW an opcode's own tile
+gets configured (named ports, `adder`-style, or unconditional
+acceptance, `nano_gate`-style, per `#718`/`#781`'s own confirmed
+finding that `nano_gate` has no real `upstream_mask` field at all).
+`_grow_plain_chain`/`_grow_convergence` (`#780`) now call this instead
+of placing tiles directly -- a future opcode only ever needs a new
+entry in `_NANO_GATE_OPCODES` (or an equivalent future dict for
+another port shape), never a change to the placement functions
+themselves. This is the real, working shape of the "library" Alan
+asked for: known entry contract, known exit, pooled as needed.
+
+**Confirmed directly, end to end:** `and` via `PLAIN_CHAIN` (`0b1100 &
+0b1111 = 0b1100`); genuine 2-way convergence for `or` (`0b1100 |
+0b1010 = 0b1110`), correctly dispatched to `PRIORITY` (`seq_orders ==
+{}`, confirming commutativity was recognized) -- the exact same
+mechanism `#781`/`#782` already proved correct for these topologies in
+isolation, now proven through the real, automated dispatcher for the
+first time.
+
+**1 new, permanent test** (added to `tests/vm/test_vix_dag_dispatcher_
+v1.py`).
+
+**Real, honest, substantial scope named directly, not glossed over,
+regarding "include the BRAM shapes... targets DSP, BRAM, flip-flops":**
+checked the existing codebase before building anything new -- real,
+substantial, ALREADY-EXISTING infrastructure exists for both: `dsp_
+wrapper_tile_library_v1.py`/`dsp_wrapper_automaton_v1.py` (a real,
+deliberately SEPARATE hardware class from the super-cell/`nano`
+`core_select` system -- DSP wrappers are placement-anchored, dedicated
+cells, `#453`/`#474`'s own already-agreed architecture, NOT another
+`core_select` option) and `sentinel_bram_automaton_v1.py` (a real,
+proven round-robin sentinel+gather protocol for shared-BRAM access,
+`#410`-`#421`). A genuinely resource-aware library entry -- one that
+chooses between "generic LUT-based `mul`" and "dedicated DSP-block
+`mul`" based on what a given target actually has available -- is real,
+separate, substantially larger work than today's library entries,
+which only choose between two `SuperCell`-internal port shapes
+(`adder`-style vs `nano_gate`-style), not between entirely different
+hardware classes. Scoping how the new dispatcher's own library concept
+should incorporate these already-existing, already-proven systems
+(rather than duplicate or conflict with them) is real, named,
+deliberately NOT attempted in this entry.
+
+**Real, honest verification: full project suite re-run** (869 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

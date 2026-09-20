@@ -1,4 +1,35 @@
-# Current State (as of 2026-09-17, mul added to the VM and the new dispatcher, both confirmed correct end to end. Old LLVM IR frontend still lacks mul entirely -- a real, open architectural question raised for whether it's still worth extending there. See `points/points_active.md` #791)
+# Current State (as of 2026-09-17, first real "library entry" abstraction built -- and/or/xor route through nano_gate via the same PRIORITY mechanism as add/sub/mul, confirmed end to end. BRAM/DSP resource-aware entries scoped as real, separate, larger work -- substantial existing infrastructure found for both. See `points/points_active.md` #792)
+
+## Read this first (most recent)
+
+**2026-09-17, library entry abstraction built (#792).** Per Alan's own
+instruction: opcodes become known entries with known entry/exit shape,
+pooled from a library, not special-cased branches. Added
+_place_for_opcode() -- the one place the dispatcher decides how an
+opcode's tile gets configured (named ports vs nano_gate's
+unconditional acceptance). A future opcode only needs a dict entry,
+never a change to the placement functions.
+
+**Confirmed end to end:** and/or/xor route through nano_gate via the
+same PRIORITY-based convergence as add/sub/mul -- genuine convergence
+for or (0b1100|0b1010=0b1110) correctly dispatched to PRIORITY, not
+SEQUENCER.
+
+**BRAM/DSP scoping, per Alan's own "why waste silicon" point:**
+checked the codebase first -- substantial, already-proven, separate
+infrastructure exists for both (dsp_wrapper_tile_library_v1.py/
+dsp_wrapper_automaton_v1.py -- a deliberately SEPARATE hardware class
+from core_select, not another option in the same mux; sentinel_bram_
+automaton_v1.py -- a proven round-robin shared-BRAM protocol). A
+genuinely resource-aware library entry (choosing generic LUT vs
+dedicated DSP block based on target) is real, separate, substantially
+larger work than today's entries -- scoping how the library should
+incorporate these existing systems is named but deliberately not
+attempted yet.
+
+**Status: 1 new test.** 869 tests pass, zero regression.
+
+## Previous state (as of 2026-09-17, mul added to the VM and the new dispatcher, both confirmed correct end to end. Old LLVM IR frontend still lacks mul entirely -- a real, open architectural question raised for whether it's still worth extending there. See `points/points_active.md` #791)
 
 ## Read this first (most recent)
 

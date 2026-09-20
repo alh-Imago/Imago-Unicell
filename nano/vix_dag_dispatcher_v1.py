@@ -136,7 +136,7 @@ def compile_dag(instructions: List[DagInstr]
         else:
             shape = choose_convergence_shape(
                 has_real_convergence=True,
-                is_commutative=(instr.opcode in ("add", "mul")),
+                is_commutative=(instr.opcode in ("add", "mul", "and", "or", "xor")),
                 # Real, honest scope: this dispatcher does NOT yet
                 # compute real, precise arrival-tick formulas (#773's
                 # own symbolic_arrival_tick()) to guarantee the
@@ -194,6 +194,43 @@ def _tile_for_opcode(opcode: str):
     return {"add": vtl.TILE_ADDER, "sub": vtl.TILE_SUBTRACTOR, "mul": vtl.TILE_MUL}[opcode]
 
 
+# Real, deliberate library-entry abstraction (points.md #792), per
+# Alan's own direct instruction: opcodes become real, named library
+# entries with a known entry contract (named ports vs unconditional),
+# not more special-cased branches in the placement functions
+# themselves. `#781`/`#782` already proved `and`/`or`/`xor` compute
+# correctly via the exact same PRIORITY-based convergence mechanism as
+# `add`/`mul` -- the ONLY real difference is `nano_gate`'s own port
+# shape (`#718`'s own confirmed finding: no real `upstream_mask` field
+# at all, accepts unconditionally from whatever is physically wired).
+_NANO_GATE_OPCODES = {
+    "and": 0x007,   # TOPO_AND (#782's own confirmed value)
+    "or": 0x024,    # TOPO_OR
+    "xor": 0x0BC,   # TOPO_XOR
+}
+
+
+def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
+                       in_a_dir: str, in_b_dir: str, out_dir: str):
+    """Real, single place this dispatcher decides HOW an opcode's own
+    tile gets its real ports configured -- named (`adder`-style) or
+    unconditional (`nano_gate`-style). Every placement function above
+    calls this instead of `vtl.place()` directly, so a future opcode
+    only ever needs an entry here, never a change to `_grow_plain_
+    chain`/`_grow_convergence` themselves."""
+    if opcode in _NANO_GATE_OPCODES:
+        # nano_gate has no real, named "in" port at all (#718/#781's
+        # own confirmed finding) -- only "out" is real and named;
+        # whatever is physically wired to its other real faces is
+        # accepted unconditionally, no upstream_mask to configure.
+        return vtl.place(vtl.TILE_NANO_GATE, {"out": out_dir},
+                          params={"topology": _NANO_GATE_OPCODES[opcode]},
+                          cell_id=cell_id, rel_row=row, rel_col=col)
+    tile = _tile_for_opcode(opcode)
+    return vtl.place(tile, {"in_a": in_a_dir, "in_b": in_b_dir, "out": out_dir},
+                      cell_id=cell_id, rel_row=row, rel_col=col)
+
+
 def _claim_branch_start(ref_name: str, frontiers: Dict[str, Frontier],
                          taps: Dict[str, _TapPoint]) -> Frontier:
     """Real, central fan-out logic: if this producer's own frontier has
@@ -242,7 +279,6 @@ def _grow_plain_chain(instr: DagInstr, resolved: List[dict], occ: Dict[Position,
     current frontier (or starts fresh at a genuinely new, unique real
     origin -- via `leaf_counter` -- if this instruction has no real,
     non-constant operand at all)."""
-    tile = _tile_for_opcode(instr.opcode)
     cells: List = []
     real_op = next((r for r in resolved if r["kind"] != "const"), None)
     const_op = next((r for r in resolved if r["kind"] == "const"), None)
@@ -285,10 +321,9 @@ def _grow_plain_chain(instr: DagInstr, resolved: List[dict], occ: Dict[Position,
     else:
         in_b_dir = "n" if const_side != "n" else "e"
 
-    diff = vtl.place(tile, {"in_a": in_dir, "in_b": in_b_dir, "out": "e" if "e" not in (in_dir, in_b_dir) else "s"},
-                      cell_id=instr.name, rel_row=diff_row, rel_col=diff_col)
-    cells.append(diff)
     out_dir = "e" if "e" not in (in_dir, in_b_dir) else "s"
+    diff = _place_for_opcode(instr.opcode, instr.name, diff_row, diff_col, in_dir, in_b_dir, out_dir)
+    cells.append(diff)
     return cells, Frontier(pos=(diff_row, diff_col), out_dir=out_dir)
 
 
@@ -333,9 +368,8 @@ def _grow_convergence(instr: DagInstr, resolved: List[dict], shape: ConvergenceS
 
     dr, dc = _DIR_STEP[orient["out"]]
     add_pos = (target[0] + dr, target[1] + dc)
-    tile = _tile_for_opcode(instr.opcode)
-    add = vtl.place(tile, {"in_a": _OPP[orient["out"]], "in_b": _OPP[orient["out"]], "out": "e"},
-                     cell_id=instr.name, rel_row=add_pos[0], rel_col=add_pos[1])
+    add = _place_for_opcode(instr.opcode, instr.name, add_pos[0], add_pos[1],
+                             _OPP[orient["out"]], _OPP[orient["out"]], "e")
     cells.append(add)
 
     b_extra = 2 if shape == ConvergenceShape.STAGGER else 0

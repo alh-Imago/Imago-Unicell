@@ -136,3 +136,30 @@ def test_mul_end_to_end_including_genuine_convergence():
     assert grid.cells[positions["t1"]].mul_out_buffer == 20   # 4 * 5
     assert grid.cells[positions["t2"]].mul_out_buffer == 6    # 2 * 3
     assert grid.cells[positions["t3"]].mul_out_buffer == 120  # 20 * 6
+
+
+def test_and_or_xor_via_nano_gate_library_entries():
+    """points.md #792: the real library-entry abstraction, per Alan's
+    own direct instruction to make opcodes real, named library entries
+    with a known entry contract, not more special-cased branches.
+    and/or/xor route through nano_gate (#718/#781's own confirmed
+    unconditional-acceptance port shape, genuinely different from
+    adder/mul's named in_a/in_b) via the same PRIORITY-based
+    convergence shape -- confirmed end to end, including genuine
+    2-way convergence."""
+    instrs = [
+        DagInstr(name="t1", opcode="and", operands=[DagOperand(kind="dynamic"),
+                                                     DagOperand(kind="const", value=0b1111)]),
+        DagInstr(name="t2", opcode="and", operands=[DagOperand(kind="dynamic"),
+                                                     DagOperand(kind="const", value=0b1111)]),
+        DagInstr(name="t3", opcode="or", operands=[DagOperand(kind="ref", ref_name="t1"),
+                                                    DagOperand(kind="ref", ref_name="t2")]),
+    ]
+    icm, positions, dynamics, seq_orders = compile_dag(instrs)
+    assert icm.check_connections() == []
+    assert seq_orders == {}  # or is commutative -- PRIORITY, not SEQUENCER
+    records, _ = icm.flatten()
+    grid = _run(icm, dynamics, seq_orders, records, inject={"t1_x": 0b1100, "t2_x": 0b1010})
+    assert grid.cells[positions["t1"]]._nano.out_buffer == 0b1100  # 1100 & 1111
+    assert grid.cells[positions["t2"]]._nano.out_buffer == 0b1010  # 1010 & 1111
+    assert grid.cells[positions["t3"]]._nano.out_buffer == 0b1110  # 1100 | 1010
