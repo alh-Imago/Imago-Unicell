@@ -136,6 +136,26 @@ narrowed by the above:
   the Part 1 occupancy check, or some more general, real pathfinding
   search. This is real, separate, unattempted design work; the
   "when" is settled, the "how, exactly" is not.
+- **Folding must reconfigure real port orientation, not just relocate
+  cells -- a real, direct consequence of `#778`'s own already-proven
+  finding, now confirmed to apply at tightening time too, not just at
+  initial placement.** `choose_two_way_orientation()` (`#778`) is only
+  ever called ONCE, when a shape is first placed, based on where its
+  own real neighbors sit AT THAT MOMENT. Per Alan's own direct,
+  worked example: if tightening relocates the nexus to sit ON the
+  main chain (rather than off to the side), the branch's own real path
+  needs a real "catchup" run of cells to reach the nexus's own new
+  position -- and every relay cell along that catchup run needs its
+  own real `upstream_mask`/`downstream_mask` genuinely RECONFIGURED to
+  match its own new, real direction of flow at that exact point (a
+  relay that was "accept from west, offer east" may need to become
+  "accept from west, offer south" wherever the catchup path turns).
+  This is not a side effect of moving cells -- it is a real, required,
+  separate step, checked cell by cell along anything that gets
+  refolded. Confirming precisely how much of `#778`'s own existing
+  orientation logic can be reused directly (vs. needing a real,
+  distinct "re-orient an already-placed cell" variant) is real,
+  separate, unattempted design work.
 - **How does a genuinely bent or folded path's own real timing work?**
   `#773`'s own sharpened rule (equal real ARRIVAL TICK, not equal hop
   COUNT, for a composed source) already established that path length
