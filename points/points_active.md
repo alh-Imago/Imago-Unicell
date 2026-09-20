@@ -13368,3 +13368,44 @@ case confirming the shared hazard.
 **Real, honest verification for both #785 and #786: full project
 suite re-run** (858 passed, 1 skipped -- same pre-existing skip, 4
 warnings -- same pre-existing, unrelated), confirming zero regression.
+
+## 787. `accumulator`'s own three real roles tested: increment, decrement, and pulse-mode threshold-crossing. The real, central finding: unlike everything else tested this session, `inc`/`dec` are genuinely separate, dedicated physical directions -- confirmed directly, empirically, that this makes accumulator IMMUNE to `#770`'s own rank-vs-timing operand-order hazard, not just another case that needs `STAGGER`/`SEQUENCER`. (Alan/Claude, 2026-09-17)
+
+**Confirmed directly, precisely: `inc_dir`/`dec_dir` are real,
+distinct fields (`vix_tile_library_v1.py`'s own tile description
+already stated this -- confirmed here empirically, not just read),
+unlike `adder`'s own shared `upstream_mask` where "whichever arrives
+first becomes A."** Built the exact same real geometry `#770`/`#786`
+used for the hazard (one source far away, one adjacent) in BOTH
+directions -- inc arriving late/dec early, and the reverse. Result:
+`total=0` (the correct `+5-5`) in BOTH cases -- confirming the real
+role is decided by WHICH PHYSICAL FACE an arrival comes from, never by
+WHICH ONE ARRIVES FIRST.
+
+**The real, honest significance: this is the first core/role tested
+this session that does NOT need `#777`'s `STAGGER`/`SEQUENCER`
+discipline at all, despite genuinely having two real, distinct roles
+converging.** `subtract`, 4 of `nano_gate`'s 12 topologies, and `nano_
+hold_trigger` all needed careful operand-order handling; accumulator's
+own real design sidesteps the whole problem structurally, by giving
+each role its own dedicated physical face rather than making them
+compete for one shared slot. A real, valuable confirmation that not
+every 2-real-input core is automatically order-hazardous -- it depends
+on whether the core's own real RTL uses a shared capture slot
+(hazardous) or separate, dedicated ones (safe).
+
+**`pulse_mode` (accumulator's own third role) confirmed correct,
+direct `core_config` construction (not yet exposed via the tile,
+matching its own documented scope):** the running total accumulates
+normally (`0->4->8`) until it crosses a real, configured threshold
+(`12>=10`), at which point it resets to `0` and latches the real
+crossing value (`12`) as its own real output, correctly offered
+downstream.
+
+**2 new, permanent tests** (`tests/vm/test_accumulator_roles_v1.py`):
+the direction-encoded inc/dec immunity check (both arrival orders),
+and the pulse-mode threshold-crossing case.
+
+**Real, honest verification: full project suite re-run** (860 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

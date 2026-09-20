@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-17, working through the remaining core/role checklist -- weighted round-robin (#785) and nano_hold_trigger (#786) both confirmed, both falling into existing shape strategies (PRIORITY, and the same #770 order hazard) rather than needing new categories. See `points/points_active.md` #786)
+# Current State (as of 2026-09-17, accumulator tested -- the first core/role this session that is IMMUNE to the #770 order hazard, not just another case needing STAGGER/SEQUENCER. inc/dec are dedicated, separate physical faces, not a shared, competing slot. See `points/points_active.md` #787)
+
+## Read this first (most recent)
+
+**2026-09-17, accumulator tested (#787) -- a genuine, positive
+divergence from the pattern.** Confirmed inc/dec are dedicated,
+separate physical faces (not a shared slot like adder's in_a/in_b) --
+tested both arrival orders (inc late/dec early, and reversed), both
+give the correct total=0 (+5-5). Unlike everything else tested this
+session (subtract, 4 of nano_gate's 12 topologies, nano_hold_trigger),
+accumulator does NOT need STAGGER/SEQUENCER at all -- it's immune to
+the #770 hazard by design, since role is decided by which face an
+arrival comes from, never by which arrives first.
+
+**pulse_mode (accumulator's third role) also confirmed:** running
+total accumulates normally until crossing a configured threshold, then
+resets to 0 and latches the crossing value as output.
+
+**Real, honest significance:** confirms not every 2-real-input core is
+automatically order-hazardous -- it depends on whether the RTL uses a
+shared capture slot (hazardous) or separate, dedicated ones (safe).
+
+**Status: 2 new tests.** 860 tests pass, zero regression. Remaining
+from the original list: latch, branch (VM-capable); mul (blocked, no
+VM dispatch exists).
+
+## Previous state (as of 2026-09-17, working through the remaining core/role checklist -- weighted round-robin (#785) and nano_hold_trigger (#786) both confirmed, both falling into existing shape strategies (PRIORITY, and the same #770 order hazard) rather than needing new categories. See `points/points_active.md` #786)
 
 ## Read this first (most recent)
 
