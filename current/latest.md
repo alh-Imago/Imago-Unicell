@@ -1,4 +1,31 @@
-# Current State (as of 2026-09-17, PURE_EMISSION added to the shape catalog -- sequencer's own zero-operand special case, sitting outside the 4-shape catalog entirely rather than at its simple end. See `points/points_active.md` #783)
+# Current State (as of 2026-09-17, comparator's real semantics confirmed -- OR-combines simultaneous arrivals rather than comparing them, has no A/B slot identity, and its output is a genuine data value distinct from branch's control-flow routing. See `points/points_active.md` #784)
+
+## Read this first (most recent)
+
+**2026-09-17, comparator semantics confirmed (#784).** Per Alan's own
+precise question: is comparator arrival-dependent, and is its emission
+still a value, just singular?
+
+**Confirmed against the real delivery code:** comparator OR-combines
+every real arrival present on a tick into one value, then compares
+THAT against a fixed, compile-time threshold -- no A/B slot identity
+like adder has. Its safe, intended shape is PLAIN_CHAIN (one operand
+vs a constant), confirmed correct.
+
+**Central finding:** feeding it two genuinely distinct real values
+does NOT compute "a >= b" -- confirmed with a=5, b=3, threshold=100:
+OR-combine gives 5|3=7, compared against 100 -> False, not the True a
+genuine comparison would give. Comparator cannot compare two
+independent dynamic values at all; that's branch's own job instead.
+
+**Second half confirmed:** comparator's output IS a genuine data
+value (0 or 1), usable downstream like any arithmetic result -- just
+singular and boolean-valued, genuinely different in kind from
+branch's routing decision.
+
+**Status: 2 new tests.** 855 tests pass, zero regression.
+
+## Previous state (as of 2026-09-17, PURE_EMISSION added to the shape catalog -- sequencer's own zero-operand special case, sitting outside the 4-shape catalog entirely rather than at its simple end. See `points/points_active.md` #783)
 
 ## Read this first (most recent)
 

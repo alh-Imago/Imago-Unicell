@@ -13283,3 +13283,49 @@ genuinely never produced by the function.
 **Real, honest verification: full project suite re-run** (853 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 784. Real, direct answer to Alan's own precise question: is comparator arrival-dependent, and is its emission still a value, just a singular one? Confirmed: comparator's own real delivery logic OR-COMBINES every real arrival present on a tick into one value, then compares THAT against a fixed, compile-time threshold -- it has no real "A/B slot" identity system at all, unlike `adder`. Its intended, safe shape is PLAIN_CHAIN (one operand vs a constant); feeding it two genuinely distinct real values silently OR-combines them rather than comparing them. Its output IS a genuine data value, confirmed distinct in kind from `branch`'s own control-flow routing decision. (Alan/Claude, 2026-09-17)
+
+**Confirmed directly against `_deliver_comparator()`'s own real code,
+then verified with real VM execution, not assumed from the tile's own
+description alone:** `val = 0; for v in matched.values(): val |= v`,
+then `cmp_out_buffer = 1 if val >= threshold else 0`. Every real
+arrival present on a given tick is OR-combined into ONE value before
+any comparison happens at all -- there is no real, distinct "A" and
+"B" the way `adder`'s own capture logic keeps them separate.
+
+**The real, safe, intended shape confirmed correct:** one real,
+dynamic operand compared against a compile-time constant (`x=42` vs
+`threshold=10` -> `1`) -- this is `#777`'s own `PLAIN_CHAIN` exactly,
+needing no convergence machinery at all, matching the tile's own
+explicit documentation ("the right default tool for compare a dynamic
+value against a compile-time constant").
+
+**The real, central finding, confirmed with a deliberately
+distinguishing test case:** feeding TWO real, genuinely distinct
+dynamic values (`a=5`, `b=3`) simultaneously does NOT compute "is `a`
+>= `b`" (which would be `True`) -- it OR-combines them (`5|3=7`) and
+compares THAT against the threshold (`100`), giving `False`. Confirmed
+directly: comparator cannot genuinely compare two independent, dynamic
+values against each other at all -- its own real RTL has no mechanism
+for that, matching the tile's own explicit pointer elsewhere ("branch
+needs a real, separate, sequenced reference-establishing delivery
+instead" for that job).
+
+**Real, direct answer to the second half of Alan's own question:**
+confirmed -- comparator's own real output (`cmp_out_buffer`) is a
+genuine data value (`0` or `1`), usable as an operand feeding
+something else downstream, the same real KIND of thing an `adder`'s
+own output is -- just a singular, boolean-valued one. This is
+genuinely different in kind from `branch`'s own real decision, which
+redirects physical dataflow itself (which path data takes next) rather
+than producing a value for something else to consume.
+
+**2 new, permanent tests** (`tests/vm/test_comparator_semantics_v1.py`):
+the safe, intended single-operand case, and the real, deliberately
+distinguishing two-simultaneous-value case confirming OR-combine, not
+comparison.
+
+**Real, honest verification: full project suite re-run** (855 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
