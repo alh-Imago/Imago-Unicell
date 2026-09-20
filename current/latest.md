@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-16, the real DAG dispatcher built and verified end to end -- Alan's "growing frontier" architecture completely eliminates the routing-collision class the first attempt kept hitting. All four shapes (plain chain, fan-out, commutative and non-commutative convergence) compile and run correctly. See `points/points_active.md` #780)
+# Current State (as of 2026-09-17, confirmed logic gates aren't a fundamental hazard -- #718's old nano_gate corruption was an artifact of the old, tightly-packed frontend, not nano_gate itself. AND/OR/XOR all compute correctly via priority-based convergence once nothing unrelated sits adjacent, the exact discipline the growing-frontier dispatcher already enforces. See `points/points_active.md` #781)
+
+## Read this first (most recent)
+
+**2026-09-17, nano_gate convergence confirmed safe (#781).** Direct
+answer to last night's open question: is #718's old and/or/xor
+corruption a fundamental nano_gate property, or an old-architecture
+artifact?
+
+**Confirmed: an artifact of the old architecture.** nano_gate has no
+upstream_mask (accepts unconditionally from any physically-wired
+neighbor) -- on the old frontend, an unrelated adjacent chain wire
+could silently win the race against an intended value. Built a real
+nano_gate fed via priority, with nothing else adjacent -- the exact
+discipline the growing-frontier dispatcher (#780) enforces by
+construction. Result: AND=8, OR=14, XOR=6, all correct.
+
+**Practical implication:** and/or/xor are commutative, so per #777's
+shape catalog they'd dispatch to PRIORITY -- now confirmed to work for
+nano_gate specifically, not just adder. Real, positive evidence for
+last night's "logic gates might be nearly free" guess.
+
+**Status: 3 new tests (AND/OR/XOR).** 850 tests pass, zero regression.
+
+## Previous state (as of 2026-09-16, the real DAG dispatcher built and verified end to end -- Alan's "growing frontier" architecture completely eliminates the routing-collision class the first attempt kept hitting. All four shapes (plain chain, fan-out, commutative and non-commutative convergence) compile and run correctly. See `points/points_active.md` #780)
 
 ## Read this first (most recent)
 

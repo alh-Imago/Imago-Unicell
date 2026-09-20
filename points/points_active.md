@@ -13139,3 +13139,55 @@ separate, unbuilt work.
 **Real, honest verification: full project suite re-run** (847 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 781. Real, direct answer to last night's open question: is `#718`'s old-frontend `and`/`or`/`xor` corruption hazard a fundamental property of `nano_gate`, or an artifact of the old, tightly-packed architecture? Confirmed directly: an artifact of the old architecture. `nano_gate` fed via `priority` (sequencing both real operands onto its single physical face), with no unrelated cell placed adjacent -- the exact discipline the growing-frontier dispatcher (`#780`) enforces by construction -- correctly computes real, full bitwise AND/OR/XOR. (Alan/Claude, 2026-09-17)
+
+**The real, precise question, and why it mattered:** `#718` found that
+`nano_gate` has no real `upstream_mask` at all (confirmed directly
+against its own tile registration -- it accepts unconditionally from
+ANY physically-wired neighbor). On the old frontend, this meant an
+unrelated, incidentally-adjacent chain wire could silently win the
+race against an intended DAG-relayed value, corrupting the result --
+`and`/`or`/`xor` DAG-reference support was built, found broken this
+way, and honestly reverted rather than shipped. Last night's own
+conclusion named this as a real, open question for the NEW,
+growing-frontier dispatcher: does the same hazard still apply, or was
+it specific to the old architecture's own rigid, tightly-packed
+geometry?
+
+**Confirmed directly, empirically, not reasoned about in the
+abstract:** built a real `nano_gate` (topology configured for AND, OR,
+and XOR in turn) fed by a real `priority` cell arbitrating two real,
+distinct preloaded sources (`0b1100`, `0b1010`) onto the gate's own
+single physical face -- with NOTHING else placed adjacent to the gate
+at all. Result: `AND=8`, `OR=14`, `XOR=6` -- all exactly correct
+against the real, independently-computed bitwise values.
+
+**The real, honest distinction that resolves the question:** `#718`'s
+own corruption required a SECOND, UNRELATED real neighbor to be
+physically adjacent to the gate at the same time as the intended
+source -- a direct, structural consequence of the old frontend's own
+"everything placed immediately, adjacently, zero slack" philosophy
+(the same real root cause `#776` already named for the old fan-out
+machinery). The growing-frontier dispatcher (`#780`) never places an
+unrelated cell adjacent to a target at all -- every neighbor of a given
+cell is there because it was deliberately grown there. Since nothing
+incidental can ever be adjacent, `nano_gate`'s own lack of selective
+addressing (no `upstream_mask`) never has anything competing to
+silently win against.
+
+**Real, honest, practical implication for the compiler integration
+line of work (`#777`-`#780`):** `and`/`or`/`xor` are commutative, so
+per `#777`'s own shape catalog they would dispatch to the simplest
+shape, `PRIORITY` -- confirmed here to work correctly for `nano_gate`
+specifically, not just for `adder`. This is a real, positive,
+load-bearing finding for the "logic gates might be nearly free" guess
+from last night's own conversation -- confirmed, not just hoped.
+
+**3 new, permanent tests** (`tests/vm/test_nano_gate_convergence_
+v1.py`): AND, OR, and XOR, each via real priority-based convergence
+with no unrelated neighbor present.
+
+**Real, honest verification: full project suite re-run** (850 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

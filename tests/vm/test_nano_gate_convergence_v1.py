@@ -1,0 +1,81 @@
+"""tests/vm/test_nano_gate_convergence_v1.py — points.md #781: real,
+direct test of whether `#718`'s own old-frontend corruption hazard
+(nano_gate has no `upstream_mask` at all -- accepts unconditionally
+from any physically-wired neighbor, confirmed directly against its own
+tile registration) is a fundamental property of `nano_gate` itself, or
+an artifact specific to the old frontend's rigid, tightly-packed
+geometry (where an unrelated, incidentally-adjacent chain wire could
+silently win the race against an intended DAG-relayed value).
+
+Confirmed directly: when nano_gate is fed via a real `priority` cell
+(sequencing both real operands one at a time onto its single, real
+physical face) and NOTHING ELSE is placed adjacent to it -- the exact
+discipline the growing-frontier dispatcher (`#780`) enforces by
+construction -- nano_gate correctly computes the real, full bitwise
+AND/OR of its two real, sequentially-arriving operands. `#718`'s own
+corruption required a second, UNRELATED real neighbor to be physically
+adjacent at the same time; that situation cannot arise in a design
+built by the growing-frontier dispatcher, since nothing incidental is
+ever placed next to a target cell.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "nano"))
+
+import vix_tile_library_v1 as vtl  # noqa: E402
+import icm_vix_v1 as vix  # noqa: E402
+from unicell_super_automaton_v1 import SuperGrid  # noqa: E402
+
+
+def _build_gate_test(topology, cell_id_suffix=""):
+    a = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "s"}, cell_id=f"a{cell_id_suffix}", rel_row=-1, rel_col=0,
+                  preload_value=0b1100)
+    b = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": "n"}, cell_id=f"b{cell_id_suffix}", rel_row=1, rel_col=0,
+                  preload_value=0b1010)
+    pri = vtl.place(vtl.TILE_PRIORITY, {"in": ["n", "s"], "out": "e"},
+                     params={"priority_rank_n": 0, "priority_rank_s": 1,
+                             "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": 0},
+                     cell_id=f"pri{cell_id_suffix}", rel_row=0, rel_col=0)
+    gate = vtl.place(vtl.TILE_NANO_GATE, {"out": "e"}, params={"topology": topology},
+                      cell_id=f"gate{cell_id_suffix}", rel_row=0, rel_col=1)
+    sink = vtl.place(vtl.TILE_RAM_FLOWING, {"in": "w", "out": "e"}, cell_id=f"sink{cell_id_suffix}",
+                      rel_row=0, rel_col=2)
+    cells = [a, b, pri, gate, sink]
+    icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=cells)},
+                          placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+                          name=f"nano_gate_test{cell_id_suffix}")
+    return icm
+
+
+def test_nano_gate_and_via_priority_convergence_no_unrelated_neighbor():
+    icm = _build_gate_test(0x007)  # TOPO_AND
+    assert icm.check_connections() == []
+    records, _ = icm.flatten()
+    grid = SuperGrid(records)
+    for _ in range(20):
+        grid.tick()
+    sink_cell = grid.cells[(0, 2)]
+    assert sink_cell.ram_data_reg == (0b1100 & 0b1010)  # 8
+
+
+def test_nano_gate_or_via_priority_convergence_no_unrelated_neighbor():
+    icm = _build_gate_test(0x024)  # TOPO_OR
+    assert icm.check_connections() == []
+    records, _ = icm.flatten()
+    grid = SuperGrid(records)
+    for _ in range(20):
+        grid.tick()
+    sink_cell = grid.cells[(0, 2)]
+    assert sink_cell.ram_data_reg == (0b1100 | 0b1010)  # 14
+
+
+def test_nano_gate_xor_via_priority_convergence_no_unrelated_neighbor():
+    icm = _build_gate_test(0x0BC)  # TOPO_XOR
+    assert icm.check_connections() == []
+    records, _ = icm.flatten()
+    grid = SuperGrid(records)
+    for _ in range(20):
+        grid.tick()
+    sink_cell = grid.cells[(0, 2)]
+    assert sink_cell.ram_data_reg == (0b1100 ^ 0b1010)  # 6
