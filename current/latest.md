@@ -1,4 +1,35 @@
-# Current State (as of 2026-09-17, latch tested -- second consecutive core immune to the #770 order hazard, same structural reason as accumulator (dedicated faces per role). Remaining: branch (different problem class, unstarted) and mul (blocked, no VM dispatch). See `points/points_active.md` #788)
+# Current State (as of 2026-09-17, branch tested -- every VM-capable core on the original checklist now confirmed. Only mul remains, blocked at the VM level (no dispatch exists at all). See `points/points_active.md` #789)
+
+## Read this first (most recent)
+
+**2026-09-17, branch tested (#789) -- checklist complete except mul.**
+Confirmed branch has a single, fixed upstream_dir -- both reference
+and compare values must arrive via the same face sequentially (a
+priority cell naturally sequences them). Intended three-way LOW/EQUAL/
+HIGH routing confirmed correct -- each outcome emits its own value and
+routes to its own configured direction, a genuine control-flow
+decision, not just a data value.
+
+**Confirmed empirically, same geometry as #770/#786/#788:** the
+reference role is stolen by whichever value physically arrives first,
+regardless of intent -- exactly matching what #742's own tile
+description already stated in plain English. Same hazard as
+subtract/nano_gate/nano_hold_trigger, not a new one.
+
+**Significant milestone:** this closes every VM-capable core/role from
+the original checklist -- add/subtract, nano_gate (12 topologies),
+sequencer, priority (both tested modes plus weighted round-robin),
+nano_hold_trigger, accumulator, latch, and now branch. Every one fell
+into the existing shape-catalog framework -- confirming the three-axis
+rule generalizes across the full, real core library, not just the
+arithmetic cores it was first built against.
+
+**Only mul remains** -- confirmed empirically it has no VM dispatch at
+all, a real build task, not a testing gap.
+
+**Status: 2 new tests.** 865 tests pass, zero regression.
+
+## Previous state (as of 2026-09-17, latch tested -- second consecutive core immune to the #770 order hazard, same structural reason as accumulator (dedicated faces per role). Remaining: branch (different problem class, unstarted) and mul (blocked, no VM dispatch). See `points/points_active.md` #788)
 
 ## Read this first (most recent)
 

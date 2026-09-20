@@ -13451,3 +13451,54 @@ unrelated), confirming zero regression.
 class, not yet started) and `mul` (blocked -- no VM dispatch exists
 at all, confirmed empirically in `#785`'s own surrounding discussion)
 remain the two real, open items.
+
+## 789. `branch`'s own real behavior tested directly, confirming and empirically verifying `#742`'s own documented findings rather than just trusting them: the intended three-way LOW/EQUAL/HIGH routing (a genuine control-flow decision, `br_active_route`, not just a data value) works correctly with sequenced delivery, and the held comparison reference shares the exact same `#770` rank-vs-timing hazard as `subtract`/`nano_gate`'s order-sensitive topologies/`nano_hold_trigger`. This completes every VM-capable core on Alan's own original checklist -- only `mul` (no VM dispatch exists) remains. (Alan/Claude, 2026-09-17)
+
+**Confirmed directly: `branch` has a single, fixed `upstream_dir` (not
+a mask)** -- both the reference and compare values must arrive via the
+exact same physical face, sequentially, from a real, shared source (a
+`priority` cell arbitrating two real, distinct sources naturally
+sequences them, matching the tile's own documented "sequenced
+delivery" pattern). Confirmed the intended three-way outcome directly:
+`compare<ref` -> `LOW`, `compare==ref` -> `EQUAL`, `compare>ref` ->
+`HIGH`, each correctly emitting its own real value and routing to its
+own real, configured direction.
+
+**Confirmed directly, empirically, using the exact same real geometry
+`#770`/`#786`/`#788` all used:** the reference source (rank `0`,
+intended to establish first) placed far away, the compare source
+(rank `1`) placed adjacent. Result: the physically-closer source
+(`20`) arrives first and becomes the real reference; the intended
+reference (`10`) then compares against IT as `10<20` -> `LOW`, not the
+intended `20>10` -> `HIGH`. The exact same real hazard, not a new,
+gate-specific one -- and already named, in plain English, in the
+tile's own real description (`#742`) before this entry's own test ever
+ran, matching the "tile description predicts hazard/immunity" pattern
+`#787`/`#788` already found useful.
+
+**Real, honest, significant milestone: this closes out every VM-
+capable core/role on Alan's own original checklist from earlier this
+session.** Tested this session: `add`/`subtract` (`#750`-`#780`),
+`nano_gate`'s 12 topologies (`#782`), `sequencer` (`#783`), `priority`'s
+2 tested modes plus weighted round-robin (`#751`-`#785`), `nano_hold_
+trigger` (`#786`), `accumulator` (`#787`), `latch` (`#788`), and now
+`branch` (`#789`). Every one of them fell into the existing `#777`
+shape-catalog framework -- either needing `STAGGER`/`SEQUENCER` for
+genuine order-sensitivity, or confirmed immune via dedicated,
+non-competing physical faces -- confirming the three-axis rule
+generalizes across this project's own full, real core library, not
+just the arithmetic cores it was first built against.
+
+**The one, real, remaining item: `mul`.** Confirmed empirically
+earlier this session (`#785`'s own surrounding discussion) that no VM
+dispatch exists at all for `core="mul"` -- a real, separate, concrete
+build task (writing `_deliver_mul()` and registering it), not a
+testing gap, before it can even be attempted.
+
+**2 new, permanent tests** (`tests/vm/test_branch_semantics_v1.py`):
+the intended three-way routing case, and the reference-role-stolen
+hazard case.
+
+**Real, honest verification: full project suite re-run** (865 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
