@@ -13191,3 +13191,52 @@ with no unrelated neighbor present.
 **Real, honest verification: full project suite re-run** (850 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 782. Alan's own direct claim tested comprehensively: nano_gate has 12 real topology states, all covered by the same real mechanism. Confirmed: TRUE for the underlying capture/compute logic -- all 12 topologies compute correctly via the same priority-based convergence, verified against `compute_gate()` as ground truth. One real, necessary caveat found and confirmed, not a new hazard: 4 of the 12 (PASS_A/PASS_B/NOT_A/NOT_B) are genuinely order-sensitive and share `#770`'s exact rank-vs-timing hazard -- they need `#777`'s STAGGER or SEQUENCER shape, never plain PRIORITY, the same real rule already established for subtract. (Alan/Claude, 2026-09-17)
+
+**Confirmed directly, comprehensively, against real ground truth, not
+assumed from the pattern holding for AND/OR/XOR:** all 12 real
+topology constants (`unicell_gate_core.py`'s own complete set --
+`PASS_A`, `NOT_A`, `NOT_B`, `NOR`, `AND`, `ZERO`, `XNOR`, `OR`, `NAND`,
+`PASS_B`, `ONE`, `XOR`) built through the identical real
+priority-into-`nano_gate` convergence pattern `#781` proved for the
+first three, checked against `compute_gate()`'s own real, independent
+computation for each. All 12 correct, when the configured rank order
+matches which real operand actually arrives first.
+
+**The real, necessary caveat, found by reading `compute_gate()`'s own
+real docstring precisely, not glossed over:** `a = ` the real,
+FIRST-ARRIVAL operand, `b = ` the real, SECOND-arrival one -- meaning 4
+of the 12 topologies (`PASS_A`, `PASS_B`, `NOT_A`, `NOT_B`) are
+genuinely, structurally ORDER-SENSITIVE, exactly like `subtract`'s own
+minuend/subtrahend identity. Confirmed directly, empirically, using
+the EXACT SAME real geometry `#770` used for subtract (the rank-0
+source placed far away, the rank-1 source directly adjacent):
+`PASS_A` produces the physically-closer source's own value (`0b1010`,
+`b`), NOT the configured-rank-0 source's own value (`0b1100`, `a`) --
+the identical hazard, not a new, gate-specific one.
+
+**Real, honest, precise answer to Alan's own claim: right about the
+mechanism, right to flag it as one mechanism -- with the same real
+qualification `#777`'s own shape catalog already carries.** The
+underlying capture-and-compute machinery genuinely is uniform across
+all 12 real topologies (confirmed, not assumed) -- but WHICH of
+`#777`'s 4 real shapes is safe to use for a given topology still
+depends on whether that topology's own result depends on operand
+identity: `AND`/`OR`/`XOR`/`NAND`/`NOR`/`XNOR`/`ZERO`/`ONE` (8 of 12)
+are commutative and safe with plain `PRIORITY`; `PASS_A`/`PASS_B`/
+`NOT_A`/`NOT_B` (4 of 12) need `STAGGER` or `SEQUENCER`, the same real
+rule subtract already established, applied here for the first time to
+a genuinely different core (`nano`, not `adder`/`subtractor`) --
+confirming `#777`'s own decision rule is real gate logic, not an
+artifact specific to arithmetic cores.
+
+**2 new, permanent tests** (`tests/vm/test_nano_gate_convergence_
+v1.py`): one real, comprehensive sweep across all 12 topologies
+against `compute_gate()` ground truth; one confirming the real,
+shared order-sensitivity hazard for `PASS_A` specifically, using the
+exact geometry `#770` used.
+
+**Real, honest verification: full project suite re-run** (852 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

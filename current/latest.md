@@ -1,4 +1,33 @@
-# Current State (as of 2026-09-17, confirmed logic gates aren't a fundamental hazard -- #718's old nano_gate corruption was an artifact of the old, tightly-packed frontend, not nano_gate itself. AND/OR/XOR all compute correctly via priority-based convergence once nothing unrelated sits adjacent, the exact discipline the growing-frontier dispatcher already enforces. See `points/points_active.md` #781)
+# Current State (as of 2026-09-17, all 12 nano_gate topology states confirmed correct via the same priority-based mechanism, with one necessary caveat: 4 of the 12 are order-sensitive and share subtract's exact rank-vs-timing hazard, needing STAGGER/SEQUENCER not plain PRIORITY. See `points/points_active.md` #782)
+
+## Read this first (most recent)
+
+**2026-09-17, all 12 nano_gate topologies tested (#782).** Direct
+test of Alan's own claim: nano_gate has 12 real states, all covered
+by the same mechanism.
+
+**Confirmed true for the underlying mechanism:** all 12 topologies
+(PASS_A, NOT_A, NOT_B, NOR, AND, ZERO, XNOR, OR, NAND, PASS_B, ONE,
+XOR) compute correctly via the same priority-based convergence,
+verified against compute_gate() as ground truth.
+
+**One necessary caveat found by reading compute_gate()'s own
+docstring precisely:** a=first-arrival, b=second-arrival -- meaning
+PASS_A/PASS_B/NOT_A/NOT_B are genuinely order-sensitive, exactly like
+subtract's minuend/subtrahend. Confirmed directly using #770's own
+exact geometry: PASS_A produces the physically-closer source's value
+regardless of configured rank -- the identical hazard, not a new one.
+
+**Precise answer:** right about the mechanism being uniform -- with
+the same qualification #777's shape catalog already carries. 8 of 12
+topologies are commutative (safe with plain PRIORITY); 4 need
+STAGGER/SEQUENCER, confirming #777's decision rule applies to nano
+gates too, not just arithmetic.
+
+**Status: 2 new tests** (full 12-topology sweep, plus the shared-hazard
+confirmation). 852 tests pass, zero regression.
+
+## Previous state (as of 2026-09-17, confirmed logic gates aren't a fundamental hazard -- #718's old nano_gate corruption was an artifact of the old, tightly-packed frontend, not nano_gate itself. AND/OR/XOR all compute correctly via priority-based convergence once nothing unrelated sits adjacent, the exact discipline the growing-frontier dispatcher already enforces. See `points/points_active.md` #781)
 
 ## Read this first (most recent)
 
