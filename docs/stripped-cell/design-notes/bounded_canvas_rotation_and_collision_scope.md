@@ -83,16 +83,59 @@ design work, not just a mechanism swap.** Every real shape grown by
 `#780`'s own `_pad()`/`_grow_plain_chain`/`_grow_convergence` extends
 in exactly one fixed direction for its whole length. Nothing today
 lets a chain change direction mid-growth, and nothing lets it fold
-back toward space it's already passed near. Real, open questions a
-proper build would need to answer, named here so they aren't
-discovered mid-implementation:
+back toward space it's already passed near.
 
-- **When does a chain decide to turn, rather than continue straight?**
-  A real, concrete rule is needed -- e.g., "turn when continuing
-  straight would exceed the real, remaining bounded space in that
-  direction," or a more general, always-considered pathfinding choice
-  at every real step. This is a real design decision, not an
-  implementation detail.
+**Real, confirmed answer to "when does a chain decide to turn,"
+settled directly by Alan's own worked example, not left open:**
+folding is a real, TIGHTENING-TIME decision, made with the whole,
+already-grown-loose layout visible -- never a real-time, growth-time
+guess made while a chain is still being grown blind to what else
+exists. This matters because you cannot know how many turns a given
+branch needs, or where, until you can see what it actually has to fold
+around; deciding at growth time would mean guessing at information
+the system doesn't have yet.
+
+**Alan's own worked example, illustrating the real, general principle
+(the specific route is illustrative, not a literal algorithm to
+implement):**
+
+```
+S-----------B-------.
+                     :         :
+                     :    N____:
+                     :
+E-------------------.
+```
+
+*(S=start, B=branch, N=nexus, E=end -- reproduced here as Alan's own
+original ASCII sketch, not redrawn, since the redrawing itself risked
+losing the real shape being described.)*
+
+The real principle this establishes: from a single divergence point
+(`B`), two branches head toward the SAME shared nexus (`N`), but they
+can genuinely need DIFFERENT fold sequences to get there -- one
+branch might turn once, the other twice, at different distances --
+purely because of what each one has to fold around in its own real
+path. There is no single, universal "how a fold looks" -- each real
+branch's own fold shape is a direct, local response to whatever
+occupancy it actually encounters, discovered by the tightening pass at
+the point it runs, not decided in advance. The same real principle
+holds on the OUTPUT side too: the nexus's own merged result, heading
+toward `E`, is just as subject to folding around existing occupancy as
+either of the two paths converging into it were.
+
+Real, open questions a proper build would still need to answer, now
+narrowed by the above:
+
+- **The real folding/lane mechanism itself.** Given the tightening
+  pass already has full visibility of the loose layout (matching
+  `#761`'s own real nexus-detection step), the real, remaining design
+  work is HOW it picks a specific, collision-free fold path for a
+  given branch -- e.g., trying successive "lanes" (fixed offsets/
+  depths) outward from the direct line until one is found clear via
+  the Part 1 occupancy check, or some more general, real pathfinding
+  search. This is real, separate, unattempted design work; the
+  "when" is settled, the "how, exactly" is not.
 - **How does a genuinely bent or folded path's own real timing work?**
   `#773`'s own sharpened rule (equal real ARRIVAL TICK, not equal hop
   COUNT, for a composed source) already established that path length
@@ -124,10 +167,16 @@ compactness, or card-readiness is made.
 
 ## Summary: how this fits into the existing, named work
 
-- This is a real, more ambitious alternative/complement to the
-  already-scoped-but-unwired rats-nest tightening pass
-  (`#761`-`#767`), aimed specifically at bounded, real-silicon targets
-  rather than the VM's own unbounded canvas.
+- **Confirmed directly, settling the design's own real shape:** folding
+  is a real TIGHTENING-TIME mechanism, not a growth-time one -- it
+  extends the already-scoped-but-unwired rats-nest tightening pass
+  (`#761`-`#767`) directly, rather than sitting alongside it as a
+  separate alternative. `#780`'s own growth logic (`_pad()`/`_grow_
+  plain_chain`/`_grow_convergence`) is unchanged by this -- folding
+  happens afterward, once the whole loose layout is visible, matching
+  `#761`'s own real nexus-detection step exactly. Aimed specifically at
+  bounded, real-silicon targets, where the VM's own unbounded canvas
+  has no comparable need.
 - It reuses `#780`'s own real, existing growing-frontier model as its
   starting point -- this is an extension of how a shape grows, not a
   replacement for the frontier/tap/orientation machinery already
