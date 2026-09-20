@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-17, branch tested -- every VM-capable core on the original checklist now confirmed. Only mul remains, blocked at the VM level (no dispatch exists at all). See `points/points_active.md` #789)
+# Current State (as of 2026-09-17, mul added to the VM and the new dispatcher, both confirmed correct end to end. Old LLVM IR frontend still lacks mul entirely -- a real, open architectural question raised for whether it's still worth extending there. See `points/points_active.md` #791)
+
+## Read this first (most recent)
+
+**2026-09-17, mul built into the VM and dispatcher (#790/#791).**
+Closed the checklist's one remaining gap: mul had no VM dispatch at
+all. Added its own real state/dispatch (matching adder's exact
+capture-A-then-B shape, but genuinely separate RTL/state, no subtract-
+mode-equivalent bit). Confirmed correct (6*7=42), shares the known
+simultaneous-arrival collision hazard, not a new bug.
+
+**Extended the dispatcher (#780) to support mul** via a shared
+_tile_for_opcode() helper -- confirmed end to end including genuine
+2-way convergence, correctly dispatched to PRIORITY (commutative).
+
+**A real, open question surfaced checking the OLD LLVM IR frontend:**
+mul appears nowhere in it at all. Extending it there is substantial,
+multi-site work -- add/sub are woven through ~10+ sites, some of which
+(loop-increment direction detection, where sub means "descending
+loop") mul must NOT be added to. Given #776's own finding that the old
+frontend's rigid architecture isn't the right foundation, left as an
+open question for Alan: extend the old frontend for mul, or let mul
+support live only in the new dispatcher going forward?
+
+**Status: 1 new test (dispatcher).** 868 tests pass, zero regression.
+
+## Previous state (as of 2026-09-17, branch tested -- every VM-capable core on the original checklist now confirmed. Only mul remains, blocked at the VM level (no dispatch exists at all). See `points/points_active.md` #789)
 
 ## Read this first (most recent)
 

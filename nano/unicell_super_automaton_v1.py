@@ -315,6 +315,21 @@ class SuperCell:
     adder_out_buffer: int = 0
     adder_data_valid: bool = False
 
+    # ── mul: mul_cell_v4c.v (points.md #724) -- real, separate RTL
+    # from adder, not a mode flag on it. Confirmed directly (#724): no
+    # subtract-mode equivalent exists (multiply has none) -- its own
+    # real 64-bit field map is downstream_mask[5:0], upstream_mask
+    # [11:6], with no analogous mode bit. Same real "capture A, then
+    # B, then compute and emit" shape as adder otherwise (#757's own
+    # confirmed arrivals_needed=2), added here (points.md #790) after
+    # confirming empirically no VM dispatch existed for it at all.
+    mul_downstream_mask: int = 0
+    mul_upstream_mask: int = 0
+    mul_a_reg: int = 0
+    mul_a_arrived: bool = False
+    mul_out_buffer: int = 0
+    mul_data_valid: bool = False
+
     # ── accumulator ──
     acc_downstream_mask: int = 0
     acc_inc_dir: int = 0
@@ -624,6 +639,9 @@ class SuperCell:
             cell.adder_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.adder_upstream_mask = dm(cfg.get("upstream_mask", 0))
             cell.adder_subtract_mode = bool(cfg.get("subtract_mode", 0))
+        elif core == "mul":
+            cell.mul_downstream_mask = dm(cfg.get("downstream_mask", 0))
+            cell.mul_upstream_mask = dm(cfg.get("upstream_mask", 0))
         elif core == "accumulator":
             cell.acc_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.acc_inc_dir = dm(cfg.get("inc_dir", 0))
@@ -787,6 +805,31 @@ class SuperCell:
             self.adder_out_buffer = (self.adder_a_reg + val) & _MASK32
         self.adder_data_valid = True
         self.adder_a_arrived = False
+        return (True, None)
+
+    # ── mul: mul_cell_v4c.v (#724) -- structurally identical "capture
+    # A, then B, then compute and emit" shape to adder, confirmed
+    # directly (#757's own arrivals_needed=2), but its own real,
+    # separate RTL/state -- and multiplication instead of add/subtract,
+    # with no subtract-mode-equivalent bit at all. ──
+    def _deliver_mul(self, arrivals, injected):
+        matched = {d: v for d, v in arrivals.items() if (self.mul_upstream_mask >> _DIR_BIT[d]) & 1}
+        if not matched and injected is None:
+            return (True, None)
+        val = 0
+        for v in matched.values():
+            val |= v & _MASK32
+        if injected is not None:
+            val |= injected & _MASK32
+        if not self.mul_a_arrived:
+            self.mul_a_reg = val
+            self.mul_a_arrived = True
+            return (True, None)
+        if self.mul_data_valid:
+            return (False, None)  # doubly full -- B blocked until prior product drains
+        self.mul_out_buffer = (self.mul_a_reg * val) & _MASK32
+        self.mul_data_valid = True
+        self.mul_a_arrived = False
         return (True, None)
 
     # ── accumulator: accumulator_cell_v1.v -- unconditional, never
@@ -1028,6 +1071,9 @@ class SuperCell:
     def _offer_state_adder(self) -> Tuple[int, bool, int]:
         return (self.adder_out_buffer, self.adder_data_valid, self.adder_downstream_mask)
 
+    def _offer_state_mul(self) -> Tuple[int, bool, int]:
+        return (self.mul_out_buffer, self.mul_data_valid, self.mul_downstream_mask)
+
     def _offer_state_comparator(self) -> Tuple[int, bool, int]:
         return (self.cmp_out_buffer, self.cmp_data_valid, self.cmp_downstream_mask)
 
@@ -1074,6 +1120,9 @@ class SuperCell:
 
     def _clear_valid_adder(self) -> None:
         self.adder_data_valid = False
+
+    def _clear_valid_mul(self) -> None:
+        self.mul_data_valid = False
 
     def _clear_valid_priority(self) -> None:
         self.pri_data_valid = False
@@ -1143,6 +1192,9 @@ register_core_handler("ram", CoreHandler(
 register_core_handler("adder", CoreHandler(
     deliver=SuperCell._deliver_adder, offer_state=SuperCell._offer_state_adder,
     continuously_live=False, clear_valid=SuperCell._clear_valid_adder))
+register_core_handler("mul", CoreHandler(
+    deliver=SuperCell._deliver_mul, offer_state=SuperCell._offer_state_mul,
+    continuously_live=False, clear_valid=SuperCell._clear_valid_mul))
 register_core_handler("accumulator", CoreHandler(
     deliver=SuperCell._deliver_accumulator, offer_state=SuperCell._offer_state_accumulator,
     continuously_live=True, clear_valid=SuperCell._clear_valid_accumulator))

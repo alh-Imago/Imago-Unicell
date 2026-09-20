@@ -112,3 +112,27 @@ def test_non_commutative_convergence_uses_sequencer_correctly():
     t3_cell = grid.cells[positions["t3"]]
     assert t3_cell.adder_out_buffer == 96   # 101 - 5, t1 correctly the minuend
     assert t3_cell.adder_a_reg == 101       # t1, not t2, became "A"
+
+
+def test_mul_end_to_end_including_genuine_convergence():
+    """points.md #790: mul's own new VM dispatch, now wired into
+    #777's shape catalog (via #790's own _tile_for_opcode() extension)
+    and confirmed to run correctly through the full dispatcher,
+    including genuine 2-way convergence -- correctly dispatched to
+    PRIORITY (mul is commutative), not SEQUENCER."""
+    instrs = [
+        DagInstr(name="t1", opcode="mul", operands=[DagOperand(kind="dynamic"),
+                                                     DagOperand(kind="const", value=5)]),
+        DagInstr(name="t2", opcode="mul", operands=[DagOperand(kind="dynamic"),
+                                                     DagOperand(kind="const", value=3)]),
+        DagInstr(name="t3", opcode="mul", operands=[DagOperand(kind="ref", ref_name="t1"),
+                                                     DagOperand(kind="ref", ref_name="t2")]),
+    ]
+    icm, positions, dynamics, seq_orders = compile_dag(instrs)
+    assert icm.check_connections() == []
+    assert seq_orders == {}  # mul is commutative -- PRIORITY, not SEQUENCER
+    records, _ = icm.flatten()
+    grid = _run(icm, dynamics, seq_orders, records, inject={"t1_x": 4, "t2_x": 2})
+    assert grid.cells[positions["t1"]].mul_out_buffer == 20   # 4 * 5
+    assert grid.cells[positions["t2"]].mul_out_buffer == 6    # 2 * 3
+    assert grid.cells[positions["t3"]].mul_out_buffer == 120  # 20 * 6

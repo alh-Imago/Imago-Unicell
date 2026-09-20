@@ -13502,3 +13502,72 @@ hazard case.
 **Real, honest verification: full project suite re-run** (865 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 790. `mul`'s own real VM dispatch built and confirmed correct, closing the one remaining gap from Alan's own core/role checklist. Confirmed empirically before this entry (and again directly here) that `core="mul"` had NO VM dispatch at all -- a real build task, not a testing gap. (Alan/Claude, 2026-09-17)
+
+**Built, matching `adder`'s own exact "capture A, then B, then compute
+and emit" shape (`#757`'s own confirmed `arrivals_needed=2`), but as
+its own, real, separate state and dispatch -- `mul_cell_v4c.v` (`#724`)
+is genuinely different RTL from `adder`, not a mode flag on it, and
+has no subtract-mode-equivalent bit at all.** Added `mul_downstream_
+mask`/`mul_upstream_mask`/`mul_a_reg`/`mul_a_arrived`/`mul_out_
+buffer`/`mul_data_valid` to `SuperCell`; `_deliver_mul()`, `_offer_
+state_mul()`, `_clear_valid_mul()`; registered via `register_core_
+handler("mul", ...)`; wired `from_record()`'s own `core == "mul"`
+branch to populate the new fields from `core_config`.
+
+**Confirmed directly: computes the real product correctly (`6*7=42`)
+with staggered arrival, and shares the exact same real, already-known
+simultaneous-arrival collision hazard (`#750`/`#764`/`#776`) as any
+other 2-arrival, shared-upstream-mask core** -- not a new, `mul`-
+specific bug, the identical one `adder` and `nano_gate` already have.
+
+**2 new, permanent tests** (`tests/vm/test_mul_dispatch_v1.py`): the
+correct-product case, and the known-collision case.
+
+**Real, honest status: this closes the VM-dispatch gap only.** `mul`
+is not yet wired into `#777`'s shape catalog, `#780`'s dispatcher, or
+the LLVM IR frontend -- real, separate, immediately-following work.
+
+**Real, honest verification: full project suite re-run** (867 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
+
+## 791. `mul` wired into `#780`'s dispatcher, per Alan's own instruction that the VM and compiler systems should be brought into agreement. Confirmed correct end to end, including genuine 2-way convergence, correctly dispatched to `PRIORITY` (commutative), not `SEQUENCER`. (Alan/Claude, 2026-09-17)
+
+**Extended `nano/vix_dag_dispatcher_v1.py` with a real, shared
+`_tile_for_opcode()` helper** (`add`/`sub`/`mul` -> their own real
+tile), replacing two duplicated `TILE_ADDER if ... else TILE_
+SUBTRACTOR` ternaries; extended the `is_commutative` check to
+`opcode in ("add", "mul")`. `TILE_MUL`'s own real port contract
+(`in_a`/`in_b`/`out`, confirmed directly) is identical to `adder`'s,
+so no other change to the placement functions was needed.
+
+**Confirmed directly, end to end:** `t1 = x*5`, `t2 = y*3`, `t3 = t1*t2`
+(genuine convergence) -> `t1=20`, `t2=6`, `t3=120`, `seq_orders == {}`
+confirming `mul`'s own commutativity was correctly recognized (dispatched
+to `PRIORITY`, never `SEQUENCER`).
+
+**1 new, permanent test** (added to `tests/vm/test_vix_dag_dispatcher_
+v1.py`).
+
+**A real, honest, open architectural question surfaced while checking
+the OLD LLVM IR frontend (`llvm_ir_frontend_v1.py`) for the same
+extension:** `mul` is referenced nowhere in that file at all --
+confirmed directly (`_SUPPORTED_OPCODES` lacks it, and no dispatch
+site handles it). Extending it there is real, substantial, multi-site
+work, not a small addition -- `add`/`sub` are woven through ~10+
+distinct sites (opcode validation, chain-shape enforcement, fan-out
+relay logic, value computation, AND loop-increment direction
+detection, where `sub` specifically means "descending loop" -- a real,
+semantic role `mul` does not share and must NOT be added to). Given
+`#776`'s own already-confirmed finding that the old frontend's rigid
+placement architecture is not the right foundation to build on, this
+raises a real, honest, open question left for Alan's own direct
+answer: is extending the OLD frontend for `mul` still worth doing, or
+should `mul` support live only in the new, growing-frontier dispatcher
+(where it already works correctly) going forward?
+
+**Real, honest verification: full project suite re-run** (868 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.

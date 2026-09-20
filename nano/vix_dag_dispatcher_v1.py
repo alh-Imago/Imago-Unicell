@@ -136,7 +136,7 @@ def compile_dag(instructions: List[DagInstr]
         else:
             shape = choose_convergence_shape(
                 has_real_convergence=True,
-                is_commutative=(instr.opcode == "add"),
+                is_commutative=(instr.opcode in ("add", "mul")),
                 # Real, honest scope: this dispatcher does NOT yet
                 # compute real, precise arrival-tick formulas (#773's
                 # own symbolic_arrival_tick()) to guarantee the
@@ -183,6 +183,15 @@ def _resolve_operand(op: DagOperand) -> dict:
     if op.kind == "ref":
         return {"kind": "ref", "ref_name": op.ref_name}
     return {"kind": "dynamic"}
+
+
+def _tile_for_opcode(opcode: str):
+    """Real, shared, single source of truth for opcode -> tile
+    mapping. `mul` (points.md #790's own new VM dispatch) added
+    alongside `add`/`sub` -- same real `in_a`/`in_b`/`out` port shape
+    (confirmed directly against `TILE_MUL`'s own real contract), so it
+    drops in without any other change to the placement functions."""
+    return {"add": vtl.TILE_ADDER, "sub": vtl.TILE_SUBTRACTOR, "mul": vtl.TILE_MUL}[opcode]
 
 
 def _claim_branch_start(ref_name: str, frontiers: Dict[str, Frontier],
@@ -233,7 +242,7 @@ def _grow_plain_chain(instr: DagInstr, resolved: List[dict], occ: Dict[Position,
     current frontier (or starts fresh at a genuinely new, unique real
     origin -- via `leaf_counter` -- if this instruction has no real,
     non-constant operand at all)."""
-    tile = vtl.TILE_ADDER if instr.opcode == "add" else vtl.TILE_SUBTRACTOR
+    tile = _tile_for_opcode(instr.opcode)
     cells: List = []
     real_op = next((r for r in resolved if r["kind"] != "const"), None)
     const_op = next((r for r in resolved if r["kind"] == "const"), None)
@@ -324,7 +333,7 @@ def _grow_convergence(instr: DagInstr, resolved: List[dict], shape: ConvergenceS
 
     dr, dc = _DIR_STEP[orient["out"]]
     add_pos = (target[0] + dr, target[1] + dc)
-    tile = vtl.TILE_ADDER if instr.opcode == "add" else vtl.TILE_SUBTRACTOR
+    tile = _tile_for_opcode(instr.opcode)
     add = vtl.place(tile, {"in_a": _OPP[orient["out"]], "in_b": _OPP[orient["out"]], "out": "e"},
                      cell_id=instr.name, rel_row=add_pos[0], rel_col=add_pos[1])
     cells.append(add)
