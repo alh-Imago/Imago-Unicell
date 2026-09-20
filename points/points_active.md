@@ -13329,3 +13329,42 @@ comparison.
 **Real, honest verification: full project suite re-run** (855 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 785. `priority`'s own third role tested: `scheduling_mode=1` (weighted round-robin / Surplus Round Robin). Confirmed correct: two continuously-competing real sources, weights 2:1, served in the exact `[1,1,2]` repeating cyclic pattern, ratio ≈2.0, neither starving -- genuinely different internal behavior from strict-rank mode, but still falling under `#777`'s own `PRIORITY` shape category, confirming Alan's own observation that these roles keep falling into the existing strategy rather than needing new ones. (Alan/Claude, 2026-09-17)
+
+**1 new, permanent test** (`tests/vm/test_priority_weighted_round_
+robin_v1.py`): two `ram_constant` sources (weight 2 vs weight 1)
+competing continuously at a weighted-round-robin `priority` cell,
+confirmed to produce the exact `[1,1,2]` repeating pattern and a
+served ratio within `1.8`-`2.2` of the configured `2:1` weight.
+
+## 786. `nano_hold_trigger`'s own real role tested: the intended "hold the first real arrival, release it unchanged on a separate, later trigger" behavior confirmed correct -- and confirmed to share `#770`'s exact rank-vs-timing operand-order hazard, not a new, gate-specific one. (Alan/Claude, 2026-09-17)
+
+**Confirmed directly: the intended order works exactly as documented.**
+A "hold" value (`77`) arriving adjacent, a "trigger" value (`999`)
+arriving later via a longer relay -- the real output is `77`
+(unchanged), released only once the trigger arrives; the trigger's own
+payload is discarded entirely, only its arrival matters.
+
+**Confirmed directly: reversing which source arrives first flips the
+roles, not the mechanism.** With the "trigger" source physically
+closer (arriving first) and the "hold" source further away, the real
+output becomes `999` -- the physically-closer source is simply
+"held" instead, regardless of which one was intended to play which
+role. The exact same real hazard `#770` found for `subtract`'s own
+minuend/subtrahend identity, not a new one specific to this gate.
+
+**Real, honest, practical implication, confirming Alan's own running
+observation:** like `subtract` and `nano_gate`'s own 4 order-sensitive
+topologies (`#782`), `nano_hold_trigger` needs `#777`'s `STAGGER` or
+`SEQUENCER` shape to guarantee correct role assignment -- plain
+`PRIORITY` is unsafe here whenever the two real sources' own paths
+could differ in length. No new shape category needed.
+
+**2 new, permanent tests** (`tests/vm/test_nano_hold_trigger_
+semantics_v1.py`): the intended-order case, and the reversed-order
+case confirming the shared hazard.
+
+**Real, honest verification for both #785 and #786: full project
+suite re-run** (858 passed, 1 skipped -- same pre-existing skip, 4
+warnings -- same pre-existing, unrelated), confirming zero regression.

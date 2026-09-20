@@ -1,4 +1,33 @@
-# Current State (as of 2026-09-17, comparator's real semantics confirmed -- OR-combines simultaneous arrivals rather than comparing them, has no A/B slot identity, and its output is a genuine data value distinct from branch's control-flow routing. See `points/points_active.md` #784)
+# Current State (as of 2026-09-17, working through the remaining core/role checklist -- weighted round-robin (#785) and nano_hold_trigger (#786) both confirmed, both falling into existing shape strategies (PRIORITY, and the same #770 order hazard) rather than needing new categories. See `points/points_active.md` #786)
+
+## Read this first (most recent)
+
+**2026-09-17, working through the core/role checklist (#785/#786).**
+Systematically testing each remaining core role per Alan's own list.
+
+**#785 -- priority's weighted round-robin (scheduling_mode=1)
+confirmed:** two continuously-competing sources at weight 2:1 served
+in the exact [1,1,2] repeating pattern, ratio ≈2.0, neither starving.
+Genuinely different internal behavior from strict-rank mode, but still
+the same PRIORITY shape (#777).
+
+**#786 -- nano_hold_trigger confirmed:** intended order (hold value
+adjacent, trigger further away) correctly holds and releases 77
+unchanged, discarding the trigger's own payload. Reversed order flips
+which source gets "held" -- the exact same #770 rank-vs-timing hazard
+subtract has, not a new one. Needs STAGGER/SEQUENCER for safety, same
+as subtract and nano_gate's 4 order-sensitive topologies.
+
+**Running pattern holding:** every core/role tested so far except
+sequencer falls cleanly into the existing shape catalog -- confirming
+the three-axis framework generalizes rather than needing per-core
+special-casing.
+
+**Status: 3 new tests across both entries.** 858 tests pass, zero
+regression. Remaining: accumulator, latch, branch (VM-capable);
+mul (blocked -- no VM dispatch exists at all).
+
+## Previous state (as of 2026-09-17, comparator's real semantics confirmed -- OR-combines simultaneous arrivals rather than comparing them, has no A/B slot identity, and its output is a genuine data value distinct from branch's control-flow routing. See `points/points_active.md` #784)
 
 ## Read this first (most recent)
 
