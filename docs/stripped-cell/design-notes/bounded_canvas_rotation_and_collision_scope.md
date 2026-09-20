@@ -156,6 +156,28 @@ narrowed by the above:
   orientation logic can be reused directly (vs. needing a real,
   distinct "re-orient an already-placed cell" variant) is real,
   separate, unattempted design work.
+- **Real, confirmed timing for WHERE this happens, per Alan's own
+  direct point: while the design is still a real, in-memory array of
+  cells, before it is ever written out as ICM or loaded into the VM --
+  and this is not a new pattern to introduce, it is already the
+  established, proven one.** Confirmed directly against the existing
+  code: `_claim_branch_start()` (`#780`) already mutates an already-
+  created cell's own real `core_config` field directly (`tap.cell.
+  core_config["downstream_mask"] = ...`) while it still sits in the
+  in-memory `cells` list, well before `IcmVixFile` construction,
+  `.flatten()`, or any VM loading happens at all. Folding's own
+  reorientation step (above) should work the exact same way -- find
+  the affected cells in the still-mutable, in-memory list, update
+  their own real `core_config` fields directly, and only THEN hand the
+  finished, fully-correct list to ICM construction. Doing this any
+  later -- after ICM serialization, or worse, after a VM load -- would
+  mean repeatedly writing, hashing (`#793`'s own `record_hash()`
+  discipline), and re-testing intermediate, not-yet-correct states, a
+  real, avoidable cost this precedent already shows how to skip
+  entirely. This also matches `#767`'s own real, established principle
+  directly: the compiler does this real work once, in memory, so nothing
+  downstream (ICM, the VM, Composer) ever has to discover or correct
+  it later.
 - **How does a genuinely bent or folded path's own real timing work?**
   `#773`'s own sharpened rule (equal real ARRIVAL TICK, not equal hop
   COUNT, for a composed source) already established that path length
