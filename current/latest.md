@@ -1,4 +1,38 @@
-# Current State (as of 2026-09-17, first real "library entry" abstraction built -- and/or/xor route through nano_gate via the same PRIORITY mechanism as add/sub/mul, confirmed end to end. BRAM/DSP resource-aware entries scoped as real, separate, larger work -- substantial existing infrastructure found for both. See `points/points_active.md` #792)
+# Current State (as of 2026-09-17, formalized LibraryEntry structure built as its own module -- dispatcher now fully delegates opcode selection to it, zero opcode-specific strings remain in placement code. A real assumption checked and correctly reverted along the way. See `points/points_active.md` #793)
+
+## Read this first (most recent)
+
+**2026-09-17, LibraryEntry structure formalized (#793).** New module
+nano/vix_opcode_library_v1.py: a real dataclass tying together Target
+(opcode), two separate Shape fields (ConvergenceShape + port_style,
+confirmed genuinely different, not one conflated field), In/Out
+(tile ports), Timing (arrivals_needed, pulled directly from the tile,
+never duplicated), and the tile itself as the one, complete ICM
+description.
+
+**Dispatcher refactored to use it directly:** _place_for_opcode() now
+calls library_lookup() instead of hardcoding tile/topology
+dictionaries; is_commutative reads from the library instead of a
+hardcoded tuple. Confirmed by grep: zero opcode-specific strings
+remain in the placement code at all -- selection and placement are
+now genuinely, structurally separate.
+
+**A real mistake made and caught while building this:** assumed
+nano_gate needed arrivals_needed=2 (matching adder's two-stage
+capture), based on re-reading #782's own test results. Checked the
+actual CACell.deliver() docstring directly -- nano processes all
+same-tick arrivals together (the same model as comparator, #784), not
+a two-stage capture. The existing value (1) was already correct;
+reverted before it shipped as a regression. A second accident (an
+overly broad string replacement deleted two real functions) was caught
+immediately by the test suite and recovered from git.
+
+**Status: 5 new tests.** Real, remaining scope: a hardware-target
+dimension (Arria 10 vs Gowin, choosing between core_select and
+dedicated DSP-wrapper cells) is deliberately not attempted -- named,
+scoped, separate work. 873 tests pass, zero regression.
+
+## Previous state (as of 2026-09-17, first real "library entry" abstraction built -- and/or/xor route through nano_gate via the same PRIORITY mechanism as add/sub/mul, confirmed end to end. BRAM/DSP resource-aware entries scoped as real, separate, larger work -- substantial existing infrastructure found for both. See `points/points_active.md` #792)
 
 ## Read this first (most recent)
 

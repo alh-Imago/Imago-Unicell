@@ -46,6 +46,7 @@ import icm_vix_v1 as vix
 from rats_nest_router_v1 import manhattan_route, _DIR_STEP, _OPP
 from vix_convergence_shapes_v1 import ConvergenceShape, choose_convergence_shape
 from vix_shape_orientation_v1 import choose_two_way_orientation
+from vix_opcode_library_v1 import lookup as library_lookup
 
 Position = Tuple[int, int]
 PAD = 3               # real, deliberate padding hop count between shapes
@@ -136,7 +137,7 @@ def compile_dag(instructions: List[DagInstr]
         else:
             shape = choose_convergence_shape(
                 has_real_convergence=True,
-                is_commutative=(instr.opcode in ("add", "mul", "and", "or", "xor")),
+                is_commutative=library_lookup(instr.opcode).is_commutative,
                 # Real, honest scope: this dispatcher does NOT yet
                 # compute real, precise arrival-tick formulas (#773's
                 # own symbolic_arrival_tick()) to guarantee the
@@ -185,49 +186,31 @@ def _resolve_operand(op: DagOperand) -> dict:
     return {"kind": "dynamic"}
 
 
-def _tile_for_opcode(opcode: str):
-    """Real, shared, single source of truth for opcode -> tile
-    mapping. `mul` (points.md #790's own new VM dispatch) added
-    alongside `add`/`sub` -- same real `in_a`/`in_b`/`out` port shape
-    (confirmed directly against `TILE_MUL`'s own real contract), so it
-    drops in without any other change to the placement functions."""
-    return {"add": vtl.TILE_ADDER, "sub": vtl.TILE_SUBTRACTOR, "mul": vtl.TILE_MUL}[opcode]
-
-
-# Real, deliberate library-entry abstraction (points.md #792), per
-# Alan's own direct instruction: opcodes become real, named library
-# entries with a known entry contract (named ports vs unconditional),
-# not more special-cased branches in the placement functions
-# themselves. `#781`/`#782` already proved `and`/`or`/`xor` compute
-# correctly via the exact same PRIORITY-based convergence mechanism as
-# `add`/`mul` -- the ONLY real difference is `nano_gate`'s own port
-# shape (`#718`'s own confirmed finding: no real `upstream_mask` field
-# at all, accepts unconditionally from whatever is physically wired).
-_NANO_GATE_OPCODES = {
-    "and": 0x007,   # TOPO_AND (#782's own confirmed value)
-    "or": 0x024,    # TOPO_OR
-    "xor": 0x0BC,   # TOPO_XOR
-}
-
-
+# Points.md #793: opcode selection now lives in a real, named,
+# separate library (`vix_opcode_library_v1.py`) -- this dispatcher
+# stays entirely PLACEMENT-focused, asking the library for the real
+# facts (tile, port style, commutativity) it needs, never hardcoding
+# an opcode-specific branch of its own. A future opcode needs a new
+# `register()` call in the library module ONLY -- never a change here.
 def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
                        in_a_dir: str, in_b_dir: str, out_dir: str):
     """Real, single place this dispatcher decides HOW an opcode's own
     tile gets its real ports configured -- named (`adder`-style) or
-    unconditional (`nano_gate`-style). Every placement function above
-    calls this instead of `vtl.place()` directly, so a future opcode
-    only ever needs an entry here, never a change to `_grow_plain_
-    chain`/`_grow_convergence` themselves."""
-    if opcode in _NANO_GATE_OPCODES:
+    unconditional (`nano_gate`-style), per the real library entry's
+    own `port_style`. Every placement function above calls this
+    instead of `vtl.place()` directly."""
+    entry = library_lookup(opcode)
+    if entry is None:
+        raise ValueError(f"no real library entry for opcode {opcode!r} -- #752's own escalation "
+                          f"ladder applies: check the shared library, then AI research, then Composer")
+    if entry.port_style == "unconditional":
         # nano_gate has no real, named "in" port at all (#718/#781's
         # own confirmed finding) -- only "out" is real and named;
         # whatever is physically wired to its other real faces is
         # accepted unconditionally, no upstream_mask to configure.
-        return vtl.place(vtl.TILE_NANO_GATE, {"out": out_dir},
-                          params={"topology": _NANO_GATE_OPCODES[opcode]},
+        return vtl.place(entry.tile, {"out": out_dir}, params=dict(entry.extra_params),
                           cell_id=cell_id, rel_row=row, rel_col=col)
-    tile = _tile_for_opcode(opcode)
-    return vtl.place(tile, {"in_a": in_a_dir, "in_b": in_b_dir, "out": out_dir},
+    return vtl.place(entry.tile, {"in_a": in_a_dir, "in_b": in_b_dir, "out": out_dir},
                       cell_id=cell_id, rel_row=row, rel_col=col)
 
 

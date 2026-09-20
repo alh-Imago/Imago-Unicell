@@ -13621,3 +13621,73 @@ deliberately NOT attempted in this entry.
 **Real, honest verification: full project suite re-run** (869 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 793. The real, formalized `LibraryEntry` structure built as its own, separate module, per Alan's own direct synthesis of the whole session's own conversation: Target, Shape (split into two real, separate fields), In/Out, Timing, and the ICM description as one, named artifact -- reusing the ICM format rather than inventing a new one. A real, genuine gap found and correctly reverted while building this: `TILE_NANO_GATE`'s own `arrivals_needed` was checked against real logic before trusting an assumption, confirming the EXISTING value (1) was already correct. (Alan/Claude, 2026-09-17)
+
+**The real, new module: `nano/vix_opcode_library_v1.py`.** A real
+`LibraryEntry` dataclass: `target` (the opcode), `tile` (the real
+`VixTileSpec` -- the one, complete ICM description, per Alan's own
+direct point that "the real shape comes from the ICM table entry...
+all as one part of the file"), `is_commutative` and `port_style` (the
+two real, separate facts confirmed to be genuinely different things,
+not one conflated "Shape" field -- `#777`'s convergence shape decides
+HOW operands meet; `#792`'s port style decides HOW the tile itself
+wires to neighbors), and a real `timing` property that reads `tile.
+arrivals_needed` directly rather than storing it a second time,
+matching the same "the tile/ICM description is the one truth"
+principle Alan's own point established. A real `lookup(opcode)`
+function returns `None` for anything unregistered -- the real, honest
+escalation signal `#752`'s own already-scoped ladder (local library ->
+shared library -> AI research -> user/Composer) already anticipated,
+never a silent guess standing in for a real, tested entry.
+
+**The dispatcher (`vix_dag_dispatcher_v1.py`) refactored to use this
+library directly, confirming the real "selection vs placement"
+separation Alan articulated directly in this same conversation.**
+`_place_for_opcode()` now calls `library_lookup()` instead of
+hardcoding tile/topology dictionaries inline; the `is_commutative`
+check calls `library_lookup(instr.opcode).is_commutative` instead of a
+hardcoded tuple of opcode names. Confirmed directly, by grep, that
+zero opcode-specific or tile-specific strings remain anywhere in the
+dispatcher's own placement code -- every real decision about WHICH
+tile/shape an opcode needs now lives in the library, never in the
+placement machinery, which stays completely unaware of which opcode
+it's wiring up (confirmed unchanged, matching the "the growing-
+frontier logic doesn't know or care what tile it's connecting" real
+architectural property named earlier this same conversation).
+
+**A real, genuine mistake made and caught while building this, worth
+recording honestly:** initially set `TILE_NANO_GATE.arrivals_needed =
+2`, reasoning from `#782`'s own test results that it needed a "capture
+A, then B" shape like `adder`. Confirmed directly against `CACell.
+deliver()`'s own real docstring (`unicell_automaton_v1.py`, the actual
+class `nano`'s own dispatch delegates to) that this was wrong: nano
+processes "every direction's value that arrived THIS SAME TICK"
+together (`#153`'s own same-cycle OR-combine, the identical real model
+`comparator`, `#784`, already uses) -- NOT a two-stage capture. The
+existing, carefully-built test (`test_arrivals_needed_matches_the_
+actual_vm_delivery_logic`) and `#757`'s own docstring were both
+already correct (`arrivals_needed=1`); the change was reverted
+immediately upon confirming this, before it could ship as a real
+regression. A second real accident during the same edit -- an overly
+broad automated string replacement deleted two real, unrelated
+functions (`_claim_branch_start`, `_pad`) that happened to sit between
+the edited block and its own end marker -- caught immediately by the
+test suite (`NameError`), recovered directly from the prior commit.
+
+**5 new, permanent tests** (`tests/vm/test_vix_opcode_library_v1.py`):
+named-port entries, unconditional-port entries, commutativity, and the
+unknown-opcode escalation signal.
+
+**Real, honest, remaining scope, stated directly, matching the
+conversation's own conclusion:** a real `target` (hardware family --
+Arria 10 vs Gowin, etc.) dimension is deliberately NOT attempted here
+-- today's library only chooses between two `SuperCell`-internal port
+styles, never between genuinely different hardware classes (a generic
+`core_select` value vs a dedicated `dsp_wrapper_tile_library_v1.py`
+cell). That real, larger integration remains separate, scoped,
+unbuilt work, per `#792`'s own note.
+
+**Real, honest verification: full project suite re-run** (873 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
