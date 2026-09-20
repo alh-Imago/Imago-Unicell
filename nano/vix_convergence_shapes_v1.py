@@ -51,6 +51,16 @@ class ConvergenceShape(Enum):
     session's own work has proven, each with its own real, distinct
     real-world justification -- not an arbitrary taxonomy."""
 
+    PURE_EMISSION = "pure_emission"
+    """Zero real operands needed at all -- `sequencer`'s own real,
+    special case (`#757`'s own confirmed `arrivals_needed=0`, no real
+    `in` port at all). Not the simple end of this catalog; it sits
+    OUTSIDE it entirely, since every other shape here exists to decide
+    how real operand(s) arrive and combine, and this core has none to
+    arrive at all -- it emits its own, already-stored value on each
+    real drain, advancing its own internal sequence, driven purely by
+    timing/config, never by a real upstream arrival."""
+
     PLAIN_CHAIN = "plain_chain"
     """No genuine convergence at all -- a single, already-ordered
     dependency (`#756`'s own already-proven linear-chain compilation).

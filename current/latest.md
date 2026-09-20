@@ -1,4 +1,28 @@
-# Current State (as of 2026-09-17, all 12 nano_gate topology states confirmed correct via the same priority-based mechanism, with one necessary caveat: 4 of the 12 are order-sensitive and share subtract's exact rank-vs-timing hazard, needing STAGGER/SEQUENCER not plain PRIORITY. See `points/points_active.md` #782)
+# Current State (as of 2026-09-17, PURE_EMISSION added to the shape catalog -- sequencer's own zero-operand special case, sitting outside the 4-shape catalog entirely rather than at its simple end. See `points/points_active.md` #783)
+
+## Read this first (most recent)
+
+**2026-09-17, PURE_EMISSION category formalized (#783).** Per Alan's
+own context: nano was the project's first unit cell, which is why it
+absorbed the largest configuration space (22 topologies) while later
+cores are narrower special cases; sequencer is a genuinely different,
+zero-operand case -- "no input needed, so it just emits."
+
+**Confirmed and formalized:** sequencer (#757's own confirmed
+arrivals_needed=0, no real in port at all) has no real operands to
+analyze, so it sits OUTSIDE #777's 4-shape catalog entirely, not at
+its simple end. Added ConvergenceShape.PURE_EMISSION to nano/vix_
+convergence_shapes_v1.py.
+
+**Design point confirmed by test:** PURE_EMISSION is a real, named
+category, but choose_convergence_shape() never returns it -- confirmed
+across all 8 input combinations. Recognizing "zero real operands" is a
+separate, earlier decision a dispatcher makes before that function's
+own question is even meaningful.
+
+**Status: 2 tests updated/added.** 853 tests pass, zero regression.
+
+## Previous state (as of 2026-09-17, all 12 nano_gate topology states confirmed correct via the same priority-based mechanism, with one necessary caveat: 4 of the 12 are order-sensitive and share subtract's exact rank-vs-timing hazard, needing STAGGER/SEQUENCER not plain PRIORITY. See `points/points_active.md` #782)
 
 ## Read this first (most recent)
 

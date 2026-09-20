@@ -66,4 +66,25 @@ def test_the_four_real_shapes_are_mutually_exclusive_and_exhaustive():
                 shape = choose_convergence_shape(conv, comm, known)
                 assert isinstance(shape, ConvergenceShape)
                 seen.add(shape)
-    assert seen == set(ConvergenceShape)
+    # PURE_EMISSION is a real, separate category (points.md #783,
+    # sequencer's own zero-operand special case) decided BEFORE this
+    # function is ever called at all -- it is never one of the 4 real
+    # values choose_convergence_shape() itself returns.
+    assert seen == set(ConvergenceShape) - {ConvergenceShape.PURE_EMISSION}
+
+
+def test_pure_emission_exists_but_is_never_chosen_by_the_function():
+    """points.md #783: sequencer's own real, zero-operand special case
+    (#757's own confirmed arrivals_needed=0, no real `in` port at all)
+    is a real, named category in the catalog -- but it is decided
+    BEFORE choose_convergence_shape() is ever called, since that
+    function's own real inputs (has_real_convergence, is_commutative,
+    all_arrival_ticks_knowable) are all meaningless for a core with no
+    real operands to analyze at all. Confirmed directly: it exists as
+    a real enum value, and the function itself never returns it for
+    any real combination of its own inputs."""
+    assert ConvergenceShape.PURE_EMISSION in set(ConvergenceShape)
+    for conv in (True, False):
+        for comm in (True, False):
+            for known in (True, False):
+                assert choose_convergence_shape(conv, comm, known) != ConvergenceShape.PURE_EMISSION

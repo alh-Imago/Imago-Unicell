@@ -13240,3 +13240,46 @@ exact geometry `#770` used.
 **Real, honest verification: full project suite re-run** (852 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 783. A real, missing category formalized in the shape catalog, per Alan's own direct context: `nano` was the FIRST, most general unit cell built, which is why it absorbed the largest real configuration space (22 topologies, plus shift/masking) while later cores are comparatively narrow special cases; `sequencer` is a genuinely different, zero-operand special case -- "no input needed, so it just emits." Confirmed and formalized: `PURE_EMISSION` sits OUTSIDE `#777`'s own 4-shape catalog entirely, not at its simple end -- it is decided BEFORE `choose_convergence_shape()` is ever called, since that function's own inputs are meaningless for a core with no real operands to analyze. (Alan/Claude, 2026-09-17)
+
+**Alan's own real, historical context, worth recording precisely:**
+`nano` being the project's own FIRST unit cell explains its own real,
+outsized configuration space directly -- it was built to be a
+maximally general primitive before narrower, purpose-built cores
+(`adder`, `subtractor`, `mul`, ...) existed as simpler special cases.
+This reframes `#782`'s own 12-topology finding: testing `nano` first
+was, in a real sense, testing the hardest, most general case first,
+not an arbitrary one among equals.
+
+**`sequencer` confirmed and formalized as a real, distinct category,
+not the simple end of the existing catalog:** `#757`'s own already-
+confirmed `arrivals_needed=0` (no real `in` port at all) means
+`sequencer` never has real operands to analyze at all -- there is no
+real convergence question, no real commutativity question, no real
+timing question, because there is nothing arriving to ask those
+questions about. Added `ConvergenceShape.PURE_EMISSION` to `nano/vix_
+convergence_shapes_v1.py`'s own real catalog, with its own real,
+precise justification: a core that emits its own, already-stored
+value on each real drain, advancing its own internal sequence, driven
+purely by timing/config, never by a real upstream arrival.
+
+**Real, honest, precise design point, confirmed by test:**
+`PURE_EMISSION` is a real, named value in the `ConvergenceShape` enum,
+but `choose_convergence_shape()` itself never returns it for any real
+combination of its own three inputs -- confirmed directly by an
+exhaustive check across all 8 combinations. This is deliberate, not an
+oversight: recognizing "this instruction has zero real operands" is a
+real, separate, EARLIER decision a compiler dispatcher must make
+before `choose_convergence_shape()`'s own question ("which of the 4
+real operand-handling shapes") is even meaningful to ask.
+
+**2 tests updated/added** (`tests/vm/test_vix_convergence_shapes_
+v1.py`): the existing exhaustiveness test corrected to exclude `PURE_
+EMISSION` from the 4 real values the function itself returns; one new
+test confirming `PURE_EMISSION` exists as a real category and is
+genuinely never produced by the function.
+
+**Real, honest verification: full project suite re-run** (853 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
