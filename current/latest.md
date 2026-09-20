@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-17, accumulator tested -- the first core/role this session that is IMMUNE to the #770 order hazard, not just another case needing STAGGER/SEQUENCER. inc/dec are dedicated, separate physical faces, not a shared, competing slot. See `points/points_active.md` #787)
+# Current State (as of 2026-09-17, latch tested -- second consecutive core immune to the #770 order hazard, same structural reason as accumulator (dedicated faces per role). Remaining: branch (different problem class, unstarted) and mul (blocked, no VM dispatch). See `points/points_active.md` #788)
+
+## Read this first (most recent)
+
+**2026-09-17, latch tested (#788) -- confirms the pattern from #787
+is real, not a one-off.** SET/CLEAR/TOGGLE each have dedicated
+physical faces, matching accumulator's own structural reason for
+immunity. Tested SET's own arrival timing both ways -- identical
+result (True) regardless. Tested simultaneous SET+CLEAR on the same
+tick -- CLEAR correctly wins, matching the documented CLEAR>SET>TOGGLE
+precedence.
+
+**Real, useful, predictive signal emerging:** both accumulator and
+latch stated "these are genuinely separate fields" in their own tile
+descriptions, in plain English, before any test ran -- and both turned
+out immune to the order hazard. Worth checking a tile's own
+description for this phrasing before building the next test.
+
+**Status: 3 new tests.** 863 tests pass, zero regression.
+
+**Remaining from the original checklist: branch and mul.** branch is
+flagged as a genuinely different, control-flow problem class (not a
+convergence-shape question at all), unstarted. mul is blocked at the
+VM level entirely -- confirmed empirically, no dispatch exists for
+core="mul" yet, so it can't be tested until that's built.
+
+## Previous state (as of 2026-09-17, accumulator tested -- the first core/role this session that is IMMUNE to the #770 order hazard, not just another case needing STAGGER/SEQUENCER. inc/dec are dedicated, separate physical faces, not a shared, competing slot. See `points/points_active.md` #787)
 
 ## Read this first (most recent)
 

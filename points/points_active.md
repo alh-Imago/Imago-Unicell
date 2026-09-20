@@ -13409,3 +13409,45 @@ and the pulse-mode threshold-crossing case.
 **Real, honest verification: full project suite re-run** (860 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 788. `latch`'s own three real roles tested: SET, CLEAR, TOGGLE. Confirmed the same real, positive pattern `#787` found for accumulator: each role has its own dedicated physical face (`set_dir`/`clear_dir`/`toggle_dir`, matching the tile's own real port contract), making latch IMMUNE to `#770`'s own rank-vs-timing operand-order hazard too -- and confirmed the real, established simultaneous-trigger precedence (CLEAR > SET > TOGGLE) works correctly. (Alan/Claude, 2026-09-17)
+
+**Confirmed directly: the SET role's own result is identical
+regardless of arrival timing** (tested the same "one source far away,
+one adjacent" geometry `#770`/`#786`/`#787` all used, in both
+directions) -- `True` either way, confirming role is decided by WHICH
+FACE an arrival comes from, never by WHICH ONE ARRIVES FIRST. The
+same real, structural reason `accumulator` (`#787`) is immune: `set_
+dir`/`clear_dir`/`toggle_dir` are genuinely separate, dedicated real
+fields, not a shared, competing slot.
+
+**Confirmed directly: the real, established simultaneous-trigger
+precedence (`_deliver_latch()`'s own real `if clear... elif set...
+elif toggle` chain) works correctly under real, same-tick contention.**
+`SET` and `CLEAR` arriving on the exact same real tick -> `CLEAR`
+wins, latch state `False` -- matching the documented precedence
+exactly.
+
+**Real, honest, running pattern across `#787`/`#788`:** two
+consecutive cores now confirmed immune to the operand-order hazard
+that `subtract`, `nano_gate`'s 4 topologies, and `nano_hold_trigger`
+all needed real, careful handling for -- both share the same real,
+structural property (dedicated faces per role, not a shared capture
+slot). This is becoming a real, useful, predictive signal: a core's
+own tile description stating "these are genuinely separate fields"
+(as both `accumulator`'s and `latch`'s already did, in plain English,
+before any test ran) reliably predicts immunity.
+
+**3 new, permanent tests** (`tests/vm/test_latch_roles_v1.py`): basic
+SET/TOGGLE behavior, the order-independence check, and the
+simultaneous CLEAR-beats-SET precedence check.
+
+**Real, honest verification: full project suite re-run** (863 passed,
+1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
+unrelated), confirming zero regression.
+
+**Real, honest remaining scope from Alan's own original checklist:**
+`branch` (flagged as a genuinely different, control-flow problem
+class, not yet started) and `mul` (blocked -- no VM dispatch exists
+at all, confirmed empirically in `#785`'s own surrounding discussion)
+remain the two real, open items.
