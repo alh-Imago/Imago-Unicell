@@ -1,4 +1,61 @@
-# Current State (as of 2026-09-17, formalized LibraryEntry structure built as its own module -- dispatcher now fully delegates opcode selection to it, zero opcode-specific strings remain in placement code. A real assumption checked and correctly reverted along the way. See `points/points_active.md` #793)
+# Current State (as of 2026-09-17, SESSION CLOSE. Full sweep: 873 tests pass, 1 pre-existing skip, 4 pre-existing warnings, clean git status, everything pushed. See `points/points_active.md` #794 for the full session summary)
+
+## Read this first (most recent)
+
+**2026-09-17, SESSION CLOSE (#794).** Ending here on Alan's own
+request -- new chat, new git PAT, tomorrow. Full sweep done first:
+873 tests pass, 1 pre-existing skip (yosys not installed), 4
+pre-existing warnings (unrelated, older tests), git status clean,
+every commit pushed to origin/main.
+
+**This session's real arc:** closed the VM-capable core checklist
+(`branch`, `#789`); built `mul`'s real VM dispatch (`#790`) and wired
+it into the new dispatcher (`#791`); built and formalized the first
+real "opcode library" abstraction (`#792`/`#793`) -- `add`/`sub`/
+`mul`/`and`/`or`/`xor` all real, tested entries, the dispatcher fully
+decoupled from opcode specifics.
+
+**Then, per Alan's own direct request, a full structural audit** of
+the whole `#750`-`#793` compiler/dispatcher/library arc was built
+(`docs/stripped-cell/design-notes/audits/compiler_dispatcher_library_
+audit_750-793.md`). Its own headline finding: `compile_dag()` is a
+correct, well-tested backend with NO real frontend feeding it at all.
+
+**That gap was scoped properly** (`docs/stripped-cell/design-notes/
+compile_dag_frontend_scope.md`): bridged `ProgramIR -> DagInstr`
+translation, source-agnostic symbol resolution, a real program-level
+nexus-segmentation pass (kept distinct from `#761`'s placement-level
+one), two-part opcode escalation (AI, or user+Composer -- with a real,
+confirmed dependency on Composer's still-unbuilt full editor), and
+target-dependent I/O (direct injection for the VM, a genuinely
+different RAM-address mechanism for the card, reviving a real,
+well-designed "ports tab" concept found only in archeology docs today).
+
+**A second scope document was produced** (`docs/stripped-cell/
+design-notes/bounded_canvas_rotation_and_collision_scope.md`) from a
+real, worked example Alan walked through directly: folding a chain
+around a corner on bounded, real silicon is a TIGHTENING-TIME decision
+(extending `#761`'s own still-unwired pass), requires reconfiguring a
+cell's own port orientation (a direct consequence of `#778`'s already-
+proven finding), and belongs entirely in the in-memory cell array
+before ICM/VM ever see it -- confirmed to already be this codebase's
+own established pattern (`_claim_branch_start()`, `#780`), not a new
+technique.
+
+**Real, honest state for whoever opens the next session:** solid and
+trustworthy -- the shape catalog, orientation logic, growing-frontier
+placement, all 8 tested core hazards, the 6-entry library, the
+rats-nest pipeline. Open and named -- no frontend feeds `compile_dag()`
+at all (the single largest gap, and the natural starting point next);
+tightening/STAGGER built but unused; 6 of 8 tested cores have no
+library entry; no hardware-target dimension; BRAM/DSP scoped,
+unstarted; the old-vs-new LLVM IR frontend question unresolved; two
+freshly-scoped fold/reorient documents ready to pick up.
+
+Full detail in `points/points_active.md` #794, and in the three
+documents named above.
+
+## Previous state (as of 2026-09-17, formalized LibraryEntry structure built as its own module -- dispatcher now fully delegates opcode selection to it, zero opcode-specific strings remain in placement code. A real assumption checked and correctly reverted along the way. See `points/points_active.md` #793)
 
 ## Read this first (most recent)
 

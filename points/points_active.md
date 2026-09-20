@@ -13691,3 +13691,119 @@ unbuilt work, per `#792`'s own note.
 **Real, honest verification: full project suite re-run** (873 passed,
 1 skipped -- same pre-existing skip, 4 warnings -- same pre-existing,
 unrelated), confirming zero regression.
+
+## 794. SESSION CLOSE (2026-09-17). Full sweep confirms clean state: 873 tests pass, 1 pre-existing skip (yosys not installed), 4 pre-existing warnings, zero uncommitted or unpushed work. This entry summarizes the whole session's real arc (`#789`-`#793` plus three new design documents) for whoever opens the next session cold. Ending here on Alan's own request -- a new chat, a new git PAT, tomorrow. (Alan/Claude)
+
+**The session's real arc, in order:**
+
+1. **`#789`** — `branch` tested directly, closing every VM-capable core
+   from the original checklist. Confirmed its own genuine control-flow
+   nature (a real routing decision, not just a data value) and that it
+   shares the exact same `#770` rank-vs-timing hazard as `subtract`/
+   `nano_gate` -- already named in the tile's own description before
+   the test ever ran, extending the "tile description predicts hazard"
+   pattern to a third real case.
+2. **`#790`** — `mul` given real VM dispatch, closing the one remaining
+   gap on the checklist (confirmed empirically to have had none at
+   all). A real, genuine mistake made and caught while building the
+   FOLLOW-ON library work (`#793`): an assumption that `nano_gate`
+   needed a two-stage capture shape was checked directly against
+   `CACell.deliver()`'s own real docstring and found wrong; reverted
+   before it shipped.
+3. **`#791`** — `mul` wired into the new dispatcher (`#780`). Surfaced
+   a real, still-open architectural question: the OLD LLVM IR frontend
+   still lacks `mul` entirely, and extending it there is substantial,
+   multi-site work -- left as a genuine, undecided fork, not resolved.
+4. **`#792`/`#793`** — the real, first "library entry" abstraction
+   built, then formalized as its own module (`vix_opcode_library_
+   v1.py`). `and`/`or`/`xor` added via `nano_gate`'s genuinely
+   different port shape; the dispatcher fully decoupled from opcode
+   specifics (confirmed by grep: zero opcode-specific strings remain
+   in the placement code). BRAM/DSP integration and a real hardware-
+   `target` dimension both confirmed to be real, separate, larger work
+   -- scoped as gaps, not attempted.
+
+**Then, per Alan's own direct request, a full structural audit** of
+this entire `#750`-`#793` arc was built and delivered
+(`docs/stripped-cell/design-notes/audits/compiler_dispatcher_library_
+audit_750-793.md`), organized by dependency thread rather than
+chronology. Its own real, honest headline finding: `compile_dag()` is
+a correct, well-tested backend with **no real frontend feeding it at
+all** -- every test this session hand-built its own `DagInstr` input
+directly.
+
+**That audit's own item 7 (build the frontend) was chosen as the real
+starting point for future work**, and its own scope was worked through
+in detail, producing a real, dated scope document
+(`docs/stripped-cell/design-notes/compile_dag_frontend_scope.md`):
+a bridged `ProgramIR -> DagInstr` translator (reusing the existing
+LLVM IR parser rather than rewriting it); a real, source-agnostic,
+multi-pass symbol-resolution stage (declared/undeclared, then set/
+determined -- confirmed to be standard, sound compiler practice, not
+LLVM-IR-specific); a real, second, PROGRAM-level nexus-detection pass,
+deliberately kept terminologically distinct from `#761`'s own
+PLACEMENT-level nexus concept; a real, two-part opcode-escalation
+design (AI research if available, user+Composer if not) with a real,
+confirmed dependency named directly -- the Composer's own full drag-
+and-drop editor is confirmed, in `composer_full_editor_scope.md`
+itself, to still be genuinely unbuilt, so half of that escalation path
+cannot function yet; and a target-dependent I/O design (direct cell
+injection for the VM, reusing `#774`'s own already-proven mechanism;
+a genuinely different, RAM-mapped-address mechanism for the card
+target, mapped onto a real, well-designed "ports tab" concept found to
+exist only in `archeology/shared/docs/` for an earlier, differently-
+packaged iteration of this project -- confirmed directly that the
+current, active workbench has no such concept at all today).
+
+**A second, related design thread emerged from a direct walk-through
+Alan led, producing a second real scope document**
+(`docs/stripped-cell/design-notes/bounded_canvas_rotation_and_
+collision_scope.md`): on a space-constrained real target (the
+incoming Tang Nano 20K), letting a chain fold around a corner rather
+than only growing straight, to make better use of bounded, real
+silicon. Alan's own worked example (a real S/B/N/E diagram) settled
+the design's central open question directly: folding is a real
+TIGHTENING-TIME decision (matching `#761`'s own already-scoped, still-
+unwired pass), never a growth-time one, since a branch cannot know how
+many turns it needs until the whole loose layout is visible. Two
+further, real requirements were added through direct discussion: fold
+also requires reconfiguring a cell's own real port orientation, not
+just relocating it (a direct, newly-confirmed consequence of `#778`'s
+already-proven finding, since `choose_two_way_orientation()` is only
+ever called once, at initial placement); and this whole
+fold-and-reorient step belongs entirely in the in-memory cell array,
+before ICM construction or any VM load -- confirmed to already be the
+established pattern in this exact codebase (`_claim_branch_start()`
+already mutates an already-placed cell's own `core_config` directly,
+mid-construction), not a new technique to introduce. Both scope
+documents are deliberately scoping-only; nothing in either has been
+built.
+
+**Real, honest state of the whole compiler/dispatcher/library thread
+at session close, for whoever reads this next:**
+- Solid, tested, trustworthy: the shape catalog (`#777`), orientation
+  logic (`#778`), the growing-frontier placement mechanism (`#780`),
+  per-core hazard classification for all 8 tested cores (`#781`-
+  `#789`), the library abstraction and its 6 real entries (`#792`/
+  `#793`), and the rats-nest router/tightening/N-way pipeline as
+  standalone, proven code (`#760`-`#767`).
+- Open, named, real, and waiting on a decision or more work: the
+  tightening pass is never invoked by `compile_dag()`; `STAGGER` is
+  built but never actually selected (always falls back to
+  `SEQUENCER`); N-way reduction and non-power-of-2 folding aren't
+  reachable from `compile_dag()`; 6 of 8 tested cores have no library
+  entry at all; there is no hardware-`target` dimension; BRAM/DSP
+  integration is scoped but unstarted; **there is no real frontend
+  feeding `compile_dag()` at all** (the single largest gap); the old
+  LLVM IR frontend still lacks `mul`, and the old-vs-new frontend
+  question is unresolved; and the two newly-scoped items from this
+  session's own second half (fold/reorient mechanism, its dependency
+  on the Composer's still-unbuilt full editor and the archeology ports
+  design) are real, dated, and ready for a future session to pick up
+  in order.
+
+**Test count at close: 873 passed, 1 skipped (pre-existing, unrelated
+-- yosys not installed in this environment), 4 warnings (pre-existing,
+unrelated -- test-return-value style warnings in older DSP/checkpoint
+tests). Git status clean; every commit through this entry is pushed to
+`origin/main`.**
