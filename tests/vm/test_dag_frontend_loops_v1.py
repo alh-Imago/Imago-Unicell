@@ -163,15 +163,15 @@ def test_a_loop_whose_result_is_a_compile_time_constant_is_refused():
     assert "compile-time constant or an argument" in text
 
 
-def test_three_blocks_without_a_loop_are_refused():
-    src = ("define i32 @f(i32 %x) {\nentry:\n  %c = icmp slt i32 %x, 5\n  br i1 %c, label %a, label %b\n"
-           "a:\n  ret i32 %x\nb:\n  ret i32 %x\n}\n")
-    assert "self-looping" in _refused(src)
-
-
-def test_more_than_three_blocks_are_refused():
-    src = ("define i32 @f(i32 %x) {\nentry:\n  br label %a\na:\n  br label %b\nb:\n  br label %c\nc:\n  ret i32 %x\n}\n")
-    assert "basic blocks" in _refused(src)
+def test_a_loop_with_a_branching_body_is_refused():
+    """A cycle whose body contains a branch (4 blocks) is neither the entry/loop/exit shape nor
+    acyclic, so it must be refused precisely -- not unrolled wrongly."""
+    src = ("define i32 @f(i32 %x) {\nentry:\n  br label %loop\nloop:\n"
+           "  %i = phi i32 [ 0, %entry ], [ %inext, %latch ]\n  %c = icmp slt i32 %x, 5\n"
+           "  br i1 %c, label %a, label %latch\na:\n  br label %latch\nlatch:\n"
+           "  %inext = add i32 %i, 1\n  %cond = icmp slt i32 %inext, 3\n"
+           "  br i1 %cond, label %loop, label %exit\nexit:\n  ret i32 %inext\n}\n")
+    assert "a loop in a function of 5 blocks" in _refused(src)
 
 
 def test_auto_placer_keeps_the_smaller_layout():

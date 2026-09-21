@@ -226,11 +226,6 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
     fn = functions[0]
 
     blocks = list(fn.blocks)
-    if len(blocks) not in (1, 3):
-        return None, [_diag("llvm-frontend", what,
-                            f"function has {len(blocks)} basic blocks -- control flow is not supported here",
-                            "supported: ONE straight-line block, or the three-block loop shape "
-                            "entry -> loop -> exit, which is UNROLLED at compile time (#801)")]
 
     # Unnamed values (`%0`, `%3`) get the identifier `v<N>`, uniquified against every
     # real name in the function so the mapping is stable and collision-free.
@@ -261,8 +256,8 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
     if diags:
         return None, diags
 
-    if len(blocks) == 3:
-        return _unroll_loop(fn.name, blocks, label, arguments)
+    if len(blocks) > 1:
+        return _multi_block(fn.name, blocks, label, arguments)
 
     instrs: List[SourceInstr] = []
     result_name: Optional[str] = None
@@ -449,6 +444,10 @@ def _unroll_loop(function_name: str, blocks, label, arguments: List[str]
     data-dependent is emitted as ordinary instructions for the rest of the pipeline."""
     diags: List[CompileDiagnostic] = []
     what = "unrolling a loop"
+    if len(blocks) != 3:
+        return None, [_diag("llvm-frontend", what, f"a loop in a function of {len(blocks)} blocks",
+                            "loops are supported only in the three-block shape entry -> loop -> exit "
+                            "(nested loops and loops with branching bodies are separate, unbuilt work)")]
     per_block = [(b.name, _read_block(b, label, diags)) for b in blocks]
     if diags:
         return None, diags
@@ -572,6 +571,251 @@ def _unroll_loop(function_name: str, blocks, label, arguments: List[str]
                     "return a value that depends on a runtime argument")
     return SourceFunction(function_name=function_name, arguments=arguments, instrs=out,
                           result_name=ret.name), []
+
+
+# ---------------------------------------------------------------------------
+# 1c. Acyclic control flow: IF-CONVERSION (points.md #803).
+# ---------------------------------------------------------------------------
+
+def _successors(items) -> List[str]:
+    t = items[-1] if items else None
+    if t is None:
+        return []
+    if t[0] == "br":
+        return [t[1]]
+    if t[0] == "condbr":
+        return [t[2], t[3]]
+    return []
+
+
+def _multi_block(function_name: str, blocks, label, arguments: List[str]
+                 ) -> Tuple[Optional[SourceFunction], List[CompileDiagnostic]]:
+    diags: List[CompileDiagnostic] = []
+    what = "reading the control-flow graph"
+    per_block = [(b.name, _read_block(b, label, diags)) for b in blocks]
+    if diags:
+        return None, diags
+    names = [n for n, _ in per_block]
+    if any(not n for n in names[1:]) or len(set(names)) != len(names):
+        return None, [_diag("llvm-frontend", what, "a non-entry block has no unique name",
+                            "branch targets are resolved by name", "name every block (e.g. `then:`)")]
+    succ = {n: _successors(it) for n, it in per_block}
+    for n, targets in succ.items():
+        for t in targets:
+            if t not in succ:
+                return None, [_diag("llvm-frontend", what, f"block {n or '<entry>'} branches to unknown block {t!r}", "")]
+    # cycle check (DFS colouring) -- a back edge means a LOOP, which has its own, narrower path
+    state: Dict[str, int] = {}
+
+    def has_cycle(n: str) -> bool:
+        state[n] = 1
+        for t in succ[n]:
+            if state.get(t) == 1 or (t not in state and has_cycle(t)):
+                return True
+        state[n] = 2
+        return False
+
+    if has_cycle(names[0]):
+        return _unroll_loop(function_name, blocks, label, arguments)
+    return _if_convert(function_name, per_block, succ, arguments)
+
+
+def _if_convert(function_name: str, per_block, succ: Dict[str, List[str]], arguments: List[str]
+                ) -> Tuple[Optional[SourceFunction], List[CompileDiagnostic]]:
+    """Acyclic CFG -> straight-line code. Every block's instructions are emitted
+    UNCONDITIONALLY (speculation) -- sound because every supported op is pure: no memory, no
+    division, nothing that can trap. A `phi` becomes a `select` chain over the incoming EDGE
+    conditions; several `ret`s become a select chain over block-execution conditions. The
+    conditions are i1 values built with the i1 logic of #802, computed LAZILY so a plain
+    diamond costs one select and no extra logic."""
+    what = "if-converting the control-flow graph"
+    diags: List[CompileDiagnostic] = []
+    items_of = dict(per_block)
+    entry = per_block[0][0]
+
+    order: List[str] = []
+    seen: Set[str] = set()
+
+    def dfs(n: str) -> None:
+        seen.add(n)
+        for t in succ[n]:
+            if t not in seen:
+                dfs(t)
+        order.append(n)
+    dfs(entry)
+    order.reverse()                                            # reverse post-order: preds before succs
+
+    out: List[SourceInstr] = []
+    env: Dict[str, SourceOperand] = {}
+    used: Set[str] = set(arguments)
+    for _, its in per_block:
+        for it in its:
+            if it[0] == "ins":
+                used.add(it[1].name)
+            elif it[0] == "phi":
+                used.add(it[1])
+    counter = [0]
+
+    def fresh(base: str, tag: str) -> str:
+        while True:
+            counter[0] += 1
+            name = f"{base or 'entry'}__{tag}{counter[0]}"
+            if name not in used:
+                used.add(name)
+                return name
+
+    def lit(v: int) -> SourceOperand:
+        return SourceOperand(kind="literal", value=v)
+
+    def subst(o: SourceOperand) -> SourceOperand:
+        return env[o.name] if o.kind == "name" and o.name in env else o
+
+    # ---- conditions are SYMBOLIC until used, so they can be simplified first ----------------
+    # ("L", 0|1) literal | ("V", name) an i1 value | ("N", c) | ("A", c1, c2) | ("O", c1, c2)
+    def N(c):
+        if c[0] == "L":
+            return ("L", 1 - c[1])
+        return c[1] if c[0] == "N" else ("N", c)
+
+    def A(a, b):
+        if a[0] == "L":
+            return b if a[1] else a
+        if b[0] == "L":
+            return a if b[1] else b
+        if a == b:
+            return a
+        if a == N(b):
+            return ("L", 0)
+        return ("A",) + tuple(sorted((a, b), key=repr))
+
+    def O(a, b):
+        if a[0] == "L":
+            return a if a[1] else b
+        if b[0] == "L":
+            return b if b[1] else a
+        if a == b:
+            return a
+        if a == N(b):
+            return ("L", 1)
+        for p, q in ((a, b), (b, a)):
+            if q[0] == "A" and p in q[1:]:                       # X or (X and Y) = X
+                return p
+            if p[0] == "A" and q[0] == "A":                      # (X and C) or (X and not C) = X
+                for x in p[1:]:
+                    if x in q[1:]:
+                        other_p = p[2] if p[1] == x else p[1]
+                        other_q = q[2] if q[1] == x else q[1]
+                        if other_p == N(other_q):
+                            return x
+        return ("O",) + tuple(sorted((a, b), key=repr))
+
+    memo: Dict[tuple, SourceOperand] = {}
+
+    def emit_op(op, ops, base, tag, ty, name=None):
+        nm = name or fresh(base, tag)
+        out.append(SourceInstr(name=nm, opcode=op, operands=ops, type_name=ty))
+        return SourceOperand(kind="name", name=nm)
+
+    def materialize(c, base):
+        """Emit the gates for a symbolic condition (memoised: a shared sub-condition is built once)."""
+        if c[0] == "L":
+            return lit(c[1])
+        if c[0] == "V":
+            return SourceOperand(kind="name", name=c[1])
+        if c in memo:
+            return memo[c]
+        if c[0] == "N":
+            r = emit_op("xor", [materialize(c[1], base), lit(1)], base, "not", "i1")
+        else:
+            r = emit_op("and" if c[0] == "A" else "or", [materialize(c[1], base), materialize(c[2], base)],
+                        base, "and" if c[0] == "A" else "or", "i1")
+        memo[c] = r
+        return r
+
+    def pick(cond, t, f, base, name=None):
+        """`cond ? t : f` -- folded away when the condition is a literal."""
+        if cond[0] == "L":
+            chosen = t if cond[1] else f
+            if name:
+                env[name] = chosen
+            return chosen
+        return emit_op("select", [materialize(cond, base), t, f], base, "sel", _SUPPORTED_TYPE, name)
+
+    def sym(o: SourceOperand):
+        return ("L", 1 if o.value else 0) if o.kind == "literal" else ("V", o.name)
+
+    edge: Dict[Tuple[str, str], object] = {}        # (pred, succ) -> thunk producing the edge condition
+    bc_memo: Dict[str, tuple] = {}
+    preds: Dict[str, List[str]] = {n: [] for n in order}
+    for n in order:
+        for t in dict.fromkeys(succ[n]):
+            preds[t].append(n)
+
+    def edge_cond(p: str, b: str):
+        return edge[(p, b)]()
+
+    def block_cond(b: str):
+        if b not in bc_memo:
+            if b == entry:
+                bc_memo[b] = ("L", 1)
+            else:
+                acc = edge_cond(preds[b][0], b)
+                for p in preds[b][1:]:
+                    acc = O(acc, edge_cond(p, b))
+                bc_memo[b] = acc
+        return bc_memo[b]
+
+    rets: List[Tuple[str, SourceOperand]] = []
+    for b in order:
+        its = items_of[b]
+        for it in its:
+            kind = it[0]
+            if kind == "phi":
+                if b == entry:
+                    return None, [_diag("llvm-frontend", what, f"phi %{it[1]} in the entry block", "the entry has no predecessors")]
+                pname, incs = it[1], it[2]
+                got = {blk: subst(v) for v, blk in incs}
+                ps = [p for p in preds[b] if p in got]
+                if len(ps) != len(preds[b]) or len(got) != len(ps):
+                    return None, [_diag("llvm-frontend", what, f"phi %{pname} does not match the predecessors of {b}",
+                                        "each incoming block must be a predecessor")]
+                if len(ps) == 1:
+                    env[pname] = got[ps[0]]
+                    continue
+                result = got[ps[-1]]
+                for p in reversed(ps[:-1]):
+                    last = p == ps[0]
+                    result = pick(edge_cond(p, b), got[p], result, b, name=pname if last else None)
+                if len(ps) > 1 and result.kind == "name" and result.name != pname and pname not in env:
+                    env[pname] = result
+            elif kind == "ins":
+                src = it[1]
+                out.append(SourceInstr(name=src.name, opcode=src.opcode, operands=[subst(o) for o in src.operands],
+                                       type_name=src.type_name, predicate=src.predicate, from_type=src.from_type))
+            elif kind == "br":
+                edge[(b, it[1])] = (lambda bb=b: block_cond(bb))
+            elif kind == "condbr":
+                cond, t, f = it[1], it[2], it[3]
+                c = sym(subst(cond))
+                if t == f:
+                    edge[(b, t)] = (lambda bb=b: block_cond(bb))
+                else:
+                    edge[(b, t)] = (lambda bb=b, cc=c: A(block_cond(bb), cc))
+                    edge[(b, f)] = (lambda bb=b, cc=c: A(block_cond(bb), N(cc)))
+            elif kind == "ret":
+                rets.append((b, subst(it[1])))
+    if not rets:
+        return None, [_diag("llvm-frontend", what, "no reachable `ret`", "")]
+    result = rets[-1][1]
+    for b, v in reversed(rets[:-1]):
+        result = pick(block_cond(b), v, result, b, name="ret__sel" if b == rets[0][0] else None)
+    if result.kind != "name" or result.name not in {i.name for i in out}:
+        return None, [_diag("llvm-frontend", what,
+                            "the returned value is a compile-time constant or an argument, not a computed value",
+                            "the result must be a cell the fabric computes")]
+    return SourceFunction(function_name=function_name, arguments=arguments, instrs=out,
+                          result_name=result.name), []
+
 
 
 # ---------------------------------------------------------------------------
@@ -804,6 +1048,33 @@ def _expand(ins: DagInstr, used: Set[str]) -> List[DagInstr]:
         return out
     if op == "select":
         c, t, f = ins.operands
+        if t.kind == "const" and f.kind == "const":
+            # BOTH arms literal (the common `phi [1,..],[2,..]` shape): no mask/complement diamond.
+            #   c ? t : f  =  f xor ((t xor f) and mask),  mask = 0 - c
+            # a 3-op CHAIN (2 when f == 0), which is far easier to place and needs fewer cells.
+            tv, fv = t.value & _MASK32, f.value & _MASK32
+            if (tv, fv) == (1, 0):
+                return [DagInstr(n, "copy", [c])]
+            if (tv, fv) == (0, 1):
+                return [DagInstr(n, "xor", [c, _const(1)])]
+            m = _fresh(n, "mask", used)
+            if fv == 0:
+                return [DagInstr(m, "sub", [_const(0), c]), DagInstr(n, "and", [_ref(m), _const(tv)])]
+            a = _fresh(n, "sel", used)
+            return [DagInstr(m, "sub", [_const(0), c]),
+                    DagInstr(a, "and", [_ref(m), _const(tv ^ fv)]),
+                    DagInstr(n, "xor", [_ref(a), _const(fv)])]
+        if f.kind == "const" and t.kind != "const":
+            # ONE literal arm: a TREE (no sub-value is used twice, so nothing reconverges):
+            #   c ? t : f  =  f xor ((t xor f) and (0 - c))
+            m, x, a = _fresh(n, "mask", used), _fresh(n, "x", used), _fresh(n, "sel", used)
+            return [DagInstr(m, "sub", [_const(0), c]), DagInstr(x, "xor", [t, f]),
+                    DagInstr(a, "and", [_ref(m), _ref(x)]), DagInstr(n, "xor", [_ref(a), f])]
+        if t.kind == "const" and f.kind != "const":
+            #   c ? t : f  =  t xor ((f xor t) and (c - 1)),   and c - 1 is already the COMPLEMENTED mask
+            nm, x, a = _fresh(n, "nmask", used), _fresh(n, "x", used), _fresh(n, "sel", used)
+            return [DagInstr(nm, "sub", [c, _const(1)]), DagInstr(x, "xor", [f, t]),
+                    DagInstr(a, "and", [_ref(nm), _ref(x)]), DagInstr(n, "xor", [_ref(a), t])]
         m, nm = _fresh(n, "mask", used), _fresh(n, "nmask", used)
         at, af = _fresh(n, "t", used), _fresh(n, "f", used)
         return [DagInstr(m, "sub", [_const(0), c]),                 # 0/1 -> 0 / 0xFFFFFFFF

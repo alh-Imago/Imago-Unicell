@@ -265,11 +265,15 @@ def _layout(nodes: List[_Node], spacing: int, fold_width: Optional[int],
 # ---------------------------------------------------------------------------
 
 def _route_edge(e: _Edge, occ: Set[Pos], used: Dict[Pos, Set[str]],
-                bbox: Tuple[int, int, int, int]) -> None:
+                bbox: Tuple[int, int, int, int], ring: Optional[Dict[Pos, Set[int]]] = None) -> None:
     r0, r1, c0, c1 = bbox
+    mine = {id(e.src), id(e.dst)}
 
     def inside(p: Pos) -> bool:
-        return r0 <= p[0] <= r1 and c0 <= p[1] <= c1
+        # Optional keep-out ring (see `_route_all`): a route may only touch a cell next to a
+        # node if that node is one of THIS edge's own endpoints, so it cannot starve the pins
+        # of a node it does not serve.
+        return r0 <= p[0] <= r1 and c0 <= p[1] <= c1 and not (ring and (ring.get(p, set()) - mine))
 
     sources: Dict[Pos, Tuple[Pos, str]] = {}
     for cp, f in e.src.out_pins():
@@ -318,10 +322,24 @@ def _route_edge(e: _Edge, occ: Set[Pos], used: Dict[Pos, Set[str]],
     occ.update(path)
 
 
-def _route_all(nodes: List[_Node], rng: random.Random, shuffle: bool, margin: int) -> None:
+def _route_all(nodes: List[_Node], rng: random.Random, shuffle: bool, margin: int, ring_on: bool = False) -> None:
+    """`ring_on` is an ALTERNATE search mode, not the default. A keep-out ring was first built
+    on a theory, then REMOVED because on simple programs it changed nothing and made layouts
+    equal-or-larger (166 vs 122 cells, points.md #800). It is back only as a fallback attempt,
+    because on dense graphs (a nested if-conversion) the failures are 'no free output or input
+    face' -- pin starvation -- which is exactly what it prevents."""
     occ: Set[Pos] = set()
     for n in nodes:
         occ.update(n.cells())
+    ring: Optional[Dict[Pos, Set[int]]] = None
+    if ring_on:
+        ring = defaultdict(set)
+        for n in nodes:
+            for cp in n.cells():
+                for f in _FACES:
+                    nb = _step(cp, f)
+                    if nb not in occ:
+                        ring[nb].add(id(n))
     used: Dict[Pos, Set[str]] = defaultdict(set)
     rows = [p[0] for n in nodes for p in n.cells()]
     cols = [p[1] for n in nodes for p in n.cells()]
@@ -335,7 +353,7 @@ def _route_all(nodes: List[_Node], rng: random.Random, shuffle: bool, margin: in
     if shuffle:
         rng.shuffle(edges)
     for e in edges:
-        _route_edge(e, occ, used, bbox)
+        _route_edge(e, occ, used, bbox, ring)
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +465,7 @@ def audit_gate_feeders(cells) -> List[str]:
 # ---------------------------------------------------------------------------
 
 def compile_dag_routed(instructions: List[DagInstr], spacing: Optional[int] = None,
-                       fold_width: Optional[int] = None, attempts: int = 12, seed: int = 0,
+                       fold_width: Optional[int] = None, attempts: int = 16, seed: int = 0,
                        margin: int = 16):
     """Same return contract as `compile_dag()`. `spacing=None` TIGHTENS by
     searching for the smallest workable spacing; `fold_width=N` folds the layout
@@ -458,9 +476,9 @@ def compile_dag_routed(instructions: List[DagInstr], spacing: Optional[int] = No
         for attempt in range(attempts):
             rng = random.Random(seed + attempt)
             nodes = _build_graph(instructions)
-            _layout(nodes, S, fold_width, rng, jitter=0 if attempt == 0 else 1 + attempt // 4)
+            _layout(nodes, S, fold_width, rng, jitter=0 if attempt == 0 else 1 + attempt // 8)
             try:
-                _route_all(nodes, rng, shuffle=attempt > 0, margin=margin)
+                _route_all(nodes, rng, shuffle=attempt > 0, margin=margin, ring_on=attempt % 2 == 1)
             except RouteFailure as e:
                 last = e
                 continue

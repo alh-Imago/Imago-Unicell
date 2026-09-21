@@ -215,11 +215,14 @@ def test_numbered_ssa_value_is_resolved_and_never_misread_as_a_literal():
     assert F.run_in_vm(res, {"x": 1}) != 95
 
 
-def test_control_flow_is_refused():
+def test_straight_line_code_across_blocks_is_now_supported():
+    """#803: was REFUSED ('control flow is not supported'). Two blocks joined by an unconditional
+    branch are just straight-line code, handled by if-conversion (see test_dag_frontend_controlflow_v1)."""
     src = ("define i32 @f(i32 %x) {\nentry:\n  br label %next\nnext:\n"
            "  %a = add i32 %x, 1\n  ret i32 %a\n}\n")
-    text, _ = _problems(src)
-    assert "basic blocks" in text
+    res = _compile(src)
+    for x in EDGES:
+        assert F.run_in_vm(res, {"x": x}) == (x + 1) & M, x
 
 
 def test_multiple_functions_refused():

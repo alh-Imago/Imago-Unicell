@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-21, placement rebuilt as a VIRTUAL-SPACE stage with a global router, free endpoint cardinality, tightening by spacing search and folding with per-band orientation flips (#800). The shapes growth placement could not handle now compile and verify. 1006 tests pass. Loops by compile-time unrolling built (#801). See `points/points_active.md` #800-#801)
+# Current State (as of 2026-09-21, i1<->i32 conversions + i1 logic (#802) and acyclic control flow by if-conversion (#803); the nano gate's lack of input gating measured and guarded; loops by unrolling (#801); virtual-space placement (#800). 1037 tests pass. See `points/points_active.md` #800-#803)
+
+## Read this first (most recent)
+
+**2026-09-21, the slice Alan chose ("start there") is done.** (1) **`i1` <-> `i32` (#802):** `zext`/`sext`/`trunc` and i1 `and`/`or`/`xor`/`select`, built from existing ops (zext = one-cell `copy`, sext = `0-c`, trunc = `and x,1`). i8/i16/i64 refused with the reason (they need a real sub-word type system). (2) **if/else via `phi` (#803):** acyclic control flow by IF-CONVERSION -- sound because every supported op is pure; `phi` -> select chain over edge conditions, several `ret`s -> select chain over block conditions; conditions are SYMBOLIC and simplified before any gate is emitted, so a plain diamond costs one select. Handles diamonds, triangles, nested ifs, sequences of diamonds, early returns, chains of blocks.
+
+**Alan's nano question, answered with evidence (#802):** the nano accepts from ANY neighbour (its `cardinal_edge` only classifies consume/relay, it does not gate), so a neighbour that does NOT point at it is harmless (measured: result unchanged) while one that DOES silently corrupts it (12/9/104 became 255/250/155). Audited 37 gates in both placers' layouts: no stray feeder exists. The real risk is a stale face after a fold/reorient, so `audit_gate_feeders()` now runs inside routed lowering and fails loudly.
+
+**Things these forced:** cheaper `select` (literal arms -> copy / xor / 3-op chain; one literal arm -> a tree); the router's jitter schedule measured and fixed (a probe that did not reproduce the real search was the clue); the keep-out ring back as an ALTERNATE search mode only. **A real composition bug:** the loop unroller dropped the new `from_type` field, found only by a zext-inside-a-loop test.
+
+**Known limits, all loud:** a 3-way early return with two computed arms (576 layouts all fail to route -- a real router limit, pinned as a test); loops with branching bodies / nested loops; i8/i16/i64; memory, calls, `switch`, division. VM-verified only -- nothing has been through Quartus or hardware.
+
+**Real queue:** (1) bounded-card fit check driving `fold_width`; (2) sign-aware ordered compare + unsigned predicates; (3) a stronger router (rip-up-and-reroute / long-edge lanes) for dense select chains; (4) sub-word integer types; (5) `switch`, memory, calls; (6) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, placement rebuilt as a VIRTUAL-SPACE stage with a global router, free endpoint cardinality, tightening by spacing search and folding with per-band orientation flips (#800). The shapes growth placement could not handle now compile and verify. 1006 tests pass. Loops by compile-time unrolling built (#801). See `points/points_active.md` #800-#801)
 
 ## Read this first (most recent)
 

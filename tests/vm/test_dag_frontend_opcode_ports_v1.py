@@ -312,11 +312,10 @@ def test_select_with_a_literal_condition_is_refused():
 
 
 _UNPLACEABLE_BY_GROWTH = [
-    # two independently COMPUTED arms
+    # two independently COMPUTED arms. (The chained-clamp shape that used to be listed here became
+    # placeable by growth once `select` with a literal arm was expanded to a cheaper tree, #803 --
+    # a genuine improvement, so it no longer pins growth's limit.)
     _ir("  %a = add i32 %x, 1\n  %b = shl i32 %x, 2\n  %c = icmp eq i32 %x, 5\n  %r = select i1 %c, i32 %a, i32 %b\n  ret i32 %r"),
-    # a chain of selects
-    _ir("  %c1 = icmp slt i32 %x, 10\n  %a = select i1 %c1, i32 10, i32 %x\n  %c2 = icmp sgt i32 %a, 20\n"
-        "  %r = select i1 %c2, i32 20, i32 %a\n  ret i32 %r"),
 ]
 
 
@@ -339,8 +338,7 @@ def test_shapes_growth_cannot_place_compile_and_verify_under_the_default_placer(
     res = _compile(src)
     assert res.placer == "routed"
     for x in (0, 5, 6, 9, 10, 11, 15, 20, 21, 99, M):
-        expect = ((x + 1) if x == 5 else (x << 2)) & M if "shl" in src else min(max(s32(x), 10), 20) & M
-        assert F.run_in_vm(res, {"x": x}) == expect, hex(x)
+        assert F.run_in_vm(res, {"x": x}) == ((x + 1) if x == 5 else (x << 2)) & M, hex(x)
 
 
 # ===========================================================================
@@ -449,3 +447,14 @@ def test_out_field_comes_from_the_tile_registry():
     assert D._out_field("adder") == "downstream_mask"
     with pytest.raises(ValueError):
         D._out_field("branch")            # no single output field -- refuse to guess
+
+
+def test_chained_clamp_is_now_placeable_by_growth_too():
+    """#803: the cheaper `select` forms (literal arms) turned this from unplaceable to placeable."""
+    src = _ir("  %c1 = icmp slt i32 %x, 10\n  %a = select i1 %c1, i32 10, i32 %x\n  %c2 = icmp sgt i32 %a, 20\n"
+              "  %r = select i1 %c2, i32 20, i32 %a\n  ret i32 %r")
+    for placer in ("growth", "routed", "auto"):
+        res, diags = F.compile_llvm_via_dag(src, placer=placer)
+        assert diags == [], (placer, [d.problem for d in diags])
+        for x in (0, 9, 10, 15, 20, 21, 99, M):
+            assert F.run_in_vm(res, {"x": x}) == min(max(s32(x), 10), 20) & M, (placer, hex(x))
