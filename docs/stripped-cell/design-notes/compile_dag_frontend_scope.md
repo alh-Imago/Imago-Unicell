@@ -244,3 +244,17 @@ None of these block *scoping* this frontend today, but items 4 and 5
 in particular are real, separate, larger pieces of prerequisite work
 this frontend's own full design depends on — worth sequencing
 deliberately rather than discovering mid-build.
+
+## Addendum (2026-09-21, `#795`) — item 1's premise checked against the real code, and corrected
+
+*Per this project's own discipline: the note above is left as written; this records what building item 8's proof case actually found.*
+
+**Item 1 proposed bridging `ProgramIR -> DagInstr`. That premise does not hold.** `ProgramIR` is the OLD frontend's own POST-PLACEMENT output: every `PlaceIR` already carries a row/col, names are synthetic (`op_0`, `value_north_0`), `sub x, 3` has already been rewritten into `add x, 0xFFFFFFFD` with the constant moved into `injections`, and dependencies exist only implicitly as column adjacency. Recovering dataflow from that would mean reverse-engineering it out of geometry, and would lose the original `%names` item 7 asks to keep. The real dataflow (names, opcodes, operand order) lives one level up, in llvmlite's own parse.
+
+**What was built instead** (`nano/llvm_dag_frontend_v1.py`): the same reuse of the existing PARSER the note's own intent called for (llvmlite parse+verify), attached at the parsed function rather than at `ProgramIR`. Layered exactly as item 2 describes: one thin LLVM-specific extractor, then a source-agnostic three-pass symbol resolver (`resolve_symbols()`), so a DSL/C/Python frontend needs only its own extractor. The old frontend is untouched.
+
+**Item 3 (program-nexus segmentation) is NOT built.** `compile_dag()` already detects convergence per instruction, and at proof-case scale nothing needed segmenting. Still open, still worth doing before large programs.
+
+**Item 8's proof case passes**, and immediately exposed something the whole `#750`-`#793` arc could not, because every earlier test hand-built its own `DagInstr` input: **`compile_dag()`'s plain-chain path gives a non-commutative op's real+constant operands no operand-order guarantee** (`#770`'s hazard, previously shown only for convergence). Observed: `sub(dynamic,const)` right and `sub(const,dynamic)` wrong; `sub(ref,const)` wrong and `sub(const,ref)` right -- correctness by arrival luck. Worked around soundly in the frontend (`sub %v, C` -> `add %v, -C`, recorded in `rewrites`; `sub C, %v` refused with a diagnostic). The backend itself is NOT fixed; see `#795`.
+
+**One correction to this note's own context:** the old frontend is not limited to straight chains -- its general DAG routing (`#701`/`#713`) already accepts the diamond `t3 = add t1, t2`. The new path's real differences today are that it is library-driven, treats arguments as runtime-determined, and compiles `mul` (which the old frontend rejects, `#791`) -- not that it accepts DAGs the old one cannot.

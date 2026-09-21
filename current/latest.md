@@ -1,4 +1,22 @@
-# Current State (as of 2026-09-17, SESSION CLOSE. Full sweep: 873 tests pass, 1 pre-existing skip, 4 pre-existing warnings, clean git status, everything pushed. See `points/points_active.md` #794 for the full session summary)
+# Current State (as of 2026-09-21, the first real frontend for compile_dag() built and proven end to end -- attached at llvmlite's parse rather than ProgramIR (which is post-placement), and it immediately found a silent-wrong-answer case in the backend's plain-chain path (non-commutative ops have no operand-order guarantee). 903 tests pass. See `points/points_active.md` #795)
+
+## Read this first (most recent)
+
+**2026-09-21, first real frontend for `compile_dag()` (#795).** Picked up `#794`'s own named starting point. Scope item 8's proof case -- real LLVM IR -> symbol resolution -> real `DagInstr` -> the UNCHANGED `compile_dag()` -> the VM -> checked against an independent model -- now passes, in `nano/llvm_dag_frontend_v1.py`.
+
+**Scope item 1's premise was wrong, checked against real code:** `ProgramIR` is the old frontend's POST-placement output (row/col already set, synthetic names, `sub x,3` already rewritten to `add x,0xFFFFFFFD`), so bridging from it means reverse-engineering dataflow out of geometry. Attached at llvmlite's own parse instead -- the same parser reuse the note intended. Layered per item 2: one thin LLVM extractor, then a source-agnostic three-pass `resolve_symbols()`. Arguments are runtime-DETERMINED, so one compile runs for any input. Old frontend untouched; scope note left as written with a dated addendum.
+
+**The proof case failed first, and that was the point.** `sub %a, 3` returned the exact negation of the right answer. Probed all four real/constant orderings of `sub` through `compile_dag()`: the plain-chain path ignores operand ORDER -- whichever of the real/constant operands arrives first becomes the minuend (`#770`'s hazard, previously shown only for convergence). Correct only by arrival luck. Nothing caught it earlier because every prior test hand-built its input. A first guard (refuse only literal-first) was itself wrong -- the probe showed it would have let the failing case through. Replaced by an equivalence-preserving lowering, `sub %v, C` -> `add %v, -C` (what the old frontend does and LLVM canonicalizes to), recorded in `rewrites`; `sub C, %v` is refused with a diagnostic. **The backend itself is NOT fixed** -- that is Alan's call.
+
+**Verified through the real VM** across wrap-around edges: chains, the diamond (fan-out + convergence), two-argument non-commutative convergence in both orders (SEQUENCER selected and applied), one argument feeding two instructions, `add %a, %a`, and `add`/`mul`/`and`/`or`/`xor`. Cross-checked against the old frontend's own model where it accepts the program. The old frontend REJECTS `mul`; the new path compiles it. A planned test claiming the old frontend rejects the diamond was dropped after probing showed it accepts it (`#701`/`#713`).
+
+**A real trap, locked in as a regression test:** llvmlite gives `name == ''` for both a literal and an unnamed temporary (`%0`), and the latter's `str()` ends in a token that can look like an integer -- a last-token parse would silently compile `sub 100, %0` as `sub 100, 5`.
+
+**Honest state:** solid -- the proof case, the six-opcode single-block DAG path, the resolver, 30 new tests (mutation-checked), 903 passing / 1 pre-existing skip / zero regressions. NOT built -- program-nexus segmentation (item 3), opcode escalation (item 4), `icmp`/`select`/shifts, loops/control flow, unnamed temporaries (`%0`, common in real clang output), the I/O work (item 6). Layout is still LOOSE: the tightening pass is never invoked, so 2 instructions compile to 14 cells.
+
+**Real queue, in order:** (a) decide whether to give the backend's plain-chain path a real operand-order guarantee (would let `sub C, %x` compile and retire the rewrite); (b) the old-vs-new frontend question is now concrete -- new has `mul` and dynamic arguments, old has loops/`icmp`/`select`/shifts; (c) port the remaining opcodes one at a time; (d) unnamed temporaries; (e) wire the tightening pass in. Environment note: a fresh sandbox also needs `pip install numpy llvmlite pytest --break-system-packages` before the suite will collect.
+
+## Previous state (as of 2026-09-17, SESSION CLOSE. Full sweep: 873 tests pass, 1 pre-existing skip, 4 pre-existing warnings, clean git status, everything pushed. See `points/points_active.md` #794 for the full session summary)
 
 ## Read this first (most recent)
 
