@@ -340,3 +340,82 @@ def test_the_fit_reports_a_controller_that_is_not_on_a_bram_site():
     lay.controllers[1] = (r, c + 1)          # one COLUMN over: an M20K column is a run of sites, so a row nudge stays on one
     rep = SL._fit(lay, t)
     assert not rep.fits and any("not on a BRAM site" in p for p in rep.problems)
+
+
+# ---- the FEEDBACK channel: three hubs cannot be planar past two chains (points.md #811) --------------------------
+
+def test_three_hubs_each_joined_to_every_chain_are_planar_only_up_to_two_chains():
+    """Alan: if the feedback channel sits in the centre, extra chains cannot reach it -- there is no crossing. That is
+    K(3,n): dispatch, gather and a feedback hub each joined to every chain. Planar for n <= 2, NON-planar from 3.
+    Two hubs (dispatch + gather) stay planar for every n; so does two hubs plus ONE credit-return link G-D."""
+    nx = pytest.importorskip("networkx")
+
+    def planar(n, hubs, extra=()):
+        g = nx.Graph()
+        for i in range(n):
+            for h in hubs:
+                g.add_edge(("chain", i), h)
+        g.add_edges_from(extra)
+        return nx.check_planarity(g)[0]
+    assert [planar(n, "DG") for n in range(1, 8)] == [True] * 7
+    assert [planar(n, "DGF", [("F", "D")]) for n in range(1, 8)] == [True, True] + [False] * 5
+    assert [planar(n, "DG", [("G", "D")]) for n in range(1, 8)] == [True] * 7
+
+
+@pytest.mark.parametrize("feeds", [1, 2])
+def test_per_chain_feedback_routes_for_one_and_two_chains(feeds):
+    lay = SL.place_stream(_chain(), feeds, ports=2, feedback="per_chain")
+    assert lay.feedback == "per_chain" and len(lay.fb_routes) == feeds and all(lay.fb_routes)
+    assert SL.verify_layout(lay) == []
+    assert sum(1 for p in lay.set_pieces if p.kind == "counter") == feeds + 1
+
+
+def test_per_chain_feedback_does_not_route_for_three_or_more_chains_the_planarity_limit():
+    """Measured on the real router: 3, 4, 5 and 6 chains all fail with a per-chain feedback line -- matching the
+    planarity result above. A loud StreamError."""
+    for feeds in (3, 4):
+        with pytest.raises(SL.StreamError, match="could not route"):
+            SL.place_stream(_chain(), feeds, ports=2, feedback="per_chain")
+
+
+@pytest.mark.parametrize("feeds", [1, 2, 3, 5, 6])
+def test_one_credit_return_link_routes_where_per_chain_feedback_cannot(feeds):
+    lay = SL.place_stream(_chain(), feeds, ports=2, feedback="credit_return")
+    assert lay.feedback == "credit_return" and len(lay.fb_routes) == 1 and lay.fb_routes[0]
+    assert SL.verify_layout(lay) == []
+    run = SL.run_placed_stream(lay, [3, 4, 5][: feeds + 1])
+    assert [v for _, _, v in run.outputs] == [(x + 7) & M for x in [3, 4, 5][: feeds + 1]]
+
+
+def test_the_credit_return_link_runs_round_the_outside_of_everything():
+    lay = SL.place_stream(_chain(), 4, ports=2, feedback="credit_return")
+    fb = set(lay.fb_routes[0])
+    others = {(r.row, r.col) for r in lay.records} - fb | {p.pos for p in lay.set_pieces if p.kind != "counter"}
+    assert min(r for r, _ in fb) < min(r for r, _ in others)               # over the top of every other cell
+    assert min(c for _, c in fb) < min(c for _, c in others)               # and down the far (west) side
+    wr = lay.controllers[1]
+    assert (wr[0] - 1, wr[1]) == lay.fb_routes[0][0]                       # leaves the write controller northward
+    ctr = next(p.pos for p in lay.set_pieces if p.kind == "counter")
+    assert abs(lay.fb_routes[0][-1][0] - ctr[0]) + abs(lay.fb_routes[0][-1][1] - ctr[1]) == 1     # ends beside the counter
+
+
+def test_seven_chains_with_a_credit_link_hit_the_routers_density_edge_known_limitation():
+    """Measured: the credit link routes for 1-6 and 8 chains but not 7 or 9. The perimeter path itself is never blocked;
+    the REMAINING routes are already at the router's density edge there, and the link's vertical run tips it over. A
+    router-capacity limit, not a planarity one. FLIP when a denser router routes them."""
+    with pytest.raises(SL.StreamError, match="could not route 7 chains"):
+        SL.place_stream(_chain(), 7, ports=2, feedback="credit_return")
+
+
+def test_feedback_is_placed_for_the_two_port_plan_only_and_the_name_is_validated():
+    with pytest.raises(SL.StreamError, match="two-port plan only"):
+        SL.place_stream(_chain(), 2, ports=1, feedback="credit_return")
+    with pytest.raises(SL.StreamError, match="must be 'none'"):
+        SL.place_stream(_chain(), 2, ports=2, feedback="everywhere")
+
+
+def test_a_pre_routed_net_is_an_obstacle_the_router_does_not_reroute():
+    lay = SL.place_stream(_chain(), 3, ports=2, feedback="credit_return")
+    path = set(lay.fb_routes[0])
+    for route in lay.in_routes + lay.out_routes:
+        assert not path & set(route)                                       # nothing else uses the link's cells

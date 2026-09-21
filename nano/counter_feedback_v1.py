@@ -116,9 +116,17 @@ class Result:
 def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int], *, arbiter: str = "priority",
         gather: str = "priority", feedback: bool = True, ports: int = 2,
         stall_out: Optional[Dict[int, Tuple[int, int]]] = None,
-        stall_in: Optional[Dict[int, Tuple[int, int]]] = None, max_rounds: int = 600) -> Result:
+        stall_in: Optional[Dict[int, Tuple[int, int]]] = None, max_rounds: int = 600,
+        credit_link: Optional[int] = None) -> Result:
     """Run the counter mechanism. `stall_out[c] = (a, b)`: chain c cannot hand its result over in rounds [a, b) (its
-    tail is blocked -- the ack side withheld). `stall_in[c]`: chain c cannot accept an item in that window."""
+    tail is blocked -- the ack side withheld). `stall_in[c]`: chain c cannot accept an item in that window.
+
+    `credit_link=None`: each chain's feedback is its own line and instantaneous (per-chain feedback -- which is NOT
+    routable past 2 chains in 2D, see stream_layout_v1). `credit_link=d`: ONE shared credit-return channel keyed by the
+    gather stamp: a collect's credit reaches the counters `d` rounds later, so the window must cover the return
+    latency or throughput falls. The channel is also SERIAL (one credit per round), but with ONE write per round at
+    most one credit is ever generated per round, so serialisation never binds here (lifting it is an EQUIVALENT
+    mutation, checked): the cost is the DELAY, paid in buffer depth, not a throughput ceiling."""
     if arbiter not in ("scan", "priority") or gather not in ("scan", "priority"):
         raise ValueError("arbiter and gather must be 'scan' or 'priority'")
     if ports not in (1, 2):
@@ -127,6 +135,9 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
     chains = [_Chain(i, cfgs[i], inputs[i]) for i in range(n)]
     total = sum(len(c.items) for c in chains)
     stall_out, stall_in = stall_out or {}, stall_in or {}
+
+    def credit_ok(c: "_Chain") -> bool:
+        return c.sentinel.diff + lag[c.idx] < c.cfg.window
 
     def blocked(table, c, rnd):
         w = table.get(c)
@@ -139,6 +150,8 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
     read_ptr = gather_ptr = 0
     tree_blocked = read_wait = deferred = write_delayed = 0
     history: List[List[int]] = []
+    credit_q: Deque[Tuple[int, int]] = deque()               # (chain, round the credit becomes visible) -- shared link
+    lag = [0] * n                                            # collects whose credit has not yet returned
     max_in_flight = [0] * n
     idle_rounds = 0
     done_count = 0
@@ -154,6 +167,9 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
 
     for rnd in range(max_rounds):
         progressed = False
+        # the shared credit-return channel delivers AT MOST ONE credit per round, once its delay has passed
+        if credit_link is not None and credit_q and credit_q[0][1] <= rnd:
+            lag[credit_q.popleft()[0]] -= 1
         # ---- 1. WRITE side: hand results to BRAM ---------------------------------------------------------------
         wrote = False
         want = [c for c in chains if c.out_q]
@@ -178,6 +194,9 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
                 out_addr += 1
                 grant.collected.append(val)
                 grant.sentinel.step(feed_pulse=False, collect_pulse=True, out_wrap_pulse=False, host_unfreeze_pulse=False)
+                if credit_link is not None:
+                    lag[grant.idx] += 1
+                    credit_q.append((grant.idx, rnd + credit_link))
                 gather_ptr = (grant.idx + 1) % n
                 wrote = True
                 done_count += 1
@@ -199,7 +218,7 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
                 def ok(c: _Chain) -> bool:
                     # FEEDBACK = the sentinel's credit, the leaf buffer's room, AND the chain's READY (its ack side):
                     # a chain that is not accepting must not be asked, or the item would sit in the tree.
-                    return c.remaining and (not feedback or (c.has_credit and c.has_room
+                    return c.remaining and (not feedback or (credit_ok(c) and c.has_room
                                                              and not blocked(stall_in, c.idx, rnd)))
                 if arbiter == "priority":                       # the priority cell: serve whoever is READY
                     for k in range(n):

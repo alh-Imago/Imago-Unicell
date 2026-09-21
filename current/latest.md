@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-21, the COUNTER MECHANISM WITH FEEDBACK modelled (#810): credit-gated counters, backpressure, the priority cell versus a fixed-order scan (grounded on the real VM cell), then the shared single port. 1171 tests pass. See `points/points_active.md` #805-#810)
+# Current State (as of 2026-09-21, the "probably 2 chains" limit EXPLAINED (#811): per-chain counter feedback is a K(3,n) planarity limit, confirmed on the real router; one credit-return link keyed by the gather stamp removes it (1-6 and 8 chains route). 1188 tests pass. See `points/points_active.md` #805-#811)
+
+## Read this first (most recent)
+
+**#811 -- Alan's placement point: with the feedback channel in the centre feeding the RAM address counter, extra chains cannot reach it -- no crossing is available.** That is a PLANARITY theorem: each chain needs a line to the dispatch side, the gather side AND the feedback channel -- three hubs each joined to every chain = K(3,n), planar for n <= 2 only (checked with networkx; two hubs are planar for every n, which is why 9 chains routed in #809). **Confirmed on the real router:** per-chain feedback routes for 1 and 2 chains and fails from 3 (an interior chain's line would have to cross the output routes of the chains between it and the top/bottom). **The way out:** ONE credit-return link from the WRITE controller (which stamps the source chain's ID on every result) back to the counters, keyed by that ID (the #257 counter-as-free-ID idea), routed FIRST round the perimeter: **1-6 and 8 chains route; 7 and 9 do not** (router density edge, not planarity). **Cost (protocol model):** buffer depth to cover the return delay -- window 1: 20 rounds per-chain vs 30 / 45 for delay 2 / 5; window 3 recovers (15/15/17); correctness unaffected; a stalled chain still isolated under priority. Correction to my own claim: the serial channel does NOT cost throughput (one write per round => at most one credit per round), only the delay.
+
+**Honest:** the feedback lines are not functionally modelled on the grid (the credit route ends at a counter set-piece with no consumer); the counter block placement is a modelling choice; the ID -> per-chain-credit decode at the read side is not built; the 3D axis (which would lift the per-chain limit) is not built. Two mistakes caught: a long net negotiation can't route (route it first, round the outside), and my first perimeter path stopped one cell short of the counter.
+
+**Earlier this session:** #805 router; #806 fit units; #807 fixed structures verified vs hardware-proven bytes; #808 bus-width adaptation + 2D tree limit (3/7/13); #809 two-port layout (9 chains, real BRAM sites); #810 counter mechanism with feedback (credit gating, priority cell vs fixed-order scan grounded on the real VM cell).
+
+**Real queue:** (1) place and decode ID -> per-chain credit at the read side; (2) host stall/refill + the empty/full signal; (3) a denser router for 7, 9-13 chains; (4) the shared-port (one bus) case with this feedback; (5) DSP-wrapper lowering + the six DSP ops; (6) wire the VM mirror into the LLVM path and a CLI; (7) store-and-shift; (8) floating point; (9) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, the COUNTER MECHANISM WITH FEEDBACK modelled (#810): credit-gated counters, backpressure, the priority cell versus a fixed-order scan (grounded on the real VM cell), then the shared single port. 1171 tests pass. See `points/points_active.md` #805-#810)
 
 ## Read this first (most recent)
 

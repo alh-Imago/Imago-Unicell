@@ -92,6 +92,9 @@ class StreamLayout:
     #: every BRAM controller position: one for the shared-port plan, TWO (read, write) for the two-port plan
     controllers: List[Pos] = field(default_factory=list)
     ports: int = 1
+    #: the FEEDBACK topology placed ("none" | "per_chain" | "credit_return") and its routes
+    feedback: str = "none"
+    fb_routes: List[List[Pos]] = field(default_factory=list)
 
     def chain_for_dispatch(self, d: int) -> int:
         return self.dispatch_of_chain.index(d)
@@ -156,13 +159,17 @@ def _free_faces(cell_pos: Pos, taken: set, blocked_faces=()) -> List[str]:
 
 
 def place_stream(result, feeds: int, *, bus: Optional[FS.BusSpec] = None, target: Optional[C.CardTarget] = None,
-                 gaps: Tuple[int, ...] = (6, 10), ports: int = 1) -> StreamLayout:
+                 gaps: Tuple[int, ...] = (6, 10), ports: int = 1, feedback: str = "none") -> StreamLayout:
     """Place `feeds` copies of a compiled chain behind a BRAM interface and route them. With a `target`, the BRAM
     controller (and the splitter beside it) is bound to a BRAM site and the whole layout is checked against the
     card's grid and budget."""
     plan = (bus or FS.BusSpec()).plan(feeds)
+    if feedback not in ("none", "per_chain", "credit_return"):
+        raise StreamError("feedback must be 'none', 'per_chain' or 'credit_return'")
     if ports == 2:
-        return _place_two_port(result, feeds, plan, target, gaps)
+        return _place_two_port(result, feeds, plan, target, gaps, feedback)
+    if feedback != "none":
+        raise StreamError("feedback routing is placed for the two-port plan only")
     if ports != 1:
         raise StreamError("ports must be 1 (one shared read/write controller) or 2 (separate read and write controllers)")
     dt = T.embed_tree(feeds, up="s")                # dispatch tree: upstream face toward the splitter (south of it)
@@ -248,8 +255,12 @@ def place_stream(result, feeds: int, *, bus: Optional[FS.BusSpec] = None, target
 
 
 def _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, macro, chains, set_pieces, ctrl,
-           chain_cells, gap, target, gmacro=None, ctrls=None, fixed_shift=None) -> StreamLayout:
+           chain_cells, gap, target, gmacro=None, ctrls=None, fixed_shift=None, fb_edges=None,
+           fb_face_of_chain=None) -> StreamLayout:
     gmacro = gmacro or macro
+    fb_edges = fb_edges or []
+    fb_face_of_chain = fb_face_of_chain or {}
+    fb_paths: List[List[Pos]] = []
     cells: List[vix.HierCell] = []
     in_routes: List[List[Pos]] = []
     out_routes: List[List[Pos]] = []
@@ -265,7 +276,8 @@ def _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, mac
             if here == in_local:
                 cc.core_config["upstream_mask"] = [e_in.dst_face]        # now fed by a route, not injected
             if here == out_local:
-                cc.core_config["downstream_mask"] = [e_out.src_face]     # now drains into a route
+                # now drains into the output route -- and, if a feedback line taps this cell, into that too
+                cc.core_config["downstream_mask"] = [e_out.src_face] + ([fb_face_of_chain[i]] if i in fb_face_of_chain else [])
             cells.append(cc)
         for tag, e, store in (("in", e_in, in_routes), ("out", e_out, out_routes)):
             for k, p in enumerate(e.path):
@@ -274,6 +286,13 @@ def _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, mac
                 cells.append(vtl.place(vtl.TILE_RAM_FLOWING, {"in": d_in, "out": d_out},
                                        cell_id=f"c{i}_{tag}{k}", rel_row=p[0], rel_col=p[1]))
             store.append(list(e.path))
+    for j, (tag, e) in enumerate(fb_edges):
+        for k, p in enumerate(e.path):
+            d_in = _OPP[e.src_face] if k == 0 else _dir(p, e.path[k - 1])
+            d_out = _dir(p, e.path[k + 1]) if k + 1 < len(e.path) else _OPP[e.dst_face]
+            cells.append(vtl.place(vtl.TILE_RAM_FLOWING, {"in": d_in, "out": d_out},
+                                   cell_id=f"{tag}{j}_{k}", rel_row=p[0], rel_col=p[1]))
+        fb_paths.append(list(e.path))
     # translate: origin margin, or onto a BRAM site if a target asks for it
     shift = fixed_shift if fixed_shift is not None else _choose_shift(cells, set_pieces, ctrl, target)
     for c in cells:
@@ -289,6 +308,7 @@ def _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, mac
     lay = StreamLayout(feeds=feeds, bus=plan, dispatch=dt, gather=gt, icm=icm, records=records,
                        set_pieces=set_pieces, controller=_shift(ctrl, shift), in_routes=in_routes,
                        out_routes=out_routes, chain_cells=chain_cells, gap=gap)
+    lay.fb_routes = [[_shift(p, shift) for p in path] for path in fb_paths]
     lay.controllers = [_shift(c, shift) for c in (ctrls or [ctrl])]
     lay.ports = 2 if ctrls and len(ctrls) == 2 else 1
     pos = lay.all_positions()
@@ -467,7 +487,7 @@ def _macro_two_port(dt, gt, feeds):
     return d_cells, d_sp, d_pins, g_cells, g_sp, g_pins
 
 
-def _place_two_port(result, feeds, plan, target, gaps) -> StreamLayout:
+def _place_two_port(result, feeds, plan, target, gaps, feedback="none") -> StreamLayout:
     """Separate read and write controllers -- Alan's 'in and out may be at different positions on the card', and
     `#257`'s own 'two independent regions'. The dispatch tree faces every chain's INPUT and the gather tree faces
     every chain's OUTPUT, with the chains between them, so nothing interleaves (the failure of the shared-port plan).
@@ -513,12 +533,47 @@ def _place_two_port(result, feeds, plan, target, gaps) -> StreamLayout:
             ch.in_edges.append(e_in)
             ch.out_edges.append(e_out)
             gm.in_edges.append(e_out)
+        # ---- the FEEDBACK channel (points.md #811) ------------------------------------------------------------
+        fbm, fb_edges, fb_sp = None, [], []
+        if feedback == "per_chain":
+            # a SHARED feedback channel / counter block west of the read macro; EVERY chain needs its own line to it,
+            # in addition to its dispatch and gather connections: three hubs, each joined to every chain
+            ys = [k - feeds // 2 for k in range(feeds)]
+            fb_cells = [_shift((y, -2), (rrow, 0)) for y in ys] + [_shift((0, -1), (rrow, 0))]
+            pins = [(_shift((y, -2), (rrow, 0)), "w") for y in ys]
+            fbm = _Macro("feedback", fb_cells, pins, [], (rrow, -1))
+            for ch in chains:
+                e = V._Edge(src=ch, dst=fbm, slot=2, src_pins=ch.out_pins(), dst_pins=list(pins))
+                ch.out_edges.append(e)
+                fbm.in_edges.append(e)
+                fb_edges.append(("fb", e))
+            fb_sp = [SetPieceCell("counter", f"ctr{k}", _shift((y, -2), (rrow, 0))) for k, y in enumerate(ys)] + \
+                    [SetPieceCell("counter", "ctr_link", _shift((0, -1), (rrow, 0)))]
+        elif feedback == "credit_return":
+            # ONE link from the write side back to the counters, carrying the ID the gather tree already stamps
+            cnt = _shift((0, -1), (rrow, 0))
+            fbm = _Macro("credit", [cnt], [(cnt, "n"), (cnt, "s"), (cnt, "w")], [], cnt)
+            e = V._Edge(src=gm, dst=fbm, slot=2, src_pins=[((wrow, gc), "n")], dst_pins=[(cnt, "w")])
+            # A single long net that must circle EVERYTHING is a poor fit for negotiation, so it is routed FIRST, round
+            # the outside: up from the write controller, over the top of every node, down the far side to the counter.
+            all_cells = set(dm.cells()) | set(gm.cells()) | {c for ch in chains for c in ch.cells()}
+            top = min(p[0] for p in all_cells) - 3
+            left = min(p[1] for p in all_cells) - 3
+            path = ([(r, gc) for r in range(wrow - 1, top - 1, -1)] + [(top, c) for c in range(gc - 1, left - 1, -1)]
+                    + [(r, left) for r in range(top + 1, cnt[0] + 1)] + [(cnt[0], c) for c in range(left + 1, cnt[1])])
+            if any(p in all_cells for p in path) or len(set(path)) != len(path):
+                return None, "the credit-return link's perimeter route is blocked"
+            e.path, e.src_cell, e.src_face, e.dst_cell, e.dst_face, e.path_fixed = path, (wrow, gc), "n", cnt, "w", True
+            gm.out_edges.append(e)
+            fbm.in_edges.append(e)
+            fb_edges = [("fb", e)]
+            fb_sp = [SetPieceCell("counter", "ctr", cnt)]
         try:
-            V._route_all_pathfinder([dm, gm] + chains, margin=MARGIN, max_iter=ITERS, patience=ITERS)
+            V._route_all_pathfinder([dm, gm] + ([fbm] if fbm else []) + chains, margin=MARGIN, max_iter=ITERS,
+                                    patience=ITERS)
         except V.RouteFailure as e:
             return None, str(e)
-        d_of = [d_pins_abs.index((e.src_cell, e.src_face)) for e in dm.out_edges] if False else None
-        return (dm, gm, chains, offsets, rrow, wrow, gc), None
+        return (dm, gm, chains, offsets, rrow, wrow, gc, fb_edges, fb_sp), None
 
     last_err: Optional[str] = None
     trials: List[Tuple[int, Optional[int], int, Optional[Tuple[Pos, Pos]]]] = []
@@ -547,7 +602,7 @@ def _place_two_port(result, feeds, plan, target, gaps) -> StreamLayout:
         if got is None:
             last_err = err
             continue
-        dm, gm, chains, offsets, rrow, wrow, gcv = got
+        dm, gm, chains, offsets, rrow, wrow, gcv, fb_edges, fb_sp = got
         d_pin_abs = [(_shift(p, (rrow, 0)), f) for p, f in d_pins]
         g_pin_abs = [(_shift(p, (wrow, gcv)), f) for p, f in g_pins]
         d_of = [d_pin_abs.index((e.src_cell, e.src_face)) for e in dm.out_edges]
@@ -556,13 +611,16 @@ def _place_two_port(result, feeds, plan, target, gaps) -> StreamLayout:
             last_err = "two chains were routed to the same leaf pin"
             continue
         sps = [SetPieceCell(sp.kind, sp.cell_id, _shift(sp.pos, (rrow, 0)), sp.up, sp.codes) for sp in d_sp] + \
-              [SetPieceCell(sp.kind, sp.cell_id, _shift(sp.pos, (wrow, gcv)), sp.up, sp.codes) for sp in g_sp]
+              [SetPieceCell(sp.kind, sp.cell_id, _shift(sp.pos, (wrow, gcv)), sp.up, sp.codes) for sp in g_sp] + fb_sp
         fixed = None
         if ab is not None:
             fixed = (ab[0][0] - rrow, ab[0][1] - 0)
         lay = _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, dm, chains, sps,
-                     (rrow, 0), len(block), gap, target, gmacro=gm, ctrls=[(rrow, 0), (wrow, gcv)], fixed_shift=fixed)
+                     (rrow, 0), len(block), gap, target, gmacro=gm, ctrls=[(rrow, 0), (wrow, gcv)], fixed_shift=fixed,
+                     fb_edges=fb_edges,
+                     fb_face_of_chain=({i: e.src_face for i, (_, e) in enumerate(fb_edges)} if feedback == "per_chain" else {}))
         lay.dispatch_of_chain, lay.gather_of_chain = d_of, g_of
+        lay.feedback = feedback
         if target is not None:
             lay.fit = _fit(lay, target)
             geometry = [q for q in lay.fit.problems if "outside" in q or "larger than" in q or "not on a BRAM" in q]

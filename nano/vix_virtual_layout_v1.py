@@ -114,6 +114,9 @@ class _Edge:
     #: must connect leaf pin i to destination i, not to whichever pin is nearest.
     src_pins: Optional[List[Tuple[Pos, str]]] = None
     dst_pins: Optional[List[Tuple[Pos, str]]] = None
+    #: points.md #811: a net routed BEFORE negotiation (e.g. one long link round the whole perimeter). Its path is
+    #: already set; the router treats its cells as obstacles and does not route it again.
+    path_fixed: bool = False
 
 
 @dataclass(eq=False)
@@ -472,12 +475,15 @@ def _route_all_pathfinder(nodes: List[_Node], margin: int, bounds: Optional[Tupl
     node_cells: Set[Pos] = set()
     for n in nodes:
         node_cells.update(n.cells())
+        for fe in n.in_edges:
+            if fe.path_fixed:
+                node_cells.update(fe.path)                 # a pre-routed net is an obstacle
     rows = [p[0] for p in node_cells]
     cols = [p[1] for p in node_cells]
     g_r0, g_r1, g_c0, g_c1 = min(rows) - margin, max(rows) + margin, min(cols) - margin, max(cols) + margin
     if bounds:
         g_r0, g_r1, g_c0, g_c1 = max(g_r0, 0), min(g_r1, bounds[0] - 1), max(g_c0, 0), min(g_c1, bounds[1] - 1)
-    edges = [e for n in nodes for e in n.in_edges]
+    edges = [e for n in nodes for e in n.in_edges if not e.path_fixed]
 
     def length(e: _Edge) -> int:
         a, b = e.src.result_cell(), e.dst.pos

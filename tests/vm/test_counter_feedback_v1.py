@@ -188,3 +188,37 @@ def test_invalid_arguments_are_refused():
         CF.run(cfgs(), INPUTS, F, arbiter="lottery")
     with pytest.raises(ValueError):
         CF.run(cfgs(), INPUTS, F, ports=3)
+
+
+# ---- ONE shared credit-return link instead of a feedback line per chain (points.md #811) -----------------------
+
+def _mk(w, d):
+    return [CF.ChainCfg(window=w, in_depth=d, out_depth=d) for _ in range(2)]
+
+
+def test_a_shared_credit_return_link_is_correct_but_slower_at_a_small_window():
+    per_chain = CF.run(_mk(1, 1), INPUTS, F)
+    shared = CF.run(_mk(1, 1), INPUTS, F, credit_link=2)
+    assert shared.per_chain == per_chain.per_chain == EXPECT and shared.sentinel_errors == []
+    assert shared.rounds > per_chain.rounds                                # credits arrive late and one at a time
+
+
+def test_a_bigger_window_and_buffers_cover_the_return_latency_and_recover_the_throughput():
+    """The COST of the single shared channel is buffer depth, not correctness."""
+    per_chain = CF.run(_mk(3, 3), INPUTS, F)
+    for delay in (2, 5):
+        shared = CF.run(_mk(3, 3), INPUTS, F, credit_link=delay)
+        assert shared.per_chain == EXPECT and shared.rounds <= per_chain.rounds + 2 + delay // 2
+    small = CF.run(_mk(1, 1), INPUTS, F, credit_link=5)
+    assert small.rounds > 2 * per_chain.rounds
+
+
+def test_a_longer_return_route_costs_more_rounds_at_the_same_window():
+    rounds = [CF.run(_mk(1, 1), INPUTS, F, credit_link=d).rounds for d in (0, 2, 5)]
+    assert rounds[0] < rounds[1] < rounds[2]
+
+
+def test_the_shared_link_still_isolates_a_stalled_chain_under_priority():
+    r = CF.run(_mk(2, 2), INPUTS, F, arbiter="priority", stall_out=STALL0, credit_link=3)
+    assert r.finished_round(1) < 45 and r.tree_blocked_rounds == 0 and r.sentinel_errors == []
+    assert r.done and r.per_chain == EXPECT
