@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-21, TWO-PORT placement: separate read and write BRAM controllers with the chains between the trees -- 9 chains place, verify and run on the VM (was 3), each controller on its own real Mustang BRAM site (#809). 1150 tests pass. See `points/points_active.md` #805-#809)
+# Current State (as of 2026-09-21, the COUNTER MECHANISM WITH FEEDBACK modelled (#810): credit-gated counters, backpressure, the priority cell versus a fixed-order scan (grounded on the real VM cell), then the shared single port. 1171 tests pass. See `points/points_active.md` #805-#810)
+
+## Read this first (most recent)
+
+**#810 -- Alan: the counters need feedback; the priority cell is required; start with two ports, then the single port.** `nano/counter_feedback_v1.py`. **Grounded on the REAL VM:** a priority cell serves the live source when the other never offers; a sequencer (fixed order) passes NOTHING -- one stalled part stops everything. **Real v3 RTL:** per-chain counters; the collector scan advances on the ACTIVE chain's ack, and that ack also PACES THE NEXT FEED (the feedback loop). **Model, 2x2 with one chain stalled:** feedback ON + priority = the healthy chain keeps going, tree never blocked, no sentinel errors; ON + scan = the healthy chain STARVES until the stall clears (head-of-line); OFF = requests stall THEMSELVES (tree blocked 62 rounds) and the sentinel latches overflow. Feedback = sentinel credit + buffer room + the chain's READY (the ack side). Single shared port: correct, reads deferred behind writes, 30 rounds vs 20, a stalled chain still isolated under priority. Two model gaps found and fixed while building (deferred read ignored the arbiter; ready/ack was missing from the feedback).
+
+**Honest:** "probably 2 chains" is Alan's estimate and is NOT derived (the model runs any N; what physically fixes it is unknown to me -- needs Alan's reasoning). The queued shared-port read is an EQUIVALENT mutation in this model, so it does not show the queue prevents the RTL's single-cycle-pulse loss. Protocol-level only: not connected to the placed layouts; the counters and the credit side-channel are not placed or routed; host stall/refill and the empty/full signal not modelled.
+
+**Earlier this session:** #805 negotiated-congestion router; #806 fit units = instantiated positions at measured ALM; #807 fixed structures verified against hardware-proven bytes; #808 bus-width adaptation + the 2D tree limit (3/7/13); #809 the TWO-PORT layout (separate read/write controllers; 9 chains place and run on the VM; each controller on its own real Mustang BRAM site).
+
+**Real queue:** (1) work out with Alan what limits the counter mechanism to ~2 chains and whether the credit side-channel costs the faces; (2) place the counters and route the feedback path in `stream_layout_v1`; (3) model host stall/refill + the empty/full signal; (4) a two-chain layout on the real VM with a priority cell at each merge; (5) DSP-wrapper lowering + the six DSP ops; (6) wire the VM mirror into the LLVM path and a CLI; (7) store-and-shift; (8) floating point; (9) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, TWO-PORT placement: separate read and write BRAM controllers with the chains between the trees -- 9 chains place, verify and run on the VM (was 3), each controller on its own real Mustang BRAM site (#809). 1150 tests pass. See `points/points_active.md` #805-#809)
 
 ## Read this first (most recent)
 
