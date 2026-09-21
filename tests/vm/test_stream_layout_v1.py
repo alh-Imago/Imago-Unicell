@@ -337,6 +337,6 @@ def test_the_fit_reports_a_controller_that_is_not_on_a_bram_site():
     lay = SL.place_stream(_chain(), 2, ports=2, target=t)
     assert lay.fit.fits
     r, c = lay.controllers[1]
-    lay.controllers[1] = (r + 1, c)                                     # nudge the write controller off its site
+    lay.controllers[1] = (r, c + 1)          # one COLUMN over: an M20K column is a run of sites, so a row nudge stays on one
     rep = SL._fit(lay, t)
     assert not rep.fits and any("not on a BRAM site" in p for p in rep.problems)
