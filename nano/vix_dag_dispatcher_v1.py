@@ -65,6 +65,10 @@ class DagInstr:
     name: str
     opcode: str
     operands: List[DagOperand] = field(default_factory=list)
+    #: compile-time configuration that is NOT a data operand (points.md
+    #: #797) -- e.g. a shift's `{"amount": K}`. Default-empty, so every
+    #: pre-existing caller is unaffected.
+    params: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -289,6 +293,10 @@ def _grow_plain_chain(instr: DagInstr, resolved: List[dict], occ: Dict[Position,
     current frontier (or starts fresh at a genuinely new, unique real
     origin -- via `leaf_counter` -- if this instruction has no real,
     non-constant operand at all)."""
+    entry = library_lookup(instr.opcode)
+    if entry is not None and entry.arity == 1:
+        return _grow_unary(instr, entry, resolved[0], occ, dynamic_positions, frontiers, taps, leaf_counter)
+
     cells: List = []
     real_op = next((r for r in resolved if r["kind"] != "const"), None)
     const_op = next((r for r in resolved if r["kind"] == "const"), None)
@@ -335,6 +343,45 @@ def _grow_plain_chain(instr: DagInstr, resolved: List[dict], occ: Dict[Position,
     diff = _place_for_opcode(instr.opcode, instr.name, diff_row, diff_col, in_dir, in_b_dir, out_dir)
     cells.append(diff)
     return cells, Frontier(pos=(diff_row, diff_col), out_dir=out_dir)
+
+
+def _grow_unary(instr: DagInstr, entry, op: dict, occ: Dict[Position, str],
+                 dynamic_positions: List[Tuple[str, int, int]], frontiers: Dict[str, Frontier],
+                 taps: Dict[str, _TapPoint], leaf_counter: List[int]) -> Tuple[List, Frontier]:
+    """points.md #797: a ONE-data-operand library entry (a shift). Grows
+    out of the real operand's frontier exactly as the plain chain does, but
+    there is no constant cell and no second port: the compile-time amount
+    lives in the entry's own `addon_config`. Two cells -- the op cell, then
+    a capture cell named `instr.name` (addons apply at offer time, so the
+    transformed value needs a cell to land in; #690). Opcode-agnostic:
+    everything specific comes from the library entry."""
+    cells: List = []
+    if op["kind"] == "ref":
+        start = _claim_branch_start(op["ref_name"], frontiers, taps)
+        pad_cells, grown = _pad(start, occ, f"pad_{instr.name}")
+        cells += pad_cells
+        target_pos = (grown.pos[0] + _DIR_STEP[grown.out_dir][0], grown.pos[1] + _DIR_STEP[grown.out_dir][1])
+        in_dir = _OPP[grown.out_dir]
+    elif op["kind"] == "dynamic":
+        origin = leaf_counter[0] * 100
+        leaf_counter[0] += 1
+        target_pos, in_dir = (origin, 1), "w"
+        cells.append(vix.HierCell(cell_id=f"dynq_{instr.name}", rel_row=origin, rel_col=0, core="ram",
+                                   core_config={"upstream_mask": [], "downstream_mask": ["e"]}))
+        dynamic_positions.append((f"{instr.name}_x", origin, 0))
+    else:
+        raise ValueError(f"{instr.name!r}: a unary op needs a real (ref/dynamic) operand, got {op['kind']!r}")
+
+    out_dir = "e" if in_dir != "e" else "s"
+    op_cell = vtl.place(entry.tile, {"in": in_dir, "out": out_dir}, cell_id=f"{instr.name}_op",
+                         rel_row=target_pos[0], rel_col=target_pos[1],
+                         addon_config=entry.addon_builder(instr.params))
+    dr, dc = _DIR_STEP[out_dir]
+    cap_pos = (target_pos[0] + dr, target_pos[1] + dc)
+    cap = vtl.place(vtl.TILE_RAM_FLOWING, {"in": _OPP[out_dir], "out": out_dir}, cell_id=instr.name,
+                     rel_row=cap_pos[0], rel_col=cap_pos[1])
+    cells += [op_cell, cap]
+    return cells, Frontier(pos=cap_pos, out_dir=out_dir)
 
 
 def _grow_convergence(instr: DagInstr, resolved: List[dict], shape: ConvergenceShape,

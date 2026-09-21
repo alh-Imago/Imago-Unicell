@@ -46,5 +46,5 @@ def test_unknown_opcode_returns_none_not_a_guess():
     """The real, honest escalation signal (#752's own already-scoped
     ladder) -- never a silent guess standing in for a real entry."""
     assert lookup("icmp") is None
-    assert lookup("shl") is None
+    assert lookup("udiv") is None   # #797: was "shl" until it was ported; udiv is not planned
     assert lookup("nonexistent_opcode") is None

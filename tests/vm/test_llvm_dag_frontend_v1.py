@@ -243,8 +243,8 @@ def test_non_i32_instruction_refused():
 
 
 def test_opcode_without_library_entry_names_the_escalation_ladder():
-    text, diags = _problems(_ir("  %a = shl i32 %x, 2\n  ret i32 %a"))
-    assert "no library entry for opcode `shl`" in text
+    text, diags = _problems(_ir("  %a = udiv i32 %x, 2\n  ret i32 %a"))
+    assert "no library entry for opcode `udiv`" in text
     assert any("#752" in (d.why + (d.suggestion or "")) for d in diags)
 
 

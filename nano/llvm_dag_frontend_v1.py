@@ -53,9 +53,9 @@ REAL, DELIBERATE CHOICES (all per the scope note):
     operand order is essential and what guarantees it.
 
 REAL, HONEST SCOPE OF THIS FIRST SLICE: a single function, a single
-basic block (no control flow, no loops), `i32` only, binary opcodes
-that already have a real library entry (`add`/`sub`/`mul`/`and`/`or`/
-`xor`), every SSA value NAMED. Not attempted: opcode escalation (scope
+basic block (no control flow, no loops), `i32` only, opcodes that
+already have a real library entry (`add`/`sub`/`mul`/`and`/`or`/`xor`,
+and from #797 `shl`/`lshr` with a literal amount), every SSA value NAMED. Not attempted: opcode escalation (scope
 item 4 -- an opcode without a library entry is a clear diagnostic, not
 an escalation), I/O beyond direct injection, loops, `icmp`/`select`/
 shifts, unnamed temporaries (`%0`).
@@ -339,6 +339,16 @@ def _lower_for_backend(dag: List[DagInstr]) -> Tuple[List[DagInstr], List[str]]:
     notes: List[str] = []
     for ins in dag:
         kinds = [o.kind for o in ins.operands]
+        entry = library_lookup(ins.opcode)
+        if (entry is not None and entry.arity == 1 and len(ins.operands) == 2
+                and kinds == ["dynamic" if kinds[0] == "dynamic" else "ref", "const"]
+                and 0 <= ins.operands[1].value <= 31):
+            # a shift: the literal amount is compile-time CONFIGURATION, not a data operand (#797)
+            out.append(DagInstr(name=ins.name, opcode=ins.opcode, operands=[ins.operands[0]],
+                                params={"amount": ins.operands[1].value}))
+            notes.append(f"%{ins.name}: {ins.opcode} <value>, {ins.operands[1].value}  ->  "
+                         f"one-operand {ins.opcode} with amount {ins.operands[1].value} in addon config")
+            continue
         if ins.opcode == "sub" and len(ins.operands) == 2 and kinds[0] != "const" and kinds[1] == "const":
             neg = (-ins.operands[1].value) & _MASK32
             out.append(DagInstr(name=ins.name, opcode="add",
@@ -367,7 +377,10 @@ def scan_ordering(source_dag: List[DagInstr], lowered_dag: List[DagInstr]) -> Li
         sensitive = entry is not None and (not entry.is_commutative) and len(src.operands) == 2
         ingestion = ingestion_path(low.opcode, [o.kind for o in low.operands])
         if not sensitive:
+            single = entry is not None and entry.arity == 1
             notes.append(OrderNote(src.name, src.opcode, False, ingestion, "not needed",
+                                   f"`{src.opcode}` has one data operand (its amount is configuration); "
+                                   f"there is no operand order to get wrong" if single else
                                    f"`{src.opcode}` is commutative; either arrival order gives the same result"))
         elif low.opcode != src.opcode:
             notes.append(OrderNote(src.name, src.opcode, True, ingestion, "lowered to commutative",
@@ -398,9 +411,25 @@ def _check_capabilities(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[
         if src.type_name != _SUPPORTED_TYPE:
             diags.append(_diag("dag-lowering", what, f"result type is {src.type_name}, not i32",
                                "the fabric's cells are 32-bit"))
+        if entry.arity == 1:
+            if len(ins.operands) != 1:
+                kinds_ = [o.kind for o in ins.operands]
+                if kinds_ == ["const", "const"]:
+                    why = "both operands are literals (constant folding is not built into this frontend)"
+                elif len(ins.operands) == 2 and kinds_[1] != "const":
+                    why = ("the shift amount is not a compile-time literal -- a variable shift amount would "
+                           "need a barrel shifter, which the shift addon (fixed coarse+fine taps) is not")
+                elif len(ins.operands) == 2 and kinds_[0] == "const":
+                    why = "the shifted value is a literal (constant folding is not built into this frontend)"
+                else:
+                    why = f"the shift amount {ins.operands[1].value} is outside 0-31 (poison in LLVM; the addon covers 0-31)"
+                diags.append(_diag("dag-lowering", what, f"`{ins.opcode}` cannot be lowered: {why}",
+                                   "the shift addon takes its amount as compile-time configuration",
+                                   "use a literal amount in 0-31 on a variable value"))
+            continue
         if len(ins.operands) != 2:
             diags.append(_diag("dag-lowering", what, f"{len(ins.operands)} operands, expected 2",
-                               "every library entry so far is a two-operand core"))
+                               "every two-operand library entry expects exactly 2"))
             continue
         kinds = [o.kind for o in ins.operands]
         if kinds == ["const", "const"]:
@@ -487,6 +516,8 @@ def _read_result(cell, core: str) -> int:
         return cell.mul_out_buffer
     if core == "nano":
         return cell._nano.out_buffer
+    if core == "ram":
+        return cell.ram_data_reg
     raise ValueError(f"no known result field for core {core!r}")
 
 

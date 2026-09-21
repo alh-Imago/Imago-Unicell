@@ -45,7 +45,7 @@ tile_library_v1.py`/`sentinel_bram_automaton_v1.py` infrastructure.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 import vix_tile_library_v1 as vtl
 from vix_convergence_shapes_v1 import ConvergenceShape
@@ -63,8 +63,15 @@ class LibraryEntry:
     target: str
     tile: "vtl.VixTileSpec"
     is_commutative: bool
-    port_style: str  # "named" (adder-style in_a/in_b) or "unconditional" (nano_gate-style)
+    port_style: str  # "named" (adder-style in_a/in_b), "unconditional" (nano_gate-style), or "unary_addon"
     extra_params: dict
+    #: points.md #797: number of DATA operands. Two for every entry so far;
+    #: a shift has ONE -- its amount is compile-time configuration carried
+    #: in `DagInstr.params`, never a second data operand.
+    arity: int = 2
+    #: for `arity == 1` entries: turns `DagInstr.params` into the real
+    #: `addon_config` of the cell that performs the op.
+    addon_builder: Optional[Callable[[dict], dict]] = None
 
     @property
     def timing(self) -> int:
@@ -107,3 +114,37 @@ register(LibraryEntry(target="or", tile=vtl.TILE_NANO_GATE, is_commutative=True,
                        port_style="unconditional", extra_params={"topology": 0x024}))
 register(LibraryEntry(target="xor", tile=vtl.TILE_NANO_GATE, is_commutative=True,
                        port_style="unconditional", extra_params={"topology": 0x0BC}))
+
+
+# ── points.md #797: shifts. ONE data operand; the amount is compile-time
+# configuration. Realized as the old frontend's own proven two-cell shape
+# (#690/#705): a `ram_flowing` cell carrying the shift addon, then a
+# `ram_flowing` capture cell (addons apply at OFFER time, so the shifted
+# value needs a second cell to land in). `is_commutative=True` is vacuous
+# here -- there is no second operand whose order could be wrong. ──
+_COARSE_TAPS = (0, 1, 2, 4, 8, 12, 16, 20, 24, 28)
+
+
+def decompose_shift(amount: int):
+    """Split 0-31 into (coarse tap, fine 0-3): the largest real coarse tap
+    <= amount (shift_lane_addon_v2's own sparse taps), remainder by
+    construction 0-3 (no gap between adjacent taps exceeds 4). Same rule
+    as `llvm_ir_frontend_v1._decompose_shift` (#690), restated here so the
+    new path does not import a private helper from the old frontend."""
+    if not 0 <= amount <= 31:
+        raise ValueError(f"shift amount {amount} outside 0-31")
+    coarse = max(t for t in _COARSE_TAPS if t <= amount)
+    return coarse, amount - coarse
+
+
+def _shift_addon(direction: int) -> Callable[[dict], dict]:
+    def build(params: dict) -> dict:
+        coarse, fine = decompose_shift(params["amount"])
+        return {"shift_en": 1, "direction": direction, "shift_amt": coarse, "shift_fine": fine}
+    return build
+
+
+register(LibraryEntry(target="shl", tile=vtl.TILE_RAM_FLOWING, is_commutative=True,
+                       port_style="unary_addon", extra_params={}, arity=1, addon_builder=_shift_addon(0)))
+register(LibraryEntry(target="lshr", tile=vtl.TILE_RAM_FLOWING, is_commutative=True,
+                       port_style="unary_addon", extra_params={}, arity=1, addon_builder=_shift_addon(1)))
