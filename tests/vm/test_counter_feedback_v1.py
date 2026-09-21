@@ -522,3 +522,62 @@ def test_a_side_that_does_not_actually_want_the_port_is_never_credited_as_a_cand
     weighted = CF.run(cfgs2, inputs2, F, ports=1, port_arbiter=CF.weighted_port_arbiter((1, 1)), max_rounds=100)
     assert weighted.done and weighted.per_chain == [[F(x) for x in inputs2[0]]]
     assert weighted.rounds == write_priority.rounds == 21                   # no rounds wasted on a phantom candidate
+
+
+# ---- decoding the credit-return ID at the read side, for real (points.md #820) -----------------------------------
+
+def _trees(n):
+    import fixed_structures_v1 as FS
+    return FS.build_tree(n)
+
+
+@pytest.mark.parametrize("n", [2, 3, 5, 9])
+def test_encoding_and_decoding_the_credit_stamp_gives_the_same_result_as_the_plain_model(n):
+    tree = _trees(n)
+    cfgs = [CF.ChainCfg(window=2, in_depth=2, out_depth=2) for _ in range(n)]
+    inputs = [[10 * c + i for i in range(6)] for c in range(n)]
+    plain = CF.run(cfgs, inputs, F, credit_link=3, max_rounds=800)
+    encoded = CF.run(cfgs, inputs, F, credit_link=3, credit_trees=(tree, tree), max_rounds=800)
+    expect = [[F(x) for x in row] for row in inputs]
+    assert plain.rounds == encoded.rounds and plain.per_chain == encoded.per_chain == expect
+    assert plain.done and encoded.done and plain.sentinel_errors == encoded.sentinel_errors == []
+
+
+def test_credit_trees_requires_credit_link():
+    tree = _trees(2)
+    with pytest.raises(ValueError, match="credit_link"):
+        CF.run(cfgs(), INPUTS, F, credit_trees=(tree, tree))
+
+
+def test_credit_trees_must_be_sized_for_the_actual_chain_count():
+    tree4 = _trees(4)
+    with pytest.raises(ValueError, match="4 chains but this run has 2"):
+        CF.run(cfgs(), INPUTS, F, credit_link=3, credit_trees=(tree4, tree4))
+
+
+def test_using_two_different_trees_that_number_destinations_differently_still_round_trips_if_they_agree_pairwise():
+    """The dispatch and gather trees need not be the SAME object, only agree on which byte means which chain -- exactly
+    the real system, where the dispatch tree (feeding chains) and the gather tree (collecting from them) are built
+    independently but share the same numbering convention (#807/#811)."""
+    import fixed_structures_v1 as FS
+    t1, t2 = FS.build_tree(5), FS.build_tree(5)                # two SEPARATE tree objects, same topology by construction
+    cfgs5 = [CF.ChainCfg(window=2, in_depth=2, out_depth=2) for _ in range(5)]
+    inputs5 = [[10 * c + i for i in range(4)] for c in range(5)]
+    r = CF.run(cfgs5, inputs5, F, credit_link=2, credit_trees=(t1, t2), max_rounds=400)
+    assert r.done and r.per_chain == [[F(x) for x in row] for row in inputs5] and r.sentinel_errors == []
+
+
+def test_a_wrongly_matched_pair_of_trees_silently_credits_the_wrong_chain_a_real_and_serious_risk():
+    """If the tree used to DECODE doesn't match the one used to ENCODE (different chain-count deployments, wired up
+    inconsistently), the byte is just a byte: there is NO self-checking field that would catch this, so it does NOT
+    raise -- it silently decodes to whichever destination the WRONG tree's shape happens to map that bit pattern to.
+    Demonstrated directly and precisely: a stamp for destination 7 of a real 9-feed tree, decoded against a 5-feed
+    tree, comes back as destination 3 -- a different chain gets the credit meant for another. This is a genuine
+    integration hazard (points.md #820), not a defect in `mux_decode`/`gather_stamp` themselves, which each remain
+    individually correct (#807); it means whatever BUILDS the dispatch and gather trees for one deployment must be
+    the single source of truth for both sides, with no independent cross-check available at the byte level."""
+    import fixed_structures_v1 as FS
+    encode_tree = FS.build_tree(9)
+    decode_tree = FS.build_tree(5)
+    stamp = FS.gather_stamp(encode_tree, 7)
+    assert FS.mux_decode(decode_tree, stamp) == 3                # WRONG destination, and no exception warns of it

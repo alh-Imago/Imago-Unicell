@@ -48,6 +48,7 @@ from typing import Callable, Deque, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import fixed_structures_v1 as FS  # noqa: E402
 from sentinel_bram_automaton_v1 import Sentinel  # noqa: E402
 
 
@@ -151,7 +152,8 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
         credit_link: Optional[int] = None, bram_latency=0, advance: str = "ack", outstanding: int = 1,
         fixed_period: int = 1, addresses: Optional[List[List[int]]] = None, bram: Optional[Dict[int, int]] = None,
         addr_source: str = "counter", release: Optional[str] = None,
-        port_arbiter: Optional[Callable[[bool, bool], Optional[str]]] = None) -> Result:
+        port_arbiter: Optional[Callable[[bool, bool], Optional[str]]] = None,
+        credit_trees: Optional[Tuple[object, object]] = None) -> Result:
     """Run the counter mechanism. `stall_out[c] = (a, b)`: chain c cannot hand its result over in rounds [a, b) (its
     tail is blocked -- the ack side withheld). `stall_in[c]`: chain c cannot accept an item in that window.
 
@@ -185,7 +187,16 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
     decision with any `f(read_wants: bool, write_wants: bool) -> "read"|"write"|None` callable -- for instance
     `weighted_port_arbiter()`, a real weighted-round-robin priority cell (`#814`), which keeps BOTH ends moving at
     the rate of the RAM instead of starving reads whenever writes saturate. `None` (the default) reproduces the
-    original write-priority behaviour EXACTLY -- `write_wants` alone decides, with no read peek computed at all."""
+    original write-priority behaviour EXACTLY -- `write_wants` alone decides, with no read peek computed at all.
+
+    `credit_trees=(dispatch_tree, gather_tree)` -- `fixed_structures_v1.DistributionTree` objects, e.g. from
+    `FS.build_tree(n)` -- (points.md #820): close the gap between this ABSTRACT credit model
+    and the real, hardware-verified byte encode/decode `#811`'s placed credit-return link actually carries. With
+    `credit_link` set, instead of the queue silently carrying the chain index, a credit is ENCODED with
+    `fixed_structures_v1.gather_stamp(gather_tree, chain_idx)` when it is generated and DECODED with
+    `fixed_structures_v1.mux_decode(dispatch_tree, stamp)` when it becomes visible -- the actual byte a real
+    dispatch-tree decoder would produce, round-tripped through the SAME functions verified against hardware-proven
+    routing bytes (`#807`). `None` (the default) keeps the chain index as a plain integer, exactly as before."""
     if arbiter not in ("scan", "priority") or gather not in ("scan", "priority"):
         raise ValueError("arbiter and gather must be 'scan' or 'priority'")
     if ports not in (1, 2):
@@ -286,7 +297,12 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
     issue_log: List[Tuple[int, int, int]] = []
     deliver_log: List[Tuple[int, int, int]] = []
     history: List[List[int]] = []
-    credit_q: Deque[Tuple[int, int]] = deque()               # (chain, round the credit becomes visible) -- shared link
+    if credit_trees is not None and credit_link is None:
+        raise ValueError("credit_trees needs credit_link set -- it describes what rides the credit-return channel, "
+                         "not a channel by itself")
+    if credit_trees is not None and n != credit_trees[0].n:
+        raise ValueError(f"credit_trees are sized for {credit_trees[0].n} chains but this run has {n}")
+    credit_q: Deque[Tuple[int, int]] = deque()               # (payload, round the credit becomes visible) -- shared link
     lag = [0] * n                                            # collects whose credit has not yet returned
     max_in_flight = [0] * n
     idle_rounds = 0
@@ -305,7 +321,11 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
         progressed = False
         # the shared credit-return channel delivers AT MOST ONE credit per round, once its delay has passed
         if credit_link is not None and credit_q and credit_q[0][1] <= rnd:
-            lag[credit_q.popleft()[0]] -= 1
+            payload, _ = credit_q.popleft()
+            if credit_trees is not None:
+                dispatch_tree, _ = credit_trees
+                payload = FS.mux_decode(dispatch_tree, payload)     # the REAL decode: recover the chain from the byte
+            lag[payload] -= 1
         # ---- 1. WRITE side: hand results to BRAM ---------------------------------------------------------------
         wrote = False
         grant = peek_write_grant(rnd)
@@ -328,7 +348,11 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
                 grant.sentinel.step(feed_pulse=False, collect_pulse=True, out_wrap_pulse=False, host_unfreeze_pulse=False)
                 if credit_link is not None:
                     lag[grant.idx] += 1
-                    credit_q.append((grant.idx, rnd + credit_link))
+                    payload = grant.idx
+                    if credit_trees is not None:
+                        _, gather_tree = credit_trees
+                        payload = FS.gather_stamp(gather_tree, grant.idx)   # the REAL stamp a gather tree would write
+                    credit_q.append((payload, rnd + credit_link))
                 gather_ptr = (grant.idx + 1) % n
                 wrote = True
                 done_count += 1

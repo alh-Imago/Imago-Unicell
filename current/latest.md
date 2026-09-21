@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-21, a priority-cell SET-PIECE placed at the shared controller (#819), giving #818's abstract weighted arbitration a real position, default layout unchanged. 1319 tests pass. See `points/points_active.md` #805-#819)
+# Current State (as of 2026-09-21, the credit-return ID now DECODED for real (#820) -- the abstract counter model uses the same hardware-verified gather_stamp/mux_decode the placed layout uses, not a bare chain index. 1327 tests pass. See `points/points_active.md` #805-#820)
+
+## Read this first (most recent)
+
+**#820 -- closing the gap between the abstract credit model and the real byte format.** `#811` placed a real, stamped credit-return link ending at a counter with 'no consumer'; `#812`/`#813`'s `counter_feedback_v1.run(credit_link=...)` separately modelled the credit's TIMING but stored the chain index directly, never actually decoding a byte. `credit_trees=(dispatch_tree, gather_tree)` fixes this: encode with `FS.gather_stamp`, decode with `FS.mux_decode` -- the SAME functions verified against hardware-proven bytes (#807). Default (`credit_trees=None`) is provably unchanged (57 pre-existing tests untouched); with real trees, results match the plain model exactly for 2, 3, 5, 9 chains.
+
+**A real hazard found by testing, not assumed:** decoding against a MISMATCHED tree (built for a different chain count) does NOT raise -- it silently decodes to the WRONG destination (demonstrated precisely: a 9-tree's destination 7 decodes as a 5-tree's destination 3). Neither function is at fault; it's a genuine integration risk -- whatever builds both trees for one deployment must be the single source of truth, since the byte has no self-checking field. My own first test assumption (that it would raise) was wrong and corrected.
+
+**Honest:** still not connected to `stream_layout_v1`'s placed link (its counter set-piece still has no consumer logic); 'the read side' here is the counter's LOGICAL bookkeeping (`lag[]`), not a physical fan-out (which would reintroduce #811's planarity problem).
+
+**Working top-down through the real queue while Alan drives (#816-#820):** DSP chains placed on real sites; chain exclusivity tied into the DSP monitor; a weighted priority cell built and then physically placed at the shared controller; the credit ID now genuinely decoded. Recurring lesson across all five: exact-count/precise-value assertions checked against the actual mutation (or, this time, against the actual wrong-tree output) are what catch real gaps -- 'still correct, still completes' is not enough.
+
+**Earlier this session:** #805-#815 (router; fit units; fixed structures; bus width + 2D tree limit; two-port layout; counter feedback; the ~2-chain planarity limit + credit-return link; BRAM read latency; no fixed latency + ack pipeline; priority cell measured on the real VM + DSP black box; Arria 10 DSP chain topology, kept loose per Alan's request).
+
+**Real queue:** (1) host stall/refill + the empty/full signal -- NEXT; (2) DSP-wrapper lowering (needs a bridge tile, flagged missing at #816); (3) VM mirror into the LLVM path and a CLI; (4) store-and-shift; (5) floating point; (6) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, a priority-cell SET-PIECE placed at the shared controller (#819), giving #818's abstract weighted arbitration a real position, default layout unchanged. 1319 tests pass. See `points/points_active.md` #805-#819)
 
 ## Read this first (most recent)
 
