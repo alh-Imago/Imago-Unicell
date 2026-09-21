@@ -311,24 +311,36 @@ def test_select_with_a_literal_condition_is_refused():
     assert _refused(_ir("  %r = select i1 true, i32 1, i32 2\n  ret i32 %r"))
 
 
-@pytest.mark.parametrize("src", [
+_UNPLACEABLE_BY_GROWTH = [
     # two independently COMPUTED arms
     _ir("  %a = add i32 %x, 1\n  %b = shl i32 %x, 2\n  %c = icmp eq i32 %x, 5\n  %r = select i1 %c, i32 %a, i32 %b\n  ret i32 %r"),
     # a chain of selects
     _ir("  %c1 = icmp slt i32 %x, 10\n  %a = select i1 %c1, i32 10, i32 %x\n  %c2 = icmp sgt i32 %a, 20\n"
         "  %r = select i1 %c2, i32 20, i32 %a\n  ret i32 %r"),
-])
-def test_placement_limit_is_a_loud_precise_refusal_never_a_raw_exception_known_limitation(src):
-    """points.md #798 -- a documented NEGATIVE result. The dispatcher's
-    growing-frontier placement has no global occupancy planning: when two
-    independently-computed values must merge (a `select` with two computed
-    arms, or a chain of selects) their routes can cross other structure and
-    `flatten()` rejects the collision. The frontend must turn that into a
-    `place`-stage diagnostic -- never a raw exception, never a wrong answer.
-    If occupancy-aware placement is built, FLIP these to compile-and-verify."""
-    res, diags = F.compile_llvm_via_dag(src)
+]
+
+
+@pytest.mark.parametrize("src", _UNPLACEABLE_BY_GROWTH)
+def test_growth_placer_limit_is_still_a_loud_precise_refusal_known_limitation(src):
+    """points.md #798, kept on purpose. The GROWTH placer (`vix_dag_dispatcher_v1`) has no
+    global occupancy planning: when two independently-computed values must merge, its routes
+    can cross other structure and `flatten()` rejects the collision. Forced onto that placer
+    the frontend must still give a `place`-stage diagnostic -- never a raw exception, never a
+    wrong answer. (The ROUTED placer, #800, does place these -- see test_virtual_layout_v1.py.)"""
+    res, diags = F.compile_llvm_via_dag(src, placer="growth")
     assert res is None
     assert diags and diags[0].stage == "place" and "collision" in diags[0].problem
+
+
+@pytest.mark.parametrize("src", _UNPLACEABLE_BY_GROWTH)
+def test_shapes_growth_cannot_place_compile_and_verify_under_the_default_placer(src):
+    """#800: FLIPPED from #798's negative result, as its own docstring instructed. The default
+    ('auto') tries growth first and falls back to the virtual-space router."""
+    res = _compile(src)
+    assert res.placer == "routed"
+    for x in (0, 5, 6, 9, 10, 11, 15, 20, 21, 99, M):
+        expect = ((x + 1) if x == 5 else (x << 2)) & M if "shl" in src else min(max(s32(x), 10), 20) & M
+        assert F.run_in_vm(res, {"x": x}) == expect, hex(x)
 
 
 # ===========================================================================

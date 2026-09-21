@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-21, backend operand-order guarantee + scan pass (#796); shl/lshr (#797); icmp/select/ashr ported by composing library ops (#798). Placement limit and ordered-icmp overflow bound documented and surfaced, not hidden. 971 tests pass. See `points/points_active.md` #796-#799)
+# Current State (as of 2026-09-21, placement rebuilt as a VIRTUAL-SPACE stage with a global router, free endpoint cardinality, tightening by spacing search and folding with per-band orientation flips (#800). The shapes growth placement could not handle now compile and verify. 989 tests pass. Loops: option (b), compile-time unrolling, decided -- next. See `points/points_active.md` #800)
+
+## Read this first (most recent)
+
+**2026-09-21, #800 -- placement per Alan's design.** The design sits in a virtual space and is lowered to cells only at the end; the router chooses the face at both ends of every route, so cardinality is a RESULT of routing; a bounded card needs a FOLD, which re-chooses the cardinal outs; tightening then shrinks it. Built as a new module, `nano/vix_virtual_layout_v1.py` (growth dispatcher untouched): layered layout -> multi-source/multi-target BFS over the whole occupancy map -> spacing search -> lower. `placer="auto"` (default) tries growth first and falls back to routed; `fold_width=` / `spacing=` force routed.
+
+**Why it works where `#798`'s router did not:** that one ran during growth with faces already fixed; this runs after placement with everything visible. The decisive fix was the LAYOUT, found by rendering it: leaves placed west-and-below their consumer made long stubs that walled the design into strips (scale-invariant failure); leaves now sit north/south of their consumer, ops on a slot pitch of 3.
+
+**Verified:** `select` with two computed arms, chained selects, computed arms + condition; the entire ~100-program frontend corpus re-run under the routed placer (all pass); diamond 42 -> 25 cells. Folding: shapes flip east/west on alternate bands, results stay correct; chain/diamond fold to 2 columns per band, the branching select needs >= 4. **A keep-out ring was built, measured, and REMOVED** (no benefit, layouts larger, hazard reasoning wrong) -- recorded so it is not re-added.
+
+**Limits, all loud:** no crossover cell so non-planar programs cannot route; <= 3 consumers per value on the router; narrow folds of branching designs refuse. Not built: a true post-pass fold over an already-built cell array (folding is at layout time -- equivalent expressiveness, different from Alan's wording); a card-fit check that computes the needed `fold_width`; incremental compaction.
+
+**Real queue:** (1) loops by compile-time UNROLLING (decided by Alan, option b); (2) bounded-card fit check driving `fold_width`; (3) sign-aware ordered compare + unsigned predicates (now placeable); (4) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, backend operand-order guarantee + scan pass (#796); shl/lshr (#797); icmp/select/ashr ported by composing library ops (#798). Placement limit and ordered-icmp overflow bound documented and surfaced, not hidden. 971 tests pass. See `points/points_active.md` #796-#799)
 
 ## Read this first (most recent)
 

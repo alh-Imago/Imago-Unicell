@@ -75,6 +75,7 @@ import llvmlite.binding as llvm  # noqa: E402
 from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from icm_vix_v1 import IcmVixFormatError  # noqa: E402
 from vix_dag_dispatcher_v1 import compile_dag, ingestion_path, DagInstr, DagOperand  # noqa: E402
+from vix_virtual_layout_v1 import compile_dag_routed  # noqa: E402
 from vix_opcode_library_v1 import lookup as library_lookup  # noqa: E402
 
 _MASK32 = 0xFFFFFFFF
@@ -163,6 +164,8 @@ class DagFrontendResult:
     #: known, PRECISELY-BOUNDED inexactness in a compiled program -- surfaced,
     #: never silent (points.md #798).
     caveats: List[str] = field(default_factory=list)
+    #: which placer produced the layout: "growth" (#780) or "routed" (#800).
+    placer: str = "growth"
 
 
 def _diag(stage: str, what: str, problem: str, why: str,
@@ -631,7 +634,33 @@ def _arg_labels(dag: List[DagInstr], arg_uses: Dict[str, List[Tuple[str, int]]])
     return out
 
 
-def compile_llvm_via_dag(source: str) -> Tuple[Optional[DagFrontendResult], List[CompileDiagnostic]]:
+DEFAULT_PLACER = os.environ.get("IMAGO_PLACER", "auto")
+
+
+def _place(final: List[DagInstr], placer: str, fold_width: Optional[int] = None,
+           spacing: Optional[int] = None):
+    """`growth` = the proven growing-frontier dispatcher; `routed` = the
+    virtual-space layout + global router (#800); `auto` = growth first (proven,
+    compact for what it handles), routed only if growth cannot place the shape."""
+    if placer == "growth":
+        return compile_dag(final), "growth"
+    if placer == "routed" or (placer == "auto" and (fold_width or spacing)):
+        # a fold or an explicit spacing is a request only the virtual-space placer can honour
+        return compile_dag_routed(final, spacing=spacing, fold_width=fold_width), "routed"
+    if placer != "auto":
+        raise ValueError(f"unknown placer {placer!r}")
+    try:
+        result = compile_dag(final)
+        result[0].check_connections()
+        return result, "growth"
+    except (IcmVixFormatError, ValueError):
+        return compile_dag_routed(final), "routed"
+
+
+def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: Optional[int] = None,
+                         spacing: Optional[int] = None
+                         ) -> Tuple[Optional[DagFrontendResult], List[CompileDiagnostic]]:
+    placer = placer or DEFAULT_PLACER
     fn, diags = extract_llvm_function(source)
     if fn is None:
         return None, diags
@@ -659,7 +688,7 @@ def compile_llvm_via_dag(source: str) -> Tuple[Optional[DagFrontendResult], List
                for i in resolved.dag if i.opcode == "icmp" and i.params.get("predicate") in _ICMP_ORDERED]
 
     try:
-        icm, positions, dynamic_positions, seq_orders = compile_dag(final)
+        (icm, positions, dynamic_positions, seq_orders), used_placer = _place(final, placer, fold_width, spacing)
         problems = icm.check_connections()
     except (IcmVixFormatError, ValueError) as e:
         # A LOUD, PRECISE refusal -- never a raw exception, never a silent miscompile. The
@@ -667,12 +696,11 @@ def compile_llvm_via_dag(source: str) -> Tuple[Optional[DagFrontendResult], List
         # independently-computed chains that must merge are routed straight-then-turn and can
         # cross other structure; `flatten()` rejects that collision (points.md #798).
         return None, [_diag("place", "placing the compiled DAG", str(e),
-                            "the dispatcher's growing-frontier placement has no global occupancy planning "
-                            "yet, so it cannot route every shape -- typically two independently-computed "
-                            "values that must be merged (e.g. a `select` whose BOTH arms are computed), "
-                            "or a chain of `select`s",
-                            "restructure so at most one merge input is an independent computed chain; "
-                            "occupancy-aware placement / tightening is separate, named work")]
+                            f"placer {placer!r} could not lay this design out. The growth placer has no "
+                            "global occupancy planning; the routed placer needs a crossing-free embedding "
+                            "(a non-planar program cannot be routed on a plane with no crossover cell) and "
+                            "at most 3 consumers per value",
+                            "restructure the program, or fold/space it differently")]
     if problems:
         return None, [_diag("emit", "checking compiled connections", str(p),
                             "the dispatcher produced an inconsistent layout") for p in problems]
@@ -704,7 +732,7 @@ def compile_llvm_via_dag(source: str) -> Tuple[Optional[DagFrontendResult], List
                              positions=positions, seq_orders=seq_orders, arg_injections=arg_injections,
                              result_name=fn.result_name, result_cell=result_cell,
                              result_core=core_at[result_cell], rewrites=rewrites, ordering=ordering,
-                             caveats=caveats), []
+                             caveats=caveats, placer=used_placer), []
 
 
 def _read_result(cell, core: str) -> int:
@@ -721,7 +749,7 @@ def _read_result(cell, core: str) -> int:
     raise ValueError(f"no known result field for core {core!r}")
 
 
-def run_in_vm(result: DagFrontendResult, arg_values: Dict[str, int], ticks: int = 600) -> int:
+def run_in_vm(result: DagFrontendResult, arg_values: Dict[str, int], ticks: Optional[int] = None) -> int:
     """Build a fresh real grid, inject each argument at EVERY site that
     reads it, apply any SEQUENCER orders (the caller-side step
     `compile_dag()`'s own docstring requires), tick, and read the result
@@ -729,6 +757,8 @@ def run_in_vm(result: DagFrontendResult, arg_values: Dict[str, int], ticks: int 
     any input."""
     from unicell_super_automaton_v1 import SuperGrid
 
+    if ticks is None:
+        ticks = max(600, 6 * len(result.records))     # routed layouts are longer than growth layouts
     missing = set(result.arg_injections) - set(arg_values)
     if missing:
         raise ValueError(f"no value supplied for argument(s): {sorted(missing)}")
