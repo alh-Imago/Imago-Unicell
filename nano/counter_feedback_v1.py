@@ -51,6 +51,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sentinel_bram_automaton_v1 import Sentinel  # noqa: E402
 
 
+def default_release(ports: int, resource: str = "bram") -> str:
+    """Alan's rule (2026-09-21): BRAM on TWO buses releases the next address on the feed-IN ack; BRAM on ONE bus on the
+    feed-OUT ack; DSP on the feed-OUT ack. Mapped here onto 'delivered' (feed in) and 'result_out' (feed out) -- my
+    reading of his words, NOT yet confirmed by him."""
+    if resource == "dsp":
+        return "result_out"
+    if resource != "bram" or ports not in (1, 2):
+        raise ValueError("resource must be 'bram' or 'dsp'; ports 1 or 2")
+    return "delivered" if ports == 2 else "result_out"
+
+
 @dataclass
 class ChainCfg:
     latency: int = 2         # rounds an item spends inside the chain
@@ -121,9 +132,9 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
         gather: str = "priority", feedback: bool = True, ports: int = 2,
         stall_out: Optional[Dict[int, Tuple[int, int]]] = None,
         stall_in: Optional[Dict[int, Tuple[int, int]]] = None, max_rounds: int = 600,
-        credit_link: Optional[int] = None, bram_latency: int = 0, advance: str = "ack", outstanding: int = 1,
+        credit_link: Optional[int] = None, bram_latency=0, advance: str = "ack", outstanding: int = 1,
         fixed_period: int = 1, addresses: Optional[List[List[int]]] = None, bram: Optional[Dict[int, int]] = None,
-        addr_source: str = "counter") -> Result:
+        addr_source: str = "counter", release: Optional[str] = None) -> Result:
     """Run the counter mechanism. `stall_out[c] = (a, b)`: chain c cannot hand its result over in rounds [a, b) (its
     tail is blocked -- the ack side withheld). `stall_in[c]`: chain c cannot accept an item in that window.
 
@@ -141,15 +152,42 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
     ack (#256), never a cycle count. `advance="fixed"`: a counter that ASSUMES the latency and pulses a command every
     `fixed_period` rounds regardless; a command arriving while the interface is busy is LOST (the single-cycle
     pulse hazard) and the counter has already moved on, so the item is a hole. `addr_source="counter"` supplies
-    sequential addresses; `"ram"` a stored, arbitrary sequence (`addresses`, read from `bram`); both use the SAME control."""
+    sequential addresses; `"ram"` a stored, arbitrary sequence (`addresses`, read from `bram`); both use the SAME control.
+
+    NO FIXED LATENCY (points.md #813). `bram_latency` may be an int, a SEQUENCE (one entry per read, cycled) or a
+    callable `(chain, seq) -> rounds`: the latency is per read, and the interface returns data IN ORDER (it never
+    reorders), so a short read behind a long one waits. The ack-driven control never sees the number.
+
+    `release` names WHAT releases the next address: "delivered" = the previous data has been delivered INTO the chain
+    (local to the read side; needs no path back from the chains) and "result_out" = the previous RESULT has left the
+    chain (needs the return path). It overrides `feedback`: delivered -> feedback off, result_out -> feedback on.
+    `default_release(ports, resource)` is Alan's rule (2026-09-21): BRAM on two buses -> feed in, on one bus -> feed
+    out, DSP -> feed out -- MAPPED onto those two events by my reading of his words, which he has not confirmed."""
     if arbiter not in ("scan", "priority") or gather not in ("scan", "priority"):
         raise ValueError("arbiter and gather must be 'scan' or 'priority'")
     if ports not in (1, 2):
         raise ValueError("ports must be 1 (shared, write priority) or 2")
     if advance not in ("ack", "fixed") or addr_source not in ("counter", "ram"):
         raise ValueError("advance must be 'ack' or 'fixed'; addr_source 'counter' or 'ram'")
-    if not 0 <= bram_latency <= 3 or outstanding < 1 or fixed_period < 1:
-        raise ValueError("bram_latency must be 0-3, outstanding >= 1, fixed_period >= 1")
+    if release not in (None, "delivered", "result_out"):
+        raise ValueError("release must be None, 'delivered' or 'result_out'")
+    if release is not None:
+        feedback = release == "result_out"
+    if callable(bram_latency):
+        lat_of = lambda c, q: int(bram_latency(c, q))                  # noqa: E731
+        has_latency = True
+    elif isinstance(bram_latency, (list, tuple)):
+        if not bram_latency or any(int(x) < 1 for x in bram_latency):
+            raise ValueError("a latency sequence needs at least one entry and every entry >= 1")
+        lat_of = lambda c, q: int(bram_latency[q % len(bram_latency)])  # noqa: E731
+        has_latency = True
+    else:
+        if not 0 <= bram_latency <= 64:
+            raise ValueError("bram_latency must be 0-64 (0 = the data is available at once)")
+        lat_of = lambda c, q: int(bram_latency)                        # noqa: E731
+        has_latency = bram_latency > 0
+    if outstanding < 1 or fixed_period < 1:
+        raise ValueError("outstanding >= 1 and fixed_period >= 1")
     if addresses is not None:
         if bram is None:
             raise ValueError("addresses need the bram contents they index")
@@ -237,7 +275,7 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
                 progressed = True
         # ---- 2. READ side: ask BRAM for the next item ------------------------------------------------------------
         port_free = ports == 2 or not wrote
-        if bram_latency > 0:
+        if has_latency:
             # data whose latency has elapsed comes out of the BRAM ...
             while read_pipe and read_pipe[0][0] <= rnd:
                 _, rc, rv, rs = read_pipe.popleft()
@@ -287,7 +325,9 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
                     if busy >= outstanding:
                         lost_reads += 1                        # a command pulse into a busy interface: LOST
                     else:
-                        read_pipe.append([rnd + bram_latency, target, c.items[seq], seq])
+                        # the interface never reorders: a short read behind a long one waits for it
+                        ready_at = max(rnd + lat_of(target, seq), read_pipe[-1][0] if read_pipe else 0)
+                        read_pipe.append([ready_at, target, c.items[seq], seq])
                         pending[target] += 1
                         c.reserved += 1
                         issue_log.append((rnd, target, seq))

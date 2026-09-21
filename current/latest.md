@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-21, the ADDRESS SUPPLY and its control (#812): BRAM read latency 1-3 absorbed by an ACK-driven advance -- 'the feed's out, here's the next address' -- versus a counter that assumes the latency and silently loses reads. 1203 tests pass. See `points/points_active.md` #805-#812)
+# Current State (as of 2026-09-21, NO FIXED LATENCY (#813): the ack is the control on the BRAM read AND on a chain of DSP links, each with its own latency; Alan's rule for which ack releases the next address recorded (mapping unconfirmed). 1220 tests pass. See `points/points_active.md` #805-#813)
+
+## Read this first (most recent)
+
+**#813 -- Alan: it is the FEED ack that is the control; the 3-cycle figure is from the docs and the same for DSP but can be MORE per link, so the mechanism applies there too, is no fixed value, and is the prompt for the next target to be recalled/fed in. Which ack: BRAM on two buses -> feed IN; BRAM on one bus -> feed OUT; DSP -> feed OUT.** Built: BRAM latency as an int, a per-read sequence or a callable (interface returns in order); `release='delivered'|'result_out'` + `default_release(ports, resource)` = Alan's rule; `ack_pipeline_v1` = a chain of links each with its own latency, released by ack. **Measured:** chain [3,3,5,2]: pipelined release = interval 5 (slowest link, 4 in flight); final-result-only release = interval 13 (the sum, 1 in flight); latencies changed with NOTHING retuned = interval follows the slowest link, zero loss; a fixed-rate feeder loses targets when one link slows or the sink stalls. Grounded: the DSP wrapper documents 3 cycles (#462) and 'arbitrary' latency tolerance (#453); per-op latencies 5/5/4/1/1/0 (#469).
+
+**My reading of the bus rule (a hypothesis): it is a LOCALITY rule.** The model does NOT show feed-in vs feed-out as a performance choice (identical cost without a stall; with a stall 'result_out' isolates the healthy chain on BOTH bus counts). With two separate controllers the result-out event is at the far write controller, so feed-in is the local ack; with one shared controller both are local, so feed-out is free; feed-in on two buses gives up stall isolation unless the credit-return link (#811) is paid for.
+
+**Two questions for Alan:** (1) 'feed in' = data delivered into the chain, 'feed out' = the result has left it? (2) For DSP, does 'feed out' mean the head link passing its item on (pipelined, interval 5) or the final result leaving (one in flight, interval 13)?
+
+**Honest:** protocol-level; one item per link; not connected to the placed layouts or the VM DSP cells; the placed layout still calls the address supply a 'counter' set-piece. In-order BRAM delivery is structural (the clamp is an equivalent mutation).
+
+**Earlier this session:** #805 router; #806 fit units; #807 fixed structures vs hardware-proven bytes; #808 bus width + 2D tree limit (3/7/13); #809 two-port layout (9 chains, real BRAM sites); #810 counter feedback + priority cell (real VM cell); #811 the ~2-chain limit is K(3,n) planarity, one credit-return link removes it; #812 BRAM read latency and the ack-driven advance.
+
+**Real queue:** (1) settle the two questions; (2) address supply as a RAM cell passing through to the controller in `stream_layout_v1`, feed-in or feed-out by Alan's rule; (3) place and decode ID -> per-chain credit at the read side; (4) host stall/refill + the empty/full signal; (5) DSP-wrapper lowering with real per-op latencies; (6) a denser router for 7, 9-13 chains; (7) VM mirror into the LLVM path and a CLI; (8) store-and-shift; (9) floating point; (10) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, the ADDRESS SUPPLY and its control (#812): BRAM read latency 1-3 absorbed by an ACK-driven advance -- 'the feed's out, here's the next address' -- versus a counter that assumes the latency and silently loses reads. 1203 tests pass. See `points/points_active.md` #805-#812)
 
 ## Read this first (most recent)
 

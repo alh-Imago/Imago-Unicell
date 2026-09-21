@@ -329,7 +329,10 @@ def test_the_counter_and_the_address_ram_have_identical_timing_only_the_address_
 
 def test_bram_side_arguments_are_validated():
     with pytest.raises(ValueError):
-        CF.run(cfgs(), INPUTS, F, bram_latency=4)
+        CF.run(cfgs(), INPUTS, F, bram_latency=65)                        # a sanity bound only: the latency is NOT a fixed value
+    assert CF.run(cfgs(), INPUTS, F, bram_latency=4, max_rounds=300).done   # 4 is fine (was refused when 1-3 was assumed)
+    with pytest.raises(ValueError):
+        CF.run(cfgs(), INPUTS, F, bram_latency=[2, 0, 3])                 # every per-read entry must be >= 1
     with pytest.raises(ValueError):
         CF.run(cfgs(), INPUTS, F, advance="whenever")
     with pytest.raises(ValueError, match="need the bram"):
@@ -347,3 +350,79 @@ def test_reads_still_in_the_bram_must_count_against_a_stalled_chains_credit():
     assert max(r.max_in_flight) <= 1                                      # never more than the window, including reads in flight
     assert r.finished_round(1) < 40                                       # the healthy chain is not held up by the stalled one
     assert r.done and r.per_chain == EXPECT and r.lost_reads == 0
+
+
+# ---- NO FIXED LATENCY, and WHICH ack releases the next address (points.md #813) --------------------------------
+
+LATS = [1, 5, 2, 8, 3, 1, 6, 2]
+CH2 = lambda: [CF.ChainCfg(window=2, in_depth=2, out_depth=2, latency=2) for _ in range(2)]   # noqa: E731
+I8 = [[10, 11, 12, 13, 14, 15, 16, 17], [20, 21, 22, 23, 24, 25, 26, 27]]
+E8 = [[F(x) for x in row] for row in I8]
+
+
+def test_alans_rule_for_which_ack_releases_the_next_address():
+    """BRAM on two buses -> feed in; BRAM on one bus -> feed out; DSP -> feed out. Mapped onto 'delivered' (data into the
+    chain) and 'result_out' (result left the chain) -- my reading of his words, not yet confirmed by him."""
+    assert CF.default_release(2, "bram") == "delivered"
+    assert CF.default_release(1, "bram") == "result_out"
+    assert CF.default_release(1, "dsp") == CF.default_release(2, "dsp") == "result_out"
+    with pytest.raises(ValueError):
+        CF.default_release(3, "bram")
+    with pytest.raises(ValueError):
+        CF.default_release(2, "flash")
+
+
+def test_release_selects_the_feedback_style():
+    a = CF.run(CH2(), I8, F, bram_latency=3, outstanding=2, release="result_out")
+    b = CF.run(CH2(), I8, F, bram_latency=3, outstanding=2, feedback=True)
+    c = CF.run(CH2(), I8, F, bram_latency=3, outstanding=2, release="delivered")
+    d = CF.run(CH2(), I8, F, bram_latency=3, outstanding=2, feedback=False)
+    assert (a.rounds, a.per_chain) == (b.rounds, b.per_chain) and (c.rounds, c.per_chain) == (d.rounds, d.per_chain)
+    with pytest.raises(ValueError):
+        CF.run(CH2(), I8, F, release="both")
+
+
+def test_a_per_read_latency_sequence_is_absorbed_with_no_loss_and_no_retuning():
+    r = CF.run(CH2(), I8, F, bram_latency=LATS, outstanding=2, release="delivered", ports=2)
+    assert r.done and r.per_chain == E8 and r.lost_reads == 0
+    assert CF.run(CH2(), I8, F, bram_latency=lambda c, q: 1 + (7 * q + 3 * c) % 8, outstanding=2).per_chain == E8
+
+
+def test_results_do_not_depend_on_any_of_the_latencies():
+    outs = {tuple(map(tuple, CF.run(CH2(), I8, F, bram_latency=lats, outstanding=2, max_rounds=800).per_chain))
+            for lats in ([1], [3], [8], LATS, [12, 1, 1, 12], [2, 9, 4])}
+    assert outs == {tuple(map(tuple, E8))}
+
+
+def test_the_bram_interface_returns_data_in_order_a_short_read_waits_behind_a_long_one():
+    r = CF.run([CF.ChainCfg(window=4, in_depth=4, out_depth=4)], [[1, 2, 3, 4]], F, bram_latency=[8, 1, 1, 1],
+               outstanding=4, feedback=False)
+    out = [t for t, _, _ in r.deliver_log]
+    assert out == sorted(out) and out[1] >= out[0]                        # never reordered
+    assert r.per_chain == [[F(x) for x in (1, 2, 3, 4)]]
+
+
+def test_a_counter_that_assumes_a_latency_loses_reads_when_a_read_takes_longer():
+    bad = CF.run(CH2(), I8, F, bram_latency=LATS, advance="fixed", fixed_period=3, outstanding=2, release="delivered",
+                 max_rounds=300)
+    assert bad.lost_reads > 0 and bad.per_chain != E8
+
+
+def test_on_either_bus_count_only_result_out_release_isolates_a_stalled_chain():
+    """What releasing on feed in GIVES UP: with a chain stalled, 'delivered' lets its item block the delivery path for the
+    healthy chain on one bus and on two; 'result_out' does not. (No throughput difference otherwise, in this model.)"""
+    for ports in (2, 1):
+        d = CF.run(CH2(), I8, F, ports=ports, bram_latency=3, outstanding=2, release="delivered",
+                   stall_out={0: (4, 70)}, max_rounds=400)
+        o = CF.run(CH2(), I8, F, ports=ports, bram_latency=3, outstanding=2, release="result_out",
+                   stall_out={0: (4, 70)}, max_rounds=400)
+        assert d.finished_round(1) > 65 and d.tree_blocked_rounds > 30 and d.sentinel_errors
+        assert o.finished_round(1) < 40 and o.tree_blocked_rounds == 0 and not o.sentinel_errors
+        assert d.per_chain == o.per_chain == E8
+
+
+def test_without_a_stall_the_two_release_points_cost_the_same_in_this_model():
+    for ports in (2, 1):
+        a = CF.run(CH2(), I8, F, ports=ports, bram_latency=3, outstanding=2, release="delivered")
+        b = CF.run(CH2(), I8, F, ports=ports, bram_latency=3, outstanding=2, release="result_out")
+        assert a.rounds == b.rounds and a.per_chain == b.per_chain == E8
