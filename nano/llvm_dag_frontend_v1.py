@@ -221,15 +221,16 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
     fn = functions[0]
 
     blocks = list(fn.blocks)
-    if len(blocks) != 1:
+    if len(blocks) not in (1, 3):
         return None, [_diag("llvm-frontend", what,
                             f"function has {len(blocks)} basic blocks -- control flow is not supported here",
-                            "a DAG of dataflow needs exactly one straight-line block; branching and loops "
-                            "are separate, later work (scope note item 5)")]
+                            "supported: ONE straight-line block, or the three-block loop shape "
+                            "entry -> loop -> exit, which is UNROLLED at compile time (#801)")]
 
     # Unnamed values (`%0`, `%3`) get the identifier `v<N>`, uniquified against every
     # real name in the function so the mapping is stable and collision-free.
-    real_names = {a.name for a in fn.arguments if a.name} | {i.name for i in blocks[0].instructions if i.name}
+    real_names = ({a.name for a in fn.arguments if a.name}
+                  | {i.name for b in blocks for i in b.instructions if i.name})
 
     def label(n: str) -> str:
         name = f"v{n}"
@@ -252,12 +253,17 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
                                "silently truncated or mis-sized"))
         else:
             arguments.append(aname)
+    if diags:
+        return None, diags
+
+    if len(blocks) == 3:
+        return _unroll_loop(fn.name, blocks, label, arguments)
 
     instrs: List[SourceInstr] = []
     result_name: Optional[str] = None
     for ins in blocks[0].instructions:
-        ops = list(ins.operands)
         if ins.opcode == "ret":
+            ops = list(ins.operands)
             so_ret, problem = _source_operand(ops[0], label) if len(ops) == 1 else (None, "no value")
             if problem or so_ret.kind != "name":
                 diags.append(_diag("llvm-frontend", what,
@@ -267,30 +273,9 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
             else:
                 result_name = so_ret.name
             continue
-        iname = ins.name
-        if not iname:
-            m = _UNNAMED_DEF_RE.match(str(ins).strip())
-            iname = label(m.group(1)) if m else ""
-        if not iname:
-            diags.append(_diag("llvm-frontend", what,
-                               f"a value produced by `{ins.opcode}` whose identifier could not be determined",
-                               "later operands must be able to resolve against it"))
-            continue
-        src_ops: List[SourceOperand] = []
-        for op in ops:
-            so, problem = _source_operand(op, label)
-            if problem:
-                diags.append(_diag("llvm-frontend", f"reading operands of %{iname}", problem,
-                                   "every operand must be traceable to an argument, an earlier "
-                                   "result, or a literal"))
-            else:
-                src_ops.append(so)
-        predicate = None
-        if ins.opcode == "icmp":
-            m = re.search(r"=\s*icmp\s+(\w+)\s", str(ins))
-            predicate = m.group(1) if m else None
-        instrs.append(SourceInstr(name=iname, opcode=ins.opcode, operands=src_ops,
-                                  type_name=str(ins.type), predicate=predicate))
+        src = _read_instr(ins, label, diags)
+        if src is not None:
+            instrs.append(src)
 
     if any(d.severity == "error" for d in diags):
         return None, diags
@@ -298,6 +283,286 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
         return None, [_diag("llvm-frontend", what, "no `ret` found", "nothing marks the result cell")]
     return SourceFunction(function_name=fn.name, arguments=arguments, instrs=instrs,
                           result_name=result_name), []
+
+
+def _read_instr(ins, label, diags: List[CompileDiagnostic]) -> Optional[SourceInstr]:
+    """One non-terminator, non-phi instruction -> `SourceInstr` (None + diagnostics on failure)."""
+    what = "reading the supplied LLVM IR"
+    iname = ins.name
+    if not iname:
+        m = _UNNAMED_DEF_RE.match(str(ins).strip())
+        iname = label(m.group(1)) if m else ""
+    if not iname:
+        diags.append(_diag("llvm-frontend", what,
+                           f"a value produced by `{ins.opcode}` whose identifier could not be determined",
+                           "later operands must be able to resolve against it"))
+        return None
+    src_ops: List[SourceOperand] = []
+    ok = True
+    for op in ins.operands:
+        so, problem = _source_operand(op, label)
+        if problem:
+            ok = False
+            diags.append(_diag("llvm-frontend", f"reading operands of %{iname}", problem,
+                               "every operand must be traceable to an argument, an earlier "
+                               "result, or a literal"))
+        else:
+            src_ops.append(so)
+    predicate = None
+    if ins.opcode == "icmp":
+        m = re.search(r"=\s*icmp\s+(\w+)\s", str(ins))
+        predicate = m.group(1) if m else None
+    if not ok:
+        return None
+    return SourceInstr(name=iname, opcode=ins.opcode, operands=src_ops,
+                       type_name=str(ins.type), predicate=predicate)
+
+
+# ---------------------------------------------------------------------------
+# 1b. Loops: compile-time UNROLLING (points.md #801, Alan's option (b)).
+# ---------------------------------------------------------------------------
+
+MAX_UNROLL_ITERATIONS = 64
+MAX_UNROLLED_INSTRS = 600
+_PHI_IN_RE = re.compile(r"\[\s*([^,\]]+?)\s*,\s*%([^\s\]]+)\s*\]")
+_BR_COND_RE = re.compile(r"br\s+i1\s+(\S+?),\s*label\s+%([^\s,]+),\s*label\s+%(\S+)")
+_BR_UNCOND_RE = re.compile(r"br\s+label\s+%(\S+)")
+
+
+def _s32(v: int) -> int:
+    v &= _MASK32
+    return v - (1 << 32) if v >> 31 else v
+
+
+def _fold(opcode: str, predicate: Optional[str], ops: List[SourceOperand]) -> Optional[SourceOperand]:
+    """Constant-fold one instruction whose operands are compile-time known. Returns a
+    literal (or, for `select` with a literal condition, the chosen ARM as an alias), or
+    None if it cannot be folded. Used ONLY while unrolling: the induction variable is a
+    chain of literals and must vanish, or every iteration would need a constant cell."""
+    if opcode == "select" and len(ops) == 3 and ops[0].kind == "literal":
+        return ops[1] if ops[0].value else ops[2]
+    if len(ops) != 2 or any(o.kind != "literal" for o in ops):
+        return None
+    a, b = ops[0].value & _MASK32, ops[1].value & _MASK32
+
+    def lit(v):
+        return SourceOperand(kind="literal", value=v & _MASK32)
+    if opcode == "add":
+        return lit(a + b)
+    if opcode == "sub":
+        return lit(a - b)
+    if opcode == "mul":
+        return lit(a * b)
+    if opcode == "and":
+        return lit(a & b)
+    if opcode == "or":
+        return lit(a | b)
+    if opcode == "xor":
+        return lit(a ^ b)
+    if opcode in ("shl", "lshr", "ashr"):
+        if not 0 <= b <= 31:
+            return None
+        return lit(a << b if opcode == "shl" else (a >> b if opcode == "lshr" else _s32(a) >> b))
+    if opcode == "icmp":
+        table = {"eq": a == b, "ne": a != b, "ugt": a > b, "uge": a >= b, "ult": a < b, "ule": a <= b,
+                 "sgt": _s32(a) > _s32(b), "sge": _s32(a) >= _s32(b),
+                 "slt": _s32(a) < _s32(b), "sle": _s32(a) <= _s32(b)}
+        if predicate in table:
+            return lit(int(table[predicate]))
+    return None
+
+
+def _val_text(text: str, label) -> Optional[SourceOperand]:
+    """A value as printed inside a `phi`/`br`: an integer literal, or `%name` / `%N`."""
+    text = text.strip()
+    if re.fullmatch(r"-?\d+", text):
+        return SourceOperand(kind="literal", value=int(text) & _MASK32)
+    if text.startswith("%") and len(text) > 1:
+        n = text[1:]
+        return SourceOperand(kind="name", name=label(n) if n.isdigit() else n)
+    return None
+
+
+def _read_block(block, label, diags: List[CompileDiagnostic]):
+    """A block as a list of `("phi", name, incomings)`, `("ins", SourceInstr)`,
+    `("br", target)`, `("condbr", cond, true_target, false_target)`, `("ret", operand)`."""
+    items = []
+    what = f"reading block {block.name or '<unnamed>'}"
+    for ins in block.instructions:
+        text = str(ins).strip()
+        if ins.opcode == "phi":
+            name = ins.name
+            if not name:
+                m = _UNNAMED_DEF_RE.match(text)
+                name = label(m.group(1)) if m else ""
+            incs = [(_val_text(v, label), blk) for v, blk in _PHI_IN_RE.findall(text)]
+            if not name or not incs or any(v is None for v, _ in incs):
+                diags.append(_diag("llvm-frontend", what, f"a `phi` could not be read: {text!r}",
+                                   "loop-carried values must be traceable"))
+            elif str(ins.type) != _SUPPORTED_TYPE:
+                diags.append(_diag("llvm-frontend", what, f"`phi` %{name} has type {ins.type}, not i32",
+                                   "the fabric's cells are 32-bit"))
+            else:
+                items.append(("phi", name, incs))
+        elif ins.opcode == "br":
+            m = _BR_COND_RE.search(text)
+            if m:
+                cond = _val_text(m.group(1), label)
+                items.append(("condbr", cond, m.group(2), m.group(3)))
+                continue
+            m = _BR_UNCOND_RE.search(text)
+            if m:
+                items.append(("br", m.group(1)))
+            else:
+                diags.append(_diag("llvm-frontend", what, f"a branch could not be read: {text!r}",
+                                   "only `br label %X` and `br i1 %c, label %T, label %F` are understood"))
+        elif ins.opcode == "ret":
+            ops = list(ins.operands)
+            so, problem = _source_operand(ops[0], label) if len(ops) == 1 else (None, "no value")
+            if problem:
+                diags.append(_diag("llvm-frontend", what, "`ret` must return exactly one value", problem))
+            else:
+                items.append(("ret", so))
+        else:
+            src = _read_instr(ins, label, diags)
+            if src is not None:
+                items.append(("ins", src))
+    return items
+
+
+def _unroll_loop(function_name: str, blocks, label, arguments: List[str]
+                 ) -> Tuple[Optional[SourceFunction], List[CompileDiagnostic]]:
+    """entry -> loop -> exit, UNROLLED. The loop block is interpreted iteration by
+    iteration with an environment mapping each source value to a literal, an alias, or
+    the per-iteration name of a freshly emitted instruction. Compile-time-known values
+    (the induction variable) fold away; the exit condition MUST fold to a constant, or
+    the trip count is not known at compile time and the loop is refused. Everything
+    data-dependent is emitted as ordinary instructions for the rest of the pipeline."""
+    diags: List[CompileDiagnostic] = []
+    what = "unrolling a loop"
+    per_block = [(b.name, _read_block(b, label, diags)) for b in blocks]
+    if diags:
+        return None, diags
+
+    def fail(problem, why, suggestion=None):
+        return None, [_diag("llvm-frontend", what, problem, why, suggestion)]
+
+    def term(items):
+        return items[-1] if items else None
+
+    entry_name, entry_items = per_block[0]
+    loop = [(n, it) for n, it in per_block if term(it) and term(it)[0] == "condbr" and n in term(it)[2:4]]
+    if len(loop) != 1 or not loop[0][0]:
+        return fail("no single self-looping block found",
+                    "the supported loop shape is exactly: entry (ends `br label %loop`), a NAMED loop block "
+                    "ending `br i1 %c, label %loop, label %exit` (either order), and an exit block ending `ret`")
+    loop_name, loop_items = loop[0]
+    t_tgt, f_tgt = term(loop_items)[2], term(loop_items)[3]
+    exit_target = f_tgt if t_tgt == loop_name else t_tgt
+    exit_items = next((it for n, it in per_block if n == exit_target and n != loop_name), None)
+    if exit_items is None or not exit_target:
+        return fail("the loop's exit block was not found among the function's blocks",
+                    "the exit must be a separate, named block")
+    if term(entry_items) != ("br", loop_name):
+        return fail(f"the entry block does not end with `br label %{loop_name}`",
+                    "the loop must be entered directly from the entry block")
+    if term(exit_items) is None or term(exit_items)[0] != "ret":
+        return fail("the exit block does not end with `ret`", "the function must return from the exit block")
+
+    out: List[SourceInstr] = []
+    env: Dict[str, SourceOperand] = {}
+    used_names: Set[str] = set(arguments)
+
+    def subst(o: SourceOperand) -> SourceOperand:
+        return env[o.name] if o.kind == "name" and o.name in env else o
+
+    def emit(src: SourceInstr, suffix: str) -> bool:
+        ops = [subst(o) for o in src.operands]
+        folded = _fold(src.opcode, src.predicate, ops)
+        if folded is not None:
+            env[src.name] = folded
+            return True
+        name = src.name + suffix
+        if name in used_names:
+            diags.append(_diag("llvm-frontend", what, f"unrolling would define `{name}` twice",
+                               "a generated per-iteration name collided with a real one"))
+            return False
+        used_names.add(name)
+        out.append(SourceInstr(name=name, opcode=src.opcode, operands=ops, type_name=src.type_name,
+                               predicate=src.predicate))
+        env[src.name] = SourceOperand(kind="name", name=name)
+        return True
+
+    for kind, *rest in entry_items[:-1]:
+        if kind != "ins":
+            return fail("the entry block holds something other than plain instructions",
+                        "phis and extra branches are not supported before the loop")
+        if not emit(rest[0], ""):
+            return None, diags
+
+    phis = [(it[1], it[2]) for it in loop_items if it[0] == "phi"]
+    body = [it[1] for it in loop_items if it[0] == "ins"]
+    if any(it[0] not in ("phi", "ins", "condbr") for it in loop_items):
+        return fail("the loop block holds something other than phis, instructions and its branch", "")
+    cond_op = term(loop_items)[1]
+
+    def incoming(phi_incs, from_loop: bool):
+        for v, blk in phi_incs:
+            if (blk == loop_name) == from_loop:
+                return v
+        return None
+
+    iteration = 0
+    while True:
+        if iteration >= MAX_UNROLL_ITERATIONS:
+            return fail(f"the loop is still running after {MAX_UNROLL_ITERATIONS} unrolled iterations",
+                        "a loop is unrolled fully at compile time, so a very long or unbounded loop would "
+                        "need a cell per iteration",
+                        f"raise MAX_UNROLL_ITERATIONS, or restructure -- a hardware loop is separate work")
+        if len(out) > MAX_UNROLLED_INSTRS:
+            return fail(f"unrolling produced more than {MAX_UNROLLED_INSTRS} instructions", "too large")
+        # phis for THIS iteration: first from the entry side, then from the previous iteration's values
+        new_phi = {}
+        for pname, incs in phis:
+            v = incoming(incs, from_loop=iteration > 0)
+            if v is None:
+                return fail(f"phi %{pname} has no incoming value from "
+                            f"{'the loop' if iteration else 'outside the loop'}",
+                            "every loop-carried value needs one entry value and one loop-carried value")
+            new_phi[pname] = subst(v)
+        env.update(new_phi)
+        for src in body:
+            if not emit(src, f"__it{iteration}"):
+                return None, diags
+        cond = subst(cond_op)
+        if cond.kind != "literal":
+            return fail("the loop's exit condition is not a compile-time constant (the trip count "
+                        "depends on runtime data)",
+                        "unrolling needs the trip count at compile time",
+                        "make the bound and the induction variable literals")
+        if (cond.value != 0) == (t_tgt == loop_name):
+            iteration += 1
+            continue
+        break
+
+    for item in exit_items[:-1]:
+        if item[0] == "phi":
+            v = incoming(item[2], from_loop=True)
+            if v is None:
+                return fail(f"exit phi %{item[1]} has no incoming value from the loop", "")
+            env[item[1]] = subst(v)
+        elif item[0] == "ins":
+            if not emit(item[1], ""):
+                return None, diags
+        else:
+            return fail("the exit block holds something other than phis and plain instructions", "")
+    ret = subst(term(exit_items)[1])
+    if ret.kind != "name" or ret.name in arguments or ret.name not in {i.name for i in out}:
+        return fail("the returned value is a compile-time constant or an argument, not a computed value",
+                    "the result must be a cell the fabric computes",
+                    "return a value that depends on a runtime argument")
+    return SourceFunction(function_name=function_name, arguments=arguments, instrs=out,
+                          result_name=ret.name), []
 
 
 # ---------------------------------------------------------------------------
@@ -639,9 +904,9 @@ DEFAULT_PLACER = os.environ.get("IMAGO_PLACER", "auto")
 
 def _place(final: List[DagInstr], placer: str, fold_width: Optional[int] = None,
            spacing: Optional[int] = None):
-    """`growth` = the proven growing-frontier dispatcher; `routed` = the
-    virtual-space layout + global router (#800); `auto` = growth first (proven,
-    compact for what it handles), routed only if growth cannot place the shape."""
+    """`growth` = the growing-frontier dispatcher (#780); `routed` = the virtual-space
+    layout + global router (#800); `auto` = compile with both and keep the SMALLER
+    layout (a placer that cannot place the shape simply drops out)."""
     if placer == "growth":
         return compile_dag(final), "growth"
     if placer == "routed" or (placer == "auto" and (fold_width or spacing)):
@@ -649,12 +914,23 @@ def _place(final: List[DagInstr], placer: str, fold_width: Optional[int] = None,
         return compile_dag_routed(final, spacing=spacing, fold_width=fold_width), "routed"
     if placer != "auto":
         raise ValueError(f"unknown placer {placer!r}")
-    try:
-        result = compile_dag(final)
-        result[0].check_connections()
-        return result, "growth"
-    except (IcmVixFormatError, ValueError):
-        return compile_dag_routed(final), "routed"
+    # points.md #801: compile with BOTH and keep the smaller layout (ties -> growth, the
+    # older proven placer). Compilation costs milliseconds; SIMULATION cost scales with
+    # cell count, and growth spaces independent leaves 100 rows apart -- a 5-iteration
+    # unrolled loop was 739 cells under growth and 140 routed (20x faster to simulate).
+    candidates = []
+    last_error: Optional[Exception] = None
+    for rank, (name, fn) in enumerate((("growth", compile_dag), ("routed", compile_dag_routed))):
+        try:
+            result = fn(final)
+            result[0].check_connections()
+            candidates.append((len(result[0].flatten()[0]), rank, result, name))
+        except (IcmVixFormatError, ValueError) as e:
+            last_error = e
+    if not candidates:
+        raise last_error
+    _, _, result, name = min(candidates, key=lambda c: (c[0], c[1]))
+    return result, name
 
 
 def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: Optional[int] = None,
@@ -758,7 +1034,10 @@ def run_in_vm(result: DagFrontendResult, arg_values: Dict[str, int], ticks: Opti
     from unicell_super_automaton_v1 import SuperGrid
 
     if ticks is None:
-        ticks = max(600, 6 * len(result.records))     # routed layouts are longer than growth layouts
+        # MEASURED (#801): across 10 program/placer combinations a result settles in at most
+        # ~1.05 x its cell count in ticks (most under 0.6x) -- a value moves about one cell per
+        # tick along a critical path no longer than the design. 3x is ~3x the worst observed.
+        ticks = max(300, 3 * len(result.records))
     missing = set(result.arg_injections) - set(arg_values)
     if missing:
         raise ValueError(f"no value supplied for argument(s): {sorted(missing)}")

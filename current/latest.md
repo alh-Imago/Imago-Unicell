@@ -1,4 +1,4 @@
-# Current State (as of 2026-09-21, placement rebuilt as a VIRTUAL-SPACE stage with a global router, free endpoint cardinality, tightening by spacing search and folding with per-band orientation flips (#800). The shapes growth placement could not handle now compile and verify. 989 tests pass. Loops: option (b), compile-time unrolling, decided -- next. See `points/points_active.md` #800)
+# Current State (as of 2026-09-21, placement rebuilt as a VIRTUAL-SPACE stage with a global router, free endpoint cardinality, tightening by spacing search and folding with per-band orientation flips (#800). The shapes growth placement could not handle now compile and verify. 1006 tests pass. Loops by compile-time unrolling built (#801). See `points/points_active.md` #800-#801)
 
 ## Read this first (most recent)
 
@@ -10,7 +10,9 @@
 
 **Limits, all loud:** no crossover cell so non-planar programs cannot route; <= 3 consumers per value on the router; narrow folds of branching designs refuse. Not built: a true post-pass fold over an already-built cell array (folding is at layout time -- equivalent expressiveness, different from Alan's wording); a card-fit check that computes the needed `fold_width`; incremental compaction.
 
-**Real queue:** (1) loops by compile-time UNROLLING (decided by Alan, option b); (2) bounded-card fit check driving `fold_width`; (3) sign-aware ordered compare + unsigned predicates (now placeable); (4) scope items 3, 4, 6.
+**#801 -- loops by compile-time unrolling (Alan's option b).** entry -> loop -> exit is interpreted iteration by iteration with a constant-folding environment: the induction variable folds away (5 iterations of `acc += x` = exactly 5 adds), the exit condition must fold to a constant, everything data-dependent flows into the existing pipeline. Generalizes the old 4-instruction loop: arbitrary bodies, several carried values (swap-style phis), code before/after, exit phis, IV feeding a shift amount. **Cannot do:** runtime trip counts (refused), more than 64 iterations, a result that depends only on the IV (constant), nested/multi-exit loops -- the old hardware-loop behaviour is NOT reproduced. Two measured fixes it forced: `auto` now compiles with BOTH placers and keeps the SMALLER layout (growth = 739 cells vs routed 140 for one loop; compile is ms, simulation scales with cells), and the default tick budget is `max(300, 3 x cells)` from measurement (settle <= ~1.05 x cells).
+
+**Real queue:** (1) bounded-card fit check driving `fold_width`; (2) sign-aware ordered compare + unsigned predicates (placeable now); (3) true post-pass fold/tighten over a built cell array, if wanted; (4) nested loops / general CFG (needs a decision); (5) scope items 3, 4, 6.
 
 ## Previous state (as of 2026-09-21, backend operand-order guarantee + scan pass (#796); shl/lshr (#797); icmp/select/ashr ported by composing library ops (#798). Placement limit and ordered-icmp overflow bound documented and surfaced, not hidden. 971 tests pass. See `points/points_active.md` #796-#799)
 
