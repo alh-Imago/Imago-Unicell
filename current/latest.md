@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-21, the BRAM interface PLACED on the grid with the bus-width adaptation and the fit tested (#808): 1-3 chains placed, verified and run on the VM; 4+ chains do not route with this floor plan (diagnosed); a real router bug fixed. 1135 tests pass. See `points/points_active.md` #805-#808)
+# Current State (as of 2026-09-21, TWO-PORT placement: separate read and write BRAM controllers with the chains between the trees -- 9 chains place, verify and run on the VM (was 3), each controller on its own real Mustang BRAM site (#809). 1150 tests pass. See `points/points_active.md` #805-#809)
+
+## Read this first (most recent)
+
+**#809 -- Alan: "the in and out may be at different positions on the card... designed on the 2 buses of the Arria 10."** That was the resolution to #808's failure. `#257` specifies TWO independent controllers (separate read and write regions); the single-controller case is the LATER `shared_bram_arbiter_v1.v` (write priority, one queued read). My #808 floor plan (one controller, trees on opposite sides) was the shared case -- the harder one. `place_stream(..., ports=2)`: read controller + splitter + dispatch tree growing EAST, write controller + gather tree growing WEST, chains BETWEEN, so every chain's input faces the dispatch tree and its output the gather tree. **1-9 chains place, verify and RUN on the VM (was 3); 10-13 do not (documented).** With the Mustang target each controller binds to its OWN real BRAM site (e.g. read@x=52, write@x=70). `ports=1` (a one-bus card) is unchanged: max 3 chains, or one chain (no trees) -- the small-card case Alan named.
+
+**Alan's question -- REQUESTS fed back, or the counter mechanism? Answered from `#257`/`#270`/the arbiter RTL:** it is the COUNTER mechanism; there is no feedback request path. A chain-select counter scans slots round-robin, the counter position IS the ID, the write address advances only on a real capture, and the HOST drives stall/refill. What I built follows that (push/streaming, sequential addresses); LLVM load/store stays refused because chain-initiated, data-dependent access would need a NEW request/response design. Gaps: the per-chain address counters are in the library but not placed or modelled; my gather follows the combiner TREE (`#272`) not the chain-select scan; the host stall/refill lifecycle and the open empty/full signal are not modelled; the shared-port arbiter behaviour is not modelled.
+
+**Fit assumption to remember:** the array origin is taken as free (the die->grid mapping parameter); if the array must start at logical (0,0) with sites at fixed die positions, a site-bound design costs far more.
+
+**Earlier this session:** #805 negotiated-congestion router (+ an overflow bug fixed); #806 fit units = instantiated positions at measured ALM; #807 fixed structures verified against hardware-proven bytes; #808 bus-width adaptation (BusSpec: one chain needs no routing bits; narrow bus -> store-and-shift, no RTL yet) and the exhaustive 2D tree limit (3/7/13 leaves, not 3/9/27).
+
+**Real queue:** (1) place address counters + model the `#257` chain-select scan and stall/refill; (2) model the shared-port arbiter for one-bus cards; (3) a denser plan for 10-13 chains; (4) DSP-wrapper lowering + the six DSP ops; (5) wire the VM mirror into the LLVM path and a CLI; (6) a request/response path if data-dependent memory access is ever wanted (Alan's decision); (7) store-and-shift; (8) floating point; (9) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, the BRAM interface PLACED on the grid with the bus-width adaptation and the fit tested (#808): 1-3 chains placed, verified and run on the VM; 4+ chains do not route with this floor plan (diagnosed); a real router bug fixed. 1135 tests pass. See `points/points_active.md` #805-#808)
 
 ## Read this first (most recent)
 

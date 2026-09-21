@@ -89,6 +89,9 @@ class StreamLayout:
     #: destination it drains into, is arbitrary -- pairing them by GEOMETRY keeps routes monotone. chain -> ids:
     dispatch_of_chain: List[int] = field(default_factory=list)
     gather_of_chain: List[int] = field(default_factory=list)
+    #: every BRAM controller position: one for the shared-port plan, TWO (read, write) for the two-port plan
+    controllers: List[Pos] = field(default_factory=list)
+    ports: int = 1
 
     def chain_for_dispatch(self, d: int) -> int:
         return self.dispatch_of_chain.index(d)
@@ -153,11 +156,15 @@ def _free_faces(cell_pos: Pos, taken: set, blocked_faces=()) -> List[str]:
 
 
 def place_stream(result, feeds: int, *, bus: Optional[FS.BusSpec] = None, target: Optional[C.CardTarget] = None,
-                 gaps: Tuple[int, ...] = (6, 10)) -> StreamLayout:
+                 gaps: Tuple[int, ...] = (6, 10), ports: int = 1) -> StreamLayout:
     """Place `feeds` copies of a compiled chain behind a BRAM interface and route them. With a `target`, the BRAM
     controller (and the splitter beside it) is bound to a BRAM site and the whole layout is checked against the
     card's grid and budget."""
     plan = (bus or FS.BusSpec()).plan(feeds)
+    if ports == 2:
+        return _place_two_port(result, feeds, plan, target, gaps)
+    if ports != 1:
+        raise StreamError("ports must be 1 (one shared read/write controller) or 2 (separate read and write controllers)")
     dt = T.embed_tree(feeds, up="s")                # dispatch tree: upstream face toward the splitter (south of it)
     gt = T.embed_tree(feeds, up="n")                # gather tree: output face toward the controller (north of it)
     block, in_local, out_local = _chain_block(result)
@@ -241,13 +248,14 @@ def place_stream(result, feeds: int, *, bus: Optional[FS.BusSpec] = None, target
 
 
 def _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, macro, chains, set_pieces, ctrl,
-           chain_cells, gap, target) -> StreamLayout:
+           chain_cells, gap, target, gmacro=None, ctrls=None, fixed_shift=None) -> StreamLayout:
+    gmacro = gmacro or macro
     cells: List[vix.HierCell] = []
     in_routes: List[List[Pos]] = []
     out_routes: List[List[Pos]] = []
     for i, off in enumerate(offsets):
         e_in = macro.out_edges[i]
-        e_out = macro.in_edges[i]
+        e_out = gmacro.in_edges[i]
         for c in block:
             cc = copy.deepcopy(c)
             cc.cell_id = f"c{i}_{c.cell_id}"
@@ -267,7 +275,7 @@ def _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, mac
                                        cell_id=f"c{i}_{tag}{k}", rel_row=p[0], rel_col=p[1]))
             store.append(list(e.path))
     # translate: origin margin, or onto a BRAM site if a target asks for it
-    shift = _choose_shift(cells, set_pieces, ctrl, target)
+    shift = fixed_shift if fixed_shift is not None else _choose_shift(cells, set_pieces, ctrl, target)
     for c in cells:
         c.rel_row += shift[0]
         c.rel_col += shift[1]
@@ -281,13 +289,16 @@ def _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, mac
     lay = StreamLayout(feeds=feeds, bus=plan, dispatch=dt, gather=gt, icm=icm, records=records,
                        set_pieces=set_pieces, controller=_shift(ctrl, shift), in_routes=in_routes,
                        out_routes=out_routes, chain_cells=chain_cells, gap=gap)
+    lay.controllers = [_shift(c, shift) for c in (ctrls or [ctrl])]
+    lay.ports = 2 if ctrls and len(ctrls) == 2 else 1
     pos = lay.all_positions()
     if len(set(pos)) != len(pos):
         raise StreamError("cells overlap in the placed stream")
     if target is not None:
         lay.fit = _fit(lay, target)
         if "bram" in target.sites:
-            lay.bindings = [("bram_ctrl", "bram", lay.controller)]
+            names = ["bram_rd", "bram_wr"] if lay.ports == 2 else ["bram_ctrl"]
+            lay.bindings = [(n, "bram", c) for n, c in zip(names, lay.controllers)]
     return lay
 
 
@@ -323,12 +334,14 @@ def _fit(lay: StreamLayout, target: C.CardTarget) -> C.FitReport:
     fake = [_P(r, c) for r, c in pos]
     rep = C.check_fit(fake, target, absolute=True)
     rep.cells = len(pos)
-    if "bram" in target.sites and lay.controller not in set(target.sites["bram"]):
+    off = [c for c in lay.controllers if c not in set(target.sites.get("bram", []))]
+    if "bram" in target.sites and off:
         rep.fits = False
-        rep.problems.append(f"the BRAM controller at {lay.controller} is not on a BRAM site (none keeps the "
+        rep.problems.append(f"the BRAM controller(s) at {off} are not on a BRAM site (none keeps the "
                             f"whole layout inside the {target.rows}x{target.cols} grid)")
     else:
-        rep.bindings = [("bram_ctrl", "bram", lay.controller)] if "bram" in target.sites else []
+        names = ["bram_rd", "bram_wr"] if lay.ports == 2 else ["bram_ctrl"]
+        rep.bindings = [(n, "bram", c) for n, c in zip(names, lay.controllers)] if "bram" in target.sites else []
     rep.notes.append(f"bus: {lay.bus.data_bits} data bits/beat, {lay.bus.beats} beat(s) per 32-bit value")
     return rep
 
@@ -420,3 +433,141 @@ def run_placed_stream(lay: StreamLayout, inputs: List[int], *, chain_length: int
         if s.err_flag or not s.safe_to_intervene:
             errors.append(f"chain {k}: err={s.err_flag} safe={s.safe_to_intervene} diff={s.diff}")
     return PlacedStreamRun(outputs, not errors, errors, isolated, len(inputs) * lay.bus.beats)
+
+
+# ---------------------------------------------------------------------------
+# TWO-PORT plan: separate read and write BRAM controllers (points.md #809)
+# ---------------------------------------------------------------------------
+
+def _macro_two_port(dt, gt, feeds):
+    """The READ macro (controller, splitter, dispatch tree growing EAST) relative to the read controller at (0,0),
+    and the WRITE macro (controller, combiner tree growing WEST) relative to the write controller at (0,0)."""
+    rd, split = (0, 0), (0, 1)
+    d_sp = [SetPieceCell("controller", "bram_rd", rd), SetPieceCell("splitter", "splitter", split, up="w")]
+    d_cells: List[Pos] = [rd, split]
+    if feeds == 1:
+        d_pins = [(split, "e")]
+    else:
+        for nd in dt.nodes:
+            p = _shift(nd.pos, (0, 2))
+            d_cells.append(p)
+            d_sp.append(SetPieceCell("mux", f"mux{nd.index}", p, up=nd.up, codes={c: f for c, f in enumerate(T.out_faces(nd.up))}))
+        d_pins = [(_shift(dt.nodes[i].pos, (0, 2)), f) for i, f, _ in (dt.pins[d] for d in range(feeds))]
+    wr = (0, 0)
+    g_sp = [SetPieceCell("controller", "bram_wr", wr)]
+    g_cells: List[Pos] = [wr]
+    if feeds == 1:
+        g_pins = [(wr, "w")]
+    else:
+        for nd in gt.nodes:
+            p = _shift(nd.pos, (0, -1))
+            g_cells.append(p)
+            g_sp.append(SetPieceCell("combiner", f"comb{nd.index}", p, up=nd.up, codes={c: f for c, f in enumerate(T.out_faces(nd.up))}))
+        g_pins = [(_shift(gt.nodes[i].pos, (0, -1)), f) for i, f, _ in (gt.pins[d] for d in range(feeds))]
+    return d_cells, d_sp, d_pins, g_cells, g_sp, g_pins
+
+
+def _place_two_port(result, feeds, plan, target, gaps) -> StreamLayout:
+    """Separate read and write controllers -- Alan's 'in and out may be at different positions on the card', and
+    `#257`'s own 'two independent regions'. The dispatch tree faces every chain's INPUT and the gather tree faces
+    every chain's OUTPUT, with the chains between them, so nothing interleaves (the failure of the shared-port plan).
+    With a target, each controller is bound to a BRAM SITE and the chains sit between the two sites."""
+    dt = T.embed_tree(feeds, up="w")             # grows east, toward the chains
+    gt = T.embed_tree(feeds, up="e")             # grows west, toward the chains
+    block, in_local, out_local = _chain_block(result)
+    block_pos = {(c.rel_row, c.rel_col) for c in block}
+    H = max(p[0] for p in block_pos) + 1
+    W = max(p[1] for p in block_pos) + 1
+    cfg = next(c for c in block if (c.rel_row, c.rel_col) == in_local)
+    used_in = set(cfg.core_config.get("downstream_mask") or [])
+    in_faces = [f for f in _free_faces(in_local, block_pos) if f not in used_in]
+    out_faces = _free_faces(out_local, block_pos)
+    if not in_faces or not out_faces:
+        raise StreamError("the chain's input or result cell has no free face to attach a route to")
+    d_cells, d_sp, d_pins, g_cells, g_sp, g_pins = _macro_two_port(dt, gt, feeds)
+    d_maxc = max(c[1] for c in d_cells)
+    g_minc = min(c[1] for c in g_cells)
+
+    def attempt(gap: int, gc: Optional[int], dr: int):
+        col0 = d_maxc + gap + 2
+        need_gc = col0 + W - 1 + gap + 2 - g_minc
+        gc = need_gc if gc is None else gc
+        if gc < need_gc:
+            return None, f"a {gc}-column separation is narrower than the {need_gc} the chains and trees need"
+        total_h = feeds * (H + gap) - gap
+        mid = total_h // 2
+        rrow, wrow = mid, mid + dr
+        offsets = [(i * (H + gap), col0) for i in range(feeds)]
+        dm = _Macro("bram_rd", [_shift(c, (rrow, 0)) for c in d_cells], [],
+                    [(_shift(p, (rrow, 0)), f) for p, f in d_pins], (rrow, 0))
+        gm = _Macro("bram_wr", [_shift(c, (wrow, gc)) for c in g_cells],
+                    [(_shift(p, (wrow, gc)), f) for p, f in g_pins], [], (wrow, gc))
+        chains: List[_Macro] = []
+        for i, off in enumerate(offsets):
+            ch = _Macro(f"chain{i}", [_shift(p, off) for p in block_pos], [(_shift(in_local, off), f) for f in in_faces],
+                        [(_shift(out_local, off), f) for f in out_faces], _shift(out_local, off))
+            chains.append(ch)
+            e_in = V._Edge(src=dm, dst=ch, slot=0, src_pins=list(dm.out_pins()), dst_pins=ch.in_pins())
+            e_out = V._Edge(src=ch, dst=gm, slot=1, src_pins=ch.out_pins(), dst_pins=list(gm.in_pins()))
+            dm.out_edges.append(e_in)
+            ch.in_edges.append(e_in)
+            ch.out_edges.append(e_out)
+            gm.in_edges.append(e_out)
+        try:
+            V._route_all_pathfinder([dm, gm] + chains, margin=MARGIN, max_iter=ITERS, patience=ITERS)
+        except V.RouteFailure as e:
+            return None, str(e)
+        d_of = [d_pins_abs.index((e.src_cell, e.src_face)) for e in dm.out_edges] if False else None
+        return (dm, gm, chains, offsets, rrow, wrow, gc), None
+
+    last_err: Optional[str] = None
+    trials: List[Tuple[int, Optional[int], int, Optional[Tuple[Pos, Pos]]]] = []
+    if target is not None and target.sites.get("bram"):
+        # Each controller sits on a BRAM site, so pair COLUMNS of sites that are far enough apart to hold the chains
+        # and both trees, at a row both columns share (nearest the grid centre, so the layout stays inside the grid).
+        rows_of: Dict[int, set] = {}
+        for r, c in target.sites["bram"]:
+            rows_of.setdefault(c, set()).add(r)
+        for gap in gaps:
+            need = (d_maxc + gap + 2) + W - 1 + gap + 2 - g_minc
+            for ca in sorted(rows_of):
+                for cb in sorted(rows_of):
+                    common = rows_of[ca] & rows_of[cb]
+                    if cb - ca >= need and common:
+                        r = min(common, key=lambda x: abs(x - target.rows // 2))
+                        trials.append((gap, cb - ca, 0, ((r, ca), (r, cb))))
+        trials.sort(key=lambda t: t[1])                 # the tightest workable separation first: shortest routes
+        trials = trials[:14]
+        if not trials:
+            raise StreamError("no pair of BRAM sites is far enough apart to hold the chains and both trees")
+    else:
+        trials = [(gap, None, 0, None) for gap in gaps]
+    for trial_no, (gap, gc, dr, ab) in enumerate(trials):
+        got, err = attempt(gap, gc, dr)
+        if got is None:
+            last_err = err
+            continue
+        dm, gm, chains, offsets, rrow, wrow, gcv = got
+        d_pin_abs = [(_shift(p, (rrow, 0)), f) for p, f in d_pins]
+        g_pin_abs = [(_shift(p, (wrow, gcv)), f) for p, f in g_pins]
+        d_of = [d_pin_abs.index((e.src_cell, e.src_face)) for e in dm.out_edges]
+        g_of = [g_pin_abs.index((e.dst_cell, e.dst_face)) for e in gm.in_edges]
+        if len(set(d_of)) != feeds or len(set(g_of)) != feeds:
+            last_err = "two chains were routed to the same leaf pin"
+            continue
+        sps = [SetPieceCell(sp.kind, sp.cell_id, _shift(sp.pos, (rrow, 0)), sp.up, sp.codes) for sp in d_sp] + \
+              [SetPieceCell(sp.kind, sp.cell_id, _shift(sp.pos, (wrow, gcv)), sp.up, sp.codes) for sp in g_sp]
+        fixed = None
+        if ab is not None:
+            fixed = (ab[0][0] - rrow, ab[0][1] - 0)
+        lay = _lower(result, feeds, plan, dt, gt, block, in_local, out_local, offsets, dm, chains, sps,
+                     (rrow, 0), len(block), gap, target, gmacro=gm, ctrls=[(rrow, 0), (wrow, gcv)], fixed_shift=fixed)
+        lay.dispatch_of_chain, lay.gather_of_chain = d_of, g_of
+        if target is not None:
+            lay.fit = _fit(lay, target)
+            geometry = [q for q in lay.fit.problems if "outside" in q or "larger than" in q or "not on a BRAM" in q]
+            if geometry and trial_no < len(trials) - 1:          # this pair of sites does not fit the grid: try the next
+                last_err = geometry[0]
+                continue
+        return lay
+    raise StreamError(f"could not route {feeds} chains between separate read and write controllers: {last_err}")

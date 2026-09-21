@@ -148,11 +148,12 @@ def test_a_multi_argument_chain_is_refused():
 
 # ---- placement: the documented limits -----------------------------------------------------------------------
 
-def test_four_or_more_chains_do_not_route_with_this_floor_plan_known_limitation():
-    """points.md #808. Measured, not assumed: with the dispatch tree north of the controller and the gather tree
-    south of it, 4, 5 and 7 chains all FAIL at every gap (6 .. 48 cells) and with 1 or 2 columns. Not room, not
-    the router -- the floor plan (each chain needs BOTH trees, which sit on opposite sides, so ports interleave).
-    It must be a loud StreamError. FLIP this when a floor plan that routes them exists."""
+def test_four_or_more_chains_do_not_route_with_a_single_shared_controller_known_limitation():
+    """points.md #808/#809. Measured, not assumed: with ONE controller (the shared read/write port, the
+    `shared_bram_arbiter` case) the dispatch tree sits north of it and the gather tree south, and 4, 5 and 7 chains
+    all FAIL at every gap (6 .. 48 cells) and with 1 or 2 columns. Not room, not the router -- each chain needs
+    BOTH trees, which sit on opposite sides, so the ports interleave. This is what a one-bus card would hit; with
+    SEPARATE read and write controllers (`ports=2`) it routes (below). Must be a loud StreamError."""
     with pytest.raises(SL.StreamError, match="could not route 4 chains"):
         SL.place_stream(_chain(), 4, gaps=(6, 10))
 
@@ -249,3 +250,93 @@ def test_verify_layout_flags_a_tampered_layout_so_the_checker_cannot_silently_ro
     r = lay.records[0]
     lay.set_pieces[0].pos = (r.row, r.col)                            # put a set-piece on top of a chain cell
     assert any("share a position" in p for p in SL.verify_layout(lay))
+
+
+# ---- the TWO-PORT plan: separate read and write controllers (points.md #809) ----------------------------------
+
+@pytest.mark.parametrize("feeds", [1, 2, 3, 4, 5, 6])
+def test_two_port_plan_places_verifies_and_runs_up_to_six_chains(feeds):
+    lay = SL.place_stream(_chain(), feeds, ports=2)
+    assert lay.ports == 2 and len(lay.controllers) == 2
+    assert SL.verify_layout(lay) == []
+    vals = [0, 1, 100, M, 12345, 42, 7][: feeds + 1]
+    run = SL.run_placed_stream(lay, vals)
+    assert [v for _, _, v in run.outputs] == [(x + 7) & M for x in vals]
+    assert run.sentinels_safe and run.isolated
+
+
+def test_two_port_plan_reaches_nine_chains_where_the_shared_controller_stopped_at_three():
+    lay = SL.place_stream(_chain(), 9, ports=2)
+    assert SL.verify_layout(lay) == [] and lay.dispatch.levels == 3
+    run = SL.run_placed_stream(lay, list(range(1, 11)))
+    assert [v for _, _, v in run.outputs] == [(x + 7) & M for x in range(1, 11)]
+    assert run.sentinels_safe and run.isolated
+
+
+def test_two_port_chains_sit_between_the_read_side_and_the_write_side():
+    """The point of the plan: every chain's input faces the dispatch tree and its output the gather tree."""
+    lay = SL.place_stream(_chain(), 5, ports=2)
+    rd, wr = lay.controllers
+    chain_cols = {r.col for r in lay.records if r.cell_id.split(".")[-1].startswith("c") and "_dynq" in r.cell_id}
+    assert rd[1] < min(chain_cols) < wr[1]
+    assert {p.cell_id for p in lay.set_pieces if p.kind == "controller"} == {"bram_rd", "bram_wr"}
+    assert all(p.pos[1] > rd[1] for p in lay.set_pieces if p.kind == "mux")
+    assert all(p.pos[1] < wr[1] for p in lay.set_pieces if p.kind == "combiner")
+
+
+def test_two_port_host_tables_are_permutations_and_stamps_decode_to_the_source_chain():
+    lay = SL.place_stream(_chain(), 5, ports=2)
+    assert sorted(lay.dispatch_of_chain) == list(range(5)) == sorted(lay.gather_of_chain)
+    run = SL.run_placed_stream(lay, [11, 22, 33, 44, 55])
+    for dest, stamp, _ in run.outputs:
+        assert lay.chain_for_gather(FS.mux_decode(lay.gather.tree, stamp)) == lay.chain_for_dispatch(dest)
+
+
+def test_ten_chains_do_not_yet_route_even_with_two_ports_known_limitation():
+    """Measured: 9 route, 10 to 13 do not (5-7 node trees with leaves on three faces congest the space between the
+    trees and the chains). A loud StreamError; the 2D tree limit is 13. FLIP when a denser plan routes them."""
+    with pytest.raises(SL.StreamError, match="could not route 10 chains between separate"):
+        SL.place_stream(_chain(), 10, ports=2)
+
+
+def test_ports_must_be_one_or_two():
+    with pytest.raises(SL.StreamError, match="ports must be 1"):
+        SL.place_stream(_chain(), 2, ports=3)
+
+
+def test_each_controller_is_bound_to_its_own_real_bram_site_on_the_mustang_target():
+    t = C.target_from_man(MAN, rows=224, cols=150, alm_per_position=100.0)
+    lay = SL.place_stream(_chain(), 3, ports=2, target=t)
+    rd, wr = lay.controllers
+    sites = set(t.sites["bram"])
+    assert rd in sites and wr in sites and rd != wr and wr[1] > rd[1]        # different BRAM columns, read west of write
+    assert [b[0] for b in lay.bindings] == ["bram_rd", "bram_wr"]
+    assert lay.fit.fits, lay.fit.problems
+    assert SL.verify_layout(lay) == []
+    run = SL.run_placed_stream(lay, [5, 6, 7, 8])
+    assert [v for _, _, v in run.outputs] == [12, 13, 14, 15] and run.sentinels_safe
+
+
+def test_the_two_port_fit_reports_the_array_and_says_no_when_it_is_too_big():
+    """5 chains use 257 cells but the near-square array is 2328 positions: over a 2012-position budget."""
+    t = C.target_from_man(MAN, rows=224, cols=150, alm_per_position=100.0)
+    lay = SL.place_stream(_chain(), 5, ports=2, target=t)
+    assert lay.fit.array_cells > 5 * lay.fit.cells and not lay.fit.fits
+    assert "instantiated positions" in lay.fit.problems[0]
+
+
+def test_a_target_with_no_pair_of_bram_sites_wide_enough_is_refused():
+    t = C.CardTarget("tight", 300, 300, cell_budget=10 ** 6, sites={"bram": [(50, 10), (50, 14)]})     # 4 columns apart
+    with pytest.raises(SL.StreamError, match="far enough apart"):
+        SL.place_stream(_chain(), 2, ports=2, target=t)
+
+
+def test_the_fit_reports_a_controller_that_is_not_on_a_bram_site():
+    """Placement puts both controllers on sites by construction, so this check is defensive; prove it works."""
+    t = C.target_from_man(MAN, rows=224, cols=150, alm_per_position=100.0)
+    lay = SL.place_stream(_chain(), 2, ports=2, target=t)
+    assert lay.fit.fits
+    r, c = lay.controllers[1]
+    lay.controllers[1] = (r + 1, c)                                     # nudge the write controller off its site
+    rep = SL._fit(lay, t)
+    assert not rep.fits and any("not on a BRAM site" in p for p in rep.problems)
