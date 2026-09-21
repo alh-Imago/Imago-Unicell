@@ -68,7 +68,7 @@ class DagInstr:
     #: compile-time configuration that is NOT a data operand (points.md
     #: #797) -- e.g. a shift's `{"amount": K}`. Default-empty, so every
     #: pre-existing caller is unaffected.
-    params: Dict[str, int] = field(default_factory=dict)
+    params: Dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -373,14 +373,19 @@ def _grow_unary(instr: DagInstr, entry, op: dict, occ: Dict[Position, str],
         raise ValueError(f"{instr.name!r}: a unary op needs a real (ref/dynamic) operand, got {op['kind']!r}")
 
     out_dir = "e" if in_dir != "e" else "s"
-    op_cell = vtl.place(entry.tile, {"in": in_dir, "out": out_dir}, cell_id=f"{instr.name}_op",
+    op_cell = vtl.place(entry.tile, {"in": in_dir, "out": out_dir},
+                         params=(entry.param_builder(instr.params) if entry.param_builder else None),
+                         cell_id=(f"{instr.name}_op" if entry.needs_capture else instr.name),
                          rel_row=target_pos[0], rel_col=target_pos[1],
-                         addon_config=entry.addon_builder(instr.params))
+                         addon_config=(entry.addon_builder(instr.params) if entry.addon_builder else None))
+    cells.append(op_cell)
+    if not entry.needs_capture:
+        # the op cell's own output IS the result (e.g. a comparator)
+        return cells, Frontier(pos=target_pos, out_dir=out_dir)
     dr, dc = _DIR_STEP[out_dir]
     cap_pos = (target_pos[0] + dr, target_pos[1] + dc)
-    cap = vtl.place(vtl.TILE_RAM_FLOWING, {"in": _OPP[out_dir], "out": out_dir}, cell_id=instr.name,
-                     rel_row=cap_pos[0], rel_col=cap_pos[1])
-    cells += [op_cell, cap]
+    cells.append(vtl.place(vtl.TILE_RAM_FLOWING, {"in": _OPP[out_dir], "out": out_dir}, cell_id=instr.name,
+                            rel_row=cap_pos[0], rel_col=cap_pos[1]))
     return cells, Frontier(pos=cap_pos, out_dir=out_dir)
 
 
@@ -412,6 +417,28 @@ def _grow_convergence(instr: DagInstr, resolved: List[dict], shape: ConvergenceS
         leaf_counter[0] += 1
         b_padded_cells, b_frontier = [], Frontier((origin, -3), "e")
     cells: List = list(a_padded_cells) + list(b_padded_cells)
+
+    # points.md #798: exactly ONE operand is a leaf (dynamic/const) and the
+    # other a real, known frontier. A leaf has no position of its own -- its
+    # source cell is placed directly against the target face by
+    # `_connect_frontier_to` -- so its "frontier" only steers where the target
+    # lands and how the ports face. Left at a far-away `leaf_counter * 100`
+    # origin, the target lands at the midpoint and the partner's route becomes
+    # ~90 cells long, crossing other structure (position collisions in
+    # `select`'s mask/merge shape, found porting #798). Give the leaf a virtual
+    # position OFFSET from its partner (8 rows north), which puts the target 4
+    # cells east of the partner on its own row, the leaf entering from the north
+    # and the partner from the west -- distinct faces, short routes. (Placing
+    # it ON the partner was tried first and is wrong: a degenerate tie in the
+    # orientation helper put the leaf's source cell on the partner's route.)
+    # Two leaves, or two refs, are untouched.
+    if (a_start is None) != (b_start is None):
+        partner = b_frontier if a_start is None else a_frontier
+        leaf = Frontier((partner.pos[0] - 8, partner.pos[1]), "e")
+        if a_start is None:
+            a_frontier = leaf
+        else:
+            b_frontier = leaf
 
     target = ((a_frontier.pos[0] + b_frontier.pos[0]) // 2 + 4, max(a_frontier.pos[1], b_frontier.pos[1]) + 4)
     orient = choose_two_way_orientation(target, a_frontier.pos, b_frontier.pos)

@@ -73,6 +73,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import llvmlite.binding as llvm  # noqa: E402
 
 from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
+from icm_vix_v1 import IcmVixFormatError  # noqa: E402
 from vix_dag_dispatcher_v1 import compile_dag, ingestion_path, DagInstr, DagOperand  # noqa: E402
 from vix_opcode_library_v1 import lookup as library_lookup  # noqa: E402
 
@@ -100,6 +101,8 @@ class SourceInstr:
     opcode: str
     operands: List[SourceOperand] = field(default_factory=list)
     type_name: str = _SUPPORTED_TYPE
+    #: `icmp`'s predicate (`slt`, `eq`, ...); None for every other opcode.
+    predicate: Optional[str] = None
 
 
 @dataclass
@@ -132,6 +135,9 @@ class OrderNote:
     ingestion: str         # "plain_chain" | "convergence" -- the dispatcher's own decision
     guarantee: str         # "not needed" | "lowered to commutative" | "sequencer"
     reason: str
+    #: the source instruction this one came from, when the frontend expanded
+    #: one source instruction into several library ops (icmp/select/ashr).
+    origin: Optional[str] = None
 
 
 @dataclass
@@ -154,6 +160,9 @@ class DagFrontendResult:
     rewrites: List[str] = field(default_factory=list)
     #: the scan pass's per-instruction ordering report (points.md #796).
     ordering: List[OrderNote] = field(default_factory=list)
+    #: known, PRECISELY-BOUNDED inexactness in a compiled program -- surfaced,
+    #: never silent (points.md #798).
+    caveats: List[str] = field(default_factory=list)
 
 
 def _diag(stage: str, what: str, problem: str, why: str,
@@ -252,8 +261,12 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
                                    "result, or a literal"))
             else:
                 src_ops.append(so)
+        predicate = None
+        if ins.opcode == "icmp":
+            m = re.search(r"=\s*icmp\s+(\w+)\s", str(ins))
+            predicate = m.group(1) if m else None
         instrs.append(SourceInstr(name=ins.name, opcode=ins.opcode, operands=src_ops,
-                                  type_name=str(ins.type)))
+                                  type_name=str(ins.type), predicate=predicate))
 
     if any(d.severity == "error" for d in diags):
         return None, diags
@@ -301,7 +314,10 @@ def resolve_symbols(arguments: List[str], instrs: List[SourceInstr]
             if op.kind == "literal":
                 dag_ops.append(DagOperand(kind="const", value=op.value))
             elif op.name in arg_set:
-                dag_ops.append(DagOperand(kind="dynamic"))
+                # `ref_name` carries the ARGUMENT NAME on a dynamic operand, so
+                # the operand stays self-describing through every later
+                # rewrite/expansion (the dispatcher ignores it for dynamics).
+                dag_ops.append(DagOperand(kind="dynamic", ref_name=op.name))
                 arg_uses[op.name].append((ins.name, k))
             elif op.name in defined_at:
                 if defined_at[op.name] >= i:
@@ -315,7 +331,8 @@ def resolve_symbols(arguments: List[str], instrs: List[SourceInstr]
                                    "it is neither a function argument nor the result of any instruction",
                                    "declare it, or check the spelling"))
                 dag_ops.append(DagOperand(kind="ref", ref_name=op.name))
-        dag.append(DagInstr(name=ins.name, opcode=ins.opcode, operands=dag_ops))
+        dag.append(DagInstr(name=ins.name, opcode=ins.opcode, operands=dag_ops,
+                            params=({"predicate": ins.predicate} if ins.predicate else {})))
 
     if diags:
         return None, diags
@@ -323,121 +340,252 @@ def resolve_symbols(arguments: List[str], instrs: List[SourceInstr]
 
 
 # ---------------------------------------------------------------------------
-# 3a. Equivalence-preserving lowering, chosen by what the backend gets right.
+# 3a. Source-level capability checks: refuse rather than silently miscompile.
 # ---------------------------------------------------------------------------
 
-def _lower_for_backend(dag: List[DagInstr]) -> Tuple[List[DagInstr], List[str]]:
-    """`sub %v, C` -> `add %v, (-C mod 2^32)`. Found necessary by the
-    first real frontend (#795): `compile_dag()`'s plain-chain path gives
-    a non-commutative op's real and constant operands NO ordering
-    guarantee -- whichever arrives first becomes the minuend (`#770`'s
-    hazard), so `sub %a, 3` computed 3-a. Addition is commutative, so
-    this rewrite is correct by construction rather than by arrival luck.
-    It is also exactly what the old frontend does and what LLVM itself
-    canonicalizes `sub x, C` to. Every rewrite is recorded, not hidden."""
-    out: List[DagInstr] = []
-    notes: List[str] = []
-    for ins in dag:
-        kinds = [o.kind for o in ins.operands]
-        entry = library_lookup(ins.opcode)
-        if (entry is not None and entry.arity == 1 and len(ins.operands) == 2
-                and kinds == ["dynamic" if kinds[0] == "dynamic" else "ref", "const"]
-                and 0 <= ins.operands[1].value <= 31):
-            # a shift: the literal amount is compile-time CONFIGURATION, not a data operand (#797)
-            out.append(DagInstr(name=ins.name, opcode=ins.opcode, operands=[ins.operands[0]],
-                                params={"amount": ins.operands[1].value}))
-            notes.append(f"%{ins.name}: {ins.opcode} <value>, {ins.operands[1].value}  ->  "
-                         f"one-operand {ins.opcode} with amount {ins.operands[1].value} in addon config")
-            continue
-        if ins.opcode == "sub" and len(ins.operands) == 2 and kinds[0] != "const" and kinds[1] == "const":
-            neg = (-ins.operands[1].value) & _MASK32
-            out.append(DagInstr(name=ins.name, opcode="add",
-                                operands=[ins.operands[0], DagOperand(kind="const", value=neg)]))
-            notes.append(f"%{ins.name}: sub <value>, {ins.operands[1].value}  ->  add <value>, {neg:#x}")
-        else:
-            out.append(ins)
-    return out, notes
+#: opcodes with NO single library entry that the frontend EXPANDS into
+#: several library ops (compose before building new hardware).
+_EXPANDABLE = {"icmp", "select", "ashr"}
+#: predicate -> (swap operands before the subtraction, comparator threshold).
+#: sge/sgt: diff = A-B; slt/sle: diff = B-A (the old frontend's own table, #611).
+_ICMP_ORDERED = {"sge": (False, 0), "sgt": (False, 1), "slt": (True, 1), "sle": (True, 0)}
+_ICMP_EQ_NE = ("eq", "ne")
+_TYPE_FOR = {"icmp": "i1"}
 
 
-# ---------------------------------------------------------------------------
-# 3b. The scan pass's ordering report.
-# ---------------------------------------------------------------------------
-
-def scan_ordering(source_dag: List[DagInstr], lowered_dag: List[DagInstr]) -> List[OrderNote]:
-    """Record, per instruction, whether operand ORDER is essential and what
-    guarantees it. Order matters only for a non-commutative two-operand op
-    (today: `sub`); everywhere else ("add", "mul", "and", "or", "xor") it
-    does not, and the cheaper plain chain / PRIORITY shape is correct.
-    `ingestion` is read from the dispatcher's OWN `ingestion_path()` -- the
-    scan records the decision the backend will actually make, it does not
-    re-derive it."""
-    notes: List[OrderNote] = []
-    for src, low in zip(source_dag, lowered_dag):
-        entry = library_lookup(src.opcode)
-        sensitive = entry is not None and (not entry.is_commutative) and len(src.operands) == 2
-        ingestion = ingestion_path(low.opcode, [o.kind for o in low.operands])
-        if not sensitive:
-            single = entry is not None and entry.arity == 1
-            notes.append(OrderNote(src.name, src.opcode, False, ingestion, "not needed",
-                                   f"`{src.opcode}` has one data operand (its amount is configuration); "
-                                   f"there is no operand order to get wrong" if single else
-                                   f"`{src.opcode}` is commutative; either arrival order gives the same result"))
-        elif low.opcode != src.opcode:
-            notes.append(OrderNote(src.name, src.opcode, True, ingestion, "lowered to commutative",
-                                   f"`{src.opcode}` is order-sensitive, but with a literal subtrahend it is "
-                                   f"rewritten to commutative `{low.opcode}`, so order no longer matters"))
-        else:
-            notes.append(OrderNote(src.name, src.opcode, True, ingestion, "sequencer",
-                                   f"`{src.opcode}` is order-sensitive; operand order is enforced by the "
-                                   f"sequenced-channel priority cell (#772/#774), independent of arrival timing"))
-    return notes
+def _shift_problem(ins: DagInstr) -> Optional[str]:
+    """Why a shift-shaped instruction (value, literal amount) cannot be lowered."""
+    kinds = [o.kind for o in ins.operands]
+    if len(kinds) != 2:
+        return f"{len(kinds)} operands, expected 2"
+    if kinds == ["const", "const"]:
+        return "both operands are literals (constant folding is not built into this frontend)"
+    if kinds[1] != "const":
+        return ("the shift amount is not a compile-time literal -- a variable shift amount would need a "
+                "barrel shifter, which the shift addon (fixed coarse+fine taps) is not")
+    if kinds[0] == "const":
+        return "the shifted value is a literal (constant folding is not built into this frontend)"
+    if not 0 <= ins.operands[1].value <= 31:
+        return f"the shift amount {ins.operands[1].value} is outside 0-31 (poison in LLVM; the addon covers 0-31)"
+    return None
 
 
-# ---------------------------------------------------------------------------
-# 3c. Backend-capability guards: refuse rather than silently miscompile.
-# ---------------------------------------------------------------------------
-
-def _check_capabilities(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[CompileDiagnostic]:
+def _check_source(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[CompileDiagnostic]:
     diags: List[CompileDiagnostic] = []
+    types: Dict[str, str] = {}
     for src, ins in zip(instrs, dag):
         what = f"checking `%{ins.name} = {ins.opcode}`"
-        entry = library_lookup(ins.opcode)
-        if entry is None:
-            diags.append(_diag("dag-lowering", what, f"no library entry for opcode `{ins.opcode}`",
+        types[ins.name] = src.type_name
+        op = ins.opcode
+        entry = library_lookup(op)
+        if entry is None and op not in _EXPANDABLE:
+            diags.append(_diag("dag-lowering", what, f"no library entry for opcode `{op}`",
                                "the dispatcher only places opcodes the opcode library knows",
                                "this is where `#752`'s escalation ladder would apply (shared library, "
                                "then AI research, then the Composer) -- not built yet"))
             continue
-        if src.type_name != _SUPPORTED_TYPE:
-            diags.append(_diag("dag-lowering", what, f"result type is {src.type_name}, not i32",
-                               "the fabric's cells are 32-bit"))
-        if entry.arity == 1:
-            if len(ins.operands) != 1:
-                kinds_ = [o.kind for o in ins.operands]
-                if kinds_ == ["const", "const"]:
-                    why = "both operands are literals (constant folding is not built into this frontend)"
-                elif len(ins.operands) == 2 and kinds_[1] != "const":
-                    why = ("the shift amount is not a compile-time literal -- a variable shift amount would "
-                           "need a barrel shifter, which the shift addon (fixed coarse+fine taps) is not")
-                elif len(ins.operands) == 2 and kinds_[0] == "const":
-                    why = "the shifted value is a literal (constant folding is not built into this frontend)"
-                else:
-                    why = f"the shift amount {ins.operands[1].value} is outside 0-31 (poison in LLVM; the addon covers 0-31)"
-                diags.append(_diag("dag-lowering", what, f"`{ins.opcode}` cannot be lowered: {why}",
+        want = _TYPE_FOR.get(op, _SUPPORTED_TYPE)
+        if src.type_name != want:
+            diags.append(_diag("dag-lowering", what, f"result type is {src.type_name}, not {want}",
+                               "the fabric's cells are 32-bit; a wider or narrower type would be "
+                               "silently truncated or mis-sized"))
+            continue
+        kinds = [o.kind for o in ins.operands]
+
+        if op == "select":
+            if len(ins.operands) != 3:
+                diags.append(_diag("dag-lowering", what, f"{len(ins.operands)} operands, expected 3",
+                                   "`select` takes a condition and two values"))
+                continue
+            c = ins.operands[0]
+            if c.kind != "ref" or types.get(c.ref_name) != "i1":
+                diags.append(_diag("dag-lowering", what, "the condition is not the result of an earlier `icmp`",
+                                   "only a 0/1 boolean produced by a comparison can be widened to a mask; "
+                                   "a literal or wider condition would give a wrong mask"))
+            continue
+        if op == "icmp":
+            if len(ins.operands) != 2:
+                diags.append(_diag("dag-lowering", what, f"{len(ins.operands)} operands, expected 2",
+                                   "`icmp` compares two values"))
+            elif ins.params.get("predicate") not in _ICMP_ORDERED and ins.params.get("predicate") not in _ICMP_EQ_NE:
+                diags.append(_diag("dag-lowering", what, f"predicate `{ins.params.get('predicate')}` is not supported",
+                                   f"supported: {sorted(list(_ICMP_ORDERED) + list(_ICMP_EQ_NE))} -- the same "
+                                   f"set the old frontend has (unsigned predicates are separate, unbuilt work)"))
+            elif kinds == ["const", "const"]:
+                diags.append(_diag("dag-lowering", what, "both operands are literals",
+                                   "constant folding is not built into this frontend"))
+            continue
+        if op == "ashr" or (entry is not None and entry.arity == 1):
+            problem = _shift_problem(ins)
+            if problem:
+                diags.append(_diag("dag-lowering", what, f"`{op}` cannot be lowered: {problem}",
                                    "the shift addon takes its amount as compile-time configuration",
                                    "use a literal amount in 0-31 on a variable value"))
             continue
         if len(ins.operands) != 2:
             diags.append(_diag("dag-lowering", what, f"{len(ins.operands)} operands, expected 2",
                                "every two-operand library entry expects exactly 2"))
-            continue
-        kinds = [o.kind for o in ins.operands]
-        if kinds == ["const", "const"]:
+        elif kinds == ["const", "const"]:
             diags.append(_diag("dag-lowering", what, "both operands are literals",
                                "the dispatcher places one constant per instruction; it would drop "
                                "one and silently compute the wrong value",
                                "constant-fold it first (constant folding is not built into this frontend)"))
     return diags
+
+
+# ---------------------------------------------------------------------------
+# 3b. Lowering: 1:N expansions, then 1:1 rewrites, with lineage.
+# ---------------------------------------------------------------------------
+
+def _fresh(base: str, tag: str, used: Set[str]) -> str:
+    name = f"{base}__{tag}"
+    while name in used:
+        name += "_"
+    used.add(name)
+    return name
+
+
+def _ref(name: str) -> DagOperand:
+    return DagOperand(kind="ref", ref_name=name)
+
+
+def _const(v: int) -> DagOperand:
+    return DagOperand(kind="const", value=v & _MASK32)
+
+
+def _expand(ins: DagInstr, used: Set[str]) -> List[DagInstr]:
+    """One source instruction -> several LIBRARY ops (the last keeps the
+    source `%name`; the rest get `<name>__<tag>`). Composition before new
+    hardware: every piece below already exists, and the order-sensitive
+    `sub` inside gets the backend's ordering guarantee (#796) for free."""
+    n, op = ins.name, ins.opcode
+    if op == "icmp":
+        pred = ins.params["predicate"]
+        x, y = ins.operands
+        if pred in _ICMP_ORDERED:
+            swap, thr = _ICMP_ORDERED[pred]
+            a, b = (y, x) if swap else (x, y)
+            d = _fresh(n, "d", used)
+            return [DagInstr(d, "sub", [a, b]), DagInstr(n, "cmp_ge", [_ref(d)], params={"threshold": thr})]
+        # eq/ne: diff is exactly 0 iff XOR(diff>=0, diff>=1) (#668)
+        d, c0, c1 = _fresh(n, "d", used), _fresh(n, "ge0", used), _fresh(n, "ge1", used)
+        out = [DagInstr(d, "sub", [x, y]),
+               DagInstr(c0, "cmp_ge", [_ref(d)], params={"threshold": 0}),
+               DagInstr(c1, "cmp_ge", [_ref(d)], params={"threshold": 1})]
+        if pred == "eq":
+            out.append(DagInstr(n, "xor", [_ref(c0), _ref(c1)]))
+        else:  # ne = NOT eq, as XOR with 1 (a bitwise XNOR would flip all 32 bits, #668)
+            e = _fresh(n, "eq", used)
+            out += [DagInstr(e, "xor", [_ref(c0), _ref(c1)]), DagInstr(n, "xor", [_ref(e), _const(1)])]
+        return out
+    if op == "select":
+        c, t, f = ins.operands
+        m, nm = _fresh(n, "mask", used), _fresh(n, "nmask", used)
+        at, af = _fresh(n, "t", used), _fresh(n, "f", used)
+        return [DagInstr(m, "sub", [_const(0), c]),                 # 0/1 -> 0 / 0xFFFFFFFF
+                DagInstr(nm, "xor", [_ref(m), _const(_MASK32)]),    # ~mask
+                DagInstr(at, "and", [t, _ref(m)]),
+                DagInstr(af, "and", [f, _ref(nm)]),
+                DagInstr(n, "or", [_ref(at), _ref(af)])]
+    if op == "ashr":
+        x, amt = ins.operands
+        k = amt.value
+        if k == 0:
+            return [DagInstr(n, "add", [x, _const(0)])]
+        # arithmetic shift = logical shift, OR a sign-fill: the top k bits are the
+        # sign mask (0 or all-ones) shifted left by 32-k. No sign-magnitude, no
+        # branch, no correction stage -- only library ops that already exist.
+        s, m, fill, lo = (_fresh(n, "sign", used), _fresh(n, "smask", used),
+                          _fresh(n, "fill", used), _fresh(n, "lo", used))
+        return [DagInstr(s, "lshr", [x, _const(31)]),
+                DagInstr(m, "sub", [_const(0), _ref(s)]),
+                DagInstr(fill, "shl", [_ref(m), _const(32 - k)]),
+                DagInstr(lo, "lshr", [x, _const(k)]),
+                DagInstr(n, "or", [_ref(lo), _ref(fill)])]
+    raise AssertionError(op)
+
+
+def _rewrite_one(ins: DagInstr) -> Tuple[DagInstr, Optional[str]]:
+    """1:1, equivalence-preserving rewrites chosen by what the backend does
+    best. `sub %v, C` -> `add %v, -C` (commutative: cheaper than a sequencer
+    and correct by construction; also what the old frontend does and what
+    LLVM canonicalizes to). A shift's literal amount moves out of the operand
+    list into `params` (it is configuration, not a data operand)."""
+    kinds = [o.kind for o in ins.operands]
+    entry = library_lookup(ins.opcode)
+    if entry is not None and entry.arity == 1 and len(ins.operands) == 2:
+        amount = ins.operands[1].value
+        return (DagInstr(name=ins.name, opcode=ins.opcode, operands=[ins.operands[0]], params={"amount": amount}),
+                f"%{ins.name}: {ins.opcode} <value>, {amount}  ->  one-operand {ins.opcode} with amount "
+                f"{amount} in addon config")
+    if ins.opcode == "sub" and len(ins.operands) == 2 and kinds[0] != "const" and kinds[1] == "const":
+        neg = (-ins.operands[1].value) & _MASK32
+        return (DagInstr(name=ins.name, opcode="add", operands=[ins.operands[0], _const(neg)]),
+                f"%{ins.name}: sub <value>, {ins.operands[1].value}  ->  add <value>, {neg:#x}")
+    return ins, None
+
+
+def _lower_and_expand(dag: List[DagInstr], used: Set[str]
+                      ) -> Tuple[List[DagInstr], List[str], Dict[str, Tuple[str, str]]]:
+    """Returns (final DAG, human-readable rewrite notes, lineage). `lineage`
+    maps each final instruction's name to (source instruction name, the
+    opcode it had BEFORE the 1:1 rewrites) -- so the scan pass and any reader
+    can trace a library op back to the `%name` it came from."""
+    final: List[DagInstr] = []
+    notes: List[str] = []
+    lineage: Dict[str, Tuple[str, str]] = {}
+    for ins in dag:
+        if ins.opcode in _EXPANDABLE:
+            parts = _expand(ins, used)
+            notes.append(f"%{ins.name}: {ins.opcode} expanded into {len(parts)} library ops: "
+                         + ", ".join(f"%{p.name}={p.opcode}" for p in parts))
+        else:
+            parts = [ins]
+        for p in parts:
+            lineage[p.name] = (ins.name, p.opcode)
+            q, note = _rewrite_one(p)
+            if note:
+                notes.append(note)
+            final.append(q)
+    return final, notes, lineage
+
+
+# ---------------------------------------------------------------------------
+# 3c. The scan pass's ordering report.
+# ---------------------------------------------------------------------------
+
+def scan_ordering(final: List[DagInstr], lineage: Dict[str, Tuple[str, str]]) -> List[OrderNote]:
+    """Record, per instruction of the FINAL DAG, whether operand ORDER is
+    essential and what guarantees it. Order matters only for a non-commutative
+    two-operand op (today: `sub`); everywhere else the cheaper plain chain /
+    PRIORITY shape is correct. `ingestion` is read from the dispatcher's OWN
+    `ingestion_path()` -- the scan records the decision the backend will
+    actually make, it does not re-derive it. `origin` traces an expanded
+    library op back to its source `%name`."""
+    notes: List[OrderNote] = []
+    for ins in final:
+        origin, pre_opcode = lineage[ins.name]
+        pre = library_lookup(pre_opcode)
+        entry = library_lookup(ins.opcode)
+        sensitive = pre is not None and not pre.is_commutative
+        ingestion = ingestion_path(ins.opcode, [o.kind for o in ins.operands])
+        shown = pre_opcode
+        o = origin if origin != ins.name else None
+        if not sensitive:
+            single = entry is not None and entry.arity == 1
+            notes.append(OrderNote(ins.name, shown, False, ingestion, "not needed",
+                                   f"`{shown}` has one data operand (any amount/threshold is configuration); "
+                                   f"there is no operand order to get wrong" if single else
+                                   f"`{shown}` is commutative; either arrival order gives the same result", o))
+        elif ins.opcode != pre_opcode:
+            notes.append(OrderNote(ins.name, shown, True, ingestion, "lowered to commutative",
+                                   f"`{shown}` is order-sensitive, but with a literal subtrahend it is "
+                                   f"rewritten to commutative `{ins.opcode}`, so order no longer matters", o))
+        else:
+            notes.append(OrderNote(ins.name, shown, True, ingestion, "sequencer",
+                                   f"`{shown}` is order-sensitive; operand order is enforced by the "
+                                   f"sequenced-channel priority cell (#772/#774), independent of arrival timing", o))
+    return notes
 
 
 # ---------------------------------------------------------------------------
@@ -447,8 +595,8 @@ def _check_capabilities(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[
 def _arg_labels(dag: List[DagInstr], arg_uses: Dict[str, List[Tuple[str, int]]]) -> Dict[str, List[str]]:
     """Predict the injection label `compile_dag()` gives each dynamic
     operand: `<name>_x` on the plain-chain path, else `<name>_a`/`<name>_b`
-    by operand index (rule shared with the dispatcher via `ingestion_path`). The caller
-    cross-checks every predicted label against what `compile_dag()`
+    by operand index (rule shared with the dispatcher via `ingestion_path`).
+    The caller cross-checks every predicted label against what `compile_dag()`
     actually returned, so this can never drift silently."""
     by_name = {d.name: d for d in dag}
     out: Dict[str, List[str]] = {}
@@ -476,21 +624,49 @@ def compile_llvm_via_dag(source: str) -> Tuple[Optional[DagFrontendResult], List
                             f"`ret` returns `{fn.result_name}`, which is not the result of any instruction",
                             "returning an argument directly leaves no computed cell to read")]
 
-    lowered, rewrites = _lower_for_backend(resolved.dag)
-    diags = _check_capabilities(fn.instrs, lowered)
+    diags = _check_source(fn.instrs, resolved.dag)
     if diags:
         return None, diags
-    ordering = scan_ordering(resolved.dag, lowered)
 
-    icm, positions, dynamic_positions, seq_orders = compile_dag(lowered)
-    problems = icm.check_connections()
+    used: Set[str] = set(fn.arguments) | {d.name for d in resolved.dag}
+    final, rewrites, lineage = _lower_and_expand(resolved.dag, used)
+    ordering = scan_ordering(final, lineage)
+    caveats = [f"%{i.name}: `icmp {i.params['predicate']}` is exact only while the signed difference it computes "
+               f"does not overflow 32 bits (opposite-sign operands whose magnitudes sum past 2^31-1 give the "
+               f"WRONG answer, not an error) -- inherited from the old frontend (#711), bounded exactly (#798). "
+               f"`eq`/`ne` are exact for every input."
+               for i in resolved.dag if i.opcode == "icmp" and i.params.get("predicate") in _ICMP_ORDERED]
+
+    try:
+        icm, positions, dynamic_positions, seq_orders = compile_dag(final)
+        problems = icm.check_connections()
+    except (IcmVixFormatError, ValueError) as e:
+        # A LOUD, PRECISE refusal -- never a raw exception, never a silent miscompile. The
+        # growing-frontier placement (#780) has no global occupancy planning: two
+        # independently-computed chains that must merge are routed straight-then-turn and can
+        # cross other structure; `flatten()` rejects that collision (points.md #798).
+        return None, [_diag("place", "placing the compiled DAG", str(e),
+                            "the dispatcher's growing-frontier placement has no global occupancy planning "
+                            "yet, so it cannot route every shape -- typically two independently-computed "
+                            "values that must be merged (e.g. a `select` whose BOTH arms are computed), "
+                            "or a chain of `select`s",
+                            "restructure so at most one merge input is an independent computed chain; "
+                            "occupancy-aware placement / tightening is separate, named work")]
     if problems:
         return None, [_diag("emit", "checking compiled connections", str(p),
                             "the dispatcher produced an inconsistent layout") for p in problems]
 
+    # Argument bindings come from the FINAL DAG (each dynamic operand carries its
+    # argument name), so they stay right through any expansion or rewrite.
+    arg_uses: Dict[str, List[Tuple[str, int]]] = {a: [] for a in fn.arguments}
+    for ins in final:
+        for k, o in enumerate(ins.operands):
+            if o.kind == "dynamic":
+                arg_uses[o.ref_name].append((ins.name, k))
+
     dyn = {label: (r, c) for label, r, c in dynamic_positions}
     arg_injections: Dict[str, List[Tuple[int, int]]] = {}
-    for arg, labels in _arg_labels(lowered, resolved.arg_uses).items():
+    for arg, labels in _arg_labels(final, arg_uses).items():
         sites = []
         for label in labels:
             if label not in dyn:
@@ -503,10 +679,11 @@ def compile_llvm_via_dag(source: str) -> Tuple[Optional[DagFrontendResult], List
     records, _ = icm.flatten()
     core_at = {(r.row, r.col): r.core for r in records}
     result_cell = positions[fn.result_name]
-    return DagFrontendResult(function_name=fn.function_name, dag=lowered, icm=icm, records=records,
+    return DagFrontendResult(function_name=fn.function_name, dag=final, icm=icm, records=records,
                              positions=positions, seq_orders=seq_orders, arg_injections=arg_injections,
                              result_name=fn.result_name, result_cell=result_cell,
-                             result_core=core_at[result_cell], rewrites=rewrites, ordering=ordering), []
+                             result_core=core_at[result_cell], rewrites=rewrites, ordering=ordering,
+                             caveats=caveats), []
 
 
 def _read_result(cell, core: str) -> int:
@@ -518,6 +695,8 @@ def _read_result(cell, core: str) -> int:
         return cell._nano.out_buffer
     if core == "ram":
         return cell.ram_data_reg
+    if core == "comparator":
+        return cell.cmp_out_buffer
     raise ValueError(f"no known result field for core {core!r}")
 
 

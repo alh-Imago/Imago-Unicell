@@ -126,3 +126,245 @@ def test_out_of_range_shift_amount_is_refused():
 
 def test_shift_of_a_literal_is_refused():
     assert "both operands are literals" in _refused(_ir("  %r = shl i32 4, 2\n  ret i32 %r"))
+
+
+# ===========================================================================
+# icmp  (#798) -- expands to `sub` + comparator (+ `xor` for eq/ne)
+# ===========================================================================
+
+def s32(v):
+    v &= M
+    return v - (1 << 32) if v >> 31 else v
+
+
+_PRED = {
+    "slt": lambda a, b: s32(a) < s32(b), "sle": lambda a, b: s32(a) <= s32(b),
+    "sgt": lambda a, b: s32(a) > s32(b), "sge": lambda a, b: s32(a) >= s32(b),
+    "eq": lambda a, b: a == b, "ne": lambda a, b: a != b,
+}
+_SMALL = [0, 1, 2, 5, 100, M, M - 1, M - 99]           # small values incl. small negatives
+_PAIRS = [(a, b) for a in _SMALL for b in _SMALL]
+_EXTREME = [0x80000000, 0x80000001, 0xC0000000, M, 0, 1, 0x40000000, 0x7FFFFFFF]
+_EXT_PAIRS = [(a, b) for a in _EXTREME for b in _EXTREME]
+
+
+def _icmp_ir(pred, ret_i1=False):
+    if ret_i1:
+        return ("define i1 @f(i32 %x, i32 %y) {\nentry:\n"
+                f"  %c = icmp {pred} i32 %x, %y\n  ret i1 %c\n}}\n")
+    return _ir(f"  %c = icmp {pred} i32 %x, %y\n  %r = select i1 %c, i32 1, i32 0\n  ret i32 %r",
+               args="i32 %x, i32 %y")
+
+
+@pytest.mark.parametrize("pred", list(_PRED))
+def test_icmp_every_predicate_result_is_exact_on_the_non_overflowing_domain(pred):
+    res = _compile(_icmp_ir(pred, ret_i1=True))
+    for a, b in _PAIRS:
+        assert F.run_in_vm(res, {"x": a, "y": b}, ticks=350) == int(_PRED[pred](a, b)), (pred, a, b)
+
+
+@pytest.mark.parametrize("pred", list(_PRED))
+def test_icmp_through_select_gives_the_same_answer(pred):
+    res = _compile(_icmp_ir(pred))
+    for a, b in _PAIRS[::3]:
+        assert F.run_in_vm(res, {"x": a, "y": b}, ticks=350) == int(_PRED[pred](a, b)), (pred, a, b)
+
+
+@pytest.mark.parametrize("pred", ["eq", "ne"])
+def test_eq_ne_are_exact_for_every_pair_including_extremes(pred):
+    """diff==0 is sign-agnostic, so overflow cannot affect eq/ne."""
+    res = _compile(_icmp_ir(pred, ret_i1=True))
+    for a, b in _EXT_PAIRS:
+        assert F.run_in_vm(res, {"x": a, "y": b}, ticks=350) == int(_PRED[pred](a, b)), (pred, a, b)
+
+
+@pytest.mark.parametrize("pred", ["slt", "sle", "sgt", "sge"])
+def test_ordered_predicates_fail_exactly_on_signed_difference_overflow_known_limitation(pred):
+    """points.md #798 -- a documented, PRECISELY BOUNDED negative result,
+    inherited from the old frontend (#711). The ordered predicates compute a
+    32-bit difference and compare it signed, so they are wrong EXACTLY when
+    that difference overflows (opposite-sign operands whose magnitudes sum
+    past 2^31-1). Asserts both directions: every overflow pair is wrong AND
+    every wrong pair is an overflow. If a sign-aware compare is ever built,
+    FLIP this to require exactness everywhere."""
+    swap = pred in ("slt", "sle")
+    res = _compile(_icmp_ir(pred, ret_i1=True))
+
+    def overflows(a, b):
+        A, B = s32(a), s32(b)
+        d = (B - A) if swap else (A - B)
+        return not -(1 << 31) <= d <= (1 << 31) - 1
+
+    wrong = {(a, b) for a, b in _EXT_PAIRS
+             if F.run_in_vm(res, {"x": a, "y": b}, ticks=350) != int(_PRED[pred](a, b))}
+    assert wrong == {(a, b) for a, b in _EXT_PAIRS if overflows(a, b)}
+    assert wrong, "the extreme set must actually contain overflow cases"
+
+
+def test_ordered_predicates_carry_a_caveat_eq_ne_do_not():
+    assert "overflow" in " ".join(_compile(_icmp_ir("slt")).caveats)
+    assert _compile(_icmp_ir("eq")).caveats == []
+
+
+def test_icmp_with_a_literal_operand_either_side():
+    for src, ref in [
+        (_ir("  %c = icmp slt i32 %x, 100\n  %r = select i1 %c, i32 1, i32 0\n  ret i32 %r"), lambda x: s32(x) < 100),
+        (_ir("  %c = icmp sgt i32 100, %x\n  %r = select i1 %c, i32 1, i32 0\n  ret i32 %r"), lambda x: 100 > s32(x)),
+        (_ir("  %c = icmp eq i32 %x, 7\n  %r = select i1 %c, i32 1, i32 0\n  ret i32 %r"), lambda x: x == 7),
+        (_ir("  %c = icmp ne i32 7, %x\n  %r = select i1 %c, i32 1, i32 0\n  ret i32 %r"), lambda x: x != 7),
+    ]:
+        res = _compile(src)
+        for x in (0, 6, 7, 8, 99, 100, 101, M, M - 5):
+            assert F.run_in_vm(res, {"x": x}, ticks=350) == int(ref(x)), (src, x)
+
+
+def test_icmp_expansion_keeps_the_source_name_and_traces_the_pieces():
+    res = _compile(_icmp_ir("eq"))
+    names = [d.name for d in res.dag]
+    assert "c" in names and any(n.startswith("c__") for n in names)
+    by = {n.name: n for n in res.ordering}
+    assert by["c"].origin is None                                   # the source %name itself
+    assert all(n.origin == "c" for n in res.ordering if n.name.startswith("c__"))
+    assert any("expanded into" in r for r in res.rewrites)
+
+
+def test_icmp_agrees_with_the_old_frontends_own_model_where_it_accepts_the_program():
+    """The old frontend only accepts an ORDERED icmp feeding a select (it refuses
+    eq/ne there -- its own restriction, #668); the new path is more general.
+    Cross-check every predicate the old one accepts, and require that be all four."""
+    agreed = 0
+    for pred in ("slt", "sle", "sgt", "sge", "eq", "ne"):
+        src = _ir(f"  %c = icmp {pred} i32 %x, 7\n  %r = select i1 %c, i32 1, i32 0\n  ret i32 %r")
+        res = _compile(src)
+        for x in (3, 7, 12):
+            _, _, info = OLD.compile_llvm_ir(src, {"x": x})
+            if info is None:
+                break
+            assert F.run_in_vm(res, {"x": x}, ticks=350) == info.expected_result, (pred, x)
+        else:
+            agreed += 1
+    assert agreed == 4
+
+
+def test_unsigned_predicate_is_refused():
+    assert "not supported" in _refused(_ir("  %c = icmp ult i32 %x, 5\n  %r = select i1 %c, i32 1, i32 0\n  ret i32 %r"))
+
+
+def test_icmp_of_two_literals_is_refused():
+    assert "both operands are literals" in _refused(
+        _ir("  %c = icmp slt i32 3, 5\n  %r = select i1 %c, i32 1, i32 0\n  ret i32 %r"))
+
+
+# ===========================================================================
+# select  (#798) -- mask-and-merge from library ops: m = 0-c, (t&m)|(f&~m)
+# ===========================================================================
+
+def _sel_cases(src, cases, ref, ticks=350):
+    res = _compile(src)
+    for a in cases:
+        assert F.run_in_vm(res, a, ticks=ticks) == ref(**a) & M, (a,)
+    return res
+
+
+def test_select_with_two_literal_arms():
+    _sel_cases(_icmp_ir("slt"), [{"x": 3, "y": 5}, {"x": 5, "y": 3}], lambda x, y: int(s32(x) < s32(y)))
+
+
+def test_select_arm_is_the_argument_itself():
+    _sel_cases(_ir("  %c = icmp slt i32 %x, 10\n  %r = select i1 %c, i32 %x, i32 10\n  ret i32 %r"),
+               [{"x": x} for x in (0, 9, 10, 11, M)], lambda x: x if s32(x) < 10 else 10)
+
+
+def test_select_min_and_max_with_a_literal():
+    _sel_cases(_ir("  %c = icmp sgt i32 %x, 50\n  %r = select i1 %c, i32 50, i32 %x\n  ret i32 %r"),
+               [{"x": x} for x in (0, 10, 50, 51, 200, M)], lambda x: 50 if s32(x) > 50 else x)
+
+
+def test_select_with_two_dynamic_arms():
+    _sel_cases(_ir("  %c = icmp slt i32 %x, 10\n  %r = select i1 %c, i32 %y, i32 %z\n  ret i32 %r",
+                   args="i32 %x, i32 %y, i32 %z"),
+               [{"x": x, "y": y, "z": z} for x in (3, 10, 50) for y in (7, M) for z in (0, 99)],
+               lambda x, y, z: y if s32(x) < 10 else z)
+
+
+def test_select_max_of_two_arguments():
+    _sel_cases(_ir("  %c = icmp sgt i32 %x, %y\n  %r = select i1 %c, i32 %x, i32 %y\n  ret i32 %r",
+                   args="i32 %x, i32 %y"),
+               [{"x": a, "y": b} for a in (0, 3, M, 100) for b in (0, 7, M, 99)],
+               lambda x, y: max(s32(x), s32(y)))
+
+
+def test_select_absolute_value_uses_a_computed_arm():
+    _sel_cases(_ir("  %c = icmp slt i32 %x, 0\n  %n = sub i32 0, %x\n  %r = select i1 %c, i32 %n, i32 %x\n  ret i32 %r"),
+               [{"x": x} for x in (0, 1, 5, M, M - 4, 0x7FFFFFFF)], lambda x: abs(s32(x)))
+
+
+def test_select_agrees_with_the_old_frontends_own_model():
+    src = _ir("  %c = icmp sgt i32 %x, 50\n  %r = select i1 %c, i32 50, i32 %x\n  ret i32 %r")
+    res = _compile(src)
+    for x in (10, 50, 51, 200):
+        _, _, info = OLD.compile_llvm_ir(src, {"x": x})
+        assert F.run_in_vm(res, {"x": x}, ticks=350) == info.expected_result, x
+
+
+def test_select_with_a_literal_condition_is_refused():
+    assert _refused(_ir("  %r = select i1 true, i32 1, i32 2\n  ret i32 %r"))
+
+
+@pytest.mark.parametrize("src", [
+    # two independently COMPUTED arms
+    _ir("  %a = add i32 %x, 1\n  %b = shl i32 %x, 2\n  %c = icmp eq i32 %x, 5\n  %r = select i1 %c, i32 %a, i32 %b\n  ret i32 %r"),
+    # a chain of selects
+    _ir("  %c1 = icmp slt i32 %x, 10\n  %a = select i1 %c1, i32 10, i32 %x\n  %c2 = icmp sgt i32 %a, 20\n"
+        "  %r = select i1 %c2, i32 20, i32 %a\n  ret i32 %r"),
+])
+def test_placement_limit_is_a_loud_precise_refusal_never_a_raw_exception_known_limitation(src):
+    """points.md #798 -- a documented NEGATIVE result. The dispatcher's
+    growing-frontier placement has no global occupancy planning: when two
+    independently-computed values must merge (a `select` with two computed
+    arms, or a chain of selects) their routes can cross other structure and
+    `flatten()` rejects the collision. The frontend must turn that into a
+    `place`-stage diagnostic -- never a raw exception, never a wrong answer.
+    If occupancy-aware placement is built, FLIP these to compile-and-verify."""
+    res, diags = F.compile_llvm_via_dag(src)
+    assert res is None
+    assert diags and diags[0].stage == "place" and "collision" in diags[0].problem
+
+
+# ===========================================================================
+# ashr  (#798) -- logical shift OR a sign-fill: lshr(x,k) | shl(0 - lshr(x,31), 32-k)
+# ===========================================================================
+
+def test_ashr_every_amount_0_to_31_is_exact_for_negative_and_positive_values():
+    edge = [0x80000000, 0x80000001, 0xFFFFFFF0, 0x7FFFFFFF, 0x12345678]   # full 32x10 sweep: see #798
+    for k in range(32):
+        res = _compile(_ir(f"  %r = ashr i32 %x, {k}\n  ret i32 %r"))
+        for x in edge:
+            assert F.run_in_vm(res, {"x": x}, ticks=350) == (s32(x) >> k) & M, (k, hex(x))
+
+
+def test_ashr_agrees_with_the_old_frontends_own_model():
+    for k in (0, 1, 4, 7, 16, 31):
+        src = _ir(f"  %r = ashr i32 %x, {k}\n  ret i32 %r")
+        res = _compile(src)
+        for x in (5, M - 20, 0x7FFF0001, 0x80000000):
+            _, _, info = OLD.compile_llvm_ir(src, {"x": x})
+            assert F.run_in_vm(res, {"x": x}, ticks=350) == info.expected_result, (k, hex(x))
+
+
+def test_ashr_needs_no_sign_magnitude_machinery_only_library_ops():
+    res = _compile(_ir("  %r = ashr i32 %x, 5\n  ret i32 %r"))
+    assert {d.opcode for d in res.dag} <= {"lshr", "shl", "sub", "or", "add"}
+    assert len(res.dag) == 5
+
+
+def test_ashr_of_a_computed_value_and_in_a_chain():
+    res = _compile(_ir("  %a = add i32 %x, 100\n  %b = ashr i32 %a, 3\n  %c = shl i32 %b, 1\n  ret i32 %c"))
+    for x in (0, 1, M - 200, 0x7FFFFF00, 0x80000000, M):
+        assert F.run_in_vm(res, {"x": x}, ticks=350) == (((s32((x + 100) & M) >> 3) & M) << 1) & M, hex(x)
+
+
+def test_ashr_variable_or_out_of_range_amount_is_refused():
+    assert "not a compile-time literal" in _refused(
+        _ir("  %r = ashr i32 %x, %y\n  ret i32 %r", args="i32 %x, i32 %y"))
+    assert "outside 0-31" in _refused(_ir("  %r = ashr i32 %x, 32\n  ret i32 %r"))

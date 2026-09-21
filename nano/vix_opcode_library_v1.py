@@ -72,6 +72,13 @@ class LibraryEntry:
     #: for `arity == 1` entries: turns `DagInstr.params` into the real
     #: `addon_config` of the cell that performs the op.
     addon_builder: Optional[Callable[[dict], dict]] = None
+    #: for `arity == 1` entries: turns `DagInstr.params` into the tile's own
+    #: real core params (e.g. a comparator's `threshold`). points.md #798.
+    param_builder: Optional[Callable[[dict], dict]] = None
+    #: does the op need a SECOND cell to land its result in? True for an
+    #: addon transform (applied at offer time, #690); False for a core whose
+    #: own output buffer already IS the result (a comparator).
+    needs_capture: bool = True
 
     @property
     def timing(self) -> int:
@@ -148,3 +155,15 @@ register(LibraryEntry(target="shl", tile=vtl.TILE_RAM_FLOWING, is_commutative=Tr
                        port_style="unary_addon", extra_params={}, arity=1, addon_builder=_shift_addon(0)))
 register(LibraryEntry(target="lshr", tile=vtl.TILE_RAM_FLOWING, is_commutative=True,
                        port_style="unary_addon", extra_params={}, arity=1, addon_builder=_shift_addon(1)))
+
+
+# ── points.md #798: the comparator as a one-operand entry, `cmp_ge`:
+# result = 1 if signed(value) >= threshold else 0. NOT an LLVM opcode -- an
+# INTERNAL building block the frontend's `icmp` expansion composes with a
+# `sub` (diff, then compare), exactly the old frontend's own diff->comparator
+# shape (#611/#613) expressed as two library entries instead of a special
+# case. The comparator's own output buffer is already the 0/1 result, so no
+# capture cell (`needs_capture=False`). ──
+register(LibraryEntry(target="cmp_ge", tile=vtl.TILE_COMPARATOR, is_commutative=True,
+                       port_style="unary", extra_params={}, arity=1,
+                       param_builder=lambda p: {"threshold": p["threshold"]}, needs_capture=False))

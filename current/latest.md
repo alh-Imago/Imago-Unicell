@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-21, the first real frontend for compile_dag() built and proven end to end -- attached at llvmlite's parse rather than ProgramIR (which is post-placement), and it immediately found a silent-wrong-answer case in the backend's plain-chain path (non-commutative ops have no operand-order guarantee). 903 tests pass. See `points/points_active.md` #795)
+# Current State (as of 2026-09-21, backend operand-order guarantee + scan pass (#796); shl/lshr (#797); icmp/select/ashr ported by composing library ops (#798). Placement limit and ordered-icmp overflow bound documented and surfaced, not hidden. 964 tests pass. See `points/points_active.md` #796-#798)
+
+## Read this first (most recent)
+
+**2026-09-21, ports continue (#796-#798).** Per Alan: operand order is essential only in certain cases and must be noted by the scan pass; the ordering guarantee is needed for correct flow; then port each function and test.
+
+**#796 -- ordering.** `ingestion_path()` (dispatcher) is the single source of truth: an order-sensitive (non-commutative) real+constant pair goes through the sequenced convergence path (no new hardware -- `_grow_convergence` already accepted constants); commutative ops keep the cheaper plain chain. Scan pass records per instruction: order-sensitive or not, ingestion path, guarantee (`not needed` / `lowered to commutative` / `sequencer`). `sub C, %x` now compiles correctly.
+
+**#797/#798 -- ports, one at a time, each verified through the VM against an independent model:** `shl`/`lshr` (all 32 amounts), `icmp` (six predicates), `select`, `ashr` (all 32 amounts). Built by COMPOSING library ops: `icmp` = `sub` + a new one-operand comparator entry (+ `xor` for eq/ne); `select` = mask-and-merge; `ashr` = `lshr` OR a `shl`'d sign mask (5 ops, replacing the old ~9x composition). The frontend pipeline is now check -> expand -> rewrite -> scan -> compile with lineage back to source `%names`.
+
+**Two limits found, both loud not silent.** (1) Ordered `icmp` predicates are wrong EXACTLY on 32-bit signed-difference overflow (measured: 16/16 overflow pairs wrong, every wrong pair an overflow; the old frontend's `#711`, now bounded) -- surfaced as `caveats`; `eq`/`ne` exact for all inputs. (2) The dispatcher has no occupancy-aware placement: two independently computed values that must merge (a `select` with two computed arms, chained `select`s) are refused with a `place` diagnostic. A leaf-placement fix (leaf offset from its partner, not at a far origin) made `select` work for argument/literal arms, `abs`, `max`, clamps; an obstacle-avoiding router fallback was tried and REVERTED (later straight-line padding collides with it -- global placement is a separate piece).
+
+**Process trap recorded:** stale `.pyc` after same-second, same-size mutate-and-restore produced 3 phantom failures; cache clear fixed it. Clear `__pycache__` between mutation runs.
+
+**Real queue, in order:** (a) occupancy-aware placement / wire in the tightening pass (blocks general `select`; layouts are loose, `abs` = 386 cells); (b) loops -- the one old-frontend capability not ported; (c) unnamed temporaries (`%0`, common in clang output); (d) optional sign-aware ordered compare to remove the `#711` bound; (e) unsigned predicates; (f) program-nexus segmentation, escalation, I/O (scope items 3, 4, 6). Environment: `pip install numpy llvmlite pytest --break-system-packages` first.
+
+## Previous state (as of 2026-09-21, the first real frontend for compile_dag() built and proven end to end -- attached at llvmlite's parse rather than ProgramIR (which is post-placement), and it immediately found a silent-wrong-answer case in the backend's plain-chain path (non-commutative ops have no operand-order guarantee). 903 tests pass. See `points/points_active.md` #795)
 
 ## Read this first (most recent)
 
