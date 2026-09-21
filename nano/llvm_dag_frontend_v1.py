@@ -76,6 +76,7 @@ from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from icm_vix_v1 import IcmVixFormatError  # noqa: E402
 from vix_dag_dispatcher_v1 import compile_dag, ingestion_path, DagInstr, DagOperand  # noqa: E402
 from vix_virtual_layout_v1 import compile_dag_routed  # noqa: E402
+from card_fit_v1 import CardTarget, FitFailure, FitReport, fit_to_card, bind_resources  # noqa: E402
 from vix_opcode_library_v1 import lookup as library_lookup  # noqa: E402
 
 _MASK32 = 0xFFFFFFFF
@@ -168,6 +169,8 @@ class DagFrontendResult:
     caveats: List[str] = field(default_factory=list)
     #: which placer produced the layout: "growth" (#780) or "routed" (#800).
     placer: str = "growth"
+    #: when compiled against a `CardTarget` (#804): the fit report -- budget, extent, fold, bindings.
+    fit: Optional[FitReport] = None
 
 
 def _diag(stage: str, what: str, problem: str, why: str,
@@ -1246,7 +1249,7 @@ def _place(final: List[DagInstr], placer: str, fold_width: Optional[int] = None,
 
 
 def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: Optional[int] = None,
-                         spacing: Optional[int] = None
+                         spacing: Optional[int] = None, target: Optional[CardTarget] = None
                          ) -> Tuple[Optional[DagFrontendResult], List[CompileDiagnostic]]:
     placer = placer or DEFAULT_PLACER
     fn, diags = extract_llvm_function(source)
@@ -1275,9 +1278,21 @@ def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: 
                f"`eq`/`ne` are exact for every input."
                for i in resolved.dag if i.opcode == "icmp" and i.params.get("predicate") in _ICMP_ORDERED]
 
+    fit_report: Optional[FitReport] = None
     try:
-        (icm, positions, dynamic_positions, seq_orders), used_placer = _place(final, placer, fold_width, spacing)
+        if target is not None:
+            # #804: compile AGAINST A CARD -- bind resource ops to fixed sites, then find the
+            # least-folded layout that fits the bounded grid. Only the routed placer can do this.
+            (icm, positions, dynamic_positions, seq_orders), fit_report = fit_to_card(final, target)
+            used_placer = "routed"
+            final = bind_resources(final, target)[0]
+        else:
+            (icm, positions, dynamic_positions, seq_orders), used_placer = _place(final, placer, fold_width, spacing)
         problems = icm.check_connections()
+    except FitFailure as e:
+        return None, [_diag("fit", f"fitting the design to {target.name}", "; ".join(e.report.problems) or "does not fit",
+                            "a design headed for a card must fit its cell budget and grid, with resource-bound ops "
+                            "on the card's fixed sites", "use a larger target, or a smaller design")]
     except (IcmVixFormatError, ValueError) as e:
         # A LOUD, PRECISE refusal -- never a raw exception, never a silent miscompile. The
         # growing-frontier placement (#780) has no global occupancy planning: two
@@ -1320,7 +1335,7 @@ def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: 
                              positions=positions, seq_orders=seq_orders, arg_injections=arg_injections,
                              result_name=fn.result_name, result_cell=result_cell,
                              result_core=core_at[result_cell], rewrites=rewrites, ordering=ordering,
-                             caveats=caveats, placer=used_placer), []
+                             caveats=caveats, placer=used_placer, fit=fit_report), []
 
 
 def _read_result(cell, core: str) -> int:

@@ -79,6 +79,9 @@ class LibraryEntry:
     #: addon transform (applied at offer time, #690); False for a core whose
     #: own output buffer already IS the result (a comparator).
     needs_capture: bool = True
+    #: points.md #804: a FIXED card resource this op must sit on (`"dsp"`, `"bram"`), or None.
+    #: A bound node is pinned onto a site of that kind by the placer.
+    resource: Optional[str] = None
 
     @property
     def timing(self) -> int:
@@ -174,3 +177,11 @@ register(LibraryEntry(target="cmp_ge", tile=vtl.TILE_COMPARATOR, is_commutative=
 # because an i1 value is already a canonical 0/1 in a 32-bit cell, so widening changes no bits. ──
 register(LibraryEntry(target="copy", tile=vtl.TILE_RAM_FLOWING, is_commutative=True,
                        port_style="unary", extra_params={}, arity=1, needs_capture=False))
+
+
+# ── points.md #804: `mul_dsp` -- multiply bound to a DSP SITE. On hardware this is a DSP-wrapper cell
+# (a SEPARATE record class, `icm_v4.DspWrapperRecord`, not a VIX core); the lowering to that record is
+# NOT built. Here it lowers to the same `mul` core so the design still simulates, and the placer PINS it
+# to a site -- the binding is what a card build needs, and it is reported, never hidden. ──
+register(LibraryEntry(target="mul_dsp", tile=vtl.TILE_MUL, is_commutative=True,
+                       port_style="named", extra_params={}, resource="dsp"))

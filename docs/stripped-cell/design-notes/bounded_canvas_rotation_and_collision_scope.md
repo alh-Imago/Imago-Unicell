@@ -232,3 +232,9 @@ compactness, or card-readiness is made.
   open question is whether a bounded, card-specific target justifies
   a dense-bitmap alternative, not whether occupancy tracking itself is
   a new idea.
+
+## Addendum (2026-09-21, `#804`) — a unit correction, and the card fit that now exists
+
+**Unit correction.** This note calls the Tang Nano 20K's 20,736 LUT4s "a real, physical card has a known, fixed cell budget". A LUT is not a UniCell cell: a live nano-class cell costs ~100 ALMs (`#209`), so that board's real cell budget is a small fraction of 20,736, and unknown until the card arrives and is re-measured. The budget belongs in UniCell CELLS, with an explicit per-cell cost.
+
+**What now exists (`nano/card_fit_v1.py`, `#804`):** a bounded-grid target, folding to fit (with the shapes' cardinal ports re-chosen per band, `#800`), a cell budget, and resource-bound ops pinned onto fixed DSP/BRAM sites -- with the die->grid mapping an explicit parameter rather than an assumption. The bitmap-vs-dict occupancy question this note raised is unchanged: the router still uses a sparse set.

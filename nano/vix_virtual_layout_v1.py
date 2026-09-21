@@ -129,6 +129,11 @@ class _Node:
     def entry(self):
         return library_lookup(self.instr.opcode) if self.instr else None
 
+    @property
+    def resource(self) -> Optional[str]:
+        e = self.entry
+        return e.resource if e is not None else None
+
     # -- footprint and pins (pure functions of pos/rot) --------------------
     def second(self) -> Pos:
         return _step(self.pos, self.rot)
@@ -261,6 +266,85 @@ def _layout(nodes: List[_Node], spacing: int, fold_width: Optional[int],
 
 
 # ---------------------------------------------------------------------------
+# 2b. Bounded grid and fixed sites (points.md #804)
+# ---------------------------------------------------------------------------
+
+def _all_cells(nodes: List[_Node]) -> List[Pos]:
+    return [p for n in nodes for p in n.cells()]
+
+
+def _fit_positions(nodes: List[_Node], bounds: Optional[Tuple[int, int]],
+                   sites: Optional[Dict[str, List[Pos]]]) -> None:
+    """Move the finished virtual layout INTO a bounded grid and PIN resource-bound nodes onto their
+    fixed sites. Raises `RouteFailure` if it cannot (loud, per attempt).
+
+    Sites are ABSOLUTE positions, so the whole layout is translated: candidates align a bound node
+    with a site, and the translation minimising the total distance from every bound node to its
+    nearest unused site wins; each bound node is then SNAPPED onto its site (the router connects the
+    consequences -- a snapped node's routes are simply longer). Unbound layouts are just shifted to
+    the grid origin with a 1-cell margin."""
+    cells = _all_cells(nodes)
+    dr = 1 - min(p[0] for p in cells)
+    dc = 1 - min(p[1] for p in cells)
+    bound = [n for n in nodes if n.resource]
+    if bound and sites:
+        for n in bound:
+            if not sites.get(n.resource):
+                raise RouteFailure(f"{n.name} needs a {n.resource!r} site but the target has none")
+        rows, cols = bounds if bounds else (10 ** 9, 10 ** 9)
+
+        def inside_all(tr: int, tc: int) -> bool:
+            return all(0 <= p[0] + tr < rows and 0 <= p[1] + tc < cols for p in cells)
+
+        def assign(tr: int, tc: int):
+            taken: Set[Pos] = set()
+            out = []
+            cost = 0
+            for n in bound:
+                ref = n.result_cell()                # the op's CORE cell is what sits on the resource
+                px, py = ref[0] + tr, ref[1] + tc
+                best = min((s for s in sites[n.resource] if s not in taken),
+                           key=lambda s: abs(s[0] - px) + abs(s[1] - py), default=None)
+                if best is None:
+                    return None, None
+                taken.add(best)
+                cost += abs(best[0] - px) + abs(best[1] - py)
+                out.append((n, best))
+            return cost, out
+
+        first = bound[0]
+        fref = first.result_cell()
+        cands = sorted({(s[0] - fref[0], s[1] - fref[1]) for s in sites[first.resource]})
+        if len(cands) > 160:
+            cands = cands[::max(1, len(cands) // 160)]
+        best_cost, best_assign = None, None
+        for tr, tc in cands + [(dr, dc)]:
+            if bounds and not inside_all(tr, tc):
+                continue
+            cost, out = assign(tr, tc)
+            if out is not None and (best_cost is None or cost < best_cost):
+                best_cost, best_assign, dr, dc = cost, out, tr, tc
+        if best_assign is None:
+            raise RouteFailure("no translation keeps the layout inside the grid and gives every bound node a site")
+        offsets = {id(n): (n.result_cell()[0] - n.pos[0], n.result_cell()[1] - n.pos[1]) for n in bound}
+        for n in nodes:
+            n.pos = (n.pos[0] + dr, n.pos[1] + dc)
+        for n, site in best_assign:                  # snap: the core cell lands exactly on the site
+            off = offsets[id(n)]
+            n.pos = (site[0] - off[0], site[1] - off[1])
+    else:
+        for n in nodes:
+            n.pos = (n.pos[0] + dr, n.pos[1] + dc)
+    cells = _all_cells(nodes)
+    if len(set(cells)) != len(cells):
+        raise RouteFailure("pinning a node onto its site made two nodes overlap")
+    if bounds:
+        rows, cols = bounds
+        if any(not (0 <= p[0] < rows and 0 <= p[1] < cols) for p in cells):
+            raise RouteFailure(f"the layout does not fit a {rows}x{cols} grid")
+
+
+# ---------------------------------------------------------------------------
 # 3. Route
 # ---------------------------------------------------------------------------
 
@@ -322,7 +406,8 @@ def _route_edge(e: _Edge, occ: Set[Pos], used: Dict[Pos, Set[str]],
     occ.update(path)
 
 
-def _route_all(nodes: List[_Node], rng: random.Random, shuffle: bool, margin: int, ring_on: bool = False) -> None:
+def _route_all(nodes: List[_Node], rng: random.Random, shuffle: bool, margin: int, ring_on: bool = False,
+               bounds: Optional[Tuple[int, int]] = None) -> None:
     """`ring_on` is an ALTERNATE search mode, not the default. A keep-out ring was first built
     on a theory, then REMOVED because on simple programs it changed nothing and made layouts
     equal-or-larger (166 vs 122 cells, points.md #800). It is back only as a fallback attempt,
@@ -344,6 +429,8 @@ def _route_all(nodes: List[_Node], rng: random.Random, shuffle: bool, margin: in
     rows = [p[0] for n in nodes for p in n.cells()]
     cols = [p[1] for n in nodes for p in n.cells()]
     bbox = (min(rows) - margin, max(rows) + margin, min(cols) - margin, max(cols) + margin)
+    if bounds:        # routes may not leave the grid
+        bbox = (max(bbox[0], 0), min(bbox[1], bounds[0] - 1), max(bbox[2], 0), min(bbox[3], bounds[1] - 1))
     edges = [e for n in nodes for e in n.in_edges]
     def length(e: _Edge) -> int:
         a, b = e.src.result_cell(), e.dst.pos
@@ -466,19 +553,23 @@ def audit_gate_feeders(cells) -> List[str]:
 
 def compile_dag_routed(instructions: List[DagInstr], spacing: Optional[int] = None,
                        fold_width: Optional[int] = None, attempts: int = 16, seed: int = 0,
-                       margin: int = 16):
+                       margin: int = 16, bounds: Optional[Tuple[int, int]] = None,
+                       sites: Optional[Dict[str, List[Pos]]] = None, info: Optional[dict] = None,
+                       spacings: Optional[Tuple[int, ...]] = None):
     """Same return contract as `compile_dag()`. `spacing=None` TIGHTENS by
     searching for the smallest workable spacing; `fold_width=N` folds the layout
     into a snake of bands N columns wide, flipping shape orientation on
     alternate bands. Raises `RouteFailure` (a `ValueError`) if nothing routes."""
     last: Optional[Exception] = None
-    for S in ((spacing,) if spacing else DEFAULT_SPACINGS):
+    for S in ((spacing,) if spacing else (spacings or DEFAULT_SPACINGS)):
         for attempt in range(attempts):
             rng = random.Random(seed + attempt)
             nodes = _build_graph(instructions)
             _layout(nodes, S, fold_width, rng, jitter=0 if attempt == 0 else 1 + attempt // 8)
             try:
-                _route_all(nodes, rng, shuffle=attempt > 0, margin=margin, ring_on=attempt % 2 == 1)
+                if bounds or sites:
+                    _fit_positions(nodes, bounds, sites)
+                _route_all(nodes, rng, shuffle=attempt > 0, margin=margin, ring_on=attempt % 2 == 1, bounds=bounds)
             except RouteFailure as e:
                 last = e
                 continue
@@ -489,6 +580,9 @@ def compile_dag_routed(instructions: List[DagInstr], spacing: Optional[int] = No
             icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=cells)},
                                  placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
                                  name="dag_routed")
+            if info is not None:
+                info.update(spacing=S, fold_width=fold_width, attempt=attempt,
+                            bindings=[(n.instr.name, n.resource, n.result_cell()) for n in nodes if n.resource])
             return icm, positions, dyn, seqs
     raise RouteFailure(f"no routed layout found (spacings tried {spacing or DEFAULT_SPACINGS}, "
                        f"{attempts} orderings each); last failure: {last}")

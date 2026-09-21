@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-21, i1<->i32 conversions + i1 logic (#802) and acyclic control flow by if-conversion (#803); the nano gate's lack of input gating measured and guarded; loops by unrolling (#801); virtual-space placement (#800). 1037 tests pass. See `points/points_active.md` #800-#803)
+# Current State (as of 2026-09-21, the CARD FIT built (#804): a bounded-grid target, fold-to-fit, a cell budget, and resource-bound ops pinned onto fixed DSP/BRAM sites, using the REAL Mustang MAN data with the die->grid mapping an explicit parameter. 1056 tests pass. See `points/points_active.md` #804)
+
+## Read this first (most recent)
+
+**2026-09-21, #804 -- the card fit, per Alan ("the next logical step... it needs to take into account the fixed positions of the card-bound parts like the DSP and BRAM").** `nano/card_fit_v1.py`: a `CardTarget` (grid extent, cell budget in UniCell CELLS, 0.8 utilisation ceiling, fixed `sites` by kind), `target_from_man()` reading the real `docs/man/mustang-f100-a10.man.json` (8 DSP columns, 11 M20K columns incl. a broken one, 1,687 DSP blocks), `fit_to_card()` = least-folded layout that fits, `bind_resources()` = ops with a resource variant take a free site, else FALL BACK to logic and the report says so. The placer gained `bounds=`/`sites=`: the virtual layout is translated into the grid and each bound op's CORE cell is SNAPPED onto its site; routes may not leave the grid. `compile_llvm_via_dag(src, target=...)` -> `result.fit` (a `FitReport`), and a failure is a precise `fit` diagnostic. Verified: two multiplies pinned on distinct DSP sites and correct in the VM; a 29-column chain folded into 19 columns (refused at 14 -- measured); budget refused before routing when the op cells alone exceed it.
+
+**The limits that matter (all in #804):** the die->grid mapping is a PARAMETER (no Quartus post-fit data exists), and the budget uses an ESTIMATED ~103 ALM/cell (measured only for nano-class cells); DSP-wrapper LOWERING is not built (a bound `mul_dsp` simulates as the `mul` core; the BINDING is the output a card build consumes); no op consumes BRAM yet; the Tang Nano 20K's "20,736 cells" in the bounded-canvas note is a LUT count, not a cell budget -- no preset is provided because any number would be invented.
+
+**Also this session:** Alan's decisions -- `i8/i16/i64` belong to the planned floating-point expansion (fp4/8/16/32/64), not next. **A CORRECTION to #803:** the 3-way early return's dataflow graph IS planar (checked with networkx), so its routing failure is a router SEARCH weakness, not a planarity limit. Alan's "arms leave in opposite directions" idea was measured as a pin policy: no gain (worse on the two-computed-arm select) -- not adopted. The format DOES reserve 3D (the nano's `routing_mask`/`cardinal_edge` are 6-bit slots "3D-ready", only 4 bits wired).
+
+**Real queue:** (1) a stronger router (rip-up-and-reroute) -- a solution provably exists for the 3-way return; (2) DSP-wrapper lowering + a BRAM-consuming op; (3) the real die->grid mapping from Quartus post-fit data (`.isi` sidecar, `#54`); (4) sign-aware ordered compare + unsigned predicates; (5) the floating-point expansion; (6) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, i1<->i32 conversions + i1 logic (#802) and acyclic control flow by if-conversion (#803); the nano gate's lack of input gating measured and guarded; loops by unrolling (#801); virtual-space placement (#800). 1037 tests pass. See `points/points_active.md` #800-#803)
 
 ## Read this first (most recent)
 
