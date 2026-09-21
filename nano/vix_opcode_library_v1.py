@@ -167,3 +167,10 @@ register(LibraryEntry(target="lshr", tile=vtl.TILE_RAM_FLOWING, is_commutative=T
 register(LibraryEntry(target="cmp_ge", tile=vtl.TILE_COMPARATOR, is_commutative=True,
                        port_style="unary", extra_params={}, arity=1,
                        param_builder=lambda p: {"threshold": p["threshold"]}, needs_capture=False))
+
+
+# ── points.md #802: `copy` -- a one-cell pass-through (a `ram_flowing` cell that just holds and
+# offers what it received). INTERNAL, like `cmp_ge`: the frontend expands `zext i1 -> i32` to it,
+# because an i1 value is already a canonical 0/1 in a 32-bit cell, so widening changes no bits. ──
+register(LibraryEntry(target="copy", tile=vtl.TILE_RAM_FLOWING, is_commutative=True,
+                       port_style="unary", extra_params={}, arity=1, needs_capture=False))

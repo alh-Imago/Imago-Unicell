@@ -239,3 +239,49 @@ def test_entire_frontend_corpus_passes_under_the_routed_placer():
          "-k", "not growth_placer_limit and not growth_cannot_place"],
         capture_output=True, text=True, env=env)
     assert proc.returncode == 0, proc.stdout[-1500:] + proc.stderr[-500:]
+
+
+# ---------------------------------------------------------------------------
+# The nano gate has no input gating (points.md #802).
+# ---------------------------------------------------------------------------
+
+def _routed_xor():
+    return _compile(_ir("  %r = xor i32 %x, 12\n  ret i32 %r"), placer="routed")
+
+
+def _add_stray_next_to_gate(res, point_at_gate):
+    import vix_tile_library_v1 as vtl
+    step = {"n": (-1, 0), "s": (1, 0), "e": (0, 1), "w": (0, -1)}
+    opp = {"n": "s", "s": "n", "e": "w", "w": "e"}
+    gate = [r for r in res.records if r.core == "nano"][0]
+    taken = {(r.row, r.col) for r in res.records}
+    for face, (dr, dc) in step.items():
+        pos = (gate.row + dr, gate.col + dc)
+        if pos not in taken:
+            cell = vtl.place(vtl.TILE_RAM_PRELOAD, {"out": opp[face] if point_at_gate else face}, cell_id="stray",
+                             rel_row=pos[0], rel_col=pos[1], preload_value=0xFF)
+            res.icm.patterns["main"].cells.append(cell)
+            res.records, _ = res.icm.flatten()
+            return res
+    raise AssertionError("no free face next to the gate")
+
+
+def test_a_neighbour_that_does_not_point_at_a_nano_gate_is_harmless_one_that_does_corrupts_it():
+    """Documents the semantics behind `audit_gate_feeders`: the gate accepts from ANY wired
+    neighbour, so what matters is only whether something OFFERS toward it."""
+    for x in (0, 5, 100):
+        away = _add_stray_next_to_gate(_routed_xor(), point_at_gate=False)
+        at = _add_stray_next_to_gate(_routed_xor(), point_at_gate=True)
+        assert F.run_in_vm(away, {"x": x}) == (x ^ 12)                 # untouched
+        assert F.run_in_vm(at, {"x": x}) != (x ^ 12)                   # silently wrong
+
+
+def test_the_gate_feeder_audit_catches_a_stray_and_passes_every_routed_layout():
+    for src in (PROOF, DIAMOND, SEL_COMPUTED, CLAMP, ARMS_AND_COND):
+        res = _compile(src, placer="routed")
+        # `res.icm` cells are the pre-lowered HierCells; the audit must be clean on all of them
+        assert V.audit_gate_feeders(res.icm.patterns["main"].cells) == []
+    bad = _add_stray_next_to_gate(_routed_xor(), point_at_gate=True)
+    assert V.audit_gate_feeders(bad.icm.patterns["main"].cells)
+    ok = _add_stray_next_to_gate(_routed_xor(), point_at_gate=False)
+    assert V.audit_gate_feeders(ok.icm.patterns["main"].cells) == []

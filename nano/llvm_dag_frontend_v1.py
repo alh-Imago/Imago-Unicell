@@ -104,6 +104,8 @@ class SourceInstr:
     type_name: str = _SUPPORTED_TYPE
     #: `icmp`'s predicate (`slt`, `eq`, ...); None for every other opcode.
     predicate: Optional[str] = None
+    #: for `zext`/`sext`/`trunc`: the SOURCE type (`i1`, `i32`); `type_name` is the destination.
+    from_type: Optional[str] = None
 
 
 @dataclass
@@ -196,6 +198,9 @@ def _source_operand(op, label) -> Tuple[Optional[SourceOperand], Optional[str]]:
     m = _LITERAL_RE.match(text)
     if m:
         return SourceOperand(kind="literal", value=int(m.group(1)) & _MASK32), None
+    m = re.fullmatch(r"i1\s+(true|false)", text)
+    if m:
+        return SourceOperand(kind="literal", value=1 if m.group(1) == "true" else 0), None
     m = _UNNAMED_DEF_RE.match(text) or _UNNAMED_ARG_RE.match(text)
     if m:
         return SourceOperand(kind="name", name=label(m.group(1))), None
@@ -314,8 +319,12 @@ def _read_instr(ins, label, diags: List[CompileDiagnostic]) -> Optional[SourceIn
         predicate = m.group(1) if m else None
     if not ok:
         return None
+    from_type = None
+    if ins.opcode in ("zext", "sext", "trunc"):
+        m = re.search(r"=\s*(?:zext|sext|trunc)\s+(i\d+)\s", str(ins))
+        from_type = m.group(1) if m else None
     return SourceInstr(name=iname, opcode=ins.opcode, operands=src_ops,
-                       type_name=str(ins.type), predicate=predicate)
+                       type_name=str(ins.type), predicate=predicate, from_type=from_type)
 
 
 # ---------------------------------------------------------------------------
@@ -489,7 +498,7 @@ def _unroll_loop(function_name: str, blocks, label, arguments: List[str]
             return False
         used_names.add(name)
         out.append(SourceInstr(name=name, opcode=src.opcode, operands=ops, type_name=src.type_name,
-                               predicate=src.predicate))
+                               predicate=src.predicate, from_type=src.from_type))
         env[src.name] = SourceOperand(kind="name", name=name)
         return True
 
@@ -620,8 +629,12 @@ def resolve_symbols(arguments: List[str], instrs: List[SourceInstr]
                                    "it is neither a function argument nor the result of any instruction",
                                    "declare it, or check the spelling"))
                 dag_ops.append(DagOperand(kind="ref", ref_name=op.name))
-        dag.append(DagInstr(name=ins.name, opcode=ins.opcode, operands=dag_ops,
-                            params=({"predicate": ins.predicate} if ins.predicate else {})))
+        params = {}
+        if ins.predicate:
+            params["predicate"] = ins.predicate
+        if ins.from_type:
+            params["from_type"] = ins.from_type
+        dag.append(DagInstr(name=ins.name, opcode=ins.opcode, operands=dag_ops, params=params))
 
     if diags:
         return None, diags
@@ -634,7 +647,7 @@ def resolve_symbols(arguments: List[str], instrs: List[SourceInstr]
 
 #: opcodes with NO single library entry that the frontend EXPANDS into
 #: several library ops (compose before building new hardware).
-_EXPANDABLE = {"icmp", "select", "ashr"}
+_EXPANDABLE = {"icmp", "select", "ashr", "zext", "sext", "trunc"}
 #: predicate -> (swap operands before the subtraction, comparator threshold).
 #: sge/sgt: diff = A-B; slt/sle: diff = B-A (the old frontend's own table, #611).
 _ICMP_ORDERED = {"sge": (False, 0), "sgt": (False, 1), "slt": (True, 1), "sle": (True, 0)}
@@ -674,12 +687,34 @@ def _check_source(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[Compil
                                "then AI research, then the Composer) -- not built yet"))
             continue
         want = _TYPE_FOR.get(op, _SUPPORTED_TYPE)
+        if op in ("and", "or", "xor", "select") and src.type_name == "i1":
+            want = "i1"           # i1 logic: an i1 is a canonical 0/1 in a 32-bit cell, so the same gates apply
+        if op in ("zext", "sext", "trunc"):
+            want = src.type_name
         if src.type_name != want:
             diags.append(_diag("dag-lowering", what, f"result type is {src.type_name}, not {want}",
                                "the fabric's cells are 32-bit; a wider or narrower type would be "
                                "silently truncated or mis-sized"))
             continue
         kinds = [o.kind for o in ins.operands]
+
+        if op in ("zext", "sext", "trunc"):
+            legal = ((op == "trunc" and ins.params.get("from_type") == "i32" and src.type_name == "i1")
+                     or (op != "trunc" and ins.params.get("from_type") == "i1" and src.type_name == "i32"))
+            if not legal:
+                diags.append(_diag("dag-lowering", what,
+                                   f"`{op} {ins.params.get('from_type')} to {src.type_name}` is not supported",
+                                   "only i1 <-> i32 conversions exist: an i1 is a canonical 0/1 in a 32-bit cell. "
+                                   "Narrow integer types (i8/i16) and i64 would need a real sub-word type system "
+                                   "(re-masking after every op, sign extension for signed compares)",
+                                   "use i32 (and i1 for comparison results)"))
+            elif len(ins.operands) != 1 or kinds[0] == "const":
+                diags.append(_diag("dag-lowering", what, "the converted value is a literal",
+                                   "constant folding is not built into this frontend"))
+            elif op != "trunc" and (kinds[0] != "ref" or types.get(ins.operands[0].ref_name) != "i1"):
+                diags.append(_diag("dag-lowering", what, f"`{op}` needs an i1 value that a comparison or i1 logic produced",
+                                   "an i1 argument is not accepted (its value would not be guaranteed 0/1)"))
+            continue
 
         if op == "select":
             if len(ins.operands) != 3:
@@ -776,6 +811,12 @@ def _expand(ins: DagInstr, used: Set[str]) -> List[DagInstr]:
                 DagInstr(at, "and", [t, _ref(m)]),
                 DagInstr(af, "and", [f, _ref(nm)]),
                 DagInstr(n, "or", [_ref(at), _ref(af)])]
+    if op == "zext":                       # i1 -> i32: already a canonical 0/1; one pass-through cell
+        return [DagInstr(n, "copy", [ins.operands[0]])]
+    if op == "sext":                       # i1 -> i32: 0/1 -> 0/0xFFFFFFFF, the mask `select` already uses
+        return [DagInstr(n, "sub", [_const(0), ins.operands[0]])]
+    if op == "trunc":                      # i32 -> i1: the low bit
+        return [DagInstr(n, "and", [ins.operands[0], _const(1)])]
     if op == "ashr":
         x, amt = ins.operands
         k = amt.value

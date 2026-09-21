@@ -410,6 +410,39 @@ def _lower(nodes: List[_Node]):
 
 
 # ---------------------------------------------------------------------------
+# Audit: nothing may offer toward a nano gate except its designated feeder.
+# ---------------------------------------------------------------------------
+
+def audit_gate_feeders(cells) -> List[str]:
+    """A `nano` gate has NO input gating: it consumes an arrival from ANY wired neighbour
+    that offers toward it (`cardinal_edge` only classifies an arrival as consume/relay, it
+    does not filter -- CELL_INTERNALS.md). So a neighbour that does NOT point at it is
+    harmless, but one that does is silently corrupting (measured, points.md #802: a stray
+    constant pointing at `xor(x,12)` turned 12/9/104 into 255/250/155). The only way that
+    can happen is a stale or dangling output face -- most likely after a cell is
+    re-oriented during a fold. In this placer every gate is fed by its own priority cell,
+    so require EXACTLY ONE offering neighbour and that it is a `pri_` cell. Returns
+    problems (empty = clean)."""
+    by_pos = {(c.rel_row, c.rel_col): c for c in cells}
+    problems: List[str] = []
+    for g in cells:
+        if g.core != "nano":
+            continue
+        feeders = []
+        for f in _FACES:
+            nb = by_pos.get(_step((g.rel_row, g.rel_col), f))
+            if nb is None:
+                continue
+            cc = nb.core_config
+            offered = cc.get("routing_mask") if nb.core == "nano" else cc.get("downstream_mask")
+            if _OPP[f] in (offered or []):
+                feeders.append(nb.cell_id)
+        if len(feeders) != 1 or not feeders[0].startswith("pri_"):
+            problems.append(f"nano gate {g.cell_id} is fed by {feeders or 'nothing'}, expected exactly its priority cell")
+    return problems
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
@@ -432,6 +465,9 @@ def compile_dag_routed(instructions: List[DagInstr], spacing: Optional[int] = No
                 last = e
                 continue
             cells, positions, dyn, seqs = _lower(nodes)
+            bad = audit_gate_feeders(cells)
+            if bad:
+                raise RouteFailure("lowering produced a gate that something else feeds: " + "; ".join(bad))
             icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=cells)},
                                  placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
                                  name="dag_routed")
