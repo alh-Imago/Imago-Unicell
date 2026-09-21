@@ -55,7 +55,7 @@ REAL, DELIBERATE CHOICES (all per the scope note):
 REAL, HONEST SCOPE OF THIS FIRST SLICE: a single function, a single
 basic block (no control flow, no loops), `i32` only, opcodes that
 already have a real library entry (`add`/`sub`/`mul`/`and`/`or`/`xor`,
-and from #797 `shl`/`lshr` with a literal amount), every SSA value NAMED. Not attempted: opcode escalation (scope
+and from #797 `shl`/`lshr` with a literal amount), named or numbered SSA values (`%0` becomes `v0`, #799). Not attempted: opcode escalation (scope
 item 4 -- an opcode without a library entry is a clear diagnostic, not
 an escalation), I/O beyond direct injection, loops, `icmp`/`select`/
 shifts, unnamed temporaries (`%0`).
@@ -175,23 +175,28 @@ def _diag(stage: str, what: str, problem: str, why: str,
 # 1. The LLVM-specific extractor.
 # ---------------------------------------------------------------------------
 
-def _source_operand(op) -> Tuple[Optional[SourceOperand], Optional[str]]:
-    """Returns (operand, problem). llvmlite reports `name == ''` BOTH for
-    a literal AND for a reference to an unnamed temporary (`%0`) -- and
-    in the latter case `str(op)` is the whole defining instruction, whose
-    last token can look like a number. So a literal is recognised ONLY by
-    matching the whole text against `i32 <int>`, never by taking a last
-    token (the trap a naive last-token parse falls into)."""
+_UNNAMED_DEF_RE = re.compile(r"^%(\S+)\s*=")          # a reference to an unnamed RESULT prints as its defining instruction
+_UNNAMED_ARG_RE = re.compile(r"^(?:i\d+\s+)%(\S+)$")     # a reference to an unnamed ARGUMENT prints as `i32 %0`
+
+
+def _source_operand(op, label) -> Tuple[Optional[SourceOperand], Optional[str]]:
+    """Returns (operand, problem). llvmlite reports `name == ''` for a literal
+    AND for a reference to an unnamed value (`%0`, `%3`, ...) -- and for an
+    unnamed RESULT, `str(op)` is the whole defining instruction, whose last
+    token can look like an integer. So a literal is recognised ONLY by matching
+    the whole text against `i32 <int>` (never a last-token parse -- the trap a
+    naive parse falls into), and an unnamed value is recognised by its own
+    printed form, then given a stable identifier by `label` (points.md #799)."""
     if op.name:
         return SourceOperand(kind="name", name=op.name), None
     text = str(op).strip()
     m = _LITERAL_RE.match(text)
     if m:
         return SourceOperand(kind="literal", value=int(m.group(1)) & _MASK32), None
-    if "%" in text:
-        return None, ("an operand references an unnamed SSA value "
-                      f"({text.split('=')[0].strip()!r}) -- llvmlite gives such values no name to resolve by")
-    return None, f"an operand {text!r} is not a plain integer literal or a named value"
+    m = _UNNAMED_DEF_RE.match(text) or _UNNAMED_ARG_RE.match(text)
+    if m:
+        return SourceOperand(kind="name", name=label(m.group(1))), None
+    return None, f"an operand {text!r} is not a plain integer literal or a named/numbered value"
 
 
 def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[CompileDiagnostic]]:
@@ -219,44 +224,60 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
                             "a DAG of dataflow needs exactly one straight-line block; branching and loops "
                             "are separate, later work (scope note item 5)")]
 
+    # Unnamed values (`%0`, `%3`) get the identifier `v<N>`, uniquified against every
+    # real name in the function so the mapping is stable and collision-free.
+    real_names = {a.name for a in fn.arguments if a.name} | {i.name for i in blocks[0].instructions if i.name}
+
+    def label(n: str) -> str:
+        name = f"v{n}"
+        while name in real_names:
+            name += "_"
+        return name
+
     arguments: List[str] = []
     for a in fn.arguments:
-        if not a.name:
-            diags.append(_diag("llvm-frontend", what, "an unnamed function argument",
-                               "arguments are bound to injection sites by name",
-                               "give every argument a name (e.g. `%x`)"))
+        aname = a.name
+        if not aname:
+            m = _UNNAMED_ARG_RE.match(str(a).strip())
+            aname = label(m.group(1)) if m else ""
+        if not aname:
+            diags.append(_diag("llvm-frontend", what, "an unnamed function argument that could not be identified",
+                               "arguments are bound to injection sites by name"))
         elif str(a.type) != _SUPPORTED_TYPE:
             diags.append(_diag("llvm-frontend", what, f"argument %{a.name} has type {a.type}, not i32",
                                "the fabric's cells are 32-bit; a wider or narrower type would be "
                                "silently truncated or mis-sized"))
         else:
-            arguments.append(a.name)
+            arguments.append(aname)
 
     instrs: List[SourceInstr] = []
     result_name: Optional[str] = None
     for ins in blocks[0].instructions:
         ops = list(ins.operands)
         if ins.opcode == "ret":
-            if len(ops) != 1 or not ops[0].name:
+            so_ret, problem = _source_operand(ops[0], label) if len(ops) == 1 else (None, "no value")
+            if problem or so_ret.kind != "name":
                 diags.append(_diag("llvm-frontend", what,
-                                   "`ret` must return exactly one named value",
+                                   "`ret` must return exactly one named or numbered value",
                                    "the frontend needs to know which computed cell holds the result",
-                                   "return a named SSA value, e.g. `ret i32 %b`"))
+                                   "return an SSA value, e.g. `ret i32 %b`"))
             else:
-                result_name = ops[0].name
+                result_name = so_ret.name
             continue
-        if not ins.name:
+        iname = ins.name
+        if not iname:
+            m = _UNNAMED_DEF_RE.match(str(ins).strip())
+            iname = label(m.group(1)) if m else ""
+        if not iname:
             diags.append(_diag("llvm-frontend", what,
-                               f"an unnamed SSA value produced by `{ins.opcode}`",
-                               "llvmlite gives unnamed temporaries (`%0`) no name later operands can "
-                               "resolve against, so a dependency on one cannot be traced",
-                               "name every value (e.g. `%a = add i32 %x, 5`)"))
+                               f"a value produced by `{ins.opcode}` whose identifier could not be determined",
+                               "later operands must be able to resolve against it"))
             continue
         src_ops: List[SourceOperand] = []
         for op in ops:
-            so, problem = _source_operand(op)
+            so, problem = _source_operand(op, label)
             if problem:
-                diags.append(_diag("llvm-frontend", f"reading operands of %{ins.name}", problem,
+                diags.append(_diag("llvm-frontend", f"reading operands of %{iname}", problem,
                                    "every operand must be traceable to an argument, an earlier "
                                    "result, or a literal"))
             else:
@@ -265,7 +286,7 @@ def extract_llvm_function(source: str) -> Tuple[Optional[SourceFunction], List[C
         if ins.opcode == "icmp":
             m = re.search(r"=\s*icmp\s+(\w+)\s", str(ins))
             predicate = m.group(1) if m else None
-        instrs.append(SourceInstr(name=ins.name, opcode=ins.opcode, operands=src_ops,
+        instrs.append(SourceInstr(name=iname, opcode=ins.opcode, operands=src_ops,
                                   type_name=str(ins.type), predicate=predicate))
 
     if any(d.severity == "error" for d in diags):

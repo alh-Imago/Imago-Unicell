@@ -368,3 +368,72 @@ def test_ashr_variable_or_out_of_range_amount_is_refused():
     assert "not a compile-time literal" in _refused(
         _ir("  %r = ashr i32 %x, %y\n  ret i32 %r", args="i32 %x, i32 %y"))
     assert "outside 0-31" in _refused(_ir("  %r = ashr i32 %x, 32\n  ret i32 %r"))
+
+
+# ===========================================================================
+# numbered / unnamed SSA values  (#799) -- real clang output is full of `%0`
+# ===========================================================================
+
+def _numbered(body, args="i32"):
+    """`define i32 @f(i32) { ... }` -- an UNNAMED argument is %0, the unnamed
+    entry block takes the next number, so instruction results start at %2."""
+    return f"define i32 @f({args}) {{\n{body}\n}}\n"
+
+
+def test_unnamed_argument_and_results_compile_and_run():
+    res = _compile(_numbered("  %2 = add i32 %0, 5\n  %3 = shl i32 %2, 2\n  ret i32 %3"))
+    assert list(res.arg_injections) == ["v0"]
+    assert [d.name for d in res.dag] == ["v2", "v3"]
+    for x in VALUES:
+        assert F.run_in_vm(res, {"v0": x}) == (((x + 5) & M) << 2) & M, hex(x)
+
+
+def test_mixed_named_and_numbered_values_and_arguments():
+    res = _compile(_numbered("  %2 = add i32 %0, 5\n  %3 = sub i32 %2, %named\n  %x = shl i32 %3, 2\n"
+                             "  %4 = add i32 %x, %0\n  ret i32 %4", args="i32, i32 %named"))
+    assert set(res.arg_injections) == {"v0", "named"}
+    for a, b in [(10, 3), (0, 0), (M, 1), (100, 200), (7, M)]:
+        assert F.run_in_vm(res, {"v0": a, "named": b}) == ((((((a + 5) - b) & M) << 2) & M) + a) & M, (a, b)
+
+
+def test_numbered_values_through_expansions_icmp_select_ashr():
+    res = _compile(_numbered("  %2 = icmp slt i32 %0, 10\n  %3 = select i1 %2, i32 %0, i32 10\n"
+                             "  %4 = ashr i32 %3, 2\n  ret i32 %4"))
+    for x in (0, 9, 10, 11, M, M - 20):
+        assert F.run_in_vm(res, {"v0": x}, ticks=350) == ((s32(x) if s32(x) < 10 else 10) >> 2) & M, x
+
+
+def test_a_real_name_that_looks_like_a_generated_one_cannot_collide():
+    """`%0` becomes `v0`; a REAL value named `%v0` must not be confused with it."""
+    res = _compile("define i32 @f(i32 %v0) {\nentry:\n  %0 = add i32 %v0, 1\n  %r = add i32 %0, 10\n  ret i32 %r\n}\n")
+    assert len(set(d.name for d in res.dag)) == len(res.dag)
+    assert set(res.arg_injections) == {"v0"}
+    assert set(d.name for d in res.dag) == {"v0_", "r"}
+    for x in VALUES:
+        assert F.run_in_vm(res, {"v0": x}) == (x + 11) & M, hex(x)
+
+
+def test_returning_a_numbered_value_and_an_unrecognised_operand_shape():
+    res = _compile(_numbered("  %2 = mul i32 %0, 3\n  ret i32 %2"))
+    assert res.result_name == "v2"
+    assert F.run_in_vm(res, {"v0": 7}) == 21
+
+
+def test_fanout_from_a_nano_gate_result_uses_the_gates_own_output_field():
+    """points.md #799 regression: the tap logic used to write `downstream_mask`
+    onto ANY producer, but a nano gate's output field is `routing_mask` -- so
+    fanning a gate result (and/or/xor, or a `select`'s `or`) out to two consumers
+    made the VM reject the cell. No earlier test fanned out from a gate."""
+    for op, fn in (("and", lambda x: x & 12), ("or", lambda x: x | 12), ("xor", lambda x: x ^ 12)):
+        res = _compile(_ir(f"  %a = {op} i32 %x, 12\n  %b = add i32 %a, 1\n  %c = add i32 %a, %b\n  ret i32 %c"))
+        for x in VALUES:
+            a = fn(x) & M
+            assert F.run_in_vm(res, {"x": x}) == (a + a + 1) & M, (op, hex(x))
+
+
+def test_out_field_comes_from_the_tile_registry():
+    import vix_dag_dispatcher_v1 as D
+    assert D._out_field("nano") == "routing_mask"
+    assert D._out_field("adder") == "downstream_mask"
+    with pytest.raises(ValueError):
+        D._out_field("branch")            # no single output field -- refuse to guess

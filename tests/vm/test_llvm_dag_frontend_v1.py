@@ -202,13 +202,17 @@ def test_resolution_collects_every_problem_not_just_the_first():
 # miscompile.
 # ---------------------------------------------------------------------------
 
-def test_unnamed_ssa_value_is_refused_and_never_misread_as_a_literal():
-    """Regression for a real trap: llvmlite reports name '' for BOTH a
-    literal and a reference to an unnamed temporary, and str() of the
-    latter is the whole defining instruction whose LAST TOKEN ('5') looks
-    like an integer. A naive last-token parse would compile `sub 100, 5`."""
-    text, diags = _problems(_ir("  %0 = add i32 %x, 5\n  %b = sub i32 100, %0\n  ret i32 %b"))
-    assert "unnamed" in text
+def test_numbered_ssa_value_is_resolved_and_never_misread_as_a_literal():
+    """#799: was REFUSED in #795. Regression for the original trap, kept:
+    llvmlite reports name '' for BOTH a literal and a reference to an unnamed
+    temporary, and str() of the latter is the whole defining instruction whose
+    LAST TOKEN ('5') looks like an integer. A naive last-token parse would
+    compile `sub 100, %0` as `sub 100, 5` -- a constant 95 for every x. The
+    correct answer depends on x, so a misparse cannot pass."""
+    res = _compile(_ir("  %0 = add i32 %x, 5\n  %b = sub i32 100, %0\n  ret i32 %b"))
+    for x in EDGES:
+        assert F.run_in_vm(res, {"x": x}) == (100 - (x + 5)) & M, x
+    assert F.run_in_vm(res, {"x": 1}) != 95
 
 
 def test_control_flow_is_refused():

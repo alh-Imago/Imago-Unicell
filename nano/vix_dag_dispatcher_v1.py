@@ -245,6 +245,21 @@ def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
                       cell_id=cell_id, rel_row=row, rel_col=col)
 
 
+def _out_field(core: str) -> str:
+    """The core_config field that holds a cell's OUTPUT directions, read from
+    the tile registry rather than hardcoded: `downstream_mask` for almost every
+    core, but `routing_mask` for `nano` (the gate). points.md #799: fanning out
+    from a nano-gate result (e.g. a `select`'s `or`, then two consumers) wrote a
+    `downstream_mask` onto a nano cell, which the VM rejects -- no earlier test
+    had ever fanned out from a gate result."""
+    fields = {p.field for t in vtl.vix_tile_library.values() if t.core == core
+              for p in t.ports if p.name == "out"}
+    if len(fields) != 1:
+        raise ValueError(f"core {core!r} has no single, unambiguous output field in the tile registry "
+                          f"(found {sorted(fields)}) -- cannot fan out from it")
+    return next(iter(fields))
+
+
 def _claim_branch_start(ref_name: str, frontiers: Dict[str, Frontier],
                          taps: Dict[str, _TapPoint]) -> Frontier:
     """Real, central fan-out logic: if this producer's own frontier has
@@ -261,7 +276,7 @@ def _claim_branch_start(ref_name: str, frontiers: Dict[str, Frontier],
         for d in _ROTATION:
             if d not in tap.claimed_dirs:
                 tap.claimed_dirs.append(d)
-                tap.cell.core_config["downstream_mask"] = list(tap.claimed_dirs)
+                tap.cell.core_config[_out_field(tap.cell.core)] = list(tap.claimed_dirs)
                 return Frontier(pos=tap.pos, out_dir=d)
         raise ValueError(f"{ref_name!r} has no free real growth direction left (max {len(_ROTATION)} consumers)")
     return frontiers[ref_name]

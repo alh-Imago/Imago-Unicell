@@ -1,4 +1,4 @@
-# Current State (as of 2026-09-21, backend operand-order guarantee + scan pass (#796); shl/lshr (#797); icmp/select/ashr ported by composing library ops (#798). Placement limit and ordered-icmp overflow bound documented and surfaced, not hidden. 964 tests pass. See `points/points_active.md` #796-#798)
+# Current State (as of 2026-09-21, backend operand-order guarantee + scan pass (#796); shl/lshr (#797); icmp/select/ashr ported by composing library ops (#798). Placement limit and ordered-icmp overflow bound documented and surfaced, not hidden. 971 tests pass. See `points/points_active.md` #796-#799)
 
 ## Read this first (most recent)
 
@@ -10,9 +10,11 @@
 
 **Two limits found, both loud not silent.** (1) Ordered `icmp` predicates are wrong EXACTLY on 32-bit signed-difference overflow (measured: 16/16 overflow pairs wrong, every wrong pair an overflow; the old frontend's `#711`, now bounded) -- surfaced as `caveats`; `eq`/`ne` exact for all inputs. (2) The dispatcher has no occupancy-aware placement: two independently computed values that must merge (a `select` with two computed arms, chained `select`s) are refused with a `place` diagnostic. A leaf-placement fix (leaf offset from its partner, not at a far origin) made `select` work for argument/literal arms, `abs`, `max`, clamps; an obstacle-avoiding router fallback was tried and REVERTED (later straight-line padding collides with it -- global placement is a separate piece).
 
+**#799 -- numbered values.** `%0`, `%2`, ... (unnamed args, results, references) now compile: parsed from llvmlite's PRINTED forms, identifier `v<N>` uniquified against real names. Found on the way: fanning out from a nano-gate result (and/or/xor, select's merge) wrote `downstream_mask` onto a cell whose field is `routing_mask` -- fixed via the tile registry (`_out_field`), regression-tested. **Loops were investigated and deliberately NOT ported:** the old support is a very narrow hardware-loop-ring shape with a host-driven round protocol and no VIX loop tiles -- the real choice is hardware loop tiles vs compile-time unrolling; needs Alan's decision (see `#799`).
+
 **Process trap recorded:** stale `.pyc` after same-second, same-size mutate-and-restore produced 3 phantom failures; cache clear fixed it. Clear `__pycache__` between mutation runs.
 
-**Real queue, in order:** (a) occupancy-aware placement / wire in the tightening pass (blocks general `select`; layouts are loose, `abs` = 386 cells); (b) loops -- the one old-frontend capability not ported; (c) unnamed temporaries (`%0`, common in clang output); (d) optional sign-aware ordered compare to remove the `#711` bound; (e) unsigned predicates; (f) program-nexus segmentation, escalation, I/O (scope items 3, 4, 6). Environment: `pip install numpy llvmlite pytest --break-system-packages` first.
+**Real queue, in order:** (a) occupancy-aware placement / wire in the tightening pass (blocks general `select`; layouts are loose, `abs` = 386 cells); (b) loops -- DECISION NEEDED: hardware loop tiles vs compile-time unrolling (`#799`); (c) [done, `#799`]; (d) optional sign-aware ordered compare to remove the `#711` bound; (e) unsigned predicates; (f) program-nexus segmentation, escalation, I/O (scope items 3, 4, 6). Environment: `pip install numpy llvmlite pytest --break-system-packages` first.
 
 ## Previous state (as of 2026-09-21, the first real frontend for compile_dag() built and proven end to end -- attached at llvmlite's parse rather than ProgramIR (which is post-placement), and it immediately found a silent-wrong-answer case in the backend's plain-chain path (non-commutative ops have no operand-order guarantee). 903 tests pass. See `points/points_active.md` #795)
 
