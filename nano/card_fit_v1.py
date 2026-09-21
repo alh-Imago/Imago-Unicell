@@ -134,7 +134,37 @@ def _rows_of(col: dict) -> List[int]:
     return list(range(lo, hi + 1))
 
 
+@dataclass(frozen=True)
+class DspChainCard:
+    """The DSP chain facts for one card, read from its MAN file (points.md #815). Alan (2026-09-21): the max chain
+    length is a card property (Arria 10: 27, a SPINE CLOCK REGION limit -- spatial, not arithmetic, points.md #26);
+    per-block latency is ALSO a card property and is left LOOSE here (None) until a real per-card figure exists --
+    the Arria 10 handbook recollection (0/1 to over 8 cycles) is not assumed to hold on any other card."""
+    max_length: int
+    total_blocks: Optional[int] = None
+    latency_per_block: Optional[float] = None       # None = "loose": no figure asserted for this card
+    reason: str = ""
+
+
+def dsp_chain_from_man(man) -> DspChainCard:
+    """Read the DSP chain facts for a card. Raises if the MAN file has no `device.dsp.chain` entry -- a card with
+    no chain-length fact recorded must not silently be treated as unbounded."""
+    if isinstance(man, (str, os.PathLike)):
+        with open(man) as f:
+            man = json.load(f)
+    dsp = man["device"].get("dsp", {})
+    chain = dsp.get("chain")
+    if not chain or "max_length" not in chain:
+        raise ValueError(f"MAN file {man.get('card_id')!r} has no device.dsp.chain.max_length -- the chain length "
+                         f"is a card property (points.md #25/#26) and must be recorded, not assumed")
+    return DspChainCard(max_length=int(chain["max_length"]), total_blocks=dsp.get("total_blocks"),
+                        latency_per_block=chain.get("latency_per_block_cycles"), reason=chain.get("reason", ""))
+
+
 def target_from_man(man, *, rows: int, cols: int, origin: Pos = (0, 0), pitch: Tuple[int, int] = (1, 1),
+
+
+
                     shell: str = "super_v3", alm_per_position: Optional[float] = None,
                     utilization_ceiling: float = 0.80, array_shape: str = "generator") -> CardTarget:
     """Build a target from a real MAN file. DSP / M20K columns are DIE coordinates; a logical cell
