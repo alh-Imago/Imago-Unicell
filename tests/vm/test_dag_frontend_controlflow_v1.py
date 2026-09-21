@@ -95,11 +95,10 @@ pos:
     _check(src, lambda x: (-s32(x)) if s32(x) < 0 else x << 1)
 
 
-def test_three_early_returns_is_a_loud_placement_refusal_known_limitation():
-    """Measured (points.md #803): a three-way early return is a dense chain of selects. Even 576
-    layouts (96 attempts x 6 spacings) all failed to route, so this is a real limit of the
-    heuristic router (or the graph is non-planar), not a search-budget problem. It must be a
-    precise `place` refusal, never a wrong layout. FLIP this if the router improves."""
+def test_three_early_returns_with_computed_arms_now_compiles():
+    """FLIPPED (points.md #805). #803 pinned this as a known limitation: all 576 layouts failed to
+    route, and the dataflow graph was later shown PLANAR (so a solution existed). Negotiated-congestion
+    routing (PathFinder) finds one."""
     src = """define i32 @f(i32 %x) {
 entry:
   %c1 = icmp slt i32 %x, 5
@@ -116,8 +115,7 @@ hi:
   %h = shl i32 %x, 1
   ret i32 %h
 }"""
-    res, diags = F.compile_llvm_via_dag(src)
-    assert res is None and diags[0].stage == "place"
+    _check(src, lambda x: 111 if s32(x) < 5 else (x + 1000 if s32(x) < 10 else x << 1))
 
 
 def test_three_early_returns_with_cheap_arms_do_compile():

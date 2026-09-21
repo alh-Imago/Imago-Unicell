@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import os
 import random
+import re
 import sys
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -444,6 +445,134 @@ def _route_all(nodes: List[_Node], rng: random.Random, shuffle: bool, margin: in
 
 
 # ---------------------------------------------------------------------------
+# 3b. Negotiated-congestion routing (PathFinder) -- points.md #805
+# ---------------------------------------------------------------------------
+
+def _route_all_pathfinder(nodes: List[_Node], margin: int, bounds: Optional[Tuple[int, int]] = None,
+                          max_iter: int = 25, window: int = 10) -> int:
+    """Rip-up-and-reroute by NEGOTIATED CONGESTION. The greedy router commits each edge once, so an
+    early edge can wall off a later one and the whole layout fails. Here every edge is routed with
+    overlaps ALLOWED at a cost, then every edge that shares a cell is ripped up and re-routed at a
+    rising present-congestion penalty, while cells that stay contested accumulate a HISTORY cost, until
+    no cell is shared. A planar graph can be drawn with its nodes at any fixed positions given room,
+    so what fails a fixed layout is the greedy commit order, which this removes.
+
+    Returns the number of iterations used; raises `RouteFailure` if congestion never resolves. Uses the
+    same pin model as `_route_edge` (multi-source / multi-target: the router chooses both faces), and
+    the same result fields, so `_lower` is unchanged."""
+    import heapq
+    node_cells: Set[Pos] = set()
+    for n in nodes:
+        node_cells.update(n.cells())
+    rows = [p[0] for p in node_cells]
+    cols = [p[1] for p in node_cells]
+    g_r0, g_r1, g_c0, g_c1 = min(rows) - margin, max(rows) + margin, min(cols) - margin, max(cols) + margin
+    if bounds:
+        g_r0, g_r1, g_c0, g_c1 = max(g_r0, 0), min(g_r1, bounds[0] - 1), max(g_c0, 0), min(g_c1, bounds[1] - 1)
+    edges = [e for n in nodes for e in n.in_edges]
+
+    def length(e: _Edge) -> int:
+        a, b = e.src.result_cell(), e.dst.pos
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    edges.sort(key=length)
+
+    hist: Dict[Pos, float] = defaultdict(float)
+    usage: Dict[Pos, int] = defaultdict(int)
+    routed: Dict[int, Tuple[List[Pos], Tuple[Pos, str], Tuple[Pos, str]]] = {}
+
+    def pins(e: _Edge):
+        srcs: Dict[Pos, Tuple[Pos, str]] = {}
+        for cp, f in e.src.out_pins():
+            fc = _step(cp, f)
+            if fc not in node_cells:
+                srcs.setdefault(fc, (cp, f))
+        tgts: Dict[Pos, Tuple[Pos, str]] = {}
+        for cp, f in e.dst.in_pins():
+            lc = _step(cp, f)
+            if lc not in node_cells:
+                tgts.setdefault(lc, (cp, f))
+        return srcs, tgts
+
+    def dijkstra(srcs, tgts, pfac, box):
+        r0, r1, c0, c1 = box
+        dist: Dict[Pos, float] = {}
+        prev: Dict[Pos, Optional[Pos]] = {}
+        heap: List[Tuple[float, int, Pos]] = []
+        tick = 0
+        for s in srcs:
+            if r0 <= s[0] <= r1 and c0 <= s[1] <= c1:
+                d = (1.0 + hist[s]) * (1.0 + pfac * usage[s])
+                dist[s] = d
+                prev[s] = None
+                tick += 1
+                heapq.heappush(heap, (d, tick, s))
+        while heap:
+            d, _, cur = heapq.heappop(heap)
+            if d > dist.get(cur, 1e18):
+                continue
+            if cur in tgts:
+                return cur, prev
+            cr, cc = cur
+            for dr, dc in ((0, 1), (1, 0), (0, -1), (-1, 0)):
+                nb = (cr + dr, cc + dc)
+                if nb in node_cells or not (r0 <= nb[0] <= r1 and c0 <= nb[1] <= c1):
+                    continue
+                nd = d + (1.0 + hist[nb]) * (1.0 + pfac * usage[nb])
+                if nd < dist.get(nb, 1e18):
+                    dist[nb] = nd
+                    prev[nb] = cur
+                    tick += 1
+                    heapq.heappush(heap, (nd, tick, nb))
+        return None, prev
+
+    def route(e: _Edge, pfac: float) -> None:
+        old = routed.pop(id(e), None)
+        if old:
+            for c in old[0]:
+                usage[c] -= 1
+        srcs, tgts = pins(e)
+        if not srcs or not tgts:
+            raise RouteFailure(f"edge {e.src.name}->{e.dst.name}: no free output or input face")
+        pts = list(srcs) + list(tgts)
+        # first a LOCAL window around the endpoints (fast), then the whole grid
+        local = (max(g_r0, min(p[0] for p in pts) - window), min(g_r1, max(p[0] for p in pts) + window),
+                 max(g_c0, min(p[1] for p in pts) - window), min(g_c1, max(p[1] for p in pts) + window))
+        hit, prev = dijkstra(srcs, tgts, pfac, local)
+        if hit is None:
+            hit, prev = dijkstra(srcs, tgts, pfac, (g_r0, g_r1, g_c0, g_c1))
+        if hit is None:
+            raise RouteFailure(f"edge {e.src.name}->{e.dst.name}: no path exists even ignoring congestion")
+        path: List[Pos] = []
+        node: Optional[Pos] = hit
+        while node is not None:
+            path.append(node)
+            node = prev[node]
+        path.reverse()
+        routed[id(e)] = (path, srcs[path[0]], tgts[path[-1]])
+        for c in path:
+            usage[c] += 1
+
+    pfac = 0.6
+    for e in edges:
+        route(e, pfac)
+    for it in range(1, max_iter + 1):
+        over = {c for c, u in usage.items() if u > 1}
+        if not over:
+            for e in edges:
+                path, (sc, sf), (dc_, df) = routed[id(e)]
+                e.path, e.src_cell, e.src_face, e.dst_cell, e.dst_face = path, sc, sf, dc_, df
+            return it
+        for c in over:
+            hist[c] += 1.0
+        pfac *= 1.5
+        for e in edges:
+            if any(c in over for c in routed[id(e)][0]):
+                route(e, pfac)
+    raise RouteFailure(f"negotiated congestion did not resolve in {max_iter} iterations "
+                       f"({sum(1 for u in usage.values() if u > 1)} cells still shared)")
+
+
+# ---------------------------------------------------------------------------
 # 5. Lower: only now do real cells exist.
 # ---------------------------------------------------------------------------
 
@@ -555,21 +684,47 @@ def compile_dag_routed(instructions: List[DagInstr], spacing: Optional[int] = No
                        fold_width: Optional[int] = None, attempts: int = 16, seed: int = 0,
                        margin: int = 16, bounds: Optional[Tuple[int, int]] = None,
                        sites: Optional[Dict[str, List[Pos]]] = None, info: Optional[dict] = None,
-                       spacings: Optional[Tuple[int, ...]] = None):
+                       spacings: Optional[Tuple[int, ...]] = None, pathfinder: bool = True,
+                       pf_budget: int = 30):
     """Same return contract as `compile_dag()`. `spacing=None` TIGHTENS by
     searching for the smallest workable spacing; `fold_width=N` folds the layout
     into a snake of bands N columns wide, flipping shape orientation on
     alternate bands. Raises `RouteFailure` (a `ValueError`) if nothing routes."""
     last: Optional[Exception] = None
-    for S in ((spacing,) if spacing else (spacings or DEFAULT_SPACINGS)):
+    pf_fails = [0]
+    pf_heavy = [0]
+    for si, S in enumerate((spacing,) if spacing else (spacings or DEFAULT_SPACINGS)):
         for attempt in range(attempts):
-            rng = random.Random(seed + attempt)
+            # A DIFFERENT seed per spacing (#805): success depends on the node ORDERING a seed produces,
+            # not on the room, so re-using seed 0..N at every spacing just re-tried the same orderings.
+            rng = random.Random(seed + attempt + 97 * si)
             nodes = _build_graph(instructions)
             _layout(nodes, S, fold_width, rng, jitter=0 if attempt == 0 else 1 + attempt // 8)
             try:
                 if bounds or sites:
                     _fit_positions(nodes, bounds, sites)
-                _route_all(nodes, rng, shuffle=attempt > 0, margin=margin, ring_on=attempt % 2 == 1, bounds=bounds)
+                try:
+                    _route_all(nodes, rng, shuffle=attempt > 0, margin=margin, ring_on=attempt % 2 == 1,
+                               bounds=bounds)
+                except RouteFailure:
+                    # STAGE 2 (#805): the greedy router commits each edge once. On the SAME layout, negotiate:
+                    # rip up and re-route contested edges at a rising congestion cost. It converges quickly
+                    # or never, so it is capped low and tried on a few layouts per spacing, not many
+                    # iterations on one; after `pf_budget` failed negotiations it is switched off (a
+                    # genuinely non-planar design would otherwise burn the whole search).
+                    if not (pathfinder and pf_fails[0] < pf_budget and pf_heavy[0] < 4):
+                        raise
+                    for n in nodes:
+                        for e in n.in_edges:
+                            e.path = []
+                    try:
+                        _route_all_pathfinder(nodes, margin, bounds)
+                    except RouteFailure as pe:
+                        pf_fails[0] += 1
+                        m = re.search(r"\((\d+) cells still shared", str(pe))
+                        if m and int(m.group(1)) >= 6:      # many contested cells: a genuine crossing
+                            pf_heavy[0] += 1                # (non-planar) -- stop spending time on it
+                        raise
             except RouteFailure as e:
                 last = e
                 continue

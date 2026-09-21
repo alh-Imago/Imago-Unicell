@@ -196,15 +196,17 @@ def test_folding_flips_the_cardinal_orientation_of_shapes_on_alternate_bands():
         assert F.run_in_vm(folded, {"x": x}) == ((x + 1) if x == 5 else (x << 2)) & M, hex(x)
 
 
-def test_folding_a_branching_design_too_narrowly_fails_loudly_known_limitation():
-    """Measured (points.md #800): a chain or a diamond folds down to 2 columns per band, but
-    the branching `select` needs >= 4 -- with fewer, the long edges between bands cannot all
-    be routed. It must be a precise `place` refusal, never a wrong layout. If the router
-    learns to fold branching designs tighter, FLIP this."""
-    for narrow in (2, 3):
-        res, diags = F.compile_llvm_via_dag(SEL_COMPUTED, placer="routed", fold_width=narrow)
-        assert res is None and diags[0].stage == "place", narrow
-    assert _compile(SEL_COMPUTED, placer="routed", fold_width=4).placer == "routed"
+def test_folding_a_branching_design_narrowly_now_works_but_costs_cells():
+    """FLIPPED (points.md #805). It used to refuse below 4 columns per band. Negotiated-congestion
+    routing places it at 3 and (slowly, 774 cells) even 2 -- but the COST is real: narrower folds force
+    longer routes, so cells grow as the band narrows. Checked for correctness AND for that trend."""
+    cells = {}
+    for width in (4, 3):
+        res = _compile(SEL_COMPUTED, placer="routed", fold_width=width)
+        cells[width] = len(res.records)
+        for x in VALUES:
+            assert F.run_in_vm(res, {"x": x}) == ((x + 1) if x == 5 else (x << 2)) & M, (width, hex(x))
+    assert cells[3] > cells[4]
 
 
 def test_chain_and_diamond_fold_down_to_two_columns_per_band():
@@ -285,3 +287,98 @@ def test_the_gate_feeder_audit_catches_a_stray_and_passes_every_routed_layout():
     assert V.audit_gate_feeders(bad.icm.patterns["main"].cells)
     ok = _add_stray_next_to_gate(_routed_xor(), point_at_gate=False)
     assert V.audit_gate_feeders(ok.icm.patterns["main"].cells) == []
+
+
+# ---------------------------------------------------------------------------
+# Negotiated-congestion routing (PathFinder) -- points.md #805
+# ---------------------------------------------------------------------------
+
+THREE_WAY = """define i32 @f(i32 %x) {
+entry:
+  %c1 = icmp slt i32 %x, 5
+  br i1 %c1, label %lo, label %rest
+lo:
+  ret i32 111
+rest:
+  %c2 = icmp slt i32 %x, 10
+  br i1 %c2, label %mid, label %hi
+mid:
+  %m = add i32 %x, 1000
+  ret i32 %m
+hi:
+  %h = shl i32 %x, 1
+  ret i32 %h
+}"""
+
+
+def _final_dag(src):
+    fn, _ = F.extract_llvm_function(src)
+    r, _ = F.resolve_symbols(fn.arguments, fn.instrs)
+    return F._lower_and_expand(r.dag, set(fn.arguments) | {i.name for i in r.dag})[0]
+
+
+def _layout_for(final, S, seed):
+    rng = V.random.Random(seed)
+    nodes = V._build_graph(final)
+    V._layout(nodes, S, None, rng, jitter=0 if seed == 0 else 1 + seed // 8)
+    return nodes, rng
+
+
+def test_pathfinder_routes_a_layout_the_greedy_router_cannot():
+    """The defining property: on the SAME node layout, greedy fails and negotiation succeeds."""
+    final = _final_dag(THREE_WAY)
+    found = None
+    for seed in range(40):
+        nodes, rng = _layout_for(final, 4, seed)
+        try:
+            V._route_all(nodes, rng, seed > 0, 16, ring_on=seed % 2 == 1)
+            continue                                   # greedy managed it; look for one it cannot do
+        except V.RouteFailure:
+            pass
+        nodes, _ = _layout_for(final, 4, seed)
+        try:
+            V._route_all_pathfinder(nodes, 16)
+        except V.RouteFailure:
+            continue
+        found = (seed, nodes)
+        break
+    assert found is not None, "expected at least one layout where only negotiation succeeds"
+
+
+def test_a_pathfinder_routing_never_shares_a_cell_or_crosses_a_node():
+    final = _final_dag(THREE_WAY)
+    for seed in range(40):
+        nodes, _ = _layout_for(final, 4, seed)
+        try:
+            V._route_all_pathfinder(nodes, 16)
+        except V.RouteFailure:
+            continue
+        node_cells = {c for n in nodes for c in n.cells()}
+        seen = set()
+        for n in nodes:
+            for e in n.in_edges:
+                assert e.path and e.src_face and e.dst_face
+                for c in e.path:
+                    assert c not in node_cells and c not in seen, (seed, c)
+                    seen.add(c)
+        return
+    pytest.fail("no layout routed")
+
+
+def test_the_greedy_router_alone_cannot_place_the_three_way_return_but_the_default_can():
+    final = _final_dag(THREE_WAY)
+    with pytest.raises(V.RouteFailure):
+        V.compile_dag_routed(final, pathfinder=False, attempts=6, spacings=(3, 4, 5))
+    icm, *_ = V.compile_dag_routed(final)                      # default: greedy, then negotiation
+    assert icm.check_connections() == []
+
+
+def test_a_genuinely_non_planar_design_is_still_refused_and_the_search_stops_early():
+    """The K3,3-minor program has no planar embedding; negotiation must not 'find' one. Many contested
+    cells is the tell, so after a few such failures the search stops spending time on it."""
+    src = _ir("  %p = add i32 %x, 1\n  %q = add i32 %y, 2\n  %r = add i32 %z, 3\n"
+              "  %t1 = add i32 %p, %q\n  %c1 = add i32 %t1, %r\n  %t2 = sub i32 %p, %q\n  %c2 = add i32 %t2, %r\n"
+              "  %t3 = xor i32 %p, %q\n  %c3 = add i32 %t3, %r\n  %s = add i32 %c1, %c2\n  %o = add i32 %s, %c3\n  ret i32 %o",
+              args="i32 %x, i32 %y, i32 %z")
+    res, diags = F.compile_llvm_via_dag(src, placer="routed")
+    assert res is None and diags[0].stage == "place"
