@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-21, the CARD FIT built (#804): a bounded-grid target, fold-to-fit, a cell budget, and resource-bound ops pinned onto fixed DSP/BRAM sites, using the REAL Mustang MAN data with the die->grid mapping an explicit parameter. 1056 tests pass. See `points/points_active.md` #804)
+# Current State (as of 2026-09-21, the router rebuilt with negotiated congestion (#805), the fit model's units corrected (#806), and the BRAM/DSP fixed structures modelled and checked against hardware-proven values (#807). 1095 tests pass. See `points/points_active.md` #805-#807)
+
+## Read this first (most recent)
+
+**#805 -- a stronger router.** Negotiated-congestion (PathFinder) rip-up-and-reroute as stage two of routed placement. The 3-way early return (planar, but 0 of 576 layouts routed greedily) now compiles; narrow folds of branching designs work at a MEASURED cost (205/365/774 cells at 4/3/2 columns per band); a genuinely non-planar design is still refused, quickly. Found on the way: the search re-used the same seeds at every spacing -- success depends on node ORDERING, not room.
+
+**#806 -- the fit model's units were wrong.** The real toolchain instantiates a dense NEAR-SQUARE array (`grid_dims`), costed at a MEASURED ~1,030 ALM/position (super_v3, #579) -- not used cells at ~103 ALM. Budget is now instantiated positions; presets are only the measured ones (nano 102.8, v3 1030.52, v4 1307.42); the VIX carrier has NO measured figure and is never guessed. A 1x10 row of 10 cells costs 91 positions: AREA EFFICIENCY is what fits a card.
+
+**#807 -- the BRAM/DSP fixed structures (Alan: "move into the DSP and BRAM side").** `nano/fixed_structures_v1.py`, from the project's own RTL and design entries: the DISPATCH tree and GATHER tree (3 usable faces per node, so depth = ceil(log3 feeds), max 3 levels = 27 feeds, k nodes give 2k+1 faces) and the SENTINEL at a chain's head (feed) and tail (collect). Routing byte = {count, slot1, slot2, slot3}, a node reads the slot INDEXED BY THE CURRENT COUNT. Reproduces the HARDWARE-PROVEN bytes: mux tree 0x40/0x50/0x88/0x98/0xA8, combiner tree 0x40/0x50/0x88/0x98. Set-piece library (mux, combiner, relay, splitter, bram_controller, sentinel, addr_counter, three DSP wrappers, with sites) and the six DSP ops (ADD/SUB/MUL/GE/LE/NEQ). A protocol-level streaming co-sim runs N replicas of a compiled chain through BRAM -> dispatch -> sentinel-guarded chain -> gather -> BRAM.
+
+**The VM mirror, as Alan asked (checked):** it exists (`vm_mirror_v1.py`, `#601`; the web `frontend_v1.py` uses it for the Walker) but is NOT on the DSL CLI and NOT used by the LLVM path. `card_fit_v1` already shares its grid functions.
+
+**Not done:** the trees/splitter/controller/sentinels are not PLACED on the grid (face codes, not physical faces; `plan_stream` is a lower bound); DSP-wrapper records are not lowered into the VIX design (`mul_dsp` still simulates as `mul`); no LLVM load/store -> BRAM; the frontend does not yet emit a stream from a compile. Everything is model/VM verified only.
+
+**Real queue:** (1) place the fixed structures on the grid via the routed placer and bind them to BRAM/DSP sites in the fit; (2) DSP-wrapper lowering + library entries for the six ops; (3) wire the VM mirror into the LLVM path and a CLI; (4) a memory model; (5) how a compile REQUESTS a stream (a design decision for Alan); (6) floating point; (7) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, the CARD FIT built (#804): a bounded-grid target, fold-to-fit, a cell budget, and resource-bound ops pinned onto fixed DSP/BRAM sites, using the REAL Mustang MAN data with the die->grid mapping an explicit parameter. 1056 tests pass. See `points/points_active.md` #804)
 
 ## Read this first (most recent)
 
