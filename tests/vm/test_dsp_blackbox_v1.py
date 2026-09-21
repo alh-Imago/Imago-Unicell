@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import pytest  # noqa: E402
 
 import dsp_blackbox_v1 as D  # noqa: E402
+import dsp_chain_v1 as DC  # noqa: E402
 
 N = 12
 
@@ -93,3 +94,63 @@ def test_a_feed_hazard_is_physical_it_applies_to_a_monitor_that_ignores_the_init
     """The hazard is in the block, not in the feeder: any feed inside `ii` corrupts, so a broken monitor is caught."""
     d = D.run_dsp([5, 3], N, monitored=True, ii=4, return_slots=8)
     assert d.lost_feed == 0 and d.ok
+
+
+# ---- tying #815's DspChain exclusivity into the monitor's address-supply control (points.md #817) --------------
+
+def test_a_chain_backed_run_forces_at_most_one_item_in_flight_regardless_of_return_slots():
+    """Alan's 'one feed per chain, no matter how much you use': release() only happens on actual collection, so a
+    nominal return_slots > 1 becomes moot once a real DspChain backs the monitor."""
+    r = D.run_dsp([3, 5], N, monitored=True, return_slots=4, chain=DC.DspChain(27))
+    assert r.ok and r.max_in_flight == 1 and r.returned == list(range(N))
+
+
+def test_a_chain_backed_run_gives_the_same_results_as_an_unbacked_run_at_return_slots_one():
+    plain = D.run_dsp([2, 4], N, monitored=True, return_slots=1)
+    backed = D.run_dsp([2, 4], N, monitored=True, return_slots=1, chain=DC.DspChain(27))
+    assert plain.returned == backed.returned == list(range(N)) and plain.rounds == backed.rounds
+
+
+def test_the_chain_is_free_again_once_the_run_completes():
+    chain = DC.DspChain(27)
+    r = D.run_dsp([3], N, monitored=True, chain=chain)
+    assert r.ok and not chain.busy
+
+
+def test_a_chain_already_claimed_elsewhere_stalls_the_monitor_rather_than_crashing_or_falsely_completing():
+    chain = DC.DspChain(27)
+    chain.feed(0, 1)                                        # claimed by something outside this run and never released
+    r = D.run_dsp([3], 4, monitored=True, chain=chain, max_rounds=50)
+    assert r.fed == 0 and r.returned == [] and r.rounds == 50 and not r.ok
+
+
+def test_the_tap_used_is_validated_against_the_chains_real_bounds_and_against_the_links_given():
+    with pytest.raises(ValueError, match="spans"):
+        D.run_dsp([2, 2], 5, monitored=True, chain=DC.DspChain(27), entry=0, exit=5)   # span 6, links len 2
+    with pytest.raises(ValueError):
+        D.run_dsp([2], 5, monitored=True, chain=DC.DspChain(5), entry=0, exit=10)      # exit past the chain's length
+
+
+def test_an_explicit_tap_on_a_longer_chain_claims_only_that_span():
+    chain = DC.DspChain(27)
+    r = D.run_dsp([2, 2, 2], 5, monitored=True, chain=chain, entry=10, exit=12)
+    assert r.ok and r.returned == list(range(5))
+
+
+def test_an_unmonitored_feeder_ignores_the_chain_entirely_the_hazard_it_was_built_to_show():
+    """chain= only gates the MONITORED path; an unmonitored feeder still shows #814's collision hazard even with a
+    chain object present, because nothing consults it -- exactly the point of building the monitor in the first place."""
+    chain = DC.DspChain(27)
+    r = D.run_dsp([2], N, monitored=False, return_slots=1, chain=chain, return_period=3)
+    assert r.lost_return > 0
+
+
+def test_an_unmonitored_run_never_releases_a_chain_it_did_not_claim():
+    """The real gap a mutation surfaced: gating the CLAIM on monitored is not enough by itself -- an unmonitored run
+    sharing a chain object claimed by something ELSE must not release it either, or it frees a resource that is not
+    its to free."""
+    chain = DC.DspChain(27)
+    chain.feed(3, 5)                                          # claimed by something else entirely
+    r = D.run_dsp([2], 6, monitored=False, chain=chain, return_period=1)
+    assert r.fed == 6 and len(r.returned) == 6
+    assert chain.busy and chain._busy == (3, 5)               # still claimed by whoever actually holds it

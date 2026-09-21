@@ -28,6 +28,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Sequence, Tuple
 
+import dsp_chain_v1 as _DC
+
 
 @dataclass
 class DspResult:
@@ -39,6 +41,7 @@ class DspResult:
     max_in_flight: int
     total_latency: int
     monitor_counts: Tuple[int, int] = (0, 0)     # (feed-in count, return count) at the end
+    n_items: int = 0                              # how many items this run was ASKED to carry (points.md #817)
 
     @property
     def collisions(self) -> int:
@@ -46,7 +49,11 @@ class DspResult:
 
     @property
     def ok(self) -> bool:
-        return self.collisions == 0 and self.returned == sorted(self.returned)
+        """No collisions, in order, AND every item actually made it back -- a run that stalled forever (fed=0,
+        returned=[]) is NOT ok just because an empty list is trivially sorted and collision-free (points.md #817:
+        found by a chain-exclusivity test that stalled correctly but this property still said True)."""
+        return (self.collisions == 0 and self.returned == sorted(self.returned)
+                and len(self.returned) == self.n_items and self.fed == self.n_items)
 
     def rate(self) -> Optional[float]:
         return None if len(self.returned) < 2 else (len(self.returned) - 1) / max(1, self.rounds)
@@ -60,9 +67,25 @@ def total_latency(links: Sequence[int]) -> int:
 
 def run_dsp(links: Sequence[int], n_items: int, *, monitored: bool = True, ii: int = 1, return_slots: int = 1,
             return_period: int = 1, feed_period: int = 1, return_stall: Optional[Tuple[int, int]] = None,
-            max_rounds: int = 5000) -> DspResult:
+            max_rounds: int = 5000, chain: Optional[_DC.DspChain] = None, entry: int = 0,
+            exit: Optional[int] = None) -> DspResult:
     """Feed `n_items` through the black box. `feed_period`: how often the (unmonitored) feeder pulses a target -- the RAM's rate.
-    `return_period`: how often the return side can take a result (its own pace); `return_stall`: a window in which it takes none."""
+    `return_period`: how often the return side can take a result (its own pace); `return_stall`: a window in which it takes none.
+
+    `chain` (points.md #816): back the monitor's feed decision with a REAL `dsp_chain_v1.DspChain`'s single-feed
+    exclusivity (#815), for the tap `[entry, exit]` (default: the whole span `links` describes). The monitor then
+    feeds only when the physical chain is not already claimed, calls `chain.feed()` to claim it, and `chain.release()`
+    the round the return side actually takes the result -- exactly what #815's own docstring means by 'the in-flight
+    feed has returned'. This makes `return_slots` > 1 MOOT while `chain` is set: release never happens before a
+    result is collected, so at most one item is ever in flight regardless of the nominal `return_slots` value --
+    that IS Alan's 'one feed per chain, no matter how much you use', made the address-supply control's actual gate
+    rather than an assumption. Raises the same `ChainBusyError`/tap `ValueError` `dsp_chain_v1` would if the model
+    itself ever tried to double-book the chain -- a bug this integration is designed to surface, not hide."""
+    if chain is not None:
+        exit = len(links) - 1 if exit is None else exit
+        seg = chain.tap(entry, exit)                     # validates the tap; raises the same way dsp_chain_v1 does
+        if seg.span != len(links):
+            raise ValueError(f"tap [{entry},{exit}] spans {seg.span} blocks but len(links)={len(links)}")
     L = total_latency(links)
     if ii < 1 or return_slots < 1 or return_period < 1 or feed_period < 1 or n_items < 0:
         raise ValueError("ii, return_slots, return_period, feed_period >= 1 and n_items >= 0")
@@ -84,6 +107,8 @@ def run_dsp(links: Sequence[int], n_items: int, *, monitored: bool = True, ii: i
         if held and not stalled and t % return_period == 0:
             returned.append(held.pop(0))
             ret_count += 1
+            if chain is not None and monitored:           # an UNMONITORED feeder does not consult the chain at all
+                chain.release()                          # the feed has returned: the physical chain is free again
         # feed
         if fed < n_items and t % feed_period == 0:
             go = True
@@ -91,6 +116,9 @@ def run_dsp(links: Sequence[int], n_items: int, *, monitored: bool = True, ii: i
                 # the monitor's own view is the two COUNTERS it can see: fed minus returned, plus results still held
                 in_flight = len(inside) + len(held)
                 go = in_flight < return_slots and t - last_feed >= ii
+                if chain is not None:
+                    go = go and not chain.busy            # the REAL chain's exclusivity, not just the credit count
+            claim_chain = chain is not None and monitored
             if go:
                 seq = fed
                 fed += 1
@@ -99,8 +127,10 @@ def run_dsp(links: Sequence[int], n_items: int, *, monitored: bool = True, ii: i
                     lost_feed += 1               # a PHYSICAL hazard, whoever fed it: inside the initiation interval, corrupted
                 else:
                     inside.append((t + L, seq))
+                    if claim_chain:
+                        chain.feed(entry, exit)           # CLAIM the physical chain -- released on actual collection
                 last_feed = t
         max_in_flight = max(max_in_flight, len(inside) + len(held))
         if fed >= n_items and not inside and not held:
-            return DspResult(t + 1, returned, fed, lost_return, lost_feed, max_in_flight, L, (feed_count, ret_count))
-    return DspResult(max_rounds, returned, fed, lost_return, lost_feed, max_in_flight, L, (feed_count, ret_count))
+            return DspResult(t + 1, returned, fed, lost_return, lost_feed, max_in_flight, L, (feed_count, ret_count), n_items)
+    return DspResult(max_rounds, returned, fed, lost_return, lost_feed, max_in_flight, L, (feed_count, ret_count), n_items)
