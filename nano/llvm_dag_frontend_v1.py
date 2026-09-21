@@ -45,8 +45,12 @@ REAL, DELIBERATE CHOICES (all per the scope note):
   * `sub %v, C` is lowered to `add %v, -C` (recorded in `rewrites`).
     Found necessary by this very frontend: the backend's plain-chain
     path gives a non-commutative op NO operand-order guarantee (see
-    `_lower_for_backend`). `sub C, %v` has no such rewrite and is
-    refused with a diagnostic.
+    `_lower_for_backend`). #796: the backend now GUARANTEES operand
+    order for order-sensitive ops (`ingestion_path()` routes them through
+    the sequenced convergence path), so `sub C, %v` compiles too; the
+    rewrite stays because it is strictly cheaper than a sequencer.
+  * The scan pass (`scan_ordering`) records, per instruction, whether
+    operand order is essential and what guarantees it.
 
 REAL, HONEST SCOPE OF THIS FIRST SLICE: a single function, a single
 basic block (no control flow, no loops), `i32` only, binary opcodes
@@ -69,7 +73,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import llvmlite.binding as llvm  # noqa: E402
 
 from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
-from vix_dag_dispatcher_v1 import compile_dag, DagInstr, DagOperand  # noqa: E402
+from vix_dag_dispatcher_v1 import compile_dag, ingestion_path, DagInstr, DagOperand  # noqa: E402
 from vix_opcode_library_v1 import lookup as library_lookup  # noqa: E402
 
 _MASK32 = 0xFFFFFFFF
@@ -117,6 +121,20 @@ class ResolvedProgram:
 
 
 @dataclass
+class OrderNote:
+    """One entry of the scan pass's ordering report (points.md #796).
+    Operand order is only essential for SOME instructions; the scan
+    records which, why, and what guarantees it -- so ingestion is chosen
+    from a recorded fact, not rediscovered downstream."""
+    name: str
+    opcode: str            # as written in the source
+    order_sensitive: bool  # non-commutative two-operand op
+    ingestion: str         # "plain_chain" | "convergence" -- the dispatcher's own decision
+    guarantee: str         # "not needed" | "lowered to commutative" | "sequencer"
+    reason: str
+
+
+@dataclass
 class DagFrontendResult:
     function_name: str
     dag: List[DagInstr]
@@ -134,6 +152,8 @@ class DagFrontendResult:
     #: traceability (scope item 7), so `%b = sub %a, 3` becoming an `add`
     #: is never a silent surprise to a reader.
     rewrites: List[str] = field(default_factory=list)
+    #: the scan pass's per-instruction ordering report (points.md #796).
+    ordering: List[OrderNote] = field(default_factory=list)
 
 
 def _diag(stage: str, what: str, problem: str, why: str,
@@ -330,7 +350,38 @@ def _lower_for_backend(dag: List[DagInstr]) -> Tuple[List[DagInstr], List[str]]:
 
 
 # ---------------------------------------------------------------------------
-# 3b. Backend-capability guards: refuse rather than silently miscompile.
+# 3b. The scan pass's ordering report.
+# ---------------------------------------------------------------------------
+
+def scan_ordering(source_dag: List[DagInstr], lowered_dag: List[DagInstr]) -> List[OrderNote]:
+    """Record, per instruction, whether operand ORDER is essential and what
+    guarantees it. Order matters only for a non-commutative two-operand op
+    (today: `sub`); everywhere else ("add", "mul", "and", "or", "xor") it
+    does not, and the cheaper plain chain / PRIORITY shape is correct.
+    `ingestion` is read from the dispatcher's OWN `ingestion_path()` -- the
+    scan records the decision the backend will actually make, it does not
+    re-derive it."""
+    notes: List[OrderNote] = []
+    for src, low in zip(source_dag, lowered_dag):
+        entry = library_lookup(src.opcode)
+        sensitive = entry is not None and (not entry.is_commutative) and len(src.operands) == 2
+        ingestion = ingestion_path(low.opcode, [o.kind for o in low.operands])
+        if not sensitive:
+            notes.append(OrderNote(src.name, src.opcode, False, ingestion, "not needed",
+                                   f"`{src.opcode}` is commutative; either arrival order gives the same result"))
+        elif low.opcode != src.opcode:
+            notes.append(OrderNote(src.name, src.opcode, True, ingestion, "lowered to commutative",
+                                   f"`{src.opcode}` is order-sensitive, but with a literal subtrahend it is "
+                                   f"rewritten to commutative `{low.opcode}`, so order no longer matters"))
+        else:
+            notes.append(OrderNote(src.name, src.opcode, True, ingestion, "sequencer",
+                                   f"`{src.opcode}` is order-sensitive; operand order is enforced by the "
+                                   f"sequenced-channel priority cell (#772/#774), independent of arrival timing"))
+    return notes
+
+
+# ---------------------------------------------------------------------------
+# 3c. Backend-capability guards: refuse rather than silently miscompile.
 # ---------------------------------------------------------------------------
 
 def _check_capabilities(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[CompileDiagnostic]:
@@ -357,16 +408,6 @@ def _check_capabilities(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[
                                "the dispatcher places one constant per instruction; it would drop "
                                "one and silently compute the wrong value",
                                "constant-fold it first (constant folding is not built into this frontend)"))
-        elif (not entry.is_commutative) and kinds[0] == "const":
-            diags.append(_diag("dag-lowering", what,
-                               f"a literal is the FIRST operand of non-commutative `{ins.opcode}`",
-                               "confirmed directly (#795): `compile_dag()`'s plain-chain path does not "
-                               "control which of the real and constant operands arrives first, and the "
-                               "first arrival becomes the minuend (#770's hazard) -- so `sub 100, %x` "
-                               "can silently compute x-100 instead of 100-x",
-                               "no equivalence-preserving rewrite exists for a literal minuend; giving "
-                               "the plain-chain path a real operand-order guarantee is separate, named "
-                               "backend work"))
     return diags
 
 
@@ -376,8 +417,8 @@ def _check_capabilities(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[
 
 def _arg_labels(dag: List[DagInstr], arg_uses: Dict[str, List[Tuple[str, int]]]) -> Dict[str, List[str]]:
     """Predict the injection label `compile_dag()` gives each dynamic
-    operand: `<name>_x` when the instruction has at most one non-constant
-    operand, else `<name>_a`/`<name>_b` by operand index. The caller
+    operand: `<name>_x` on the plain-chain path, else `<name>_a`/`<name>_b`
+    by operand index (rule shared with the dispatcher via `ingestion_path`). The caller
     cross-checks every predicted label against what `compile_dag()`
     actually returned, so this can never drift silently."""
     by_name = {d.name: d for d in dag}
@@ -386,8 +427,8 @@ def _arg_labels(dag: List[DagInstr], arg_uses: Dict[str, List[Tuple[str, int]]])
         labels = []
         for instr_name, idx in uses:
             ins = by_name[instr_name]
-            n_real = sum(1 for o in ins.operands if o.kind != "const")
-            labels.append(f"{instr_name}_x" if n_real <= 1 else (f"{instr_name}_a" if idx == 0 else f"{instr_name}_b"))
+            plain = ingestion_path(ins.opcode, [o.kind for o in ins.operands]) == "plain_chain"
+            labels.append(f"{instr_name}_x" if plain else (f"{instr_name}_a" if idx == 0 else f"{instr_name}_b"))
         out[arg] = labels
     return out
 
@@ -410,6 +451,7 @@ def compile_llvm_via_dag(source: str) -> Tuple[Optional[DagFrontendResult], List
     diags = _check_capabilities(fn.instrs, lowered)
     if diags:
         return None, diags
+    ordering = scan_ordering(resolved.dag, lowered)
 
     icm, positions, dynamic_positions, seq_orders = compile_dag(lowered)
     problems = icm.check_connections()
@@ -435,7 +477,7 @@ def compile_llvm_via_dag(source: str) -> Tuple[Optional[DagFrontendResult], List
     return DagFrontendResult(function_name=fn.function_name, dag=lowered, icm=icm, records=records,
                              positions=positions, seq_orders=seq_orders, arg_injections=arg_injections,
                              result_name=fn.result_name, result_cell=result_cell,
-                             result_core=core_at[result_cell], rewrites=rewrites), []
+                             result_core=core_at[result_cell], rewrites=rewrites, ordering=ordering), []
 
 
 def _read_result(cell, core: str) -> int:

@@ -258,14 +258,76 @@ def test_two_literal_operands_refused():
     assert "both operands are literals" in text
 
 
-def test_literal_minuend_is_refused_not_silently_miscompiled():
-    text, diags = _problems(_ir("  %b = sub i32 100, %x\n  ret i32 %b"))
-    assert "FIRST operand" in text
-    assert any("#770" in d.why for d in diags)
+def test_literal_minuend_now_compiles_correctly():
+    """#796: was REFUSED in #795 because the backend gave no operand-order
+    guarantee. `sub 100, %x` has no commutative rewrite, so it is compiled
+    on the sequenced path -- and must be right, not merely accepted."""
+    res = _compile(_ir("  %b = sub i32 100, %x\n  ret i32 %b"))
+    assert res.rewrites == []
+    assert "b" in res.seq_orders
+    for x in EDGES:
+        assert F.run_in_vm(res, {"x": x}) == (100 - x) & M, x
+
+
+def test_literal_minuend_after_a_computed_value():
+    res = _compile(_ir("  %a = add i32 %x, 100\n  %b = sub i32 8, %a\n  ret i32 %b"))
+    for x in EDGES:
+        assert F.run_in_vm(res, {"x": x}) == (8 - (x + 100)) & M, x
+
+
+def test_sub_both_variable_operands_and_literal_in_one_program():
+    src = _ir("  %p = sub i32 50, %x\n  %q = sub i32 %x, 7\n  %r = sub i32 %p, %q\n  ret i32 %r")
+    res = _compile(src)
+    for x in EDGES:
+        assert F.run_in_vm(res, {"x": x}) == ((50 - x) - (x - 7)) & M, x
 
 
 # ---------------------------------------------------------------------------
-# The backend limitation this frontend found, documented as it actually is.
+# The scan pass's ordering report (#796): order is essential only for SOME
+# instructions, and the report says which, why, and what guarantees it.
+# ---------------------------------------------------------------------------
+
+def test_scan_marks_commutative_ops_as_order_free():
+    res = _compile(_ir("  %a = add i32 %x, 1\n  %b = mul i32 %a, 3\n  %c = xor i32 %b, 5\n  ret i32 %c"))
+    assert [n.order_sensitive for n in res.ordering] == [False, False, False]
+    assert all(n.guarantee == "not needed" and n.ingestion == "plain_chain" for n in res.ordering)
+
+
+def test_scan_marks_literal_subtrahend_as_lowered_to_commutative():
+    res = _compile(PROOF)
+    a, b = res.ordering
+    assert (a.order_sensitive, b.order_sensitive) == (False, True)
+    assert b.guarantee == "lowered to commutative" and b.ingestion == "plain_chain"
+
+
+def test_scan_marks_literal_minuend_and_variable_pair_as_sequenced():
+    res = _compile(_ir("  %p = sub i32 50, %x\n  %q = sub i32 %x, 7\n  %r = sub i32 %p, %q\n  ret i32 %r"))
+    by = {n.name: n for n in res.ordering}
+    assert by["p"].order_sensitive and by["p"].guarantee == "sequencer" and by["p"].ingestion == "convergence"
+    assert by["q"].guarantee == "lowered to commutative"
+    assert by["r"].order_sensitive and by["r"].guarantee == "sequencer"
+
+
+def test_scan_ingestion_matches_what_the_dispatcher_actually_built():
+    """The scan reads the dispatcher's own ingestion_path(); confirm the
+    recorded 'sequencer' instructions are exactly the ones that received a
+    sequencer order at compile time."""
+    res = _compile(_ir("  %p = sub i32 50, %x\n  %q = sub i32 %x, 7\n  %r = sub i32 %p, %q\n  ret i32 %r"))
+    sequenced = {n.name for n in res.ordering if n.guarantee == "sequencer"}
+    assert sequenced == set(res.seq_orders)
+
+
+def test_ingestion_path_rule():
+    from vix_dag_dispatcher_v1 import ingestion_path
+    assert ingestion_path("add", ["dynamic", "const"]) == "plain_chain"      # commutative: order not needed
+    assert ingestion_path("add", ["ref", "ref"]) == "convergence"
+    assert ingestion_path("sub", ["dynamic", "const"]) == "convergence"      # order-sensitive real+const
+    assert ingestion_path("sub", ["const", "ref"]) == "convergence"
+    assert ingestion_path("sub", ["ref", "ref"]) == "convergence"
+
+
+# ---------------------------------------------------------------------------
+# The backend ordering guarantee (#796): the limitation #795 found, fixed.
 # ---------------------------------------------------------------------------
 
 def _backend_sub(instrs, target, x):
@@ -275,34 +337,32 @@ def _backend_sub(instrs, target, x):
     for _label, r, c in dyn:
         g.cells[(r, c)].ram_data_reg = x
         g.cells[(r, c)].ram_data_valid = True
+    for name, order in seq.items():
+        for rec in recs:
+            if rec.cell_id == f"main.pri_{name}":
+                g.cells[(rec.row, rec.col)].pri_seq_order = order
     for _ in range(600):
         g.tick()
     return g.cells[pos[target]].adder_out_buffer
 
 
-def test_backend_plain_chain_sub_ignores_operand_order_known_limitation():
-    """points.md #795 -- a documented NEGATIVE result, in the same spirit
-    as #764/#775. `compile_dag()`'s plain-chain path gives a real+constant
-    pair of a non-commutative op no operand-order guarantee: whichever
-    arrives first becomes the minuend (#770's hazard). Observed, x=50,
-    c=8, a = x+100:
-
-        sub(dynamic, const) -> x-c   (right, by arrival luck)
-        sub(const, dynamic) -> x-c   (WRONG: wanted c-x)
-        sub(ref, const)     -> c-a   (WRONG: wanted a-c)
-        sub(const, ref)     -> c-a   (right, by arrival luck)
-
-    Asserts the CURRENT behaviour so the limitation cannot be forgotten
-    or silently regress differently. If the backend is ever given a real
-    ordering guarantee, these assertions should be FLIPPED to the correct
-    values, and `_lower_for_backend()` / the literal-minuend diagnostic
-    in the frontend can then be reconsidered."""
-    x, c = 50, 8
+def test_backend_plain_chain_sub_operand_order_is_now_guaranteed():
+    """points.md #796 -- the documented NEGATIVE result from #795, flipped
+    as its own docstring instructed. Before: sub(const,dynamic) and
+    sub(ref,const) were WRONG (whichever operand arrived first became the
+    minuend); the other two were right only by arrival luck. Now all four
+    orderings are correct, because `ingestion_path()` routes an
+    order-sensitive real+const pair through the sequenced convergence
+    path. Checked for several x so a lucky single value cannot pass."""
+    c = 8
     pre = DagInstr("a", "add", [DagOperand("dynamic"), DagOperand("const", value=100)])
-    assert _backend_sub([DagInstr("t", "sub", [DagOperand("dynamic"), DagOperand("const", value=c)])], "t", x) == x - c
-    assert _backend_sub([DagInstr("t", "sub", [DagOperand("const", value=c), DagOperand("dynamic")])], "t", x) == x - c
-    a = x + 100
-    assert _backend_sub([pre, DagInstr("t", "sub", [DagOperand("ref", ref_name="a"), DagOperand("const", value=c)])],
-                        "t", x) == (c - a) & M
-    assert _backend_sub([pre, DagInstr("t", "sub", [DagOperand("const", value=c), DagOperand("ref", ref_name="a")])],
-                        "t", x) == (c - a) & M
+    for x in (0, 1, 50, 2 ** 31, M):
+        a = (x + 100) & M
+        assert _backend_sub([DagInstr("t", "sub", [DagOperand("dynamic"), DagOperand("const", value=c)])],
+                            "t", x) == (x - c) & M, x
+        assert _backend_sub([DagInstr("t", "sub", [DagOperand("const", value=c), DagOperand("dynamic")])],
+                            "t", x) == (c - x) & M, x
+        assert _backend_sub([pre, DagInstr("t", "sub", [DagOperand("ref", ref_name="a"), DagOperand("const", value=c)])],
+                            "t", x) == (a - c) & M, x
+        assert _backend_sub([pre, DagInstr("t", "sub", [DagOperand("const", value=c), DagOperand("ref", ref_name="a")])],
+                            "t", x) == (c - a) & M, x

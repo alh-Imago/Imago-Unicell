@@ -92,6 +92,35 @@ class _TapPoint:
     claimed_dirs: List[str] = field(default_factory=list)
 
 
+def ingestion_path(opcode: str, operand_kinds: List[str]) -> str:
+    """points.md #796: the ONE place that decides how an instruction's
+    operands are ingested -- `"plain_chain"` (at most one real operand,
+    order cannot matter) or `"convergence"` (two real operands, OR an
+    ORDER-SENSITIVE op with one real + one constant operand).
+
+    Operand order only matters for a non-commutative op, and only when
+    the two values reach the cell by different physical routes. The old
+    rule (`n_real <= 1` -> plain chain) gave a non-commutative real+
+    constant pair NO ordering guarantee: whichever arrived first became
+    the minuend (`#770`'s hazard, found by the first real frontend,
+    `#795`). Routing that case through the convergence path gets
+    `#774`'s SEQUENCER for free -- it waits for the operand that is due
+    first and ignores the other however early it shows up -- so the
+    result no longer depends on arrival timing. Commutative ops keep
+    the cheaper plain chain: ordering is not needed there.
+
+    Public so a frontend's scan pass can record the SAME decision the
+    dispatcher will make, rather than re-deriving (and drifting from) it.
+    """
+    n_real = sum(1 for k in operand_kinds if k != "const")
+    if n_real >= 2:
+        return "convergence"
+    entry = library_lookup(opcode)
+    if entry is not None and not entry.is_commutative and len(operand_kinds) == 2 and n_real == 1:
+        return "convergence"
+    return "plain_chain"
+
+
 def compile_dag(instructions: List[DagInstr]
                  ) -> Tuple[vix.IcmVixFile, Dict[str, Position], List[Tuple[str, int, int]], Dict[str, Tuple[int, int]]]:
     """The real dispatcher, rebuilt around incremental, frontier-based
@@ -129,9 +158,7 @@ def compile_dag(instructions: List[DagInstr]
 
     for instr in instructions:
         resolved = [_resolve_operand(op) for op in instr.operands]
-        n_real = sum(1 for r in resolved if r["kind"] != "const")
-
-        if n_real <= 1:
+        if ingestion_path(instr.opcode, [r["kind"] for r in resolved]) == "plain_chain":
             cells, out_frontier = _grow_plain_chain(instr, resolved, occ, dynamic_positions, frontiers, taps,
                                                       leaf_counter)
         else:
