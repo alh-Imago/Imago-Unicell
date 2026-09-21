@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-21, the credit-return ID now DECODED for real (#820) -- the abstract counter model uses the same hardware-verified gather_stamp/mux_decode the placed layout uses, not a bare chain index. 1327 tests pass. See `points/points_active.md` #805-#820)
+# Current State (as of 2026-09-21, the HOST STALL/REFILL LIFECYCLE built and proven over multiple laps (#821) -- #257's two open questions were already resolved at #279, which this connects to the existing sentinel mechanism for the first time. 1339 tests pass. See `points/points_active.md` #805-#821)
+
+## Read this first (most recent)
+
+**#821 -- host stall/refill.** `#257` (2026-08-09) left two things explicitly open: "farthest point" addressing, and no empty/full status signal existing anywhere. Both were resolved the SAME DAY at `#279`, which this session had been using (the sentinel's `need_data_flag`/`results_ready_flag`/`safe_to_intervene`, called "the watchdog freeze convention" since `#810`) without recognising it as `#257`'s own already-resolved second candidate. `#279` Part 1: "farthest point" = wherever the counter naturally wraps to (confirmed against `addr_counter_v1.v` -- no reset input exists at all). Part 2: the host watches the AND of both flags (Alan's correction: OUT freezing alone doesn't prove the pipeline drained). `run_host_lifecycle` in `sentinel_bram_automaton_v1.py` drives N laps of the full cycle (run to safe, record what was collected, reload fresh data at the SAME addresses, unfreeze, repeat) -- proven over 1, 3 and 10 laps, each seeing genuinely fresh data, addresses returning to 0 with no reset call ever made.
+
+**Two real bugs found while building, before any test existed:** chains start frozen at power-on and the first version never unfroze them (everything silently did nothing); an off-by-one used the WRONG lap's data for reload (lap 1 silently re-ran lap 0's leftovers), found by comparing output against hand-computed values. **One mutation survivor investigated, not hidden:** the post-loop error check is currently unreachable by the Sentinel's own definitions (safe requires diff==0, errors require diff!=0) -- now a documented comment, not silent dead code.
+
+**Working top-down through the real queue while Alan drives (#816-#821), six items done.** Recurring lesson holds: exact-value comparisons against hand-computed expectations (not just "still correct, still completes") are what caught the off-by-one here, same pattern as the mutation-testing catches in #816-#820.
+
+**Earlier this session:** #805-#815 (router; fit units; fixed structures; bus width + 2D tree limit; two-port layout; counter feedback; the ~2-chain planarity limit + credit-return link; BRAM read latency; no fixed latency + ack pipeline; priority cell measured on the real VM + DSP black box; Arria 10 DSP chain topology, kept loose per Alan's request).
+
+**Real queue:** (1) DSP-wrapper lowering (needs a bridge tile, flagged missing at #816) -- NEXT; (2) VM mirror into the LLVM path and a CLI; (3) store-and-shift; (4) floating point; (5) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, the credit-return ID now DECODED for real (#820) -- the abstract counter model uses the same hardware-verified gather_stamp/mux_decode the placed layout uses, not a bare chain index. 1327 tests pass. See `points/points_active.md` #805-#820)
 
 ## Read this first (most recent)
 
