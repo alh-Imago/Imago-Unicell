@@ -95,6 +95,10 @@ class StreamLayout:
     #: the FEEDBACK topology placed ("none" | "per_chain" | "credit_return") and its routes
     feedback: str = "none"
     fb_routes: List[List[Pos]] = field(default_factory=list)
+    #: points.md #818/#819: how the shared port is arbitrated ("write_priority" | "weighted"). A physical SITE for
+    #: the priority cell is placed (below); the actual decision it implements is `counter_feedback_v1.run(port_arbiter=
+    #: weighted_port_arbiter(...))` -- this placement gives that choice a position, not a simulated arbitration.
+    port_arbiter: str = "write_priority"
 
     def chain_for_dispatch(self, d: int) -> int:
         return self.dispatch_of_chain.index(d)
@@ -159,14 +163,21 @@ def _free_faces(cell_pos: Pos, taken: set, blocked_faces=()) -> List[str]:
 
 
 def place_stream(result, feeds: int, *, bus: Optional[FS.BusSpec] = None, target: Optional[C.CardTarget] = None,
-                 gaps: Tuple[int, ...] = (6, 10), ports: int = 1, feedback: str = "none") -> StreamLayout:
+                 gaps: Tuple[int, ...] = (6, 10), ports: int = 1, feedback: str = "none",
+                 port_arbiter: str = "write_priority") -> StreamLayout:
     """Place `feeds` copies of a compiled chain behind a BRAM interface and route them. With a `target`, the BRAM
     controller (and the splitter beside it) is bound to a BRAM site and the whole layout is checked against the
     card's grid and budget."""
     plan = (bus or FS.BusSpec()).plan(feeds)
     if feedback not in ("none", "per_chain", "credit_return"):
         raise StreamError("feedback must be 'none', 'per_chain' or 'credit_return'")
+    if port_arbiter not in ("write_priority", "weighted"):
+        raise StreamError("port_arbiter must be 'write_priority' or 'weighted'")
     if ports == 2:
+        if port_arbiter != "write_priority":
+            raise StreamError("port_arbiter only applies to a single shared port (ports=1); ports=2 has independent "
+                              "read and write ports, so there is nothing to arbitrate (matches counter_feedback_v1's "
+                              "port_arbiter never being consulted when ports=2, points.md #818)")
         return _place_two_port(result, feeds, plan, target, gaps, feedback)
     if feedback != "none":
         raise StreamError("feedback routing is placed for the two-port plan only")
@@ -190,6 +201,12 @@ def place_stream(result, feeds: int, *, bus: Optional[FS.BusSpec] = None, target
     set_pieces: List[SetPieceCell] = [SetPieceCell("controller", "bram_ctrl", ctrl), SetPieceCell("splitter", "splitter", split, up="s")]
     d_off, g_off = (-2, 0), (1, 0)
     macro_cells: List[Pos] = [ctrl, split]
+    if port_arbiter == "weighted":
+        # a priority cell mediating the controller's one port between the read side (north, via the splitter) and
+        # the write side (south, via the gather root) -- east of the controller, the one face neither tree uses.
+        pri_pos = _shift(ctrl, (0, 1))
+        set_pieces.append(SetPieceCell("priority", "port_arbiter", pri_pos, up=None))
+        macro_cells.append(pri_pos)
     d_pins: List[Tuple[Pos, str]] = []
     g_pins: List[Tuple[Pos, str]] = []
     if feeds == 1:
@@ -250,6 +267,7 @@ def place_stream(result, feeds: int, *, bus: Optional[FS.BusSpec] = None, target
                      ctrl, len(block), gap, target)
         lay.dispatch_of_chain = d_of
         lay.gather_of_chain = g_of
+        lay.port_arbiter = port_arbiter
         return lay
     raise StreamError(f"could not route {feeds} chains to the BRAM interface at gaps {gaps}: {last_err}")
 

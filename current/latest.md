@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-21, working top-down through the real queue while Alan drives: DSP chains placed on real sites (#816), chain exclusivity tied into the DSP monitor (#817), and a WEIGHTED priority cell on the single shared port replacing hardcoded write priority (#818, provably unchanged default). 1311 tests pass. See `points/points_active.md` #805-#818)
+# Current State (as of 2026-09-21, a priority-cell SET-PIECE placed at the shared controller (#819), giving #818's abstract weighted arbitration a real position, default layout unchanged. 1319 tests pass. See `points/points_active.md` #805-#819)
+
+## Read this first (most recent)
+
+**#819 -- placing the priority cell.** `place_stream(..., port_arbiter="weighted")` puts a `priority` set-piece east of the shared controller (registered as a routing obstacle before negotiation, so the router respects it exactly like the mux/combiner nodes) and records the choice on the layout. `port_arbiter="write_priority"` (default) places nothing new -- byte-identical to the pre-#819 layout. Refused on `ports=2` (nothing to arbitrate there, matching #818). Verified for 1-3 chains: clean placement, no overlap, correct VM run, and still fits/binds a real BRAM site on the Mustang target.
+
+**Honest:** this is a SITE, not a simulation -- no wiring connects it to the controller; the actual arbitration lives in #818's separate model. The east-of-controller position is a modelling choice, not derived from real RTL placement. Weights aren't yet plumbed through to a specific instance.
+
+**Working top-down through the real queue while Alan drives (#816-#819):** DSP chains placed on real sites; chain exclusivity tied into the DSP monitor (2 real bugs found and fixed); the weighted priority cell built for the single shared port (2 more real bugs found and fixed by mutation testing); now placed. Recurring lesson: exact-count assertions checked against the mutation itself are what catch these, not 'still correct, still completes'.
+
+**Earlier this session:** #805-#815 (router; fit units; fixed structures; bus width + 2D tree limit; two-port layout; counter feedback; the ~2-chain planarity limit + credit-return link; BRAM read latency; no fixed latency + ack pipeline; priority cell measured on the real VM + DSP black box; Arria 10 DSP chain topology, kept loose per Alan's request).
+
+**Real queue:** (1) place and decode ID -> per-chain credit at the read side; (2) host stall/refill + the empty/full signal; (3) DSP-wrapper lowering (needs a bridge tile, flagged missing at #816); (4) VM mirror into the LLVM path and a CLI; (5) store-and-shift; (6) floating point; (7) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, working top-down through the real queue while Alan drives: DSP chains placed on real sites (#816), chain exclusivity tied into the DSP monitor (#817), and a WEIGHTED priority cell on the single shared port replacing hardcoded write priority (#818, provably unchanged default). 1311 tests pass. See `points/points_active.md` #805-#818)
 
 ## Read this first (most recent)
 

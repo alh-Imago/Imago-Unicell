@@ -419,3 +419,54 @@ def test_a_pre_routed_net_is_an_obstacle_the_router_does_not_reroute():
     path = set(lay.fb_routes[0])
     for route in lay.in_routes + lay.out_routes:
         assert not path & set(route)                                       # nothing else uses the link's cells
+
+
+# ---- placing a priority cell at the shared controller (points.md #819) -------------------------------------------
+
+@pytest.mark.parametrize("feeds", [1, 2, 3])
+def test_a_weighted_port_arbiter_places_a_priority_cell_and_runs_correctly(feeds):
+    lay = SL.place_stream(_chain(), feeds, port_arbiter="weighted")
+    assert lay.port_arbiter == "weighted"
+    pri = [p for p in lay.set_pieces if p.kind == "priority"]
+    assert len(pri) == 1 and pri[0].cell_id == "port_arbiter"
+    assert SL.verify_layout(lay) == []
+    vals = [0, 1, 100, M, 12345][: feeds + 1]
+    run = SL.run_placed_stream(lay, vals)
+    assert [v for _, _, v in run.outputs] == [(x + 7) & M for x in vals]
+    assert run.sentinels_safe and run.isolated
+
+
+def test_the_default_places_no_priority_cell_and_the_field_says_so():
+    lay = SL.place_stream(_chain(), 2)
+    assert lay.port_arbiter == "write_priority"
+    assert not any(p.kind == "priority" for p in lay.set_pieces)
+
+
+def test_the_priority_cell_sits_east_of_the_controller_and_never_overlaps_anything():
+    for feeds in (1, 2, 3):
+        lay = SL.place_stream(_chain(), feeds, port_arbiter="weighted")
+        pri = next(p for p in lay.set_pieces if p.kind == "priority")
+        ctrl = lay.controllers[0]
+        assert pri.pos == (ctrl[0], ctrl[1] + 1)
+        pos = lay.all_positions()
+        assert len(set(pos)) == len(pos)
+
+
+def test_port_arbiter_only_applies_to_a_single_shared_port():
+    with pytest.raises(SL.StreamError, match="single shared port"):
+        SL.place_stream(_chain(), 2, ports=2, port_arbiter="weighted")
+    lay = SL.place_stream(_chain(), 2, ports=2, port_arbiter="write_priority")   # the default value is still accepted
+    assert lay.port_arbiter == "write_priority"
+
+
+def test_port_arbiter_value_is_validated():
+    with pytest.raises(SL.StreamError, match="'write_priority' or 'weighted'"):
+        SL.place_stream(_chain(), 2, port_arbiter="loudest")
+
+
+def test_a_weighted_arbiter_still_fits_a_real_card_and_binds_its_controller_to_a_bram_site():
+    t = C.target_from_man(MAN, rows=224, cols=150, alm_per_position=100.0)
+    lay = SL.place_stream(_chain(), 2, port_arbiter="weighted", target=t)
+    assert lay.fit.fits, lay.fit.problems
+    assert lay.controllers[0] in set(t.sites["bram"])
+    assert SL.verify_layout(lay) == []
