@@ -145,6 +145,79 @@ def build_tree(n: int) -> DistributionTree:
 
 
 # ---------------------------------------------------------------------------
+# The bus: the design was built around the Arria 10's 40-bit M20K word
+# ---------------------------------------------------------------------------
+
+ROUTING_FIELD_BITS = 8                      # as BUILT: 2-bit count + three 2-bit slots (points.md #258)
+
+
+class BusError(ValueError):
+    """The card's BRAM word cannot carry what this design needs. Loud by design."""
+
+
+@dataclass(frozen=True)
+class BusPlan:
+    feeds: int
+    width: int
+    routing_bits: int
+    data_bits: int
+    beats: int                          # bus words needed per 32-bit value
+    store_and_shift: bool               # True when a value must be assembled/disassembled from several words
+    notes: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class BusSpec:
+    """The BRAM word the fixed structures ride on. `width` is the card's port width (the Arria 10 M20K's
+    native 40 bits: 8 ROUTING + 32 DATA, points.md #259/#265); other cards differ, so it is a PARAMETER.
+
+    A design with one feed needs NO routing (no tree, count 0), so the whole word is data. With a tree, the
+    routing field is `ROUTING_FIELD_BITS` (8) as built; `fixed_routing_field=False` models a proposed RTL
+    parameterisation that spends only 2 + 2 x levels bits. When the data bits left are fewer than a 32-bit
+    value, the value is carried in several words (`beats`) and needs a STORE-AND-SHIFT stage to assemble it
+    (and disassemble it on the way back)."""
+    width: int = 40
+    word_bits: int = 32
+    fixed_routing_field: bool = True
+
+    def routing_bits(self, feeds: int) -> int:
+        levels = levels_for(feeds)
+        if levels == 0:
+            return 0
+        return ROUTING_FIELD_BITS if self.fixed_routing_field else 2 + 2 * levels
+
+    def plan(self, feeds: int) -> BusPlan:
+        rb = self.routing_bits(feeds)
+        data = self.width - rb
+        if data < 1:
+            raise BusError(f"a {self.width}-bit word leaves no data bits after {rb} routing bits for {feeds} feeds")
+        beats = -(-self.word_bits // data)
+        notes = []
+        if feeds == 1 and rb == 0 and self.width != 40:
+            notes.append("one chain needs no routing byte: the RTL as built always splits {8 routing, 32 data}, so "
+                         "dropping it is an RTL VARIANT that does not exist yet")
+        if beats > 1:
+            notes.append(f"a {self.word_bits}-bit value needs {beats} beats of {data} data bits: a store-and-shift "
+                         f"assembler on the read side and a disassembler on the write side, ~{beats}x the latency "
+                         f"-- a PROPOSED stage, no RTL exists")
+        if self.width != 40:
+            notes.append("splitter/mux/combiner RTL is written for a 40-bit word; another width needs it "
+                         "parameterised -- not built")
+        return BusPlan(feeds, self.width, rb, data, beats, beats > 1, tuple(notes))
+
+    def max_feeds(self, min_data_bits: int = 1) -> int:
+        """The most feeds this bus can carry while leaving at least `min_data_bits` of data per beat."""
+        best = 0
+        for n in range(1, MAX_FEEDS + 1):
+            try:
+                if self.plan(n).data_bits >= min_data_bits:
+                    best = n
+            except BusError:
+                pass
+        return best
+
+
+# ---------------------------------------------------------------------------
 # Routing bytes: the exact encode / decode of mux_cell_v1 / combiner_cell_v2
 # ---------------------------------------------------------------------------
 

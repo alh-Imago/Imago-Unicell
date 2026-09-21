@@ -110,6 +110,10 @@ class _Edge:
     dst_cell: Optional[Pos] = None
     dst_face: Optional[str] = None
     path: List[Pos] = field(default_factory=list)
+    #: points.md #808: restrict this edge to specific pins. A rigid macro (a BRAM interface with 2n leaf pins)
+    #: must connect leaf pin i to destination i, not to whichever pin is nearest.
+    src_pins: Optional[List[Tuple[Pos, str]]] = None
+    dst_pins: Optional[List[Tuple[Pos, str]]] = None
 
 
 @dataclass(eq=False)
@@ -448,8 +452,12 @@ def _route_all(nodes: List[_Node], rng: random.Random, shuffle: bool, margin: in
 # 3b. Negotiated-congestion routing (PathFinder) -- points.md #805
 # ---------------------------------------------------------------------------
 
+_INF = float("inf")
+_PFAC_CAP = 1e6
+
+
 def _route_all_pathfinder(nodes: List[_Node], margin: int, bounds: Optional[Tuple[int, int]] = None,
-                          max_iter: int = 25, window: int = 10) -> int:
+                          max_iter: int = 25, window: int = 10, patience: int = 40) -> int:
     """Rip-up-and-reroute by NEGOTIATED CONGESTION. The greedy router commits each edge once, so an
     early edge can wall off a later one and the whole layout fails. Here every edge is routed with
     overlaps ALLOWED at a cost, then every edge that shares a cell is ripped up and re-routed at a
@@ -482,12 +490,12 @@ def _route_all_pathfinder(nodes: List[_Node], margin: int, bounds: Optional[Tupl
 
     def pins(e: _Edge):
         srcs: Dict[Pos, Tuple[Pos, str]] = {}
-        for cp, f in e.src.out_pins():
+        for cp, f in (e.src_pins if e.src_pins is not None else e.src.out_pins()):
             fc = _step(cp, f)
             if fc not in node_cells:
                 srcs.setdefault(fc, (cp, f))
         tgts: Dict[Pos, Tuple[Pos, str]] = {}
-        for cp, f in e.dst.in_pins():
+        for cp, f in (e.dst_pins if e.dst_pins is not None else e.dst.in_pins()):
             lc = _step(cp, f)
             if lc not in node_cells:
                 tgts.setdefault(lc, (cp, f))
@@ -508,7 +516,7 @@ def _route_all_pathfinder(nodes: List[_Node], margin: int, bounds: Optional[Tupl
                 heapq.heappush(heap, (d, tick, s))
         while heap:
             d, _, cur = heapq.heappop(heap)
-            if d > dist.get(cur, 1e18):
+            if d > dist.get(cur, _INF):
                 continue
             if cur in tgts:
                 return cur, prev
@@ -518,7 +526,7 @@ def _route_all_pathfinder(nodes: List[_Node], margin: int, bounds: Optional[Tupl
                 if nb in node_cells or not (r0 <= nb[0] <= r1 and c0 <= nb[1] <= c1):
                     continue
                 nd = d + (1.0 + hist[nb]) * (1.0 + pfac * usage[nb])
-                if nd < dist.get(nb, 1e18):
+                if nd < dist.get(nb, _INF):
                     dist[nb] = nd
                     prev[nb] = cur
                     tick += 1
@@ -555,8 +563,16 @@ def _route_all_pathfinder(nodes: List[_Node], margin: int, bounds: Optional[Tupl
     pfac = 0.6
     for e in edges:
         route(e, pfac)
+    best_over, last_gain = None, 0
     for it in range(1, max_iter + 1):
         over = {c for c, u in usage.items() if u > 1}
+        if over and (best_over is None or len(over) < best_over):
+            best_over, last_gain = len(over), it
+        elif over and it - last_gain >= patience:
+            # STALL DETECTION: negotiation that has not reduced the number of contested cells for `patience`
+            # iterations is not converging (converging cases finish quickly), so stop instead of burning the budget.
+            raise RouteFailure(f"negotiated congestion did not resolve: stalled at {best_over} contested cells "
+                               f"for {patience} iterations ({sum(1 for u in usage.values() if u > 1)} cells still shared)")
         if not over:
             for e in edges:
                 path, (sc, sf), (dc_, df) = routed[id(e)]
@@ -564,7 +580,7 @@ def _route_all_pathfinder(nodes: List[_Node], margin: int, bounds: Optional[Tupl
             return it
         for c in over:
             hist[c] += 1.0
-        pfac *= 1.5
+        pfac = min(pfac * 1.5, _PFAC_CAP)      # capped: an unbounded factor overflowed the old 1e18 'infinity' after ~120 iterations
         for e in edges:
             if any(c in over for c in routed[id(e)][0]):
                 route(e, pfac)
