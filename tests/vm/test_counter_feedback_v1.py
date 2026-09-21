@@ -222,3 +222,128 @@ def test_the_shared_link_still_isolates_a_stalled_chain_under_priority():
     r = CF.run(_mk(2, 2), INPUTS, F, arbiter="priority", stall_out=STALL0, credit_link=3)
     assert r.finished_round(1) < 45 and r.tree_blocked_rounds == 0 and r.sentinel_errors == []
     assert r.done and r.per_chain == EXPECT
+
+
+# ---- the BRAM side: read latency, and the control that says "the feed's out, here is the next address" (#812) -------
+
+ONE = [[10, 11, 12, 13, 14, 15, 16, 17]]
+ONE_EXPECT = [[F(x) for x in ONE[0]]]
+
+
+def _one(**kw):
+    return CF.run([CF.ChainCfg(window=8, in_depth=8, out_depth=8, latency=1)], ONE, F, feedback=False, **kw)
+
+
+@pytest.mark.parametrize("latency", [1, 2, 3])
+def test_ack_driven_advance_absorbs_any_bram_latency_without_losing_a_read(latency):
+    """`addr_counter_v1`'s advance_en is driven by the genuine ack, never a cycle count (#256); when the real latency
+    doubled (#284) nothing else had to change. The results are identical at every latency; only the time differs."""
+    r = _one(bram_latency=latency, advance="ack", outstanding=1)
+    assert r.per_chain == ONE_EXPECT and r.lost_reads == 0 and r.done
+
+
+def test_ack_driven_time_grows_with_the_latency_and_nothing_else_changes():
+    rounds = [_one(bram_latency=lat, advance="ack", outstanding=1).rounds for lat in (1, 2, 3)]
+    assert rounds[0] < rounds[1] < rounds[2]
+
+
+def test_a_counter_that_assumes_the_latency_works_until_the_latency_changes():
+    """A free-running counter with one command per round is right for a 1-cycle BRAM and silently loses reads on a 2-cycle
+    one -- exactly the assumption `absorb the latency, do not assume it` (#243/#285) exists to avoid."""
+    assert _one(bram_latency=1, advance="fixed", fixed_period=1, outstanding=1).per_chain == ONE_EXPECT
+    bad = _one(bram_latency=2, advance="fixed", fixed_period=1, outstanding=1)
+    assert bad.lost_reads > 0 and bad.per_chain != ONE_EXPECT and len(bad.per_chain[0]) < 8
+    assert not bad.done and not bad.deadlocked                             # it is DATA LOSS, not a deadlock
+
+
+def test_a_fixed_period_tuned_for_one_latency_breaks_at_a_slower_one():
+    assert _one(bram_latency=2, advance="fixed", fixed_period=2, outstanding=1).per_chain == ONE_EXPECT
+    bad = _one(bram_latency=3, advance="fixed", fixed_period=2, outstanding=1)
+    assert bad.lost_reads == 4 and len(bad.per_chain[0]) == 4
+
+
+def test_the_next_address_is_released_the_round_the_previous_feed_comes_out():
+    """'ok, the feed's out, here's the next address': with one read in the interface the next command is issued no
+    earlier than the delivery of the previous data."""
+    r = _one(bram_latency=2, advance="ack", outstanding=1)
+    issue = [t for t, _, _ in r.issue_log]
+    out = [t for t, _, _ in r.deliver_log]
+    assert all(issue[k + 1] >= out[k] for k in range(len(issue) - 1))
+    assert all(out[k] - issue[k] == 2 for k in range(len(issue)))          # the latency is honoured exactly
+
+
+def test_holding_at_least_latency_reads_in_the_interface_restores_one_item_per_round():
+    """`#256`: the counter has already advanced and the next pair's read is already in flight -- 2-cycle latency,
+    1-cycle throughput at steady state."""
+    for latency in (2, 3):
+        slow = _one(bram_latency=latency, advance="ack", outstanding=1).rounds
+        fast = _one(bram_latency=latency, advance="ack", outstanding=latency).rounds
+        assert fast < slow and fast <= 8 + latency + 3
+        assert _one(bram_latency=latency, advance="ack", outstanding=latency).per_chain == ONE_EXPECT
+
+
+def test_credit_gating_counts_reads_still_in_the_bram_so_nothing_overruns_the_chain():
+    cfg2 = [CF.ChainCfg(window=2, in_depth=2, out_depth=2) for _ in range(2)]
+    r = CF.run(cfg2, INPUTS, F, bram_latency=3, advance="ack", outstanding=3, feedback=True)
+    assert r.per_chain == EXPECT and r.lost_reads == 0 and r.sentinel_errors == []
+    assert r.tree_blocked_rounds == 0 and max(r.max_in_flight) <= 2
+
+
+def test_the_stalled_chain_is_still_isolated_with_a_bram_latency_and_priority():
+    cfg2 = [CF.ChainCfg(window=2, in_depth=2, out_depth=2) for _ in range(2)]
+    pri = CF.run(cfg2, INPUTS, F, arbiter="priority", bram_latency=2, outstanding=2, stall_out=STALL0)
+    scan = CF.run(cfg2, INPUTS, F, arbiter="scan", bram_latency=2, outstanding=2, stall_out=STALL0)
+    assert pri.finished_round(1) < 45 and scan.finished_round(1) > 65
+    assert pri.done and scan.done and pri.per_chain == EXPECT and pri.lost_reads == scan.lost_reads == 0
+
+
+# ---- the address supply: a counter, or a simple RAM that passes addresses through ------------------------------
+
+BRAM = {a: 100 + a for a in range(20)}
+
+
+def test_an_address_ram_supplies_any_sequence_through_the_same_handshake():
+    order = [[7, 2, 9, 4], [15, 11, 13, 12]]
+    cfgs2 = [CF.ChainCfg(window=4, in_depth=4, out_depth=4) for _ in range(2)]
+    r = CF.run(cfgs2, [[0] * 4, [0] * 4], F, addresses=order, bram=BRAM, addr_source="ram", bram_latency=2, outstanding=2)
+    assert r.per_chain == [[F(BRAM[a]) for a in row] for row in order] and r.lost_reads == 0
+
+
+def test_a_counter_can_only_supply_sequential_addresses():
+    cfgs2 = [CF.ChainCfg() for _ in range(2)]
+    seq = [[3, 4, 5, 6], [10, 11, 12, 13]]
+    ok = CF.run(cfgs2, [[0] * 4, [0] * 4], F, addresses=seq, bram=BRAM, addr_source="counter", bram_latency=1)
+    assert ok.per_chain == [[F(BRAM[a]) for a in row] for row in seq]
+    with pytest.raises(ValueError, match="SEQUENTIAL"):
+        CF.run(cfgs2, [[0] * 4, [0] * 4], F, addresses=[[3, 5, 4, 6], [10, 11, 12, 13]], bram=BRAM, addr_source="counter")
+
+
+def test_the_counter_and_the_address_ram_have_identical_timing_only_the_address_order_differs():
+    """Both need the same control mechanism; the RAM is the flexible one, the counter the simpler."""
+    seq = [[3, 4, 5, 6], [10, 11, 12, 13]]
+    cfgs2 = [CF.ChainCfg(window=4, in_depth=4, out_depth=4) for _ in range(2)]
+    a = CF.run(cfgs2, [[0] * 4] * 2, F, addresses=seq, bram=BRAM, addr_source="counter", bram_latency=2, outstanding=2)
+    b = CF.run(cfgs2, [[0] * 4] * 2, F, addresses=seq, bram=BRAM, addr_source="ram", bram_latency=2, outstanding=2)
+    assert a.rounds == b.rounds and a.per_chain == b.per_chain and a.issue_log == b.issue_log
+
+
+def test_bram_side_arguments_are_validated():
+    with pytest.raises(ValueError):
+        CF.run(cfgs(), INPUTS, F, bram_latency=4)
+    with pytest.raises(ValueError):
+        CF.run(cfgs(), INPUTS, F, advance="whenever")
+    with pytest.raises(ValueError, match="need the bram"):
+        CF.run(cfgs(), INPUTS, F, addresses=[[1], [2]])
+
+
+def test_reads_still_in_the_bram_must_count_against_a_stalled_chains_credit():
+    """The case that matters: a chain that has stopped draining while several reads are still in the BRAM pipeline. If the
+    credit ignored those, the counter would keep issuing, the data would arrive at a full chain and block the delivery path
+    for everyone, and the sentinel would latch overflow. Counting them keeps the stalled chain's issues within its window."""
+    tight = [CF.ChainCfg(window=1, in_depth=1, out_depth=1) for _ in range(2)]
+    r = CF.run(tight, INPUTS, F, arbiter="priority", bram_latency=3, outstanding=3, feedback=True,
+               stall_out={0: (2, 80)}, max_rounds=400)
+    assert r.tree_blocked_rounds == 0 and r.sentinel_errors == []
+    assert max(r.max_in_flight) <= 1                                      # never more than the window, including reads in flight
+    assert r.finished_round(1) < 40                                       # the healthy chain is not held up by the stalled one
+    assert r.done and r.per_chain == EXPECT and r.lost_reads == 0

@@ -68,6 +68,7 @@ class _Chain:
         self.sentinel = Sentinel(chain_length=max(1, cfg.window), out_frozen=False)
         self.issued = 0                                  # the address counter: next item to request
         self.collected: List[int] = []
+        self.reserved = 0                                # slots promised to reads still in the BRAM pipeline
 
     @property
     def remaining(self) -> bool:
@@ -79,7 +80,7 @@ class _Chain:
 
     @property
     def has_room(self) -> bool:
-        return len(self.in_q) < self.cfg.in_depth
+        return len(self.in_q) + self.reserved < self.cfg.in_depth
 
 
 @dataclass
@@ -97,6 +98,9 @@ class Result:
     sentinel_errors: List[str]
     max_in_flight: List[int]
     totals: List[int] = field(default_factory=list)
+    lost_reads: int = 0                                       # commands lost because the interface was busy
+    issue_log: List[Tuple[int, int, int]] = field(default_factory=list)      # (round, chain, seq) address released
+    deliver_log: List[Tuple[int, int, int]] = field(default_factory=list)    # (round, chain, seq) data out into the chain
 
     def finished_round(self, chain: int) -> Optional[int]:
         """The first round by which `chain` had collected ALL its results (None if it never did)."""
@@ -117,7 +121,9 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
         gather: str = "priority", feedback: bool = True, ports: int = 2,
         stall_out: Optional[Dict[int, Tuple[int, int]]] = None,
         stall_in: Optional[Dict[int, Tuple[int, int]]] = None, max_rounds: int = 600,
-        credit_link: Optional[int] = None) -> Result:
+        credit_link: Optional[int] = None, bram_latency: int = 0, advance: str = "ack", outstanding: int = 1,
+        fixed_period: int = 1, addresses: Optional[List[List[int]]] = None, bram: Optional[Dict[int, int]] = None,
+        addr_source: str = "counter") -> Result:
     """Run the counter mechanism. `stall_out[c] = (a, b)`: chain c cannot hand its result over in rounds [a, b) (its
     tail is blocked -- the ack side withheld). `stall_in[c]`: chain c cannot accept an item in that window.
 
@@ -126,18 +132,40 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
     gather stamp: a collect's credit reaches the counters `d` rounds later, so the window must cover the return
     latency or throughput falls. The channel is also SERIAL (one credit per round), but with ONE write per round at
     most one credit is ever generated per round, so serialisation never binds here (lifting it is an EQUIVALENT
-    mutation, checked): the cost is the DELAY, paid in buffer depth, not a throughput ceiling."""
+    mutation, checked): the cost is the DELAY, paid in buffer depth, not a throughput ceiling.
+
+    BRAM SIDE (points.md #812). `bram_latency=L` (1-3): read data appears L rounds after the command (RTL: one registered
+    cycle in v1, two in v2 (#284); Alan recalls 1-3 end to end). The read INTERFACE holds `outstanding` reads at once
+    (default 1: the splitter latches one). `advance="ack"`: the next address is released only when the interface has a
+    free slot -- "the feed's out, here's the next address" -- `addr_counter_v1`'s `advance_en` driven by the genuine
+    ack (#256), never a cycle count. `advance="fixed"`: a counter that ASSUMES the latency and pulses a command every
+    `fixed_period` rounds regardless; a command arriving while the interface is busy is LOST (the single-cycle
+    pulse hazard) and the counter has already moved on, so the item is a hole. `addr_source="counter"` supplies
+    sequential addresses; `"ram"` a stored, arbitrary sequence (`addresses`, read from `bram`); both use the SAME control."""
     if arbiter not in ("scan", "priority") or gather not in ("scan", "priority"):
         raise ValueError("arbiter and gather must be 'scan' or 'priority'")
     if ports not in (1, 2):
         raise ValueError("ports must be 1 (shared, write priority) or 2")
+    if advance not in ("ack", "fixed") or addr_source not in ("counter", "ram"):
+        raise ValueError("advance must be 'ack' or 'fixed'; addr_source 'counter' or 'ram'")
+    if not 0 <= bram_latency <= 3 or outstanding < 1 or fixed_period < 1:
+        raise ValueError("bram_latency must be 0-3, outstanding >= 1, fixed_period >= 1")
+    if addresses is not None:
+        if bram is None:
+            raise ValueError("addresses need the bram contents they index")
+        if addr_source == "counter":
+            for a in addresses:
+                if list(a) != list(range(a[0], a[0] + len(a))) if a else False:
+                    raise ValueError("a counter can only supply SEQUENTIAL addresses; use addr_source='ram' for an "
+                                     "arbitrary sequence")
+        inputs = [[bram[x] for x in a] for a in addresses]       # the address supply reads THROUGH the BRAM
     n = len(cfgs)
     chains = [_Chain(i, cfgs[i], inputs[i]) for i in range(n)]
     total = sum(len(c.items) for c in chains)
     stall_out, stall_in = stall_out or {}, stall_in or {}
 
     def credit_ok(c: "_Chain") -> bool:
-        return c.sentinel.diff + lag[c.idx] < c.cfg.window
+        return c.sentinel.diff + lag[c.idx] + pending[c.idx] < c.cfg.window
 
     def blocked(table, c, rnd):
         w = table.get(c)
@@ -149,6 +177,12 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
     pending_read: Optional[int] = None                        # single-port: one queued read (a chain index)
     read_ptr = gather_ptr = 0
     tree_blocked = read_wait = deferred = write_delayed = 0
+    read_pipe: Deque[List[int]] = deque()                    # reads in the BRAM: [ready round, chain, value, seq]
+    ready_q: Deque[Tuple[int, int, int]] = deque()           # data out of the BRAM, waiting to enter its chain
+    pending = [0] * n                                        # reads issued but not yet delivered, per chain
+    lost_reads = 0
+    issue_log: List[Tuple[int, int, int]] = []
+    deliver_log: List[Tuple[int, int, int]] = []
     history: List[List[int]] = []
     credit_q: Deque[Tuple[int, int]] = deque()               # (chain, round the credit becomes visible) -- shared link
     lag = [0] * n                                            # collects whose credit has not yet returned
@@ -203,53 +237,110 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
                 progressed = True
         # ---- 2. READ side: ask BRAM for the next item ------------------------------------------------------------
         port_free = ports == 2 or not wrote
-        if tree_slot is not None:                              # an item is stuck in the tree: it blocks EVERY read
-            if try_deliver(tree_slot, rnd):
-                tree_slot = None
-                progressed = True
-            else:
-                tree_blocked += 1
-        else:
-            target: Optional[int] = None
-            from_queue = False
-            if ports == 1 and pending_read is not None:
-                target, from_queue = pending_read, True         # the queued read is re-issued FIRST, never dropped
-            else:
-                def ok(c: _Chain) -> bool:
-                    # FEEDBACK = the sentinel's credit, the leaf buffer's room, AND the chain's READY (its ack side):
-                    # a chain that is not accepting must not be asked, or the item would sit in the tree.
+        if bram_latency > 0:
+            # data whose latency has elapsed comes out of the BRAM ...
+            while read_pipe and read_pipe[0][0] <= rnd:
+                _, rc, rv, rs = read_pipe.popleft()
+                ready_q.append((rc, rv, rs))
+            # ... and is delivered into its chain, in order, one per round
+            if ready_q:
+                rc, rv, rs = ready_q[0]
+                cc = chains[rc]
+                if len(cc.in_q) < cc.cfg.in_depth and not blocked(stall_in, rc, rnd):
+                    ready_q.popleft()
+                    pending[rc] -= 1
+                    cc.reserved -= 1
+                    cc.in_q.append((rv, rs))
+                    cc.sentinel.step(feed_pulse=True, collect_pulse=False, out_wrap_pulse=False, host_unfreeze_pulse=False)
+                    deliver_log.append((rnd, rc, rs))
+                    progressed = True
+                else:
+                    tree_blocked += 1                          # the head item cannot enter: it holds up the delivery path
+            busy = len(read_pipe) + len(ready_q)
+            attempt = (advance == "ack") or (rnd % fixed_period == 0)
+            if attempt and port_free and (advance == "fixed" or busy < outstanding):
+                def ok_l(c: _Chain) -> bool:
                     return c.remaining and (not feedback or (credit_ok(c) and c.has_room
                                                              and not blocked(stall_in, c.idx, rnd)))
-                if arbiter == "priority":                       # the priority cell: serve whoever is READY
+                target: Optional[int] = None
+                if arbiter == "priority":
                     for k in range(n):
                         c = chains[(read_ptr + k) % n]
-                        if ok(c):
+                        if ok_l(c):
                             target = c.idx
                             break
-                else:                                           # strict scan: WAIT on the current chain, skip finished ones
+                else:
                     for k in range(n):
                         c = chains[(read_ptr + k) % n]
                         if not c.remaining:
                             continue
-                        if ok(c):
+                        if ok_l(c):
                             target = c.idx
                         else:
-                            read_wait += 1                      # head-of-line: everyone behind this chain waits
+                            read_wait += 1
                         break
-            if target is not None:
-                if port_free:
-                    if from_queue:
-                        pending_read = None
+                if target is not None:
                     c = chains[target]
-                    item = (target, c.items[c.issued], c.issued)
-                    c.issued += 1
+                    seq = c.issued
+                    c.issued += 1                              # the address counter / RAM has MOVED ON either way
                     read_ptr = (target + 1) % n
-                    if not try_deliver(item, rnd):
-                        tree_slot = item
+                    if busy >= outstanding:
+                        lost_reads += 1                        # a command pulse into a busy interface: LOST
+                    else:
+                        read_pipe.append([rnd + bram_latency, target, c.items[seq], seq])
+                        pending[target] += 1
+                        c.reserved += 1
+                        issue_log.append((rnd, target, seq))
                     progressed = True
-                elif pending_read is None:
-                    pending_read = target                       # the shared port is busy with a write: QUEUE the read
-                    deferred += 1
+        elif True:
+            if tree_slot is not None:                              # an item is stuck in the tree: it blocks EVERY read
+                if try_deliver(tree_slot, rnd):
+                    tree_slot = None
+                    progressed = True
+                else:
+                    tree_blocked += 1
+            else:
+                target: Optional[int] = None
+                from_queue = False
+                if ports == 1 and pending_read is not None:
+                    target, from_queue = pending_read, True         # the queued read is re-issued FIRST, never dropped
+                else:
+                    def ok(c: _Chain) -> bool:
+                        # FEEDBACK = the sentinel's credit, the leaf buffer's room, AND the chain's READY (its ack side):
+                        # a chain that is not accepting must not be asked, or the item would sit in the tree.
+                        return c.remaining and (not feedback or (credit_ok(c) and c.has_room
+                                                                 and not blocked(stall_in, c.idx, rnd)))
+                    if arbiter == "priority":                       # the priority cell: serve whoever is READY
+                        for k in range(n):
+                            c = chains[(read_ptr + k) % n]
+                            if ok(c):
+                                target = c.idx
+                                break
+                    else:                                           # strict scan: WAIT on the current chain, skip finished ones
+                        for k in range(n):
+                            c = chains[(read_ptr + k) % n]
+                            if not c.remaining:
+                                continue
+                            if ok(c):
+                                target = c.idx
+                            else:
+                                read_wait += 1                      # head-of-line: everyone behind this chain waits
+                            break
+                if target is not None:
+                    if port_free:
+                        if from_queue:
+                            pending_read = None
+                        c = chains[target]
+                        item = (target, c.items[c.issued], c.issued)
+                        c.issued += 1
+                        read_ptr = (target + 1) % n
+                        if not try_deliver(item, rnd):
+                            tree_slot = item
+                        progressed = True
+                    elif pending_read is None:
+                        pending_read = target                       # the shared port is busy with a write: QUEUE the read
+                        deferred += 1
+
         # ---- 3. the chains work -------------------------------------------------------------------------------
         for c in chains:
             if c.pipe is not None:
@@ -277,8 +368,10 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
         if c.sentinel.err_flag:
             errors.append(f"chain {c.idx}: sentinel error (negative={c.sentinel.err_negative}, overflow={c.sentinel.err_overflow})")
     finished = done_count >= total
-    return Result(rounds=len(history), done=finished, deadlocked=(not finished and idle_rounds >= 20),
+    return Result(rounds=len(history), done=finished,
+                  deadlocked=(not finished and idle_rounds >= 20 and lost_reads == 0),
                   bram_out=bram_out, per_chain=[c.collected for c in chains], collected_by_round=history,
                   tree_blocked_rounds=tree_blocked, read_wait_rounds=read_wait, reads_deferred=deferred,
                   writes_delayed_by_reads=write_delayed, sentinel_errors=errors, max_in_flight=max_in_flight,
-                  totals=[len(c.items) for c in chains])
+                  totals=[len(c.items) for c in chains], lost_reads=lost_reads, issue_log=issue_log,
+                  deliver_log=deliver_log)
