@@ -195,10 +195,10 @@ def test_the_real_man_file_gives_the_real_dsp_and_bram_columns():
     assert {c for _, c in t.sites["dsp"]} == {col["x"] for col in man["dsp"]["columns"]}
     rows96 = [r for r, c in t.sites["dsp"] if c == 96]
     assert (min(rows96), max(rows96)) == (1, 167)                      # the truncated column: y 1..167
-    assert t.cell_budget == 251680 // 103
+    assert t.cell_budget == int(251680 // 1030.52) == 244            # super_v3, MEASURED (#579)
     assert (100, 52) in t.sites["bram"] and (165, 52) not in t.sites["bram"]     # x=52 is broken into 3 segments
     assert any("PARAMETER" in p for p in t.provenance)
-    assert any("ESTIMATE" in p for p in t.provenance)
+    assert any("MEASURED" in p for p in t.provenance)
 
 
 def test_the_die_to_grid_mapping_is_a_parameter_not_an_assumption():
@@ -246,3 +246,66 @@ def test_a_bound_op_with_no_site_of_its_kind_fails_loudly():
     bound, _ = C.bind_resources(final, C.CardTarget("t", 50, 50, 1000, sites={"dsp": [(5, 5), (5, 20)]}))
     with pytest.raises(V.RouteFailure, match="needs a 'dsp' site"):
         V.compile_dag_routed(bound, bounds=(50, 50), sites={"bram": [(1, 1)]}, attempts=1, spacings=(4,))
+
+
+# ---- units: the budget is INSTANTIATED positions at a MEASURED cost (points.md #806) -------------------
+
+def _brute_array(points):
+    import project_assemble_v1 as pa
+    n = len(points)
+    while True:
+        rows, cols = pa.grid_dims(n)
+        if points <= set(pa.cell_positions(n, rows, cols)):
+            return n
+        n += 1
+
+
+class _Rec:
+    def __init__(self, r, c):
+        self.row, self.col = r, c
+
+
+@pytest.mark.parametrize("pts", [
+    {(r, c) for r in range(3) for c in range(3)},          # a full block
+    {(0, c) for c in range(10)},                            # a single wide row: the generator pays for a near-square array
+    {(r, 0) for r in range(7)},
+    {(0, 0), (4, 0), (4, 6)},                               # sparse
+    {(0, 0)},
+])
+def test_array_cells_matches_the_assemblers_own_grid_functions_by_brute_force(pts):
+    recs = [_Rec(r + 5, c + 9) for r, c in pts]              # translated: the array starts at the design's origin
+    assert C.array_cells(recs) == _brute_array(pts)
+    assert C.array_cells(recs, "rect") == (max(r for r, _ in pts) + 1) * (max(c for _, c in pts) + 1)
+
+
+def test_a_wide_flat_layout_costs_far_more_positions_than_the_cells_it_uses():
+    """The reason area efficiency matters: the toolchain instantiates a dense NEAR-SQUARE array, so a
+    1x10 row of 10 cells must pay for 91 positions."""
+    recs = [_Rec(0, c) for c in range(10)]
+    assert C.array_cells(recs) == 91 and len(recs) == 10
+
+
+def test_the_report_shows_used_cells_and_instantiated_positions_and_utilisation():
+    res = _compile(TWO_MULS, target=C.CardTarget("t", 200, 200, cell_budget=10 ** 6))
+    assert res.fit.array_cells >= res.fit.cells > 0
+    assert "instantiated positions" in res.fit.format() and "utilised" in res.fit.format()
+
+
+def test_a_sparse_design_is_refused_on_its_ARRAY_not_on_the_cells_it_uses():
+    big = C.CardTarget("plenty", 300, 300, cell_budget=10 ** 6)
+    res = _compile(LONG_CHAIN, target=big)
+    used, arr = res.fit.cells, res.fit.array_cells
+    assert arr > used
+    tight = C.CardTarget("tight", 300, 300, cell_budget=used + 5, utilization_ceiling=1.0)   # fits by USED cells
+    r2, diags = F.compile_llvm_via_dag(LONG_CHAIN, target=tight)
+    assert r2 is None and "instantiated positions" in diags[0].problem
+
+
+def test_measured_shell_costs_are_the_only_presets_and_the_vix_carrier_is_not_guessed():
+    assert C.ALM_PER_POSITION == {"nano": 102.8, "super_v3": 1030.52, "super_v4": 1307.42}
+    v3 = C.target_from_man(MAN, rows=224, cols=150)
+    v4 = C.target_from_man(MAN, rows=224, cols=150, shell="super_v4")
+    assert (v3.cell_budget, v4.cell_budget) == (244, 192)
+    with pytest.raises(ValueError, match="no MEASURED ALM cost"):
+        C.target_from_man(MAN, rows=224, cols=150, shell="vix")
+    assert C.target_from_man(MAN, rows=224, cols=150, shell="vix", alm_per_position=2000.0).cell_budget == 125
