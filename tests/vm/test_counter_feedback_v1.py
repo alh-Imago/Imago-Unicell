@@ -426,3 +426,99 @@ def test_without_a_stall_the_two_release_points_cost_the_same_in_this_model():
         a = CF.run(CH2(), I8, F, ports=ports, bram_latency=3, outstanding=2, release="delivered")
         b = CF.run(CH2(), I8, F, ports=ports, bram_latency=3, outstanding=2, release="result_out")
         assert a.rounds == b.rounds and a.per_chain == b.per_chain == E8
+
+
+# ---- the single shared port: a WEIGHTED priority cell instead of hardcoded write priority (points.md #818) --------
+
+SAT2 = [CF.ChainCfg(window=8, in_depth=8, out_depth=8) for _ in range(2)]
+SAT_IN = [[10 + i for i in range(20)], [100 + i for i in range(20)]]
+SAT_EXP = [[F(x) for x in row] for row in SAT_IN]
+
+
+def test_no_port_arbiter_reproduces_write_priority_exactly():
+    """Default (`port_arbiter=None`) must be BYTE IDENTICAL to the pre-#818 write-priority code path -- no read peek
+    is even computed."""
+    a = CF.run(SAT2, SAT_IN, F, ports=1, max_rounds=400)
+    b = CF.run(SAT2, SAT_IN, F, ports=1, port_arbiter=None, max_rounds=400)
+    assert (a.rounds, a.reads_deferred, a.per_chain) == (b.rounds, b.reads_deferred, b.per_chain)
+
+
+def test_weighted_port_arbiter_still_completes_correctly_under_saturation():
+    r = CF.run(SAT2, SAT_IN, F, ports=1, port_arbiter=CF.weighted_port_arbiter((1, 1)), max_rounds=400)
+    assert r.done and r.per_chain == SAT_EXP and r.sentinel_errors == []
+
+
+def test_weighted_mode_defers_more_reads_than_write_priority_the_read_side_now_actually_contends():
+    """Write priority NEVER makes a read wait for a write it could otherwise have granted instantly; weighted mode
+    sometimes gives the round to read even when a write was also ready -- more contention recorded, not less."""
+    wp = CF.run(SAT2, SAT_IN, F, ports=1, max_rounds=400)
+    wt = CF.run(SAT2, SAT_IN, F, ports=1, port_arbiter=CF.weighted_port_arbiter((1, 1)), max_rounds=400)
+    assert wt.reads_deferred > wp.reads_deferred
+    assert wp.per_chain == wt.per_chain == SAT_EXP
+
+
+def test_weighted_mode_still_isolates_a_stalled_chain_on_the_shared_port():
+    stall = {0: (4, 70)}
+    wp = CF.run(SAT2, SAT_IN, F, ports=1, stall_out=stall, max_rounds=400)
+    wt = CF.run(SAT2, SAT_IN, F, ports=1, port_arbiter=CF.weighted_port_arbiter((1, 1)), stall_out=stall, max_rounds=400)
+    assert wp.finished_round(1) < 60 and wt.finished_round(1) < 60           # the healthy chain is not held hostage either way
+    assert wp.done and wt.done and wp.per_chain == wt.per_chain == SAT_EXP
+
+
+def test_weighted_port_arbiter_weights_follow_the_814_replica_exactly():
+    """`weighted_port_arbiter` is a thin wrapper around the SAME `SurplusRoundRobin` #814 verified against the real VM
+    cell -- run it in isolation on a purely alternating want-pattern and check the sequence matches shared_bus_v1
+    directly, not just 'the result was eventually correct'."""
+    import shared_bus_v1 as SB
+    arb = CF.weighted_port_arbiter((3, 1))
+    srr = SB.SurplusRoundRobin({SB.FEED_IN: 3, SB.RETURN: 1}, mode=1)
+    seq = []
+    for _ in range(40):
+        winner = arb(True, True)                      # both always want the port
+        seq.append(winner)
+        expect = srr.pick([SB.FEED_IN, SB.RETURN])
+        assert winner == {SB.FEED_IN: "read", SB.RETURN: "write"}[expect]
+    assert seq.count("read") / len(seq) == pytest.approx(0.75, abs=0.02)
+
+
+def test_an_arbiter_returning_something_other_than_read_write_or_none_is_refused():
+    with pytest.raises(ValueError, match="'read', 'write' or None"):
+        CF.run(SAT2, SAT_IN, F, ports=1, port_arbiter=lambda r, w: "neither", max_rounds=20)
+
+
+def test_port_arbiter_is_only_consulted_on_a_single_shared_port():
+    """ports=2 has independent read/write ports -- there is no contention to arbitrate, so a port_arbiter is simply
+    never called there; passing one changes nothing."""
+    calls = []
+
+    def spy(r, w):
+        calls.append((r, w))
+        return "write" if w else "read"
+    CF.run(SAT2, SAT_IN, F, ports=2, port_arbiter=spy, max_rounds=200)
+    assert calls == []
+
+
+def test_the_read_desire_peek_respects_the_outstanding_limit_under_a_bram_latency():
+    """M5, measured against the mutation itself: with the outstanding check removed from the PEEK (the real commit
+    logic keeps its own, separate check, so results stay correct either way -- only the ROUND COUNT changes), this
+    exact scenario takes 38 rounds instead of the correct 36, because the arbiter sometimes credits a read that the
+    interface would refuse anyway, wasting a round neither side could actually use."""
+    cfgs2 = [CF.ChainCfg(window=8, in_depth=8, out_depth=8) for _ in range(2)]
+    inputs2 = [[10 * c + i for i in range(8)] for c in range(2)]
+    r = CF.run(cfgs2, inputs2, F, ports=1, bram_latency=2, outstanding=1,
+               port_arbiter=CF.weighted_port_arbiter((1, 1)), max_rounds=400)
+    assert r.done and r.per_chain == [[F(x) for x in row] for row in inputs2] and r.lost_reads == 0
+    assert r.rounds == 36
+
+
+def test_a_side_that_does_not_actually_want_the_port_is_never_credited_as_a_candidate():
+    """The gap M3 exposed directly: offering BOTH ends as SRR candidates regardless of real desire lets a phantom
+    'read wins' spend a round neither side needed spent, once reads are exhausted but writes are still draining.
+    Measured against the mutation itself: this exact scenario (single slow chain, reads finish long before writes
+    drain) takes 21 rounds correctly and 24 with the desire check removed -- so the bound below is not arbitrary."""
+    cfgs2 = [CF.ChainCfg(window=1, in_depth=1, out_depth=1, latency=5)]     # a slow, small chain: read exhausts fast
+    inputs2 = [[1, 2, 3]]
+    write_priority = CF.run(cfgs2, inputs2, F, ports=1, max_rounds=100)
+    weighted = CF.run(cfgs2, inputs2, F, ports=1, port_arbiter=CF.weighted_port_arbiter((1, 1)), max_rounds=100)
+    assert weighted.done and weighted.per_chain == [[F(x) for x in inputs2[0]]]
+    assert weighted.rounds == write_priority.rounds == 21                   # no rounds wasted on a phantom candidate

@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-21, the ARRIA 10 DSP CHAIN'S REAL TOPOLOGY modelled (#815): a fixed 27-block chain programmed once, tapped in/out anywhere, ONE feed per chain regardless of span; per-block latency made a card property, deliberately left loose. 1279 tests pass. See `points/points_active.md` #805-#815)
+# Current State (as of 2026-09-21, working top-down through the real queue while Alan drives: DSP chains placed on real sites (#816), chain exclusivity tied into the DSP monitor (#817), and a WEIGHTED priority cell on the single shared port replacing hardcoded write priority (#818, provably unchanged default). 1311 tests pass. See `points/points_active.md` #805-#818)
+
+## Read this first (most recent)
+
+**#818 -- the weighted priority cell on the single shared port.** `counter_feedback_v1.run(..., port_arbiter=None)`: with no arbiter, behaviour is PROVABLY IDENTICAL to the old hardcoded write-priority path (no read peek even computed; all 48 pre-existing tests pass unchanged). `weighted_port_arbiter()` wraps the SAME `SurplusRoundRobin` `#814` verified against the real VM priority cell, so a shared port can use real weighted round-robin instead. Verified: completes correctly under saturation; its per-round winner sequence matches `SurplusRoundRobin` run standalone exactly; 3:1 weights give 75/25; a stalled chain stays isolated; never even called when `ports=2`. **Two real bugs found by mutation testing, both fixed:** the candidate list wasn't gated on actual desire (a side with nothing to do could still 'win' a round, wasting it -- measured: 21 correct rounds vs 24 with the bug); the read-desire peek omitted the `outstanding` check the real commit logic already has separately (measured: 36 vs 38 rounds). Both were only caught after rewriting the tests to compare EXACT round counts against the mutation, since 'still correct, still completes' passed against both broken versions.
+
+**#817 -- chain exclusivity tied into the #814 DSP monitor.** Feeds now gate on a real `DspChain.busy`; release only happens on actual collection. Two real bugs found and fixed here too: `DspResult.ok` didn't check completeness (a permanently-stalled run could report `ok=True`); an unmonitored run could release a chain it never claimed.
+
+**#816 -- DSP chains placed on real MAN sites.** The cascade needs no fabric routing (hard-silicon adjacency between physically consecutive DSP blocks in one column, #26) -- placement is site selection. 70 real chains on the Mustang vs 62 from the earlier optimistic block-count estimate; neither is ground truth.
+
+**Working top-down per Alan's 'start at the top and work through' while he drives.** Recurring lesson across all three: writing a test that only checks 'still correct' is not enough once an optimisation/arbitration layer is added -- exact-count assertions, checked against the mutation itself, are what actually catches the bugs mutation testing is for.
+
+**Earlier this session:** #805-#815 (router; fit units; fixed structures; bus width + 2D tree limit; two-port layout; counter feedback; the ~2-chain planarity limit + credit-return link; BRAM read latency; no fixed latency + ack pipeline; priority cell measured on the real VM + DSP black box; Arria 10 DSP chain topology, kept loose per Alan's 'when I get the new speed card it's likely to be different anyway').
+
+**Real queue:** (1) place a real priority-cell set-piece at the shared controller in `stream_layout_v1` (the abstract arbitration above still has no physical placement) -- NEXT; (2) place and decode ID -> per-chain credit at the read side; (3) host stall/refill + the empty/full signal; (4) DSP-wrapper lowering (needs a bridge tile, flagged missing at #816); (5) VM mirror into the LLVM path and a CLI; (6) store-and-shift; (7) floating point; (8) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, the ARRIA 10 DSP CHAIN'S REAL TOPOLOGY modelled (#815): a fixed 27-block chain programmed once, tapped in/out anywhere, ONE feed per chain regardless of span; per-block latency made a card property, deliberately left loose. 1279 tests pass. See `points/points_active.md` #805-#815)
 
 ## Read this first (most recent)
 

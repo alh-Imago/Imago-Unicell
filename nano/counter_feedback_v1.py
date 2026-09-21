@@ -51,6 +51,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sentinel_bram_automaton_v1 import Sentinel  # noqa: E402
 
 
+def weighted_port_arbiter(weights: Tuple[int, int] = (1, 1)) -> Callable[[bool, bool], Optional[str]]:
+    """A `port_arbiter` for `run(ports=1, ...)` backed by the REAL weighted-round-robin priority cell
+    (`shared_bus_v1.SurplusRoundRobin`, verified against the real VM cell, points.md #814) -- Alan's side thought:
+    place a priority cell on a single-bus unit instead of hardcoded write priority, so both ends keep moving at the
+    rate of the RAM. `weights = (read_weight, write_weight)`, each 0-3 (the real cell's 2-bit field; a larger value
+    is refused, not silently masked, unlike the RTL -- see `shared_bus_v1.SurplusRoundRobin`)."""
+    import shared_bus_v1 as SB
+    srr = SB.SurplusRoundRobin({SB.FEED_IN: weights[0], SB.RETURN: weights[1]}, mode=1)
+
+    def arbiter(read_wants: bool, write_wants: bool) -> Optional[str]:
+        cands = [d for d, w in ((SB.FEED_IN, read_wants), (SB.RETURN, write_wants)) if w]
+        winner = srr.pick(cands)
+        return {SB.FEED_IN: "read", SB.RETURN: "write", None: None}[winner]
+    return arbiter
+
+
 def default_release(ports: int, resource: str = "bram") -> str:
     """Alan's rule (2026-09-21): BRAM on TWO buses releases the next address on the feed-IN ack; BRAM on ONE bus on the
     feed-OUT ack; DSP on the feed-OUT ack. Mapped here onto 'delivered' (feed in) and 'result_out' (feed out) -- my
@@ -134,7 +150,8 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
         stall_in: Optional[Dict[int, Tuple[int, int]]] = None, max_rounds: int = 600,
         credit_link: Optional[int] = None, bram_latency=0, advance: str = "ack", outstanding: int = 1,
         fixed_period: int = 1, addresses: Optional[List[List[int]]] = None, bram: Optional[Dict[int, int]] = None,
-        addr_source: str = "counter", release: Optional[str] = None) -> Result:
+        addr_source: str = "counter", release: Optional[str] = None,
+        port_arbiter: Optional[Callable[[bool, bool], Optional[str]]] = None) -> Result:
     """Run the counter mechanism. `stall_out[c] = (a, b)`: chain c cannot hand its result over in rounds [a, b) (its
     tail is blocked -- the ack side withheld). `stall_in[c]`: chain c cannot accept an item in that window.
 
@@ -162,7 +179,13 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
     (local to the read side; needs no path back from the chains) and "result_out" = the previous RESULT has left the
     chain (needs the return path). It overrides `feedback`: delivered -> feedback off, result_out -> feedback on.
     `default_release(ports, resource)` is Alan's rule (2026-09-21): BRAM on two buses -> feed in, on one bus -> feed
-    out, DSP -> feed out -- MAPPED onto those two events by my reading of his words, which he has not confirmed."""
+    out, DSP -> feed out -- MAPPED onto those two events by my reading of his words, which he has not confirmed.
+
+    `port_arbiter` (points.md #818): on a SHARED single port (`ports=1`), replace the hardcoded WRITE-PRIORITY
+    decision with any `f(read_wants: bool, write_wants: bool) -> "read"|"write"|None` callable -- for instance
+    `weighted_port_arbiter()`, a real weighted-round-robin priority cell (`#814`), which keeps BOTH ends moving at
+    the rate of the RAM instead of starving reads whenever writes saturate. `None` (the default) reproduces the
+    original write-priority behaviour EXACTLY -- `write_wants` alone decides, with no read peek computed at all."""
     if arbiter not in ("scan", "priority") or gather not in ("scan", "priority"):
         raise ValueError("arbiter and gather must be 'scan' or 'priority'")
     if ports not in (1, 2):
@@ -209,6 +232,47 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
         w = table.get(c)
         return bool(w) and w[0] <= rnd < w[1]
 
+    def peek_write_grant(rnd: int) -> Optional["_Chain"]:
+        """Which chain the `gather` arbiter would pick to hand a result to BRAM this round -- a pure PEEK (no state
+        mutation), so it can be asked before deciding, under `port_arbiter`, whether this round's write actually
+        happens. With `port_arbiter=None` this is called ONCE and its result committed unconditionally, exactly
+        reproducing the original write-priority code path byte for byte."""
+        want = [c for c in chains if c.out_q]
+        if not want:
+            return None
+        if gather == "priority":
+            for k in range(n):
+                c = chains[(gather_ptr + k) % n]
+                if c.out_q and not blocked(stall_out, c.idx, rnd):
+                    return c
+            return None
+        for k in range(n):                                     # blocking scan: wait on the pointer's chain
+            c = chains[(gather_ptr + k) % n]
+            if not c.out_q:
+                continue                                        # an EMPTY chain is skipped, as the RTL does
+            return c if not blocked(stall_out, c.idx, rnd) else None
+        return None
+
+    def peek_read_desire(rnd: int) -> bool:
+        """EXISTENCE only (points.md #818): would SOME new read command be issued this round, ignoring port
+        contention? Only computed when a `port_arbiter` is actually supplied -- the default write-priority path
+        never calls this, so its read_wait/target-selection accounting is untouched. A stuck tree_slot or an
+        in-flight delivery is not a NEW command and does not count (neither consumes the shared port to issue one)."""
+        if has_latency:
+            if not ((advance == "ack") or (rnd % fixed_period == 0)):
+                return False
+            busy = len(read_pipe) + len(ready_q)
+            if not (advance == "fixed" or busy < outstanding):
+                return False
+            return any(c.remaining and (not feedback or (credit_ok(c) and c.has_room
+                                                          and not blocked(stall_in, c.idx, rnd))) for c in chains)
+        if tree_slot is not None:
+            return False                                        # delivering the stuck item needs no new command
+        if pending_read is not None:
+            return True                                         # the queued read is re-issued FIRST, unconditionally
+        return any(c.remaining and (not feedback or (credit_ok(c) and c.has_room
+                                                      and not blocked(stall_in, c.idx, rnd))) for c in chains)
+
     bram_out: Dict[int, Tuple[int, int, int]] = {}
     out_addr = 0
     tree_slot: Optional[Tuple[int, int, int]] = None          # (chain, value, seq) that left BRAM but cannot enter yet
@@ -244,22 +308,18 @@ def run(cfgs: List[ChainCfg], inputs: List[List[int]], func: Callable[[int], int
             lag[credit_q.popleft()[0]] -= 1
         # ---- 1. WRITE side: hand results to BRAM ---------------------------------------------------------------
         wrote = False
-        want = [c for c in chains if c.out_q]
-        if want:
-            grant: Optional[_Chain] = None
-            if gather == "priority":
-                for k in range(n):
-                    c = chains[(gather_ptr + k) % n]
-                    if c.out_q and not blocked(stall_out, c.idx, rnd):
-                        grant = c
-                        break
-            else:                                              # blocking scan: wait on the pointer's chain
-                for k in range(n):
-                    c = chains[(gather_ptr + k) % n]
-                    if not c.out_q:
-                        continue                               # an EMPTY chain is skipped, as the RTL does
-                    grant = c if not blocked(stall_out, c.idx, rnd) else None
-                    break
+        grant = peek_write_grant(rnd)
+        do_write = grant is not None
+        if ports == 1 and port_arbiter is not None:
+            # Alan's side thought (#814/#818): a WEIGHTED priority cell instead of hardcoded write priority, so
+            # both ends of a shared port keep moving at the rate of the RAM. `None` (no port_arbiter) below this
+            # branch reproduces write priority exactly: do_write already equals "a grant exists".
+            read_wants = peek_read_desire(rnd)
+            winner = port_arbiter(read_wants, do_write)
+            if winner not in (None, "read", "write"):
+                raise ValueError(f"port_arbiter must return 'read', 'write' or None, got {winner!r}")
+            do_write = winner == "write"
+        if do_write:
             if grant is not None:
                 val, seq = grant.out_q.popleft()
                 bram_out[out_addr] = (grant.idx, seq, val)
