@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-22, store-and-shift built and verified (#826) -- the bit-level assembler/disassembler BusPlan has flagged as needed since #808, closing real queue item 9. 1393 tests pass. See `points/points_active.md` #805-#826)
+# Current State (as of 2026-09-22, floating-point TRIX/MIF prior art looked at per Alan's request (#827) -- grounding only, no code built. Onion tool now built/installed this session. 1393 tests pass (unchanged). See `points/points_active.md` #805-#827)
+
+## Read this first (most recent)
+
+**#827 -- TRIX/MIF prior art for floating point, per Alan's direct request.** Onion submodule was uninitialized (`git submodule update --init`, rebuilt, installed); `old_trix_domain_family.onion` and `old_full_cell_tile_library.onion` extracted (staged into distinguishing subdirectories). Read `cell_format.py`'s real `MIF_Format` class and `fp_tiles.py`'s real tile constructors directly. **Found TWO historical approaches, not one:** MIF (split representation -- control cell with exponent/sign/explicit nan-inf-zero flags/guard bits, plus a mantissa cell) and `FP32_ADD`/`FP32_MUL` (packed representation, a real gate-level NOR-based adder with a full barrel shifter). MIF's own code states its concrete savings over the packed approach: no decompose stage, direct exponent compare, only one barrel shifter, no repack between chained ops. **Both historical systems deliberately simplified** (no denormals, truncation rounding, flush-to-zero) -- real precedent for doing the same on a first pass here. **A real limitation of BOTH old systems found:** they're structural/cost models only -- numeric arithmetic was computed in Python `float` by the caller, never bit-simulated end to end; this project's OWN mask-shift-mask-shift mantissa extraction (already built, `#690`-era) is, in that respect, already ahead of the historical prior art, not catching up to it. Full write-up: `docs/stripped-cell/design-notes/floating_point_trix_mif_precedent.md`.
+
+**Honest: this is grounding, not a build.** Nothing added to the codebase's float-handling capability. `#384`'s cost-basis argument stands -- one float width done properly is a full deliberate scope of work, comparable to the DSP-wrapper interface design.
+
+**Earlier this session (#805-#826):** the full DSP/BRAM/counter/priority-cell body of work (router through DSP-wrapper lowering); a note on `watchdog_v1.v`; the VIX Carrier architectural clarification (#824); the VM mirror wired into the LLVM path + `llvm_cli_v1.py` with a real `mul`/`priority` serialization gap found and fixed (#825); store-and-shift built and verified (#826).
+
+**Real queue:** (1) floating point -- now grounded, ready to be scoped as its own deliberate piece of work; (2) scope items 3, 4, 6; (3) the VIX Carrier update backlog (#824) -- Alan's call; (4) `card_fit_v1` target support in `llvm_cli_v1.py`, if wanted; (5) wire store-and-shift into `counter_feedback_v1`/`stream_layout_v1`, if pursued for real.
+
+## Previous state (as of 2026-09-22, store-and-shift built and verified (#826) -- the bit-level assembler/disassembler BusPlan has flagged as needed since #808, closing real queue item 9. 1393 tests pass. See `points/points_active.md` #805-#826)
 
 ## Read this first (most recent)
 

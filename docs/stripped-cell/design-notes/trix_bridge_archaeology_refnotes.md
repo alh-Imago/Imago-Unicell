@@ -811,6 +811,16 @@ directly traceable to plain pattern-noticing rather than theorizing.
 - `#659` — first TRIX dig, found `cell_format.py`'s FormatDefinition
   concept. This document's own "Core mechanism: FormatDefinition"
   section in TRIX_ECOSYSTEM.md confirms and extends that finding.
+- `#827` -- a second TRIX dig, per Alan's own direct request ahead of
+  the floating-point expansion item. Extracted `fp_tiles.py`
+  (`old_full_cell_tile_library.onion`) alongside `cell_format.py`
+  (`old_trix_domain_family.onion`) this time, not just the format
+  registry: found the real, gate-level `FP32_ADD`/`FP32_MUL` (a
+  `NORBuilder`-based packed-representation adder, a genuinely
+  different historical approach than MIF's split representation) and
+  confirmed, from `make_mif_add`'s own comment, the concrete cell/depth
+  savings MIF's split layout buys over the packed one. See
+  `docs/stripped-cell/design-notes/floating_point_trix_mif_precedent.md`.
 - `#671`/`#672` — Pond=chain, bridge cells with pre/post translation,
   a real per-value type-tag. The `BridgeContract` system found here is
   almost certainly the SAME mechanism, now understood with far more
