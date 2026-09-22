@@ -75,6 +75,12 @@ CORE_SELECT_TO_ROOT_KEY = {
                     # this core's own real, RTL-mechanically-extracted field
                     # positions are still driven generically like every
                     # other core rather than an exception.
+    8: "mul",        # points.md #823: added alongside icm_v3.py's own SEL_MUL --
+                      # VM-provisional, same status as branch (no dedicated
+                      # RTL core_select slot; #757's real VM dispatch exists
+                      # already, this closes the serialization-table gap).
+    9: "priority",   # points.md #823: added alongside icm_v3.py's own
+                      # SEL_PRIORITY -- same VM-provisional status, #751.
 }
 
 
@@ -90,7 +96,7 @@ def field_table(root_def: dict, core_select: int) -> Dict[str, Tuple[int, int]]:
     RTL bit ranges, but not addressable fields a caller would ever set)."""
     if core_select not in CORE_SELECT_TO_ROOT_KEY:
         raise ValueError(f"core_select {core_select} has no root-definition entry "
-                          f"(only 0-5 are covered -- 6-31 remain genuine future "
+                          f"(only 0-9 are covered -- 10-31 remain genuine future "
                           f"headroom per #317, same as icm_v3.py's own table)")
     key = CORE_SELECT_TO_ROOT_KEY[core_select]
     table: Dict[str, Tuple[int, int]] = {}

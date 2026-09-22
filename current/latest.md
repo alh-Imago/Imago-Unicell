@@ -1,4 +1,30 @@
-# Current State (as of 2026-09-21, DSP-wrapper lowering closed (#822) -- a DSP-bound cell's latency is now genuine elapsed VM time, via extra relay hops, with no change to the shared tick loop or router. 1360 tests pass. See `points/points_active.md` #805-#822)
+# Current State (as of 2026-09-22, an architectural clarification from Alan, IMPORTANT AND EASY TO MISS: this project's simulation/placement work targets the VIX CARRIER lineage, not the older per-position-fixed one -- see the boxed note below, read it before assuming otherwise. Also: the VM mirror wired into the LLVM path + a new LLVM CLI (#824), closing real queue item 8. 1361 tests pass. See `points/points_active.md` #805-#824)
+
+## READ THIS BEFORE ASSUMING WHICH SHELL LINEAGE ANYTHING TARGETS (#824)
+
+**There are TWO core-hosting architectures in this codebase, and "VIX" names two UNRELATED things -- do not conflate them:**
+1. **The OLDER lineage** -- `unicell_super_automaton_v1.py`'s `SuperGrid`/`SuperCell`, real RTL `unicell_super_v1.v`-`v8.v`. ONE core type physically fixed per grid position, decided at Quartus synthesis time. 42-bit `core_config` (`icm_v3.py`).
+2. **The VIX CARRIER** -- `vix_carrier_automaton_v1.py`'s `VixCarrierGrid`/`VixCarrierCell`, real RTL `unicell_vix_carrier_v1.v`. "VIX" = roman numeral 9: ONE physical position holds ALL core types SIMULTANEOUSLY, mutually exclusive, `core_select`-switchable at RUNTIME (not a rebuild). 128-bit `core_config`. **THIS is the intended target for this project's compilation work** (confirmed by Alan 2026-09-22; also already stated further down this file's own history, 2026-09-16, "the real, first LLVM IR -> VIX Carrier compilation path" -- it had simply been buried under later sessions' own prepended entries and was missed during #805-#822's work).
+
+**Separately, `icm_vix_v1.py`'s "VIX"** (`IcmVixFile`/`HierCell`, used throughout #805-#822 for the LLVM compile pipeline) is the HIERARCHICAL PATTERN/design-map format (#737-#747) -- an unrelated use of the same three letters. It still describes one core per cell either way.
+
+**Why #805-#822's work is NOT invalidated by having used `SuperGrid`/`SuperCell` (the older lineage) throughout its own simulation:** `VixCarrierCell` genuinely SUBCLASSES `SuperCell` and inherits every core's own dispatch logic completely unchanged -- Alan's own point, confirmed directly in `vix_carrier_automaton_v1.py`'s docstring. The carrier only adds a SELECTION MECHANISM on top (which core is active at a position, switchable at boot); it does not change what any core DOES once selected. So the CORE BEHAVIOR and PLACEMENT decisions made throughout this session (what a priority cell does, where a controller sits, how a DSP chain routes, the K(3,n) planarity result, the ack-driven latency work) all hold regardless of which shell eventually hosts the design.
+
+**What DOES differ, worth keeping in mind for future placement work:** on real VIX carrier silicon, a card is uniform -- any position could in principle serve any role -- rather than the older lineage's fixed-per-position mix. Whether that should change how future placement work reasons about "reserving a distinct position for a priority cell" versus "any nearby carrier position will do" has not been revisited; #805-#822's placement code still reasons in the older lineage's terms (which remains CORRECT, just possibly not the most carrier-native framing available).
+
+**Also found while checking this:** `mul_cell_v4c.v`/`priority_cell_v4c.v` already exist as real, tested RTL in the carrier's own v4c generation, sitting unwired in `unicell_vix_carrier_v1.v`'s explicit "9-31 reserved" headroom (not yet the carrier's 10th/11th core). No Python ICM serialization format exists yet for the carrier's own 128-bit format at all.
+
+## Read this first (most recent)
+
+**#824 -- the VM mirror wired into the LLVM path, and a new LLVM CLI (real queue item 8, done).** `VMSession.from_llvm()` and a fourth `from_man(..., llvm=...)` option (`vm_ai_port_v1.py`), plus `nano/llvm_cli_v1.py` (mirrors `dsl_cli_v1.py`'s shape, `--man FILE --cells N` for the mirror check). **A real, pre-existing bug found and fixed along the way:** `IcmV3File.save()` crashed on ANY program using `mul` or `priority` -- these two cores, added to the VM's dispatch registry later (#757/#751), were never given entries in THREE separate tables (`icm_v3.py`'s `CORE_NAMES`/`CORE_FIELD_TABLES`, `generic_field_codec_v1.py`'s `CORE_SELECT_TO_ROOT_KEY`, and `root_definition.json` itself) -- never caught before because nothing had run LLVM-compiled output through the JSON save path until this CLI. Full round trip verified on the real VM (compile -> save -> load from disk -> run -> correct result). The main round-trip-equivalence test was generalised from a hardcoded `range(6)` to iterating every registered core, closing a pre-existing sequencer/branch gap for free. Mutation-checked.
+
+**Working top-down through the real queue while Alan drives (#816-#824), all eight items done.**
+
+**Earlier this session:** #805-#815 (router; fit units; fixed structures; bus width + 2D tree limit; two-port layout; counter feedback; the ~2-chain planarity limit + credit-return link; BRAM read latency; no fixed latency + ack pipeline; priority cell measured on the real VM + DSP black box; Arria 10 DSP chain topology, kept loose per Alan's request).
+
+**Real queue:** (1) store-and-shift; (2) floating point; (3) scope items 3, 4, 6; (4) NEW: wire `mul_cell_v4c.v`/`priority_cell_v4c.v` into the carrier's reserved core_select 9/10, if the carrier is ever extended past 9; (5) NEW: a VIX-carrier-level Python ICM serialization format, if a design targets it directly.
+
+## Previous state (as of 2026-09-21, DSP-wrapper lowering closed (#822) -- a DSP-bound cell's latency is now genuine elapsed VM time, via extra relay hops, with no change to the shared tick loop or router. 1360 tests pass. See `points/points_active.md` #805-#822)
 
 ## Read this first (most recent)
 

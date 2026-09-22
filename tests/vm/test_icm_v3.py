@@ -114,6 +114,9 @@ def test_round_trip_every_core():
                    "fixed_value_high": 10, "emit_low": 1, "emit_equal": 0, "emit_high": 1,
                    "route_low": ["e"], "route_equal": [], "route_high": ["n", "w"],
                    "rolling_mode": 1},
+        "mul": {"downstream_mask": ["e"], "upstream_mask": ["w"]},
+        "priority": {"upstream_mask": ["n", "s"], "downstream_mask": ["e"], "priority_rank_n": 3,
+                     "priority_rank_s": 1, "priority_rank_e": 0, "priority_rank_w": 2, "scheduling_mode": 1},
     }
     for core, cfg in samples.items():
         latch = v3.encode_super_latch(core, cfg)
@@ -128,9 +131,11 @@ def test_unassigned_core_select_is_inert_not_error_on_decode():
     # unicell_super_v1.v's own output mux `default:` arm treats it as
     # inert (all outputs zero), not X. decode_super_latch should reflect
     # that: readable, flagged as reserved, not raising.
-    latch = 8  # core_select=8, everything else zero (7 is now SEL_BRANCH, #519)
+    # points.md #823: 8 and 9 are now SEL_MUL/SEL_PRIORITY -- probe 10,
+    # the next value still genuinely unassigned.
+    latch = 10
     decoded = v3.decode_super_latch(latch)
-    assert decoded["core"] == "reserved_8"
+    assert decoded["core"] == "reserved_10"
     assert decoded["core_config"] == {"_raw": 0}
 
 

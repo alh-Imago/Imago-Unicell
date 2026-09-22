@@ -46,6 +46,7 @@ from unicell_super_automaton_v1 import SuperGrid
 from dsl_diagnostics_v1 import CompileDiagnostic
 import vm_introspection_v1 as vi
 import icm_v3 as v3
+import llvm_dag_frontend_v1  # noqa: E402
 import vm_mirror_v1
 
 
@@ -118,8 +119,24 @@ class VMSession:
         return cls(SuperGrid.from_icm(v3.IcmV3File.load(path)))
 
     @classmethod
+    def from_llvm(cls, source: str, target: Optional["llvm_dag_frontend_v1.CardTarget"] = None) -> "VMSession":
+        """points.md #823: the LLVM IR frontend (`llvm_dag_frontend_v1.compile_llvm_via_dag`), wired into the SAME
+        `VMSession` surface as `from_dsl()`/`from_python()` -- this is the path used throughout the DSP/BRAM
+        fixed-structures work (`#805`-`#822`) but never before given a session constructor here. `target=`, if
+        given, is the same `card_fit_v1.CardTarget` used for DSP/BRAM site binding elsewhere; omit it for a plain,
+        unbound compile. Raises `CompileFailure` on any compile error, same as every other `from_*()` here."""
+        result, diagnostics = llvm_dag_frontend_v1.compile_llvm_via_dag(source, target=target)
+        if result is None:
+            raise CompileFailure(diagnostics)
+        session = cls(SuperGrid(result.records))
+        session.diagnostics = diagnostics
+        session.llvm_result = result
+        return session
+
+    @classmethod
     def from_man(cls, man_path: str, cells: int, *, dsl: Optional[str] = None,
-                 python: Optional[str] = None, icm_path: Optional[str] = None) -> "VMSession":
+                 python: Optional[str] = None, icm_path: Optional[str] = None,
+                 llvm: Optional[str] = None) -> "VMSession":
         """points.md #601: the real MAN -> mirrored-VM construction --
         the prerequisite a simulated Walker needs to have an honest
         target. Exactly one of `dsl=`/`python=`/`icm_path=` must be
@@ -135,10 +152,18 @@ class VMSession:
         accept) if any real placed cell falls outside that layout or
         collides with another. On success, `session.mirror_bounds` is
         set, so a caller can see the real, honest card context this
-        session was actually built against."""
-        given = [x for x in (dsl, python, icm_path) if x is not None]
+        session was actually built against.
+
+        `llvm=<source>` (points.md #823) adds the LLVM frontend as a fourth option, the same uniform way -- compiled
+        via `llvm_dag_frontend_v1.compile_llvm_via_dag(source)` (no target: DSP/BRAM site binding is a SEPARATE
+        concern from mirror-topology checking, and combining them is not attempted here), then checked against the
+        SAME mirror bounds as any other path. An LLVM-compiled program's own internal placer generally centres cells
+        near its own local origin, not `project_assemble_v1`'s canonical tiling -- so this will often, honestly,
+        raise `MirrorFitError` unless the design happens to fit; that is the correct, informative outcome, not a
+        bug to work around here."""
+        given = [x for x in (dsl, python, icm_path, llvm) if x is not None]
         if len(given) != 1:
-            raise ValueError("from_man() needs exactly one of dsl=/python=/icm_path=")
+            raise ValueError("from_man() needs exactly one of dsl=/python=/icm_path=/llvm=")
 
         bounds = vm_mirror_v1.load_mirror_bounds(man_path, cells)
 
@@ -151,8 +176,13 @@ class VMSession:
             icm, diagnostics = compile_python_source(python)
             if icm is None:
                 raise CompileFailure(diagnostics)
-        else:
+        elif icm_path is not None:
             icm = v3.IcmV3File.load(icm_path)
+        else:
+            result, diagnostics = llvm_dag_frontend_v1.compile_llvm_via_dag(llvm)
+            if result is None:
+                raise CompileFailure(diagnostics)
+            icm = v3.IcmV3File(name="llvm", records=result.records)
 
         problems = vm_mirror_v1.check_records_fit(icm.records, bounds)
         if problems:

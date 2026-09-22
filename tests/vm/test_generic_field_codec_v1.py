@@ -19,10 +19,14 @@ ROOT = gfc.load_root_definition()
 
 
 def test_field_table_matches_icm_v3_for_every_core():
-    for sel in range(6):
+    # points.md #823: was range(6) -- covered only the original six cores, silently missing sequencer/branch
+    # (#609/#519) and now mul/priority (#823) too. This test's own job is to prove EVERY registered core's
+    # field table matches; iterate CORE_NAMES itself so a future core addition is covered automatically,
+    # not by remembering to bump a hardcoded range again.
+    for sel in v3.CORE_NAMES:
         generic = gfc.field_table(ROOT, sel)
         hand_typed = v3.CORE_FIELD_TABLES[sel]
-        assert generic == hand_typed, f"core_select={sel}: {generic} != {hand_typed}"
+        assert generic == hand_typed, f"core_select={sel} ({v3.CORE_NAMES[sel]}): {generic} != {hand_typed}"
 
 
 def test_ram_pack_matches_icm_v3_exactly():
@@ -44,7 +48,22 @@ def test_adder_pack_matches_icm_v3_exactly_and_the_real_rtl_test_vector():
     assert latch == 0x1282
 
 
-def test_all_six_cores_round_trip_equivalently_across_many_values():
+def test_mul_pack_matches_icm_v3_exactly():
+    values = {"downstream_mask": 0b0100, "upstream_mask": 0b1000}
+    generic_packed = gfc.pack_core_config(ROOT, v3.SEL_MUL, values)
+    real_packed = v3.pack_core_config(v3.SEL_MUL, values)
+    assert generic_packed == real_packed
+
+
+def test_priority_pack_matches_icm_v3_exactly():
+    values = {"upstream_mask": 0b0011, "downstream_mask": 0b0100, "priority_rank_n": 3,
+              "priority_rank_s": 1, "priority_rank_e": 0, "priority_rank_w": 2, "scheduling_mode": 1}
+    generic_packed = gfc.pack_core_config(ROOT, v3.SEL_PRIORITY, values)
+    real_packed = v3.pack_core_config(v3.SEL_PRIORITY, values)
+    assert generic_packed == real_packed
+
+
+
     samples = {
         v3.SEL_NANO: [
             {"topology": 0x24, "ready": 1, "routing_mask": 0b1111, "cardinal_edge": 0b0101},
@@ -147,8 +166,10 @@ def test_out_of_range_value_rejected():
 
 
 def test_reserved_core_select_raises_matching_icm_v3s_own_headroom_convention():
+    # points.md #823: 8 and 9 are now SEL_MUL/SEL_PRIORITY -- probe 10, the
+    # next value still genuinely reserved.
     try:
-        gfc.field_table(ROOT, 8)   # 7 is now SEL_BRANCH (#519) -- 8 remains genuinely reserved
+        gfc.field_table(ROOT, 10)
     except ValueError as e:
         assert "317" in str(e)
     else:

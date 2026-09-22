@@ -113,6 +113,13 @@ SEL_SEQ = 6
 # real logic from the start); only this comment's own framing was
 # stale.
 SEL_BRANCH = 7
+#: points.md #823: added when building the LLVM CLI surfaced that `mul`/`priority` -- both real,
+#: registered VM core types since #757/#751 -- were never given a v3 serialization entry at all,
+#: so no LLVM-compiled program using either (a multiply, or any merge point) could ever be saved
+#: via `IcmV3File.save()`. Values 8-31 were already reserved headroom (#317); no encoding-space
+#: change needed, just the missing entries.
+SEL_MUL = 8
+SEL_PRIORITY = 9
 
 CORE_NAMES = {
     SEL_NANO: "nano",
@@ -123,6 +130,8 @@ CORE_NAMES = {
     SEL_LATCH: "latch",
     SEL_SEQ: "sequencer",
     SEL_BRANCH: "branch",
+    SEL_MUL: "mul",
+    SEL_PRIORITY: "priority",
 }
 CORE_IDS = {name: sel for sel, name in CORE_NAMES.items()}
 
@@ -283,6 +292,29 @@ _SEQ_FIELDS = {
 # exactly (42 of 64 bits used within this core's own native cfg_data
 # bus, zero bits spare within the 42-bit core_config budget once
 # placed in the super shell, confirmed directly before #542 was built).
+# points.md #823: `mul` -- structurally identical to `_ADDER_FIELDS` minus `subtract_mode` (confirmed directly
+# against `unicell_super_automaton_v1.py`'s own `elif core == "mul":` field list: only downstream_mask/upstream_mask).
+_MUL_FIELDS = {
+    "downstream_mask": (0, 3),
+    "upstream_mask": (4, 7),
+}
+
+# points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==
+# "priority":` field list. Each `priority_rank_*` is masked `& 0x3` there (2 bits, matching #814's own real,
+# separately-confirmed finding that the priority cell's weight field is 2 bits and silently masks anything wider);
+# `scheduling_mode` is unmasked in that dispatch code, so 2 bits here is a generous, honest choice (0=strict,
+# 1=weighted round-robin, 2=sequenced channel are the only modes seen anywhere this session, #814) -- not a
+# hardware-confirmed width, since no RTL bit-map for this specific field has been read for this table.
+_PRIORITY_FIELDS = {
+    "upstream_mask": (0, 3),
+    "downstream_mask": (4, 7),
+    "priority_rank_n": (8, 9),
+    "priority_rank_s": (10, 11),
+    "priority_rank_e": (12, 13),
+    "priority_rank_w": (14, 15),
+    "scheduling_mode": (16, 17),
+}
+
 _BRANCH_FIELDS = {
     "upstream_dir": (0, 1),
     "value_source_low": (2, 2),
@@ -309,6 +341,8 @@ CORE_FIELD_TABLES = {
     SEL_LATCH: _LATCH_FIELDS,
     SEL_SEQ: _SEQ_FIELDS,
     SEL_BRANCH: _BRANCH_FIELDS,
+    SEL_MUL: _MUL_FIELDS,
+    SEL_PRIORITY: _PRIORITY_FIELDS,
 }
 
 # Direction-valued fields per core -- these accept either a raw int or a
@@ -340,6 +374,8 @@ _DIR_FIELDS = {
     # single fixed 0=N/1=S/2=E/3=W direction CODE (#494's own real
     # constraint), not a one-hot mask -- left as a raw int.
     SEL_BRANCH: ("route_low", "route_equal", "route_high"),
+    SEL_MUL: ("downstream_mask", "upstream_mask"),
+    SEL_PRIORITY: ("upstream_mask", "downstream_mask"),
 }
 
 # ── ADDON fields, addon_config[19:0] -- unicell_super_v1.v lines 337-349,

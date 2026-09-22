@@ -1,479 +1,557 @@
 {
-  "nano": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/unicell_stripped_v1.v",
-    "fields": [
-      {
-        "name": "topology",
-        "hi": 9,
-        "lo": 0,
-        "description": "same NOR-gate selection as unicell64_v3.v"
-      },
-      {
-        "name": "ready",
-        "hi": 13,
-        "lo": 13,
-        "description": "NEW. This cell's own readiness. Broadcast UNCONDITIONALLY on all 4 cardinal ports \u2014 cannot be gated by routing_mask/cardinal_edge, since a cell can't know in advance which neighbor(s) might be upstream of it in some layout."
-      },
-      {
-        "name": "routing_mask",
-        "hi": 69,
-        "lo": 64,
-        "description": "same field/bits as unicell64_v3.v (output side: which directions are open on this cell)"
-      },
-      {
-        "name": "cardinal_edge",
-        "hi": 75,
-        "lo": 70,
-        "description": "same field/bits, REINTERPRETED per-INCOMING direction (consume vs. relay), per the automaton model's design note, not per-outgoing as in the FULL cell"
-      },
-      {
-        "name": "out_buffer",
-        "hi": 127,
-        "lo": 96,
-        "description": "NEW. The offered-output value, separate from data_reg, per points.md #77/#88. Everything else in [31:0]/[63:32]/[95:76]/[126:96] is presently free/ unused by this module \u2014 deliberately not claimed here. Reserved specifically so a future cardinal COMMAND channel (points.md #84 \u2014 freeze/reprogram tokens riding the same physical per-cell command wiring, reinterpreted as cardinal post-boot) can be added later without a field- map reshuffle. Not built in this draft; see cmd_in/cmd_out port note below. freeze_in (points.md #92): a direct, minimal stand-in for what the deferred cardinal command channel will eventually carry as an opcode/ token. Gates capture_now AND can_fire, mirroring unicell64_v3.v's own `frozen` gating of `bus_hit` exactly -- a frozen cell is fully paused, not merely fire-blocked. Built now specifically to test the cascade: freezing one cell in a chain/ring should back up everything behind it (via the same ack-never-arrives mechanism #91 already established), and releasing it should let everything drain again."
-      }
-    ]
-  },
-  "ram": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/ram_cell_v1.v",
-    "fields": [
-      {
-        "name": "downstream_mask",
-        "hi": 3,
-        "lo": 0,
-        "description": "one-hot(s), N/S/E/W, routing_mask convention"
-      },
-      {
-        "name": "upstream_mask",
-        "hi": 7,
-        "lo": 4,
-        "description": "one-hot(s), N/S/E/W, same convention"
-      },
-      {
-        "name": "fixed_mode",
-        "hi": 8,
-        "lo": 8,
-        "description": "1=permanent ROM-style, 0=flowing"
-      },
-      {
-        "name": "load_data_valid",
-        "hi": 9,
-        "lo": 9,
-        "description": "mark data_reg valid immediately on this load"
-      },
-      {
-        "name": "init_data[31:0]",
-        "hi": 41,
-        "lo": 10,
-        "description": "preset value"
-      },
-      {
-        "name": "reserved",
-        "hi": 63,
-        "lo": 42,
-        "description": "future: programming-channel wiring, BRAM- port fields (points.md #232), not designed yet NOT YET SOLVED (points.md #232): what a chain-terminal cell (downstream_ mask==4'h0, i.e. the head of a chain feeding a real BRAM port rather than another cardinal neighbor) actually wires into. This draft leaves that case inert on purpose \u2014 data_out_x/status_data_valid are plain combinational taps a future BRAM-interface module could read directly, but that module doesn't exist yet. Flagged, not solved."
-      }
-    ]
-  },
-  "adder": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/adder_cell_v1.v",
-    "fields": [
-      {
-        "name": "downstream_mask",
-        "hi": 3,
-        "lo": 0,
-        "description": "one-hot(s), N/S/E/W, routing_mask convention"
-      },
-      {
-        "name": "upstream_mask",
-        "hi": 7,
-        "lo": 4,
-        "description": "one-hot(s), N/S/E/W, same convention"
-      },
-      {
-        "name": "subtract_mode",
-        "hi": 8,
-        "lo": 8,
-        "description": "0=A+B (prior behavior, unchanged), 1=A-B"
-      },
-      {
-        "name": "reserved",
-        "hi": 63,
-        "lo": 9,
-        "description": "TWO-STAGE CAPTURE, mirroring unicell_stripped_v1.v's own can_fire gating: the first arrival (any direction with upstream_mask set) becomes A (a_reg/a_arrived) \u2014 captured whenever a_arrived is clear, REGARDLESS of whether a previous sum is still being offered (a_reg and out_buffer are separate registers, so this genuinely pipelines: a new operand pair can start capturing while the previous sum drains downstream). The second arrival becomes B and fires ONLY once the output slot is free (!data_valid) \u2014 mirrors both ram_cell_v1.v's own capture gate and unicell_stripped_v1.v's own \"doubly full\" comment (a_arrived=1 AND ready_bit=0 blocks can_fire there; the equivalent block here is a_arrived=1 AND data_valid=1, exposed combinationally via ready_out)."
-      }
-    ]
-  },
-  "accumulator": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/accumulator_cell_v1.v",
-    "fields": [
-      {
-        "name": "inc_dir",
-        "hi": 3,
-        "lo": 0,
-        "description": "one-hot direction, arrivals here = +step_amount"
-      },
-      {
-        "name": "dec_dir",
-        "hi": 7,
-        "lo": 4,
-        "description": "one-hot direction, arrivals here = -step_amount"
-      },
-      {
-        "name": "downstream_mask",
-        "hi": 11,
-        "lo": 8,
-        "description": "where the current total/pulse is offered"
-      },
-      {
-        "name": "step_amount",
-        "hi": 19,
-        "lo": 12,
-        "description": "unsigned magnitude applied per matching arrival"
-      },
-      {
-        "name": "pulse_mode",
-        "hi": 20,
-        "lo": 20,
-        "description": "0=static/continuous (prior behavior, unchanged), 1=reset-after-fire pulse generator"
-      },
-      {
-        "name": "threshold",
-        "hi": 36,
-        "lo": 21,
-        "description": "pulse_mode only: |accumulator| crossing this fires a pulse and resets the total to 0"
-      },
-      {
-        "name": "reserved",
-        "hi": 41,
-        "lo": 37,
-        "description": "(5 bits spare, real 42-bit core_config budget)"
-      },
-      {
-        "name": "reserved",
-        "hi": 63,
-        "lo": 42,
-        "description": "(outside the real core_config budget entirely \u2014 this standalone module's own cfg_data is 64 bits wide)"
-      }
-    ]
-  },
-  "comparator": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/compare_cell_v1.v",
-    "fields": [
-      {
-        "name": "downstream_mask",
-        "hi": 3,
-        "lo": 0,
-        "description": "where the boolean result is offered"
-      },
-      {
-        "name": "upstream_mask",
-        "hi": 7,
-        "lo": 4,
-        "description": "where the value to compare arrives from"
-      },
-      {
-        "name": "threshold",
-        "hi": 39,
-        "lo": 8,
-        "description": "the configured reference (32-bit signed)"
-      },
-      {
-        "name": "reserved",
-        "hi": 63,
-        "lo": 40,
-        "description": ""
-      }
-    ]
-  },
-  "latch": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/latch_cell_v1.v",
-    "fields": [
-      {
-        "name": "set_dir",
-        "hi": 3,
-        "lo": 0,
-        "description": "one-hot direction, arrivals here latch to 1"
-      },
-      {
-        "name": "clear_dir",
-        "hi": 7,
-        "lo": 4,
-        "description": "one-hot direction, arrivals here clear to 0"
-      },
-      {
-        "name": "downstream_mask",
-        "hi": 11,
-        "lo": 8,
-        "description": "where the current latched value is offered"
-      },
-      {
-        "name": "toggle_dir",
-        "hi": 15,
-        "lo": 12,
-        "description": "one-hot direction, arrivals here flip the current state (any arrival, value not checked -- unlike set, toggle has no \"value\" concept, matching accumulator's own inc_dir/dec_dir convention)"
-      },
-      {
-        "name": "reserved",
-        "hi": 63,
-        "lo": 16,
-        "description": ""
-      }
-    ]
-  },
-  "sequencer": {
-    "source_file": "/home/claude/repo/fpga/verilog/sequencer_cell_v1.v",
-    "fields": [
-      {
-        "name": "VALUE_0",
-        "hi": 7,
-        "lo": 0,
-        "description": ""
-      },
-      {
-        "name": "VALUE_1",
-        "hi": 15,
-        "lo": 8,
-        "description": ""
-      },
-      {
-        "name": "VALUE_2",
-        "hi": 23,
-        "lo": 16,
-        "description": ""
-      },
-      {
-        "name": "VALUE_3",
-        "hi": 31,
-        "lo": 24,
-        "description": ""
-      },
-      {
-        "name": "SEQUENCE_LEN",
-        "hi": 33,
-        "lo": 32,
-        "description": "how many of the 4 values are real (1-4, stored as 0-3 meaning length-1)"
-      },
-      {
-        "name": "downstream_mask",
-        "hi": 37,
-        "lo": 34,
-        "description": "where the sequence is offered"
-      },
-      {
-        "name": "reserved",
-        "hi": 63,
-        "lo": 38,
-        "description": ""
-      }
-    ]
-  },
-  "branch": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/branch_cell_v1.v",
-    "fields": [
-      {
-        "name": "upstream_dir",
-        "hi": 1,
-        "lo": 0,
-        "description": "single fixed direction, 0=N 1=S 2=E 3=W (NOT a one-hot mask like every other core's upstream_mask -- #494's own real constraint: in+N only has one meaning if there's exactly one real \"in\")"
-      },
-      {
-        "name": "value_source_low",
-        "hi": 2,
-        "lo": 2,
-        "description": "0=relay real supplied value, 1=fixed"
-      },
-      {
-        "name": "value_source_equal",
-        "hi": 3,
-        "lo": 3,
-        "description": "same, for the \"=\" outcome"
-      },
-      {
-        "name": "value_source_high",
-        "hi": 4,
-        "lo": 4,
-        "description": "same, for the \">\" outcome"
-      },
-      {
-        "name": "fixed_value_low",
-        "hi": 11,
-        "lo": 5,
-        "description": "7-bit constant, used only if [2]=1"
-      },
-      {
-        "name": "fixed_value_equal",
-        "hi": 18,
-        "lo": 12,
-        "description": "7-bit constant, used only if [3]=1"
-      },
-      {
-        "name": "fixed_value_high",
-        "hi": 25,
-        "lo": 19,
-        "description": "7-bit constant, used only if [4]=1"
-      },
-      {
-        "name": "emit_low",
-        "hi": 26,
-        "lo": 26,
-        "description": "0=suppress (real, genuine silence),1=emit"
-      },
-      {
-        "name": "emit_equal",
-        "hi": 27,
-        "lo": 27,
-        "description": "same, for \"=\""
-      },
-      {
-        "name": "emit_high",
-        "hi": 28,
-        "lo": 28,
-        "description": "same, for \">\""
-      },
-      {
-        "name": "route_low",
-        "hi": 32,
-        "lo": 29,
-        "description": "real, ABSOLUTE one-hot(s) direction mask (real fan-out, up to all 4 bits), RESOLVED FROM in+1/in+2/in+3 AT ICM-PROGRAMMING TIME by the compiler/ Designer (#494) -- this field is already-absolute by the time it reaches this register, this core does no direction arithmetic of its own"
-      },
-      {
-        "name": "route_equal",
-        "hi": 36,
-        "lo": 33,
-        "description": "same, for \"=\""
-      },
-      {
-        "name": "route_high",
-        "hi": 40,
-        "lo": 37,
-        "description": "same, for \">\""
-      },
-      {
-        "name": "rolling_mode",
-        "hi": 41,
-        "lo": 41,
-        "description": "real, #497-followup capability (per Alan's own direct request): 0=static (default, matches every test already run) -- the held reference never changes except on reprogram/release. 1=ROLLING -- on every real comparison (capture_compare), the just-compared value becomes the NEW held reference, regardless of whether that outcome's own `emit` bit reported it downstream. Turns this core from \"compare against a fixed baseline\" into real change/ drift detection against whatever arrived last. The exact 42nd and FINAL bit of the real 42-bit `core_config` budget (#497) -- zero bits of headroom left after this one."
-      },
-      {
-        "name": "reserved",
-        "hi": 63,
-        "lo": 42,
-        "description": "22 bits, real headroom (within this core's own native 64-bit cfg_data bus only -- NOT available if this core is reconstructed inside the super shell, where core_config is capped at 42 bits total, all of which are now used)"
-      }
-    ]
-  },
-  "_super_latch": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/unicell_super_v1.v",
-    "fields": [
-      {
-        "name": "core_select",
-        "hi": 4,
-        "lo": 0,
-        "description": "0=nano 1=RAM 2=adder 3=accumulator 4=comparator 5=latch, 6-31 reserved (#317: must stay genuinely extensible)"
-      },
-      {
-        "name": "core_config",
-        "hi": 46,
-        "lo": 5,
-        "description": "42 bits, UNION not struct (#315): sized to the single widest real core (RAM, 42 bits), reinterpreted per core_select, not summed across all six. Every non-nano core's own real cfg_data layout already starts at bit 0 of its own space, confirmed directly against each core's RTL before this was built \u2014 so core_config[N:0] maps onto each one's own real fields with zero reshuffling."
-      },
-      {
-        "name": "addon_config",
-        "hi": 66,
-        "lo": 47,
-        "description": "20 bits, IDENTICAL to #313's own proposed ADDON_LATCH[19:0] layout, unchanged"
-      },
-      {
-        "name": "reserved",
-        "hi": 79,
-        "lo": 67,
-        "description": "13 bits, genuine future headroom (not \"shell routing\" as #315's own first-pass categorization called it \u2014 routing_mask/ cardinal_edge/ready turned out to be NANO-SPECIFIC fields, already accounted for within nano's own share of core_config, not a separate universal layer every core needs \u2014 a real correction made before building, not after) SCOPE, stated honestly: nano's own EXTRA ports beyond the basic cardinal handshake \u2014 command-cell mode (cmd_in/cmd_out), feedback (fb_internal_in/a_reemit_in/a_update_in/a_self_update_in), and the dedicated dynamic-reprogramming channel (program_in/prog_data_in_*/ prog_arrived_in_*) \u2014 are OUT OF SCOPE for this first build. When nano is the selected core, all of those inputs are tied to their safe/inactive defaults. This is a real, known limitation of this first version, not something hidden \u2014 a plain nano gate-tree core works fully; nano's command-cell/feedback/reprogram extras do not. ISOLATION MECHANISM: every one of the 6 cores is always physically instantiated and clocked (FPGA fabric has no per-core power gating), but only the SELECTED core ever sees genuine `arrived_*`/`cfg_valid` \u2014 every other core's inputs are gated to 0, so non-selected cores never capture, never load config, never fire. This is the concrete mechanism behind #304's own \"insular\" cost hypothesis \u2014 real ALM/ timing cost is measurable in Quartus, not assumed."
-      }
-    ]
-  },
-  "nano_within_super": {
-    "source_file": "/home/claude/Imago-Unicell/fpga/verilog/unicell_super_v1.v",
-    "fields": [
-      {
-        "name": "topology",
-        "hi": 9,
-        "lo": 0,
-        "description": ""
-      },
-      {
-        "name": "ready",
-        "hi": 10,
-        "lo": 10,
-        "description": ""
-      },
-      {
-        "name": "routing_mask",
-        "hi": 16,
-        "lo": 11,
-        "description": ""
-      },
-      {
-        "name": "cardinal_edge",
-        "hi": 22,
-        "lo": 17,
-        "description": ""
-      },
-      {
-        "name": "hold_in",
-        "hi": 23,
-        "lo": 23,
-        "description": "MANUAL, #522/#543 -- see comment below, not mechanically extractable"
-      },
-      {
-        "name": "fb_internal_in",
-        "hi": 24,
-        "lo": 24,
-        "description": "MANUAL, #522/#543"
-      },
-      {
-        "name": "a_reemit_in",
-        "hi": 25,
-        "lo": 25,
-        "description": "MANUAL, #522/#543"
-      },
-      {
-        "name": "a_update_in",
-        "hi": 26,
-        "lo": 26,
-        "description": "MANUAL, #522/#543"
-      },
-      {
-        "name": "a_self_update_in",
-        "hi": 27,
-        "lo": 27,
-        "description": "MANUAL, #522/#543"
-      },
-      {
-        "name": "dynamic_route_en",
-        "hi": 28,
-        "lo": 28,
-        "description": "MANUAL, #650 -- see comment below, not mechanically extractable"
-      },
-      {
-        "name": "pattern_low",
-        "hi": 32,
-        "lo": 29,
-        "description": "MANUAL, #650"
-      },
-      {
-        "name": "pattern_equal",
-        "hi": 36,
-        "lo": 33,
-        "description": "MANUAL, #650"
-      },
-      {
-        "name": "pattern_high",
-        "hi": 40,
-        "lo": 37,
-        "description": "MANUAL, #650"
-      }
-    ]
-  },
-  "_manual_overrides_warning": "REAL, HONEST FLAG: nano_within_super.fields (hold_in through a_self_update_in) were added MANUALLY, not by regenerate_root_definition_v1.py. These are PORTS on unicell_stripped_v1.v wired individually via core_config bits in unicell_super_v1.v/v2.v/v3.v, physically separated from nano's own cfg_data field-map comment block by ~150 lines of other core instantiations -- the mechanical extractor genuinely cannot see them (confirmed, not assumed). RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL WIPE THESE FIVE FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, until the extractor is taught to handle this real, structural case (a real, deliberately-deferred piece of tooling work). EXTENDED #650: dynamic_route_en/pattern_low/pattern_equal/pattern_high were ALSO added manually, same real reason -- nano_gate_v4.v's own comparator-driven routing (#140's VM equivalent), never exposed here before. RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL ALSO WIPE THESE FOUR FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, same as the five fields above."
+ "nano": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/unicell_stripped_v1.v",
+  "fields": [
+   {
+    "name": "topology",
+    "hi": 9,
+    "lo": 0,
+    "description": "same NOR-gate selection as unicell64_v3.v"
+   },
+   {
+    "name": "ready",
+    "hi": 13,
+    "lo": 13,
+    "description": "NEW. This cell's own readiness. Broadcast UNCONDITIONALLY on all 4 cardinal ports \u2014 cannot be gated by routing_mask/cardinal_edge, since a cell can't know in advance which neighbor(s) might be upstream of it in some layout."
+   },
+   {
+    "name": "routing_mask",
+    "hi": 69,
+    "lo": 64,
+    "description": "same field/bits as unicell64_v3.v (output side: which directions are open on this cell)"
+   },
+   {
+    "name": "cardinal_edge",
+    "hi": 75,
+    "lo": 70,
+    "description": "same field/bits, REINTERPRETED per-INCOMING direction (consume vs. relay), per the automaton model's design note, not per-outgoing as in the FULL cell"
+   },
+   {
+    "name": "out_buffer",
+    "hi": 127,
+    "lo": 96,
+    "description": "NEW. The offered-output value, separate from data_reg, per points.md #77/#88. Everything else in [31:0]/[63:32]/[95:76]/[126:96] is presently free/ unused by this module \u2014 deliberately not claimed here. Reserved specifically so a future cardinal COMMAND channel (points.md #84 \u2014 freeze/reprogram tokens riding the same physical per-cell command wiring, reinterpreted as cardinal post-boot) can be added later without a field- map reshuffle. Not built in this draft; see cmd_in/cmd_out port note below. freeze_in (points.md #92): a direct, minimal stand-in for what the deferred cardinal command channel will eventually carry as an opcode/ token. Gates capture_now AND can_fire, mirroring unicell64_v3.v's own `frozen` gating of `bus_hit` exactly -- a frozen cell is fully paused, not merely fire-blocked. Built now specifically to test the cascade: freezing one cell in a chain/ring should back up everything behind it (via the same ack-never-arrives mechanism #91 already established), and releasing it should let everything drain again."
+   }
+  ]
+ },
+ "ram": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/ram_cell_v1.v",
+  "fields": [
+   {
+    "name": "downstream_mask",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot(s), N/S/E/W, routing_mask convention"
+   },
+   {
+    "name": "upstream_mask",
+    "hi": 7,
+    "lo": 4,
+    "description": "one-hot(s), N/S/E/W, same convention"
+   },
+   {
+    "name": "fixed_mode",
+    "hi": 8,
+    "lo": 8,
+    "description": "1=permanent ROM-style, 0=flowing"
+   },
+   {
+    "name": "load_data_valid",
+    "hi": 9,
+    "lo": 9,
+    "description": "mark data_reg valid immediately on this load"
+   },
+   {
+    "name": "init_data[31:0]",
+    "hi": 41,
+    "lo": 10,
+    "description": "preset value"
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 42,
+    "description": "future: programming-channel wiring, BRAM- port fields (points.md #232), not designed yet NOT YET SOLVED (points.md #232): what a chain-terminal cell (downstream_ mask==4'h0, i.e. the head of a chain feeding a real BRAM port rather than another cardinal neighbor) actually wires into. This draft leaves that case inert on purpose \u2014 data_out_x/status_data_valid are plain combinational taps a future BRAM-interface module could read directly, but that module doesn't exist yet. Flagged, not solved."
+   }
+  ]
+ },
+ "adder": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/adder_cell_v1.v",
+  "fields": [
+   {
+    "name": "downstream_mask",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot(s), N/S/E/W, routing_mask convention"
+   },
+   {
+    "name": "upstream_mask",
+    "hi": 7,
+    "lo": 4,
+    "description": "one-hot(s), N/S/E/W, same convention"
+   },
+   {
+    "name": "subtract_mode",
+    "hi": 8,
+    "lo": 8,
+    "description": "0=A+B (prior behavior, unchanged), 1=A-B"
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 9,
+    "description": "TWO-STAGE CAPTURE, mirroring unicell_stripped_v1.v's own can_fire gating: the first arrival (any direction with upstream_mask set) becomes A (a_reg/a_arrived) \u2014 captured whenever a_arrived is clear, REGARDLESS of whether a previous sum is still being offered (a_reg and out_buffer are separate registers, so this genuinely pipelines: a new operand pair can start capturing while the previous sum drains downstream). The second arrival becomes B and fires ONLY once the output slot is free (!data_valid) \u2014 mirrors both ram_cell_v1.v's own capture gate and unicell_stripped_v1.v's own \"doubly full\" comment (a_arrived=1 AND ready_bit=0 blocks can_fire there; the equivalent block here is a_arrived=1 AND data_valid=1, exposed combinationally via ready_out)."
+   }
+  ]
+ },
+ "accumulator": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/accumulator_cell_v1.v",
+  "fields": [
+   {
+    "name": "inc_dir",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot direction, arrivals here = +step_amount"
+   },
+   {
+    "name": "dec_dir",
+    "hi": 7,
+    "lo": 4,
+    "description": "one-hot direction, arrivals here = -step_amount"
+   },
+   {
+    "name": "downstream_mask",
+    "hi": 11,
+    "lo": 8,
+    "description": "where the current total/pulse is offered"
+   },
+   {
+    "name": "step_amount",
+    "hi": 19,
+    "lo": 12,
+    "description": "unsigned magnitude applied per matching arrival"
+   },
+   {
+    "name": "pulse_mode",
+    "hi": 20,
+    "lo": 20,
+    "description": "0=static/continuous (prior behavior, unchanged), 1=reset-after-fire pulse generator"
+   },
+   {
+    "name": "threshold",
+    "hi": 36,
+    "lo": 21,
+    "description": "pulse_mode only: |accumulator| crossing this fires a pulse and resets the total to 0"
+   },
+   {
+    "name": "reserved",
+    "hi": 41,
+    "lo": 37,
+    "description": "(5 bits spare, real 42-bit core_config budget)"
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 42,
+    "description": "(outside the real core_config budget entirely \u2014 this standalone module's own cfg_data is 64 bits wide)"
+   }
+  ]
+ },
+ "comparator": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/compare_cell_v1.v",
+  "fields": [
+   {
+    "name": "downstream_mask",
+    "hi": 3,
+    "lo": 0,
+    "description": "where the boolean result is offered"
+   },
+   {
+    "name": "upstream_mask",
+    "hi": 7,
+    "lo": 4,
+    "description": "where the value to compare arrives from"
+   },
+   {
+    "name": "threshold",
+    "hi": 39,
+    "lo": 8,
+    "description": "the configured reference (32-bit signed)"
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 40,
+    "description": ""
+   }
+  ]
+ },
+ "latch": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/latch_cell_v1.v",
+  "fields": [
+   {
+    "name": "set_dir",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot direction, arrivals here latch to 1"
+   },
+   {
+    "name": "clear_dir",
+    "hi": 7,
+    "lo": 4,
+    "description": "one-hot direction, arrivals here clear to 0"
+   },
+   {
+    "name": "downstream_mask",
+    "hi": 11,
+    "lo": 8,
+    "description": "where the current latched value is offered"
+   },
+   {
+    "name": "toggle_dir",
+    "hi": 15,
+    "lo": 12,
+    "description": "one-hot direction, arrivals here flip the current state (any arrival, value not checked -- unlike set, toggle has no \"value\" concept, matching accumulator's own inc_dir/dec_dir convention)"
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 16,
+    "description": ""
+   }
+  ]
+ },
+ "sequencer": {
+  "source_file": "/home/claude/repo/fpga/verilog/sequencer_cell_v1.v",
+  "fields": [
+   {
+    "name": "VALUE_0",
+    "hi": 7,
+    "lo": 0,
+    "description": ""
+   },
+   {
+    "name": "VALUE_1",
+    "hi": 15,
+    "lo": 8,
+    "description": ""
+   },
+   {
+    "name": "VALUE_2",
+    "hi": 23,
+    "lo": 16,
+    "description": ""
+   },
+   {
+    "name": "VALUE_3",
+    "hi": 31,
+    "lo": 24,
+    "description": ""
+   },
+   {
+    "name": "SEQUENCE_LEN",
+    "hi": 33,
+    "lo": 32,
+    "description": "how many of the 4 values are real (1-4, stored as 0-3 meaning length-1)"
+   },
+   {
+    "name": "downstream_mask",
+    "hi": 37,
+    "lo": 34,
+    "description": "where the sequence is offered"
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 38,
+    "description": ""
+   }
+  ]
+ },
+ "branch": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/branch_cell_v1.v",
+  "fields": [
+   {
+    "name": "upstream_dir",
+    "hi": 1,
+    "lo": 0,
+    "description": "single fixed direction, 0=N 1=S 2=E 3=W (NOT a one-hot mask like every other core's upstream_mask -- #494's own real constraint: in+N only has one meaning if there's exactly one real \"in\")"
+   },
+   {
+    "name": "value_source_low",
+    "hi": 2,
+    "lo": 2,
+    "description": "0=relay real supplied value, 1=fixed"
+   },
+   {
+    "name": "value_source_equal",
+    "hi": 3,
+    "lo": 3,
+    "description": "same, for the \"=\" outcome"
+   },
+   {
+    "name": "value_source_high",
+    "hi": 4,
+    "lo": 4,
+    "description": "same, for the \">\" outcome"
+   },
+   {
+    "name": "fixed_value_low",
+    "hi": 11,
+    "lo": 5,
+    "description": "7-bit constant, used only if [2]=1"
+   },
+   {
+    "name": "fixed_value_equal",
+    "hi": 18,
+    "lo": 12,
+    "description": "7-bit constant, used only if [3]=1"
+   },
+   {
+    "name": "fixed_value_high",
+    "hi": 25,
+    "lo": 19,
+    "description": "7-bit constant, used only if [4]=1"
+   },
+   {
+    "name": "emit_low",
+    "hi": 26,
+    "lo": 26,
+    "description": "0=suppress (real, genuine silence),1=emit"
+   },
+   {
+    "name": "emit_equal",
+    "hi": 27,
+    "lo": 27,
+    "description": "same, for \"=\""
+   },
+   {
+    "name": "emit_high",
+    "hi": 28,
+    "lo": 28,
+    "description": "same, for \">\""
+   },
+   {
+    "name": "route_low",
+    "hi": 32,
+    "lo": 29,
+    "description": "real, ABSOLUTE one-hot(s) direction mask (real fan-out, up to all 4 bits), RESOLVED FROM in+1/in+2/in+3 AT ICM-PROGRAMMING TIME by the compiler/ Designer (#494) -- this field is already-absolute by the time it reaches this register, this core does no direction arithmetic of its own"
+   },
+   {
+    "name": "route_equal",
+    "hi": 36,
+    "lo": 33,
+    "description": "same, for \"=\""
+   },
+   {
+    "name": "route_high",
+    "hi": 40,
+    "lo": 37,
+    "description": "same, for \">\""
+   },
+   {
+    "name": "rolling_mode",
+    "hi": 41,
+    "lo": 41,
+    "description": "real, #497-followup capability (per Alan's own direct request): 0=static (default, matches every test already run) -- the held reference never changes except on reprogram/release. 1=ROLLING -- on every real comparison (capture_compare), the just-compared value becomes the NEW held reference, regardless of whether that outcome's own `emit` bit reported it downstream. Turns this core from \"compare against a fixed baseline\" into real change/ drift detection against whatever arrived last. The exact 42nd and FINAL bit of the real 42-bit `core_config` budget (#497) -- zero bits of headroom left after this one."
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 42,
+    "description": "22 bits, real headroom (within this core's own native 64-bit cfg_data bus only -- NOT available if this core is reconstructed inside the super shell, where core_config is capped at 42 bits total, all of which are now used)"
+   }
+  ]
+ },
+ "_super_latch": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/unicell_super_v1.v",
+  "fields": [
+   {
+    "name": "core_select",
+    "hi": 4,
+    "lo": 0,
+    "description": "0=nano 1=RAM 2=adder 3=accumulator 4=comparator 5=latch, 6-31 reserved (#317: must stay genuinely extensible)"
+   },
+   {
+    "name": "core_config",
+    "hi": 46,
+    "lo": 5,
+    "description": "42 bits, UNION not struct (#315): sized to the single widest real core (RAM, 42 bits), reinterpreted per core_select, not summed across all six. Every non-nano core's own real cfg_data layout already starts at bit 0 of its own space, confirmed directly against each core's RTL before this was built \u2014 so core_config[N:0] maps onto each one's own real fields with zero reshuffling."
+   },
+   {
+    "name": "addon_config",
+    "hi": 66,
+    "lo": 47,
+    "description": "20 bits, IDENTICAL to #313's own proposed ADDON_LATCH[19:0] layout, unchanged"
+   },
+   {
+    "name": "reserved",
+    "hi": 79,
+    "lo": 67,
+    "description": "13 bits, genuine future headroom (not \"shell routing\" as #315's own first-pass categorization called it \u2014 routing_mask/ cardinal_edge/ready turned out to be NANO-SPECIFIC fields, already accounted for within nano's own share of core_config, not a separate universal layer every core needs \u2014 a real correction made before building, not after) SCOPE, stated honestly: nano's own EXTRA ports beyond the basic cardinal handshake \u2014 command-cell mode (cmd_in/cmd_out), feedback (fb_internal_in/a_reemit_in/a_update_in/a_self_update_in), and the dedicated dynamic-reprogramming channel (program_in/prog_data_in_*/ prog_arrived_in_*) \u2014 are OUT OF SCOPE for this first build. When nano is the selected core, all of those inputs are tied to their safe/inactive defaults. This is a real, known limitation of this first version, not something hidden \u2014 a plain nano gate-tree core works fully; nano's command-cell/feedback/reprogram extras do not. ISOLATION MECHANISM: every one of the 6 cores is always physically instantiated and clocked (FPGA fabric has no per-core power gating), but only the SELECTED core ever sees genuine `arrived_*`/`cfg_valid` \u2014 every other core's inputs are gated to 0, so non-selected cores never capture, never load config, never fire. This is the concrete mechanism behind #304's own \"insular\" cost hypothesis \u2014 real ALM/ timing cost is measurable in Quartus, not assumed."
+   }
+  ]
+ },
+ "nano_within_super": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/unicell_super_v1.v",
+  "fields": [
+   {
+    "name": "topology",
+    "hi": 9,
+    "lo": 0,
+    "description": ""
+   },
+   {
+    "name": "ready",
+    "hi": 10,
+    "lo": 10,
+    "description": ""
+   },
+   {
+    "name": "routing_mask",
+    "hi": 16,
+    "lo": 11,
+    "description": ""
+   },
+   {
+    "name": "cardinal_edge",
+    "hi": 22,
+    "lo": 17,
+    "description": ""
+   },
+   {
+    "name": "hold_in",
+    "hi": 23,
+    "lo": 23,
+    "description": "MANUAL, #522/#543 -- see comment below, not mechanically extractable"
+   },
+   {
+    "name": "fb_internal_in",
+    "hi": 24,
+    "lo": 24,
+    "description": "MANUAL, #522/#543"
+   },
+   {
+    "name": "a_reemit_in",
+    "hi": 25,
+    "lo": 25,
+    "description": "MANUAL, #522/#543"
+   },
+   {
+    "name": "a_update_in",
+    "hi": 26,
+    "lo": 26,
+    "description": "MANUAL, #522/#543"
+   },
+   {
+    "name": "a_self_update_in",
+    "hi": 27,
+    "lo": 27,
+    "description": "MANUAL, #522/#543"
+   },
+   {
+    "name": "dynamic_route_en",
+    "hi": 28,
+    "lo": 28,
+    "description": "MANUAL, #650 -- see comment below, not mechanically extractable"
+   },
+   {
+    "name": "pattern_low",
+    "hi": 32,
+    "lo": 29,
+    "description": "MANUAL, #650"
+   },
+   {
+    "name": "pattern_equal",
+    "hi": 36,
+    "lo": 33,
+    "description": "MANUAL, #650"
+   },
+   {
+    "name": "pattern_high",
+    "hi": 40,
+    "lo": 37,
+    "description": "MANUAL, #650"
+   }
+  ]
+ },
+ "_manual_overrides_warning": "REAL, HONEST FLAG: nano_within_super.fields (hold_in through a_self_update_in) were added MANUALLY, not by regenerate_root_definition_v1.py. These are PORTS on unicell_stripped_v1.v wired individually via core_config bits in unicell_super_v1.v/v2.v/v3.v, physically separated from nano's own cfg_data field-map comment block by ~150 lines of other core instantiations -- the mechanical extractor genuinely cannot see them (confirmed, not assumed). RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL WIPE THESE FIVE FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, until the extractor is taught to handle this real, structural case (a real, deliberately-deferred piece of tooling work). EXTENDED #650: dynamic_route_en/pattern_low/pattern_equal/pattern_high were ALSO added manually, same real reason -- nano_gate_v4.v's own comparator-driven routing (#140's VM equivalent), never exposed here before. RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL ALSO WIPE THESE FOUR FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, same as the five fields above.",
+ "mul": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/mul_cell_v4c.v",
+  "_provenance_note": "points.md #823: mul had no real_definition entry at all -- added to close a serialization gap surfaced by the LLVM CLI, not extracted from a fresh RTL read this session. Field positions taken directly from icm_v3.py's own hand-typed _MUL_FIELDS, which mirrors _ADDER_FIELDS minus subtract_mode (unicell_super_automaton_v1.py's own `elif core == \"mul\":` dispatch has no subtract-mode equivalent).",
+  "fields": [
+   {
+    "name": "downstream_mask",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot(s), N/S/E/W, routing_mask convention"
+   },
+   {
+    "name": "upstream_mask",
+    "hi": 7,
+    "lo": 4,
+    "description": "one-hot(s), N/S/E/W, same convention"
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 8,
+    "description": "TWO-STAGE CAPTURE, structurally identical to adder's own (capture A, then B, then fire) but multiplication instead of add/subtract, with no subtract-mode-equivalent bit at all."
+   }
+  ]
+ },
+ "priority": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/priority_cell_v4c.v",
+  "_provenance_note": "points.md #823: priority had no real_definition entry at all -- added to close a serialization gap surfaced by the LLVM CLI. Field positions taken directly from icm_v3.py's own hand-typed _PRIORITY_FIELDS: priority_rank_* widths (2 bits each) confirmed against unicell_super_automaton_v1.py's own `& 0x3` masking (also independently confirmed against the real VM cell, points.md #814); scheduling_mode's 2-bit width is a generous, HONEST CHOICE (0/1/2 are the only modes seen this session), not a hardware-confirmed bit count -- no RTL bit-map for this specific field was read for this entry.",
+  "fields": [
+   {
+    "name": "upstream_mask",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot(s), N/S/E/W, routing_mask convention"
+   },
+   {
+    "name": "downstream_mask",
+    "hi": 7,
+    "lo": 4,
+    "description": "one-hot(s), N/S/E/W, same convention"
+   },
+   {
+    "name": "priority_rank_n",
+    "hi": 9,
+    "lo": 8,
+    "description": "2-bit weight/rank for the north input, masked & 0x3"
+   },
+   {
+    "name": "priority_rank_s",
+    "hi": 11,
+    "lo": 10,
+    "description": "2-bit weight/rank for the south input, masked & 0x3"
+   },
+   {
+    "name": "priority_rank_e",
+    "hi": 13,
+    "lo": 12,
+    "description": "2-bit weight/rank for the east input, masked & 0x3"
+   },
+   {
+    "name": "priority_rank_w",
+    "hi": 15,
+    "lo": 14,
+    "description": "2-bit weight/rank for the west input, masked & 0x3"
+   },
+   {
+    "name": "scheduling_mode",
+    "hi": 17,
+    "lo": 16,
+    "description": "0=strict rank, 1=weighted round-robin (Surplus Round Robin, #814), 2=sequenced channel"
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 18,
+    "description": "unused"
+   }
+  ]
+ }
 }
