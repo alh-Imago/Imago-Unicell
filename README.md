@@ -146,10 +146,20 @@ throughout the project's own documentation, never blurred.
 - **A real AI-interaction port** (`VMSession`) — compile → load → run →
   inspect, in one clean object, with real JSON introspection of any
   cell or the whole grid.
+- **A step-by-step, tabbed browser front end** — the recommended
+  starting point: MAN file generation, Quartus project generation,
+  and the simulated Walker, each its own tab, walking through this
+  project's own real build process in order. Every action-performing
+  page also shows the exact equivalent CLI command. Run it with:
+  ```bash
+  python3 nano/frontend_v1.py
+  # → http://localhost:7421
+  ```
 - **A working browser workbench** — compile a program, watch it run,
   drive individual cells, load multiple independent programs onto one
   shared grid as named regions, or let it auto-play at a chosen rate
-  until you pause it or the design naturally settles. Run it with:
+  until you pause it or the design naturally settles. Linked from the
+  front end above ("Other tools"), or run directly:
   ```bash
   python3 nano/workbench_v1.py
   # → http://localhost:7420
@@ -236,7 +246,11 @@ session.tick(5)
 print(session.describe())
 "
 
-# Or just open the browser workbench
+# Or open the tabbed front end (MAN file -> Quartus project -> Walker),
+# the recommended starting point
+python3 nano/frontend_v1.py
+
+# Or just open the browser workbench directly
 python3 nano/workbench_v1.py
 ```
 

@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-22, floating-point TRIX/MIF prior art looked at per Alan's request (#827) -- grounding only, no code built. Onion tool now built/installed this session. 1393 tests pass (unchanged). See `points/points_active.md` #805-#827)
+# Current State (as of 2026-09-22, a real documentation gap found and fixed (#828): nano/frontend_v1.py, the tabbed step-by-step front end (MAN file -> Quartus project -> Walker), was never mentioned in README.md at all. 1393 tests pass (unchanged, doc-only fix). See `points/points_active.md` #805-#828)
+
+## Read this first (most recent)
+
+**#828 -- Alan started the wrong entry point, and the README was the reason why.** Alan flagged the workbench screenshot as missing a simple "create a basic VM, no MAN needed" route. Checked the ledger and `workbench_scope.md` for a removed feature first -- found none. Alan then recalled a TABBED frontend starting with MAN file creation: this is `nano/frontend_v1.py` (`NAV`: `Start | 1. Card / MAN file | 2. Create cells | 3. Walker | 4. Other tools`), real and already working -- started it directly, confirmed all five pages return 200 with the nav bar present and the `/manual` help links resolve. `README.md` mentioned ONLY `python3 nano/workbench_v1.py`, in both the feature list and Quick Start -- `frontend_v1.py` was undiscoverable from the README. Fixed: added a feature-list bullet and a Quick Start line for `frontend_v1.py`, positioned as the recommended starting point ahead of the direct workbench. `docs/README.md` (a different document, the doc-file index) checked and confirmed it isn't a second instance of the same gap.
+
+**Honest: documentation-only.** No code changed; whether `frontend_v1.py`'s step-by-step flow is actually the right onboarding path versus `workbench_v1.py`'s direct compile-and-run loop is a real, open design question for Alan, not resolved here.
+
+**Earlier this session (#805-#827):** the full DSP/BRAM/counter/priority-cell body of work; the VIX Carrier architectural clarification (#824); the VM mirror wired into the LLVM path + `llvm_cli_v1.py` with a real serialization gap found and fixed (#825); store-and-shift (#826); floating-point TRIX/MIF prior art grounded from primary sources (#827).
+
+**Real queue:** (1) floating point -- grounded, ready to be scoped; (2) scope items 3, 4, 6; (3) the VIX Carrier update backlog (#824) -- Alan's call; (4) `card_fit_v1` target support in `llvm_cli_v1.py`; (5) store-and-shift integration, if pursued for real.
+
+## Previous state (as of 2026-09-22, floating-point TRIX/MIF prior art looked at per Alan's request (#827) -- grounding only, no code built. Onion tool now built/installed this session. 1393 tests pass (unchanged). See `points/points_active.md` #805-#827)
 
 ## Read this first (most recent)
 
