@@ -164,6 +164,8 @@ class BusPlan:
     beats: int                          # bus words needed per 32-bit value
     store_and_shift: bool               # True when a value must be assembled/disassembled from several words
     notes: Tuple[str, ...] = ()
+    word_bits: int = 32                 # points.md #826: the value width beats/data_bits carry -- BusSpec.word_bits,
+                                        # threaded through so a consumer (store_and_shift_v1) needs only the plan
 
 
 @dataclass(frozen=True)
@@ -203,7 +205,7 @@ class BusSpec:
         if self.width != 40:
             notes.append("splitter/mux/combiner RTL is written for a 40-bit word; another width needs it "
                          "parameterised -- not built")
-        return BusPlan(feeds, self.width, rb, data, beats, beats > 1, tuple(notes))
+        return BusPlan(feeds, self.width, rb, data, beats, beats > 1, tuple(notes), word_bits=self.word_bits)
 
     def max_feeds(self, min_data_bits: int = 1) -> int:
         """The most feeds this bus can carry while leaving at least `min_data_bits` of data per beat."""

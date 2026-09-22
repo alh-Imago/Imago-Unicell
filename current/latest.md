@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-22, the VM mirror wired into the LLVM path and a new CLI (#825) -- plus a real, previously-invisible ICM v3 serialization gap for `mul`/`priority` found and fixed along the way. An architectural clarification on the VIX Carrier vs the older lineage (#824) also filed. 1373 tests pass. See `points/points_active.md` #805-#825)
+# Current State (as of 2026-09-22, store-and-shift built and verified (#826) -- the bit-level assembler/disassembler BusPlan has flagged as needed since #808, closing real queue item 9. 1393 tests pass. See `points/points_active.md` #805-#826)
+
+## Read this first (most recent)
+
+**#826 -- store-and-shift.** `nano/store_and_shift_v1.py`: `Assembler` (a serial shift-in accumulator; first chunk received ends up most significant) and `disassemble()` (its exact inverse). The uneven-split case (`beats x data_bits != 32`) worked out precisely: slack lands as leading zeros on the FIRST chunk only, never reordering the value's bits -- checked directly with `0xFFFFFFFF` on the exact `#808` worked example (26-bit bus, 5 feeds, 18 data bits, 2 beats). Verified: exact round-trip on that worked example, an exhaustive 0-255 check at a tight split, a wide random sweep across 7 bus configurations, a reused `Assembler` correctly handling 50 consecutive values via `reset()`, and `simulate_transfer()` demonstrating the real latency cost (beats = elapsed rounds) `BusPlan` already named. A small, safe addition to `fixed_structures_v1.py` was needed first (`BusPlan.word_bits`, confirmed no existing test constructs `BusPlan` directly). Six mutations caught, including the two that would matter most: reversed chunk order and an OR-only (no-shift) accumulator, either of which would silently corrupt a multi-beat value.
+
+**Honest:** protocol-level only (a chunk arrives, is fed) -- not wired into `counter_feedback_v1`'s BRAM timing or `stream_layout_v1`'s placed layouts, and no RTL exists for this stage (verifying the bit arithmetic before any hardware design, not a hardware design itself).
+
+**Earlier this session:** #805-#822 (router through DSP-wrapper lowering via relay-hop padding); #823 filed a note on `watchdog_v1.v`; #824 the VIX Carrier architectural clarification (Alan: this session's `SuperCell`/`SuperGrid` work targets the older lineage, and should have targeted the mutable-core-select VIX carrier -- doesn't invalidate anything, since the core logic is unaffected, just the selection mechanism); #825 the VM mirror wired into the LLVM path + `llvm_cli_v1.py`, plus a real pre-existing `mul`/`priority` serialization gap found and fixed.
+
+**Real queue:** (1) floating point; (2) scope items 3, 4, 6; (3) the VIX Carrier update backlog (#824) -- Alan's call on priority; (4) `card_fit_v1` target support in `llvm_cli_v1.py`, if wanted; (5) wire store-and-shift into `counter_feedback_v1`/`stream_layout_v1`, if a narrow-bus deployment is pursued for real.
+
+## Previous state (as of 2026-09-22, the VM mirror wired into the LLVM path and a new CLI (#825) -- plus a real, previously-invisible ICM v3 serialization gap for `mul`/`priority` found and fixed along the way. An architectural clarification on the VIX Carrier vs the older lineage (#824) also filed. 1373 tests pass. See `points/points_active.md` #805-#825)
 
 ## Read this first (most recent)
 
