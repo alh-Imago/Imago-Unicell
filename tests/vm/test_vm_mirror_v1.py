@@ -133,3 +133,68 @@ def test_from_man_free_mode_sessions_have_no_mirror_bounds():
     from_man() claims a real card correspondence."""
     session = vm_ai_port_v1.VMSession.from_dsl(REAL_DSL_FITS)
     assert session.mirror_bounds is None
+
+
+# ── VMSession.from_llvm() / from_man(llvm=...) real end-to-end tests (points.md #823) ────────────────────────
+
+REAL_LLVM_ADD = """define i32 @f(i32 %x, i32 %y) {
+entry:
+  %a = add i32 %x, %y
+  ret i32 %a
+}
+"""
+
+REAL_LLVM_BAD = """define i32 @f() {
+entry:
+  ret i32 %nonexistent
+}
+"""
+
+
+def test_from_llvm_compiles_and_loads_a_real_running_grid():
+    session = vm_ai_port_v1.VMSession.from_llvm(REAL_LLVM_ADD)
+    assert session.diagnostics == []
+    assert len(session.grid.cells) > 0
+    assert hasattr(session, "llvm_result") and session.llvm_result is not None
+
+
+def test_from_llvm_raises_compile_failure_with_real_diagnostics():
+    try:
+        vm_ai_port_v1.VMSession.from_llvm(REAL_LLVM_BAD)
+        assert False, "expected CompileFailure"
+    except vm_ai_port_v1.CompileFailure as e:
+        assert len(e.diagnostics) > 0
+
+
+def test_from_man_llvm_is_a_fourth_option_alongside_dsl_python_icm_path():
+    """The LLVM frontend's own placer does not tile to project_assemble_v1's canonical N-cell layout, so a small
+    cell count honestly fails the mirror check -- exactly the reason `from_llvm()` (above) and `from_man(llvm=)`
+    are DIFFERENT code paths, not the same thing checked twice."""
+    try:
+        vm_ai_port_v1.VMSession.from_man(REAL_MAN, 6, llvm=REAL_LLVM_ADD)
+        assert False, "expected MirrorFitError (this design does not tile canonically)"
+    except vm_mirror_v1.MirrorFitError as e:
+        assert e.problems  # a real, specific reason, not a bare failure
+
+
+def test_from_man_llvm_counts_toward_the_exactly_one_of_check():
+    try:
+        vm_ai_port_v1.VMSession.from_man(REAL_MAN, 6, dsl=REAL_DSL_FITS, llvm=REAL_LLVM_ADD)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+    try:
+        vm_ai_port_v1.VMSession.from_man(REAL_MAN, 6)
+        assert False, "expected ValueError (none given, now four options)"
+    except ValueError as e:
+        assert "llvm=" in str(e)
+
+
+def test_from_man_llvm_with_a_bad_program_raises_compile_failure_not_mirror_error():
+    """A compile error must surface as CompileFailure even under from_man() -- the mirror check never runs on a
+    program that didn't compile in the first place."""
+    try:
+        vm_ai_port_v1.VMSession.from_man(REAL_MAN, 6, llvm=REAL_LLVM_BAD)
+        assert False, "expected CompileFailure"
+    except vm_ai_port_v1.CompileFailure:
+        pass
