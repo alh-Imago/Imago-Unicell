@@ -1,4 +1,22 @@
-# Current State (as of 2026-09-21, the HOST STALL/REFILL LIFECYCLE built and proven over multiple laps (#821) -- #257's two open questions were already resolved at #279, which this connects to the existing sentinel mechanism for the first time. 1339 tests pass. See `points/points_active.md` #805-#821)
+# Current State (as of 2026-09-21, DSP-wrapper lowering closed (#822) -- a DSP-bound cell's latency is now genuine elapsed VM time, via extra relay hops, with no change to the shared tick loop or router. 1360 tests pass. See `points/points_active.md` #805-#822)
+
+## Read this first (most recent)
+
+**#822 -- DSP-wrapper lowering (the "#816 bridge tile" item), closed at the smallest safe scope.** Grounded first: `#25`'s original 2026-07-09 concern (the fabric's two-arrival firing model needing "delay cells" to realign a late DSP result) was checked directly against `unicell_super_automaton_v1.py`'s real capture logic and found NOT to bind in the current model -- a two-arrival core waits however long for its second operand, with no same-tick requirement. What was actually missing: a `resource="dsp"`-bound cell (already placed on a real site, `#804`/`#819`) still computed with ZERO elapsed delay. Fixed via `#5`'s own existing vocabulary -- "delay cells" ARE extra relay hops in this event-driven model -- as a pure post-processing step (`dsp_latency_v1.pad_output_latency`) on an already-routed cell list: NO change to the shared tick loop or router.
+
+**A real constraint found by hand: only EVEN extra-hop counts are possible** (the DSP cell and its consumer sit at fixed positions, so any simple path between them has a length whose parity is fixed by their Manhattan distance). The detour itself is a provably-non-overlapping rectangle, not a search. **Verified end to end on a real compiled program with a real Mustang DSP-site binding:** padding by 2/4/8/20 hops adds exactly that many ticks, every time, correct result preserved, original records list provably untouched.
+
+**Two real gaps found by mutation testing and closed with new tests:** the return leg of the detour wasn't independently checked for free space (only the outward leg was); and one mutation appeared to pass cleanly on the first bulk run due to a shell-escaping bug in the TEST HARNESS itself, not the code -- re-run in isolation, it confirmed the existing guard was already correct.
+
+**Honest:** only pads a simple, non-fanning-out relay chain; only tries the first edge of the chain, not the whole grid; not integrated into `stream_layout_v1`'s multi-chain placement; the latency number itself stays loose per `#815`.
+
+**Working top-down through the real queue while Alan drives, seven items done (#816-#822).** Recurring lesson: precise, hand-computed expectations (exact tick counts, exact hop counts) checked against the mutation itself are what catch real gaps -- and this time, checking a SURVIVING mutation in isolation also caught a bug in my own bulk-testing script, not just the code under test.
+
+**Earlier this session:** #805-#815 (router; fit units; fixed structures; bus width + 2D tree limit; two-port layout; counter feedback; the ~2-chain planarity limit + credit-return link; BRAM read latency; no fixed latency + ack pipeline; priority cell measured on the real VM + DSP black box; Arria 10 DSP chain topology, kept loose per Alan's request).
+
+**Real queue:** (1) VM mirror into the LLVM path and a CLI -- NEXT; (2) store-and-shift; (3) floating point; (4) scope items 3, 4, 6.
+
+## Previous state (as of 2026-09-21, the HOST STALL/REFILL LIFECYCLE built and proven over multiple laps (#821) -- #257's two open questions were already resolved at #279, which this connects to the existing sentinel mechanism for the first time. 1339 tests pass. See `points/points_active.md` #805-#821)
 
 ## Read this first (most recent)
 
