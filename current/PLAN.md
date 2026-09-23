@@ -26,7 +26,13 @@
 > discipline is for. See `points/points_active.md` `#827` for the floating-point grounding already
 > done, and the surrounding session's own `#824`-`#836` entries for the broader architecture context
 > this sits alongside (the VIX Carrier clarification, the LLVM/compiler gap list, the photonic and
-> command-bus interconnect prospects).
+> command-bus interconnect prospects). **Alan's own timeframe estimate: 6 months to a year at
+> current pace, with real variance -- some days/weeks land better results than others.** Worth
+> calibrating rather than taking as either optimistic or pessimistic: this single session alone
+> covered roughly thirty tested, working ledger entries (`#805`-`#836`) in about a week, so the
+> estimate is plausible for three separate, harder pieces (one resting on floating point, which
+> does not exist yet at all, and reaching toward a genuinely harder mathematical target than
+> anything built so far) -- not a number to treat as either a floor or a ceiling.
 >
 > **UPDATE (2026-09-02, later same-date session): the simulated Walker
 > from this note's own queued item is DONE (`points/points_active.md`
