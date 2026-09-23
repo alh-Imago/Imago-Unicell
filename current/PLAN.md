@@ -1,6 +1,33 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
+> **UPDATE (2026-09-22): a side thought from Alan, placed here as a roadmap of POTENTIAL outcomes,
+> not committed work -- three separate demonstrations, each meant to stand on its own and add
+> independent credibility to the overall project scope, not one narrow trick stretched thin.**
+> (1) **LaTeX -> compute, pushed as far as it goes** -- the active near-term technical thrust
+> (floating point, grounded from real TRIX/MIF prior art at `points/points_active.md` `#827` but not
+> yet built; then real arithmetic tiles; a bounded expression evaluator; a LaTeX parser feeding it;
+> a frontend able to actually demo the whole chain end to end, per Alan's own note that the frontend
+> isn't there yet even for a basic demo). Eventually reaching toward OPTIMAL TRANSPORT (Wasserstein
+> geometry) specifically, since that is his eldest son Dr Dumitru Mirauta's (Liverpool maths PhD) own
+> real research area, and getting him genuinely on board is one motivation behind the LaTeX push --
+> Alan has had brief overview conversations with him already, not yet a working demo. Real, honest
+> gap stated plainly: optimal transport is optimization over probability distributions, a different
+> and much harder mathematical world than evaluating a bounded expression tree -- nowhere near
+> reachable by the near-term fp/arithmetic-tile work, and this should not be oversold as imminent.
+> (2) **LIF neurons revisited** (leaky integrate-and-fire) -- a genuinely separate, neuromorphic angle
+> from the dataflow/compiler line; real prior art already found and read this session in the TRIX
+> archaeology for `#827` (`neurotrix_lif.py`/`neurotrix_lif_mif.py`, `old_trix_domain_family.onion`).
+> (3) **The data sort/hold designs, redone** -- a separate piece again, not yet scoped further than
+> the name.
+> None of these three are started. Recorded here, in the forward-looking plan, rather than the
+> points ledger, because Alan's own words: "it's just a side thought... but this gives a roadmap of
+> the potential outcomes" -- prospective, not a decision or design commitment the append-only ledger
+> discipline is for. See `points/points_active.md` `#827` for the floating-point grounding already
+> done, and the surrounding session's own `#824`-`#836` entries for the broader architecture context
+> this sits alongside (the VIX Carrier clarification, the LLVM/compiler gap list, the photonic and
+> command-bus interconnect prospects).
+>
 > **UPDATE (2026-09-02, later same-date session): the simulated Walker
 > from this note's own queued item is DONE (`points/points_active.md`
 > `#601`/`#602`) -- built on a real prerequisite fix (`#601`: `#598`'s
