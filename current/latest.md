@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, a second real FP32 math capability built (comparison) and a stray unverified claim caught before it could mislead ADD's design. 1409 tests pass. See `points/points_active.md` #840)
+# Current State (as of 2026-09-26, real new RTL: the carrier itself can now live-reprogram its own shared addon block (shift_amt+shift_fine), closing the gap #840 found. Sim-proven, 6/6 checks, zero regression. No VM model yet. See `points/points_active.md` #841)
+
+## Read this first (most recent)
+
+**#841 -- `unicell_vix_carrier_v1d.v`, the carrier's own live addon reprogramming, real and sim-proven.** Alan's own framing: the command cell is "a hidden superpower in the substrate" -- confirmed and extended. Standalone `adder_cell_v4.v` already had real, working `PROG_ID_ADDON_CONFIG` (no `shift_fine` hardware though); the carrier has real `shift_fine` hardware but its whole `addon_config`/`shift_fine` block was locked behind an atomic `vix_latch`/`cfg_valid` commit with no incremental path at all. New `v1d` file adds a reserved pseudo-target (`SEL_ADDON_CONFIG=5'd11`) that lets a programming session address the carrier's own shared addon registers WITHOUT touching `core_select`/`core_config` -- mirroring the standalone-core pattern one level up, per Alan's own point that per-core duplication would be exactly the waste `_v4c` already removed.
+
+**Sim-proven, `tb_unicell_vix_carrier_v1d.v`, 6/6 checks, real bugs found and fixed (testbench-only, not RTL):** wrong routing_mask bit position for this generation; this project's own standing "dummy second arrival" rule initially forgotten; a genuine same-class timing race to the one `#666`'s own header already warned about (a settle cycle needed between raising `program_in` and relaying the first word). Final test: one held value, reprogrammed the addon TWICE live, `core_select`/`core_config` confirmed undisturbed both times by direct hierarchical check. Original `unicell_vix_carrier_v1.v` re-run unchanged, still 6/6 -- zero regression, genuinely additive.
+
+**Honest scope: RTL only.** No VM-level model of this new mechanism yet in `vix_carrier_automaton_v1.py`, and fp32 ADD itself still isn't built -- this closes "can the addon be live-reprogrammed," not the ADD tile.
+
+**Real queue:** (1) VM-level model of the new addon-addressing mechanism, needed before Python-side ADD work; (2) fp32 ADD itself, now with a real mechanism for its mantissa-alignment stage; (3) fp32 MIN/MAX; (4) the LLVM/compiler gap list (`#830`); (5) scope items 3, 4, 6; (6) the VIX Carrier update backlog (`#824`); (7) `card_fit_v1` target support; (8) store-and-shift integration; (9) documentation catch-up (`#829`, deferred); (10) the paired-cell/command-bus idea (`#835`/`#836`); (11) a genuine N-way sort network (`#837`); (12) the ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, a second real FP32 math capability built (comparison) and a stray unverified claim caught before it could mislead ADD's design. 1409 tests pass. See `points/points_active.md` #840)
 
 ## Read this first (most recent)
 
