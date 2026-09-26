@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, the FP active near-term thrust genuinely started for real: UNPACK/PACK round-trip exactly against real IEEE-754 bit patterns. 1405 tests pass. See `points/points_active.md` #839)
+# Current State (as of 2026-09-26, a second real FP32 math capability built (comparison) and a stray unverified claim caught before it could mislead ADD's design. 1409 tests pass. See `points/points_active.md` #840)
+
+## Read this first (most recent)
+
+**#840 -- FP32 comparison (LT/GT/EQ) built, genuinely free unlike ADD.** `nano/fp32_compare_v1.py`: an ordering-key trick built entirely from `#839`'s proven `pack()` -- positive values get their sign bit forced to 1, negative values get every bit inverted, then plain unsigned comparison of the two keys matches real float ordering, no barrel shifter needed anywhere. Verified exhaustively (121 pairs from a 22-value real set) against Python's own float comparison, plus a stronger whole-set-sort-order check. Real edge case closed: +0.0/-0.0 explicitly handled equal (the trick alone disagrees). Mutation-checked, 3 bugs caught cleanly. Honest limit, matching MIF's own old precedent: NaN not handled.
+
+**A real check made BEFORE starting ADD, worth remembering:** the `#831`/`#832` queue-line claim "variable shift buildable now" was checked against the actual ledger and found unsubstantiated -- no entry anywhere built or tested it. The one entry with real, checked detail (`#793`-era) says a variable shift amount is explicitly refused today; the fixed addon-chain taps are not a barrel shifter. So fp32 ADD's mantissa-alignment stage needs real, new composition work (a log-depth conditional shifter using the existing 1/2/4/8/16 taps, mux-gated by each bit of a runtime exponent difference) -- not something to assume is already solved.
+
+**Earlier (`#839`):** UNPACK/PACK round-trip built and verified exactly against real IEEE-754 bit patterns, closing `#697`'s own named gap.
+
+**Real queue:** (1) fp32 ADD -- properly scoped now, needs the conditional-shift composition designed and tested first, genuinely new work; (2) fp32 MIN/MAX -- likely near-free once compare exists (a select keyed by `fp32_compare`); (3) the LLVM/compiler gap list (`#830`); (4) scope items 3, 4, 6; (5) the VIX Carrier update backlog (`#824`); (6) `card_fit_v1` target support in `llvm_cli_v1.py`; (7) store-and-shift integration; (8) documentation catch-up (`#829`, deferred); (9) the paired-cell/command-bus idea (`#835`/`#836`); (10) a genuine N-way sort network building on `#837`'s proven CAS; (11) the ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, the FP active near-term thrust genuinely started for real: UNPACK/PACK round-trip exactly against real IEEE-754 bit patterns. 1405 tests pass. See `points/points_active.md` #839)
 
 ## Read this first (most recent)
 
