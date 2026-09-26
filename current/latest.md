@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-26, the first real FP32 arithmetic tile built: ADD, same-sign case. Verified against real float32 addition, mutation-checked. 1415 tests pass. See `points/points_active.md` #844)
+# Current State (as of 2026-09-26, fp32 ADD extended to opposite-sign (real subtraction) -- structural split done, precision (rounding) explicitly deferred next. 1418 tests pass. See `points/points_active.md` #845)
+
+## Read this first (most recent)
+
+**#845 -- fp32 ADD's opposite-sign path built, per Alan's own instruction ("move to that side, we can work on precision after the split").** Real magnitude ordering (reusing `#840`'s own proven comparison logic), real leading-zero-detect renormalization via a left shift, exact cancellation (`a + -a`) returns `+0.0` directly. `nano/fp32_add_v1.py` restructured into `_add_same_sign`/`_add_opposite_sign`, `#844`'s own path unchanged.
+
+**A real limitation found and precisely MEASURED, not just asserted:** cancellation can lose far more than 1 ULP when the alignment shift already discarded real bits -- a real search found `0.5000320138008947 + (-0.49998339250387785)` producing an 8192-ULP gap against real float32 arithmetic. This is exactly the "precision" work Alan named as deferred to next -- guard/round/sticky bits would close it; not built here. Mutation-checked (inverted magnitude comparison, skipped renormalize), both caught. 1418 pass (was 1415), zero regression.
+
+**Earlier (`#844`):** same-sign addition built and verified; **(`#843`):** the section-reconfigure/drain-swap design note written up properly.
+
+**Real, honest scope:** the structural split (same-sign vs opposite-sign) is done and correct in SHAPE. Rounding is the explicit next layer. No denormal/underflow handling. No substrate mapping yet -- blocked on `#843`'s own open items.
+
+**Real queue:** (1) precision -- guard/round/sticky bits, closing the measured 8192-ULP gap; (2) mapping onto real substrate, blocked on `#843`; (3) fp32 MIN/MAX; (4) VM model of `v1d`'s addon mechanism (`#841`); (5) LLVM/compiler gap list (`#830`); (6) scope items 3, 4, 6; (7) VIX Carrier update backlog (`#824`); (8) documentation catch-up (`#829`, deferred); (9) paired-cell/command-bus idea (`#835`/`#836`); (10) N-way sort network (`#837`); (11) ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, the first real FP32 arithmetic tile built: ADD, same-sign case. Verified against real float32 addition, mutation-checked. 1415 tests pass. See `points/points_active.md` #844)
 
 ## Read this first (most recent)
 
