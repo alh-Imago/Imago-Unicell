@@ -1,4 +1,14 @@
-# Current State (as of 2026-09-26, real round-to-nearest-even built for fp32 ADD -- bit-exact against Python's own float32 arithmetic, verified over 1M random pairs. 1424 tests pass. See `points/points_active.md` #847)
+# Current State (as of 2026-09-26, a standing reminder logged, no new work: everything built tonight is VM-verified only -- through-compiler and real-silicon verification remain, deliberately not started. See `points/points_active.md` #848)
+
+## Read this first (most recent)
+
+**#848 -- a standing reminder, not a milestone.** Every function built tonight (UNPACK/PACK, compare, ADD, the G/R/S split) has been verified at exactly one of three real levels this project needs: VM/Python correctness. Two more remain, deliberately unstarted: THROUGH THE COMPILER (a real composed tile the LLVM frontend can dispatch `fadd` onto -- today's real opcode whitelist is `{add, sub, icmp, select, shl, lshr, ashr, and, or, xor}`, no float support yet), and REAL SILICON (the Tang Nano 20K or Arria 10, confirming real ALM cost and timing match what VM and compiler both predicted). Logged now so this three-stage discipline doesn't get quietly forgotten once `#843`'s open items resolve and substrate-mapping work resumes -- tonight's fast VM-only pace could otherwise make things feel more settled than they are.
+
+**Earlier tonight:** `#847` (real round-to-nearest-even, bit-exact over 1M pairs), `#846` (G/R/S split construction), `#845`/`#844` (ADD structure), `#843` (section-reconfigure design note).
+
+**Real queue, unchanged:** (1) connect `#846`'s sticky-reduction construction to `#847`'s rounding logic; (2) substrate mapping (composed tile + compiler dispatch), blocked on `#843`; (3) fp32 MIN/MAX; (4) VM model of `v1d` (`#841`); (5) LLVM/compiler gap list (`#830`); (6) scope items 3, 4, 6; (7) VIX Carrier update backlog (`#824`); (8) documentation catch-up (`#829`, deferred); (9) paired-cell/command-bus idea (`#835`/`#836`); (10) N-way sort network (`#837`); (11) ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, real round-to-nearest-even built for fp32 ADD -- bit-exact against Python's own float32 arithmetic, verified over 1M random pairs. 1424 tests pass. See `points/points_active.md` #847)
 
 ## Read this first (most recent)
 
