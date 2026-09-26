@@ -45,42 +45,9 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
-from fp32_boundary_v1 import unpack, pack  # noqa: E402
+from fp32_boundary_v1 import unpack, pack, restore_implicit_one, strip_implicit_one, round_to_nearest_even as _round_to_nearest_even  # noqa: E402
 
 _EXTRA = 32   # generous headroom; see module docstring
-
-
-def restore_implicit_one(exponent: int, mantissa: int) -> int:
-    """23-bit stored mantissa -> 24-bit significand, restoring the
-    real implicit leading 1 IEEE-754 never stores for a normal number.
-    Real, necessary special case, found by testing (0.0 + 0.0 gave the
-    wrong answer before this): exponent==0 and mantissa==0 is true
-    zero, which has NO implicit bit -- handled explicitly here since
-    zero is common, not an edge case worth punting on. Genuine
-    subnormals (exponent==0, mantissa!=0) remain an honest, unhandled
-    gap, same "no denormals" scope as the rest of this module."""
-    if exponent == 0 and mantissa == 0:
-        return 0
-    return (1 << 23) | (mantissa & 0x7FFFFF)
-
-
-def strip_implicit_one(significand: int) -> int:
-    """24-bit significand (bit 23 always set by construction on every
-    real path below) back to a 23-bit stored mantissa."""
-    return significand & 0x7FFFFF
-
-
-def _round_to_nearest_even(sig: int, guard: int, sticky: int) -> int:
-    """The real, standard decision table: guard alone determines which
-    half of the ULP the true value falls in; sticky (already combined
-    with the round bit -- the table never needs them separately)
-    determines whether it's an exact tie (round to even) or strictly
-    past the midpoint (round up)."""
-    if not guard:
-        return sig
-    if sticky:
-        return sig + 1
-    return sig + 1 if (sig & 1) else sig   # exact tie: bump only if currently odd
 
 
 def _align_wide(small_sig: int, exp_diff: int):

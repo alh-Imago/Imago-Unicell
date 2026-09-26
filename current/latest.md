@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, a standing reminder logged, no new work: everything built tonight is VM-verified only -- through-compiler and real-silicon verification remain, deliberately not started. See `points/points_active.md` #848)
+# Current State (as of 2026-09-26, fp32 multiply built -- rounding built in from the start this time, bit-exact over 1M random pairs on the first real attempt. 1432 tests pass. See `points/points_active.md` #849)
+
+## Read this first (most recent)
+
+**#849 -- fp32 multiply built, genuinely smoother than ADD.** Checked MIF's own old `MIF_MUL` prior art first (sign=XOR, exponent=add-then-rebias, mantissa=24x24 multiply -- confirms the standard algorithm). No alignment shift, no cancellation, no renormalize -- just one exponent-bias correction and one normalize check (does the 48-bit product's leading bit land at position 46 or 47). Rounding built in from the start this time, using `#847`'s own now-shared, tested machinery -- verified bit-exact against 1,000,000 real random pairs on the FIRST attempt, no iteration needed. Also: `restore_implicit_one`/`strip_implicit_one`/`round_to_nearest_even` moved from `fp32_add_v1.py` into the shared `fp32_boundary_v1.py`, purely additive, ADD's own tests re-confirmed clean after the move. A real, honest gap found while writing tests: `1e-20*1e-20` genuinely underflows below float32's smallest normal value -- correctly out of scope, moved to its own explicit named test rather than left as a confusing failure. Mutation-checked, 3 bugs, all caught. 8 new tests, 1432 pass (was 1424).
+
+**Real, honest scope:** no denormal/underflow/overflow handling; not yet mapped onto real substrate (the `mul_cell_v4[c]` core exists for the mantissa step, but the surrounding exponent/normalize topology is unbuilt, blocked on `#843`); not reachable through the compiler yet (`#848`'s reminder applies here too).
+
+**Earlier tonight:** `#848` (standing VM->compiler->silicon reminder), `#847` (real rounding for ADD), `#846` (G/R/S split construction), `#845`/`#844` (ADD structure), `#843` (section-reconfigure design note).
+
+**Real queue:** (1) fp32 MIN/MAX (near-free now); (2) connect `#846`'s G/R/S construction to real rounding for a genuine ADD substrate mapping; (3) substrate mapping for ADD and MUL both, blocked on `#843`; (4) VM model of `v1d` (`#841`); (5) LLVM/compiler gap list (`#830`); (6) scope items 3, 4, 6; (7) VIX Carrier update backlog (`#824`); (8) documentation catch-up (`#829`, deferred); (9) paired-cell/command-bus idea (`#835`/`#836`); (10) N-way sort network (`#837`); (11) ICM-aware collapsed-assembler idea (`#838`); (12) fp32 DIVIDE -- the real, harder next tile, needing iterative sequencing, genuinely different in kind from ADD/MUL.
+
+## Previous state (as of 2026-09-26, a standing reminder logged, no new work: everything built tonight is VM-verified only -- through-compiler and real-silicon verification remain, deliberately not started. See `points/points_active.md` #848)
 
 ## Read this first (most recent)
 

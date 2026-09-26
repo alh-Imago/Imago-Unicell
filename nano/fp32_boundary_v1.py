@@ -80,3 +80,42 @@ def pack(sign_exp: int, mantissa: int) -> int:
 def unpack(bits: int):
     """Convenience: both real fields at once, as (sign_exp, mantissa)."""
     return extract_sign_exp(bits), extract_mantissa(bits)
+
+
+# ── Shared by every arithmetic tile (ADD, #844/#845/#847; MUL, #849)
+# -- moved here from fp32_add_v1.py, which had them first, so a second
+# module doesn't duplicate the same three real, general-purpose
+# functions. Purely additive: fp32_add_v1.py's own behaviour is
+# unchanged, it now imports these instead of defining its own copy. ──
+
+def restore_implicit_one(exponent: int, mantissa: int) -> int:
+    """23-bit stored mantissa -> 24-bit significand, restoring the
+    real implicit leading 1 IEEE-754 never stores for a normal number.
+    Real, necessary special case (found by testing, #847): exponent==0
+    and mantissa==0 is true zero, which has NO implicit bit -- handled
+    explicitly since zero is common, not an edge case worth punting
+    on. Genuine subnormals (exponent==0, mantissa!=0) remain an
+    honest, unhandled gap, same "no denormals" scope throughout this
+    module family."""
+    if exponent == 0 and mantissa == 0:
+        return 0
+    return (1 << 23) | (mantissa & 0x7FFFFF)
+
+
+def strip_implicit_one(significand: int) -> int:
+    """24-bit significand (bit 23 always set by construction on every
+    real path in this module family) back to a 23-bit stored mantissa."""
+    return significand & 0x7FFFFF
+
+
+def round_to_nearest_even(sig: int, guard: int, sticky: int) -> int:
+    """The real, standard decision table: guard alone determines which
+    half of the ULP the true value falls in; sticky (already combined
+    with any round bit -- the table never needs them separately)
+    determines whether it's an exact tie (round to even) or strictly
+    past the midpoint (round up)."""
+    if not guard:
+        return sig
+    if sticky:
+        return sig + 1
+    return sig + 1 if (sig & 1) else sig   # exact tie: bump only if currently odd
