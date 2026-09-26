@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, fp32 multiply built -- rounding built in from the start this time, bit-exact over 1M random pairs on the first real attempt. 1432 tests pass. See `points/points_active.md` #849)
+# Current State (as of 2026-09-26, the folded-design exit counter and sticky hold both proven real on a placed SuperGrid -- both map onto existing accumulator capability, no new core. 1434 tests pass. See `points/points_active.md` #850)
+
+## Read this first (most recent)
+
+**#850 -- the two mechanisms `#843`'s "fold an algorithm through a small footprint" idea needs (and divide will eventually need), constructed for real.** Checked directly against `accumulator_cell_v4.v` first: `pulse_mode=1` stays completely silent while counting and fires EXACTLY ONCE on hitting `threshold`, resetting itself -- that single offer IS the real "fold is complete" exit signal, no new hardware. Sticky-hold is the SAME core used differently: an ordinary continuous accumulator, incremented whenever a pass's own discarded-bit-nonzero signal fires, checked only once at the end -- sticky only ever needs "was anything ever nonzero," which a plain running total already gives for free. Both proven on a real placed `SuperGrid`: the counter confirmed silent after 1-2 passes then firing on the 3rd; the sticky hold confirmed to survive later passes that contribute nothing (not just a per-pass flag). 2 new tests, 1434 pass (was 1432).
+
+**Real, honest scope:** both tests use directly-injected stand-in signals for "pass complete"/"sticky trigger" -- the real fold/reconfigure loop itself (`#843`'s own broadcast-reconfigure, drain/swap/reload design) remains unbuilt, still blocked on its own open items. This entry removes two real unknowns from that design, not the design itself.
+
+**Earlier tonight:** `#849` (fp32 multiply), `#848` (standing VM->compiler->silicon reminder), `#847` (real rounding for ADD), `#846` (G/R/S split construction), `#845`/`#844` (ADD structure), `#843` (section-reconfigure design note).
+
+**Real queue:** (1) resolve `#843`'s drain-completion-signal question, now with two supporting mechanisms proven; (2) fp32 DIVIDE, the real motivating case, once the loop is built; (3) fp32 MIN/MAX; (4) connect `#846`'s construction to `#847`'s rounding for a real ADD substrate mapping; (5) substrate mapping for ADD/MUL, blocked on `#843`; (6) VM model of `v1d` (`#841`); (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`, deferred); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, fp32 multiply built -- rounding built in from the start this time, bit-exact over 1M random pairs on the first real attempt. 1432 tests pass. See `points/points_active.md` #849)
 
 ## Read this first (most recent)
 
