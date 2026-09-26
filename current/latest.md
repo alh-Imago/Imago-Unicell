@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-25, two sessions of captured-not-built prospects plus one real measured demo -- no RTL/VM code changed except the postcode CAS work. 1399 tests pass. See `points/points_active.md` #829-#838)
+# Current State (as of 2026-09-26, the FP active near-term thrust genuinely started for real: UNPACK/PACK round-trip exactly against real IEEE-754 bit patterns. 1405 tests pass. See `points/points_active.md` #839)
+
+## Read this first (most recent)
+
+**#839 -- the real PACK direction built, closing `#697`'s own named gap.** `nano/fp32_boundary_v1.py` packages `#697`'s already-proven UNPACK extraction (transcribed unchanged) alongside a genuinely new PACK function -- shift sign+exponent back to the top of the word (the exact reverse of the extraction shift), OR-combine with the mantissa (relying on `#692`-`#696`'s already-proven non-overlapping-combine correctness, not re-deriving it). Full UNPACK->PACK round trip verified EXACTLY against real IEEE-754 bit patterns (the same seven values `#697` used, plus new edge cases PACK specifically needed: largest/smallest normal, a real subnormal, +/-inf, nan). Mutation-checked before trusting it: three deliberate bugs (wrong shift direction, AND instead of OR, off-by-one shift amount) all caught cleanly; a fourth (dropping the mantissa's own defensive mask) was NOT caught by the round-trip tests alone -- a real gap, closed with a new test passing a deliberately dirty mantissa argument.
+
+**Honest scope, unchanged from `#697`'s own framing:** this closes "does UNPACK/PACK round-trip exactly," matching MIF's own `MIF_UNPACK`/`MIF_PACK` pair. No arithmetic tile built yet -- fp32 ADD (exponent compare, mantissa align, add, normalise) is the natural next target, the genuinely new design work still ahead.
+
+**Earlier, from the two prior sessions (`#829`-`#838`), all still standing, none of it started on:** the photonic-interconnect thread closed with a real numeric finding (`#831`-`#834`); the paired-cell/command-bus prospect (`#835`/`#836`); the postcode CAS demo, ~6x fewer cells (`#837`); the ICM-aware collapsed-assembler prospect (`#838`).
+
+**Real queue:** (1) a first real arithmetic tile on the split representation -- fp32 ADD, the active next step; (2) the LLVM/compiler gap list (`#830`); (3) scope items 3, 4, 6; (4) the VIX Carrier update backlog (`#824`); (5) `card_fit_v1` target support in `llvm_cli_v1.py`; (6) store-and-shift integration; (7) documentation catch-up (`#829`, deferred); (8) the paired-cell/command-bus idea (`#835`/`#836`); (9) a genuine N-way sort network building on `#837`'s proven CAS; (10) the ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-25, two sessions of captured-not-built prospects plus one real measured demo -- no RTL/VM code changed except the postcode CAS work. 1399 tests pass. See `points/points_active.md` #829-#838)
 
 ## Read this first (most recent)
 
