@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-26, the folded-design exit counter and sticky hold both proven real on a placed SuperGrid -- both map onto existing accumulator capability, no new core. 1434 tests pass. See `points/points_active.md` #850)
+# Current State (as of 2026-09-26, fp32 divide built -- the "core four" arithmetic (ADD/MUL/DIV, plus compare) all now VM-verified and correctly rounded. 1442 tests pass. See `points/points_active.md` #851)
+
+## Read this first (most recent)
+
+**#851 -- fp32 divide built, checked against MIF's own old MIF_DIV first.** Confirmed it's literally the 486's own shift-and-subtract restoring division algorithm (discussed directly earlier this session) -- and the old tile is explicitly marked `ieee754_compliant = False`, which this entry's real rounding surpasses. Real, correct property checked directly (not assumed): both operands' significands are in `[2^23,2^24)`, so their ratio is always in `(0.5,2)` -- at most ONE bit of normalize shift is ever needed, never a generic renormalize. Verified against two concrete cases (`4.0/2.0` and, less obviously, `3.0/4.0` both land in the same branch) before trusting the general formula. Bit-exact against 1,000,000 real random pairs on the first attempt.
+
+**A real test-coverage gap found by mutation-checking, not shrugged off:** an "ignore the division remainder" mutation went uncaught by 500 random pairs -- rather than loosen the check, searched 2,000,000 candidates for a real pair that specifically isolates it (`1.0233038663864136 / 1.4737268686294556`), confirmed the real function handles it correctly, and added it as an explicit named test. Division by zero explicitly refused (a real exception), not silently wrong. 8 new tests, 1442 pass (was 1434).
+
+**Real milestone: ADD, MUL, DIV (plus compare) are ALL now VM-verified and correctly rounded** -- the "core four" arithmetic operations are done at this level. What remains is squarely the substrate-mapping layer, blocked on `#843`'s own open items.
+
+**Earlier tonight:** `#850` (fold exit-counter + sticky hold, proven real), `#849` (multiply), `#848` (standing VM->compiler->silicon reminder), `#847` (real rounding for ADD), `#846` (G/R/S split construction), `#845`/`#844` (ADD structure), `#843` (section-reconfigure design note).
+
+**Real queue:** (1) resolve `#843`'s drain-completion-signal question, now with DIV's own supporting mechanisms (`#850`) proven; (2) DIV's real 24-stage iterative substrate mapping, once that resolves; (3) fp32 MIN/MAX; (4) connect `#846`'s construction to real rounding for an ADD substrate mapping; (5) substrate mapping for ADD/MUL, also blocked on `#843`; (6) VM model of `v1d` (`#841`); (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`, deferred); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, the folded-design exit counter and sticky hold both proven real on a placed SuperGrid -- both map onto existing accumulator capability, no new core. 1434 tests pass. See `points/points_active.md` #850)
 
 ## Read this first (most recent)
 
