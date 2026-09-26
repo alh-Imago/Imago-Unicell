@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-26, a real scope decision filed: fp16/fp8/fp4/fp64 + i8/i16/i64 are the "completed set" to build later, together -- but scope stays capped at fp32 for now. No new width work started. See `points/points_active.md` #852)
+# Current State (as of 2026-09-26, real new RTL: mul_cell_v5/v5c give the mul core a real second output (the product's high half), unblocking fp32 MUL's substrate mapping. 32 RTL checks pass, zero regression on v4/v4c. See `points/points_active.md` #853)
+
+## Read this first (most recent)
+
+**#853 -- the mul core's real second output, built and proven.** `mul_cell_v4[c]` computes a full 64-bit product internally but only ever exposes the low 32 bits -- confirmed directly, blocking fp32 MUL's real substrate mapping (`#849`'s own honest gap: mantissa multiply needs bits up to 47). A first design (a parallel second routing group) was correctly discarded by Alan: this is the only cell producing two values per calc, and it must obey the same rules as every other cell, not get a special-cased path that splits routing capacity. The real, adopted design: a `wide_mode` bit makes the SAME shared `downstream_mask`/`pending_ack` mechanism deliver low, wait for a full ack, then reload and deliver high -- sequential, not parallel. `ready_out` and the early-capture overlap are both genuinely blocked for the whole two-phase window in wide_mode; unchanged when off.
+
+**Two real bugs found and fixed, both kept honest in the write-up:** (1) `mul_result_hi` is purely combinational and reads zero by the time phase 2 needs it -- fixed with a new `captured_hi` register, latched at the same moment the low half is. (2) A genuine testbench timing race (setting an ack signal in the same simulation timestep as the clock edge that's supposed to sample it) -- the harder bug, since a first debug attempt had the SAME race in its own instrumentation, masking the cause. Traced conclusively with a zero-delay RTL-internal `$display`, fixed with a real settle delay in the testbench.
+
+**Both variants built together** (`mul_cell_v5.v` standalone, `mul_cell_v5c.v` carrier-embedded), matching `#724`'s own precedent. 32 real RTL checks total (16 each), covering regression parity, real two-phase delivery with FP32-significand-shaped operands, and the exact blocking behavior Alan specified. `v4`/`v4c` re-confirmed unchanged and passing.
+
+**Real, honest scope:** neither variant is wired into an actual substrate mapping yet -- this closes the capability gap, not the mapping, still blocked on `#843`'s open items, same as ADD/DIV.
+
+**Earlier tonight:** `#852` (width-expansion scope decision), `#851` (fp32 divide), `#850` (fold exit-counter + sticky hold), `#849` (fp32 multiply), `#848` (standing VM->compiler->silicon reminder), `#847` (real rounding for ADD).
+
+**Real queue:** (1) build fp32 MUL's real substrate mapping using the new wide_mode, once `#843` resolves; (2) resolve `#843`'s drain-completion-signal question; (3) DIV's real iterative substrate mapping; (4) fp32 MIN/MAX; (5) connect `#846`'s construction to real rounding for an ADD substrate mapping; (6) ADD substrate mapping, also blocked on `#843`; (7) VM model of `v1d` (`#841`); (8) LLVM/compiler gap list (`#830`); (9) scope items 3, 4, 6; (10) VIX Carrier update backlog (`#824`); (11) documentation catch-up (`#829`, deferred); (12) paired-cell/command-bus idea (`#835`/`#836`); (13) N-way sort network (`#837`); (14) ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, a real scope decision filed: fp16/fp8/fp4/fp64 + i8/i16/i64 are the "completed set" to build later, together -- but scope stays capped at fp32 for now. No new width work started. See `points/points_active.md` #852)
 
 ## Read this first (most recent)
 
