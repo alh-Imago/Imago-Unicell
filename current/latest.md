@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, fp32 divide built -- the "core four" arithmetic (ADD/MUL/DIV, plus compare) all now VM-verified and correctly rounded. 1442 tests pass. See `points/points_active.md` #851)
+# Current State (as of 2026-09-26, a real scope decision filed: fp16/fp8/fp4/fp64 + i8/i16/i64 are the "completed set" to build later, together -- but scope stays capped at fp32 for now. No new width work started. See `points/points_active.md` #852)
+
+## Read this first (most recent)
+
+**#852 -- real scope decision, per Alan's own instruction, no new code.** The width-expansion question (fp16/fp8/fp4/fp64, and how far tonight's techniques generalize) is answered and filed as FUTURE scope: `i8`/`i16`/`i64` (already folded into this thread by `#804`'s own earlier decision) will be completed ALONGSIDE fp4/8/16/64 as one completed set -- not separately, and not yet. Real per-width groundwork captured for when that starts: fp16 is the cheap win (same layout, smaller fields, every fp32 technique carries over, two lanes fit one 32-bit word); fp64 is genuinely harder (needs real multi-word carry-chained arithmetic, doesn't fit one word); fp8 connects to the project's own AI-training-bucket roadmap item; fp4 may suit table-based ops better than built arithmetic. Also noted: the split-representation technique itself is expected to be reused for other Trix-family designs later, beyond floating point.
+
+**Real, unchanged next work:** the substrate-mapping queue from `#843`/`#846`/`#851` remains what's actually next -- this entry is scope-filing, not a new task.
+
+**Earlier tonight:** `#851` (fp32 divide -- ADD/MUL/DIV/compare all VM-verified, correctly rounded), `#850` (fold exit-counter + sticky hold), `#849` (multiply), `#848` (standing VM->compiler->silicon reminder), `#847` (real rounding for ADD), `#846` (G/R/S split construction), `#845`/`#844` (ADD structure), `#843` (section-reconfigure design note).
+
+**Real queue:** (1) resolve `#843`'s drain-completion-signal question; (2) DIV's real iterative substrate mapping; (3) fp32 MIN/MAX; (4) connect `#846`'s construction to real rounding for an ADD substrate mapping; (5) substrate mapping for ADD/MUL, blocked on `#843`; (6) VM model of `v1d` (`#841`); (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`, deferred); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`); (14) fp16/fp8/fp4/fp64 + i8/i16/i64 expansion -- decided future scope, not started.
+
+## Previous state (as of 2026-09-26, fp32 divide built -- the "core four" arithmetic (ADD/MUL/DIV, plus compare) all now VM-verified and correctly rounded. 1442 tests pass. See `points/points_active.md` #851)
 
 ## Read this first (most recent)
 
