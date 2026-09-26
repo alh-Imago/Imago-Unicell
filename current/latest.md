@@ -1,4 +1,12 @@
-# Current State (as of 2026-09-26, real new RTL: the carrier itself can now live-reprogram its own shared addon block (shift_amt+shift_fine), closing the gap #840 found. Sim-proven, 6/6 checks, zero regression. No VM model yet. See `points/points_active.md` #841)
+# Current State (as of 2026-09-26, a new standing quick-reference doc built -- CELL_CHEATSHEET.md, all 11 cores + the carrier, name/arrivals/function/notes. Documentation only. See `points/points_active.md` #842)
+
+## Read this first (most recent)
+
+**#842 -- `docs/stripped-cell/CELL_CHEATSHEET.md` built, per Alan's direct request.** A fast lookup table (name, arrivals-to-fire, function, short notes) for all 11 real cores and the carrier, so a design question doesn't need RTL re-opened each time. Complements `CORES_AND_WRAPPERS_REFERENCE.md` (build/proof status) and `CELL_GOTCHAS.md` (behavioral traps) rather than duplicating either. Documentation only. **Must be kept current if any core's real function/field map/arrival behaviour changes** -- flagged explicitly in the doc's own header.
+
+**Earlier (`#841`):** the carrier's own live addon reprogramming (`v1d`), real RTL, sim-proven, 6/6 checks, zero regression.
+
+## Previous state (as of 2026-09-26, real new RTL: the carrier itself can now live-reprogram its own shared addon block (shift_amt+shift_fine), closing the gap #840 found. Sim-proven, 6/6 checks, zero regression. No VM model yet. See `points/points_active.md` #841)
 
 ## Read this first (most recent)
 
