@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, a new standing quick-reference doc built -- CELL_CHEATSHEET.md, all 11 cores + the carrier, name/arrivals/function/notes. Documentation only. See `points/points_active.md` #842)
+# Current State (as of 2026-09-26, a new, speculative but coherent design thread captured whole -- section-wide reconfigure, drain/swap/reload, iterative folding. No RTL, no VM code, not even a design-note file yet. See `points/points_active.md` #843)
+
+## Read this first (most recent)
+
+**#843 -- a real, multi-part prospective design, captured before it could thin out, growing directly from ADD's own static-vs-reconfigure question.** In order: (1) static structure wins for anything meant to stream, since a `v1d`-style live reconfigure pauses the WHOLE pipeline, not just one cell -- settled as a real architectural decision, independent of unmeasured depth/cell numbers; (2) live addon reconfiguration is a genuinely deeper power than ordinary per-field config -- it can change what a chain fundamentally DOES in place; (3) a line of command cells, all watching the SAME broadcast trigger (naturally pointing at `#835`/`#836`'s own command-bus idea), can reconfigure an entire section for the price of ONE pipeline-wide pause, not one per cell; (4) the real hazard that raised -- in-flight data crossing the reconfigure boundary -- resolved by a two-branch drain/checkpoint/swap pattern: one branch live while the other reconfigures, handoff via a RAM checkpoint; (5) the elegant closing piece: the same drain-complete signal that hands off the checkpoint ALSO triggers the next reconfigure, so the latency hides behind the handoff instead of costing anything; (6) a genuinely different use mode this opens -- folding a whole multi-stage algorithm through a small, fixed footprint one stage at a time, real compact area-for-time trading.
+
+**A real citation correction made and recorded honestly, not quietly fixed:** Claude asserted mid-discussion that the drain/checkpoint pattern was already proven in a "hybrid-DSP" ledger entry -- checked directly, no such entry exists. The general freeze/quiesce mechanism IS real and proven; the specific empty/full drain-detection signal this design leans on is `#257`'s own real, referenced idea, but explicitly still UNBUILT, not existing infrastructure.
+
+**Real, honest status: nothing built, not even a design-note file yet** -- captured in the ledger so the reasoning survives to next session regardless.
+
+**Real queue:** (1) write this up as a proper design-note file, given its size; (2) resolve the still-open drain-completion-signal question; (3) confirm trigger mode genuinely produces same-cycle activation across multiple command cells; (4) measure real static-vs-reconfigure numbers for both ADD's alignment and normalize stages, applying one consistent strategy to both; (5) fp32 ADD itself; (6) VM-level model of `v1d`'s addon-addressing mechanism (`#841`); (7) the LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) the VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`, deferred); (11) the paired-cell/command-bus idea proper (`#835`/`#836`), now with a real motivated use case; (12) a genuine N-way sort network (`#837`); (13) the ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, a new standing quick-reference doc built -- CELL_CHEATSHEET.md, all 11 cores + the carrier, name/arrivals/function/notes. Documentation only. See `points/points_active.md` #842)
 
 ## Read this first (most recent)
 
