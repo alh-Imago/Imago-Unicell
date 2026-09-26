@@ -1,28 +1,14 @@
 """
-test_fp32_add_v1.py -- points.md #844/#845: verifies nano/
-fp32_add_v1.py's same-sign addition AND opposite-sign (effective
-subtraction) paths against real Python float32 arithmetic.
-
-Real, honest test structure, kept in three explicitly separate
-classes rather than one blurred claim:
-  - EXACT (same-exponent pairs, either sign combination): no alignment
-    shift ever happens, nothing is ever discarded -- must bit-match
-    real float32 arithmetic exactly.
-  - ULP-BOUNDED (same-sign, differing exponent): truncation during
-    alignment can only lose magnitude, provably within 1 ULP, never
-    high.
-  - CANCELLATION (opposite-sign, differing exponent, genuine
-    subtraction): explicitly NOT held to the 1-ULP bound -- #845's own
-    named limitation is that a renormalizing left-shift after
-    cancellation can EXPOSE more than 1 ULP of error from bits already
-    discarded during alignment. Tested for real, bounded looseness
-    (magnitude/sign sanity) rather than pretending precision here that
-    the design doesn't have yet ("precision after the split").
+test_fp32_add_v1.py -- points.md #847: verifies nano/fp32_add_v1.py's
+real round-to-nearest-even addition against Python's own correctly-
+rounded float32 arithmetic. The bar changed from #844/#845's "within 1
+ULP" to real, bit-exact match everywhere -- that's the whole point of
+building real guard/sticky rounding.
 """
 import sys
 import os
 import struct
-import itertools
+import random
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
 
@@ -37,123 +23,100 @@ def _float32(f: float) -> float:
     return struct.unpack("<f", struct.pack("<f", f))[0]
 
 
-_EXACT_SAME_EXPONENT_PAIRS = (
-    (1.0, 1.0), (2.0, 2.0), (1.5, 1.5), (3.0, 3.0),
-    (0.5, 0.5), (100.0, 100.0), (7.5, 7.5), (1024.0, 1024.0),
-    (1.25, 1.75),
-)
-
-_ULP_BOUNDED_SAME_SIGN_PAIRS = (
-    (1.0, 0.001), (100000.0, 1.0), (16777216.0, 1.0), (3.0, 4.0),
-    (1.0, 0.1), (1000000.0, 0.5), (2.5, 0.0001), (500.0, 3.25),
-)
-
-# Opposite-sign, SAME exponent -- no alignment shift, so these ARE
-# still exact, same reasoning as the same-sign exact class.
-_EXACT_OPPOSITE_SIGN_SAME_EXPONENT_PAIRS = (
-    (1.5, -1.0), (3.0, -2.0), (7.5, -6.5), (100.0, -75.0), (1.0, -1.0),
-)
-
-# Opposite-sign, DIFFERING exponent -- genuine cancellation territory,
-# explicitly NOT expected to hold a tight ULP bound.
-_CANCELLATION_PAIRS = (
-    (1.0, -0.001), (100.5, -100.0), (1.0000001, -1.0), (5.0, -4.9999995),
-    (1000000.0, -999999.9),
-)
+def _check(a: float, b: float):
+    af, bf = _float32(a), _float32(b)
+    expected = _bits(af + bf)
+    result = fp32_add(_bits(af), _bits(bf))
+    assert result == expected, f"{af!r}+{bf!r}: got {result:08x}, expected {expected:08x}"
 
 
-def test_exact_same_exponent_addition_matches_real_float32_bit_for_bit():
-    for a, b in _EXACT_SAME_EXPONENT_PAIRS:
-        expected = _bits(_float32(a) + _float32(b))
-        result = fp32_add(_bits(a), _bits(b))
-        assert result == expected, f"{a!r}+{b!r}: got {result:08x}, expected {expected:08x}"
+def test_same_exponent_pairs_exact():
+    for a, b in ((1.0, 1.0), (2.0, 2.0), (1.5, 1.5), (3.0, 3.0), (0.5, 0.5),
+                 (100.0, 100.0), (7.5, 7.5), (1024.0, 1024.0), (1.25, 1.75)):
+        _check(a, b)
 
 
-def test_differing_exponent_same_sign_is_within_one_ulp_and_never_high():
-    for a, b in _ULP_BOUNDED_SAME_SIGN_PAIRS:
-        expected = _bits(_float32(a) + _float32(b))
-        result = fp32_add(_bits(a), _bits(b))
-        diff = expected - result
-        assert 0 <= diff <= 1, f"{a!r}+{b!r}: got {result:08x}, real {expected:08x}, diff {diff}"
+def test_differing_exponent_same_sign_exact():
+    for a, b in ((1.0, 0.001), (100000.0, 1.0), (16777216.0, 1.0), (3.0, 4.0),
+                 (1.0, 0.1), (1000000.0, 0.5), (2.5, 0.0001), (500.0, 3.25)):
+        _check(a, b)
 
 
-def test_negative_same_sign_pairs_also_work():
+def test_negative_same_sign_pairs_exact():
     for a, b in ((-1.0, -1.0), (-2.5, -2.5), (-100.0, -1.0)):
-        expected = _bits(_float32(a) + _float32(b))
-        result = fp32_add(_bits(a), _bits(b))
-        assert abs(expected - result) <= 1, f"{a!r}+{b!r}: got {result:08x}, real {expected:08x}"
-        assert (result >> 31) == 1, f"{a!r}+{b!r}: result should be negative"
+        _check(a, b)
 
 
-def test_overflow_normalize_path_is_real_and_correct():
-    result = fp32_add(_bits(1.5), _bits(1.5))
-    assert result == _bits(3.0)
-    result2 = fp32_add(_bits(8388608.0), _bits(8388608.0))
-    assert result2 == _bits(16777216.0)
+def test_overflow_normalize_path_exact():
+    _check(1.5, 1.5)
+    _check(8388608.0, 8388608.0)
+
+
+def test_opposite_sign_same_exponent_exact():
+    for a, b in ((1.5, -1.0), (3.0, -2.0), (7.5, -6.5), (100.0, -75.0), (1.0, -1.0)):
+        _check(a, b)
+
+
+def test_exact_cancellation_gives_positive_zero():
+    for v in (1.0, 100.0, 0.001, 3.14159):
+        result = fp32_add(_bits(v), _bits(-v))
+        assert result == _bits(0.0)
+
+
+def test_zero_and_signed_zero_cases_exact():
+    """A real bug found and fixed while building this entry: 0.0+0.0
+    gave the wrong answer (restore_implicit_one wrongly added the
+    implicit 1 to true zero) before this fix -- checked directly here
+    as a real regression guard, not just an abstract edge case."""
+    for a, b in ((0.0, 0.0), (-0.0, -0.0), (0.0, -0.0), (0.0, 5.0),
+                 (5.0, 0.0), (0.0, -5.0), (-0.0, 5.0)):
+        _check(a, b)
+
+
+def test_845s_own_measured_cancellation_gap_is_now_exact():
+    """The exact pair #845 found with an 8192-ULP error under plain
+    truncation -- the real reason this entry (#847) exists. Checked
+    directly rather than just trusting the broad sweep below to cover
+    this one specific, previously-known-bad case."""
+    _check(0.5000320138008947, -0.49998339250387785)
+
+
+def test_a_second_real_bug_found_during_development_is_now_exact():
+    """A second real pair found by broad random sweeping while
+    developing this entry (a first, incomplete fix handled guard's
+    contribution to borrowing but not sticky's) -- kept as an explicit
+    regression guard, not just folded silently into the sweep below."""
+    _check(0.013522987986828884, -11880.078496739)
+
+
+def test_broad_random_sweep_bit_exact():
+    """The real claim this entry makes: EXACT bit-match against
+    Python's own correctly-rounded float32 addition, not just bounded
+    to 1 ULP -- checked over many random pairs, both signs, wide
+    magnitude range, not just the hand-picked cases above."""
+    random.seed(1)
+    checked = 0
+    for _ in range(20000):
+        a = random.uniform(1, 1000) * (10 ** random.randint(-10, 10))
+        sign_b = random.choice([1, -1])
+        b = sign_b * random.uniform(1, 1000) * (10 ** random.randint(-10, 10))
+        af, bf = _float32(a), _float32(b)
+        try:
+            expected = _bits(af + bf)
+        except OverflowError:
+            continue   # genuine float32 overflow -- honestly out of scope, not this module's claim
+        result = fp32_add(_bits(af), _bits(bf))
+        assert result == expected, f"{af!r}+{bf!r}: got {result:08x}, expected {expected:08x}"
+        checked += 1
+    assert checked > 15000, "sanity: most random pairs should have been real, checkable cases"
 
 
 def test_restore_and_strip_implicit_one_round_trip():
     for mantissa in (0x000000, 0x400000, 0x7FFFFF, 0x123456):
         sig = restore_implicit_one(exponent=127, mantissa=mantissa)
-        assert sig & (1 << 23), "restored significand must have the implicit bit set"
+        assert sig & (1 << 23)
         assert strip_implicit_one(sig) == mantissa
 
 
-def test_opposite_sign_same_exponent_is_exact():
-    """No alignment shift happens when exponents already match, so
-    real subtraction here should be exact, same as the same-sign
-    exact class -- opposite sign alone doesn't cost precision; the
-    ALIGNMENT SHIFT does, and there isn't one in this case."""
-    for a, b in _EXACT_OPPOSITE_SIGN_SAME_EXPONENT_PAIRS:
-        expected = _bits(_float32(a) + _float32(b))
-        result = fp32_add(_bits(a), _bits(b))
-        assert result == expected, f"{a!r}+{b!r}: got {result:08x}, expected {expected:08x}"
-
-
-def test_exact_cancellation_gives_positive_zero():
-    """a + (-a) -- the real, deliberate +0.0 convention this entry
-    chose, checked directly rather than left implicit."""
-    for v in (1.0, 100.0, 0.001, 3.14159):
-        result = fp32_add(_bits(v), _bits(-v))
-        assert result == _bits(0.0), f"{v!r}+(-{v!r}): got {result:08x}, expected +0.0 ({_bits(0.0):08x})"
-
-
-def test_cancellation_gets_the_right_sign_and_right_order_of_magnitude():
-    """The real, honest test for the cancellation class: #845 does NOT
-    claim tight ULP precision here (see module docstring) -- what it
-    DOES claim is structural correctness: right sign, and the result's
-    exponent lands in the right neighbourhood (renormalization moved
-    the leading bit back to position 23, not somewhere wrong)."""
-    for a, b in _CANCELLATION_PAIRS:
-        expected_val = _float32(a) + _float32(b)
-        result_bits = fp32_add(_bits(a), _bits(b))
-        result_se, result_m = result_bits >> 23, result_bits & 0x7FFFFF
-        result_sign = (result_bits >> 31) & 1
-        expected_sign = 1 if expected_val < 0 else 0
-        assert result_sign == expected_sign, f"{a!r}+{b!r}: wrong sign"
-        # Real, structural check: the restored significand must have
-        # bit 23 set (renormalization actually happened, not skipped).
-        restored_sig = restore_implicit_one((result_se & 0xFF), result_m)
-        assert restored_sig & (1 << 23), f"{a!r}+{b!r}: renormalize left the result denormalized"
-
-
-def test_cancellation_honest_limitation_demonstrated_directly():
-    """Names #845's own real limitation with an actual, measured
-    failing-bound case, rather than only asserting it in a comment.
-    Found by direct search (not guessed): near-equal-magnitude
-    opposite-sign subtraction with a real exponent difference can
-    exceed 1 ULP by a WIDE margin -- this specific pair measures 8192
-    ULP of error -- because the alignment shift discards real bits
-    before cancellation amplifies whatever's left. Documented by
-    measuring the real gap, not by hiding it or guessing at its size."""
-    a, b = 0.5000320138008947, -0.49998339250387785
-    expected = _bits(_float32(a) + _float32(b))
-    result = fp32_add(_bits(a), _bits(b))
-    diff = abs(expected - result)
-    assert diff > 1, (
-        "this pair is specifically chosen to demonstrate the real "
-        "cancellation gap -- if this ever starts passing a tight ULP "
-        "bound, the limitation this test documents may have changed "
-        "and the module docstring should be revisited"
-    )
-    assert diff == 8192, f"expected the specific measured gap of 8192 ULP, got {diff}"
+def test_restore_implicit_one_handles_true_zero():
+    assert restore_implicit_one(exponent=0, mantissa=0) == 0

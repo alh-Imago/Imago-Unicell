@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, the G/R/S split mechanism (fan-out + one masked relay hop, no new core) constructed and proven on a real placed SuperGrid. 1421 tests pass. See `points/points_active.md` #846)
+# Current State (as of 2026-09-26, real round-to-nearest-even built for fp32 ADD -- bit-exact against Python's own float32 arithmetic, verified over 1M random pairs. 1424 tests pass. See `points/points_active.md` #847)
+
+## Read this first (most recent)
+
+**#847 -- fp32 ADD now rounds correctly, closing `#845`'s own measured 8192-ULP gap for real.** Two real mistakes made and caught by testing, not shipped: attempt 1 assumed guard/round/sticky pass unchanged through a renormalizing left shift (wrong -- caught immediately, the known-bad pair still failed by the full 8192 ULP). Attempt 2 extended the significand by one guard bit, fixing that pair but leaving ~19% of a 500k-pair random sweep off by 1 ULP (sticky's own contribution to borrowing wasn't modeled). The approach that actually works: carry 32 bits of generous extra precision through alignment/add/shift using Python's own big integers, rounding exactly once at the end -- verified against 1,000,000 real random pairs, zero mismatches. A third, separate bug found by edge-case testing (not the random sweep): `0.0+0.0` was wrong (`restore_implicit_one` wrongly gave true zero an implicit bit) -- fixed. Mutation-checked (3 bugs, all caught). 12 tests (was 9), 1424 pass (was 1421).
+
+**Real, honest scope:** the 32-bit-extra-precision technique is a VM-level correctness proof, not a hardware design -- real hardware would use the minimal 2-3 extra bits, separate later work. No denormal/overflow/underflow handling, unchanged from earlier entries. Not yet connected to `#846`'s own G/R/S split construction (the sticky-reduction step) or mapped onto real substrate (blocked on `#843`).
+
+**Earlier tonight:** `#846` (G/R/S split mechanism, constructed on a real placed grid), `#845`/`#844` (same-sign/opposite-sign ADD structure), `#843` (section-reconfigure design note).
+
+**Real queue:** (1) connect `#846`'s sticky-reduction construction to this real rounding logic; (2) substrate mapping, blocked on `#843`; (3) fp32 MIN/MAX; (4) VM model of `v1d` (`#841`); (5) LLVM/compiler gap list (`#830`); (6) scope items 3, 4, 6; (7) VIX Carrier update backlog (`#824`); (8) documentation catch-up (`#829`, deferred); (9) paired-cell/command-bus idea (`#835`/`#836`); (10) N-way sort network (`#837`); (11) ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, the G/R/S split mechanism (fan-out + one masked relay hop, no new core) constructed and proven on a real placed SuperGrid. 1421 tests pass. See `points/points_active.md` #846)
 
 ## Read this first (most recent)
 

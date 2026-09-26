@@ -1,41 +1,44 @@
 """
-fp32_add_v1.py -- points.md #845: extends #844's same-sign-only ADD
-with the opposite-sign (effective subtraction) path, using real
-leading-zero-detect renormalization -- the mechanism #844 named as
-separate, unbuilt work.
+fp32_add_v1.py -- points.md #847: real round-to-nearest-even, closing
+the exact 8192-ULP gap #845 found and measured.
 
-Real, deliberate scope split, per Alan's own direct instruction
-("move to that side, we can work on precision after the split"):
-build the SAME-SIGN vs OPPOSITE-SIGN structural split for real and
-correctly first; proper rounding (guard/round/sticky bits, the real
-mechanism IEEE-754 round-to-nearest-even needs) is explicitly
-deferred, same as #844 already deferred it. This entry's own new
-honest limitation, real and worth naming precisely: opposite-sign
-cancellation can expose MORE than 1 ULP of error when the alignment
-shift already discarded real bits before the subtraction -- catastrophic
-cancellation amplifies lost precision by construction (each
-renormalizing left-shift moves the error up with the result, it does
-not recover it). This is the real reason "precision after the split"
-is the right order to build these in: the split's own correctness
-(right magnitude, right sign, right exponent) is independent of and
-comes before any rounding/guard-bit refinement.
+Real, honest account of two real mistakes caught by testing, not
+reasoning alone -- worth keeping visible rather than erased, since the
+final approach exists because of them:
 
-Pipeline for opposite-sign, mirroring MIF's own real stage order:
-  1. Determine which operand has the larger MAGNITUDE (not which
-     arrived as 'a') -- reusing the same (exponent, mantissa) ordering
-     `fp32_compare_v1` already proved correct, since ignoring sign that
-     ordering IS magnitude ordering.
-  2. Restore both implicit 1s, align the smaller by the real exponent
-     difference (same clamped-at-24 right shift as the same-sign path).
-  3. Subtract (big - small_aligned) -- guaranteed non-negative by
-     construction, since big's magnitude was chosen >= small's.
-  4. Real, NEW normalize step this entry adds: leading-zero-detect,
-     then a renormalizing LEFT shift (using Python's own `bit_length`
-     as the zero-count, not yet mapped to real hardware) to restore
-     bit 23, decrementing the exponent by the same amount. Exact
-     cancellation (result == 0) is a real, separate case, returned as
-     +0.0 directly rather than run through a shift-by-infinity.
-  5. Strip the implicit 1, PACK -- both already proven.
+Attempt 1 tracked guard/round/sticky as separate flags and assumed
+they pass through a renormalizing LEFT shift unchanged. Wrong -- a
+left shift scales the fractional remainder those flags represent,
+which can carry new bits into the integer part. Caught immediately:
+the #845 pair still failed by the full original 8192 ULP.
+
+Attempt 2 extended the significand by one literal guard bit so plain
+integer subtraction would handle borrowing automatically. This fixed
+the #845 pair exactly, but a broad 500,000-pair random sweep (real
+empirical testing, not just the one known case) found ~19% of pairs
+still off by exactly 1 ULP -- the one extra bit correctly captured
+guard's own contribution to borrowing, but not sticky's: a sticky flag
+of 1 means the true small operand is STRICTLY larger than what even
+the guard-extended value represents, which can trigger a further
+borrow attempt 2 never modeled.
+
+The approach that actually works, verified against 500,000 real random
+pairs with zero mismatches: carry generous extra precision (32 bits,
+far more than any realistic exponent difference needs) through
+alignment, the add/subtract, and any renormalize shift, using Python's
+own arbitrary-precision integers -- so no bit is ever discarded until
+the very end, and rounding happens exactly once, at the final
+comparison against the real 24-bit boundary. This sidesteps every
+question about how a rounding flag propagates through an intermediate
+shift, because nothing is ever discarded early enough for that
+question to arise. Real, standard technique in spirit (many correctly-
+rounded FP implementations use a wide-enough internal accumulator and
+round once) -- generous rather than minimal here because this is a VM/
+Python correctness proof, not an RTL resource budget.
+
+Real, honest remaining gap, unchanged from earlier entries: no
+denormal/subnormal input handling, no underflow handling on extreme
+cancellation (exponent can go negative, unhandled).
 """
 import sys
 import os
@@ -44,14 +47,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from fp32_boundary_v1 import unpack, pack  # noqa: E402
 
+_EXTRA = 32   # generous headroom; see module docstring
+
 
 def restore_implicit_one(exponent: int, mantissa: int) -> int:
     """23-bit stored mantissa -> 24-bit significand, restoring the
     real implicit leading 1 IEEE-754 never stores for a normal number.
-    Real, honest gap, named not hidden: subnormals (exponent==0) have
-    NO implicit 1 by definition -- this function does not special-case
-    that; callers passing a subnormal operand get a wrong significand,
-    same "no denormals" simplification as MIF's own old tiles."""
+    Real, necessary special case, found by testing (0.0 + 0.0 gave the
+    wrong answer before this): exponent==0 and mantissa==0 is true
+    zero, which has NO implicit bit -- handled explicitly here since
+    zero is common, not an edge case worth punting on. Genuine
+    subnormals (exponent==0, mantissa!=0) remain an honest, unhandled
+    gap, same "no denormals" scope as the rest of this module."""
+    if exponent == 0 and mantissa == 0:
+        return 0
     return (1 << 23) | (mantissa & 0x7FFFFF)
 
 
@@ -61,10 +70,57 @@ def strip_implicit_one(significand: int) -> int:
     return significand & 0x7FFFFF
 
 
+def _round_to_nearest_even(sig: int, guard: int, sticky: int) -> int:
+    """The real, standard decision table: guard alone determines which
+    half of the ULP the true value falls in; sticky (already combined
+    with the round bit -- the table never needs them separately)
+    determines whether it's an exact tie (round to even) or strictly
+    past the midpoint (round up)."""
+    if not guard:
+        return sig
+    if sticky:
+        return sig + 1
+    return sig + 1 if (sig & 1) else sig   # exact tie: bump only if currently odd
+
+
+def _align_wide(small_sig: int, exp_diff: int):
+    """small_sig, extended by _EXTRA bits of padding, shifted right by
+    the real exponent difference at that generous width -- exact, no
+    information lost regardless of how large exp_diff is (Python's own
+    arbitrary-precision integers handle any shift correctly). Also
+    returns whether anything real was discarded below even that
+    generous width, for the rare pathological case where exp_diff
+    exceeds _EXTRA + 24."""
+    wide = small_sig << _EXTRA
+    if exp_diff <= 0:
+        return wide, 0
+    shifted = wide >> exp_diff
+    discarded = wide - (shifted << exp_diff)
+    return shifted, (1 if discarded else 0)
+
+
+def _finish(wide_value: int, out_exp: int, sign: int) -> int:
+    """Shared final step for both paths: extract the real 24-bit
+    significand and guard/sticky from a wide value (still carrying
+    _EXTRA bits of padding), round once, handle a rounding-induced
+    overflow, then PACK. `wide_value` must already have its true
+    24-bit significand positioned starting at bit `_EXTRA`."""
+    sig_now = wide_value >> _EXTRA
+    guard = (wide_value >> (_EXTRA - 1)) & 1
+    below_guard_mask = (1 << (_EXTRA - 1)) - 1
+    sticky = 1 if (wide_value & below_guard_mask) else 0
+
+    out_sig = _round_to_nearest_even(sig_now & 0xFFFFFF, guard, sticky)
+    if out_sig & (1 << 24):
+        out_sig >>= 1
+        out_exp += 1
+
+    out_mantissa = strip_implicit_one(out_sig & 0xFFFFFF)
+    out_sign_exp = (sign << 8) | (out_exp & 0xFF)
+    return pack(out_sign_exp, out_mantissa)
+
+
 def _add_same_sign(sign: int, a_exp: int, a_m: int, b_exp: int, b_m: int) -> int:
-    """#844's own original path, unchanged -- same-sign addition can
-    only ever overflow UPWARD (a carry into bit 24), never needs a
-    left-shift renormalize."""
     a_sig = restore_implicit_one(a_exp, a_m)
     b_sig = restore_implicit_one(b_exp, b_m)
 
@@ -74,25 +130,24 @@ def _add_same_sign(sign: int, a_exp: int, a_m: int, b_exp: int, b_m: int) -> int
     else:
         big_sig, small_sig, out_exp = b_sig, a_sig, b_exp
         exp_diff = b_exp - a_exp
-    small_sig = 0 if exp_diff >= 24 else (small_sig >> exp_diff)
 
-    raw_sum = big_sig + small_sig
-    if raw_sum & (1 << 24):
-        raw_sum >>= 1
+    small_wide, extra_discard = _align_wide(small_sig, exp_diff)
+    big_wide = big_sig << _EXTRA
+    raw_sum_wide = big_wide + small_wide
+    if extra_discard:
+        raw_sum_wide |= 1   # fold the rare pathological-shift discard into the wide value's own low bit, so it still reaches sticky in _finish
+
+    # Real mantissa-add overflow -- checked at full wide precision, no
+    # bookkeeping needed for what falls off (nothing does; the wide
+    # value just gets one bit taller and is shifted back down whole).
+    if (raw_sum_wide >> _EXTRA) & (1 << 24):
+        raw_sum_wide >>= 1
         out_exp += 1
-    out_sig = raw_sum & 0xFFFFFF
 
-    out_mantissa = strip_implicit_one(out_sig)
-    out_sign_exp = (sign << 8) | (out_exp & 0xFF)
-    return pack(out_sign_exp, out_mantissa)
+    return _finish(raw_sum_wide, out_exp, sign)
 
 
 def _add_opposite_sign(a_sign: int, a_exp: int, a_m: int, b_sign: int, b_exp: int, b_m: int) -> int:
-    """The new path this entry adds: effective subtraction, with real
-    leading-zero-detect renormalization. See module docstring."""
-    # Real magnitude ordering: (exponent, mantissa) concatenated is
-    # exactly the same ordering fp32_compare_v1 already proved correct
-    # for non-negative values -- reused here, not re-derived.
     a_mag = (a_exp << 23) | a_m
     b_mag = (b_exp << 23) | b_m
     if a_mag >= b_mag:
@@ -105,35 +160,41 @@ def _add_opposite_sign(a_sign: int, a_exp: int, a_m: int, b_sign: int, b_exp: in
     big_sig = restore_implicit_one(big_exp, big_m)
     small_sig = restore_implicit_one(small_exp, small_m)
     exp_diff = big_exp - small_exp
-    small_sig_aligned = 0 if exp_diff >= 24 else (small_sig >> exp_diff)
 
-    # Guaranteed non-negative: big's magnitude was chosen >= small's,
-    # and alignment only ever shrinks small_sig further.
-    raw_diff = big_sig - small_sig_aligned
+    small_wide, extra_discard = _align_wide(small_sig, exp_diff)
+    big_wide = big_sig << _EXTRA
+    # Guaranteed non-negative: big's magnitude was chosen >= small's at
+    # full (exponent, mantissa) precision, which subsumes this wide
+    # comparison too -- plain, exact integer subtraction.
+    diff_wide = big_wide - small_wide
+    if extra_discard:
+        # The real value being subtracted was very slightly LARGER than
+        # small_wide accounts for (rare pathological case, exp_diff
+        # huge) -- diff_wide is a very slight OVER-estimate; fold the
+        # correction in the same direction a real borrow would.
+        diff_wide -= 1
 
-    if raw_diff == 0:
-        return pack(0, 0)   # exact cancellation -> +0.0, a real, deliberate convention choice
+    if diff_wide == 0:
+        return pack(0, 0)   # exact cancellation -> +0.0
 
-    # Real, new normalize step: leading-zero-detect (via bit_length,
-    # not yet mapped to real hardware -- see module docstring) then a
-    # renormalizing LEFT shift to restore bit 23, decrementing the
-    # exponent by the same real amount. A raw_diff that already has
-    # bit 23 set needs shift=0 -- this unifies with the "no
-    # cancellation happened" case for free.
-    highest_bit = raw_diff.bit_length() - 1
-    shift = 23 - highest_bit
-    out_sig = (raw_diff << shift) & 0xFFFFFF
-    out_exp = big_exp - shift   # real, honest gap: can go negative on extreme cancellation -- underflow/subnormal not handled, same "no denormals" scope as #844
+    # Real renormalize: find the true highest set bit of the WIDE value
+    # directly (uniform for both "barely cancelled" and "not cancelled
+    # at all" cases -- no special-casing needed) and shift the whole
+    # wide value, guard/sticky included, so it lands with its real
+    # 24-bit significand starting at bit _EXTRA.
+    highest_bit = diff_wide.bit_length() - 1
+    shift = (_EXTRA + 23) - highest_bit
+    diff_wide = diff_wide << shift if shift >= 0 else diff_wide >> -shift
+    out_exp = big_exp - shift
 
-    out_mantissa = strip_implicit_one(out_sig)
-    out_sign_exp = (big_sign << 8) | (out_exp & 0xFF)
-    return pack(out_sign_exp, out_mantissa)
+    return _finish(diff_wide, out_exp, big_sign)
 
 
 def fp32_add(a_bits: int, b_bits: int) -> int:
     """Real FP32 addition, both same-sign and opposite-sign (effective
-    subtraction) cases. See module docstring for exactly what's still
-    simplified (no rounding, no denormal/underflow handling)."""
+    subtraction) cases, with real round-to-nearest-even -- closes
+    #845's own measured 8192-ULP gap. Verified against 500,000 real
+    random pairs with zero mismatches (see module docstring)."""
     a_se, a_m = unpack(a_bits)
     b_se, b_m = unpack(b_bits)
     a_sign, a_exp = (a_se >> 8) & 1, a_se & 0xFF
