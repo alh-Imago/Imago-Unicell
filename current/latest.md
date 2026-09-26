@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, fp32 ADD extended to opposite-sign (real subtraction) -- structural split done, precision (rounding) explicitly deferred next. 1418 tests pass. See `points/points_active.md` #845)
+# Current State (as of 2026-09-26, the G/R/S split mechanism (fan-out + one masked relay hop, no new core) constructed and proven on a real placed SuperGrid. 1421 tests pass. See `points/points_active.md` #846)
+
+## Read this first (most recent)
+
+**#846 -- the G/R/S split mechanism built for real, not just reasoned about.** Confirmed first (before building) that `apply_addons()` fires once per cell before broadcast -- a producer can't hand two neighbors different values. Real 5-cell `SuperGrid` (all plain `ram`, no new core): fan-out from one producer, one path direct (raw, G/R/S intact), one path through a single relay cell using the EXACT SAME `nibble_mask=0b11000000` config `fp32_boundary_v1`'s own mantissa extraction already uses -- clears the top byte on the relay's own offer. Result: direct sink `0x05ABCDEF` (raw), relayed sink `0x00ABCDEF` (clean). A real timing guess was checked and corrected: actual delivery is tick 2 (direct) vs tick 3 (relayed), not the assumed 1-vs-2 -- real, measured input for `#544`'s equal-hop-count rule. 3 new tests, 1421 pass (was 1418), zero regression.
+
+**Real, honest scope:** mechanism proof only -- not yet wired into `fp32_add_v1.py`'s actual arithmetic, and the sticky-bit reduction (a compare-core step) isn't built yet either.
+
+**Earlier tonight:** `#845` (opposite-sign ADD, real 8192-ULP cancellation gap measured), `#844` (same-sign ADD), `#843` (section-reconfigure design note).
+
+**Real queue:** (1) sticky-bit reduction step downstream of the masked path; (2) integrate G/R/S into `fp32_add_v1.py`'s alignment shift, closing the measured 8192-ULP gap; (3) round-to-nearest-even using real G/R/S; (4) substrate mapping, blocked on `#843`; (5) fp32 MIN/MAX; (6) VM model of `v1d` (`#841`); (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`, deferred); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, fp32 ADD extended to opposite-sign (real subtraction) -- structural split done, precision (rounding) explicitly deferred next. 1418 tests pass. See `points/points_active.md` #845)
 
 ## Read this first (most recent)
 
