@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-26, a new, speculative but coherent design thread captured whole -- section-wide reconfigure, drain/swap/reload, iterative folding. No RTL, no VM code, not even a design-note file yet. See `points/points_active.md` #843)
+# Current State (as of 2026-09-26, the first real FP32 arithmetic tile built: ADD, same-sign case. Verified against real float32 addition, mutation-checked. 1415 tests pass. See `points/points_active.md` #844)
+
+## Read this first (most recent)
+
+**#844 -- fp32 ADD (same-sign) built and verified, closing `#839`'s own named gap.** `nano/fp32_add_v1.py`: real pipeline mirroring MIF's own stage order -- restore implicit 1, align via clamped right shift, 24+24-bit add, normalize on carry, strip implicit 1, PACK. Deliberate, MIF-precedented scope: same-sign addition only -- opposite-sign (effective subtraction) needs a genuinely different leading-zero-detect renormalize mechanism, explicitly refused (`OppositeSignNotSupported`) rather than half-built. Honest limitation named up front: truncates, doesn't round -- exact bit-match required and verified for same-exponent pairs, a proven 0-or-1-ULP-low bound for differing-exponent pairs. Mutation-checked (wrong shift direction, skipped normalize), both caught. 1415 pass (was 1409), zero regression.
+
+**Design-note doc also written up properly this session:** `docs/stripped-cell/design-notes/section_reconfigure_drain_swap_scope.md` -- the full `#843` thread (static-vs-reconfigure, section-wide broadcast reconfigure, drain/swap/reload, overlap-the-handoff, iterative folding), including the honest citation correction (no "hybrid-DSP" precedent exists; the real footing is `#257`'s own still-unbuilt empty/full concept).
+
+**Real, honest scope:** `#844` is a pure VM/Python arithmetic proof -- it says nothing about how the alignment/normalize shifts get realized on real hardware. That mapping is blocked on `#843`'s own open items (the drain-completion signal, real static-vs-reconfigure measurement).
+
+**Real queue:** (1) opposite-sign addition -- separate design work, not attempted; (2) mapping ADD's arithmetic onto real substrate, blocked on `#843`; (3) fp32 MIN/MAX; (4) VM-level model of `v1d`'s addon-addressing mechanism (`#841`); (5) the LLVM/compiler gap list (`#830`); (6) scope items 3, 4, 6; (7) the VIX Carrier update backlog (`#824`); (8) documentation catch-up (`#829`, deferred); (9) the paired-cell/command-bus idea (`#835`/`#836`); (10) a genuine N-way sort network (`#837`); (11) the ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, a new, speculative but coherent design thread captured whole -- section-wide reconfigure, drain/swap/reload, iterative folding. No RTL, no VM code, not even a design-note file yet. See `points/points_active.md` #843)
 
 ## Read this first (most recent)
 
