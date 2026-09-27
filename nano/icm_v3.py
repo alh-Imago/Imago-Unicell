@@ -294,9 +294,12 @@ _SEQ_FIELDS = {
 # placed in the super shell, confirmed directly before #542 was built).
 # points.md #823: `mul` -- structurally identical to `_ADDER_FIELDS` minus `subtract_mode` (confirmed directly
 # against `unicell_super_automaton_v1.py`'s own `elif core == "mul":` field list: only downstream_mask/upstream_mask).
+# points.md #853/#854: `wide_mode` added at bit 12 -- the same real, tested position mul_cell_v5/v5c.v's own RTL
+# uses, and the same position root_definition.json's own JSON schema was updated to (kept in sync deliberately).
 _MUL_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
+    "wide_mode": (12, 12),
 }
 
 # points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==

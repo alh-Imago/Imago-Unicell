@@ -329,6 +329,12 @@ class SuperCell:
     mul_a_arrived: bool = False
     mul_out_buffer: int = 0
     mul_data_valid: bool = False
+    # points.md #854: real, sequential two-phase delivery, mirroring
+    # mul_cell_v5/v5c.v's own real, tested RTL exactly (#853) -- not
+    # re-derived independently.
+    mul_wide_mode: bool = False
+    mul_captured_hi: int = 0
+    mul_delivering_hi: bool = False
 
     # ── accumulator ──
     acc_downstream_mask: int = 0
@@ -642,6 +648,7 @@ class SuperCell:
         elif core == "mul":
             cell.mul_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.mul_upstream_mask = dm(cfg.get("upstream_mask", 0))
+            cell.mul_wide_mode = bool(cfg.get("wide_mode", 0))
         elif core == "accumulator":
             cell.acc_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.acc_inc_dir = dm(cfg.get("inc_dir", 0))
@@ -813,6 +820,14 @@ class SuperCell:
     # separate RTL/state -- and multiplication instead of add/subtract,
     # with no subtract-mode-equivalent bit at all. ──
     def _deliver_mul(self, arrivals, injected):
+        # points.md #853/#854: in wide_mode, NO new operand may be
+        # captured -- not even the first (A) -- until the WHOLE
+        # two-phase delivery is done, mirroring block_for_wide in the
+        # real, tested RTL exactly. When wide_mode=False this check is
+        # always false, matching v4/v4c's own real early-capture
+        # overlap, unchanged.
+        if self.mul_wide_mode and self.mul_data_valid:
+            return (False, None)
         matched = {d: v for d, v in arrivals.items() if (self.mul_upstream_mask >> _DIR_BIT[d]) & 1}
         if not matched and injected is None:
             return (True, None)
@@ -827,7 +842,14 @@ class SuperCell:
             return (True, None)
         if self.mul_data_valid:
             return (False, None)  # doubly full -- B blocked until prior product drains
-        self.mul_out_buffer = (self.mul_a_reg * val) & _MASK32
+        full_product = self.mul_a_reg * val
+        self.mul_out_buffer = full_product & _MASK32
+        # points.md #853/#854: latched here, at the SAME real moment
+        # the low half is -- the real RTL's own captured_hi register
+        # exists precisely because reading this later, uncaptured,
+        # reads stale/wrong (a real bug #853 found and fixed).
+        self.mul_captured_hi = (full_product >> 32) & _MASK32
+        self.mul_delivering_hi = False
         self.mul_data_valid = True
         self.mul_a_arrived = False
         return (True, None)
@@ -1122,7 +1144,19 @@ class SuperCell:
         self.adder_data_valid = False
 
     def _clear_valid_mul(self) -> None:
+        # points.md #853/#854: mirrors the real, tested RTL's own
+        # start_hi_phase/genuinely_done split exactly. In wide_mode,
+        # the low half's own drain does NOT clear data_valid -- it
+        # reloads out_buffer with the already-latched high half and
+        # stays valid for a second real delivery. Only the high half's
+        # OWN drain (delivering_hi already True) genuinely finishes
+        # the round.
+        if self.mul_wide_mode and not self.mul_delivering_hi:
+            self.mul_out_buffer = self.mul_captured_hi
+            self.mul_delivering_hi = True
+            return
         self.mul_data_valid = False
+        self.mul_delivering_hi = False
 
     def _clear_valid_priority(self) -> None:
         self.pri_data_valid = False

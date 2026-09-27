@@ -62,7 +62,7 @@ def test_mul_has_no_subtract_mode_field():
     """Confirmed directly against mul_cell_v4c.v: no subtract-mode
     equivalent exists for multiply -- the tile's own fixed_core_config
     should not invent one."""
-    cell = vtl.place(vtl.TILE_MUL, {"in_a": "n", "in_b": "w", "out": "e"})
+    cell = vtl.place(vtl.TILE_MUL, {"in_a": "n", "in_b": "w", "out": "e"}, {"wide_mode": 0})
     assert "subtract_mode" not in cell.core_config
 
 

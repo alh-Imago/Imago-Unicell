@@ -477,8 +477,8 @@
  },
  "_manual_overrides_warning": "REAL, HONEST FLAG: nano_within_super.fields (hold_in through a_self_update_in) were added MANUALLY, not by regenerate_root_definition_v1.py. These are PORTS on unicell_stripped_v1.v wired individually via core_config bits in unicell_super_v1.v/v2.v/v3.v, physically separated from nano's own cfg_data field-map comment block by ~150 lines of other core instantiations -- the mechanical extractor genuinely cannot see them (confirmed, not assumed). RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL WIPE THESE FIVE FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, until the extractor is taught to handle this real, structural case (a real, deliberately-deferred piece of tooling work). EXTENDED #650: dynamic_route_en/pattern_low/pattern_equal/pattern_high were ALSO added manually, same real reason -- nano_gate_v4.v's own comparator-driven routing (#140's VM equivalent), never exposed here before. RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL ALSO WIPE THESE FOUR FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, same as the five fields above.",
  "mul": {
-  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/mul_cell_v4c.v",
-  "_provenance_note": "points.md #823: mul had no real_definition entry at all -- added to close a serialization gap surfaced by the LLVM CLI, not extracted from a fresh RTL read this session. Field positions taken directly from icm_v3.py's own hand-typed _MUL_FIELDS, which mirrors _ADDER_FIELDS minus subtract_mode (unicell_super_automaton_v1.py's own `elif core == \"mul\":` dispatch has no subtract-mode equivalent).",
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/mul_cell_v5c.v",
+  "_provenance_note": "points.md #823: mul had no real_definition entry at all -- added to close a serialization gap surfaced by the LLVM CLI, not extracted from a fresh RTL read this session. Field positions taken directly from icm_v3.py's own hand-typed _MUL_FIELDS, which mirrors _ADDER_FIELDS minus subtract_mode (unicell_super_automaton_v1.py's own `elif core == \"mul\":` dispatch has no subtract-mode equivalent). points.md #853/#854: wide_mode carved out of the old single reserved field at bit 12 -- mul_cell_v5c.v's own real, tested RTL location -- source_file updated to the v5c generation that actually has this field; v4c genuinely lacks it.",
   "fields": [
    {
     "name": "downstream_mask",
@@ -494,9 +494,21 @@
    },
    {
     "name": "reserved",
-    "hi": 63,
+    "hi": 11,
     "lo": 8,
     "description": "TWO-STAGE CAPTURE, structurally identical to adder's own (capture A, then B, then fire) but multiplication instead of add/subtract, with no subtract-mode-equivalent bit at all."
+   },
+   {
+    "name": "wide_mode",
+    "hi": 12,
+    "lo": 12,
+    "description": "points.md #853/#854: 0=v4/v4c behaviour (Product[31:0] only, low half discarded); 1=real sequential two-phase delivery -- the SAME downstream_mask/out port delivers the low half first, then (only once fully acked) the real high half. mul_cell_v4/v4c genuinely lack this bit; only v5/v5c implement it."
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 13,
+    "description": "genuinely free headroom"
    }
   ]
  },

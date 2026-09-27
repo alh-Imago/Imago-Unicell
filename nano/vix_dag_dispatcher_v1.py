@@ -241,7 +241,14 @@ def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
         # accepted unconditionally, no upstream_mask to configure.
         return vtl.place(entry.tile, {"out": out_dir}, params=dict(entry.extra_params),
                           cell_id=cell_id, rel_row=row, rel_col=col)
+    # points.md #853/#854: a real, pre-existing gap, exposed (not
+    # introduced) by mul's own new wide_mode param -- this branch never
+    # passed entry.extra_params at all, unlike the "unconditional"
+    # branch above. Harmless while every "named" tile's own
+    # extra_params was empty (add/sub always were); mul's is not,
+    # anymore.
     return vtl.place(entry.tile, {"in_a": in_a_dir, "in_b": in_b_dir, "out": out_dir},
+                      params=dict(entry.extra_params),
                       cell_id=cell_id, rel_row=row, rel_col=col)
 
 

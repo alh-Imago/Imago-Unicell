@@ -297,12 +297,21 @@ TILE_MUL = register(VixTileSpec(
     name="mul", core="mul",
     description="Points.md #724: combinational 32-bit multiply, "
                  "truncated product (Product[31:0] only, matching LLVM "
-                 "IR's own mul truncation semantics). Same real shared-"
-                 "upstream_mask shape as adder -- confirmed against "
-                 "mul_cell_v4c.v directly: no subtract-mode equivalent "
-                 "exists (bit [12] is genuine reserved headroom).",
+                 "IR's own mul truncation semantics) by default. Same "
+                 "real shared-upstream_mask shape as adder -- confirmed "
+                 "against mul_cell_v4c.v directly: no subtract-mode "
+                 "equivalent exists (bit [12] is genuine reserved "
+                 "headroom in v4/v4c). Points.md #853/#854: that "
+                 "headroom now carries a real `wide_mode` param -- when "
+                 "set, the SAME 'out' port delivers the low half first, "
+                 "then (only once fully acked) the product's real high "
+                 "half, mirroring mul_cell_v5/v5c.v's own tested RTL "
+                 "exactly. No new port: a wide_mode consumer sees two "
+                 "real, sequential deliveries on the one 'out' port, not "
+                 "a second port to wire up.",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
+    param_names=["wide_mode"],
     arrivals_needed=2,
 ))
 

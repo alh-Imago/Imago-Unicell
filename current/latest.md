@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-26, real new RTL: mul_cell_v5/v5c give the mul core a real second output (the product's high half), unblocking fp32 MUL's substrate mapping. 32 RTL checks pass, zero regression on v4/v4c. See `points/points_active.md` #853)
+# Current State (as of 2026-09-26/27, mul's wide_mode wired into the VM -- 4 real, distinct bugs found and fixed across 3 schema layers and one genuinely pre-existing dispatcher gap. Full suite 1445 pass, zero regression. See `points/points_active.md` #854)
+
+## Read this first (most recent)
+
+**#854 -- mul's real second output wired into the VM, exposing a genuinely wide-reaching set of real bugs, all found and fixed.** `_deliver_mul`/`_offer_state_mul`/`_clear_valid_mul` now mirror `#853`'s own tested RTL exactly (block capture for the whole two-phase window, latch the high half at capture time, reload for a second delivery on the low half's own drain). Making `wide_mode` a real, validated tile param broke 29 tests on the first full run -- traced to THREE separate schema layers that each independently know mul's field positions (`vix_tile_library_v1.py`'s param_names, `root_definition.json`'s JSON schema, `icm_v3.py`'s own hand-typed `_MUL_FIELDS`), all three now updated and kept in sync. A FOURTH, genuinely pre-existing bug was exposed, not introduced: `vix_dag_dispatcher_v1.py`'s "named" port-style placement branch never passed `entry.extra_params` at all -- harmless while every named tile's extra_params was empty, until mul's wasn't. Fixed. A FIFTH bug, this time in the new test's own construction: a dead-end sink can never accept mul's second delivery (`ram_flowing` refuses a new value while still valid, and nothing was consuming from the sink to free it) -- fixed with a real two-sink relay chain, confirmed by tracing.
+
+**Real, full verification:** `test_mul_dispatch_v1.py` grew to 5 tests (2 existing fixed for explicit `wide_mode: 0`, 3 new proving low-first delivery, automatic high-second delivery via the real relay chain, and a cross-check against `fp32_mul_v1.py`'s own real significand multiply). Full suite: 1445 passed, 1 skipped (was 1442), zero failures anywhere -- every file the ripple effect touched now genuinely fixed.
+
+**Real, honest scope:** this closes stage 2 of `#848`'s own VM->compiler->silicon reminder for mul specifically. The compiler doesn't emit `wide_mode=1` anywhere yet (both real opcode registrations deliberately keep it at 0, preserving existing behaviour) -- an actual fp32-mantissa-multiply lowering is separate, unbuilt work, still blocked on `#843`.
+
+**Earlier:** `#853` (mul_cell_v5/v5c RTL), `#852` (width-expansion scope decision), `#851` (fp32 divide), `#850` (fold exit-counter + sticky hold), `#849` (fp32 multiply).
+
+**Real queue:** (1) use the now-VM-modeled wide_mode in an actual fp32 MUL substrate mapping, once `#843` resolves; (2) resolve `#843`'s drain-completion-signal question; (3) DIV's real iterative substrate mapping; (4) fp32 MIN/MAX; (5) connect `#846`'s construction to real rounding for an ADD substrate mapping; (6) ADD substrate mapping, also blocked on `#843`; (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`, deferred); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`).
+
+## Previous state (as of 2026-09-26, real new RTL: mul_cell_v5/v5c give the mul core a real second output (the product's high half), unblocking fp32 MUL's substrate mapping. 32 RTL checks pass, zero regression on v4/v4c. See `points/points_active.md` #853)
 
 ## Read this first (most recent)
 
