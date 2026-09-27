@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-27, a critical standing reminder logged: the VM has ZERO dispatch for core=="command" -- neither RTL variant is modeled, so command cells placed in a VM construction are silently ignored, not errored. This blocks combining #858's VM-level drain-latch with #862/#863's RTL-level reconfigure mechanism until built. See `points/points_active.md` #864)
+# Current State (as of 2026-09-27, #864 CORRECTED: the VM actually already has real, tested command-core dispatch -- vix_carrier_automaton_v1.py's VixCarrierCell/VixCarrierGrid, 20/20 checks passing, found by reading CORES_AND_WRAPPERS_REFERENCE.md instead of trusting one grep against the wrong file. Checking now whether it composes with #858's drain-latch. See `points/points_active.md` #865)
+
+## Read this first (most recent)
+
+**#865 -- a direct correction to #864, made within the same session rather than left standing.** #864 wrongly generalized from a single grep against `unicell_super_automaton_v1.py` to "the VM has zero command dispatch." The real, genuine, RTL-matching command-core VM dispatch has existed since `#655` in a DIFFERENT file: `vix_carrier_automaton_v1.py`'s own `VixCarrierCell`/`VixCarrierGrid`. Confirmed directly, not just read about: `tests/vm/test_vix_carrier_automaton_v1.py` (an older-style script test, invisible to plain `pytest` -- itself worth noting) run directly, 20/20 checks pass -- trigger mode, programmer mode end-to-end, freeze gating on non-nano targets too.
+
+**The real, positive consequence being checked now:** `VixCarrierCell` genuinely subclasses `SuperCell`, inheriting all 8 pre-existing core types (including `latch`, exactly what `#858`'s drain signal used) for free, adding `command` as a 9th. If that composition genuinely works, the whole reconfiguration loop -- drain-detection and live-reconfigure-with-repeatable-cycle -- may be buildable in ONE real VM construction today, no new dispatch work needed.
+
+**Earlier tonight:** `#864` (now-corrected reminder), `#863` (real arm/disarm cycle), `#862` (real reconfigure demonstration), `#858` (drain-completion signal).
+
+**Real queue:** (1) attempt a real, integrated VM-level construction combining `#858`'s drain-latch with `VixCarrierGrid`'s real command mechanism -- checking directly, not assuming; (2) if it composes, wire a real drain-latch's SET/CLEAR to a real command cell's arm/disarm, closing the loop at the VM level; (3) feed command_cell's buffer from a real automated word-source; (4) an actual fp32 ADD/MUL/DIV substrate mapping using the complete mechanism; (5) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (6) MIN/MAX substrate mapping via `branch`; (7) VM model of `v1d` (`#841`); (8) LLVM/compiler gap list (`#830`); (9) scope items 3, 4, 6; (10) VIX Carrier update backlog (`#824`); (11) documentation catch-up (`#829`/`#856`); (12) paired-cell/command-bus idea (`#835`/`#836`); (13) N-way sort network (`#837`); (14) ICM-aware collapsed-assembler idea (`#838`); (15) keep `CORE_CHANGE_IMPACT_MAP.md` current, now also adding "check CORES_AND_WRAPPERS_REFERENCE.md before concluding a VM model doesn't exist."
+
+## Previous state (as of 2026-09-27, a critical standing reminder logged: the VM has ZERO dispatch for core=="command" -- neither RTL variant is modeled, so command cells placed in a VM construction are silently ignored, not errored. This blocks combining #858's VM-level drain-latch with #862/#863's RTL-level reconfigure mechanism until built. See `points/points_active.md` #864)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
