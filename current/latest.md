@@ -1,4 +1,14 @@
-# Current State (as of 2026-09-27, the real #853/#854 follow-up audited (command cell, compiler, other library entries, cheat sheet) and a new standing cross-reference doc built -- CORE_CHANGE_IMPACT_MAP.md. Documentation only. See `points/points_active.md` #855)
+# Current State (as of 2026-09-27, a standing reminder logged: once fp32/wider-width work is genuinely complete, run a full manual documentation update -- README/PLAN/CORES_AND_WRAPPERS_REFERENCE/design-notes, not just per-entry cascades. Not started. See `points/points_active.md` #856)
+
+## Read this first (most recent)
+
+**#856 -- a real, standing reminder, per Alan's own direct instruction, no new work.** Once the fp work (fp32 now, wider widths later) is genuinely complete, run a full manual documentation update across the board -- not just the usual per-ledger-entry cascade this session has kept up with. Real reason: the fast pace of real progress (`#843`-`#855` alone: a design note, three arithmetic tiles, a real RTL capability, VM wiring, a new cross-reference doc) has outpaced the SLOWER, broader docs -- `README.md`, `PLAN.md`, `CORES_AND_WRAPPERS_REFERENCE.md` (mul's own v5/v5c addition is exactly what this file exists to track and hasn't yet), and the design-notes directory generally. This ties `#829`'s own already-deferred documentation catch-up to a real, concrete trigger condition (fp work done) rather than leaving it open-ended.
+
+**Earlier tonight/this morning:** `#855` (real follow-up audit + CORE_CHANGE_IMPACT_MAP.md), `#854` (mul wide_mode wired into VM), `#853` (mul_cell_v5/v5c RTL), `#852` (width-expansion scope decision).
+
+**Real queue, unchanged in substance:** (1) use the now-VM-modeled wide_mode in an actual fp32 MUL substrate mapping, once `#843` resolves; (2) resolve `#843`'s drain-completion-signal question; (3) DIV's real iterative substrate mapping; (4) fp32 MIN/MAX; (5) connect `#846`'s construction to real rounding for an ADD substrate mapping; (6) ADD substrate mapping, also blocked on `#843`; (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`, deferred -- `#856` is the real trigger for finally doing it); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`); (14) keep `CORE_CHANGE_IMPACT_MAP.md` current going forward.
+
+## Previous state (as of 2026-09-27, the real #853/#854 follow-up audited (command cell, compiler, other library entries, cheat sheet) and a new standing cross-reference doc built -- CORE_CHANGE_IMPACT_MAP.md. Documentation only. See `points/points_active.md` #855)
 
 ## Read this first (most recent)
 
