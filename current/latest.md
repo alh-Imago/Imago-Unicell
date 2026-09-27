@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-26/27, mul's wide_mode wired into the VM -- 4 real, distinct bugs found and fixed across 3 schema layers and one genuinely pre-existing dispatcher gap. Full suite 1445 pass, zero regression. See `points/points_active.md` #854)
+# Current State (as of 2026-09-27, the real #853/#854 follow-up audited (command cell, compiler, other library entries, cheat sheet) and a new standing cross-reference doc built -- CORE_CHANGE_IMPACT_MAP.md. Documentation only. See `points/points_active.md` #855)
+
+## Read this first (most recent)
+
+**#855 -- the real follow-up audit, per Alan's own direct instruction, plus a genuinely valuable new standing artifact.** Confirmed directly, not assumed: command_cell needs zero changes to program `wide_mode` on a target (its programmer mode is a pure generic word-relay, never decodes what any PROG_ID means); the compiler deliberately keeps `wide_mode: 0` everywhere (no LLVM opcode needs the high half yet -- that's what a future `mulh`/`umulh` would use); `dsp_wrapper_tile_library_v1.py` has a real but SEPARATE `dsp_mul` mechanism (actual FPGA hard-block IEEE-754 float multiply, unrelated to wide_mode). `CELL_CHEATSHEET.md`'s stale `mul` row fixed.
+
+**New standing artifact: `docs/stripped-cell/CORE_CHANGE_IMPACT_MAP.md`.** A real, numbered checklist of every file `#853`/`#854` actually proved a core-capability change touches -- RTL + testbench, VM dispatch, the tile library's param validation, root_definition.json, icm_v3.py's separate hand-typed field dict, the opcode library, the DAG dispatcher's real placement call sites (naming #854's own pre-existing gap as the worked example), test call sites, the cheat sheet, command_cell (usually free), the composed/DSP-wrapper libraries, and a mandatory full regression run before calling anything done. A second section covers the extra steps a delivery-PROTOCOL change needs. A third (new core types) is honestly marked a stub.
+
+**Real, honest scope:** documentation only, no code. Built so this session's own hard-won discovery is reusable next time, not just logged and forgotten.
+
+**Earlier:** `#854` (mul wide_mode wired into VM, 5 real bugs found), `#853` (mul_cell_v5/v5c RTL), `#852` (width-expansion scope decision), `#851` (fp32 divide).
+
+**Real queue, unchanged in substance:** (1) use the now-VM-modeled wide_mode in an actual fp32 MUL substrate mapping, once `#843` resolves; (2) resolve `#843`'s drain-completion-signal question; (3) DIV's real iterative substrate mapping; (4) fp32 MIN/MAX; (5) connect `#846`'s construction to real rounding for an ADD substrate mapping; (6) ADD substrate mapping, also blocked on `#843`; (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`, deferred); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`); (14) keep `CORE_CHANGE_IMPACT_MAP.md` current going forward.
+
+## Previous state (as of 2026-09-26/27, mul's wide_mode wired into the VM -- 4 real, distinct bugs found and fixed across 3 schema layers and one genuinely pre-existing dispatcher gap. Full suite 1445 pass, zero regression. See `points/points_active.md` #854)
 
 ## Read this first (most recent)
 
