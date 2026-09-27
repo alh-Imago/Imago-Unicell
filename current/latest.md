@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-27, #843's own open drain-completion-signal question RESOLVED -- one continuously-live latch, SET at a section's head, CLEAR at its tail, proven correct by real construction. 1452 tests pass. See `points/points_active.md` #858)
+# Current State (as of 2026-09-27, the command-word builder proven correct -- 4 narrow sources combined via nano's OR+shift into one wide command word, after a first parallel-OR-tree attempt genuinely failed and Alan's own recollection found the exact real prior mechanism to fix it. 1455 tests pass. See `points/points_active.md` #859)
+
+## Read this first (most recent)
+
+**#859 -- the command-word builder, Alan's own real design, proven correct.** Attempt 1 (two independent sequencers racing to fill one nano's A/B slots in parallel) genuinely failed (`0xfa11` instead of `0xf001aa11`) -- confirmed directly: nano's own A/B capture is source-agnostic and first-come-first-served, so a faster producer can silently supply BOTH slots, skipping a slower one's contribution entirely. Alan's own recollection ("I'm sure we've tried this before") pointed straight at real, already-proven prior work: `#301`/`#302`/`#381`/`#390-#397`'s RAM-interface collector mechanism and its own VM proof (the 27=3x3x3 hierarchical collector test). The real fix: never let more than one source be live at once -- each source holds its own pre-shifted value silently until explicitly triggered, one at a time, so nano's race never gets a chance to happen.
+
+**A real, new extension beyond that prior proof:** this adds OR-accumulation via nano's own `loop_back` field on top of the proven relay mechanism, correctly assembling a full 32-bit word from four narrow sources across four explicit, sequential steps. Verified against all four of Alan's own original example slots exactly. A dedicated test also concretely demonstrates the real hazard Alan named directly -- an intermediate round's own offered value is genuinely wrong if forwarded prematurely, real evidence for why a grid-wired deployment needs an explicit release gate (a `#850`-style pulse counter, not yet built). 3 new tests, 1455 pass (was 1452), zero regression.
+
+**Real, honest scope:** host-orchestrated (direct `CACell` calls), matching the exact same boundary the proven 27-leaf test already states for itself -- real 2D grid embedding and the release-gate mechanism remain separate, unbuilt work.
+
+**Earlier:** `#858` (drain-completion signal resolved via a single latch), `#857` (fp32 MIN/MAX), `#856` (documentation-catch-up reminder), `#855` (real follow-up audit + CORE_CHANGE_IMPACT_MAP.md).
+
+**Real queue:** (1) build the real grid-wired release gate (pulse-mode counter + accumulator) so this can feed a genuine command cell safely; (2) real 2D grid placement of the whole command-word-builder network; (3) use this to drive `#843`'s fold/reconfigure loop with real, wide per-pass config changes; (4) an actual fp32 ADD/MUL/DIV substrate mapping using `#858`'s drain signal and this builder together; (5) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (6) MIN/MAX substrate mapping via `branch`; (7) VM model of `v1d` (`#841`); (8) LLVM/compiler gap list (`#830`); (9) scope items 3, 4, 6; (10) VIX Carrier update backlog (`#824`); (11) documentation catch-up (`#829`/`#856`); (12) paired-cell/command-bus idea (`#835`/`#836`); (13) N-way sort network (`#837`); (14) ICM-aware collapsed-assembler idea (`#838`); (15) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, #843's own open drain-completion-signal question RESOLVED -- one continuously-live latch, SET at a section's head, CLEAR at its tail, proven correct by real construction. 1452 tests pass. See `points/points_active.md` #858)
 
 ## Read this first (most recent)
 
