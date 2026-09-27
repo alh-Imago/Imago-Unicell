@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-27, a real clarification: command_cell_v4.v's own already-built, already-verified freeze/sequence/unfreeze protocol already solves what #859/#860 were building a new mechanism for. No new code -- a reframing that redirects the next real step. See `points/points_active.md` #861)
+# Current State (as of 2026-09-27, the real demonstration: command_cell_v4 genuinely live-reconfigures a fresh mul_cell_v5c from scratch at runtime, enabling wide_mode, then proven functionally real by computing both halves of an actual product. 11 checks pass, zero regression. See `points/points_active.md` #862)
+
+## Read this first (most recent)
+
+**#862 -- the real demonstration, closing the loop from #861's clarification to a working proof.** A fresh `mul_cell_v5c`, never `cfg_valid`'d, configured entirely live via `command_cell_v4`'s own real programmer-mode channel -- 4 real PROG_ID words (downstream_mask, upstream_mask, wide_mode=1, COMPLETE), each relayed and confirmed via real prog_ack, target correctly frozen for the burst and released exactly on COMPLETE's own toggle-pattern match. Real, precise detail confirmed rather than assumed: mul_cell_v5c's own PROG_ID_COMPLETE is 3 bits (3'd7), not nano's 4-bit one -- the correct toggle_pattern is 4'h7, not 4'hF.
+
+**The real functional proof:** after the live reconfigure, the target correctly computes and delivers BOTH halves of a real product (0xC00000*0xC00000 -> low=0x00000000, high=0x00009000) -- wide_mode's own two-phase protocol, reached entirely through a runtime reconfigure, behaves identically to boot-time cfg_valid. Two real testbench-arithmetic bugs found and fixed along the way (Verilog literal-width truncation, then a concatenation only producing 56 bits not 64) -- resolved by computing exact expected values in Python first and using them as literal constants.
+
+**Real, honest consequence:** the #859/#860 accumulator+gate mechanism was not needed for this at all -- command_cell's own real protocol handled everything on its own, confirming #861's own conclusion concretely. 11 checks pass, zero regression on the two testbenches this reuses and the full VM suite (1458, unchanged since this is pure RTL work).
+
+**Earlier:** `#861` (real clarification), `#860` (release gate), `#859` (command-word builder), `#858` (drain-completion signal).
+
+**Real queue:** (1) feed command_cell's buffer from a real automated word-source rather than direct testbench stimulus; (2) resolve `#843`'s fold/reconfigure loop using this now-confirmed mechanism; (3) an actual fp32 ADD/MUL/DIV substrate mapping using `#858`'s drain signal and command_cell together; (4) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (5) MIN/MAX substrate mapping via `branch`; (6) VM model of `v1d` (`#841`); (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`/`#856`); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`); (14) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, a real clarification: command_cell_v4.v's own already-built, already-verified freeze/sequence/unfreeze protocol already solves what #859/#860 were building a new mechanism for. No new code -- a reframing that redirects the next real step. See `points/points_active.md` #861)
 
 ## Read this first (most recent)
 
