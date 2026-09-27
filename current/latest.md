@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-27, the real demonstration: command_cell_v4 genuinely live-reconfigures a fresh mul_cell_v5c from scratch at runtime, enabling wide_mode, then proven functionally real by computing both halves of an actual product. 11 checks pass, zero regression. See `points/points_active.md` #862)
+# Current State (as of 2026-09-27, the real arm/disarm cycle proven -- command_cell's own existing armed field gives exactly the repeatable start-trigger/reset behaviour a real reconfigure loop needs, proven as two genuine, independent passes, not a one-shot. 11 checks pass, zero regression. See `points/points_active.md` #863)
+
+## Read this first (most recent)
+
+**#863 -- the real arm/disarm cycle, the piece that makes a LOOP possible, not just one reconfigure.** Real problem found first: `#858`'s drain-latch is continuously-live (confirmed: `data_valid` never clears) -- it would keep re-offering "drained" forever, and feeding that into command_cell's trigger-mode toggle would cause genuine oscillation (unfreeze/refreeze/unfreeze/refreeze on every repeat). Alan's own recollection pointed precisely at existing capability again: command_cell's own `armed` field (`PROG_ID_COMPLETE=3'd7`) is real, externally-controllable via its own separate incremental reprogram channel, gates whether it reacts to anything at all, and -- confirmed directly -- is NEVER auto-cleared by completing a relay sequence. Two already-proven, genuinely separate channels on the same core (self-management via reprogram; the ordinary buffer for the real relay sequence, #644/#862) combine with zero new RTL: disarmed by default, a real "start" word arms it once, the sequence runs, a real "end of cycle" word disarms it again.
+
+**Real, complete six-step proof, 11 checks, all passing on the first attempt:** a sequence sent while disarmed is genuinely ignored; a real arm word lets the identical #862 sequence run correctly; wide_mode's own live-enabled two-phase delivery is functionally confirmed; a real disarm word plus a spurious second attempt is confirmed genuinely ignored (not just assumed); a second real arm word runs the ENTIRE sequence again, against different operands, with independently-verified correct results -- the decisive proof this is a repeatable cycle, not a lucky one-shot.
+
+**Real, honest remaining scope:** the arm/disarm trigger words are still driven by direct testbench stimulus, standing in for a real drain-latch's own SET/CLEAR outputs -- the actual physical wiring from a real, placed latch to command_cell's reprogram channel remains unbuilt. This proves the mechanism is sound and repeatable, not yet the full, unattended, physically-wired chain.
+
+**Earlier:** `#862` (real reconfigure demonstration), `#861` (real clarification), `#860` (release gate), `#859` (command-word builder), `#858` (drain-completion signal).
+
+**Real, cumulative state of the whole thread:** drain-detection proven (`#858`), live-reconfigure proven (`#862`), the repeatable cycle that makes a LOOP possible proven (`#863`). What remains before `#843`'s fold genuinely runs unattended: wiring a real latch's SET/CLEAR to the reprogram channel, and an automated word-source feeding the buffer channel.
+
+**Real queue:** (1) wire a real, placed drain-latch's own SET/CLEAR outputs to command_cell's own reprogram channel; (2) feed command_cell's buffer from a real automated word-source; (3) an actual fp32 ADD/MUL/DIV substrate mapping using the now-complete mechanism; (4) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (5) MIN/MAX substrate mapping via `branch`; (6) VM model of `v1d` (`#841`); (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`/`#856`); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`); (14) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, the real demonstration: command_cell_v4 genuinely live-reconfigures a fresh mul_cell_v5c from scratch at runtime, enabling wide_mode, then proven functionally real by computing both halves of an actual product. 11 checks pass, zero regression. See `points/points_active.md` #862)
 
 ## Read this first (most recent)
 
