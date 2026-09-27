@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-27, the command-word builder proven correct -- 4 narrow sources combined via nano's OR+shift into one wide command word, after a first parallel-OR-tree attempt genuinely failed and Alan's own recollection found the exact real prior mechanism to fix it. 1455 tests pass. See `points/points_active.md` #859)
+# Current State (as of 2026-09-27, the release gate built and proven -- the one real piece #859 left open. Rounds 1-3 correctly suppressed, round 4 correctly released, both concretely demonstrated. 1458 tests pass. See `points/points_active.md` #860)
+
+## Read this first (most recent)
+
+**#860 -- the release gate, closing #859's own open question.** A real, single-shot AND gate: enable mask (held separately, starts at 0, silently updatable) AND'd with the accumulator's own round offer. AND(0,x)=0 correctly suppresses every intermediate round -- concretely proven, not just asserted: rounds 2 and 3's own real partial values (`0xaa11`, `0x1aa11`) both confirmed suppressed to 0. Once the enable mask flips (standing in for a `#850`-style pulse counter's own real threshold-fire), the complete word (`0xf001aa11`) releases correctly, unmodified.
+
+**A real, necessary negative check included, not just the positive case:** confirmed directly that enabling the gate does NOT retroactively validate an already-partial value -- feed it a partial value with the mask already set, and it passes the wrong value straight through. Honest finding: the gate does no semantic checking of its own: correct release TIMING remains a separate responsibility belonging to whatever drives the enable mask.
+
+**Real, cumulative state:** four independent sources can now be safely combined into one wide command word (`#859`), collected without racing, and released to a real target exactly once with every intermediate step provably suppressed (`#860`). What's left before this drives real hardware: a real, built pulse-mode counter wired to the enable mask (with its own real timing/ordering confirmed, not assumed), and real 2D grid placement of the whole network. 3 new tests, 1458 pass (was 1455), zero regression.
+
+**Earlier:** `#859` (command-word builder), `#858` (drain-completion signal resolved), `#857` (fp32 MIN/MAX).
+
+**Real queue:** (1) build and wire a real pulse-mode counter to the enable mask, confirming the real ordering guarantee directly; (2) real 2D grid placement of the whole command-word-builder + release-gate network; (3) use this to drive `#843`'s fold/reconfigure loop with real, wide per-pass config changes; (4) an actual fp32 ADD/MUL/DIV substrate mapping using `#858`'s drain signal and this builder+gate together; (5) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (6) MIN/MAX substrate mapping via `branch`; (7) VM model of `v1d` (`#841`); (8) LLVM/compiler gap list (`#830`); (9) scope items 3, 4, 6; (10) VIX Carrier update backlog (`#824`); (11) documentation catch-up (`#829`/`#856`); (12) paired-cell/command-bus idea (`#835`/`#836`); (13) N-way sort network (`#837`); (14) ICM-aware collapsed-assembler idea (`#838`); (15) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, the command-word builder proven correct -- 4 narrow sources combined via nano's OR+shift into one wide command word, after a first parallel-OR-tree attempt genuinely failed and Alan's own recollection found the exact real prior mechanism to fix it. 1455 tests pass. See `points/points_active.md` #859)
 
 ## Read this first (most recent)
 
