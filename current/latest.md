@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-27, #864 CORRECTED: the VM actually already has real, tested command-core dispatch -- vix_carrier_automaton_v1.py's VixCarrierCell/VixCarrierGrid, 20/20 checks passing, found by reading CORES_AND_WRAPPERS_REFERENCE.md instead of trusting one grep against the wrong file. Checking now whether it composes with #858's drain-latch. See `points/points_active.md` #865)
+# Current State (as of 2026-09-27, end of session: VixCarrierGrid confirmed to genuinely accept a mixed latch+command grid (real structural progress), but the actual data-flow wiring hit a narrow, unresolved gap (fixed-mode ram's own "wants to offer" flag) -- left open honestly rather than rushed. See `points/points_active.md` #866)
+
+## Read this first (most recent)
+
+**#866 -- an honest end-of-session checkpoint, real progress plus a real, narrow open gap.** Confirmed positively: `VixCarrierGrid` genuinely accepts a mixed grid with BOTH `#858`'s own `latch` drain-signal AND a real `command` cell + target in the SAME construction -- built successfully, no errors, both mechanisms coexisting. This confirms `#865`'s own subclass finding isn't just theoretical.
+
+**Where it stopped, stated plainly:** tracing actual data flow through the reconstructed topology showed nothing moving -- `head`/`tail`'s own `ram_data_valid` stayed False throughout. Isolated to a 2-cell case: a `fixed_mode` `ram` source's own `ram_data_reg` correctly held its constant, but `ram_data_valid` never went True. A real, narrow, answerable question (wrong config param, or the "wants to offer" state lives in a different field for fixed-mode specifically) -- deliberately left open with time short, rather than guessed at.
+
+**Also confirmed and useful for next time:** `SuperCell.program_word()` -- the same generic incremental-reprogram method used throughout the VM -- genuinely applies to `command` itself via `COMMAND_PROG_ID_COMPLETE=7`, matching `command_cell_v4.v`'s own real field exactly. This means `#863`'s own arm/disarm mechanism is already available at the VM level once the data-flow gap above is resolved.
+
+**Earlier tonight:** `#865` (correction: VM already has real command dispatch), `#864` (now-corrected reminder), `#863` (real arm/disarm cycle, RTL), `#862` (real reconfigure demonstration, RTL), `#858` (drain-completion signal, VM).
+
+**Real queue, narrow gap first:** (1) directly investigate fixed_mode ram's own real "wants to offer" mechanism at the VM level -- check `_deliver_ram`/`_offer_state_ram` directly rather than re-guessing config; (2) complete the real, integrated construction (drain-latch driving a real command cell's arm/disarm cycle) once (1) resolves; (3) an actual fp32 ADD/MUL/DIV substrate mapping using the complete mechanism; (4) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (5) MIN/MAX substrate mapping via `branch`; (6) VM model of `v1d` (`#841`); (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`/`#856`); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`); (14) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, #864 CORRECTED: the VM actually already has real, tested command-core dispatch -- vix_carrier_automaton_v1.py's VixCarrierCell/VixCarrierGrid, 20/20 checks passing, found by reading CORES_AND_WRAPPERS_REFERENCE.md instead of trusting one grep against the wrong file. Checking now whether it composes with #858's drain-latch. See `points/points_active.md` #865)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
