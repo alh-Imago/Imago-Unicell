@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-27, the real arm/disarm cycle proven -- command_cell's own existing armed field gives exactly the repeatable start-trigger/reset behaviour a real reconfigure loop needs, proven as two genuine, independent passes, not a one-shot. 11 checks pass, zero regression. See `points/points_active.md` #863)
+# Current State (as of 2026-09-27, a critical standing reminder logged: the VM has ZERO dispatch for core=="command" -- neither RTL variant is modeled, so command cells placed in a VM construction are silently ignored, not errored. This blocks combining #858's VM-level drain-latch with #862/#863's RTL-level reconfigure mechanism until built. See `points/points_active.md` #864)
+
+## Read this first (most recent)
+
+**#864 -- a critical standing reminder, confirmed directly, not assumed.** `grep '"command"'` on `unicell_super_automaton_v1.py` returns zero hits -- the VM has no dispatch at all for `core=="command"`. Neither `command_cell_v4.v` nor `command_cell_v4c.v` is modeled at the VM level in any form. If a command cell is placed in a VM/SuperGrid construction today, it is silently ignored -- no error, no warning, just inert.
+
+**Real, concrete consequence:** `#858`'s drain-latch (proven at the VM level) and `#862`/`#863`'s reconfigure-and-arm/disarm mechanism (proven only in RTL) currently CANNOT be combined in one construction, in either domain -- not because the mechanisms don't compose, but because the VM has no way to represent one of the two cores involved. Building the VM-level `command` dispatch (both variants, following `CORE_CHANGE_IMPACT_MAP.md`'s own full checklist) is real, necessary, unstarted, load-bearing work -- everything downstream of connecting the drain signal to a real reconfigure depends on it existing first.
+
+**Earlier tonight:** `#863` (real arm/disarm cycle), `#862` (real reconfigure demonstration), `#861` (real clarification), `#860` (release gate), `#859` (command-word builder), `#858` (drain-completion signal).
+
+**Real queue:** (1) build the VM-level dispatch for `command` (both v4/v4c variants), following CORE_CHANGE_IMPACT_MAP.md's own checklist in full -- this is now the load-bearing next step; (2) wire a real, placed drain-latch's SET/CLEAR outputs to command_cell's reprogram channel, once (1) exists; (3) feed command_cell's buffer from a real automated word-source; (4) an actual fp32 ADD/MUL/DIV substrate mapping using the now-complete mechanism; (5) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (6) MIN/MAX substrate mapping via `branch`; (7) VM model of `v1d` (`#841`); (8) LLVM/compiler gap list (`#830`); (9) scope items 3, 4, 6; (10) VIX Carrier update backlog (`#824`); (11) documentation catch-up (`#829`/`#856`); (12) paired-cell/command-bus idea (`#835`/`#836`); (13) N-way sort network (`#837`); (14) ICM-aware collapsed-assembler idea (`#838`); (15) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, the real arm/disarm cycle proven -- command_cell's own existing armed field gives exactly the repeatable start-trigger/reset behaviour a real reconfigure loop needs, proven as two genuine, independent passes, not a one-shot. 11 checks pass, zero regression. See `points/points_active.md` #863)
 
 ## Read this first (most recent)
 
