@@ -1,4 +1,16 @@
-# Current State (as of 2026-09-27, a standing reminder logged: once fp32/wider-width work is genuinely complete, run a full manual documentation update -- README/PLAN/CORES_AND_WRAPPERS_REFERENCE/design-notes, not just per-entry cascades. Not started. See `points/points_active.md` #856)
+# Current State (as of 2026-09-27, fp32 MIN/MAX built -- the real fp32 arithmetic surface (ADD/MUL/DIV/compare/MIN-MAX) is now genuinely complete at the VM level. 1449 tests pass. See `points/points_active.md` #857)
+
+## Read this first (most recent)
+
+**#857 -- fp32 MIN/MAX built, genuinely near-free as the queue predicted.** Checked MIF's own old `MIF_MIN`/`MIF_MAX` prior art first (confirms compare-then-select, no new logic needed -- `#840`'s own proven ordering replaces MIF's gate-level compare directly). Verified bit-exact against Python's own `min()`/`max()` over a broad sweep. A real, honest gap found by checking the actual IEEE-754 spec first: strict `minNum`/`maxNum` mandate an order-INDEPENDENT signed-zero tie-break (always `-0` for min, always `+0` for max); this module's own tie-break (return A, matching Python's own semantics) is genuinely order-DEPENDENT -- confirmed directly both argument orders, not just asserted, and locked in as a real regression test. Mutation-checked (inverted comparison, caught 200/200). 4 tests, 1449 pass (was 1445).
+
+**Real milestone: ADD, MUL, DIV, compare, and MIN/MAX are ALL now VM-verified.** The real fp32 arithmetic surface is genuinely complete at the VM level. Everything left is the substrate-mapping layer (still blocked on `#843`'s drain-completion question) and precision-adjacent work (`#846`'s G/R/S connection to real rounding).
+
+**Earlier:** `#856` (documentation-catch-up reminder tied to fp completion), `#855` (real follow-up audit + CORE_CHANGE_IMPACT_MAP.md), `#854` (mul wide_mode wired into VM), `#853` (mul_cell_v5/v5c RTL).
+
+**Real queue:** (1) resolve `#843`'s drain-completion-signal question, unblocking ADD/MUL/DIV/MIN-MAX substrate mapping all at once; (2) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (3) DIV's real iterative substrate mapping; (4) MIN/MAX substrate mapping via the `branch` core; (5) VM model of `v1d` (`#841`); (6) LLVM/compiler gap list (`#830`); (7) scope items 3, 4, 6; (8) VIX Carrier update backlog (`#824`); (9) documentation catch-up (`#829`/`#856` -- worth reconsidering now the VM-level fp surface is genuinely complete); (10) paired-cell/command-bus idea (`#835`/`#836`); (11) N-way sort network (`#837`); (12) ICM-aware collapsed-assembler idea (`#838`); (13) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, a standing reminder logged: once fp32/wider-width work is genuinely complete, run a full manual documentation update -- README/PLAN/CORES_AND_WRAPPERS_REFERENCE/design-notes, not just per-entry cascades. Not started. See `points/points_active.md` #856)
 
 ## Read this first (most recent)
 
