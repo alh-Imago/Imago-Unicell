@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-27, fp32 MIN/MAX built -- the real fp32 arithmetic surface (ADD/MUL/DIV/compare/MIN-MAX) is now genuinely complete at the VM level. 1449 tests pass. See `points/points_active.md` #857)
+# Current State (as of 2026-09-27, #843's own open drain-completion-signal question RESOLVED -- one continuously-live latch, SET at a section's head, CLEAR at its tail, proven correct by real construction. 1452 tests pass. See `points/points_active.md` #858)
+
+## Read this first (most recent)
+
+**#858 -- the real drain-completion signal, resolved, and simpler than either attempt on the way there.** A real correction made first: `#257`'s own "empty/full" is a much bigger, host-level BRAM-streaming design, NOT the same problem as `#843`'s -- conflating them would have meant waiting on a whole subsystem to answer a purely local question. The real insight (Alan's own): a section is a CHAIN, so only its two ends need watching, not every cell -- conservation means anything entering the head is either still inside or has already exited the tail.
+
+**Attempt 1 (accumulator+comparator)** proved the counting idea sound (occupancy correctly hit exactly zero on drain) but `comparator` is single-shot -- froze on its first reading with nothing to re-arm it. **Attempt 2, Alan's own direct correction: a single continuously-live `latch` instead** -- SET on the section's head-arrival, CLEAR on its tail-drain (wrapped back around via an ordinary relay, exactly the "wrapping things around" Alan named). Built and proven: correctly occupied while a value is mid-transit, correctly clears the EXACT tick the wrapped drain signal completes. A real RTL detail found while wiring it: `latch`'s SET requires the arriving value's bit0=1 specifically; CLEAR fires on any value.
+
+**Real, honest scope:** correct specifically for "at most one item in the section at a time" (matching `#843`'s own original fold/one-value-per-pass framing) -- multiple simultaneous in-flight items would need attempt 1's accumulator-based count instead, with its own comparator-freezing problem still unsolved for that case. 3 new tests, 1452 pass (was 1449), zero regression.
+
+**Real, immediate consequence: `#843`'s own real queue is genuinely unblocked now, not just theoretically** -- the drain signal was the one open mechanism question blocking ADD/MUL/DIV/MIN-MAX substrate mapping all at once.
+
+**Earlier:** `#857` (fp32 MIN/MAX -- the full fp32 arithmetic surface complete at VM level), `#856` (documentation-catch-up reminder), `#855` (real follow-up audit + CORE_CHANGE_IMPACT_MAP.md), `#854` (mul wide_mode wired into VM).
+
+**Real queue:** (1) build the actual fold/reconfigure loop from `#843`'s design note using this real drain signal; (2) an actual fp32 ADD (or MUL, or DIV) substrate mapping; (3) connect `#846`'s construction to real rounding for a genuine ADD substrate mapping; (4) solve the comparator-freezing problem properly if a multi-item live boolean is ever needed; (5) MIN/MAX substrate mapping via `branch`; (6) VM model of `v1d` (`#841`); (7) LLVM/compiler gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier update backlog (`#824`); (10) documentation catch-up (`#829`/`#856`); (11) paired-cell/command-bus idea (`#835`/`#836`); (12) N-way sort network (`#837`); (13) ICM-aware collapsed-assembler idea (`#838`); (14) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, fp32 MIN/MAX built -- the real fp32 arithmetic surface (ADD/MUL/DIV/compare/MIN-MAX) is now genuinely complete at the VM level. 1449 tests pass. See `points/points_active.md` #857)
 
 ## Read this first (most recent)
 
