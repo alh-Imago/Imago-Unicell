@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-28, THE ACTUAL FOLD works in the VM: the cell the loop reprograms is now IN the data path, so the same nano computes AND with a constant for pass 1 and XOR with it for pass 2, reconfigured live by the grid-native loop. Outputs [0x5678, 0xbeef, 0xfffd, 0xcafe0ff2] = [AND, AND, XOR, XOR]. ~105 ticks. 1528 tests + 49 script checks pass. See `points/points_active.md` #880)
+# Current State (as of 2026-09-28, a design observation logged, NOT built: Alan -- "we reprogram 1 cell at a time so far; this may need a real rethink, not just the command cell but the surrounding structures". Verified: one cell at a time is BY DESIGN (`drive_dir` = single fixed direction in the RTL). `#843` had already sketched a line of 1:1 command cells with a shared trigger. Four strain points measured/derived from `#862`-`#880`; four design axes listed; recommended measuring stick = a two-cell fold. See `points/points_active.md` #881)
+
+## Read this first (most recent)
+
+**#881 -- the rethink Alan flagged.** **Verified:** `command_cell_v4.v`'s `drive_dir` is a single fixed direction; exactly one of N/S/E/W ever asserts. **`#843` already had a baseline:** a line of command cells, each 1:1 with its own target and payload, all watching one broadcast trigger; `#835`/`#836`'s addressed command bus as its natural carrier.
+
+**Four strain points:** (1) a word carries NO target address, so each command cell needs its own word source (store cost = words x targets; the triggered sequencer is the collapse); (2) adjacency spends faces (the fold cell used all four); (3) per-SECTION machinery (drain detector, source gate, start nano, loader) scales fine -- only command cell + word source + adjacency are per target; (4) in drain-and-swap, simultaneity is an optimisation not a correctness need -- a 3-word program took ~5 ticks against a ~20+ tick pass (REASONED from measured numbers, not yet run with several targets).
+
+**Axes (none chosen):** (i) N command cells; (ii) a retargetable command cell (`drive_dir` reprogrammable, `#868`); (iii) target addressing inside the word stream; (iv) the existing addressed bus (`#835`/`#836`), windowed and rare. **Recommended measuring stick:** a two-cell fold on today's cells, to put real numbers on cells/faces/ticks per added target before choosing. **Not started.**
+
+**Earlier:** `#880` (the actual fold), `#879` (loop with no glue, no data marker), `#878`, `#877`, `#876`, `#875`, `#874`, `#873`, `#872`, `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) the two-cell fold as a measuring stick; (2) choose among axes (i)-(iv); (3) RTL path for `hold_in`/`a_reemit_in` and run the loop in RTL; (4) confirm `#874`, prototype the triggered sequencer; (5) per-direction ack in the VM, then the controlled command mode (`#873`); (6) N passes; (7) overflow indication for grid-native paths; (8) fp32 ADD/MUL/DIV substrate mapping; (9) `#846` G/R/S to real rounding; (10) MIN/MAX via `branch`; (11) `v1d` VM model (`#841`); (12) LLVM gap list (`#830`); (13) scope items 3, 4, 6; (14) VIX Carrier backlog (`#824`); (15) documentation catch-up (`#829`/`#856`) -- timely; (16) paired-cell/command-bus (`#835`/`#836`) -- directly relevant to axis (iv); (17) N-way sort network (`#837`); (18) collapsed-assembler idea (`#838`); (19) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, THE ACTUAL FOLD works in the VM: the cell the loop reprograms is now IN the data path, so the same nano computes AND with a constant for pass 1 and XOR with it for pass 2, reconfigured live by the grid-native loop. Outputs [0x5678, 0xbeef, 0xfffd, 0xcafe0ff2] = [AND, AND, XOR, XOR]. ~105 ticks. 1528 tests + 49 script checks pass. See `points/points_active.md` #880)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
