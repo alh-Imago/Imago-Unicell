@@ -1,4 +1,26 @@
-# Current State (as of 2026-09-28, THE MEASURED COMPARISON: the same 4-stage function over the same 8 items as a static stage pipeline and as a 4-pass fold, both correct against a reference (the fold after EVERY pass). Static 19 ticks / 8 machinery cells; fold 204 ticks / 56 machinery cells: ~10.7x slower, ~7x the cells. The fold can never beat static on time (serial, >= N stages x), and as built never on cells either (3 store cells per extra stage vs 2 for a static stage) -- the program store is the scaling term. 1536 tests + 49 script checks pass. See `points/points_active.md` #885)
+# Current State (as of 2026-09-28, THE BOARD HAS ARRIVED -- a Sipeed Tang Nano 20K (GW2AR-LV18). First real synthesis numbers for its architecture (yosys synth_gowin, synthesis only): the three-addon chain is HARD-WIRED into every cell and its barrel shifter dominates -- a `ram` relay is 2,416 LUT4 (397 without the addons), a `nano` 3,898 (1,750), a `command` cell 338 either way. The static 4-stage pipeline fits only with lean cells (1.22x chip full, 0.41x lean); the fold loop does not fit even lean (6.8x full, 1.27x lean); its 28 relay cells alone are 3.3x the chip. FFs are not binding. No RTL changed; sizing tool in `tools/gowin_sizing/`. See `points/points_active.md` #886)
+
+## Read this first (most recent)
+
+**#886 -- the Tang Nano 20K is here, and the first thing to do with it was size the cells for it.** Only yosys is installed in the sandbox (0.33); P&R, bitstream and flashing run on Alan's machine, and no Gowin constraints/top-level exists in the repo yet. **Measured (LUT4, FULL as built -> LEAN with the addon chain stubbed out):** nano 3,898 -> 1,750; ram 2,416 -> 397; adder 2,348 -> 248; branch 3,036 -> 718; accumulator 2,398 -> ~370; compare 575 -> 484; sequencer 686 -> 173; latch 243 -> 186; command 338 (no addons); mul 7,015 -> 5,723. Chip: 20,736 LUT4, 15,552 FF.
+
+**Finding: the addon chain is hard-wired into every cell (only `CELL_ID` is a parameter) and `shift_lane_addon_v1` alone is 2,607 LUT4** -- so every cell pays for a 32-bit barrel shifter it may never use. There is no lean variant. **Flip-flops are not binding** (fold loop 0.38x chip FF vs 6.8x LUT), answering `#664`'s open question.
+
+**Fit:** ~5 nano / ~8 ram at full size, 11 / 52 lean. Static 4-stage pipeline machinery = 25,256 LUT4 (1.22x chip) full, 8,588 (0.41x) lean: fits only lean. Fold loop (60 cells) = 141,654 (6.8x) full, 26,311 (1.27x) lean: does NOT fit even lean; like-for-like it is 5.2x full / 2.9x lean the static machinery in LUT4 (vs 7x in cells). **The fold's 28 relay cells alone = 3.3x the chip** -- the geometry `#882` blamed for its time is also most of its area.
+
+**This reframes `#882`/`#885`: cells are not equal** (186-243 for a latch, 338 for a command cell, 3,898 for a nano). And the shifter wasted in every relay is exactly what fp alignment/normalisation NEED -- shifters belong only where shifting happens.
+
+**Caveats:** generic mapping (no `-family` in yosys 0.33), pre-P&R, no routing or utilisation ceiling; ledger's Quartus ALM figures are a different unit; accumulator lean varied 378 vs 360 between runs (~5%); LEAN deletes the shifter so it is a lower bound, not a working cell.
+
+**Proposed next steps (not built):** an additive lean-cell RTL parameter; a first on-board smoke test that fits (static stage pipeline of lean cells to the six LEDs or serial, checked against `#885`'s reference -- also the VM-vs-silicon check `#848` asked for); a Gowin top-level and `.cst`; then P&R/bitstream/flash on Alan's machine.
+
+**Earlier:** `#885` (measured stage pipeline vs fold), `#884` (static pipelines), `#883` (fp4096), `#882`, `#881`, `#880` (the actual fold), `#879`, `#878`, `#877`, `#876`, `#875`, `#874`, `#873`, `#872`, `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) the lean-cell parameter; (2) the first on-board smoke test, top-level and constraints; (3) the branch-reconfiguration demonstration, sized in LUTs; (4) the compact program store (`#873`/`#874`); (5) scope the carry-forward gap; (6) computed command words; (7) controlled command mode with a direction-carrying Start; (8) per-direction ack in the VM; (9) RTL path for `hold_in`/`a_reemit_in`; (10) overflow indication; (11) fp32 ADD/MUL/DIV substrate mapping as STATIC stage pipelines; (12) `#846` G/R/S; (13) MIN/MAX via `branch`; (14) `v1d` VM model (`#841`); (15) LLVM gap list (`#830`); (16) scope items 3, 4, 6; (17) VIX Carrier backlog (`#824`); (18) documentation catch-up (`#829`/`#856`) -- timely; (19) paired-cell/command-bus (`#835`/`#836`); (20) N-way sort network (`#837`); (21) collapsed-assembler idea (`#838`); (22) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, THE MEASURED COMPARISON: the same 4-stage function over the same 8 items as a static stage pipeline and as a 4-pass fold, both correct against a reference (the fold after EVERY pass). Static 19 ticks / 8 machinery cells; fold 204 ticks / 56 machinery cells: ~10.7x slower, ~7x the cells. The fold can never beat static on time (serial, >= N stages x), and as built never on cells either (3 store cells per extra stage vs 2 for a static stage) -- the program store is the scaling term. 1536 tests + 49 script checks pass. See `points/points_active.md` #885)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 

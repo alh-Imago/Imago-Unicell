@@ -15338,3 +15338,44 @@ fp32 (1 limb) **8.2%**; fp64 (2) **15.1%**; fp128 (4) **26.2%**; fp256 (8) **41.
 **What this means for the fold:** for a fixed sequence of a few stages the static pipeline wins on time AND on cells, now measured. The fold's real claim is narrower and different: RUN-TIME-VARIABLE behaviour -- the same physical structure taking on different roles over time. Alan's branch case is exactly that: a `branch` cell whose routing is reprogrammed so the same chains serve different program branches.
 
 **Real queue:** (1) the branch-reconfiguration demonstration: a `branch` cell whose route/emit rules are reprogrammed between passes so the SAME downstream chains serve different roles -- Alan's stated use, and the fold's real niche; (2) the compact program store: prototype the triggered sequencer (`#873`/`#874`) and re-run this comparison to see whether the marginal cost per stage falls; (3) scope the carry-forward gap as its own item; (4) computed command words (a shift amount from the exponent difference); (5) controlled command mode with a direction-carrying Start; (6) per-direction ack in the VM; (7) RTL path for `hold_in`/`a_reemit_in`; (8) overflow indication for grid-native paths; (9) fp32 ADD/MUL/DIV substrate mapping as STATIC stage pipelines (`#843` point 1, now measured); (10) `#846` G/R/S; (11) MIN/MAX via `branch`; (12) `v1d` VM model (`#841`); (13) LLVM gap list (`#830`); (14) scope items 3, 4, 6; (15) VIX Carrier backlog (`#824`); (16) documentation catch-up (`#829`/`#856`) -- timely; (17) paired-cell/command-bus (`#835`/`#836`); (18) N-way sort network (`#837`); (19) collapsed-assembler idea (`#838`); (20) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## 886. THE BOARD HAS ARRIVED -- a Sipeed Tang Nano 20K, the project's planned hardware target since `#664` (photo shared 2026-09-28). First REAL synthesis numbers for its architecture, which turn the "cells" of `#882`/`#885` into LUTs. No RTL changed; a sizing tool added under `tools/gowin_sizing/`. Silicon stage of `#848`'s standing reminder: BEGUN at the synthesis level only. (Alan/Claude, 2026-09-28)
+
+**What the photo shows (as far as the markings are legible):** "SIPEED TANG NANO 20K"; the FPGA marked `GW2AR-LV18 QN88C8/I7`; a `BL616` chip (the USB-JTAG/serial bridge); an XTX SPI flash; USB-C; an HDMI connector; a 40-pin FPC socket (the RGB-LCD interface); buttons S1/S2 and an UPDATE button (BL616 firmware-update mode); six LEDs; a small JST connector. Consistent with `#664`'s record of the chip: 20,736 LUT4, 15,552 flip-flops, 2 PLLs, 18x18 DSP, 64 Mbit SDRAM, 828 Kbit block RAM, microSD.
+
+**Toolchain state, stated plainly.** `#664` recorded the open flow (`yosys synth_gowin` -> `nextpnr-himbaechel` -> `gowin_pack` -> `openFPGALoader`). In the sandbox I installed ONLY yosys (apt, version 0.33). nextpnr-himbaechel, Apicula and openFPGALoader are NOT installed here, and flashing needs the USB port, so place-and-route, bitstream and programming have to run on Alan's own machine. No Gowin constraints file (`.cst`) or board top-level exists in the repo (a search for `.cst`/`.tcl`/`.sh` files mentioning Gowin found none).
+
+**MEASURED -- LUT4 / flip-flops per standalone cell, synthesis only (`tools/gowin_sizing/size_cells.sh`):**
+
+| cell | FULL as built | LEAN (addon chain stubbed out) |
+|---|---|---|
+| `nano_gate_v4` | 3,898 / 113 | 1,750 / 93 |
+| `ram_cell_v4` | 2,416 / 100 | 397 / 80 |
+| `adder_cell_v4` | 2,348 / 101 | 248 / 81 |
+| `branch_cell_v4` | 3,036 / 140 | 718 / 120 |
+| `accumulator_cell_v4` | 2,398 / 129 | 378 (360 on a rerun) / 109 |
+| `compare_cell_v4` | 575 / 61 | 484 / 48 |
+| `sequencer_cell_v4` | 686 / 69 | 173 / 55 |
+| `latch_cell_v4` | 243 / 38 | 186 / 25 |
+| `command_cell_v4` | 338 / 45 | 338 / 45 (no addon chain) |
+| `mul_cell_v4` | 7,015 / 100 | 5,723 / 80 (the bitwise multiplier itself; no DSP inferred) |
+
+**Finding 1 -- the addon chain is hard-wired into every cell, and its barrel shifter is the cost.** In `ram_cell_v4.v` the three addons (nibble mask, shift lane, invert) are instantiated unconditionally; the only parameter is `CELL_ID`. Measured alone: `shift_lane_addon_v1` **2,607 LUT4** (v2 3,227), `shift_fine` 318, `invert` 32, `nibble_mask` 32. So EVERY cell pays for a 32-bit barrel shifter whether it ever shifts or not: a `ram` relay cell is 2,416 LUT4 of which about 2,000 is shifter it never uses. `command_cell_v4`, which has no addon chain, is 338. There is no lean variant to select.
+
+**Finding 2 -- flip-flops are not the binding resource.** The fold loop needs about 0.38x the chip's flip-flops against 6.8x its LUTs. `#664` had left open that FF could bind before LUTs (0.75 FF/LUT); at these cell sizes it does not.
+
+**Finding 3 -- what fits, and what does not.** Against 20,736 LUT4 (no routing, no utilisation ceiling):
+- One cell type alone, FULL -> LEAN: nano 5 -> 11; ram 8 -> 52; adder 8 -> 83; branch 6 -> 28; accumulator 8 -> 54; sequencer 30 -> 119; command 61; latch 85 -> 111; mul 2 -> 3. This is the "single-digit-to-low-double-digit cell count" scale `#664` expected, now with numbers.
+- **Static 4-stage pipeline machinery** (4 nano + 4 ram, `#885`): 25,256 LUT4 = **1.22x the chip** as built; **8,588 = 0.41x** lean. It can fit, but only with lean cells.
+- **The fold loop** (all 60 cells): 141,654 = **6.8x** the chip as built; **26,311 = 1.27x** lean. It does NOT fit even with lean cells. Like-for-like (machinery only, storage excluded): 132,008 (6.4x) full, 24,742 (1.2x) lean; against the static machinery that is **5.2x full, 2.9x lean** in LUT4, versus the 7x in cells `#885` reported.
+- **The fold's 28 relay-line cells alone:** 67,648 (3.3x the chip) full, 11,116 (0.54x) lean. The placement geometry `#882` blamed for most of the fold's time is ALSO most of its area.
+
+**This reframes `#882` and `#885`.** They counted every cell as equal. The costs differ by more than 20x (a latch 186-243, a command cell 338, a nano 3,898), and the cheapest parts of the design are the control cells while the expensive ones are the plain relays: the relay lines I called "geometry" cost 3.3x the whole chip because each relay carries an unused barrel shifter. Lean relays would cut that by ~6x.
+
+**Real, honest caveats:** yosys 0.33's `synth_gowin` has no `-family` switch, so mapping is generic; yosys+abc is typically less area-efficient than a vendor tool (the ledger's Quartus figures, e.g. nano ~103 ALM in `#209` for the early cell and 1,030-1,307 ALM per carrier position in `#579`/`#580`, are a different unit and cannot be compared directly); counts are pre-place-and-route and exclude routing and any utilisation ceiling; the accumulator's lean figure varied 378 vs 360 between runs (~5%) while other cells reproduced exactly; and LEAN deletes the shifter entirely, so it is a lower bound for a core, NOT a working cell -- fp alignment and normalisation NEED that shifter. The `MUX2_LUT` counts (wide-LUT muxes inside a slice) are not added here.
+
+**A synergy worth noting:** the shifter that is wasted in every relay cell is exactly the hardware fp alignment and normalisation need. A design that puts shifters only where shifting happens (a lean relay, a shifter-carrying alignment cell) is both smaller and better matched.
+
+**Next steps (proposed, not built):** (1) an ADDITIVE lean-cell parameter in the RTL (default keeps today's behaviour, so every existing RTL proof stays valid; follow `CORE_CHANGE_IMPACT_MAP.md`); (2) a first on-board smoke test that fits -- a static stage pipeline of lean cells driving the six LEDs or a serial port, checked against the same reference `#885` used, which is also the VM-versus-silicon check `#848` asked for; (3) a Gowin top-level and `.cst` constraints for this board (none exist); (4) place-and-route, bitstream and flashing on Alan's machine.
+
+**Real queue:** (1) the lean-cell parameter; (2) the first on-board smoke test and its top-level/constraints; (3) the branch-reconfiguration demonstration (Alan's use case: a `branch` cell reprogrammed between passes to reuse chains) -- now to be sized in LUTs; (4) the compact program store (`#873`/`#874`); (5) scope the carry-forward gap; (6) computed command words; (7) controlled command mode with a direction-carrying Start; (8) per-direction ack in the VM; (9) RTL path for `hold_in`/`a_reemit_in`; (10) overflow indication for grid-native paths; (11) fp32 ADD/MUL/DIV substrate mapping as STATIC stage pipelines; (12) `#846` G/R/S; (13) MIN/MAX via `branch`; (14) `v1d` VM model (`#841`); (15) LLVM gap list (`#830`); (16) scope items 3, 4, 6; (17) VIX Carrier backlog (`#824`); (18) documentation catch-up (`#829`/`#856`) -- timely; (19) paired-cell/command-bus (`#835`/`#836`); (20) N-way sort network (`#837`); (21) collapsed-assembler idea (`#838`); (22) keep `CORE_CHANGE_IMPACT_MAP.md` current.
