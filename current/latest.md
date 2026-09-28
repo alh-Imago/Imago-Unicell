@@ -1,4 +1,22 @@
-# Current State (as of 2026-09-28, the reconfiguration loop runs with NO harness glue and NO data-valued marker anywhere: preloaded-constant start words (power-on ram + hold-and-reemit nano), the pass-aware exit counter as the drain, a trigger-mode cell running the program, a second one gating the source. Two passes, three programs, ~65 ticks; the test only LOADS the next pass (BRAM stand-in). 1520 tests + 49 script checks pass. See `points/points_active.md` #879)
+# Current State (as of 2026-09-28, THE ACTUAL FOLD works in the VM: the cell the loop reprograms is now IN the data path, so the same nano computes AND with a constant for pass 1 and XOR with it for pass 2, reconfigured live by the grid-native loop. Outputs [0x5678, 0xbeef, 0xfffd, 0xcafe0ff2] = [AND, AND, XOR, XOR]. ~105 ticks. 1528 tests + 49 script checks pass. See `points/points_active.md` #880)
+
+## Read this first (most recent)
+
+**#880 -- the fold.** Until now the reprogrammed unit was a separate target the items never touched (scheduling only). Now F is a `nano` with `hold_in` IN a 3-cell section holding a constant K as operand A; each item is operand B; F computes `f(K, item)` for whatever topology the loop last programmed (AND, then XOR, then OR). Timeline: program 0 done t7, K captured alone t8, source released t11, pass 1 exits t23-25 under AND, reprogram t48-54 to XOR with A intact, pass 2 exits t70-72 under XOR.
+
+**Three facts found by running, each contradicting an assumption:** (1) K cannot be pre-loaded -- an un-started nano is effectively frozen and refuses EVERYTHING; K is captured the tick AFTER the first program arms it; (2) K must arrive ALONE (first arrival = A, later = B, simultaneous ones OR-combine) -- the long transport line guarantees it; (3) with `hold_in`, A survives firing AND reprogramming. Also a scratch bug found by tracing (source chain built with an inverted upstream mask), recorded because it looked like a design problem.
+
+**Controls:** re-selecting the same function makes pass 2 AND'ed (outputs follow the loaded configuration, not stream position); with no source gate I predicted K would be corrupted -- WRONG: the real failure is pass 2 SILENTLY processed by the old configuration (plausible wrong answers, no error). 5 mutations caught.
+
+**Honest scope:** VM only; loader still a harness step; one fold cell, two passes; RTL caveat -- `hold_in` and `a_reemit_in` are nano extras tied off in the carrier's first RTL build; the function is a simple masked AND/XOR/OR -- a real fold (fp32 ADD stages) reprograms several cells with data-dependent control (`#843`'s open question).
+
+**Earlier:** `#879` (loop with no glue, no data marker), `#878` (pass-aware drain), `#877` (relay path = delay AND buffer), `#876` (grid-native drain event), `#875` (rolling branch = change detector), `#874`, `#873`, `#872`, `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) a fold with SEVERAL reprogrammed cells and richer per-pass programs (toward fp32 ADD's stages); (2) settle the RTL path for `hold_in`/`a_reemit_in` and run the loop in RTL incl. delay timing; (3) confirm `#874` (run-per-bit vs value-per-bit), prototype the triggered sequencer (collapses the nine-cell program store); (4) per-direction ack in the VM, then the controlled command mode (`#873`); (5) N passes beyond two; (6) overflow indication for grid-native paths; (7) fp32 ADD/MUL/DIV substrate mapping; (8) `#846` G/R/S to real rounding; (9) MIN/MAX via `branch`; (10) `v1d` VM model (`#841`); (11) LLVM gap list (`#830`); (12) scope items 3, 4, 6; (13) VIX Carrier backlog (`#824`); (14) documentation catch-up (`#829`/`#856`) -- timely now; (15) paired-cell/command-bus (`#835`/`#836`); (16) N-way sort network (`#837`); (17) collapsed-assembler idea (`#838`); (18) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, the reconfiguration loop runs with NO harness glue and NO data-valued marker anywhere: preloaded-constant start words (power-on ram + hold-and-reemit nano), the pass-aware exit counter as the drain, a trigger-mode cell running the program, a second one gating the source. Two passes, three programs, ~65 ticks; the test only LOADS the next pass (BRAM stand-in). 1520 tests + 49 script checks pass. See `points/points_active.md` #879)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
