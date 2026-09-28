@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-28, `#873` refined, still NOT built: the sequencer's trigger is just a plain 1-bit arrival on the ordinary handshake (general ack, register clears ready for the next bit). Candidate 1/0 cells verified (nano TOPO_ONE/TOPO_ZERO, branch fixed values, latch, compare); the source must be one-shot, not a level. Sequencer half can be prototyped first -- it does not need per-direction ack. See `points/points_active.md` #874)
+# Current State (as of 2026-09-28, the `branch` core in ROLLING mode is a genuine CHANGE DETECTOR -- the primitive I wrongly said did not exist. A continuously re-offered latch through a rolling branch yields exactly one value per change (a fixed 1 on the rise, a fixed 2 on the fall). `comparator` (`compare`) always answers and cannot be a one-shot trigger. 1494 tests + 49 script checks pass. See `points/points_active.md` #875)
+
+## Read this first (most recent)
+
+**#875 -- Alan asked whether the comparator is the cell that "sees the matching value and sends the value or a 1/0". By its fields that is `branch`, not `compare`.** `branch`: first arrival = held reference (never compared); each later arrival `<`/`=`/`>`; per outcome an `emit` flag (or stay SILENT), `value_source` (input value or a FIXED 7-bit value), and a `route`. `comparator` is `>=` only and answers 0/1 for EVERY arrival. **The finding that matters:** `rolling_mode=1` + `emit_equal=0` compares each arrival with the PREVIOUS one, so a re-offered level gives exactly one value per change. Tested: latch SET t1 / CLEAR t4 -> branch emitted 1 at t2 and 2 at t5 and nothing between, though the latch re-offered its level across several ticks.
+
+**A correction to my own claim:** at `#863` I said no edge-detector primitive existed. It did; I had never asked what rolling mode was for. Same lesson as `#866`: claims about what a cell can do must come from running it. This also removes the caution in `#874` -- a level source is safe as a sequencer trigger if a rolling branch follows it, and the fixed value can be the 1 or 0 Alan described.
+
+**Honest limits:** verified on a latch and a synthetic stream only; "count reached ZERO" from an accumulator is NOT yet shown (rolling reports change, not "is zero"; the reference is always the first arrival with no config preload, so a zero-reference stage would need a 0 delivered first -- untested idea); fixed value is 7-bit; VM only.
+
+**Earlier:** `#874` (trigger refinement), `#873` (design observation), `#872` (value-independent drain signal via the sentinel), `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) test "count reached zero" from an accumulator (rolling branch + zero-reference stage) so the drain event is grid-native; (2) confirm `#874`'s reading (run-per-bit vs value-per-bit); (3) VM prototype of the triggered sequencer with a safe one-shot source; (4) per-direction ack in the VM, then the controlled command mode; (5) rerun `#871`/`#872` and MEASURE; (6) the actual fold; (7) sentinel overflow/underflow; (8) RTL for what the prototypes prove; (9) fp32 ADD/MUL/DIV substrate mapping; (10) `#846` G/R/S to real rounding; (11) MIN/MAX via `branch`; (12) `v1d` VM model (`#841`); (13) LLVM gap list (`#830`); (14) scope items 3, 4, 6; (15) VIX Carrier backlog (`#824`); (16) documentation catch-up (`#829`/`#856`); (17) paired-cell/command-bus (`#835`/`#836`); (18) N-way sort network (`#837`); (19) collapsed-assembler idea (`#838`); (20) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, `#873` refined, still NOT built: the sequencer's trigger is just a plain 1-bit arrival on the ordinary handshake (general ack, register clears ready for the next bit). Candidate 1/0 cells verified (nano TOPO_ONE/TOPO_ZERO, branch fixed values, latch, compare); the source must be one-shot, not a level. Sequencer half can be prototyped first -- it does not need per-direction ack. See `points/points_active.md` #874)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
