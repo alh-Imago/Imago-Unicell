@@ -15481,3 +15481,23 @@ Alan's own conclusion, drawn from three independent real measurements taken acro
 **What it is NOT good for:** any fold loop, any multi-type carrier, any real multi-cell-type pipeline at a scale that does useful work. A genuinely capable accelerator needs a bigger card -- `#890`'s "card-capacity" ceiling, not its "methodology" one -- most plausibly the Arria 10 this project's MAN files already target.
 
 **Consequence for the queue:** the on-board smoke test (`#886`/`#887`/`#889`'s standing queue item) is now explicitly scoped as a PROOF-OF-CONCEPT deliverable -- a small, real, working demonstration -- not a step toward a capable Tang-Nano-hosted accelerator, which this session's evidence rules out. Nothing built or measured here; a decision recorded.
+
+## 892. THE FIRST REAL, FLASHABLE UNICELL DELIVERABLE -- a real bitstream, built end to end from source, committed and ready to flash. The download will work.
+
+Alan asked, before signing off for the night: tie up the loose ends, get to a point where the download will work, flesh out the manuals. This entry is that.
+
+**What it is.** One real `sequencer_shell_v1c` core, deliberately (not randomly, unlike `#889`'s own sizing sweep) configured, its genuine internal `seq_index` register cycling through all 4 of its real states on LEDs 1-2 at roughly 1 Hz, gated by its own real downstream-offer/ack handshake -- the same shape `adder`/`branch`/every data-carrying core in this project already uses. `fpga/verilog/unicell_tang_nano_20k_smoke_v1.v` (new, hand-designed, not generated) and its real testbench `tb_unicell_tang_nano_20k_smoke_v1.v` (new).
+
+**Simulated before synthesized, per `#889`'s own lesson.** `iverilog` confirmed the sequencer arms and genuinely advances (27 real state transitions observed in a short window) BEFORE any synthesis time was spent -- the discipline `#889`'s three collapse bugs made unavoidable to trust.
+
+**Built through the real toolchain, all the way to a real bitstream.** `yosys` synthesis -> real `yowasp-nextpnr-himbaechel-gowin` place-and-route against the actual `GW2AR-LV18QN88C8/I7`/GW2A-18C chip database (`#889`'s own toolchain) -> real `gowin_pack`. One real snag on the way: `gowin_pack -d GW2AR-18C` fails outright (`FileNotFoundError`) -- apycula 0.32 ships no `GW2AR-18C.msgpack.xz` at all, only `GW2A-18C`/`GW2A-18`; the fix was passing the FULL device string (`GW2AR-LV18QN88C8/I7`, the same one nextpnr already takes) to `gowin_pack -d`, not the bare family name. **Real, measured result:** Fmax 198.3 MHz against the 27 MHz board clock (7.3x margin), 618 LUT4 (3.0% of the chip), 95 DFF, 6 of 384 I/O pins -- comfortably inside the light-cell budget `#889`/`#891` scoped this kind of deliverable to.
+
+**Reproducible, not a one-off.** `tools/gowin_sizing/build_smoke_bitstream.sh` (new) runs the whole path with a pinned `--seed 1` and prints the real achieved Fmax, failing loudly if real timing closure isn't met. Re-run from a clean directory: byte-identical 4,618,782-byte `.fs` file. The committed `fpga/build/unicell_tang_nano_20k_smoke_v1.fs` (+ `.cst`, `_report.json`) is exactly this script's own output -- a real, ready-to-flash artifact, not a description of one.
+
+**The manual.** `docs/man/tang-nano-20k-getting-started.md` (new): what the LEDs will show and why, the exact `openFPGALoader` flash command (SRAM first, flash-write flagged as overwriting the board's current bitstream), what's verified (RTL, simulation, real synthesis+P&R+Fmax, every pin checked against the chip database) versus what genuinely is NOT (nothing has touched physical silicon yet -- that is still the next, real step, honestly stated as such rather than implied done). `docs/man/README.md` points to it.
+
+**Regression: 1549 passed, unchanged** -- nothing existing was touched; this is entirely new files (RTL, testbench, build script, bitstream, two manual pages).
+
+**What "done" honestly means here, and what it doesn't.** The TOOLCHAIN path from RTL to a real, flashable Gowin bitstream is now proven, reproducible, and committed -- that genuinely is finished. Physical validation is not, and cannot be from this sandbox: someone has to plug in the board and run the `openFPGALoader` command in the manual. That is the one loose end this entry cannot tie up itself.
+
+**Queue, updated:** (1) flash `fpga/build/unicell_tang_nano_20k_smoke_v1.fs` on the real board and confirm the LEDs behave as documented -- the actual next step, on Alan's machine, not this session's; (2) the ESP32 free-GPIO list (`#888`); (3) schematic check of edge pins 73-77; (4) lean-cell RTL parameter; (5) everything else `#886`/`#887`/`#889` already queued, unchanged.

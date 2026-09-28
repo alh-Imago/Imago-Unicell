@@ -95,3 +95,11 @@ with a clear message; `load_man_identity` is the vendor-neutral loader the VM mi
 **What it says about fit (measured, synthesis only, pre place-and-route):** one VIX carrier position is 17,339 LUT4
 (v1d) or 16,574 (v1) -- 83.6% / 79.9% of the chip, so it does **not** fit at the default 80% ceiling. Standalone cells
 fit only a handful at a time (about 4-8 `nano`, 6-41 `ram`, depending on full or lean).
+
+## Getting started on real hardware (points.md #892)
+
+The first real, flashable deliverable for this board: `docs/man/tang-nano-20k-getting-started.md` -- a
+one-cell (`sequencer`) proof-of-concept, built through the real toolchain (`yosys` -> real
+`yowasp-nextpnr-himbaechel-gowin` place-and-route -> real `gowin_pack` bitstream), with a committed,
+ready-to-flash `.fs` file (`fpga/build/`). Confirmed in simulation before synthesis, per real Fmax
+(198.3 MHz at a 27 MHz target). Nothing has been run on the physical board yet -- flashing it is next.
