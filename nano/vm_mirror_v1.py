@@ -73,7 +73,7 @@ def load_mirror_bounds(man_path: str, cells: int) -> MirrorBounds:
     build for this card/cell-count would produce."""
     if cells < 1:
         raise ValueError("cells must be >= 1")
-    man = pa.load_man(man_path)
+    man = pa.load_man_identity(man_path)     # vendor-neutral: only the card id is used here (#887)
     rows, cols = pa.grid_dims(cells)
     positions = pa.cell_positions(cells, rows, cols)
     return MirrorBounds(

@@ -62,3 +62,36 @@ any other fixed feature a given device may or may not physically have.
   separate, per-build data that would come from a real post-fit Quartus
   export — not something a MAN file (a per-card-model artifact) should
   hold at all; that belongs with a SHAPE file instead.
+
+## `tang-nano-20k.man.json` -- the first non-Intel MAN (points.md #887)
+
+The Sipeed Tang Nano 20K (Gowin `GW2AR-LV18QN88C8/I7`), the project's planned coprocessor target, to be paired with an
+ESP32-C-series host that owns the web front end, WiFi, and feeding/collecting data. **Generated, not hand-written:**
+
+    python3 tools/man_gen/gen_tang_nano_20k_man.py            # rewrites the .man.json and the .cst
+    python3 tools/man_gen/gen_tang_nano_20k_man.py --check    # exit 1 if either committed file is stale
+    (needs: pip install apycula msgpack)
+
+Two kinds of fact, kept apart:
+
+- **CHIP facts are read from the Apicula chip database** -- the same one the open place-and-route flow uses: 648 logic
+  tiles (x32 = 20,736 LUT4, x24 = 15,552 FF), 46 block-RAM tiles, 12 DSP tiles (48 18x18 multipliers), 8 I/O banks, the
+  QFN88 pin table, and the **embedded-SDRAM port list** (55 ports: 11 address, 2 bank, 32 data, 4 mask, 6 control, all
+  LVCMOS33; 64 Mbit, 32-bit, inside the package so it has no board pins).
+- **BOARD facts** (clock pin 4 at 27 MHz; LEDs 15-20 active low; buttons 88/87; UART 69/70; flash 59-62; SD 80-85) come
+  from two working third-party designs and the Sipeed wiki. Each pin is checked to *exist* in the chip database; that
+  proves it is real, not that the board is wired that way.
+
+**Not verified, and the file says so:** the schematic has not been checked, nothing has been run on the physical board,
+the ESP32 link pins (edge connector 73-77) are a *proposal* taken from a third-party SPI-slave design, and the ESP32-C
+variant has not been stated. HDMI, the RGB-LCD connector, the WS2812 and the audio amplifier are listed as unmapped.
+
+**Schema 1.1 (additive; the Arria MAN is unchanged):** `vendor`; `device.logic` counted in LUT4 with `alm_total: null`;
+block RAM under `bram` (Intel's is `m20k`); discrete block-RAM/DSP rows as one-row `y_segments`. `card_fit_v1.
+target_from_man` takes its budget in LUT4 from `LUT4_PER_POSITION` (measured: `tools/gowin_sizing/`), and refuses an
+ALM-measured shell on a LUT4 device. `project_assemble_v1.load_man` (the Quartus generator) now refuses a non-Intel MAN
+with a clear message; `load_man_identity` is the vendor-neutral loader the VM mirror uses.
+
+**What it says about fit (measured, synthesis only, pre place-and-route):** one VIX carrier position is 17,339 LUT4
+(v1d) or 16,574 (v1) -- 83.6% / 79.9% of the chip, so it does **not** fit at the default 80% ceiling. Standalone cells
+fit only a handful at a time (about 4-8 `nano`, 6-41 `ram`, depending on full or lean).

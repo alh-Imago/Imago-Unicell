@@ -58,6 +58,26 @@ Pos = Tuple[int, int]
 #: has NO measured figure, so it is deliberately absent -- asking for it is an error, not a guess.
 ALM_PER_POSITION = {"nano": 102.8, "super_v3": 1030.52, "super_v4": 1307.42}
 
+#: MEASURED LUT4 cost of one INSTANTIATED position on a GOWIN GW2A target (points.md #886/#887). NOT comparable
+#: with ALM_PER_POSITION above: a different vendor, a different unit (an ALM is not a LUT4) and a different tool.
+#: Source: `yosys 0.33 synth_gowin -noiopads`, SYNTHESIS ONLY -- pre place-and-route, no routing, generic mapping
+#: (this yosys has no `-family` switch), reproducible with tools/gowin_sizing/size_cells.sh and size_carrier.sh.
+#: `*_lean` replaces the shared addon chain with pass-through stubs: a lower bound for a core, NOT a working cell.
+#: The shifter (shift_lane_addon) is ~2,600 LUT4 on its own and is hard-wired into every standalone cell.
+LUT4_PER_POSITION = {
+    "vix_carrier_v1": 16574, "vix_carrier_v1d": 17339,
+    "nano_full": 3898, "nano_lean": 1750,
+    "ram_full": 2416, "ram_lean": 397,
+    "adder_full": 2348, "adder_lean": 248,
+    "branch_full": 3036, "branch_lean": 718,
+    "accumulator_full": 2398, "accumulator_lean": 378,
+    "compare_full": 575, "compare_lean": 484,
+    "sequencer_full": 686, "sequencer_lean": 173,
+    "latch_full": 243, "latch_lean": 186,
+    "command": 338,
+    "mul_full": 7015, "mul_lean": 5723,
+}
+
 #: the op that a resource-bearing site can implement, per resource kind
 RESOURCE_VARIANTS = {"mul": ("mul_dsp", "dsp")}
 
@@ -166,6 +186,7 @@ def target_from_man(man, *, rows: int, cols: int, origin: Pos = (0, 0), pitch: T
 
 
                     shell: str = "super_v3", alm_per_position: Optional[float] = None,
+                    lut4_per_position: Optional[float] = None,
                     utilization_ceiling: float = 0.80, array_shape: str = "generator") -> CardTarget:
     """Build a target from a real MAN file. DSP / M20K columns are DIE coordinates; a logical cell
     (r, c) is taken to sit at die (x0 + c*px, y0 + r*py), so a die column becomes a logical site column
@@ -176,19 +197,27 @@ def target_from_man(man, *, rows: int, cols: int, origin: Pos = (0, 0), pitch: T
     from `ALM_PER_POSITION` (default `super_v3`, the shell the assembler generates today, 1030.52 ALM,
     points.md #579). The VIX carrier has no measured figure, so `shell="vix"` requires an explicit
     `alm_per_position` -- it is never guessed."""
-    if alm_per_position is None:
-        if shell not in ALM_PER_POSITION:
-            raise ValueError(f"no MEASURED ALM cost for shell {shell!r} (measured: {sorted(ALM_PER_POSITION)}); "
-                             f"pass alm_per_position explicitly")
-        alm_per_position = ALM_PER_POSITION[shell]
     if isinstance(man, (str, os.PathLike)):
         with open(man) as f:
             man = json.load(f)
     dev = man["device"]
+    logic = dev.get("logic") or {}
+    lut4_mode = logic.get("unit") == "LUT4"          # a Gowin MAN counts LUT4s; an Intel MAN counts ALMs
+    if lut4_mode:
+        if lut4_per_position is None:
+            if shell not in LUT4_PER_POSITION:
+                raise ValueError(f"no MEASURED LUT4 cost for shell {shell!r} (measured: {sorted(LUT4_PER_POSITION)}); "
+                                 f"this is a LUT4 device -- pass shell= one of those, or lut4_per_position explicitly")
+            lut4_per_position = LUT4_PER_POSITION[shell]
+    elif alm_per_position is None:
+        if shell not in ALM_PER_POSITION:
+            raise ValueError(f"no MEASURED ALM cost for shell {shell!r} (measured: {sorted(ALM_PER_POSITION)}); "
+                             f"pass alm_per_position explicitly")
+        alm_per_position = ALM_PER_POSITION[shell]
     x0, y0 = origin
     px, py = pitch
     sites: Dict[str, List[Pos]] = {}
-    for kind, key in (("dsp", "dsp"), ("bram", "m20k")):
+    for kind, key in (("dsp", "dsp"), ("bram", "bram" if "bram" in dev else "m20k")):
         found: List[Pos] = []
         for col in dev.get(key, {}).get("columns", []):
             if (col["x"] - x0) % px:
@@ -200,16 +229,26 @@ def target_from_man(man, *, rows: int, cols: int, origin: Pos = (0, 0), pitch: T
                 if (y - y0) % py == 0 and 0 <= (y - y0) // py < rows:
                     found.append(((y - y0) // py, c))
         sites[kind] = sorted(set(found))
-    budget = int(dev["alm_total"] // alm_per_position)
-    prov = [f"MAN file {man.get('card_id')}: part {dev.get('part')}, alm_total={dev['alm_total']}, "
-            f"dsp blocks={dev.get('dsp', {}).get('total_blocks')} (source: {str(dev.get('source', ''))[:80]}...)",
-            f"budget = alm_total // {alm_per_position} = {budget} INSTANTIATED POSITIONS at 100% "
-            f"({shell}: {'MEASURED' if shell in ALM_PER_POSITION and alm_per_position == ALM_PER_POSITION[shell] else 'caller-supplied'}); "
-            f"the VIX carrier has NO measured ALM cost, so its real budget is an open question",
-            f"die->grid mapping is a PARAMETER: cell (r,c) at die ({x0}+c*{px}, {y0}+r*{py}); no Quartus post-fit "
-            f"data exists to confirm it",
-            f"derived sites: dsp={len(sites['dsp'])}, bram={len(sites['bram'])} (one per die y-unit in each column's "
-            f"range -- an upper bound; the card has {dev.get('dsp', {}).get('total_blocks')} DSP blocks in total)"]
+    if lut4_mode:
+        budget = int(logic["lut4_total"] // lut4_per_position)
+        prov = [f"MAN file {man.get('card_id')}: part {dev.get('part')}, lut4_total={logic['lut4_total']}, "
+                f"ff_total={logic.get('ff_total')} (source: {str(dev.get('source', ''))[:80]}...)",
+                f"budget = lut4_total // {lut4_per_position} = {budget} INSTANTIATED POSITIONS at 100% "
+                f"({shell}: MEASURED, yosys synth_gowin, synthesis only, pre place-and-route, no routing)",
+                f"die->grid mapping is a PARAMETER: cell (r,c) at die ({x0}+c*{px}, {y0}+r*{py}); no post-fit "
+                f"data exists to confirm it",
+                f"derived sites: dsp={len(sites['dsp'])}, bram={len(sites['bram'])}"]
+    else:
+        budget = int(dev["alm_total"] // alm_per_position)
+        prov = [f"MAN file {man.get('card_id')}: part {dev.get('part')}, alm_total={dev['alm_total']}, "
+                f"dsp blocks={dev.get('dsp', {}).get('total_blocks')} (source: {str(dev.get('source', ''))[:80]}...)",
+                f"budget = alm_total // {alm_per_position} = {budget} INSTANTIATED POSITIONS at 100% "
+                f"({shell}: {'MEASURED' if shell in ALM_PER_POSITION and alm_per_position == ALM_PER_POSITION[shell] else 'caller-supplied'}); "
+                f"the VIX carrier has NO measured ALM cost, so its real budget is an open question",
+                f"die->grid mapping is a PARAMETER: cell (r,c) at die ({x0}+c*{px}, {y0}+r*{py}); no Quartus post-fit "
+                f"data exists to confirm it",
+                f"derived sites: dsp={len(sites['dsp'])}, bram={len(sites['bram'])} (one per die y-unit in each column's "
+                f"range -- an upper bound; the card has {dev.get('dsp', {}).get('total_blocks')} DSP blocks in total)"]
     return CardTarget(name=str(man.get("card_id")), rows=rows, cols=cols, cell_budget=budget,
                       utilization_ceiling=utilization_ceiling, sites=sites, provenance=prov, array_shape=array_shape)
 

@@ -550,11 +550,30 @@ def generate_single_core_top(top_name, module_name, base_name, n, rows, cols, ce
     return "\n".join(lines) + "\n"
 
 
+def load_man_identity(path):
+    """Vendor-neutral: the facts every consumer of a MAN file needs regardless of vendor (points.md #887).
+    The VM mirror only needs the card id and a name; it must not require Intel-only fields (`alm_total`,
+    `CLK_100M`, ...) just to lay out a grid."""
+    with open(path) as f:
+        man = json.load(f)
+    return {"card_id": man["card_id"], "part": man["device"]["part"],
+            "vendor": man.get("vendor", "intel"), "man_version": man.get("man_version")}
+
+
 def load_man(path):
     with open(path) as f:
         man = json.load(f)
     device = man["device"]
     board = man["board"]
+    # points.md #887: this loader drives the QUARTUS project generator and is Intel/Arria-shaped end to end
+    # (family string, ALM budget, CLK_100M, LED0_N/LED1_N). Refuse a foreign-vendor MAN with a clear message
+    # instead of a bare KeyError deep inside the generator.
+    if man.get("vendor", "intel") != "intel" or device.get("alm_total") is None:
+        raise ValueError(
+            f"{path}: MAN file {man.get('card_id')!r} describes a non-Intel device "
+            f"(vendor={man.get('vendor')!r}; logic is counted in {device.get('logic', {}).get('unit', '?')}, not ALM). "
+            f"The Quartus project generator supports Intel MAN files only; use load_man_identity() for "
+            f"vendor-neutral facts or the target's own toolchain flow.")
     return {
         # Real, deliberate choice: NOT device["family"] directly (the
         # MAN file's own value is "Arria 10 GX", a real, accurate
