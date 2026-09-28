@@ -1,4 +1,22 @@
-# Current State (as of 2026-09-28, #866's open gap CLOSED: fixed_mode ram needs its own separate data_valid config bit (`load_data_valid` in the VM, cfg_data[13] in RTL) -- a missing key on my side, not a VM or design problem. Integrated drain-latch + command-cell VM construction is unblocked. See `points/points_active.md` #867)
+# Current State (as of 2026-09-28, the reconfiguration loop runs end to end in ONE VM grid, twice, with different content -- drain latch, serialized word chain, command cell, fresh target. Also fixed a real VM gap (command cells could not be self-reprogrammed) and corrected my own #866 claim. 1470 tests + 49 script checks pass. Two links still host-driven. See `points/points_active.md` #868)
+
+## Read this first (most recent)
+
+**#868 -- the loop, assembled and run in one grid.** `#858`'s drain latch, a serialized 3-cell word chain, a real command cell and a fresh nano target in one `VixCarrierGrid`. Disarmed, the command cell holds the full chain untouched while the section drains; armed on the observed drain edge it delivers topology, mask, COMPLETE strictly in order, freezes the target only for the burst, and releases on COMPLETE; the whole thing then repeats with different content (topology 1/mask 4 -> topology 7/mask 2) with the gate holding between passes.
+
+**A correction to my own claim:** `#866` (and the next morning's status) said `program_word()` applies to `command`. It doesn't -- it raised an error; the constants existed but were never wired. Now added, mirroring the RTL block line for line, mutation-checked. Lesson: claims about what the VM can do must come from running it (same family as `#864`'s wrong-file grep).
+
+**A real fidelity gap, documented not hidden:** three parallel neighbours feeding a command cell -- the VM acks all in one tick but processes only the priority winner (target left frozen forever); the RTL acks only the selected direction. Pinned by a test asserting current behaviour. The serialized chain sidesteps it and matches the design note.
+
+**Honest scope:** the arm decision is still the HOST observing `latch_state`, and pass-to-pass reloads are host `program_word()` calls -- no cell yet carries latch SET/CLEAR into the command cell. RTL unchanged; slot-embedded command self-reprogram untested. Those are the remaining distance to a fully unattended fold.
+
+**Earlier:** `#867` (fixed_mode gap was my missing `load_data_valid`), `#866`/`#865`/`#864` (VM command-dispatch confusion and correction), `#863` (RTL arm/disarm cycle), `#862` (RTL live reconfigure), `#858` (drain latch).
+
+**Real queue:** (1) close the two host-driven links (a second command cell delivering arm/disarm words is a candidate, untested); (2) optionally per-direction ack in the VM; (3) test slot-embedded command self-reprogram; (4) fp32 ADD/MUL/DIV substrate mapping; (5) `#846` G/R/S to real rounding; (6) MIN/MAX via `branch`; (7) `v1d` VM model (`#841`); (8) LLVM gap list (`#830`); (9) scope items 3, 4, 6; (10) VIX Carrier backlog (`#824`); (11) documentation catch-up (`#829`/`#856`); (12) paired-cell/command-bus (`#835`/`#836`); (13) N-way sort network (`#837`); (14) collapsed-assembler idea (`#838`); (15) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, #866's open gap CLOSED: fixed_mode ram needs its own separate data_valid config bit (`load_data_valid` in the VM, cfg_data[13] in RTL) -- a missing key on my side, not a VM or design problem. Integrated drain-latch + command-cell VM construction is unblocked. See `points/points_active.md` #867)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 

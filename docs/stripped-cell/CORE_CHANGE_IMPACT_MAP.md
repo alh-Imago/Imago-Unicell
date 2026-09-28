@@ -94,6 +94,25 @@ Real, complete checklist, in the order `#853`/`#854` actually hit them:
     number: making one field required broke 29 tests across 6 files on
     the first run, none of them obviously related to `mul` by name.
 
+## Lessons that cost real time (`#864`-`#868`) -- read before concluding anything about the VM
+
+- **Two VM homes exist.** `unicell_super_automaton_v1.py` (`SuperCell`/`SuperGrid`, 8 core types) and
+  `vix_carrier_automaton_v1.py` (`VixCarrierCell`/`VixCarrierGrid`, which SUBCLASSES the first and adds
+  `command`). A grep against one file is not evidence about the other. `#864` claimed "the VM has no
+  command dispatch" from exactly that mistake. Check `CORES_AND_WRAPPERS_REFERENCE.md` first.
+- **Constants are not capability.** `PROG_ID_MODE`..`COMMAND_PROG_ID_COMPLETE` sat in the carrier module
+  for months; nothing wired them into `program_word()`, which raised on a command cell. `#866` claimed it
+  worked from reading them. Call the method before claiming it.
+- **Some VM tests are scripts, not pytest functions** (`test_vix_carrier_automaton_v1.py`, `..._mesh_v1.py`,
+  `..._slot_v1.py`): plain `pytest` reports "no tests ran". Run them directly
+  (`python3 tests/vm/<file>.py`) as part of any regression touching `VixCarrierCell`.
+- **A `fixed_mode` `ram` needs `data_valid` set separately** (`cfg_data[13]` / `load_data_valid`) or it
+  holds its value and never offers it (`#867`).
+- **Never feed a command cell from several neighbours at once.** VM/RTL differ on acking (see the command
+  row in `CELL_CHEATSHEET.md`); a serialized `ram` chain is both the design intent and the safe shape.
+- **Mutation-testing gotcha:** editing a file to a same-length variant and restoring it within one second
+  can leave a stale `.pyc` that keeps running the MUTATED code. Clear `__pycache__` after restoring.
+
 ## Changing a core's delivery/offer PROTOCOL (not just adding a field)
 
 Real, additional steps beyond the checklist above — `mul`'s `wide_mode`
