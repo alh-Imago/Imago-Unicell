@@ -255,3 +255,88 @@ def test_known_vm_gap_parallel_word_sources_are_all_consumed_but_only_one_proces
     assert consumed == [True, True, True], "the VM over-consumes: all three acked in one tick"
     assert tgt._nano.start_flag is False, "but COMPLETE was never processed"
     assert tgt.freeze_in is True, "so the target is left frozen -- the reconfigure never finishes"
+
+
+def _build_unattended():
+    """The same loop with NO host trigger. The value travelling through the
+    drain section IS the arm word; the pulse that clears the latch (relay_r's
+    one-shot offer) also runs down a relay column to a second command cell,
+    whose target is the first command cell, directly west of it."""
+    arm_word = (CMD_COMPLETE << 20) | 1          # PROG_ID 7, armed <= 1; bit0=1 also satisfies latch SET
+    w_topo, w_mask, w_done = _words(TOPO_NOT_A, 0b0100)
+    cells = [
+        _rec("src", 0, -1, "ram", {"init_data": arm_word, "load_data_valid": 1, "downstream_mask": ["e"]}),
+        _rec("head", 0, 0, "ram", {"upstream_mask": ["w"], "downstream_mask": ["e", "s"]}),
+        _rec("tail", 0, 1, "ram", {"upstream_mask": ["w"], "downstream_mask": ["e", "s"]}),
+        _rec("sink", 0, 2, "ram", {"upstream_mask": ["w"], "downstream_mask": []}),
+        _rec("relay_r", 1, 1, "ram", {"upstream_mask": ["n"], "downstream_mask": ["w", "e"]}),
+        _rec("lat", 1, 0, "latch", {"set_dir": ["n"], "clear_dir": ["e"], "downstream_mask": []}),
+        _rec("t1", 1, 2, "ram", {"upstream_mask": ["w"], "downstream_mask": ["s"]}),
+    ]
+    cells += [_rec(f"t{r}", r, 2, "ram", {"upstream_mask": ["n"], "downstream_mask": ["s"]}) for r in range(2, 7)]
+    cells += [
+        _rec("CMD2", 7, 2, "command", {"mode": 1, "polarity": 0, "drive_dir": 3,
+                                       "toggle_pattern": CMD_COMPLETE}),
+        _rec("c3", 4, 1, "ram", {"init_data": w_done, "load_data_valid": 1,
+                                 "upstream_mask": [], "downstream_mask": ["s"]}),
+        _rec("c2", 5, 1, "ram", {"init_data": w_mask, "load_data_valid": 1,
+                                 "upstream_mask": ["n"], "downstream_mask": ["s"]}),
+        _rec("c1", 6, 1, "ram", {"init_data": w_topo, "load_data_valid": 1,
+                                 "upstream_mask": ["n"], "downstream_mask": ["s"]}),
+        _rec("CMD1", 7, 1, "command", {"mode": 1, "polarity": 0, "drive_dir": 1,
+                                       "toggle_pattern": PROG_ID_COMPLETE}),
+        _rec("TGT", 8, 1, "nano", {}),
+    ]
+    return VixCarrierGrid(cells)
+
+
+def test_no_host_needed_after_setup_the_drain_pulse_arms_the_command_cell_in_grid():
+    """THE missing trigger, closed for one pass. After ONE setup step (cfg
+    loading always arms a command cell, so command cell #1 is disarmed once)
+    there is no host action anywhere in the loop: the drain pulse itself
+    reaches command cell #2, which relays the arm word into command cell #1,
+    which then delivers its word chain to the target.
+
+    REAL, HONEST SIMPLIFICATIONS -- do not read this as a general fold yet:
+      * The section's payload IS the arm word, so the drain pulse doubles as
+        the trigger word. A real fold carries real data, so the general design
+        would use the tail's pulse as the TRIGGER for a hold+reemit source
+        preloaded with the arm word (the proven #382 primitive; the trigger's
+        content is irrelevant) -- not built or tested here.
+      * Only pass 1. Reloading the chain/section for a second pass is still
+        host-driven, and nothing yet disarms command cell #1 in-grid.
+      * VM only: command-into-command relay has not been run in RTL."""
+    grid = _build_unattended()
+    cmd1, cmd2 = grid.cells[(7, 1)], grid.cells[(7, 2)]
+    tgt, lat = grid.cells[TGT], grid.cells[LAT]
+    _set_armed(cmd1, False)                      # the ONE-TIME setup step
+    assert cmd2._resolve_command_target() is cmd1
+
+    before = _snap(tgt)
+    saw_occupied = saw_drained = False
+    drained_at = armed_at = done_at = None
+    armed_before_drain = disturbed_before_arm = False
+    for t in range(80):
+        grid.tick()
+        if lat.latch_state:
+            saw_occupied = True
+        if saw_occupied and not lat.latch_state and drained_at is None:
+            drained_at = t
+        if cmd1.command_armed and armed_at is None:
+            armed_at = t
+            armed_before_drain = drained_at is None
+        if armed_at is None:
+            disturbed_before_arm |= (_snap(tgt) != before) or tgt.freeze_in
+        if armed_at is not None and _snap(tgt) == (TOPO_NOT_A, 0b0100, True) \
+                and not tgt.freeze_in and not cmd1.command_active_r:
+            done_at = t
+            break
+
+    assert saw_occupied and drained_at is not None, "the drain latch must cycle"
+    assert armed_at is not None, "command cell #1 must get armed with no host action"
+    assert armed_before_drain is False and armed_at > drained_at, \
+        "it must be armed only AFTER the section has drained, never before"
+    assert disturbed_before_arm is False, "the target must be untouched until armed"
+    assert done_at is not None and done_at > armed_at, "the full sequence must then complete"
+    assert _snap(tgt) == (TOPO_NOT_A, 0b0100, True) and tgt.freeze_in is False
+    assert cmd2.command_active_r is False and cmd1.command_active_r is False

@@ -157,3 +157,30 @@ def test_disarm_then_rearm_reprograms_the_same_target_a_second_time():
     _send_sequence(grid, TOPO_AND, 0b0010)
     assert (tgt._nano.topology, tgt._nano.routing_mask) == (TOPO_AND, 0b0010)
     assert tgt.freeze_in is False and cmd.command_active_r is False
+
+
+def test_a_command_cell_can_relay_into_another_command_cell():
+    """points.md #868: `_relay_word` used to test membership in the original
+    8-core table dict, so a command cell could never be the TARGET of another
+    command cell's programmer-mode relay (NotImplementedError), even though
+    the RTL has both the drive side (prog_data_out) and the receive side
+    (prog_data_in). It now asks the target for its own table."""
+    upstream = _rec("B", 0, 1, "command", {"mode": 1, "polarity": 0, "drive_dir": 3,     # drives WEST
+                                           "toggle_pattern": CMD_COMPLETE})
+    target = _rec("A", 0, 0, "command", {"mode": 1, "polarity": 0, "drive_dir": 2,
+                                         "toggle_pattern": PROG_ID_COMPLETE})
+    grid = VixCarrierGrid([target, upstream])
+    a, b = grid.cells[(0, 0)], grid.cells[(0, 1)]
+    _set_armed(a, False)
+    assert a.command_armed is False and b._resolve_command_target() is a
+
+    arm_word = (CMD_COMPLETE << 20) | 1          # PROG_ID 7 (COMPLETE), armed <= 1
+    grid.inject(0, 1, arm_word)
+    grid.run_to_quiescence()
+    assert a.command_armed is True, "the relayed COMPLETE,1 word must arm the target command cell"
+    assert a.freeze_in is False and b.command_active_r is False, "one-word session: started and ended on the same word"
+
+    disarm_word = (CMD_COMPLETE << 20) | 0
+    grid.inject(0, 1, disarm_word)
+    grid.run_to_quiescence()
+    assert a.command_armed is False, "and the same path can disarm it again"

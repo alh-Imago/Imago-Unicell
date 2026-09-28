@@ -318,7 +318,11 @@ def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:
             self._propagate_freeze(False)
         return
 
-    if target.core not in _PROG_TABLES and target.core != "nano":
+    # points.md #868: ask the TARGET for its own table (polymorphic) instead of
+    # testing membership in the original 8-core dict -- otherwise a command cell
+    # could never relay into another command cell, even though the RTL has both
+    # the drive side (prog_data_out) and the receive side (prog_data_in).
+    if target._prog_table() is None and target.core != "nano":
         raise NotImplementedError(
             f"command cell's own programmer-mode relay has no real PROG_ID table for "
             f"core {target.core!r} -- unrecognized core type, not silently skipped here"

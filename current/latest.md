@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-28, the reconfiguration loop runs end to end in ONE VM grid, twice, with different content -- drain latch, serialized word chain, command cell, fresh target. Also fixed a real VM gap (command cells could not be self-reprogrammed) and corrected my own #866 claim. 1470 tests + 49 script checks pass. Two links still host-driven. See `points/points_active.md` #868)
+# Current State (as of 2026-09-28, the missing start trigger closed for ONE pass: after one setup step, no host action -- the drain pulse reaches a second command cell that arms the first, which configures the target. Also fixed a 2nd VM gap (command cells could not be relay targets). 1472 tests + 49 script checks pass. Payload-as-arm-word is a simplification; pass 2 still host-driven. See `points/points_active.md` #869)
+
+## Read this first (most recent)
+
+**#869 -- Alan asked if the trigger was the key missing piece. Yes -- and it now exists in-grid for pass 1.** The latch can't be the trigger (a continuously re-offered LEVEL; command cells react to WORDS), but the pulse that CLEARS the latch is already a discrete one-shot event. Route it to a second command cell whose target is the first, carrying an arm word, and it arms command cell #1 with no host: latch occupied t2-3, drained t4, cmd1 armed t10, target frozen t11, topology t11, mask t13, COMPLETE and released t15.
+
+**A second VM gap, same root cause as the first:** `_relay_word` tested the original 8-core table dict instead of asking the target for its own table, so a command cell could never be a relay TARGET (RTL has both port sets). Fixed polymorphically; reverting it fails exactly the 2 new tests; all else unchanged.
+
+**Honest simplifications:** the section's payload IS the arm word (real fold data can't double as it -- general design would use the tail pulse to trigger a hold+reemit source preloaded with the arm word, the proven `#382` primitive; untested); one-time setup disarm (cfg always arms); pass 1 only, second-pass reload still host-driven; VM only, command-into-command not run in RTL.
+
+**Earlier:** `#868` (loop in one grid, command self-reprogram added, my `#866` claim corrected), `#867` (fixed_mode gap = missing `load_data_valid`), `#863`/`#862` (RTL arm/disarm and live reconfigure), `#858` (drain latch).
+
+**Real queue:** (1) generalize the trigger so real data can flow (tail pulse -> hold+reemit source -> command cell #2); (2) second host-driven link, pass-to-pass reload, and whether in-grid disarm is even needed; (3) command-into-command in RTL; (4) per-direction ack in the VM; (5) slot-embedded command self-reprogram test; (6) fp32 ADD/MUL/DIV substrate mapping; (7) `#846` G/R/S to real rounding; (8) MIN/MAX via `branch`; (9) `v1d` VM model (`#841`); (10) LLVM gap list (`#830`); (11) scope items 3, 4, 6; (12) VIX Carrier backlog (`#824`); (13) documentation catch-up (`#829`/`#856`); (14) paired-cell/command-bus (`#835`/`#836`); (15) N-way sort network (`#837`); (16) collapsed-assembler idea (`#838`); (17) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, the reconfiguration loop runs end to end in ONE VM grid, twice, with different content -- drain latch, serialized word chain, command cell, fresh target. Also fixed a real VM gap (command cells could not be self-reprogrammed) and corrected my own #866 claim. 1470 tests + 49 script checks pass. Two links still host-driven. See `points/points_active.md` #868)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
