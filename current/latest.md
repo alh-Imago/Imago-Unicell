@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-28, a PASS-AWARE drain signal: a pulse-mode accumulator counting the section's EXITS with threshold = pass length fires exactly once after the N-th exit and self-resets; a mid-pass bubble fools #876's zero-crossing detector (two events) but not it (one). #877's suggested nano-rendezvous AND is RETRACTED (reasoned, not run, to fire early on a stale event). 1512 tests + 49 script checks pass. See `points/points_active.md` #878)
+# Current State (as of 2026-09-28, the reconfiguration loop runs with NO harness glue and NO data-valued marker anywhere: preloaded-constant start words (power-on ram + hold-and-reemit nano), the pass-aware exit counter as the drain, a trigger-mode cell running the program, a second one gating the source. Two passes, three programs, ~65 ticks; the test only LOADS the next pass (BRAM stand-in). 1520 tests + 49 script checks pass. See `points/points_active.md` #879)
+
+## Read this first (most recent)
+
+**#879 -- the loop is now all cells.** Start word = a preloaded constant, never data (power-on one-shot `ram`; per pass a hold-and-reemit `nano` pre-armed with the word, ANY arrival releases the HELD word). Drain = `#878`'s pass-aware exit counter through a 3-cell relay path (delay AND buffer, `#877`). Program run = `#870`. Source gate = a second trigger-mode cell that sees two strictly alternating events: the START word (freeze) and a copy of the program's FINAL word (release). Timeline (~65 ticks): program 0 done t7, source released t11 (after it), pass 1 leaves t16-18, pulse t22, reprogram + source freeze + loader t28, program 1 done t34, source released t38, pass 2 t43-45, pulse t49, program 2 done t61.
+
+**A design decision made BEFORE building:** counting admissions and freezing on the pulse has a race (pulse path >= 3 ticks, source releases an item every 2), so the chain is its own counter -- the loader puts exactly one pass in, as the real BRAM protocol does. Timeline identical for completely different data; 5 miswirings caught by the tests.
+
+**Honest scope:** the loader is a harness step (BRAM stand-in); the reprogrammed unit is still a separate target, NOT a cell of the drained section (the actual fold is not done); RTL caveat -- hold-and-reemit is a nano "extra" that the carrier's first RTL build ties to inactive defaults (`root_definition.json`), so RTL needs standalone `nano_gate_v4` or a carrier extension; two passes only.
+
+**Earlier:** `#878` (pass-aware drain; retracted `#877`'s nano-AND idea), `#877` (relay path = delay AND buffer), `#876` (grid-native drain event), `#875` (rolling branch = change detector), `#874`, `#873`, `#872` (sentinel connection point), `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) make the reprogrammed unit a cell OF the drained section -- the actual fold; (2) settle the RTL path for hold-and-reemit and run the loop in RTL incl. delay timing; (3) confirm `#874` (run-per-bit vs value-per-bit), prototype the triggered sequencer (collapses the nine-cell program store); (4) per-direction ack in the VM, then the controlled command mode (`#873`); (5) N passes beyond two; (6) overflow indication for grid-native paths; (7) fp32 ADD/MUL/DIV substrate mapping; (8) `#846` G/R/S to real rounding; (9) MIN/MAX via `branch`; (10) `v1d` VM model (`#841`); (11) LLVM gap list (`#830`); (12) scope items 3, 4, 6; (13) VIX Carrier backlog (`#824`); (14) documentation catch-up (`#829`/`#856`); (15) paired-cell/command-bus (`#835`/`#836`); (16) N-way sort network (`#837`); (17) collapsed-assembler idea (`#838`); (18) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, a PASS-AWARE drain signal: a pulse-mode accumulator counting the section's EXITS with threshold = pass length fires exactly once after the N-th exit and self-resets; a mid-pass bubble fools #876's zero-crossing detector (two events) but not it (one). #877's suggested nano-rendezvous AND is RETRACTED (reasoned, not run, to fire early on a stale event). 1512 tests + 49 script checks pass. See `points/points_active.md` #878)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
