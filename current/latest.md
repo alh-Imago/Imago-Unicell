@@ -1,4 +1,14 @@
-# Current State (as of 2026-09-27, end of session: VixCarrierGrid confirmed to genuinely accept a mixed latch+command grid (real structural progress), but the actual data-flow wiring hit a narrow, unresolved gap (fixed-mode ram's own "wants to offer" flag) -- left open honestly rather than rushed. See `points/points_active.md` #866)
+# Current State (as of 2026-09-28, #866's open gap CLOSED: fixed_mode ram needs its own separate data_valid config bit (`load_data_valid` in the VM, cfg_data[13] in RTL) -- a missing key on my side, not a VM or design problem. Integrated drain-latch + command-cell VM construction is unblocked. See `points/points_active.md` #867)
+
+## Read this first (most recent)
+
+**#867 -- the fixed_mode gap was my config, not the system.** Alan's framing was right: fixed-mode ram is a stored constant delivered via the ordinary offer/ack handshake. `fixed_mode` only stops it capturing/clearing; whether it offers at all is governed by a separate `data_valid` bit (`load_data_valid` in the VM). I never set it. Confirmed directly: with it set, the source is valid at tick 0 and the downstream captures 43 at tick 1. This also corrects my wrong `#866` inference that fixed-mode ram is continuously live like accumulator.
+
+**Real queue:** (1) complete the integrated VM construction -- `#858`'s drain-latch driving a real command cell's arm/disarm via `program_word()` -- in one `VixCarrierGrid`; (2) automated word-source feeding command_cell's buffer; (3) fp32 ADD/MUL/DIV substrate mapping; (4) `#846` G/R/S to real rounding; (5) MIN/MAX via `branch`; (6) `v1d` VM model (`#841`); (7) LLVM gap list (`#830`); (8) scope items 3, 4, 6; (9) VIX Carrier backlog (`#824`); (10) documentation catch-up (`#829`/`#856`); (11) paired-cell/command-bus (`#835`/`#836`); (12) N-way sort network (`#837`); (13) collapsed-assembler idea (`#838`); (14) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-27, end of session: VixCarrierGrid confirmed to genuinely accept a mixed latch+command grid (real structural progress), but the actual data-flow wiring hit a narrow, unresolved gap (fixed-mode ram's own "wants to offer" flag) -- left open honestly rather than rushed. See `points/points_active.md` #866)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
