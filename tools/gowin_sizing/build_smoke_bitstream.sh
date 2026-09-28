@@ -10,7 +10,7 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 OUT=${1:-$ROOT/fpga/build}
 V=$ROOT/fpga/verilog
 DEVICE="GW2AR-LV18QN88C8/I7"
-TOP=unicell_tang_nano_20k_smoke_v1
+TOP=unicell_tang_nano_20k_smoke_v2   # #896: v2, no BTN_RST_N -- v1 (#892) stayed reset on real hardware
 SEED=1   # pinned for a reproducible build -- nextpnr's placer is otherwise seed-dependent
 
 mkdir -p "$OUT"
@@ -24,8 +24,6 @@ echo "== 2/3: real place-and-route against $DEVICE (GW2A-18C) =="
 cat > "$TOP.cst" << CST
 IO_LOC "BOARD_CLK" 4;
 IO_PORT "BOARD_CLK" IO_TYPE=LVCMOS33 DRIVE=8;
-IO_LOC "BTN_RST_N" 88;
-IO_PORT "BTN_RST_N" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 IO_LOC "LED0_N" 15;
 IO_PORT "LED0_N" IO_TYPE=LVCMOS33 DRIVE=8;
 IO_LOC "LED1_N" 16;
