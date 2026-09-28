@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-28, the `branch` core in ROLLING mode is a genuine CHANGE DETECTOR -- the primitive I wrongly said did not exist. A continuously re-offered latch through a rolling branch yields exactly one value per change (a fixed 1 on the rise, a fixed 2 on the fall). `comparator` (`compare`) always answers and cannot be a one-shot trigger. 1494 tests + 49 script checks pass. See `points/points_active.md` #875)
+# Current State (as of 2026-09-28, the drain event is now built ENTIRELY from grid cells: accumulator counter -> rolling branch (changes only) -> fixed-baseline-0 branch (fires when a changed value equals 0) -> one relay cell of delay. Handles several items in flight (count peaked at 3), fires exactly once, re-arms across bursts, identical timeline for any data. 1502 tests + 49 script checks pass. See `points/points_active.md` #876)
+
+## Read this first (most recent)
+
+**#876 -- Alan: test the zero-count case, and add a delay on the branch dispatch side so the trigger lands one tick later with the branch completely clear.** Built and proven: an `accumulator` counts occupancy by arrival direction (ignores values); stage A (rolling `branch`, silent on equal) passes only CHANGES of the count; stage B (`branch`, fixed baseline 0, needs a preloaded 0 delivered FIRST because the reference is always the first arrival) fires a fixed 1 when a changed value equals 0; a relay cell delays the trigger. With a 4-cell section the count peaks at 3 (the case `#858`'s latch got wrong) and exactly ONE event fires at the final drain; two bursts give two events; timeline identical for completely different data; the delay adds exactly one tick and everything upstream is clear on arrival.
+
+**Two controls, and my predictions were WRONG (corrected, not bent):** without stage A the detector fires repeatedly while items are STILL in the section (not "before any item enters"); without the zero reference it fires at the WRONG count (returns to its baseline 1 while an item is in flight) and the real drain produces no event (not "never fires").
+
+**Honest finding on the delay:** in this VM the trigger ALREADY lands one tick after stage B clears (offer/ack pipelining), so the delay is a MARGIN here, not a fix; the VM is round-stepped, so whether it is needed is an RTL-timing question. Built as a relay cell in the path, not a delay parameter in the branch core (that would be a core change -- Alan's call).
+
+**Earlier:** `#875` (branch rolling mode = change detector; corrected my claim that none existed), `#874`, `#873`, `#872` (sentinel connection point -- harness glue now unnecessary for a single chain), `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) decide the delay's form -- relay cell (built) or a branch-core `dispatch_delay` parameter; (2) wire this grid-native drain event to the sequencer trigger / command cell start, replacing `#872`'s harness glue, and rerun the loop; (3) confirm `#874`'s reading (run-per-bit vs value-per-bit); (4) VM prototype of the triggered sequencer; (5) per-direction ack in the VM, then the controlled command mode; (6) the actual fold; (7) sentinel overflow/underflow; (8) RTL for what the prototypes prove, incl. the delay timing; (9) fp32 ADD/MUL/DIV substrate mapping; (10) `#846` G/R/S to real rounding; (11) MIN/MAX via `branch`; (12) `v1d` VM model (`#841`); (13) LLVM gap list (`#830`); (14) scope items 3, 4, 6; (15) VIX Carrier backlog (`#824`); (16) documentation catch-up (`#829`/`#856`); (17) paired-cell/command-bus (`#835`/`#836`); (18) N-way sort network (`#837`); (19) collapsed-assembler idea (`#838`); (20) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, the `branch` core in ROLLING mode is a genuine CHANGE DETECTOR -- the primitive I wrongly said did not exist. A continuously re-offered latch through a rolling branch yields exactly one value per change (a fixed 1 on the rise, a fixed 2 on the fall). `comparator` (`compare`) always answers and cannot be a one-shot trigger. 1494 tests + 49 script checks pass. See `points/points_active.md` #875)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
