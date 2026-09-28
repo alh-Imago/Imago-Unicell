@@ -71,6 +71,7 @@ def build(db):
     THIRD = ("calint/tang-nano-20k--riscv--cache-sdram tangnano20k.cst (a working RV32I design using the on-board "
              "SDRAM, flash and SD card)")
     ARTHUR = "ArthurHeymans/tang_20k_spi_flash README (open-flow SPI-slave design on the edge connector)"
+    KIT = "https://docs.sunfounder.com/projects/esp32-starter-kit/en/latest/"
     WIKI = "Sipeed wiki, en.wiki.sipeed.com/hardware/en/tang/tang-nano-20k/nano-20k.html"
 
     man = {
@@ -231,12 +232,37 @@ def build(db):
             "host_link": {
                 "role": "coprocessor",
                 "host": {
-                    "device": "ESP32-C series (exact variant NOT YET STATED by the project owner)",
+                    "device": ("ESP32-D (stated by the project owner, 2026-09-28); the kit documents its board as an "
+                               "ESP32-WROOM-32E"),
+                    "family": ("classic ESP32: dual-core Xtensa LX6, 2.4 GHz Wi-Fi and dual-mode Bluetooth, up to 38 "
+                               "GPIO, module with a 3.3 V SPI flash (SunFounder kit documentation)"),
+                    "kit": {
+                        "name": "SunFounder ESP32 Ultimate Starter Kit with ESP32 Camera Extension board",
+                        "docs": KIT,
+                        "arduino_board_setting": "ESP32 Dev Module",
+                        "extension_board": [
+                            "micro SD slot, used through the ESP32's SDMMC host peripheral (the kit's SD_MMC example)",
+                            "24-pin FFC connector for an OV2640 camera",
+                            "14-pin screw terminal and female headers",
+                        ],
+                        "extension_pinout": ("two pin tables exist in the kit documentation as IMAGES; NOT READ. So "
+                                             "which ESP32 GPIOs the extension board leaves free is UNKNOWN"),
+                    },
+                    "chip_inside_module_note": ("an ESP32-WROOM-32E module contains an ESP32-D0WD-V3; that is general "
+                                                "knowledge of the module, NOT from the kit documentation, and has not "
+                                                "been checked against the physical part"),
+                    "strapping_pins": [0, 2, 5, 12, 15],
+                    "strapping_note": ("kit documentation: IO12 (MTDI) pulled high at power-up stops the ESP32 booting "
+                                       "normally, because the module has a 3.3 V flash; IO0 low enters download mode"),
                     "responsibilities": ["web front end", "WiFi / network connections", "feeding input data",
                                          "collecting results"],
                     "io_voltage": "3.3 V, matching this board's LVCMOS33 I/O (no level shifter expected)",
                 },
                 "planned_interface": "SPI, ESP32 = master, FPGA = slave",
+                "esp32_side_pins": None,
+                "esp32_side_pins_note": ("NOT CHOSEN. Needs the extension board's pin tables (images in the kit "
+                                         "documentation) to know which GPIOs are free, and must avoid the strapping "
+                                         "pins for any line the FPGA drives (MISO, ready/interrupt)."),
                 "reference_pins": {
                     "CS_N": pins(73, {"net": "edge connector"}),
                     "SCLK": pins(74, {"net": "edge connector"}),
@@ -258,6 +284,14 @@ def build(db):
                     "reference design met timing anyway; a cleaner design would move SCLK to 76 or 77.",
                     "The UART on pins 69/70 goes to the BL616 (a PC over USB), not to the ESP32.",
                     "The BL616's 'USB to SPI' is a separate PC-to-FPGA path.",
+                    "HAZARD (derived): do not put an FPGA-driven line (MISO, ready/interrupt) on an ESP32 strapping "
+                    "pin (IO0, IO2, IO5, IO12, IO15). How the FPGA's pins behave while it configures has NOT been "
+                    "checked; a high on IO12 at reset would stop the ESP32 booting (kit documentation).",
+                    "The ESP32's second SPI bus defaults to IO12/13/14/15, and the SD slot uses the SDMMC host, whose "
+                    "fixed pins on this chip family are IO14/15/2/4/12/13 (general knowledge, NOT read from the kit's "
+                    "images), so avoid that bus on this kit.",
+                    "SPI on non-default ESP32 pins goes through the GPIO matrix, which limits the practical clock "
+                    "(general knowledge, unverified here).",
                 ],
             },
             "not_yet_mapped": [
@@ -292,6 +326,7 @@ def build(db):
             WIKI, THIRD, ARTHUR,
             "olofk/serv PR #147 (github.com/olofk/serv/pull/147): Tang Nano 20K constraints incl. clock period",
             "the owner's photo (2026-09-28): board and chip markings",
+            f"SunFounder ESP32 Starter Kit documentation ({KIT}): the host board and its extension board",
         ],
     }
     return man

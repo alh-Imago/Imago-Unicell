@@ -179,7 +179,16 @@ def test_the_man_does_not_claim_more_than_was_verified():
     assert v["physical_board"].startswith("NOT TESTED")
     hl = MAN["board"]["host_link"]
     assert hl["status"].startswith("PROPOSED") and "NOT" in hl["status"]
-    assert "NOT YET STATED" in hl["host"]["device"], "the ESP32-C variant has not been given"
+    host = hl["host"]
+    assert "ESP32-D" in host["device"] and "WROOM-32E" in host["device"], "the host is the kit's ESP32-D, not a C-series"
+    assert "C series" not in host["device"] and "ESP32-C" not in host["device"]
+    assert host["strapping_pins"] == [0, 2, 5, 12, 15], "the kit documentation's five strapping pins"
+    assert "NOT READ" in host["kit"]["extension_pinout"], "the extension board's pin tables are images nobody has read"
+    assert "NOT from the kit documentation" in host["chip_inside_module_note"], \
+        "the D0WD-V3 inside the module is general knowledge, not something the kit page says"
+    assert hl["esp32_side_pins"] is None and "NOT CHOSEN" in hl["esp32_side_pins_note"], \
+        "no ESP32-side pins may be claimed until the free GPIOs are known"
+    assert any("HAZARD" in n and "strapping" in n for n in hl["notes"]), "the strapping-pin hazard must stay recorded"
     assert all(v is False for k, v in MAN["capabilities"].items() if k.endswith("_integrated")), \
         "nothing has been built on this board yet"
     assert MAN["board"]["not_yet_mapped"], "the unmapped interfaces must stay listed until they are mapped"
