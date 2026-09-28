@@ -15501,3 +15501,20 @@ Alan asked, before signing off for the night: tie up the loose ends, get to a po
 **What "done" honestly means here, and what it doesn't.** The TOOLCHAIN path from RTL to a real, flashable Gowin bitstream is now proven, reproducible, and committed -- that genuinely is finished. Physical validation is not, and cannot be from this sandbox: someone has to plug in the board and run the `openFPGALoader` command in the manual. That is the one loose end this entry cannot tie up itself.
 
 **Queue, updated:** (1) flash `fpga/build/unicell_tang_nano_20k_smoke_v1.fs` on the real board and confirm the LEDs behave as documented -- the actual next step, on Alan's machine, not this session's; (2) the ESP32 free-GPIO list (`#888`); (3) schematic check of edge pins 73-77; (4) lean-cell RTL parameter; (5) everything else `#886`/`#887`/`#889` already queued, unchanged.
+
+## 894. REAL HARDWARE FAILURE, real diagnostic sent -- `#892`'s smoke test is dark on LED1/LED2 on the physical board despite passing simulation and `#893`'s pull-up fix; a bisection diagnostic built and pushed to find out where.
+
+Alan flashed `#892`'s smoke test on the real board tonight. LED0 (heartbeat) and LED3 (tick flash) work exactly as designed -- two independently-running counters, out of sync, LED3 held longer, matching the RTL precisely. **LED1/LED2 (the real sequencer state) are dark**, and stay dark even holding the reset button for several seconds. `#893`'s pull-up fix (BTN_RST_N had no `PULL_MODE`, and an incorrect output-only `DRIVE=8` on an input) made no observed difference.
+
+**A real mistake caught before it shipped.** The first diagnostic draft used `SEQ.CORE.armed` -- a hierarchical cross-module signal reference that `iverilog` accepts for simulation but yosys's synthesis frontend correctly rejects (`implicitly declared`). Fixed by observing the SAME fact through a real port instead: `sequencer_cell_v4c`'s own `ready_out = effective_armed && !effective_freeze`, with `active`/`freeze` tied to fixed values in this design, makes `ready_out` a direct, real, synthesizable proxy for `armed`.
+
+**The diagnostic (`fpga/verilog/unicell_tang_nano_20k_diag_v1.v`, new; testbench `tb_unicell_tang_nano_20k_diag_v1.v`, new; real bitstream `fpga/build/unicell_tang_nano_20k_diag_v1.fs`), simulated first, then built through the same real toolchain (Fmax 466.0 MHz, 29 LUT4, 37 DFF -- trivially small):** three signals latched STICKY (once true, stays true until reset) so a single-cycle pulse becomes a permanent, unmissable LED instead of something 37ns wide and invisible to the eye --
+- LED1 = `cfg_valid` has ever fired (the config-load pulse generator itself)
+- LED2 = `ready_out` (`armed`) has ever gone high (the sequencer core latched that config)
+- LED3 = `fire_n` has ever asserted (the full handshake decode -- mask, `want_to_offer`, `targets_all_ready` -- genuinely ran)
+
+No tick/ack gating at all this time (`ack_in_n` tied straight to `fire_n`) -- this build isolates "does the chain reach a ready-to-advance state at all" from `#892`'s separate ~1 Hz timing question.
+
+**What each outcome will mean, decided in advance so the read is honest, not fitted after the fact:** all three light and stay lit -> the whole chain up to "ready to advance" genuinely works on real silicon, and only the tick/ack loopback's own timing remains suspect. LED1 never lights -> the reset/config-pulse generator itself is the problem (a second, deeper issue beyond `#893`'s pull-up). LED1 lights but LED2 never does -> the core receives `cfg_valid` but doesn't latch `armed` -- a genuine RTL-vs-real-silicon mismatch, the first one this project would have found. LED2 lights but LED3 never does -> the handshake decode itself is the break point.
+
+**Queue:** get the real LED pattern back from Alan and read it against the table above; nothing else changes until that real data comes in.
