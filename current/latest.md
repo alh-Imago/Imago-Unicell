@@ -1,4 +1,22 @@
-# Current State (as of 2026-09-28, the reconfiguration loop is CLOSED in the VM: two rounds, no injected trigger, no host action at all. A second trigger-mode command cell gates item admission so item 2 provably cannot enter until round 1's reconfigure completes. 1481 tests + 49 script checks pass. Payload still doubles as the marker; target still a separate nano. See `points/points_active.md` #871)
+# Current State (as of 2026-09-28, the drain signal is now VALUE-INDEPENDENT: the existing Sentinel attached to a real VixCarrierGrid as a connection point counts feed/collect events, never data values, and prompts each reprogram and releases each pass -- including the initial programming at power-on. Replaces #871's data-as-marker placeholder. 1489 tests + 49 script checks pass. See `points/points_active.md` #872)
+
+## Read this first (most recent)
+
+**#872 -- Alan's point: data is modified by the chain, so a trigger cannot live in it, and a value match is just a comparator. He pointed at the sentinel; it is exactly right.** `Sentinel` (`sentinel_counter_v1.v`, `#279`): diff = FEED pulses at the head minus COLLECT pulses at the tail, frozen at power-on, `safe_to_intervene` = frozen AND diff exactly 0. It never reads a value. Attached to a real `VixCarrierGrid` as a connection point (per `#263`: fixed connection logic, not a uniform cell) in the new `nano/sentinel_connection_point_v1.py`: taps count ACCEPTED DELIVERIES (not polled state); a feed counter gives the pass boundary; `freeze_out` drives the source head; the rising edge of `safe_to_intervene` emits a start word; the reprogrammer's `command_active_r` falling edge issues the unfreeze.
+
+**Alan's second point, confirmed:** at power-on the sentinel is already frozen and drained = safe, so that same edge prompts the INITIAL programming and the source stays frozen until it completes. **His stall caveat, demonstrated:** a program that runs out before COMPLETE stalls safely (reprogrammed unit frozen, next pass never starts, items parked behind an empty frozen head, no error, unchanged 80 ticks later) -- a stall, not corruption.
+
+**Proven:** timeline identical for completely different data (`cpA.events == cpB.events`), items arrive unmodified incl. 0, an even value and the old `0xF00001` marker; reprogram only when fed == collected; wrap fires with an item still in flight (diff=1) so the wrap alone is not enough; no item enters OR leaves during programming; exactly `pass_len` items per pass. Negative control (prompt on out_frozen alone) reprograms with items moving. 5 mutations caught. I also owned that `#858`'s latch SET needed value bit 0 = 1, so it was not fully data-independent either.
+
+**Honest scope:** the pass counter, edge detects, start-word emission and completion detection are HARNESS models (no RTL for the glue; the sentinel itself has RTL); the reconfigured unit is still a separate target, NOT a cell of the drained section -- the actual fold is not done; error paths wired but not exercised; VM only.
+
+**Earlier:** `#871` (loop closed with data-as-marker placeholder), `#870` (freeze-gated word chain), `#869` (arm-based trigger), `#868` (loop in one grid, command self-reprogram), `#867` (fixed_mode), `#863`/`#862` (RTL), `#858` (drain latch).
+
+**Real queue:** (1) make the reconfigured unit a cell OF the drained section -- the actual fold; (2) exercise sentinel overflow/underflow in this attachment; (3) RTL for the connection glue; (4) run the loop in RTL; (5) N passes beyond two; (6) per-direction ack in VM; (7) slot-embedded command tests; (8) fp32 ADD/MUL/DIV substrate mapping; (9) `#846` G/R/S to real rounding; (10) MIN/MAX via `branch`; (11) `v1d` VM model (`#841`); (12) LLVM gap list (`#830`); (13) scope items 3, 4, 6; (14) VIX Carrier backlog (`#824`); (15) documentation catch-up (`#829`/`#856`); (16) paired-cell/command-bus (`#835`/`#836`); (17) N-way sort network (`#837`); (18) collapsed-assembler idea (`#838`); (19) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, the reconfiguration loop is CLOSED in the VM: two rounds, no injected trigger, no host action at all. A second trigger-mode command cell gates item admission so item 2 provably cannot enter until round 1's reconfigure completes. 1481 tests + 49 script checks pass. Payload still doubles as the marker; target still a separate nano. See `points/points_active.md` #871)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
