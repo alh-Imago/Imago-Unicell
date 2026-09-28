@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-28, the drain event is now built ENTIRELY from grid cells: accumulator counter -> rolling branch (changes only) -> fixed-baseline-0 branch (fires when a changed value equals 0) -> one relay cell of delay. Handles several items in flight (count peaked at 3), fires exactly once, re-arms across bursts, identical timeline for any data. 1502 tests + 49 script checks pass. See `points/points_active.md` #876)
+# Current State (as of 2026-09-28, the relay path is BOTH the delay and the buffer: N relay cells = exactly N ticks of delay and exactly N+1 events of buffer, set by placement distance. Limit pinned: beyond relays+3 outstanding events, drain events are dropped SILENTLY (no overflow flag). Gap named: the grid-native drain event fires at every zero crossing, not only at pass end. 1506 tests + 49 script checks pass. See `points/points_active.md` #877)
+
+## Read this first (most recent)
+
+**#877 -- Alan: a relay cell is correct, and it allows a variable buffer fully dependent on the distance between the end of the chain and the command cell's placement requirement.** Confirmed by measurement: N relay cells delay the trigger by exactly N ticks (detector untouched) and hold exactly N+1 events (relays + the consumer register), with nothing lost while there is room. I had called the long relay columns "placement artifacts" in `#871`; that undersold them -- the same cells that satisfy adjacency ARE the settling delay and the buffer, which is why a relay cell is right and a `dispatch_delay` field in the branch core would not be.
+
+**A limit, found by releasing a stalled consumer and counting:** beyond `relays + 3` outstanding events the rest are dropped SILENTLY (exactly 2 lost each time for 0, 1, 2 and 4 relays) because stage A cannot accept new counts while blocked and intermediate changes collapse. No overflow flag (the sentinel has one). Placer must size for the most outstanding events -- in the reprogram loop that is ONE (source held until reprogram completes) -- and the compiler must know each path's delay (`#279`'s `chain_length` principle).
+
+**The real gap next:** `#876`'s event means "count became zero" and fires at EVERY zero crossing; the sentinel's `safe_to_intervene` is "pass ENDED and count zero". A mid-pass bubble would fire it early. Closing it needs a pass-end pulse (`pulse_mode` accumulator) ANDed with the drain event (`nano` rendezvous) -- UNTESTED idea.
+
+**Earlier:** `#876` (grid-native drain event), `#875` (rolling branch = change detector), `#874`, `#873`, `#872` (sentinel connection point), `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) pass-aware drain: pass-end pulse AND drain event (`nano` rendezvous), tested against a mid-pass bubble; (2) wire it to the sequencer trigger / command-cell start replacing `#872`'s harness glue, rerun the loop; (3) confirm `#874` (run-per-bit vs value-per-bit); (4) VM prototype of the triggered sequencer; (5) per-direction ack in the VM, then the controlled command mode; (6) the actual fold; (7) overflow indication for the grid-native path; (8) RTL for what the prototypes prove incl. delay timing; (9) fp32 ADD/MUL/DIV substrate mapping; (10) `#846` G/R/S to real rounding; (11) MIN/MAX via `branch`; (12) `v1d` VM model (`#841`); (13) LLVM gap list (`#830`); (14) scope items 3, 4, 6; (15) VIX Carrier backlog (`#824`); (16) documentation catch-up (`#829`/`#856`); (17) paired-cell/command-bus (`#835`/`#836`); (18) N-way sort network (`#837`); (19) collapsed-assembler idea (`#838`); (20) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, the drain event is now built ENTIRELY from grid cells: accumulator counter -> rolling branch (changes only) -> fixed-baseline-0 branch (fires when a changed value equals 0) -> one relay cell of delay. Handles several items in flight (count peaked at 3), fires exactly once, re-arms across bursts, identical timeline for any data. 1502 tests + 49 script checks pass. See `points/points_active.md` #876)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 

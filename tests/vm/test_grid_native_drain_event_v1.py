@@ -50,10 +50,11 @@ def _rec(cid, row, col, core, cfg=None):
                           core_config=cfg or {}, addon_config={})
 
 
-def _build(items, L=4, delay=True, stage_a="branch", zero_ref=True, n_out=None):
+def _build(items, L=4, delay=True, stage_a="branch", zero_ref=True, n_out=None, collectors=None):
     """Returns (grid, k, first_collector_col)."""
     k = len(items)
     n_out = n_out or k
+    collectors = COLLECTORS if collectors is None else collectors
     cells = []
     for i, v in enumerate(items):                         # source chain; S1 (row k-1) speaks first
         cells.append(_rec(f"S{i + 1}", k - 1 - i, 3, "ram", {
@@ -88,17 +89,17 @@ def _build(items, L=4, delay=True, stage_a="branch", zero_ref=True, n_out=None):
         "emit_equal": 1, "value_source_equal": 1, "fixed_value_equal": 1, "route_equal": ["e"],
         "emit_low": 0, "emit_high": 0}))
     col = 8
-    if delay:
-        cells.append(_rec("D", k, col, "ram", {"upstream_mask": ["w"], "downstream_mask": ["e"]}))
+    for d in range(int(delay)):                           # the delay/buffer: one relay cell each
+        cells.append(_rec(f"D{d}", k, col, "ram", {"upstream_mask": ["w"], "downstream_mask": ["e"]}))
         col += 1
-    for j in range(COLLECTORS):
+    for j in range(collectors):
         cells.append(_rec(f"K{j}", k, col + j, "ram", {
-            "upstream_mask": ["w"], "downstream_mask": ["e"] if j < COLLECTORS - 1 else []}))
+            "upstream_mask": ["w"], "downstream_mask": ["e"] if j < collectors - 1 else []}))
     return VixCarrierGrid(cells), k, col
 
 
-def _events(grid, k, kc):
-    return sum(int(grid.cells[(k, kc + j)].ram_data_valid) for j in range(COLLECTORS))
+def _events(grid, k, kc, collectors=COLLECTORS):
+    return sum(int(grid.cells[(k, kc + j)].ram_data_valid) for j in range(collectors))
 
 
 def _trace(grid, k, kc, ticks=90):
@@ -228,3 +229,85 @@ def test_control_without_the_zero_reference_the_detector_fires_at_the_wrong_coun
         if _events(grid, k, kc) >= 1 and count_when_it_fired is None:
             count_when_it_fired = acc.acc_total
     assert count_when_it_fired == 1, "burst 2: it fired at count 1 -- an item still in flight -- not at the drain"
+
+
+# ---------------------------------------------------------------------------
+# points.md #877 -- the relay path is BOTH the delay and the buffer (Alan: "a
+# relay cell is correct, and it allows a variable buffer, fully dependent on the
+# distance between the end of the chain and the command cell's placement
+# requirement"). Each relay cell = exactly one tick of delay AND one event of
+# buffer; the placer sets both by distance.
+# ---------------------------------------------------------------------------
+def _reload_source(grid, k, value):
+    """Harness step standing in for 'the next pass': a fresh item at the source head."""
+    s1 = grid.cells[(k - 1, 3)]
+    s1.program_in = True
+    s1.program_word(3, value & 0xFFFF)
+    s1.program_word(4, (value >> 16) & 0xFFFF)
+    s1.program_word(6, 1)
+    s1.program_in = False
+
+
+def _stalled_consumer_run(n_relay, bursts):
+    """`bursts` separate drains with a consumer (one register) that never drains,
+    then release it one event at a time. Returns (held after each burst, delivered)."""
+    grid, k, kc = _build([0x1000], delay=n_relay, collectors=1, n_out=bursts)
+    held = []
+    for b in range(bursts):
+        if b:
+            _reload_source(grid, k, 0x1000 + b)
+        for _ in range(70):
+            grid.tick()
+        held.append(sum(int(grid.cells[(k, 8 + d)].ram_data_valid) for d in range(n_relay))
+                    + int(grid.cells[(k, kc)].ram_data_valid))
+    delivered = 0
+    for _ in range(bursts + 8):
+        consumer = grid.cells[(k, kc)]
+        if consumer.ram_data_valid:
+            delivered += 1
+            consumer.program_in = True
+            consumer.program_word(6, 0)
+            consumer.program_in = False
+        for _ in range(30):
+            grid.tick()
+    return held, delivered
+
+
+def test_each_relay_cell_adds_exactly_one_tick_of_delay():
+    landed = {}
+    for n in range(0, 5):
+        g, k, kc = _build(ITEMS_A, delay=n)
+        _, tl = _trace(g, k, kc)
+        landed[n] = (tl["t_B"], tl["t_arrive"])
+    assert len({t_b for (t_b, _a) in landed.values()}) == 1, "the detector itself is unaffected by the relay count"
+    for n in range(1, 5):
+        assert landed[n][1] - landed[0][1] == n, "N relay cells delay the trigger by exactly N ticks"
+
+
+def test_the_relay_path_is_also_a_buffer_one_event_per_relay_plus_the_consumer_register():
+    for n in (0, 1, 2, 4):
+        held, _ = _stalled_consumer_run(n, bursts=n + 4)
+        assert held == [min(b + 1, n + 1) for b in range(n + 4)], \
+            f"{n} relay cell(s) hold events up to {n + 1} (relays + the consumer register), then stage B is held back"
+
+
+def test_nothing_is_lost_while_the_buffer_has_room_and_everything_fired_is_delivered():
+    for n in (0, 2):
+        held, delivered = _stalled_consumer_run(n, bursts=n + 3)
+        assert delivered == n + 3, "up to relays + 3 events all get through once the consumer drains"
+
+
+def test_known_limit_beyond_the_buffer_events_are_dropped_silently_with_no_error_flag():
+    """Pinned so it cannot change silently. Once the consumer stalls, the path
+    absorbs relays + 3 events (relays + the consumer register + stage B's output
+    + one more held upstream); anything beyond is COALESCED away, because stage A
+    cannot accept new counts while blocked and intermediate changes collapse.
+    There is NO overflow flag (the sentinel has a sticky one; this does not), so
+    the placer must size the path for the most events that can be outstanding --
+    in the reprogram loop that is one, since the source is held until the
+    reprogram completes -- or guarantee the consumer keeps up."""
+    for n in (0, 2, 4):
+        bursts = n + 5
+        held, delivered = _stalled_consumer_run(n, bursts=bursts)
+        assert delivered == n + 3, "exactly relays + 3 are delivered"
+        assert bursts - delivered == 2, "and the remainder are lost, with nothing to say so"
