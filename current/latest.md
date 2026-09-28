@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-28, the missing start trigger closed for ONE pass: after one setup step, no host action -- the drain pulse reaches a second command cell that arms the first, which configures the target. Also fixed a 2nd VM gap (command cells could not be relay targets). 1472 tests + 49 script checks pass. Payload-as-arm-word is a simplification; pass 2 still host-driven. See `points/points_active.md` #869)
+# Current State (as of 2026-09-28, "reset until the next trigger" answered with a cleaner design: a trigger-mode command cell holds the word chain's head frozen; one toggle word starts AND stops it. Programmer cell stays armed, no arm/disarm ever. Two rounds from one preloaded store, gate holding between them. 1476 tests + 49 script checks pass. Round-2 trigger still injected; payload = toggle word. See `points/points_active.md` #870)
+
+## Read this first (most recent)
+
+**#870 -- Alan asked if the tail's complete command resets the command cell for the next round. Yes, via a freeze on the chain head, not via arm/disarm.** In `#869` the trigger cell already reset itself; the PROGRAMMING cell's `armed` never clears (RTL-confirmed), so arm/disarm needed an extra end-of-cycle event. The trigger-mode design gets it free: the word store is one serialized chain (all rounds preloaded), its head fans out to the programmer cell and a trigger-mode cell that holds the head frozen at rest. One toggle word (`0xF00001`) unfreezes it (carried by the drain pulse = start) and re-freezes it (the sequence's own final word = stop). Programmer cell stays armed throughout; no arm or disarm word exists.
+
+**Observed:** rest (frozen, chain full, nothing moves) -> drain pulse ~t9 -> topology, mask, COMPLETE -> head re-frozen, target (1,4,1). Between rounds: round-2 words wait, 20 idle ticks change nothing. Second trigger -> target (7,2,1), re-frozen. Negative control: drop the fan-out to the trigger cell and both rounds run ungated, proving the halt is real.
+
+**Honest scope:** payload doubles as the toggle word (general design: tail pulse triggers a hold+reemit source, `#382`); round 2's trigger is INJECTED (section carries one item); target is a separate nano, not a cell of the drained section; VM only. `#869`'s arm/disarm route stays valid but is now secondary.
+
+**Earlier:** `#869` (arm-based trigger, VM relay fix), `#868` (loop in one grid, command self-reprogram, `#866` claim corrected), `#867` (fixed_mode gap), `#863`/`#862` (RTL), `#858` (drain latch).
+
+**Real queue:** (1) generalize the start trigger for real data; (2) section supplies a second item so round 2's trigger is a genuine pulse; (3) target a cell OF the drained section -- the actual fold; (4) run the freeze-gated chain in RTL; (5) per-direction ack in VM; (6) slot-embedded command tests; (7) fp32 ADD/MUL/DIV substrate mapping; (8) `#846` G/R/S to real rounding; (9) MIN/MAX via `branch`; (10) `v1d` VM model (`#841`); (11) LLVM gap list (`#830`); (12) scope items 3, 4, 6; (13) VIX Carrier backlog (`#824`); (14) documentation catch-up (`#829`/`#856`); (15) paired-cell/command-bus (`#835`/`#836`); (16) N-way sort network (`#837`); (17) collapsed-assembler idea (`#838`); (18) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, the missing start trigger closed for ONE pass: after one setup step, no host action -- the drain pulse reaches a second command cell that arms the first, which configures the target. Also fixed a 2nd VM gap (command cells could not be relay targets). 1472 tests + 49 script checks pass. Payload-as-arm-word is a simplification; pass 2 still host-driven. See `points/points_active.md` #869)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
