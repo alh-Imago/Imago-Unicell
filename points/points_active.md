@@ -15518,3 +15518,17 @@ No tick/ack gating at all this time (`ack_in_n` tied straight to `fire_n`) -- th
 **What each outcome will mean, decided in advance so the read is honest, not fitted after the fact:** all three light and stay lit -> the whole chain up to "ready to advance" genuinely works on real silicon, and only the tick/ack loopback's own timing remains suspect. LED1 never lights -> the reset/config-pulse generator itself is the problem (a second, deeper issue beyond `#893`'s pull-up). LED1 lights but LED2 never does -> the core receives `cfg_valid` but doesn't latch `armed` -- a genuine RTL-vs-real-silicon mismatch, the first one this project would have found. LED2 lights but LED3 never does -> the handshake decode itself is the break point.
 
 **Queue:** get the real LED pattern back from Alan and read it against the table above; nothing else changes until that real data comes in.
+
+## 895. Removed the reset button from the picture entirely -- a pure power-on-reset diagnostic, to isolate whether `BTN_RST_N` is the real culprit or the problem lies elsewhere.
+
+`#894`'s diag build, once actually flashed correctly (the first reflash attempt was a mix-up rerunning the wrong file, not a real result), showed only the heartbeat blinking -- meaning NONE of the three sticky diagnostics (`cfg_valid`, `ready_out`/`armed`, `fire_n`) ever latched, on either `#892`'s original smoke test or `#894`'s diagnostic, regardless of `#893`'s pull-up fix or holding the button.
+
+**A real bug caught by simulation before it reached synthesis.** The first draft of this diagnostic used an 8-bit power-on counter (255-cycle release, ~9.4us) but the testbench only waited 2000ns before checking -- simulation correctly reported all three signals still 0 and FAILED, exactly as it should have; the testbench's own wait time was too short, not the RTL. Fixed by waiting 15000ns; simulation then passed cleanly.
+
+**`fpga/verilog/unicell_tang_nano_20k_diag2_v1.v` (new, + testbench):** identical sticky-LED diagnostics to `#894`, but `BTN_RST_N` is removed from the design ENTIRELY -- reset comes only from an internal power-on counter with no button, no external pin, nothing but the clock. This isolates one clean question: with the button fully out of the picture, does the sequencer core's real chain (config load -> arm -> handshake) light up on real silicon or not?
+
+Real build: Fmax 396.4 MHz (trivial for a design this size), bitstream `fpga/build/unicell_tang_nano_20k_diag2_v1.fs`.
+
+**What each outcome will mean:** if all three now light (and stay lit), the reset button/pin was the entire problem all along -- likely something about `BTN_RST_N`'s real electrical behavior that neither the pull-up fix nor holding it down actually fixed (worth learning why, but no longer blocking). If they STILL stay dark even with zero button dependency, the problem is somewhere else entirely -- most likely something in how the design is actually landing on the chip (a real toolchain/flashing issue) rather than in the sequencer's own RTL, since the same RTL and the same real place-and-route path already passed simulation and clean timing closure twice now.
+
+**Queue:** get the real LED pattern from this build; if still all dark, the next real diagnostic should probably be the SIMPLEST possible design (heartbeat only, no sequencer at all) re-flashed fresh to rule out a flashing/toolchain issue before suspecting the RTL further.
