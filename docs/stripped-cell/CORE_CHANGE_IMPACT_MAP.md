@@ -110,6 +110,7 @@ Real, complete checklist, in the order `#853`/`#854` actually hit them:
   holds its value and never offers it (`#867`).
 - **Never feed a command cell from several neighbours at once.** VM/RTL differ on acking (see the command
   row in `CELL_CHEATSHEET.md`); a serialized `ram` chain is both the design intent and the safe shape.
+- **Feed a two-operand cell (`adder`, `mul`, `nano`) from ONE interleaved stream, never two faces.** Two operands arriving on the SAME tick OR-combine into a single operand, silently. My first cadence measurement fed A and B from two faces: it returned "5 of 10 results" and a plausible "4 ticks/output", both wrong (each product had consumed two pairs). A single stream `a0, b0, a1, b1, ...` uses the first-come-first-served capture correctly. Always check the VALUES of a measurement, not just its timing.
 - **Mutation-testing gotcha:** editing a file to a same-length variant and restoring it within one second
   can leave a stale `.pyc` that keeps running the MUTATED code. Clear `__pycache__` after restoring.
 

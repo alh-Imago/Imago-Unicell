@@ -1,4 +1,24 @@
-# Current State (as of 2026-09-28, IS THE FOLD WORTH IT: measured -- the one-fold-cell loop costs 59 cells for 2 cells of folded logic (28 are pure relay lines), and 45 ticks per pass boundary (77% relay transit, the program itself 6). Alan's judgment confirmed: at small scale the fold is far worse than static; break-even needs many passes. Also: there is NO feedback path yet, so the fold is not yet iterative. Command-cell face arithmetic checked. No code changed. See `points/points_active.md` #882)
+# Current State (as of 2026-09-28, an EXTREME CASE calculated: fp4096 = 35-bit exponent, 4061-bit precision, 127 limbs, 16,129 limb products. Measured cadences (adder 4, mul low 4, mul wide 6 ticks) -- after catching a collision that halved my first measurement. Fold efficiency by precision: fp32 8%, fp128 26%, fp1024 74%, fp4096 92%. MUL is streaming, not a fold problem. The carry-forward gap is VERIFIED (adder returns only (a+-b)&0xFFFFFFFF) and gates everything above fp32. Command words are not constants at this scale -- shift amounts are data-dependent. No code changed. See `points/points_active.md` #883)
+
+## Read this first (most recent)
+
+**#883 -- Alan: calculate something extreme like fp4096; carry-forward is missing above fp32, a separate issue.** **Exact:** 35-bit exponent, 4061-bit precision, 127 limbs, 16,129 limb products. **Measured (one interleaved stream, values checked):** adder 4, mul(low) 4, mul(wide) 6 ticks per result -- bound by the 2-tick RAM relay feed. My FIRST measurement (A and B on two faces) read "5 of 10 results" and a plausible 4 ticks: the operands OR-combined on the same tick. Caught by the count being exactly half; now a rule in `CORE_CHANGE_IMPACT_MAP.md`.
+
+**Fold efficiency = useful / (useful + 45-tick boundary), useful = limbs x 4:** fp32 8.2%, fp64 15.1%, fp128 26.2%, fp256 41.6%, fp1024 74.0%, **fp4096 91.9%**; 50% at ~11 limbs, 90% at ~101. Alan's "small scale maybe not, large scale yes", in numbers -- the overhead is per PASS BOUNDARY and a pass at fp4096 carries 127 items.
+
+**MUL is not a fold problem:** the same op 16,129 times = streaming; cost is operand addressing (BRAM) and accumulation with carry. One mul + one adder ~97k-129k ticks (assumes 2 accumulate-adds/product); 127 lanes (~254 cells) ~0.8-1k ticks; full array ~32k cells. **ADD is where the fold matters (ILLUSTRATIVE, assumptions stated):** ~4,572 ticks of work + 135 ticks of reconfiguration = 2.9% overhead; ~67 cells folded vs ~9,900 static (~150x area for ~40x time -- very rough).
+
+**Carry, verified:** the adder computes only `(a +- b) & 0xFFFFFFFF`: no carry-out, no carry-in. Excluded from every estimate per Alan, but it gates BOTH multi-limb add and multiply accumulation -- a prerequisite above fp32, not a refinement.
+
+**Two things the calculation exposed:** (1) command words are not constants at this scale -- alignment/normalize shift amounts come from the exponent difference, so the word stream must be BUILT from data (`#843`'s open question; `#859`/`#860` began the pieces, the loop never used them); (2) at fp4096 the fold's fixed overhead stops mattering -- the array machinery (streaming, carry, shifters) dominates.
+
+**Earlier:** `#882` (is the fold worth it), `#881`, `#880` (the actual fold), `#879`, `#878`, `#877`, `#876`, `#875`, `#874`, `#873`, `#872`, `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) scope the carry-forward gap as its own item; (2) run the loop with a program word built from data (a shift amount) using `#859`/`#860`; (3) decide the fold's workload -- fp4096 add's staged shape is the strongest candidate; (4) the feedback path; (5) controlled command mode with a direction-carrying Start, the triggered sequencer, re-measured; (6) per-direction ack in the VM; (7) RTL path for `hold_in`/`a_reemit_in`; (8) N passes; (9) overflow indication; (10) fp32 ADD/MUL/DIV substrate mapping; (11) `#846` G/R/S; (12) MIN/MAX via `branch`; (13) `v1d` VM model (`#841`); (14) LLVM gap list (`#830`); (15) scope items 3, 4, 6; (16) VIX Carrier backlog (`#824`); (17) documentation catch-up (`#829`/`#856`) -- timely; (18) paired-cell/command-bus (`#835`/`#836`); (19) N-way sort network (`#837`); (20) collapsed-assembler idea (`#838`); (21) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, IS THE FOLD WORTH IT: measured -- the one-fold-cell loop costs 59 cells for 2 cells of folded logic (28 are pure relay lines), and 45 ticks per pass boundary (77% relay transit, the program itself 6). Alan's judgment confirmed: at small scale the fold is far worse than static; break-even needs many passes. Also: there is NO feedback path yet, so the fold is not yet iterative. Command-cell face arithmetic checked. No code changed. See `points/points_active.md` #882)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
