@@ -1,4 +1,20 @@
-# Current State (as of 2026-09-28, the relay path is BOTH the delay and the buffer: N relay cells = exactly N ticks of delay and exactly N+1 events of buffer, set by placement distance. Limit pinned: beyond relays+3 outstanding events, drain events are dropped SILENTLY (no overflow flag). Gap named: the grid-native drain event fires at every zero crossing, not only at pass end. 1506 tests + 49 script checks pass. See `points/points_active.md` #877)
+# Current State (as of 2026-09-28, a PASS-AWARE drain signal: a pulse-mode accumulator counting the section's EXITS with threshold = pass length fires exactly once after the N-th exit and self-resets; a mid-pass bubble fools #876's zero-crossing detector (two events) but not it (one). #877's suggested nano-rendezvous AND is RETRACTED (reasoned, not run, to fire early on a stale event). 1512 tests + 49 script checks pass. See `points/points_active.md` #878)
+
+## Read this first (most recent)
+
+**#878 -- the fix for `#876`'s gap is simpler than the AND I proposed.** `#850`'s exit counter aimed at exits: an `accumulator` in PULSE MODE, threshold = pass length, silent while counting, offers exactly once at the N-th exit, resets itself. One cell instead of three stages. **Bubble test (same script, both detectors):** items 1-2 flow, source held until the section empties, items 3-4 follow -- `#876`'s detector fires TWICE (once mid-pass while items are parked upstream), the exit counter fires ONCE after the 4th exit. Re-arms across passes; identical timeline for any data; too few items = safe stall.
+
+**A retraction:** `#877` suggested a `nano` rendezvous ANDing pass-end with drain. Reasoned NOT run: a nano holds its first operand until the second arrives, so a stale bubble event would satisfy it early. Withdrawn; replaced by something testable.
+
+**A limit whose failure I predicted WRONG:** it trusts the pass length. I expected over-feeding to fire early; the trace showed the exit tap lags ~3 ticks so all five items had already left when the pulse fired. The real damage is a residual count of 1 carried into the next pass (which then fires one item early, and every pass after). Guard: a detector that counts emptiness (`#876`, or the sentinel's `diff`). The two detectors are complementary; a combined pass-end-AND-empty signal without the stale-event flaw is an open design question.
+
+**Earlier:** `#877` (relay path = delay AND buffer), `#876` (grid-native drain event), `#875` (rolling branch = change detector), `#874`, `#873`, `#872` (sentinel connection point), `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) wire the pass-aware drain to the command cell's start and the source gating, replacing `#872`'s harness glue, rerun the loop with NO data-valued marker anywhere; (2) decide whether a combined pass-end-and-empty signal is needed and build it without the stale-event flaw; (3) confirm `#874` (run-per-bit vs value-per-bit); (4) VM prototype of the triggered sequencer; (5) per-direction ack in the VM, then the controlled command mode; (6) the actual fold; (7) overflow indication for grid-native paths; (8) RTL for what the prototypes prove incl. delay timing; (9) fp32 ADD/MUL/DIV substrate mapping; (10) `#846` G/R/S to real rounding; (11) MIN/MAX via `branch`; (12) `v1d` VM model (`#841`); (13) LLVM gap list (`#830`); (14) scope items 3, 4, 6; (15) VIX Carrier backlog (`#824`); (16) documentation catch-up (`#829`/`#856`); (17) paired-cell/command-bus (`#835`/`#836`); (18) N-way sort network (`#837`); (19) collapsed-assembler idea (`#838`); (20) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, the relay path is BOTH the delay and the buffer: N relay cells = exactly N ticks of delay and exactly N+1 events of buffer, set by placement distance. Limit pinned: beyond relays+3 outstanding events, drain events are dropped SILENTLY (no overflow flag). Gap named: the grid-native drain event fires at every zero crossing, not only at pass end. 1506 tests + 49 script checks pass. See `points/points_active.md` #877)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
