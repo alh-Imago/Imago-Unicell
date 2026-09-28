@@ -1,4 +1,22 @@
-# Current State (as of 2026-09-28, "reset until the next trigger" answered with a cleaner design: a trigger-mode command cell holds the word chain's head frozen; one toggle word starts AND stops it. Programmer cell stays armed, no arm/disarm ever. Two rounds from one preloaded store, gate holding between them. 1476 tests + 49 script checks pass. Round-2 trigger still injected; payload = toggle word. See `points/points_active.md` #870)
+# Current State (as of 2026-09-28, the reconfiguration loop is CLOSED in the VM: two rounds, no injected trigger, no host action at all. A second trigger-mode command cell gates item admission so item 2 provably cannot enter until round 1's reconfigure completes. 1481 tests + 49 script checks pass. Payload still doubles as the marker; target still a separate nano. See `points/points_active.md` #871)
+
+## Read this first (most recent)
+
+**#871 -- the loop runs by itself, twice.** Naively parking item 2 behind item 1 would let it enter right behind it, so both drain pulses would arrive together before round 1 reconfigured anything. Fix: a second trigger-mode command cell (CTL2) beside the source head; the source head fans each item's copy into it, so an item's own copy freezes the source after exactly ONE item, and the reconfigure sequence's final word (copied to CTL2) releases it. Both controllers use the same alternating pair of events and one toggle word: CTL -- pulse RUNS, final word HALTS; CTL2 -- item copy HOLDS, final word RELEASES.
+
+**Timeline (deterministic, ~42 ticks, nothing touched by anyone):** item 1 out and source frozen by t1 (item 2 parked); drain pulse t12; round 1 done t17 (target 1,4,1); item 2 admitted t20-22, strictly AFTER round 1; pulse #2 t33; round 2 done t39 (target 7,2,1). Negative control (drop the copy to CTL2): item 2 admitted at t2, round 1 never completes, target left at (1,0,False) half-programmed -- a real failure, asserted as such (I first wrote it loosely, noticed it could pass trivially, tightened it).
+
+**No arm/disarm anywhere, so #869's one-time setup disarm is gone.**
+
+**Honest scope:** item payload IS the toggle word (real fold data can't be a marker -- general design needs hold+reemit sources, `#382`); the target is a separate nano, NOT a cell of the drained section, so "item 2 is processed by the reconfigured section" is proven only as a SCHEDULING property, not a data-dependent one; VM only; two items only.
+
+**Earlier:** `#870` (freeze-gated word chain), `#869` (arm-based trigger, VM relay fix), `#868` (loop in one grid, command self-reprogram, `#866` claim corrected), `#867` (fixed_mode gap), `#863`/`#862` (RTL), `#858` (drain latch).
+
+**Real queue:** (1) make the reconfigure target a cell OF the drained section -- the actual fold; (2) generalize markers so real data can flow (hold+reemit, `#382`); (3) run the loop in RTL; (4) N rounds; (5) per-direction ack in VM; (6) slot-embedded command tests; (7) fp32 ADD/MUL/DIV substrate mapping; (8) `#846` G/R/S to real rounding; (9) MIN/MAX via `branch`; (10) `v1d` VM model (`#841`); (11) LLVM gap list (`#830`); (12) scope items 3, 4, 6; (13) VIX Carrier backlog (`#824`); (14) documentation catch-up (`#829`/`#856`); (15) paired-cell/command-bus (`#835`/`#836`); (16) N-way sort network (`#837`); (17) collapsed-assembler idea (`#838`); (18) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, "reset until the next trigger" answered with a cleaner design: a trigger-mode command cell holds the word chain's head frozen; one toggle word starts AND stops it. Programmer cell stays armed, no arm/disarm ever. Two rounds from one preloaded store, gate holding between them. 1476 tests + 49 script checks pass. Round-2 trigger still injected; payload = toggle word. See `points/points_active.md` #870)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
