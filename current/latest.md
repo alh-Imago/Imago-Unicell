@@ -1,4 +1,22 @@
-# Current State (as of 2026-09-28, a design observation logged, NOT built: Alan -- "we reprogram 1 cell at a time so far; this may need a real rethink, not just the command cell but the surrounding structures". Verified: one cell at a time is BY DESIGN (`drive_dir` = single fixed direction in the RTL). `#843` had already sketched a line of 1:1 command cells with a shared trigger. Four strain points measured/derived from `#862`-`#880`; four design axes listed; recommended measuring stick = a two-cell fold. See `points/points_active.md` #881)
+# Current State (as of 2026-09-28, IS THE FOLD WORTH IT: measured -- the one-fold-cell loop costs 59 cells for 2 cells of folded logic (28 are pure relay lines), and 45 ticks per pass boundary (77% relay transit, the program itself 6). Alan's judgment confirmed: at small scale the fold is far worse than static; break-even needs many passes. Also: there is NO feedback path yet, so the fold is not yet iterative. Command-cell face arithmetic checked. No code changed. See `points/points_active.md` #882)
+
+## Read this first (most recent)
+
+**#882 -- Alan: "is the fold worth it -- at small scale maybe not, at large scale requiring multiple passes yes."** **Measured:** 59 cells in the loop, 2 of them the folded logic; 20 drain-pulse relays + 9 program-store + 8 transport relays = 37 cells of pure plumbing on top of 6 start/run + 5 gate + others. **Per pass boundary 45 ticks:** 23 drain pulse to reprogram start, 6 the actual program, 4 gate, 12 transport-to-first-exit; **relay transit is 77%**. **Illustrative (assumption stated, NOT measured):** with c = 5 cells per stage, break-even is ~12 passes at today's overhead, ~4 if the fixed overhead were ~20.
+
+**An honest gap:** the demo processes DIFFERENT items per pass; a genuine iterative fold needs a return path (pass k's outputs -> pass k+1's inputs; BRAM writeback in the real protocol). Unbuilt. `#880` proves the reconfiguration MECHANISM, not yet the iterative use.
+
+**Alan's face arithmetic, confirmed:** 4 faces = stream in + start in + at most 2 targets (3 if the Start rides in-band). His sequencing (Start names the target, words, COMPLETE releases, next Start for the next target, else idle) matches programmer mode today; what is missing is a direction-carrying Start (an additive RTL mode, the `#873` controlled mode plus a direction field).
+
+**The rethink pays mainly by cutting FIXED overhead:** relay lines (28/59, a consequence of face scarcity), the word store (sequencer), the CTL/CMD1 merge -- multi-target only matters once break-even is reachable. **Not built.**
+
+**Earlier:** `#881` (one cell at a time, rethink flagged), `#880` (the actual fold), `#879`, `#878`, `#877`, `#876`, `#875`, `#874`, `#873`, `#872`, `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) decide what workload the fold is FOR (iterative divide? CORDIC?) to make the break-even real; (2) build the missing feedback path; (3) prototype the controlled command mode with a direction-carrying Start and the triggered sequencer, re-measure cells and ticks; (4) per-direction ack in the VM; (5) shorten relay lines by placement, re-measure; (6) RTL path for `hold_in`/`a_reemit_in`; (7) N passes; (8) overflow indication for grid-native paths; (9) fp32 ADD/MUL/DIV substrate mapping; (10) `#846` G/R/S to real rounding; (11) MIN/MAX via `branch`; (12) `v1d` VM model (`#841`); (13) LLVM gap list (`#830`); (14) scope items 3, 4, 6; (15) VIX Carrier backlog (`#824`); (16) documentation catch-up (`#829`/`#856`) -- timely; (17) paired-cell/command-bus (`#835`/`#836`); (18) N-way sort network (`#837`); (19) collapsed-assembler idea (`#838`); (20) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, a design observation logged, NOT built: Alan -- "we reprogram 1 cell at a time so far; this may need a real rethink, not just the command cell but the surrounding structures". Verified: one cell at a time is BY DESIGN (`drive_dir` = single fixed direction in the RTL). `#843` had already sketched a line of 1:1 command cells with a shared trigger. Four strain points measured/derived from `#862`-`#880`; four design axes listed; recommended measuring stick = a two-cell fold. See `points/points_active.md` #881)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
