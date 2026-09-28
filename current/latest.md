@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-28, the drain signal is now VALUE-INDEPENDENT: the existing Sentinel attached to a real VixCarrierGrid as a connection point counts feed/collect events, never data values, and prompts each reprogram and releases each pass -- including the initial programming at power-on. Replaces #871's data-as-marker placeholder. 1489 tests + 49 script checks pass. See `points/points_active.md` #872)
+# Current State (as of 2026-09-28, a design observation logged, NOT built: Alan's proposal to let the command cell take a Start from any direction and run by acking a set direction, and to give the sequencer full-width triggered output. Verified catches: the sequencer has NO capture side today (4 x 8-bit, ack tied low), and per-direction ack is a prerequisite. Recommended: additive mode bit, prototyped in the VM first. See `points/points_active.md` #873)
+
+## Read this first (most recent)
+
+**#873 -- design observation, no code changed.** Alan: accept Start from any direction, then run by acking a set direction (pull, one word per ack, stop on End -- the store just holds); give the sequencer a full-value output when it records any data. Evidence it would help: it removes the freeze-the-head trick, the second command cell, the fan-out and its same-tick race (`#870`), the arm/disarm gotcha, and the nine-cell word chain. **Two verified catches:** (1) the sequencer has no capture side (arity 0, ack tied low, up to 4 x 8-bit values; 4 x 32-bit = 128 config bits vs the widest today, ram at 80); (2) Start-from-any-direction while refusing other words needs per-direction ack AND match-aware selection (N>S>E>W selection would let a refused word on N mask a Start on E = deadlock), and the VM over-acks every arrival in a tick, so per-direction ack in the VM is a prerequisite.
+
+**Recommended path:** (1) per-direction ack in the VM; (2) additive "controlled" mode bit on the command cell (both variants, old modes untouched, prior RTL proofs stay valid -- `mul` `wide_mode` precedent); (3) triggered full-width sequencer; (4) rerun `#871`/`#872` and MEASURE what it removes; (5) RTL only if it earns it. **Not started.**
+
+**Earlier:** `#872` (value-independent drain signal via the sentinel), `#871` (loop closed), `#870` (freeze-gated word chain), `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) per-direction ack in the VM; (2) VM prototype of controlled command mode + triggered sequencer, compare to `#871`/`#872`; (3) the actual fold (reconfigured unit a cell OF the drained section); (4) sentinel overflow/underflow in the connection point; (5) RTL for the glue and for whatever the prototype proves; (6) fp32 ADD/MUL/DIV substrate mapping; (7) `#846` G/R/S to real rounding; (8) MIN/MAX via `branch`; (9) `v1d` VM model (`#841`); (10) LLVM gap list (`#830`); (11) scope items 3, 4, 6; (12) VIX Carrier backlog (`#824`); (13) documentation catch-up (`#829`/`#856`); (14) paired-cell/command-bus (`#835`/`#836`); (15) N-way sort network (`#837`); (16) collapsed-assembler idea (`#838`); (17) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, the drain signal is now VALUE-INDEPENDENT: the existing Sentinel attached to a real VixCarrierGrid as a connection point counts feed/collect events, never data values, and prompts each reprogram and releases each pass -- including the initial programming at power-on. Replaces #871's data-as-marker placeholder. 1489 tests + 49 script checks pass. See `points/points_active.md` #872)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
