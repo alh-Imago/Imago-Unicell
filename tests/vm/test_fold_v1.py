@@ -70,7 +70,7 @@ def _expected(p1, p2):
     return [p1[0] & K, p1[1] & K, p2[0] ^ K, p2[1] ^ K]
 
 
-def _build(src_items, configs=CONFIGS, gated=True, n_out=4):
+def _build(src_items, configs=CONFIGS, gated=True, n_out=4, pl=PL, k_value=K, sink=False):
     seq = [w for (t, m) in configs for w in _words(t, m)]
     n = len(seq)
     top = -(n - 1)
@@ -84,7 +84,7 @@ def _build(src_items, configs=CONFIGS, gated=True, n_out=4):
     C += [
         _rec("CMD1", 0, -1, "command", {"mode": 1, "polarity": 0, "drive_dir": 3, "toggle_pattern": PROG_ID_COMPLETE}),
         _rec("F", 0, -2, "nano", {"topology": 0, "ready": 0, "hold_in": 1, "routing_mask": 0}),   # THE FOLD CELL
-        _rec("K", 0, -3, "ram", {"init_data": K, "load_data_valid": 1, "downstream_mask": ["e"]}),  # its constant
+        _rec("K", 0, -3, "ram", {"init_data": k_value, "load_data_valid": 1, "downstream_mask": ["e"]}),  # its constant
         _rec("CTL", 0, 1, "command", {"mode": 0, "polarity": 0, "drive_dir": 3, "toggle_pattern": PROG_ID_COMPLETE}),
         _rec("MS", 0, 2, "ram", {"upstream_mask": ["n", "e"], "downstream_mask": ["w"]}),
         _rec("Q", -1, 2, "ram", {"init_data": TOGGLE, "load_data_valid": 1, "downstream_mask": ["s"]}),
@@ -112,10 +112,13 @@ def _build(src_items, configs=CONFIGS, gated=True, n_out=4):
           _rec("E0", 1, -2, "ram", {"upstream_mask": ["s"], "downstream_mask": ["n"]}),
           _rec("T", -1, -2, "ram", {"upstream_mask": ["s"], "downstream_mask": ["n", "w"]})]
     for j in range(n_out):
+        last = j == n_out - 1
         C.append(_rec(f"O{j + 1}", -2 - j, -2, "ram", {
-            "upstream_mask": ["s"], "downstream_mask": ["n"] if j < n_out - 1 else []}))
+            "upstream_mask": ["s"], "downstream_mask": ["n"] if (not last or sink) else []}))
+    if sink:                                   # a consumer that acknowledges and discards: a real writeback port, no forced state
+        C.append(_rec("SINK", -2 - n_out, -2, "accumulator", {"inc_dir": ["s"], "step_amount": 0}))
     C.append(_rec("pc", -1, -3, "accumulator", {"inc_dir": ["e"], "step_amount": 1, "pulse_mode": 1,
-                                                "threshold": PL, "downstream_mask": ["w"]}))
+                                                "threshold": pl, "downstream_mask": ["w"]}))
     # drain pulse path: pc -> west -> down column -4 -> east along row 4 -> up column 5 -> Npass
     C.append(_rec("p0", -1, -4, "ram", {"upstream_mask": ["e"], "downstream_mask": ["s"]}))
     for r in range(0, 4):

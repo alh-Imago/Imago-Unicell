@@ -1,4 +1,24 @@
-# Current State (as of 2026-09-28, `#883` CORRECTED per Alan: the static tree is bigger but preferable because it PIPELINES -- once full it yields a result every interval regardless of depth, while the fold is bounded by its storage and serial datapath. Measured: cadence 2.0 ticks/item at depth 2, 8 and 32 (latency 3, 9, 33). Against the FAIR static design (a stage pipeline, not the fully parallel strawman I used), static is ~9.3x throughput, ~2.3x lower latency, ~3.5x fewer cells; batching cannot rescue the fold. `#883`'s headline is withdrawn. No code changed. See `points/points_active.md` #884)
+# Current State (as of 2026-09-28, THE MEASURED COMPARISON: the same 4-stage function over the same 8 items as a static stage pipeline and as a 4-pass fold, both correct against a reference (the fold after EVERY pass). Static 19 ticks / 8 machinery cells; fold 204 ticks / 56 machinery cells: ~10.7x slower, ~7x the cells. The fold can never beat static on time (serial, >= N stages x), and as built never on cells either (3 store cells per extra stage vs 2 for a static stage) -- the program store is the scaling term. 1536 tests + 49 script checks pass. See `points/points_active.md` #885)
+
+## Read this first (most recent)
+
+**#885 -- built the smaller stage, as Alan asked.** Same function XOR -> NAND -> AND -> XNOR (K = 0x9C3E5A17, chosen by search), same 8 items, two designs, both checked against a Python reference. **Static:** 24 cells (8 machinery), 19 ticks, cadence exactly 2/item. **Fold:** 60 cells (56 machinery), 204 ticks, correct after every pass, a pass every 59 ticks carrying 16 ticks of useful work (~27%). **~10.7x slower, ~7x the machinery cells.**
+
+**Two structural facts:** (1) the fold runs stages serially on one datapath, so it is at least N_STAGES x slower than static however large the passes; (2) as built each extra stage costs the fold 3 store cells vs 2 for a static stage, so it never wins on cells either -- only a compact program store (BRAM, or the triggered sequencer of `#873`/`#874`) changes that (break-even ~22 stages, DERIVED). **The program store is the scaling term.**
+
+**Alan's use case checked:** a `branch` cell's rules (routes, emit flags, value sources, fixed values, rolling mode) are fully reprogrammable through the same mechanism, so "reconfigure the branch to reuse chain area" is mechanically supported. It is the fold's real niche -- run-time-variable roles, not FP arithmetic. Not yet built.
+
+**Four things that went wrong, each would have made a plausible wrong comparison:** a degenerate test function (my first returned 0xFFFFFFFF for every item); the fold builder's hard-coded constant disagreeing with the static's; forcing `valid`=0 on RAM cells left stale pending acks that re-fired and corrupted the chain (the fold cell itself was proven to compute pass 2 correctly -- the fault was mine); staging the next pass before the gate froze the source split a pass between two configurations (first 7 items XOR'd again, the 8th got NAND). Lessons added to `CORE_CHANGE_IMPACT_MAP.md`. 5 mutations caught.
+
+**Honest scope:** VM only; loader is a BRAM stand-in; 8 items per pass is small; the 22-stage break-even assumes a compact store that does not yet exist; one function, identical constants across stages.
+
+**Earlier:** `#884` (correction: static pipelines), `#883` (fp4096), `#882`, `#881`, `#880` (the actual fold), `#879`, `#878`, `#877`, `#876`, `#875`, `#874`, `#873`, `#872`, `#871`, `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) the branch-reconfiguration demonstration -- a `branch` cell reprogrammed between passes so the same chains serve different roles (Alan's stated use); (2) prototype the triggered sequencer (compact store) and re-run this comparison; (3) scope the carry-forward gap; (4) computed command words; (5) controlled command mode with a direction-carrying Start; (6) per-direction ack in the VM; (7) RTL path for `hold_in`/`a_reemit_in`; (8) overflow indication; (9) fp32 ADD/MUL/DIV substrate mapping as STATIC stage pipelines; (10) `#846` G/R/S; (11) MIN/MAX via `branch`; (12) `v1d` VM model (`#841`); (13) LLVM gap list (`#830`); (14) scope items 3, 4, 6; (15) VIX Carrier backlog (`#824`); (16) documentation catch-up (`#829`/`#856`) -- timely; (17) paired-cell/command-bus (`#835`/`#836`); (18) N-way sort network (`#837`); (19) collapsed-assembler idea (`#838`); (20) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, `#883` CORRECTED per Alan: the static tree is bigger but preferable because it PIPELINES -- once full it yields a result every interval regardless of depth, while the fold is bounded by its storage and serial datapath. Measured: cadence 2.0 ticks/item at depth 2, 8 and 32 (latency 3, 9, 33). Against the FAIR static design (a stage pipeline, not the fully parallel strawman I used), static is ~9.3x throughput, ~2.3x lower latency, ~3.5x fewer cells; batching cannot rescue the fold. `#883`'s headline is withdrawn. No code changed. See `points/points_active.md` #884)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
