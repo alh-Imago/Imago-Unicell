@@ -1,4 +1,18 @@
-# Current State (as of 2026-09-28, a design observation logged, NOT built: Alan's proposal to let the command cell take a Start from any direction and run by acking a set direction, and to give the sequencer full-width triggered output. Verified catches: the sequencer has NO capture side today (4 x 8-bit, ack tied low), and per-direction ack is a prerequisite. Recommended: additive mode bit, prototyped in the VM first. See `points/points_active.md` #873)
+# Current State (as of 2026-09-28, `#873` refined, still NOT built: the sequencer's trigger is just a plain 1-bit arrival on the ordinary handshake (general ack, register clears ready for the next bit). Candidate 1/0 cells verified (nano TOPO_ONE/TOPO_ZERO, branch fixed values, latch, compare); the source must be one-shot, not a level. Sequencer half can be prototyped first -- it does not need per-direction ack. See `points/points_active.md` #874)
+
+## Read this first (most recent)
+
+**#874 -- refinement of `#873`, no code changed.** Alan: one bit starts the sequencer; a 1/0 cell exists already; the start uses the general ack; the register clears ready for the next bit. **My reading (confirm):** the trigger is a plain 1-bit ARRIVAL on the ordinary handshake -- the sequencer just gains the single-arrival capture side `ram` already has (the `#382` "any arrival = go" pattern). **1/0 candidates verified:** nano `TOPO_ONE` (0x0B0) / `TOPO_ZERO` (0x030) (best reading of "as an option"), branch fixed values, latch, compare -- which one is NOT confirmed. **Caution:** the source must be ONE-SHOT; latch/accumulator are continuous and would re-trigger after every ack (`#858` one level up); nano/branch are safe.
+
+**Open decisions:** (a) one bit starts a whole RUN through the list (idle after the last value) or one value per bit? (b) full-width output width (4 x 32 vs widest config today, 80) is untouched by a 1-bit trigger. **Ordering insight:** the sequencer half needs only one input face and the existing handshake, so it does NOT depend on per-direction ack -- prototype it first.
+
+**Earlier:** `#873` (design observation), `#872` (value-independent drain signal via the sentinel), `#871` (loop closed), `#870`, `#869`, `#868`, `#867`, `#863`/`#862`, `#858`.
+
+**Real queue:** (1) confirm reading (a) and the 1/0 cell; (2) VM prototype of the triggered sequencer; (3) per-direction ack in the VM, then the controlled command mode; (4) rerun `#871`/`#872` and MEASURE; (5) the actual fold; (6) sentinel overflow/underflow; (7) RTL for what the prototypes prove; (8) fp32 ADD/MUL/DIV substrate mapping; (9) `#846` G/R/S to real rounding; (10) MIN/MAX via `branch`; (11) `v1d` VM model (`#841`); (12) LLVM gap list (`#830`); (13) scope items 3, 4, 6; (14) VIX Carrier backlog (`#824`); (15) documentation catch-up (`#829`/`#856`); (16) paired-cell/command-bus (`#835`/`#836`); (17) N-way sort network (`#837`); (18) collapsed-assembler idea (`#838`); (19) keep `CORE_CHANGE_IMPACT_MAP.md` current.
+
+## Previous state (as of 2026-09-28, a design observation logged, NOT built: Alan's proposal to let the command cell take a Start from any direction and run by acking a set direction, and to give the sequencer full-width triggered output. Verified catches: the sequencer has NO capture side today (4 x 8-bit, ack tied low), and per-direction ack is a prerequisite. Recommended: additive mode bit, prototyped in the VM first. See `points/points_active.md` #873)
+
+## Read this first (most recent)
 
 ## Read this first (most recent)
 
