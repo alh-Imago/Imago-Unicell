@@ -15548,3 +15548,11 @@ Alan flashed `#895`'s button-free diagnostic. **All three sticky LEDs lit, along
 **Regression: 1549 passed, unchanged.** Nothing existing touched; `v1`'s files are kept, not deleted, since they're the honest record of what didn't work and why.
 
 **Queue, updated:** (1) understand why `BTN_RST_N` failed -- a real, open question, not urgent now that `v2` works around it; (2) the ESP32 free-GPIO list (`#888`); (3) schematic check of edge pins 73-77; (4) lean-cell RTL parameter; (5) everything else `#886`/`#887`/`#889` already queued, unchanged. The on-board smoke test queue item from `#886` is now genuinely, honestly closed: a real UniCell core is confirmed running on real hardware.
+
+## 897. `v2` ITSELF CONFIRMED, DIRECTLY, ON THE PHYSICAL BOARD -- not just the diagnostic that predicted it would work.
+
+`#896` confirmed the underlying chain (config load, arming, handshake) works on real silicon via the sticky-LED diagnostic. This entry is the direct confirmation that matters most: Alan flashed `#896`'s actual `v2` smoke test and watched it run. Reported pattern -- heartbeat on LED0, then a repeating "3,1,2,3" sequence on the others -- matches the real design exactly: LED3 flashes on each `seq_index` advance, LED1/LED2 show the state in binary (`01`, `10`, `11` read together as one lit pair, `00` dark) between flashes. `seq_index` is a genuine register inside `sequencer_cell_v4c.v`; this is that register's real value, cycling on real hardware, driving real LEDs.
+
+**The on-board smoke test queue item (`#886`'s original ask) is now closed on the strongest possible evidence: the actual deliverable, not a proxy for it, observed running correctly by the person who built the board.**
+
+No new code, no new build. A confirmation recorded because the project's own discipline says a result isn't "done" until it's actually been checked, and this is that check.
