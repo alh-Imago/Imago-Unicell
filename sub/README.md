@@ -151,6 +151,7 @@ given deployment needs to change shift amounts without a rebuild.
 | `ram_cell_v4s` | small | flowing vs. fixed(ROM) mode, both simulated |
 | `router_cell_v4s` | 35 | genuinely fixed fan-out, zero runtime decision |
 | `mask_cell_v4s` | 66 | direct extraction of `nibble_mask_addon_v1`, unchanged |
+| `mul_cell_v4s` | 4,277 | vs `mul_full` 7,015 -- only 39% reduction, and correctly so, see below |
 | `shift_cell_v4s` | 3,261 | runtime-configurable amount/direction -- expensive, see below |
 | `shift_stage_v4s` | 26 | SAME function, amount/direction fixed at build time -- see `#899` |
 
@@ -158,13 +159,32 @@ All simulated with real testbenches before any synthesis was attempted; two real
 testbench bugs found and fixed along the way (a `cfg_valid` clear-timing race, and
 manually-packed `cfg_data` field-width miscounts) -- not RTL bugs.
 
+**`mul`'s smaller reduction is itself an honest, useful data point, not a
+disappointment.** Every other cell's big cuts came from removing genuine overhead
+-- the addon chain, the mask/ack control plane -- costs that had nothing to do
+with the cell's actual function. `mul`'s cost was never mostly that: its real
+32x32 array multiplier (32 partial products, summed) is honest, unavoidable
+computation, the same amount of real work regardless of what wraps around it.
+Stripping control-plane fat can't shrink work that was never fat to begin with --
+`adder`'s 97.2% and `mul`'s 39% are both the SAME stripping applied faithfully;
+they differ because the two cells' real costs were made of different things.
+
 ## Status
 
-Nine cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
-router, mask, shift/shift_stage), all simulated, all measured. Not yet on real
-hardware. Still to do: `mul` (straightforward, same shape as adder), `branch`
-(architecturally in tension with the family, needs a real design conversation,
-not a mechanical strip), `nano` (the confirmed two-input-role exception), and
-`command` (structurally at odds with "no live reprogramming," since reprogramming
-is its whole purpose). The latency-padding work this family depends on the moment
-more than one stage is chained has not been started.
+Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
+router, mask, mul, shift/shift_stage), all simulated, all measured. Not yet on
+real hardware. Still to do: `branch` (architecturally in tension with the
+family, needs a real design conversation, not a mechanical strip), `nano` (the
+confirmed two-input-role exception), and `command` (structurally at odds with
+"no live reprogramming," since reprogramming is its whole purpose). The
+latency-padding work this family depends on the moment more than one stage is
+chained has not been started.
+
+## A stated design rule (Alan's own, confirmed across every cell built so far)
+
+However many genuinely distinct roles a function needs -- operands, or
+independent events, or triggers -- that's how many dedicated ports it gets.
+Never a runtime decision about which port means what. `adder`/`mul`'s `in_a`/
+`in_b`; `accumulator`'s `inc_pulse`/`dec_pulse`; `latch`'s three pulses;
+`router`'s fixed per-output enables -- all the same rule, applied to whatever
+the function actually needs, not a fixed template forced onto every cell.
