@@ -102,7 +102,69 @@ methodology as `#886`'s `adder_full` figure), against **2,348 for `adder_full`**
 a 97.2% reduction. See `points.md #898` for the full write-up, including a real
 testbench race condition found and fixed along the way (not an RTL bug).
 
+## A second, bigger insight: build-time-fixed vs. runtime-loaded config (`#899`)
+
+Alan's own idea, chasing why `shift_cell_v4s` (the runtime-configurable
+extraction of `shift_lane_addon_v2`, amount and direction loaded via `cfg_data`)
+still measured a real 3,261 LUT4 despite every other cut: limit each shift cell
+to a small range and chain them for larger totals. Measuring it directly found
+something sharper than "limit the range" -- the coarse shift mux ALONE (with
+`lane_cut` removed entirely) was still 1,686 LUT4, more than half the total, and
+none of that cost is the actual data movement (each case is real, free rewiring)
+-- it is the SELECT logic: with `shift_amt` a live runtime signal, the
+synthesiser must build real 5-bit comparators and a genuine 9-way mux tree,
+because it can never know at build time which case will be chosen.
+
+**`shift_stage_v4s.v`: the same shift, with the amount and direction as real
+Verilog PARAMETERS (fixed at synthesis time) instead of `cfg_data` fields.**
+Measured: **26 LUT4** for a real amount (8, right), 34 for passthrough (0) --
+against runtime-configurable `shift_cell_v4s`'s 3,261. A **99.2% reduction**.
+Chaining two stages (left-by-8 then left-by-4) was simulated and confirmed to
+compose exactly (`1 << 8 << 4 == 1 << 12`, matching the original sparse table's
+own supported amount), with a real, known, fixed 2-cycle latency for the chain --
+exactly the number the family's latency-matching work needs.
+
+**Why this is bigger than one cell type.** This is "physics, not control" pushed
+one level deeper than routing: not just no runtime ROUTING decision, no runtime
+FUNCTION-SELECTION decision either. A cell whose behaviour is fixed the moment
+it is BUILT, not the moment it is CONFIGURED, costs almost nothing beyond its
+own control logic -- the function itself becomes free wiring. This likely
+generalises to `compare`'s threshold, `mask`'s pattern, and others: any v4s
+cell's config field is a candidate for this same treatment, IF the deployment
+can accept "changing this cell's behaviour means rebuilding it," not just
+reloading it. That is a genuine, real trade-off (flexibility vs. cost, the
+ROM-vs-RAM distinction `ram_cell_v4s` already has explicitly), not something to
+apply everywhere without deciding it deliberately -- `shift_cell_v4s`
+(runtime-configurable) and `shift_stage_v4s` (build-time-fixed, chainable) are
+BOTH kept, for exactly this reason: which one is right depends on whether a
+given deployment needs to change shift amounts without a rebuild.
+
+## Real, measured results so far
+
+| Cell | LUT4 | Notes |
+|---|---|---|
+| `adder_cell_v4s` | 66 | vs `adder_full` 2,348 -- 97.2% reduction |
+| `compare_cell_v4s` | 26 | value vs. static threshold, signed comparison |
+| `accumulator_cell_v4s` | 303 | two dedicated event ports (inc/dec) replace direction-as-meaning |
+| `latch_cell_v4s` | 4 | three dedicated pulses (set/clear/toggle), CLEAR>SET>TOGGLE kept |
+| `sequencer_cell_v4s` | 85 | `advance_in` forward pulse replaces "ack completed" as the trigger |
+| `ram_cell_v4s` | small | flowing vs. fixed(ROM) mode, both simulated |
+| `router_cell_v4s` | 35 | genuinely fixed fan-out, zero runtime decision |
+| `mask_cell_v4s` | 66 | direct extraction of `nibble_mask_addon_v1`, unchanged |
+| `shift_cell_v4s` | 3,261 | runtime-configurable amount/direction -- expensive, see below |
+| `shift_stage_v4s` | 26 | SAME function, amount/direction fixed at build time -- see `#899` |
+
+All simulated with real testbenches before any synthesis was attempted; two real
+testbench bugs found and fixed along the way (a `cfg_valid` clear-timing race, and
+manually-packed `cfg_data` field-width miscounts) -- not RTL bugs.
+
 ## Status
 
-Scoping and first cell proven (adder). Not yet on real hardware. The
-latency-padding work this family creates a real need for has not been started.
+Nine cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
+router, mask, shift/shift_stage), all simulated, all measured. Not yet on real
+hardware. Still to do: `mul` (straightforward, same shape as adder), `branch`
+(architecturally in tension with the family, needs a real design conversation,
+not a mechanical strip), `nano` (the confirmed two-input-role exception), and
+`command` (structurally at odds with "no live reprogramming," since reprogramming
+is its whole purpose). The latency-padding work this family depends on the moment
+more than one stage is chained has not been started.
