@@ -151,7 +151,8 @@ given deployment needs to change shift amounts without a rebuild.
 | `ram_cell_v4s` | small | flowing vs. fixed(ROM) mode, both simulated |
 | `router_cell_v4s` | 35 | genuinely fixed fan-out, zero runtime decision |
 | `mask_cell_v4s` | 66 | direct extraction of `nibble_mask_addon_v1`, unchanged |
-| `mul_cell_v4s` | 4,277 | vs `mul_full` 7,015 -- only 39% reduction, and correctly so, see below |
+| `mul_cell_v4s` | 4,277 | vs `mul_full` 7,015 -- only 39% reduction using a LUT-built array multiplier; see the real DSP-block result below, which supersedes this as the recommended choice |
+| `mul_cell_v4s_dsp2` | ~34 + 1 DSP block | the SAME function via the chip's real `MULT36X36` hardware -- see `#901` |
 | `shift_cell_v4s` | 3,261 | runtime-configurable amount/direction -- expensive, see below |
 | `shift_stage_v4s` | 26 | SAME function, amount/direction fixed at build time -- see `#899` |
 
@@ -160,14 +161,38 @@ testbench bugs found and fixed along the way (a `cfg_valid` clear-timing race, a
 manually-packed `cfg_data` field-width miscounts) -- not RTL bugs.
 
 **`mul`'s smaller reduction is itself an honest, useful data point, not a
-disappointment.** Every other cell's big cuts came from removing genuine overhead
--- the addon chain, the mask/ack control plane -- costs that had nothing to do
-with the cell's actual function. `mul`'s cost was never mostly that: its real
-32x32 array multiplier (32 partial products, summed) is honest, unavoidable
-computation, the same amount of real work regardless of what wraps around it.
-Stripping control-plane fat can't shrink work that was never fat to begin with --
-`adder`'s 97.2% and `mul`'s 39% are both the SAME stripping applied faithfully;
-they differ because the two cells' real costs were made of different things.
+disappointment -- WHEN the multiply is built from LUTs.** Every other cell's big
+cuts came from removing genuine overhead -- the addon chain, the mask/ack control
+plane -- costs that had nothing to do with the cell's actual function. `mul`'s
+LUT-built cost was never mostly that: its real 32x32 array multiplier (32 partial
+products, summed) is honest, unavoidable computation, the same amount of real
+work regardless of what wraps around it. Stripping control-plane fat can't
+shrink work that was never fat to begin with -- `adder`'s 97.2% and `mul`'s 39%
+are both the SAME stripping applied faithfully; they differ because the two
+cells' real costs were made of different things.
+
+**But that "unavoidable computation" framing only holds if the multiply has to
+be built from LUT fabric at all -- and on this chip, it doesn't (`#901`).** The
+Tang Nano 20K has 12 real `MULT36X36` DSP blocks (48 `MULT18X18`s), almost
+entirely idle in every measurement this whole session. `mul_cell_v4s_dsp2.v`
+instantiates one directly. First attempt (a plain `a * b`, matching Gowin's own
+proprietary compiler's real automatic-inference behaviour, per Alan's own
+example) found a genuine, honest TOOLCHAIN GAP: this yosys's `synth_gowin` pass
+has no automatic DSP-inference for a plain multiply at all (confirmed: identical
+LUT4 count, zero DSP cells, no `dsp_map.v`-equivalent pass exists in this
+yosys's Gowin techlibs). The real primitives ARE declared as usable blackboxes in
+yosys's own `cells_xtra.v`, though, and instantiating `MULT36X36` directly
+works: **real synthesis, real place-and-route, real routing completed, `MULT36X36`
+genuinely consumed (confirmed in nextpnr's own utilization report, not just
+yosys's synthesis stat -- a first attempt at this test had a real stimulus bug,
+`cfg_valid` tied permanently high, that let nextpnr legitimately discard the
+whole DSP instance as unreachable; fixed with the same proven one-shot-pulse
+pattern used throughout this project), real achieved Fmax 1,492.5 MHz against a
+27 MHz target.** Everything outside the DSP block itself collapses to the same
+tiny control-plane every other cheap `v4s` cell has (~34 LUT4 standalone).
+`mul_cell_v4s_dsp2` is now the recommended `mul` for this chip; `mul_cell_v4s`
+(LUT-built) is kept for portability to a target without equivalent DSP hardware,
+or if all 12 DSP blocks are ever needed for something else at once.
 
 ## Status
 
