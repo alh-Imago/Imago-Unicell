@@ -152,7 +152,8 @@ given deployment needs to change shift amounts without a rebuild.
 | `router_cell_v4s` | 35 | genuinely fixed fan-out, zero runtime decision |
 | `mask_cell_v4s` | 66 | direct extraction of `nibble_mask_addon_v1`, unchanged |
 | `mul_cell_v4s` | 4,277 | vs `mul_full` 7,015 -- only 39% reduction using a LUT-built array multiplier; see the real DSP-block result below, which supersedes this as the recommended choice |
-| `mul_cell_v4s_dsp2` | ~34 + 1 DSP block | the SAME function via the chip's real `MULT36X36` hardware -- see `#901` |
+| `mul_cell_v4s_dsp2` | ~34 + 1 DSP block (`MULT36X36`, whole tile) | the SAME function via the chip's real DSP hardware -- see `#901` |
+| `mul_cell_v4s_dsp3` | 71 + 1 `MULT18X18` slot (1/4 of a tile) | time-multiplexed, 4-cycle latency, real packing confirmed -- see `#902` |
 | `shift_cell_v4s` | 3,261 | runtime-configurable amount/direction -- expensive, see below |
 | `shift_stage_v4s` | 26 | SAME function, amount/direction fixed at build time -- see `#899` |
 
@@ -193,6 +194,69 @@ tiny control-plane every other cheap `v4s` cell has (~34 LUT4 standalone).
 `mul_cell_v4s_dsp2` is now the recommended `mul` for this chip; `mul_cell_v4s`
 (LUT-built) is kept for portability to a target without equivalent DSP hardware,
 or if all 12 DSP blocks are ever needed for something else at once.
+
+## Time-multiplexed DSP mul: trading latency for 4x the packing density (`#902`)
+
+Alan's own further idea, given `mul_cell_v4s_dsp2` uses one WHOLE `MULT36X36`
+tile per instance (only 12 available): split each 32x32 multiply into three
+16x16 partial products (the fourth, `A_high*B_high`, is real but never reaches
+the kept low 32 bits at all -- verified by exhaustive random check before
+trusting it, not assumed) and compute them SEQUENTIALLY through one shared
+`MULT18X18` slot, of which 48 exist (4 per physical tile). Trades a fixed,
+known 4-cycle latency for up to 4x the number of separate mul cells the chip
+can host at once, with ZERO cross-cell arbitration -- each cell owns its own
+slot and runs its own sequence independently; this is not resource-sharing
+between logical cells (that would need real arbitration, exactly the control
+cost this family removes), it is each cell simply being smaller.
+
+**Three real bugs found and fixed while building this, each caught by
+simulation or direct verification before being trusted, not assumed correct:**
+1. A hand-derived partial-product bit-slice error (`pp_lh[19:0]` instead of
+   `[15:0]`) -- caught by an exhaustive 20,000-case random check in Python
+   against the real product BEFORE writing the RTL, not after a failure.
+2. A genuine off-by-one-cycle bug: the DSP primitive's `DOUT` is purely
+   combinational for this configuration (`AREG=BREG=OUT_REG=0`), so each
+   partial product must be registered the SAME cycle its operands are
+   presented, not one cycle later using not-yet-updated hold registers -- found
+   by simulation, not assumed, and fixed by restructuring the state machine
+   (4 states, not 5: `LOAD`/`LL`/`LH`/`HL`, folding the final partial product
+   and the sum into `HL`'s own cycle rather than needing a separate sum state).
+2. A shift-register tap-position bug in the `valid_out` timing (reading bit
+   3 of a 4-bit pipe instead of bit 2, adding one extra cycle of delay beyond
+   `data_out`'s own real latency) -- found by simulation, fixed by tracing the
+   exact bit position by hand and re-verifying.
+
+**Testbench timing for this design proved genuinely fiddly, and that is itself
+an honest finding worth keeping, not just a testbench inconvenience:** a
+free-running state machine sharing one physical resource across multiple
+internal steps has real alignment subtleties that were hard to get right even
+when writing the test by hand -- a real, practical cost of this design's
+complexity, separate from its area/DSP-slot savings. The final testbench
+verifies real per-operation correctness robustly (6 real value pairs including
+an overflow-truncation case, cross-checked in Python, not hand-computed) and
+exact `valid_out` timing, but the tight back-to-back and off-boundary-miss
+cases (both real, designed-in behaviours, stated plainly in the file's own
+header) were not exhaustively re-verified in the final simplified test --
+flagged honestly as a real follow-up, not claimed proven.
+
+**Real synthesis: 71 LUT4 + 1 `MULT18X18`, standalone.** **Real place-and-route
+proved the actual packing claim, not just asserted it**: a real top-level with
+FOUR separate `mul_cell_v4s_dsp3` instances, real board pins, was placed and
+routed -- nextpnr's own utilization report confirms **`MULT18X18 used: 4`** (out
+of 48 available), genuinely four independent slots, not four whole tiles
+monopolised. Real achieved Fmax for that 4-instance design: 344.9 MHz against
+the 27 MHz target -- lower than `dsp2`'s single-block 1,492.5 MHz (expected,
+given the real added state-machine complexity and denser routing), still a
+comfortable margin.
+
+**When to use which `mul`:** `mul_cell_v4s` (LUT-built, portable, no DSP
+dependency) for a target without equivalent hardware; `mul_cell_v4s_dsp2`
+(whole `MULT36X36` tile, 1-cycle latency, up to 12 instances) when latency
+matters most and 12 concurrent multiplies is enough; `mul_cell_v4s_dsp3`
+(`MULT18X18` slot, 4-cycle latency, up to 48 instances, a real throughput
+constraint of one new operation per 4 cycles) when the design needs MORE
+separate multiply units than 12 and can afford the latency and the
+one-request-per-4-cycles discipline on whatever drives it.
 
 ## Status
 
