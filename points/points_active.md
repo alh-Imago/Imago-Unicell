@@ -15795,3 +15795,17 @@ Alan: start converting the core files to the real "Flex-Sub" shape (`#906`'s ack
 **What changed:** `sub/verilog/accumulator_cell_v4sa.v` (new) + testbench. `sub/README.md` updated with the full finding. No existing file touched.
 
 **Queue:** (1) continue the Flex-Sub conversion through the rest of the family (compare, latch, sequencer, ram, router, mask, shift/shift_stage, mul's two DSP variants needing separate thought given fixed hardware multiplier widths); (2) the real assembler-side work from `#903`-`#905`, now with THREE real, measured, parameterised cells (adder, the 100-stage chain, accumulator) ready to be driven by it; (3) the VM-side reflection, also still standing.
+
+## 912. LESSONS APPLIED PROACTIVELY, AND A GENUINE, HONEST SURPRISE -- `compare_cell_v4sa` built cleanly first try, confirming the ALU ratio a third time, but LUT4 going the wrong direction this time.
+
+Alan: proceed carefully into the next cell, remembering the lessons from `#906`/`#911`.
+
+**Applied deliberately this time, not discovered again through debugging.** The testbench's `cfg()` task and a new `fire_compare()` helper both settle (a real delay) BEFORE clearing any signal the DUT also samples on the same edge -- the exact race class both `#906` and `#911` hit. Real payoff: **all 14 checks passed on the first run.** No `$strobe`-based debugging session needed this time -- the discipline paid off directly.
+
+**Real, measured: the same 0.5625 ALU ratio confirmed a THIRD time, independently, on a third different kind of arithmetic.** ALU: 32 (`WIDTH=32`) -> **18 (`WIDTH=18`)** -- exactly the ratio `#909`/`#911` found for adder and accumulator. Add, running-total add, and now signed compare all show the identical clean linear ALU scaling -- this is clearly a real, general property of this chip's primitives, not a coincidence specific to any one cell's own structure.
+
+**A genuine, honest surprise, reported plainly rather than smoothed over: LUT4 went UP at 18-bit, not down.** 28 (summed LUT1-4 at `WIDTH=32`) -> 86 (at `WIDTH=18`). Confirmed this was not a `-chparam` artifact by rebuilding with `WIDTH=18` hardcoded directly as the file's own default and re-synthesising -- identical result. The real cause was deliberately NOT chased down to certainty: that would mean digging into ABC's internal synthesis heuristics for a curiosity, not a correctness question, and the absolute numbers involved are tiny either way (both well under 0.5% of the chip's 20,736-LUT4 budget). Stated plainly as the real lesson here: the clean ALU ratio found on `adder`/`accumulator` does NOT mean every resource scales down predictably with `WIDTH` for every cell -- `compare`'s particular "mostly-constant output with one real bit" structure synthesises differently at this narrower width. LUT4 should be measured per cell, not assumed from the ALU pattern alone, going forward through the rest of this family.
+
+**What changed:** `sub/verilog/compare_cell_v4sa.v` (new) + testbench. `sub/README.md` updated with the full finding, surprise included. No existing file touched.
+
+**Queue:** (1) continue the Flex-Sub conversion through the rest of the family (latch, sequencer, ram, router, mask, shift/shift_stage, mul's two DSP variants needing separate thought); (2) now with FOUR real, measured, parameterised cells (adder, the 100-stage chain, accumulator, compare) ready for the real assembler-side work from `#903`-`#905`; (3) a standing note for whoever measures the remaining cells: check LUT4 directly each time, do not assume the ALU ratio implies it.

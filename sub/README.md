@@ -557,6 +557,40 @@ pause -- 12 real checks, all passing.
 **What changed:** `sub/verilog/accumulator_cell_v4sa.v` (new) + testbench.
 `sub/README.md` updated. No existing file's behaviour changed.
 
+## `compare_cell_v4sa`: the lessons applied proactively, and a genuine, honest surprise (`#912`)
+
+Alan: proceed carefully into the next cell, remembering the lessons from
+`#906`/`#911`. Applied deliberately this time, not discovered again: the
+testbench's `cfg()` and a new `fire_compare()` helper both settle (a real
+delay) BEFORE clearing any signal the DUT also samples on the same edge --
+the exact race class both those entries hit. Real payoff: **all 14 checks
+passed on the first run, no debugging needed this time.**
+
+**Real, measured: the same 0.5625 ALU ratio confirmed a THIRD time,
+independently.** ALU: 32 (`WIDTH=32`) -> **18 (`WIDTH=18`)** -- exactly the
+same ratio `#909`/`#911` found for adder and accumulator. Three different
+cells, three different arithmetic operations (add, running-total add,
+signed compare), the same clean linear ALU scaling every time -- this is
+clearly a real, general property of this chip's primitives, not a
+coincidence tied to any one cell's structure.
+
+**A genuine, honest surprise, reported plainly rather than smoothed over:
+LUT4 went UP at 18-bit, not down** (28 at WIDTH=32 -> 86 at WIDTH=18, summed
+LUT1-4). Confirmed not a `-chparam` artifact by rebuilding with `WIDTH=18`
+hardcoded directly as the default. The real cause was not chased down to
+certainty -- that would mean digging into ABC's internal synthesis
+heuristics for a curiosity, not a correctness question, and the absolute
+numbers involved are tiny either way (both well under 0.5% of the chip's
+20,736-LUT4 budget). What this entry WILL state plainly: the clean ALU ratio
+found on adder and accumulator does NOT mean every resource scales down
+predictably with `WIDTH` for every cell -- `compare`'s particular
+"mostly-constant output with one real bit" structure synthesises
+differently at this narrower width, and LUT4 in particular should be
+measured per cell, not assumed from the ALU pattern alone.
+
+**What changed:** `sub/verilog/compare_cell_v4sa.v` (new) + testbench.
+`sub/README.md` updated. No existing file touched.
+
 ## Status
 
 Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
