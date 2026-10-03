@@ -15857,3 +15857,29 @@ Alan: for shift, the real max shift value is directly tied to WIDTH (meaningful 
 **What changed:** `sub/verilog/shift_stage_v4sa.v`, `mul_cell_v4sa_dsp.v`, `mul_cell_v4sa.v` (all new) + testbenches, plus `tb_shift_stage_v4sa_width18.v`. `sub/README.md` updated with all findings. No existing file touched.
 
 **Queue:** (1) `nano_cell_v4sa` -- the real, outstanding gap, needs its own dedicated two-port (hold/flow) design, not the uniform single-shape treatment the rest of the family got; (2) the real assembler-side work from `#903`-`#905`, now with twelve real, measured, parameterised cells/variants ready to drive it (adder, chain, accumulator, compare, latch, sequencer, ram, router, mask, shift_stage, mul-DSP, mul-LUT); (3) `branch`'s own still-unresolved architectural tension (`#898`), also real and outstanding.
+
+## 917. `nano` ARRIVES -- the original logic core, finally built, v4s then v4sa compared directly, and #906's "ack+freeze costs less" surprise reconfirmed at real complexity, not just on the simple adder.
+
+Alan: build the real nano/logic-core base as a v4s version first, then the v4sa version to compare against -- the gap flagged back in `#898`/`#899`, caught again in `#916`'s own honest accounting, finally closed.
+
+**Read `nano_gate_v4c.v` in full before writing anything, not reconstructed from memory.** Its real function: a universal 2-input logic gate -- AND, OR, XOR, NAND, NOR, XNOR, NOT-held, NOT-flow, pass-held, pass-flow, constant-0, constant-1 -- selected by a `topology` field, applied between a HELD operand and a FLOWING one. The real gate-decomposition logic was verified by hand against a full truth table BEFORE trusting it, not assumed from the NOR-chain's shape or the derived gate names alone -- confirmed `g8`/`g9` are genuinely XNOR/XOR by direct computation.
+
+**`nano_cell_v4s.v`: the real structural exception finally resolved.** Two dedicated ports, `hold_in_data` (loaded rarely, via an explicit `load_hold` pulse -- no more cardinal arrival-order trick to infer "first arrival" from) and `flow_in_data` (new every cycle) -- the same "one dedicated wire per real role" principle `adder_cell_v4s.v`'s own `in_a`/`in_b` established, applied here to two roles genuinely different in KIND (one persistent, one transient), not just two equal operands.
+
+**A real, genuine RTL bug found and fixed -- not a testbench mistake this time.** The first draft defined `hold_in_data` as a port but its own load logic mistakenly read from `flow_in_data` instead (`held_value <= flow_in_data`, should have been `hold_in_data`). Caught by the very first real test -- the hold failed to persist a loaded value across multiple flowing operands, which is the cell's own single defining behaviour -- diagnosed with direct debug tracing of `topology`/`held`/`flow`/`out_buffer`, fixed in one line. 13 real checks pass after the fix, including the hold genuinely persisting correctly across three different flowing values with zero reloads between them.
+
+**`nano_cell_v4sa.v`: ack+freeze+WIDTH, built specifically to compare against `v4s`, per Alan's own request.** `load_hold` treated as a real, silent side effect -- updates what future flowing captures compute against, is not itself an offer, matching the original cell's own real behaviour. One real mistake caught while WRITING the testbench, before it ever ran: a planned check would have called the `fire()` helper (which waits on `ack_out`) with `ack_in` already held permanently low, which could never resolve -- caught by re-reading the test's own logic before running it, avoiding a real hang rather than discovering one. 10 real checks pass.
+
+**Real, measured comparison -- `#906`'s surprise confirmed again, at real scale, not just on the simple adder:**
+
+| Variant | LUT1-4 sum |
+|---|---|
+| `nano_cell_v4s` (no ack) | 1,117 |
+| `nano_cell_v4sa` (ack+freeze, `WIDTH=32`) | 1,088 |
+| `nano_cell_v4sa` (ack+freeze, `WIDTH=18`) | 626 |
+
+Even on this much more complex cell -- a full universal gate selector, not a single fixed operation -- ack+freeze comes out SMALLER than the pure no-ack version, not larger. `#906`'s original finding was not a fluke specific to a simple adder; it holds at real complexity too. The `WIDTH=18` reduction (0.575 of the `WIDTH=32` figure) sits close to, but not exactly at, the clean 0.5625 linear ratio found on adder/accumulator/compare -- consistent with `#911`'s own observation that a cell mixing real width-dependent logic with some width-independent control overhead lands slightly off the purest ratio.
+
+**What changed:** `sub/verilog/nano_cell_v4s.v`, `nano_cell_v4sa.v` (both new) + their testbenches. `sub/README.md` updated with the full finding. No existing file touched.
+
+**Queue:** (1) `branch`'s own still-unresolved architectural tension (`#898`) is now the one real remaining structural gap in the family; (2) the real assembler-side work from `#903`-`#905`, now with FOURTEEN real, measured, parameterised cells/variants ready to drive it; (3) consider whether `nano`'s own universal-gate flexibility makes it a candidate for ALSO getting a build-time-fixed `TOPOLOGY` parameter variant (mirroring `shift_stage_v4s`'s own win over the runtime-configurable `shift_cell_v4s`), not yet explored.

@@ -717,6 +717,71 @@ a held operand plus a flowing one -- not the uniform shape every other cell
 got), and never actually built while the specialised cells took priority.
 Still outstanding; a real item for the next session, not forgotten again.
 
+## `nano` arrives: the original logic core, finally built, v4s then v4sa compared directly (`#917`)
+
+Alan: build the real `nano`/logic-core base as a `v4s` version first, then the
+`v4sa` version to compare against -- the gap flagged back in `#898`/`#899` and
+caught again in `#916`, finally closed.
+
+**Read `nano_gate_v4c.v` in full before writing anything**, not reconstructed
+from memory. Its real function: a universal 2-input logic gate -- AND, OR,
+XOR, NAND, NOR, XNOR, NOT-held, NOT-flow, pass-held, pass-flow, constant-0,
+constant-1 -- selected by a `topology` field, applied between a HELD operand
+and a FLOWING one. Verified by hand against a full truth table before
+trusting the derived gate names (`g8`/`g9` are genuinely XNOR/XOR, confirmed
+by direct computation, not assumed from the NOR-decomposition's shape alone).
+
+**`nano_cell_v4s.v`: the real structural exception finally resolved.** Two
+dedicated ports, `hold_in_data` (loaded rarely, via an explicit `load_hold`
+pulse -- there is no more cardinal arrival-order trick to infer "first
+arrival" from) and `flow_in_data` (new every cycle), matching the same "one
+dedicated wire per real role" principle `adder_cell_v4s.v`'s own `in_a`/
+`in_b` established, applied here to two roles that are genuinely different
+in KIND (one persistent, one transient), not just two equal operands.
+
+**A real, genuine RTL bug found and fixed, not a testbench mistake this
+time.** The first draft defined `hold_in_data` as a port but its own load
+logic mistakenly read from `flow_in_data` instead -- `held_value <=
+flow_in_data` where it should have read `hold_in_data`. Caught by the very
+first real test (the hold failed to persist a loaded value across multiple
+flowing operands -- the cell's own defining behaviour), diagnosed with
+direct debug tracing, fixed in one line. 13 real checks pass after the fix,
+including the hold genuinely persisting correctly across three different
+flowing values with no reload between them.
+
+**`nano_cell_v4sa.v`: the ack+freeze+WIDTH version, built to compare against
+`v4s` directly, per Alan's own request.** `load_hold` is treated as a real,
+silent side effect -- it updates what future flowing captures compute
+against, but is not itself an offer, matching the original cell's own real
+behaviour (loading the hold was never an output event there either). One
+real mistake caught while WRITING the testbench itself, before it ever ran:
+a planned check would have called the `fire()` helper (which waits for
+`ack_out`) with `ack_in` already held low, which could never resolve --
+caught by re-reading the test's own logic before running it, not by a hang.
+10 real checks pass.
+
+**Real, measured comparison -- `#906`'s surprise confirmed again, at real
+scale, not just on the simple adder.**
+
+| Variant | LUT1-4 sum |
+|---|---|
+| `nano_cell_v4s` (no ack) | 1,117 |
+| `nano_cell_v4sa` (ack+freeze, `WIDTH=32`) | 1,088 |
+| `nano_cell_v4sa` (ack+freeze, `WIDTH=18`) | 626 |
+
+Even on this much more complex cell -- a full universal gate selector, not a
+single fixed operation -- ack+freeze comes out SMALLER than the pure no-ack
+version, not larger. `#906`'s original finding was not a fluke specific to a
+simple adder; it holds at real complexity too. The `WIDTH=18` reduction
+(0.575 of the `WIDTH=32` figure) sits close to, but not exactly at, the
+clean 0.5625 linear ratio -- consistent with `#911`'s own observation that a
+cell mixing real width-dependent logic with some width-independent control
+overhead lands slightly off the purest ratio.
+
+**What changed:** `sub/verilog/nano_cell_v4s.v`, `nano_cell_v4sa.v` (both
+new) + their testbenches. `sub/README.md` updated with the full finding. No
+existing file touched.
+
 ## Status
 
 Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
