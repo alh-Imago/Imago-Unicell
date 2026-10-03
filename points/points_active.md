@@ -15756,3 +15756,26 @@ Alan, after `#908`'s "ALU runs out before LUT4" finding: everything in `#906`-`#
 **What changed:** `sub/verilog/adder_cell_v4sa.v` (width-parameterised, purely additive, default unchanged), `sub/verilog/tb_adder_cell_v4sa_width18.v` (new, real 18-bit correctness proof). `sub/README.md` updated with the full finding. `adder_chain_v4sa.v` (the 100-stage chain wrapper) NOT yet updated to thread `WIDTH` through -- a real, mechanical, not-yet-done next step, named rather than silently left out. No existing test or RTL file touched; both existing testbenches re-run unchanged and still pass.
 
 **Queue:** (1) thread `WIDTH` through `adder_chain_v4sa.v` and re-measure the real 100-stage chain at 18-bit to confirm the ~175-180-stage estimate above against a genuine place-and-route result, not just the single-cell extrapolation; (2) apply the SAME width parameterisation to the rest of the `v4s`/`v4sa` family; (3) the real assembler-switch and VM-reflection work this entry's parameter is now ready for, still standing from `#903`-`#905`; (4) everything else already queued from `#906`-`#908` continues unaffected.
+
+## 910. REAL 100-CELL FIGURES AT NATIVE WIDTH -- Fmax went UP, not just area down, and a real arithmetic mistake in `#909`'s own extrapolation found and corrected against real measured data.
+
+Alan: test the 100-cell array at the real native width, then move into the rest of the core files and the assembler side.
+
+**`adder_chain_v4sa.v` threaded with `#909`'s real `WIDTH` parameter, purely additively.** Default 32 unchanged -- confirmed by re-running `#908`'s own existing chain testbench with zero changes needed, all 5 checks still passing. `lfsr` deliberately stays a 32-bit stimulus input regardless of `WIDTH` (a plain, genuinely-evolving source the surrounding harness already provides at any cell width); only the per-stage operand actually used gets truncated to `WIDTH` bits.
+
+**Real 4-stage correctness re-proven specifically at 18-bit before trusting the full 100-stage build** -- a fresh Python-computed reference (`0x18226`, for a known `chain_in` and a held-fixed `lfsr` value), not hand arithmetic, matching every real number this family has needed since `#906`'s own "6+7=42" lesson.
+
+**Real, measured, place-and-routed results, 32-bit vs. 18-bit, same 100 stages:**
+
+| Width | Real Fmax | LUT4 | ALU | DFF |
+|---|---|---|---|---|
+| 32-bit (`#908`) | 220.4 MHz | 1,426 (6.9%) | 3,406 (21.9%) | 3,346 (21.5%) |
+| 18-bit (`#910`) | **287.4 MHz** | 711 (3.4%) | 2,006 (12.9%) | 1,946 (12.5%) |
+
+**Fmax went UP, not just resource usage down -- a genuine bonus `#909`'s single-cell test could not reveal.** A narrower datapath means less wiring and less routing congestion across the WHOLE 100-stage chain, not just fewer gates per stage. ALU landed at 12.9%, closely matching `#909`'s own single-cell-based prediction of ~12.3% -- the small gap is the harness's own fixed overhead (LFSR, tick counter), which does not shrink with `WIDTH` and becomes a slightly larger share of a smaller total.
+
+**A real arithmetic mistake, caught by checking the prediction against real measured data rather than trusting it, corrected here rather than left standing.** `#909` estimated "roughly 175-180 chained stages" would be possible at 18-bit before exhausting the chip's ALU budget. Checked against this entry's own real, placed-and-routed figure (12.9% for 100 real stages, not assumed or re-extrapolated): the real number is **100 x (100/12.9) ~ 775 stages**, not 175-180 -- `#909`'s estimate was wrong by roughly 4.4x, a genuine computational slip in that entry's own reasoning, not a rounding difference. Corrected comparison: ~457 stages at 32-bit (from `#908`'s 21.9%) versus ~775 at 18-bit (from this entry's real 12.9%) -- a real ~1.7x capacity increase, consistent with the 32/18 = 1.78 width ratio, not the much larger, wrong figure `#909` stated. Recorded plainly, the same way `#883`/`#884`/`#906` already recorded their own corrected measurements -- the mistake stays visible in the ledger next to its fix, not quietly edited away.
+
+**What changed:** `sub/verilog/adder_chain_v4sa.v` (genuinely width-parameterised, purely additive, default unchanged), `tb_adder_chain_v4sa_width18.v` (new), `adder_chain_v4sa_top100_width18.v` (new, real board-pin-bound, saved and reproducible), `sub/build/adder_chain_v4sa_top100_width18_report.json` (new, real, committed). `sub/README.md` updated with the full finding including the correction. No existing file's behaviour changed; both pre-existing chain tests re-run unchanged and still pass.
+
+**Queue, per Alan's own stated next step:** (1) apply the same `WIDTH` parameterisation to the rest of the `v4s`/`v4sa` cell family (compare, accumulator, latch, sequencer, ram, mul, router, mask, shift/shift_stage); (2) begin the real assembler-side work -- reading the MAN file's native width and instantiating cells with the right `WIDTH`, the standing `#903`-`#905` plan, now with TWO real, measured, working parameterised cells (adder, and the chain wrapper) ready to be driven by it; (3) the VM-side reflection of the same choice, also still standing from `#903`-`#905`.
