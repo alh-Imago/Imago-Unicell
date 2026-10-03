@@ -647,6 +647,76 @@ proportional to width: DFFRE 43 -> 26, LUT1-4 37 -> 23.
 testbenches, plus `tb_mask_cell_v4sa_width18.v` (the real 18-bit
 partial-nibble proof). `sub/README.md` updated. No existing file touched.
 
+## shift_stage and both mul variants join the Flex-Sub family (`#916`)
+
+Alan: for shift, the real max shift value is directly tied to WIDTH (the
+meaningful range is 0 to WIDTH-1, not an independent fixed ceiling); for mul,
+keep both the on-board DSP logic and the actual LUT-built mul core available
+as real options, not one replacing the other.
+
+**`shift_stage_v4sa`: WIDTH threaded through correctly, the SHIFT_AMT-vs-WIDTH
+relationship stated precisely.** The underlying shift (`<<`/`>>` on a
+WIDTH-bit value) needed no new logic -- the same real Verilog truncation
+mechanism `#909` already proved correct for arithmetic applies here too.
+Proven specifically at the real 18-bit boundary: a left shift by 10 of an
+all-1s 18-bit value truncates correctly WITHIN 18 bits, cross-checked in
+Python, confirmed NOT to accidentally behave like a 32-bit shift would. One
+real testbench mistake caught and fixed: a backpressure check wrongly
+expected a STALE value to persist, when the test's own prior step had
+already freed `pending`, meaning the next `valid_in` genuinely captured a
+NEW value -- an RTL-correct, test-wrong case, same honest accounting as
+every other caught mistake in this family. Real DFF reduction from the
+narrower register (26 -> 10); LUT4 unchanged (control logic, same as
+router/mask's own pattern).
+
+**`mul_cell_v4sa_dsp`: the real DSP block, Flex-Sub'd, with its own honest
+hardware ceiling stated plainly.** `WIDTH` must be `<= 36` here -- a genuine
+hardware limit, not a soft guideline: `MULT36X36` is a FIXED-size primitive
+that does not get cheaper as `WIDTH` narrows, only the small amount of
+surrounding LUT logic does. At this card's own real native width (18), the
+fit is genuinely exact (`MULT18X18` would need no padding at all), but this
+file keeps using `MULT36X36` generically so one file covers every width up
+to 36 without per-width primitive selection. Real synthesis confirms the
+DSP block still genuinely survives at `WIDTH=18` (`MULT36X36: 1`, ~28 total
+cells) -- the real check `#901`/`#902` established, not assumed.
+
+**`mul_cell_v4sa`: "the actual mul core itself," built without touching a
+shared file.** `bitwise_multiplier_32bit.v` (the real primitive
+`mul_cell_v4`/`v4c`/`v4s` all use) is hardcoded for exactly 32-bit operands
+AND is shared with the mainline cardinal-routed cells -- not something to
+modify for this family's own purposes, the same caution `mask_cell_v4sa.v`
+already applied to `nibble_mask_addon_v1.v`. Built instead with a plain,
+genuinely `WIDTH`-generic `in_a * in_b` -- `#901` already confirmed directly
+that this toolchain never infers DSP from a plain multiply, so it
+synthesises to ordinary LUT logic, functionally equivalent to the array
+multiplier's own real purpose even though not gate-identical in structure.
+
+**A genuinely different scaling story for multiplication, worth stating
+clearly -- not the same clean linear ALU ratio found on add/compare/
+accumulate.** LUT-core mul: ~4,257 LUT4-equivalent at `WIDTH=32` -> ~1,045 at
+`WIDTH=18` -- a MUCH bigger proportional saving (~24.5%) than the ~56.25%
+linear ratio `#909`/`#911`/`#912` found, because multiplication's real cost
+scales roughly with width SQUARED (an NxN multiply needs O(N^2) partial
+product terms), not linearly like addition or comparison. And the real DSP
+alternative remains dramatically cheaper regardless of width -- ~28 total
+cells at `WIDTH=18` versus ~1,045 for the LUT-core version at the SAME
+width -- confirming `#901`'s original finding even more sharply now that
+both variants carry the same real ack+freeze+WIDTH treatment for a genuine
+like-for-like comparison.
+
+**What changed:** `sub/verilog/shift_stage_v4sa.v`, `mul_cell_v4sa_dsp.v`,
+`mul_cell_v4sa.v` (all new) + their testbenches, plus
+`tb_shift_stage_v4sa_width18.v` (the real 18-bit truncation proof).
+`sub/README.md` updated. No existing file touched.
+
+**A real, outstanding gap named plainly, not silently carried forward
+again: `nano`, the original general-purpose logic core, still has no `v4s`/
+`v4sa` version at all.** Flagged back in `#898`/`#899` as the family's one
+real structural exception (it needs two genuinely different input roles --
+a held operand plus a flowing one -- not the uniform shape every other cell
+got), and never actually built while the specialised cells took priority.
+Still outstanding; a real item for the next session, not forgotten again.
+
 ## Status
 
 Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
