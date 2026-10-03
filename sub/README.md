@@ -591,6 +591,62 @@ measured per cell, not assumed from the ALU pattern alone.
 **What changed:** `sub/verilog/compare_cell_v4sa.v` (new) + testbench.
 `sub/README.md` updated. No existing file touched.
 
+## Five more Flex-Sub cells: latch, sequencer, ram, router, mask (`#915`)
+
+Alan: move through the remaining cell types with care, remembering the
+lessons from `#906`/`#911`/`#912`. Applied proactively from the start on
+every one of these five: the settle-before-clear discipline, built into every
+testbench's own helper tasks before writing a single check. Real payoff:
+**all five cells passed their full test suites on the first simulation run**
+-- no debugging sessions needed on any of them.
+
+**`latch_cell_v4sa` / `sequencer_cell_v4sa`: WIDTH genuinely does not change
+real cost, and that is stated honestly, not oversold.** Both cells' real
+payload is a fixed, narrow value (1 bit for latch, 8 bits for sequencer,
+packed into `cfg_data`'s own field layout) -- `WIDTH` only changes
+`data_out`'s zero-padding. Measured identically at `WIDTH=32` and `WIDTH=18`
+for both (17 cells and 193 cells respectively, unchanged) -- confirms the
+expectation precisely rather than assuming it.
+
+**`ram_cell_v4sa`: a real design point worth stating precisely.** Fixed mode
+and flowing mode genuinely need different treatment, not one shape forced
+onto both -- fixed mode's whole point is "always valid, never drains," so it
+does not use the pending/ack protocol at all (`ack_out` simply reflects
+"configured", not "not busy"); flowing mode uses the standard discipline.
+Real, meaningful DFF/LUT reduction from the narrower stored register: DFFRE
+35 -> 21, LUT1-4 39 -> 25.
+
+**`router_cell_v4sa`: a genuinely new design question, resolved and tested
+precisely.** Two independent outputs, each potentially feeding a different
+downstream receiver on its own schedule -- resolved as "the router only
+accepts new input once every ENABLED output's own previous offer has been
+acked; a disabled output never blocks anything, since it never offered
+anything." Tested directly, not just asserted: a real differential-
+backpressure case (one output acks immediately, the other stalls for several
+cycles) confirmed `ack_out` correctly stays low until BOTH enabled outputs
+have genuinely cleared, not just the fast one. Real DFF reduction from the
+narrower data register (37 -> 23); LUT4 unchanged (the busy/pending control
+logic does not depend on data width).
+
+**`mask_cell_v4sa`: a real complication thought through, not papered over.**
+`mask_cell_v4s.v` reuses `nibble_mask_addon_v1`, hardcoded for exactly 8
+nibbles (32 bits) -- and 18, this card's real native width, is NOT a
+multiple of 4. There is no way to reuse that fixed-width primitive correctly
+at `WIDTH=18`. Resolved with a genuinely generic, inline nibble-mask built
+from a `generate` loop: `NIBBLES = ceil(WIDTH/4)`, with the TOP nibble
+honestly allowed to be partial (at `WIDTH=18`, nibble 4 covers only bits
+`[17:16]`, 2 real bits, not padded or truncated to 4) -- "zero these bits if
+their nibble's mask bit is set," generalised honestly rather than assumed.
+Real correctness proven specifically for this boundary case, cross-checked
+in Python: blocking the partial top nibble of an all-1s 18-bit value
+correctly zeros only those 2 real bits. Real DFF/LUT reduction, roughly
+proportional to width: DFFRE 43 -> 26, LUT1-4 37 -> 23.
+
+**What changed:** `sub/verilog/latch_cell_v4sa.v`, `sequencer_cell_v4sa.v`,
+`ram_cell_v4sa.v`, `router_cell_v4sa.v`, `mask_cell_v4sa.v` (all new) + their
+testbenches, plus `tb_mask_cell_v4sa_width18.v` (the real 18-bit
+partial-nibble proof). `sub/README.md` updated. No existing file touched.
+
 ## Status
 
 Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
