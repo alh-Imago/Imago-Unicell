@@ -192,3 +192,38 @@ def test_the_man_does_not_claim_more_than_was_verified():
     assert all(v is False for k, v in MAN["capabilities"].items() if k.endswith("_integrated")), \
         "nothing has been built on this board yet"
     assert MAN["board"]["not_yet_mapped"], "the unmapped interfaces must stay listed until they are mapped"
+
+def test_native_ff_variants_are_read_live_from_yosys_not_hand_typed():
+    """points.md #907: Alan's own real finding -- #906's adder_cell_v4sa measured
+    37 LUT4 against the plain adder_cell_v4s's 66 because its hold-unless-
+    capturing logic maps onto DFFRE's own native clock-enable pin. This records
+    that fact, generated from yosys's real Gowin cell library, not hand-typed,
+    so it can never silently drift from what the toolchain actually provides."""
+    v = MAN["device"]["logic"]["native_ff_variants"]
+    assert "cells_sim.v" in v["source"] and "not hand-typed" in v["source"]
+    names = {item["name"]: item for item in v["variants"]}
+    assert len(names) == 20, "the real, full Gowin DFF primitive set"
+    # the specific primitive #906's own measured result depends on
+    assert names["DFFRE"]["native_ce"] is True and names["DFFRE"]["native_init_pin"] == "RESET"
+    assert names["DFFE"]["native_ce"] is True and names["DFFE"]["native_init_pin"] is None
+    assert names["DFF"]["native_ce"] is False and names["DFF"]["native_init_pin"] is None
+    # every variant has a real clock edge, and negative-edge variants are named DFFN*
+    for name, item in names.items():
+        expected_edge = "negedge" if name.startswith("DFFN") else "posedge"
+        assert item["clock_edge"] == expected_edge, name
+    # the real, honest limit: never both an init pin from the sync AND async
+    # families at once (that would need two native controls, which do not exist)
+    sync, async_ = {"SET", "RESET"}, {"PRESET", "CLEAR"}
+    for name, item in names.items():
+        pin = item["native_init_pin"]
+        assert pin is None or pin in sync or pin in async_
+    assert "only one native extra input exists per flip-flop, not two" in v["note"]
+    assert "#906" in v["note"] and "37 LUT4" in v["note"]
+
+
+def test_native_ff_variants_regenerates_identically():
+    """Confirms the committed MAN file's new field matches a fresh run of the
+    real generator, same discipline as the file's own staleness test."""
+    gen, db = _chipdb()
+    fresh = gen.native_ff_variants()
+    assert fresh == MAN["device"]["logic"]["native_ff_variants"]

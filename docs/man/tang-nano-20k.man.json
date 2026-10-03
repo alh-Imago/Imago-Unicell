@@ -26,7 +26,133 @@
       "ff_per_tile": 24,
       "ff_per_lut4": 0.75,
       "shadow_sram_bits": 41472,
-      "note": "Derived from the chip database: 648 logic tiles x 32 LUT4 = 20,736 and x 24 FF = 15,552, matching the published datasheet figures. A LUT4 is NOT an Intel ALM: card_fit_v1 keeps the two units apart."
+      "note": "Derived from the chip database: 648 logic tiles x 32 LUT4 = 20,736 and x 24 FF = 15,552, matching the published datasheet figures. A LUT4 is NOT an Intel ALM: card_fit_v1 keeps the two units apart.",
+      "native_ff_variants": {
+        "source": "read live from /usr/share/yosys/gowin/cells_sim.v (yosys's own Gowin cell library), not hand-typed",
+        "variants": [
+          {
+            "name": "DFF",
+            "clock_edge": "posedge",
+            "native_ce": false,
+            "native_init_pin": null
+          },
+          {
+            "name": "DFFE",
+            "clock_edge": "posedge",
+            "native_ce": true,
+            "native_init_pin": null
+          },
+          {
+            "name": "DFFS",
+            "clock_edge": "posedge",
+            "native_ce": false,
+            "native_init_pin": "SET"
+          },
+          {
+            "name": "DFFSE",
+            "clock_edge": "posedge",
+            "native_ce": true,
+            "native_init_pin": "SET"
+          },
+          {
+            "name": "DFFR",
+            "clock_edge": "posedge",
+            "native_ce": false,
+            "native_init_pin": "RESET"
+          },
+          {
+            "name": "DFFRE",
+            "clock_edge": "posedge",
+            "native_ce": true,
+            "native_init_pin": "RESET"
+          },
+          {
+            "name": "DFFP",
+            "clock_edge": "posedge",
+            "native_ce": false,
+            "native_init_pin": "PRESET"
+          },
+          {
+            "name": "DFFPE",
+            "clock_edge": "posedge",
+            "native_ce": true,
+            "native_init_pin": "PRESET"
+          },
+          {
+            "name": "DFFC",
+            "clock_edge": "posedge",
+            "native_ce": false,
+            "native_init_pin": "CLEAR"
+          },
+          {
+            "name": "DFFCE",
+            "clock_edge": "posedge",
+            "native_ce": true,
+            "native_init_pin": "CLEAR"
+          },
+          {
+            "name": "DFFN",
+            "clock_edge": "negedge",
+            "native_ce": false,
+            "native_init_pin": null
+          },
+          {
+            "name": "DFFNE",
+            "clock_edge": "negedge",
+            "native_ce": true,
+            "native_init_pin": null
+          },
+          {
+            "name": "DFFNS",
+            "clock_edge": "negedge",
+            "native_ce": false,
+            "native_init_pin": "SET"
+          },
+          {
+            "name": "DFFNSE",
+            "clock_edge": "negedge",
+            "native_ce": true,
+            "native_init_pin": "SET"
+          },
+          {
+            "name": "DFFNR",
+            "clock_edge": "negedge",
+            "native_ce": false,
+            "native_init_pin": "RESET"
+          },
+          {
+            "name": "DFFNRE",
+            "clock_edge": "negedge",
+            "native_ce": true,
+            "native_init_pin": "RESET"
+          },
+          {
+            "name": "DFFNP",
+            "clock_edge": "negedge",
+            "native_ce": false,
+            "native_init_pin": "PRESET"
+          },
+          {
+            "name": "DFFNPE",
+            "clock_edge": "negedge",
+            "native_ce": true,
+            "native_init_pin": "PRESET"
+          },
+          {
+            "name": "DFFNC",
+            "clock_edge": "negedge",
+            "native_ce": false,
+            "native_init_pin": "CLEAR"
+          },
+          {
+            "name": "DFFNCE",
+            "clock_edge": "negedge",
+            "native_ce": true,
+            "native_init_pin": "CLEAR"
+          }
+        ],
+        "note": "Every real Gowin DFF primitive gives exactly ONE free native control input beyond clock+data: a clock-enable (CE, for hold-current-value-for-free logic) or an initialisation pin (SET/RESET=synchronous, PRESET/CLEAR=asynchronous); DFFRE/DFFSE/DFFPE/DFFCE combine CE with one init pin. A register needing TWO independent async conditions still needs real LUT logic for the second one -- only one native extra input exists per flip-flop, not two. Real, confirmed use: #906's adder_cell_v4sa measured 37 LUT4 against the plain adder_cell_v4s's 66, specifically because its \"hold unless capturing\" logic maps onto DFFRE's own native CE pin rather than needing extra LUT-level muxing. Worth designing v4s/v4sa RTL deliberately around this table rather than relying on the synthesiser to find the mapping by chance."
+      }
     },
     "bram": {
       "kind": "BSRAM",

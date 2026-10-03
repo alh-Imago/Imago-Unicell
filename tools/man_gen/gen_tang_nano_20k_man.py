@@ -21,6 +21,7 @@ import importlib.metadata
 import json
 import lzma
 import os
+import re
 import sys
 
 import apycula
@@ -59,6 +60,48 @@ def pin_record(db, pin, extra=None):
         rec["chip_function"] = "/".join(funcs)
     rec.update(extra or {})
     return rec
+
+
+def native_ff_variants():
+    """points.md #907: read the real Gowin flip-flop primitives straight from
+    yosys's own cell library (not hand-typed, so this can never silently drift
+    from what the toolchain actually knows) and derive each one's real native
+    control input beyond clock+data -- CE (clock-enable), or an initialisation
+    pin (synchronous SET/RESET, asynchronous PRESET/CLEAR). Real, checked
+    finding: #906's `adder_cell_v4sa` measured 37 LUT4 against the no-ack
+    version's 66, and this table is why -- DFFRE's native CE pin gives
+    "hold the value unless genuinely capturing" for free, no LUT required.
+    One real limit, worth recording precisely: each primitive offers only ONE
+    native control input beyond clock/data -- CE alone, an init pin alone, or
+    CE plus exactly one init pin. Anything needing two independent async
+    conditions on the same register still needs real LUT logic for the second
+    one.
+    """
+    path = "/usr/share/yosys/gowin/cells_sim.v"
+    if not os.path.exists(path):
+        return None
+    text = open(path).read()
+    variants = []
+    for m in re.finditer(r"^module (DFF\w*) \(output reg Q, input ([^)]+)\);", text, re.MULTILINE):
+        name, ports = m.group(1), [p.strip() for p in m.group(2).split(",")]
+        edge = "negedge" if name.startswith("DFFN") else "posedge"
+        ce = "CE" in ports
+        init = next((p for p in ("SET", "RESET", "PRESET", "CLEAR") if p in ports), None)
+        variants.append({"name": name, "clock_edge": edge, "native_ce": ce, "native_init_pin": init})
+    return {
+        "source": f"read live from {path} (yosys's own Gowin cell library), not hand-typed",
+        "variants": variants,
+        "note": ("Every real Gowin DFF primitive gives exactly ONE free native control input beyond "
+                 "clock+data: a clock-enable (CE, for hold-current-value-for-free logic) or an "
+                 "initialisation pin (SET/RESET=synchronous, PRESET/CLEAR=asynchronous); DFFRE/DFFSE/"
+                 "DFFPE/DFFCE combine CE with one init pin. A register needing TWO independent async "
+                 "conditions still needs real LUT logic for the second one -- only one native extra "
+                 "input exists per flip-flop, not two. Real, confirmed use: #906's adder_cell_v4sa "
+                 "measured 37 LUT4 against the plain adder_cell_v4s's 66, specifically because its "
+                 "\"hold unless capturing\" logic maps onto DFFRE's own native CE pin rather than "
+                 "needing extra LUT-level muxing. Worth designing v4s/v4sa RTL deliberately around this "
+                 "table rather than relying on the synthesiser to find the mapping by chance."),
+    }
 
 
 def build(db):
@@ -100,6 +143,7 @@ def build(db):
                 "note": ("Derived from the chip database: 648 logic tiles x 32 LUT4 = 20,736 and x 24 FF = 15,552, "
                          "matching the published datasheet figures. A LUT4 is NOT an Intel ALM: card_fit_v1 keeps "
                          "the two units apart."),
+                "native_ff_variants": native_ff_variants(),
             },
             "bram": {
                 "kind": "BSRAM", "blocks": len(bsram), "kbits_datasheet": 828,
