@@ -334,6 +334,72 @@ genuinely needs guaranteed fixed-cycle throughput; `adder_cell_v4sa` (ack +
 global freeze, variable latency, no static analysis needed anywhere) as the
 likely better general default given this result.
 
+## Real place-and-route: single unit, then a real 100-cell chain (`#908`)
+
+Alan's own request after `#906`/`#907`: get real timing figures, starting with
+one unit, then scaling to a real "10x10 matrix" (100 cells) to see how the
+ack+freeze design actually behaves under real routing congestion, not just
+free-port synthesis estimates.
+
+**A real collapse bug caught again, same class as `#902`'s, before trusting
+any number.** The first single-unit board-bound test observed only
+`result[0]` on an LED -- and real synthesis showed `ALU: 4` (just the harness's
+own tick counter), not the expected 32 for a real 32-bit adder. The real
+arithmetic had been legitimately discarded as unobserved, exactly `#902`'s own
+lesson about `mul_cell_v4s_dsp2`. Fixed with a full-width XOR reduction
+(`^result`); re-synthesis showed the correct `ALU: 36` (32 real + 4 harness).
+
+**`adder_chain_v4sa.v` (new): a parameterised point-to-point chain.** `NSTAGES`
+instances of `adder_cell_v4sa`, each stage's real sum feeding the next stage's
+`in_a`, `ack_out` flowing backward stage to stage exactly as `#906` designed.
+Each stage's `in_b` is a distinct rotation of one shared, genuinely-evolving
+LFSR (not an identical shared signal), so no two ports anywhere in the whole
+chain are provably related -- the same anti-collapse discipline `#889`
+established, applied at 100-cell scale.
+
+**Correctness proven at small scale (4 stages) before trusting the real
+100-cell build -- a Python-computed reference, not hand arithmetic (`#906`'s
+own lesson about trusting hand-computed expected values):** the exact 4-stage
+sum (`chain_in=5`, a fixed, known `lfsr` value, cross-checked in Python: the
+real answer is `0xb6958226`) matched simulation exactly. **Real backpressure
+verified to propagate through MULTIPLE stages, not just the last one**: with
+the chain's far-end consumer held permanently not-ready, the chain's OWN FIRST
+stage was confirmed to stop accepting new input once every stage filled up --
+proving the handshake genuinely chains, not just locally. Drain and recovery
+after the consumer becomes ready again was also confirmed, with a real,
+not-guessed, wait margin (draining N stacked stages ripples the ack backward
+roughly one stage per cycle, the same rate as the forward fill).
+
+**Real, measured results, place-and-route confirmed twice independently
+(matching, not just asserted once):**
+
+| Build | Real Fmax | LUT4 | ALU | DFF |
+|---|---|---|---|---|
+| Single unit (+ small harness) | 368.6 MHz | 157 (0.8%) | 40 (0.3%) | 78 (0.5%) |
+| 100-stage chain | **220.4 MHz** | 1,426 (6.9%) | 3,406 (21.9%) | 3,346 (21.5%) |
+
+Fmax drops a real ~40% from one unit to 100 chained -- genuine routing/
+placement cost at scale, not free, but still an 8x margin over the 27 MHz
+board clock. **A real, useful resource finding: ALU, not LUT4, is the binding
+constraint for how many of these chained cells will fit** -- 100 stages used
+only 6.9% of LUT4 but already 21.9% of ALU (each stage needs its own full
+32-bit adder carry chain). At this ratio, roughly 450-460 chained stages
+would exhaust the chip's real ALU budget well before LUT4 became the limit.
+
+**A real sandbox-environment limit found while making this reproducible, not a
+script bug:** the 100-stage place-and-route alone takes several real minutes;
+running the whole build script as one backgrounded job was unreliable in this
+environment (the job did not survive to completion, consistent with earlier
+findings this project has hit before) -- the two stages were run as separate,
+generously-timed foreground steps instead, and the SAVED repo files were then
+independently re-verified to reproduce the exact same real numbers.
+
+**What changed:** `sub/verilog/adder_chain_v4sa.v` (new) + testbench,
+`sub/verilog/adder_v4sa_top_single.v` / `adder_chain_v4sa_top100.v` (the real,
+board-pin-bound test harnesses, saved and reproducible, not one-off scratch
+files), `tools/gowin_sizing/build_adder_v4sa_scaling.sh` (the reproducible
+build script), `sub/build/*_report.json` (the real, committed nextpnr reports).
+
 ## Status
 
 Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
