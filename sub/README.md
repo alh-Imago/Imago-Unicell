@@ -400,6 +400,60 @@ board-pin-bound test harnesses, saved and reproducible, not one-off scratch
 files), `tools/gowin_sizing/build_adder_v4sa_scaling.sh` (the reproducible
 build script), `sub/build/*_report.json` (the real, committed nextpnr reports).
 
+## The real "flex" width parameter -- 18-bit confirmed to deliver exactly the predicted ALU saving (`#909`)
+
+Alan's own follow-up to `#908`'s "ALU runs out before LUT4" finding: `#906`-
+`#908` are all 32-bit. If a cell's width matches the MAN file's own recorded
+native width (18 for this card, `#903`/`#904`), the cells themselves get
+narrower -- and since `#908` just found ALU, not LUT4, is the real ceiling for
+arithmetic chains, going native-width directly attacks that exact ceiling,
+not just a vague general saving. He named the three real pieces this needs:
+a variable-width version of the core files, a switch in the assembler to pick
+the right width per target, and the VM side reflecting the same choice.
+
+**`adder_cell_v4sa.v` made genuinely width-parameterised, purely additively.**
+A real `parameter WIDTH = 32` now controls `in_a`/`in_b`/`data_out`/
+`out_buffer`, passed straight through to `adder_v1`'s own already-existing
+`WIDTH` parameter. Defaults to 32, so every one of `#906`/`#908`'s committed
+measurements stays exactly valid, unchanged -- this is not a new cell, it is
+the same cell made flexible. `cfg_data` deliberately stays a fixed 32 bits
+regardless of `WIDTH`: it only ever needs to hold a 1-bit `subtract_mode`
+flag here, and `sequencer_cell_v4s` already needed a config bus WIDER than
+its own data width, so tying the two together would be the wrong coupling to
+bake in now.
+
+**Real correctness proven specifically at 18-bit, not just assumed from the
+parameter working syntactically.** A dedicated testbench confirms real
+18-bit addition AND the width-specific wraparound boundary (`0x3FFFF + 1`
+wraps to `0` at bit 18, not bit 32) -- proving `WIDTH` genuinely changes the
+real arithmetic, not just the port declarations. One real testbench mistake
+caught before trusting it: an attempted "this would be the wrong, 32-bit-style
+answer" negative check used an 18-bit literal (`18'h40000`) that was itself
+out of range and silently truncated to 0 by Verilog before the comparison
+ever ran, making the check meaningless as written -- removed once diagnosed,
+since the positive wraparound check alone already proves the real behaviour.
+
+**Real, measured result: the predicted ALU saving confirmed EXACTLY, not
+approximately.** ALU: 32 (WIDTH=32, `#906`) -> **18 (WIDTH=18)** -- a precise
+linear match with the width ratio (18/32 = 0.5625), exactly as the ripple-
+carry structure predicts. LUT4: 37 -> 23 (62%, a bit more than pure
+proportionality, since the armed/pending/ack control logic has a fixed cost
+that does not shrink with data width at all -- only the arithmetic and
+data-path muxing do). This is the real, quantified version of `#908`'s own
+ALU-is-the-ceiling finding turning into an actual fix: at 18-bit, the same
+100-stage chain that used 21.9% of the chip's ALU at 32-bit would use
+roughly 12.3%, meaning something closer to 175-180 chained stages become
+possible before hitting the same ALU ceiling `#908` measured, not ~100.
+
+**What is genuinely done here, and what Alan's own three pieces still need --
+stated precisely, not blurred together:** the CORE FILE is now real,
+parameterised, and measured at both widths -- that part is finished. The
+ASSEMBLER SWITCH (reading the MAN file's native width and instantiating with
+the right `WIDTH`) and the VM-SIDE REFLECTION of that same choice are both
+still the standing, not-yet-built architecture work from `#903`-`#905` --
+this entry gives that future work a real, working, measured parameter to
+drive, it does not build the thing that drives it.
+
 ## Status
 
 Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,

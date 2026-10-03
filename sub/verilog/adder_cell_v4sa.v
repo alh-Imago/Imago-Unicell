@@ -58,7 +58,20 @@
 `timescale 1ns / 1ps
 
 module adder_cell_v4sa #(
-    parameter [15:0] CELL_ID = 16'h0000
+    parameter [15:0] CELL_ID = 16'h0000,
+    parameter        WIDTH   = 32   // points.md #909: the real "flex" width parameter --
+                                     // Alan's own direction. Defaults to 32 so every
+                                     // existing #906/#908 measurement stays exactly valid
+                                     // unchanged; the assembler (once built, #903-905's
+                                     // standing plan) is meant to override this per the
+                                     // target's own MAN-file-recorded native width (18 for
+                                     // this card, per #903/#904's own finding). cfg_data
+                                     // deliberately stays a fixed 32 bits regardless of
+                                     // WIDTH -- it only ever needs to hold a 1-bit
+                                     // subtract_mode flag here, and other v4s cells
+                                     // (sequencer_cell_v4s) already needed a config bus
+                                     // wider than their own data width, so tying the two
+                                     // together would be the wrong coupling.
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -67,27 +80,27 @@ module adder_cell_v4sa #(
     input  wire         cfg_valid,
     input  wire [31:0]  cfg_data,
 
-    input  wire [31:0]  in_a,
-    input  wire [31:0]  in_b,
-    input  wire         valid_in,
-    output wire         ack_out,     // backward, to whoever feeds in_a/in_b
+    input  wire [WIDTH-1:0]  in_a,
+    input  wire [WIDTH-1:0]  in_b,
+    input  wire              valid_in,
+    output wire               ack_out,     // backward, to whoever feeds in_a/in_b
 
-    output wire [31:0]  data_out,
-    output wire         valid_out,   // stays high until ack_in, not a one-shot pulse
-    input  wire         ack_in       // backward, from the one fixed downstream receiver
+    output wire [WIDTH-1:0]  data_out,
+    output wire               valid_out,   // stays high until ack_in, not a one-shot pulse
+    input  wire               ack_in       // backward, from the one fixed downstream receiver
 );
 
-    reg        subtract_mode = 1'b0;
-    reg        armed         = 1'b0;   // narrow, permanent: has real config ever loaded
-    reg        pending       = 1'b0;   // holding a real, not-yet-consumed result
-    reg [31:0] out_buffer    = 32'h0;
+    reg             subtract_mode = 1'b0;
+    reg             armed         = 1'b0;   // narrow, permanent: has real config ever loaded
+    reg             pending       = 1'b0;   // holding a real, not-yet-consumed result
+    reg [WIDTH-1:0] out_buffer    = {WIDTH{1'b0}};
 
     // ── The real arithmetic -- unchanged from adder_v1, the same primitive
-    // adder_cell_v4/v4c/v4s already use ──────────────────────────────────
-    wire [31:0] adder_b_in = subtract_mode ? ~in_b : in_b;
-    wire [31:0] adder_sum;
-    wire        adder_cout;
-    adder_v1 #(.WIDTH(32)) ADD (
+    // adder_cell_v4/v4c/v4s already use, now genuinely width-generic ──────
+    wire [WIDTH-1:0] adder_b_in = subtract_mode ? ~in_b : in_b;
+    wire [WIDTH-1:0] adder_sum;
+    wire             adder_cout;
+    adder_v1 #(.WIDTH(WIDTH)) ADD (
         .a(in_a), .b(adder_b_in), .cin(subtract_mode),
         .sum(adder_sum), .cout(adder_cout)
     );
@@ -102,14 +115,14 @@ module adder_cell_v4sa #(
             subtract_mode <= 1'b0;
             armed         <= 1'b0;
             pending       <= 1'b0;
-            out_buffer    <= 32'h0;
+            out_buffer    <= {WIDTH{1'b0}};
         end else if (cfg_valid) begin
             // Config load takes effect even while frozen -- loading safely
             // during a freeze is the whole point of freeze existing.
             subtract_mode <= cfg_data[0];
             armed         <= 1'b1;
             pending       <= 1'b0;   // discard any in-flight result on reconfigure
-            out_buffer    <= 32'h0;
+            out_buffer    <= {WIDTH{1'b0}};
         end else if (!freeze_in) begin
             // Normal operation, only when not frozen. Exactly one of "clear a
             // consumed result" or "capture a fresh one" ever happens per
