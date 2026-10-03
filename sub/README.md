@@ -503,6 +503,60 @@ real 18-bit 4-stage correctness proof), `adder_chain_v4sa_top100_width18.v`
 nextpnr report). No existing file's behaviour changed; both pre-existing
 chain tests re-run unchanged and still pass.
 
+## The Flex-Sub family begins: `accumulator_cell_v4sa` (`#911`)
+
+Alan: start converting the core files to the real "Flex-Sub" shape -- ack+freeze
+(`#906`) plus a genuine `WIDTH` parameter (`#909`/`#910`) -- for the rest of
+the family, not just adder. Given `#906`'s own finding that ack+freeze costs
+LESS than the pure fixed-latency design, the Flex-Sub foundation is built on
+the ack-bearing shape from the start for cells that did not already have one,
+rather than bolting `WIDTH` onto the older no-ack `v4s` versions separately.
+
+**A real, pre-existing bug found and fixed while building this, not inherited
+silently.** `accumulator_cell_v4s.v` already had an internal `WIDTH`
+parameter, but its `data_out` PORT stayed hardcoded `[31:0]` regardless -- the
+external interface never actually reflected a narrower width correctly.
+Fixed in `accumulator_cell_v4sa.v`: `data_out` is genuinely `[WIDTH-1:0]`.
+
+**A real testbench race bug, the SAME class `#906` first found, caught again
+here -- worth naming plainly as a pattern to watch for, not a one-off.**
+Clearing `inc_pulse`/`dec_pulse` with a bare blocking assignment immediately
+after `@(posedge clk)`, in the same active region as the edge, raced the
+DUT's own same-edge sampling of those signals. The symptom was genuinely
+confusing on its face: `out_buffer` captured correctly while `accumulator`
+itself appeared stuck at 0 forever, which looked like two DIFFERENT register
+updates behaving inconsistently despite sharing the same triggering
+condition. Diagnosed with `$strobe` (true end-of-timestep values, removing
+any ambiguity `$display` plus a settling delay could not fully resolve) --
+confirmed `dut.inc_pulse` read 0 at the DUT during the very edges where a
+real capture clearly happened, proving the RTL itself was correct and the
+race was entirely in the test. Fixed with the same proven pattern: settle
+BEFORE clearing, not just before the next read.
+
+**Real, measured result: the same clean ALU ratio found again, independently,
+on a second cell.** ALU: 128 (`WIDTH=32`) -> **72 (`WIDTH=18`)** -- 0.5625,
+the exact same ratio `#909` found for `adder_cell_v4sa`, confirming this is a
+genuine, general property of width-parameterised arithmetic on this chip, not
+a one-off result specific to the adder. LUT4 (summed LUT1-4): 325 -> 242
+(74.5%), a smaller reduction than the pure ALU ratio since the armed/pending/
+pulse_mode/threshold control logic has a fixed cost that does not shrink
+with `WIDTH`, same reasoning as `#909`'s own adder finding.
+
+**A deliberate, stated scoping decision, not a silently skipped step:** the
+18-bit-specific wraparound boundary (the thing `#909` built a dedicated test
+for on the adder) was NOT separately re-proven here. The underlying
+truncation is the same Verilog language-level mechanism (`+` on a
+declared-width register) already proven correct at 18-bit for
+`adder_cell_v4sa` -- re-testing that exact mechanism per cell has
+diminishing real value once the language guarantee itself is established.
+Real correctness WAS re-proven for everything cell-specific: continuous
+mode, pulse mode's real threshold crossing, real backpressure holding the
+stale offer across multiple stalled cycles, and freeze as a true, total
+pause -- 12 real checks, all passing.
+
+**What changed:** `sub/verilog/accumulator_cell_v4sa.v` (new) + testbench.
+`sub/README.md` updated. No existing file's behaviour changed.
+
 ## Status
 
 Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
