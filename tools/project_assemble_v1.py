@@ -1455,7 +1455,7 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--man", default=None, help="Path to a MAN file (real card capabilities). Required for every mode except `-s flex` given -w (see -s/-w).")
-    ap.add_argument("--cells", required=True, type=int, help="Number of cells to generate")
+    ap.add_argument("--cells", default=None, type=int, help="Number of cells to generate (not used with --icm: the ICM file defines the cells)")
     ap.add_argument("--output", required=True, help="Output folder for the generated project (required -- prevents build artifacts landing inside the tracked repo by accident)")
     ap.add_argument("--top", default=None, help="Top-level module name (default: auto-generated)")
     ap.add_argument("-S", "--single-core", default=None,
@@ -1484,9 +1484,31 @@ def main():
                      help="points.md #663: 'quartus' (default) generates the real .qsf/.sdc pair this tool always has. 'yosys' generates a real .ys synthesis script instead (synth_intel_alm -family cyclone10gx -- the closest real family Yosys supports; Arria 10 has NO real model in this open-source techlib, so this gives a genuine same-generation ALM ballpark, not a real Arria 10 number). Cannot combine with --probe.")
     ap.add_argument("-s", "--family", default=None, choices=["flex", "sub", "nano"],
                      help="Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s. For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1).")
+    ap.add_argument("--icm", default=None, metavar="FILE",
+                     help="STEP 2 of the Flex-Sub plan: read this ICM-VIX file (*.icm-hier.json) as a map and generate the design it describes as Verilog into --output. Requires -s sub (the flex generator -- ack join -- is not built yet). Handled by tools/flexsub_icm_generate_v1.py; --cells is not used.")
+    ap.add_argument("--no-align", action="store_true",
+                     help="With --icm: do NOT pad early adder operands with relay cells. A negative control -- the generated design is then expected to compute the wrong answer.")
     ap.add_argument("-w", "--width", type=int, default=None,
                      help="Cell data width for `-s flex` (e.g. -w 18). Overrides the MAN file's device.logic.native_width; required when no --man is given. Rejected with `-s sub` (fixed 32) and with the default/nano path.")
     args = ap.parse_args()
+
+    if args.icm:
+        if args.family != "sub":
+            print("error: --icm needs -s sub (the flex generator, which needs an ack join, is not built yet)", file=sys.stderr)
+            return 1
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import flexsub_icm_generate_v1 as fig
+        try:
+            r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        print(f"Family: sub   Source: {r['source']}   Cells: {r['cells']}   Pad relay cells: {r['pad_relay_cells']}"
+              f"{'' if r['align'] else '   (ALIGNMENT OFF: negative control)'}")
+        print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
+        for c, t in r["output_latency_cycles"].items():
+            print(f"Latency to output {c}: {t} cycles")
+        return 0
 
     if args.family in ("flex", "sub"):
         # Step 1 of the Flex-Sub plan: a separate, additive path; nothing below this block runs.
@@ -1498,6 +1520,8 @@ def main():
         if _ignored:
             print(f"error: {', '.join(_ignored)} do not apply with -s {args.family} (carrier/shell-lineage options)", file=sys.stderr)
             return 1
+        if args.cells is None:
+            ap.error("the following arguments are required: --cells")
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import flexsub_assemble_v1 as fsa
         try:
@@ -1517,8 +1541,11 @@ def main():
     if args.family is None or args.family == "nano":
         if args.width is not None:
             ap.error("-w/--width only applies with -s flex")
-    if not args.man:
-        ap.error("the following arguments are required: --man")
+    _missing = [n for n, v in (("--man", args.man), ("--cells", args.cells)) if not v]
+    if _missing:
+        ap.error("the following arguments are required: " + ", ".join(_missing))
+    if args.no_align:
+        ap.error("--no-align only applies with --icm")
 
     if args.shell_file and not args.shell_module:
         print("error: --shell-file requires --shell-module (the real module name inside that file)", file=sys.stderr)
