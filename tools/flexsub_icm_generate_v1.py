@@ -297,6 +297,7 @@ def lower_branches(cells, inputs, outputs):
 MUL_REALISATIONS = {"lut": {"module": "mul_cell_v4s", "cost": {"LUT4": 4277}},
                     "dsp2": {"module": "mul_cell_v4s_dsp2", "primitive": "MULT36X36"}}
 MUL_MODULES = {k: v["module"] for k, v in MUL_REALISATIONS.items()}
+FLEX_STAGE1_CORES = {"ram", "adder", "mul"}
 LUT_BUDGET_FRACTION = 0.9
 
 
@@ -357,7 +358,7 @@ def choose_multipliers(mul_cells, man, mode):
                   "logic_unit": unit, "lut_multiplier_cost_estimate": (n_lut * cost) if cost else None, "lut_budget": budget, "reason": why}
 
 
-def plan(icm_path, align=True, man=None, mul_mode="auto"):
+def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub"):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
     problems = []
@@ -471,8 +472,16 @@ def plan(icm_path, align=True, man=None, mul_mode="auto"):
                             f"(one stream carrying both operands needs a stagger spec -- not translated)")
         if is_source and r.core not in ("ram", "sequencer") and not (r.core == "branch" and c in branch_plans and branch_plans[c]["stream"] is None):
             problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
+    if family == "flex":
+        # STAGE 1 of the flex emitter (the handshake family): ram, adder and mul only. Everything else is refused, with the reason, until it is built AND
+        # verified -- never silently mistranslated. Timing/alignment refusals below that only make sense for FIXED latency do not apply to a handshake design.
+        for r in cells.values():
+            if r.core not in FLEX_STAGE1_CORES:
+                problems.append(f"{r.cell_id}: core {r.core!r} is not yet translated on flex (stage 1 covers {sorted(FLEX_STAGE1_CORES)})")
+            if r.preload_value is not None or (r.core_config or {}).get("fixed_mode"):
+                problems.append(f"{r.cell_id}: a constant source is not yet translated on flex (stage 1)")
     if problems:
-        raise IcmGenError("cannot generate sub Verilog from %s:\n  - " % os.path.basename(icm_path) + "\n  - ".join(problems))
+        raise IcmGenError(f"cannot generate {family} Verilog from %s:\n  - " % os.path.basename(icm_path) + "\n  - ".join(problems))
 
     # constant-valued nodes: preloaded / fixed-mode source rams and anything fed only by them (always available)
     const = {c for c, r in cells.items() if not srcs_of[c] and (r.preload_value is not None or (r.core_config or {}).get("fixed_mode"))}
@@ -561,7 +570,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto"):
                 if len(live) != len(srcs):
                     raise IcmGenError(f"{c}: a merge that includes a constant source -- the constant is always valid, so the OR "
                                       f"would swamp the stream; no definite behaviour. Not translated.")
-                if len({t_rtl[q] for q in live}) > 1:
+                if family == "sub" and len({t_rtl[q] for q in live}) > 1:
                     raise IcmGenError(f"{c}: merge of sources arriving at different latencies "
                                       f"{sorted((q, t_rtl[q]) for q in live)} -- the cell's output time would depend on WHICH source fired, "
                                       f"which a fixed-latency design cannot align; that needs flow control (flex). Not translated on sub.")
@@ -782,7 +791,10 @@ def emit_top(top, p, width=32):
     return "\n".join(L) + "\n", pad_count[0]
 
 
-def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto"):
+def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub"):
+    if family == "flex":
+        import flexsub_icm_flex_v1 as ff
+        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir)
     man = fsa.load_man_flexsub(man_path) if man_path else None
     p = plan(icm_path, align, man=man, mul_mode=mul_mode)
     stem = re.sub(r"[^A-Za-z0-9_]", "_", os.path.basename(icm_path).split(".")[0])

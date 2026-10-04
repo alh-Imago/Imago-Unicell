@@ -199,11 +199,13 @@ try:
 
     print("refusals are specific, never silent")
     for label, args, needles in (
-                        ("flex --icm not built", ["-s", "flex", "--icm", path], ["flex"]),
+                        ("flex --icm refuses what stage 1 does not cover (the branch-and-constants example), with the reason", ["-s", "flex", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json")], ["not yet translated on flex"]),
             ("--icm without -s", ["--icm", path], ["-s sub"])):
         r = cli(*args, "--output", os.path.join(tmp, "ref"))
         check(f"{label}: refused, names the reason", r.returncode != 0 and all(n in r.stderr for n in needles)
               and (("constant" not in r.stderr and "merge" not in r.stderr) if "cordic" in label else True), r.stderr.strip()[:200])
+    r = cli("-s", "flex", "--icm", path, "--output", os.path.join(tmp, "g_flex_tree"))
+    check("flex --icm now GENERATES what stage 1 covers (the reduction tree); its proof is tests/test_flexsub_flex_v1.py", r.returncode == 0, r.stderr.strip()[:200])
     r = cli("-s", "sub", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json"), "--output", os.path.join(tmp, "g_cordic"))
     check("cordic NOW generates on sub (branch lowered, constant-reference merges removed); its RTL-vs-VM proof is tests/test_flexsub_branch_v1.py",
           r.returncode == 0, r.stderr.strip()[:240])

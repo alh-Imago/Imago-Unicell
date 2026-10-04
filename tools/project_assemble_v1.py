@@ -1495,17 +1495,21 @@ def main():
     args = ap.parse_args()
 
     if args.icm:
-        if args.family != "sub":
-            print("error: --icm needs -s sub (the flex generator, which needs an ack join, is not built yet)", file=sys.stderr)
+        if args.family not in ("sub", "flex"):
+            print("error: --icm needs -s sub or -s flex", file=sys.stderr)
             return 1
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import flexsub_icm_generate_v1 as fig
         try:
             r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
-                             man_path=args.man, mul_mode=args.mul)
+                             man_path=args.man, mul_mode=args.mul, family=args.family)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
+        if r.get("family") == "flex":
+            print(f"Family: flex   Source: {r['source']}   Cells: {r['cells']}   Forks: {len(r['forks'])}   Joins: {len(r['joins'])}")
+            print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})   (handshake design: no alignment, no padding)")
+            return 0
         print(f"Family: sub   Source: {r['source']}   Cells: {r['cells']}   Pad relay cells: {r['pad_relay_cells']}"
               f"{'' if r['align'] else '   (ALIGNMENT OFF: negative control)'}")
         print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
