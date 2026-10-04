@@ -94,23 +94,75 @@ SUPPORTED_CORES = set(CORES)
 _SHIFT_COARSE = (1, 2, 4, 8, 12, 16, 20, 24, 28)    # the VM's/RTL's supported coarse taps (shift_lane_addon_v2)
 
 
-def decode_addon(r):
-    """(total_shift, direction, None) for an addon_config that is only a shift, (0, 0, None) for none, or
-    (None, None, reason) when it needs something this translation does not have. Rules from the VM's own
-    addon function: fine shift first, then the coarse shift only if its amount is one of the supported taps (an
-    unsupported amount is a deliberate no-op); direction 0 = left, 1 = right (logical)."""
-    ad = r.addon_config or {}
-    if not ad:
-        return 0, 0, None
-    extra = {k: v for k, v in ad.items() if k not in ("shift_en", "direction", "shift_fine", "shift_amt") and v}
-    if extra:
-        return None, None, f"addon_config uses {sorted(extra)} -- only a plain shift is translated (mask/invert/lane_cut need their own cells)"
-    if not ad.get("shift_en"):
-        return 0, 0, None
-    fine = ad.get("shift_fine", 0) & 3
-    amt = ad.get("shift_amt", 0)
-    coarse = amt if amt in _SHIFT_COARSE else 0
-    return fine + coarse, 1 if ad.get("direction", 0) else 0, None
+_ADDON_KEYS = {"nibble_mask", "mask_en", "shift_amt", "shift_en", "direction", "shift_fine", "lane_cut", "invert_en"}
+_M32 = 0xFFFFFFFF
+
+
+def addon_bit_map(ad):
+    """The addon chain as a fixed per-bit WIRING MAP. Alan #939: with the sub variant fully fixed at build time, mask / shift / invert (and the
+    lane cut) are just wiring -- no cell, no latency. The VM applies the chain to every core's offered value as a pure function of 32 bits with
+    constant config (apply_addons: nibble_mask -> fine shift -> coarse lane shift (+ lane_cut on right shifts) -> invert), so each OUTPUT bit is
+    a constant, an input bit, or its inverse. Computed symbolically by mirroring apply_addons step for step; tests check it against the VM's own
+    function over structured and random configs. Returns 32 entries: ("c", 0|1) or ("v", input_bit, inverted)."""
+    bits = [("v", k, 0) for k in range(32)]
+
+    def shift(bs, n, right):
+        out = []
+        for i in range(32):
+            j = i + n if right else i - n
+            out.append(bs[j] if 0 <= j < 32 else ("c", 0))
+        return out
+
+    def kill(bs, mask):
+        return [bs[i] if (mask >> i) & 1 else ("c", 0) for i in range(32)]
+    if ad.get("mask_en"):
+        nm = ad.get("nibble_mask", 0)
+        keep = 0
+        for nib in range(8):
+            if not ((nm >> nib) & 1):
+                keep |= 0xF << (4 * nib)
+        bits = kill(bits, keep)
+    shift_en, direction = ad.get("shift_en", 0), ad.get("direction", 0)
+    fine, amt = ad.get("shift_fine", 0) & 3, ad.get("shift_amt", 0)
+    if shift_en and fine:
+        bits = shift(bits, fine, bool(direction))
+    if shift_en and amt in _SHIFT_COARSE:                        # an unsupported amount is a deliberate no-op (as in the RTL)
+        if direction:
+            bits = shift(bits, amt, True)
+            lane_cut = ad.get("lane_cut", 0)
+            lane_s = amt + fine
+            lane_ones = (1 << lane_s) - 1
+            lane_kill = _M32
+            if lane_cut & 1:
+                lane_kill &= ~((lane_ones << 8) >> lane_s) & _M32
+            if lane_cut & 2:
+                lane_kill &= ~((lane_ones << 16) >> lane_s) & _M32
+            if lane_cut & 4:
+                lane_kill &= ~((lane_ones << 24) >> lane_s) & _M32
+            bits = kill(bits, lane_kill)
+        else:
+            bits = shift(bits, amt, False)
+    if ad.get("invert_en"):
+        bits = [("c", 1 - b[1]) if b[0] == "c" else ("v", b[1], 1 - b[2]) for b in bits]
+    return bits
+
+
+def addon_is_identity(bits):
+    return all(b == ("v", k, 0) for k, b in enumerate(bits))
+
+
+def addon_apply(bits, value):
+    """Evaluate a bit map on an integer (for checking against the VM's apply_addons)."""
+    out = 0
+    for k, b in enumerate(bits):
+        v = b[1] if b[0] == "c" else (((value >> b[1]) & 1) ^ b[2])
+        out |= v << k
+    return out
+
+
+def addon_expr(bits, raw):
+    """A Verilog concatenation (MSB first) realising the map over the 32-bit net `raw`."""
+    return "{" + ", ".join((f"1'b{b[1]}" if b[0] == "c" else f"{'~' if b[2] else ''}{raw}[{b[1]}]") for b in reversed(bits)) + "}"
 
 
 def _const_set(cells, inputs):
@@ -248,7 +300,7 @@ def plan(icm_path, align=True):
     if cyclic:
         problems.append("the design has a cycle (feedback) -- the fixed-latency translation has no rule for it yet")
     srcs_of = {c: [src for lst in inputs.get(c, {}).values() for src, _ in lst] for c in cells}
-    shifts = {}
+    addons = {}
     for r in cells.values():
         c = r.cell_id
         spec = CORES.get(r.core)
@@ -257,14 +309,17 @@ def plan(icm_path, align=True):
                    else "arbiter that could not be eliminated (see above)" if r.core == "priority" else "not yet translated")
             problems.append(f"{c}: core {r.core!r} unsupported on sub -- {why}")
             continue
-        total, direction, why = decode_addon(r)
-        if why:
-            problems.append(f"{c}: {why}")
-        elif total:
-            if r.core != "ram":
-                problems.append(f"{c}: addon shift on a {r.core} cell -- only a ram relay's output shift is translated")
+        ad = r.addon_config or {}
+        if ad:
+            unknown = sorted(k for k in ad if k not in _ADDON_KEYS)
+            if unknown:
+                problems.append(f"{c}: addon_config has unknown field(s) {unknown}")
+            elif r.core == "nano":
+                problems.append(f"{c}: addon_config on a nano -- the VM's offer pass skips nano entirely, so its addon behaviour is not defined")
             else:
-                shifts[c] = (total, direction)
+                bm = addon_bit_map(ad)
+                if not addon_is_identity(bm):
+                    addons[c] = bm
         if r.core == "nano":
             cfgn = r.core_config or {}
             odd = sorted(k for k, v in cfgn.items() if k not in NANO_BENIGN_KEYS and v)
@@ -345,7 +400,7 @@ def plan(icm_path, align=True):
 
     for c in order:
         r, srcs = cells[c], srcs_of[c]
-        extra = 1 if c in shifts else 0
+        extra = 0                                           # addons are wiring: no latency
         # the VM's hop-count time -- operand IDENTITY only. A branch that absorbed its reference merge still pays that merge's hop in the VM.
         t_vm[c] = max((t_vm[q] for q in srcs), default=0) + 1 + (1 if "merge_removed" in branch_plans.get(c, {}) else 0)
         if CORES[r.core]["kind"] == "pair":
@@ -407,19 +462,19 @@ def plan(icm_path, align=True):
                     branch_port[(dst, q)] = branch_plans[q]["ports"][_FACE_OPP[face_at_dst]]
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
-            "eliminated_priority": eliminated, "const": const, "shifts": shifts, "merges": merges,
+            "eliminated_priority": eliminated, "const": const, "addons": addons, "merges": merges,
             "branch_plans": branch_plans, "branch_port": branch_port}
 
 
 def emit_top(top, p, width=32):
     cells, inputs, outputs, roles = p["cells"], p["inputs"], p["outputs"], p["adder_roles"]
-    const, shifts = p["const"], p["shifts"]
+    const, addons = p["const"], p["addons"]
     L = []
     a = L.append
     a(f"// {top}.v -- GENERATED by tools/flexsub_icm_generate_v1.py (-s sub --icm); do not hand-edit.")
     a(f"// Source ICM: {p['doc'].name or '(unnamed)'}; {len(cells)} cells; align={'on' if p['align'] else 'OFF (negative control)'}.")
     a("// Straight wiring, fixed 1-cycle cells, no ack (Alan #924). Early operands are padded with relay cells;")
-    a("// constants are fixed-mode rams (always valid) and never constrain timing; shifts are separate shift_stage cells.")
+    a("// constants are fixed-mode rams (always valid) and never constrain timing; addons (mask/shift/invert) are pure wiring.")
     a("`default_nettype none")
     a("`timescale 1ns / 1ps")
     entries = [c for c in p["order"] if not inputs.get(c) and c not in const]
@@ -498,9 +553,9 @@ def emit_top(top, p, width=32):
         r, i = cells[c], _ident(c)
         cfg = r.core_config or {}
         out_d, out_v = f"{i}_d", f"{i}_v"
-        if c in shifts:                                         # the cell drives a private net; a shift_stage drives {i}_d/_v
-            out_d, out_v = f"{i}_raw_d", f"{i}_raw_v"
-            a(f"wire [31:0] {out_d}; wire {out_v};")
+        if c in addons and CORES[r.core]["kind"] != "branch":   # the cell drives a private raw net; the addon wiring drives {i}_d (valid is untouched)
+            out_d = f"{i}_raw_d"
+            a(f"wire [31:0] {out_d};")
         srcs = [src for lst in inputs.get(c, {}).values() for src, _ in lst]
         kind = CORES[r.core]["kind"]
         mod = CORES[r.core]["module"]
@@ -540,9 +595,15 @@ def emit_top(top, p, width=32):
             rb = bp["route_bits"]
             word = (in2_fixed << 1) | (bp["emit_source"] << 2) | (rb["low"] << 4) | (rb["equal"] << 6) | (rb["high"] << 8)
             ca = cfg_args(hexw(word))
+            if c in addons:
+                a(f"wire [31:0] {i}_rd1, {i}_rd2;")
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, .cfg_emit_fixed_value({hexw(bp['emit_fixed'])}), "
               f".in1_data({d1}), .in1_valid({v1}), .in2_data({d2}), .in2_valid({v2}), "
-              f".data_out_1({i}_d1), .valid_out_1({i}_v1), .data_out_2({i}_d2), .valid_out_2({i}_v2));")
+              f".data_out_1({i}_{'rd1' if c in addons else 'd1'}), .valid_out_1({i}_v1), "
+              f".data_out_2({i}_{'rd2' if c in addons else 'd2'}), .valid_out_2({i}_v2));")
+            if c in addons:
+                a(f"assign {i}_d1 = {addon_expr(addons[c], i + '_rd1')};   // addon wiring on both output ports")
+                a(f"assign {i}_d2 = {addon_expr(addons[c], i + '_rd2')};")
         elif CORES[r.core]["kind"] == "level":
             roles_ = inputs.get(c, {})
 
@@ -595,11 +656,8 @@ def emit_top(top, p, width=32):
                 ca = cfg_args("32'h0", bool(cfg.get("fixed_mode", 0)))
                 a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
                   f".data_in({dd}), .valid_in({vv}), .data_out({out_d}), .valid_out({out_v}));")
-        if c in shifts:
-            amt, direction = shifts[c]
-            ca = cfg_args("32'h0")
-            a(f"shift_stage_v4s #(.CELL_ID(16'd{2000 + idx[c]}), .SHIFT_AMT(5'd{amt}), .DIRECTION(1'b{direction})) {i}_shift "
-              f"({ca}, .data_in({out_d}), .valid_in({out_v}), .data_out({i}_d), .valid_out({i}_v));")
+        if c in addons and CORES[r.core]["kind"] != "branch":
+            a(f"assign {i}_d = {addon_expr(addons[c], out_d)};   // addon chain (mask/shift/lane-cut/invert) as pure wiring, no latency")
     for c in exits:
         n, i = pname(cells[c].io_name, c), _ident(c)
         a(f"assign out_{n}_data = {i}_d;")
@@ -626,7 +684,7 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
     rec = {"generator": "tools/flexsub_icm_generate_v1.py", "family": "sub", "source": os.path.basename(icm_path),
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["order"] if not p["outputs"].get(c)},
-           "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "shift_stages": {c: list(v) for c, v in p["shifts"].items()},
+           "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
            "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "level_sources": sorted(c for c in p["cells"] if is_level(p["cells"][c])),
            "sequencers": {c: {"advance_port": "adv_" + re.sub(r"[^A-Za-z0-9_]", "_", p["cells"][c].io_name or c),
                               "length": int((p["cells"][c].core_config or {}).get("SEQUENCE_LEN", 0) & 3) + 1}

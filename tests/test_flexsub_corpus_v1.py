@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_flexsub_corpus_v1.py -- a CORPUS of compiled LLVM programs through the sub path, each checked against plain
 arithmetic (the oracle). Covers what the sub generator completed in #931: mul, constants (incl. constant as minuend),
-shifts (shl / lshr, fused addon -> separate shift_stage), signed comparisons, and compositions of them.
+shifts (shl / lshr, a fused addon -> pure wiring, Alan #939), signed comparisons, and compositions of them.
 
 Run: python3 tests/test_flexsub_corpus_v1.py     (needs llvmlite + iverilog)
 Programs the generator must still REFUSE (nano-dependent: and/or/xor, select, eq, ashr) are checked to be refused with a reason.
@@ -202,7 +202,7 @@ try:
             check(f"{name}: RTL == the VM on {len(OVERFLOW_VECS)} overflow-boundary vectors (faithful to the compiled program)", not fb, str(fb[:2]))
         extras = []
         if rec.get("constants"): extras.append(f"{len(rec['constants'])} const cell(s)")
-        if rec.get("shift_stages"): extras.append(f"{len(rec['shift_stages'])} shift stage(s)")
+        if rec.get("addon_wiring"): extras.append(f"{len(rec['addon_wiring'])} addon wiring(s)")
         check(f"{name}: {len(vecs)} vectors (edge values + random), latency {lat}" + (f", {', '.join(extras)}" if extras else ""), not bad, str(bad[:2]))
 
     print("unsupported nano uses are refused with the reason (not silently mistranslated)")
