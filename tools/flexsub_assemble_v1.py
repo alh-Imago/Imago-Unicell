@@ -29,8 +29,10 @@ real .cst built from that MAN's own pin table. STEP 2 (reading an ICM-VIX file's
 the netlist instead of generating a uniform chain) is NOT in this file.
 
 HONEST SCOPE: only the cells in SHAPES below are supported -- each one's real port list was read
-from its own source file before being entered. Any other cell is refused with a clear message,
-never guessed at. The generated Verilog is only as verified as the checks in
+from its own source file before being entered, and every generated instantiation is re-checked
+against the cell's real parsed module header (check_ports). Any other cell is refused with a clear
+message, never guessed at. Three kinds: CHAIN (one data in, one out), SOURCE (no data input,
+control-pulse driven: N independent cells), SPLIT (two outputs: one chained, one observed). The generated Verilog is only as verified as the checks in
 tests/test_flexsub_assemble_v1.py (compile + synthesis); nothing here has run on silicon.
 """
 import json
@@ -47,24 +49,97 @@ FAMILIES = {
     "sub": {"suffix": "v4s", "has_width": False},
 }
 
-# Port roles per supported cell, read from each cell's real module header (not from docs):
-#   chain_in -- the port the previous stage's data_out feeds
-#   stim     -- further data inputs, driven from rotated slices of the live LFSR (distinct per
-#               stage, so no two ports are provably related -- #889's anti-collapse rule)
+# One entry per supported cell. Every port name below was read from the cell's real module header,
+# and EVERY generated instantiation is re-checked against that header at assembly time
+# (check_ports): a name that does not exist, or an input left unconnected, is an error -- never a
+# silent guess. Fields (flex-style names; the sub family is the same minus freeze/ack/WIDTH):
+#   file        (stem, variant) -> {stem}_{v4sa|v4s}{variant}.v, module name = file stem
+#   families    which families have the cell (default both)
+#   in_data / in_valid   the chained data input (None => a SOURCE cell: no data input, driven by
+#                        control pulses, so the "array" is N independent cells)
+#   out         primary (data, valid) output; ack_out/ack_in the primary handshake (flex only)
+#   side        extra outputs [(data, valid, ack_in)] -- observed, not chained (router b, branch 2)
+#   stim_data   further W-bit inputs driven from distinct rotations of the live LFSR (#889's
+#               anti-collapse rule); stim_ctrl -- 1-bit inputs driven from distinct LFSR taps
+#   consts      other ports tied to a fixed value; params -- extra module parameters
+#   cfg         "zero" (cfg_data = 0) or "live" (cfg_data from the LFSR -- so config-dependent logic
+#               cannot be constant-folded away, the #554 lesson); cfg_or / cfg_clr pin bits so the
+#               cell stays functional (e.g. keep an output enabled)
+#   max_width   hard hardware ceiling (mul_dsp: 36, #916)
+#   sim_stub    the repo testbench that carries the sim-only behavioural stand-in for the Gowin
+#               multiplier primitive the cell instantiates (yosys ships no functional model, #901/#902);
+#               recorded in ASSEMBLY.json -- synthesis uses the primitive itself
 SHAPES = {
-    "adder": {"chain_in": "in_a", "stim": ["in_b"]},
-    "compare": {"chain_in": "data_in", "stim": []},
+    "adder": dict(file=("adder_cell", ""), in_data="in_a", in_valid="valid_in",
+                  out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
+                  stim_data=["in_b"], cfg="zero"),
+    "compare": dict(file=("compare_cell", ""), in_data="data_in", in_valid="valid_in",
+                    out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in", cfg="zero"),
+    "mask": dict(file=("mask_cell", ""), in_data="data_in", in_valid="valid_in",
+                 out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in", cfg="live"),
+    "ram": dict(file=("ram_cell", ""), in_data="data_in", in_valid="valid_in",
+                out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
+                consts={"cfg_fixed_mode": "1'b0"}, cfg="live"),     # flowing mode (the chainable one)
+    "shift_stage": dict(file=("shift_stage", ""), in_data="data_in", in_valid="valid_in",
+                        out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
+                        params={"SHIFT_AMT": "(i % 8)", "DIRECTION": "(i % 2)"}, cfg="zero"),
+    "shift": dict(file=("shift_cell", ""), families=("sub",), in_data="data_in", in_valid="valid_in",
+                  out=("data_out", "valid_out"), cfg="live"),
+    "mul": dict(file=("mul_cell", ""), in_data="in_a", in_valid="valid_in",
+                out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
+                stim_data=["in_b"], cfg="zero"),
+    "mul_dsp": dict(file=("mul_cell", "_dsp"), in_data="in_a", in_valid="valid_in",
+                    out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
+                    stim_data=["in_b"], cfg="zero", max_width=36,
+                    sim_stub="sub/verilog/tb_mul_cell_v4sa_dsp.v"),
+    "mul_dsp2": dict(file=("mul_cell", "_dsp2"), families=("sub",), in_data="in_a", in_valid="valid_in",
+                     out=("data_out", "valid_out"), stim_data=["in_b"], cfg="zero",
+                     sim_stub="sub/verilog/tb_mul_cell_v4s_dsp2.v"),
+    "mul_dsp3": dict(file=("mul_cell", "_dsp3"), families=("sub",), in_data="in_a", in_valid="valid_in",
+                     out=("data_out", "valid_out"), stim_data=["in_b"], cfg="zero",
+                     sim_stub="sub/verilog/tb_mul_cell_v4s_dsp3.v"),
+    "nano": dict(file=("nano_cell", ""), in_data="flow_in_data", in_valid="valid_in",
+                 out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
+                 stim_data=["hold_in_data"], stim_ctrl=["load_hold"], cfg="live"),
+    "router": dict(file=("router_cell", ""), in_data="data_in", in_valid="valid_in",
+                   out=("data_out_a", "valid_out_a"), ack_out="ack_out", ack_in="ack_in_a",
+                   side=[("data_out_b", "valid_out_b", "ack_in_b")],
+                   cfg="live", cfg_or=0x1),                        # keep output A enabled so the chain flows
+    "branch": dict(file=("branch_cell", ""), families=("flex",), in_data="in1_data", in_valid="in1_valid",
+                   out=("data_out_1", "valid_out_1"), ack_out="ack_out", ack_in="ack_in_1",
+                   side=[("data_out_2", "valid_out_2", "ack_in_2")],
+                   stim_data=["in2_data", "cfg_emit_fixed_value"], consts={"in2_valid": "1'b1"},
+                   cfg="live", cfg_or=0x150, cfg_clr=0x3),         # both inputs flowing; every outcome -> out1
+    "accumulator": dict(file=("accumulator_cell", ""), out=("data_out", "valid_out"),
+                        ack_out="ack_out", ack_in="ack_in", stim_ctrl=["inc_pulse", "dec_pulse"],
+                        cfg="live", cfg_or=0x1, cfg_clr=0x100),    # non-zero step; continuous mode (pulse_mode=0)
+                                                                   # -- random pulse_mode left the cell silent
+    "latch": dict(file=("latch_cell", ""), out=("data_out", "valid_out"),
+                  ack_out="ack_out", ack_in="ack_in", stim_ctrl=["set_in", "clear_in", "toggle_in"],
+                  cfg="zero"),
+    "sequencer": dict(file=("sequencer_cell", ""), out=("data_out", "valid_out"),
+                      ack_out="ack_out", ack_in="ack_in", stim_ctrl=["advance_in"],
+                      consts={"cfg_seq_len_m1": "2'd3"}, cfg="live"),
 }
 
 MAX_WIDTH = 64   # stimulus is {lfsr, lfsr} (64 bits); a wider cell would need a wider source
+STD_PORTS = ("clk", "rst", "freeze_in", "cfg_valid", "cfg_data")
+
+
+def cells_for(family):
+    return sorted(k for k, v in SHAPES.items() if family in v.get("families", ("flex", "sub")))
 
 
 def normalise_cell_name(name):
-    """`adder`, `adder_cell`, `adder_cell_v4sa` -> `adder`."""
-    base = name.strip()
-    base = re.sub(r"_v4sa?$", "", base)
-    base = re.sub(r"_cell$", "", base)
+    """`adder`, `adder_cell`, `adder_cell_v4sa`, `mul_cell_v4sa_dsp` -> `adder` / `mul_dsp`."""
+    base = re.sub(r"_v4sa?(?=_|$)", "", name.strip())
+    base = re.sub(r"_cell(?=_|$)", "", base)
     return base
+
+
+def cell_module(base, family):
+    stem, variant = SHAPES[base]["file"]
+    return f"{stem}_{FAMILIES[family]['suffix']}{variant}"
 
 
 def load_man_flexsub(path):
@@ -84,7 +159,7 @@ def load_man_flexsub(path):
     }
 
 
-def resolve_width(family, width_arg, man):
+def resolve_width(family, width_arg, man, max_width=MAX_WIDTH):
     """Returns (width, source). Raises ValueError with a clear message on a bad combination."""
     info = FAMILIES[family]
     if not info["has_width"]:
@@ -105,35 +180,93 @@ def resolve_width(family, width_arg, man):
                          "(e.g. -w 18) -- there is nothing else to take a width from.")
     if not (1 <= width <= MAX_WIDTH):
         raise ValueError(f"width {width} out of range 1..{MAX_WIDTH}")
+    if width > max_width:
+        raise ValueError(f"width {width} exceeds this cell's hardware ceiling of {max_width}")
     return width, source
 
 
-def _port_lines(family, base):
-    shape = SHAPES[base]
-    ports = [".clk(BOARD_CLK)", ".rst(rst)"]
-    if FAMILIES[family]["has_width"]:
-        ports.append(".freeze_in(1'b0)")
-    ports += [".cfg_valid(cfg_valid)", ".cfg_data(32'h0)"]
-    ports.append(f".{shape['chain_in']}(stage_data[i])")
-    for p in shape["stim"]:
-        ports.append(f".{p}(stim_{p})")
-    ports.append(".valid_in(stage_valid[i])")
-    if FAMILIES[family]["has_width"]:
-        ports.append(".ack_out(stage_ack[i])")
-    ports += [".data_out(stage_data[i+1])", ".valid_out(stage_valid[i+1])"]
-    if FAMILIES[family]["has_width"]:
-        ports.append(".ack_in(stage_ack[i+1])")
-    return ports
+def real_ports(path, module):
+    """(input names, output names, parameter names) parsed from the cell's own module header."""
+    text = open(path).read()
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    text = re.sub(r"//[^\n]*", "", text)
+    m = re.search(rf"\bmodule\s+{re.escape(module)}\b(.*?)\)\s*;", text, re.S)
+    if not m:
+        raise ValueError(f"module {module} not found in {path}")
+    header = m.group(1)
+    ins, outs = set(), set()
+    for d, name in re.findall(r"\b(input|output|inout)\b\s+(?:wire\s+|reg\s+)?(?:signed\s+)?(?:\[[^\]]*\]\s*)?(\w+)", header):
+        (ins if d == "input" else outs).add(name)
+    params = set(re.findall(r"\bparameter\b\s*(?:\[[^\]]*\]\s*)?(\w+)\s*=", header))
+    return ins, outs, params
 
 
-def generate_top(top_name, family, base, n, width):
+def _connections(family, base, real_in):
+    """Ordered [(port, expression)] for one instance. Standard ports are included only when the
+    real module has them."""
+    sh = SHAPES[base]
+    ack = FAMILIES[family]["has_width"]
+    c = []
+    for p in STD_PORTS:
+        if p not in real_in:
+            continue
+        c.append((p, {"clk": "BOARD_CLK", "rst": "rst", "freeze_in": "1'b0", "cfg_valid": "cfg_valid",
+                      "cfg_data": "cfg_i" if sh.get("cfg") == "live" else "32'h0"}[p]))
+    if sh.get("in_data"):
+        c.append((sh["in_data"], "stage_data[i]"))
+    for p in sh.get("stim_data", []):
+        c.append((p, f"stim_{p}"))
+    for k, p in enumerate(sh.get("stim_ctrl", [])):
+        c.append((p, f"lfsr[(i * 3 + {k * 7 + 1}) % 32]"))
+    if sh.get("in_valid"):
+        c.append((sh["in_valid"], "stage_valid[i]"))
+    for p, v in sh.get("consts", {}).items():
+        c.append((p, v))
+    if ack and sh.get("ack_out"):
+        c.append((sh["ack_out"], "stage_ack[i]"))
+    c.append((sh["out"][0], "stage_data[i+1]"))
+    c.append((sh["out"][1], "stage_valid[i+1]"))
+    if ack and sh.get("ack_in"):
+        c.append((sh["ack_in"], "stage_ack[i+1]" if sh.get("in_data") else "consumer_ack"))
+    for k, (d, v, a) in enumerate(sh.get("side", [])):
+        c.append((d, f"side{k}_data[i]"))
+        c.append((v, f"side{k}_valid[i]"))
+        if ack:
+            c.append((a, "consumer_ack"))
+    return c
+
+
+def check_ports(base, family, path, module, real=None):
+    """Every connected name must exist in the real module, and every real input must be connected."""
+    ins, outs, params = real or real_ports(path, module)
+    conn = _connections(family, base, ins)
+    names = {p for p, _ in conn}
+    sh = SHAPES[base]
+    bad = sorted(names - ins - outs)
+    missing = sorted(ins - names)
+    badparams = sorted(set(sh.get("params", {})) - params)
+    problems = []
+    if bad:
+        problems.append(f"connects ports the cell does not have: {bad}")
+    if missing:
+        problems.append(f"leaves real input ports unconnected: {missing}")
+    if badparams:
+        problems.append(f"sets parameters the cell does not have: {badparams}")
+    if problems:
+        raise ValueError(f"{module}: shape table disagrees with the real module header -- " + "; ".join(problems))
+
+
+def generate_top(top_name, family, base, n, width, real_in):
+    sh = SHAPES[base]
     info = FAMILIES[family]
-    module = f"{base}_cell_{info['suffix']}"
+    module = cell_module(base, family)
     has_ack = info["has_width"]
+    chain = bool(sh.get("in_data"))
+    sides = sh.get("side", [])
     L = []
     a = L.append
     a(f"// {top_name}.v -- GENERATED by tools/flexsub_assemble_v1.py (-s {family}); do not hand-edit,")
-    a(f"// regenerate from the same command instead. {n}-stage chain of {module}, WIDTH={width}.")
+    a(f"// regenerate from the same command instead. {n}-{'stage chain' if chain else 'cell array'} of {module}, WIDTH={width}.")
     a("// Anti-pruning: live LFSR stimulus, full-width XOR observability (#902/#908/#889).")
     a("`default_nettype none")
     a("`timescale 1ns / 1ps")
@@ -169,32 +302,76 @@ def generate_top(top_name, family, base, n, width):
     a("wire         stage_valid [0:N];")
     if has_ack:
         a("wire         stage_ack   [0:N];")
-    a("assign stage_data[0]  = lfsr2[W-1:0];")
-    a("assign stage_valid[0] = 1'b1;")
+    if chain:
+        a("assign stage_data[0]  = lfsr2[W-1:0];")
+        a("assign stage_valid[0] = 1'b1;")
+    else:
+        a("assign stage_data[0]  = {W{1'b0}};   // source cells: no data input")
+        a("assign stage_valid[0] = 1'b0;")
     if has_ack:
         a("assign stage_ack[N]   = consumer_ack;")
+    for k, _ in enumerate(sides):
+        a(f"wire [W-1:0] side{k}_data  [0:N-1];")
+        a(f"wire         side{k}_valid [0:N-1];")
     a("")
     a("genvar i;")
     a("generate")
     a("    for (i = 0; i < N; i = i + 1) begin : STAGE")
-    for p in SHAPES[base]["stim"]:
-        a(f"        wire [63:0]    rot_{p}  = (lfsr2 >> (i % 32));")
+    for k, p in enumerate(sh.get("stim_data", [])):
+        sh_expr = f"(i + {k * 7}) % 32" if k else "i % 32"
+        a(f"        wire [63:0]    rot_{p}  = (lfsr2 >> ({sh_expr}));")
         a(f"        wire [W-1:0]   stim_{p} = rot_{p}[W-1:0];")
-    params = ".CELL_ID(i[15:0])" + (", .WIDTH(W)" if info["has_width"] else "")
-    a(f"        {module} #({params}) U (")
-    pl = _port_lines(family, base)
-    for k, line in enumerate(pl):
-        a(f"            {line}{',' if k < len(pl) - 1 else ''}")
+    if sh.get("cfg") == "live" and "cfg_data" in real_in:
+        a("        wire [63:0]    rot_cfg = (lfsr2 >> ((i + 11) % 32));")
+        or_, clr = sh.get("cfg_or", 0), sh.get("cfg_clr", 0)
+        a(f"        wire [31:0]    cfg_i   = (rot_cfg[31:0] | 32'h{or_:08X}) & ~32'h{clr:08X};")
+    params = [".CELL_ID(i[15:0])"] + ([".WIDTH(W)"] if info["has_width"] else [])
+    params += [f".{k}({v})" for k, v in sh.get("params", {}).items()]
+    a(f"        {module} #({', '.join(params)}) U (")
+    pl = _connections(family, base, real_in)
+    for k, (port, expr) in enumerate(pl):
+        a(f"            .{port}({expr}){',' if k < len(pl) - 1 else ''}")
     a("        );")
     a("    end")
     a("endgenerate")
     a("")
-    a("assign LED0_N = ~stage_valid[N];")
-    if has_ack:
-        a("assign LED1_N = ~stage_ack[0];")
+    need_red = (not chain) or bool(sides)
+    if need_red:
+        a("// observability reductions: every output of every cell reaches a pin")
+        a("wire [W-1:0] xr_data  [0:N];")
+        a("wire         or_valid [0:N];")
+        a("wire         xr_ack   [0:N];")
+        a("wire [W-1:0] sx_data  [0:N];")
+        a("wire         sx_valid [0:N];")
+        a("assign xr_data[0] = {W{1'b0}}; assign or_valid[0] = 1'b0; assign xr_ack[0] = 1'b0;")
+        a("assign sx_data[0] = {W{1'b0}}; assign sx_valid[0] = 1'b0;")
+        a("genvar j;")
+        a("generate")
+        a("    for (j = 0; j < N; j = j + 1) begin : RED")
+        a("        assign xr_data[j+1]  = xr_data[j]  ^ stage_data[j+1];")
+        a("        assign or_valid[j+1] = or_valid[j] | stage_valid[j+1];")
+        a("        assign xr_ack[j+1]   = xr_ack[j]   ^ " + ("stage_ack[j];" if has_ack else "1'b0;"))
+        sx_d = " ^ ".join(f"side{k}_data[j]" for k in range(len(sides))) or "{W{1'b0}}"
+        sx_v = " | ".join(f"side{k}_valid[j]" for k in range(len(sides))) or "1'b0"
+        a(f"        assign sx_data[j+1]  = sx_data[j]  ^ ({sx_d});")
+        a(f"        assign sx_valid[j+1] = sx_valid[j] | ({sx_v});")
+        a("    end")
+        a("endgenerate")
+    if chain:
+        a("assign LED0_N = ~stage_valid[N];")
+        base_led1 = "stage_ack[0]" if has_ack else "stage_valid[N >> 1]"
+        if sides:
+            a(f"assign LED1_N = ~({base_led1} ^ sx_valid[N] ^ (^sx_data[N]));")
+        else:
+            a(f"assign LED1_N = ~{base_led1};")
+        if sides:
+            a("assign LED2_N = ~((^stage_data[N]) ^ (^sx_data[N]));   // full-width reduction, #902/#908's lesson")
+        else:
+            a("assign LED2_N = ~(^stage_data[N]);   // full-width reduction, #902/#908's lesson")
     else:
-        a("assign LED1_N = ~stage_valid[N >> 1];")
-    a("assign LED2_N = ~(^stage_data[N]);   // full-width reduction, #902/#908's lesson")
+        a("assign LED0_N = ~or_valid[N];")
+        a("assign LED1_N = ~" + ("xr_ack[N];" if has_ack else "stage_valid[1];"))
+        a("assign LED2_N = ~(^xr_data[N]);   // full-width reduction over every cell, #902/#908's lesson")
     a("endmodule")
     return "\n".join(L) + "\n"
 
@@ -252,28 +429,35 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
     if family not in FAMILIES:
         raise ValueError(f"unknown family {family!r}; real options: {', '.join(FAMILIES)}")
     if cell is None:
-        raise ValueError(f"-s {family} needs a core type via -S (supported: {', '.join(sorted(SHAPES))})")
+        raise ValueError(f"-s {family} needs a core type via -S (supported: {', '.join(cells_for(family))})")
     base = normalise_cell_name(cell)
     if base not in SHAPES:
         raise ValueError(f"cell {cell!r} is not supported yet by -s {family}; supported: "
-                         f"{', '.join(sorted(SHAPES))}. (Each cell's port shape must be read from its "
+                         f"{', '.join(cells_for(family))}. (Each cell's port shape must be read from its "
                          f"own source and entered in SHAPES first -- never guessed.)")
+    if family not in SHAPES[base].get("families", ("flex", "sub")):
+        have = "/".join(SHAPES[base].get("families", ("flex", "sub")))
+        raise ValueError(f"cell {base!r} does not exist in the {family} family (only in: {have}); "
+                         f"{family} cells: {', '.join(cells_for(family))}")
     if n < 1:
         raise ValueError("--cells must be at least 1")
     cell_dir = cell_dir or DEFAULT_CELL_DIR
     man = load_man_flexsub(man_path) if man_path else None
-    width, width_source = resolve_width(family, width_arg, man)
+    width, width_source = resolve_width(family, width_arg, man, SHAPES[base].get('max_width', MAX_WIDTH))
 
     suffix = FAMILIES[family]["suffix"]
-    cell_file = f"{base}_cell_{suffix}.v"
+    module = cell_module(base, family)
+    cell_file = f"{module}.v"
     if not os.path.isfile(os.path.join(cell_dir, cell_file)):
         raise FileNotFoundError(f"no {cell_file} in {cell_dir}")
+    real = real_ports(os.path.join(cell_dir, cell_file), module)
+    check_ports(base, family, os.path.join(cell_dir, cell_file), module, real)
 
     top_name = top or f"flexsub_{base}_{suffix}_n{n}_w{width}"
     os.makedirs(output, exist_ok=True)
     top_path = os.path.join(output, f"{top_name}.v")
     with open(top_path, "w") as f:
-        f.write(generate_top(top_name, family, base, n, width))
+        f.write(generate_top(top_name, family, base, n, width, real[0]))
 
     dep_pairs = _derive_deps(top_path, cell_dir)
     deps = [f for f, _ in dep_pairs]
@@ -306,9 +490,13 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
     os.chmod(os.path.join(output, "build.sh"), 0o755)
 
     record = {"generator": "tools/flexsub_assemble_v1.py", "family": family, "cell": base,
-              "cell_module": f"{base}_cell_{suffix}", "cells": n, "width": width,
+              "cell_module": module, "cells": n, "width": width,
               "width_source": width_source, "man": man["card_id"] if man else None,
               "top": top_name, "files": files + (["build.sh"]), "pnr": have_cst}
+    if SHAPES[base].get("sim_stub"):
+        record["sim_note"] = ("this cell instantiates a Gowin multiplier primitive; simulation needs a behavioural "
+                              f"stand-in (yosys ships none) -- see the stub in {SHAPES[base]['sim_stub']}. "
+                              "Synthesis uses the primitive directly.")
     with open(os.path.join(output, "ASSEMBLY.json"), "w") as f:
         json.dump(record, f, indent=2)
         f.write("\n")
