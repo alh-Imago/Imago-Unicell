@@ -127,5 +127,11 @@ Provenance rules (same spirit as the rest of this file): the Tang's primitive op
 ROW coordinates of the DSP tiles, **not operand sizes** -- an earlier assembler mistook them for a "has 36x36" flag (it was only true for the Tang by
 coincidence of the row number).
 
-**Open:** the Arria 10's `primitives` and `abilities` are empty. Alan has said its DSP blocks have an option to shift, usable at any point, as a special ability
-of their own; what shifts, by how much, at which stage and with what latency is not yet recorded here and is not to be guessed.
+**Open:** the Arria 10's `primitives` and `abilities` are empty. An earlier version of this README and of the Arria 10 MAN said Alan had described a DSP
+"shift" option for that card. That came from a voice-to-text message that may have been garbled; Alan does not recall it and the ledger has no record of one
+(the only shift near the DSP work is the soft floating-point IP's alignment shifter, `points.md` #472, which is ordinary logic). It is NOT recorded -- add an
+ability only from a real source.
+
+`soft_units` (open list, informational): DSP-like blocks built from fabric logic that are KNOWN to work on the card. The Arria 10 has one: the Floating Point
+Hardware 2 IP behind the DSP wrapper -- it uses 0 of the 1,687 DSP blocks (`points.md` #472, verified on actual hardware). It is a floating-point unit, not an integer
+multiplier, so the assembler's `mul` core does not use it.

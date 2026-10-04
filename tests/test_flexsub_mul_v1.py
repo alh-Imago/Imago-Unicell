@@ -220,6 +220,12 @@ endmodule
     a10 = fsa.load_man_flexsub(MUSTANG)
     check("the Arria 10 MAN: 1,687 DSP blocks recorded, NO primitives listed, an abilities list present but EMPTY (nothing is invented about its shift option)",
           a10["dsp_blocks"] == 1687 and a10["dsp_primitives"] == {} and a10["dsp_abilities"] == [], str((a10["dsp_blocks"], a10["dsp_primitives"], a10["dsp_abilities"])))
+    a10man = json.load(open(MUSTANG))["device"]["dsp"]
+    check("the Arria 10 MAN does NOT assert a DSP shift ability: the note carries the CORRECTION (it came from a possibly garbled voice message, no record exists)",
+          a10man["abilities"] == [] and "CORRECTION" in a10man["abilities_note"] and "no record" in a10man["abilities_note"].lower().replace("has no record", "no record"), a10man["abilities_note"][:120])
+    su = a10man["soft_units"][0]
+    check("the known-working SOFT DSP is recorded on the Arria 10 (ledger #472): zero hard DSP blocks used, verified on actual hardware, and flagged as floating point -- not an integer multiplier",
+          "ZERO" in su["kind"] and "#472" in su["provenance"] and "568 ALM" in su["verified_on_actual_hardware"] and "NOT an integer multiplier" in su["function_note"], str(su)[:160])
     check("the Arria 10's logic unit is read as ALM from its MAN (no vendor assumption), so the LUT4 cost cannot be applied", a10["logic_unit"] == "ALM" and man["logic_unit"] == "LUT4")
     ra = json.load(open(os.path.join(dirs["the Arria 10 MAN lists no DSP primitives -> LUT (its MAN says so; not a vendor rule)"], "ASSEMBLY.json")))["multipliers"]
     check("the record says WHY and that the LUT budget could not be checked for an ALM card (no measured ALM cost for the LUT multiplier)",
