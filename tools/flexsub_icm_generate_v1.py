@@ -134,10 +134,6 @@ def plan(icm_path, align=True):
         if spec["kind"] == "pair" and len(srcs_of[c]) != 2:
             problems.append(f"{c}: {r.core} has {len(srcs_of[c])} source(s), needs exactly 2 "
                             f"(one stream carrying both operands needs a stagger spec -- not translated)")
-        if spec["kind"] == "single":
-            for role, lst in inputs.get(c, {}).items():
-                if len(lst) > 1:
-                    problems.append(f"{c}: {len(lst)} sources on one input (a merge) -- gated-OR merge not yet translated")
         if is_source and r.core != "ram":
             problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
     if problems:
@@ -162,7 +158,7 @@ def plan(icm_path, align=True):
         order += ready
         remaining -= set(ready)
 
-    t_vm, t_rtl, roles = {}, {}, {}
+    t_vm, t_rtl, roles, merges = {}, {}, {}, {}
 
     def ident_key(c, q):
         return (t_vm[q], tiekeys.get((c, q), (0, 0)))
@@ -211,11 +207,20 @@ def plan(icm_path, align=True):
                         "valid_from": valid_from, "const_operands": [q for q in (sa, sb) if q in const]}
         else:
             live = [q for q in srcs if q not in const]
+            if len(srcs) > 1:                                        # a MERGE (gated OR, Alan #924: "a free OR when needed")
+                if len(live) != len(srcs):
+                    raise IcmGenError(f"{c}: a merge that includes a constant source -- the constant is always valid, so the OR "
+                                      f"would swamp the stream; no definite behaviour. Not translated.")
+                if len({t_rtl[q] for q in live}) > 1:
+                    raise IcmGenError(f"{c}: merge of sources arriving at different latencies "
+                                      f"{sorted((q, t_rtl[q]) for q in live)} -- the cell's output time would depend on WHICH source fired, "
+                                      f"which a fixed-latency design cannot align; that needs flow control (flex). Not translated on sub.")
+                merges[c] = list(srcs)
             t_in = max((t_rtl[q] for q in live), default=0)
         t_rtl[c] = None if c in const else t_in + 1 + extra
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
-            "eliminated_priority": eliminated, "const": const, "shifts": shifts}
+            "eliminated_priority": eliminated, "const": const, "shifts": shifts, "merges": merges}
 
 
 def emit_top(top, p, width=32):
@@ -262,6 +267,18 @@ def emit_top(top, p, width=32):
     def hexw(v):
         return "32'h" + format(int(v) & 0xFFFFFFFF, "X")
 
+    def feed(cid, srcs):
+        """Data/valid nets feeding a single-input cell. One source: wired straight. Several (a merge): each source is GATED by its
+        own valid before the OR -- these cells keep driving stale data_out after their valid pulse, so a raw OR would leak an
+        idle source's old value. Same-cycle arrivals OR together (the VM's rule); valid is the OR of the valids."""
+        if len(srcs) == 1:
+            return f"{_ident(srcs[0])}_d", f"{_ident(srcs[0])}_v"
+        i = _ident(cid)
+        terms = " | ".join(f"({_ident(q)}_v ? {_ident(q)}_d : 32'h0)" for q in srcs)
+        a(f"wire [31:0] {i}_mrg_d = {terms};   // gated-OR merge of {len(srcs)} sources")
+        a(f"wire {i}_mrg_v = " + " | ".join(f"{_ident(q)}_v" for q in srcs) + ";")
+        return f"{i}_mrg_d", f"{i}_mrg_v"
+
     def padded(cid, d, v, n, tag):
         for k in range(n):                                      # delay with flowing ram relay cells
             pad_count[0] += 1
@@ -304,9 +321,10 @@ def emit_top(top, p, width=32):
                 a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
                   f".in_a({ad}), .in_b({bd}), .valid_in({vin}), .data_out({out_d}), .valid_out({out_v}));")
         elif r.core == "comparator":
+            dd, vv = feed(c, srcs)
             ca = cfg_args(hexw(cfg.get("threshold", 0)))
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
-              f".data_in({_ident(srcs[0])}_d), .valid_in({_ident(srcs[0])}_v), .data_out({out_d}), .valid_out({out_v}));")
+              f".data_in({dd}), .valid_in({vv}), .data_out({out_d}), .valid_out({out_v}));")
         else:   # ram
             if c in const and not srcs:                          # a constant SOURCE: a fixed-mode ram, always valid (its relays just flow)
                 val = r.preload_value if r.preload_value is not None else cfg.get("init_data", 0)
@@ -315,7 +333,7 @@ def emit_top(top, p, width=32):
                   f".data_in(32'h0), .valid_in(1'b0), .data_out({out_d}), .valid_out({out_v}));")
             else:
                 if srcs:
-                    dd, vv = f"{_ident(srcs[0])}_d", f"{_ident(srcs[0])}_v"
+                    dd, vv = feed(c, srcs)
                 else:
                     n = pname(r.io_name, c)
                     dd, vv = f"in_{n}_data", f"in_{n}_valid"
@@ -354,6 +372,6 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["order"] if not p["outputs"].get(c)},
            "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "shift_stages": {c: list(v) for c, v in p["shifts"].items()},
-           "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
+           "adder_roles": p["adder_roles"], "merges": p["merges"], "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
     json.dump(rec, open(os.path.join(output, "ASSEMBLY.json"), "w"), indent=2)
     return rec
