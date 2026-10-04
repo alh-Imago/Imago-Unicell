@@ -49,12 +49,20 @@ def mult_stub(path):
     open(path, "w").write("`timescale 1ns/1ps\n" + re.search(r"module MULT36X36\b.*?endmodule", t, re.S).group(0) + "\n")
 
 
-def man_with(tmp, name, blocks=None, lut4=None):
+def man_with(tmp, name, blocks=None, lut4=None, bpi36=None, drop=None, abilities=None):
+    """A copy of the Tang MAN with its DSP/logic data edited: block count, LUT4 total, the MULT36X36 blocks_per_instance, primitives removed by name."""
     m = json.load(open(TANG))
+    d = m["device"]["dsp"]
     if blocks is not None:
-        m["device"]["dsp"]["total_blocks"] = blocks
+        d["total_blocks"] = blocks
     if lut4 is not None:
         m["device"]["logic"]["lut4_total"] = lut4
+    if bpi36 is not None:
+        next(pr for pr in d["primitives"] if pr["name"] == "MULT36X36")["blocks_per_instance"] = bpi36
+    if drop:
+        d["primitives"] = [pr for pr in d["primitives"] if pr["name"] not in drop]
+    if abilities is not None:
+        d["abilities"] = abilities
     path = os.path.join(tmp, name + ".man.json")
     json.dump(m, open(path, "w"))
     return path
@@ -166,12 +174,17 @@ endmodule
 
     print("2. the ladder: DSP while blocks last, LUT as the fall back, a refusal when even that cannot fit")
     cases = [
-        ("Tang MAN (12 DSP blocks): all 3 DSP", ["--man", TANG], 3, 0),
+        ("Tang MAN (12 blocks, MULT36X36 = 1 block): all 3 DSP", ["--man", TANG], 3, 0),
         ("2 DSP blocks left: 2 DSP + 1 LUT fall back", ["--man", man_with(tmp, "b2", blocks=2)], 2, 1),
         ("0 DSP blocks: all 3 LUT", ["--man", man_with(tmp, "b0", blocks=0)], 0, 3),
         ("no MAN: no resource information -> the always-exact LUT multiplier", [], 0, 3),
-        ("a non-Gowin card (Arria 10): MULT36X36 is a Gowin primitive -> LUT", ["--man", MUSTANG], 0, 3),
+        ("the Arria 10 MAN lists no DSP primitives -> LUT (its MAN says so; not a vendor rule)", ["--man", MUSTANG], 0, 3),
         ("--mul lut forces LUT even with 12 blocks", ["--man", TANG, "--mul", "lut"], 0, 3),
+        ("a MAN that lists only MULT18X18 (no MULT36X36): no cell uses it -> LUT", ["--man", man_with(tmp, "only18", drop=["MULT36X36"])], 0, 3),
+        ("blocks_per_instance is READ from the MAN: 4 blocks, a 36x36 needs 2 -> 2 instances: 2 DSP + 1 LUT", ["--man", man_with(tmp, "bpi2", blocks=4, bpi36=2.0)], 2, 1),
+        ("...and 2 blocks with a 36x36 needing half a block -> 4 instances: all 3 DSP", ["--man", man_with(tmp, "bpi_half", blocks=2, bpi36=0.5)], 3, 0),
+        ("abilities in the MAN are carried and change nothing yet (no cell asks for one)",
+         ["--man", man_with(tmp, "abil", abilities=[{"name": "shift", "note": "test entry"}])], 3, 0),
     ]
     dirs = {}
     for label, extra, n_dsp, n_lut in cases:
@@ -184,8 +197,8 @@ endmodule
         check(f"{label}  [{len(mi['dsp2'])} DSP, {len(mi['lut'])} LUT]", (len(mi["dsp2"]), len(mi["lut"])) == (n_dsp, n_lut), str(mi))
         dirs[label] = d
     for label, extra, needles in (
-            ("--mul dsp with only 2 DSP blocks for 3 multipliers is refused", ["--man", man_with(tmp, "b2d", blocks=2), "--mul", "dsp"], ["only 2 DSP blocks"]),
-            ("--mul dsp with no MAN is refused", ["--mul", "dsp"], ["Gowin MAN"]),
+            ("--mul dsp with a card that can host only 2 MULT36X36 for 3 multipliers is refused", ["--man", man_with(tmp, "b2d", blocks=2), "--mul", "dsp"], ["can host only 2"]),
+            ("--mul dsp with no MAN (or a MAN that does not list the primitive) is refused", ["--mul", "dsp"], ["list the MULT36X36 primitive"]),
             ("0 DSP blocks and a 5,000-LUT4 card: 3 LUT multipliers (~12.8k) do not fit -> refused", ["--man", man_with(tmp, "tiny", blocks=0, lut4=5000)], ["resources are used up"]),
             ("1 DSP block + 2 LUT multipliers (8,554 LUT4) on a 9,500-LUT4 card (limit 8,550): refused by 4", ["--man", man_with(tmp, "edge_no", blocks=1, lut4=9500)], ["resources are used up"])):
         r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_ref"), *extra)
@@ -193,6 +206,26 @@ endmodule
     r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_edge"), "--man", man_with(tmp, "edge_ok", blocks=1, lut4=9600))
     check("...and on a 9,600-LUT4 card (limit 8,640) the same 1 DSP + 2 LUT design is accepted: the boundary is where it says",
           r.returncode == 0, r.stderr.strip()[:200])
+
+    print("   the MAN is the SINGLE source of the card's DSP facts")
+    import flexsub_assemble_v1 as fsa
+    man = fsa.load_man_flexsub(TANG)
+    decl = open("/usr/share/yosys/gowin/cells_xtra.v").read()
+    got = {n: (int(re.search(rf"module {n} \(\.\.\.\);.*?input\s+\[(\d+):0\]\s+A\b", decl, re.S).group(1)) + 1) for n in ("MULT18X18", "MULT36X36")}
+    check("the Tang MAN's DSP primitives equal what yosys itself declares (operand widths 18 and 36), so it cannot drift from the toolchain",
+          {n: man["dsp_primitives"][n]["operands"] for n in got} == {n: [w, w] for n, w in got.items()}, str(man["dsp_primitives"]))
+    check("the sharing is recorded as DERIVED, with its arithmetic (a 36x36 uses (36/18)^2 = 4 of a block's 4 multipliers = 1 block)",
+          man["dsp_primitives"]["MULT36X36"]["blocks_per_instance"] == 1.0 and man["dsp_primitives"]["MULT18X18"]["blocks_per_instance"] == 0.25
+          and "DERIVED" in man["dsp_primitives"]["MULT36X36"]["blocks_per_instance_provenance"])
+    a10 = fsa.load_man_flexsub(MUSTANG)
+    check("the Arria 10 MAN: 1,687 DSP blocks recorded, NO primitives listed, an abilities list present but EMPTY (nothing is invented about its shift option)",
+          a10["dsp_blocks"] == 1687 and a10["dsp_primitives"] == {} and a10["dsp_abilities"] == [], str((a10["dsp_blocks"], a10["dsp_primitives"], a10["dsp_abilities"])))
+    check("the Arria 10's logic unit is read as ALM from its MAN (no vendor assumption), so the LUT4 cost cannot be applied", a10["logic_unit"] == "ALM" and man["logic_unit"] == "LUT4")
+    ra = json.load(open(os.path.join(dirs["the Arria 10 MAN lists no DSP primitives -> LUT (its MAN says so; not a vendor rule)"], "ASSEMBLY.json")))["multipliers"]
+    check("the record says WHY and that the LUT budget could not be checked for an ALM card (no measured ALM cost for the LUT multiplier)",
+          "does not list MULT36X36" in ra["reason"] and "cannot be checked" in ra["lut_budget"], str(ra))
+    ab = json.load(open(os.path.join(dirs["abilities in the MAN are carried and change nothing yet (no cell asks for one)"], "ASSEMBLY.json")))["multipliers"]
+    check("a MAN's abilities are carried into the record for a cell to ask for by name", ab["dsp_abilities_in_man"] == [{"name": "shift", "note": "test entry"}], str(ab["dsp_abilities_in_man"]))
 
     print("3. the generated hardware is right under every realisation, with the same latency")
     lats = {}
@@ -212,7 +245,7 @@ endmodule
     check("every realisation has the SAME latency (the DSP cell is a true drop-in)", len(set(lats.values())) == 1, str(lats))
 
     print("4. real synthesis (yosys synth_gowin): the DSP blocks actually used, the LUTs actually paid")
-    for label, want_dsp, lut_lo, lut_hi in (("Tang MAN (12 DSP blocks): all 3 DSP", 3, 0, 2500),
+    for label, want_dsp, lut_lo, lut_hi in (("Tang MAN (12 blocks, MULT36X36 = 1 block): all 3 DSP", 3, 0, 2500),
                                             ("2 DSP blocks left: 2 DSP + 1 LUT fall back", 2, 4000, 7500),
                                             ("0 DSP blocks: all 3 LUT", 0, 11000, 16000)):
         luts, dsps = synth_counts(dirs[label])

@@ -286,46 +286,75 @@ def lower_branches(cells, inputs, outputs):
     return cells, inputs, outputs, plans, problems
 
 
-# Measured, not assumed: mul_cell_v4s (the LUT multiplier) is ~4,277 LUT1-4 as a bare flattened cell (#901); mul_cell_v4s_dsp2 is a few dozen LUTs plus ONE
-# MULT36X36 (a whole DSP block). The plain-`a*b` variant (mul_cell_v4s_dsp) is NOT used: yosys never maps it to a DSP, so it costs the same as the LUT one.
-# mul_cell_v4s_dsp3 (time-multiplexed, 4 states) is NOT part of the automatic ladder: it has multi-cycle latency and would drop the WHOLE design's item
-# rate to one per four cycles -- a contract change, not a drop-in.
-LUT_MUL_LUT4 = 4277
+# A multiplier realisation says what it NEEDS; the MAN says what the card HAS (Alan #942: the DSP type, availability and other resources are held in the
+# MAN and used by the assembler -- nothing about a vendor or a primitive is assumed here).
+#   lut  -- mul_cell_v4s: the exact low-32-bit LUT multiplier. Its cost is a MEASURED property of the cell per logic unit (#901: ~4,277 LUT4, flattened,
+#           yosys synth_gowin); a card whose logic unit has no measured cost simply cannot be budget-checked, and the record says so.
+#   dsp2 -- mul_cell_v4s_dsp2: one instance of the DSP primitive it instantiates (MULT36X36); the same ports, the same exact product and the same ONE-cycle
+#           latency, so a drop-in. How many instances the card can host = its DSP blocks / blocks_per_instance, both read from the MAN.
+# The plain-`a*b` variant (mul_cell_v4s_dsp) is NOT used (yosys never maps it to a DSP: the failed #901 experiment). mul_cell_v4s_dsp3 (time-multiplexed,
+# 4 states) is NOT in the automatic ladder: multi-cycle latency would drop the WHOLE design's item rate to one per four cycles -- a contract change.
+MUL_REALISATIONS = {"lut": {"module": "mul_cell_v4s", "cost": {"LUT4": 4277}},
+                    "dsp2": {"module": "mul_cell_v4s_dsp2", "primitive": "MULT36X36"}}
+MUL_MODULES = {k: v["module"] for k, v in MUL_REALISATIONS.items()}
 LUT_BUDGET_FRACTION = 0.9
-MUL_MODULES = {"lut": "mul_cell_v4s", "dsp2": "mul_cell_v4s_dsp2"}
+
+
+def dsp_instances(man, primitive):
+    """How many instances of `primitive` the card can host, from the MAN alone: floor(DSP blocks / blocks_per_instance). None if the MAN does not list the
+    primitive, lists no DSP blocks, or gives no sharing ratio -- then the card offers nothing the assembler can use."""
+    if not man:
+        return None
+    pr = (man.get("dsp_primitives") or {}).get(primitive)
+    blocks, bpi = man.get("dsp_blocks"), (pr or {}).get("blocks_per_instance")
+    if not pr or not blocks or not bpi:
+        return None
+    return int(blocks / bpi + 1e-9)
 
 
 def choose_multipliers(mul_cells, man, mode):
-    """Realise each `mul` as the DSP cell while the card has DSP blocks left, else as the LUT multiplier; refuse if even that cannot fit.
-    Both are exact low-32-bit products with the same ports and the same ONE-cycle latency (dsp2 keeps the family's fixed-latency convention), so the
-    choice never changes a result or the timing -- only what the card has to pay. Returns (impl: cell -> 'dsp2'|'lut', info dict)."""
+    """Realise each `mul` as the DSP cell while the card (per its MAN) can host more of the primitive it needs, else as the LUT multiplier; refuse if even
+    that cannot fit. Both are exact low-32-bit products with the same ports and the same ONE-cycle latency, so the choice never changes a result or the
+    timing -- only what the card has to pay. Returns (impl: cell -> 'dsp2'|'lut', info dict)."""
     cells = sorted(mul_cells)
     n = len(cells)
-    gowin = bool(man and man.get("vendor") == "gowin")
-    blocks = man.get("dsp_blocks") if (gowin and man.get("dsp_has_36")) else None
+    prim = MUL_REALISATIONS["dsp2"]["primitive"]
+    avail = dsp_instances(man, prim)
     if mode == "lut":
         n_dsp = 0
     elif mode == "dsp":
-        if blocks is None:
-            raise IcmGenError("--mul dsp needs a Gowin MAN that lists MULT36X36-capable DSP blocks (MULT36X36 is a Gowin primitive); none was given/found")
-        if n > blocks:
-            raise IcmGenError(f"--mul dsp: {n} multipliers but the card has only {blocks} DSP blocks (one MULT36X36 each)")
+        if avail is None:
+            raise IcmGenError(f"--mul dsp needs the MAN to list the {prim} primitive under device.dsp.primitives (with the card's DSP block count and its "
+                              f"blocks_per_instance); this MAN does not")
+        if n > avail:
+            raise IcmGenError(f"--mul dsp: {n} multipliers but the card can host only {avail} {prim} instance(s) "
+                              f"({man.get('dsp_blocks')} DSP blocks / {man['dsp_primitives'][prim]['blocks_per_instance']} per instance, from its MAN)")
         n_dsp = n
-    else:                                                     # auto: DSP while blocks remain, LUT as the fall back
-        n_dsp = min(n, blocks) if blocks else 0
+    else:                                                     # auto: DSP while the card can host more, LUT as the fall back
+        n_dsp = min(n, avail) if avail else 0
     impl = {c: ("dsp2" if k < n_dsp else "lut") for k, c in enumerate(cells)}
     n_lut = n - n_dsp
-    lut_total = man.get("lut4_total") if man else None
-    if n_lut and lut_total and n_lut * LUT_MUL_LUT4 > LUT_BUDGET_FRACTION * lut_total:
-        raise IcmGenError(f"{n} multipliers: {n_dsp} fit in the card's {blocks if blocks is not None else 0} DSP block(s), and the other {n_lut} would be LUT "
-                          f"multipliers at ~{LUT_MUL_LUT4} LUT4 each = ~{n_lut * LUT_MUL_LUT4}, more than {int(LUT_BUDGET_FRACTION * 100)}% of the card's "
-                          f"{lut_total} LUT4. The card's resources are used up -- not translated.")
+    unit, total = (man or {}).get("logic_unit"), (man or {}).get("logic_total")
+    cost = MUL_REALISATIONS["lut"]["cost"].get(unit)
+    checked = bool(n_lut and cost and total)
+    if checked and n_lut * cost > LUT_BUDGET_FRACTION * total:
+        raise IcmGenError(f"{n} multipliers: {n_dsp} fit in the card's {avail or 0} {prim} instance(s), and the other {n_lut} would be LUT multipliers at "
+                          f"~{cost} {unit} each = ~{n_lut * cost}, more than {int(LUT_BUDGET_FRACTION * 100)}% of the card's {total} {unit}. "
+                          f"The card's resources are used up -- not translated.")
+    if n_lut and not checked:
+        budget = ("no MAN: the LUT budget cannot be checked" if man is None else
+                  f"the card's logic unit is {unit!r} and the LUT multiplier has no measured cost in that unit: the LUT budget cannot be checked")
+    else:
+        budget = "checked" if n_lut else "not needed (no LUT multipliers)"
     why = ("no MAN given: no resource information, so the always-exact LUT multiplier is used" if man is None and mode == "auto" else
-           "the MAN is not a Gowin card with 36x36 DSP blocks (MULT36X36 is a Gowin primitive): LUT multipliers" if mode == "auto" and blocks is None else
+           f"the MAN does not list {prim} under device.dsp.primitives (or lists no DSP blocks): the card offers no DSP the assembler can use -> LUT multipliers"
+           if mode == "auto" and avail is None else
            f"--mul {mode}" if mode != "auto" else
-           f"auto: DSP while the card's {blocks} block(s) last, LUT fall back for the remaining {n_lut}" if n_lut else f"auto: all {n} fit in the card's {blocks} DSP block(s)")
+           f"auto: DSP while the card's {avail} {prim} instance(s) last, LUT fall back for the remaining {n_lut}" if n_lut else
+           f"auto: all {n} fit in the card's {avail} {prim} instance(s)")
     return impl, {"mode": mode, "dsp2": [c for c in cells if impl[c] == "dsp2"], "lut": [c for c in cells if impl[c] == "lut"],
-                  "dsp_blocks_available": blocks, "lut4_estimate_for_lut_multipliers": n_lut * LUT_MUL_LUT4, "reason": why}
+                  "dsp_primitive": prim, "dsp_instances_available": avail, "dsp_abilities_in_man": (man or {}).get("dsp_abilities", []),
+                  "logic_unit": unit, "lut_multiplier_cost_estimate": (n_lut * cost) if cost else None, "lut_budget": budget, "reason": why}
 
 
 def plan(icm_path, align=True, man=None, mul_mode="auto"):

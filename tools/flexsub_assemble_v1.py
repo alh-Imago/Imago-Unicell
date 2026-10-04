@@ -156,10 +156,14 @@ def load_man_flexsub(path):
         "pnr_family": (device.get("apicula") or {}).get("family"),
         "native_width": logic.get("native_width"),
         "board": man.get("board", {}),
-        # resource budgets (Alan #941: the multiplier "has to be taken into account as a fall back if the card resources are used")
-        "lut4_total": logic.get("lut4_total"),
+        # resource data the assembler READS (Alan #941/#942: "the dsp type and availability and other resources have to be held in the man file ...
+        # but used by the assembler"). Nothing here is assumed about a vendor.
         "dsp_blocks": (device.get("dsp") or {}).get("total_blocks"),
-        "dsp_has_36": any([36, 36] in (col.get("y_segments") or []) for col in ((device.get("dsp") or {}).get("columns") or [])),
+        "dsp_primitives": {pr["name"]: pr for pr in ((device.get("dsp") or {}).get("primitives") or [])},
+        "dsp_abilities": list((device.get("dsp") or {}).get("abilities") or []),
+        "logic_unit": logic.get("unit") or ("ALM" if device.get("alm_total") is not None else None),
+        "logic_total": (logic.get("lut4_total") if logic.get("unit") == "LUT4"
+                        else device.get("alm_total") if (device.get("alm_total") is not None and not logic.get("unit")) else None),
     }
 
 

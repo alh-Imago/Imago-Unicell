@@ -173,7 +173,11 @@
     "reason": "spine clock region limits cascade -- a SPATIAL/placement constraint, not arithmetic (Arria 10 handbook 683461 sec 3.3.5 p46, points.md #26)",
     "latency_per_block_cycles": null,
     "latency_note": "card-dependent (Alan, 2026-09-21): the recollection figures (0/1 to over 8) are from the Arria 10 docs and will differ per card/part; left unset here deliberately -- kept LOOSE until a real per-card figure is supplied"
-   }
+   },
+   "primitives": [],
+   "primitives_note": "No DSP primitives are listed for this card yet: no assembler cell targets the Arria 10's DSP blocks (the DSP multiplier cell instantiates Gowin's MULT36X36). With none listed, the assembler realises a multiplier in logic. A primitive is added here as {name, operands, product_bits, blocks_per_instance} once a cell exists that can use it -- the assembler reads this list, it does not assume it.",
+   "abilities": [],
+   "abilities_note": "An OPEN list of card-specific DSP abilities, each {name, note}, that an assembler cell may ask for by name. EMPTY: Alan has said (2026-10-04) that this card's DSP blocks have an option to SHIFT, usable at any point, as a special ability of their own -- but it is not yet described here (what shifts, by how much, at which stage, with what latency). To be recorded from Alan's description or the Arria 10 handbook (683461), not guessed."
   },
   "source": "Chip Planner GUI resource-properties inspection, read directly by Alan (points.md #275/#276/#277), 2026-08-10. NOT yet cross-checked against a real Quartus .pin file \u2014 no .pin file is currently committed to this repo (per #28/#29's own canonical DEVICE-FACTS generator method: 'run the Fitter once, parse output_files/<revision>.pin'). Treat DSP/M20K coordinates above as real and Chip-Planner-confirmed, but the FULL exhaustive device-half dataset (every ball, every function) this schema is meant to eventually hold is still outstanding."
  },

@@ -103,3 +103,29 @@ one-cell (`sequencer`) proof-of-concept, built through the real toolchain (`yosy
 `yowasp-nextpnr-himbaechel-gowin` place-and-route -> real `gowin_pack` bitstream), with a committed,
 ready-to-flash `.fs` file (`fpga/build/`). Confirmed in simulation before synthesis, per real Fmax
 (198.3 MHz at a 27 MHz target). Nothing has been run on the physical board yet -- flashing it is next.
+
+## DSP primitives and abilities (read by the assembler)
+
+A card's DSP *types*, how many it can host, and any card-specific abilities are **data about the card**, so they live here and the
+assembler only reads them -- it assumes nothing about a vendor. (Alan, 2026-10-04: "the dsp type and availability and other resources
+have to be held in the man file ... but used by the assembler.") Under `device.dsp`:
+
+| field | meaning |
+|---|---|
+| `total_blocks` | how many DSP blocks the card has |
+| `primitives` | the primitives the card offers that an assembler cell can instantiate: `{name, operands:[a,b], product_bits, blocks_per_instance}`. `name` is exactly the vendor primitive (it is what the cell instantiates). `blocks_per_instance` says how much of a block one instance uses (a 36x36 on the Tang = 1, an 18x18 = 0.25), so the instances a card can host = `total_blocks / blocks_per_instance`. Different primitives draw on the SAME blocks when `primitives_share_blocks` is true |
+| `abilities` | an OPEN list of card-specific abilities, `{name, note}`, that a cell may ask for **by name**. Carried into the assembler's record; nothing consumes one until a cell needs it |
+| `chain` | (Arria 10) cascade limits, a placement constraint |
+
+How the assembler uses it (`--icm`, `--man`): a realisation declares which primitive it NEEDS (the DSP multiplier needs `MULT36X36`); the MAN says what the
+card HAS. If the card lists the primitive and has blocks left, the DSP cell is used; otherwise the exact logic multiplier. **A card that lists no
+primitives (the Arria 10 today) simply falls back -- because its MAN says so, not because of its vendor.** The logic multiplier's cost is a measured
+property of that cell per logic unit (LUT4 on Gowin); a card whose unit has no measured cost cannot be budget-checked, and the assembler's record says so.
+
+Provenance rules (same spirit as the rest of this file): the Tang's primitive operand and product widths are **read live from yosys's own declaration**
+(`gowin/cells_xtra.v`); `blocks_per_instance` is arithmetic and is marked **DERIVED**; nothing is hand-typed from memory. `y_segments` in `columns` are
+ROW coordinates of the DSP tiles, **not operand sizes** -- an earlier assembler mistook them for a "has 36x36" flag (it was only true for the Tang by
+coincidence of the row number).
+
+**Open:** the Arria 10's `primitives` and `abilities` are empty. Alan has said its DSP blocks have an option to shift, usable at any point, as a special ability
+of their own; what shifts, by how much, at which stage and with what latency is not yet recorded here and is not to be guessed.

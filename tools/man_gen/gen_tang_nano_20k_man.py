@@ -62,6 +62,31 @@ def pin_record(db, pin, extra=None):
     return rec
 
 
+def dsp_primitives(blocks_total, multipliers_18x18):
+    """The card's DSP primitives, as the assembler needs them. Operand and product widths are read LIVE from yosys's own declaration of the Gowin
+    multipliers (gowin/cells_xtra.v), not hand-typed. How they share the blocks is plain arithmetic and is marked DERIVED: a block holds
+    multipliers_18x18 / blocks_total 18x18 multipliers (48 / 12 = 4), and a 36x36 needs (36/18)^2 = 4 of them, i.e. a whole block -- so
+    blocks_per_instance is 1 for MULT36X36 and 1/4 for MULT18X18, and the two draw on the SAME blocks."""
+    path = "/usr/share/yosys/gowin/cells_xtra.v"
+    text = open(path).read()
+    per_block = multipliers_18x18 // blocks_total
+    out = []
+    for name in ("MULT18X18", "MULT36X36"):
+        m = re.search(rf"module {name} \(\.\.\.\);(.*?)endmodule", text, re.S)
+        if not m:
+            raise RuntimeError(f"{name} is not declared in {path}")
+        body = m.group(1)
+        a_bits = int(re.search(r"input\s+\[(\d+):0\]\s+A\b", body).group(1)) + 1
+        d_bits = int(re.search(r"output\s+\[(\d+):0\]\s+DOUT", body).group(1)) + 1
+        uses_18 = (a_bits // 18) ** 2
+        out.append({"name": name, "operands": [a_bits, a_bits], "product_bits": d_bits,
+                    "blocks_per_instance": uses_18 / per_block,
+                    "blocks_per_instance_provenance": (f"DERIVED, not read from a datasheet: {name} needs ({a_bits}/18)^2 = {uses_18} of a block's "
+                                                       f"{per_block} 18x18 multipliers"),
+                    "operands_provenance": f"read live from {path} (yosys's own Gowin cell library)"})
+    return out
+
+
 def native_ff_variants():
     """points.md #907: read the real Gowin flip-flop primitives straight from
     yosys's own cell library (not hand-typed, so this can never silently drift
@@ -161,6 +186,12 @@ def build(db):
             "dsp": {
                 "total_blocks": len(dsp), "multipliers_18x18": 48, "multipliers_per_block_derived": 48 // len(dsp),
                 "columns": columns(dsp),
+                "primitives": dsp_primitives(len(dsp), 48),
+                "primitives_share_blocks": True,
+                "abilities": [],
+                "abilities_note": ("An OPEN list of card-specific DSP abilities, each {name, note}, that an assembler cell may ask for by name. None is "
+                                   "recorded for this card. (Not to be confused with columns[].y_segments, which are ROW coordinates of the DSP "
+                                   "tiles in the chip database, not operand sizes.)"),
                 "note": ("12 DSP tiles in the chip database; the 48 18x18 multipliers is the published figure "
                          "(48 / 12 = 4 per tile is DERIVED, not read). Unlike the Arria, these blocks do NOT chain "
                          "along a spine clock region as far as this file knows -- unverified."),
