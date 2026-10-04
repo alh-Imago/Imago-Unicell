@@ -111,9 +111,19 @@ def plan(icm_path, align=True):
     adder_roles = {}
     for c in order:
         if cells[c].core == "adder":
-            (sa, _), (sb, _) = sorted(inputs[c]["in"], key=lambda sf: role_key(c, sf[0], t_out))
-            adder_roles[c] = {"A": sa, "B": sb, "pad_A": max(0, t_out[sb] - t_out[sa]) if align else 0,
-                              "tie_broken_by_arbiter": tiekeys.get((c, sa)) is not None and t_out[sa] == t_out[sb]}
+            srcs = [src for src, _ in inputs[c]["in"]]
+            tks = [tiekeys.get((c, src)) for src in srcs]
+            if all(t is not None for t in tks) and tks[0][0] != tks[1][0]:
+                # DIFFERENT ranks (a file written by flexsub_compile_v1, #929): rank DEFINES operand identity -- A = lower
+                # rank -- regardless of which source is earlier, because this assembler equalises arrival itself.
+                sa, sb = sorted(srcs, key=lambda q: tiekeys[(c, q)])
+                identity_by = "rank"
+            else:
+                sa, sb = sorted(srcs, key=lambda q: role_key(c, q, t_out))
+                identity_by = "arbiter tie-break" if (tiekeys.get((c, sa)) is not None and t_out[sa] == t_out[sb]) else "arrival order"
+            diff = t_out[sb] - t_out[sa]                         # >0: A is earlier -> pad A; <0: B is earlier -> pad B
+            adder_roles[c] = {"A": sa, "B": sb, "identity_by": identity_by,
+                              "pad_A": max(0, diff) if align else 0, "pad_B": max(0, -diff) if align else 0}
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_out, "order": order, "adder_roles": adder_roles, "align": align, "warnings": warnings,
             "eliminated_priority": eliminated}
@@ -173,14 +183,20 @@ def emit_top(top, p, width=32):
             role = roles[c]
             ad, av = src_nets(c, role["A"])
             bd, bv = src_nets(c, role["B"])
-            for k in range(role["pad_A"]):                      # delay A by pad_A cycles with flowing relay cells
-                pad_count += 1
-                pi = f"{i}_padA{k}"
-                a(f"wire [31:0] {pi}_d; wire {pi}_v;")
-                a(f"ram_cell_v4s #(.CELL_ID(16'd{1000 + pad_count})) {pi} (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), "
-                  f".cfg_data(32'h0), .cfg_fixed_mode(1'b0), .data_in({ad}), .valid_in({av}), "
-                  f".data_out({pi}_d), .valid_out({pi}_v));")
-                ad, av = f"{pi}_d", f"{pi}_v"
+            for side in ("A", "B"):                             # delay the EARLY operand with flowing relay cells
+                nets_d, nets_v = (ad, av) if side == "A" else (bd, bv)
+                for k in range(role[f"pad_{side}"]):
+                    pad_count += 1
+                    pi = f"{i}_pad{side}{k}"
+                    a(f"wire [31:0] {pi}_d; wire {pi}_v;")
+                    a(f"ram_cell_v4s #(.CELL_ID(16'd{1000 + pad_count})) {pi} (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), "
+                      f".cfg_data(32'h0), .cfg_fixed_mode(1'b0), .data_in({nets_d}), .valid_in({nets_v}), "
+                      f".data_out({pi}_d), .valid_out({pi}_v));")
+                    nets_d, nets_v = f"{pi}_d", f"{pi}_v"
+                if side == "A":
+                    ad, av = nets_d, nets_v
+                else:
+                    bd, bv = nets_d, nets_v
             sub = int(bool(cfg.get("subtract_mode", 0)))
             a(f"adder_cell_v4s #(.CELL_ID(16'd{p['order'].index(c)})) {i} (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), "
               f".cfg_data(32'h{sub}), .in_a({ad}), .in_b({bd}), .valid_in({bv}), .data_out({i}_d), .valid_out({i}_v));")
