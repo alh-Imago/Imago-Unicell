@@ -46,7 +46,7 @@ CORE_TO_SHAPE = {
     "priority": None, "command": None,
 }
 # Two-operand cores: operand roles are by ARRIVAL ORDER in the VM.
-TWO_OPERAND = {"adder", "mul"}
+TWO_OPERAND = {"adder", "mul", "nano"}   # nano: first arrival = held operand A, second = flowing operand B (VM CACell)
 # How each core's config words translate (read from the root_definition fields vs each v4sa cell's header).
 CONFIG_NOTES = {
     "ram": "direct: fixed_mode -> cfg_fixed_mode port, init_data -> cfg_data (load_data_valid has no v4sa field)",
@@ -110,6 +110,9 @@ def extract(path):
         faces = collections.OrderedDict()                                     # face -> outcomes using it
         for d in _dirs(cfg, "downstream_mask"):
             faces.setdefault(d, [])
+        if r.core == "nano":                                                  # nano's OUTPUT faces live in routing_mask
+            for d in _dirs(cfg, "routing_mask"):
+                faces.setdefault(d, [])
         if r.core == "branch":                                                # branch routes per OUTCOME, not by mask
             for k in ("low", "equal", "high"):
                 for d in _dirs(cfg, f"route_{k}"):
@@ -123,6 +126,8 @@ def extract(path):
             dst = cells[dst_id]
             dcfg = dst.core_config or {}
             role = next((INPUT_FIELDS[k] for k in INPUT_FIELDS if OPP[d] in _dirs(dcfg, k)), None)
+            if role is None and dst.core == "nano":                          # nano has no upstream mask: it consumes from any face
+                role = "in"
             if role is None:
                 warnings.append(f"{r.cell_id} sends {d} but {dst_id} listens on no {OPP[d]} face (output dropped)")
                 continue

@@ -62,7 +62,13 @@ CORES = {
     "comparator": {"kind": "single", "module": "compare_cell_v4s"},    # signed(data) >= threshold -> 0/1, same as the VM
     "adder": {"kind": "pair", "module": "adder_cell_v4s"},
     "mul": {"kind": "pair", "module": "mul_cell_v4s"},                  # low 32 bits of the product
+    # nano: first arrival = HELD operand A (registered, loaded by load_hold), second = FLOWING operand B. The held register
+    # is loaded a cycle before the gate sees it, so A must arrive exactly ONE cycle before B (unlike adder/mul).
+    "nano": {"kind": "pair", "module": "nano_cell_v4s", "hold_flow": True},
 }
+# The topology codes nano_cell_v4s actually implements (its `default` silently passes the held value -- never translate those).
+NANO_TOPOLOGIES = {0x000, 0x02C, 0x001, 0x002, 0x004, 0x007, 0x024, 0x027, 0x0BC, 0x03C, 0x030, 0x0B0}
+NANO_BENIGN_KEYS = {"ready", "routing_mask", "topology"}
 SUPPORTED_CORES = set(CORES)
 _SHIFT_COARSE = (1, 2, 4, 8, 12, 16, 20, 24, 28)    # the VM's/RTL's supported coarse taps (shift_lane_addon_v2)
 
@@ -115,6 +121,13 @@ def plan(icm_path, align=True):
                 problems.append(f"{c}: addon shift on a {r.core} cell -- only a ram relay's output shift is translated")
             else:
                 shifts[c] = (total, direction)
+        if r.core == "nano":
+            cfgn = r.core_config or {}
+            odd = sorted(k for k, v in cfgn.items() if k not in NANO_BENIGN_KEYS and v)
+            if odd:
+                problems.append(f"{c}: nano uses {odd} (relay/hold/update/one-shot modes) -- only the plain two-arrival gate is translated")
+            if int(cfgn.get("topology", 0)) not in NANO_TOPOLOGIES:
+                problems.append(f"{c}: nano topology {int(cfgn.get('topology', 0)):#x} is not implemented by nano_cell_v4s (its default would silently pass the held value)")
         is_source = not srcs_of[c]
         if r.preload_value is not None and not (r.core == "ram" and is_source):
             problems.append(f"{c}: preload_value on a cell that is not a source ram")
@@ -175,12 +188,27 @@ def plan(icm_path, align=True):
                 identity_by = "arbiter tie-break" if (tiekeys.get((c, sa)) is not None and t_vm[sa] == t_vm[sb]) else "arrival order"
             live = [q for q in (sa, sb) if q not in const]                  # constants never constrain timing
             pad = {sa: 0, sb: 0}
-            if len(live) == 2 and align:
-                late = max(t_rtl[sa], t_rtl[sb])
-                pad = {sa: late - t_rtl[sa], sb: late - t_rtl[sb]}
-            t_in = max((t_rtl[q] for q in live), default=0)
+            hf = CORES[r.core].get("hold_flow")
+            valid_from = "B" if sb not in const else "A"
+            if hf:
+                # the held operand A must arrive exactly ONE cycle before the flowing operand B
+                if len(live) == 2:
+                    tb = max(t_rtl[sb], t_rtl[sa] + 1)
+                    if align:
+                        pad = {sa: tb - 1 - t_rtl[sa], sb: tb - t_rtl[sb]}
+                    t_in = tb
+                elif sa not in const:                                         # A live, B constant: the gate sees A one cycle later
+                    t_in = t_rtl[sa] + 1
+                    valid_from = "A_delayed"                                  # valid_in must be A's valid delayed by one cycle
+                else:                                                         # A constant (held for ever), B live
+                    t_in = t_rtl[sb]
+            else:
+                if len(live) == 2 and align:
+                    late = max(t_rtl[sa], t_rtl[sb])
+                    pad = {sa: late - t_rtl[sa], sb: late - t_rtl[sb]}
+                t_in = max((t_rtl[q] for q in live), default=0)
             roles[c] = {"A": sa, "B": sb, "identity_by": identity_by, "pad_A": pad[sa], "pad_B": pad[sb],
-                        "valid_from": "B" if sb not in const else "A", "const_operands": [q for q in (sa, sb) if q in const]}
+                        "valid_from": valid_from, "const_operands": [q for q in (sa, sb) if q in const]}
         else:
             live = [q for q in srcs if q not in const]
             t_in = max((t_rtl[q] for q in live), default=0)
@@ -261,11 +289,20 @@ def emit_top(top, p, width=32):
             bd, bv = f"{_ident(role['B'])}_d", f"{_ident(role['B'])}_v"
             ad, av = padded(c, ad, av, role["pad_A"], "A")
             bd, bv = padded(c, bd, bv, role["pad_B"], "B")
-            vin = bv if role["valid_from"] == "B" else av
-            word = hexw(int(bool(cfg.get("subtract_mode", 0)))) if r.core == "adder" else "32'h0"
-            ca = cfg_args(word)
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
-              f".in_a({ad}), .in_b({bd}), .valid_in({vin}), .data_out({out_d}), .valid_out({out_v}));")
+            if CORES[r.core].get("hold_flow"):
+                if role["valid_from"] == "A_delayed":                         # B is a constant: valid_in = A's valid, one cycle later
+                    _, vin = padded(c, ad, av, 1, "V")
+                else:
+                    vin = bv
+                ca = cfg_args(hexw(cfg.get("topology", 0)))
+                a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, .hold_in_data({ad}), .load_hold({av}), "
+                  f".flow_in_data({bd}), .valid_in({vin}), .data_out({out_d}), .valid_out({out_v}));")
+            else:
+                vin = bv if role["valid_from"] == "B" else av
+                word = hexw(int(bool(cfg.get("subtract_mode", 0)))) if r.core == "adder" else "32'h0"
+                ca = cfg_args(word)
+                a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
+                  f".in_a({ad}), .in_b({bd}), .valid_in({vin}), .data_out({out_d}), .valid_out({out_v}));")
         elif r.core == "comparator":
             ca = cfg_args(hexw(cfg.get("threshold", 0)))
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "

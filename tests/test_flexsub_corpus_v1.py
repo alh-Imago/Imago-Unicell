@@ -125,14 +125,43 @@ PROGRAMS = [
     ("icmp_sgt", "x y", "%c = icmp sgt i32 %x, %y\n  %r = zext i1 %c to i32", lambda v: int(s32(v["x"] & M) > s32(v["y"] & M))),
     ("icmp_sle", "x y", "%c = icmp sle i32 %x, %y\n  %r = zext i1 %c to i32", lambda v: int(s32(v["x"] & M) <= s32(v["y"] & M))),
     ("icmp_sge", "x y", "%c = icmp sge i32 %x, %y\n  %r = zext i1 %c to i32", lambda v: int(s32(v["x"] & M) >= s32(v["y"] & M))),
+    ("and", "x y", "%r = and i32 %x, %y", lambda v: v["x"] & v["y"]),
+    ("or", "x y", "%r = or i32 %x, %y", lambda v: v["x"] | v["y"]),
+    ("xor", "x y", "%r = xor i32 %x, %y", lambda v: v["x"] ^ v["y"]),
+    ("not_x", "x", "%r = xor i32 %x, -1", lambda v: ~v["x"]),
+    ("and_c255", "x", "%r = and i32 %x, 255", lambda v: v["x"] & 255),
+    ("or_c1", "x", "%r = or i32 %x, 1", lambda v: v["x"] | 1),
+    ("xor_c", "x", "%r = xor i32 %x, 255", lambda v: v["x"] ^ 255),
+    ("and_add", "x y z", "%a = and i32 %x, %y\n  %r = add i32 %a, %z", lambda v: (v["x"] & v["y"]) + v["z"]),
+    ("add_xor", "x y z", "%a = add i32 %x, %y\n  %r = xor i32 %a, %z", lambda v: (v["x"] + v["y"]) ^ v["z"]),
+    ("ashr2", "x", "%r = ashr i32 %x, 2", lambda v: s32(v["x"] & M) >> 2),
+    ("ashr9", "x", "%r = ashr i32 %x, 9", lambda v: s32(v["x"] & M) >> 9),
+    ("icmp_eq", "x y", "%c = icmp eq i32 %x, %y\n  %r = zext i1 %c to i32", lambda v: int((v["x"] & M) == (v["y"] & M))),
+    ("icmp_ne", "x y", "%c = icmp ne i32 %x, %y\n  %r = zext i1 %c to i32", lambda v: int((v["x"] & M) != (v["y"] & M))),
+    ("select_min", "x y", "%c = icmp slt i32 %x, %y\n  %r = select i1 %c, i32 %x, i32 %y", lambda v: v["x"] if s32(v["x"] & M) < s32(v["y"] & M) else v["y"]),
+    ("select_max", "x y", "%c = icmp sgt i32 %x, %y\n  %r = select i1 %c, i32 %x, i32 %y", lambda v: v["x"] if s32(v["x"] & M) > s32(v["y"] & M) else v["y"]),
+    # arguments / intermediate values used more than once (fan-out), and larger realistic programs
+    ("x_plus_x", "x", "%r = add i32 %x, %x", lambda v: v["x"] + v["x"]),
+    ("square", "x", "%r = mul i32 %x, %x", lambda v: v["x"] * v["x"]),
+    ("fan_mid", "x y", "%a = add i32 %x, %y\n  %r = mul i32 %a, %a", lambda v: (v["x"] + v["y"]) * (v["x"] + v["y"])),
+    ("diff_squares", "x y", "%a = add i32 %x, %y\n  %b = sub i32 %x, %y\n  %r = mul i32 %a, %b", lambda v: (v["x"] + v["y"]) * (v["x"] - v["y"])),
+    ("reuse_args", "x y", "%a = mul i32 %x, %y\n  %b = add i32 %a, %x\n  %r = sub i32 %b, %y", lambda v: v["x"] * v["y"] + v["x"] - v["y"]),
+    ("poly", "x", "%a = mul i32 %x, %x\n  %b = mul i32 %a, %x\n  %c = mul i32 %x, 2\n  %d = add i32 %b, %c\n  %r = add i32 %d, 1",
+     lambda v: v["x"] ** 3 + 2 * v["x"] + 1),
+    ("abs", "x", "%c = icmp slt i32 %x, 0\n  %n = sub i32 0, %x\n  %r = select i1 %c, i32 %n, i32 %x", lambda v: -s32(v["x"] & M) if s32(v["x"] & M) < 0 else v["x"]),
+    ("max3", "x y z", "%c1 = icmp sgt i32 %x, %y\n  %m = select i1 %c1, i32 %x, i32 %y\n  %c2 = icmp sgt i32 %m, %z\n  %r = select i1 %c2, i32 %m, i32 %z",
+     lambda v: max(s32(v["x"] & M), s32(v["y"] & M), s32(v["z"] & M))),
     ("combo", "x y z", "%a = add i32 %x, %y\n  %b = mul i32 %a, %z\n  %r = sub i32 %b, 7", lambda v: (v["x"] + v["y"]) * v["z"] - 7),
 ]
 EDGE = [0, 1, 2, 5, 7, 100, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF, 0xFFFFFFFE, 0x12345678]
 # The stock compiler lowers icmp as (32-bit difference) vs a threshold, which is only right when that difference does not
 # overflow signed 32 bits. Arithmetic is the oracle ONLY inside that domain; outside it, the oracle is the VM (faithfulness).
 def no_overflow(v):
-    d = s32(v["x"] & M) - s32(v["y"] & M)
-    return -(1 << 31) <= d < (1 << 31)
+    """Every PAIR the stock compare lowering subtracts must not overflow signed 32 bits (x-y; for max3 also max(x,y)-z; abs: x-0)."""
+    ok = lambda a, b: -(1 << 31) <= s32(a & M) - s32(b & M) < (1 << 31)
+    if "z" in v and "y" in v and "x" in v:
+        return ok(v["x"], v["y"]) and ok(max(v["x"], v["y"], key=lambda q: s32(q & M)), v["z"])
+    return ok(v["x"], v.get("y", 0))
 OVERFLOW_VECS = [{"x": 0x80000000, "y": 0x7FFFFFFF}, {"x": 0x688B891E, "y": 0xDDB6DB66}, {"x": 0xFFFFFFFF, "y": 0x7FFFFFFF},
                  {"x": 0x7FFFFFFF, "y": 0xFFFFFFFF}, {"x": 100, "y": 0x80000000}, {"x": 5, "y": 9}, {"x": 9, "y": 5}, {"x": 7, "y": 7}]
 tmp = tempfile.mkdtemp(prefix="fscorpus_")
@@ -153,15 +182,17 @@ try:
         rec = json.load(open(os.path.join(d, "ASSEMBLY.json")))
         lat = list(rec["output_latency_cycles"].values())[0]
         vecs = [{a: rnd.choice(EDGE) for a in names} for _ in range(12)] + [{a: rnd.getrandbits(32) for a in names} for _ in range(12)]
-        if name.startswith("icmp_"):
-            vecs = [v for v in vecs if no_overflow(v)] + [{"x": 5, "y": 9}, {"x": 9, "y": 5}, {"x": 7, "y": 7}, {"x": 0xFFFFFFFF, "y": 1}, {"x": 1, "y": 0xFFFFFFFF}]
+        signed_cmp = name.startswith("icmp_s") or name.startswith("select_") or name in ("abs", "max3")
+        if signed_cmp:
+            fixed = ((5, 9, 3), (9, 5, 3), (7, 7, 3), (0xFFFFFFFF, 1, 2), (1, 0xFFFFFFFF, 2), (0xFFFFFFFE, 0xFFFFFFFD, 0xFFFFFFFC))
+            vecs = [v for v in vecs if no_overflow(v)] + [dict(zip(names, tup)) for tup in fixed]
         bad = []
         for v in vecs:
             pv = {c: v[a] for a in names for c in report["arg_cells"][a]}
             hits = [(c, dv) for c, valid, dv in simulate(d, pv) if valid]
             if hits != [(lat, ref(v) & M)]:
                 bad.append((v, hits[:2], ref(v) & M))
-        if name.startswith("icmp_"):
+        if name.startswith("icmp_s") and names == ["x", "y"]:
             fb = []
             for v in OVERFLOW_VECS:
                 pv = {c: v[a] for a in names for c in report["arg_cells"][a]}
@@ -174,14 +205,19 @@ try:
         if rec.get("shift_stages"): extras.append(f"{len(rec['shift_stages'])} shift stage(s)")
         check(f"{name}: {len(vecs)} vectors (edge values + random), latency {lat}" + (f", {', '.join(extras)}" if extras else ""), not bad, str(bad[:2]))
 
-    print("nano-dependent programs are still refused, with a reason")
-    for name, args, body in (("and", "x y", "%r = and i32 %x, %y"), ("xor", "x y", "%r = xor i32 %x, %y"),
-                             ("select", "x y", "%c = icmp slt i32 %x, %y\n  %r = select i1 %c, i32 %x, i32 %y")):
-        src = f"define i32 @f({', '.join('i32 %' + a for a in args.split())}) {{\nentry:\n  {body}\n  ret i32 %r\n}}\n"
-        file, report, _ = fc.compile_for_flexsub(src, name)
-        icm = os.path.join(tmp, name + ".icm"); file.save(icm)
-        r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_" + name))
-        check(f"{name}: refused, names nano", r.returncode != 0 and "nano" in r.stderr, r.stderr.strip()[:160])
+    print("unsupported nano uses are refused with the reason (not silently mistranslated)")
+    from icm_v3 import IcmV3File
+    base, rep0, _ = fc.compile_for_flexsub("define i32 @f(i32 %x, i32 %y) {\nentry:\n  %r = and i32 %x, %y\n  ret i32 %r\n}\n", "nanocheck")
+    for label, edit, needle in (("an unimplemented nano topology", lambda c: c.update({"topology": 0x155}), "topology"),
+                                ("nano relay/hold mode (cardinal_edge)", lambda c: c.update({"cardinal_edge": ["w"]}), "cardinal_edge")):
+        import copy
+        f2 = copy.deepcopy(base)
+        for r in f2.records:
+            if r.core == "nano":
+                edit(r.core_config)
+        icm = os.path.join(tmp, "bad_nano.icm"); f2.save(icm)
+        r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_bad"))
+        check(f"{label}: refused, names it", r.returncode != 0 and needle in r.stderr, r.stderr.strip()[:200])
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{passed} passed, {failed} failed")
