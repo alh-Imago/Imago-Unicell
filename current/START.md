@@ -27,7 +27,7 @@ cat docs/shared/TOOLCHAIN_SETUP.md                # NEW (2026-08-04): current Qu
 cat docs/full-cell/CELL_INTERNALS.md              # NEW (2026-08-04): the FULL cell's own field map, built by reading unicell64_v3.v directly -- flags the RTL's own known-stale header comment (wrong auth_mask position)
 cat current/VM_CORE_GAP_ANALYSIS.md               # NEW (2026-08-08): full sweep of all 77 root Python files vs the nano cell -- zero target it, 35 target the old format, 8 real gaps mapped against the VM-core rebuild plan (points.md #216/#217)
 cat current/latest.md                                 # current state + recent decisions (most recent at TOP) -- READ THE CRITICAL CORRECTION AT THE TOP FIRST (points.md #228)
-cat points/points_active.md                           # the FULL detailed narrative, currently-open tail (2026-09-02: points.md split across points/ -- see points/INDEX.md; GitHub stopped rendering it past ~2MB)
+cat points/points_active.md                           # the currently-open tail, fresh since #946 -- ALSO read the end of the latest sealed part: tail -c 70000 points/points_11_875-945.md (2026-09-02: points.md split across points/ -- see points/INDEX.md; GitHub stopped rendering it past ~2MB)
 cat current/PLAN.md                                   # what needs doing
 ```
 

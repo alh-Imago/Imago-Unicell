@@ -5,7 +5,7 @@
 > not committed work -- three separate demonstrations, each meant to stand on its own and add
 > independent credibility to the overall project scope, not one narrow trick stretched thin.**
 > (1) **LaTeX -> compute, pushed as far as it goes** -- the active near-term technical thrust
-> (floating point, grounded from real TRIX/MIF prior art at `points/points_active.md` `#827` but not
+> (floating point, grounded from real TRIX/MIF prior art at `points/points_10_811-874.md` `#827` but not
 > yet built; then real arithmetic tiles; a bounded expression evaluator; a LaTeX parser feeding it;
 > a frontend able to actually demo the whole chain end to end, per Alan's own note that the frontend
 > isn't there yet even for a basic demo). Eventually reaching toward OPTIMAL TRANSPORT (Wasserstein
@@ -23,7 +23,7 @@
 > None of these three are started. Recorded here, in the forward-looking plan, rather than the
 > points ledger, because Alan's own words: "it's just a side thought... but this gives a roadmap of
 > the potential outcomes" -- prospective, not a decision or design commitment the append-only ledger
-> discipline is for. See `points/points_active.md` `#827` for the floating-point grounding already
+> discipline is for. See `points/points_10_811-874.md` `#827` for the floating-point grounding already
 > done, and the surrounding session's own `#824`-`#836` entries for the broader architecture context
 > this sits alongside (the VIX Carrier clarification, the LLVM/compiler gap list, the photonic and
 > command-bus interconnect prospects). **Alan's own timeframe estimate: 6 months to a year at
@@ -35,7 +35,7 @@
 > anything built so far) -- not a number to treat as either a floor or a ceiling.
 >
 > **UPDATE (2026-09-02, later same-date session): the simulated Walker
-> from this note's own queued item is DONE (`points/points_active.md`
+> from this note's own queued item is DONE (`points/points_07_572-652.md`
 > `#601`/`#602`) -- built on a real prerequisite fix (`#601`: `#598`'s
 > "VM mirror mode already exists" claim was checked and found false,
 > so `VMSession.from_man()` got built first). A pipeline walkthrough
@@ -47,7 +47,7 @@
 > intent a genuine environment to be built AND TESTED in.**
 >
 > **UPDATE (2026-09-02): hardware exploration is CLOSED for now --
-> Alan's own real, deliberate decision (`points/points_active.md` #596),
+> Alan's own real, deliberate decision (`points/points_07_572-652.md` #596),
 > not reflected in anything below this note.** A real, converged
 > investigation found this card's own real ceiling (~200-250 cells,
 > ~65-75 MHz Fmax at that scale) and found no lever (shared storage,

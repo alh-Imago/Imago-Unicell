@@ -378,7 +378,7 @@ for the same logical program.
   answer. See `docs/stripped-cell/design-notes/
   llvm_ir_compiler_scope.md` for the original scoping note (some of
   what it named as future work has since shipped — check `points/
-  points_active.md` #612 onward for the real, current status rather
+  points/INDEX.md` (parts 7-11: #612 onward) for the real, current status rather
   than assuming the scope note alone is up to date).
 
 ## 8. Targets — Unicell-n vs. Unicell-S
