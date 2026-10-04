@@ -16395,3 +16395,24 @@ Alan (4 Oct 2026): hard-DSP on the Arria 10 is a future item ("I get the new PC 
 **Suites:** flex 24 (new); generator 37; loops 9; addon 21; level 16; sequencer 20; branch 19; merge 17; netlist 12; compile 13; corpus 47; family equivalence 36; assembler 76; mul 38.
 
 **Not done / limits:** constants, merges, branch, comparator, nano, accumulator, latch and the ack-driven sequencer on flex (each needs its handshake rule worked out and verified; the merge needs the "which source to acknowledge" decision, and Alan said the ack will push back on merges); the streaming tests check VALUES and ORDER, not the rate (flex's one-item-per-two-cycles is as measured in #934, not re-measured here); width is fixed at 32 (no `-w`/native width on the ICM path yet); the host-facing ack ports are a NEW contract for any design driving a flex design (the top has handshakes on every port); no place-and-route yet for flex designs; the VM catch-up (#927) and the deferred no-size fallback stand. Nothing has run on silicon.
+
+
+## 945. FLEX ICM GENERATION, STAGE 2: CONSTANTS. A constant is a fixed-mode ram (always valid, always ready, never used up) -- no fork, no ack. 20 of the 41 corpus programs now run on flex, each verified under streams with stalls.
+
+Alan: "start on the constants first, thanks."
+
+**The model, read from `ram_cell_v4sa.v`:** in fixed mode `valid_out = armed` (always valid once configured), `ack_out` is always high, and the data is loaded from `cfg_data` at configuration (`pending` logic is bypassed). `sub` takes the value from `preload_value` (falling back to `init_data`); flex mirrors that.
+**What changed (`tools/flexsub_icm_flex_v1.py`, and the stage-1 constants refusal removed from `plan()`):** a constant ROOT (a ram with `preload_value` or `fixed_mode` and no sources) is emitted as a fixed-mode ram with its value in `cfg_data`; it is offered to EVERY consumer with NO fork and NO ack (it is never "used up", so there is nothing to join on) and is not made a top-level entry; a two-operand join that includes one simply waits for the live operand (the join formula needed no change); a cell fed only by constants (the compiler's `constpad_*` relays) is an ordinary cell that keeps re-capturing, so the handshake paces it. Add-ons on a constant are wiring. **Refused:** an OUTPUT that depends only on constants (nothing live would pace it: the design would stream the same value for ever). `ASSEMBLY.json` lists `constants` and `const_derived`.
+
+**Verified (`tests/test_flexsub_flex_v1.py` now 33/33, was 24):**
+- **Corpus sweep:** the 41-program corpus's compiled programs through flex. **20 are accepted** -- each 12 items x 3 modes (plain, random stalls, heavy stall) == plain arithmetic, 7 of them using constants (x+5, x-5, 5-x, x*3, a negative constant, ...). The other 21 are REFUSED with a flex reason; none silently dropped.
+- one constant feeding TWO adders (K -> A1 and A2): no fork generated, and both consumers get it on every item (14 items x 3 modes);
+- a constant with an addon (5 << 2 = 20) + a stream: the flex stream == X + 20, and the first 6 items == the real VM (a fresh VM grid per item: the VM's constant is single-shot, #939);
+- **mutation controls:** a constant made flowing (never offered) and a constant whose value is zeroed -- both caught;
+- an output depending only on constants is refused; the cordic example is still refused, now ONLY for its branch (the test asserts constants are no longer a reason).
+
+**Why the other 21 are refused -- measured, and useful for what comes next:** every one is blocked by just TWO core kinds: **nano blocks 17 programs; comparator blocks 10**. 11 programs are blocked by nano alone and 4 by the comparator alone; 6 need both (icmp_eq, icmp_ne, select_min, select_max, abs, max3). **Merges and branches (the hard ones, flagged earlier) block NO corpus program** -- they matter for hand-built designs like cordic, not for compiled programs. So the next stage with the biggest payoff is nano (and comparator), not merges.
+
+**Suites:** flex 33; generator 37; loops 9; addon 21; level 16; sequencer 20; branch 19; merge 17; netlist 12; compile 13; corpus 47; family equivalence 36; assembler 76; mul 38.
+
+**Not done / limits:** nano and comparator on flex (next, by the numbers above); merges, branch, accumulator, latch, sequencer on flex; level sources (always-valid, like sub) not yet; the constant tests use the compiler's `constpad` relays and two hand-built designs -- a constant feeding a join whose live operand arrives much LATER than the constant is covered only by the stall modes, not by a dedicated test; throughput not re-measured (a constant-fed adder is paced by the live operand and by the re-capturing pad relays); width fixed at 32; no flex P&R; the VM catch-up (#927) and the deferred no-size fallback stand. Nothing has run on silicon.

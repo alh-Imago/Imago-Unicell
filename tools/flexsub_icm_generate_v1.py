@@ -473,13 +473,11 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub"):
         if is_source and r.core not in ("ram", "sequencer") and not (r.core == "branch" and c in branch_plans and branch_plans[c]["stream"] is None):
             problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
     if family == "flex":
-        # STAGE 1 of the flex emitter (the handshake family): ram, adder and mul only. Everything else is refused, with the reason, until it is built AND
+        # STAGES 1-2 of the flex emitter (the handshake family): ram, adder, mul and constants only. Everything else is refused, with the reason, until it is built AND
         # verified -- never silently mistranslated. Timing/alignment refusals below that only make sense for FIXED latency do not apply to a handshake design.
         for r in cells.values():
             if r.core not in FLEX_STAGE1_CORES:
                 problems.append(f"{r.cell_id}: core {r.core!r} is not yet translated on flex (stage 1 covers {sorted(FLEX_STAGE1_CORES)})")
-            if r.preload_value is not None or (r.core_config or {}).get("fixed_mode"):
-                problems.append(f"{r.cell_id}: a constant source is not yet translated on flex (stage 1)")
     if problems:
         raise IcmGenError(f"cannot generate {family} Verilog from %s:\n  - " % os.path.basename(icm_path) + "\n  - ".join(problems))
 

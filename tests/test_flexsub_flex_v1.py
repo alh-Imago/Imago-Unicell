@@ -212,6 +212,102 @@ try:
             check("TRUE_DIAMOND really has a diamond: a and b each fan out to two joins (2 forks, 5 joins)", len(rec["forks"]) == 2 and len(rec["joins"]) == 5, str((rec["forks"], rec["joins"])))
             diamond = (d, rec, streams, want)
 
+    print("CONSTANTS (stage 2): a constant is a fixed-mode ram (always valid, always ready, never used up) -- no fork, no ack")
+    import ast
+    csrc = open(os.path.join(ROOT, "tests", "test_flexsub_corpus_v1.py")).read()
+    node = next(n_ for n_ in ast.parse(csrc).body if isinstance(n_, ast.Assign) and getattr(n_.targets[0], "id", "") == "PROGRAMS")
+    cns = {"M": M}
+    exec(ast.get_source_segment(csrc, node), cns)
+    CORPUS = cns["PROGRAMS"]
+    accepted, refused, bad_programs, with_const = [], [], [], []
+    for name, args, body, ref in CORPUS:
+        a_list = args.split()
+        src = f"define i32 @f({', '.join('i32 %' + a for a in a_list)}) {{\nentry:\n  {body}\n  ret i32 %r\n}}\n"
+        file, report, diags = fc.compile_for_flexsub(src, name)
+        if file is None:
+            continue
+        icm = os.path.join(tmp, "c_" + name + ".icm")
+        file.save(icm)
+        d, r = build(tmp, "c_" + name, icm)
+        if r.returncode:
+            refused.append((name, "not yet translated on flex" in r.stderr))
+            continue
+        rec = json.load(open(os.path.join(d, "ASSEMBLY.json")))
+        top_text = open(os.path.join(d, rec["top"] + ".v")).read()
+        ports = set(re.findall(r"in_(\w+)_data", top_text))
+        n = 12
+        vals = {a: items(n) if k == 0 else [rnd.getrandbits(32) for _ in range(n)] for k, a in enumerate(a_list)}
+        streams = {re.sub(r"[^A-Za-z0-9_]", "_", c): vals[a] for a in a_list for c in report["arg_cells"][a] if re.sub(r"[^A-Za-z0-9_]", "_", c) in ports}
+        want = [ref({a: vals[a][k] for a in a_list}) & M for k in range(n)]
+        ok = True
+        for mode, seed in (("plain", 21), ("stall", 22), ("slow", 23)):
+            res, _ = run_stream(d, streams, mode, seed)
+            ok = ok and list(res.values())[0] == want
+        accepted.append(name)
+        if rec["constants"]:
+            with_const.append(name)
+        if not ok:
+            bad_programs.append(name)
+    check(f"corpus programs flex accepts: {len(accepted)} of {len(CORPUS)}, each 12 items x 3 modes (plain, stall, slow) == plain arithmetic ({len(with_const)} of them use constants)",
+          accepted and not bad_programs and len(with_const) >= 6, f"wrong: {bad_programs}; accepted {accepted}")
+    check(f"every other corpus program is REFUSED with a flex reason ({len(refused)}: {sorted(n_ for n_, _ in refused)[:6]}...), none silently dropped",
+          refused and all(flag for _, flag in refused), str([n_ for n_, flag in refused if not flag]))
+    check("constants really are in play: the accepted set includes x+5, x-5, 5-x, x*3 and a negative constant",
+          {"add_c5", "sub_c5", "rsub_c5", "mul_c3", "add_c_neg"} <= set(with_const), str(sorted(with_const)))
+
+    # one constant feeding TWO consumers (no fork, no ack): K -> ADD1 and ADD2, each also fed by its own stream
+    def rr(cid, r_, c_, up, dn, **kw):
+        return IcmV3Record(cell_id=cid, row=r_, col=c_, core="ram", core_config={"upstream_mask": up, "downstream_mask": dn}, **kw)
+    two = [rr("K", 1, 3, [], ["n", "s"], preload_value=7), rr("X1", 0, 1, [], ["e"]), rr("R1", 0, 2, ["w"], ["e"]),
+           IcmV3Record(cell_id="A1", row=0, col=3, core="adder", core_config={"upstream_mask": ["w", "s"], "downstream_mask": ["e"]}), rr("E1", 0, 4, ["w"], []),
+           rr("X2", 2, 1, [], ["e"]), rr("R2", 2, 2, ["w"], ["e"]),
+           IcmV3Record(cell_id="A2", row=2, col=3, core="adder", core_config={"upstream_mask": ["w", "n"], "downstream_mask": ["e"]}), rr("E2", 2, 4, ["w"], [])]
+    IcmV3File(name="two", records=two).save(os.path.join(tmp, "two.icm"))
+    d2, r2 = build(tmp, "two_consumers", os.path.join(tmp, "two.icm"))
+    check("one constant feeding two adders generates with NO fork (a constant is never used up)", r2.returncode == 0 and json.load(open(os.path.join(d2, "ASSEMBLY.json")))["forks"] == [], r2.stderr.strip()[:200])
+    if r2.returncode == 0:
+        sx = {"X1": items(14), "X2": [rnd.getrandbits(32) for _ in range(14)]}
+        wx = {"E1": [(v + 7) & M for v in sx["X1"]], "E2": [(v + 7) & M for v in sx["X2"]]}
+        bad = []
+        for mode, seed in (("plain", 31), ("stall", 32), ("slow", 33)):
+            res, _ = run_stream(d2, sx, mode, seed)
+            if res != wx:
+                bad.append((mode, {k: v[:2] for k, v in res.items()}))
+        check("both consumers get the constant on every item: E1 = X1 + 7, E2 = X2 + 7, 14 items x 3 modes", not bad, str(bad[:1]))
+        top2 = os.path.join(d2, json.load(open(os.path.join(d2, "ASSEMBLY.json")))["top"] + ".v")
+        orig2 = open(top2).read()
+        for mi, (label, pat, rep) in enumerate((("the constant is made FLOWING (nothing is ever offered): the design must not produce results", r"\.cfg_fixed_mode\(1'b1\)", ".cfg_fixed_mode(1'b0)"),
+                                ("the constant's VALUE is zeroed: wrong results", r"\.cfg_data\(32'h00000007\)", ".cfg_data(32'h00000000)"))):
+            txt = re.sub(pat, rep, orig2)
+            assert txt != orig2, pat
+            dm = os.path.join(tmp, f"mutc_{mi}")
+            shutil.copytree(d2, dm)
+            open(os.path.join(dm, os.path.basename(top2)), "w").write(txt)
+            res, _ = run_stream(dm, sx, "plain", 41, cycles=800)
+            check(f"mutant caught: {label}", res != wx, str({k: v[:2] for k, v in res.items()}))
+
+    # a constant with an addon (5 shifted left 2 = 20) added to a stream: flex stream vs the real VM, one call per VM grid (the VM's constant is single-shot)
+    sh = [rr("K", 0, 1, [], ["s"], addon_config={"shift_en": 1, "direction": 0, "shift_amt": 2}, preload_value=5),
+          rr("X", 2, 0, [], ["n"]), rr("Rx", 1, 0, ["s"], ["e"]),
+          IcmV3Record(cell_id="ADD", row=1, col=1, core="adder", core_config={"upstream_mask": ["w", "n"], "downstream_mask": ["e"]}), rr("E", 1, 2, ["w"], [])]
+    IcmV3File(name="sh", records=sh).save(os.path.join(tmp, "sh.icm"))
+    d3, r3 = build(tmp, "const_shift", os.path.join(tmp, "sh.icm"))
+    check("a constant source with an addon generates on flex", r3.returncode == 0, r3.stderr.strip()[:200])
+    if r3.returncode == 0:
+        xs = items(14)
+        res, _ = run_stream(d3, {"X": xs}, "stall", 51)
+        vmv = []
+        for x in xs[:6]:
+            g_ = vm.SuperGrid(sh)
+            for _ in range(8):
+                g_.tick()
+            g_.inject(2, 0, x)
+            for _ in range(40):
+                g_.tick()
+            vmv.append(g_.cells[(1, 2)].ram_data_reg if g_.cells[(1, 2)].ram_data_valid else None)
+        check(f"constant 5 << 2 = 20 plus a stream: flex stream == X + 20 for 14 items; the first 6 also == the real VM (a fresh grid per item)",
+              list(res.values())[0] == [(x + 20) & M for x in xs] and vmv == [(x + 20) & M for x in xs[:6]], f"flex={list(res.values())[0][:3]} vm={vmv[:3]}")
+
     print("MUTATION CONTROLS on the true diamond: break the fork / the join on purpose; the stall tests must catch each one")
     d0, rec0, streams0, want0 = diamond
     top0 = os.path.join(d0, rec0["top"] + ".v")
@@ -237,11 +333,14 @@ try:
 
     print("stage-1 refusals, each with its reason (never a silent mistranslation)")
     r = cli("-s", "flex", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json"), "--output", os.path.join(tmp, "g_c"))
-    check("cordic (branch, constants) is refused on flex with the reasons", r.returncode != 0 and "not yet translated on flex" in r.stderr and "branch" in r.stderr, r.stderr.strip()[:200])
-    file, report, _ = fc.compile_for_flexsub("define i32 @f(i32 %x) {\nentry:\n  %r = add i32 %x, 5\n  ret i32 %r\n}\n", "k")
-    file.save(os.path.join(tmp, "k.icm"))
+    check("the hand-built cordic is refused on flex for its BRANCH and merges (constants are translated now, so they are NOT a reason)",
+          r.returncode != 0 and "not yet translated on flex" in r.stderr and "branch" in r.stderr and "constant source" not in r.stderr, r.stderr.strip()[:260])
+    kconst = [IcmV3Record(cell_id="K", row=1, col=0, core="ram", core_config={"upstream_mask": [], "downstream_mask": ["e"]}, preload_value=9),
+              IcmV3Record(cell_id="R", row=1, col=1, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": ["e"]}),
+              IcmV3Record(cell_id="E", row=1, col=2, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": []})]
+    IcmV3File(name="k", records=kconst).save(os.path.join(tmp, "k.icm"))
     r = cli("-s", "flex", "--icm", os.path.join(tmp, "k.icm"), "--output", os.path.join(tmp, "g_k"))
-    check("a program with a constant (x + 5) is refused on flex (stage 1)", r.returncode != 0 and "constant" in r.stderr, r.stderr.strip()[:200])
+    check("an output that depends ONLY on constants is refused on flex (nothing live would pace it)", r.returncode != 0 and "only on constants" in r.stderr, r.stderr.strip()[:200])
     mrg = [IcmV3Record(cell_id=n_, row=rr, col=cc, core="ram", core_config={"upstream_mask": up, "downstream_mask": dn})
            for n_, rr, cc, up, dn in (("E1", 0, 1, [], ["s"]), ("E2", 1, 0, [], ["e"]), ("M", 1, 1, ["n", "w"], ["e"]), ("O", 1, 2, ["w"], []))]
     IcmV3File(name="m", records=mrg).save(os.path.join(tmp, "m.icm"))
