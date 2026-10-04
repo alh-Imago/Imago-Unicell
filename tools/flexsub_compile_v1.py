@@ -65,6 +65,13 @@ def compile_for_flexsub(source_text, name="prog"):
         return None, None, diagnostics
     recs, changed = retarget_records(result.records, result.seq_orders)
     at = {(r.row, r.col): r for r in recs}
+    # The saved ICM does not say which cell is the program's OUTPUT -- `result_cell` lives only in the compiler's memory (the same class of omission as
+    # the sequenced-priority order, #926). A result that ALSO feeds unused logic (an unrolled loop leaves dead iterations hanging off it) looks, from the
+    # file alone, exactly like a design whose last cell is the result. So record it with the format's own field: io_name is "a genuine external
+    # data entry/exit point" (icm_v3, #667). The name is `result`; the generator treats it as authoritative and prunes whatever cannot reach it.
+    rc = at.get(tuple(result.result_cell)) if getattr(result, "result_cell", None) is not None else None
+    if rc is not None and not rc.io_name:
+        rc.io_name = "result"
     step = {"n": (-1, 0), "s": (1, 0), "e": (0, 1), "w": (0, -1)}
 
     def entry_cell(pos):

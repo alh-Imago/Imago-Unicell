@@ -290,15 +290,58 @@ def plan(icm_path, align=True):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
     problems = []
+    for w_ in warnings:                    # a sender facing a neighbour that does NOT listen on that face is a malformed design, not a note
+        if "output dropped" in w_:
+            problems.append(f"{w_}. In the VM that offer is never accepted and the sender stalls for ever; fixed-latency wiring would silently drop it, "
+                            f"which is a different behaviour -- fix the wiring (the neighbour must listen on the opposite face).")
     # priority arbiters that only serialised two operands onto one input are eliminated (dedicated ports replace them)
     cells, inputs, outputs, tiekeys, eliminated, pri_problems = nl.eliminate_priority(cells, inputs, outputs)
     problems += pri_problems
     cells, inputs, outputs, branch_plans, br_problems = lower_branches(cells, inputs, outputs)
     problems += br_problems
+    # --- the design's OUTPUTS, and what is dead. A cell with a downstream face that LEAVES the grid is offering to the outside world (that is
+    # what the VM does with it), so it is an output -- even if it also feeds other cells. Only a design with NO such cell (hand-built exits that
+    # simply have nothing downstream) falls back to "a cell with nothing downstream". Found by a compiled loop: the compiler's result cell also fed
+    # unrolled iterations nobody uses, and the LAST of those dead adders was the only cell with no outgoing edge -- the old rule exported IT.
+    CYCLE_MSG = ("the design has a cycle (feedback). Counted loops compile UNROLLED into an acyclic graph (the LLVM frontend, #801) and DO translate; "
+                 "a genuine cycle is a ring whose exit depends on the data (e.g. #638's bounded-loop ring), so the number of times round it -- and "
+                 "therefore the output's arrival time -- is variable. Fixed-latency wiring cannot align a variable latency, and a second item entering "
+                 "while one is circulating would collide; that needs the handshake (flex) or an explicit one-item-at-a-time host contract. Not translated on sub.")
+    _, cyclic_pre = nl.hop_depths(cells, [(q, c_, None, None, ()) for c_, roles_ in inputs.items() for lst_ in roles_.values() for q, _ in lst_])
+    if cyclic_pre:
+        problems.append(CYCLE_MSG)                                  # checked on the WHOLE graph, before any pruning can hide a ring
+    marked = {c for c in cells if cells[c].io_name == "result"}
+    if marked:
+        exit_rule, exits_set = "marked io_name='result' (authoritative)", marked
+    elif any(ext_out.get(c) for c in cells):
+        exit_rule, exits_set = "face leaving the grid", {c for c in cells if ext_out.get(c)}
+    else:
+        exit_rule, exits_set = "sink inference (no marker in the file: the cell(s) with nothing downstream)", {c for c in cells if not outputs.get(c)}
+    if not exits_set:
+        problems.append("no output cell: nothing is marked `result`, no cell has a face leaving the grid, and every cell feeds another -- the file does not say what the design computes")
+    live, stack = set(exits_set), list(exits_set)
+    while stack:
+        c = stack.pop()
+        deps = [q for lst in inputs.get(c, {}).values() for q, _ in lst]
+        if c in branch_plans and branch_plans[c].get("const_ref"):
+            deps.append(branch_plans[c]["const_ref"])                 # a lowered branch reads its constant reference directly, not through an edge
+        for q in deps:
+            if q in cells and q not in live:
+                live.add(q)
+                stack.append(q)
+    pruned = sorted(set(cells) - live)
+    for c in pruned:
+        cells.pop(c, None)
+        inputs.pop(c, None)
+        outputs.pop(c, None)
+    for c in list(outputs):
+        outputs[c] = [q for q in outputs[c] if q in cells]
+    for c in list(inputs):
+        inputs[c] = {role: [(q, f) for q, f in lst if q in cells] for role, lst in inputs[c].items()}
+    branch_plans = {k: v for k, v in branch_plans.items() if k in cells}
     edges = [(src, dst) for dst, roles in inputs.items() for lst in roles.values() for src, _ in lst]
     depth, cyclic = nl.hop_depths(cells, [(s_, d_, None, None, ()) for s_, d_ in edges])
-    if cyclic:
-        problems.append("the design has a cycle (feedback) -- the fixed-latency translation has no rule for it yet")
+
     srcs_of = {c: [src for lst in inputs.get(c, {}).values() for src, _ in lst] for c in cells}
     addons = {}
     for r in cells.values():
@@ -463,7 +506,7 @@ def plan(icm_path, align=True):
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
             "eliminated_priority": eliminated, "const": const, "addons": addons, "merges": merges,
-            "branch_plans": branch_plans, "branch_port": branch_port}
+            "branch_plans": branch_plans, "branch_port": branch_port, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule}
 
 
 def emit_top(top, p, width=32):
@@ -478,7 +521,7 @@ def emit_top(top, p, width=32):
     a("`default_nettype none")
     a("`timescale 1ns / 1ps")
     entries = [c for c in p["order"] if not inputs.get(c) and c not in const]
-    exits = [c for c in p["order"] if not outputs.get(c)]
+    exits = list(p["exits"])
 
     def pname(io, cid):
         return re.sub(r"[^A-Za-z0-9_]", "_", io or cid)
@@ -683,7 +726,7 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
         f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top} -json {top}.json\nstat\n")
     rec = {"generator": "tools/flexsub_icm_generate_v1.py", "family": "sub", "source": os.path.basename(icm_path),
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
-           "output_latency_cycles": {c: p["t_out"][c] for c in p["order"] if not p["outputs"].get(c)},
+           "output_latency_cycles": {c: p["t_out"][c] for c in p["exits"]}, "pruned_dead_cells": p["pruned"], "exit_rule": p["exit_rule"],
            "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
            "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "level_sources": sorted(c for c in p["cells"] if is_level(p["cells"][c])),
            "sequencers": {c: {"advance_port": "adv_" + re.sub(r"[^A-Za-z0-9_]", "_", p["cells"][c].io_name or c),
