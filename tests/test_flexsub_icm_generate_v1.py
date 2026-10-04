@@ -38,7 +38,7 @@ def cli(*a):
     return subprocess.run(CLI + list(a), capture_output=True, text=True)
 
 
-def simulate(folder, values):
+def simulate(folder, values, names=None):
     """Drive 1-cycle valid pulses per input, record the output every cycle. `values` is ONE input set
     (list of ints, injected at cycle 0) or a LIST of sets injected on consecutive cycles (back-to-back
     items). Returns [(cycle, valid, data)]; cycle 0 = the first cycle an input valid is high."""
@@ -48,6 +48,8 @@ def simulate(folder, values):
     text = open(os.path.join(folder, top + ".v")).read()
     ins = re.findall(r"input\s+wire\s+\[31:0\]\s+in_(\w+)_data", text)
     outs = re.findall(r"output\s+wire\s+\[31:0\]\s+out_(\w+)_data", text)
+    if names:                                   # values are given in `names` order -> reorder to the top's own port order
+        sets = [[st[names.index(n)] for n in ins] for st in sets]
     assert all(len(st) == len(ins) for st in sets) and len(outs) == 1, (ins, outs)
     conn = ", ".join([f".in_{n}_data(d_{n}), .in_{n}_valid(v_{n})" for n in ins] + [f".out_{outs[0]}_data(od), .out_{outs[0]}_valid(ov)"])
     decl = "\n".join(f"  reg [31:0] d_{n} = 0; reg v_{n} = 0;" for n in ins)
@@ -144,6 +146,56 @@ try:
     bad = [(c, dv) for c, v, dv in simulate(dn, sets) if v]
     check("NEGATIVE CONTROL: unaligned BACK-TO-BACK items are wrong (items mix) -- so the padding does real work",
           bad != want and len(bad) == len(want), f"{bad} vs {want}")
+
+    print("COMPILED LLVM programs (ICM v3, as the compiler writes them): generated RTL vs the real VM")
+    try:
+        import llvmlite  # noqa: F401
+        have_llvm = True
+    except ImportError:
+        have_llvm = False
+        print("  SKIP  llvmlite not installed")
+    if have_llvm:
+        sys.path.insert(0, os.path.join(ROOT, "nano"))
+        import llvm_cli_v1
+        progs = {"add": "%a = add i32 %x, %y", "addyx": "%a = add i32 %y, %x"}
+        for name, body in progs.items():
+            src = os.path.join(tmp, name + ".ll")
+            open(src, "w").write(f"define i32 @f(i32 %x, i32 %y) {{\nentry:\n  {body}\n  ret i32 %a\n}}\n")
+            icm = os.path.join(tmp, name + ".icm")
+            check(f"{name}: compiles to ICM v3", llvm_cli_v1.main([src, "-o", icm]) == 0)
+            dc = os.path.join(tmp, "g_" + name)
+            r = cli("-s", "sub", "--icm", icm, "--output", dc)
+            check(f"{name}: generates (priority arbiter eliminated)", r.returncode == 0, r.stderr.strip()[:300])
+            rec = json.load(open(os.path.join(dc, "ASSEMBLY.json")))
+            check(f"{name}: one priority cell eliminated, 5 cells left", len(rec["eliminated_priority_cells"]) == 1 and rec["cells"] == 5, str(rec["eliminated_priority_cells"]))
+            doc, recs, cells, edges, inputs, outputs, ext, w = nl.extract(icm)
+            ents = sorted([c for c in recs if c.core == "ram" and not (c.core_config or {}).get("upstream_mask")], key=lambda c: (c.row, c.col))
+            port_names = [re.sub(r"[^A-Za-z0-9_]", "_", c.cell_id) for c in ents]
+            for x, y in ((6, 7), (100, 3), (0xFFFFFFFF, 2), (0, 0), (123456789, 987654321)):
+                got = [(c, dv) for c, v, dv in simulate(dc, [x, y], names=port_names) if v]
+                grid = vm.SuperGrid(recs)
+                for c, val in zip(ents, (x, y)):
+                    cell = grid.cells[(c.row, c.col)]
+                    cell.ram_data_reg, cell.ram_data_valid = val & 0xFFFFFFFF, True
+                ex = [c.cell_id for c in recs if not outputs.get(c.cell_id)][0]
+                exc = grid.cells[next((c.row, c.col) for c in recs if c.cell_id == ex)]
+                vmv = None
+                for _ in range(120):
+                    grid.tick()
+                    if getattr(exc, f"{exc.core}_data_valid", None):
+                        vmv = getattr(exc, f"{exc.core}_out_buffer")
+                        break
+                want = (x + y) & 0xFFFFFFFF
+                check(f"{name}({x}, {y}): RTL == VM == arithmetic ({want}), one pulse", got == [(3, want)] and vmv == want, f"rtl={got[:3]} vm={vmv} want={want}")
+        # a program that needs an ORDERED operand pair: the compiler uses the sequenced-channel priority, whose turn
+        # order is NOT recorded in the saved ICM v3 (found: the VM cannot run the saved file either) -> refused, with that reason
+        src = os.path.join(tmp, "subx.ll")
+        open(src, "w").write("define i32 @f(i32 %x, i32 %y) {\nentry:\n  %a = sub i32 %x, %y\n  ret i32 %a\n}\n")
+        icm = os.path.join(tmp, "subx.icm")
+        llvm_cli_v1.main([src, "-o", icm])
+        r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_subx"))
+        check("x - y (sequenced-channel priority, order not in the file): refused, names the reason",
+              r.returncode != 0 and "sequenced channel" in r.stderr, r.stderr.strip()[:240])
 
     print("refusals are specific, never silent")
     for label, args, needles in (

@@ -66,17 +66,39 @@ CONFIG_NOTES = {
 
 
 def _dirs(cfg, key):
+    """Direction letters, normalised to upper case: ICM-VIX files write "N","S", the compiler's ICM v3 writes "n","s"."""
     v = cfg.get(key)
     if v is None:
         return []
-    return [v] if isinstance(v, str) else list(v)
+    return [str(v).upper()] if isinstance(v, str) else [str(d).upper() for d in v]
+
+
+class _FlatDoc:
+    """Stand-in for IcmVixFile when the input is a flat ICM v3 file (no patterns, no advisory connections)."""
+    def __init__(self, path):
+        self.name = os.path.basename(path)
+
+    def check_connections(self):
+        return []
+
+
+def load_records(path):
+    """(doc, records) for either format: ICM-VIX (hierarchical, 'icm-vix-v1') or ICM v3 (flat, the LLVM
+    compiler's output). Detected from the file's own format_version, never from its extension."""
+    with open(path) as f:
+        head = json.load(f)
+    if str(head.get("format_version", "")).startswith("icm-vix"):
+        import icm_vix_v1 as vix
+        doc = vix.IcmVixFile.load(path)
+        recs, _ = doc.flatten()
+        return doc, recs
+    from icm_v3 import IcmV3File
+    return _FlatDoc(path), IcmV3File.load(path).records
 
 
 def extract(path):
     """Flatten the ICM-VIX file and derive the real netlist from masks + positions."""
-    import icm_vix_v1 as vix
-    doc = vix.IcmVixFile.load(path)
-    recs, _ = doc.flatten()
+    doc, recs = load_records(path)
     cells = {r.cell_id: r for r in recs}
     pos = {(r.row, r.col): r.cell_id for r in recs}
     edges, warnings = [], []
@@ -138,6 +160,50 @@ def hop_depths(cells, edges):
     return out, any(v is None for v in out.values())
 
 
+FACE_ORDER = "NSEW"
+
+
+def eliminate_priority(cells, inputs, outputs):
+    """Rewrite `priority -> two-operand cell` into direct operand wiring (the fixed-port families have
+    dedicated in_a/in_b, so the arbiter that serialised two operands onto ONE input is not needed).
+
+    The operand order the arbiter would have produced (read from the VM's _deliver_priority, mode 0):
+    it captures the FIRST arrival; among simultaneous candidates the LOWEST rank wins ("0 = highest"),
+    ties broken N > S > E > W. So A = earlier-arriving source; on an arrival tie, lower rank, then
+    N > S > E > W. Returns (cells, inputs, outputs, tiekeys, eliminated, problems); tiekeys[(cell, src)] =
+    (rank, face_index) is the tie-break for the pair now feeding `cell`.
+    Refused, with the reason: weighted round-robin / sequenced modes, a priority that does not feed exactly
+    one two-operand cell as that cell's only source, and anything but exactly two candidates."""
+    cells, inputs, outputs = dict(cells), {k: {r: list(v) for r, v in d.items()} for k, d in inputs.items()}, \
+        {k: list(v) for k, v in outputs.items()}
+    tiekeys, done, problems = {}, [], []
+    for pid in [c for c, r in cells.items() if r.core == "priority"]:
+        cfg = cells[pid].core_config or {}
+        srcs = inputs.get(pid, {}).get("in", [])
+        mode = cfg.get("scheduling_mode", 0)
+        cons = outputs.get(pid, [])
+        if mode != 0:
+            problems.append(f"{pid}: priority scheduling_mode={mode} ({'weighted round-robin' if mode == 1 else 'sequenced channel'}) "
+                            f"-- the arrival order depends on arbiter state, not wiring; only strict mode 0 is eliminable")
+            continue
+        if len(srcs) != 2 or len(cons) != 1:
+            problems.append(f"{pid}: priority has {len(srcs)} source(s) and {len(cons)} consumer(s); eliminable only as 2 -> 1")
+            continue
+        c = cons[0]
+        cin = inputs.get(c, {}).get("in", [])
+        if cells[c].core not in TWO_OPERAND or [x for x, _ in cin] != [pid]:
+            problems.append(f"{pid}: feeds {c} ({cells[c].core}) -- eliminable only when it is the SOLE source of a two-operand cell "
+                            f"(a priority in front of a one-input cell is stream arbitration, which has no fixed-port form)")
+            continue
+        for src, face in srcs:
+            tiekeys[(c, src)] = (cfg.get(f"priority_rank_{face.lower()}", 0), FACE_ORDER.index(face))
+            outputs[src] = [c if x == pid else x for x in outputs[src]]
+        inputs[c]["in"] = [(src, face) for src, face in srcs]
+        del cells[pid], inputs[pid], outputs[pid]
+        done.append(pid)
+    return cells, inputs, outputs, tiekeys, done, problems
+
+
 def analyse(path, family="flex"):
     import flexsub_assemble_v1 as fsa
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = extract(path)
@@ -178,6 +244,13 @@ def analyse(path, family="flex"):
         v["inputs"] = {role: [s for s, _ in srcs] for role, srcs in roles.items()}
         for role, srcs in roles.items():
             n = len(srcs)
+            if r.core == "priority" and role == "in":
+                mode = cfg.get("scheduling_mode", 0)
+                ranks = {f: cfg.get(f"priority_rank_{f.lower()}", 0) for _, f in srcs}
+                rep["findings"]["arbiter"].append(
+                    f"{cid}: priority arbiter, {n} sources {[x for x, _ in srcs]}, scheduling_mode={mode}, ranks={ranks} "
+                    f"-> serialises them one at a time (NOT an OR); eliminable when it feeds one two-operand cell and mode is 0")
+                continue
             if n > 1 and not (r.core in TWO_OPERAND and role == "in"):
                 rep["findings"]["merge"].append(f"{cid}: role {role!r} has {n} sources {[s for s, _ in srcs]} "
                                                 f"(VM OR-combines them) -> OR glue on data and valid")
@@ -206,6 +279,8 @@ def analyse(path, family="flex"):
                 rep["findings"]["constant"].append(f"{cid} ({r.core}): preload_value={r.preload_value} -> constant source (not a pin)")
             elif r.io_name:
                 rep["findings"]["entry"].append(f"{cid} ({r.core}) io_name={r.io_name!r}: no incoming edge -> top-level input")
+            elif r.core == "ram" and not _dirs(cfg, "upstream_mask"):
+                rep["findings"]["entry"].append(f"{cid} (ram): no upstream face -> injection point (compiled-program input)")
             else:
                 rep["findings"]["undriven"].append(f"{cid} ({r.core}): no incoming edge, no io_name, no preload -- source unclear")
         if not outputs.get(cid):
@@ -226,6 +301,7 @@ def format_report(rep):
          f"  cores: {rep['cores']}",
          f"  cells with no blocking issue: {rep['clean_cells']}/{rep['cells']}"]
     for k, title in (("entry", "top-level inputs"), ("constant", "constant sources"), ("undriven", "UNDRIVEN sources"),
+                     ("arbiter", "priority arbiters"),
                      ("exit", "observed outputs"), ("merge", "merges (OR-combine)"),
                      ("fan_out", "fan-outs"), ("two_operand", "two-operand cells (operand roles)")):
         items = rep["findings"].get(k, [])

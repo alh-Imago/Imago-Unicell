@@ -59,13 +59,17 @@ def plan(icm_path, align=True):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
     problems = []
-    depth, cyclic = nl.hop_depths(cells, edges)
+    # priority arbiters that only serialised two operands onto one input are eliminated (dedicated ports replace them)
+    cells, inputs, outputs, tiekeys, eliminated, pri_problems = nl.eliminate_priority(cells, inputs, outputs)
+    problems += pri_problems
+    edges = [(src, dst) for dst, roles in inputs.items() for lst in roles.values() for src, _ in lst]
+    depth, cyclic = nl.hop_depths(cells, [(s_, d_, None, None, ()) for s_, d_ in edges])
     if cyclic:
         problems.append("the design has a cycle (feedback) -- the fixed-latency translation has no rule for it yet")
-    for r in recs:
+    for r in cells.values():
         if r.core not in SUPPORTED_CORES:
             why = ("no v4s branch cell exists (branch_cell_v4sa is flex-only)" if r.core == "branch"
-                   else "not in this slice")
+                   else "arbiter that could not be eliminated (see above)" if r.core == "priority" else "not in this slice")
             problems.append(f"{r.cell_id}: core {r.core!r} unsupported on sub -- {why}")
         if r.addon_config:
             problems.append(f"{r.cell_id}: addon_config present -- needs shift/mask graph expansion (#905), not in this slice")
@@ -78,40 +82,41 @@ def plan(icm_path, align=True):
                                     f"(one stream carrying both operands needs a stagger spec -- not in this slice)")
             elif len(srcs) > 1:
                 problems.append(f"{r.cell_id}: {len(srcs)} sources on one input (a merge) -- gated-OR merge not in this slice")
-    for s, d, face, role, _ in edges:
-        if len(outputs[s]) > 1:
-            pass   # fan-out on sub is plain wires -- fine
     if problems:
         raise IcmGenError("cannot generate sub Verilog from %s:\n  - " % os.path.basename(icm_path) + "\n  - ".join(problems))
 
+    def role_key(c, src, t_out):
+        # earlier arrival first; on an arrival tie, the arbiter's own rule (lower rank, then N>S>E>W) if one existed
+        return (t_out[src], tiekeys.get((c, src), (0, 0)))
+
     # arrival time (cycles) at each cell's OUTPUT; entries (no incoming edge) are fed by a top-level port at t=0
     t_out, order = {}, []
-    preds = {c: [s for s, d, *_ in edges if d == c] for c in cells}
+    preds = {c: [src for src, _ in (e for lst in inputs.get(c, {}).values() for e in lst)] for c in cells}
     remaining = set(cells)
     while remaining:
-        ready = [c for c in sorted(remaining) if all(p in t_out for p in preds[c])]
+        ready = [c for c in sorted(remaining) if all(q in t_out for q in preds[c])]
         if not ready:
             raise IcmGenError("internal: dependency order could not be resolved")
         for c in ready:
             order.append(c)
-            t_in = max((t_out[p] for p in preds[c]), default=0)
+            t_in = max((t_out[q] for q in preds[c]), default=0)
             if cells[c].core == "adder":
-                (sa, _), (sb, _) = sorted(inputs[c]["in"], key=lambda sf: t_out[sf[0]])
-                if t_out[sa] == t_out[sb]:
-                    raise IcmGenError(f"{c}: both adder sources arrive at cycle {t_out[sa]} -- a same-time pair is an OR-combined "
-                                      f"single arrival in the VM; no operand order exists. Not in this slice.")
+                (sa, _), (sb, _) = sorted(inputs[c]["in"], key=lambda sf: role_key(c, sf[0], t_out))
+                if t_out[sa] == t_out[sb] and tiekeys.get((c, sa)) is None:
+                    raise IcmGenError(f"{c}: both adder sources arrive at cycle {t_out[sa]} with no arbiter to order them -- a same-time "
+                                      f"pair is an OR-combined single arrival in the VM; no operand order exists. Not in this slice.")
             t_out[c] = t_in + 1
             remaining.discard(c)
 
-    nets, pads, adder_roles = {}, {}, {}
+    adder_roles = {}
     for c in order:
-        r = cells[c]
-        if r.core == "adder":
-            ordered = sorted(inputs[c]["in"], key=lambda sf: t_out[sf[0]])
-            (sa, _), (sb, _) = ordered
-            adder_roles[c] = {"A": sa, "B": sb, "pad_A": t_out[sb] - t_out[sa] if align else 0}
+        if cells[c].core == "adder":
+            (sa, _), (sb, _) = sorted(inputs[c]["in"], key=lambda sf: role_key(c, sf[0], t_out))
+            adder_roles[c] = {"A": sa, "B": sb, "pad_A": max(0, t_out[sb] - t_out[sa]) if align else 0,
+                              "tie_broken_by_arbiter": tiekeys.get((c, sa)) is not None and t_out[sa] == t_out[sb]}
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
-            "t_out": t_out, "order": order, "adder_roles": adder_roles, "align": align, "warnings": warnings}
+            "t_out": t_out, "order": order, "adder_roles": adder_roles, "align": align, "warnings": warnings,
+            "eliminated_priority": eliminated}
 
 
 def emit_top(top, p, width=32):
@@ -205,6 +210,6 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
     rec = {"generator": "tools/flexsub_icm_generate_v1.py", "family": "sub", "source": os.path.basename(icm_path),
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["order"] if not p["outputs"].get(c)},
-           "adder_roles": p["adder_roles"], "files": files + [f"{top}.ys"]}
+           "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
     json.dump(rec, open(os.path.join(output, "ASSEMBLY.json"), "w"), indent=2)
     return rec
