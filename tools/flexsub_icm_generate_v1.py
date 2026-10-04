@@ -74,7 +74,19 @@ CORES = {
     # presented on the same cycle as the design's other arguments. The cell pulses the NEXT index's value, so the stored values are rotated one
     # step so the pulsed sequence starts at VALUE_0 and wraps like the VM's.
     "sequencer": {"kind": "tick", "module": "sequencer_cell_v4s"},
+    # accumulator / latch (Alan #938). In the VM a continuous-mode accumulator offers its running total, and a latch its 0/1 state, ALWAYS VALID
+    # (a LEVEL source); the v4s cells pulse valid_out only on an update. Rule: a level source's valid is held high; its valid_out pulse is unused.
+    # A pulse-mode accumulator already matches (a discrete event on the threshold crossing), so it stays an ordinary timed source.
+    "accumulator": {"kind": "level", "module": "accumulator_cell_v4s"},
+    "latch": {"kind": "level", "module": "latch_cell_v4s"},
 }
+_LEVEL_ALLOWED = {"accumulator": {"inc_dir", "dec_dir", "downstream_mask", "step_amount", "pulse_mode", "threshold"},
+                  "latch": {"set_dir", "clear_dir", "downstream_mask", "toggle_dir"}}
+
+
+def is_level(r):
+    """A VM level source: always-valid output. A continuous-mode accumulator or any latch (pulse mode is a discrete event, not a level)."""
+    return r.core == "latch" or (r.core == "accumulator" and not (r.core_config or {}).get("pulse_mode", 0))
 # The topology codes nano_cell_v4s actually implements (its `default` silently passes the held value -- never translate those).
 NANO_TOPOLOGIES = {0x000, 0x02C, 0x001, 0x002, 0x004, 0x007, 0x024, 0x027, 0x0BC, 0x03C, 0x030, 0x0B0}
 NANO_BENIGN_KEYS = {"ready", "routing_mask", "topology"}
@@ -268,6 +280,14 @@ def plan(icm_path, align=True):
                 problems.append(f"{c}: sequencer config uses {extra} -- only VALUE_0..3, SEQUENCE_LEN and downstream_mask are translated")
             if r.addon_config:
                 problems.append(f"{c}: addon_config on a sequencer is not translated")
+        if spec["kind"] == "level":
+            odd = sorted(k for k in (r.core_config or {}) if k not in _LEVEL_ALLOWED[r.core])
+            if odd:
+                problems.append(f"{c}: {r.core} config uses {odd} -- only {sorted(_LEVEL_ALLOWED[r.core])} are translated")
+            if r.addon_config:
+                problems.append(f"{c}: addon_config on a {r.core} is not translated")
+            if not srcs_of[c]:
+                problems.append(f"{c}: {r.core} with no pulse input connected -- nothing can ever change it")
         seq_srcs = [q for q in srcs_of[c] if cells[q].core == "sequencer"]
         if seq_srcs and (spec["kind"] == "pair" or len(srcs_of[c]) > 1):
             problems.append(f"{c}: fed by sequencer {seq_srcs} together with other sources. The VM's sequencer is perpetually live and re-offers at once, "
@@ -287,6 +307,8 @@ def plan(icm_path, align=True):
 
     # constant-valued nodes: preloaded / fixed-mode source rams and anything fed only by them (always available)
     const = {c for c, r in cells.items() if not srcs_of[c] and (r.preload_value is not None or (r.core_config or {}).get("fixed_mode"))}
+    level = {c for c, r in cells.items() if is_level(r)}
+    const |= level                       # a level source is ALWAYS VALID: for timing it behaves like a constant (its data changes, its availability does not)
     grew = True
     while grew:
         grew = False
@@ -294,6 +316,18 @@ def plan(icm_path, align=True):
             if c not in const and srcs_of[c] and all(q in const for q in srcs_of[c]) and not cells[c].io_name:
                 const.add(c)
                 grew = True
+
+    for c in cells:                      # a level/constant source into a COUNTING or TOGGLING input is rate-dependent -> refuse
+        r = cells[c]
+        if CORES[r.core]["kind"] != "level":
+            continue
+        for role, lst in inputs.get(c, {}).items():
+            rate_dependent = (r.core == "accumulator" and role in ("inc", "dec")) or (r.core == "latch" and role == "toggle")
+            bad = [q for q, _ in lst if q in const]
+            if rate_dependent and bad:
+                raise IcmGenError(f"{c}: {bad} is an always-valid (constant or level) source feeding the {role} input of a {r.core}. The VM counts/toggles once "
+                                  f"per DRAINED OFFER while this design does so once per CYCLE, so the result would depend on the rate -- not translated. "
+                                  f"(set/clear from a level source is idempotent and is translated.)")
 
     order = []
     remaining = set(cells)
@@ -316,7 +350,7 @@ def plan(icm_path, align=True):
         t_vm[c] = max((t_vm[q] for q in srcs), default=0) + 1 + (1 if "merge_removed" in branch_plans.get(c, {}) else 0)
         if CORES[r.core]["kind"] == "pair":
             if all(q in const for q in srcs):
-                raise IcmGenError(f"{c}: both operands are constants -- the compiler should have folded it")
+                raise IcmGenError(f"{c}: both operands are constant or level (always-valid) sources -- nothing live to time the result by")
             tks = [tiekeys.get((c, q)) for q in srcs]
             if all(t is not None for t in tks) and tks[0][0] != tks[1][0]:
                 # DIFFERENT ranks (a file written by flexsub_compile_v1, #929): rank DEFINES operand identity, because this
@@ -354,7 +388,7 @@ def plan(icm_path, align=True):
                         "valid_from": valid_from, "const_operands": [q for q in (sa, sb) if q in const]}
         else:
             live = [q for q in srcs if q not in const]
-            if len(srcs) > 1:                                        # a MERGE (gated OR, Alan #924: "a free OR when needed")
+            if len(srcs) > 1 and CORES[r.core]["kind"] != "level":   # a MERGE (gated OR, Alan #924: "a free OR when needed")
                 if len(live) != len(srcs):
                     raise IcmGenError(f"{c}: a merge that includes a constant source -- the constant is always valid, so the OR "
                                       f"would swamp the stream; no definite behaviour. Not translated.")
@@ -509,6 +543,28 @@ def emit_top(top, p, width=32):
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, .cfg_emit_fixed_value({hexw(bp['emit_fixed'])}), "
               f".in1_data({d1}), .in1_valid({v1}), .in2_data({d2}), .in2_valid({v2}), "
               f".data_out_1({i}_d1), .valid_out_1({i}_v1), .data_out_2({i}_d2), .valid_out_2({i}_v2));")
+        elif CORES[r.core]["kind"] == "level":
+            roles_ = inputs.get(c, {})
+
+            def any_valid(role, gate_bit0=False):
+                terms = []
+                for q, _ in roles_.get(role, []):
+                    d_, v_ = net(c, q)
+                    terms.append(f"({v_} & {d_}[0])" if gate_bit0 else v_)
+                return " | ".join(terms) if terms else "1'b0"
+            lvl = is_level(r)
+            pv = f"{i}_pulse" if lvl else out_v                      # a level cell's own valid pulse is unused; a pulse-mode accumulator's IS the output valid
+            if lvl:
+                a(f"wire {pv};")
+            if r.core == "accumulator":
+                word = (int(cfg.get("step_amount", 0)) & 0xFF) | ((1 if cfg.get("pulse_mode", 0) else 0) << 8) | ((int(cfg.get("threshold", 0)) & 0xFFFF) << 9)
+                a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({cfg_args(hexw(word))}, .inc_pulse({any_valid('inc')}), .dec_pulse({any_valid('dec')}), "
+                  f".data_out({out_d}), .valid_out({pv}));")
+            else:
+                a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({cfg_args()}, .set_in({any_valid('set', True)}), .clear_in({any_valid('clear')}), "
+                  f".toggle_in({any_valid('toggle')}), .data_out({out_d}), .valid_out({pv}));")
+            if lvl:
+                a(f"assign {out_v} = 1'b1;   // LEVEL source (Alan #938): the VM offers this always valid; the cell's own valid pulse ({pv}) is unused")
         elif r.core == "sequencer":
             n_ = pname(r.io_name, c)
             vals = [int(cfg.get(f"VALUE_{k}", 0)) & 0xFF for k in range(4)]
@@ -571,7 +627,7 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["order"] if not p["outputs"].get(c)},
            "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "shift_stages": {c: list(v) for c, v in p["shifts"].items()},
-           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"],
+           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "level_sources": sorted(c for c in p["cells"] if is_level(p["cells"][c])),
            "sequencers": {c: {"advance_port": "adv_" + re.sub(r"[^A-Za-z0-9_]", "_", p["cells"][c].io_name or c),
                               "length": int((p["cells"][c].core_config or {}).get("SEQUENCE_LEN", 0) & 3) + 1}
                           for c in p["cells"] if p["cells"][c].core == "sequencer"}, "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
