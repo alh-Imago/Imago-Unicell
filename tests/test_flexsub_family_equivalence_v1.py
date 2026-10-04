@@ -25,6 +25,8 @@ import flexsub_assemble_v1 as fsa  # noqa: E402
 SUBV = ROOT + "/sub/verilog"
 common = sorted(set(fsa.cells_for("flex")) & set(fsa.cells_for("sub")))
 CFGS = [0xA5C35A3C, 0x13572468, 0xFEDCBA98]
+BRANCH_RAW = [0x396, 0x24D, 0x3FE, 0x000, 0x2C5, 0x0B1]
+BRANCH_FREE_RUNNING = 0x3FF     # both inputs fixed: the cell fires EVERY cycle on its own -- the throughput case, asserted separately
 passed = failed = 0
 
 
@@ -45,10 +47,10 @@ def mult_stubs(path):
     open(path, "w").write("\n\n".join(out) + "\n")
 
 
-def build(base, cfgw):
+def build(base, cfgw, raw=False):
     sh=fsa.SHAPES[base]
     mods={f: fsa.cell_module(base,f) for f in ("flex","sub")}
-    if sh.get('cfg')=='live': cfgw=(cfgw | sh.get('cfg_or',0)) & ~sh.get('cfg_clr',0) & 0xFFFFFFFF
+    if sh.get('cfg')=='live' and not raw: cfgw=(cfgw | sh.get('cfg_or',0)) & ~sh.get('cfg_clr',0) & 0xFFFFFFFF
     L=["`timescale 1ns/1ps","module tb;","  reg clk=0, rst=1, cfg_valid=0; always #5 clk=~clk;",
        "  reg [31:0] l1=32'hACE11234, l2=32'h13579BDF, l3=32'h2468ACE0;",
        "  always @(posedge clk) begin l1<={l1[30:0],l1[31]^l1[21]^l1[1]^l1[0]}; l2<={l2[30:0],l2[31]^l2[27]^l2[1]^l2[0]}; l3<={l3[30:0],l3[31]^l3[25]^l3[3]^l3[0]}; end",
@@ -64,7 +66,9 @@ def build(base, cfgw):
         for k,p in enumerate(sh.get("stim_data",[])): c.append((p,f"sd{k}"))
         for k,p in enumerate(sh.get("stim_ctrl",[])): c.append((p,f"sc[{k}]"))
         if sh.get("in_valid"): c.append((sh["in_valid"],"vin"))
-        for p,v in sh.get("consts",{}).items(): c.append((p,v))
+        for p,v in sh.get("consts",{}).items():
+            if raw and base == "branch" and p == "in2_valid": v = "vin"   # a held in1 + an always-valid in2 would fire EVERY cycle (the throughput case, not isolated items)
+            c.append((p,v))
         ack = fam=="flex"
         if ack and sh.get("ack_out"): L.append(f"  wire {fam}_ackout;"); c.append((sh["ack_out"],f"{fam}_ackout"))
         L.append(f"  wire [31:0] {fam}_d; wire {fam}_v;"); c.append((sh["out"][0],f"{fam}_d")); c.append((sh["out"][1],f"{fam}_v"))
@@ -86,16 +90,17 @@ def build(base, cfgw):
         "  always @(posedge clk) if (!rst && cfg_done) begin",
         f"    n=n+1; if ({vmis}) begin vm=vm+1; if (first<0) first=n; end",
         f"    if ({dmis}) dm=dm+1;  if ({dmis_v}) dmv=dmv+1;",
-        "    if (flex_v) begin nv=nv+1; if (fv_first<0) fv_first=n; end if (sub_v) begin sv=sv+1; if (sv_first<0) sv_first=n; end end",
+        "    if (FANY) begin nv=nv+1; if (fv_first<0) fv_first=n; end if (SANY) begin sv=sv+1; if (sv_first<0) sv_first=n; end end",
         "  reg cfg_done=0; integer c;",
         "  initial begin repeat(4) @(posedge clk); #1 rst=0; @(posedge clk); #1 cfg_valid=1; @(posedge clk); #1 cfg_valid=0;",
         "    repeat(6) @(posedge clk); #1 cfg_done=1; repeat(8000) @(posedge clk);",
         '    $display("RES cycles=%0d valid_mismatch=%0d data_mismatch_any=%0d data_mismatch_when_valid=%0d first_valid_mismatch_cycle=%0d flex_pulses=%0d sub_pulses=%0d first_flex_valid@%0d first_sub_valid@%0d", n, vm, dm, dmv, first, nv, sv, fv_first, sv_first); $finish; end',
         "endmodule"]
-    return "\n".join(L)
-def run(base, cfgw):
+    fany=" | ".join(["flex_v"]+[f"flex_s{k}v" for k in range(len(sh.get("side",[])))]); sany=" | ".join(["sub_v"]+[f"sub_s{k}v" for k in range(len(sh.get("side",[])))])
+    return "\n".join(L).replace("FANY",fany).replace("SANY",sany)
+def run(base, cfgw, raw=False):
     d=f"{TMP}/{base}_{cfgw:08x}"; os.makedirs(d,exist_ok=True)
-    open(f"{d}/tb.v","w").write(build(base,cfgw))
+    open(f"{d}/tb.v","w").write(build(base,cfgw,raw))
     sh=fsa.SHAPES[base]
     files=[f"{SUBV}/{fsa.cell_module(base,'flex')}.v", f"{SUBV}/{fsa.cell_module(base,'sub')}.v", f"{ROOT}/fpga/verilog/adder_v1.v", f"{ROOT}/fpga/verilog/bitwise_multiplier_32bit.v", f"{ROOT}/fpga/verilog/nibble_mask_addon_v1.v"]
     if base.startswith("mul_dsp"): files.append(TMP + "/mult_stubs.v")
@@ -119,13 +124,23 @@ try:
 
     print("2. function: flex (default width, handshake tied off) == sub, cycle for cycle, isolated items")
     for base in common:
-        cfgs = CFGS if fsa.SHAPES[base].get("cfg") == "live" else CFGS[:1]
-        for cfg in cfgs:
-            res = run(base, cfg)
+        cfgs = [(c, False) for c in (CFGS if fsa.SHAPES[base].get("cfg") == "live" else CFGS[:1])]
+        if base == "branch":     # raw words (no pinning): fixed-reference modes, every emit_source, every routing combination
+            cfgs += [(w, True) for w in BRANCH_RAW]
+        for cfg, raw in cfgs:
+            res = run(base, cfg, raw)
             m = re.search(r"valid_mismatch=(\d+) data_mismatch_any=\d+ data_mismatch_when_valid=(\d+) first_valid_mismatch_cycle=(-?\d+) "
-                          r"flex_pulses=(\d+) sub_pulses=(\d+) first_flex_valid@(\d+) first_sub_valid@(\d+)", res)
-            ok = bool(m) and m.group(1) == "0" and m.group(2) == "0" and m.group(4) == m.group(5) and int(m.group(4)) > 0 and m.group(6) == m.group(7)
+                          r"flex_pulses=(\d+) sub_pulses=(\d+) first_flex_valid@(-?\d+) first_sub_valid@(-?\d+)", res)
+            silent_ok = base == "branch" and raw and cfg == 0           # cfg 0 routes every outcome to neither: identical SILENCE is the expected result
+            ok = bool(m) and m.group(1) == "0" and m.group(2) == "0" and m.group(4) == m.group(5) and (int(m.group(4)) > 0 or silent_ok) and m.group(6) == m.group(7)
             check(f"{base} cfg={cfg:#010x}: identical valid, identical data when valid, identical latency ({m.group(4) if m else '?'} items)", ok, res[:200])
+
+    print("2b. a branch with BOTH inputs fixed is a free-running comparator (fires every cycle): the throughput difference again")
+    res = run("branch", BRANCH_FREE_RUNNING, True)
+    m = re.search(r"flex_pulses=(\d+) sub_pulses=(\d+)", res)
+    fp, sp = (int(m.group(1)), int(m.group(2))) if m else (None, None)
+    check(f"both-fixed branch: flex fires {fp}, sub fires {sp} over the same cycles (sub = one per cycle, flex = one per two)",
+          m is not None and fp > 0 and 1.8 <= sp / fp <= 2.2, res[:160])
 
     print("3. throughput: the one difference (measured on the adder)")
     tb = """`timescale 1ns/1ps

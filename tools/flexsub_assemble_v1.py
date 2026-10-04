@@ -105,7 +105,7 @@ SHAPES = {
                    out=("data_out_a", "valid_out_a"), ack_out="ack_out", ack_in="ack_in_a",
                    side=[("data_out_b", "valid_out_b", "ack_in_b")],
                    cfg="live", cfg_or=0x1),                        # keep output A enabled so the chain flows
-    "branch": dict(file=("branch_cell", ""), families=("flex",), in_data="in1_data", in_valid="in1_valid",
+    "branch": dict(file=("branch_cell", ""), in_data="in1_data", in_valid="in1_valid",
                    out=("data_out_1", "valid_out_1"), ack_out="ack_out", ack_in="ack_in_1",
                    side=[("data_out_2", "valid_out_2", "ack_in_2")],
                    stim_data=["in2_data", "cfg_emit_fixed_value"], consts={"in2_valid": "1'b1"},

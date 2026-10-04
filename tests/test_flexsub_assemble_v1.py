@@ -112,7 +112,7 @@ try:
     for given, want in (("adder", "adder"), ("adder_cell", "adder"), ("adder_cell_v4sa", "adder"),
                         ("mul_cell_v4sa_dsp", "mul_dsp"), ("mul_dsp3", "mul_dsp3"), ("shift_stage_v4s", "shift_stage")):
         check(f"normalise {given!r} -> {want!r}", fsa.normalise_cell_name(given) == want, fsa.normalise_cell_name(given))
-    check("flex has 13 cells, sub has 15", len(fsa.cells_for("flex")) == 13 and len(fsa.cells_for("sub")) == 15,
+    check("flex has 13 cells, sub has 16 (branch_cell_v4s completes the sub set)", len(fsa.cells_for("flex")) == 13 and len(fsa.cells_for("sub")) == 16,
           f"{len(fsa.cells_for('flex'))}/{len(fsa.cells_for('sub'))}")
 
     print("CLI generation + error paths")
@@ -130,8 +130,7 @@ try:
     check("adder folder carries adder_v1.v (shared primitive from fpga/verilog)", os.path.exists(os.path.join(a, "adder_v1.v")))
     for label, args in (("flex without --man/-w", ["-s", "flex", "-S", "adder"]),
                         ("unsupported cell (command)", ["--man", TANG, "-s", "flex", "-S", "command"]),
-                        ("cell not in this family (branch has no v4s)", ["--man", TANG, "-s", "sub", "-S", "branch"]),
-                        ("cell not in this family (shift is sub-only)", ["--man", TANG, "-s", "flex", "-S", "shift"]),
+                                                ("cell not in this family (shift is sub-only)", ["--man", TANG, "-s", "flex", "-S", "shift"]),
                         ("flex without -S", ["--man", TANG, "-s", "flex"]),
                         ("-w with sub", ["--man", TANG, "-s", "sub", "-S", "adder", "-w", "18"]),
                         ("mul_dsp above its 36-bit ceiling", ["--man", TANG, "-s", "flex", "-S", "mul_dsp", "-w", "40"]),
