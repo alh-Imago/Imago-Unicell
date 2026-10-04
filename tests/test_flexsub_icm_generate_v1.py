@@ -199,12 +199,14 @@ try:
 
     print("refusals are specific, never silent")
     for label, args, needles in (
-                        ("cordic on sub (branch only: constants AND merges are translated now)", ["-s", "sub", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json")], ["branch"]),
-            ("flex --icm not built", ["-s", "flex", "--icm", path], ["flex"]),
+                        ("flex --icm not built", ["-s", "flex", "--icm", path], ["flex"]),
             ("--icm without -s", ["--icm", path], ["-s sub"])):
         r = cli(*args, "--output", os.path.join(tmp, "ref"))
         check(f"{label}: refused, names the reason", r.returncode != 0 and all(n in r.stderr for n in needles)
               and (("constant" not in r.stderr and "merge" not in r.stderr) if "cordic" in label else True), r.stderr.strip()[:200])
+    r = cli("-s", "sub", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json"), "--output", os.path.join(tmp, "g_cordic"))
+    check("cordic NOW generates on sub (branch lowered, constant-reference merges removed); its RTL-vs-VM proof is tests/test_flexsub_branch_v1.py",
+          r.returncode == 0, r.stderr.strip()[:240])
     r = cli("--man", os.path.join(ROOT, "docs", "man", "mustang-f100-a10.man.json"), "--output", os.path.join(tmp, "z"))
     check("default path still reports every missing required argument", r.returncode == 2 and "--man" not in r.stderr.split("required:")[-1] and "--cells" in r.stderr, r.stderr.strip()[-120:])
     r = cli("--output", os.path.join(tmp, "z"))

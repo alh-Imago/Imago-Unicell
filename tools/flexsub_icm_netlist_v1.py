@@ -70,6 +70,14 @@ def _dirs(cfg, key):
     v = cfg.get(key)
     if v is None:
         return []
+    if isinstance(v, bool):
+        return []
+    if isinstance(v, int):
+        # ICM v3 keeps some fields as RAW INTS: `upstream_dir` is a single direction CODE (0=N 1=S 2=E 3=W, icm_v3.py: "not a one-hot
+        # mask"); every other direction field, as an int, is a one-hot bitmask with the same bit order (n=0, s=1, e=2, w=3).
+        if key == "upstream_dir":
+            return ["NSEW"[v]] if 0 <= v <= 3 else []
+        return [d for b, d in enumerate("NSEW") if (v >> b) & 1]
     return [str(v).upper()] if isinstance(v, str) else [str(d).upper() for d in v]
 
 

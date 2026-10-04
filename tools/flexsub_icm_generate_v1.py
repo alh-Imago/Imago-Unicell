@@ -35,6 +35,7 @@ Output folder: <top>.v (the design), the cell files + dependencies, <top>.ys (sy
 The top has ports clk, rst, cfg_valid (one pulse after reset arms every cell), and for each io_name:
 in_<name>_data[31:0] / in_<name>_valid, out_<name>_data[31:0] / out_<name>_valid.
 """
+import copy
 import json
 import os
 import re
@@ -65,6 +66,9 @@ CORES = {
     # nano: first arrival = HELD operand A (registered, loaded by load_hold), second = FLOWING operand B. The held register
     # is loaded a cycle before the gate sees it, so A must arrive exactly ONE cycle before B (unlike adder/mul).
     "nano": {"kind": "pair", "module": "nano_cell_v4s", "hold_flow": True},
+    # branch (Alan #935: branch_cell_v4s completes the sub set). One ICM input, a held-reference compare, per-outcome routing to FACES;
+    # lowered by lower_branches() below onto the cell's two inputs and two output ports.
+    "branch": {"kind": "branch", "module": "branch_cell_v4s"},
 }
 # The topology codes nano_cell_v4s actually implements (its `default` silently passes the held value -- never translate those).
 NANO_TOPOLOGIES = {0x000, 0x02C, 0x001, 0x002, 0x004, 0x007, 0x024, 0x027, 0x0BC, 0x03C, 0x030, 0x0B0}
@@ -92,6 +96,127 @@ def decode_addon(r):
     return fine + coarse, 1 if ad.get("direction", 0) else 0, None
 
 
+def _const_set(cells, inputs):
+    """Constant-valued nodes: preloaded / fixed-mode source rams, and anything fed only by them (always available)."""
+    srcs = {c: [q for lst in inputs.get(c, {}).values() for q, _ in lst] for c in cells}
+    const = {c for c, r in cells.items() if not srcs[c] and (r.preload_value is not None or (r.core_config or {}).get("fixed_mode"))}
+    grew = True
+    while grew:
+        grew = False
+        for c in cells:
+            if c not in const and srcs[c] and all(q in const for q in srcs[c]) and not cells[c].io_name:   # an io_name = an external input too
+                const.add(c)
+                grew = True
+    return const
+
+
+_OUTCOMES = ("low", "equal", "high")
+_FACE_OPP = {"N": "S", "S": "N", "E": "W", "W": "E"}
+
+
+def lower_branches(cells, inputs, outputs):
+    """Lower each ICM `branch` onto branch_cell_v4s. The VM's branch is a HELD-REFERENCE comparator (read from _deliver_branch): the
+    FIRST arrival on its one upstream face is captured as the reference and produces nothing; every later arrival is compared
+    (signed) with it; the outcome (low / equal / high) picks {value source, emit, route faces}; with `rolling_mode` the value just
+    compared becomes the new reference. Onto the cell's two dedicated inputs that is:
+      const_ref -- the branch is fed by a MERGE of a constant and a stream (how the hand-built cordic loads its reference: the
+                   constant arrives first). The merge disappears: in1 = the stream, in2 = the constant (flowing, valid = the
+                   constant's own valid), so every stream value is compared with it. [needs rolling_mode = 0]
+      rolling   -- rolling_mode = 1: the stream feeds BOTH inputs and in2 is a HELD input loaded by the same valid: the compare uses
+                   the previous value (the cell reads its held register before updating it) and the very first arrival finds nothing
+                   loaded, so it becomes the reference without an output -- exactly the VM.
+    Refused, each with its reason: a reference that is the first arrival of a plain stream with rolling off (it needs a
+    "first only" state bit -- control, which the sub family does not have); value sources / fixed values that differ among the
+    emitting outcomes (the cell has ONE shared emit_source); more than two routed faces (the cell has two outputs); a routed face
+    with no cell on it; a branch fed only by constants.
+    Returns (cells, inputs, outputs, plans, problems)."""
+    cells = dict(cells)
+    inputs = {k: {r: list(v) for r, v in d.items()} for k, d in inputs.items()}
+    outputs = {k: list(v) for k, v in outputs.items()}
+    plans, problems = {}, []
+    const = _const_set(cells, inputs)
+    for bid in [c for c, r in cells.items() if r.core == "branch"]:
+        cfg = cells[bid].core_config or {}
+        srcs = inputs.get(bid, {}).get("in", [])
+        if len(srcs) != 1:
+            problems.append(f"{bid}: branch has {len(srcs)} sources; the ICM branch has exactly one upstream face")
+            continue
+        s0 = srcs[0][0]
+        vs = {k: int(cfg.get(f"value_source_{k}", 0)) for k in _OUTCOMES}
+        fv = {k: int(cfg.get(f"fixed_value_{k}", 0)) for k in _OUTCOMES}
+        em = {k: int(cfg.get(f"emit_{k}", 1)) for k in _OUTCOMES}
+        routes = {k: [str(d).upper() for d in (cfg.get(f"route_{k}") or [])] for k in _OUTCOMES}
+        emitting = [k for k in _OUTCOMES if em[k]]
+        if len({vs[k] for k in emitting}) > 1:
+            problems.append(f"{bid}: value_source differs among the emitting outcomes {({k: vs[k] for k in emitting})} -- the cell has ONE shared emit_source")
+            continue
+        fixed_source = bool(emitting) and vs[emitting[0]] == 1
+        if fixed_source and len({fv[k] & 0x7F for k in emitting}) > 1:
+            problems.append(f"{bid}: fixed_value differs among the emitting outcomes -- the cell has ONE shared emit constant")
+            continue
+        faces = []
+        for k in emitting:
+            for d in routes[k]:
+                if d not in faces:
+                    faces.append(d)
+        if len(faces) > 2:
+            problems.append(f"{bid}: routes to {len(faces)} distinct faces {faces}; branch_cell_v4s has two outputs")
+            continue
+        port = {d: i + 1 for i, d in enumerate(faces)}
+        consumers = {}
+        for dst, roles in inputs.items():
+            for lst in roles.values():
+                for q, face_at_dst in lst:
+                    if q == bid:
+                        consumers[_FACE_OPP[face_at_dst]] = dst
+        missing = [d for d in faces if d not in consumers]
+        if missing:
+            problems.append(f"{bid}: routes to face(s) {missing} where no cell listens -- an external/dangling branch output is not translated")
+            continue
+        rolling = bool(cfg.get("rolling_mode", 0))
+        m = cells[s0]
+        plan_ = {"emit_source": 0 if fixed_source else 1, "emit_fixed": (fv[emitting[0]] & 0x7F) if fixed_source else 0,
+                 "route_bits": {k: sum(1 << (port[d] - 1) for d in routes[k]) if em[k] else 0 for k in _OUTCOMES},
+                 "ports": port, "rolling": rolling, "stream": s0, "const_ref": None}
+        if s0 in const:
+            problems.append(f"{bid}: fed only by a constant ({s0}) -- no stream to compare")
+            continue
+        m_srcs = [q for q, _ in inputs.get(s0, {}).get("in", [])]
+        graph_stream = (m.core == "ram" and not m.addon_config and outputs.get(s0) == [bid] and len(m_srcs) == 2
+                        and sum(q in const for q in m_srcs) == 1)
+        entry_stream = (m.core == "ram" and not m.addon_config and outputs.get(s0) == [bid] and len(m_srcs) == 1
+                        and m_srcs[0] in const and bool(m.io_name))      # the merge's stream is its OWN external entry (cordic's z_input)
+        if graph_stream or entry_stream:
+            if rolling:
+                problems.append(f"{bid}: a constant-reference merge together with rolling_mode (a constant first reference THEN rolling) needs a mux -- not translated")
+                continue
+            if graph_stream:
+                k = next(q for q in m_srcs if q in const)
+                x = next(q for q in m_srcs if q not in const)
+                face_x = next(f for q, f in inputs[s0]["in"] if q == x)
+                inputs[bid]["in"] = [(x, face_x)]                       # the merge is removed: the stream feeds the branch directly
+                outputs[x] = [bid if q == s0 else q for q in outputs[x]]
+                outputs[k] = [bid if q == s0 else q for q in outputs[k]]
+                plan_.update({"mode": "const_ref", "stream": x, "const_ref": k, "merge_removed": s0})
+            else:
+                k = m_srcs[0]
+                inputs[bid].pop("in", None)                             # the branch BECOMES the entry point, under the merge's io_name
+                outputs[k] = [bid if q == s0 else q for q in outputs[k]]
+                nb = copy.copy(cells[bid])
+                nb.io_name = m.io_name
+                cells[bid] = nb
+                plan_.update({"mode": "const_ref", "stream": None, "const_ref": k, "merge_removed": s0, "entry_io": m.io_name})
+            del cells[s0], inputs[s0], outputs[s0]
+        elif rolling:
+            plan_["mode"] = "rolling"
+        else:
+            problems.append(f"{bid}: the reference is the FIRST ARRIVAL of a plain stream with rolling_mode off -- holding only the first value needs a "
+                            f"'first only' state bit (control), which the sub family does not have. (Representable: a constant reference via a merge, or rolling_mode.)")
+            continue
+        plans[bid] = plan_
+    return cells, inputs, outputs, plans, problems
+
+
 def plan(icm_path, align=True):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
@@ -99,6 +224,8 @@ def plan(icm_path, align=True):
     # priority arbiters that only serialised two operands onto one input are eliminated (dedicated ports replace them)
     cells, inputs, outputs, tiekeys, eliminated, pri_problems = nl.eliminate_priority(cells, inputs, outputs)
     problems += pri_problems
+    cells, inputs, outputs, branch_plans, br_problems = lower_branches(cells, inputs, outputs)
+    problems += br_problems
     edges = [(src, dst) for dst, roles in inputs.items() for lst in roles.values() for src, _ in lst]
     depth, cyclic = nl.hop_depths(cells, [(s_, d_, None, None, ()) for s_, d_ in edges])
     if cyclic:
@@ -134,7 +261,7 @@ def plan(icm_path, align=True):
         if spec["kind"] == "pair" and len(srcs_of[c]) != 2:
             problems.append(f"{c}: {r.core} has {len(srcs_of[c])} source(s), needs exactly 2 "
                             f"(one stream carrying both operands needs a stagger spec -- not translated)")
-        if is_source and r.core != "ram":
+        if is_source and r.core != "ram" and not (r.core == "branch" and c in branch_plans and branch_plans[c]["stream"] is None):
             problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
     if problems:
         raise IcmGenError("cannot generate sub Verilog from %s:\n  - " % os.path.basename(icm_path) + "\n  - ".join(problems))
@@ -145,7 +272,7 @@ def plan(icm_path, align=True):
     while grew:
         grew = False
         for c in cells:
-            if c not in const and srcs_of[c] and all(q in const for q in srcs_of[c]):
+            if c not in const and srcs_of[c] and all(q in const for q in srcs_of[c]) and not cells[c].io_name:
                 const.add(c)
                 grew = True
 
@@ -166,7 +293,8 @@ def plan(icm_path, align=True):
     for c in order:
         r, srcs = cells[c], srcs_of[c]
         extra = 1 if c in shifts else 0
-        t_vm[c] = max((t_vm[q] for q in srcs), default=0) + 1            # the VM's hop-count time -- operand IDENTITY only
+        # the VM's hop-count time -- operand IDENTITY only. A branch that absorbed its reference merge still pays that merge's hop in the VM.
+        t_vm[c] = max((t_vm[q] for q in srcs), default=0) + 1 + (1 if "merge_removed" in branch_plans.get(c, {}) else 0)
         if CORES[r.core]["kind"] == "pair":
             if all(q in const for q in srcs):
                 raise IcmGenError(f"{c}: both operands are constants -- the compiler should have folded it")
@@ -218,9 +346,16 @@ def plan(icm_path, align=True):
                 merges[c] = list(srcs)
             t_in = max((t_rtl[q] for q in live), default=0)
         t_rtl[c] = None if c in const else t_in + 1 + extra
+    branch_port = {}                      # (consumer, branch) -> which of the branch's two output ports feeds that consumer
+    for dst, role_map in inputs.items():                  # (not `roles`: that name holds the operand-role dict computed above)
+        for lst in role_map.values():
+            for q, face_at_dst in lst:
+                if q in branch_plans:
+                    branch_port[(dst, q)] = branch_plans[q]["ports"][_FACE_OPP[face_at_dst]]
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
-            "eliminated_priority": eliminated, "const": const, "shifts": shifts, "merges": merges}
+            "eliminated_priority": eliminated, "const": const, "shifts": shifts, "merges": merges,
+            "branch_plans": branch_plans, "branch_port": branch_port}
 
 
 def emit_top(top, p, width=32):
@@ -255,6 +390,8 @@ def emit_top(top, p, width=32):
     for c in p["order"]:
         i = _ident(c)
         a(f"wire [31:0] {i}_d; wire {i}_v;")
+        if cells[c].core == "branch":                            # a branch has TWO output ports; consumers pick theirs via net()
+            a(f"wire [31:0] {i}_d1, {i}_d2; wire {i}_v1, {i}_v2;")
     a("")
     idx = {c: k for k, c in enumerate(p["order"])}
     pad_count = [0]
@@ -267,16 +404,27 @@ def emit_top(top, p, width=32):
     def hexw(v):
         return "32'h" + format(int(v) & 0xFFFFFFFF, "X")
 
+    branch_plans, branch_port = p["branch_plans"], p["branch_port"]
+
+    def net(dst, src):
+        """(data, valid) net of `src` as seen by consumer `dst`: a branch exposes one of its two ports per routed face."""
+        i_ = _ident(src)
+        if src in branch_plans:
+            k = branch_port[(dst, src)]
+            return f"{i_}_d{k}", f"{i_}_v{k}"
+        return f"{i_}_d", f"{i_}_v"
+
     def feed(cid, srcs):
         """Data/valid nets feeding a single-input cell. One source: wired straight. Several (a merge): each source is GATED by its
         own valid before the OR -- these cells keep driving stale data_out after their valid pulse, so a raw OR would leak an
         idle source's old value. Same-cycle arrivals OR together (the VM's rule); valid is the OR of the valids."""
         if len(srcs) == 1:
-            return f"{_ident(srcs[0])}_d", f"{_ident(srcs[0])}_v"
+            return net(cid, srcs[0])
         i = _ident(cid)
-        terms = " | ".join(f"({_ident(q)}_v ? {_ident(q)}_d : 32'h0)" for q in srcs)
+        nets = [net(cid, q) for q in srcs]
+        terms = " | ".join(f"({v} ? {d} : 32'h0)" for d, v in nets)
         a(f"wire [31:0] {i}_mrg_d = {terms};   // gated-OR merge of {len(srcs)} sources")
-        a(f"wire {i}_mrg_v = " + " | ".join(f"{_ident(q)}_v" for q in srcs) + ";")
+        a(f"wire {i}_mrg_v = " + " | ".join(v for _, v in nets) + ";")
         return f"{i}_mrg_d", f"{i}_mrg_v"
 
     def padded(cid, d, v, n, tag):
@@ -302,8 +450,8 @@ def emit_top(top, p, width=32):
         mod = CORES[r.core]["module"]
         if kind == "pair":
             role = roles[c]
-            ad, av = f"{_ident(role['A'])}_d", f"{_ident(role['A'])}_v"
-            bd, bv = f"{_ident(role['B'])}_d", f"{_ident(role['B'])}_v"
+            ad, av = net(c, role["A"])
+            bd, bv = net(c, role["B"])
             ad, av = padded(c, ad, av, role["pad_A"], "A")
             bd, bv = padded(c, bd, bv, role["pad_B"], "B")
             if CORES[r.core].get("hold_flow"):
@@ -320,6 +468,25 @@ def emit_top(top, p, width=32):
                 ca = cfg_args(word)
                 a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
                   f".in_a({ad}), .in_b({bd}), .valid_in({vin}), .data_out({out_d}), .valid_out({out_v}));")
+        elif r.core == "branch":
+            bp = branch_plans[c]
+            if bp["stream"] is None:                              # the branch is the entry point (it absorbed the merge that carried the io_name)
+                n_ = pname(r.io_name, c)
+                d1, v1 = f"in_{n_}_data", f"in_{n_}_valid"
+            else:
+                d1, v1 = net(c, bp["stream"])
+            if bp["mode"] == "const_ref":                        # in2 = the constant reference (flowing, valid = the constant's own valid)
+                d2, v2 = f"{_ident(bp['const_ref'])}_d", f"{_ident(bp['const_ref'])}_v"
+                in2_fixed = 0
+            else:                                                 # rolling: in2 is a HELD copy of the same stream, loaded by the same valid
+                d2, v2 = d1, v1
+                in2_fixed = 1
+            rb = bp["route_bits"]
+            word = (in2_fixed << 1) | (bp["emit_source"] << 2) | (rb["low"] << 4) | (rb["equal"] << 6) | (rb["high"] << 8)
+            ca = cfg_args(hexw(word))
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, .cfg_emit_fixed_value({hexw(bp['emit_fixed'])}), "
+              f".in1_data({d1}), .in1_valid({v1}), .in2_data({d2}), .in2_valid({v2}), "
+              f".data_out_1({i}_d1), .valid_out_1({i}_v1), .data_out_2({i}_d2), .valid_out_2({i}_v2));")
         elif r.core == "comparator":
             dd, vv = feed(c, srcs)
             ca = cfg_args(hexw(cfg.get("threshold", 0)))
@@ -372,6 +539,6 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["order"] if not p["outputs"].get(c)},
            "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "shift_stages": {c: list(v) for c, v in p["shifts"].items()},
-           "adder_roles": p["adder_roles"], "merges": p["merges"], "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
+           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
     json.dump(rec, open(os.path.join(output, "ASSEMBLY.json"), "w"), indent=2)
     return rec
