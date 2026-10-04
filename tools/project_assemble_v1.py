@@ -1454,7 +1454,7 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--man", required=True, help="Path to a MAN file (real card capabilities)")
+    ap.add_argument("--man", default=None, help="Path to a MAN file (real card capabilities). Required for every mode except `-s flex` given -w (see -s/-w).")
     ap.add_argument("--cells", required=True, type=int, help="Number of cells to generate")
     ap.add_argument("--output", required=True, help="Output folder for the generated project (required -- prevents build artifacts landing inside the tracked repo by accident)")
     ap.add_argument("--top", default=None, help="Top-level module name (default: auto-generated)")
@@ -1482,7 +1482,43 @@ def main():
                      help="points.md #590: real, inline comma-separated dependency list (e.g. \"compare_cell_v3.v,latch_cell_v3.v,ram_cell_v1.v,...\") -- an alternative to --file-list for a short real override. Takes precedence over --file-list if both are given.")
     ap.add_argument("--target", default="quartus", choices=["quartus", "yosys"],
                      help="points.md #663: 'quartus' (default) generates the real .qsf/.sdc pair this tool always has. 'yosys' generates a real .ys synthesis script instead (synth_intel_alm -family cyclone10gx -- the closest real family Yosys supports; Arria 10 has NO real model in this open-source techlib, so this gives a genuine same-generation ALM ballpark, not a real Arria 10 number). Cannot combine with --probe.")
+    ap.add_argument("-s", "--family", default=None, choices=["flex", "sub", "nano"],
+                     help="Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s. For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1).")
+    ap.add_argument("-w", "--width", type=int, default=None,
+                     help="Cell data width for `-s flex` (e.g. -w 18). Overrides the MAN file's device.logic.native_width; required when no --man is given. Rejected with `-s sub` (fixed 32) and with the default/nano path.")
     args = ap.parse_args()
+
+    if args.family in ("flex", "sub"):
+        # Step 1 of the Flex-Sub plan: a separate, additive path; nothing below this block runs.
+        _ignored = [n for n, v in (("--logiclock", args.logiclock), ("--shell-file", args.shell_file),
+                                   ("--shell-module", args.shell_module), ("--file-list", args.file_list),
+                                   ("--files", args.files), ("--probe", args.probe),
+                                   ("--target", args.target if args.target != "quartus" else None),
+                                   ("--shell", args.shell if args.shell != "v3" else None)) if v]
+        if _ignored:
+            print(f"error: {', '.join(_ignored)} do not apply with -s {args.family} (carrier/shell-lineage options)", file=sys.stderr)
+            return 1
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import flexsub_assemble_v1 as fsa
+        try:
+            r = fsa.assemble_flexsub(args.family, args.single_core, args.cells, args.output,
+                                     man_path=args.man, width_arg=args.width, top=args.top,
+                                     cell_dir=args.core_path)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        print(f"Family: {args.family} ({r['cell_module']})")
+        print(f"Cells:  {r['cells']}  Width: {r['width']}  (from {r['width_source']})")
+        print(f"Card:   {r['man'] or 'none (no --man)'}")
+        print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
+        print("Build:  " + os.path.join(args.output, "build.sh") + ("  (synthesis + place-and-route)" if r["pnr"] else "  (synthesis only)"))
+        return 0
+
+    if args.family is None or args.family == "nano":
+        if args.width is not None:
+            ap.error("-w/--width only applies with -s flex")
+    if not args.man:
+        ap.error("the following arguments are required: --man")
 
     if args.shell_file and not args.shell_module:
         print("error: --shell-file requires --shell-module (the real module name inside that file)", file=sys.stderr)

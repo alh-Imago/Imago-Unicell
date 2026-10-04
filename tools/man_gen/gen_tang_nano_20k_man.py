@@ -144,6 +144,12 @@ def build(db):
                          "matching the published datasheet figures. A LUT4 is NOT an Intel ALM: card_fit_v1 keeps "
                          "the two units apart."),
                 "native_ff_variants": native_ff_variants(),
+                "native_width": 18,
+                "native_width_note": ("Native data width for the Flex-Sub (v4sa) cell family on this card: 18. Gowin's "
+                                      "own BRAM inference table (yosys gowin/brams.txt) lists native widths 1, 2, 4, 9, "
+                                      "18, 36 -- and the DSP primitive is MULT18X18, so both fundamental blocks share "
+                                      "18 (points.md #903/#904). The assembler's --family flex reads this as WIDTH "
+                                      "(points.md #914); a MAN without it falls back to 32."),
             },
             "bram": {
                 "kind": "BSRAM", "blocks": len(bsram), "kbits_datasheet": 828,
