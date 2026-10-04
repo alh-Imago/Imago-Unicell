@@ -286,7 +286,49 @@ def lower_branches(cells, inputs, outputs):
     return cells, inputs, outputs, plans, problems
 
 
-def plan(icm_path, align=True):
+# Measured, not assumed: mul_cell_v4s (the LUT multiplier) is ~4,277 LUT1-4 as a bare flattened cell (#901); mul_cell_v4s_dsp2 is a few dozen LUTs plus ONE
+# MULT36X36 (a whole DSP block). The plain-`a*b` variant (mul_cell_v4s_dsp) is NOT used: yosys never maps it to a DSP, so it costs the same as the LUT one.
+# mul_cell_v4s_dsp3 (time-multiplexed, 4 states) is NOT part of the automatic ladder: it has multi-cycle latency and would drop the WHOLE design's item
+# rate to one per four cycles -- a contract change, not a drop-in.
+LUT_MUL_LUT4 = 4277
+LUT_BUDGET_FRACTION = 0.9
+MUL_MODULES = {"lut": "mul_cell_v4s", "dsp2": "mul_cell_v4s_dsp2"}
+
+
+def choose_multipliers(mul_cells, man, mode):
+    """Realise each `mul` as the DSP cell while the card has DSP blocks left, else as the LUT multiplier; refuse if even that cannot fit.
+    Both are exact low-32-bit products with the same ports and the same ONE-cycle latency (dsp2 keeps the family's fixed-latency convention), so the
+    choice never changes a result or the timing -- only what the card has to pay. Returns (impl: cell -> 'dsp2'|'lut', info dict)."""
+    cells = sorted(mul_cells)
+    n = len(cells)
+    gowin = bool(man and man.get("vendor") == "gowin")
+    blocks = man.get("dsp_blocks") if (gowin and man.get("dsp_has_36")) else None
+    if mode == "lut":
+        n_dsp = 0
+    elif mode == "dsp":
+        if blocks is None:
+            raise IcmGenError("--mul dsp needs a Gowin MAN that lists MULT36X36-capable DSP blocks (MULT36X36 is a Gowin primitive); none was given/found")
+        if n > blocks:
+            raise IcmGenError(f"--mul dsp: {n} multipliers but the card has only {blocks} DSP blocks (one MULT36X36 each)")
+        n_dsp = n
+    else:                                                     # auto: DSP while blocks remain, LUT as the fall back
+        n_dsp = min(n, blocks) if blocks else 0
+    impl = {c: ("dsp2" if k < n_dsp else "lut") for k, c in enumerate(cells)}
+    n_lut = n - n_dsp
+    lut_total = man.get("lut4_total") if man else None
+    if n_lut and lut_total and n_lut * LUT_MUL_LUT4 > LUT_BUDGET_FRACTION * lut_total:
+        raise IcmGenError(f"{n} multipliers: {n_dsp} fit in the card's {blocks if blocks is not None else 0} DSP block(s), and the other {n_lut} would be LUT "
+                          f"multipliers at ~{LUT_MUL_LUT4} LUT4 each = ~{n_lut * LUT_MUL_LUT4}, more than {int(LUT_BUDGET_FRACTION * 100)}% of the card's "
+                          f"{lut_total} LUT4. The card's resources are used up -- not translated.")
+    why = ("no MAN given: no resource information, so the always-exact LUT multiplier is used" if man is None and mode == "auto" else
+           "the MAN is not a Gowin card with 36x36 DSP blocks (MULT36X36 is a Gowin primitive): LUT multipliers" if mode == "auto" and blocks is None else
+           f"--mul {mode}" if mode != "auto" else
+           f"auto: DSP while the card's {blocks} block(s) last, LUT fall back for the remaining {n_lut}" if n_lut else f"auto: all {n} fit in the card's {blocks} DSP block(s)")
+    return impl, {"mode": mode, "dsp2": [c for c in cells if impl[c] == "dsp2"], "lut": [c for c in cells if impl[c] == "lut"],
+                  "dsp_blocks_available": blocks, "lut4_estimate_for_lut_multipliers": n_lut * LUT_MUL_LUT4, "reason": why}
+
+
+def plan(icm_path, align=True, man=None, mul_mode="auto"):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
     problems = []
@@ -497,6 +539,7 @@ def plan(icm_path, align=True):
                 merges[c] = list(srcs)
             t_in = max((t_rtl[q] for q in live), default=0)
         t_rtl[c] = None if c in const else t_in + 1 + extra
+    mul_impl, mul_info = choose_multipliers([c for c in cells if cells[c].core == "mul"], man, mul_mode)
     branch_port = {}                      # (consumer, branch) -> which of the branch's two output ports feeds that consumer
     for dst, role_map in inputs.items():                  # (not `roles`: that name holds the operand-role dict computed above)
         for lst in role_map.values():
@@ -506,7 +549,8 @@ def plan(icm_path, align=True):
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
             "eliminated_priority": eliminated, "const": const, "addons": addons, "merges": merges,
-            "branch_plans": branch_plans, "branch_port": branch_port, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule}
+            "branch_plans": branch_plans, "branch_port": branch_port, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule,
+            "mul_impl": mul_impl, "mul_info": mul_info}
 
 
 def emit_top(top, p, width=32):
@@ -601,7 +645,7 @@ def emit_top(top, p, width=32):
             a(f"wire [31:0] {out_d};")
         srcs = [src for lst in inputs.get(c, {}).values() for src, _ in lst]
         kind = CORES[r.core]["kind"]
-        mod = CORES[r.core]["module"]
+        mod = MUL_MODULES[p["mul_impl"][c]] if r.core == "mul" else CORES[r.core]["module"]
         if kind == "pair":
             role = roles[c]
             ad, av = net(c, role["A"])
@@ -709,8 +753,9 @@ def emit_top(top, p, width=32):
     return "\n".join(L) + "\n", pad_count[0]
 
 
-def generate(icm_path, output, top=None, align=True, cell_dir=None):
-    p = plan(icm_path, align)
+def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto"):
+    man = fsa.load_man_flexsub(man_path) if man_path else None
+    p = plan(icm_path, align, man=man, mul_mode=mul_mode)
     stem = re.sub(r"[^A-Za-z0-9_]", "_", os.path.basename(icm_path).split(".")[0])
     top = top or f"icm_{stem}_sub"
     cell_dir = cell_dir or fsa.DEFAULT_CELL_DIR
@@ -728,7 +773,9 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["exits"]}, "pruned_dead_cells": p["pruned"], "exit_rule": p["exit_rule"],
            "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
-           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "level_sources": sorted(c for c in p["cells"] if is_level(p["cells"][c])),
+           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "multipliers": p["mul_info"],
+           **({"sim_note": "this design instantiates the Gowin MULT36X36 primitive (mul_cell_v4s_dsp2); simulation needs a behavioural stand-in "
+                           "(yosys ships none) -- see sub/verilog/tb_mul_cell_v4s_dsp2.v. Synthesis uses the primitive directly."} if p["mul_info"]["dsp2"] else {}), "level_sources": sorted(c for c in p["cells"] if is_level(p["cells"][c])),
            "sequencers": {c: {"advance_port": "adv_" + re.sub(r"[^A-Za-z0-9_]", "_", p["cells"][c].io_name or c),
                               "length": int((p["cells"][c].core_config or {}).get("SEQUENCE_LEN", 0) & 3) + 1}
                           for c in p["cells"] if p["cells"][c].core == "sequencer"}, "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}

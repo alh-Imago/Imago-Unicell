@@ -1486,6 +1486,8 @@ def main():
                      help="Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s. For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1).")
     ap.add_argument("--icm", default=None, metavar="FILE",
                      help="STEP 2 of the Flex-Sub plan: read this ICM-VIX file (*.icm-hier.json) as a map and generate the design it describes as Verilog into --output. Requires -s sub (the flex generator -- ack join -- is not built yet). Handled by tools/flexsub_icm_generate_v1.py; --cells is not used.")
+    ap.add_argument("--mul", default="auto", choices=["auto", "lut", "dsp"],
+                     help="With --icm: how `mul` cells are realised. auto (default) = the DSP cell (mul_cell_v4s_dsp2, one MULT36X36, a few dozen LUTs) while the MAN's card has DSP blocks left, the exact LUT multiplier (~4,277 LUT4 each) as the fall back, and a refusal if even that cannot fit the card; lut = always the LUT multiplier; dsp = always DSP (refused if the card has too few). Needs --man for resource information; without one auto uses the LUT multiplier.")
     ap.add_argument("--no-align", action="store_true",
                      help="With --icm: do NOT pad early adder operands with relay cells. A negative control -- the generated design is then expected to compute the wrong answer.")
     ap.add_argument("-w", "--width", type=int, default=None,
@@ -1499,7 +1501,8 @@ def main():
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import flexsub_icm_generate_v1 as fig
         try:
-            r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path)
+            r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
+                             man_path=args.man, mul_mode=args.mul)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
@@ -1546,6 +1549,8 @@ def main():
         ap.error("the following arguments are required: " + ", ".join(_missing))
     if args.no_align:
         ap.error("--no-align only applies with --icm")
+    if args.mul != "auto":
+        ap.error("--mul only applies with --icm")
 
     if args.shell_file and not args.shell_module:
         print("error: --shell-file requires --shell-module (the real module name inside that file)", file=sys.stderr)

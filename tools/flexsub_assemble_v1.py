@@ -156,6 +156,10 @@ def load_man_flexsub(path):
         "pnr_family": (device.get("apicula") or {}).get("family"),
         "native_width": logic.get("native_width"),
         "board": man.get("board", {}),
+        # resource budgets (Alan #941: the multiplier "has to be taken into account as a fall back if the card resources are used")
+        "lut4_total": logic.get("lut4_total"),
+        "dsp_blocks": (device.get("dsp") or {}).get("total_blocks"),
+        "dsp_has_36": any([36, 36] in (col.get("y_segments") or []) for col in ((device.get("dsp") or {}).get("columns") or [])),
     }
 
 
