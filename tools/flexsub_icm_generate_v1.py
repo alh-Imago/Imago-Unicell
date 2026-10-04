@@ -69,6 +69,11 @@ CORES = {
     # branch (Alan #935: branch_cell_v4s completes the sub set). One ICM input, a held-reference compare, per-outcome routing to FACES;
     # lowered by lower_branches() below onto the cell's two inputs and two output ports.
     "branch": {"kind": "branch", "module": "branch_cell_v4s"},
+    # sequencer (Alan #937): on sub it "loses the ack side and goes back to just the clock pulse side". The VM advances it when a consumer drains
+    # its offer (a backward ack); sequencer_cell_v4s instead takes an external `advance_in` PULSE. Exposed as a top-level adv_<name> input,
+    # presented on the same cycle as the design's other arguments. The cell pulses the NEXT index's value, so the stored values are rotated one
+    # step so the pulsed sequence starts at VALUE_0 and wraps like the VM's.
+    "sequencer": {"kind": "tick", "module": "sequencer_cell_v4s"},
 }
 # The topology codes nano_cell_v4s actually implements (its `default` silently passes the held value -- never translate those).
 NANO_TOPOLOGIES = {0x000, 0x02C, 0x001, 0x002, 0x004, 0x007, 0x024, 0x027, 0x0BC, 0x03C, 0x030, 0x0B0}
@@ -255,13 +260,27 @@ def plan(icm_path, align=True):
                 problems.append(f"{c}: nano uses {odd} (relay/hold/update/one-shot modes) -- only the plain two-arrival gate is translated")
             if int(cfgn.get("topology", 0)) not in NANO_TOPOLOGIES:
                 problems.append(f"{c}: nano topology {int(cfgn.get('topology', 0)):#x} is not implemented by nano_cell_v4s (its default would silently pass the held value)")
+        if r.core == "sequencer":
+            if srcs_of[c]:
+                problems.append(f"{c}: something feeds a sequencer; the VM's sequencer refuses every arrival (ack tied low), so such a wire never delivers")
+            extra = sorted(k for k in (r.core_config or {}) if k not in ("VALUE_0", "VALUE_1", "VALUE_2", "VALUE_3", "SEQUENCE_LEN", "downstream_mask"))
+            if extra:
+                problems.append(f"{c}: sequencer config uses {extra} -- only VALUE_0..3, SEQUENCE_LEN and downstream_mask are translated")
+            if r.addon_config:
+                problems.append(f"{c}: addon_config on a sequencer is not translated")
+        seq_srcs = [q for q in srcs_of[c] if cells[q].core == "sequencer"]
+        if seq_srcs and (spec["kind"] == "pair" or len(srcs_of[c]) > 1):
+            problems.append(f"{c}: fed by sequencer {seq_srcs} together with other sources. The VM's sequencer is perpetually live and re-offers at once, "
+                            f"and a two-operand cell (or a merge) pairs/ORs by ARRIVAL, so in the VM the sequence values pair with EACH OTHER, not with the "
+                            f"stream; the sub translation (one host advance pulse per item) would pair them with the stream -- different semantics. "
+                            f"Not translated: feed the sequencer to a single-input consumer, or decide the pairing rule explicitly.")
         is_source = not srcs_of[c]
         if r.preload_value is not None and not (r.core == "ram" and is_source):
             problems.append(f"{c}: preload_value on a cell that is not a source ram")
         if spec["kind"] == "pair" and len(srcs_of[c]) != 2:
             problems.append(f"{c}: {r.core} has {len(srcs_of[c])} source(s), needs exactly 2 "
                             f"(one stream carrying both operands needs a stagger spec -- not translated)")
-        if is_source and r.core != "ram" and not (r.core == "branch" and c in branch_plans and branch_plans[c]["stream"] is None):
+        if is_source and r.core not in ("ram", "sequencer") and not (r.core == "branch" and c in branch_plans and branch_plans[c]["stream"] is None):
             problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
     if problems:
         raise IcmGenError("cannot generate sub Verilog from %s:\n  - " % os.path.basename(icm_path) + "\n  - ".join(problems))
@@ -381,7 +400,10 @@ def emit_top(top, p, width=32):
     ports = []
     for c in entries:
         n = pname(cells[c].io_name, c)
-        ports += [f"    input  wire [31:0] in_{n}_data", f"    input  wire        in_{n}_valid"]
+        if cells[c].core == "sequencer":                          # a tick, not a datum: the pulse that advances the sequence
+            ports.append(f"    input  wire        adv_{n}")
+        else:
+            ports += [f"    input  wire [31:0] in_{n}_data", f"    input  wire        in_{n}_valid"]
     for c in exits:
         n = pname(cells[c].io_name, c)
         ports += [f"    output wire [31:0] out_{n}_data", f"    output wire        out_{n}_valid"]
@@ -487,6 +509,16 @@ def emit_top(top, p, width=32):
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, .cfg_emit_fixed_value({hexw(bp['emit_fixed'])}), "
               f".in1_data({d1}), .in1_valid({v1}), .in2_data({d2}), .in2_valid({v2}), "
               f".data_out_1({i}_d1), .valid_out_1({i}_v1), .data_out_2({i}_d2), .valid_out_2({i}_v2));")
+        elif r.core == "sequencer":
+            n_ = pname(r.io_name, c)
+            vals = [int(cfg.get(f"VALUE_{k}", 0)) & 0xFF for k in range(4)]
+            len_m1 = int(cfg.get("SEQUENCE_LEN", 0)) & 3
+            n_vals = len_m1 + 1
+            rot = [vals[(j - 1) % n_vals] if j < n_vals else 0 for j in range(4)]       # rot[j] = V[(j-1) mod n]
+            word = rot[0] | (rot[1] << 8) | (rot[2] << 16) | (rot[3] << 24)
+            ca = cfg_args(hexw(word))
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, .cfg_seq_len_m1(2'd{len_m1}), .advance_in(adv_{n_}), "
+              f".data_out({out_d}), .valid_out({out_v}));   // values rotated one step: the pulsed sequence starts at VALUE_0")
         elif r.core == "comparator":
             dd, vv = feed(c, srcs)
             ca = cfg_args(hexw(cfg.get("threshold", 0)))
@@ -539,6 +571,9 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["order"] if not p["outputs"].get(c)},
            "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "shift_stages": {c: list(v) for c, v in p["shifts"].items()},
-           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
+           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"],
+           "sequencers": {c: {"advance_port": "adv_" + re.sub(r"[^A-Za-z0-9_]", "_", p["cells"][c].io_name or c),
+                              "length": int((p["cells"][c].core_config or {}).get("SEQUENCE_LEN", 0) & 3) + 1}
+                          for c in p["cells"] if p["cells"][c].core == "sequencer"}, "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
     json.dump(rec, open(os.path.join(output, "ASSEMBLY.json"), "w"), indent=2)
     return rec

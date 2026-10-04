@@ -292,6 +292,8 @@ def analyse(path, family="flex"):
                 rep["findings"]["constant"].append(f"{cid} ({r.core}): preload_value={r.preload_value} -> constant source (not a pin)")
             elif r.io_name:
                 rep["findings"]["entry"].append(f"{cid} ({r.core}) io_name={r.io_name!r}: no incoming edge -> top-level input")
+            elif r.core == "sequencer":
+                rep["findings"]["tick"].append(f"{cid} (sequencer): no upstream -> tick-driven source: on sub an external advance pulse, on flex the downstream ack")
             elif r.core == "ram" and not _dirs(cfg, "upstream_mask"):
                 rep["findings"]["entry"].append(f"{cid} (ram): no upstream face -> injection point (compiled-program input)")
             else:
@@ -313,7 +315,7 @@ def format_report(rep):
          f"cycles: {'YES' if rep['cyclic'] else 'no'}",
          f"  cores: {rep['cores']}",
          f"  cells with no blocking issue: {rep['clean_cells']}/{rep['cells']}"]
-    for k, title in (("entry", "top-level inputs"), ("constant", "constant sources"), ("undriven", "UNDRIVEN sources"),
+    for k, title in (("entry", "top-level inputs"), ("constant", "constant sources"), ("undriven", "UNDRIVEN sources"), ("tick", "tick-driven sources"),
                      ("arbiter", "priority arbiters"),
                      ("exit", "observed outputs"), ("merge", "merges (OR-combine)"),
                      ("fan_out", "fan-outs"), ("two_operand", "two-operand cells (operand roles)")):
