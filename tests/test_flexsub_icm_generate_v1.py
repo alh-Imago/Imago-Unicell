@@ -199,11 +199,12 @@ try:
 
     print("refusals are specific, never silent")
     for label, args, needles in (
-            ("cordic on sub (branch, constants, merges)", ["-s", "sub", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json")], ["branch", "constant", "merge"]),
+            ("cordic on sub (branch, merges; constants are NOT a reason any more)", ["-s", "sub", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json")], ["branch", "merge"]),
             ("flex --icm not built", ["-s", "flex", "--icm", path], ["flex"]),
             ("--icm without -s", ["--icm", path], ["-s sub"])):
         r = cli(*args, "--output", os.path.join(tmp, "ref"))
-        check(f"{label}: refused, names the reason", r.returncode != 0 and all(n in r.stderr for n in needles), r.stderr.strip()[:200])
+        check(f"{label}: refused, names the reason", r.returncode != 0 and all(n in r.stderr for n in needles)
+              and ("constant" not in r.stderr if "cordic" in label else True), r.stderr.strip()[:200])
     r = cli("--man", os.path.join(ROOT, "docs", "man", "mustang-f100-a10.man.json"), "--output", os.path.join(tmp, "z"))
     check("default path still reports every missing required argument", r.returncode == 2 and "--man" not in r.stderr.split("required:")[-1] and "--cells" in r.stderr, r.stderr.strip()[-120:])
     r = cli("--output", os.path.join(tmp, "z"))

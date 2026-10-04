@@ -28,6 +28,9 @@ has exactly two sources at DIFFERENT arrival times; no merges, no constants, no 
 merges (gated OR, Alan: "a free OR"), constants, branch (no v4s branch exists), single-stream operand pairs,
 and the whole flex family (ack join on fan-out).
 
+Constants: a constant source is a fixed-mode ram (always valid); its compiler-inserted relay chain just flows. The inputs must
+not be presented until the constants have propagated -- ASSEMBLY.json `settle_cycles` says how many cycles after cfg_valid.
+
 Output folder: <top>.v (the design), the cell files + dependencies, <top>.ys (synth_gowin), ASSEMBLY.json.
 The top has ports clk, rst, cfg_valid (one pulse after reset arms every cell), and for each io_name:
 in_<name>_data[31:0] / in_<name>_valid, out_<name>_data[31:0] / out_<name>_valid.
@@ -44,15 +47,43 @@ sys.path.insert(0, TOOLS_DIR)
 import flexsub_icm_netlist_v1 as nl  # noqa: E402
 import flexsub_assemble_v1 as fsa  # noqa: E402
 
-SUPPORTED_CORES = {"ram", "adder"}
-
-
 class IcmGenError(ValueError):
     pass
 
 
 def _ident(cid):
     return "c_" + re.sub(r"[^A-Za-z0-9_]", "_", cid)
+
+
+# Per-core translation table. "single": one data input; "pair": two operands (A first, B second, VM arrival-order rule).
+# Every module's port list and timing was read from its source: each is exactly ONE cycle of latency.
+CORES = {
+    "ram": {"kind": "single", "module": "ram_cell_v4s"},
+    "comparator": {"kind": "single", "module": "compare_cell_v4s"},    # signed(data) >= threshold -> 0/1, same as the VM
+    "adder": {"kind": "pair", "module": "adder_cell_v4s"},
+    "mul": {"kind": "pair", "module": "mul_cell_v4s"},                  # low 32 bits of the product
+}
+SUPPORTED_CORES = set(CORES)
+_SHIFT_COARSE = (1, 2, 4, 8, 12, 16, 20, 24, 28)    # the VM's/RTL's supported coarse taps (shift_lane_addon_v2)
+
+
+def decode_addon(r):
+    """(total_shift, direction, None) for an addon_config that is only a shift, (0, 0, None) for none, or
+    (None, None, reason) when it needs something this translation does not have. Rules from the VM's own
+    addon function: fine shift first, then the coarse shift only if its amount is one of the supported taps (an
+    unsupported amount is a deliberate no-op); direction 0 = left, 1 = right (logical)."""
+    ad = r.addon_config or {}
+    if not ad:
+        return 0, 0, None
+    extra = {k: v for k, v in ad.items() if k not in ("shift_en", "direction", "shift_fine", "shift_amt") and v}
+    if extra:
+        return None, None, f"addon_config uses {sorted(extra)} -- only a plain shift is translated (mask/invert/lane_cut need their own cells)"
+    if not ad.get("shift_en"):
+        return 0, 0, None
+    fine = ad.get("shift_fine", 0) & 3
+    amt = ad.get("shift_amt", 0)
+    coarse = amt if amt in _SHIFT_COARSE else 0
+    return fine + coarse, 1 if ad.get("direction", 0) else 0, None
 
 
 def plan(icm_path, align=True):
@@ -66,79 +97,111 @@ def plan(icm_path, align=True):
     depth, cyclic = nl.hop_depths(cells, [(s_, d_, None, None, ()) for s_, d_ in edges])
     if cyclic:
         problems.append("the design has a cycle (feedback) -- the fixed-latency translation has no rule for it yet")
+    srcs_of = {c: [src for lst in inputs.get(c, {}).values() for src, _ in lst] for c in cells}
+    shifts = {}
     for r in cells.values():
-        if r.core not in SUPPORTED_CORES:
+        c = r.cell_id
+        spec = CORES.get(r.core)
+        if spec is None:
             why = ("no v4s branch cell exists (branch_cell_v4sa is flex-only)" if r.core == "branch"
-                   else "arbiter that could not be eliminated (see above)" if r.core == "priority" else "not in this slice")
-            problems.append(f"{r.cell_id}: core {r.core!r} unsupported on sub -- {why}")
-        if r.addon_config:
-            problems.append(f"{r.cell_id}: addon_config present -- needs shift/mask graph expansion (#905), not in this slice")
-        if r.preload_value is not None:
-            problems.append(f"{r.cell_id}: preload_value (a constant source) -- constants are not in this slice")
-        for role, srcs in inputs.get(r.cell_id, {}).items():
-            if r.core == "adder" and role == "in":
-                if len(srcs) != 2:
-                    problems.append(f"{r.cell_id}: adder has {len(srcs)} source(s), need exactly 2 "
-                                    f"(one stream carrying both operands needs a stagger spec -- not in this slice)")
-            elif len(srcs) > 1:
-                problems.append(f"{r.cell_id}: {len(srcs)} sources on one input (a merge) -- gated-OR merge not in this slice")
+                   else "arbiter that could not be eliminated (see above)" if r.core == "priority" else "not yet translated")
+            problems.append(f"{c}: core {r.core!r} unsupported on sub -- {why}")
+            continue
+        total, direction, why = decode_addon(r)
+        if why:
+            problems.append(f"{c}: {why}")
+        elif total:
+            if r.core != "ram":
+                problems.append(f"{c}: addon shift on a {r.core} cell -- only a ram relay's output shift is translated")
+            else:
+                shifts[c] = (total, direction)
+        is_source = not srcs_of[c]
+        if r.preload_value is not None and not (r.core == "ram" and is_source):
+            problems.append(f"{c}: preload_value on a cell that is not a source ram")
+        if spec["kind"] == "pair" and len(srcs_of[c]) != 2:
+            problems.append(f"{c}: {r.core} has {len(srcs_of[c])} source(s), needs exactly 2 "
+                            f"(one stream carrying both operands needs a stagger spec -- not translated)")
+        if spec["kind"] == "single":
+            for role, lst in inputs.get(c, {}).items():
+                if len(lst) > 1:
+                    problems.append(f"{c}: {len(lst)} sources on one input (a merge) -- gated-OR merge not yet translated")
+        if is_source and r.core != "ram":
+            problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
     if problems:
         raise IcmGenError("cannot generate sub Verilog from %s:\n  - " % os.path.basename(icm_path) + "\n  - ".join(problems))
 
-    def role_key(c, src, t_out):
-        # earlier arrival first; on an arrival tie, the arbiter's own rule (lower rank, then N>S>E>W) if one existed
-        return (t_out[src], tiekeys.get((c, src), (0, 0)))
+    # constant-valued nodes: preloaded / fixed-mode source rams and anything fed only by them (always available)
+    const = {c for c, r in cells.items() if not srcs_of[c] and (r.preload_value is not None or (r.core_config or {}).get("fixed_mode"))}
+    grew = True
+    while grew:
+        grew = False
+        for c in cells:
+            if c not in const and srcs_of[c] and all(q in const for q in srcs_of[c]):
+                const.add(c)
+                grew = True
 
-    # arrival time (cycles) at each cell's OUTPUT; entries (no incoming edge) are fed by a top-level port at t=0
-    t_out, order = {}, []
-    preds = {c: [src for src, _ in (e for lst in inputs.get(c, {}).values() for e in lst)] for c in cells}
+    order = []
     remaining = set(cells)
     while remaining:
-        ready = [c for c in sorted(remaining) if all(q in t_out for q in preds[c])]
+        ready = [c for c in sorted(remaining) if all(q not in remaining for q in srcs_of[c])]
         if not ready:
             raise IcmGenError("internal: dependency order could not be resolved")
-        for c in ready:
-            order.append(c)
-            t_in = max((t_out[q] for q in preds[c]), default=0)
-            if cells[c].core == "adder":
-                (sa, _), (sb, _) = sorted(inputs[c]["in"], key=lambda sf: role_key(c, sf[0], t_out))
-                if t_out[sa] == t_out[sb] and tiekeys.get((c, sa)) is None:
-                    raise IcmGenError(f"{c}: both adder sources arrive at cycle {t_out[sa]} with no arbiter to order them -- a same-time "
-                                      f"pair is an OR-combined single arrival in the VM; no operand order exists. Not in this slice.")
-            t_out[c] = t_in + 1
-            remaining.discard(c)
+        order += ready
+        remaining -= set(ready)
 
-    adder_roles = {}
+    t_vm, t_rtl, roles = {}, {}, {}
+
+    def ident_key(c, q):
+        return (t_vm[q], tiekeys.get((c, q), (0, 0)))
+
     for c in order:
-        if cells[c].core == "adder":
-            srcs = [src for src, _ in inputs[c]["in"]]
-            tks = [tiekeys.get((c, src)) for src in srcs]
+        r, srcs = cells[c], srcs_of[c]
+        extra = 1 if c in shifts else 0
+        t_vm[c] = max((t_vm[q] for q in srcs), default=0) + 1            # the VM's hop-count time -- operand IDENTITY only
+        if CORES[r.core]["kind"] == "pair":
+            if all(q in const for q in srcs):
+                raise IcmGenError(f"{c}: both operands are constants -- the compiler should have folded it")
+            tks = [tiekeys.get((c, q)) for q in srcs]
             if all(t is not None for t in tks) and tks[0][0] != tks[1][0]:
-                # DIFFERENT ranks (a file written by flexsub_compile_v1, #929): rank DEFINES operand identity -- A = lower
-                # rank -- regardless of which source is earlier, because this assembler equalises arrival itself.
+                # DIFFERENT ranks (a file written by flexsub_compile_v1, #929): rank DEFINES operand identity, because this
+                # assembler equalises arrival itself
                 sa, sb = sorted(srcs, key=lambda q: tiekeys[(c, q)])
                 identity_by = "rank"
             else:
-                sa, sb = sorted(srcs, key=lambda q: role_key(c, q, t_out))
-                identity_by = "arbiter tie-break" if (tiekeys.get((c, sa)) is not None and t_out[sa] == t_out[sb]) else "arrival order"
-            diff = t_out[sb] - t_out[sa]                         # >0: A is earlier -> pad A; <0: B is earlier -> pad B
-            adder_roles[c] = {"A": sa, "B": sb, "identity_by": identity_by,
-                              "pad_A": max(0, diff) if align else 0, "pad_B": max(0, -diff) if align else 0}
+                sa, sb = sorted(srcs, key=lambda q: ident_key(c, q))
+                if t_vm[sa] == t_vm[sb] and tiekeys.get((c, sa)) is None:
+                    raise IcmGenError(f"{c}: both operands arrive at hop {t_vm[sa]} with no arbiter to order them -- a same-time pair "
+                                      f"is an OR-combined single arrival in the VM; no operand order exists. Not translated.")
+                identity_by = "arbiter tie-break" if (tiekeys.get((c, sa)) is not None and t_vm[sa] == t_vm[sb]) else "arrival order"
+            live = [q for q in (sa, sb) if q not in const]                  # constants never constrain timing
+            pad = {sa: 0, sb: 0}
+            if len(live) == 2 and align:
+                late = max(t_rtl[sa], t_rtl[sb])
+                pad = {sa: late - t_rtl[sa], sb: late - t_rtl[sb]}
+            t_in = max((t_rtl[q] for q in live), default=0)
+            roles[c] = {"A": sa, "B": sb, "identity_by": identity_by, "pad_A": pad[sa], "pad_B": pad[sb],
+                        "valid_from": "B" if sb not in const else "A", "const_operands": [q for q in (sa, sb) if q in const]}
+        else:
+            live = [q for q in srcs if q not in const]
+            t_in = max((t_rtl[q] for q in live), default=0)
+        t_rtl[c] = None if c in const else t_in + 1 + extra
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
-            "t_out": t_out, "order": order, "adder_roles": adder_roles, "align": align, "warnings": warnings,
-            "eliminated_priority": eliminated}
+            "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
+            "eliminated_priority": eliminated, "const": const, "shifts": shifts}
 
 
 def emit_top(top, p, width=32):
-    cells, inputs, outputs, t_out, roles = p["cells"], p["inputs"], p["outputs"], p["t_out"], p["adder_roles"]
+    cells, inputs, outputs, roles = p["cells"], p["inputs"], p["outputs"], p["adder_roles"]
+    const, shifts = p["const"], p["shifts"]
     L = []
     a = L.append
     a(f"// {top}.v -- GENERATED by tools/flexsub_icm_generate_v1.py (-s sub --icm); do not hand-edit.")
-    a(f"// Source ICM-VIX: {p['doc'].name or '(unnamed)'}; {len(cells)} cells; align={'on' if p['align'] else 'OFF (negative control)'}.")
-    a("// Straight wiring, fixed 1-cycle cells, no ack (Alan #924). Early adder operands are padded with relay cells.")
+    a(f"// Source ICM: {p['doc'].name or '(unnamed)'}; {len(cells)} cells; align={'on' if p['align'] else 'OFF (negative control)'}.")
+    a("// Straight wiring, fixed 1-cycle cells, no ack (Alan #924). Early operands are padded with relay cells;")
+    a("// constants are fixed-mode rams (always valid) and never constrain timing; shifts are separate shift_stage cells.")
     a("`default_nettype none")
     a("`timescale 1ns / 1ps")
-    entries = [c for c in p["order"] if not inputs.get(c)]
+    entries = [c for c in p["order"] if not inputs.get(c) and c not in const]
     exits = [c for c in p["order"] if not outputs.get(c)]
 
     def pname(io, cid):
@@ -160,52 +223,79 @@ def emit_top(top, p, width=32):
         i = _ident(c)
         a(f"wire [31:0] {i}_d; wire {i}_v;")
     a("")
+    idx = {c: k for k, c in enumerate(p["order"])}
+    pad_count = [0]
 
-    def src_nets(cid, srcid):
-        i = _ident(srcid)
-        return f"{i}_d", f"{i}_v"
+    def cfg_args(data="32'h0", fixed=None):
+        """Port-connection prefix every cell shares: clock, reset, config strobe and word (+ ram's fixed-mode port)."""
+        t = ".clk(clk), .rst(rst), .cfg_valid(cfg_valid), .cfg_data(" + data + ")"
+        return t + (", .cfg_fixed_mode(1'b" + str(int(fixed)) + ")" if fixed is not None else "")
 
-    pad_count = 0
+    def hexw(v):
+        return "32'h" + format(int(v) & 0xFFFFFFFF, "X")
+
+    def padded(cid, d, v, n, tag):
+        for k in range(n):                                      # delay with flowing ram relay cells
+            pad_count[0] += 1
+            pi = f"{_ident(cid)}_pad{tag}{k}"
+            a(f"wire [31:0] {pi}_d; wire {pi}_v;")
+            ca = cfg_args("32'h0", 0)
+            a(f"ram_cell_v4s #(.CELL_ID(16'd{1000 + pad_count[0]})) {pi} ({ca}, "
+              f".data_in({d}), .valid_in({v}), .data_out({pi}_d), .valid_out({pi}_v));")
+            d, v = f"{pi}_d", f"{pi}_v"
+        return d, v
+
     for c in p["order"]:
         r, i = cells[c], _ident(c)
         cfg = r.core_config or {}
-        if r.core == "ram":
-            if not inputs.get(c):
-                n = pname(r.io_name, c)
-                din, vin = f"in_{n}_data", f"in_{n}_valid"
-            else:
-                (s, _), = inputs[c]["in"]
-                din, vin = src_nets(c, s)
-            a(f"ram_cell_v4s #(.CELL_ID(16'd{p['order'].index(c)})) {i} (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), "
-              f".cfg_data(32'h0), .cfg_fixed_mode(1'b{int(bool(cfg.get('fixed_mode', 0)))}), "
-              f".data_in({din}), .valid_in({vin}), .data_out({i}_d), .valid_out({i}_v));")
-        else:   # adder
+        out_d, out_v = f"{i}_d", f"{i}_v"
+        if c in shifts:                                         # the cell drives a private net; a shift_stage drives {i}_d/_v
+            out_d, out_v = f"{i}_raw_d", f"{i}_raw_v"
+            a(f"wire [31:0] {out_d}; wire {out_v};")
+        srcs = [src for lst in inputs.get(c, {}).values() for src, _ in lst]
+        kind = CORES[r.core]["kind"]
+        mod = CORES[r.core]["module"]
+        if kind == "pair":
             role = roles[c]
-            ad, av = src_nets(c, role["A"])
-            bd, bv = src_nets(c, role["B"])
-            for side in ("A", "B"):                             # delay the EARLY operand with flowing relay cells
-                nets_d, nets_v = (ad, av) if side == "A" else (bd, bv)
-                for k in range(role[f"pad_{side}"]):
-                    pad_count += 1
-                    pi = f"{i}_pad{side}{k}"
-                    a(f"wire [31:0] {pi}_d; wire {pi}_v;")
-                    a(f"ram_cell_v4s #(.CELL_ID(16'd{1000 + pad_count})) {pi} (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), "
-                      f".cfg_data(32'h0), .cfg_fixed_mode(1'b0), .data_in({nets_d}), .valid_in({nets_v}), "
-                      f".data_out({pi}_d), .valid_out({pi}_v));")
-                    nets_d, nets_v = f"{pi}_d", f"{pi}_v"
-                if side == "A":
-                    ad, av = nets_d, nets_v
+            ad, av = f"{_ident(role['A'])}_d", f"{_ident(role['A'])}_v"
+            bd, bv = f"{_ident(role['B'])}_d", f"{_ident(role['B'])}_v"
+            ad, av = padded(c, ad, av, role["pad_A"], "A")
+            bd, bv = padded(c, bd, bv, role["pad_B"], "B")
+            vin = bv if role["valid_from"] == "B" else av
+            word = hexw(int(bool(cfg.get("subtract_mode", 0)))) if r.core == "adder" else "32'h0"
+            ca = cfg_args(word)
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
+              f".in_a({ad}), .in_b({bd}), .valid_in({vin}), .data_out({out_d}), .valid_out({out_v}));")
+        elif r.core == "comparator":
+            ca = cfg_args(hexw(cfg.get("threshold", 0)))
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
+              f".data_in({_ident(srcs[0])}_d), .valid_in({_ident(srcs[0])}_v), .data_out({out_d}), .valid_out({out_v}));")
+        else:   # ram
+            if c in const and not srcs:                          # a constant SOURCE: a fixed-mode ram, always valid (its relays just flow)
+                val = r.preload_value if r.preload_value is not None else cfg.get("init_data", 0)
+                ca = cfg_args(hexw(val), 1)
+                a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
+                  f".data_in(32'h0), .valid_in(1'b0), .data_out({out_d}), .valid_out({out_v}));")
+            else:
+                if srcs:
+                    dd, vv = f"{_ident(srcs[0])}_d", f"{_ident(srcs[0])}_v"
                 else:
-                    bd, bv = nets_d, nets_v
-            sub = int(bool(cfg.get("subtract_mode", 0)))
-            a(f"adder_cell_v4s #(.CELL_ID(16'd{p['order'].index(c)})) {i} (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), "
-              f".cfg_data(32'h{sub}), .in_a({ad}), .in_b({bd}), .valid_in({bv}), .data_out({i}_d), .valid_out({i}_v));")
+                    n = pname(r.io_name, c)
+                    dd, vv = f"in_{n}_data", f"in_{n}_valid"
+                ca = cfg_args("32'h0", bool(cfg.get("fixed_mode", 0)))
+                a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
+                  f".data_in({dd}), .valid_in({vv}), .data_out({out_d}), .valid_out({out_v}));")
+        if c in shifts:
+            amt, direction = shifts[c]
+            ca = cfg_args("32'h0")
+            a(f"shift_stage_v4s #(.CELL_ID(16'd{2000 + idx[c]}), .SHIFT_AMT(5'd{amt}), .DIRECTION(1'b{direction})) {i}_shift "
+              f"({ca}, .data_in({out_d}), .valid_in({out_v}), .data_out({i}_d), .valid_out({i}_v));")
     for c in exits:
         n, i = pname(cells[c].io_name, c), _ident(c)
         a(f"assign out_{n}_data = {i}_d;")
         a(f"assign out_{n}_valid = {i}_v;")
     a("endmodule")
-    return "\n".join(L) + "\n", pad_count
+    return "\n".join(L) + "\n", pad_count[0]
 
 
 def generate(icm_path, output, top=None, align=True, cell_dir=None):
@@ -226,6 +316,7 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None):
     rec = {"generator": "tools/flexsub_icm_generate_v1.py", "family": "sub", "source": os.path.basename(icm_path),
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["order"] if not p["outputs"].get(c)},
+           "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "shift_stages": {c: list(v) for c, v in p["shifts"].items()},
            "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"], "files": files + [f"{top}.ys"]}
     json.dump(rec, open(os.path.join(output, "ASSEMBLY.json"), "w"), indent=2)
     return rec
