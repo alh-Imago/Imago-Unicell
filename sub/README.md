@@ -782,6 +782,67 @@ overhead lands slightly off the purest ratio.
 new) + their testbenches. `sub/README.md` updated with the full finding. No
 existing file touched.
 
+## `branch` resolved: the last real structural gap in the family, closed through a full design conversation (`#918`)
+
+`branch` had sat flagged since `#898` as the one cell whose entire job is a
+runtime decision -- genuine tension with a family built around removing
+exactly that. Resolved not by fiat but through a real, multi-turn design
+conversation with Alan, confirming the real original (`branch_cell_v4c.v`)
+first, then building the new shape together, choice by choice.
+
+**The real design, agreed point by point:** two dedicated inputs (`in1`,
+`in2`), each INDEPENDENTLY runtime-selectable as fixed (held, reloaded via
+its own valid pulse) or flowing (fresh every firing) -- matching
+`ram_cell_v4sa`'s own fixed/flowing choice, applied per-input here. A real
+new capability this gives, which the original never had: comparing two
+genuinely live streams against each other, not just one value against a
+held reference. The 3-way signed compare (low/equal/high) is unchanged in
+spirit. `emit_source` is ONE shared, config-time choice (fixed constant /
+in1 / in2 / diff) -- Alan's own deliberate simplification once per-outcome
+value selection was found to add real complexity for little value. `diff =
+in1 - in2`, true signed subtraction, same convention as `adder_cell_v4sa`'s
+own `subtract_mode`.
+
+**A real simplification found DURING the conversation, not assumed from the
+start:** per-outcome routing to out1/out2/both/neither subsumes the
+original's separate per-outcome emit-enable bits for free -- routing to
+"neither" IS the swallow-silently case, no extra bit needed.
+
+**Real bugs found and fixed, split cleanly between RTL and testbench, each
+diagnosed with real tracing rather than guessed at:**
+- Testbench: a route encoding mistake (`2'b10` used for "both" when the
+  real encoding needed `2'b11`) and an inverted fixed-mode bit (a comment
+  said "flowing" while the value actually set "fixed") -- both caught by
+  direct register-level tracing, not assumed from the test's own comments.
+- Testbench: the `fire`-style helper waited for `ack_out` to return, which
+  (with `ack_in` held continuously high) meant the offer had ALREADY been
+  consumed by the time the check ran -- the same class of "checked too
+  late" mistake `shift_stage_v4sa` hit, caught here by noticing the debug
+  trace showed the CORRECT value one display earlier than the check ran.
+  Fixed by giving the testbench an explicit `present_round`/`wait_ready`
+  split instead of one helper trying to do both jobs.
+- Testbench: the freeze check itself had the expectation backwards --
+  outputs already pending BEFORE freezing should STAY pending while frozen
+  (freeze blocks `ack_in` from clearing them), not go to zero. The RTL was
+  correct throughout; the test's own expectation was inverted.
+
+19 real checks pass after all three fixes: the full low/equal/high x
+emit-source matrix, the swallow case, real synchronisation between two
+flowing streams, real differential backpressure across two independent
+outputs (mirroring `router_cell_v4sa`'s own test), and freeze correctly
+preserving in-flight state.
+
+**Real, measured result: the same clean linear ALU ratio found on every
+other arithmetic cell, holding here too.** ALU: 64 (`WIDTH=32`) -> **36
+(`WIDTH=18`)** -- the exact 0.5625 ratio, consistent with branch doing two
+real 32-bit-scale operations internally (the signed compare and the diff),
+giving 2x32=64 and 2x18=36. LUT1-4: 335 -> 201 (0.6, the usual small
+deviation from pure-linear seen on every cell with real control overhead
+alongside its arithmetic).
+
+**What changed:** `sub/verilog/branch_cell_v4sa.v` (new) + testbench.
+`sub/README.md` updated with the full finding. No existing file touched.
+
 ## Status
 
 Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
