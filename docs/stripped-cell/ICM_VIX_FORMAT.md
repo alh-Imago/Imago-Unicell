@@ -302,3 +302,14 @@ hard-wire a target.
 **refuse** a larger one (it cannot meet it) rather than ignore it. Today's `--icm` generators build 32-bit designs only: they record the declared value in `ASSEMBLY.json`
 (`min_bit_width`, `built_width`) and refuse more than 32. Narrowing a design to a target's native width on load, and widening the flex / nano cells (to 36) for a design that needs it, are the
 loader's and the save function's job and are not built yet. The `flexsub_compile_v1.py --min-bit-width N` option declares it where the design is produced.
+
+### What the base ICM deliberately does NOT do: sign data in spare bits is a TARGET item (Alan's ruling, ledger #959)
+
+The ICM is built for **strict 8 / 16 / 32-bit** systems, where a value is just a number: when a design is saved narrower than 32 bits its values are written **sign-extended** to the full
+32-bit field, so the file is a plain, lossless 32-bit ICM that **any** consumer can read, whether or not it ever looks at the header. A narrow target reads the header, takes the declared
+`min_bit_width`, and checks that every value fits; a value that does not fit is **refused, never silently truncated**.
+
+A target whose native widths are **not** 8 / 16 / 32 (the Tang's are 18 and 36) may have spare bits in which sign information could be stored. That is a **target-specific encoding**, not part
+of the ICM: a strict 8/16/32-bit reader does not store or expect a sign there, and an ICM that carried it would confuse such a reader. So it is defined and written by **that target's own save and load**,
+and declared in the file **when it is used** (i.e. for widths other than 8, 16 or 32), never assumed. The base ICM and its `min_bit_width` flag are unaffected, and the flag itself never confuses a
+strict system: "at least 18 bits" is satisfied by rounding up to 32.
