@@ -1,0 +1,36 @@
+real P&R of LFSR-wrapped cells, Tang Nano 20K, 27 MHz target.   columns: LUT4 / MUX2 / ALU / DFF / Fmax MHz   (the wrapper adds ~+256 DFF and a few LUT to every row)
+
+SUB (fixed 32-bit):
+  accumulator  default   467/  173/150/ 357   89.5   nowidelut   294/  0/150/ 357  100.4   LUT4 1.59x  Fmax 1.12x
+  adder        (no timing result: yosys or place-and-route did not complete)
+  branch       (no timing result: yosys or place-and-route did not complete)
+  compare      default    78/    2/ 48/ 301  616.9   nowidelut    78/  0/ 48/ 301  316.7   LUT4 1.00x  Fmax 0.51x
+  latch        default    31/   15/ 10/ 270  511.5   nowidelut    18/  0/ 10/ 270  616.9   LUT4 1.72x  Fmax 1.21x
+  mask         default   145/   62/ 10/ 309  616.9   nowidelut    90/  0/ 10/ 309  616.9   LUT4 1.61x  Fmax 1.00x
+  mul          default  4344/ 3412/ 44/ 300   81.8   nowidelut  1419/  0/ 44/ 300  249.5   LUT4 3.06x  Fmax 3.05x
+  mul_dsp      default  4344/ 3412/ 44/ 300   77.5   nowidelut  1419/  0/ 44/ 300  249.5   LUT4 3.06x  Fmax 3.22x
+  mul_dsp2     default   113/   62/ 10/ 300  616.9   nowidelut    58/  0/ 10/ 300  607.5   LUT4 1.95x  Fmax 0.98x
+  mul_dsp3     default   184/   62/ 44/ 417  406.5   nowidelut   129/  0/ 44/ 417  399.8   LUT4 1.43x  Fmax 0.98x
+  nano         default  1920/ 1687/ 10/ 342  616.9   nowidelut   309/  0/ 10/ 342  248.5   LUT4 6.21x  Fmax 0.40x
+  ram          default   116/   62/ 10/ 301  607.5   nowidelut    61/  0/ 10/ 301  616.9   LUT4 1.90x  Fmax 1.02x
+  router       default    30/   15/ 10/ 271  541.1   nowidelut    17/  0/ 10/ 271  620.7   LUT4 1.76x  Fmax 1.15x
+  sequencer    default   101/   49/ 10/ 312  616.9   nowidelut    57/  0/ 10/ 312  342.1   LUT4 1.77x  Fmax 0.55x
+  shift        (no timing result: yosys or place-and-route did not complete)
+  shift_stage  default   113/   62/ 10/ 300  616.9   nowidelut    58/  0/ 10/ 300  616.9   LUT4 1.95x  Fmax 1.00x
+FLEX (native 18-bit):
+  accumulator  default   336/  147/ 94/ 329   84.5   nowidelut   194/  0/ 94/ 329  101.0   LUT4 1.73x  Fmax 1.19x
+  adder        (no timing result: yosys or place-and-route did not complete)
+  branch       default   181/   65/ 34/ 315  616.9   nowidelut   120/  0/ 34/ 315  502.8   LUT4 1.51x  Fmax 0.81x
+  compare      default   122/   74/ 34/ 287  616.9   nowidelut    55/  0/ 34/ 287  236.6   LUT4 2.22x  Fmax 0.38x
+  latch        (no timing result: yosys or place-and-route did not complete)
+  mask         (no timing result: yosys or place-and-route did not complete)
+  mul          default  1083/  790/ 30/ 286  102.2   nowidelut   432/  0/ 30/ 286  184.1   LUT4 2.51x  Fmax 1.80x
+  mul_dsp      default    26/    4/ 10/ 286  616.9   nowidelut    23/  0/ 10/ 286  375.1   LUT4 1.13x  Fmax 0.61x
+  nano         default   886/  707/ 10/ 314  616.9   nowidelut   175/  0/ 10/ 314  224.0   LUT4 5.06x  Fmax 0.36x
+  ram          default    45/    4/ 10/ 287  607.5   nowidelut    42/  0/ 10/ 287  404.5   LUT4 1.07x  Fmax 0.67x
+  router       (no timing result: yosys or place-and-route did not complete)
+  sequencer    default   102/   49/ 10/ 312  571.1   nowidelut    58/  0/ 10/ 312  375.4   LUT4 1.76x  Fmax 0.66x
+  shift_stage  default    26/    4/ 10/ 286  607.5   nowidelut    23/  0/ 10/ 286  393.9   LUT4 1.13x  Fmax 0.65x
+
+SUMMARY: 22 cells; Fmax with the flag is more than 5% LOWER in 10: [('sub', 'compare', 0.51), ('sub', 'nano', 0.4), ('sub', 'sequencer', 0.55), ('flex', 'branch', 0.81), ('flex', 'compare', 0.38), ('flex', 'mul_dsp', 0.61), ('flex', 'nano', 0.36), ('flex', 'ram', 0.67), ('flex', 'sequencer', 0.66), ('flex', 'shift_stage', 0.65)]
+         total LUT4 default 14793, nowidelut 5129

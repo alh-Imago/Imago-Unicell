@@ -789,10 +789,10 @@ def emit_top(top, p, width=32):
     return "\n".join(L) + "\n", pad_count[0]
 
 
-def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub"):
+def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=False):
     if family == "flex":
         import flexsub_icm_flex_v1 as ff
-        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir)
+        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, nowidelut=nowidelut)
     man = fsa.load_man_flexsub(man_path) if man_path else None
     p = plan(icm_path, align, man=man, mul_mode=mul_mode)
     stem = re.sub(r"[^A-Za-z0-9_]", "_", os.path.basename(icm_path).split(".")[0])
@@ -807,12 +807,12 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=Non
         shutil.copy2(os.path.join(src, fname), os.path.join(output, fname))
     files = [f"{top}.v"] + [f for f, _ in dep_pairs]
     open(os.path.join(output, f"{top}.ys"), "w").write(
-        f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top} -json {top}.json\nstat\n")
+        f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top}{' -nowidelut' if nowidelut else ''} -json {top}.json\nstat\n")
     rec = {"generator": "tools/flexsub_icm_generate_v1.py", "family": "sub", "source": os.path.basename(icm_path),
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["exits"]}, "pruned_dead_cells": p["pruned"], "exit_rule": p["exit_rule"],
            "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
-           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "multipliers": p["mul_info"],
+           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "multipliers": p["mul_info"], "synth_flags": "-nowidelut" if nowidelut else "(default)",
            **({"sim_note": "this design instantiates the Gowin MULT36X36 primitive (mul_cell_v4s_dsp2); simulation needs a behavioural stand-in "
                            "(yosys ships none) -- see sub/verilog/tb_mul_cell_v4s_dsp2.v. Synthesis uses the primitive directly."} if p["mul_info"]["dsp2"] else {}), "level_sources": sorted(c for c in p["cells"] if is_level(p["cells"][c])),
            "sequencers": {c: {"advance_port": "adv_" + re.sub(r"[^A-Za-z0-9_]", "_", p["cells"][c].io_name or c),

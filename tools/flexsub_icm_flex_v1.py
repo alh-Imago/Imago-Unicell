@@ -210,7 +210,7 @@ def emit_top_flex(top, p):
     return "\n".join(L) + "\n", forks, joins
 
 
-def generate_flex(icm_path, output, top=None, cell_dir=None):
+def generate_flex(icm_path, output, top=None, cell_dir=None, nowidelut=False):
     p = g.plan(icm_path, True, family="flex")
     if p["merges"]:
         raise g.IcmGenError(f"cannot generate flex Verilog from {os.path.basename(icm_path)}:\n  - merges {sorted(p['merges'])} are not yet translated on flex "
@@ -231,12 +231,12 @@ def generate_flex(icm_path, output, top=None, cell_dir=None):
         shutil.copy2(os.path.join(src, fname), os.path.join(output, fname))
     files = [f"{top}.v"] + [f for f, _ in dep_pairs]
     open(os.path.join(output, f"{top}.ys"), "w").write(
-        f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top} -json {top}.json\nstat\n")
+        f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top}{' -nowidelut' if nowidelut else ''} -json {top}.json\nstat\n")
     rec = {"generator": "tools/flexsub_icm_flex_v1.py", "family": "flex", "source": os.path.basename(icm_path), "top": top,
            "cells": len(p["cells"]), "forks": forks, "joins": joins,
            "constants": sorted(c for c in p["const"] if not p["inputs"].get(c)), "const_derived": sorted(c for c in p["const"] if p["inputs"].get(c)), "exit_rule": p["exit_rule"], "pruned_dead_cells": p["pruned"],
            "exits": list(p["exits"]), "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"],
            "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
-           "note": "handshake design: every port has valid/ack; no latency alignment, no padding", "files": files + [f"{top}.ys"]}
+           "note": "handshake design: every port has valid/ack; no latency alignment, no padding", "synth_flags": "-nowidelut" if nowidelut else "(default)", "files": files + [f"{top}.ys"]}
     json.dump(rec, open(os.path.join(output, "ASSEMBLY.json"), "w"), indent=2)
     return rec

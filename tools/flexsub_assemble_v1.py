@@ -433,7 +433,7 @@ def _derive_deps(top_path, cell_dir):
     return sorted(found.items())
 
 
-def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top=None, cell_dir=None):
+def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top=None, cell_dir=None, nowidelut=False):
     if family not in FAMILIES:
         raise ValueError(f"unknown family {family!r}; real options: {', '.join(FAMILIES)}")
     if cell is None:
@@ -477,7 +477,7 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
 
     files = [f"{top_name}.v"] + deps
     ys = [f"read_verilog -sv {' '.join(files)}", f"hierarchy -top {top_name}",
-          f"synth_gowin -top {top_name} -json {top_name}.json", "stat"]
+          f"synth_gowin -top {top_name}{' -nowidelut' if nowidelut else ''} -json {top_name}.json", "stat"]
     with open(os.path.join(output, f"{top_name}.ys"), "w") as f:
         f.write("\n".join(ys) + "\n")
 
@@ -500,7 +500,8 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
     record = {"generator": "tools/flexsub_assemble_v1.py", "family": family, "cell": base,
               "cell_module": module, "cells": n, "width": width,
               "width_source": width_source, "man": man["card_id"] if man else None,
-              "top": top_name, "files": files + (["build.sh"]), "pnr": have_cst}
+              "top": top_name, "files": files + (["build.sh"]), "pnr": have_cst,
+              "synth_flags": "-nowidelut" if nowidelut else "(default)"}
     if SHAPES[base].get("sim_stub"):
         record["sim_note"] = ("this cell instantiates a Gowin multiplier primitive; simulation needs a behavioural "
                               f"stand-in (yosys ships none) -- see the stub in {SHAPES[base]['sim_stub']}. "
