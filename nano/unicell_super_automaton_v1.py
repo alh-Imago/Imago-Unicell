@@ -56,6 +56,10 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+try:
+    import icm_width_v1 as _icm_width
+except ImportError:
+    from . import icm_width_v1 as _icm_width
 from unicell_automaton_v1 import CACell, N, S, E, W, _DIRS, _DIR_BIT, _OPPOSITE, _MASK32, _MASK4
 
 import icm_v3 as v3
@@ -207,11 +211,24 @@ def _wrap_signed32(v: int) -> int:
     return v - (1 << 32) if v & 0x80000000 else v
 
 
-def apply_addons(value: int, addon_config: dict) -> int:
+def _wrap_signed(v: int, width: int = 32) -> int:
+    """Two's-complement wrap to `width` bits (ledger #961). At the default width 32 this is exactly _wrap_signed32."""
+    v &= (1 << width) - 1
+    return v - (1 << width) if v & (1 << (width - 1)) else v
+
+
+def apply_addons(value: int, addon_config: dict, width: int = 32) -> int:
     """nibble_mask -> shift_fine -> shift_lane -> invert, matching
     unicell_super_v1.v's real instantiation order exactly (points.md
     #684: the fine stage was inserted between mask and the original
     coarse stage, per Alan's own direct design)."""
+    if width != 32:
+        # The add-ons (nibble mask, fine/coarse lane shift, lane cut, invert) are defined on the RTL's 32-bit lanes; no W-bit definition has been verified, so at any other
+        # width an ENABLED add-on is refused rather than guessed (ledger #961: known facts only). With none enabled the value is just masked to the width.
+        on = [k for k in ("mask_en", "shift_en", "invert_en") if addon_config.get(k)]
+        if on:
+            raise ValueError(f"add-ons {on} are defined on 32-bit lanes only and are not available at width {width}")
+        return value & ((1 << width) - 1)
     value &= _MASK32
 
     # nibble_mask_addon_v1.v
@@ -542,12 +559,25 @@ class SuperCell:
             return bool(self._nano.program_done)
         return getattr(self, "_prog_program_done", False)
 
+    # Ledger #961: the data width of this cell (default 32 = the VM exactly as it always was). Set per cell by from_record(width=...), from the grid's width.
+    width = 32
+    mask = _MASK32
+
+    def _wrap(self, v: int) -> int:
+        return _wrap_signed(v, self.width)
+
     @classmethod
-    def from_record(cls, rec: "v3.IcmV3Record") -> "SuperCell":
+    def from_record(cls, rec: "v3.IcmV3Record", width: int = 32) -> "SuperCell":
         core = rec.core
         cfg = rec.core_config
         addon = rec.addon_config
         cell = cls(row=rec.row, col=rec.col, core=core, addon_config=addon, cell_id=rec.cell_id)
+        cell.width = width
+        cell.mask = (1 << width) - 1
+        if width != 32 and core == "nano":
+            # The nano's arithmetic is delegated to CACell (unicell_automaton_v1.py), whose own masks are 32-bit and are NOT yet width-aware: computing it at another width would be
+            # silently inconsistent with the rest of the grid, so it is refused loudly (ledger #961) until CACell is parameterised and cross-checked against the RTL.
+            raise ValueError(f"the nano core is not available at width {width}: its arithmetic lives in CACell, which is not yet width-aware (32 only)")
 
         # Real, root-definition-driven validation (points.md #358), not
         # a silent .get(key, default) that would let a typo'd field name
@@ -639,7 +669,7 @@ class SuperCell:
             cell.ram_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.ram_upstream_mask = dm(cfg.get("upstream_mask", 0))
             cell.ram_fixed_mode = bool(cfg.get("fixed_mode", 0))
-            cell.ram_data_reg = cfg.get("init_data", 0) & _MASK32
+            cell.ram_data_reg = cfg.get("init_data", 0) & cell.mask
             cell.ram_data_valid = bool(cfg.get("load_data_valid", 0))
         elif core == "adder":
             cell.adder_downstream_mask = dm(cfg.get("downstream_mask", 0))
@@ -778,9 +808,9 @@ class SuperCell:
             return (False, None)  # doubly full
         val = 0
         for v in matched.values():
-            val |= v & _MASK32
+            val |= v & self.mask
         if injected is not None:
-            val |= injected & _MASK32
+            val |= injected & self.mask
         self.ram_data_reg = val
         self.ram_data_valid = True
         return (True, None)
@@ -797,9 +827,9 @@ class SuperCell:
             return (True, None)
         val = 0
         for v in matched.values():
-            val |= v & _MASK32
+            val |= v & self.mask
         if injected is not None:
-            val |= injected & _MASK32
+            val |= injected & self.mask
         if not self.adder_a_arrived:
             self.adder_a_reg = val
             self.adder_a_arrived = True
@@ -807,9 +837,9 @@ class SuperCell:
         if self.adder_data_valid:
             return (False, None)  # doubly full -- B blocked until prior sum drains
         if self.adder_subtract_mode:
-            self.adder_out_buffer = (self.adder_a_reg - val) & _MASK32
+            self.adder_out_buffer = (self.adder_a_reg - val) & self.mask
         else:
-            self.adder_out_buffer = (self.adder_a_reg + val) & _MASK32
+            self.adder_out_buffer = (self.adder_a_reg + val) & self.mask
         self.adder_data_valid = True
         self.adder_a_arrived = False
         return (True, None)
@@ -833,9 +863,9 @@ class SuperCell:
             return (True, None)
         val = 0
         for v in matched.values():
-            val |= v & _MASK32
+            val |= v & self.mask
         if injected is not None:
-            val |= injected & _MASK32
+            val |= injected & self.mask
         if not self.mul_a_arrived:
             self.mul_a_reg = val
             self.mul_a_arrived = True
@@ -843,12 +873,12 @@ class SuperCell:
         if self.mul_data_valid:
             return (False, None)  # doubly full -- B blocked until prior product drains
         full_product = self.mul_a_reg * val
-        self.mul_out_buffer = full_product & _MASK32
+        self.mul_out_buffer = full_product & self.mask
         # points.md #853/#854: latched here, at the SAME real moment
         # the low half is -- the real RTL's own captured_hi register
         # exists precisely because reading this later, uncaptured,
         # reads stale/wrong (a real bug #853 found and fixed).
-        self.mul_captured_hi = (full_product >> 32) & _MASK32
+        self.mul_captured_hi = (full_product >> self.width) & self.mask
         self.mul_delivering_hi = False
         self.mul_data_valid = True
         self.mul_a_arrived = False
@@ -869,12 +899,12 @@ class SuperCell:
         step = self.acc_step_amount
         delta = step if (capture_inc and not capture_dec) else -step if (capture_dec and not capture_inc) else 0
         if capture_inc or capture_dec:
-            next_total = _wrap_signed32(self.acc_total + delta)
+            next_total = self._wrap(self.acc_total + delta)
             abs_next = -next_total if next_total < 0 else next_total
             threshold_hit = self.acc_pulse_mode and self.acc_threshold != 0 and abs_next >= self.acc_threshold
             if self.acc_pulse_mode and threshold_hit:
                 self.acc_total = 0
-                self.acc_out_buffer = next_total & _MASK32   # the real crossing value, latched
+                self.acc_out_buffer = next_total & self.mask   # the real crossing value, latched
                 self.acc_pulse_pending = True
             else:
                 self.acc_total = next_total
@@ -889,10 +919,10 @@ class SuperCell:
             return (False, None)
         val = 0
         for v in matched.values():
-            val |= v & _MASK32
+            val |= v & self.mask
         if injected is not None:
-            val |= injected & _MASK32
-        self.cmp_out_buffer = 1 if _wrap_signed32(val) >= self.cmp_threshold else 0
+            val |= injected & self.mask
+        self.cmp_out_buffer = 1 if self._wrap(val) >= self.cmp_threshold else 0
         self.cmp_data_valid = True
         return (True, None)
 
@@ -934,14 +964,14 @@ class SuperCell:
         matched = [d for d in arrivals if d == self.br_upstream_dir]
         if not matched:
             return (True, None)   # nothing on our one real fixed direction
-        val = arrivals[matched[0]] & _MASK32
+        val = arrivals[matched[0]] & self.mask
         if not self.br_ref_valid:
-            self.br_ref_value = _wrap_signed32(val)
+            self.br_ref_value = self._wrap(val)
             self.br_ref_valid = True
             return (True, None)
         if self.br_data_valid:
             return (False, None)   # doubly full, matches capture_compare's own !data_valid guard
-        signed_val = _wrap_signed32(val)
+        signed_val = self._wrap(val)
         if signed_val < self.br_ref_value:
             value_source, fixed_value, emit, route = (
                 self.br_value_source_low, self.br_fixed_value_low, self.br_emit_low, self.br_route_low)
@@ -1037,7 +1067,7 @@ class SuperCell:
             due_dir = self.pri_seq_order[self.pri_seq_index % len(self.pri_seq_order)]
             if due_dir not in candidates:
                 return (set(), None)  # the due direction hasn't arrived yet -- wait, ignore everyone else
-            self.pri_data_reg = arrivals[due_dir] & _MASK32
+            self.pri_data_reg = arrivals[due_dir] & self.mask
             self.pri_data_valid = True
             self.pri_winning_dir = due_dir
             self.pri_seq_index = (self.pri_seq_index + 1) % len(self.pri_seq_order)
@@ -1060,7 +1090,7 @@ class SuperCell:
         # win_n/win_s/win_e/win_w priority-encoder structure exactly.
         winner = max(sorted(candidates, key=lambda d: (N, S, E, W).index(d)), key=lambda d: score[d])
 
-        self.pri_data_reg = arrivals[winner] & _MASK32
+        self.pri_data_reg = arrivals[winner] & self.mask
         self.pri_data_valid = True
         self.pri_winning_dir = winner
 
@@ -1105,7 +1135,7 @@ class SuperCell:
             # gated on a real discrete pulse_pending flag -- never the
             # ongoing running total. Matches #515's RTL exactly.
             return (self.acc_out_buffer, self.acc_pulse_pending, self.acc_downstream_mask)
-        self.acc_out_buffer = self.acc_total & _MASK32   # snapshot refresh, matches RTL's own gating
+        self.acc_out_buffer = self.acc_total & self.mask   # snapshot refresh, matches RTL's own gating
         return (self.acc_out_buffer, True, self.acc_downstream_mask)
 
     def _offer_state_latch(self) -> Tuple[int, bool, int]:
@@ -1262,9 +1292,22 @@ class SuperGrid:
     "no addressing, no shared bus" model as `CAGrid` -- generalized to
     heterogeneous core types via `icm_v3.IcmV3Record.core`."""
 
-    def __init__(self, records: List["v3.IcmV3Record"]):
+    # Class-level defaults: a subclass whose own __init__ does not call this one (VixCarrierGrid) behaves exactly as before, at 32 bits. Found by the full tests/vm run, not by thought.
+    width = 32
+    mask = _MASK32
+
+    def __init__(self, records: List["v3.IcmV3Record"], width: int = 32):
+        # Ledger #961: the VM's data width. Default 32 = unchanged. A different width is how a MIRROR of a narrower or wider target is built (e.g. the Tang's 18, or 36 for the flex/nano).
+        w_ = _icm_width.validate_min_bit_width(width)
+        self.width = 32 if w_ is None else w_
+        self.mask = (1 << self.width) - 1
+        if self.width != 32:
+            unverified = sorted({r.core for r in records} & {"accumulator", "branch", "priority"})
+            if unverified:
+                import warnings
+                warnings.warn(f"VM width {self.width}: the {unverified} core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)", UserWarning, stacklevel=2)
         self.cells: Dict[Tuple[int, int], SuperCell] = {
-            (r.row, r.col): SuperCell.from_record(r) for r in records
+            (r.row, r.col): SuperCell.from_record(r, self.width) for r in records
         }
         self._pending: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
         self.tick_count = 0
@@ -1340,7 +1383,7 @@ class SuperGrid:
                 f"core, not 'ram' -- this method's own real, current scope is "
                 f"ram_flowing cells only"
             )
-        cell.ram_data_reg = value & _MASK32
+        cell.ram_data_reg = value & self.mask
         cell.ram_data_valid = True
 
     def confirm_read(self, row: int, col: int) -> None:
@@ -1374,10 +1417,10 @@ class SuperGrid:
             injected_origin = None
             for origin, from_dir, value in events:
                 if from_dir is None:
-                    injected_val = (injected_val or 0) | (value & _MASK32)
+                    injected_val = (injected_val or 0) | (value & self.mask)
                     injected_origin = origin
                 else:
-                    by_dir[from_dir] = (origin, value & _MASK32)
+                    by_dir[from_dir] = (origin, value & self.mask)
 
             real_dirs = {d: v for d, (_o, v) in by_dir.items()}
             accepted, result = cell.deliver(real_dirs, injected=injected_val)
@@ -1479,7 +1522,7 @@ class SuperGrid:
             value, valid, downstream = cell._offer_state()
             if not valid or downstream == 0:
                 continue
-            value = apply_addons(value, cell.addon_config)
+            value = apply_addons(value, cell.addon_config, self.width)
             cell.pending_ack = downstream & _MASK4
             active[pos] = True
             for direction in _DIRS:
