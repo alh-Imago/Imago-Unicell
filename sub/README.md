@@ -867,6 +867,10 @@ A acknowledged without B, mode 0 accepting B, capture when unarmed, priority nev
 without `ack_in`); and `tests/test_flexsub_flex_merge_v1.py`: the whole cordic (36 cells, 4 merge cores) == the real VM on 12 starting angles + the -404 anchor, and join-OR resolves the
 same-cycle divergence (the VM's `0x0f0 | 0xf00 = 0xff0` is ONE value; arbitrate mode gives two outputs, join-OR gives one, equal to the VM).
 
+**In the generator (`#957`):** a core is placed per ICM merge and only where one exists; a merge of 3 or 4 sources becomes a balanced TREE of two-input cores (arbitrate: round-robin at every level; join-or: OR is
+associative, so the tree waits for ALL sources); the mode is chosen PER MERGE with `--merge-mode "consumer=join-or,arbitrate"` (a mistyped name is refused, listing the real ones). Until the ICM itself can carry the
+choice, the command line is where it is given.
+
 **Stated limit:** no cell can restore the ORDER of items between two paths (that needs per-item tags), so an arbitrating merge is only well-defined with at most one item in flight in the region
 it joins (true of the loop-style designs that use merges; the compiler never emits one). Join-OR does not have the problem: it takes one item from each side per output.
 

@@ -1492,10 +1492,11 @@ def main():
                           "forcing it where the MAN says the toolchain does not support it (the Arria 10 / synth_intel_alm path) is refused.")
     ap.add_argument("--wide-lut", action="store_true",
                      help="Opt OUT of the -nowidelut default: write the historical `synth_gowin` line (wide-LUT / MUX2_LUT mapping). Same Gowin-only scope as --nowidelut.")
-    ap.add_argument("--merge-mode", default="arbitrate", choices=["arbitrate", "join-or"],
-                     help="With -s flex --icm: how the MERGE core (merge_cell_v4sa) combines an ICM merge's two sources. arbitrate (default) = take one at a time, round-robin: right when the two "
-                          "paths are ALTERNATIVES (a branch's outcomes rejoining, e.g. the cordic's gather). join-or = WAIT for both, then OR them: right when the two paths are HALVES of one "
-                          "item to be combined (the VM's 'free OR' used as a feature). The VM ORs same-tick arrivals; under a handshake that is only well-defined as a join.")
+    ap.add_argument("--merge-mode", default="arbitrate", metavar="SPEC",
+                     help="With -s flex --icm: the mode of the MERGE core (merge_cell_v4sa) placed at each ICM merge, chosen PER MERGE. SPEC is a default mode, or 'consumer=mode,...,default': "
+                          "e.g. 'arbitrate', 'join-or', or 's0.gather=join-or,arbitrate'. arbitrate (default) = take one source at a time, round-robin: right when the paths are ALTERNATIVES "
+                          "(a branch's outcomes rejoining, e.g. the cordic's gather). join-or = WAIT for all sources, then OR: right when the paths are HALVES of one item (the VM's 'free OR' "
+                          "used as a feature). Merges of 3-4 sources become a tree of two-input cores. A core is placed only where an ICM merge exists.")
     ap.add_argument("--mul", default="auto", choices=["auto", "lut", "dsp"],
                      help="With --icm: how `mul` cells are realised. auto (default) = the DSP cell (mul_cell_v4s_dsp2, one MULT36X36, a few dozen LUTs) while the MAN's card has DSP blocks left, the exact LUT multiplier (~4,277 LUT4 each) as the fall back, and a refusal if even that cannot fit the card; lut = always the LUT multiplier; dsp = always DSP (refused if the card has too few). Needs --man for resource information; without one auto uses the LUT multiplier.")
     ap.add_argument("--no-align", action="store_true",

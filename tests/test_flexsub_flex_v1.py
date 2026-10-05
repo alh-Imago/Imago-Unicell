@@ -491,7 +491,7 @@ try:
             for n_, rr, cc, up, dn in (("E1", 0, 1, [], ["s"]), ("E2", 1, 0, [], ["e"]), ("E3", 2, 1, [], ["n"]), ("M", 1, 1, ["n", "w", "s"], ["e"]), ("O", 1, 2, ["w"], []))]
     IcmV3File(name="m3", records=mrg3).save(os.path.join(tmp, "m3.icm"))
     r = cli("-s", "flex", "--icm", os.path.join(tmp, "m3.icm"), "--output", os.path.join(tmp, "g_m3"))
-    check("a THREE-source merge is refused on flex (the arbiter handles two)", r.returncode != 0 and "3 sources" in r.stderr, r.stderr.strip()[:200])
+    check("a THREE-source merge now generates on flex as a TREE of two merge cores (proof: tests/test_flexsub_flex_merge_v1.py)", r.returncode == 0 and json.load(open(os.path.join(tmp, "g_m3", "ASSEMBLY.json")))["merge_cores"] == 2, r.stderr.strip()[:200])
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

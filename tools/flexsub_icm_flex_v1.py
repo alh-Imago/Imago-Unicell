@@ -80,34 +80,68 @@ import flexsub_icm_generate_v1 as g  # noqa: E402
 FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa", "merge": "merge_cell_v4sa", "sequencer": "sequencer_cell_v4sa"}
 
 
+MERGE_MODES = {"arbitrate": 2, "join-or": 3}
+
+
+def parse_merge_modes(spec):
+    """'arbitrate' | 'join-or' | 'cell=mode,cell=mode,default' -> {'*': default, cell: mode}. A merge core is placed per ICM merge (and only where one exists); its MODE is per merge:
+    arbitrate for ALTERNATIVE paths, join-or for HALVES of one item. Keys are the merge's CONSUMER cell id."""
+    if isinstance(spec, dict):
+        out = dict(spec)
+        out.setdefault("*", "arbitrate")
+    else:
+        out = {"*": "arbitrate"}
+        for part in [x.strip() for x in str(spec).split(",") if x.strip()]:
+            if "=" in part:
+                k, v = part.rsplit("=", 1)
+                out[k.strip()] = v.strip()
+            else:
+                out["*"] = part
+    for k, v in out.items():
+        if v not in MERGE_MODES:
+            raise g.IcmGenError(f"unknown merge mode {v!r} for {k!r}: use one of {sorted(MERGE_MODES)}")
+    return out
+
+
 def _pname(io, cid):
     return re.sub(r"[^A-Za-z0-9_]", "_", io or cid)
 
 
 def emit_top_flex(top, p, merge_mode="arbitrate"):
+    modes = parse_merge_modes(merge_mode)
     cells, inputs, roles = p["cells"], p["inputs"], p["adder_roles"]
     branch_plans, branch_port = p["branch_plans"], p["branch_port"]
     order, exits_l, addons = p["order"], list(p["exits"]), p["addons"]
-    mode_code = {"arbitrate": 2, "join-or": 3}[merge_mode]
-    merge_cells = {}
+    merge_cells, merge_node_mode = {}, {}
     if p["merges"]:
         # Each ICM merge (several sources into one input) becomes a real merge CORE in front of its consumer: a graph rewrite, so the fork / edge / ack machinery below
         # treats it as just another cell.
         cells, inputs, roles, order, branch_port = dict(cells), {k: dict(v) for k, v in inputs.items()}, dict(roles), list(order), dict(branch_port)
+        unknown = sorted(k for k in modes if k != "*" and k not in p["merges"])
+        if unknown:
+            raise g.IcmGenError(f"--merge-mode names {unknown} which are not merge consumers in this design (merges: {sorted(p['merges'])})")
         for dst, srcs in p["merges"].items():
-            if len(srcs) != 2:
-                raise g.IcmGenError(f"{dst}: a merge of {len(srcs)} sources is not translated on flex (the merge core has two inputs)")
-            mid = f"{dst}.merge"
+            mode = modes.get(dst, modes["*"])
             flat = [(q, f) for lst in inputs[dst].values() for q, f in lst]
-            cells[mid] = type(cells[dst])(cell_id=mid, row=cells[dst].row, col=cells[dst].col, core="merge", core_config={})
-            inputs[mid] = {"in": flat[:2]}
-            inputs[dst] = {"in": [(mid, flat[0][1])]}
-            roles[mid] = {"A": flat[0][0], "B": flat[1][0]}
-            order.insert(order.index(dst), mid)
-            for q, _ in flat:
-                if q in branch_plans:
-                    branch_port[(mid, q)] = branch_port[(dst, q)]
-            merge_cells[mid] = [q for q, _ in flat]
+            # >2 sources: a balanced TREE of two-input cores (Alan: "a tree of merges"). Arbitrate: each level round-robin, so no source starves (a lone third source gets half the
+            # share). Join-or: OR is associative, so a tree of joins is a join of ALL sources -- it waits for every one.
+            queue, nid_i = list(flat), 0
+            while len(queue) > 1:
+                (qa, fa), (qb, fb) = queue.pop(0), queue.pop(0)
+                final = not queue
+                mid = f"{dst}.merge" if final else f"{dst}.merge{nid_i}"
+                nid_i += 1
+                cells[mid] = type(cells[dst])(cell_id=mid, row=cells[dst].row, col=cells[dst].col, core="merge", core_config={})
+                inputs[mid] = {"in": [(qa, fa), (qb, fb)]}
+                roles[mid] = {"A": qa, "B": qb}
+                order.insert(order.index(dst), mid)
+                for q in (qa, qb):
+                    if q in branch_plans:
+                        branch_port[(mid, q)] = branch_port[(dst, q)]
+                merge_cells[mid] = [qa, qb]
+                merge_node_mode[mid] = mode
+                queue.append((mid, fa))
+            inputs[dst] = {"in": [queue[0]]}
     exits = set(exits_l)
     idx = {c: k for k, c in enumerate(order)}
     ident = g._ident
@@ -279,7 +313,7 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             a(f"wire [31:0] {i}_inh = {srcdata[eA]}, {i}_inf = {srcdata[eB]};")
         elif r.core == "merge":
             eA, eB = es
-            joins.append({"cell": dst, "kind": f"merge core ({merge_mode})", "sources": merge_cells[dst]})
+            joins.append({"cell": dst, "kind": f"merge core ({merge_node_mode[dst]})", "sources": merge_cells[dst]})
             a(f"assign {i}_vin = 1'b0;")
             a(f"assign {eA}_a = {i}_rdya;                              // the CORE arbitrates / joins; here the two inputs are simply connected")
             a(f"assign {eB}_a = {i}_rdyb;")
@@ -329,8 +363,8 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
               f".ack_out({i}_rdy), .data_out_1({dout}), .valid_out_1({i}_p1_v), .ack_in_1({i}_p1_ai), .data_out_2({i}_d2u), .valid_out_2({i}_p2_v), .ack_in_2({i}_p2_ai));")
         elif r.core == "merge":
             eA, eB = by_dst[c]
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{mode_code}), .in_a({i}_ina), .valid_in_a({eA}_v), "
-              f".ack_out_a({i}_rdya), .in_b({i}_inb), .valid_in_b({eB}_v), .ack_out_b({i}_rdyb), .data_out({dout}), .valid_out({i}_v), .ack_in({i}_ai));   // mode {mode_code}: {merge_mode}")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{MERGE_MODES[merge_node_mode[c]]}), .in_a({i}_ina), .valid_in_a({eA}_v), "
+              f".ack_out_a({i}_rdya), .in_b({i}_inb), .valid_in_b({eB}_v), .ack_out_b({i}_rdyb), .data_out({dout}), .valid_out({i}_v), .ack_in({i}_ai));   // mode {MERGE_MODES[merge_node_mode[c]]}: {merge_node_mode[c]}")
         elif r.core == "ram" and c in roots:
             val = (r.preload_value if r.preload_value is not None else cfg.get("init_data", 0)) & 0xFFFFFFFF
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{val:08X}), .cfg_fixed_mode(1'b1), .data_in({i}_ind), .valid_in({i}_vin));   // CONSTANT {val}")
@@ -391,7 +425,7 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowi
     open(os.path.join(output, f"{top}.ys"), "w").write(
         f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top}{' -nowidelut' if nowidelut else ''} -json {top}.json\nstat\n")
     rec = {"generator": "tools/flexsub_icm_flex_v1.py", "family": "flex", "source": os.path.basename(icm_path), "top": top,
-           "cells": len(p["cells"]), "forks": forks, "joins": joins, "merge_mode": merge_mode if p["merges"] else None, "merges": {m: srcs for m, srcs in p["merges"].items()}, "branches": {c: {k: v for k, v in bp.items() if not k.startswith("_")} for c, bp in p["branch_plans"].items()},
+           "cells": len(p["cells"]), "forks": forks, "joins": joins, "merge_mode": (parse_merge_modes(merge_mode) if p["merges"] else None), "merge_cores": sum(1 for j in joins if j.get("kind", "").startswith("merge core")), "merges": {m: srcs for m, srcs in p["merges"].items()}, "branches": {c: {k: v for k, v in bp.items() if not k.startswith("_")} for c, bp in p["branch_plans"].items()},
            "constants": sorted(c for c in p["const"] if not p["inputs"].get(c) and c not in levels), "level_sources": sorted(levels), "const_derived": sorted(c for c in p["const"] if p["inputs"].get(c)), "exit_rule": p["exit_rule"], "pruned_dead_cells": p["pruned"],
            "exits": list(p["exits"]), "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"],
            "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},

@@ -156,7 +156,7 @@ try:
     check("the cordic generates on flex", r.returncode == 0, r.stderr.strip()[:300])
     rec = json.load(open(os.path.join(d, "ASSEMBLY.json")))
     nm = sum(1 for j in rec["joins"] if j.get("kind", "").startswith("merge core"))
-    check(f"it contains {nm} merge CORES (merge_cell_v4sa, mode arbitrate) and {len(rec['branches'])} const_ref branches (the z_input entry absorbed by the first)", nm == 4 and len(rec["branches"]) == 4 and rec["branches"]["s0.branch"].get("entry_io") == "z_input" and rec["merge_mode"] == "arbitrate" and "merge_cell_v4sa.v" in rec["files"], str(rec["branches"])[:200])
+    check(f"it contains {nm} merge CORES (merge_cell_v4sa, mode arbitrate) and {len(rec['branches'])} const_ref branches (the z_input entry absorbed by the first)", nm == 4 and len(rec["branches"]) == 4 and rec["branches"]["s0.branch"].get("entry_io") == "z_input" and rec["merge_mode"] == {"*": "arbitrate"} and "merge_cell_v4sa.v" in rec["files"], str(rec["branches"])[:200])
     records, _ = flatten(load_hierarchical(CORDIC))
     ic = next(x for x in records if x.io_name == "z_input")
     oc = next(x for x in records if x.io_name == "z_output")
@@ -221,7 +221,7 @@ try:
     icm2 = os.path.join(tmp, "two.icm")
     rj = cli("-s", "flex", "--icm", icm2, "--output", dj, "--merge-mode", "join-or")
     recj = json.load(open(os.path.join(dj, "ASSEMBLY.json"))) if rj.returncode == 0 else {}
-    check("join-or generates, and the core is configured in mode 3", rj.returncode == 0 and recj.get("merge_mode") == "join-or" and ".cfg_data(32'h3)" in open(os.path.join(dj, recj["top"] + ".v")).read(), rj.stderr.strip()[:200])
+    check("join-or generates, and the core is configured in mode 3", rj.returncode == 0 and recj.get("merge_mode") == {"*": "join-or"} and ".cfg_data(32'h3)" in open(os.path.join(dj, recj["top"] + ".v")).read(), rj.stderr.strip()[:200])
     if rj.returncode == 0:
         _, gotj = run_level(dj, {"X": [xv], "Y": [yv]}, "plain", 14, settle=200)
         check(f"the SAME-CYCLE pair now gives ONE value {[hex(v) for v in gotj['E']]} == the VM's {hex(vmv)}: the divergence is resolved by selecting the mode", gotj["E"] == [vmv], f"flex={gotj['E']} vm={vmv}")
@@ -279,10 +279,71 @@ try:
             verdicts = [got["E"] == wantp]
         check(f"  through a whole design, the defect is caught: {label}", not all(verdicts), f"verdicts {verdicts}")
 
-    print("refusals")
+    print("TREES (Alan: a merge of more than two sources is a TREE of merges): 3 and 4 sources")
+    def buildx(name, recs, *extra):
+        icm = os.path.join(tmp, name + ".icm")
+        IcmV3File(name=name, records=recs).save(icm)
+        d_ = os.path.join(tmp, "g_" + name)
+        return d_, cli("-s", "flex", "--icm", icm, "--output", d_, *extra)
+
     three = [ram("X", 0, 1, [], ["s"]), ram("Y", 1, 0, [], ["e"]), ram("W", 2, 1, [], ["n"]), ram("M", 1, 1, ["n", "w", "s"], ["e"]), ram("E", 1, 2, ["w"], [])]
-    d3, r = build(tmp, "three", three)
-    check("a merge of THREE sources is refused on flex (the arbiter handles two)", r.returncode != 0 and "3 sources" in r.stderr, r.stderr.strip()[:240])
+    wsr = [0x3000 + k for k in range(8)]
+    xs3, ys3 = [0x1000 + k for k in range(8)], [0x2000 + k for k in range(8)]
+    d3, r = buildx("tree3", three)
+    check("a THREE-source merge generates as a tree of exactly 2 merge cores", r.returncode == 0 and json.load(open(os.path.join(d3, "ASSEMBLY.json")))["merge_cores"] == 2, r.stderr.strip()[:200])
+    bad = []
+    for mode, seed in (("plain", 31), ("stall", 32), ("stall", 33), ("skewfirst", 34), ("skewlast", 35)):
+        _, got = run_level(d3, {"X": xs3, "Y": ys3, "W": wsr}, mode, seed, settle=300)
+        out = got["E"]
+        ok = sorted(out) == sorted(xs3 + ys3 + wsr) and [v for v in out if v in xs3] == xs3 and [v for v in out if v in ys3] == ys3 and [v for v in out if v in wsr] == wsr
+        if not ok:
+            bad.append((mode, out))
+    check("arbitrate, 8 + 8 + 8 items x 5 modes: every item once, UNCORRUPTED, each source's own order kept", not bad, str(bad[:1]))
+    _, got = run_level(d3, {"X": xs3, "Y": ys3, "W": wsr}, "plain", 36, settle=300)
+    f9 = got["E"][:9]
+    check(f"no starvation with all three always valid: the first 9 outputs include every source ({sum(v in xs3 for v in f9)} X, {sum(v in ys3 for v in f9)} Y, {sum(v in wsr for v in f9)} W)",
+          any(v in xs3 for v in f9) and any(v in ys3 for v in f9) and any(v in wsr for v in f9), str(f9))
+    d3j, r = buildx("tree3j", three, "--merge-mode", "join-or")
+    _, gj = run_level(d3j, {"X": xs3, "Y": ys3[:5], "W": wsr}, "stall", 37, settle=300)
+    check("join-or over 3 sources: the output is x_k | y_k | w_k IN ORDER and WAITS for all three (8 X, 5 Y, 8 W give exactly 5 outputs)",
+          gj["E"] == [a_ | b_ | c_ for a_, b_, c_ in zip(xs3, ys3[:5], wsr)], str(gj["E"]))
+    four = [ram("X", 0, 1, [], ["s"]), ram("Y", 1, 0, [], ["e"]), ram("W", 2, 1, [], ["n"]), ram("Z", 1, 2, [], ["w"]), ram("M", 1, 1, ["n", "w", "s", "e"], [])]
+    zs = [0x4000 + k for k in range(8)]
+    d4, r = buildx("tree4", four)
+    check("a FOUR-source merge (the merge cell is itself the exit) generates as a tree of 3 merge cores", r.returncode == 0 and json.load(open(os.path.join(d4, "ASSEMBLY.json")))["merge_cores"] == 3, r.stderr.strip()[:200])
+    bad = []
+    for mode, seed in (("plain", 41), ("stall", 42), ("skewlast", 43)):
+        _, got = run_level(d4, {"X": xs3, "Y": ys3, "W": wsr, "Z": zs}, mode, seed, settle=400)
+        out = got["M"]
+        if sorted(out) != sorted(xs3 + ys3 + wsr + zs):
+            bad.append((mode, len(out)))
+    check("arbitrate, 4 x 8 items x 3 modes: all 32 items once, uncorrupted", not bad, str(bad))
+    d4j, r = buildx("tree4j", four, "--merge-mode", "join-or")
+    _, gj = run_level(d4j, {"X": xs3, "Y": ys3, "W": wsr, "Z": zs}, "stall", 44, settle=400)
+    check("join-or over 4 sources: x_k | y_k | w_k | z_k in order", gj["M"] == [a_ | b_ | c_ | e_ for a_, b_, c_, e_ in zip(xs3, ys3, wsr, zs)], str(gj["M"][:3]))
+
+    print("PER-MERGE MODE and PLACEMENT (a core is placed per ICM merge, only where one exists; the mode is chosen per merge)")
+    both = [ram("X1", 0, 1, [], ["s"]), ram("Y1", 1, 0, [], ["e"]), ram("M1", 1, 1, ["n", "w"], ["e"]), ram("E1", 1, 2, ["w"], []),
+            ram("X2", 5, 1, [], ["s"]), ram("Y2", 6, 0, [], ["e"]), ram("M2", 6, 1, ["n", "w"], ["e"]), ram("E2", 6, 2, ["w"], [])]
+    a1, b1 = [0x00A0 + k for k in range(6)], [0x0B00 + k for k in range(6)]
+    a2, b2 = [0x7000 + k for k in range(6)], [0x8000 + k for k in range(6)]
+    dm, r = buildx("both", both, "--merge-mode", "M1=join-or,arbitrate")
+    recm = json.load(open(os.path.join(dm, "ASSEMBLY.json"))) if r.returncode == 0 else {}
+    kinds = sorted(j["kind"] for j in recm.get("joins", []) if j.get("kind", "").startswith("merge core"))
+    check("two merges, two modes in ONE design: M1 join-or, M2 the default arbitrate", r.returncode == 0 and kinds == ["merge core (arbitrate)", "merge core (join-or)"], f"{kinds} {r.stderr.strip()[:160]}")
+    _, gm = run_level(dm, {"X1": a1, "Y1": b1, "X2": a2, "Y2": b2}, "stall", 51, settle=300)
+    check("...and each behaves per its own mode: E1 = x|y pairs in order (a join); E2 = all 12 items uncorrupted, each source's order kept (an arbiter)",
+          gm["E1"] == [p_ | q_ for p_, q_ in zip(a1, b1)] and sorted(gm["E2"]) == sorted(a2 + b2) and [v for v in gm["E2"] if v in a2] == a2, str((gm["E1"][:3], gm["E2"][:4])))
+    dn, r = buildx("nomerge", [ram("X", 1, 0, [], ["e"]), ram("R", 1, 1, ["w"], ["e"]), ram("E", 1, 2, ["w"], [])])
+    recn = json.load(open(os.path.join(dn, "ASSEMBLY.json"))) if r.returncode == 0 else {}
+    check("a design with NO merge gets NO merge core (not in the instances, not even copied into the folder)", r.returncode == 0 and recn["merge_cores"] == 0 and "merge_cell_v4sa.v" not in recn["files"], str(recn.get("files")))
+    check("the cordic places exactly one core per merge (4), no more", json.load(open(os.path.join(d, "ASSEMBLY.json")))["merge_cores"] == 4)
+    r = cli("-s", "flex", "--icm", CORDIC, "--output", os.path.join(tmp, "g_bad1"), "--merge-mode", "nonesuch=join-or")
+    check("a merge name that does not exist is REFUSED, listing the real ones (a typo must not silently do nothing)", r.returncode != 0 and "not merge consumers" in r.stderr and "s0.gather" in r.stderr, r.stderr.strip()[:200])
+    r = cli("-s", "flex", "--icm", CORDIC, "--output", os.path.join(tmp, "g_bad2"), "--merge-mode", "s0.gather=maybe")
+    check("an unknown mode is refused", r.returncode != 0 and "unknown merge mode" in r.stderr, r.stderr.strip()[:200])
+
+    print("refusals")
     withc = [ram("K", 0, 1, [], ["s"], preload_value=5), ram("Y", 1, 0, [], ["e"]), ram("M", 1, 1, ["n", "w"], ["e"]), ram("E", 1, 2, ["w"], [])]
     d4, r = build(tmp, "withconst", withc)
     check("a merge that includes a CONSTANT is refused (the constant is always valid and would swamp the stream)", r.returncode != 0 and "constant source" in r.stderr, r.stderr.strip()[:240])
