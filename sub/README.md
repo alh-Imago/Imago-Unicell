@@ -843,16 +843,39 @@ alongside its arithmetic).
 **What changed:** `sub/verilog/branch_cell_v4sa.v` (new) + testbench.
 `sub/README.md` updated with the full finding. No existing file touched.
 
+## `merge_cell_v4sa`: the merge becomes a core, and gets the one function the VM's OR could not express (`#954`/`#955`)
+
+In the original architecture every cell can take several upstream faces, so a merge is a property of the cell. The flex cells each have ONE input, so a merge needs somewhere to live.
+A first version put selection logic ("an arbiter") into the generator's emitted glue and the whole hand-built cordic ran; Alan's ruling was that the system is built from **known core
+designs** and that arbitrary hand-woven glue at particular points goes against the idea of it. So the merge is a core, with its own bench, like every other cell.
+
+**Why not simply OR, as the VM does:** under a handshake two sources can both stay valid for as long as a cell is busy; a plain OR would then consume both and fuse two separate items
+into one corrupt value. The core has four modes, selected by `cfg_data[1:0]`:
+
+| mode | name | behaviour |
+|---|---|---|
+| 0 | A only | pass `in_a`; `in_b` is never accepted (a one-path "merge": a configurable pass-through) |
+| 1 | B only | pass `in_b`; `in_a` is never accepted |
+| 2 | **arbitrate** | either source, one at a time; grant one, acknowledge ONLY that one, rotate priority after every grant (neither can starve). For paths that are *alternatives* -- a branch's two outcomes rejoining (the cordic's `gather`) |
+| 3 | **join-OR** | WAIT for both, then output `in_a \| in_b` and acknowledge both together. For paths that are *halves of one item* -- the VM's "free OR" used as a feature, made deterministic: it no longer depends on the two items happening to arrive in the same cycle |
+
+Ports follow the stated design rule below (two dedicated inputs, each with its own valid and ready; the mode selects *behaviour*, never what a port *means*). Protocol as every v4sa cell:
+a registered output held until `ack_in`, one item per two cycles, `freeze_in` gates everything, configuration arms the cell and clears its state; so one cycle of added latency, like a relay.
+
+**Verified:** `tb_merge_cell_v4sa.v` (37 self-checking cases) with **12 deliberate defects all caught** (round-robin ignored, B acknowledged without a grant, join-OR not waiting, AND for OR,
+A acknowledged without B, mode 0 accepting B, capture when unarmed, priority never rotating, freeze ignored, reconfiguration not clearing a pending output, swapped data select, release
+without `ack_in`); and `tests/test_flexsub_flex_merge_v1.py`: the whole cordic (36 cells, 4 merge cores) == the real VM on 12 starting angles + the -404 anchor, and join-OR resolves the
+same-cycle divergence (the VM's `0x0f0 | 0xf00 = 0xff0` is ONE value; arbitrate mode gives two outputs, join-OR gives one, equal to the VM).
+
+**Stated limit:** no cell can restore the ORDER of items between two paths (that needs per-item tags), so an arbitrating merge is only well-defined with at most one item in flight in the region
+it joins (true of the loop-style designs that use merges; the compiler never emits one). Join-OR does not have the problem: it takes one item from each side per output.
+
 ## Status
 
-Ten cell functions proven (adder, compare, accumulator, latch, sequencer, ram,
-router, mask, mul, shift/shift_stage), all simulated, all measured. Not yet on
-real hardware. Still to do: `branch` (architecturally in tension with the
-family, needs a real design conversation, not a mechanical strip), `nano` (the
-confirmed two-input-role exception), and `command` (structurally at odds with
-"no live reprogramming," since reprogramming is its whole purpose). The
-latency-padding work this family depends on the moment more than one stage is
-chained has not been started.
+Thirteen cell functions proven, all simulated, all measured (adder, compare, accumulator, latch, sequencer, ram, router, mask, mul, shift/shift_stage, **nano** (`#917`), **branch** (`#918`) and,
+flex only, **merge** (`#955`)); each has a testbench, and the flex family's cells are also driven end to end by the ICM generator (`tools/flexsub_icm_flex_v1.py`) against the real VM. Not yet on
+real hardware. Still to do: `command` (structurally at odds with "no live reprogramming," since reprogramming is its whole purpose), and the ICM generator's `sequencer` on flex. (An earlier
+version of this paragraph listed `branch` and `nano` as still to do; both are done.)
 
 ## A stated design rule (Alan's own, confirmed across every cell built so far)
 

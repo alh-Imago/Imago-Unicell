@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""tests/test_flexsub_flex_merge_v1.py -- the MERGE on the FLEX family (stage 7): the whole hand-built CORDIC runs on flex.
+"""tests/test_flexsub_flex_merge_v1.py -- the MERGE CORE on the FLEX family (stage 7, ledger #954/#955): the whole hand-built CORDIC runs on flex.
 
 Run: python3 tests/test_flexsub_flex_merge_v1.py      (needs iverilog)
 A merge feeds several sources into ONE input. The VM ORs same-tick arrivals; under a handshake two sources can BOTH be valid for as long as the cell is busy, so a plain OR would FUSE two
-separate items into one corrupt value. The flex glue is an ARBITER (grant one, acknowledge only that one, rotate priority) in front of an ordinary single-input cell -- no new cell.
+separate items into one corrupt value. The flex MERGE is a CORE, merge_cell_v4sa (Alan's ruling: known, verified core designs, not hand-woven glue), with four selectable modes: 0 A only,
+1 B only, 2 ARBITRATE (grant one, acknowledge only that one, rotate priority), 3 JOIN-OR (wait for both, then OR). The emitter inserts one in front of each ICM merge.
 Checked: the actual cordic (36 cells: 4 branches, 4 merges, 8 adders, 12 constants) against the REAL VM on 12 starting angles plus the -404 anchor, one item in flight at a time, through exit
 stalls; hand-built merges (no item lost, duplicated or corrupted; fairness; the same-cycle DIVERGENCE from the VM stated as a finding); streaming behaviour reported honestly; mutation controls.
 """
@@ -154,8 +155,8 @@ try:
     r = cli("-s", "flex", "--icm", CORDIC, "--output", d)
     check("the cordic generates on flex", r.returncode == 0, r.stderr.strip()[:300])
     rec = json.load(open(os.path.join(d, "ASSEMBLY.json")))
-    nm = sum(1 for j in rec["joins"] if j.get("kind", "").startswith("merge"))
-    check(f"it contains {nm} arbitrating merges and {len(rec['branches'])} const_ref branches (the z_input entry absorbed by the first)", nm == 4 and len(rec["branches"]) == 4 and rec["branches"]["s0.branch"].get("entry_io") == "z_input", str(rec["branches"])[:200])
+    nm = sum(1 for j in rec["joins"] if j.get("kind", "").startswith("merge core"))
+    check(f"it contains {nm} merge CORES (merge_cell_v4sa, mode arbitrate) and {len(rec['branches'])} const_ref branches (the z_input entry absorbed by the first)", nm == 4 and len(rec["branches"]) == 4 and rec["branches"]["s0.branch"].get("entry_io") == "z_input" and rec["merge_mode"] == "arbitrate" and "merge_cell_v4sa.v" in rec["files"], str(rec["branches"])[:200])
     records, _ = flatten(load_hierarchical(CORDIC))
     ic = next(x for x in records if x.io_name == "z_input")
     oc = next(x for x in records if x.io_name == "z_output")
@@ -195,7 +196,7 @@ try:
     print("hand-built merges: two entries X, Y -> merge M -> exit E")
     two = [ram("X", 0, 1, [], ["s"]), ram("Y", 1, 0, [], ["e"]), ram("M", 1, 1, ["n", "w"], ["e"]), ram("E", 1, 2, ["w"], [])]
     d2, r = build(tmp, "two", two)
-    check("a two-source merge generates on flex as an arbitrating merge", r.returncode == 0 and any(j.get("kind", "").startswith("merge") for j in json.load(open(os.path.join(d2, "ASSEMBLY.json")))["joins"]), r.stderr.strip()[:240])
+    check("a two-source merge generates on flex as a merge core", r.returncode == 0 and any(j.get("kind", "").startswith("merge core") for j in json.load(open(os.path.join(d2, "ASSEMBLY.json")))["joins"]), r.stderr.strip()[:240])
     xs, ys = [0x1000 + k for k in range(10)], [0x2000 + k for k in range(10)]
     bad = []
     for mode, seed in (("plain", 8), ("stall", 9), ("stall", 10), ("skewfirst", 11), ("skewlast", 12)):
@@ -212,35 +213,71 @@ try:
     xv, yv = 0x00F0, 0x0F00
     vmv = vm_exit(two, {"X": xv, "Y": yv})
     _, got = run_level(d2, {"X": [xv], "Y": [yv]}, "plain", 14, settle=200)
-    check(f"FINDING (stated, not hidden): two items in the SAME cycle -- the VM ORs them into ONE value {hex(vmv) if vmv is not None else None}; flex SEQUENCES them: two outputs {sorted(hex(v) for v in got['E'])}",
+    check(f"FINDING for ARBITRATE mode (stated, not hidden): two items in the SAME cycle -- the VM ORs them into ONE value {hex(vmv) if vmv is not None else None}; flex SEQUENCES them: two outputs {sorted(hex(v) for v in got['E'])}",
           vmv == (xv | yv) and sorted(got["E"]) == sorted([xv, yv]), f"vm={vmv} flex={got['E']}")
 
-    print("MUTATION CONTROLS on the arbiter")
-    top = os.path.join(d2, json.load(open(os.path.join(d2, "ASSEMBLY.json")))["top"] + ".v")
-    orig = open(top).read()
-    muts = [("the plain OR (the VM's rule): fuse both sources and acknowledge both",
-             [(r"wire \[31:0\] (c_M_ind) = c_M_g1 \? ([\w]+) : ([\w]+);", r"wire [31:0] \1 = (e0_v ? \2 : 32'h0) | (e1_v ? \3 : 32'h0);"), (r"assign (e\d+_a) = c_M_rdy & c_M_g[12];", r"assign \1 = c_M_rdy;")]),
-            ("both sources acknowledged although only one is granted (an item is consumed but lost)", [(r"assign (e\d+_a) = c_M_rdy & c_M_g[12];", r"assign \1 = c_M_rdy;")]),
-            ("fixed priority: the priority never rotates (the second source can starve)", [(r"if \(c_M_vin & c_M_rdy\) c_M_rr <= c_M_g1;", r"if (c_M_vin & c_M_rdy) c_M_rr <= 1'b0;")])]
-    for mi, (label, subs) in enumerate(muts):
-        txt = orig
-        for pat, rep in subs:
-            new = re.sub(pat, rep, txt)
-            assert new != txt, pat
-            txt = new
-        dm = os.path.join(tmp, f"mutm_{mi}")
-        shutil.copytree(d2, dm)
-        open(os.path.join(dm, os.path.basename(top)), "w").write(txt)
-        verdicts = []
-        for mode, seed in (("plain", 8), ("stall", 9), ("skewfirst", 11)):
-            _, got = run_level(dm, {"X": xs, "Y": ys}, mode, seed, settle=200)
-            out = got["E"]
-            ok = sorted(out) == sorted(xs + ys)
-            if mi == 2 and mode == "plain":
-                f8 = out[:8]
-                ok = ok and any(v in ys for v in f8) and any(v in xs for v in f8)
-            verdicts.append(ok)
-        check(f"  mutant caught: {label}", not all(verdicts), f"verdicts {verdicts}")
+    print("JOIN-OR mode (--merge-mode join-or): two paths that are HALVES of one item, combined deterministically -- this RESOLVES the same-cycle divergence above")
+    dj = os.path.join(tmp, "g_join")
+    icm2 = os.path.join(tmp, "two.icm")
+    rj = cli("-s", "flex", "--icm", icm2, "--output", dj, "--merge-mode", "join-or")
+    recj = json.load(open(os.path.join(dj, "ASSEMBLY.json"))) if rj.returncode == 0 else {}
+    check("join-or generates, and the core is configured in mode 3", rj.returncode == 0 and recj.get("merge_mode") == "join-or" and ".cfg_data(32'h3)" in open(os.path.join(dj, recj["top"] + ".v")).read(), rj.stderr.strip()[:200])
+    if rj.returncode == 0:
+        _, gotj = run_level(dj, {"X": [xv], "Y": [yv]}, "plain", 14, settle=200)
+        check(f"the SAME-CYCLE pair now gives ONE value {[hex(v) for v in gotj['E']]} == the VM's {hex(vmv)}: the divergence is resolved by selecting the mode", gotj["E"] == [vmv], f"flex={gotj['E']} vm={vmv}")
+        pairs = [(0x00F0F000 + k, 0x0000F00F << (k % 3) & 0xFFFFFFFF) for k in range(10)]
+        wantp = [a_ | b_ for a_, b_ in pairs]
+        bad = []
+        for mode, seed in (("plain", 21), ("stall", 22), ("stall", 23), ("skewfirst", 24), ("skewlast", 25)):
+            _, gj = run_level(dj, {"X": [a_ for a_, _ in pairs], "Y": [b_ for _, b_ in pairs]}, mode, seed, settle=240)
+            if gj["E"] != wantp:
+                bad.append((mode, gj["E"][:3], wantp[:3]))
+        check("10 paired items x 5 modes (incl. X slow, Y slow): the output is x_k | y_k, IN ORDER, none lost -- the join waits for the slower side", not bad, str(bad[:1]))
+        _, gj = run_level(dj, {"X": xs, "Y": ys[:6]}, "stall", 26, settle=240)
+        check("lone items WAIT: 10 X items but only 6 Y items give exactly 6 outputs (the 4 surplus X items never emerge, and are never fused with anything)", gj["E"] == [a_ | b_ for a_, b_ in zip(xs[:6], ys[:6])], str(gj["E"]))
+
+    print("MUTATION CONTROLS -- on the CORE itself (the cell's own bench must catch every one), then through a whole design")
+    SUBV = os.path.join(ROOT, "sub", "verilog")
+    cell_src = open(os.path.join(SUBV, "merge_cell_v4sa.v")).read()
+    cmut = [("arbitration ignores the round-robin flag (A always wins)", "(valid_in_a && (!valid_in_b || !rr))", "valid_in_a"),
+            ("arbitrate acknowledges B although only A is granted", "ready && (m_or ? valid_in_a : g_b)", "ready && (m_or ? valid_in_a : valid_in_b)"),
+            ("join-OR does not wait: it takes either side", "m_or ? (valid_in_a && valid_in_b) : (g_a || g_b)", "m_or ? (valid_in_a || valid_in_b) : (g_a || g_b)"),
+            ("join-OR computes AND instead of OR", "(in_a | in_b)", "(in_a & in_b)"),
+            ("join-OR acknowledges A without B present", "ready && (m_or ? valid_in_b : g_a)", "ready"),
+            ("mode 0 (A only) also accepts B", "m_b ? valid_in_b : (m_arb", "(m_b || m_a) ? valid_in_b : (m_arb"),
+            ("captures when unarmed", "end else if (ready && take) begin", "end else if (take) begin"),
+            ("the priority flag never rotates", "if (m_arb) rr <= g_a;", "if (m_arb) rr <= 1'b0;"),
+            ("freeze does not gate the ready levels", "wire ready = armed && !pending && !freeze_in;", "wire ready = armed && !pending;"),
+            ("reconfiguration does not clear a pending output", "            mode       <= cfg_data[1:0];\n            armed      <= 1'b1;\n            pending    <= 1'b0;", "            mode       <= cfg_data[1:0];\n            armed      <= 1'b1;"),
+            ("the data select is swapped", "(g_a ? in_a : in_b)", "(g_a ? in_b : in_a)"),
+            ("the output releases without waiting for ack_in", "if (ack_in) pending <= 1'b0;", "pending <= 1'b0;")]
+    clean = subprocess.run(["iverilog", "-g2012", "-o", os.path.join(tmp, "tbc.vvp"), os.path.join(SUBV, "tb_merge_cell_v4sa.v"), os.path.join(SUBV, "merge_cell_v4sa.v")], capture_output=True, text=True)
+    cleanout = subprocess.run(["vvp", os.path.join(tmp, "tbc.vvp")], capture_output=True, text=True).stdout
+    check("the cell's bench passes on the real core (37 checks, ALL PASS)", clean.returncode == 0 and "ALL PASS" in cleanout and cleanout.count("PASS:") >= 37, clean.stderr[:200])
+    survivors = []
+    for label, pat, rep in cmut:
+        assert pat in cell_src, pat
+        mc = os.path.join(tmp, "mutcell.v")
+        open(mc, "w").write(cell_src.replace(pat, rep, 1))
+        cc = subprocess.run(["iverilog", "-g2012", "-o", os.path.join(tmp, "tbm.vvp"), os.path.join(SUBV, "tb_merge_cell_v4sa.v"), mc], capture_output=True, text=True)
+        out = subprocess.run(["vvp", os.path.join(tmp, "tbm.vvp")], capture_output=True, text=True).stdout if cc.returncode == 0 else "ERR"
+        if "ALL PASS" in out:
+            survivors.append(label)
+    check(f"all {len(cmut)} deliberate defects in the core are CAUGHT by its bench (survivors: {survivors or 'none'})", not survivors, str(survivors))
+    for label, pat, rep, design, kind in (("arbitrate acknowledges B although only A is granted (an item consumed but lost)", "ready && (m_or ? valid_in_a : g_b)", "ready && (m_or ? valid_in_a : valid_in_b)", d2, "arb"),
+                                          ("join-OR computes AND instead of OR", "(in_a | in_b)", "(in_a & in_b)", dj, "join")):
+        dm = os.path.join(tmp, "mutd_" + kind)
+        shutil.copytree(design, dm)
+        open(os.path.join(dm, "merge_cell_v4sa.v"), "w").write(cell_src.replace(pat, rep, 1))
+        if kind == "arb":
+            verdicts = []
+            for mode, seed in (("plain", 8), ("stall", 9), ("skewfirst", 11)):
+                _, got = run_level(dm, {"X": xs, "Y": ys}, mode, seed, settle=200)
+                verdicts.append(sorted(got["E"]) == sorted(xs + ys))
+        else:
+            _, got = run_level(dm, {"X": [a_ for a_, _ in pairs], "Y": [b_ for _, b_ in pairs]}, "plain", 21, settle=240)
+            verdicts = [got["E"] == wantp]
+        check(f"  through a whole design, the defect is caught: {label}", not all(verdicts), f"verdicts {verdicts}")
 
     print("refusals")
     three = [ram("X", 0, 1, [], ["s"]), ram("Y", 1, 0, [], ["e"]), ram("W", 2, 1, [], ["n"]), ram("M", 1, 1, ["n", "w", "s"], ["e"]), ram("E", 1, 2, ["w"], [])]

@@ -792,10 +792,10 @@ def emit_top(top, p, width=32):
     return "\n".join(L) + "\n", pad_count[0]
 
 
-def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None):
+def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate"):
     if family == "flex":
         import flexsub_icm_flex_v1 as ff
-        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut)
+        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut, merge_mode=merge_mode)
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
     p = plan(icm_path, align, man=man, mul_mode=mul_mode, nowidelut=nowidelut)

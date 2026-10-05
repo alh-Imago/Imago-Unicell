@@ -50,14 +50,17 @@ WHAT THE EMITTER BUILDS (all of it plain valid/ready glue around the cells):
     would stay valid and one cycle later fire against the reference it just loaded -- a spurious EQUAL event. So: the first arrival only LOADS (in2 strobe, stream acked at once, flag set);
     later arrivals load and compare on the SAME edge (so the compare reads the OLD reference), acked only when the cell is ready.
 
-  * MERGE (stage 7). Several sources feeding one input. The VM ORs same-tick arrivals; under a handshake two sources can BOTH be valid for as long as the cell is busy, so a plain OR
-    would FUSE two separate items into one corrupt value. The glue is therefore an ARBITER: grant one source, acknowledge only that one, rotate priority after every grant (no
-    starvation). Selection logic in front of an ordinary single-input cell -- no new cell. Two sources only; a merge that includes a constant is refused by the planner.
-    DIVERGENCE FROM THE VM, stated plainly: two items arriving in the SAME cycle are sequenced (two outputs), not OR-combined into one. And an arbiter cannot restore ORDER between two
-    paths: if item k waits on one path while item k+1 overtakes on the other, they can emerge reordered -- a merge is only well-defined when at most one item is in flight in the region.
+  * MERGE (stage 7, a CORE). Several sources feeding one input. The first version was arbiter GLUE emitted into the top level; Alan's ruling is that the system is built from KNOWN
+    core designs and arbitrary hand-woven glue at particular points goes against that, so the merge is a core: merge_cell_v4sa, with its own bench and mutation checks, four selectable
+    modes (0 A only, 1 B only, 2 ARBITRATE round-robin, 3 JOIN-OR = wait for both then OR). The emitter inserts one in front of each merge's consumer (a small graph rewrite; the
+    existing fork/edge machinery then treats it as just another cell). Why not the VM's plain OR: under a handshake two sources can both stay valid while a cell is busy, so an OR would
+    fuse two separate items into one corrupt value. Default mode is ARBITRATE (right when the paths are alternatives, e.g. a branch's two outcomes rejoining -- the cordic's `gather`);
+    `merge_mode="join-or"` is for two paths that are HALVES of one item to be combined (the "free OR" used as a feature -- now deterministic). Two sources only; a merge including a
+    constant is refused by the planner. ORDER: no cell can restore the order of items between two paths (it would need per-item tags), so an arbitrating merge is only well-defined
+    with at most one item in flight in its region.
 
 STAGES 1-7 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator, accumulator, latch, branch,
-two-source merges and constants; no sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
+two-source merges (as a core) and constants; no sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
 """
 import json
 import os
@@ -70,17 +73,37 @@ sys.path.insert(0, TOOLS_DIR)
 import flexsub_assemble_v1 as fsa  # noqa: E402
 import flexsub_icm_generate_v1 as g  # noqa: E402
 
-FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa"}
+FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa", "merge": "merge_cell_v4sa"}
 
 
 def _pname(io, cid):
     return re.sub(r"[^A-Za-z0-9_]", "_", io or cid)
 
 
-def emit_top_flex(top, p):
+def emit_top_flex(top, p, merge_mode="arbitrate"):
     cells, inputs, roles = p["cells"], p["inputs"], p["adder_roles"]
     branch_plans, branch_port = p["branch_plans"], p["branch_port"]
     order, exits_l, addons = p["order"], list(p["exits"]), p["addons"]
+    mode_code = {"arbitrate": 2, "join-or": 3}[merge_mode]
+    merge_cells = {}
+    if p["merges"]:
+        # Each ICM merge (several sources into one input) becomes a real merge CORE in front of its consumer: a graph rewrite, so the fork / edge / ack machinery below
+        # treats it as just another cell.
+        cells, inputs, roles, order, branch_port = dict(cells), {k: dict(v) for k, v in inputs.items()}, dict(roles), list(order), dict(branch_port)
+        for dst, srcs in p["merges"].items():
+            if len(srcs) != 2:
+                raise g.IcmGenError(f"{dst}: a merge of {len(srcs)} sources is not translated on flex (the merge core has two inputs)")
+            mid = f"{dst}.merge"
+            flat = [(q, f) for lst in inputs[dst].values() for q, f in lst]
+            cells[mid] = type(cells[dst])(cell_id=mid, row=cells[dst].row, col=cells[dst].col, core="merge", core_config={})
+            inputs[mid] = {"in": flat[:2]}
+            inputs[dst] = {"in": [(mid, flat[0][1])]}
+            roles[mid] = {"A": flat[0][0], "B": flat[1][0]}
+            order.insert(order.index(dst), mid)
+            for q, _ in flat:
+                if q in branch_plans:
+                    branch_port[(mid, q)] = branch_port[(dst, q)]
+            merge_cells[mid] = [q for q, _ in flat]
     exits = set(exits_l)
     idx = {c: k for k, c in enumerate(order)}
     ident = g._ident
@@ -116,7 +139,7 @@ def emit_top_flex(top, p):
     for dst in order:
         r = cells[dst]
         rl = []
-        if r.core in ("adder", "mul", "nano"):
+        if r.core in ("adder", "mul", "nano", "merge"):
             srcs = [roles[dst]["A"], roles[dst]["B"]]
         elif r.core in ("accumulator", "latch"):
             srcs = [q for role in sorted(inputs.get(dst, {})) for q, _ in inputs[dst][role]]
@@ -137,6 +160,8 @@ def emit_top_flex(top, p):
             a(f"wire [31:0] {i}_rd;")
         if c in branch_plans:
             a(f"wire {i}_p1_v, {i}_p1_ai, {i}_p2_v, {i}_p2_ai; wire [31:0] {i}_d2u;")
+        if c in merge_cells:
+            a(f"wire {i}_rdya, {i}_rdyb;")
     for e, *_ in edges:
         a(f"wire {e}_v; wire {e}_a;")
     a("")
@@ -245,6 +270,13 @@ def emit_top_flex(top, p):
             a(f"assign {i}_vin = {eB}_v & {i}_aload;")
             a(f"always @(posedge clk) begin if (rst) {i}_aload <= 1'b0; else if ({i}_cap) {i}_aload <= 1'b0; else if ({i}_ldA) {i}_aload <= 1'b1; end")
             a(f"wire [31:0] {i}_inh = {srcdata[eA]}, {i}_inf = {srcdata[eB]};")
+        elif r.core == "merge":
+            eA, eB = es
+            joins.append({"cell": dst, "kind": f"merge core ({merge_mode})", "sources": merge_cells[dst]})
+            a(f"assign {i}_vin = 1'b0;")
+            a(f"assign {eA}_a = {i}_rdya;                              // the CORE arbitrates / joins; here the two inputs are simply connected")
+            a(f"assign {eB}_a = {i}_rdyb;")
+            a(f"wire [31:0] {i}_ina = {srcdata[eA]}, {i}_inb = {srcdata[eB]};")
         elif r.core in ("accumulator", "latch"):
             joins.append({"cell": dst, "kind": f"{r.core} pulse inputs"})
             byrole = {}
@@ -266,22 +298,6 @@ def emit_top_flex(top, p):
             a(f"assign {eA}_a = {i}_rdy & {eB}_v;")
             a(f"assign {eB}_a = {i}_rdy & {eA}_v;")
             a(f"wire [31:0] {i}_ina = {srcdata[eA]}, {i}_inb = {srcdata[eB]};")
-        elif len(es) == 2:
-            # A MERGE (several sources feeding one input; the VM's "free OR" of same-tick arrivals). Under a handshake the two sources can both be valid for as long as the
-            # cell is busy, so OR-ing them would silently FUSE two separate items into one corrupt value. The glue is an ARBITER instead: grant ONE source, acknowledge ONLY that
-            # one, rotate priority after every grant (neither can starve). The cell itself is unchanged -- selection logic sits in front of an ordinary single-input cell.
-            e1, e2 = es
-            joins.append({"cell": dst, "kind": "merge (arbitrate, round-robin)", "sources": [edges[int(e[1:])][1] for e in es]})
-            a(f"reg {i}_rr = 1'b0;                                    // round-robin: which source wins when BOTH are valid (flips after every grant)")
-            a(f"wire {i}_g1 = {e1}_v & (~{e2}_v | ~{i}_rr);")
-            a(f"wire {i}_g2 = {e2}_v & ~{i}_g1;")
-            a(f"assign {i}_vin = {e1}_v | {e2}_v;")
-            a(f"assign {e1}_a = {i}_rdy & {i}_g1;                     // only the GRANTED source is acknowledged; the other keeps its item")
-            a(f"assign {e2}_a = {i}_rdy & {i}_g2;")
-            a(f"wire [31:0] {i}_ind = {i}_g1 ? {srcdata[e1]} : {srcdata[e2]};")
-            a(f"always @(posedge clk) begin if (rst) {i}_rr <= 1'b0; else if ({i}_vin & {i}_rdy) {i}_rr <= {i}_g1; end")
-        elif len(es) > 2:
-            raise g.IcmGenError(f"{dst}: a merge of {len(es)} sources is not translated on flex (the arbiter handles two)")
         else:
             (e,) = es
             a(f"assign {i}_vin = {e}_v;")
@@ -304,6 +320,10 @@ def emit_top_flex(top, p):
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{word:X}), "
               f".cfg_emit_fixed_value(32'h{bp['emit_fixed'] & 0xFFFFFFFF:08X}), .in1_data({i}_in1d), .in1_valid({i}_in1v), .in2_data({i}_in2d), .in2_valid({i}_in2v), "
               f".ack_out({i}_rdy), .data_out_1({dout}), .valid_out_1({i}_p1_v), .ack_in_1({i}_p1_ai), .data_out_2({i}_d2u), .valid_out_2({i}_p2_v), .ack_in_2({i}_p2_ai));")
+        elif r.core == "merge":
+            eA, eB = by_dst[c]
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{mode_code}), .in_a({i}_ina), .valid_in_a({eA}_v), "
+              f".ack_out_a({i}_rdya), .in_b({i}_inb), .valid_in_b({eB}_v), .ack_out_b({i}_rdyb), .data_out({dout}), .valid_out({i}_v), .ack_in({i}_ai));   // mode {mode_code}: {merge_mode}")
         elif r.core == "ram" and c in roots:
             val = (r.preload_value if r.preload_value is not None else cfg.get("init_data", 0)) & 0xFFFFFFFF
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{val:08X}), .cfg_fixed_mode(1'b1), .data_in({i}_ind), .valid_in({i}_vin));   // CONSTANT {val}")
@@ -331,7 +351,7 @@ def emit_top_flex(top, p):
     return "\n".join(L) + "\n", forks, joins
 
 
-def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None):
+def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None, merge_mode="arbitrate"):
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
     p = g.plan(icm_path, True, family="flex", nowidelut=nowidelut)
@@ -344,7 +364,7 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowi
     top = top or f"icm_{stem}_flex"
     cell_dir = cell_dir or fsa.DEFAULT_CELL_DIR
     os.makedirs(output, exist_ok=True)
-    text, forks, joins = emit_top_flex(top, p)
+    text, forks, joins = emit_top_flex(top, p, merge_mode)
     top_path = os.path.join(output, f"{top}.v")
     open(top_path, "w").write(text)
     dep_pairs = fsa._derive_deps(top_path, cell_dir)
@@ -354,7 +374,7 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowi
     open(os.path.join(output, f"{top}.ys"), "w").write(
         f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top}{' -nowidelut' if nowidelut else ''} -json {top}.json\nstat\n")
     rec = {"generator": "tools/flexsub_icm_flex_v1.py", "family": "flex", "source": os.path.basename(icm_path), "top": top,
-           "cells": len(p["cells"]), "forks": forks, "joins": joins, "branches": {c: {k: v for k, v in bp.items() if not k.startswith("_")} for c, bp in p["branch_plans"].items()},
+           "cells": len(p["cells"]), "forks": forks, "joins": joins, "merge_mode": merge_mode if p["merges"] else None, "merges": {m: srcs for m, srcs in p["merges"].items()}, "branches": {c: {k: v for k, v in bp.items() if not k.startswith("_")} for c, bp in p["branch_plans"].items()},
            "constants": sorted(c for c in p["const"] if not p["inputs"].get(c) and c not in levels), "level_sources": sorted(levels), "const_derived": sorted(c for c in p["const"] if p["inputs"].get(c)), "exit_rule": p["exit_rule"], "pruned_dead_cells": p["pruned"],
            "exits": list(p["exits"]), "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"],
            "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},

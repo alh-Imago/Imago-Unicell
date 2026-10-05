@@ -1492,6 +1492,10 @@ def main():
                           "forcing it where the MAN says the toolchain does not support it (the Arria 10 / synth_intel_alm path) is refused.")
     ap.add_argument("--wide-lut", action="store_true",
                      help="Opt OUT of the -nowidelut default: write the historical `synth_gowin` line (wide-LUT / MUX2_LUT mapping). Same Gowin-only scope as --nowidelut.")
+    ap.add_argument("--merge-mode", default="arbitrate", choices=["arbitrate", "join-or"],
+                     help="With -s flex --icm: how the MERGE core (merge_cell_v4sa) combines an ICM merge's two sources. arbitrate (default) = take one at a time, round-robin: right when the two "
+                          "paths are ALTERNATIVES (a branch's outcomes rejoining, e.g. the cordic's gather). join-or = WAIT for both, then OR them: right when the two paths are HALVES of one "
+                          "item to be combined (the VM's 'free OR' used as a feature). The VM ORs same-tick arrivals; under a handshake that is only well-defined as a join.")
     ap.add_argument("--mul", default="auto", choices=["auto", "lut", "dsp"],
                      help="With --icm: how `mul` cells are realised. auto (default) = the DSP cell (mul_cell_v4s_dsp2, one MULT36X36, a few dozen LUTs) while the MAN's card has DSP blocks left, the exact LUT multiplier (~4,277 LUT4 each) as the fall back, and a refusal if even that cannot fit the card; lut = always the LUT multiplier; dsp = always DSP (refused if the card has too few). Needs --man for resource information; without one auto uses the LUT multiplier.")
     ap.add_argument("--no-align", action="store_true",
@@ -1505,6 +1509,8 @@ def main():
         ap.error("--nowidelut / --wide-lut are Gowin `synth_gowin` options and apply only to -s flex / -s sub (the generated .ys scripts); the original nano/Quartus path targets "
                  "synth_intel_alm, which has no such option -- it would be silently ignored, so it is refused")
     args.nowidelut_request = True if args.nowidelut else (False if args.wide_lut else None)
+    if args.merge_mode != "arbitrate" and not (args.icm and args.family == "flex"):
+        ap.error("--merge-mode applies only to -s flex --icm (the merge core exists in the flex family)")
 
     if args.icm:
         if args.family not in ("sub", "flex"):
@@ -1514,7 +1520,7 @@ def main():
         import flexsub_icm_generate_v1 as fig
         try:
             r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
-                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request)
+                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
