@@ -101,7 +101,10 @@ def load_records(path):
         recs, _ = doc.flatten()
         return doc, recs
     from icm_v3 import IcmV3File
-    return _FlatDoc(path), IcmV3File.load(path).records
+    f3 = IcmV3File.load(path)
+    doc = _FlatDoc(path)
+    doc.min_bit_width = f3.min_bit_width           # the design's declared minimum bit width (ledger #958); None = absent = 32
+    return doc, f3.records
 
 
 def extract(path):

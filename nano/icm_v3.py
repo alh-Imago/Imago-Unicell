@@ -45,6 +45,10 @@ on top of.
 from __future__ import annotations
 
 import hashlib
+try:
+    from . import icm_width_v1 as _w
+except ImportError:
+    import icm_width_v1 as _w
 import json
 from dataclasses import dataclass, field
 from typing import Optional
@@ -612,12 +616,18 @@ class IcmV3File:
     records: list  # list[IcmV3Record]
     format_version: str = "icm-v3"
     description: str = ""
+    # Ledger #958: the design's declared minimum bit width (see icm_width_v1.py). None = absent = 32. A user DECLARATION, so it is stored, written into the file's
+    # top-level metadata only when set (every existing file serialises byte-for-byte as before) and covered by record_hash() only when set.
+    min_bit_width: Optional[int] = None
+
+    def __post_init__(self):
+        _w.validate_min_bit_width(self.min_bit_width)
 
     def record_hash(self) -> str:
-        return hashlib.sha256(_canonical_records_json(self.records).encode()).hexdigest()
+        return hashlib.sha256((_canonical_records_json(self.records) + _w.hash_suffix(self.min_bit_width)).encode()).hexdigest()
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "format_version": self.format_version,
             # Real, computed minimum shell version this file actually
             # needs -- NOT hardcoded, since which cores are used
@@ -628,6 +638,9 @@ class IcmV3File:
             "records": [r.to_dict() for r in self.records],
             "record_hash": self.record_hash(),
         }
+        if self.min_bit_width is not None:
+            d["min_bit_width"] = self.min_bit_width
+        return d
 
     def save(self, path: str) -> None:
         with open(path, "w") as f:
@@ -640,7 +653,7 @@ class IcmV3File:
         if d.get("format_version") != "icm-v3":
             raise ValueError(f"not an icm-v3 file: format_version={d.get('format_version')!r}")
         records = [IcmV3Record.from_dict(r) for r in d["records"]]
-        icm = IcmV3File(name=d["name"], records=records, description=d.get("description", ""))
+        icm = IcmV3File(name=d["name"], records=records, description=d.get("description", ""), min_bit_width=d.get("min_bit_width"))
         stored_hash = d.get("record_hash")
         if stored_hash is not None and stored_hash != icm.record_hash():
             raise ValueError(

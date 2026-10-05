@@ -283,3 +283,22 @@ designed.
   `super_tile_library_v1.py` only defines tiles for the old lineage;
   no tile exists yet for `mul`/`priority`/the `_v4c` core family this
   format is ultimately meant to describe designs built from.
+
+## `min_bit_width`: the design's declared minimum bit width (ledger #958)
+
+A design may declare, in its **header**, the minimum number of bits it needs. Alan's ruling: the ICM stays 32 bits wide and as open and cross-targetable as possible; the flag has to be
+part of the transferable artifact; **when it is absent the width is 32**, so no existing file changes in any way. The load and save functions deal with the width; the ICM does not
+hard-wire a target.
+
+| | |
+|---|---|
+| field | `min_bit_width`, an integer from 1 to 64 (`bool`, strings, 0 and 65+ are refused) |
+| where | ICM-VIX: inside `header` (`{"cores_used": [...], "cell_count": N, "min_bit_width": 18}`). ICM v3 / v4 (flat files, whose top-level keys already are their metadata): a top-level `min_bit_width` key |
+| absent | means 32. Nothing is written for it, so a file without the flag is byte-for-byte what it was before |
+| stored, not derived | the VIX header's `cores_used` and `cell_count` are recomputed from the data every time (they are never hand-maintained). `min_bit_width` cannot be derived from the data, it is a **user declaration**, so it is the one stored header field |
+| integrity | when present it is part of `record_hash`, so a hand-edit that changes what the design means (or deleting the flag) is caught on load. When absent the hash is exactly what it always was |
+
+**Meaning: a requirement, "at least this many bits".** Building wider always satisfies it. So a consumer that only builds 32-bit designs accepts any declared minimum up to 32, and must
+**refuse** a larger one (it cannot meet it) rather than ignore it. Today's `--icm` generators build 32-bit designs only: they record the declared value in `ASSEMBLY.json`
+(`min_bit_width`, `built_width`) and refuse more than 32. Narrowing a design to a target's native width on load, and widening the flex / nano cells (to 36) for a design that needs it, are the
+loader's and the save function's job and are not built yet. The `flexsub_compile_v1.py --min-bit-width N` option declares it where the design is produced.

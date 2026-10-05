@@ -299,6 +299,7 @@ def lower_branches(cells, inputs, outputs):
 MUL_REALISATIONS = {"lut": {"module": "mul_cell_v4s", "cost": {"LUT4": {"default": 4277, "nowidelut": 1398}}},
                     "dsp2": {"module": "mul_cell_v4s_dsp2", "primitive": "MULT36X36"}}
 MUL_MODULES = {k: v["module"] for k, v in MUL_REALISATIONS.items()}
+BUILT_WIDTH = 32     # the width every --icm generator builds today (ledger #958: a declared min_bit_width above this is refused)
 FLEX_STAGE1_CORES = {"ram", "adder", "mul", "nano", "comparator", "accumulator", "latch", "branch", "sequencer"}
 LUT_BUDGET_FRACTION = 0.9
 
@@ -364,7 +365,12 @@ def choose_multipliers(mul_cells, man, mode, nowidelut=False):
 def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelut=False):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
+    declared_width = getattr(doc, "min_bit_width", None)         # the design's DECLARED minimum bit width (ledger #958); None = absent = 32
     problems = []
+    if declared_width is not None and declared_width > BUILT_WIDTH:
+        problems.append(f"the design declares min_bit_width = {declared_width} in its header, but this generator builds {BUILT_WIDTH}-bit designs only (width plumbing is not built yet): "
+                        f"a design that needs at least {declared_width} bits cannot be met by a {BUILT_WIDTH}-bit build, so it is refused rather than silently built too narrow "
+                        f"(a declared minimum up to {BUILT_WIDTH} IS met: building wider than the minimum satisfies it)")
     for w_ in warnings:                    # a sender facing a neighbour that does NOT listen on that face is a malformed design, not a note
         if "output dropped" in w_:
             problems.append(f"{w_}. In the VM that offer is never accepted and the sender stalls for ever; fixed-latency wiring would silently drop it, "
@@ -590,7 +596,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
             "eliminated_priority": eliminated, "const": const, "addons": addons, "merges": merges,
-            "branch_plans": branch_plans, "branch_port": branch_port, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule,
+            "branch_plans": branch_plans, "branch_port": branch_port, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule, "min_bit_width": declared_width,
             "mul_impl": mul_impl, "mul_info": mul_info}
 
 
@@ -818,7 +824,7 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=Non
            "top": top, "cells": len(p["cells"]), "pad_relay_cells": pad_count, "align": p["align"],
            "output_latency_cycles": {c: p["t_out"][c] for c in p["exits"]}, "pruned_dead_cells": p["pruned"], "exit_rule": p["exit_rule"],
            "constants": sorted(p["const"]), "settle_cycles": (max((p["t_vm"][c] for c in p["const"]), default=0) + 1) if p["const"] else 0, "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
-           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "multipliers": p["mul_info"], "synth_flags": "-nowidelut" if nowidelut else "(wide-LUT mapping)", "synth_flags_reason": nowidelut_why,
+           "adder_roles": p["adder_roles"], "merges": p["merges"], "branches": p["branch_plans"], "multipliers": p["mul_info"], "min_bit_width": p["min_bit_width"], "built_width": BUILT_WIDTH, "synth_flags": "-nowidelut" if nowidelut else "(wide-LUT mapping)", "synth_flags_reason": nowidelut_why,
            **({"sim_note": "this design instantiates the Gowin MULT36X36 primitive (mul_cell_v4s_dsp2); simulation needs a behavioural stand-in "
                            "(yosys ships none) -- see sub/verilog/tb_mul_cell_v4s_dsp2.v. Synthesis uses the primitive directly."} if p["mul_info"]["dsp2"] else {}), "level_sources": sorted(c for c in p["cells"] if is_level(p["cells"][c])),
            "sequencers": {c: {"advance_port": "adv_" + re.sub(r"[^A-Za-z0-9_]", "_", p["cells"][c].io_name or c),

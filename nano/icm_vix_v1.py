@@ -68,6 +68,10 @@ discipline `ICM_V3_FORMAT.md` itself uses:
 from __future__ import annotations
 
 import hashlib
+try:
+    from . import icm_width_v1 as _w
+except ImportError:
+    import icm_width_v1 as _w
 import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -198,6 +202,12 @@ class IcmVixFile:
     name: str = ""
     description: str = ""
     format_version: str = "icm-vix-v1"
+    # Ledger #958: the design's DECLARED minimum bit width (icm_width_v1.py). It lives in the header, so it travels with the artifact, but unlike cores_used / cell_count
+    # it cannot be derived: it is a user declaration, stored. None = absent = 32.
+    min_bit_width: Optional[int] = None
+
+    def __post_init__(self):
+        _w.validate_min_bit_width(self.min_bit_width)
 
     # ---- real, derived header (never hand-maintained, #734's own lesson) ----
 
@@ -210,7 +220,10 @@ class IcmVixFile:
         cores_used = sorted({cell.core for pat in self.patterns.values() for cell in pat.cells})
         cell_count = sum(len(self.patterns[p.pattern].cells) for p in self.placements
                           if p.pattern in self.patterns)
-        return {"cores_used": cores_used, "cell_count": cell_count}
+        h = {"cores_used": cores_used, "cell_count": cell_count}
+        if self.min_bit_width is not None:
+            h["min_bit_width"] = self.min_bit_width          # the one STORED (declared) header field; the two above are always derived
+        return h
 
     # ---- real flattening: patterns + placements -> real IcmV3Record list ----
 
@@ -417,7 +430,7 @@ class IcmVixFile:
             {"patterns": {name: p.to_dict() for name, p in sorted(self.patterns.items())},
              "design_map": {"placements": [p.to_dict() for p in self.placements],
                              "connections": [c.to_dict() for c in self.connections]}},
-            sort_keys=True, separators=(",", ":"))
+            sort_keys=True, separators=(",", ":")) + _w.hash_suffix(self.min_bit_width)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def save(self, path: str) -> None:
@@ -436,6 +449,7 @@ class IcmVixFile:
             connections=[HierConnection.from_dict(c) for c in d.get("design_map", {}).get("connections", [])],
             name=d.get("name", ""), description=d.get("description", ""),
             format_version=d.get("format_version", "icm-vix-v1"),
+            min_bit_width=(d.get("header") or {}).get("min_bit_width"),
         )
         stored_hash = d.get("record_hash")
         if stored_hash is not None and stored_hash != icm.record_hash():

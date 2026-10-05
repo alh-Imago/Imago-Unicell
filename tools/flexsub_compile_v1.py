@@ -96,6 +96,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("source")
     ap.add_argument("-o", "--output")
+    ap.add_argument("--min-bit-width", type=int, default=None, metavar="N",
+                    help="Declare, in the saved ICM's header, the MINIMUM bit width this design needs (ledger #958). Absent = 32. A requirement: building wider always satisfies it.")
     a = ap.parse_args(argv)
     try:
         text = open(a.source).read()
@@ -110,6 +112,13 @@ def main(argv=None):
         print("compile failed", file=sys.stderr)
         return 1
     out = a.output or os.path.splitext(a.source)[0] + ".icm"
+    if a.min_bit_width is not None:
+        import icm_width_v1 as _w
+        try:
+            f.min_bit_width = _w.validate_min_bit_width(a.min_bit_width)   # declared in the saved file's header; covered by its integrity hash
+        except _w.IcmWidthError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
     f.save(out)
     print(f"compiled '{name}' for sub/flex -> {out} ({len(f.records)} cells; {len(report['retargeted'])} of "
           f"{report['priorities']} priority cells moved from sequenced mode 2 to strict mode 0 + ranks)")
