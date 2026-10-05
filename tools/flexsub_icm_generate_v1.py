@@ -297,7 +297,7 @@ def lower_branches(cells, inputs, outputs):
 MUL_REALISATIONS = {"lut": {"module": "mul_cell_v4s", "cost": {"LUT4": 4277}},
                     "dsp2": {"module": "mul_cell_v4s_dsp2", "primitive": "MULT36X36"}}
 MUL_MODULES = {k: v["module"] for k, v in MUL_REALISATIONS.items()}
-FLEX_STAGE1_CORES = {"ram", "adder", "mul"}
+FLEX_STAGE1_CORES = {"ram", "adder", "mul", "nano", "comparator"}
 LUT_BUDGET_FRACTION = 0.9
 
 

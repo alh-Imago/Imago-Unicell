@@ -23,8 +23,17 @@ WHAT THE EMITTER BUILDS (all of it plain valid/ready glue around the cells):
     waits for the live operand. A cell fed only by constants is an ordinary cell that keeps re-capturing. An OUTPUT that depends only on constants is refused:
     nothing live would pace it.
 
-STAGES 1-2 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul and constants; no merges, branch,
-comparator, nano, accumulator, latch or sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
+  * NANO (stage 3) -- the first core whose two operands are NOT symmetric. nano_cell_v4sa has a HELD operand A that is only a LOAD STROBE (`load_hold` overwrites the
+    held register on any edge, with NO handshake and regardless of `pending`) and a FLOWING operand B on the ordinary valid/ready; the gate reads the held register's
+    CURRENT value at capture, so a hold loaded on the same edge is not yet visible (the "A one cycle before B" rule, #932). One flag per nano, `aload` = "A is loaded
+    for the current pair": A's ready is `~aload & armed` and the load is `vA & ready` (allowed while the previous result is still pending, so the next pair's setup
+    overlaps the drain); B's ready is `aload & ack_out`, and its capture clears `aload`. `armed` = ack_out | valid_out. Arrival ORDER no longer matters: a B that comes
+    first just waits -- which is why a handshake design needs none of sub's padding.
+
+  * COMPARATOR (stage 4) -- compare_cell_v4sa is a single-input cell (signed(data) >= threshold -> 0/1, threshold in cfg_data), so its handshake is exactly a relay's.
+
+STAGES 1-4 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator and constants; no
+merges, branch, accumulator, latch or sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
 """
 import json
 import os
@@ -37,7 +46,7 @@ sys.path.insert(0, TOOLS_DIR)
 import flexsub_assemble_v1 as fsa  # noqa: E402
 import flexsub_icm_generate_v1 as g  # noqa: E402
 
-FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa"}
+FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa"}
 
 
 def _pname(io, cid):
@@ -78,7 +87,7 @@ def emit_top_flex(top, p):
     edges, cons, by_dst = [], {c: [] for c in order}, {c: [] for c in order}
     for dst in order:
         r = cells[dst]
-        if r.core in ("adder", "mul"):
+        if r.core in ("adder", "mul", "nano"):
             srcs = [roles[dst]["A"], roles[dst]["B"]]
         else:
             srcs = [q for lst in inputs.get(dst, {}).values() for q, _ in lst]
@@ -146,7 +155,19 @@ def emit_top_flex(top, p):
             a(f"wire [31:0] {i}_ind = in_{n}_data;")
             continue
         srcdata = {e: ident(s) + "_d" for e, s, d, _ in edges if d == dst}
-        if r.core in ("adder", "mul"):
+        if r.core == "nano":
+            eA, eB = es                                               # slot order is [A (held), B (flowing)] from the plan's operand identity
+            joins.append({"cell": dst, "kind": "nano hold/flow"})
+            a(f"reg {i}_aload = 1'b0;                                  // A has been loaded for the current pair")
+            a(f"wire {i}_armed = {i}_rdy | {i}_v;                      // armed = ack_out | valid_out (ack_out = armed & ~pending, valid_out = pending)")
+            a(f"wire {i}_ldA = {eA}_v & ~{i}_aload & {i}_armed;        // load strobe for the held operand")
+            a(f"wire {i}_cap = {eB}_v & {i}_aload & {i}_rdy;           // the flowing operand is captured")
+            a(f"assign {eA}_a = ~{i}_aload & {i}_armed;")
+            a(f"assign {eB}_a = {i}_aload & {i}_rdy;")
+            a(f"assign {i}_vin = {eB}_v & {i}_aload;")
+            a(f"always @(posedge clk) begin if (rst) {i}_aload <= 1'b0; else if ({i}_cap) {i}_aload <= 1'b0; else if ({i}_ldA) {i}_aload <= 1'b1; end")
+            a(f"wire [31:0] {i}_inh = {srcdata[eA]}, {i}_inf = {srcdata[eB]};")
+        elif r.core in ("adder", "mul"):
             eA, eB = es
             joins.append({"cell": dst})
             a(f"assign {i}_vin = {eA}_v & {eB}_v;      // join: both operands must be present")
@@ -174,6 +195,12 @@ def emit_top_flex(top, p):
         elif r.core == "ram":
             fm = 1 if cfg.get("fixed_mode", 0) else 0
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h0), .cfg_fixed_mode(1'b{fm}), .data_in({i}_ind), .valid_in({i}_vin));")
+        elif r.core == "comparator":
+            thr = int(cfg.get("threshold", 0)) & 0xFFFFFFFF                # signed(data) >= threshold -> 0/1, exactly as the VM (a single-input cell like a relay)
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{thr:08X}), .data_in({i}_ind), .valid_in({i}_vin));   // threshold {thr}")
+        elif r.core == "nano":
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{int(cfg.get('topology', 0)):X}), .hold_in_data({i}_inh), .load_hold({i}_ldA), "
+              f".flow_in_data({i}_inf), .valid_in({i}_vin));")
         else:
             word = 1 if (r.core == "adder" and cfg.get("subtract_mode", 0)) else 0
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin));")

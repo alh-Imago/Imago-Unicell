@@ -46,7 +46,7 @@ def cli(*a):
 
 def run_stream(folder, streams, mode="plain", seed=1, cycles=6000):
     """streams: {entry port suffix: [values]} (equal length N). mode: plain (always ready, no gaps) | stall (random output stalls + random input gaps) |
-    slow (output ready only 1 cycle in 8). Returns {exit suffix: [values captured in order]}."""
+    slow (output ready only 1 cycle in 8) | skewfirst / skewlast (the first / last INPUT is slow, forcing one operand order: for a nano, B-before-A or A-before-B). Returns {exit suffix: [values captured in order]}."""
     rec = json.load(open(os.path.join(folder, "ASSEMBLY.json")))
     top = rec["top"]
     text = open(os.path.join(folder, top + ".v")).read()
@@ -60,12 +60,14 @@ def run_stream(folder, streams, mode="plain", seed=1, cycles=6000):
         decl.append(f"  reg [31:0] mem_{name} [0:{n}];\n  integer idx_{name} = 0; reg act_{name} = 0;\n  wire ack_{name};\n"
                     f"  wire [31:0] d_{name} = (idx_{name} < {n}) ? mem_{name}[idx_{name}] : 32'h0;")
         decl.append("  initial begin " + " ".join(f"mem_{name}[{j}] = 32'd{v};" for j, v in enumerate(vals)) + " end")
-        gap = f"(1'b1)" if mode != "stall" else f"(lfsr[{(3 * k + 2) % 31}] | lfsr[{(5 * k + 7) % 31}])"
+        slow3 = f"(lfsr[{(3 * k + 2) % 31}] & lfsr[{(5 * k + 7) % 31}] & lfsr[{(2 * k + 13) % 31}])"
+        gap = (f"(lfsr[{(3 * k + 2) % 31}] | lfsr[{(5 * k + 7) % 31}])" if mode == "stall" else
+               slow3 if (mode == "skewfirst" and k == 0) or (mode == "skewlast" and k == len(ins) - 1) else "(1'b1)")
         drv.append(f"      if (act_{name} && ack_{name}) begin idx_{name} <= idx_{name} + 1; act_{name} <= 1'b0; end\n"
                    f"      else if (!act_{name} && idx_{name} < {n} && {gap}) act_{name} <= 1'b1;")
         conn.append(f".in_{name}_data(d_{name}), .in_{name}_valid(act_{name}), .in_{name}_ack(ack_{name})")
     for k, name in enumerate(outs):
-        ready = {"plain": "1'b1", "stall": f"lfsr[{(7 * k + 11) % 31}]", "slow": f"(lfsr[{(7 * k + 11) % 31}] & lfsr[{(7 * k + 12) % 31}] & lfsr[{(7 * k + 13) % 31}])"}[mode]
+        ready = {"plain": "1'b1", "skewfirst": "1'b1", "skewlast": "1'b1", "stall": f"lfsr[{(7 * k + 11) % 31}]", "slow": f"(lfsr[{(7 * k + 11) % 31}] & lfsr[{(7 * k + 12) % 31}] & lfsr[{(7 * k + 13) % 31}])"}[mode]
         decl.append(f"  wire [31:0] od_{name}; wire ov_{name}; wire oa_{name} = {ready};\n  integer cnt_{name} = 0;")
         cap.append(f"      if (ov_{name} && oa_{name} && cnt_{name} < {n}) begin $display(\"GOT {name} %0d %0d\", cnt_{name}, od_{name}); cnt_{name} <= cnt_{name} + 1; end")
         conn.append(f".out_{name}_data(od_{name}), .out_{name}_valid(ov_{name}), .out_{name}_ack(oa_{name})")
@@ -217,9 +219,15 @@ try:
     csrc = open(os.path.join(ROOT, "tests", "test_flexsub_corpus_v1.py")).read()
     node = next(n_ for n_ in ast.parse(csrc).body if isinstance(n_, ast.Assign) and getattr(n_.targets[0], "id", "") == "PROGRAMS")
     cns = {"M": M}
+    s32node = next(n_ for n_ in ast.parse(csrc).body if isinstance(n_, ast.Assign) and getattr(n_.targets[0], "id", "") == "s32")   # the reference lambdas call it
+    exec(ast.get_source_segment(csrc, s32node), cns)
     exec(ast.get_source_segment(csrc, node), cns)
+    for nm in ("VMF", "EDGE", "OVERFLOW_VECS", "no_overflow", "vm_result"):          # the corpus's own rules for compare-based programs
+        nd = next(n_ for n_ in ast.parse(csrc).body if (isinstance(n_, ast.Assign) and getattr(n_.targets[0], "id", "") == nm) or (isinstance(n_, ast.FunctionDef) and n_.name == nm))
+        exec(ast.get_source_segment(csrc, nd), cns)
+    no_overflow, vm_result, OVERFLOW_VECS = cns["no_overflow"], cns["vm_result"], cns["OVERFLOW_VECS"]
     CORPUS = cns["PROGRAMS"]
-    accepted, refused, bad_programs, with_const = [], [], [], []
+    accepted, refused, bad_programs, with_const, overflow_checked = [], [], [], [], []
     for name, args, body, ref in CORPUS:
         a_list = args.split()
         src = f"define i32 @f({', '.join('i32 %' + a for a in a_list)}) {{\nentry:\n  {body}\n  ret i32 %r\n}}\n"
@@ -236,10 +244,25 @@ try:
         top_text = open(os.path.join(d, rec["top"] + ".v")).read()
         ports = set(re.findall(r"in_(\w+)_data", top_text))
         n = 12
-        vals = {a: items(n) if k == 0 else [rnd.getrandbits(32) for _ in range(n)] for k, a in enumerate(a_list)}
+        signed_cmp = name.startswith("icmp_s") or name.startswith("select_") or name in ("abs", "max3")
+        if signed_cmp:
+            fixed = ((5, 9, 3), (9, 5, 3), (7, 7, 3), (0xFFFFFFFF, 1, 2), (1, 0xFFFFFFFF, 2), (0xFFFFFFFE, 0xFFFFFFFD, 0xFFFFFFFC))
+            cand = [{a: rnd.choice(cns["EDGE"]) for a in a_list} for _ in range(60)] + [{a: rnd.getrandbits(32) for a in a_list} for _ in range(60)]
+            vecs = [v for v in cand if no_overflow(v)][:n - len(fixed)] + [dict(zip(a_list, tup)) for tup in fixed]
+            vals = {a: [v[a] for v in vecs] for a in a_list}
+        else:
+            vals = {a: items(n) if k == 0 else [rnd.getrandbits(32) for _ in range(n)] for k, a in enumerate(a_list)}
         streams = {re.sub(r"[^A-Za-z0-9_]", "_", c): vals[a] for a in a_list for c in report["arg_cells"][a] if re.sub(r"[^A-Za-z0-9_]", "_", c) in ports}
         want = [ref({a: vals[a][k] for a in a_list}) & M for k in range(n)]
         ok = True
+        if name.startswith("icmp_s") and a_list == ["x", "y"]:                  # outside the arithmetic domain the oracle is the VM: faithful to the compiled program
+            fb = []
+            for v in OVERFLOW_VECS:
+                res1, _ = run_stream(d, {k_: [v[a_] for a_ in a_list for c_ in report["arg_cells"][a_] if re.sub(r"[^A-Za-z0-9_]", "_", c_) == k_][0:1] for k_ in streams}, "plain", 5, cycles=1500)
+                if list(res1.values())[0] != [vm_result(icm, report, v)]:
+                    fb.append((v, list(res1.values())[0], vm_result(icm, report, v)))
+            overflow_checked.append((name, len(OVERFLOW_VECS), not fb))
+            ok = ok and not fb
         for mode, seed in (("plain", 21), ("stall", 22), ("slow", 23)):
             res, _ = run_stream(d, streams, mode, seed)
             ok = ok and list(res.values())[0] == want
@@ -250,8 +273,12 @@ try:
             bad_programs.append(name)
     check(f"corpus programs flex accepts: {len(accepted)} of {len(CORPUS)}, each 12 items x 3 modes (plain, stall, slow) == plain arithmetic ({len(with_const)} of them use constants)",
           accepted and not bad_programs and len(with_const) >= 6, f"wrong: {bad_programs}; accepted {accepted}")
-    check(f"every other corpus program is REFUSED with a flex reason ({len(refused)}: {sorted(n_ for n_, _ in refused)[:6]}...), none silently dropped",
-          refused and all(flag for _, flag in refused), str([n_ for n_, flag in refused if not flag]))
+    check(f"every corpus program flex does not accept is REFUSED with a flex reason ({len(refused)}: {sorted(n_ for n_, _ in refused)}), none silently dropped",
+          all(flag for _, flag in refused), str([n_ for n_, flag in refused if not flag]))
+    check(f"the signed-compare programs (icmp_slt/sgt/sle/sge) are also faithful to the VM on the 8 overflow-boundary vectors where arithmetic is NOT the oracle: {overflow_checked}",
+          len(overflow_checked) >= 3 and all(o for _, _, o in overflow_checked), str(overflow_checked))
+    check("the corpus programs that were blocked by nano ALONE are now accepted (and, and_add, and_c255, ashr2, add_xor)",
+          {"and", "and_add", "and_c255", "ashr2", "add_xor"} <= set(accepted), str(sorted(set(["and", "and_add", "and_c255", "ashr2", "add_xor"]) - set(accepted))))
     check("constants really are in play: the accepted set includes x+5, x-5, 5-x, x*3 and a negative constant",
           {"add_c5", "sub_c5", "rsub_c5", "mul_c3", "add_c_neg"} <= set(with_const), str(sorted(with_const)))
 
@@ -307,6 +334,121 @@ try:
             vmv.append(g_.cells[(1, 2)].ram_data_reg if g_.cells[(1, 2)].ram_data_valid else None)
         check(f"constant 5 << 2 = 20 plus a stream: flex stream == X + 20 for 14 items; the first 6 also == the real VM (a fresh grid per item)",
               list(res.values())[0] == [(x + 20) & M for x in xs] and vmv == [(x + 20) & M for x in xs[:6]], f"flex={list(res.values())[0][:3]} vm={vmv[:3]}")
+
+    print("NANO (stage 3): a HELD operand A that is only a load strobe + a FLOWING operand B on valid/ready; one `aload` flag per nano")
+    nprogs = [
+        ("and", "x y", "%r = and i32 %x, %y", lambda v: v["x"] & v["y"]),
+        ("or", "x y", "%r = or i32 %x, %y", lambda v: v["x"] | v["y"]),
+        ("xor", "x y", "%r = xor i32 %x, %y", lambda v: v["x"] ^ v["y"]),
+        ("and_c255_(constant operand)", "x", "%r = and i32 %x, 255", lambda v: v["x"] & 255),
+        ("xor_then_and_then_or", "x y z", "%a = xor i32 %x, %y\n  %b = and i32 %a, %z\n  %r = or i32 %b, %x", lambda v: ((v["x"] ^ v["y"]) & v["z"]) | v["x"]),
+        ("FORK_into_a_nano", "x y", "%a = add i32 %x, %y\n  %b = xor i32 %a, %x\n  %r = and i32 %a, %b", lambda v: (v["x"] + v["y"]) & ((v["x"] + v["y"]) ^ v["x"])),
+        ("add_then_xor", "x y z", "%a = add i32 %x, %y\n  %r = xor i32 %a, %z", lambda v: (v["x"] + v["y"]) ^ v["z"]),
+    ]
+    nano_dir = None
+    for name, args, body, ref in nprogs:
+        a_list = args.split()
+        src = f"define i32 @f({', '.join('i32 %' + a for a in a_list)}) {{\nentry:\n  {body}\n  ret i32 %r\n}}\n"
+        file, report, diags = fc.compile_for_flexsub(src, name)
+        if file is None:
+            check(f"{name}: compiles", False, str(diags)[:200])
+            continue
+        icm = os.path.join(tmp, "n_" + re.sub(r"\W+", "_", name) + ".icm")
+        file.save(icm)
+        d, r = build(tmp, "n_" + re.sub(r"\W+", "_", name), icm)
+        if r.returncode:
+            check(f"{name}: generates on flex", False, r.stderr.strip()[:300])
+            continue
+        rec = json.load(open(os.path.join(d, "ASSEMBLY.json")))
+        n = 16
+        vals = {a: items(n) if k == 0 else [rnd.getrandbits(32) for _ in range(n)] for k, a in enumerate(a_list)}
+        ports = set(re.findall(r"in_(\w+)_data", open(os.path.join(d, rec["top"] + ".v")).read()))
+        streams = {re.sub(r"[^A-Za-z0-9_]", "_", c): vals[a] for a in a_list for c in report["arg_cells"][a] if re.sub(r"[^A-Za-z0-9_]", "_", c) in ports}
+        want = [ref({a: vals[a][k] for a in a_list}) & M for k in range(n)]
+        bad = []
+        for mode, seed in (("plain", 61), ("stall", 62), ("stall", 63), ("slow", 64), ("skewfirst", 65), ("skewlast", 66)):
+            res, cyc = run_stream(d, streams, mode, seed, cycles=9000)
+            if list(res.values())[0] != want:
+                bad.append((mode, seed, list(res.values())[0][:3], want[:3]))
+        nn = sum(1 for j in rec["joins"] if j.get("kind") == "nano hold/flow")
+        check(f"{name}: {nn} nano, forks {len(rec['forks'])}; 16 items x 6 modes (plain, 2 stalls, slow, B-before-A, A-before-B): all correct, in order", not bad and nn >= 1, str(bad[:1]))
+        if name == "and":
+            nano_dir = (d, rec, streams, want)
+        if name == "FORK_into_a_nano":
+            check("a real FORK feeds a nano (the source is released only after the hold load AND the flow capture, which happen at different times)", len(rec["forks"]) >= 1, str(rec["forks"]))
+
+    print("   MUTATION CONTROLS on the nano glue: break the `aload` logic; the order-forcing modes must catch each one")
+    dn, recn, streamsn, wantn = nano_dir
+    topn = os.path.join(dn, recn["top"] + ".v")
+    orign = open(topn).read()
+    for mi, (label, pat, rep) in enumerate((
+            ("B is captured WITHOUT waiting for A to be loaded (a stale hold is read)", r"(assign c_\w+_vin) = (e\d+_v) & c_\w+_aload;", r"\g<1> = \g<2>;"),
+            ("A is re-loaded even when it is already loaded (the hold is overwritten before B)", r"(wire c_\w+_ldA = e\d+_v) & ~c_\w+_aload & (c_\w+_armed;)", r"\g<1> & \g<2>"),
+            ("the capture never clears `aload` (the hold is never re-armed for the next pair)", r"else if \(c_\w+_cap\) c_\w+_aload <= 1'b0; ", ""))):
+        txt = re.sub(pat, rep, orign)
+        assert txt != orign, pat
+        dm = os.path.join(tmp, f"mutn_{mi}")
+        shutil.copytree(dn, dm)
+        open(os.path.join(dm, recn["top"] + ".v"), "w").write(txt)
+        verdicts = []
+        for mode, seed in (("plain", 71), ("stall", 72), ("skewfirst", 73), ("skewlast", 74)):
+            try:
+                res, _ = run_stream(dm, streamsn, mode, seed, cycles=2500)
+                verdicts.append(list(res.values())[0] == wantn)
+            except Exception:
+                verdicts.append(False)
+        check(f"mutant caught: {label}", not all(verdicts), f"verdicts {verdicts}")
+
+    print("COMPARATOR (stage 4): signed(data) >= threshold -> 0/1, a single-input cell -- a hand-built relay -> comparator -> exit at several thresholds vs the real VM")
+    s32 = lambda v: v - (1 << 32) if v & 0x80000000 else v   # noqa: E731
+    probe = [0x80000000, 0xFFFFFFF0, 0xFFFFFFFA, 0xFFFFFFFB, 0xFFFFFFFC, 0xFFFFFFFF, 0, 1, 4, 5, 6, 0x7FFFFFFF]
+    cmp_dirs = {}
+    for thr in (0, 5, 0xFFFFFFFB):
+        crecs = [IcmV3Record(cell_id="X", row=1, col=0, core="ram", core_config={"upstream_mask": [], "downstream_mask": ["e"]}),
+                 IcmV3Record(cell_id="C", row=1, col=1, core="comparator", core_config={"upstream_mask": ["w"], "downstream_mask": ["e"], "threshold": thr}),
+                 IcmV3Record(cell_id="E", row=1, col=2, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": []})]
+        try:
+            IcmV3File(name="cmp", records=crecs).save(os.path.join(tmp, f"cmp_{thr}.icm"))
+        except Exception as e_:
+            check(f"threshold {s32(thr)}: the ICM can hold it", False, str(e_)[:160])
+            continue
+        dc, rc = build(tmp, f"cmp_{thr}", os.path.join(tmp, f"cmp_{thr}.icm"))
+        if rc.returncode:
+            check(f"threshold {s32(thr)}: generates on flex", False, rc.stderr.strip()[:200])
+            continue
+        wantc = [int(s32(v) >= s32(thr)) for v in probe]
+        bad = []
+        for mode, seed in (("plain", 81), ("stall", 82), ("slow", 83)):
+            res, _ = run_stream(dc, {"X": probe}, mode, seed)
+            if list(res.values())[0] != wantc:
+                bad.append((mode, list(res.values())[0][:4], wantc[:4]))
+        vmc = []
+        frecs = nl.extract(os.path.join(tmp, f"cmp_{thr}.icm"))[1]            # the VM runs the DECODED FILE, as the real pipeline does
+        for v in probe:
+            g_ = vm.SuperGrid(frecs)
+            for _ in range(8):
+                g_.tick()
+            g_.inject(1, 0, v)
+            for _ in range(40):
+                g_.tick()
+            vmc.append(g_.cells[(1, 2)].ram_data_reg if g_.cells[(1, 2)].ram_data_valid else None)
+        if thr < (1 << 31):
+            check(f"threshold {s32(thr)}: {len(probe)} values incl. INT_MIN/INT_MAX around it x 3 modes == signed compare == the real VM ({vmc[:6]}...)", not bad and vmc == wantc, f"{bad[:1]} vm={vmc}")
+        else:
+            check(f"threshold {s32(thr)} (bit 31 set): the flex RTL == a true SIGNED compare on all {len(probe)} values x 3 modes (the cell declares its threshold signed)", not bad, str(bad[:1]))
+            check("FINDING (a VM cascade item, not patched): the VM declares cmp_threshold signed but loads the unsigned 32-bit ICM field RAW, so a bit-31 threshold is read as a "
+                  "huge positive and the VM returns 0 for EVERY value; the RTL (both families) reads it as negative. The compiler only emits non-negative thresholds, so nothing in the corpus hits it",
+                  vmc == [0] * len(probe) and vmc != wantc, f"vm={vmc} signed-want={wantc}")
+        cmp_dirs[thr] = dc
+    if 5 in cmp_dirs:
+        dz = cmp_dirs[5]
+        topz = os.path.join(dz, json.load(open(os.path.join(dz, "ASSEMBLY.json")))["top"] + ".v")
+        txt = re.sub(r"\.cfg_data\(32'h00000005\)", ".cfg_data(32'h00000000)", open(topz).read())
+        dmz = os.path.join(tmp, "mutcmp")
+        shutil.copytree(dz, dmz)
+        open(os.path.join(dmz, os.path.basename(topz)), "w").write(txt)
+        res, _ = run_stream(dmz, {"X": probe}, "plain", 84)
+        check("mutant caught: the comparator's threshold zeroed (5 -> 0)", list(res.values())[0] != [int(s32(v) >= 5) for v in probe])
 
     print("MUTATION CONTROLS on the true diamond: break the fork / the join on purpose; the stall tests must catch each one")
     d0, rec0, streams0, want0 = diamond
