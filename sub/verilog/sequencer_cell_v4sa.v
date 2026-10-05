@@ -93,7 +93,7 @@ module sequencer_cell_v4sa #(
         end else if (!freeze_in) begin
             if (pending) begin
                 if (ack_in) pending <= 1'b0;
-            end else if (advance_in) begin
+            end else if (advance_in && armed) begin   // gated by `armed` like every other v4sa cell (ledger #956: an UNCONFIGURED cell used to offer a value)
                 seq_index  <= next_seq_index;
                 out_buffer <= value_for_index(next_seq_index);
                 pending    <= 1'b1;

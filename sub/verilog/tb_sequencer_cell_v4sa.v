@@ -86,6 +86,12 @@ module tb_sequencer_cell_v4sa;
         check_cond(data_out === 32'd30 && valid_out === 1'b0, "frozen: completely unaffected by advance_in/ack_in toggling while frozen");
         freeze_in = 0;
 
+        // ledger #956: an UNCONFIGURED cell must not offer anything, whatever advance_in does (every other v4sa cell is gated on `armed`; this one was not)
+        rst = 1; @(posedge clk); #1; rst = 0; ack_in = 0;
+        advance_in = 1; @(posedge clk); @(posedge clk); #1;
+        check_cond(valid_out === 1'b0 && ack_out === 1'b0, "unconfigured: no offer");
+        advance_in = 0;
+
         if (errors == 0) $display("ALL PASS");
         else $display("FAILURES: %0d", errors);
         $finish;

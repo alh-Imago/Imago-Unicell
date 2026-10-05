@@ -299,7 +299,7 @@ def lower_branches(cells, inputs, outputs):
 MUL_REALISATIONS = {"lut": {"module": "mul_cell_v4s", "cost": {"LUT4": {"default": 4277, "nowidelut": 1398}}},
                     "dsp2": {"module": "mul_cell_v4s_dsp2", "primitive": "MULT36X36"}}
 MUL_MODULES = {k: v["module"] for k, v in MUL_REALISATIONS.items()}
-FLEX_STAGE1_CORES = {"ram", "adder", "mul", "nano", "comparator", "accumulator", "latch", "branch"}
+FLEX_STAGE1_CORES = {"ram", "adder", "mul", "nano", "comparator", "accumulator", "latch", "branch", "sequencer"}
 LUT_BUDGET_FRACTION = 0.9
 
 
@@ -462,7 +462,9 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
             if not srcs_of[c]:
                 problems.append(f"{c}: {r.core} with no pulse input connected -- nothing can ever change it")
         seq_srcs = [q for q in srcs_of[c] if cells[q].core == "sequencer"]
-        if seq_srcs and (spec["kind"] == "pair" or len(srcs_of[c]) > 1):
+        if seq_srcs and family == "flex" and spec["kind"] != "pair" and len(srcs_of[c]) > 1:
+            problems.append(f"{c}: a sequencer feeding a MERGE is not translated on flex (which of its values the merge should take is ambiguous)")
+        if seq_srcs and family == "sub" and (spec["kind"] == "pair" or len(srcs_of[c]) > 1):
             problems.append(f"{c}: fed by sequencer {seq_srcs} together with other sources. The VM's sequencer is perpetually live and re-offers at once, "
                             f"and a two-operand cell (or a merge) pairs/ORs by ARRIVAL, so in the VM the sequence values pair with EACH OTHER, not with the "
                             f"stream; the sub translation (one host advance pulse per item) would pair them with the stream -- different semantics. "

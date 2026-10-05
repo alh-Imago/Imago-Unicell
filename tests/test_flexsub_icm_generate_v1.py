@@ -200,10 +200,10 @@ try:
     print("refusals are specific, never silent")
     sys.path.insert(0, os.path.join(ROOT, "nano"))
     from icm_v3 import IcmV3File as _F, IcmV3Record as _R
-    _F(name="seq", records=[_R(cell_id="S", row=1, col=0, core="sequencer", core_config={"VALUE_0": 1, "VALUE_1": 2, "VALUE_2": 3, "VALUE_3": 4, "SEQUENCE_LEN": 3, "downstream_mask": ["e"]}),
+    _F(name="seq", records=[_R(cell_id="S", row=1, col=0, core="sequencer", core_config={"VALUE_0": 1, "VALUE_1": 2, "VALUE_2": 3, "VALUE_3": 4, "SEQUENCE_LEN": 3, "downstream_mask": ["e"]}, addon_config={"invert_en": 1}),
                             _R(cell_id="E", row=1, col=1, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": []})]).save(os.path.join(tmp, "seq.icm"))
     for label, args, needles in (
-                        ("flex --icm refuses what is not translated yet (a sequencer), with the reason", ["-s", "flex", "--icm", os.path.join(tmp, "seq.icm")], ["not yet translated on flex"]),
+                        ("flex --icm still refuses what is not translated (a sequencer carrying an addon), with the reason", ["-s", "flex", "--icm", os.path.join(tmp, "seq.icm")], ["addon_config on a sequencer"]),
             ("--icm without -s", ["--icm", path], ["-s sub"])):
         r = cli(*args, "--output", os.path.join(tmp, "ref"))
         check(f"{label}: refused, names the reason", r.returncode != 0 and all(n in r.stderr for n in needles)
