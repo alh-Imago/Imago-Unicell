@@ -32,8 +32,17 @@ WHAT THE EMITTER BUILDS (all of it plain valid/ready glue around the cells):
 
   * COMPARATOR (stage 4) -- compare_cell_v4sa is a single-input cell (signed(data) >= threshold -> 0/1, threshold in cfg_data), so its handshake is exactly a relay's.
 
-STAGES 1-4 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator and constants; no
-merges, branch, accumulator, latch or sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
+  * ACCUMULATOR and LATCH (stage 5, the LEVEL SOURCES). Their pulse inputs (inc/dec, set/clear/toggle) are bare strobes with NO handshake, and in the cells the total / state
+    ALWAYS updates on a pulse while the output snapshot (`out_buffer`) is captured only when the cell is not `pending` -- so a pulse landing while pending is counted but its
+    snapshot is silently LOST and data_out goes stale. The emitter therefore GATES every pulse by the cell's ready: a pulse is `source valid & ack_out` and the source is acked at
+    that same moment, so every event is both counted and snapshotted and data_out always equals the true total. Several sources on one role OR together (one event, all acked);
+    a latch `set` also needs bit 0 of the arriving value (the value is consumed either way, as in the VM). LEVEL mode (a continuous accumulator, any latch -- g.is_level): valid is
+    held high once armed (`ack_out | valid_out`), the cell's own ack_in is tied high so it never stalls, and consumers never ack it (the #938 rule, for a handshake design). A
+    PULSE-MODE accumulator is an ordinary event source (fork, acks) but still pulse-gated. A level/constant source into an accumulator's inc/dec or a latch's toggle is refused
+    (rate-dependent), exactly as on sub.
+
+STAGES 1-5 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator, accumulator, latch and
+constants; no merges, branch or sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
 """
 import json
 import os
@@ -46,7 +55,7 @@ sys.path.insert(0, TOOLS_DIR)
 import flexsub_assemble_v1 as fsa  # noqa: E402
 import flexsub_icm_generate_v1 as g  # noqa: E402
 
-FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa"}
+FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa"}
 
 
 def _pname(io, cid):
@@ -84,15 +93,22 @@ def emit_top_flex(top, p):
     a(");")
 
     # ---- edges: one per (source -> consumer slot) ----
-    edges, cons, by_dst = [], {c: [] for c in order}, {c: [] for c in order}
+    levels = {c for c in cells if g.is_level(cells[c])}             # always-valid sources: a continuous accumulator, any latch
+    edges, cons, by_dst, edge_role = [], {c: [] for c in order}, {c: [] for c in order}, {}
     for dst in order:
         r = cells[dst]
+        rl = []
         if r.core in ("adder", "mul", "nano"):
             srcs = [roles[dst]["A"], roles[dst]["B"]]
+        elif r.core in ("accumulator", "latch"):
+            srcs = [q for role in sorted(inputs.get(dst, {})) for q, _ in inputs[dst][role]]
+            rl = [role for role in sorted(inputs.get(dst, {})) for _ in inputs[dst][role]]
         else:
             srcs = [q for lst in inputs.get(dst, {}).values() for q, _ in lst]
         for slot, src in enumerate(srcs):
             e = f"e{len(edges)}"
+            if rl:
+                edge_role[e] = rl[slot]
             edges.append((e, src, dst, slot))
             cons[src].append(e)
             by_dst[dst].append(e)
@@ -109,6 +125,15 @@ def emit_top_flex(top, p):
     # ---- source side: how each cell's valid_out is offered to its consumers, and where its ack_in comes from ----
     for src in order:
         i, es = ident(src), cons[src]
+        if src in levels:
+            if src in exits:
+                n = _pname(cells[src].io_name, src)
+                a(f"assign out_{n}_data = {i}_d;")
+                a(f"assign out_{n}_valid = {i}_rdy | {i}_v;           // a level is always valid once armed; the host's ack is ignored")
+            for e in es:
+                a(f"assign {e}_v = {i}_rdy | {i}_v;                  // LEVEL source: always valid, never 'used up': no fork, no ack")
+            a(f"assign {i}_ai = 1'b1;                                // the cell's own pending clears at once (consumers do not ack a level)")
+            continue
         if src in roots:
             if src in exits:
                 raise g.IcmGenError(f"{src}: an output that is only a constant")
@@ -167,6 +192,20 @@ def emit_top_flex(top, p):
             a(f"assign {i}_vin = {eB}_v & {i}_aload;")
             a(f"always @(posedge clk) begin if (rst) {i}_aload <= 1'b0; else if ({i}_cap) {i}_aload <= 1'b0; else if ({i}_ldA) {i}_aload <= 1'b1; end")
             a(f"wire [31:0] {i}_inh = {srcdata[eA]}, {i}_inf = {srcdata[eB]};")
+        elif r.core in ("accumulator", "latch"):
+            joins.append({"cell": dst, "kind": f"{r.core} pulse inputs"})
+            byrole = {}
+            for e in es:
+                byrole.setdefault(edge_role[e], []).append(e)
+            a(f"assign {i}_vin = 1'b0;")
+            for role in sorted(byrole):
+                for e in byrole[role]:
+                    a(f"assign {e}_a = {i}_rdy;   // a pulse is accepted only when the cell can SNAPSHOT it, so no event is ever counted but lost")
+            for role in ("inc", "dec", "set", "clear", "toggle"):
+                if r.core == "accumulator" and role in ("set", "clear", "toggle") or r.core == "latch" and role in ("inc", "dec"):
+                    continue
+                terms = [(f"({e}_v & {srcdata[e]}[0])" if (r.core == "latch" and role == "set") else f"{e}_v") for e in byrole.get(role, [])]
+                a(f"wire {i}_p_{role} = ({' | '.join(terms) if terms else chr(49) + chr(39) + 'b0'}) & {i}_rdy;")
         elif r.core in ("adder", "mul"):
             eA, eB = es
             joins.append({"cell": dst})
@@ -195,6 +234,12 @@ def emit_top_flex(top, p):
         elif r.core == "ram":
             fm = 1 if cfg.get("fixed_mode", 0) else 0
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h0), .cfg_fixed_mode(1'b{fm}), .data_in({i}_ind), .valid_in({i}_vin));")
+        elif r.core == "accumulator":
+            word = (int(cfg.get("step_amount", 0)) & 0xFF) | ((1 if cfg.get("pulse_mode", 0) else 0) << 8) | ((int(cfg.get("threshold", 0)) & 0xFFFF) << 9)
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{word:08X}), .inc_pulse({i}_p_inc), .dec_pulse({i}_p_dec));   "
+              f"// {'LEVEL (continuous)' if c in levels else 'event source (pulse mode)'}")
+        elif r.core == "latch":
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h0), .set_in({i}_p_set), .clear_in({i}_p_clear), .toggle_in({i}_p_toggle));   // LEVEL")
         elif r.core == "comparator":
             thr = int(cfg.get("threshold", 0)) & 0xFFFFFFFF                # signed(data) >= threshold -> 0/1, exactly as the VM (a single-input cell like a relay)
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{thr:08X}), .data_in({i}_ind), .valid_in({i}_vin));   // threshold {thr}")
@@ -215,7 +260,8 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, nowidelut=False):
     if p["merges"]:
         raise g.IcmGenError(f"cannot generate flex Verilog from {os.path.basename(icm_path)}:\n  - merges {sorted(p['merges'])} are not yet translated on flex "
                             f"(stage 1): under the handshake an OR-merge has to decide which source to acknowledge")
-    only_const = sorted(c for c in p["exits"] if c in p["const"])
+    levels = {c for c in p["cells"] if g.is_level(p["cells"][c])}
+    only_const = sorted(c for c in p["exits"] if c in p["const"] and c not in levels)
     if only_const:
         raise g.IcmGenError(f"cannot generate flex Verilog from {os.path.basename(icm_path)}:\n  - output(s) {only_const} depend only on constants: nothing live "
                             f"would pace them, so the design would stream the same value for ever")
@@ -234,7 +280,7 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, nowidelut=False):
         f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top}{' -nowidelut' if nowidelut else ''} -json {top}.json\nstat\n")
     rec = {"generator": "tools/flexsub_icm_flex_v1.py", "family": "flex", "source": os.path.basename(icm_path), "top": top,
            "cells": len(p["cells"]), "forks": forks, "joins": joins,
-           "constants": sorted(c for c in p["const"] if not p["inputs"].get(c)), "const_derived": sorted(c for c in p["const"] if p["inputs"].get(c)), "exit_rule": p["exit_rule"], "pruned_dead_cells": p["pruned"],
+           "constants": sorted(c for c in p["const"] if not p["inputs"].get(c) and c not in levels), "level_sources": sorted(levels), "const_derived": sorted(c for c in p["const"] if p["inputs"].get(c)), "exit_rule": p["exit_rule"], "pruned_dead_cells": p["pruned"],
            "exits": list(p["exits"]), "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"],
            "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
            "note": "handshake design: every port has valid/ack; no latency alignment, no padding", "synth_flags": "-nowidelut" if nowidelut else "(default)", "files": files + [f"{top}.ys"]}
