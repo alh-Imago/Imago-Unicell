@@ -1487,9 +1487,11 @@ def main():
     ap.add_argument("--icm", default=None, metavar="FILE",
                      help="STEP 2 of the Flex-Sub plan: read this ICM-VIX file (*.icm-hier.json) as a map and generate the design it describes as Verilog into --output. Requires -s sub (the flex generator -- ack join -- is not built yet). Handled by tools/flexsub_icm_generate_v1.py; --cells is not used.")
     ap.add_argument("--nowidelut", action="store_true",
-                     help="Gowin synthesis only (the -s flex / sub / nano families and --icm): write `synth_gowin -nowidelut` into the generated .ys, which stops the mapper building "
-                          "wide-LUT (MUX2_LUT5..8) mux trees. Measured (ledger #949): a LUT multiplier ~3x smaller AND ~3x faster, a nano cell ~5x smaller at a lower clock. NOT for the "
-                          "original Intel/Quartus path (synth_intel_alm has no such option). Off by default: the effect depends on the design (see ledger #950).")
+                     help="Gowin synthesis (-s flex / -s sub, step-1 chains and --icm): FORCE `synth_gowin -nowidelut`. This is already the DEFAULT for the Gowin generators (ledger #951 / Alan's "
+                          "ruling after #950: smaller in every cell measured, ~3x smaller and ~3x faster for the LUT multiplier); the card's MAN (synthesis.nowidelut) decides the default, and "
+                          "forcing it where the MAN says the toolchain does not support it (the Arria 10 / synth_intel_alm path) is refused.")
+    ap.add_argument("--wide-lut", action="store_true",
+                     help="Opt OUT of the -nowidelut default: write the historical `synth_gowin` line (wide-LUT / MUX2_LUT mapping). Same Gowin-only scope as --nowidelut.")
     ap.add_argument("--mul", default="auto", choices=["auto", "lut", "dsp"],
                      help="With --icm: how `mul` cells are realised. auto (default) = the DSP cell (mul_cell_v4s_dsp2, one MULT36X36, a few dozen LUTs) while the MAN's card has DSP blocks left, the exact LUT multiplier (~4,277 LUT4 each) as the fall back, and a refusal if even that cannot fit the card; lut = always the LUT multiplier; dsp = always DSP (refused if the card has too few). Needs --man for resource information; without one auto uses the LUT multiplier.")
     ap.add_argument("--no-align", action="store_true",
@@ -1497,6 +1499,12 @@ def main():
     ap.add_argument("-w", "--width", type=int, default=None,
                      help="Cell data width for `-s flex` (e.g. -w 18). Overrides the MAN file's device.logic.native_width; required when no --man is given. Rejected with `-s sub` (fixed 32) and with the default/nano path.")
     args = ap.parse_args()
+    if args.nowidelut and args.wide_lut:
+        ap.error("--nowidelut and --wide-lut contradict each other")
+    if (args.nowidelut or args.wide_lut) and args.family not in ("flex", "sub"):
+        ap.error("--nowidelut / --wide-lut are Gowin `synth_gowin` options and apply only to -s flex / -s sub (the generated .ys scripts); the original nano/Quartus path targets "
+                 "synth_intel_alm, which has no such option -- it would be silently ignored, so it is refused")
+    args.nowidelut_request = True if args.nowidelut else (False if args.wide_lut else None)
 
     if args.icm:
         if args.family not in ("sub", "flex"):
@@ -1506,7 +1514,7 @@ def main():
         import flexsub_icm_generate_v1 as fig
         try:
             r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
-                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut)
+                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
@@ -1538,7 +1546,7 @@ def main():
         try:
             r = fsa.assemble_flexsub(args.family, args.single_core, args.cells, args.output,
                                      man_path=args.man, width_arg=args.width, top=args.top,
-                                     cell_dir=args.core_path, nowidelut=args.nowidelut)
+                                     cell_dir=args.core_path, nowidelut=args.nowidelut_request)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
@@ -1555,9 +1563,6 @@ def main():
     _missing = [n for n, v in (("--man", args.man), ("--cells", args.cells)) if not v]
     if _missing:
         ap.error("the following arguments are required: " + ", ".join(_missing))
-    if args.nowidelut and args.family not in ("flex", "sub"):
-        ap.error("--nowidelut is a Gowin `synth_gowin` option and applies only to -s flex / -s sub (the generated .ys scripts); the original nano/Quartus path targets "
-                 "synth_intel_alm, which has no such option -- it would be silently ignored, so it is refused")
     if args.no_align:
         ap.error("--no-align only applies with --icm")
     if args.mul != "auto":

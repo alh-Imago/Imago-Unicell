@@ -135,3 +135,15 @@ ability only from a real source.
 `soft_units` (open list, informational): DSP-like blocks built from fabric logic that are KNOWN to work on the card. The Arria 10 has one: the Floating Point
 Hardware 2 IP behind the DSP wrapper -- it uses 0 of the 1,687 DSP blocks (`points.md` #472, verified on actual hardware). It is a floating-point unit, not an integer
 multiplier, so the assembler's `mul` core does not use it.
+
+## Synthesis options (read by the assembler): `synthesis.nowidelut`
+
+The card's open-toolchain synthesis facts live here too, and the assembler only reads them. Under the top-level `synthesis` block:
+
+| field | meaning |
+|---|---|
+| `tool` | the synthesis flow this card's generated scripts target |
+| `nowidelut.supported` | whether the toolchain offers `synth_gowin -nowidelut` (stop building wide-LUT / MUX2_LUT5..8 mux trees). The Tang's value is **read live** from `yosys -h synth_gowin` by the MAN generator, not hand-typed |
+| `nowidelut.default` | whether the assembler turns it on when the user says nothing. A **decision**, not a derived fact: Alan's ruling after the sweeps in `docs/measurements/nowidelut_sweeps_950/` (LUT4 smaller in every cell; the LUT multiplier ~3x smaller and ~3x faster; the nano / comparator / sequencer slower but ~225 MHz against a 27 MHz clock) |
+
+How the assembler resolves it (`flexsub_assemble_v1.resolve_nowidelut`): `--nowidelut` forces it on (**refused** if the MAN says `supported: false`, because it would be silently ignored), `--wide-lut` opts out and writes the historical `synth_gowin` line, and with neither the MAN's `default` decides (with no MAN, or an older MAN with no `synthesis` block, the Gowin generators default to on, since `synth_gowin` has the option). **The Arria 10 says `supported: false, default: false`**: `synth_intel_alm` has no equivalent. The choice and its reason are recorded in each `ASSEMBLY.json` (`synth_flags`, `synth_flags_reason`). The LUT multiplier's budget cost is flow-aware (4,277 LUT4 default flow, <= 1,398 under `-nowidelut`).

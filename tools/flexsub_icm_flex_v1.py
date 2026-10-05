@@ -41,8 +41,17 @@ WHAT THE EMITTER BUILDS (all of it plain valid/ready glue around the cells):
     PULSE-MODE accumulator is an ordinary event source (fork, acks) but still pulse-gated. A level/constant source into an accumulator's inc/dec or a latch's toggle is refused
     (rate-dependent), exactly as on sub.
 
-STAGES 1-5 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator, accumulator, latch and
-constants; no merges, branch or sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
+  * BRANCH (stage 6). branch_cell_v4sa has TWO output ports, each with its own valid/ack but sharing one out_buffer -- so each port is a separate SOURCE with its own eager fork
+    (named <cell>_p1 / <cell>_p2); an outcome routed to neither port is swallowed (no output). Inputs: a FIXED input is a LOAD STROBE (loads whenever its valid is high, regardless of
+    busy, like the nano's hold) so its source is acked at once; a FLOWING input is valid/ready with the single ack_out (low while either port is pending), and two flowing inputs form
+    a join. The ICM branch's three input modes (lowered by lower_branches, shared with sub): const_ref -- the stream is in1, the constant is in2 (flowing, valid always high), the stream
+    is acked only when the cell fires; ENTRY variant -- the branch absorbed the merge that carried the io_name, so it IS the entry point (cordic's z_input); ROLLING -- the stream feeds
+    both inputs with in2 held. Rolling needs a glue flag the pulse-fed sub cell did not: a handshake stream's valid is HELD, so the first arrival (no reference yet, no output in the VM)
+    would stay valid and one cycle later fire against the reference it just loaded -- a spurious EQUAL event. So: the first arrival only LOADS (in2 strobe, stream acked at once, flag set);
+    later arrivals load and compare on the SAME edge (so the compare reads the OLD reference), acked only when the cell is ready.
+
+STAGES 1-6 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator, accumulator, latch, branch and
+constants; no merges or sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
 """
 import json
 import os
@@ -55,7 +64,7 @@ sys.path.insert(0, TOOLS_DIR)
 import flexsub_assemble_v1 as fsa  # noqa: E402
 import flexsub_icm_generate_v1 as g  # noqa: E402
 
-FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa"}
+FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa"}
 
 
 def _pname(io, cid):
@@ -64,6 +73,7 @@ def _pname(io, cid):
 
 def emit_top_flex(top, p):
     cells, inputs, roles = p["cells"], p["inputs"], p["adder_roles"]
+    branch_plans, branch_port = p["branch_plans"], p["branch_port"]
     order, exits_l, addons = p["order"], list(p["exits"]), p["addons"]
     exits = set(exits_l)
     idx = {c: k for k, c in enumerate(order)}
@@ -95,6 +105,8 @@ def emit_top_flex(top, p):
     # ---- edges: one per (source -> consumer slot) ----
     levels = {c for c in cells if g.is_level(cells[c])}             # always-valid sources: a continuous accumulator, any latch
     edges, cons, by_dst, edge_role = [], {c: [] for c in order}, {c: [] for c in order}, {}
+    for c in branch_plans:                                           # a branch's two output ports are two separate sources
+        cons[(c, 1)], cons[(c, 2)] = [], []
     for dst in order:
         r = cells[dst]
         rl = []
@@ -110,21 +122,32 @@ def emit_top_flex(top, p):
             if rl:
                 edge_role[e] = rl[slot]
             edges.append((e, src, dst, slot))
-            cons[src].append(e)
+            cons[(src, branch_port[(dst, src)]) if src in branch_plans else src].append(e)
             by_dst[dst].append(e)
     for c in order:
         i = ident(c)
         a(f"wire [31:0] {i}_d; wire {i}_v; wire {i}_rdy; wire {i}_ai; wire {i}_vin;")
         if c in addons:
             a(f"wire [31:0] {i}_rd;")
+        if c in branch_plans:
+            a(f"wire {i}_p1_v, {i}_p1_ai, {i}_p2_v, {i}_p2_ai; wire [31:0] {i}_d2u;")
     for e, *_ in edges:
         a(f"wire {e}_v; wire {e}_a;")
     a("")
 
     forks, joins = [], []
     # ---- source side: how each cell's valid_out is offered to its consumers, and where its ack_in comes from ----
-    for src in order:
-        i, es = ident(src), cons[src]
+    sources = []
+    for c in order:
+        if c in branch_plans:
+            if c in exits:
+                raise g.IcmGenError(f"{c}: a branch as a design OUTPUT is not translated on flex (stage 6)")
+            sources += [((c, 1), f"{ident(c)}_p1"), ((c, 2), f"{ident(c)}_p2")]
+        else:
+            sources.append((c, ident(c)))
+    for key, i in sources:
+        src = key[0] if isinstance(key, tuple) else key
+        es = cons[key]
         if src in levels:
             if src in exits:
                 n = _pname(cells[src].io_name, src)
@@ -154,7 +177,7 @@ def emit_top_flex(top, p):
             a(f"assign {es[0]}_v = {i}_v;")
             a(f"assign {i}_ai = {es[0]}_a;")
         else:
-            forks.append({"source": src, "consumers": len(es)})
+            forks.append({"source": i if isinstance(key, tuple) else src, "consumers": len(es)})
             for e in es:
                 a(f"reg {e}_t = 1'b0;                       // `taken`: this consumer has accepted the current item")
                 a(f"assign {e}_v = {i}_v & ~{e}_t;")
@@ -169,6 +192,30 @@ def emit_top_flex(top, p):
     # ---- consumer side: how each cell's valid_in is formed and what ready each source sees ----
     for dst in order:
         i, es, r = ident(dst), by_dst[dst], cells[dst]
+        if r.core == "branch":
+            bp, rd = branch_plans[dst], f"{i}_rdy"
+            if bp["stream"] is None:                                  # the branch absorbed the merge that carried the io_name: it IS the entry point
+                n = _pname(r.io_name, dst)
+                sv, sd, sack = f"in_{n}_valid", f"in_{n}_data", f"in_{n}_ack"
+            else:
+                (e_s,) = es
+                sv, sd, sack = f"{e_s}_v", ident(edges[int(e_s[1:])][1]) + "_d", f"{e_s}_a"
+            joins.append({"cell": dst, "kind": f"branch ({bp['mode']})"})
+            if bp["mode"] == "const_ref":
+                k = ident(bp["const_ref"])
+                a(f"assign {sack} = {rd} & {k}_v;                          // the stream is consumed when the cell fires, and needs the constant reference present")
+                a(f"wire {i}_in1v = {sv}, {i}_in2v = {k}_v; wire [31:0] {i}_in1d = {sd}, {i}_in2d = {k}_d;")
+                bp_in2_fixed = 0
+            else:                                                     # rolling: the stream feeds both inputs, in2 is a HELD copy
+                a(f"reg {i}_ld = 1'b0;                                    // the reference has been loaded")
+                a(f"wire {i}_first = {sv} & ~{i}_ld;                      // the first arrival only becomes the reference: no event, no output (VM)")
+                a(f"wire {i}_fire = {sv} & {i}_ld & {rd};                 // later arrivals load AND compare on the same edge (the compare reads the OLD reference)")
+                a(f"assign {sack} = ~{i}_ld | {rd};")
+                a(f"always @(posedge clk) begin if (rst) {i}_ld <= 1'b0; else if ({i}_first) {i}_ld <= 1'b1; end")
+                a(f"wire {i}_in1v = {i}_fire, {i}_in2v = {i}_fire | {i}_first; wire [31:0] {i}_in1d = {sd}, {i}_in2d = {sd};")
+                bp_in2_fixed = 1
+            bp["_in2_fixed"] = bp_in2_fixed
+            continue
         if dst in roots:
             a(f"assign {i}_vin = 1'b0;")
             a(f"wire [31:0] {i}_ind = 32'h0;")
@@ -228,7 +275,14 @@ def emit_top_flex(top, p):
         dout = f"{i}_rd" if c in addons else f"{i}_d"
         common = (f".clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .ack_out({i}_rdy), .data_out({dout}), "
                   f".valid_out({i}_v), .ack_in({i}_ai)")
-        if r.core == "ram" and c in roots:
+        if r.core == "branch":
+            bp = branch_plans[c]
+            rb = bp["route_bits"]
+            word = (bp["_in2_fixed"] << 1) | (bp["emit_source"] << 2) | (rb["low"] << 4) | (rb["equal"] << 6) | (rb["high"] << 8)
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{word:X}), "
+              f".cfg_emit_fixed_value(32'h{bp['emit_fixed'] & 0xFFFFFFFF:08X}), .in1_data({i}_in1d), .in1_valid({i}_in1v), .in2_data({i}_in2d), .in2_valid({i}_in2v), "
+              f".ack_out({i}_rdy), .data_out_1({dout}), .valid_out_1({i}_p1_v), .ack_in_1({i}_p1_ai), .data_out_2({i}_d2u), .valid_out_2({i}_p2_v), .ack_in_2({i}_p2_ai));")
+        elif r.core == "ram" and c in roots:
             val = (r.preload_value if r.preload_value is not None else cfg.get("init_data", 0)) & 0xFFFFFFFF
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{val:08X}), .cfg_fixed_mode(1'b1), .data_in({i}_ind), .valid_in({i}_vin));   // CONSTANT {val}")
         elif r.core == "ram":
@@ -255,8 +309,10 @@ def emit_top_flex(top, p):
     return "\n".join(L) + "\n", forks, joins
 
 
-def generate_flex(icm_path, output, top=None, cell_dir=None, nowidelut=False):
-    p = g.plan(icm_path, True, family="flex")
+def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None):
+    man = fsa.load_man_flexsub(man_path) if man_path else None
+    nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
+    p = g.plan(icm_path, True, family="flex", nowidelut=nowidelut)
     if p["merges"]:
         raise g.IcmGenError(f"cannot generate flex Verilog from {os.path.basename(icm_path)}:\n  - merges {sorted(p['merges'])} are not yet translated on flex "
                             f"(stage 1): under the handshake an OR-merge has to decide which source to acknowledge")
@@ -279,10 +335,10 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, nowidelut=False):
     open(os.path.join(output, f"{top}.ys"), "w").write(
         f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top}{' -nowidelut' if nowidelut else ''} -json {top}.json\nstat\n")
     rec = {"generator": "tools/flexsub_icm_flex_v1.py", "family": "flex", "source": os.path.basename(icm_path), "top": top,
-           "cells": len(p["cells"]), "forks": forks, "joins": joins,
+           "cells": len(p["cells"]), "forks": forks, "joins": joins, "branches": {c: {k: v for k, v in bp.items() if not k.startswith("_")} for c, bp in p["branch_plans"].items()},
            "constants": sorted(c for c in p["const"] if not p["inputs"].get(c) and c not in levels), "level_sources": sorted(levels), "const_derived": sorted(c for c in p["const"] if p["inputs"].get(c)), "exit_rule": p["exit_rule"], "pruned_dead_cells": p["pruned"],
            "exits": list(p["exits"]), "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"],
            "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
-           "note": "handshake design: every port has valid/ack; no latency alignment, no padding", "synth_flags": "-nowidelut" if nowidelut else "(default)", "files": files + [f"{top}.ys"]}
+           "note": "handshake design: every port has valid/ack; no latency alignment, no padding", "synth_flags": "-nowidelut" if nowidelut else "(wide-LUT mapping)", "synth_flags_reason": nowidelut_why, "files": files + [f"{top}.ys"]}
     json.dump(rec, open(os.path.join(output, "ASSEMBLY.json"), "w"), indent=2)
     return rec

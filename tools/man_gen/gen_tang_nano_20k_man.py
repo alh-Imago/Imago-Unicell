@@ -87,6 +87,20 @@ def dsp_primitives(blocks_total, multipliers_18x18):
     return out
 
 
+def synthesis_block():
+    """The card's open-toolchain synthesis facts. WHETHER the option exists is read LIVE from the installed yosys (`yosys -h synth_gowin` must list -nowidelut), not
+    hand-typed. `default: true` is a DECISION (Alan, after ledger #950), not a derived fact -- the evidence is the sweeps in docs/measurements/nowidelut_sweeps_950/:
+    LUT4 smaller in every cell measured (14,793 -> 5,129 in real place-and-route), the LUT multiplier ~3x smaller AND ~3x faster, the nano/comparator/sequencer slower
+    but still ~225 MHz against this card's 27 MHz clock."""
+    import subprocess
+    out = subprocess.run(["yosys", "-h", "synth_gowin"], capture_output=True, text=True).stdout
+    return {"tool": "yosys synth_gowin (open flow) -> nextpnr-himbaechel-gowin",
+            "nowidelut": {"supported": "-nowidelut" in out, "supported_provenance": "read live from `yosys -h synth_gowin`",
+                          "default": True, "default_provenance": "DECISION (Alan, after ledger #950), evidence in docs/measurements/nowidelut_sweeps_950/",
+                          "effect": "stops the mapper building wide-LUT (MUX2_LUT5..8) mux trees: smaller in every cell measured; the LUT multiplier also ~3x faster; the nano, comparator "
+                                    "and sequencer lose clock speed (still ~225 MHz vs this card's 27 MHz). Opt out with --wide-lut."}}
+
+
 def native_ff_variants():
     """points.md #907: read the real Gowin flip-flop primitives straight from
     yosys's own cell library (not hand-typed, so this can never silently drift
@@ -151,6 +165,7 @@ def build(db):
                          "`provenance`. NOT read from Gowin's FloorPlanner, NOT checked against the schematic, and "
                          "NOT tested on the physical board -- see `verification`."),
         "vendor": "gowin",
+        "synthesis": synthesis_block(),
         "device": {
             "part": "GW2AR-LV18QN88C8/I7",
             "family": "Gowin GW2AR-18",

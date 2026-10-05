@@ -158,6 +158,8 @@ def load_man_flexsub(path):
         "board": man.get("board", {}),
         # resource data the assembler READS (Alan #941/#942: "the dsp type and availability and other resources have to be held in the man file ...
         # but used by the assembler"). Nothing here is assumed about a vendor.
+        "synth_nowidelut_supported": ((man.get("synthesis") or {}).get("nowidelut") or {}).get("supported"),
+        "synth_nowidelut_default": ((man.get("synthesis") or {}).get("nowidelut") or {}).get("default"),
         "dsp_blocks": (device.get("dsp") or {}).get("total_blocks"),
         "dsp_primitives": {pr["name"]: pr for pr in ((device.get("dsp") or {}).get("primitives") or [])},
         "dsp_abilities": list((device.get("dsp") or {}).get("abilities") or []),
@@ -433,7 +435,30 @@ def _derive_deps(top_path, cell_dir):
     return sorted(found.items())
 
 
-def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top=None, cell_dir=None, nowidelut=False):
+def resolve_nowidelut(request, man):
+    """Should the generated `synth_gowin` script carry `-nowidelut`? (Alan, after ledger #950: it becomes the DEFAULT for the Gowin generators, but not where the card's
+    toolchain does not offer it -- the Arria 10 path has no such option.) The card's own MAN says what its toolchain supports and what the default is
+    (`synthesis.nowidelut.{supported,default}`); nothing about a vendor is assumed here.
+      request True  (--nowidelut) : force it on; REFUSED if the MAN says the toolchain does not support it
+      request False (--wide-lut)  : opt out (the historical default flow)
+      request None                : the MAN's default if it states one; otherwise ON (these generators emit `synth_gowin`, which has the option)
+    Returns (flag, reason)."""
+    sup = man.get("synth_nowidelut_supported") if man else None
+    dfl = man.get("synth_nowidelut_default") if man else None
+    if request is True:
+        if sup is False:
+            raise ValueError("--nowidelut: this card's MAN says its synthesis toolchain does not support the option (synthesis.nowidelut.supported = false) -- "
+                             "it would be silently ignored, so it is refused")
+        return True, "requested (--nowidelut)"
+    if request is False:
+        return False, "opted out (--wide-lut): the historical default flow"
+    if man is not None and sup is not None:
+        on = bool(sup and dfl)
+        return on, f"the card's MAN says: supported={sup}, default={dfl}"
+    return True, "the default for the Gowin generators (no MAN, or a MAN with no synthesis block)"
+
+
+def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top=None, cell_dir=None, nowidelut=None):
     if family not in FAMILIES:
         raise ValueError(f"unknown family {family!r}; real options: {', '.join(FAMILIES)}")
     if cell is None:
@@ -451,6 +476,7 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
         raise ValueError("--cells must be at least 1")
     cell_dir = cell_dir or DEFAULT_CELL_DIR
     man = load_man_flexsub(man_path) if man_path else None
+    nowidelut, nowidelut_why = resolve_nowidelut(nowidelut, man)
     width, width_source = resolve_width(family, width_arg, man, SHAPES[base].get('max_width', MAX_WIDTH))
 
     suffix = FAMILIES[family]["suffix"]
@@ -501,7 +527,7 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
               "cell_module": module, "cells": n, "width": width,
               "width_source": width_source, "man": man["card_id"] if man else None,
               "top": top_name, "files": files + (["build.sh"]), "pnr": have_cst,
-              "synth_flags": "-nowidelut" if nowidelut else "(default)"}
+              "synth_flags": "-nowidelut" if nowidelut else "(wide-LUT mapping)", "synth_flags_reason": nowidelut_why}
     if SHAPES[base].get("sim_stub"):
         record["sim_note"] = ("this cell instantiates a Gowin multiplier primitive; simulation needs a behavioural "
                               f"stand-in (yosys ships none) -- see the stub in {SHAPES[base]['sim_stub']}. "

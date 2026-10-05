@@ -475,8 +475,8 @@ try:
 
     print("stage-1 refusals, each with its reason (never a silent mistranslation)")
     r = cli("-s", "flex", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json"), "--output", os.path.join(tmp, "g_c"))
-    check("the hand-built cordic is refused on flex for its BRANCH and merges (constants are translated now, so they are NOT a reason)",
-          r.returncode != 0 and "not yet translated on flex" in r.stderr and "branch" in r.stderr and "constant source" not in r.stderr, r.stderr.strip()[:260])
+    check("the hand-built cordic is now refused on flex for its MERGES ONLY (its four `gather` merges): neither constants nor branches are reasons any more",
+          r.returncode != 0 and "merges" in r.stderr and "s0.gather" in r.stderr and "branch" not in r.stderr and "constant source" not in r.stderr, r.stderr.strip()[:260])
     kconst = [IcmV3Record(cell_id="K", row=1, col=0, core="ram", core_config={"upstream_mask": [], "downstream_mask": ["e"]}, preload_value=9),
               IcmV3Record(cell_id="R", row=1, col=1, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": ["e"]}),
               IcmV3Record(cell_id="E", row=1, col=2, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": []})]

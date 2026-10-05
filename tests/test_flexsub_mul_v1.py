@@ -199,13 +199,23 @@ endmodule
     for label, extra, needles in (
             ("--mul dsp with a card that can host only 2 MULT36X36 for 3 multipliers is refused", ["--man", man_with(tmp, "b2d", blocks=2), "--mul", "dsp"], ["can host only 2"]),
             ("--mul dsp with no MAN (or a MAN that does not list the primitive) is refused", ["--mul", "dsp"], ["list the MULT36X36 primitive"]),
-            ("0 DSP blocks and a 5,000-LUT4 card: 3 LUT multipliers (~12.8k) do not fit -> refused", ["--man", man_with(tmp, "tiny", blocks=0, lut4=5000)], ["resources are used up"]),
-            ("1 DSP block + 2 LUT multipliers (8,554 LUT4) on a 9,500-LUT4 card (limit 8,550): refused by 4", ["--man", man_with(tmp, "edge_no", blocks=1, lut4=9500)], ["resources are used up"])):
+            ("[--wide-lut: the default-flow cost, 4,277 LUT4 each] 0 DSP blocks and a 5,000-LUT4 card: 3 LUT multipliers (~12.8k) do not fit -> refused", ["--man", man_with(tmp, "tiny", blocks=0, lut4=5000), "--wide-lut"], ["resources are used up"]),
+            ("[--wide-lut] 1 DSP block + 2 LUT multipliers (8,554 LUT4) on a 9,500-LUT4 card (limit 8,550): refused by 4", ["--man", man_with(tmp, "edge_no", blocks=1, lut4=9500), "--wide-lut"], ["resources are used up"]),
+            # the NEW default flow (-nowidelut): the LUT multiplier costs at most ~1,398 LUT4 (a whole 3-multiplier + 2-adder design is 4,195, #949/#950)
+            ("[default flow, 1,398 LUT4 each] 0 DSP blocks and a 3,000-LUT4 card: 3 LUT multipliers (4,194) do not fit -> refused", ["--man", man_with(tmp, "tiny_nw", blocks=0, lut4=3000)], ["resources are used up", "1398"]),
+            ("[default flow] 1 DSP block + 2 LUT multipliers (2,796 LUT4) on a 3,100-LUT4 card (limit 2,790): refused by 6", ["--man", man_with(tmp, "edge_nw_no", blocks=1, lut4=3100)], ["resources are used up"])):
         r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_ref"), *extra)
         check(label, r.returncode != 0 and all(n in r.stderr for n in needles), r.stderr.strip()[:260])
-    r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_edge"), "--man", man_with(tmp, "edge_ok", blocks=1, lut4=9600))
-    check("...and on a 9,600-LUT4 card (limit 8,640) the same 1 DSP + 2 LUT design is accepted: the boundary is where it says",
+    r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_edge"), "--man", man_with(tmp, "edge_ok", blocks=1, lut4=9600), "--wide-lut")
+    check("[--wide-lut] ...and on a 9,600-LUT4 card (limit 8,640) the same 1 DSP + 2 LUT design is accepted: the boundary is where it says",
           r.returncode == 0, r.stderr.strip()[:200])
+    r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_edge_nw"), "--man", man_with(tmp, "edge_nw_ok", blocks=1, lut4=3200))
+    mi = json.load(open(os.path.join(tmp, "g_edge_nw", "ASSEMBLY.json")))["multipliers"] if r.returncode == 0 else {}
+    check("[default flow] ...and on a 3,200-LUT4 card (limit 2,880) the same 1 DSP + 2 LUT design is accepted, and the record names the flow",
+          r.returncode == 0 and mi.get("synth_flow") == "nowidelut", r.stderr.strip()[:200] + str(mi.get("synth_flow")))
+    r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_flowrec"), "--man", man_with(tmp, "flowrec", blocks=0), "--wide-lut")
+    mi = json.load(open(os.path.join(tmp, "g_flowrec", "ASSEMBLY.json")))["multipliers"] if r.returncode == 0 else {}
+    check("--wide-lut records the OLD flow in the multiplier record (so the 4,277 cost is the one applied)", mi.get("synth_flow") == "default" and mi.get("lut_multiplier_cost_estimate") == 3 * 4277, str(mi))
 
     print("   the MAN is the SINGLE source of the card's DSP facts")
     import flexsub_assemble_v1 as fsa

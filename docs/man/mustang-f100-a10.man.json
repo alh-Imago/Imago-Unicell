@@ -298,5 +298,13 @@
   "points.md #448 \u2014 real JTAG per-command overhead measured, informs the jtag.note field above",
   "points.md #449 \u2014 SHAPE (per-build logical map) vs MAN (per-card-model capability spec) separation agreed",
   "points.md #454, docs/man/mustang-f100-a10-v3.pin.txt \u2014 real .pin file from Alan's own actual v3 build; CLK_100M/LED/JTAG/config pins and independent PCIe-unused confirmation now real data, not hand-assembled from memory"
- ]
+ ],
+ "synthesis": {
+  "tool": "Intel Quartus (the real build); the open ballpark path is yosys synth_intel_alm -family cyclone10gx",
+  "nowidelut": {
+   "supported": false,
+   "default": false,
+   "note": "synth_intel_alm has NO equivalent of synth_gowin's -nowidelut (that option concerns Gowin's MUX2_LUT5..8 wide-LUT muxes, an architecture feature this card does not have). The assembler refuses the flag here rather than silently ignore it (ledger #950). Whether the Quartus flow has a comparable switch has not been looked at."
+  }
+ }
 }
