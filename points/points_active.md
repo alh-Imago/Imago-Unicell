@@ -81,3 +81,38 @@ So the nano shrinks 42% in LUTs (37% in flops); the adder and relay roughly 40%;
 **What 18 bits would change, if the ICM path gained a width (not done):** the data nets, constants, thresholds and add-on maps all truncate to W bits; results wrap at 2^W; the sign bit is bit 17; the stock compare lowering's no-overflow domain (#931) shrinks accordingly; the add-on shift taps are defined on 32-bit lanes; and THE VM IS 32-BIT ONLY, so at 18 bits the oracle becomes arithmetic mod 2^18, not the VM (the VM width parameter is already on the #927 catch-up list). At 18 bits a `mul` could also use the MULT18X18 primitive exactly (the MAN now lists it, 0.25 block per instance = 48 instances on the Tang, versus 12 MULT36X36), so the multiplier ladder would change too.
 
 **Not done:** nothing in the generators changed -- this entry is measurements and a tool. No width parameter on the `--icm` path; no pinned-topology nano; no comparator/adder-config measurements; the comparator anomaly is not investigated.
+
+
+## 949. CORRECTION TO #948, and a real finding: the comparator "anomaly" is the synthesis MAPPER, not signing and not width -- and the default `synth_gowin` flow wastes resources that `-nowidelut` does not. Real place-and-route confirms it.
+
+Alan, on the comparator getting bigger at 18 bits: "that may be something to look into ... you would have thought the reduction would have been universal, may be a signing issue, not sure." He was right that it should shrink; he was right to ask; the cause was not where either of us expected.
+
+**The comparator investigation (`compare_cell_v4sa`, synth_gowin):**
+- **Not signing.** A scratch copy with `$signed` removed shows the SAME pattern as the shipped cell at every width.
+- **The 18-bit cell is not the odd one -- the 32-bit cell is.** LUT1-4 by width (default flow, signed): 8 -> 12, 12 -> 20, 16 -> 50, 17 -> 63, 18 -> 86, 20 -> 90, 24 -> 110, 28 -> 134, then **31 -> 30 and 32 -> 28**, 33 -> 76, 36 -> 41. About 4.5 LUTs per bit, collapsing at 31/32. So "32 -> 18" compared against the one width the mapper happens to handle well.
+- **Not the RTL.** Before technology mapping the netlist is IDENTICAL at 18 and 32 bits (20 cells, one `$alu`). After mapping, the default flow builds a large tree of `LUT1` and `MUX2_LUT5/6/7/8` cells at most widths (73 MUX2 at W=18) but not at 31/32.
+- **`-nowidelut` (no wide-LUT muxes) makes it smooth and monotonic:** 17, 19, 22, 28, 35 LUTs at W = 16, 18, 24, 32, 33. At 18 bits the comparator is **19 LUTs against 28 at 32 bits: a real 32% shrink**, with the ALUs 32 -> 18. The universal reduction Alan expected is there.
+
+**A CORRECTION to my own #948, which this exposed. Three of its claims were wrong or misleading:**
+1. **My LUT counts excluded the `MUX2_LUT` cells.** In the default flow the nano is 1,088 LUT4 **plus 814 MUX2** (not just 1,088), and the LUT multiplier is 4,257 LUT4 **plus 3,411 MUX2**. With `-nowidelut`: **256** and **1,332** LUT4, no MUX2. Those #948 figures were inflated by the mapper.
+2. **"The nano's runtime topology register costs 28x" is overstated.** Against the fair `-nowidelut` baseline (256 / 158) the pinned nano (38 / 24, the same in every flow) is **6.7x / 6.6x** smaller, not 28x / 26x. **And it does not apply to generated designs at all:** a whole generated flex `and` design (one nano) is ~50 LUTs in total, because the generator feeds the cell a constant `cfg_data` and synthesis folds the always-zero topology bits itself. The register cost is real only for the standalone configurable cell.
+3. **The comparator "unexplained anomaly" is explained** (above).
+What HOLDS: the width shrink 32 -> 18 in BOTH flows -- nano -42% (default) / -38% (-nowidelut); LUT multiplier -75% / -70%; adder -38%; ram -36%; comparator -32% (-nowidelut). And the finding that the flex cells carry `WIDTH` while the sub cells (all but the accumulator) do not, and that both `--icm` emitters hard-code 32 bits.
+
+**THE REAL FINDING: the synthesis flag.**
+- **Whole generated designs, synthesis only (32-bit):** the 3-multiplier + 2-adder sub design is **12,982 LUT4 + 10,236 MUX2** in the default flow versus **4,195 LUT4** with `-nowidelut` (3.1x); a flex `abs` design 400 + 58 MUX2 versus 355; a flex `and` design 52 + 4 versus 49. ALUs and flops are identical.
+- **Real place-and-route (nextpnr-himbaechel, GW2AR-LV18QN88C8/I7 -- the Tang part, 27 MHz target), cells wrapped with an LFSR and one LED pin:**
+| cell | flow | LUT4 | MUX2 | Fmax |
+|---|---|---|---|---|
+| LUT multiplier | default | 4,343 | 3,412 | 75.05 MHz |
+| LUT multiplier | `-nowidelut` | **1,418** | 0 | **231.75 MHz** |
+| nano (register topology) | default | 1,399 | 1,104 | 300.12 MHz |
+| nano (register topology) | `-nowidelut` | **277** | 0 | 232.07 MHz |
+For the multiplier `-nowidelut` is **~3x smaller AND ~3x faster** (the wide-LUT mux trees are slow as well as big); for the nano ~5x smaller at the cost of clock speed (300 -> 232 MHz, both far above 27 MHz). **Caveats, stated plainly:** one run per config (no seed sweep); Fmax is nextpnr's own estimator against a modest target; a wrapper, not a full design; not silicon. Strong evidence, not proof.
+
+**Tools (reproducible; the real-P&R tool reproduces my manual runs exactly, which shows it is faithful, not that the result is robust across seeds):** `tools/measure_cell_width_v1.py` (REWRITTEN: now counts MUX2 and runs both flows; #948's version was the misleading one) and `tools/measure_synth_flow_v1.py` (new: real P&R, default vs `-nowidelut`).
+**Spreadsheet** `width_and_nano_cost_measurements.xlsx` was rebuilt (73 formulas, 7 sheets, the values re-verified): both flows with MUX2 counts, the pinned-vs-register factors against both baselines, the real P&R table, whole designs, the comparator sweep, width coverage, and an explicit "Corrections & open items" sheet. (My first attempt crashed on a bad line and the "success" it printed was a recalc of the OLD file; I caught it by the formula count, rewrote the script, and fixed a second error -- a colon in a sheet name -- before delivering.)
+
+**DECISION for Alan (not made):** adopt `-nowidelut` in the generated `.ys` scripts? It would change the build flow of every generated design and the multiplier budget constant (`LUT_MUL_LUT4 = 4277` in `flexsub_icm_generate_v1.py` is the DEFAULT-flow measurement; ~1,332 under `-nowidelut`), and trade some clock speed on logic-heavy cells like the nano for large area savings. A seed sweep and a full-design P&R would firm up the evidence first. Nothing in the generators changed.
+
+**Not done:** adopting the flag; a seed sweep; a full-design P&R; the width parameter on the `--icm` path; the other cells' configuration registers; nothing has run on silicon. **Next, as Alan directed ("continue with the other cells in order"): the flex level sources (accumulator, latch), then branch, merges, sequencer.**
