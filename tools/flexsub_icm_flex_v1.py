@@ -50,8 +50,14 @@ WHAT THE EMITTER BUILDS (all of it plain valid/ready glue around the cells):
     would stay valid and one cycle later fire against the reference it just loaded -- a spurious EQUAL event. So: the first arrival only LOADS (in2 strobe, stream acked at once, flag set);
     later arrivals load and compare on the SAME edge (so the compare reads the OLD reference), acked only when the cell is ready.
 
-STAGES 1-6 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator, accumulator, latch, branch and
-constants; no merges or sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
+  * MERGE (stage 7). Several sources feeding one input. The VM ORs same-tick arrivals; under a handshake two sources can BOTH be valid for as long as the cell is busy, so a plain OR
+    would FUSE two separate items into one corrupt value. The glue is therefore an ARBITER: grant one source, acknowledge only that one, rotate priority after every grant (no
+    starvation). Selection logic in front of an ordinary single-input cell -- no new cell. Two sources only; a merge that includes a constant is refused by the planner.
+    DIVERGENCE FROM THE VM, stated plainly: two items arriving in the SAME cycle are sequenced (two outputs), not OR-combined into one. And an arbiter cannot restore ORDER between two
+    paths: if item k waits on one path while item k+1 overtakes on the other, they can emerge reordered -- a merge is only well-defined when at most one item is in flight in the region.
+
+STAGES 1-7 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator, accumulator, latch, branch,
+two-source merges and constants; no sequencer yet. Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
 """
 import json
 import os
@@ -260,6 +266,22 @@ def emit_top_flex(top, p):
             a(f"assign {eA}_a = {i}_rdy & {eB}_v;")
             a(f"assign {eB}_a = {i}_rdy & {eA}_v;")
             a(f"wire [31:0] {i}_ina = {srcdata[eA]}, {i}_inb = {srcdata[eB]};")
+        elif len(es) == 2:
+            # A MERGE (several sources feeding one input; the VM's "free OR" of same-tick arrivals). Under a handshake the two sources can both be valid for as long as the
+            # cell is busy, so OR-ing them would silently FUSE two separate items into one corrupt value. The glue is an ARBITER instead: grant ONE source, acknowledge ONLY that
+            # one, rotate priority after every grant (neither can starve). The cell itself is unchanged -- selection logic sits in front of an ordinary single-input cell.
+            e1, e2 = es
+            joins.append({"cell": dst, "kind": "merge (arbitrate, round-robin)", "sources": [edges[int(e[1:])][1] for e in es]})
+            a(f"reg {i}_rr = 1'b0;                                    // round-robin: which source wins when BOTH are valid (flips after every grant)")
+            a(f"wire {i}_g1 = {e1}_v & (~{e2}_v | ~{i}_rr);")
+            a(f"wire {i}_g2 = {e2}_v & ~{i}_g1;")
+            a(f"assign {i}_vin = {e1}_v | {e2}_v;")
+            a(f"assign {e1}_a = {i}_rdy & {i}_g1;                     // only the GRANTED source is acknowledged; the other keeps its item")
+            a(f"assign {e2}_a = {i}_rdy & {i}_g2;")
+            a(f"wire [31:0] {i}_ind = {i}_g1 ? {srcdata[e1]} : {srcdata[e2]};")
+            a(f"always @(posedge clk) begin if (rst) {i}_rr <= 1'b0; else if ({i}_vin & {i}_rdy) {i}_rr <= {i}_g1; end")
+        elif len(es) > 2:
+            raise g.IcmGenError(f"{dst}: a merge of {len(es)} sources is not translated on flex (the arbiter handles two)")
         else:
             (e,) = es
             a(f"assign {i}_vin = {e}_v;")
@@ -313,9 +335,6 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowi
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
     p = g.plan(icm_path, True, family="flex", nowidelut=nowidelut)
-    if p["merges"]:
-        raise g.IcmGenError(f"cannot generate flex Verilog from {os.path.basename(icm_path)}:\n  - merges {sorted(p['merges'])} are not yet translated on flex "
-                            f"(stage 1): under the handshake an OR-merge has to decide which source to acknowledge")
     levels = {c for c in p["cells"] if g.is_level(p["cells"][c])}
     only_const = sorted(c for c in p["exits"] if c in p["const"] and c not in levels)
     if only_const:

@@ -475,8 +475,7 @@ try:
 
     print("stage-1 refusals, each with its reason (never a silent mistranslation)")
     r = cli("-s", "flex", "--icm", os.path.join(EX, "cordic_z_convergence.icm-hier.json"), "--output", os.path.join(tmp, "g_c"))
-    check("the hand-built cordic is now refused on flex for its MERGES ONLY (its four `gather` merges): neither constants nor branches are reasons any more",
-          r.returncode != 0 and "merges" in r.stderr and "s0.gather" in r.stderr and "branch" not in r.stderr and "constant source" not in r.stderr, r.stderr.strip()[:260])
+    check("the hand-built cordic now GENERATES on flex (36 cells: its four merges are arbiters; verified against the real VM in tests/test_flexsub_flex_merge_v1.py)", r.returncode == 0, r.stderr.strip()[:260])
     kconst = [IcmV3Record(cell_id="K", row=1, col=0, core="ram", core_config={"upstream_mask": [], "downstream_mask": ["e"]}, preload_value=9),
               IcmV3Record(cell_id="R", row=1, col=1, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": ["e"]}),
               IcmV3Record(cell_id="E", row=1, col=2, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": []})]
@@ -487,7 +486,12 @@ try:
            for n_, rr, cc, up, dn in (("E1", 0, 1, [], ["s"]), ("E2", 1, 0, [], ["e"]), ("M", 1, 1, ["n", "w"], ["e"]), ("O", 1, 2, ["w"], []))]
     IcmV3File(name="m", records=mrg).save(os.path.join(tmp, "m.icm"))
     r = cli("-s", "flex", "--icm", os.path.join(tmp, "m.icm"), "--output", os.path.join(tmp, "g_m"))
-    check("a merge is refused on flex (stage 1) -- under a handshake an OR-merge must decide which source to acknowledge", r.returncode != 0 and "merges" in r.stderr, r.stderr.strip()[:200])
+    check("a TWO-source merge now generates on flex (an arbiter in front of an ordinary cell; its proof is tests/test_flexsub_flex_merge_v1.py)", r.returncode == 0, r.stderr.strip()[:200])
+    mrg3 = [IcmV3Record(cell_id=n_, row=rr, col=cc, core="ram", core_config={"upstream_mask": up, "downstream_mask": dn})
+            for n_, rr, cc, up, dn in (("E1", 0, 1, [], ["s"]), ("E2", 1, 0, [], ["e"]), ("E3", 2, 1, [], ["n"]), ("M", 1, 1, ["n", "w", "s"], ["e"]), ("O", 1, 2, ["w"], []))]
+    IcmV3File(name="m3", records=mrg3).save(os.path.join(tmp, "m3.icm"))
+    r = cli("-s", "flex", "--icm", os.path.join(tmp, "m3.icm"), "--output", os.path.join(tmp, "g_m3"))
+    check("a THREE-source merge is refused on flex (the arbiter handles two)", r.returncode != 0 and "3 sources" in r.stderr, r.stderr.strip()[:200])
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
