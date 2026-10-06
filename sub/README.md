@@ -870,12 +870,71 @@ choice, the command line is where it is given.
 **Stated limit:** no cell can restore the ORDER of items between two paths (that needs per-item tags), so an arbitrating merge is only well-defined with at most one item in flight in the region
 it joins (true of the loop-style designs that use merges; the compiler never emits one). Join-OR does not have the problem: it takes one item from each side per output.
 
+## Since the merge core: the VM mirror, four RTL fixes, second ports (`#956`-`#986`)
+
+**The sequencer on flex (`#956`).** It is free-running: `advance_in` is tied to the cell's own ready, so the consumer's ack paces it. Fixed on the way:
+an unconfigured `sequencer_cell_v4sa` with `advance_in` high offered a spurious value. It is now gated by `armed` like every other v4sa cell. Pairing
+differs from the VM on purpose: flex pairs item k with `VALUE_(k mod 4)`, while the VM's sequencer pairs with itself.
+
+**`FlexGrid`, the VM's mirror of this family (`#964`-`#973`).** `nano/flex_grid_v1.py` is a `SuperGrid` subclass with its own per-core handlers. It
+takes its structure from the same planner the generator uses. Each core was checked against the **generated flex RTL as the oracle** at W = 4, 8, 18,
+32 and 36. The sweep found four RTL limits, now resolved:
+
+| cell | limit found (`#970`) | resolution |
+|---|---|---|
+| `nano_cell_v4sa` | captured on `valid_in` without checking `armed` | captures on `valid_in && armed` (`#971`); bench case added |
+| `compare_cell_v4sa` | above 32 bits, the threshold came from a 32-bit `cfg_data` and read as x | the threshold has its **own `cfg_threshold [WIDTH-1:0]` port** (`#972`; Alan: "if two parts are needed then they have two ports; the nano is the exception, not the rule"). It is still one data input and one result output |
+| `accumulator_cell_v4sa` | did not elaborate below 16 bits (negative replication counts) | a generate: at W >= 16 exactly the original logic and cost; below 16, `\|total\|` and the 16-bit threshold compare in a 17-bit space, so a threshold the data cannot reach never fires and is never cut down (`#973`). Step and threshold stay plain numbers (raw8/raw16 in the ICM) |
+| `sequencer_cell_v4sa` | does not build below 8 bits | refused with the reason (still open) |
+
+The mask's limit above 32 bits was resolved separately by scaling the mask word (`#968`, in the `mask_cell_v4sa` section above).
+
+**Second output ports (`#974`/`#976`/`#981`).** Alan's rule: two results means two ports. `adder_cell_v4sa` gains `carry_out` (the carry as a 0/1
+word, so it can feed another adder's `in_b`; for subtract it is NOT-borrow) with its own `valid_out_c`/`ack_in_c`. `mul_cell_v4sa` and
+`mul_cell_v4sa_dsp` gain `data_out_hi` (the high half of the 2W product) with `valid_out_hi`/`ack_in_hi`. These rules match the branch: each output
+clears on its own ack, and a new round starts only when neither output is pending.
+
+- **`SECOND_PORT` build parameter** (default 0). The ports always exist at fixed names (strict placement), but at 0 their logic is not built and costs
+  nothing. At 1, a config bit (adder `cfg_data[1]`, mul `cfg_data[0]`) turns the port on at run time. Built cost: adder +4 LUT4 / +3 DFF; the LUT
+  multiplier roughly doubles; `mul_dsp` goes from 5 to 8 LUT4. **Correction (`#976`):** the `#974`/`#975` adder figures (29/19/24, W + 9) included the
+  unused port. With it off the adder is back to 23/18/21 (W + 5).
+- **Every instantiation must tie `ack_in_c` / `ack_in_hi` high when unused**, or a pending second word stalls the cell. The ICM emitter, the
+  hand-built chains, the benches and the harness all do.
+- **Proven:** `tb_second_port_v4sa.v` (14 checks), and `tb_carry_chain_v4sa.v`, where three 8-bit adders make a 16-bit add over 400 random pairs.
+  Through the generator, a **64-bit add from two 32-bit limbs** passes, with limb 0's carry going straight into limb 1's adder (`#981`).
+- **The ICM side** is target-agnostic. A cell asks with `second_output` and can route the second word with `second_downstream_mask` (see
+  `docs/stripped-cell/ICM_V3_FORMAT.md`). The planner builds the port only on flagged cells. It puts a merge core (sum then carry) in front of a
+  consumer that takes both words, and gives a consumer that takes one word that port directly. The **sub family has no second port.**
+
+**Accumulator cascade (`#975`).** Two pulse-mode accumulators, each one's offer driving the next one's `inc_pulse`, fire once per T1 x T2 events.
+That gives 1000 x 1000 = 1,000,000 events, beyond the 65,535 one 16-bit threshold holds; this is proven in RTL (`tb_acc_cascade_v4sa.v`) and in FlexGrid.
+Conditions: each stage's `ack_in` is held high, and hits are at least 2 cycles apart. A cascade multiplies the event-counting range; a wider *number*
+uses the carry port instead.
+
+**Cost against width (`#975`/`#976`).** `tools/flex_width_sweep_v1.py` measures every flex cell at W = 4, 8, 16, 18, 24, 32. The data is in
+`docs/measurements/flex_width_sweep_975/` and the Tang MAN's `cell_costs`; see `docs/man/README.md` for how to read it.
+
+**Shift is any amount on flex (`#985`/`#986`).** The flex shift is plain wiring, so any amount 0-31 in either direction is made directly from the
+ICM's one `shift_amt` number (coarse + fine are only how the number is written). The sub family still makes coarse taps only, and `lane_cut` with a
+non-tap amount is refused on flex. `nano/target_capabilities_v1.py` refuses an amount a named target cannot make. At W = 36 the 5-bit field cannot
+express amounts above 31 (open).
+
+**fp32 stages on these cells (`#982`-`#984`).** Unpack, carry → exponent bump, high word → normalise bit, a 5-stage left-normalise with exponent
+adjust, sticky, and round-to-nearest-even are built from flex cells with no loops. They are tested in generated RTL (plain and with random stalls),
+equal to FlexGrid and the Python model. Design note: `docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md`. The comparator is **signed**,
+so a bit isolated at bit 31 reads as negative (`#984`).
+
 ## Status
 
-Thirteen cell functions proven, all simulated, all measured (adder, compare, accumulator, latch, sequencer, ram, router, mask, mul, shift/shift_stage, **nano** (`#917`), **branch** (`#918`) and,
-flex only, **merge** (`#955`)); each has a testbench, and the flex family's cells are also driven end to end by the ICM generator (`tools/flexsub_icm_flex_v1.py`) against the real VM. Not yet on
-real hardware. Still to do: `command` (structurally at odds with "no live reprogramming," since reprogramming is its whole purpose), and the ICM generator's `sequencer` on flex. (An earlier
-version of this paragraph listed `branch` and `nano` as still to do; both are done.)
+Thirteen cell functions are proven, simulated and measured: adder, compare, accumulator, latch, sequencer, ram, router, mask, mul,
+shift/shift_stage, **nano** (`#917`), **branch** (`#918`) and, flex only, **merge** (`#955`). Each has a testbench. Both families are driven end to end
+by the ICM generators (`tools/flexsub_icm_generate_v1.py` for sub, `tools/flexsub_icm_flex_v1.py` for flex; every core the planner translates,
+including the sequencer on flex since `#956`), checked against the real VM. The flex family is also mirrored by `FlexGrid` at any width the cells build.
+**Not on real hardware yet** (the board has run a cell from the original family, `#896`).
+
+Still to do: `command`, which is structurally at odds with "no live reprogramming", since reprogramming is its whole purpose; a genuine `priority`
+arbiter; the `--icm` generators at widths other than 32; the sequencer below 8 bits; a 6-bit shift amount for W = 36; and place-and-route of whole
+generated designs.
 
 ## A stated design rule (Alan's own, confirmed across every cell built so far)
 

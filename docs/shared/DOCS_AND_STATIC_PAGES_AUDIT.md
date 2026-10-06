@@ -10,6 +10,56 @@ file content, cross-referenced against the real ledger), matching the
 same method `POINTS_STATUS_AUDIT.md`/`_2.md` already established.
 Nothing rewritten in this pass; this is the map, not the fix.*
 
+## Update, 2026-10-06 (ledger #987): the Tang Nano / sub-flex catch-up, first pass
+
+The ledger had moved about 100 entries past the docs: the Tang Nano 20K
+(#886 onward), the sub and flex cell families (#898-#957), the Flex-Sub
+assembler (#921-#957), FlexGrid (#960-#973), and the second ports and
+target-agnostic ICM flags (#974-#986). Before this pass, none of the
+reference docs below mentioned `v4sa`, `FlexGrid`, `min_bit_width`,
+`second_output`, `-nowidelut` or `native_width` (checked by keyword
+count). Brought current in this pass, each against the code or the
+ledger entry it cites:
+
+| doc | what changed |
+|---|---|
+| `README.md` (root) | new "Where things stand": the two hardware lines, the sub/flex families, the assembler, the target-agnostic ICM, FlexGrid, fp32 on cells, the board. The Arria 10 sections are kept and relabelled as the earlier line. Quick start covers the toolchain check and the flex/sub suites |
+| `docs/README.md` | a "Start here (2026-10)" block pointing at the current-line docs |
+| `docs/stripped-cell/ICM_V3_FORMAT.md` | all 10 cores' tables (it showed 6, and said VM dispatch was unbuilt); `shift_fine`; `second_output` / `second_downstream_mask`; the one-number shift per target; the mask at other widths; `min_bit_width`; the capability table |
+| `docs/stripped-cell/ICM_VIX_FORMAT.md` | "not built" list corrected (the VIX compiler, tile library and workbench load exist); a section on the need-stating fields |
+| `docs/stripped-cell/CORE_CHANGE_IMPACT_MAP.md` | new checklist for changing a sub/flex cell or adding a target-agnostic field |
+| `docs/man/README.md` | ESP32 host corrected to the ESP32-D (#888); board result (#896); `native_width`, `native_ff_variants`, `cell_costs` |
+| `sub/README.md` | a section for #956-#986 (sequencer, FlexGrid and the four RTL limits, second ports, cascade, sweep, free shift, fp32); Status corrected |
+| `tools/README.md` | the Flex-Sub assembler tools and flags, the Gowin measurement tools and their pitfalls, the MAN generator |
+| `tests/README.md` | rewritten: it described iCEBreaker UART tests. Now covers the toolchain trap and how each suite runs |
+| `current/START.md` | a current reading list and toolchain check above the 2026-08 list |
+| `tools/project_assemble_v1.py` `--icm` help | no longer says the flex generator is unbuilt |
+
+**Still behind after this pass (not yet updated):**
+
+- `docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md` and
+  `CELL_CHEATSHEET.md`: no sub/flex rows (the merge core, the
+  comparator's threshold port, second ports). `sub/README.md` is
+  the current reference for those cells until they gain rows.
+- `docs/stripped-cell/CELL_GOTCHAS.md`: the traps found since #946 are
+  not in it. Examples: the comparator is signed, so bit 31 reads
+  negative (#984); a preloaded non-fixed ram is single-shot in the VM
+  (#939); an exit cell is not a valid probe of a level source (#938);
+  the VM pairs two-operand cells by arrival order (#976); same-tick
+  operands OR-combine, so feed two-operand cells from one interleaved
+  stream (#883).
+- `docs/shared/TOOLCHAIN_SETUP.md`: Quartus / Windows only. It has no
+  open Gowin flow (yosys, `yowasp-nextpnr-himbaechel-gowin`, apycula
+  `gowin_pack`, flashing). `tests/README.md` and
+  `docs/man/tang-nano-20k-getting-started.md` cover parts of it.
+- `fpga/README_FPGA.md`: not reviewed in this pass.
+- `docs/shared/POINTS_STATUS_AUDIT*.md`: they cover #1-#592 only;
+  there is no done/pending map for #593-#986.
+- `current/latest.md`'s top-line header still reads "as of 2026-09-28".
+  The entries under it are current.
+- The earlier static-page findings below (`docs/manual.html`, the
+  explainer HTML, the `gh-pages` site) are unchanged and still stand.
+
 ## Method
 
 Every live (non-`archeology/`) `.md` doc listed with its real last-

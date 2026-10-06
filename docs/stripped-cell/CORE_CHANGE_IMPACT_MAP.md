@@ -145,6 +145,61 @@ delivered, not just what config exists:
   genuinely empty itself between deliveries — confirmed by tracing
   per-tick state before trusting a passing/failing result either way.
 
+## Changing a sub/flex (v4s/v4sa) cell, or adding a target-agnostic ICM field (`#956`-`#986`)
+
+*Added 2026-10-06. This is the chain the second-output work (`#974`-`#981`) and the
+FlexGrid fixes (`#968`-`#973`) actually hit, in order. Items 7-10 overlap the list above;
+the rest are new files that did not exist when it was written.*
+
+1. **The cell** (`sub/verilog/<core>_cell_v4sa.v`, and `_v4s` if the change applies to sub).
+   If a capability is deliberately flex-only, say so. `#919`/`#920` is the precedent for
+   deciding whether a family-local capability creates a cross-target obligation.
+2. **Its bench** (`sub/verilog/tb_<core>_cell_v4sa*.v`), including the width-specific
+   benches. Mutation-check the new cases: break the RTL on purpose and confirm the bench
+   fails (every recent entry did this, and twice it found a weak bench, `#941`/`#956`).
+3. **Every instantiation of a changed port list.** That means the hand-built chains and
+   tops (`adder_chain_v4sa.v`, `adder_v4sa_top_single.v`), the benches, the ICM flex
+   emitter (`tools/flexsub_icm_flex_v1.py`), and the step-1 assembler's shapes
+   (`tools/flexsub_assemble_v1.py`; its parsed-port check catches a mismatch). **A new
+   output with its own ack must be tied high where unused**, or the cell stalls on an
+   unconsumed second word (`#974`).
+4. **The planner and emitters.** `tools/flexsub_icm_generate_v1.plan()` decides what each
+   family can build and refuses the rest with a reason. `FlexGrid` imports this planner,
+   so it is the single source of truth for both. After it come the family emitters
+   (`flexsub_icm_flex_v1.py` for flex, `flexsub_icm_generate_v1.py` for sub) and the
+   netlist extractor's refusals (`flexsub_icm_netlist_v1.py`).
+5. **The VM mirror** (`nano/flex_grid_v1.py`): the flex handler for the core, checked against
+   the **generated RTL as the oracle** at several widths (4, 8, 18, 32, 36). If the RTL
+   cannot do something at some width, FlexGrid must refuse with the reason, not guess.
+6. **The std VM** (`nano/unicell_super_automaton_v1.py`): if a new ICM field is one the std
+   cells cannot honour, the std loader must **refuse** it. Do not let it be accepted and
+   silently ignored (`#976`'s `carry_mode` refusal, `#981`'s `second_downstream_mask`
+   refusal). Keep these edits to the minimum and flag them in the ledger.
+7. **The ICM field itself**: `nano/icm_v3.py` (`_<CORE>_FIELDS`, and
+   `SECOND_OUTPUT_ALIASES` / `canonical_core_config()` if an old name stays accepted) and
+   `nano/root_definition.json`. Renaming a stored key changes `record_hash` for files
+   that used the old name (`#980`).
+8. **The RTL validator** (`nano/validate_icm_v3_against_rtl_v1.py`): a field that exists
+   only in the flex cells goes in `_FLEX_ONLY_FIELDS`. A field the standard RTL calls by
+   another name goes in `_RTL_NAME_OF`.
+9. **The capability table** (`nano/target_capabilities_v1.py`): which targets (std / flex
+   / sub) can meet the new need. `check_records` is what makes the compiler refuse at
+   compile time.
+10. **The compiler side.** In the tile library (`nano/vix_tile_library_v1.py`), use
+    **`optional_params`, not a required param**: making `carry_mode` required broke 40
+    tests (`#976`). Then the opcode library, the DAG dispatcher (refuse a flag on a core
+    that has no such output: never drop it silently, `#979`), and the VIX backend's
+    `place` fields.
+11. **Costs.** If area changes, re-run `tools/flex_width_sweep_v1.py` and regenerate the
+    Tang MAN (`tools/man_gen/gen_tang_nano_20k_man.py`, apycula pinned to 0.32) so
+    `cell_costs` follows. If earlier recorded figures included the change by accident,
+    say so in the ledger as a correction (`#976` corrected `#974`/`#975`).
+12. **Docs**: `sub/README.md`, `ICM_V3_FORMAT.md` (and `ICM_VIX_FORMAT.md` if the field is a
+    stated need), `docs/man/README.md` if the MAN changed, and this map.
+13. **Regression with the toolchain present**: `which iverilog yosys` first (the flex/sub
+    suites skip and exit 0 without iverilog, `#965`), then `python3 -m pytest tests/vm -q`
+    and every `tests/test_*.py` script.
+
 ## Adding a genuinely new core type
 
 Out of scope for this doc's own real, checked detail (no core has been

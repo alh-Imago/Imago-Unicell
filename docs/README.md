@@ -12,7 +12,44 @@ for. Started with `SYSTEM_MECHANICS.md`, per Alan: "the overview of the
 system mechanics and the logic that is in both, that's the first place
 to start."
 
-## Contents so far
+## Start here (2026-10)
+
+Current work is on the **Tang Nano 20K** with the **sub (v4s) and flex
+(v4sa) cell families**. The repo root `README.md` ("Where things
+stand") explains how this line relates to the earlier Arria 10 line.
+The documents that describe the current line:
+
+- **`../sub/README.md`** — the sub/flex families: every cell, what was
+  stripped and why, measured costs, the design rules (two roles = two
+  ports), the merge core, the FlexGrid fixes and the second ports.
+- **`man/README.md`** and **`man/tang-nano-20k-getting-started.md`** —
+  the card files (Arria 10 and Tang Nano 20K). They cover what the
+  assembler reads (`native_width`, DSP primitives, `synthesis.nowidelut`,
+  `cell_costs`) and how to flash the first deliverable, which is
+  confirmed on the board.
+- **`stripped-cell/ICM_V3_FORMAT.md`** and **`stripped-cell/ICM_VIX_FORMAT.md`**
+  — the program formats with every current field. That includes the
+  target-agnostic flags `second_output`, `second_downstream_mask` and
+  `min_bit_width`, the one-number shift, and the per-target capability
+  table.
+- **`measurements/`** — raw data behind recorded figures:
+  `nowidelut_sweeps_950/` (the synthesis-flow decision) and
+  `flex_width_sweep_975/` (every flex cell's cost against width, the
+  source of the Tang MAN's `cell_costs`).
+- **`stripped-cell/design-notes/fp32_stage_map_second_ports.md`** — the
+  fp32 add/multiply pipeline mapped onto cells (16 stages), with which
+  stages are proven in RTL and FlexGrid.
+- **`../tools/README.md`** — the Flex-Sub assembler and the Gowin
+  measurement tools.
+- **`../tests/README.md`** — how to run the suites, and the
+  missing-`iverilog` trap.
+
+## Contents (the Arria 10 / stripped-cell era references, 2026-08/09)
+
+These remain correct for what they describe. They were written before
+the Tang Nano line; `shared/DOCS_AND_STATIC_PAGES_AUDIT.md` says which
+ones have fallen behind.
+
 
 - **`shared/SYSTEM_MECHANICS.md`** — what's genuinely shared between both
   cell lines' RTL (gate computation, `cmd_latch` field alignment, firing/
@@ -65,9 +102,8 @@ to start."
   decision) — both captured deliberately unimplemented, matching
   Alan's own "needs careful planning" framing.
 - **`stripped-cell/design-notes/`** — the same concept-stage-proposal
-  category, for the super carrier shell / Unicell-S line specifically.
-  **Updated 2026-09-07:** grown well past the original three entries —
-  now roughly 20 real design notes (command core, the VIX Carrier, the
+  category, for the super carrier shell / Unicell-S line and now the
+  sub/flex line too. **Updated 2026-10-06:** about 40 design notes (command core, the VIX Carrier, the
   LLVM IR compiler, DSP timing, the tile designer, Composer's full
   editor, AI training buckets, and more), each dated and scoped at its
   own top; see the directory listing directly rather than an
@@ -98,8 +134,12 @@ mechanics), with reasons recorded rather than silently skipped.
 ```
 docs/
   shared/          — genuinely shared between both cell lines
-  stripped-cell/    — the active nano line's own documentation
-  full-cell/         — the FULL cell's own documentation (CELL_INTERNALS.md)
+  stripped-cell/   — the nano / super-cell / VIX line, the formats, and design notes (incl. sub/flex)
+  full-cell/       — the FULL cell's own documentation (CELL_INTERNALS.md)
+  man/             — MAN files: one per physical card (Arria 10, Tang Nano 20K)
+  shapes/          — SHAPE files: one per compiled design
+  measurements/    — raw measurement data behind recorded figures
+sub/README.md      — (repo root) the sub/flex cell families for the Tang Nano 20K
 ```
 
 **Note (Alan, 2026-08-04):** the FULL cell is expected to be revisited

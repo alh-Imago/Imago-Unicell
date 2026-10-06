@@ -65,8 +65,9 @@ any other fixed feature a given device may or may not physically have.
 
 ## `tang-nano-20k.man.json` -- the first non-Intel MAN (points.md #887)
 
-The Sipeed Tang Nano 20K (Gowin `GW2AR-LV18QN88C8/I7`), the project's planned coprocessor target, to be paired with an
-ESP32-C-series host that owns the web front end, WiFi, and feeding/collecting data. **Generated, not hand-written:**
+The Sipeed Tang Nano 20K (Gowin `GW2AR-LV18QN88C8/I7`), the project's current hardware target (a testbed and proof of concept,
+`#891`), to be paired with an ESP32 host that owns the web front end, WiFi, and feeding/collecting data. The host is the kit's
+**ESP32-D (an ESP32-WROOM-32E)**, not a C-series part (`#888`; an earlier version of this paragraph said C-series). **Generated, not hand-written:**
 
     python3 tools/man_gen/gen_tang_nano_20k_man.py            # rewrites the .man.json and the .cst
     python3 tools/man_gen/gen_tang_nano_20k_man.py --check    # exit 1 if either committed file is stale
@@ -82,9 +83,10 @@ Two kinds of fact, kept apart:
   from two working third-party designs and the Sipeed wiki. Each pin is checked to *exist* in the chip database; that
   proves it is real, not that the board is wired that way.
 
-**Not verified, and the file says so:** the schematic has not been checked, nothing has been run on the physical board,
-the ESP32 link pins (edge connector 73-77) are a *proposal* taken from a third-party SPI-slave design, and the ESP32-C
-variant has not been stated. HDMI, the RGB-LCD connector, the WS2812 and the audio amplifier are listed as unmapped.
+**Not verified, and the file says so:** the schematic has not been checked, the ESP32 link pins (edge connector 73-77) are
+a *proposal* taken from a third-party SPI-slave design, and the ESP32-side pins are deliberately not chosen yet (`#888`: the
+extension board's pin tables are images that could not be read, and FPGA-driven lines must stay off the strapping pins
+IO0/2/5/12/15). The board itself has since run a UniCell core (`#896`, below). HDMI, the RGB-LCD connector, the WS2812 and the audio amplifier are listed as unmapped.
 
 **Schema 1.1 (additive; the Arria MAN is unchanged):** `vendor`; `device.logic` counted in LUT4 with `alm_total: null`;
 block RAM under `bram` (Intel's is `m20k`); discrete block-RAM/DSP rows as one-row `y_segments`. `card_fit_v1.
@@ -102,7 +104,9 @@ The first real, flashable deliverable for this board: `docs/man/tang-nano-20k-ge
 one-cell (`sequencer`) proof-of-concept, built through the real toolchain (`yosys` -> real
 `yowasp-nextpnr-himbaechel-gowin` place-and-route -> real `gowin_pack` bitstream), with a committed,
 ready-to-flash `.fs` file (`fpga/build/`). Confirmed in simulation before synthesis, per real Fmax
-(198.3 MHz at a 27 MHz target). Nothing has been run on the physical board yet -- flashing it is next.
+(198.3 MHz at a 27 MHz target). **Confirmed working on the physical board (`#896`)** -- use `v2`
+(`unicell_tang_nano_20k_smoke_v2.fs`): `v1`'s reset button (`BTN_RST_N`) held the design in reset on the real board, and
+`v2` uses a pure power-on reset instead. Why `BTN_RST_N` failed is still not known.
 
 ## DSP primitives and abilities (read by the assembler)
 
@@ -147,3 +151,25 @@ The card's open-toolchain synthesis facts live here too, and the assembler only 
 | `nowidelut.default` | whether the assembler turns it on when the user says nothing. A **decision**, not a derived fact: Alan's ruling after the sweeps in `docs/measurements/nowidelut_sweeps_950/` (LUT4 smaller in every cell; the LUT multiplier ~3x smaller and ~3x faster; the nano / comparator / sequencer slower but ~225 MHz against a 27 MHz clock) |
 
 How the assembler resolves it (`flexsub_assemble_v1.resolve_nowidelut`): `--nowidelut` forces it on (**refused** if the MAN says `supported: false`, because it would be silently ignored), `--wide-lut` opts out and writes the historical `synth_gowin` line, and with neither the MAN's `default` decides (with no MAN, or an older MAN with no `synthesis` block, the Gowin generators default to on, since `synth_gowin` has the option). **The Arria 10 says `supported: false, default: false`**: `synth_intel_alm` has no equivalent. The choice and its reason are recorded in each `ASSEMBLY.json` (`synth_flags`, `synth_flags_reason`). The LUT multiplier's budget cost is flow-aware (4,277 LUT4 default flow, <= 1,398 under `-nowidelut`).
+
+## Fields the Flex-Sub assembler and the VM read (Tang MAN)
+
+These fields were added after the first generation of the file (`#887`). Each is produced by
+`tools/man_gen/gen_tang_nano_20k_man.py`, not typed by hand, and `--check` reports staleness.
+
+| field | meaning | source |
+|---|---|---|
+| `device.logic.native_width` | **18**: the width the flex (v4sa) cells are built at on this card. The assembler's `-s flex` uses it as `WIDTH` unless `-w` overrides it; a MAN without it falls back to 32 (`#914`/`#921`) | Gowin's BRAM widths (1/2/4/9/18/36) and `MULT18X18` share 18 (`#903`/`#904`) |
+| `device.logic.native_ff_variants` | the 20 Gowin DFF primitives and the one native control input each offers beyond clock/data (CE, or an init pin, or CE + one init pin) -- never two (`#907`) | read live from yosys's cell library |
+| `cell_costs` | per flex cell, LUT4 / ALU / DFF at W = 4, 8, 16, 18, 24, 32: the single cell in the `-nowidelut` flow (the card's default) and in the historical wide-LUT flow, a 3x3 array, and for adder / mul / mul_dsp the cell with its second port built (`second_port`) (`#975`/`#976`) | `docs/measurements/flex_width_sweep_975/costs.json`, from `tools/flex_width_sweep_v1.py` |
+
+How to read `cell_costs` (`#975`/`#976`): use the **single-cell `-nowidelut`** figure for fit checks. It is smooth in W:
+adder W + 5, nano 7W + 33, mask W + 5, ram W + 6, the LUT multiplier roughly 1.41W^2 - 3.94W + 10.2. Latch, router, shift
+stage and the DSP multiplier do not grow with W. Do not project from the wide-LUT flow, which is not smooth in W. The 3x3 array
+is not 9x one cell, because the harness pins the configuration and constant logic folds away: it is the cost of a hard-wired
+cluster, not of runtime-configurable cells. A built second port adds +4 LUT4 to the adder; the LUT multiplier roughly doubles
+(it needs the full 2W product); `mul_dsp` goes from 5 to 8.
+
+The merge cell is in the sweep since `#976` (about W + 17). **Not covered yet:** there are no place-and-route or timing figures in
+`cell_costs` (those are in `docs/measurements/nowidelut_sweeps_950/`); multi-cell routed clusters are not measured.
+

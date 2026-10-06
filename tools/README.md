@@ -55,6 +55,89 @@ and every cell's own outputs are XOR-reduced into one real, observable
 output — so nothing in the array can be silently optimized away. See
 `points.md` #552 for the full real build/verification history.
 
+**Two more modes (2026-10):** `--target yosys` writes a `.ys` script
+instead of `.qsf`/`.sdc` (`points.md` #663), and `-s/--family
+flex|sub|nano` builds from the stripped Tang Nano families instead of
+the shell lineage. That path is handled by the Flex-Sub tools below.
+The help text (`-h`) lists every flag with its ledger reference.
+
+## The Flex-Sub assembler (Tang Nano 20K; ledger #921-#986)
+
+These tools are reached through `project_assemble_v1.py`'s `-s` flag.
+With `-s` absent (or `-s nano`), every existing mode is byte-identical
+to before (#921). The cells are in `sub/verilog/`; see `sub/README.md`.
+
+| file | job |
+|---|---|
+| `flexsub_assemble_v1.py` | **Step 1.** An N-cell chain of one cell type (`-s flex -S adder --cells 100`), with the generated top, `.ys`, `build.sh` and `ASSEMBLY.json`. Every instantiation is checked against the cell's real parsed port list. It also owns the `-nowidelut` resolver (`resolve_nowidelut`) and the multiplier ladder. |
+| `flexsub_icm_netlist_v1.py` | Read-only. It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the `connections` list is advisory) and says what each family can and cannot express (#923). |
+| `flexsub_icm_generate_v1.py` | **Step 2, `sub`.** `-s sub --icm FILE` generates the design as fixed-latency hardware: one cycle per cell, early operands padded with relay cells, add-ons as wiring, merges as gated ORs, branches lowered onto `branch_cell_v4s`, a tick-driven sequencer, and the level-source rule (#925-#940). Its `plan()` is also the single source of truth `FlexGrid` reads. |
+| `flexsub_icm_flex_v1.py` | **Step 2, `flex`.** `-s flex --icm FILE` generates handshake hardware: eager forks for fan-out, joins for two-operand cells, constants as fixed-mode rams, merge cores per merge, second ports where flagged (#944-#981). No padding is needed. |
+| `flexsub_compile_v1.py` | Compiles LLVM IR for sub/flex. It uses the stock compiler and rewrites VM-only mode-2 priorities to strict mode 0 with ranks, and marks the result cell. `--min-bit-width N` (#929/#930/#940/#958). |
+
+```bash
+python3 tools/project_assemble_v1.py -s flex -S adder --cells 100 --man docs/man/tang-nano-20k.man.json --output build/chain
+python3 tools/project_assemble_v1.py -s flex --icm nano/examples/cordic_z_convergence.icm-hier.json --man docs/man/tang-nano-20k.man.json --output build/cordic
+python3 tools/project_assemble_v1.py -s sub  --icm nano/examples/parallel_reduction_tree.icm-hier.json --man docs/man/tang-nano-20k.man.json --output build/tree
+```
+
+Flags that matter here:
+
+- `-w N` sets the width (flex only). Without it the MAN's `native_width`
+  is used (18 on the Tang). A MAN without that field gives 32. With no
+  MAN and no `-w`, `-s flex` is an error (#914/#934).
+- `--nowidelut` / `--wide-lut`: `-nowidelut` is the default whenever the
+  MAN says the toolchain supports it. It is refused on the Arria 10
+  path (#952).
+- `--mul auto|lut|dsp` (`--icm`): auto uses the DSP cell while the MAN
+  lists a usable primitive with blocks left, then the LUT multiplier,
+  then refuses (#941/#942).
+- `--merge-mode SPEC` (`-s flex --icm`): `arbitrate` (default) or
+  `join-or`, set per merge consumer (#955/#957).
+- `--no-align` (`-s sub --icm`): a negative control that skips operand
+  padding.
+
+**Limits:** the `--icm` generators build 32-bit designs (the step-1
+chains honour `-w`). Cycles with a data-dependent exit are refused.
+Some cell combinations are refused with a reason rather than guessed:
+for example, a constant into an accumulator's inc/dec, a sequencer
+into a two-operand cell on sub, or a second-port cell as a design exit.
+Every result above is simulation plus synthesis or place-and-route,
+not silicon.
+
+## Measurement tools (Gowin, open toolchain)
+
+All of these need `yosys`. The place-and-route ones also need
+`yowasp-nextpnr-himbaechel-gowin` (pip; the apt `nextpnr-gowin` only
+covers GW1N, #889). They write only to temporary folders unless noted.
+
+| file | measures |
+|---|---|
+| `flex_width_sweep_v1.py` | every flex cell at W = 4…32: single cell (`-nowidelut` and wide-LUT), 3x3 array, and second port built. Writes `docs/measurements/flex_width_sweep_975/costs.json`, which feeds the Tang MAN's `cell_costs` (#975/#976) |
+| `measure_cell_width_v1.py` | one flex cell at 32 vs 18 bits, in both synthesis flows, counting MUX2_LUT cells too (#948/#949) |
+| `measure_synth_flow_v1.py` | real place-and-route of a cell, default flow vs `-nowidelut`, LFSR-wrapped so Fmax is credible (#949) |
+| `measure_flag_across_families_v1.py` | the `-nowidelut` effect on sub, flex and the original nano family (#950) |
+| `measure_flag_pnr_v1.py` | real place-and-route of every sub and flex cell, both flows (#950); raw logs in `docs/measurements/nowidelut_sweeps_950/` |
+| `gowin_sizing/size_cells.sh`, `size_carrier.sh` | the ORIGINAL cells and VIX carrier on the GW2A, full and lean (#886/#887; synthesis only) |
+| `gowin_sizing/gen_mesh_top.py`, `run_mesh_sweep.py` | pin-bound wrappers and the N=1 / 3x3 place-and-route sweep of the original standalone cells (#889) |
+| `gowin_sizing/build_adder_v4sa_scaling.sh` | the 1-cell and 100-cell flex adder chain place-and-route (#908/#910) |
+| `gowin_sizing/build_smoke_bitstream.sh` | the flashable Tang smoke-test bitstream, end to end, with a pinned seed (#892/#896) |
+
+**Measurement pitfalls the ledger records:** observe every output bit
+(XOR-reduce them), or the synthesiser legally deletes the logic you
+are measuring (#889/#902/#908). A flattened shared-stimulus chain
+understates live-config cells, so use the bare-cell convention for
+per-cell cost (#922). Do not project costs from the wide-LUT flow
+(#975).
+
+## `man_gen/gen_tang_nano_20k_man.py` — the generated Tang MAN
+
+This regenerates `docs/man/tang-nano-20k.man.json` and `.cst` from the
+Apicula chip database, yosys's own cell declarations and the sweep
+data. `--check` exits 1 if either committed file is stale. It needs
+`pip install apycula msgpack`; pin apycula to 0.32 to reproduce the
+committed file (#975). See `docs/man/README.md`.
+
 ## `shape_extract_v1.py` — real cell-to-cell adjacency extraction
 
 Given a top-level Verilog file, extracts the real cell-to-cell
