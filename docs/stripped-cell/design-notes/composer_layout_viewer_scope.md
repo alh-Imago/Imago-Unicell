@@ -1,5 +1,22 @@
 # The Composer, retargeted: a viewer and editor for flex layouts
 
+> **Status, 2026-10-06 (ledger #1005): blocks survive a save, nano cells are
+> editable, and a design can be stepped through.** A design holding blocks
+> saves as ICM-VIX: the free cells are pattern `top`, and each block is a
+> placement of a pattern named after its model, with the ports' io names
+> cleared per placement. Reloading gives the blocks back, with the same
+> cell names; "Save flat v3" stays available. Nano cells are no longer
+> pinned: `routing_mask` and `pattern_low/equal/high` come from joins,
+> `cardinal_edge` is set per face, and topology has the gate presets. A
+> new nano gets `ready = 1`. Two operands that reach a nano on the same
+> tick are OR-merged (a feature), so the Composer shows that as a note and
+> Balance leaves it alone. The Run / step panel
+> (`tools/flex_layout_sim_v1.py`, FlexGrid) has an input box per input
+> cell (a list of values) and an expected box per output. Values can be
+> stepped tick by tick, run to settle, or run item after item; the values
+> in flight are drawn on the board, and outputs are marked against the
+> expected values.
+>
 > **Status, 2026-10-06 (ledger #1004): authoring and library blocks are
 > built too.** Alan changed decision 1 below ("it needs to be able to create
 > from scratch a new file ... placing of cells onto the fabric and joining

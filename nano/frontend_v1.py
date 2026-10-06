@@ -566,8 +566,11 @@ the explainer does) and join them; the layout engine
 (<code>tools/flex_layout_v1.py</code>) lays every route and balances the
 operand timing. Save a design to the library and it can be placed in
 another design as a single block, joined at its io-named ports. Drag
-cells and blocks; a move that cannot be routed is refused. Save writes
-ICM v3. No RTL is generated here
+cells and blocks; a move that cannot be routed is refused. Run / step
+injects values into the inputs and steps the design in FlexGrid, showing
+each value on the board and checking the outputs. Save writes ICM v3, or
+ICM-VIX when the design holds blocks, so they come back as blocks. No RTL
+is generated here
 (<code>docs/stripped-cell/design-notes/composer_layout_viewer_scope.md</code>).
 <a href="/composer">Open the Composer</a>.</div>
 <pre>python3 tools/flex_layout_view_v1.py FILE.icm.json   # the same import, from the command line</pre>
@@ -636,8 +639,8 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
             self._html_response(composer_page_v1.page_composer())
         elif self.path == "/composer/api/state":
             self._json_response(self._composer().state())
-        elif self.path == "/composer/api/save":
-            name, text = self._composer().icm_text()
+        elif self.path.startswith("/composer/api/save"):
+            name, text = self._composer().icm_text("v3" if "fmt=v3" in self.path else "vix" if "fmt=vix" in self.path else None)
             if text is None:
                 self._json_response({"ok": False, "error": "no layout loaded"}, status=404)
                 return
@@ -663,6 +666,8 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
                 self._json_response(self._composer().load(req))
             elif act == "save_library":
                 self._json_response(self._composer().save_library(req))
+            elif act == "sim":
+                self._json_response(self._composer().sim_op(req))
             else:
                 res = self._composer().edit(act, req)
                 self._json_response(res, status=404 if res.get("error", "").startswith("unknown action") else 200)

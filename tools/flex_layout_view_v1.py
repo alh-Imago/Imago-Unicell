@@ -33,7 +33,7 @@ from flex_layout_v1 import D, OPP, PAIR, Grid, LayoutError  # noqa: E402
 from icm_v3 import IcmV3File, IcmV3Record  # noqa: E402
 
 MASKS = ("upstream_mask", "downstream_mask", "second_downstream_mask")
-PINNED_CORES = ("nano", "priority", "command")
+PINNED_CORES = ("priority", "command")
 MARGIN = 3                     # free squares kept round an imported design, so routes can go round its edge
 UNDO_DEPTH = 40
 OUT_FIELD = {"out": "downstream_mask", "second": "second_downstream_mask", "low": "route_low", "equal": "route_equal", "high": "route_high"}
@@ -46,13 +46,17 @@ def table(core):
     return icm_v3.CORE_FIELD_TABLES.get(icm_v3.CORE_IDS.get(core, -1), {})
 
 
+NANO_OUT = {"out": "routing_mask", "low": "pattern_low", "equal": "pattern_equal", "high": "pattern_high"}     # pattern_* route by the comparator outcome when dynamic_route_en is on
+USER_DIR_FIELDS = {"nano": ("cardinal_edge",)}    # face fields the user sets (per incoming face: relay, not consume), not derived from joins
+
+
 def out_field(core, port):
-    return "routing_mask" if core == "nano" and port == "out" else OUT_FIELD.get(port)
+    return NANO_OUT.get(port) if core == "nano" else OUT_FIELD.get(port)
 
 
 def in_field(core, role):
     if core == "nano":
-        return None                                    # a nano consumes from any face: no input field
+        return None                                    # a nano listens on every face: no input field
     if core == "branch":
         return "upstream_dir" if role == "in" else "?"
     return IN_FIELD.get(role)
@@ -81,14 +85,23 @@ def core_meta():
     """What the page needs to draw a configuration panel: per core, its fields (bit range, kind), ports and roles; plus the add-on fields and the latch layout."""
     meta = {}
     for sel, core in icm_v3.CORE_NAMES.items():
-        dirs = set(dir_fields(core))
-        fields = [{"name": f, "lo": lo, "hi": hi, "kind": "dirs" if f in dirs else ("toggle" if lo == hi else "num")} for f, (lo, hi) in icm_v3.CORE_FIELD_TABLES[sel].items()]
+        dirs, udirs = set(dir_fields(core)), set(USER_DIR_FIELDS.get(core, ()))
+        fields = [{"name": f, "lo": lo, "hi": hi, "kind": "dirs" if f in dirs else "userdirs" if f in udirs else ("toggle" if lo == hi else "num")}
+                  for f, (lo, hi) in icm_v3.CORE_FIELD_TABLES[sel].items()]
+        if core == "nano":
+            for f in fields:
+                if f["name"] == "topology":
+                    f["kind"], f["choices"] = "choice", TOPOLOGIES
         meta[core] = {"sel": sel, "fields": fields, "ports": out_ports(core), "roles": in_roles(core), "short": SHORT.get(core, core[:3])}
     addon = [{"name": f, "lo": lo, "hi": hi, "kind": "toggle" if lo == hi else "num"} for f, (lo, hi) in icm_v3._ADDON_FIELDS.items()]
     addon.append({"name": "shift_fine", "lo": 0, "hi": 1, "kind": "num"})
     latch = {"core_select": [icm_v3.CORE_SELECT_LO, icm_v3.CORE_SELECT_HI], "core_config": [icm_v3.CORE_CONFIG_LO, icm_v3.CORE_CONFIG_HI],
              "addon_config": [icm_v3.ADDON_CONFIG_LO, icm_v3.ADDON_CONFIG_HI], "shift_fine": [icm_v3.SHIFT_FINE_LO, icm_v3.SHIFT_FINE_HI], "width": icm_v3.SUPER_LATCH_WIDTH}
     return {"cores": meta, "addon": addon, "latch": latch, "palette": [c for c in icm_v3.CORE_NAMES.values() if c not in ("cross",)]}
+
+
+TOPOLOGIES = [{"label": l, "value": v} for l, v in (("pass A", 0x000), ("not A", 0x001), ("not B", 0x002), ("nor", 0x004), ("and", 0x007), ("zero", 0x030),
+                                                  ("xnor", 0x03C), ("or", 0x024), ("nand", 0x027), ("pass B", 0x02C), ("one", 0x0B0), ("xor", 0x0BC))]   # nano/unicell_gate_core.py TOPO_*
 
 
 def _faces(cfg, key):
@@ -119,15 +132,18 @@ def _in_roles_on(cfg, core, face):
 
 
 class Layout:
-    def __init__(self, records, name="layout", description="", min_bit_width=None, board=None):
+    def __init__(self, records, name="layout", description="", min_bit_width=None, board=None, anchors=()):
         self.name, self.description, self.min_bit_width = name, description, min_bit_width
         self.warnings, self._undo, self.blocks = [], [], {}
-        self._build(list(records), board)
+        self._build(list(records), board, anchors)
 
     @staticmethod
     def load(path):
-        doc, recs = nl.load_records(path)
-        return Layout(recs, name=os.path.basename(path), description=getattr(doc, "description", "") or "", min_bit_width=getattr(doc, "min_bit_width", None))
+        doc, recs, blocks = read_design(path)
+        lay = Layout(recs, name=os.path.basename(path), description=getattr(doc, "description", "") or "", min_bit_width=getattr(doc, "min_bit_width", None),
+                     anchors={k for v in blocks.values() for k in v["ports"].values()})
+        lay.blocks = {b: v for b, v in blocks.items() if all(k in lay.grid.nodes for k in v["cells"])}
+        return lay
 
     @staticmethod
     def new(rows=24, cols=40, name="new design"):
@@ -137,7 +153,8 @@ class Layout:
         return Layout([], name=name, board=(rows, cols, (0, 0)))
 
     # ---- import -----------------------------------------------------------------------------------------------------------------------
-    def _build(self, recs, board=None):
+    def _build(self, recs, board=None, anchors=()):
+        """`anchors`: cells that are never folded into a route as relays (a block's ports: a join ends there)."""
         if not recs and board is None:
             raise LayoutError("the file has no cells")
         if board is not None:
@@ -162,7 +179,8 @@ class Layout:
             raise LayoutError("two cells share a square")
         pos = {k: (r.row + orow, r.col + ocol) for k, r in rec.items()}
         self.io = {k: r.io_name for k, r in rec.items() if r.io_name}
-        self.pinned = {k for k, r in rec.items() if r.core in PINNED_CORES or r.core not in icm_v3.CORE_IDS}
+        self.pinned = {k for k, r in rec.items() if r.core in PINNED_CORES or r.core not in icm_v3.CORE_IDS
+                       or (r.core == "nano" and any(isinstance((r.core_config or {}).get(f), int) and (r.core_config or {})[f] > 15 for f in NANO_OUT.values()))}
         self._orig_cfg = {k: dict(r.core_config or {}) for k in self.pinned for r in [rec[k]]}
         self._present = {k: set(r.core_config or {}) for k, r in rec.items()}       # an empty direction field the file left out stays left out
 
@@ -196,7 +214,7 @@ class Layout:
         def plain_relay(k):
             r = rec[k]
             cfg = r.core_config or {}
-            if r.core != "ram" or r.preload_value is not None or r.addon_config or r.io_name or k in self.ext:
+            if r.core != "ram" or r.preload_value is not None or r.addon_config or r.io_name or k in self.ext or k in anchors:
                 return False
             if any(x not in MASKS + ("fixed_mode",) for x in cfg) or cfg.get("fixed_mode"):
                 return False
@@ -345,9 +363,9 @@ class Layout:
     def snapshot(self):
         g = self.grid
         try:
-            t, probs, timing = g.hops(), g.problems(), None
+            t, probs, merges, timing = g.hops(), self.problems(), self.merges(), None
         except (LayoutError, RecursionError) as e:
-            t, probs, timing = {}, [], str(e)
+            t, probs, merges, timing = {}, [], [], str(e)
         recs = {r.cell_id: r for r in self.records(file_coords=False)}
         in_route = {nm: key for key, v in g.routes.items() for nm in v["relays"]}
         srcs = collections.defaultdict(list)
@@ -385,6 +403,7 @@ class Layout:
             "cells": cells, "routes": routes, "links": loose, "blocks": blocks,
             "crossings": [{"name": x, "r": g.nodes[x]["r"], "c": g.nodes[x]["c"], "owner": list(o), "crossing": list(c)} for x, (o, c) in g.crossed.items()],
             "problems": [{"cell": c, "kind": k, "early": x, "late": y} for c, k, x, y in probs],
+            "merges": merges,
             "summary": {"cells": len(g.nodes), "by_core": dict(by_core), "routes": len(g.routes), "relays": sum(len(v["relays"]) for v in g.routes.values()),
                         "max_hop": max(t.values(), default=0), "pinned": len(self.pinned), "undo": len(self._undo), "timing_error": timing},
             "warnings": self.warnings[:50],
@@ -413,6 +432,25 @@ class Layout:
             seen.add(cur)
             chain.append(cur)
         return chain
+
+    def problems(self):
+        """The engine's problems(): adder/mul operand ties and minuend order (the generator refuses those)."""
+        return list(self.grid.problems())
+
+    def merges(self):
+        """Nano cells whose two sources arrive on the SAME tick. That is not a fault: words arriving together are OR-merged (a feature, Alan), so the nano sees one
+        merged word; drawn as a note, so a person can tell it from an operand pair that arrives in order."""
+        g = self.grid
+        srcs, t, out = g.sources(), g.hops(), []
+        for c, n in g.nodes.items():
+            if n["core"] == "nano" and len(srcs[c]) == 2:
+                x, y = srcs[c]
+                if t[x] + g.xdelay.get((c, x), 0) == t[y] + g.xdelay.get((c, y), 0):
+                    out.append({"cell": c, "a": x, "b": y})
+        return out
+
+    def _balance_all(self, limit=60):
+        return self.grid.balance(limit)
 
     # ---- editing: shared machinery ----------------------------------------------------------------------------------------------------
     def _transaction(self, fn):
@@ -475,7 +513,7 @@ class Layout:
             g.nodes[k]["c"] += dc
         if nets:
             g.route_nets(nets, rounds=60)
-        detours = g.balance()
+        detours = self._balance_all()
         return {"rerouted": [f"{a} -> {b}" for a, b, _ in nets], "detours": detours}
 
     # ---- editing: the public operations ------------------------------------------------------------------------------------------------
@@ -514,7 +552,7 @@ class Layout:
         def do():
             if g.at().get((r, c)) is not None or not (0 <= r < g.rows and 0 <= c < g.cols):
                 raise LayoutError(f"({r},{c}) is " + ("taken" if g.at().get((r, c)) else "off the board"))
-            g.add(name, r, c, core=core, cfg={}, addon={}, preload=None)
+            g.add(name, r, c, core=core, cfg={"ready": 1} if core == "nano" else {}, addon={}, preload=None)     # a nano with ready=0 never fires
             self._present[name] = set()
             res = self._configure(name, cfg or {}, addon or {}, preload, io)
             return dict(res, name=name)
@@ -672,11 +710,11 @@ class Layout:
                 g.minuend[cell] = source
             else:
                 g.minuend.pop(cell, None)
-            return {"detours": g.balance()}
+            return {"detours": self._balance_all()}
         return self._transaction(do)
 
     def balance(self):
-        return self._transaction(lambda: {"detours": self.grid.balance()})
+        return self._transaction(lambda: {"detours": self._balance_all()})
 
     def undo(self):
         if not self._undo:
@@ -688,7 +726,7 @@ class Layout:
     def place_block(self, path, r, c, name=None):
         """Insert the ICM file at `path` with its top-left at layout square (r, c). Its io_name cells become the block's ports."""
         try:
-            doc, recs = nl.load_records(path)
+            doc, recs, _ = read_design(path)                  # a model that itself holds blocks comes in flat: blocks do not nest
         except Exception as e:                              # a bad file is a refusal, not a crash
             return {"ok": False, "error": f"cannot read {os.path.basename(path)}: {e}"}
         if not recs:
@@ -729,7 +767,7 @@ class Layout:
         warnings = list(self.warnings)
         self._relay_floor = self.grid._relay
         self.warnings = []
-        self._build(recs, board)
+        self._build(recs, board, anchors={k for v in keep["blocks"].values() for k in v["ports"].values()})
         self.__dict__.update(keep)
         self.warnings = warnings + self.warnings
         for c, m in minuends.items():
@@ -830,10 +868,71 @@ class Layout:
                                    io_name=self.io.get(k), preload_value=n["preload"]))
         return out
 
-    def save(self, path):
-        f = IcmV3File(name=self.name, records=self.records(), description=self.description or "made in the Composer (tools/flex_layout_view_v1.py)", min_bit_width=self.min_bit_width)
-        f.save(path)
+    def to_vix(self):
+        """The design as ICM-VIX: the cells outside any block are pattern `top` (placed at 0,0); each block is a placement of a pattern named after its library model,
+        so blocks survive a save. A block's ports keep their io names in the pattern and are cleared per placement (they are joins inside this design, not its own io)."""
+        import icm_vix_v1 as vix
+        recs = self.records()
+        inblock = {k: b for b, v in self.blocks.items() for k in v["cells"]}
+        top = [r for r in recs if r.cell_id not in inblock]
+        patterns, placements, seen = {}, [], {}
+
+        def cell(r, r0, c0, cid, io):
+            return vix.HierCell(cell_id=cid, rel_row=r.row - r0, rel_col=r.col - c0, core=r.core, core_config=dict(r.core_config), addon_config=dict(r.addon_config or {}),
+                                io_name=io, preload_value=r.preload_value)
+        patterns[TOP] = vix.HierPattern(cells=[cell(r, 0, 0, r.cell_id, r.io_name) for r in top])
+        placements.append(vix.HierPlacement(instance=TOP, pattern=TOP, at=(0, 0)))
+        for b, v in self.blocks.items():
+            mine = [r for r in recs if inblock.get(r.cell_id) == b]
+            if not mine:
+                continue
+            r0, c0 = min(r.row for r in mine), min(r.col for r in mine)
+            port_io = {cid: io for io, cid in v["ports"].items()}
+            pat = vix.HierPattern(cells=[cell(r, r0, c0, r.cell_id[len(b) + 1:], port_io.get(r.cell_id, r.io_name)) for r in mine])
+            key = json.dumps(pat.to_dict(), sort_keys=True)
+            base = re.sub(r"(\.icm-hier|\.icm)?\.json$|\.icm$", "", v["file"]) or "block"
+            if key not in seen:
+                name, n = base, 1
+                while name in patterns:
+                    n += 1
+                    name = f"{base}~{n}"
+                patterns[name], seen[key] = pat, name
+            over = {r.cell_id[len(b) + 1:]: {"io_name": None} for r in mine if r.cell_id in port_io}
+            placements.append(vix.HierPlacement(instance=b, pattern=seen[key], at=(r0, c0), overrides=over))
+        return vix.IcmVixFile(patterns=patterns, placements=placements, name=self.name, description=self.description or "made in the Composer (tools/flex_layout_view_v1.py)",
+                              min_bit_width=self.min_bit_width)
+
+    def save(self, path, fmt=None):
+        """ICM v3 (flat), or ICM-VIX when the design holds blocks (fmt="vix"/"v3" to choose)."""
+        fmt = fmt or ("vix" if self.blocks else "v3")
+        if fmt == "vix":
+            self.to_vix().save(path)
+        else:
+            IcmV3File(name=self.name, records=self.records(), description=self.description or "made in the Composer (tools/flex_layout_view_v1.py)",
+                      min_bit_width=self.min_bit_width).save(path)
         return path
+
+
+TOP = "top"
+
+
+def read_design(path):
+    """(doc, records, blocks) from any ICM file. An ICM-VIX file the Composer saved (it has a placement named `top`) gives its blocks back: every other placement is a block
+    whose ports are its pattern's io-named cells; the `top.` prefix is taken off the other cells' ids. Any other file has no blocks."""
+    doc, recs = nl.load_records(path)
+    blocks = {}
+    pls = getattr(doc, "placements", None) or []
+    if any(p.instance == TOP for p in pls):
+        strip = TOP + "."
+        recs = [IcmV3Record(cell_id=r.cell_id[len(strip):] if r.cell_id.startswith(strip) else r.cell_id, row=r.row, col=r.col, core=r.core, core_config=r.core_config,
+                            addon_config=r.addon_config, io_name=r.io_name, preload_value=r.preload_value) for r in recs]
+        for p in pls:
+            if p.instance == TOP:
+                continue
+            pat = doc.patterns[p.pattern]
+            blocks[p.instance] = {"file": p.pattern.split("~")[0] + ".icm.json", "cells": [f"{p.instance}.{c.cell_id}" for c in pat.cells],
+                                  "ports": {c.io_name: f"{p.instance}.{c.cell_id}" for c in pat.cells if c.io_name}}
+    return doc, recs, blocks
 
 
 # ---- layouts built by Python (the fp tools): a name -> records -------------------------------------------------------------------------------

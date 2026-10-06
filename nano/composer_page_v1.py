@@ -16,6 +16,7 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(REPO, "tools"))
 sys.path.insert(0, HERE)
 
+import flex_layout_sim_v1 as fls  # noqa: E402
 import flex_layout_view_v1 as flv  # noqa: E402
 import ui_theme_v1 as ui  # noqa: E402
 
@@ -52,10 +53,11 @@ class ComposerController:
 
     def __init__(self):
         self.layout = None
+        self.sim = None                     # the step-through run; any edit to the design ends it
         self.lock = threading.Lock()
 
     def _state(self, extra=None):
-        out = {"ok": True, "layout": self.layout.snapshot() if self.layout else None, "library": library()}
+        out = {"ok": True, "layout": self.layout.snapshot() if self.layout else None, "library": library(), "sim": self.sim.view() if self.sim else None}
         out.update(extra or {})
         return out
 
@@ -88,8 +90,36 @@ class ComposerController:
                     raise ValueError("nothing to load: give a file, a path, an example or a builder")
             except Exception as e:                     # a bad file is reported on the page, never a server error
                 return {"ok": False, "error": f"{e.__class__.__name__}: {e}"}
-            self.layout = lay
+            self.layout, self.sim = lay, None
             return self._state()
+
+    def sim_op(self, req):
+        """The step-through: op = start | inject {values} | step {n} | run | items {items} | stop."""
+        with self.lock:
+            if not self.layout:
+                return {"ok": False, "error": "no layout"}
+            op = req.get("op")
+            try:
+                if op == "start":
+                    self.sim = fls.StepSim(self.layout, width=int(req["width"]) if req.get("width") else None)
+                elif op == "stop":
+                    self.sim = None
+                elif not self.sim:
+                    return {"ok": False, "error": "press Start first"}
+                elif op == "inject":
+                    self.sim.inject(_ints(req.get("values")))
+                elif op == "step":
+                    self.sim.step(int(req.get("n", 1)))
+                elif op == "run":
+                    self.sim.run(int(req.get("max", 2000)))
+                elif op == "items":
+                    items = {k: [int(x, 0) for x in re.split(r"[\s,;]+", str(v).strip()) if x] for k, v in (req.get("items") or {}).items()}
+                    self.sim.run_items({k: v for k, v in items.items() if v}, int(req.get("max", 2000)))
+                else:
+                    return {"ok": False, "error": f"unknown step-through op {op}"}
+            except Exception as e:                    # a design the VM cannot run, or a bad value: reported, not raised
+                return {"ok": False, "error": f"{e.__class__.__name__}: {e}"}
+            return {"ok": True, "sim": self.sim.view() if self.sim else None}
 
     def move(self, req):
         return self.edit("move", req)
@@ -143,6 +173,7 @@ class ComposerController:
                 return {"ok": False, "error": f"bad {action} request: {e}"}
             if not res.get("ok"):
                 return res
+            self.sim = None
             return self._state({k: v for k, v in res.items() if k != "ok"})
 
     def save_library(self, req):
@@ -167,18 +198,26 @@ class ComposerController:
                 return {"ok": False, "error": f"{e.__class__.__name__}: {e}"}
             return self._state({"saved": name})
 
-    def icm_text(self):
+    def icm_text(self, fmt=None):
+        """(file name, text): ICM-VIX when the design holds blocks (they survive), else ICM v3; fmt="v3" forces one flat file."""
         with self.lock:
             if not self.layout:
                 return None, None
             from icm_v3 import IcmV3File
             lay = self.layout
-            f = IcmV3File(name=lay.name, records=lay.records(), description=lay.description or "made in the Composer", min_bit_width=lay.min_bit_width)
+            fmt = fmt if fmt in ("v3", "vix") else ("vix" if lay.blocks else "v3")
+            if fmt == "vix":
+                f = lay.to_vix()
+                d = f.to_dict()
+                d["record_hash"] = f.record_hash()
+            else:
+                d = IcmV3File(name=lay.name, records=lay.records(), description=lay.description or "made in the Composer", min_bit_width=lay.min_bit_width).to_dict()
             base = lay.name.split("/")[-1]
             for suf in (".icm-hier.json", ".icm.json", ".json", ".icm"):
                 if base.endswith(suf):
                     base = base[: -len(suf)]
-            return f"{re.sub(r'[^A-Za-z0-9_.-]', '_', base)}.composed.icm.json", json.dumps(f.to_dict(), indent=2)
+            ext = ".icm-hier.json" if fmt == "vix" else ".icm.json"
+            return f"{re.sub(r'[^A-Za-z0-9_.-]', '_', base)}.composed{ext}", json.dumps(d, indent=2)
 
 
 def _ints(d):
@@ -196,7 +235,7 @@ def _ints(d):
 
 COMPOSER_CSS = """
 .composer { display: grid; grid-template-columns: 1fr 330px; gap: 14px; align-items: start; }
-.composer .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.composer .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; position: sticky; top: 64px; max-height: calc(100vh - 76px); overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
 .composer .panel { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; min-width: 0; }
 .composer .panel h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--fg-dim); }
 .board-wrap { position: relative; background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px; height: 70vh; min-height: 360px; overflow: hidden; touch-action: none; }
@@ -260,8 +299,19 @@ COMPOSER_CSS = """
 .joins { font-size: 12px; margin: 6px 0 0; padding-left: 16px; }
 .joins li { overflow-wrap: anywhere; }
 .joins button { font-size: 11px; padding: 0 5px; margin-left: 4px; }
+#run .io { display: grid; grid-template-columns: 70px 1fr; gap: 4px 6px; align-items: center; margin: 4px 0; }
+#run .io input { width: 100%; font-family: var(--font-mono); font-size: 12px; padding: 3px 5px; }
+#run .btns { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+#run .btns button { font-size: 12px; padding: 3px 8px; }
+#run .got { font-family: var(--font-mono); font-size: 12px; color: var(--fg); overflow-wrap: anywhere; }
+#run .ok { color: var(--ok); } #run .bad { color: var(--err); }
+#run pre.log { max-height: 140px; overflow: auto; font-size: 11px; margin: 6px 0 0; white-space: pre-wrap; }
+.tok { fill: none; stroke: var(--gold); stroke-width: 1.4; }
+.tokv { font-family: var(--font-mono); fill: var(--gold); paint-order: stroke; stroke: #0e130f; stroke-width: .8; pointer-events: none; }
+#cfg .dirs span.edit { cursor: pointer; }
 @media (max-width: 900px) {
   .composer { grid-template-columns: 1fr; }
+  .composer .side { position: static; max-height: none; overflow: visible; }
   .board-wrap { height: 62vh; }
 }
 """
@@ -304,7 +354,7 @@ changes nothing. <b>Save ICM</b> writes ICM v3; <b>Save to library</b> keeps the
 
 <div class="composer">
   <div class="board-wrap" id="wrap">
-    <svg id="board" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"><g id="view"><g id="grid"></g><g id="routes"></g><g id="cells"></g><g id="blocks"></g><g id="over"></g></g></svg>
+    <svg id="board" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"><g id="view"><g id="grid"></g><g id="routes"></g><g id="cells"></g><g id="blocks"></g><g id="sim"></g><g id="over"></g></g></svg>
     <div class="board-tools">
       <button id="fit" title="fit the layout to the view">Fit</button>
       <button id="zin" title="zoom in">+</button>
@@ -313,12 +363,14 @@ changes nothing. <b>Save ICM</b> writes ICM v3; <b>Save to library</b> keeps the
       <button id="balance" title="add timing detours until no operand pair ties">Balance</button>
       <button id="heat" title="tint cells by hop depth">Hop heat</button>
       <button id="inside" title="draw blocks as their cells instead of one tile">Block insides</button>
-      <button id="save" class="primary" title="download the design as ICM v3">Save ICM</button>
+      <button id="save" class="primary" title="download the design: ICM-VIX when it holds blocks (they are kept), else ICM v3">Save ICM</button>
+      <button id="saveFlat" title="download one flat ICM v3 file (blocks become plain cells)">Save flat v3</button>
       <button id="saveLib" title="save into the library, for use as a block">Save to library</button>
     </div>
   </div>
   <div class="side">
     <div class="panel"><h3>Selected</h3><div id="cfg" class="stat">tap a cell or a block</div></div>
+    <div class="panel"><h3>Run / step</h3><div id="run" class="stat"></div></div>
     <div class="panel"><h3>Layout</h3><div id="summary" class="stat">nothing loaded</div></div>
     <div class="panel"><h3>Find</h3><input type="text" id="find" placeholder="cell name" style="width:100%"></div>
     <div class="panel"><h3>Problems</h3><ul id="problems"><li>none</li></ul></div>
@@ -343,7 +395,7 @@ const svg = $('board'), view = $('view'), wrap = $('wrap');
 function W() { return Math.max(1, wrap.getBoundingClientRect().width); }
 function H() { return Math.max(1, wrap.getBoundingClientRect().height); }
 let L = null, LIB = [], cellBy = {}, blockBy = {}, occ = {}, sel = null, selBlock = null, heat = false, inside = false;
-let mode = 'select', placeCore = 'adder', joinSrc = null, joinPort = null, blockUpload = null;
+let mode = 'select', placeCore = 'adder', joinSrc = null, joinPort = null, blockUpload = null, SIM = null, simInputs = {}, simExpect = {};
 let vb = {x: 0, y: 0, w: 400, h: 300};
 
 function status(msg, kind) { const s = $('status'); s.textContent = msg || ''; s.className = kind || ''; }
@@ -363,6 +415,7 @@ async function edit(action, body, okMsg) {
 }
 function take(res, keepView) {
   if (res.library) { LIB = res.library; libOptions(); }
+  if ('sim' in res) SIM = res.sim;
   if (res.layout !== undefined) { L = res.layout; draw(keepView); }
   if (sel && !(L && cellBy[sel])) sel = null;
   if (selBlock && !(L && blockBy[selBlock])) selBlock = null;
@@ -446,8 +499,67 @@ function draw(keepView) {
       pt.textContent = p.io;
     }
   }
-  updateLabels(); summary(); problems();
+  drawSim();
+  updateLabels(); summary(); problems(); runPanel();
   if (!keepView) fit();
+}
+function fmtv(v) { return v > 4095 ? '0x' + v.toString(16).toUpperCase() : String(v); }
+function drawSim() {
+  const sg = $('sim'); sg.innerHTML = '';
+  if (!SIM || !L) return;
+  for (const [name, st] of Object.entries(SIM.state)) {
+    if (!st.valid) continue;
+    const c = cellBy[name];
+    if (c && hidden(c)) continue;
+    const cx = st.c * S + S / 2, cy = st.r * S + S / 2;
+    el('circle', {class: 'tok', cx, cy, r: S * .46}, sg);
+    const t = el('text', {class: 'tokv', x: cx, y: cy - S * .55, 'text-anchor': 'middle', 'font-size': 3.4}, sg);
+    t.textContent = fmtv(st.v);
+  }
+}
+function parseList(s) { return String(s || '').split(/[\s,;]+/).filter(x => x).map(x => Number(x)); }
+function runPanel() {
+  const box = $('run');
+  if (!L) { box.textContent = 'load or build a design first'; return; }
+  if (!SIM) {
+    box.innerHTML = `Inject values into the design's inputs and step it in FlexGrid (the flex VM), watching each value move.<div class="btns"><button id="simStart" class="primary">Start</button></div>`;
+    $('simStart').onclick = () => sim({op: 'start'}, 'started: type values for each input, then Run all or Inject + Step');
+    return;
+  }
+  let h = `tick <b>${SIM.ticks}</b> · items in ${SIM.items} · width ${SIM.width}` + (SIM.pending ? ` · ${SIM.pending} pending` : '');
+  h += `<div style="margin-top:6px">inputs <small>(values, comma separated; 0x for hex)</small></div>`;
+  for (const i of SIM.inputs) h += `<div class="io"><label title="${esc(i.cell)}">${esc(i.io || i.cell)}</label><input type="text" data-in="${esc(i.cell)}" value="${esc(simInputs[i.cell] || '')}" placeholder="e.g. 1, 5, 100"></div>`;
+  h += `<div class="btns"><button id="simAll" class="primary" title="inject each item in turn and run until the design settles">Run all</button><button id="simInj" title="inject the next item only">Inject next</button>` +
+       `<button id="simStep" title="one tick">Step</button><button id="simStep10">Step ×10</button><button id="simRun" title="tick until nothing changes">Run to settle</button><button id="simStop">Stop</button></div>`;
+  h += `<div>outputs <small>(type expected values to check)</small></div>`;
+  for (const o of SIM.outputs) {
+    const exp = parseList(simExpect[o.cell]);
+    const got = o.values.map((v, i) => i < exp.length ? `<span class="${exp[i] === v ? 'ok' : 'bad'}">${fmtv(v)}</span>` : fmtv(v)).join(', ');
+    const verdict = exp.length ? (o.values.length >= exp.length && exp.every((v, i) => o.values[i] === v) ? ' <span class="ok">✓ all match</span>' : (o.values.length >= exp.length ? ' <span class="bad">✗ mismatch</span>' : '')) : '';
+    h += `<div class="io"><label title="${esc(o.cell)}">${esc(o.io || o.cell)}</label><input type="text" data-exp="${esc(o.cell)}" value="${esc(simExpect[o.cell] || '')}" placeholder="expected"></div><div class="got">→ ${got || '—'}${verdict}</div>`;
+  }
+  h += `<pre class="log">${esc(SIM.log.slice(-12).join('\n'))}</pre>`;
+  box.innerHTML = h;
+  box.querySelectorAll('[data-in]').forEach(i => { i.oninput = () => { simInputs[i.dataset.in] = i.value; }; });
+  box.querySelectorAll('[data-exp]').forEach(i => { i.onchange = () => { simExpect[i.dataset.exp] = i.value; runPanel(); }; });
+  const items = () => Object.fromEntries(SIM.inputs.map(i => [i.cell, simInputs[i.cell] || '']));
+  $('simAll').onclick = () => sim({op: 'items', items: items()}, r => `ran ${r.sim.items} item(s) in ${r.sim.ticks} ticks`);
+  $('simInj').onclick = () => {
+    const vals = {}, n = SIM.items;
+    for (const i of SIM.inputs) { const l = parseList(simInputs[i.cell]); if (n < l.length) vals[i.cell] = l[n]; }
+    if (!Object.keys(vals).length) { status('no more input values: add some, or Start again', 'err'); return; }
+    sim({op: 'inject', values: vals}, `item ${n + 1} injected: Step to watch it move`);
+  };
+  $('simStep').onclick = () => sim({op: 'step', n: 1});
+  $('simStep10').onclick = () => sim({op: 'step', n: 10});
+  $('simRun').onclick = () => sim({op: 'run'}, r => `settled at tick ${r.sim.ticks}`);
+  $('simStop').onclick = () => sim({op: 'stop'}, 'step-through stopped');
+}
+async function sim(body, okMsg) {
+  const res = await api('/composer/api/sim', body);
+  if (!res.ok) { status('step-through: ' + res.error, 'err'); return; }
+  SIM = res.sim; drawSim(); runPanel();
+  if (okMsg) status(typeof okMsg === 'function' ? okMsg(res) : okMsg, 'ok');
 }
 function updateLabels() {
   const px = W() / vb.w * S;
@@ -464,7 +576,12 @@ function summary() {
 }
 function problems() {
   const ul = $('problems'); ul.innerHTML = '';
-  if (!L || !L.problems.length) { ul.innerHTML = '<li style="cursor:default;color:var(--ok)">none: every operand pair is ordered</li>'; return; }
+  for (const m of (L && L.merges) || []) {
+    const li = document.createElement('li');
+    li.textContent = `note: ${m.cell} (nano) gets ${m.a} and ${m.b} on the same tick: they are OR-merged into one word`;
+    li.style.color = 'var(--fg-dim)'; li.onclick = () => focusCell(m.cell); ul.appendChild(li);
+  }
+  if (!L || !L.problems.length) { const li = document.createElement('li'); li.style.cssText = 'cursor:default;color:var(--ok)'; li.textContent = 'none: every operand pair is ordered'; ul.appendChild(li); return; }
   for (const p of L.problems) {
     const li = document.createElement('li');
     li.textContent = `${p.cell}: ${p.kind === 'tie' ? 'operands arrive together' : 'minuend not first'} (${p.early} / ${p.late}); press Balance`;
@@ -520,7 +637,14 @@ function showSelected() {
   if (c.core === 'ram') h += `<div class="row"><label>preload <small>(a constant)</small></label><input type="text" data-k="preload" value="${c.preload ?? ''}" placeholder="none" ${ro ? 'disabled' : ''}></div>`;
   for (const f of m.fields) {
     const rng = f.lo === f.hi ? `[${f.lo}]` : `[${f.hi}:${f.lo}]`;
-    if (f.kind === 'dirs') {
+    if (f.kind === 'userdirs') {
+      const on = dirsOf(c.cfg[f.name]);
+      h += `<div class="row"><label>${f.name} <small>${rng} relay, not consume</small></label><div class="dirs" data-ud="${f.name}" data-mask="${fieldVal(c.cfg, {name: f.name, kind: 'dirs'})}">${['n', 's', 'e', 'w'].map((d, i) => `<span class="edit ${on.includes(d) ? 'on' : ''}" data-bit="${i}">${d.toUpperCase()}</span>`).join('')}</div></div>`;
+    } else if (f.kind === 'choice') {
+      const v = Number(c.cfg[f.name] ?? 0);
+      const known = f.choices.some(o => o.value === v);
+      h += `<div class="row"><label>${f.name} <small>${rng}</small></label><select data-f="${f.name}" ${ro ? 'disabled' : ''}>${f.choices.map(o => `<option value="${o.value}" ${o.value === v ? 'selected' : ''}>${o.label} (0x${o.value.toString(16).toUpperCase()})</option>`).join('')}${known ? '' : `<option value="${v}" selected>custom 0x${v.toString(16).toUpperCase()}</option>`}</select></div>`;
+    } else if (f.kind === 'dirs') {
       const on = f.name === 'upstream_dir' ? (typeof c.cfg[f.name] === 'number' ? ['nsew'[c.cfg[f.name]]] : []) : dirsOf(c.cfg[f.name]);
       h += `<div class="row"><label>${f.name} <small>${rng} from joins</small></label><div class="dirs">${['n', 's', 'e', 'w'].map(d => `<span class="${on.includes(d) ? 'on' : ''}">${d.toUpperCase()}</span>`).join('')}</div></div>`;
     } else {
@@ -545,12 +669,15 @@ function showSelected() {
   }
   h += `<div class="actions">` + (ro ? '' : `<button id="apply" class="primary">Apply</button>`) + `<button id="joinFrom" title="join from this cell">Join from here</button>` + (ro ? '' : `<button id="delCell">Delete</button>`) + `</div>`;
   box.innerHTML = h;
+  if (!ro) box.querySelectorAll('[data-ud] span.edit').forEach(sp => { sp.onclick = () => {
+    const d = sp.parentElement; const m = Number(d.dataset.mask) ^ (1 << Number(sp.dataset.bit)); d.dataset.mask = m; sp.classList.toggle('on'); }; });
   box.querySelectorAll('[data-un]').forEach(b => { b.onclick = () => { const [a, z] = b.dataset.un.split('|'); edit('unjoin', {a, b: z}, `unjoined ${a} → ${z}`); }; });
   $('joinFrom').onclick = ev => { setMode('join'); pickSource(ev, c.name); };
   if (ro) return;
   $('apply').onclick = () => {
     const cfg = {}, addon = {};
     box.querySelectorAll('[data-f]').forEach(i => { cfg[i.dataset.f] = i.value.trim(); });
+    box.querySelectorAll('[data-ud]').forEach(d => { cfg[d.dataset.ud] = d.dataset.mask; });
     box.querySelectorAll('[data-a]').forEach(i => { addon[i.dataset.a] = i.value.trim(); });
     const body = {name: c.name, cfg, addon, io: box.querySelector('[data-k=io]').value};
     const pre = box.querySelector('[data-k=preload]'); if (pre) body.preload = pre.value.trim() === '' ? 'none' : pre.value.trim();
@@ -792,7 +919,8 @@ $('heat').onclick = () => { heat = !heat; $('heat').classList.toggle('primary', 
 $('inside').onclick = () => { inside = !inside; $('inside').classList.toggle('primary', inside); draw(true); showSelected(); };
 $('undo').onclick = () => edit('undo', {}, 'undone');
 $('balance').onclick = () => edit('balance', {}, r => r.detours ? `balanced: ${r.detours} timing detour(s) added` : 'already balanced');
-$('save').onclick = () => { if (!L) { status('nothing to save', 'err'); return; } window.location = '/composer/api/save'; };
+$('save').onclick = () => { if (!L) { status('nothing to save', 'err'); return; } window.location = '/composer/api/save'; if (L.blocks.length) status('saved as ICM-VIX: each block is a placement of its model, so it comes back as a block', 'ok'); };
+$('saveFlat').onclick = () => { if (!L) { status('nothing to save', 'err'); return; } window.location = '/composer/api/save?fmt=v3'; };
 $('saveLib').onclick = async () => {
   if (!L) { status('nothing to save', 'err'); return; }
   const name = prompt('Library model name (its io-named cells become its ports)', L.name.replace(/(\.icm-hier|\.icm)?\.json$/, '').replace(/[^A-Za-z0-9_.-]/g, '_'));
