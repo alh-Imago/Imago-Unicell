@@ -125,7 +125,7 @@
   (<code class="mono">nano/icm_v3.py</code>'s own <code class="mono">CORE_FIELD_TABLES</code>/
   <code class="mono">_ADDON_FIELDS</code>), not transcribed from memory. Pick a core, set its
   fields, and watch the real 80-bit <code class="mono">SUPER_LATCH</code> value assemble.</p>
-  <p>All ten ICM v3 cores (core_select 0-9), the add-on chain and the fine shift. Re-checked
+  <p>All eleven ICM v3 cores (core_select 0-10, including the <code class="mono">cross</code> tile, #999), the add-on chain and the fine shift. Re-checked
   2026-10-06 against <code class="mono">icm_v3.encode_super_latch()</code> on 300 random
   configurations. This is the ICM v3 record encoding used by the VM and the Arria 10 shells; the
   Tang Nano line's sub/flex cells are generated from the same records by the Flex-Sub assembler
@@ -262,8 +262,8 @@ const CORES = [
     {name:'pattern_equal', lo:33, hi:36, kind:'hex'},
     {name:'pattern_high', lo:37, hi:40, kind:'hex'},
   ]},
-  // sel 1-9: GENERATED from nano/icm_v3.py's CORE_FIELD_TABLES / _DIR_FIELDS on 2026-10-06
-  // (ledger #991), not hand-typed. Adds what the 2026-09-07 copy lacked: adder subtract_mode /
+  // sel 1-10: GENERATED from nano/icm_v3.py's CORE_FIELD_TABLES / _DIR_FIELDS on 2026-10-06
+  // (ledger #993), not hand-typed. Adds what the 2026-09-07 copy lacked: adder subtract_mode /
   // second_output / second_downstream_mask, accumulator step/pulse/threshold, latch toggle_dir,
   // and the mul (8) and priority (9) cores.
   {sel:1, name:'ram', fields:[
@@ -337,6 +337,10 @@ const CORES = [
     {name:'priority_rank_e', lo:12, hi:13, kind:'hex'},
     {name:'priority_rank_w', lo:14, hi:15, kind:'hex'},
     {name:'scheduling_mode', lo:16, hi:17, kind:'hex'},
+  ]},
+  {sel:10, name:'cross', fields:[
+    {name:'downstream_mask', lo:0, hi:3, kind:'dirs'},
+    {name:'upstream_mask', lo:4, hi:7, kind:'dirs'},
   ]},
 ];
 

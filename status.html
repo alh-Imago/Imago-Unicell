@@ -93,7 +93,7 @@
           <div class="log-meta">SIMULATION — IN PROGRESS</div>
           <div class="log-title">Floating point built from ordinary cells</div>
           <p>
-            An fp32 add and multiply are mapped onto cells in 16 stages. The carry and high-word stages, a 5-stage left-normalise with exponent adjust, sticky, round-to-nearest-even, and a 6-stage align are built with no loops and tested in generated RTL. The align uses one multiplier per stage: its high word is the shifted value and its low word is exactly the bits shifted out, which become the sticky bit. Steering the sum and assembling one whole adder are next.
+            An fp32 add and multiply are mapped onto cells in 16 stages. The carry and high-word stages, a 5-stage left-normalise with exponent adjust, sticky, round-to-nearest-even, and a 6-stage align are built with no loops and tested in generated RTL. The align uses one multiplier per stage: its high word is the shifted value and its low word is exactly the bits shifted out, which become the sticky bit. <strong>The whole adder is now assembled from cells</strong>, parametric in the format. fp32, bf16 and fp16 in generated RTL match a reference anchored to the project's float model, for normal numbers and zero. Routing it needed a new <strong>crossing tile</strong> that lets one lane pass straight over another, at one tick per tile like every other core. Special values (sub-normals, overflow, inf, nan) are next.
           </p>
           <span class="badge active">IN PROGRESS</span>
         </div>
