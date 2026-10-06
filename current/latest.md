@@ -2,6 +2,8 @@
 
 ## Read this first (most recent)
 
+**#982 -- fp32 PIPELINE MAPPED ONTO CELLS (`docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md`, 16 stages) and the second-port stages TESTED in real RTL == VM (`tests/vm/test_fp32_stage_map_cells_v1.py`): unpack sign/exp, add carry -> exponent bump, mul high word's top bit -> exponent bump (significands left-aligned in the 32-bit word).** Missing for a full fp32 add/mul on cells: data-dependent shift, leading-zero detect, branch-on-normalise-bit path selection, sticky + round-to-nearest-even select.
+
 **#981 -- THE SECOND WORD CAN GO TO ITS OWN FACES (`second_downstream_mask`, bits 13-16, adder+mul; empty = with the first word) and a per-target CAPABILITY TABLE (`nano/target_capabilities_v1.py`; compilers refuse at compile time when a target is named, ICM stays agnostic).** A consumer that gets only one word can be ANY cell: proven in the real RTL == FlexGrid == arithmetic with a 64-bit add from two 32-bit limbs (carry -> next limb's adder). Std VM touched by one more refusal line. Open: dispatcher cannot place the second-word consumer itself, automatic trigger from the graph, MAN rows for port-on cells. See points #979-#981.
 
 **#980 -- ONE GENERIC ICM FLAG `second_output` (bit 12 on adder and mul; `carry_mode`/`wide_mode` are accepted aliases, rewritten on read; the ICM states the NEED, each target decides how or refuses). The std VM got two NAME reads only (behaviour unchanged). Next: per-target capability table + agnostic second-result routing mask. See points #979/#980.**
