@@ -48,15 +48,16 @@ SECTIONS = [
              "set, and no shared bus &mdash; a physical cell holds a fixed set of real "
              "hardware cores, each wired directly to its North/South/East/West "
              "neighbors. Computation happens as values arrive and propagate across that "
-             "topology, one wire-delay hop at a time. A cell fires only once it has "
-             "received arrivals from two directions (a <strong>two-arrival firing "
-             "model</strong>) &mdash; no global clock coordinates it, wire delay does.<br><br>"
+             "topology, one hop at a time. In the Arria 10 line a two-operand cell fires "
+             "once it has received arrivals from two directions (a <strong>two-arrival "
+             "firing model</strong>); in the current Tang Nano 20K line each cell has a "
+             "dedicated port per role and the wiring is generated from the program file.<br><br>"
              "<strong>What this actually is, stated plainly:</strong> a research project "
              "building real, working pieces of this architecture, on real hardware, with "
              "real measured numbers &mdash; not a general-purpose computer, not "
-             "commercially packaged. If the PCIe host-integration work succeeds, the "
-             "realistic best case is an FPGA accelerator card for specific spatial-"
-             "dataflow workloads, not a CPU replacement.",
+             "commercially packaged. Current work runs on a Sipeed Tang Nano 20K as a "
+             "testbed and proof of concept, with an open toolchain; the earlier Arria 10 "
+             "line found that card's ceiling and closed.",
      "links":[("Continue → Start Here","#sec-start","section")]},
 
     {"id":"start","num":"02","tab":"Start","title":"Start Here",
@@ -68,23 +69,27 @@ SECTIONS = [
      "links":[("Continue → The Cell","#sec-cell","section")]},
 
     {"id":"cell","num":"03","tab":"The Cell","title":"The Cell",
-     "intro":"Two real, related cell designs. The <strong>super carrier shell</strong> "
-             "is the active line of development: a single physical cell holding all 6 "
-             "real cores simultaneously (a NOR-gate logic cell, RAM, an adder, an "
-             "accumulator, a comparator, and a latch), with the active one chosen by a "
-             "runtime configuration write. The standalone <strong>nano cell</strong> is a "
-             "real, independently buildable, smaller design covering just the NOR-gate "
-             "logic core on its own.",
-     "parts":[{"sub":"The super carrier shell (active line)","md":"docs/stripped-cell/SUPER_CELL_INTERNALS.md"},
-              {"sub":"The standalone nano cell","md":"docs/stripped-cell/CELL_INTERNALS.md"}],
+     "intro":"The current line's cells are the <strong>sub</strong> and <strong>flex</strong> "
+             "families built for the Tang Nano 20K: each cell stripped to one function, "
+             "with a dedicated port per role. sub is fixed-latency with no flow control; flex "
+             "is width-parameterised (18 bits on the Tang) with a point-to-point handshake. "
+             "The earlier Arria 10 line's <strong>super carrier shell</strong> holds eight "
+             "cores in one physical cell, chosen by a runtime configuration write, and the "
+             "standalone <strong>nano cell</strong> is that line's NOR-gate logic core on its own.",
+     "parts":[{"sub":"The sub and flex cell families (current line)","md":"sub/README.md"},
+              {"sub":"The super carrier shell (Arria 10 line)","md":"docs/stripped-cell/SUPER_CELL_INTERNALS.md"},
+              {"sub":"The standalone nano cell (Arria 10 line)","md":"docs/stripped-cell/CELL_INTERNALS.md"}],
      "links":[("Continue → ICM v3 & Cores","#sec-icm","section")]},
 
-    {"id":"icm","num":"04","tab":"ICM v3","title":"The ICM v3 Format & Core Reference",
-     "intro":"The program format (a shape of records at row/col grid positions, "
-             "verified two independent ways against real compiled RTL), and a real "
-             "reference for every one of the 6 cores' own ports and behavior.",
+    {"id":"icm","num":"04","tab":"ICM & Cores","title":"The ICM Formats & Core Reference",
+     "intro":"The program formats (records at row/col grid positions, verified against "
+             "compiled RTL), which never name a target: a design states what it needs and "
+             "each target provides it or refuses. Then a reference for every cell "
+             "generation's ports, costs and proof status, and the behaviours that bite.",
      "parts":[{"sub":"The ICM v3 format","md":"docs/stripped-cell/ICM_V3_FORMAT.md"},
-              {"sub":"Cores & wrappers reference","md":"docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md"}],
+              {"sub":"The ICM-VIX format","md":"docs/stripped-cell/ICM_VIX_FORMAT.md"},
+              {"sub":"Cores & wrappers reference","md":"docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md"},
+              {"sub":"Cell gotchas","md":"docs/stripped-cell/CELL_GOTCHAS.md"}],
      "links":[("Continue → The DSL & Compiler","#sec-dsl","section")]},
 
     {"id":"dsl","num":"05","tab":"DSL","title":"The DSL, Compiler & Other Frontends",
@@ -107,11 +112,14 @@ SECTIONS = [
      "links":[("Continue → Hardware","#sec-hw","section")]},
 
     {"id":"hw","num":"07","tab":"Hardware","title":"Hardware",
-     "intro":"From simulator to silicon: real Quartus-confirmed numbers for the super "
-             "carrier shell (213 ALM, 257 registers, 200.76 MHz &mdash; 8.03&times; "
-             "margin over the 25 MHz requirement), the target board, and real bring-up "
-             "findings.",
-     "parts":[{"sub":"Arria 10 programming procedure","md":"hardware/Arria10_Programming_Procedure.md"},
+     "intro":"From simulator to silicon. Current: the Tang Nano 20K, its MAN file, the "
+             "open Gowin toolchain, and the first bitstream confirmed on the board. Earlier: "
+             "the Arria 10 card's programming procedure and bring-up findings.",
+     "parts":[{"sub":"Tang Nano 20K: getting started","md":"docs/man/tang-nano-20k-getting-started.md"},
+              {"sub":"MAN files (card capabilities)","md":"docs/man/README.md"},
+              {"sub":"Toolchain setup (both lines)","md":"docs/shared/TOOLCHAIN_SETUP.md"},
+              {"sub":"Tools: the assembler and measurement tools","md":"tools/README.md"},
+              {"sub":"Arria 10 programming procedure","md":"hardware/Arria10_Programming_Procedure.md"},
               {"sub":"Real bring-up findings","md":"hardware/YPCB_00338_bringup_findings.md"}],
      "links":[("Continue → Roadmap","#sec-roadmap","section")]},
 
@@ -123,9 +131,11 @@ SECTIONS = [
              "entries, one growing project-long log) &mdash; linked below rather than "
              "embedded inline, the same real reason the Session Logs section (next) "
              "links out instead of reprinting.",
-     "parts":[{"sub":"The active plan","md":"current/PLAN.md"},
-              {"sub":"Session catch-up (most recent state)","md":"current/latest.md"}],
-     "links":[("Open points.md — the full decision log","../points.md","run"),
+     "parts":[{"sub":"The active plan","md":"current/PLAN.md"}],
+     # current/latest.md is ~940 KB (one summary per ledger entry); embedding it would more than
+     # double this page, so it is linked like points.md (ledger #989).
+     "links":[("Open current/latest.md — newest state first","../current/latest.md","run"),
+              ("Open points.md — the full decision log","../points.md","run"),
               ("Continue → Sessions","#sec-sessions","section")]},
 
     {"id":"sessions","num":"09","tab":"Sessions","title":"Session Logs",

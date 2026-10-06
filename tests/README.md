@@ -18,7 +18,9 @@ python3 -c "import pytest, llvmlite"
 
 Versions used for the recorded results: iverilog 12.0, yosys 0.33,
 pytest 9.x, llvmlite 0.50. On Debian/Ubuntu: `apt-get update && apt-get
-install -y iverilog yosys`, then `pip install pytest llvmlite`.
+install -y iverilog yosys`, then `pip install pytest llvmlite`. Six `tests/vm`
+tests also need `pip install apycula==0.32 msgpack networkx` (the Tang MAN
+tests and one layout test); without them they skip.
 Place-and-route measurements also need `yowasp-nextpnr-himbaechel-gowin`
 (pip). The apt `nextpnr-gowin` package only covers GW1N, which is the
 wrong family for the Tang Nano 20K (#889).
