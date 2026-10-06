@@ -146,6 +146,9 @@ class VixTileSpec:
     description: str
     ports: List[TilePort] = field(default_factory=list)
     param_names: List[str] = field(default_factory=list)
+    # ledger #976: OPTIONAL core_config flags a compiler may set on a placed tile (default: absent = off), e.g. an adder's `carry_mode`. Unlike `param_names` they are never required, so
+    # no existing caller changes; `place(..., params={"carry_mode": 1})` writes them into the cell's core_config.
+    optional_params: List[str] = field(default_factory=list)
     fixed_core_config: dict = field(default_factory=dict)
     proven: str = "sim-only"  # matches CORES_AND_WRAPPERS_REFERENCE.md's own vocabulary
     arrivals_needed: int = 1
@@ -168,10 +171,13 @@ def place(tile: VixTileSpec, port_directions: Dict[str, str],
     `cells` list (`icm_vix_v1.py`). Reuses `super_tile_library_v1.
     _resolve()` directly for port/param validation and direction-
     grouping -- the same real contract, not a re-derived one."""
+    optional = {k: v for k, v in (params or {}).items() if k in tile.optional_params}
+    params = {k: v for k, v in (params or {}).items() if k not in tile.optional_params} if optional else params
     field_dirs, resolved_params = _resolve_ports(tile, port_directions, params)  # type: ignore[arg-type]
     core_config = dict(tile.fixed_core_config)
     core_config.update(field_dirs)
     core_config.update(resolved_params)
+    core_config.update(optional)
     return HierCell(
         cell_id=cell_id, rel_row=rel_row, rel_col=rel_col, core=tile.core,
         core_config=core_config, addon_config=addon_config or {},
@@ -281,6 +287,7 @@ TILE_ADDER = register(VixTileSpec(
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
     arrivals_needed=2,
+    optional_params=["carry_mode"],  # ledger #976 (FLEX family only): the ONE flag the compiler sets to ask for the carry-out as a second output word, delivered after the sum to the same downstream
 ))
 
 TILE_SUBTRACTOR = register(VixTileSpec(
@@ -291,6 +298,7 @@ TILE_SUBTRACTOR = register(VixTileSpec(
            TilePort("out", "out", "downstream_mask")],
     fixed_core_config={"subtract_mode": 1},
     arrivals_needed=2,
+    optional_params=["carry_mode"],  # ledger #976 (flex only): the raw carry of a + ~b + 1, i.e. NOT-borrow
 ))
 
 TILE_MUL = register(VixTileSpec(

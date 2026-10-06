@@ -1310,6 +1310,7 @@ class SuperGrid:
         return apply_addons(value, addon_config, self.width)
 
     _UNVERIFIED_AT_OTHER_WIDTHS = frozenset({"accumulator", "branch", "priority"})   # cores whose width behaviour has not been checked against hardware (a mirror variant narrows this as it verifies them)
+    _ALLOWS_CARRY_MODE = False   # the adder's carry output (ICM `carry_mode`, ledger #976) exists on the FLEX family only; a mirror variant (FlexGrid) turns it on. Refusing here stops a flex-only design silently running without its carry word.
     _cell_class = SuperCell      # the cell type this grid builds (a variant such as FlexGrid overrides it; ledger #965)
 
     # Class-level defaults: a subclass whose own __init__ does not call this one (VixCarrierGrid) behaves exactly as before, at 32 bits. Found by the full tests/vm run, not by thought.
@@ -1321,6 +1322,10 @@ class SuperGrid:
         w_ = _icm_width.validate_min_bit_width(width)
         self.width = 32 if w_ is None else w_
         self.mask = (1 << self.width) - 1
+        if not self._ALLOWS_CARRY_MODE:
+            for r_ in records:
+                if r_.core == "adder" and (r_.core_config or {}).get("carry_mode"):
+                    raise ValueError(f"cell {r_.cell_id}: adder carry_mode=1 (the carry as a second output word) exists on the flex family only (ledger #976); this grid is not a flex mirror")
         if self.width != 32:
             unverified = sorted({r.core for r in records} & self._UNVERIFIED_AT_OTHER_WIDTHS)
             if unverified:

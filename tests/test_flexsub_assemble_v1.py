@@ -112,7 +112,7 @@ try:
     for given, want in (("adder", "adder"), ("adder_cell", "adder"), ("adder_cell_v4sa", "adder"),
                         ("mul_cell_v4sa_dsp", "mul_dsp"), ("mul_dsp3", "mul_dsp3"), ("shift_stage_v4s", "shift_stage")):
         check(f"normalise {given!r} -> {want!r}", fsa.normalise_cell_name(given) == want, fsa.normalise_cell_name(given))
-    check("flex has 13 cells, sub has 16 (branch_cell_v4s completes the sub set)", len(fsa.cells_for("flex")) == 13 and len(fsa.cells_for("sub")) == 16,
+    check("flex has 14 cells (the merge added at #976), sub has 16 (branch_cell_v4s completes the sub set)", len(fsa.cells_for("flex")) == 14 and len(fsa.cells_for("sub")) == 16,
           f"{len(fsa.cells_for('flex'))}/{len(fsa.cells_for('sub'))}")
 
     print("CLI generation + error paths")
@@ -224,7 +224,7 @@ try:
         # The generated folder's OWN files, bare cell as top with chparam (the ledger's convention), must
         # reproduce the figures recorded in the ledger/README. (A flattened stimulus harness is NOT a valid
         # per-cell cost for live-config cells -- shared-LFSR flops merge across stages -- so none is used here.)
-        recorded = {("flex", "adder"): (29, 19, 24, 0), ("flex", "branch"): (201, 36, 69, 0),   # README / #918; flex adder 23/18/21 -> 29/19/24 at #974 (the carry output port's own pending/enable state, port unused here); flex nano 626 -> 627 LUT4 at #971 (the `armed` gate on capture costs one LUT4)
+        recorded = {("flex", "adder"): (23, 18, 21, 0), ("flex", "branch"): (201, 36, 69, 0),   # README / #918; flex adder: 23/18/21 holds with SECOND_PORT=0 (the default, #976; with the port built it is 29/19/24); flex nano 626 -> 627 LUT4 at #971 (the `armed` gate on capture costs one LUT4)
                     ("flex", "nano"): (627, 0, 48, 0), ("flex", "accumulator"): (242, 72, 63, 0),
                     ("sub", "adder"): (66, 32, 35, 0), ("sub", "nano"): (1117, 0, 76, 0),        # README / #917
                     ("sub", "shift"): (3261, 62, 46, 0), ("sub", "mul_dsp3"): (71, 32, 151, 1)}  # README

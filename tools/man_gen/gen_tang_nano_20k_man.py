@@ -149,11 +149,12 @@ def cell_costs_block():
     d = json.load(open(src))
     return {
         "unit": "[LUT4, ALU, DFF, MULT] as counted by yosys synth_gowin (open flow); the device totals are device.logic.lut4_total / ff_total",
-        "source": "docs/measurements/flex_width_sweep_975/costs.json, produced by tools/flex_width_sweep_v1.py (ledger #975). MEASURED by synthesis only: no place-and-route, no timing, nothing run on the board.",
+        "source": "docs/measurements/flex_width_sweep_975/costs.json, produced by tools/flex_width_sweep_v1.py (ledger #975, #976). MEASURED by synthesis only: no place-and-route, no timing, nothing run on the board.",
         "widths_measured": d["widths"],
         "flow": "single_nowidelut is the card's default flow (synthesis.nowidelut.default); single_widelut is the historical flow, whose numbers are NOT smooth in W (the wide-LUT mapper changes its mind) -- project from nowidelut.",
         "how_to_read": ("single_*: the cell module alone with every configuration port a real input -- the honest per-cell cost of a runtime-configurable cell. array3x3_nowidelut: nine cells inside the generated assembler "
                         "top with the configuration pinned by the harness, so constant-config logic folds away -- it shows what a hard-wired cluster costs, and is NOT a per-cell figure (adder: 9 cells cost less than 2 singles)."),
+        "second_port": "adder / mul / mul_dsp: single_nowidelut_port2 is the cell built WITH its second output port (SECOND_PORT=1, set from the compiler's ICM flag: adder carry_mode, mul wide_mode); single_nowidelut is without it (the default). The multiplier's port needs the full 2W-bit product, so it costs about as much again.",
         "fits": d["fits"],
         "fits_note": "lut4_vs_W_nowidelut is a least-squares polynomial of the single-cell nowidelut LUT4 count against the width (degree 1, mul degree 2); max_abs_residual says how well it holds over the measured widths. The sequencer is not a function of W (it saturates at 8 bits) and is refused below 8 bits on FlexGrid.",
         "cells": d["cells"],

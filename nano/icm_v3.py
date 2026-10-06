@@ -231,6 +231,8 @@ _ADDER_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
     "subtract_mode": (8, 8),
+    # points.md #976 (flex family only): also deliver the carry-out as a second word, same convention as mul's wide_mode (bit 12)
+    "carry_mode": (12, 12),
 }
 
 # Accumulator: accumulator_cell_v1.v lines 87-98 (extended #515/#519 --

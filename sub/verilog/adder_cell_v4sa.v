@@ -59,6 +59,8 @@
 
 module adder_cell_v4sa #(
     parameter [15:0] CELL_ID = 16'h0000,
+    parameter        SECOND_PORT = 0,   // 1 = build the carry_out port's logic (ledger #976: the compiler's ICM flag tells the assembler which cells need it);
+                                          // 0 = the ports exist (fixed placement) but are silent and cost nothing
     parameter        WIDTH   = 32   // points.md #909: the real "flex" width parameter --
                                      // Alan's own direction. Defaults to 32 so every
                                      // existing #906/#908 measurement stays exactly valid
@@ -140,7 +142,7 @@ module adder_cell_v4sa #(
             // Config load takes effect even while frozen -- loading safely
             // during a freeze is the whole point of freeze existing.
             subtract_mode <= cfg_data[0];
-            carry_enable  <= cfg_data[1];
+            carry_enable  <= (SECOND_PORT != 0) && cfg_data[1];
             armed         <= 1'b1;
             pending       <= 1'b0;   // discard any in-flight result on reconfigure
             pending_c     <= 1'b0;
@@ -158,7 +160,7 @@ module adder_cell_v4sa #(
             end else if (valid_in) begin
                 out_buffer   <= adder_sum;
                 pending      <= 1'b1;
-                carry_buffer <= adder_cout;
+                carry_buffer <= (SECOND_PORT != 0) && adder_cout;
                 pending_c    <= carry_enable;
             end
         end

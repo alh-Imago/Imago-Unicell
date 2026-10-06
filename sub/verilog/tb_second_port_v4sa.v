@@ -11,17 +11,22 @@ module tb_second_port_v4sa;
     wire ao, vo, vc; wire [W-1:0] so, co;
     wire mo, mv, mh; wire [W-1:0] ml, mhw;
     wire mack;
-    adder_cell_v4sa #(.WIDTH(W)) ADD (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(cfg_data),
+    adder_cell_v4sa #(.WIDTH(W), .SECOND_PORT(1)) ADD (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(cfg_data),
         .in_a(a), .in_b(b), .valid_in(vin), .ack_out(ao), .data_out(so), .valid_out(vo), .ack_in(ack_s),
         .carry_out(co), .valid_out_c(vc), .ack_in_c(ack_c));
 `ifdef DSP
-    mul_cell_v4sa_dsp #(.WIDTH(W)) MUL
+    mul_cell_v4sa_dsp #(.WIDTH(W), .SECOND_PORT(1)) MUL
 `else
-    mul_cell_v4sa #(.WIDTH(W)) MUL
+    mul_cell_v4sa #(.WIDTH(W), .SECOND_PORT(1)) MUL
 `endif
      (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(cfg_data),
         .in_a(a), .in_b(b), .valid_in(vin), .ack_out(mack), .data_out(ml), .valid_out(mv), .ack_in(ack_m),
         .data_out_hi(mhw), .valid_out_hi(mh), .ack_in_hi(ack_h));
+    // a SECOND_PORT=0 adder ignores the enable bit: the port stays silent
+    wire [W-1:0] s0o, c0o; wire a0o, v0o, vc0o;
+    adder_cell_v4sa #(.WIDTH(W), .SECOND_PORT(0)) ADD_OFF (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(cfg_data),
+        .in_a(a), .in_b(b), .valid_in(vin), .ack_out(a0o), .data_out(s0o), .valid_out(v0o), .ack_in(1'b1),
+        .carry_out(c0o), .valid_out_c(vc0o), .ack_in_c(1'b1));
     integer errors = 0;
     task chk(input c, input [255:0] l); begin if (!c) begin $display("FAIL: %0s", l); errors = errors + 1; end else $display("PASS: %0s", l); end endtask
     task cfg(input [31:0] w); begin cfg_data = w; cfg_valid = 1; @(posedge clk); #1; cfg_valid = 0; end endtask
@@ -55,6 +60,7 @@ module tb_second_port_v4sa;
         a = 8'd3; b = 8'd5; vin = 1; @(posedge clk); #1; vin = 0;
         chk(so === 8'hFE && co === 8'd0, "3-5=-2, borrow -> carry 0");
         ack_s = 1; ack_c = 1; @(posedge clk); #1; ack_s = 0; ack_c = 0;
+        chk(vc0o === 0, "SECOND_PORT=0 adder: carry port silent even with the enable bit set");
         // ---- multiplier hi
         cfg(32'h1); #1;
         a = 8'd200; b = 8'd100; vin = 1; @(posedge clk); #1; vin = 0;   // 20000 = 0x4E20

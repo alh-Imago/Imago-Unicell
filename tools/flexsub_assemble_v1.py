@@ -80,6 +80,10 @@ SHAPES = {
                     opt_stim_data=["cfg_threshold"]),      # flex only: the threshold's own W-bit port (#971)
     "mask": dict(file=("mask_cell", ""), in_data="data_in", in_valid="valid_in",
                  out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in", cfg="live"),
+    "merge": dict(file=("merge_cell", ""), families=("flex",), in_data="in_a", in_valid="valid_in_a",
+                  out=("data_out", "valid_out"), ack_out="ack_out_a", ack_in="ack_in",
+                  stim_data=["in_b"], consts={"valid_in_b": "1'b1"},      # B always offers; its ready (ack_out_b) is left open
+                  cfg="live", cfg_or=0x2, cfg_clr=0x1),                   # mode 2 = ARBITRATE (neither source starves); the bits above 1 are unused
     "ram": dict(file=("ram_cell", ""), in_data="data_in", in_valid="valid_in",
                 out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
                 consts={"cfg_fixed_mode": "1'b0"}, cfg="live"),     # flowing mode (the chainable one)

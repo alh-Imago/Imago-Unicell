@@ -128,6 +128,46 @@ def _flex_deliver_ram(cell, arrivals, injected):
     return ({win}, None)
 
 
+def _flex_deliver_adder(self, arrivals, injected):
+    """The adder: exactly the std behaviour, plus -- when carry_mode is on (ledger #976) -- the carry-out of the W-bit add is latched with the sum. For subtract it is the raw carry of a + ~b + 1 (NOT-borrow), as in adder_cell_v4sa."""
+    matched = {d: v for d, v in arrivals.items() if (self.adder_upstream_mask >> _DIR_BIT[d]) & 1}
+    if not matched and injected is None:
+        return (True, None)
+    val = 0
+    for v in matched.values():
+        val |= v & self.mask
+    if injected is not None:
+        val |= injected & self.mask
+    if not self.adder_a_arrived:
+        self.adder_a_reg = val
+        self.adder_a_arrived = True
+        return (True, None)
+    if self.adder_data_valid:
+        return (False, None)
+    if self.adder_subtract_mode:
+        self.adder_out_buffer = (self.adder_a_reg - val) & self.mask
+        raw = self.adder_a_reg + ((~val) & self.mask) + 1
+    else:
+        self.adder_out_buffer = (self.adder_a_reg + val) & self.mask
+        raw = self.adder_a_reg + val
+    self.adder_captured_carry = (raw >> self.width) & 1
+    self.adder_delivering_carry = False
+    self.adder_data_valid = True
+    self.adder_a_arrived = False
+    return (True, None)
+
+
+def _flex_clear_valid_adder(self):
+    """carry_mode: the sum's drain does NOT finish the round -- the buffer is reloaded with the carry word (0 or 1) and offered to the same downstream; only the carry's own drain clears it (same shape as the multiplier's wide_mode)."""
+    if getattr(self, "adder_carry_mode", False) and not getattr(self, "adder_delivering_carry", False):
+        self.adder_out_buffer = self.adder_captured_carry
+        self.adder_delivering_carry = True
+        return
+    self.adder_data_valid = False
+    self.adder_delivering_carry = False
+
+
+register_flex_handler("adder", CoreHandler(deliver=_flex_deliver_adder, offer_state=SuperCell._offer_state_adder, continuously_live=False, clear_valid=_flex_clear_valid_adder))
 register_flex_handler("ram", CoreHandler(deliver=_flex_deliver_ram, offer_state=SuperCell._offer_state_ram, continuously_live=False, clear_valid=SuperCell._clear_valid_ram))
 
 
@@ -135,11 +175,15 @@ class FlexGrid(SuperGrid):
     """A SuperGrid of FlexCells. `family` names the mirror; width is the grid's (default 32)."""
     _cell_class = FlexCell
     family = "flex"
+    _ALLOWS_CARRY_MODE = True
     _UNVERIFIED_AT_OTHER_WIDTHS = frozenset({"priority"})      # accumulator and branch are checked against the real v4sa cells at W = 16..36 / 4..36 (#970); the priority arbiter is not translated by the flex generator
 
     def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
         super().__init__(records, width=width, **kw)
         self._setup_merges(records, merge_mode)
+        for r in records:                                   # ledger #976: the adder's carry flag (ICM carry_mode); the cell attribute is read by the flex adder handler
+            if r.core == "adder":
+                self.cells[(r.row, r.col)].adder_carry_mode = bool((r.core_config or {}).get("carry_mode", 0))
         if width != 32:
             for pos, c in self.cells.items():
                 if (c.addon_config or {}).get("lane_cut") and (c.addon_config or {}).get("shift_en") and (c.addon_config or {}).get("direction"):

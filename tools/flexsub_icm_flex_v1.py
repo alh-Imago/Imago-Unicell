@@ -113,14 +113,32 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
     branch_plans, branch_port = p["branch_plans"], p["branch_port"]
     order, exits_l, addons = p["order"], list(p["exits"]), p["addons"]
     merge_cells, merge_node_mode = {}, {}
-    if p["merges"]:
+    second = set(p.get("second_ports", ()))                          # ledger #976: cells with a second output port (adder carry, mul high word)
+    merges_all = dict(p["merges"])
+    if second:
+        # A second-port cell offers its second word to the SAME consumers as the first (the VM's wide_mode behaviour). Each consumer therefore sees two sources, the cell's port 1 and a
+        # virtual source "<cell>#2" (port 2), and gets a merge core in front: ARBITRATE with port 1 as A, so a round is delivered first word, then second word.
+        inputs = {k: {r_: list(v_) for r_, v_ in v.items()} for k, v in inputs.items()}
+        for s_ in sorted(second):
+            for dst_, roles_ in inputs.items():
+                for role_, lst_ in roles_.items():
+                    for k_, (q_, f_) in enumerate(list(lst_)):
+                        if q_ == s_:
+                            lst_.insert(k_ + 1, (s_ + "#2", f_))
+                            break
+            for dst_ in inputs:
+                if any(q_ == s_ + "#2" for lst_ in inputs[dst_].values() for q_, _ in lst_):
+                    merges_all[dst_] = [q_ for lst_ in inputs[dst_].values() for q_, _ in lst_]
+                    if modes.get(dst_, modes["*"]) != "arbitrate":
+                        raise g.IcmGenError(f"{dst_}: --merge-mode {modes.get(dst_, modes['*'])!r} on a consumer of {s_}, which delivers two words in turn: only 'arbitrate' keeps them as separate items (join-or would fuse them)")
+    if merges_all:
         # Each ICM merge (several sources into one input) becomes a real merge CORE in front of its consumer: a graph rewrite, so the fork / edge / ack machinery below
         # treats it as just another cell.
         cells, inputs, roles, order, branch_port = dict(cells), {k: dict(v) for k, v in inputs.items()}, dict(roles), list(order), dict(branch_port)
-        unknown = sorted(k for k in modes if k != "*" and k not in p["merges"])
+        unknown = sorted(k for k in modes if k != "*" and k not in merges_all)
         if unknown:
-            raise g.IcmGenError(f"--merge-mode names {unknown} which are not merge consumers in this design (merges: {sorted(p['merges'])})")
-        for dst, srcs in p["merges"].items():
+            raise g.IcmGenError(f"--merge-mode names {unknown} which are not merge consumers in this design (merges: {sorted(merges_all)})")
+        for dst, srcs in merges_all.items():
             mode = modes.get(dst, modes["*"])
             flat = [(q, f) for lst in inputs[dst].values() for q, f in lst]
             # >2 sources: a balanced TREE of two-input cores (Alan: "a tree of merges"). Arbitrate: each level round-robin, so no source starves (a lone third source gets half the
@@ -138,6 +156,10 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
                 for q in (qa, qb):
                     if q in branch_plans:
                         branch_port[(mid, q)] = branch_port[(dst, q)]
+                    if q in second:
+                        branch_port[(mid, q)] = 1                     # the cell's port 1 (its normal output)
+                    elif q.endswith("#2") and q[:-2] in second:
+                        branch_port[(mid, q)] = 2
                 merge_cells[mid] = [qa, qb]
                 merge_node_mode[mid] = mode
                 queue.append((mid, fa))
@@ -172,8 +194,17 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
     # ---- edges: one per (source -> consumer slot) ----
     levels = {c for c in cells if g.is_level(cells[c])}             # always-valid sources: a continuous accumulator, any latch
     edges, cons, by_dst, edge_role = [], {c: [] for c in order}, {c: [] for c in order}, {}
-    for c in branch_plans:                                           # a branch's two output ports are two separate sources
+    for c in list(branch_plans) + sorted(second):                    # a branch's (or a second-port cell's) two output ports are two separate sources
         cons[(c, 1)], cons[(c, 2)] = [], []
+
+    def src_key(dst, src):
+        if src in branch_plans:
+            return (src, branch_port[(dst, src)])
+        if src in second:
+            return (src, 1)
+        if src.endswith("#2") and src[:-2] in second:
+            return (src[:-2], 2)
+        return src
     for dst in order:
         r = cells[dst]
         rl = []
@@ -189,15 +220,17 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             if rl:
                 edge_role[e] = rl[slot]
             edges.append((e, src, dst, slot))
-            cons[(src, branch_port[(dst, src)]) if src in branch_plans else src].append(e)
+            cons[src_key(dst, src)].append(e)
             by_dst[dst].append(e)
     for c in order:
         i = ident(c)
         a(f"wire [31:0] {i}_d; wire {i}_v; wire {i}_rdy; wire {i}_ai; wire {i}_vin;")
         if c in addons:
             a(f"wire [31:0] {i}_rd;")
-        if c in branch_plans:
+        if c in branch_plans or c in second:
             a(f"wire {i}_p1_v, {i}_p1_ai, {i}_p2_v, {i}_p2_ai; wire [31:0] {i}_d2u;")
+        if c in second:
+            a(f"wire [31:0] {ident(c + '#2')}_d = {i}_d2u;          // the second word, as the virtual source {c}#2 the consumer's merge core reads")
         if c in merge_cells:
             a(f"wire {i}_rdya, {i}_rdyb;")
     for e, *_ in edges:
@@ -211,6 +244,8 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
         if c in branch_plans:
             if c in exits:
                 raise g.IcmGenError(f"{c}: a branch as a design OUTPUT is not translated on flex (stage 6)")
+            sources += [((c, 1), f"{ident(c)}_p1"), ((c, 2), f"{ident(c)}_p2")]
+        elif c in second:
             sources += [((c, 1), f"{ident(c)}_p1"), ((c, 2), f"{ident(c)}_p2")]
         else:
             sources.append((c, ident(c)))
@@ -393,10 +428,18 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
         elif r.core == "nano":
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{int(cfg.get('topology', 0)):X}), .hold_in_data({i}_inh), .load_hold({i}_ldA), "
               f".flow_in_data({i}_inf), .valid_in({i}_vin));")
+        elif c in second:
+            # ledger #976: the cell is built WITH its second port (SECOND_PORT=1) and the enable bit is set: adder cfg_data[1] / mul cfg_data[0]. Port 1 and port 2 each have their own valid/ack.
+            if r.core == "adder":
+                word, p2 = (1 if cfg.get("subtract_mode", 0) else 0) | 2, ".carry_out({i}_d2u), .valid_out_c({i}_p2_v), .ack_in_c({i}_p2_ai)"
+            else:
+                word, p2 = 1, ".data_out_hi({i}_d2u), .valid_out_hi({i}_p2_v), .ack_in_hi({i}_p2_ai)"
+            c2 = common.replace(f".valid_out({i}_v)", f".valid_out({i}_p1_v)").replace(f".ack_in({i}_ai)", f".ack_in({i}_p1_ai)")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}), .SECOND_PORT(1)) {i} ({c2}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {p2.format(i=i)});   // second output port ON")
         else:
             word = 1 if (r.core == "adder" and cfg.get("subtract_mode", 0)) else 0
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), "
-              f"{'.ack_in_c(1' + chr(39) + 'b1)' if r.core == 'adder' else '.ack_in_hi(1' + chr(39) + 'b1)'});")   # #974: the second output port is not used by the ICM path yet -- tied high so it can never stall the cell
+              f"{'.ack_in_c(1' + chr(39) + 'b1)' if r.core == 'adder' else '.ack_in_hi(1' + chr(39) + 'b1)'});")   # #974: the second output port is not enabled here -- tied high so it can never stall the cell
         if c in addons:
             a(f"assign {i}_d = {g.addon_expr(addons[c], dout)};   // addon chain as pure wiring: data only; valid and the handshake are untouched")
     a("endmodule")
@@ -426,7 +469,7 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowi
     open(os.path.join(output, f"{top}.ys"), "w").write(
         f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top}{' -nowidelut' if nowidelut else ''} -json {top}.json\nstat\n")
     rec = {"generator": "tools/flexsub_icm_flex_v1.py", "family": "flex", "source": os.path.basename(icm_path), "top": top,
-           "cells": len(p["cells"]), "forks": forks, "joins": joins, "merge_mode": (parse_merge_modes(merge_mode) if p["merges"] else None), "merge_cores": sum(1 for j in joins if j.get("kind", "").startswith("merge core")), "merges": {m: srcs for m, srcs in p["merges"].items()}, "branches": {c: {k: v for k, v in bp.items() if not k.startswith("_")} for c, bp in p["branch_plans"].items()},
+           "cells": len(p["cells"]), "forks": forks, "joins": joins, "merge_mode": (parse_merge_modes(merge_mode) if p["merges"] else None), "merge_cores": sum(1 for j in joins if j.get("kind", "").startswith("merge core")), "merges": {m: srcs for m, srcs in p["merges"].items()}, "second_port_cells": sorted(p.get("second_ports", ())), "branches": {c: {k: v for k, v in bp.items() if not k.startswith("_")} for c, bp in p["branch_plans"].items()},
            "constants": sorted(c for c in p["const"] if not p["inputs"].get(c) and c not in levels), "level_sources": sorted(levels), "const_derived": sorted(c for c in p["const"] if p["inputs"].get(c)), "exit_rule": p["exit_rule"], "pruned_dead_cells": p["pruned"],
            "exits": list(p["exits"]), "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"],
            "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},

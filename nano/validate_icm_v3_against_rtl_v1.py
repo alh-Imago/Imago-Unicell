@@ -27,6 +27,9 @@ def _normalize_name(name: str) -> str:
     return name.split("[")[0]
 
 
+_FLEX_ONLY_FIELDS = {"adder": ("carry_mode",)}
+
+
 def validate(repo_root: str) -> int:
     extracted = extract_all(repo_root)
     mismatches = 0
@@ -41,7 +44,9 @@ def validate(repo_root: str) -> int:
     for name, sel in core_map.items():
         rtl_fields = {_normalize_name(f.name): (f.lo, f.hi) for f in extracted[name].fields
                       if _normalize_name(f.name) != "reserved"}
-        py_fields = v3.CORE_FIELD_TABLES[sel]
+        # REAL, DOCUMENTED EXCEPTION (#976): fields that exist for the FLEX family only. This comparison reads the STANDARD family's RTL field-map
+        # comments (adder_cell_v1.v), which has no carry output, so the flex-only field is named here, not silently ignored.
+        py_fields = {k: v for k, v in v3.CORE_FIELD_TABLES[sel].items() if k not in _FLEX_ONLY_FIELDS.get(name, ())}
         mismatches += _diff(f"core={name}", rtl_fields, py_fields)
 
     # ── nano: compare against the "nano_within_super" extraction

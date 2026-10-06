@@ -24,6 +24,7 @@
 
 module mul_cell_v4sa_dsp #(
     parameter [15:0] CELL_ID = 16'h0000,
+    parameter        SECOND_PORT = 0,   // 1 = build the data_out_hi port's logic (#976); 0 = port exists but is silent and costs nothing
     parameter        WIDTH   = 32   // real ceiling for this variant: WIDTH <= 36
 ) (
     input  wire        clk,
@@ -87,7 +88,7 @@ module mul_cell_v4sa_dsp #(
             out_buffer  <= {WIDTH{1'b0}};
         end else if (cfg_valid) begin
             armed       <= 1'b1;
-            hi_enable   <= cfg_data[0];
+            hi_enable   <= (SECOND_PORT != 0) && cfg_data[0];
             pending     <= 1'b0;
             pending_hi  <= 1'b0;
         end else if (!freeze_in) begin
@@ -95,7 +96,7 @@ module mul_cell_v4sa_dsp #(
                 if (pending    && ack_in)    pending    <= 1'b0;
                 if (pending_hi && ack_in_hi) pending_hi <= 1'b0;
             end else if (valid_in) begin
-                hi_buffer  <= dsp_product[2*WIDTH-1:WIDTH];
+                hi_buffer  <= (SECOND_PORT != 0) ? dsp_product[2*WIDTH-1:WIDTH] : {WIDTH{1'b0}};
                 pending_hi <= hi_enable;
                 out_buffer <= dsp_product[WIDTH-1:0];
                 pending    <= 1'b1;

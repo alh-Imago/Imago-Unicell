@@ -23,7 +23,7 @@ def snapshot(grid):
     """Everything observable: every attribute of every cell (and of a delegated nano), the pending queue, the tick counter."""
     out = {"tick": grid.tick_count, "pending": repr(sorted(grid._pending.items(), key=repr))}
     for pos, c in sorted(grid.cells.items()):
-        d = {k: v for k, v in vars(c).items() if k not in ("_nano", "merge_mode", "_merge_order", "_merge_rr")}   # the flex-only merge bookkeeping is not behaviour while the flex table is empty
+        d = {k: v for k, v in vars(c).items() if k not in ("_nano", "merge_mode", "_merge_order", "_merge_rr", "adder_carry_mode", "adder_captured_carry", "adder_delivering_carry")}   # the flex-only merge and adder-carry bookkeeping is not behaviour while the flex table is empty
         if getattr(c, "_nano", None) is not None:
             d["_nano"] = {k: v for k, v in vars(c._nano).items()}
         out[pos] = repr(sorted(d.items(), key=lambda kv: kv[0]))

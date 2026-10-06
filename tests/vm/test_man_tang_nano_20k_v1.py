@@ -238,10 +238,15 @@ def test_cell_costs_are_in_the_man_and_consistent():
         for flow in ("single_nowidelut", "single_widelut", "array3x3_nowidelut"):
             assert set(v[flow]) == {str(w) for w in cc["widths_measured"]}, (cell, flow)
             assert all(len(x) == 4 for x in v[flow].values())
-    # the recorded figures the project already relied on still hold: flex adder 29/19/24 at W18 (wide-LUT flow), nano 627, accumulator 242/72/63
-    assert cc["cells"]["adder"]["single_widelut"]["18"] == [29, 19, 24, 0]
+    # the recorded figures the project already relied on still hold: flex adder 23/18/21 at W18 (wide-LUT flow, second port NOT built -- the #976 default), nano 627, accumulator 242/72/63
+    assert cc["cells"]["adder"]["single_widelut"]["18"] == [23, 18, 21, 0]
+    assert "merge" in cc["cells"]
+    # the second output port is a build option with its own recorded cost (adder +4 LUT4 / +3 DFF; the multiplier needs the whole product so it roughly doubles)
+    for c in ("adder", "mul", "mul_dsp"):
+        assert set(cc["cells"][c]["single_nowidelut_port2"]) == set(cc["cells"][c]["single_nowidelut"])
+    assert cc["cells"]["adder"]["single_nowidelut_port2"]["18"][0] == cc["cells"]["adder"]["single_nowidelut"]["18"][0] + 4
     assert cc["cells"]["nano"]["single_widelut"]["18"][0] == 627
     assert cc["cells"]["accumulator"]["single_widelut"]["18"] == [242, 72, 63, 0]
     # and the clean fits
-    assert cc["fits"]["adder"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [1.0, 9.0]
+    assert cc["fits"]["adder"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [1.0, 5.0]
     assert cc["fits"]["nano"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [7.0, 33.0]

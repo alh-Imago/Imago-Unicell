@@ -14,7 +14,7 @@ module tb_carry_chain_v4sa;
     wire a1_unused_c_v; wire [W-1:0] a1_unused_c;
     wire a2_unused_c_v; wire [W-1:0] a2_unused_c;
     wire join2 = a1_v & a0_cv;                       // ADD2 takes (ADD1 sum, ADD0 carry) together
-    adder_cell_v4sa #(.WIDTH(W)) ADD0 (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cv), .cfg_data(cd),
+    adder_cell_v4sa #(.WIDTH(W), .SECOND_PORT(1)) ADD0 (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cv), .cfg_data(cd),
         .in_a(alo), .in_b(blo), .valid_in(vin), .ack_out(a0_ack), .data_out(a0_s), .valid_out(a0_v), .ack_in(1'b1),
         .carry_out(a0_c), .valid_out_c(a0_cv), .ack_in_c(a2_ack & a1_v));
     adder_cell_v4sa #(.WIDTH(W)) ADD1 (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cv), .cfg_data(32'h0),
