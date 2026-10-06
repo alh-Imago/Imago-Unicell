@@ -677,3 +677,15 @@ Routing the adder hit TOPOLOGICAL walls (a closed room cannot send lanes out exc
 **Open:** REGISTERED variant (one slice per axis, latency 1) for long pure-wire chains and FPGA timing; native RTL cores per family (nano/sub/flex width); router/MAN cost rows for the tile.
 
 **#999 addendum (Alan, 6 Oct 2026): core-select 10 for `cross` is CONFIRMED ("fits, it looks like an X on an angle").** No longer provisional; the native per-family RTL cores are still open. Also removed the unused `w_low` parameter from `align_sticky`.
+
+
+### #1000 -- DOCS SWEEP FOR #990 (THE WHOLE fp ADDER) AND #999 (THE CROSSING TILE) (Alan: "the other has used those numbers, so please another sweep, before we get down to some real work")
+**Ledger numbering checked:** no duplicates. The other session used #990 and #999 as agreed. #990 physically follows #991-#998 in `points_active.md` (claimed by a WIP commit, written after the documentation branch merged); recorded as a sixth anomaly in `points/INDEX.md`, not moved.
+**Docs brought up to #999:**
+- `README.md` fp section; `sub/README.md` (a new #989/#990/#999 section); `PLAN.md`'s open-work block.
+- `ICM_V3_FORMAT.md`: core_select 10 `cross` with its fields and status.
+- `CORES_AND_WRAPPERS_REFERENCE.md` and `CELL_CHEATSHEET.md`: a `cross` row.
+- The fp32 stage-map design note. `fp_adder_and_crossing_tile.md`: "select 10, provisional" updated to confirmed, per the #999 addendum.
+- `tools/README.md` (`fp_add_v1`, `route_nets` crossings, `splice_crosses`) and `tests/vm/README.md` (the new tests).
+- `POINTS_STATUS_AUDIT_3.md`, now #593-#999: the quick reference marks the adder built for normals and zero, and lists its special values and the crossing tile's registered variant / native cores / cost rows as open.
+**Static pages:** the SUPER_LATCH explainer's generated tables now include `cross` (core 10): 330/330 random configurations (11 cores x 30) == `icm_v3.encode_super_latch()`, in both the repo copy and the site copy; `test_cell_pipeline_explainer_v1` 4/4. The site's home and status pages note the whole adder and the crossing tile; published to `gh-pages`. The manual was rebuilt.

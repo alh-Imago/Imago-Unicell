@@ -52,7 +52,7 @@ shift added at #683/#684:
 `addon_config` key, so callers see a single add-on dict
 (`encode_super_latch()` / `decode_super_latch()`).
 
-`core_select` values 0-9 are assigned. Values 10-31 are future headroom
+`core_select` values 0-10 are assigned. Values 11-31 are future headroom
 (#317). The RTL's output mux treats an unassigned value as inert (all
 outputs zero, not X), and `icm_v3.decode_super_latch()` mirrors that by
 returning `{"core": "reserved_N", "core_config": {"_raw": ...}}` rather
@@ -70,6 +70,7 @@ than raising.
 | 7 | `branch` | v3 (#542) |
 | 8 | `mul` | VM core since #757; table added #823 |
 | 9 | `priority` | VM core since #751; table added #823 |
+| 10 | `cross` | the crossing tile (#999; number confirmed by Alan): pure wiring, no RTL core yet (the netlist extractor splices it into a direct wire); flex VM only |
 
 A saved file's `cell_type` is derived, not declared: the minimum shell
 that can run every core in it (`minimum_shell_version()`, so
@@ -212,6 +213,19 @@ Mode 2 exists only in the VM. No RTL implements it, and a saved file
 does not record its turn order (#926/#927). The sub/flex compile path
 (`tools/flexsub_compile_v1.py`) rewrites it to strict mode 0 with
 explicit ranks (#929/#930).
+
+**cross** (10). Pure wiring: west↔east and north↔south pass straight
+through, the word keeps its direction, with zero latency and no state or
+ack (#999). It has no RTL core in any family yet; the Flex-Sub netlist
+extractor (`splice_crosses`) replaces it with a direct wire. `FlexGrid`
+steps through it; the std VM does not model it. Open: a registered
+variant (latency 1, for long chains and FPGA timing), native per-family
+cores, and cost rows.
+
+| Field | Bits |
+|---|---|
+| `downstream_mask` | `[3:0]` |
+| `upstream_mask` | `[7:4]` |
 
 ## `addon_config[19:0]` (plus `shift_fine`)
 

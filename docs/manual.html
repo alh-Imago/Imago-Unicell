@@ -350,10 +350,15 @@ exponent adjust, sticky, round-to-nearest-even (#982-#984), and
 alignment: a variable right shift that also collects the sticky bits,
 built from one multiplier per stage using both of its output words
 (#987/#988). An open fp assembler (<code>tools/fp_assembler_v1.py</code>, #989)
-now generates the normalise, align and round blocks for any format (fp32,
-fp16, bfloat16), with operand timing balanced automatically. Still open:
-the remaining blocks (unpack, swap, add/sub, pack, special values) and
-assembling one whole fp adder to compare with <code>fp32_add_v1</code>.</p>
+generates those blocks for any format (fp32, fp16, bfloat16), with
+operand timing balanced automatically. <strong>The whole fp adder is now
+built from flex cells</strong> (<code>tools/fp_add_v1.py</code>, #990). In generated RTL
+it matches a reference anchored to <code>fp32_add_v1</code> on 3,000 pairs, for
+normal numbers and zero. To route it, a new <strong>crossing tile</strong> (<code>cross</code>,
+ICM core 10, #999) lets one lane pass straight over another: pure
+wiring, with no state or latency. Still open: sub-normals, overflow, inf
+and nan; formats wider than 32 bits; and a placer (layouts are hand
+templates today).</p>
 <h2>On the physical board</h2>
 <p><a href="../docs/man/tang-nano-20k-getting-started.md"><code>docs/man/tang-nano-20k-getting-started.md</code></a>
 covers the first flashable deliverable, a <code>sequencer</code> core counting on
@@ -818,7 +823,7 @@ mechanics), with reasons recorded rather than silently skipped.</p>
 <h2>Keeping this current — real, standing self-audits, not assumed clean</h2>
 <ul>
 <li><strong><code>shared/POINTS_STATUS_AUDIT.md</code></strong> / <strong><code>_2.md</code></strong> / <strong><code>_3.md</code></strong>
-  (#1-#330 / #331-#592 / #593-#997; part 3's quick reference is the
+  (#1-#330 / #331-#592 / #593-#999; part 3's quick reference is the
   current open list) — a curated map on top of <code>points/</code>'s own chronological
   ledger: what's done, what's genuinely still pending, what's an open
   thought-direction with no build started.</li>
@@ -1859,6 +1864,23 @@ express amounts above 31 (open).</p>
 adjust, sticky, round-to-nearest-even, and a 6-stage align with sticky (one multiplier per stage: high word = shifted value, low word = the bits shifted out, <code>#988</code>) are built from flex cells with no loops. They are tested in generated RTL (plain and with random stalls),
 equal to FlexGrid and the Python model. Design note: <code>docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md</code>. The comparator is <strong>signed</strong>,
 so a bit isolated at bit 31 reads as negative (<code>#984</code>).</p>
+<h2>The whole fp adder from flex cells, and the crossing tile (<code>#989</code>/<code>#990</code>/<code>#999</code>)</h2>
+<p><strong>The open fp assembler (<code>#989</code>).</strong> <code>tools/fp_assembler_v1.py</code> has <code>FpFormat</code> (FP32, FP16, BF16 or custom) and parametric normalise,
+align-with-sticky and round blocks. <code>tools/flex_layout_v1.py</code> places cells and links on a grid, routes them, and <code>balance()</code> removes the
+operand-arrival ties the generator refuses. In the flex VM, same-tick operands are no longer ORed: one is taken, and a subtract raises
+an error.</p>
+<p><strong>The whole adder (<code>#990</code>).</strong> <code>tools/fp_add_v1.py: fp_add(g, fmt)</code> builds the full chain from flex cells:
+- unpack and the exponent difference / swap decision, using a packed sign+exponent word;
+- two align-with-sticky blocks, then the significand add/sub and <code>|S|</code>;
+- normalise, round-to-nearest-even, the rounding-overflow bump, zero detection, sign and pack.</p>
+<p>fp32 in generated RTL (plain and random stalls) == FlexGrid == a reference anchored to <code>fp32_add_v1</code> on 3,000 pairs, with 0
+mismatches; bf16 and fp16 match too. <strong>Scope:</strong> normal numbers and zero. Not yet: sub-normals, exponent overflow/underflow, inf,
+nan, or formats wider than 32 bits. The placement is a hand template; routing and timing balance are automatic.</p>
+<p><strong>The crossing tile (<code>#999</code>).</strong> Routing the adder hit topological walls: closed "rooms" that no lane can leave except through a data
+cell. Alan's answer is a tile that passes west↔east and north↔south straight through, with no ack, no state and no latency. In FPGA it
+costs routing only. It is ICM core <code>cross</code>, core_select 10 (confirmed by Alan). The netlist extractor turns it into a direct wire,
+FlexGrid steps through it, and the layout engine lets a route cross another at right angles. <strong>Open:</strong> a registered variant (latency
+1, for long chains and FPGA timing), native cores per family, and cost rows for the router and MAN.</p>
 <h2>Status</h2>
 <p>Thirteen cell functions are proven, simulated and measured: adder, compare, accumulator, latch, sequencer, ram, router, mask, mul,
 shift/shift_stage, <strong>nano</strong> (<code>#917</code>), <strong>branch</strong> (<code>#918</code>) and, flex only, <strong>merge</strong> (<code>#955</code>). Each has a testbench. Both families are driven end to end
@@ -2836,7 +2858,7 @@ shift added at #683/#684:</p>
 <p><code>shift_fine</code> is packed and unpacked as if it were one more
 <code>addon_config</code> key, so callers see a single add-on dict
 (<code>encode_super_latch()</code> / <code>decode_super_latch()</code>).</p>
-<p><code>core_select</code> values 0-9 are assigned. Values 10-31 are future headroom
+<p><code>core_select</code> values 0-10 are assigned. Values 11-31 are future headroom
 (#317). The RTL's output mux treats an unassigned value as inert (all
 outputs zero, not X), and <code>icm_v3.decode_super_latch()</code> mirrors that by
 returning <code>{"core": "reserved_N", "core_config": {"_raw": ...}}</code> rather
@@ -2899,6 +2921,11 @@ than raising.</p>
 <td>9</td>
 <td><code>priority</code></td>
 <td>VM core since #751; table added #823</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>cross</code></td>
+<td>the crossing tile (#999; number confirmed by Alan): pure wiring, no RTL core yet (the netlist extractor splices it into a direct wire); flex VM only</td>
 </tr>
 </tbody>
 </table>
@@ -3273,6 +3300,31 @@ comment uses them (#609). It has no upstream field (nothing to capture):</p>
 does not record its turn order (#926/#927). The sub/flex compile path
 (<code>tools/flexsub_compile_v1.py</code>) rewrites it to strict mode 0 with
 explicit ranks (#929/#930).</p>
+<p><strong>cross</strong> (10). Pure wiring: west↔east and north↔south pass straight
+through, the word keeps its direction, with zero latency and no state or
+ack (#999). It has no RTL core in any family yet; the Flex-Sub netlist
+extractor (<code>splice_crosses</code>) replaces it with a direct wire. <code>FlexGrid</code>
+steps through it; the std VM does not model it. Open: a registered
+variant (latency 1, for long chains and FPGA timing), native per-family
+cores, and cost rows.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Bits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>downstream_mask</code></td>
+<td><code>[3:0]</code></td>
+</tr>
+<tr>
+<td><code>upstream_mask</code></td>
+<td><code>[7:4]</code></td>
+</tr>
+</tbody>
+</table>
 <h2><code>addon_config[19:0]</code> (plus <code>shift_fine</code>)</h2>
 <p>These fields are identical across every core. The add-ons sit on the
 periphery and do not depend on the core (<code>unicell_super_v1.v</code> lines
@@ -4003,6 +4055,12 @@ fixed cells, generated from an ICM file by the Flex-Sub assembler
 <td><code>in1_*</code>, <code>in2_*</code> (each fixed or flowing), <code>cfg_emit_fixed_value</code>; outputs <code>_1</code>, <code>_2</code></td>
 <td>3-way signed compare; per-outcome routing to out1/out2/both/neither; emit source fixed/in1/in2/diff (#918)</td>
 <td>122 / 36 / 69</td>
+</tr>
+<tr>
+<td>cross (no cell file; ICM core_select 10)</td>
+<td>none: passes W↔E and N↔S straight through</td>
+<td>the crossing tile (#999): pure wiring, zero latency, no state or ack. Today the netlist extractor turns it into a direct wire; native per-family cores and a registered variant are open</td>
+<td>routing only (no LUT, no DFF)</td>
 </tr>
 <tr>
 <td>merge <code>merge_cell_v4sa.v</code> (flex only)</td>
@@ -6021,7 +6079,7 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 </tr>
 <tr>
 <td><code>flexsub_icm_netlist_v1.py</code></td>
-<td>Read-only. It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the <code>connections</code> list is advisory) and says what each family can and cannot express (#923).</td>
+<td>Read-only (<code>splice_crosses</code> turns <code>cross</code> tiles into direct wires, #999). It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the <code>connections</code> list is advisory) and says what each family can and cannot express (#923).</td>
 </tr>
 <tr>
 <td><code>flexsub_icm_generate_v1.py</code></td>
@@ -6033,7 +6091,11 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 </tr>
 <tr>
 <td><code>flex_layout_v1.py</code></td>
-<td>A layout engine for hand-designed flex structures: cells and links on a grid, <code>route()</code>, the generator's hop model, and <code>balance()</code>, which removes the operand-arrival ties the generator refuses and enforces "minuend first" (#989)</td>
+<td>A layout engine for hand-designed flex structures: cells and links on a grid, <code>route()</code>, the generator's hop model, and <code>balance()</code>, which removes the operand-arrival ties the generator refuses and enforces "minuend first" (#989); <code>route_nets(..., use_cross=True)</code> lets a route cross another at right angles through a <code>cross</code> tile (#999)</td>
+</tr>
+<tr>
+<td><code>fp_add_v1.py</code></td>
+<td>The whole fp adder from flex cells: <code>fp_add(g, fmt)</code>, parametric in <code>FpFormat</code> (#990). Scope: normals and zero</td>
 </tr>
 <tr>
 <td><code>fp_assembler_v1.py</code></td>
@@ -6497,14 +6559,14 @@ cd Imago-Unicell
 <p><em>Single source of truth for what needs doing and why.</em></p>
 <blockquote>
 <p><strong>UPDATE (2026-10-06, ledger #992): the current open work, gathered from the ledger's own "open" / "next"
-lines for #946-#989.</strong> Everything below this block predates the Tang Nano line. That includes the 2026-09-02
+lines for #946-#999.</strong> Everything below this block predates the Tang Nano line. That includes the 2026-09-02
 "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
 at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.</p>
-<p><strong>fp on cells (the most recent thread, #982-#989; the open fp assembler with normalise / align-with-sticky / round
-blocks for any format is done at #989):</strong> the missing blocks are unpack, swap-larger-first, effective add/sub,
-significand add/sub with the carry, rounding-overflow bump, pack and zero/sub-normal/inf/nan. Then assemble one whole
-fp add and compare it with <code>fp32_add_v1</code>. Also open: a placer that decides positions itself, a VM tick-latency model
-for the layout engine, and a 64-bit build for fp64. Full list: <code>docs/shared/POINTS_STATUS_AUDIT_3.md</code>.</p>
+<p><strong>fp on cells (the most recent thread, #982-#999; the whole fp adder from flex cells is done at #990 for normals and
+zero, and the crossing tile at #999):</strong> sub-normals, exponent overflow/underflow, inf and nan for the adder; then
+multiply and compare built the same way. Also open: a placer that decides positions itself, a VM tick-latency model for
+the layout engine, a 64-bit build for fp64, and for the crossing tile a registered variant, native per-family cores and
+cost rows. Full list: <code>docs/shared/POINTS_STATUS_AUDIT_3.md</code>.</p>
 <p><strong>Width (#948, #957-#963, #985):</strong> the <code>--icm</code> generators still build 32 bits. Still to do: native-width builds,
 the loader's narrowing, the save's padding, and the <code>min_bit_width</code> fit check (#959). The Tang's spare-bit sign
 encoding (<code>target_extensions</code>) is not defined. A 6-bit shift amount is needed at W=36. Widening the

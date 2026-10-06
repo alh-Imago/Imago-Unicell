@@ -20,6 +20,8 @@ The table below is the #982 snapshot. It is kept as written. Since then, several
 
 **Since then (#989):** the open fp assembler (`tools/fp_assembler_v1.py`, design note `fp_assembler_open_design.md`) makes the normalise, align-with-sticky and round blocks parametric in the format, and `tools/flex_layout_v1.balance()` replaces the hand-placed spacers and detours described next.
 
+**Then (#990/#999):** the whole adder is assembled from these blocks (`tools/fp_add_v1.py`), and the crossing tile removes the planarity walls its routing hit. See `fp_adder_and_crossing_tile.md`.
+
 **Layout lesson (#988):** the generator refuses two operands that arrive on the same hop. On a grid, a spacer relay placed on the straight route changes nothing; only a deliberate detour (`route_via` in `tests/vm/fp32_stage_builder_v1.py`) or a different structure does. A placer that checks arrival hops itself is open.
 
 ## Operand convention for 32-bit cells

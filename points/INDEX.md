@@ -13,7 +13,10 @@ append-only, never edited):** entries #191-#201 physically appear in the
 file AFTER #202-#203 (so parts 2 and 3 below have an overlapping labeled
 range); #394 is used TWICE, for two different, real entries; **#824 is used
 TWICE (two different entries, both in part 10); and #893 and #902 were never
-used (skipped numbers, in part 11).** All are left exactly as they are in the
+used (skipped numbers, in part 11).** **A sixth, from 2026-10-06:** in
+`points_active.md`, #990 physically follows #991-#998. Two sessions were
+appending in parallel; #990 was claimed by a WIP commit and written after
+the documentation branch's #991-#998 had merged. All are left exactly as they are in the
 real historical record. (The older sealed parts' headers say "of 7" because
 they predate parts 7-11; sealed parts are never edited, so they still do.)
 
@@ -66,7 +69,7 @@ For a genuine done/pending/thought-direction breakdown (not just
 where an entry lives, but what it actually means), see
 `docs/shared/POINTS_STATUS_AUDIT.md` (#1-#330) and
 `docs/shared/POINTS_STATUS_AUDIT_2.md` (#331-#592) and
-`docs/shared/POINTS_STATUS_AUDIT_3.md` (#593-#997, 2026-10-06). Part 3's
+`docs/shared/POINTS_STATUS_AUDIT_3.md` (#593-#999, 2026-10-06). Part 3's
 quick reference is the current list of what is queued or open.
 
 ## Appending a new entry (for Claude, future sessions)

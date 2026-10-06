@@ -182,10 +182,15 @@ exponent adjust, sticky, round-to-nearest-even (#982-#984), and
 alignment: a variable right shift that also collects the sticky bits,
 built from one multiplier per stage using both of its output words
 (#987/#988). An open fp assembler (`tools/fp_assembler_v1.py`, #989)
-now generates the normalise, align and round blocks for any format (fp32,
-fp16, bfloat16), with operand timing balanced automatically. Still open:
-the remaining blocks (unpack, swap, add/sub, pack, special values) and
-assembling one whole fp adder to compare with `fp32_add_v1`.
+generates those blocks for any format (fp32, fp16, bfloat16), with
+operand timing balanced automatically. **The whole fp adder is now
+built from flex cells** (`tools/fp_add_v1.py`, #990). In generated RTL
+it matches a reference anchored to `fp32_add_v1` on 3,000 pairs, for
+normal numbers and zero. To route it, a new **crossing tile** (`cross`,
+ICM core 10, #999) lets one lane pass straight over another: pure
+wiring, with no state or latency. Still open: sub-normals, overflow, inf
+and nan; formats wider than 32 bits; and a placer (layouts are hand
+templates today).
 
 ## On the physical board
 
