@@ -119,6 +119,33 @@ class Grid:
         self.routes[(a, b)] = {"relays": names, "second": second, "tag": tag, "extra": extra if _extra_total is None else _extra_total}
         return names
 
+    def route_nets(self, nets, rounds=3000, seed=1):
+        """Route a list of nets (a, b[, kwargs]) in an order that works: a failing net goes to the FRONT and everything is rerouted (rip-up by reordering); when that cycles, the order is
+        shuffled (seeded, so the result is deterministic)."""
+        import random
+        rng = random.Random(seed)
+        order = [(n[0], n[1], n[2] if len(n) > 2 else {}) for n in nets]
+        last = None
+        for k in range(rounds):
+            done, bad = [], None
+            for i, (a, b, kw) in enumerate(order):
+                try:
+                    self.route(a, b, **kw)
+                    done.append((a, b))
+                except LayoutError:
+                    bad = i
+                    break
+            if bad is None:
+                return order
+            last = (order[bad][0], order[bad][1])
+            for a, b in reversed(done):
+                self.unroute(a, b)
+            if k % 6 == 5:
+                rng.shuffle(order)
+            else:
+                order.insert(0, order.pop(bad))
+        raise LayoutError(f"route_nets: no order found; last failure {last[0]} -> {last[1]}")
+
     def unroute(self, a, b):
         rec = self.routes.pop((a, b))
         gone = set(rec["relays"])
@@ -160,6 +187,18 @@ class Grid:
             tv(c)
         return t
 
+    def _descends(self, q, m):
+        """Is cell m the cell q itself or one of its ancestors?"""
+        srcs, seen, todo = self.sources(), set(), [q]
+        while todo:
+            c = todo.pop()
+            if c == m:
+                return True
+            if c not in seen:
+                seen.add(c)
+                todo.extend(srcs.get(c, []))
+        return False
+
     def problems(self):
         """(cell, kind, early_source, late_source) for every pair cell whose operands tie, or whose declared minuend is not strictly first."""
         srcs, t, out = self.sources(), self.hops(), []
@@ -170,8 +209,13 @@ class Grid:
             if t[x] == t[y]:
                 out.append((c, "tie", x, y))
             m = self.minuend.get(c)
-            if m is not None and t[m] >= t[y if m == x else x]:
-                out.append((c, "order", m, y if m == x else x))
+            if m is not None:                     # `m` names a cell UPSTREAM of one of the two sources (the route's last relay is the actual source)
+                mx = next((q for q in (x, y) if self._descends(q, m)), None)
+                if mx is None:
+                    raise LayoutError(f"{c}: declared minuend {m} is upstream of neither operand")
+                oth = y if mx == x else x
+                if t[mx] >= t[oth]:
+                    out.append((c, "order", mx, oth))
         return out
 
     def balance(self, limit=60):
