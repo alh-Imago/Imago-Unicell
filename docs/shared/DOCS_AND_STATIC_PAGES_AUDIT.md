@@ -10,7 +10,7 @@ file content, cross-referenced against the real ledger), matching the
 same method `POINTS_STATUS_AUDIT.md`/`_2.md` already established.
 Nothing rewritten in this pass; this is the map, not the fix.*
 
-## Update, 2026-10-06 (ledger #994): what is left
+## Update, 2026-10-06 (ledger #995): what is left
 
 The quick fixes are done: `tests/vm/README.md` was rewritten, `TODO.md`
 fixed, and status banners were added to `ICM_FORMAT.md`,
@@ -19,12 +19,12 @@ fixed, and status banners were added to `ICM_FORMAT.md`,
 every live `.md` outside `archeology/` and the dated design notes finds
 nothing else misdescribing the current state. The one remaining gap, a
 done/pending map for ledger #593 onward, is now
-`POINTS_STATUS_AUDIT_3.md` (#593-#994). **Nothing on this audit's list
-is outstanding as of #995.** The one exception is #856's standing
+`POINTS_STATUS_AUDIT_3.md` (#593-#995). **Nothing on this audit's list
+is outstanding as of #996.** The one exception is #856's standing
 request for another full documentation pass once the fp32 work is
 complete.
 
-## Update, 2026-10-06 (ledger #991): static pages
+## Update, 2026-10-06 (ledger #992): static pages
 
 | page | what changed | checked |
 |---|---|---|
@@ -32,17 +32,17 @@ complete.
 | `tools/manual_generate_v1.py` (live `/manual`) | `DEFAULT_SOURCES` gains sub/README, the cores reference, both ICM format docs and the Tang getting-started guide | generates; `tests/tools` 49 passed |
 | `tools/explainers/cell_pipeline_explainer.html` | core field tables for core_select 1-9 now generated from `icm_v3.py` (it lacked mul, priority, adder subtract/second output, accumulator step/pulse/threshold, latch toggle); `shift_fine` control added; **existing bug fixed:** the add-on controls never triggered a recompute | 300 random configurations (10 cores x 30) driven through the page in Chromium == `icm_v3.encode_super_latch()`, 0 mismatches |
 | `tools/explainers/chaos_topology_demo.html` | unchanged: a captured historical run (2026-09-07 finding stands) | — |
-| `gh-pages` site (now 6 pages, with `explainer.html`) | **Published at #993** (fast-forward to `f049875`). |
-| `gh-pages` site, #991 detail | Home, Architecture, Status and Docs rewritten for both hardware lines (Tang Nano / sub-flex current, Arria 10 earlier); figures renumbered across pages; Contact unchanged; layout and CSS untouched | Chromium, desktop and phone: no horizontal scroll; tags balanced. **Committed on a local branch made from `gh-pages`, NOT pushed**: publishing waits on Alan's go-ahead |
+| `gh-pages` site (now 6 pages, with `explainer.html`) | **Published at #994** (fast-forward to `f049875`). |
+| `gh-pages` site, #992 detail | Home, Architecture, Status and Docs rewritten for both hardware lines (Tang Nano / sub-flex current, Arria 10 earlier); figures renumbered across pages; Contact unchanged; layout and CSS untouched | Chromium, desktop and phone: no horizontal scroll; tags balanced. **Committed on a local branch made from `gh-pages`, NOT pushed**: publishing waits on Alan's go-ahead |
 
 The site's docs page links to `blob/main/...`, so the updated docs show
 there once this branch is merged to `main`.
 
-## Update, 2026-10-06 (ledger #990): second pass — the manual's source docs, and what the generator needs
+## Update, 2026-10-06 (ledger #991): second pass — the manual's source docs, and what the generator needs
 
 Alan: the manual page is built by a Python tool from the other docs,
 so the docs have to be straight before it is run. This pass covered
-every doc the two generators read, plus the rest of the #989
+every doc the two generators read, plus the rest of the #990
 "still behind" list.
 
 | doc | what changed |
@@ -93,7 +93,7 @@ The 2026-09-07 points about `docs/manual.html` possibly being orphaned
 (below) still stand. Decide which of the two generators is the one to
 keep before investing in both.
 
-## Update, 2026-10-06 (ledger #989): the Tang Nano / sub-flex catch-up, first pass
+## Update, 2026-10-06 (ledger #990): the Tang Nano / sub-flex catch-up, first pass
 
 The ledger had moved about 100 entries past the docs: the Tang Nano 20K
 (#886 onward), the sub and flex cell families (#898-#957), the Flex-Sub
@@ -118,7 +118,7 @@ ledger entry it cites:
 | `current/START.md` | a current reading list and toolchain check above the 2026-08 list |
 | `tools/project_assemble_v1.py` `--icm` help | no longer says the flex generator is unbuilt |
 
-**Still behind after this pass (not yet updated). All but the points status audits were done in the #990 pass above:**
+**Still behind after this pass (not yet updated). All but the points status audits were done in the #991 pass above:**
 
 - `docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md` and
   `CELL_CHEATSHEET.md`: no sub/flex rows (the merge core, the

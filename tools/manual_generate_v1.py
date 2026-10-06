@@ -38,7 +38,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # help someone using the front end understand what they're doing.
 DEFAULT_SOURCES = [
     "README.md",
-    "sub/README.md",                                     # ledger #991: the current line's cells
+    "sub/README.md",                                     # ledger #992: the current line's cells
     "docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md",
     "docs/stripped-cell/ICM_V3_FORMAT.md",
     "docs/stripped-cell/ICM_VIX_FORMAT.md",

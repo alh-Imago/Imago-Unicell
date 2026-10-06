@@ -66,7 +66,7 @@ For a genuine done/pending/thought-direction breakdown (not just
 where an entry lives, but what it actually means), see
 `docs/shared/POINTS_STATUS_AUDIT.md` (#1-#330) and
 `docs/shared/POINTS_STATUS_AUDIT_2.md` (#331-#592) and
-`docs/shared/POINTS_STATUS_AUDIT_3.md` (#593-#994, 2026-10-06). Part 3's
+`docs/shared/POINTS_STATUS_AUDIT_3.md` (#593-#995, 2026-10-06). Part 3's
 quick reference is the current list of what is queued or open.
 
 ## Appending a new entry (for Claude, future sessions)

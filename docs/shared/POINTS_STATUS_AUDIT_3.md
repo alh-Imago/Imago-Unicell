@@ -1,4 +1,4 @@
-# points.md Status Audit, Part 3 — 2026-10-06 (#593-#994)
+# points.md Status Audit, Part 3 — 2026-10-06 (#593-#995)
 
 Part 3 continues `POINTS_STATUS_AUDIT.md` (#1-#330) and
 `POINTS_STATUS_AUDIT_2.md` (#331-#592). Like part 2, it is organised
@@ -8,7 +8,7 @@ ledger wins wherever they disagree.
 
 **Method:** I read all 401 entry titles in this range. Titles in this
 project are full summary sentences. The full text was read for
-#875-#994, and wherever a title left the status unclear. Each "open"
+#875-#995, and wherever a title left the status unclear. Each "open"
 item below was then checked for a later entry closing it. Two kinds of
 open item are kept apart:
 
@@ -91,7 +91,7 @@ whether single-shot preloaded constants should be reproduced on purpose
   silicon still stands. The cell-built stages (#982-#988) are now the
   path to that.
 - **Docs:** #829 and #856 asked for a full documentation update. The
-  first was done at #989-#994. #856 asks for another full pass **once
+  first was done at #990-#995. #856 asks for another full pass **once
   the fp32 work is complete**, which it is not yet.
 
 ## Thought directions on record (no build)
@@ -114,7 +114,7 @@ overtaken. #595 measured the moat (it costs more), and **#596 closed
 the Arria 10 hardware exploration track by Alan's decision**. The
 config-off-shell rollout to the remaining cores was completed at #699.
 The LLVM IR compiler path (#547) was built from #610 onward. The
-"clockless" direction is restated at #993: a timing pulse schedules
+"clockless" direction is restated at #994: a timing pulse schedules
 transfers, the cell internals are unclocked, the ack controls flow, and
 freeze decouples cells.
 
@@ -270,14 +270,14 @@ loop-free plan (#983). Left-normalise, sticky and RNE (#984). Any-amount
 flex shift and per-target shift checks (#985/#986). Align, and align with
 sticky (#987/#988). **Pending:** see the quick reference.
 
-## Era 27: Documentation and the public site (#989-#994)
+## Era 27: Documentation and the public site (#990-#995)
 
-**Done.** The reference docs (#989); the manual's source docs, including
-two DSL examples that no longer compiled (#990); the static pages, with
-an explainer bug fixed (#991); ledger numbering reconciled with `main`
-(#992); the public site published with the explainer, and timing
-described as pulse / ack / freeze (#993); remaining quick fixes, plus a
-regression from #991 fixed (#994).
+**Done.** The reference docs (#990); the manual's source docs, including
+two DSL examples that no longer compiled (#991); the static pages, with
+an explainer bug fixed (#992); ledger numbering reconciled with `main`
+(#993); the public site published with the explainer, and timing
+described as pulse / ack / freeze (#994); remaining quick fixes, plus a
+regression from #992 fixed (#995).
 
 ---
 
@@ -296,4 +296,4 @@ three places:
 3. **Hardware runs.** No sub/flex design on the board yet, and no VIX
    Carrier in Quartus.
 
-The next audit should start at #995.
+The next audit should start at #996.

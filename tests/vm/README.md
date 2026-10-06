@@ -1,11 +1,11 @@
 # VM Test Suite (`tests/vm/`)
 
-*Rewritten 2026-10-06 (ledger #994). The previous version listed 42 test
+*Rewritten 2026-10-06 (ledger #995). The previous version listed 42 test
 files from the archived full-cell line (`test_array.py`,
 `test_fp_tiles.py`, …), and none of them exist here any more.*
 
 ```bash
-python3 -m pytest tests/vm -q              # the whole suite (~1,764 tests as of #993)
+python3 -m pytest tests/vm -q              # the whole suite (~1,764 tests as of #994)
 python3 -m pytest tests/vm/test_icm_v3.py  # one file
 ```
 
