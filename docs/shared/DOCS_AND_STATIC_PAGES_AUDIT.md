@@ -10,6 +10,61 @@ file content, cross-referenced against the real ledger), matching the
 same method `POINTS_STATUS_AUDIT.md`/`_2.md` already established.
 Nothing rewritten in this pass; this is the map, not the fix.*
 
+## Update, 2026-10-06 (ledger #988): second pass — the manual's source docs, and what the generator needs
+
+Alan: the manual page is built by a Python tool from the other docs,
+so the docs have to be straight before it is run. This pass covered
+every doc the two generators read, plus the rest of the #987
+"still behind" list.
+
+| doc | what changed |
+|---|---|
+| `docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md` | a "four cell generations" table, and a sub/flex section with each flex cell's ports, notes and measured cost at W=18; the VIX status rows that said "no ICM format" and "no compiler" corrected |
+| `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md` | **two examples no longer compiled** (§3.5 and §5.2: `step_amount` became a required accumulator param). Fixed; all 5 program examples recompiled OK. The Tier-0 table re-checked against the live registry: 14 tiles, 6 were missing (`subtractor`, `sequencer`, `nano_hold_trigger`, `nano_loop_var`, `nano_loop_ctrl`, `nano_loop_ctrl_desc`); §8 updated, including that sub/flex are reached through ICM files and the assembler. (The 2026-09-07 note below says `select`/`icmp eq` and `branch` were missing; they had already been added.) |
+| `docs/stripped-cell/SUPER_CELL_INTERNALS.md`, `CELL_INTERNALS.md` | status banners: accurate for the Arria 10 line, and where the current-line equivalents are |
+| `docs/stripped-cell/CELL_GOTCHAS.md` | 14 traps from #875-#986 (signed comparator, single-shot preloaded ram, level-source probing, arrival-order pairing, unstarted nano, forcing harness state, second-port acks, `armed`, mask width, unsupported shifts, measurement collapse, skipping suites) |
+| `docs/stripped-cell/CELL_CHEATSHEET.md` | a sub-vs-flex comparison table |
+| `docs/shared/TOOLCHAIN_SETUP.md` | the open Gowin flow (iverilog, yosys, nextpnr-himbaechel, apycula, openFPGALoader), with the version caveats |
+| `fpga/README_FPGA.md` | a banner: the body describes the archived iCEBreaker line (its core files are in `archeology/`), with a map of what `fpga/` holds now |
+| `current/PLAN.md` | a 2026-10-06 block listing the open work recorded in #946-#986 (not an order) |
+| `current/latest.md` | header line replaced (it read "as of 2026-09-28") |
+
+**Still not updated:** the points status audits (#1-#592 only).
+`docs/shapes/README.md` and `docs/full-cell/` were checked and need
+nothing; they are not line-specific.
+
+### Before running the manual generators
+
+**`docs/build_manual.py` (writes `docs/manual.html`).** Its `SECTIONS`
+list holds hard-coded intro text and the source list. These are code,
+not docs, so they were left for an explicit go-ahead:
+
+- "The Idea" intro: the "two-arrival firing model" sentence describes
+  the Arria-era cells (sub/flex cells fire on valid / valid+ack); "If
+  the PCIe host-integration work succeeds" is out of date (the planned
+  host is an ESP32 over SPI, #888).
+- "The Cell" intro: calls the super carrier shell "the active line" and
+  says "6 real cores". It has no part for `sub/README.md`.
+- "ICM v3" intro: "every one of the 6 cores". There is no part for
+  `ICM_VIX_FORMAT.md`.
+- "Hardware" intro: Arria 10 figures only. It has no parts for
+  `docs/man/tang-nano-20k-getting-started.md` or
+  `docs/shared/TOOLCHAIN_SETUP.md`.
+- "Roadmap" embeds `current/latest.md` in full. That file is now
+  ~940 KB (the whole current `manual.html` is 746 KB), so the rebuilt
+  page would be well over 1 MB from that one part. Linking it, or
+  embedding only its "Read this first" block, would keep the page usable.
+- The "Start" section already pulls `README.md` and `docs/README.md`,
+  which are current.
+
+**`tools/manual_generate_v1.py` (the live `/manual` route).** Its
+`DEFAULT_SOURCES` has no `sub/README.md`, `ICM_V3_FORMAT.md`,
+`ICM_VIX_FORMAT.md` or `CORES_AND_WRAPPERS_REFERENCE.md`.
+
+The 2026-09-07 points about `docs/manual.html` possibly being orphaned
+(below) still stand. Decide which of the two generators is the one to
+keep before investing in both.
+
 ## Update, 2026-10-06 (ledger #987): the Tang Nano / sub-flex catch-up, first pass
 
 The ledger had moved about 100 entries past the docs: the Tang Nano 20K
@@ -35,7 +90,7 @@ ledger entry it cites:
 | `current/START.md` | a current reading list and toolchain check above the 2026-08 list |
 | `tools/project_assemble_v1.py` `--icm` help | no longer says the flex generator is unbuilt |
 
-**Still behind after this pass (not yet updated):**
+**Still behind after this pass (not yet updated). All but the points status audits were done in the #988 pass above:**
 
 - `docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md` and
   `CELL_CHEATSHEET.md`: no sub/flex rows (the merge core, the

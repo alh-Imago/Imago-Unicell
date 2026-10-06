@@ -1,5 +1,15 @@
 # The super carrier shell — Internal Structure & Register Model
 
+> **Status (2026-10-06):** this describes the **Arria 10 line**, the
+> active line until 2026-09. Current hardware work is on the Tang Nano
+> 20K with the sub/flex cell families (`sub/README.md`;
+> `CORES_AND_WRAPPERS_REFERENCE.md` has a summary table). This shell is
+> still the model behind the VM's std mode and ICM v3/v4, so the field
+> maps below remain authoritative for that. The ICM side has grown since
+> this was written: `mul`/`priority` (core_select 8/9), `shift_fine`,
+> `second_output` and `min_bit_width` are in `ICM_V3_FORMAT.md`. The
+> shell RTL itself still holds 8 cores (v3).
+
 **Ground truth: `fpga/verilog/unicell_super_v1.v` (the original 6-core
 shell), `unicell_super_v2.v` (adds the sequencer, #421/#422), and
 `unicell_super_v3.v` (adds branch cell, #542) — three real, separate

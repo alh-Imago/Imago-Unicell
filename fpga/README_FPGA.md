@@ -1,3 +1,31 @@
+# Imago UniCell — FPGA folder
+
+> **Read this first (2026-10-06).** Everything below the line is the
+> **May 2026 iCEBreaker / wired-OR bus implementation** (the full-cell
+> line). That line is archived. Most files it names (`unicell.v`,
+> `unicell_array.v`, `top_icebreaker.v`, `uart_bridge.v`) now live in
+> `archeology/full-cell/verilog/`, and `fpga_bridge.py` and
+> `workbench.py` are in the `archeology/onion/` archives. Its commands
+> will not run from this folder as written. It is kept unedited as a
+> record.
+>
+> **What `fpga/` holds now:**
+>
+> | path | what |
+> |---|---|
+> | `verilog/` | the Arria 10-era RTL: cores `*_v1`…`v3`, super shells `unicell_super_v1`…`v8`, the VIX Carrier `*_v4`/`*_v4c` cores and shells, DSP/BRAM wrappers, test tops; plus the Tang Nano 20K smoke and diagnostic tops (`unicell_tang_nano_20k_*.v`) |
+> | `build/` | the committed Tang Nano 20K bitstreams (`*_smoke_v2.fs` is the one confirmed on the board, `#896`) with their `.cst` and reports |
+> | `quartus/`, `*.tcl`, `issp_loader.py`, `icm_stream.py` | the Arria 10 Quartus projects and the JTAG / ISSP host scripts |
+> | `build_tangnano20k_sweep.bat` | an unattended yosys / nextpnr / Apicula sweep of every core type for the Tang, run on Windows |
+> | `archive/kintex7_xc7k480t/` | the Kintex 480T card (`#928`) |
+>
+> **The current line's cells are not here:** they are in `sub/verilog/`
+> (see `sub/README.md`). Toolchain setup for both lines is in
+> `docs/shared/TOOLCHAIN_SETUP.md`. Flashing the Tang is covered in
+> `docs/man/tang-nano-20k-getting-started.md`.
+
+---
+
 # Imago UniCell — FPGA Implementation
 ## v2 — Silicon validated May 2026 (iCEBreaker iCE40UP5K)
 
