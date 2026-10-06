@@ -109,13 +109,13 @@ def normalise_chain(g, fmt, name="N", r0=0, c0=0, pitch=9):
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------
-def align_sticky(g, fmt, name="AL", r0=0, c0=0, pitch=7):
+def align_sticky(g, fmt, name="AL", r0=0, c0=0, pitch=7, flip=False, w_low=None):
     """Align with sticky. Entries: `V` (w = significand << (word - S), top aligned), `D` (the exponent difference). Exits: `OUT` = w >> T and `STK` = (w mod 2^T != 0), T = (Ka+1) + (d mod 2^Ka) + 31*[d >= 2^Ka]."""
     Ka, word = fmt.Ka, fmt.word
     shifts = [1 << k for k in range(Ka)] + [word - 1]
     n = len(shifts)
     consts, pre = {}, _p(name)
-    R, C = (lambda r: r0 + r), (lambda c: c0 + c)
+    R, C = ((lambda r: r0 + 5 - r) if flip else (lambda r: r0 + r)), (lambda c: c0 + c)      # flip: the d bus at the BOTTOM of the band, the sticky lane at the top
     st = lambda k: pre + f"A{k}."
     for k, s in enumerate(shifts):
         c, p, last = pitch * k, st(k), k == n - 1
