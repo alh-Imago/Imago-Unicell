@@ -699,3 +699,54 @@ Routing the adder hit TOPOLOGICAL walls (a closed room cannot send lanes out exc
 **Proof (`tests/vm/test_fp_special_v1.py`, 6 tests, ~2 min):** vectors from numpy float32/float16 (every special combination, overflow, random normals near the top exponent; subnormal inputs and results EXCLUDED), nan compared as a class; fp32 in the generated RTL plain + random stalls, fp16 RTL, FlexGrid fp32 (6 items) == numpy; the bite test (the adder without the block mismatches). Regression: `test_fp_add_v1` 9, `test_cross_tile_v1` 7, `test_fp_blocks_v1` + `test_flex_grid_nano_v1` 21, the five flexsub suites (52+42+21+37+12), all green.
 **NOT done (stated):** subnormal inputs, subnormal/underflow results (plan: effective exponent e+[e==0] on input; denormalise right by 1-er with sticky before rounding; pack trick bits = ((max(er,1)-1)<<23)+M), signed zero rules beyond what #990 does, formats wider than 32 bits, a real placer (the chain/lane layout is a template driven by the netlist).
 **FLAGS: std VM UNTOUCHED. Touched (tools only): `tools/flex_layout_v1.py`, `tools/fp_add_v1.py` (the head unpack layout changed for all modes, and taps added for specials), `tools/fp_assembler_v1.py` (`w_low` removed from `align_sticky`, earlier). New: `tests/vm/test_fp_special_v1.py`.**
+
+### #1003 -- THE COMPOSER: VIEW AN IMPORTED ICM FILE AND DRAG CELLS INTO PLACE (front panel `/composer`; Alan: "yes start with the viewer side, that allows the drag and place of the imported icm file")
+**Numbering.** Drafted as #1001/#1002 while the other session was also writing the ledger; recorded as #1003 and #1004 at Alan's request ("merge with number 1003 and 1004"), leaving #1002 to the other session.
+**What it is.** The front panel's new `/composer` page (`nano/composer_page_v1.py`) over a new module, `tools/flex_layout_view_v1.py`. It follows the scope written just before (`docs/stripped-cell/design-notes/composer_layout_viewer_scope.md`, which now has a status block) and #385/#677: it ARRANGES cells, it never adds connections, and it generates no RTL.
+**Import.** An ICM file (v3, v4 or VIX; upload, a path, or one of `nano/examples/`) or a layout built by Python (`fp_add/fp16`, `bf16`, `fp32`). The physical links come from masks plus positions, the generator's own rule. Chains of plain relay rams (one way in, one way out, no constant, add-on or io name) and crossing tiles are folded back into ROUTES between the logic cells at their ends. The design is rebuilt as a `flex_layout_v1.Grid`, so the layout engine stays the single source of truth for routing, the hop model, `problems()` and `balance()`. A subtracting adder whose minuend arrives first on import keeps it first (`Grid.minuend`).
+**Drag and place.** Dropping a logic cell on a square lifts its routes (and any route that crosses them), moves the cell, re-routes with `route_nets`, then runs `balance()`. If routing or balance fails, the move is refused and the layout is restored exactly. Undo is kept for 40 steps. Save writes ICM v3 in the file's own coordinates. ICM-VIX's `upstream_dir: ["W"]` is written as the v3 code (3); the netlist is unchanged, edge for edge.
+**What stays put.** Cells wired by fields the engine does not derive (nano's `routing_mask`, branch's `route_*`, `set_dir` etc.) are PINNED and drawn dashed, as are the cells they connect to. They are written back exactly as read. `flex_layout_v1.py` is NOT changed: phase 1's `move()` lives in the new module and uses the engine's own `unroute`, `route_nets` and `balance`. The importer fills the Grid's route table (`routes`, `crossed`) directly, because a file has no builder to replay.
+**The page.** The shared look (#998), with a "Composer" nav item. An SVG board with pan, wheel zoom and pinch zoom; routes are drawn as polylines (second words dashed, crossing tiles ✕). A ghost square shows green or red while dragging. There is a hop-heat tint, a problems list (click to zoom), search, a cell panel (config, file square, hop, sources and destinations), undo and save. Checked in Chromium at 1400 px and 390 px (no page overflow, no script errors). The "Other tools" page's "Composer -- not built yet" box now describes the tool.
+**Checks** (`tests/tools/test_composer_v1.py`, 9 tests, ~18 s):
+- An imported fp16 adder re-exports record for record, with the same `hops()`.
+- The three `nano/examples` files re-export exactly and give the same netlist.
+- After three hand moves, the fp16 adder still matches the reference in FlexGrid; undo returns the original records.
+- After hand moves, the generated RTL (iverilog) matches the reference on all 41 vectors.
+- Moves onto an occupied square, a relay or off the board are refused with no change.
+- Branch cells in the CORDIC example are pinned.
+- The page and its JSON API (load, move, undo, save) work, and a bad upload is reported, not raised.
+Measured: about 0.05-0.15 s per move on the fp16 adder (1,640 cells, 319 routes).
+**Open:** the pre-balance view and drawing a problem's two operand paths; positions overrides for Python builders (scope option (a)); the block library (phase 2); moving several cells at once.
+
+### #1004 -- THE COMPOSER AUTHORS: PLACE, CONFIGURE, JOIN, AND REUSE SAVED DESIGNS AS LIBRARY BLOCKS (Alan: "it needs to be able to create from scratch a new file ... placing of cells onto the fabric and joining them ... show its current config, very similar to the explainer system ... these smaller models are effectively shareable library models ... represented by a single tile, then has joins at set points, as defined in the icm of that object")
+**Decision changed.** #1003's scope (decision 1) said the Composer arranges and never authors. Alan has now asked for authoring, so it authors too. The scope note's status block records this.
+**Tagged joins (`tools/flex_layout_view_v1.py`).** A join is one engine route (or a direct link between neighbours) from a source to a destination. It carries the output PORT it leaves by and the input ROLE it arrives as:
+- Ports: `out`; `second` (the adder carry / mul high word; joining it turns `second_output` on); a branch's `low` / `equal` / `high`; a nano's `routing_mask`.
+- Roles: `in`; a branch's single `upstream_dir`; a latch's `set` / `clear` / `toggle`; an accumulator's `inc` / `dec`.
+Every direction field of every cell is DERIVED from its joins, plus any face that leaves the design (kept from the file). Import recovers the tags from the file, so imported designs still re-export record for record. Branch, latch and accumulator cells are no longer pinned; only nano, priority and command are.
+**Authoring API:** `Layout.new(rows, cols)`, `add_cell`, `set_config`, `join(a, b, out, role)`, `unjoin`, `delete_cell`, `set_minuend`, `balance`, `undo`.
+- `set_config` checks the values by encoding the SUPER_LATCH: a value too wide for its field, an unknown field, or a face field (faces come from joins) is refused.
+- `join` refuses: an output or input the core does not have (for example, a sequencer has no input); a second input into a branch; and two different words between one pair of cells (the engine keys routes by their two ends). A further branch outcome to the same destination merges into the existing join.
+- Every edit runs as a transaction: a refusal restores the layout exactly; a success goes on the undo stack.
+**Library blocks.** Save to library writes ICM v3 into `nano/library/` (or `IMAGO_LIBRARY`; the shipped examples are listed after it). The model needs at least one io-named cell, and an existing model is never replaced silently. `place_block(path, r, c)` inserts a model as one unit:
+- its cells are prefixed `<model>_<n>.`;
+- its io-named cells become its PORTS;
+- it is drawn as one framed tile with gold port dots ("Block insides" shows its cells);
+- dragging any part of it moves the whole block with its joins laid again (`move_block`);
+- `unpack_block` turns it into ordinary cells; `delete_block` removes it.
+ICM v3 has no hierarchy, so Save flattens blocks; a reloaded file has no block grouping.
+**The page (`nano/composer_page_v1.py`)**:
+- Modes: Select/move, Place (a palette of the 10 placeable cores), Join, Delete, Insert block (a library model or any file).
+- Join asks "which output" or "which input" only when a cell has more than one; the carry/high word is offered only when `second_output` is on.
+- The Selected panel shows every field with its bit range: 1-bit toggles, numbers in decimal or 0x hex, and the face fields lit from the joins (read-only). Below them come the add-on fields, a minuend choice for a subtracting adder, a bit bar of core_select / core_config / add-on, and the 80-bit SUPER_LATCH. It also lists the cell's joins, each with an unjoin button.
+- There are buttons for Balance, Save to library, New design, and opening a library model.
+**Checks** (`tests/tools/test_composer_v1.py`, 16 tests, about 18 s):
+- A two-input adder built from scratch gives 3, 12, 123 in FlexGrid, and re-imports record for record.
+- Field checks: an over-wide value, a face field and an unknown field are each refused, and the configuration is left unchanged.
+- Ports and roles: latch set/clear and branch low/high/equal (two outcomes merged onto one join) are written correctly. A second input into a branch and a join into a sequencer are refused.
+- Delete, unjoin and undo work.
+- Two library blocks joined port to port compute (a+b)+c = 13, 32, 342, before and after moving a block, including a move started from a cell inside it. Delete and unpack work.
+- The JSON API: new, add, config, join, minuend, save_library (no silent overwrite), block, and refusing a path outside the library.
+- The CORDIC example now imports with 0 pinned cells. Moving a cell fed by a branch outcome keeps every source -> destination join with its outcome and role.
+- In Chromium: built and saved a model, placed it twice in a new design, joined the ports, balanced, dragged a block. No script errors. The downloaded file computes (a+b)+c correctly in FlexGrid. At 390 px the page has no overflow, and a branch's panel shows its outcome routes.
+**Open:** a hierarchical (ICM-VIX pattern) save that keeps blocks; checking authored nano cells (pinned on import); selecting and moving several cells at once; the pre-balance view and drawing a problem's operand paths (from #1003).

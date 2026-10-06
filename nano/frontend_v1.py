@@ -15,12 +15,13 @@ naming what's explicitly not built rather than faking it:
   CLIs use, never a separate, parallel implementation that could drift
   out of sync. The Walker page is explicit that it's the SIMULATED
   version (points.md #602) -- a VM-mirrored grid, not real silicon.
-- The Composer link is a REAL, HONEST PLACEHOLDER. No real code exists
-  behind it yet -- its own real scope (`docs/stripped-cell/design-
-  notes/composer_scope.md`) is a visual placement-review tool with RTL
-  generation explicitly excluded. This slot exists now, deliberately,
-  so wiring in the real thing later needs no restructuring -- but it
-  says plainly "not built yet" rather than pretending to work.
+- The Composer (/composer, `composer_page_v1.py`) builds a design on a
+  blank board or imports an ICM file: place cells, set their fields,
+  join them, insert saved designs from the library as blocks, drag cells
+  and blocks; every edit goes through the layout engine
+  (`tools/flex_layout_view_v1.py` over `tools/flex_layout_v1.py`). It
+  generates no RTL (`docs/stripped-cell/design-notes/
+  composer_layout_viewer_scope.md`).
 - Every real, action-performing page ALSO shows the exact equivalent
   CLI command, per Alan's own explicit request -- some people will
   always prefer the command line.
@@ -38,6 +39,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import man_generate_v1  # noqa: E402
 import project_assemble_v1  # noqa: E402
+import composer_page_v1  # noqa: E402
 import manual_generate_v1  # noqa: E402
 import vm_ai_port_v1  # noqa: E402
 import walker_sim_v1  # noqa: E402
@@ -289,7 +291,7 @@ matching the order this project's own build process actually follows:</p>
 <li><b>Card / MAN file</b> -- describe your card's own real capabilities once.</li>
 <li><b>Create cells</b> -- generate a real, importable Quartus project for N cells.</li>
 <li><b>Walker</b> -- simulated, live discovery of a VM-mirrored design's own topology (real hardware discovery is a separate, later step).</li>
-<li><b>Other tools</b> -- the real VM/workbench, the compiler, and (not yet built) Composer.</li>
+<li><b>Other tools</b> -- the real VM/workbench and the compiler; the <a href="/composer">Composer</a> builds and arranges designs on the board.</li>
 </ol>
 <p>Every real, action-performing page here also shows the exact
 equivalent command-line invocation -- this tool is a convenience, not
@@ -557,20 +559,47 @@ see <code>docs/stripped-cell/UNICELL_S_DSL_MANUAL.md</code> for the
 language reference.</div>
 <pre>python3 nano/dsl_cli_v1.py your_program.uc -o out.icm</pre>
 
-<h2>Composer -- not built yet</h2>
-<div class="placeholder">This slot exists for later, deliberately not
-faked. Composer's own real, decided scope
-(<code>docs/stripped-cell/design-notes/composer_scope.md</code>) is a
-visual PLACEMENT-REVIEW tool for an already-compiled model -- letting
-a person see where the automated loader put things and adjust it
-before committing. RTL generation is explicitly, deliberately excluded
-from its own scope -- that job belongs to Step 2's own real generator
-instead. No code exists for Composer yet.</div>
+<h2>Composer -- build and arrange a layout</h2>
+<div class="real">Start a blank board or import an ICM file. Place cells,
+set each one's fields (the panel shows the SUPER_LATCH it encodes to, as
+the explainer does) and join them; the layout engine
+(<code>tools/flex_layout_v1.py</code>) lays every route and balances the
+operand timing. Save a design to the library and it can be placed in
+another design as a single block, joined at its io-named ports. Drag
+cells and blocks; a move that cannot be routed is refused. Save writes
+ICM v3. No RTL is generated here
+(<code>docs/stripped-cell/design-notes/composer_layout_viewer_scope.md</code>).
+<a href="/composer">Open the Composer</a>.</div>
+<pre>python3 tools/flex_layout_view_v1.py FILE.icm.json   # the same import, from the command line</pre>
 """, active="menu")
 
 
 class FrontendHandler(http.server.BaseHTTPRequestHandler):
     controller: Optional[FrontendController] = None
+    composer: Optional["composer_page_v1.ComposerController"] = None
+
+    def _json_response(self, obj, status: int = 200) -> None:
+        body = json.dumps(obj).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json_body(self) -> Dict[str, Any]:
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            return {}
+        try:
+            got = json.loads(self.rfile.read(length).decode())
+        except ValueError:
+            return {}
+        return got if isinstance(got, dict) else {}
+
+    def _composer(self) -> "composer_page_v1.ComposerController":
+        if FrontendHandler.composer is None:
+            FrontendHandler.composer = composer_page_v1.ComposerController()
+        return FrontendHandler.composer
 
     def _html_response(self, html: str, status: int = 200) -> None:
         body = html.encode()
@@ -603,6 +632,22 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
             self._html_response(page_walker())
         elif self.path == "/menu":
             self._html_response(page_menu())
+        elif self.path == "/composer":
+            self._html_response(composer_page_v1.page_composer())
+        elif self.path == "/composer/api/state":
+            self._json_response(self._composer().state())
+        elif self.path == "/composer/api/save":
+            name, text = self._composer().icm_text()
+            if text is None:
+                self._json_response({"ok": False, "error": "no layout loaded"}, status=404)
+                return
+            body = text.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif self.path.startswith("/manual"):
             # Regenerated fresh from the current repo state every time
             # -- never a stale, separately hand-maintained copy (#558).
@@ -611,6 +656,17 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
             self._html_response("<h1>404</h1>", status=404)
 
     def do_POST(self):
+        if self.path.startswith("/composer/api/"):
+            req = self._read_json_body()
+            act = self.path[len("/composer/api/"):]
+            if act == "load":
+                self._json_response(self._composer().load(req))
+            elif act == "save_library":
+                self._json_response(self._composer().save_library(req))
+            else:
+                res = self._composer().edit(act, req)
+                self._json_response(res, status=404 if res.get("error", "").startswith("unknown action") else 200)
+            return
         fields = self._read_form_body()
         if self.path == "/man":
             result = self.controller.generate_man(fields)
@@ -643,6 +699,7 @@ def _url_unquote(s: str) -> str:
 
 def serve(port: int = 7421, open_browser: bool = False) -> http.server.HTTPServer:
     FrontendHandler.controller = FrontendController()
+    FrontendHandler.composer = composer_page_v1.ComposerController()
     server = http.server.HTTPServer(("localhost", port), FrontendHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

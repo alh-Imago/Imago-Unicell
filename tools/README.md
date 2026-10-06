@@ -38,10 +38,11 @@ python3 tools/project_assemble_v1.py --man docs/man/mustang-f100-a10.man.json --
   used throughout this project) -- without that step, Analysis &
   Synthesis fails with `undefined entity "issp"`.
 
-This is deliberately NOT the Composer (a separate, visual placement-
-*review* tool for an already-compiled model — RTL generation is
-explicitly out of scope for it, see `docs/stripped-cell/design-notes/
-composer_scope.md`) and NOT the Walker (a live, hardware-discovery
+This is deliberately NOT the Composer (a separate, visual tool that
+arranges an already-compiled design; RTL generation is explicitly out of
+scope for it; built for flex layouts at #1003-#1004 as the front panel's
+`/composer` over `tools/flex_layout_view_v1.py`, see `docs/stripped-cell/
+design-notes/composer_layout_viewer_scope.md`) and NOT the Walker (a live, hardware-discovery
 tool for mapping a *programmed* chip's own real topology cell by
 cell — see `points.md` #501). This tool's own job stops at "produce a
 real, buildable Quartus project" — it does no placement/routing
@@ -74,6 +75,7 @@ to before (#921). The cells are in `sub/verilog/`; see `sub/README.md`.
 | `flexsub_icm_generate_v1.py` | **Step 2, `sub`.** `-s sub --icm FILE` generates the design as fixed-latency hardware: one cycle per cell, early operands padded with relay cells, add-ons as wiring, merges as gated ORs, branches lowered onto `branch_cell_v4s`, a tick-driven sequencer, and the level-source rule (#925-#940). Its `plan()` is also the single source of truth `FlexGrid` reads. |
 | `flexsub_icm_flex_v1.py` | **Step 2, `flex`.** `-s flex --icm FILE` generates handshake hardware: eager forks for fan-out, joins for two-operand cells, constants as fixed-mode rams, merge cores per merge, second ports where flagged (#944-#981). No padding is needed. |
 | `flex_layout_v1.py` | A layout engine for hand-designed flex structures: cells and links on a grid, `route()`, the generator's hop model, and `balance()`, which removes the operand-arrival ties the generator refuses and enforces "minuend first" (#989); `route_nets(..., use_cross=True)` lets a route cross another at right angles through a `cross` tile (#999) |
+| `flex_layout_view_v1.py` | The Composer's layout side (#1003, #1004): imports an ICM file (v3, v4 or VIX) or starts a blank board (`Layout.new`); `add_cell`, `set_config` (checked by encoding the SUPER_LATCH), `join(a, b, out, role)` with output ports (out, second, low/equal/high) and input roles (in, set/clear/toggle, inc/dec) from which every direction field is derived, `unjoin`, `delete_cell`, `set_minuend`, `balance`; `move` re-routes and re-balances or refuses with nothing changed; `place_block` puts a saved design in as one unit whose io-named cells are its ports (`move_block`, `unpack_block`, `delete_block`); `undo`; `save` writes ICM v3. Nano/priority/command cells are pinned. `--builder fp_add/fp16` loads a layout built by Python. The front panel's `/composer` page is its UI |
 | `fp_add_v1.py` | The whole fp adder from flex cells: `fp_add(g, fmt)`, parametric in `FpFormat` (#990). Scope: normals and zero |
 | `fp_assembler_v1.py` | The open fp assembler: `FpFormat` (FP32, FP16, BF16, or custom) and parametric normalise / align-with-sticky / round blocks whose counts and constants are computed from the format (#989; design note `docs/stripped-cell/design-notes/fp_assembler_open_design.md`) |
 | `flexsub_compile_v1.py` | Compiles LLVM IR for sub/flex. It uses the stock compiler and rewrites VM-only mode-2 priorities to strict mode 0 with ranks, and marks the result cell. `--min-bit-width N` (#929/#930/#940/#958). |
