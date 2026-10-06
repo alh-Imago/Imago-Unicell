@@ -675,3 +675,5 @@ Routing the adder hit TOPOLOGICAL walls (a closed room cannot send lanes out exc
 **Proof (`tests/vm/test_cross_tile_v1.py`, 6):** RTL plain+stall, FlexGrid, with a ram relay in the bite case, layout cross + unroute.
 **FLAGS: std VM untouched. Touched (not std VM): `nano/icm_v3.py` (new core entries), `nano/flex_grid_v1.py` (flex only), `tools/flexsub_icm_netlist_v1.py`.**
 **Open:** REGISTERED variant (one slice per axis, latency 1) for long pure-wire chains and FPGA timing; native RTL cores per family (nano/sub/flex width); router/MAN cost rows for the tile.
+
+**#999 addendum (Alan, 6 Oct 2026): core-select 10 for `cross` is CONFIRMED ("fits, it looks like an X on an angle").** No longer provisional; the native per-family RTL cores are still open. Also removed the unused `w_low` parameter from `align_sticky`.

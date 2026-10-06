@@ -109,7 +109,7 @@ def normalise_chain(g, fmt, name="N", r0=0, c0=0, pitch=9):
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------
-def align_sticky(g, fmt, name="AL", r0=0, c0=0, pitch=7, flip=False, w_low=None):
+def align_sticky(g, fmt, name="AL", r0=0, c0=0, pitch=7, flip=False):
     """Align with sticky. Entries: `V` (w = significand << (word - S), top aligned), `D` (the exponent difference). Exits: `OUT` = w >> T and `STK` = (w mod 2^T != 0), T = (Ka+1) + (d mod 2^Ka) + 31*[d >= 2^Ka]."""
     Ka, word = fmt.Ka, fmt.word
     shifts = [1 << k for k in range(Ka)] + [word - 1]

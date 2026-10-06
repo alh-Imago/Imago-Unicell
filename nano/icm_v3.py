@@ -125,7 +125,7 @@ SEL_BRANCH = 7
 SEL_MUL = 8
 SEL_PRIORITY = 9
 #: Alan, 6 Oct 2026: `cross` -- a pure-wiring CROSSING tile (W<->E and N<->S pass straight through, no state, no control). Another entry from the reserved headroom (#317, #823 precedent):
-#: the number is provisional until the RTL core slot is fixed.
+#: Core number 10 CONFIRMED by Alan (6 Oct 2026, "10 fits, it looks like an X on an angle"); the native RTL core slot per family is still to be built.
 SEL_CROSS = 10
 
 CORE_NAMES = {
