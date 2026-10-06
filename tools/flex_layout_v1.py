@@ -243,21 +243,25 @@ class Grid:
 
     # ---- timing -----------------------------------------------------------------------------------------------------------------------
     def sources(self):
-        """Who feeds whom, with crossing tiles transparent (a word that enters a crossing leaves it in the same direction, in the same tick)."""
+        """Who feeds whom, with crossing tiles transparent as to WHO (a word that enters a crossing leaves it in the same direction) but not as to TIME: a crossing is one register slice
+        per direction, ONE TICK PER TILE like every other core (Alan, 6 Oct 2026). `self.xdelay[(consumer, source)]` = the number of crossing tiles on the way."""
         srcs = collections.defaultdict(list)
+        self.xdelay = {}
         out = collections.defaultdict(list)
         for a, b, _ in self.links:
             out[a].append(b)
         for a, b, _ in self.links:
             if self.nodes[a]["core"] == "cross":
                 continue
-            cur, d = b, self._dir(self.pos(a), self.pos(b))
+            cur, d, n_x = b, self._dir(self.pos(a), self.pos(b)), 0
             while self.nodes[cur]["core"] == "cross":
+                n_x += 1
                 cur = next((q for q in out[cur] if self._dir(self.pos(cur), self.pos(q)) == d), None)
                 if cur is None:
                     break
             if cur is not None and a not in srcs[cur]:
                 srcs[cur].append(a)
+                self.xdelay[(cur, a)] = n_x
         return srcs
 
     def hops(self):
@@ -269,7 +273,7 @@ class Grid:
                 return t[c]
             if c in stack:
                 raise LayoutError(f"cycle through {c}")
-            t[c] = max((tv(q, stack + (c,)) for q in srcs[c]), default=0) + 1
+            t[c] = max((tv(q, stack + (c,)) + self.xdelay.get((c, q), 0) for q in srcs[c]), default=0) + 1
             return t[c]
         for c in self.nodes:
             if self.nodes[c]["core"] != "cross":
@@ -295,7 +299,8 @@ class Grid:
             if n["core"] not in PAIR or len(srcs[c]) != 2:
                 continue
             x, y = srcs[c]
-            if t[x] == t[y]:
+            tx, ty = t[x] + self.xdelay.get((c, x), 0), t[y] + self.xdelay.get((c, y), 0)       # arrival = source + the crossing tiles on its way
+            if tx == ty:
                 out.append((c, "tie", x, y))
             m = self.minuend.get(c)
             if m is not None:                     # `m` names a cell UPSTREAM of one of the two sources (the route's last relay is the actual source)
@@ -303,7 +308,7 @@ class Grid:
                 if mx is None:
                     raise LayoutError(f"{c}: declared minuend {m} is upstream of neither operand")
                 oth = y if mx == x else x
-                if t[mx] >= t[oth]:
+                if t[mx] + self.xdelay.get((c, mx), 0) >= t[oth] + self.xdelay.get((c, oth), 0):
                     out.append((c, "order", mx, oth))
         return out
 

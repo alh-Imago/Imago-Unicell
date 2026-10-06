@@ -2,7 +2,7 @@
 
 ## Read this first (most recent)
 
-**#999 -- CROSSING TILE: pure wiring, W<->E and N<->S straight through, no ack/state/latency (core `cross`, select 10 CONFIRMED by Alan); RTL via netlist splice, FlexGrid, layout engine; FPGA cost = routing only. `tests/vm/test_cross_tile_v1.py` (6). Std VM untouched. Open: registered variant, native RTL cores, cost rows.**
+**#999 -- CROSSING TILE: pure wiring, W<->E and N<->S straight through, no control, ONE TICK PER TILE per direction (core `cross`, select 10 CONFIRMED by Alan); RTL via netlist splice, FlexGrid, layout engine; FPGA cost = routing only. `tests/vm/test_cross_tile_v1.py` (6). Std VM untouched. Open: native RTL cores (built from ram slices today), cost rows.**
 **#990 -- WHOLE fp ADDER from flex cells, parametric (fp32/bf16/fp16), RTL (plain+stall) == FlexGrid == exact reference (`tools/fp_add_v1.py`, `tests/vm/test_fp_add_v1.py`). Scope: normals+zero, RNE; NOT subnormal/overflow/inf/nan.**
 **#998 -- ONE LOOK FOR THE LOCAL TOOLS.** The front panel, workbench and live /manual share `nano/ui_theme_v1.py` (the public site's style, one header/nav across both local servers). No ids, field names or endpoints changed. The manual's converter now joins wrapped lines into paragraphs (it made one <p> per source line). See point #998.
 **#997 -- POINTS STATUS AUDIT PART 3** (`docs/shared/POINTS_STATUS_AUDIT_3.md`, #593-#996): done/pending/thought map in eras 14-27, with a quick reference of what is open now and what was last recorded open before the Tang Nano line. The docs audit list is now clear. See point #997.
