@@ -45,7 +45,11 @@ module mask_cell_v4sa #(
     input  wire               ack_in       // backward, from the one fixed downstream receiver
 );
 
-    localparam integer NIBBLES = (WIDTH + 3) / 4;   // real nibble count, top one may be partial
+    // #968 (Alan, 2026-10-06): the mask word stays 8 bits at every width, so each mask bit covers GROUP = ceil(WIDTH/8) data bits:
+    // 1 bit up to WIDTH 8, 2 up to 16, 3 up to 24, 4 up to 32 (= the original nibble), 5 up to 40. The top group may be partial.
+    // Every data bit is therefore covered at every width (the old fixed 4-bit nibble left bits 32+ with no mask bit at WIDTH > 32).
+    localparam integer GROUP   = (WIDTH + 7) / 8;
+    localparam integer NIBBLES = (WIDTH + GROUP - 1) / GROUP;   // group count, always <= 8 (name kept: the nibble_mask field)
 
     reg             mask_en     = 1'b0;
     reg  [7:0]      nibble_mask = 8'h0;
@@ -60,8 +64,8 @@ module mask_cell_v4sa #(
     genvar gi;
     generate
         for (gi = 0; gi < NIBBLES; gi = gi + 1) begin : NIB
-            localparam integer LO = gi * 4;
-            localparam integer HI = (LO + 3 < WIDTH) ? (LO + 3) : (WIDTH - 1);
+            localparam integer LO = gi * GROUP;
+            localparam integer HI = (LO + GROUP - 1 < WIDTH) ? (LO + GROUP - 1) : (WIDTH - 1);
             assign mask_result[HI:LO] = (mask_en && nibble_mask[gi]) ? {(HI-LO+1){1'b0}} : data_in[HI:LO];
         end
     endgenerate

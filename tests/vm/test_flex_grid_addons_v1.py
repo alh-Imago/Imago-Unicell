@@ -119,9 +119,7 @@ def test_the_nibble_mask_equals_the_real_mask_cell(w, tmp_path):
     r = random.Random(w + 1)
     cases = [(1, nm, v) for nm in (0, 1, 2, 0x0F, 0x10, 0x55, 0xAA, 0xFF, 0xE0, 0xA5, r.getrandbits(8)) for v in values(w, 4)] + [(0, 0xFF, v) for v in values(w, 3)]
     rtl = rtl_mask(w, cases, tmp_path)
-    keep = (1 << min(w, 32)) - 1 if w > 32 else (1 << w) - 1   # at W > 32 the real cell's nibble 8+ is x (see the pinned defect below): compare the defined 32 bits there
-    cmp = lambda e, x: x & keep if (w > 32 and e) else x
-    bad = [(e, hex(nm), hex(v), hex(fg.flex_addons(v, {"mask_en": e, "nibble_mask": nm}, w)), hex(rtl[(e, nm, v)])) for e, nm, v in cases if cmp(e, fg.flex_addons(v, {"mask_en": e, "nibble_mask": nm}, w)) != cmp(e, rtl[(e, nm, v)])]
+    bad = [(e, hex(nm), hex(v), hex(fg.flex_addons(v, {"mask_en": e, "nibble_mask": nm}, w)), hex(rtl[(e, nm, v)])) for e, nm, v in cases if fg.flex_addons(v, {"mask_en": e, "nibble_mask": nm}, w) != rtl[(e, nm, v)]]
     assert not bad, f"width {w}: mask differs from the RTL: {bad[:3]}"
 
 
@@ -148,7 +146,7 @@ def test_the_whole_chain_equals_the_rtl_stages_composed(w, tmp_path):
     r = random.Random(w + 7)
     cfgs = []
     for _ in range(40):
-        cfgs.append({"mask_en": r.getrandbits(1) if w <= 32 else 0, "nibble_mask": r.getrandbits(8), "shift_en": r.getrandbits(1), "direction": r.getrandbits(1),
+        cfgs.append({"mask_en": r.getrandbits(1), "nibble_mask": r.getrandbits(8), "shift_en": r.getrandbits(1), "direction": r.getrandbits(1),
                      "shift_fine": r.getrandbits(2), "shift_amt": r.choice((0,) + COARSE), "invert_en": r.getrandbits(1)})
     vals = values(w, 2)
     masks = rtl_mask(w, [(c["mask_en"], c["nibble_mask"], v) for c in cfgs for v in vals], tmp_path)
@@ -177,7 +175,7 @@ def test_through_a_flexgrid_cell_the_addon_is_applied_at_width_18():
     for _ in range(20):
         g.tick()
     e = g.cells[(0, 2)]
-    assert e.ram_data_valid and e.ram_data_reg == (~(0x2ABCD & ~0xF) & 0x3FFFF)
+    assert e.ram_data_valid and e.ram_data_reg == (~(0x2ABCD & ~0x7) & 0x3FFFF)   # width 18: mask bit 0 = a 3-bit group (#968)
 
 
 def test_std_vm_still_refuses_addons_at_other_widths_and_flexgrid_refuses_lane_cut():
@@ -199,13 +197,18 @@ def test_the_comparison_bites_a_chain_that_ignores_the_width(tmp_path):
     assert wrong > 0
 
 
-def test_known_rtl_defect_the_mask_cell_has_no_mask_bit_for_nibbles_above_7(tmp_path):
-    """FINDING (ledger #967): mask_cell_v4sa keeps nibble_mask in an 8-bit reg but instantiates NIBBLES = ceil(W/4) nibbles, so at W > 32 nibble 8 reads nibble_mask[8] (out of range) and its output is x
-    while the mask is enabled. Pinned here so a fix is noticed. The mirror treats nibbles above 7 as never masked (the natural reading); at W <= 32 nothing is affected."""
-    for w in (18, 32):
-        XBITS.clear()
-        rtl_mask(w, [(1, 0xFF, 0xFFFFFFFF & ((1 << w) - 1))], tmp_path)
-        assert (w, 1) not in XBITS, f"unexpected x at width {w}"
-    XBITS.clear()
-    rtl_mask(36, [(1, 0xFF, (1 << 36) - 1)], tmp_path)
-    assert (36, 1) in XBITS, "the width-36 mask cell no longer drives x for nibble 8: the defect looks FIXED -- update the test and the mirror's note"
+def test_every_data_bit_has_a_mask_bit_at_every_width_and_the_real_cell_never_drives_x(tmp_path):
+    """#968 (Alan's uniform rule): the 8-bit mask word covers the whole width, each mask bit ceil(W/8) data bits. Before it, mask_cell_v4sa kept 8 mask bits but built ceil(W/4) nibbles, so at
+    W > 32 nibble 8 read nibble_mask[8] (out of range) and was x while masking. Now: for every width, masking with all 8 bits set must give exactly 0 (every bit covered, no x), and each single mask bit
+    must clear exactly its own group."""
+    for w in (4, 8, 9, 16, 17, 18, 24, 25, 32, 33, 36, 40):
+        full = (1 << w) - 1
+        group = (w + 7) // 8
+        cases = [(1, 0xFF, full)] + [(1, 1 << g, full) for g in range(8)]
+        out = rtl_mask(w, cases, tmp_path)
+        assert out[(1, 0xFF, full)] == 0, f"width {w}: not every bit is covered by a mask bit"
+        for g in range(8):
+            lo, hi = g * group, min((g + 1) * group, w)
+            want = full & ~(((1 << max(hi - lo, 0)) - 1) << lo) if lo < w else full
+            assert out[(1, 1 << g, full)] == want, f"width {w}: mask bit {g} should clear bits [{hi-1}:{lo}]"
+        assert not any(k[0] == w for k in XBITS), f"width {w}: the real mask cell drove x"

@@ -63,7 +63,7 @@ _SHIFT_COARSE = (1, 2, 4, 8, 12, 16, 20, 24, 28)    # the supported coarse taps 
 
 def flex_addons(value, ad, width):
     """The add-on chain (nibble mask -> fine shift -> coarse shift -> invert) on a W-bit value, as the flex family's separate cores do it (mask_cell_v4sa, shift_stage_v4sa; invert is
-    wiring). The std chain is defined on 32-bit lanes; this is the same chain on W bits: the nibble mask covers ceil(W/4) nibbles (mask bits above that are ignored, as in the RTL),
+    wiring). The std chain is defined on 32-bit lanes; this is the same chain on W bits: the 8-bit mask word covers the whole width, each mask bit ceil(W/8) data bits (ledger #968; = the nibble at W 25..32; mask bits beyond the last group are ignored, as in the RTL),
     shifts are logical with zero fill inside W bits, an unsupported coarse amount is a no-op (as in the std chain), invert flips W bits. `lane_cut` (a byte-lane cut) has no W-bit
     definition and no flex cell, so it is refused at W != 32 (see FlexGrid.__init__). At width 32 this is exactly the std function."""
     if width == 32:
@@ -73,9 +73,10 @@ def flex_addons(value, ad, width):
     value &= m
     if ad.get("mask_en"):
         nm = ad.get("nibble_mask", 0)
-        for nib in range((width + 3) // 4):
-            if (nm >> nib) & 1:
-                value &= ~(0xF << (4 * nib)) & m
+        group = (width + 7) // 8                       # ledger #968: the 8-bit mask word covers the whole width, each bit ceil(W/8) data bits (4 = a nibble at W 25..32)
+        for g in range((width + group - 1) // group):
+            if (nm >> g) & 1:
+                value &= ~(((1 << group) - 1) << (group * g)) & m
     shift_en, right = ad.get("shift_en", 0), bool(ad.get("direction", 0))
     fine, amt = ad.get("shift_fine", 0) & 3, ad.get("shift_amt", 0)
     if shift_en:

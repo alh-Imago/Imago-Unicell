@@ -628,18 +628,14 @@ have genuinely cleared, not just the fast one. Real DFF reduction from the
 narrower data register (37 -> 23); LUT4 unchanged (the busy/pending control
 logic does not depend on data width).
 
-**`mask_cell_v4sa`: a real complication thought through, not papered over.**
-`mask_cell_v4s.v` reuses `nibble_mask_addon_v1`, hardcoded for exactly 8
-nibbles (32 bits) -- and 18, this card's real native width, is NOT a
-multiple of 4. There is no way to reuse that fixed-width primitive correctly
-at `WIDTH=18`. Resolved with a genuinely generic, inline nibble-mask built
-from a `generate` loop: `NIBBLES = ceil(WIDTH/4)`, with the TOP nibble
-honestly allowed to be partial (at `WIDTH=18`, nibble 4 covers only bits
-`[17:16]`, 2 real bits, not padded or truncated to 4) -- "zero these bits if
-their nibble's mask bit is set," generalised honestly rather than assumed.
-Real correctness proven specifically for this boundary case, cross-checked
-in Python: blocking the partial top nibble of an all-1s 18-bit value
-correctly zeros only those 2 real bits. Real DFF/LUT reduction, roughly
+**`mask_cell_v4sa`: the mask word scales with the width (ledger #968, supersedes the nibble design described in #877).**
+The mask word is always 8 bits, so each mask bit covers `GROUP = ceil(WIDTH/8)` data bits: 1 bit up to WIDTH 8, 2 up to 16, 3 up to 24,
+4 up to 32 (exactly the original nibble, so WIDTH=32 is unchanged), 5 up to 40. There are `ceil(WIDTH/GROUP)` real groups (always <= 8),
+the top group may be partial, and mask bits beyond the last group are ignored. Every data bit is covered at every width. The earlier
+fixed 4-bit nibble left bits 32+ without a mask bit at WIDTH > 32 (nibble 8 read `nibble_mask[8]`, out of range, and was x). At WIDTH=18
+a mask bit covers 3 bits (6 groups), no longer a nibble: the same mask value means different bits at different widths -- a deliberate
+uniform rule, to be stated in the user documentation. Checked against the real cell at W = 4, 8, 9, 16, 17, 18, 24, 25, 32, 33, 36, 40
+(`tests/vm/test_flex_grid_addons_v1.py`) and by `tb_mask_cell_v4sa_width18.v`. (Cost figures below were measured with the nibble design.) Real DFF/LUT reduction, roughly
 proportional to width: DFFRE 43 -> 26, LUT1-4 37 -> 23.
 
 **What changed:** `sub/verilog/latch_cell_v4sa.v`, `sequencer_cell_v4sa.v`,
