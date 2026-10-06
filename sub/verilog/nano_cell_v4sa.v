@@ -111,7 +111,7 @@ module nano_cell_v4sa #(
 
             if (pending) begin
                 if (ack_in) pending <= 1'b0;
-            end else if (valid_in) begin
+            end else if (valid_in && armed) begin   // ledger #971: gated by `armed` like every other v4sa cell (an UNCONFIGURED nano used to capture and offer)
                 out_buffer <= computed_output;
                 pending    <= 1'b1;
             end

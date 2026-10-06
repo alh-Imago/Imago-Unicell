@@ -109,6 +109,12 @@ module tb_nano_cell_v4sa;
             "frozen: completely unaffected by flow/ack/hold-reload toggling while frozen");
         freeze_in = 0; load_hold = 0; valid_in = 0;
 
+        // ledger #971: an UNCONFIGURED cell must not capture or offer anything, whatever valid_in does
+        rst = 1; @(posedge clk); #1; rst = 0; ack_in = 0; load_hold = 0; freeze_in = 0;
+        flow_in_data = 32'h000000FF; valid_in = 1; @(posedge clk); @(posedge clk); #1;
+        check_cond(valid_out === 1'b0 && ack_out === 1'b0, "unconfigured: no offer");
+        valid_in = 0;
+
         if (errors == 0) $display("ALL PASS");
         else $display("FAILURES: %0d", errors);
         $finish;

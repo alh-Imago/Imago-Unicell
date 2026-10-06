@@ -150,9 +150,9 @@ def test_a_nano_the_flex_generator_does_not_translate_is_refused_at_other_widths
     assert fg.FlexGrid([rec], width=32).width == 32          # at 32 nothing is restricted (the std nano model, as always)
 
 
-def test_known_rtl_defect_an_unconfigured_flex_nano_still_captures(tmp_path):
-    """FINDING (ledger #970): nano_cell_v4sa captures on `valid_in` with no `armed` check (like the sequencer did before #956): an UNCONFIGURED cell handed a value offers a result (valid_out = 1) although its
-    ack_out (ready) is low. The generated designs are safe because they gate valid_in with the cell's ready. Pinned so a fix is noticed."""
+def test_an_unconfigured_flex_nano_does_not_capture_or_offer(tmp_path):
+    """FIXED (ledger #971, Alan's go-ahead): nano_cell_v4sa used to capture on `valid_in` with no `armed` check (like the sequencer before #956): an UNCONFIGURED cell handed a value offered a result (valid_out = 1)
+    although its ack_out (ready) was low. Now gated by `armed` like every other v4sa cell; configured behaviour is unchanged (every test above). The cell's own bench checks it too."""
     assert shutil.which("iverilog") and shutil.which("vvp"), "iverilog is REQUIRED (this test must not skip silently)"
     tb = """`timescale 1ns/1ps
 module tb;
@@ -171,4 +171,4 @@ endmodule
     f.write_text(tb)
     subprocess.run(["iverilog", "-g2012", "-o", str(tmp_path / "u.vvp"), str(f), CELL], check=True, capture_output=True)
     out = subprocess.run(["vvp", str(tmp_path / "u.vvp")], capture_output=True, text=True).stdout
-    assert "U 0 1" in out, f"the unconfigured nano no longer offers a result (ack_out=0, valid_out=1): the defect looks FIXED -- update this test. got: {out[:80]}"
+    assert "U 0 0" in out, f"an unconfigured nano must neither be ready nor offer a result (ack_out=0, valid_out=0). got: {out[:80]}"

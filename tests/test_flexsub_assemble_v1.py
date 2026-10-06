@@ -224,8 +224,8 @@ try:
         # The generated folder's OWN files, bare cell as top with chparam (the ledger's convention), must
         # reproduce the figures recorded in the ledger/README. (A flattened stimulus harness is NOT a valid
         # per-cell cost for live-config cells -- shared-LFSR flops merge across stages -- so none is used here.)
-        recorded = {("flex", "adder"): (23, 18, 21, 0), ("flex", "branch"): (201, 36, 69, 0),   # README / #918
-                    ("flex", "nano"): (626, 0, 48, 0), ("flex", "accumulator"): (242, 72, 63, 0),
+        recorded = {("flex", "adder"): (23, 18, 21, 0), ("flex", "branch"): (201, 36, 69, 0),   # README / #918; flex nano 626 -> 627 LUT4 at #971 (the `armed` gate on capture costs one LUT4)
+                    ("flex", "nano"): (627, 0, 48, 0), ("flex", "accumulator"): (242, 72, 63, 0),
                     ("sub", "adder"): (66, 32, 35, 0), ("sub", "nano"): (1117, 0, 76, 0),        # README / #917
                     ("sub", "shift"): (3261, 62, 46, 0), ("sub", "mul_dsp3"): (71, 32, 151, 1)}  # README
         if not matrix:
