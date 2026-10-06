@@ -1,5 +1,23 @@
 # The Composer, retargeted: a viewer and editor for flex layouts
 
+> **Status, 2026-10-06 (ledger #1002): authoring and library blocks are
+> built too.** Alan changed decision 1 below ("it needs to be able to create
+> from scratch a new file ... placing of cells onto the fabric and joining
+> them ... these smaller models are effectively shareable library models
+> ... represented by a single tile, then has joins at set points"). The
+> Composer now places cells from a palette on a blank board, sets each
+> cell's fields in an explainer-style panel (bit ranges, add-on fields, the
+> encoded SUPER_LATCH), and joins an output PORT to an input ROLE: out,
+> second, branch low/equal/high, latch set/clear/toggle, accumulator
+> inc/dec. Every direction field is derived from the joins, so branch,
+> latch and accumulator cells are no longer pinned; only nano, priority and
+> command are. Saved designs go into a library folder (`nano/library/`,
+> or `IMAGO_LIBRARY`) and can be placed as BLOCKS: one framed tile whose
+> io-named cells are its ports. A block moves as a unit with its joins laid
+> again, and can be unpacked or deleted. Save flattens blocks (ICM v3 has
+> no hierarchy). Checks: a design built from scratch, and two library
+> blocks joined port to port, compute the right sums in the FlexGrid VM.
+>
 > **Status, 2026-10-06 (ledger #1001): the viewer and drag-and-place are
 > built, for an imported ICM file** (Alan: "start with the viewer side,
 > that allows the drag and place of the imported icm file").

@@ -15,10 +15,11 @@ naming what's explicitly not built rather than faking it:
   CLIs use, never a separate, parallel implementation that could drift
   out of sync. The Walker page is explicit that it's the SIMULATED
   version (points.md #602) -- a VM-mirrored grid, not real silicon.
-- The Composer (/composer, `composer_page_v1.py`) imports an ICM file
-  and lets a person drag logic cells; each move is re-routed and
-  re-balanced by the layout engine (`tools/flex_layout_view_v1.py` over
-  `tools/flex_layout_v1.py`). It arranges, it never authors, and it
+- The Composer (/composer, `composer_page_v1.py`) builds a design on a
+  blank board or imports an ICM file: place cells, set their fields,
+  join them, insert saved designs from the library as blocks, drag cells
+  and blocks; every edit goes through the layout engine
+  (`tools/flex_layout_view_v1.py` over `tools/flex_layout_v1.py`). It
   generates no RTL (`docs/stripped-cell/design-notes/
   composer_layout_viewer_scope.md`).
 - Every real, action-performing page ALSO shows the exact equivalent
@@ -290,7 +291,7 @@ matching the order this project's own build process actually follows:</p>
 <li><b>Card / MAN file</b> -- describe your card's own real capabilities once.</li>
 <li><b>Create cells</b> -- generate a real, importable Quartus project for N cells.</li>
 <li><b>Walker</b> -- simulated, live discovery of a VM-mirrored design's own topology (real hardware discovery is a separate, later step).</li>
-<li><b>Other tools</b> -- the real VM/workbench and the compiler; the <a href="/composer">Composer</a> arranges an imported ICM file on the board.</li>
+<li><b>Other tools</b> -- the real VM/workbench and the compiler; the <a href="/composer">Composer</a> builds and arranges designs on the board.</li>
 </ol>
 <p>Every real, action-performing page here also shows the exact
 equivalent command-line invocation -- this tool is a convenience, not
@@ -558,13 +559,16 @@ see <code>docs/stripped-cell/UNICELL_S_DSL_MANUAL.md</code> for the
 language reference.</div>
 <pre>python3 nano/dsl_cli_v1.py your_program.uc -o out.icm</pre>
 
-<h2>Composer -- arrange a layout</h2>
-<div class="real">Import an ICM file (or a layout built by Python, such as
-the fp adder), see it on the board, and drag logic cells to new squares.
-On each drop the layout engine (<code>tools/flex_layout_v1.py</code>)
-re-routes and re-balances, or refuses the move. Save writes ICM v3. It
-arranges what a builder or compiler made; it never adds connections and
-generates no RTL (<code>docs/stripped-cell/design-notes/composer_layout_viewer_scope.md</code>).
+<h2>Composer -- build and arrange a layout</h2>
+<div class="real">Start a blank board or import an ICM file. Place cells,
+set each one's fields (the panel shows the SUPER_LATCH it encodes to, as
+the explainer does) and join them; the layout engine
+(<code>tools/flex_layout_v1.py</code>) lays every route and balances the
+operand timing. Save a design to the library and it can be placed in
+another design as a single block, joined at its io-named ports. Drag
+cells and blocks; a move that cannot be routed is refused. Save writes
+ICM v3. No RTL is generated here
+(<code>docs/stripped-cell/design-notes/composer_layout_viewer_scope.md</code>).
 <a href="/composer">Open the Composer</a>.</div>
 <pre>python3 tools/flex_layout_view_v1.py FILE.icm.json   # the same import, from the command line</pre>
 """, active="menu")
@@ -657,12 +661,11 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
             act = self.path[len("/composer/api/"):]
             if act == "load":
                 self._json_response(self._composer().load(req))
-            elif act == "move":
-                self._json_response(self._composer().move(req))
-            elif act == "undo":
-                self._json_response(self._composer().undo())
+            elif act == "save_library":
+                self._json_response(self._composer().save_library(req))
             else:
-                self._json_response({"ok": False, "error": f"unknown action {act}"}, status=404)
+                res = self._composer().edit(act, req)
+                self._json_response(res, status=404 if res.get("error", "").startswith("unknown action") else 200)
             return
         fields = self._read_form_body()
         if self.path == "/man":

@@ -6101,7 +6101,7 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 </tr>
 <tr>
 <td><code>flex_layout_view_v1.py</code></td>
-<td>The Composer's layout side (#1001): imports an ICM file (v3, v4 or VIX), folds relay chains and crossing tiles back into routes, and rebuilds it as a <code>flex_layout_v1.Grid</code>; <code>move(name, r, c)</code> re-routes and re-balances, or refuses and changes nothing; <code>undo()</code>; <code>save()</code> writes ICM v3. Cells wired by fields the engine does not derive (nano, branch) are pinned. <code>--builder fp_add/fp16</code> loads a layout built by Python. The front panel's <code>/composer</code> page is its UI</td>
+<td>The Composer's layout side (#1001, #1002): imports an ICM file (v3, v4 or VIX) or starts a blank board (<code>Layout.new</code>); <code>add_cell</code>, <code>set_config</code> (checked by encoding the SUPER_LATCH), <code>join(a, b, out, role)</code> with output ports (out, second, low/equal/high) and input roles (in, set/clear/toggle, inc/dec) from which every direction field is derived, <code>unjoin</code>, <code>delete_cell</code>, <code>set_minuend</code>, <code>balance</code>; <code>move</code> re-routes and re-balances or refuses with nothing changed; <code>place_block</code> puts a saved design in as one unit whose io-named cells are its ports (<code>move_block</code>, <code>unpack_block</code>, <code>delete_block</code>); <code>undo</code>; <code>save</code> writes ICM v3. Nano/priority/command cells are pinned. <code>--builder fp_add/fp16</code> loads a layout built by Python. The front panel's <code>/composer</code> page is its UI</td>
 </tr>
 <tr>
 <td><code>fp_add_v1.py</code></td>

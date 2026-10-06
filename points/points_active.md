@@ -709,3 +709,36 @@ Routing the adder hit TOPOLOGICAL walls (a closed room cannot send lanes out exc
 Measured: about 0.05-0.15 s per move on the fp16 adder (1,640 cells, 319 routes).
 **Open:** the pre-balance view and drawing a problem's two operand paths; positions overrides for Python builders (scope option (a)); the block library (phase 2); moving several cells at once.
 
+### #1002 -- THE COMPOSER AUTHORS: PLACE, CONFIGURE, JOIN, AND REUSE SAVED DESIGNS AS LIBRARY BLOCKS (Alan: "it needs to be able to create from scratch a new file ... placing of cells onto the fabric and joining them ... show its current config, very similar to the explainer system ... these smaller models are effectively shareable library models ... represented by a single tile, then has joins at set points, as defined in the icm of that object")
+**Decision changed.** #1001's scope (decision 1) said the Composer arranges and never authors. Alan has now asked for authoring, so it authors too. The scope note's status block records this.
+**Tagged joins (`tools/flex_layout_view_v1.py`).** A join is one engine route (or a direct link between neighbours) from a source to a destination. It carries the output PORT it leaves by and the input ROLE it arrives as:
+- Ports: `out`; `second` (the adder carry / mul high word; joining it turns `second_output` on); a branch's `low` / `equal` / `high`; a nano's `routing_mask`.
+- Roles: `in`; a branch's single `upstream_dir`; a latch's `set` / `clear` / `toggle`; an accumulator's `inc` / `dec`.
+Every direction field of every cell is DERIVED from its joins, plus any face that leaves the design (kept from the file). Import recovers the tags from the file, so imported designs still re-export record for record. Branch, latch and accumulator cells are no longer pinned; only nano, priority and command are.
+**Authoring API:** `Layout.new(rows, cols)`, `add_cell`, `set_config`, `join(a, b, out, role)`, `unjoin`, `delete_cell`, `set_minuend`, `balance`, `undo`.
+- `set_config` checks the values by encoding the SUPER_LATCH: a value too wide for its field, an unknown field, or a face field (faces come from joins) is refused.
+- `join` refuses: an output or input the core does not have (for example, a sequencer has no input); a second input into a branch; and two different words between one pair of cells (the engine keys routes by their two ends). A further branch outcome to the same destination merges into the existing join.
+- Every edit runs as a transaction: a refusal restores the layout exactly; a success goes on the undo stack.
+**Library blocks.** Save to library writes ICM v3 into `nano/library/` (or `IMAGO_LIBRARY`; the shipped examples are listed after it). The model needs at least one io-named cell, and an existing model is never replaced silently. `place_block(path, r, c)` inserts a model as one unit:
+- its cells are prefixed `<model>_<n>.`;
+- its io-named cells become its PORTS;
+- it is drawn as one framed tile with gold port dots ("Block insides" shows its cells);
+- dragging any part of it moves the whole block with its joins laid again (`move_block`);
+- `unpack_block` turns it into ordinary cells; `delete_block` removes it.
+ICM v3 has no hierarchy, so Save flattens blocks; a reloaded file has no block grouping.
+**The page (`nano/composer_page_v1.py`)**:
+- Modes: Select/move, Place (a palette of the 10 placeable cores), Join, Delete, Insert block (a library model or any file).
+- Join asks "which output" or "which input" only when a cell has more than one; the carry/high word is offered only when `second_output` is on.
+- The Selected panel shows every field with its bit range: 1-bit toggles, numbers in decimal or 0x hex, and the face fields lit from the joins (read-only). Below them come the add-on fields, a minuend choice for a subtracting adder, a bit bar of core_select / core_config / add-on, and the 80-bit SUPER_LATCH. It also lists the cell's joins, each with an unjoin button.
+- There are buttons for Balance, Save to library, New design, and opening a library model.
+**Checks** (`tests/tools/test_composer_v1.py`, 16 tests, about 18 s):
+- A two-input adder built from scratch gives 3, 12, 123 in FlexGrid, and re-imports record for record.
+- Field checks: an over-wide value, a face field and an unknown field are each refused, and the configuration is left unchanged.
+- Ports and roles: latch set/clear and branch low/high/equal (two outcomes merged onto one join) are written correctly. A second input into a branch and a join into a sequencer are refused.
+- Delete, unjoin and undo work.
+- Two library blocks joined port to port compute (a+b)+c = 13, 32, 342, before and after moving a block, including a move started from a cell inside it. Delete and unpack work.
+- The JSON API: new, add, config, join, minuend, save_library (no silent overwrite), block, and refusing a path outside the library.
+- The CORDIC example now imports with 0 pinned cells. Moving a cell fed by a branch outcome keeps every source -> destination join with its outcome and role.
+- In Chromium: built and saved a model, placed it twice in a new design, joined the ports, balanced, dragged a block. No script errors. The downloaded file computes (a+b)+c correctly in FlexGrid. At 390 px the page has no overflow, and a branch's panel shows its outcome routes.
+**Open:** a hierarchical (ICM-VIX pattern) save that keeps blocks; checking authored nano cells (pinned on import); selecting and moving several cells at once; the pre-balance view and drawing a problem's operand paths (from #1001).
+

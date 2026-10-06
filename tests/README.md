@@ -56,10 +56,13 @@ ladder), the `-nowidelut` flag, and the `min_bit_width` header flag.
 python3 -m pytest tests/tools -q
 ```
 
-`test_composer_v1.py` (#1001) checks that an imported ICM file re-exports
-exactly, that a hand move keeps the fp16 adder correct in FlexGrid and in
-the generated RTL (that one needs iverilog), that refused moves change
-nothing, and the `/composer` page and its JSON API.
+`test_composer_v1.py` (#1001, #1002) checks that an imported ICM file
+re-exports exactly, that a hand move keeps the fp16 adder correct in
+FlexGrid and in the generated RTL (that one needs iverilog), that refused
+moves change nothing, that a design built from scratch and two library
+blocks joined port to port compute the right sums in FlexGrid, that ports
+and roles (latch set/clear, branch outcomes, sequencer with no input) are
+respected, and the `/composer` page and its JSON API.
 
 ## Per-cell Verilog benches
 
