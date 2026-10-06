@@ -403,3 +403,12 @@ Alan's ruling (#963 discussion): flex is the only family where width and behavio
 **Also:** pushing needed the Claude GitHub App/connector access for the org; fixed by Alan this morning (a plain `git push` works).
 
 **Next (step 2):** the flex nano with width, replacing the `CACell` delegation for FlexCell.
+
+
+## 966. FLEXGRID STEP 2: the flex nano is width-aware and equals the real `nano_cell_v4sa` RTL at widths 4, 8, 18, 32 and 36.
+
+**Built:** `CACell` (nano/unicell_automaton_v1.py) gains a `mask` field (default 32 bits, so every existing user is unchanged) used in place of the five hard-wired `_MASK32` sites (arrival merge, feedback, emit/invert); `compute_gate`/`_gate_tree` (unicell_gate_core.py) take an optional `mask` (default 32 bits; ONE = mask). `SuperCell.from_record` passes the cell's width mask into the nano. A shared hook `SuperCell._check_width_support(core, cfg, width)` (base: nano refused at W!=32 as before); `FlexCell` overrides it: the flex nano is accepted at other widths ONLY for the translatable subset (topologies in the planner's `NANO_TOPOLOGIES`, no relay/hold/update/one-shot modes), anything else is refused with the reason.
+**Proof:** new `tests/vm/test_flex_grid_nano_v1.py` (10): an iverilog bench of the real RTL cell at WIDTH=W over 12 topologies x 12 operand pairs, compared with FlexGrid at W=4/8/18/32/36 (RTL is the oracle); mutation (mask forced to 32 bits) disagrees at W=18; std VM still refuses nano at W18; the three unsupported cases are refused. `tests/vm` baseline 1534+5 skipped -> 1554+5 skipped (= +20 new tests since baseline, nothing existing altered).
+**Harness lesson:** a VM nano only accepts input when `ready: 1` is in its core_config; without it every comparison returned nothing (it looked like a width bug, it was a missing start flag).
+**OPEN FINDING (not yet probed):** flex nano RTL captures on `valid_in` with no `armed` check (the sequencer had the same shape of defect, #956). The generator is safe because it gates valid_in with ready. Needs a probe before it is claimed, and a one-line fix only after reporting.
+**Next (step 3):** role-based pairing for adder/multiplier.

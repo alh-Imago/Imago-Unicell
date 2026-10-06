@@ -48,24 +48,24 @@ TOPO_XOR    = 0x0BC
 _MASK32 = 0xFFFFFFFF
 
 
-def _gate_tree(a: int, b: int) -> dict:
+def _gate_tree(a: int, b: int, mask: int = _MASK32) -> dict:
     """The exact NOR-decomposition from unicell64_v3.v lines 724-733, and
     (byte-identical, verified) unicell_stripped_v1.v lines ~482-491."""
-    g0 = (~(a | a)) & _MASK32                    # NOT(A)
-    g1 = (~(b | b)) & _MASK32                    # NOT(B)
-    g2 = (~(g0 | g1)) & _MASK32                  # AND(A,B) = NOR(NOT A, NOT B)
-    g3 = (~(g2 | g2)) & _MASK32                  # NAND(A,B)
-    g4 = (~(a | b)) & _MASK32                    # NOR(A,B)
-    g5 = (~(g4 | g4)) & _MASK32                  # OR(A,B)
-    g6 = (~(a | g4)) & _MASK32                   # NOR(A, NOR(A,B))
-    g7 = (~(b | g4)) & _MASK32                   # NOR(B, NOR(A,B))
-    g8 = (~(g6 | g7)) & _MASK32                  # XNOR(A,B)
-    g9 = (~(g8 | g8)) & _MASK32                  # XOR(A,B)
+    g0 = (~(a | a)) & mask                    # NOT(A)
+    g1 = (~(b | b)) & mask                    # NOT(B)
+    g2 = (~(g0 | g1)) & mask                  # AND(A,B) = NOR(NOT A, NOT B)
+    g3 = (~(g2 | g2)) & mask                  # NAND(A,B)
+    g4 = (~(a | b)) & mask                    # NOR(A,B)
+    g5 = (~(g4 | g4)) & mask                  # OR(A,B)
+    g6 = (~(a | g4)) & mask                   # NOR(A, NOR(A,B))
+    g7 = (~(b | g4)) & mask                   # NOR(B, NOR(A,B))
+    g8 = (~(g6 | g7)) & mask                  # XNOR(A,B)
+    g9 = (~(g8 | g8)) & mask                  # XOR(A,B)
     return {"g0": g0, "g1": g1, "g2": g2, "g3": g3, "g4": g4,
             "g5": g5, "g6": g6, "g7": g7, "g8": g8, "g9": g9}
 
 
-def compute_gate(topology: int, a: int, b: int) -> int:
+def compute_gate(topology: int, a: int, b: int, mask: int = _MASK32) -> int:
     """
     computed_output — matches the case(topology) table at unicell64_v3.v
     lines 740-753 exactly (and unicell_stripped_v1.v lines ~493-511, byte-
@@ -74,9 +74,9 @@ def compute_gate(topology: int, a: int, b: int) -> int:
     a = input_val (A, the stored/first-arrival operand)
     b = second_val (B, the live/second-arrival trigger operand)
     """
-    a &= _MASK32
-    b &= _MASK32
-    g = _gate_tree(a, b)
+    a &= mask
+    b &= mask
+    g = _gate_tree(a, b, mask)
     return {
         TOPO_PASS_A: a,
         TOPO_PASS_B: b,
@@ -89,5 +89,5 @@ def compute_gate(topology: int, a: int, b: int) -> int:
         TOPO_XOR:    g["g9"],
         TOPO_XNOR:   g["g8"],
         TOPO_ZERO:   0,
-        TOPO_ONE:    _MASK32,
+        TOPO_ONE:    mask,
     }.get(topology, a)  # default: fallback PASS(A), matches RTL exactly

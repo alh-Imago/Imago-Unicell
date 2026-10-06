@@ -565,6 +565,15 @@ class SuperCell:
         register different behaviour for an existing core name there."""
         return _CORE_HANDLERS.get(self.core)
 
+    @classmethod
+    def _check_width_support(cls, core: str, cfg: dict, width: int) -> None:
+        """Refuse a core that cannot honestly be computed at `width`. The base VM only has a 32-bit nano (its arithmetic is delegated to CACell, which is not width-aware), so the nano is
+        refused at any other width; every other core is threaded for width (#961). A variant (FlexCell, #966) overrides this with what ITS family can build."""
+        if width != 32 and core == "nano":
+            # The nano's arithmetic is delegated to CACell (unicell_automaton_v1.py), whose own masks are 32-bit and are NOT yet width-aware: computing it at another width would be
+            # silently inconsistent with the rest of the grid, so it is refused loudly (ledger #961) until CACell is parameterised and cross-checked against the RTL.
+            raise ValueError(f"the nano core is not available at width {width}: its arithmetic lives in CACell, which is not yet width-aware (32 only)")
+
     # Ledger #961: the data width of this cell (default 32 = the VM exactly as it always was). Set per cell by from_record(width=...), from the grid's width.
     width = 32
     mask = _MASK32
@@ -580,10 +589,7 @@ class SuperCell:
         cell = cls(row=rec.row, col=rec.col, core=core, addon_config=addon, cell_id=rec.cell_id)
         cell.width = width
         cell.mask = (1 << width) - 1
-        if width != 32 and core == "nano":
-            # The nano's arithmetic is delegated to CACell (unicell_automaton_v1.py), whose own masks are 32-bit and are NOT yet width-aware: computing it at another width would be
-            # silently inconsistent with the rest of the grid, so it is refused loudly (ledger #961) until CACell is parameterised and cross-checked against the RTL.
-            raise ValueError(f"the nano core is not available at width {width}: its arithmetic lives in CACell, which is not yet width-aware (32 only)")
+        cls._check_width_support(core, cfg, width)
 
         # Real, root-definition-driven validation (points.md #358), not
         # a silent .get(key, default) that would let a typo'd field name
@@ -631,6 +637,7 @@ class SuperCell:
                 row=rec.row, col=rec.col,
                 topology=cfg.get("topology", 0),
                 start_flag=bool(cfg.get("ready", 0)),
+                mask=cell.mask,
                 # points.md #652: real, pre-existing bug found and fixed
                 # here, predating this change -- routing_mask/
                 # cardinal_edge were never wrapped in `dm()` the way
