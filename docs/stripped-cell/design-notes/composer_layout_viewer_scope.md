@@ -1,6 +1,6 @@
 # The Composer, retargeted: a viewer and editor for flex layouts
 
-> **Status, 2026-10-06 (ledger #1002): authoring and library blocks are
+> **Status, 2026-10-06 (ledger #1002, part 2): authoring and library blocks are
 > built too.** Alan changed decision 1 below ("it needs to be able to create
 > from scratch a new file ... placing of cells onto the fabric and joining
 > them ... these smaller models are effectively shareable library models
@@ -18,7 +18,7 @@
 > no hierarchy). Checks: a design built from scratch, and two library
 > blocks joined port to port, compute the right sums in the FlexGrid VM.
 >
-> **Status, 2026-10-06 (ledger #1001): the viewer and drag-and-place are
+> **Status, 2026-10-06 (ledger #1002, part 1): the viewer and drag-and-place are
 > built, for an imported ICM file** (Alan: "start with the viewer side,
 > that allows the drag and place of the imported icm file").
 > `tools/flex_layout_view_v1.py` reads ICM v3 / v4 / VIX, folds relay

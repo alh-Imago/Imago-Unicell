@@ -56,7 +56,7 @@ ladder), the `-nowidelut` flag, and the `min_bit_width` header flag.
 python3 -m pytest tests/tools -q
 ```
 
-`test_composer_v1.py` (#1001, #1002) checks that an imported ICM file
+`test_composer_v1.py` (#1002) checks that an imported ICM file
 re-exports exactly, that a hand move keeps the fp16 adder correct in
 FlexGrid and in the generated RTL (that one needs iverilog), that refused
 moves change nothing, that a design built from scratch and two library

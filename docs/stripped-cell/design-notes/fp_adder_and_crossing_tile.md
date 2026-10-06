@@ -17,3 +17,6 @@ unpack -> exponent difference/swap (packed T word, far-east join unit) -> two al
 5. VM tick-latency model for the layout engine (hop model is the generator's).
 6. Std-target coarse/fine shift split; sequencer under 8 bits; DAG second-word consumer; automatic flag trigger.
 7. Environment check in current/START.md.
+
+## Special values (#1001)
+`fp_add(..., specials=True)` adds inf/nan/overflow-to-inf on the output side: per operand c = inf-or-nan, n = nan; nan out = [n_a+n_b+inf_a*inf_b*(sa xor sb) >= 1]; spec = [c_a+c_b >= 1]; infinity sign = [sa*c_a+sb*c_b >= 1]; overflow = [rounded exponent*nonzero >= 2^E-1]; F = F_fin + spec*(Z-F_fin) with F_fin = R + ovf*(INF word - R). Layout: chains as rows, one column per cell, nets as lanes through gutter tracks, crossing tiles wherever lanes meet (`route_line`, multi-crossing). Still open: subnormal inputs/results and underflow (plan: input effective exponent e+[e==0]; denormalise right by 1-er with sticky before rounding). Test: `tests/vm/test_fp_special_v1.py`.
