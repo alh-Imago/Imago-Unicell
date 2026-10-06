@@ -50,8 +50,6 @@ class FlexCell(SuperCell):
         the plain two-arrival gate with one of its 12 implemented topologies (no relay / hold / update / one-shot modes). Every operation in that subset is BITWISE per bit, so a
         W-bit result is the 32-bit result truncated to W bits, which the grid already does to every value in transit; there is no W-bit arithmetic to define. A nano outside the
         subset has no flex hardware to mirror and its width behaviour is not a known fact, so it is refused. At width 32 nothing is restricted (the std nano model, as always)."""
-        if core == "accumulator" and width < 16:
-            raise ValueError(f"flex accumulator at width {width}: accumulator_cell_v4sa zero-extends a 16-bit threshold with a replication of (WIDTH-16) and an 8-bit step with (WIDTH-8), so the real cell does not elaborate below 16 bits")
         if core == "sequencer" and width < 8:
             raise ValueError(f"flex sequencer at width {width}: the real sequencer_cell_v4sa stores 8-bit values and zero-extends them to the data width, and does not elaborate below 8 bits")
         if core != "nano" or width == 32:

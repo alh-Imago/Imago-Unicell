@@ -2,6 +2,8 @@
 
 ## Read this first (most recent)
 
+**#973 -- ACCUMULATOR WORKS BELOW 16 BITS:** accumulator_cell_v4sa.v gets a generate (TH_NORMAL at W>=16 keeps the original logic and cost; TH_NARROW at W<16 compares in a 17-bit signed space). Step/threshold stay plain numbers (no field scaling). FlexGrid refusal removed; acclatch tests 23 pass vs real RTL at W 4,8,12,16,18,32,36. Regression: tests/vm 1652 passed/5 skipped; flexsub suites 0 failed. Gear-ratio idea (cascaded pulse accumulators; adder carry-out) noted, not yet built.
+
 **#972 -- COMPARATOR THRESHOLD GETS ITS OWN PORT (Alan's trend: two config parts = two ports; nano the exception):** `cfg_threshold [WIDTH-1:0]` on compare_cell_v4sa (still one data in, one result out); cfg_data unused; bench + flex emitter updated; at W!=32 the VM wraps the ICM threshold to a W-bit signed register; FlexGrid no longer refuses a comparator above 32 bits. 8 tests incl. six thresholds beyond the 32-bit range at W36 vs the real cell. All four #970 RTL limits are now resolved or refused-with-reason (accumulator <16 and sequencer <8 remain refusals). Next layer: MAN cost tables + start-up flag.
 
 **#971 -- NANO `armed` GATE APPLIED (Alan's go-ahead):** nano_cell_v4sa captures on `valid_in && armed` (as the sequencer, #956); bench case added (mutant caught); the pinned-defect test now asserts the fixed behaviour. Open: comparator above 32 bits -- sign-extend the config word, or add a threshold input port (decision with Alan).

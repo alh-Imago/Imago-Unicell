@@ -1,8 +1,8 @@
 """tests/vm/test_flex_grid_acclatch_v1.py -- FlexGrid step 8: the ACCUMULATOR (continuous and pulse mode) and the LATCH at width W against the REAL accumulator_cell_v4sa / latch_cell_v4sa (ledger #970).
 
 Each real cell is driven with a pulse sequence (inc / dec, or set / clear / toggle), every offer acknowledged, and the value it offers after each pulse is compared with what a FlexGrid accumulator / latch holds
-after the same pulses. The accumulator's step is 8 bits and its threshold 16 bits, zero-extended inside the cell with replications of (WIDTH-8) / (WIDTH-16), so below 16 bits the real cell does not elaborate: a
-FlexGrid accumulator is refused there. Requires iverilog and FAILS without it.
+after the same pulses. The accumulator's step is 8 bits and its threshold 16 bits. Until #973 they were zero-extended with replications of (WIDTH-8) / (WIDTH-16), which go negative below 16 bits (the real cell did not
+elaborate there); now the step is assigned straight to the data width and the threshold is compared with |total| in a wider space, so the cell builds and works at every width. Requires iverilog and FAILS without it.
 """
 import os
 import random
@@ -19,7 +19,7 @@ import flex_grid_v1 as fg  # noqa: E402
 from icm_v3 import IcmV3Record  # noqa: E402
 
 V = os.path.join(ROOT, "sub", "verilog")
-WIDTHS = (16, 18, 32, 36)
+WIDTHS = (4, 8, 12, 16, 18, 32, 36)
 
 
 def need_iverilog():
@@ -120,14 +120,16 @@ def test_the_accumulator_wraps_at_the_data_width_not_at_32(tmp_path):
     assert vm_acc(w, 255, 0, 0, ["i"] * 1100)[-1] == rtl[-1]
 
 
-def test_a_real_accumulator_below_16_bits_does_not_elaborate_and_flexgrid_refuses(tmp_path):
-    need_iverilog()
-    out, err = compile_run("`timescale 1ns/1ps\nmodule tb; wire [7:0] d; accumulator_cell_v4sa #(.WIDTH(8)) dut (.clk(1'b0), .rst(1'b0), .freeze_in(1'b0), .cfg_valid(1'b0), .cfg_data(32'b0), .inc_pulse(1'b0), .dec_pulse(1'b0), .ack_out(), .data_out(d), .valid_out(), .ack_in(1'b0)); endmodule\n", ["accumulator_cell_v4sa.v"], tmp_path / "tbacc8.v")
-    assert out is None, "the width-8 accumulator was expected not to elaborate (negative replication)"
-    rec = IcmV3Record(cell_id="A", row=0, col=0, core="accumulator", core_config={"inc_dir": ["w"], "step_amount": 1, "downstream_mask": []})
-    with pytest.raises(ValueError, match="accumulator"):
-        fg.FlexGrid([rec], width=8)
-    fg.FlexGrid([rec], width=16)
+def test_the_accumulator_now_builds_and_works_below_16_bits_and_a_big_threshold_is_never_cut_down(tmp_path):
+    """#973: width 8 used to fail to elaborate. Now it builds; a 16-bit threshold larger than the data can reach (300 at 8 bits) simply never fires -- it is NOT truncated to 44 -- and a step wider than the data
+    wraps like the total (255 at 4 bits acts as 15)."""
+    rtl = rtl_acc(8, 5, 1, 300, ["i"] * 100, tmp_path)         # |total| <= 128 < 300: no event, ever
+    assert all(x is None for x in rtl), rtl[:5]
+    assert vm_acc(8, 5, 1, 300, ["i"] * 100) == rtl
+    rtl4 = rtl_acc(4, 255, 0, 0, ["i"] * 5, tmp_path)           # step 255 -> 15 at 4 bits: total = 15, 14, 13, ... (mod 16)
+    assert rtl4 == [15, 14, 13, 12, 11], rtl4
+    assert vm_acc(4, 255, 0, 0, ["i"] * 5) == rtl4
+    fg.FlexGrid([IcmV3Record(cell_id="A", row=0, col=0, core="accumulator", core_config={"inc_dir": ["w"], "step_amount": 1, "downstream_mask": []})], width=8)
 
 
 def rtl_latch(w, events, tmp_path):
@@ -178,6 +180,18 @@ def test_latch_equals_the_real_cell_at_every_width(w, tmp_path):
     r = random.Random(w)
     events = [r.choice("sctt") for _ in range(40)]
     assert vm_latch(w, events) == rtl_latch(w, events, tmp_path)
+
+
+def test_the_comparison_bites_a_mirror_whose_threshold_is_cut_to_the_width(tmp_path):
+    # a threshold of 300 at 8 bits cut to its low 8 bits would be 44 and would fire; the real cell never fires
+    rtl = rtl_acc(8, 5, 1, 300, ["i"] * 100, tmp_path)
+    assert all(x is None for x in rtl)
+    cut = 300 & 0xFF
+    total, fired = 0, False
+    for _ in range(100):
+        total = ((total + 5 + 128) & 0xFF) - 128
+        fired |= abs(total) >= cut
+    assert fired
 
 
 def test_the_comparison_bites_an_accumulator_that_does_not_wrap_at_the_width(tmp_path):

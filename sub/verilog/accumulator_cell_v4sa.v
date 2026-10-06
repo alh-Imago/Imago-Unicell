@@ -64,15 +64,31 @@ module accumulator_cell_v4sa #(
     reg signed [WIDTH-1:0] out_buffer  = 0;
 
     // ── The real accumulate logic -- unchanged semantics from v4c/v4s ───
-    wire signed [WIDTH-1:0] step_ext = {{(WIDTH-8){1'b0}}, step_amount};
+    // #973: no replication with a (WIDTH-8)/(WIDTH-16) count any more -- it went NEGATIVE below 16 bits and the cell did not elaborate. The 8-bit step is assigned straight
+    // to a WIDTH-bit wire (zero-extended when wider, cut to the low WIDTH bits when narrower: a step is a count modulo 2^WIDTH like the total itself), and the threshold is
+    // compared with |total| in a space wide enough for both (CW bits), so a 16-bit threshold is NEVER cut down: one larger than the data can reach simply never fires.
+    wire signed [WIDTH-1:0] step_ext = step_amount;
     wire signed [WIDTH-1:0] delta = (inc_pulse && !dec_pulse) ?  step_ext :
                                      (dec_pulse && !inc_pulse) ? -step_ext :
                                                                   {WIDTH{1'b0}};
     wire signed [WIDTH-1:0] next_accumulator = accumulator + delta;
-    wire signed [WIDTH-1:0] threshold_ext = {{(WIDTH-16){1'b0}}, threshold};
-    wire signed [WIDTH-1:0] abs_next_acc  = next_accumulator[WIDTH-1] ? -next_accumulator : next_accumulator;
+    // |total| >= threshold. At WIDTH >= 16 exactly the original form (same logic, same cost: the 16-bit threshold zero-extends to the data width). Below 16 bits that form cannot be
+    // written (the threshold is wider than the data), so |total| and the threshold are compared in a 17-bit space: no overflow, nothing cut down.
+    wire threshold_ge;
+    generate
+        if (WIDTH >= 16) begin : TH_NORMAL
+            wire signed [WIDTH-1:0] threshold_ext = {{(WIDTH-16){1'b0}}, threshold};
+            wire signed [WIDTH-1:0] abs_next_acc  = next_accumulator[WIDTH-1] ? -next_accumulator : next_accumulator;
+            assign threshold_ge = (abs_next_acc >= threshold_ext);
+        end else begin : TH_NARROW
+            wire signed [16:0] next_cw      = next_accumulator;           // sign-extended
+            wire signed [16:0] abs_next_acc = next_cw[16] ? -next_cw : next_cw;
+            wire signed [16:0] threshold_ext = {1'b0, threshold};
+            assign threshold_ge = (abs_next_acc >= threshold_ext);
+        end
+    endgenerate
     wire threshold_hit = pulse_mode && (inc_pulse || dec_pulse) &&
-                         (threshold != 16'h0) && (abs_next_acc >= threshold_ext);
+                         (threshold != 16'h0) && threshold_ge;
 
     // A real event happened this cycle, in the sense that matters for
     // offering a new value: continuous mode offers on every real inc/dec;
