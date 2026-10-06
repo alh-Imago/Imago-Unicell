@@ -1,6 +1,7 @@
 """tests/vm/test_fp_special_v1.py -- ledger #1001: the adder's SPECIAL VALUES (inf, nan, overflow to inf) around the finished adder, from cells only (`fp_add(..., specials=True)`, the block laid out as
 separate lines joined with crossing tiles). Checked against numpy's own float32 / float16 addition in the generated RTL (plain and with random stalls) and in FlexGrid; NaN results are compared as
-"is a NaN" (any payload). Not covered (stated): subnormal inputs / results (flush) and underflow -- those vectors are excluded. Requires iverilog."""
+"is a NaN" (any payload). Ledger #1005 adds SUBNORMAL inputs and results (gradual underflow: a sum is never below the smallest subnormal, an addition that ends below the smallest
+normal is exact), so nothing is excluded any more; signed zeros are compared as numpy gives them. Requires iverilog."""
 import os
 import random
 import shutil
@@ -56,14 +57,31 @@ def vectors(key, seed=3):
         e1, e2 = r.choice([emax - 1, emax - 2, r.randrange(1, emax)]), r.choice([emax - 1, r.randrange(1, emax)])
         A.append((r.getrandbits(1) << (m + E)) | (e1 << m) | r.getrandbits(m))
         B.append((r.getrandbits(1) << (m + E)) | (e2 << m) | r.getrandbits(m))
+    for _ in range(26):                                        # subnormal inputs / results (#1005)
+        sg = lambda: r.getrandbits(1) << (m + E)
+        kind = r.randrange(6)
+        if kind == 0:                                          # two subnormals (the sum may carry into the smallest normal)
+            a, b = sg() | r.getrandbits(m), sg() | r.getrandbits(m)
+        elif kind == 1:                                        # subnormal + a small normal
+            a, b = sg() | r.getrandbits(m), sg() | (r.randrange(1, 4) << m) | r.getrandbits(m)
+        elif kind == 2:                                        # near-equal small normals, opposite sign: the difference is a subnormal
+            e0 = r.randrange(1, 3)
+            x = (e0 << m) | r.getrandbits(m)
+            a, b = x, (1 << (m + E)) | ((e0 + r.choice([0, 0, -1 if e0 > 1 else 0])) << m) | r.getrandbits(m)
+        elif kind == 3:                                        # a subnormal and its own negative plus a little: exact cancellation to a smaller subnormal
+            x = r.getrandbits(m) | 1
+            a, b = x, (1 << (m + E)) | (x ^ r.getrandbits(r.randrange(1, m)))
+        elif kind == 4:                                        # a subnormal + a big number (sticky: the subnormal is rounded away or not)
+            a, b = sg() | r.getrandbits(m), sg() | (r.randrange(1, emax - 1) << m) | r.getrandbits(m)
+        else:                                                  # zero / signed zero + a subnormal
+            a, b = r.choice([0, 1 << (m + E)]), sg() | r.getrandbits(m)
+        A.append(a)
+        B.append(b)
+    A += [1, SG | 1, 1 << (m - 1), (1 << m) - 1, 1 << m, (1 << m) | 1, (2 << m)]
+    B += [1, 1, 1 << (m - 1), 1, SG | ((1 << m) + 1), SG | (1 << m), SG | ((1 << m) | 1)]
     keep = []
     for a, b in zip(A, B):
-        w = reference(key, a, b)
-        def sub(v):
-            return ((v >> m) & emax) == 0 and (v & ((1 << m) - 1)) != 0
-        if sub(a) or sub(b) or sub(w):
-            continue
-        keep.append((a, b, w))
+        keep.append((a, b, reference(key, a, b)))
     return keep
 
 
@@ -88,6 +106,15 @@ def build(key):
         assert g.balance() >= 0 and g.problems() == []
         _BUILT[key] = (g, ent, ex, consts)
     return _BUILT[key]
+
+
+def test_vectors_contain_subnormal_inputs_and_results():
+    v = vectors("fp32")
+    sub = lambda x: ((x >> 23) & 255) == 0 and (x & 0x7FFFFF) != 0
+    assert sum(sub(a) or sub(b) for a, b, _ in v) >= 20
+    assert sum(sub(w) for _, _, w in v) >= 12                           # subnormal RESULTS (incl. exact cancellation)
+    assert sum(sub(w) and not sub(a) and not sub(b) for a, b, w in v) >= 2   # a subnormal result from normal inputs
+    assert any(((w >> 23) & 255) == 1 and sub(a) and sub(b) for a, b, w in v)   # a rounding carry into the smallest normal
 
 
 def test_vectors_really_contain_every_special_case():
@@ -118,6 +145,33 @@ def test_specials_in_flexgrid_fp32():
     A, B, W = zip(*v)
     got = run_vm(g.records(), {ent["a"]: list(A), ent["b"]: list(B)}, ex, consts, ticks=1500)["R"]
     assert all(same(fa.FP32, x, w) for x, w in zip(got, W)), [(hex(a), hex(b), hex(w), hex(x)) for a, b, w, x in zip(A, B, W, got)]
+
+
+def test_subnormals_in_flexgrid_fp32():
+    """A few subnormal cases through the FlexGrid VM (slow: ~1700 cells): a subnormal result from two normals, a carry into the smallest normal, subnormal + subnormal, subnormal + big."""
+    g, ent, ex, consts = build("fp32")
+    sub = lambda x: ((x >> 23) & 255) == 0 and (x & 0x7FFFFF) != 0
+    v = vectors("fp32")
+    pick = [next(t for t in v if sub(t[2]) and not sub(t[0]) and not sub(t[1])),
+            next(t for t in v if ((t[2] >> 23) & 255) == 1 and sub(t[0]) and sub(t[1])),
+            next(t for t in v if sub(t[0]) and sub(t[1]) and sub(t[2])),
+            next(t for t in v if sub(t[0]) and ((t[1] >> 23) & 255) > 100 and ((t[1] >> 23) & 255) < 255)]
+    A, B, W = zip(*pick)
+    got = run_vm(g.records(), {ent["a"]: list(A), ent["b"]: list(B)}, ex, consts, ticks=1500)["R"]
+    assert all(same(fa.FP32, x, w) for x, w in zip(got, W)), [(hex(a), hex(b), hex(w), hex(x)) for a, b, w, x in zip(A, B, W, got)]
+
+
+def test_bite_flushing_subnormals_would_get_them_wrong():
+    """The subnormal vectors have teeth: an adder that flushed subnormal inputs and results to zero (the #990 scope) would miss many of them."""
+    fmt = fa.FP32
+    flush = lambda x: x & (1 << 31) if ((x >> 23) & 255) == 0 else x
+    v = vectors("fp32")
+    wrong = 0
+    for a, b, w in v:
+        fw = reference("fp32", flush(a), flush(b))
+        fw = flush(fw)
+        wrong += not same(fmt, fw, w)
+    assert wrong >= 15, wrong
 
 
 def test_bite_the_adder_without_the_block_gets_them_wrong(tmp):

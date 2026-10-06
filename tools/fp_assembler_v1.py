@@ -109,6 +109,94 @@ def normalise_chain(g, fmt, name="N", r0=0, c0=0, pitch=9):
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------
+def normalise_chain_clamped(g, fmt, name="N", r0=0, c0=0):
+    """Left-normalise like `normalise_chain`, but the total shift is min(leading zeros, EXPIN - 1): the exponent never goes below 1 (ledger #1005: subnormal results). One straight assembly
+    line, every connection a direct neighbour link (no router), six columns per stage (16, 8, 4, 2, 1; the first stage is seven wide).
+    Stage s: UK = EXPIN + the shifts NOT taken so far; c = [UK >= 1 + 16 + .. + s] (the exponent budget still allows this shift); b = [V - c * 2^(S-s) >= 0], which is [V >= 2^(S-s)] (no
+    shift needed) when c = 1 and always 1 (no shift) when c = 0; F = 2^s - b * (2^s - 1); V <- V * F; UK <- UK + b * s. At the end EXPOUT = UK - (16+8+4+2+1) = EXPIN - the shift taken.
+    The FIRST stage meets V and EXPIN from outside, whose arrival order nobody knows, so it combines them without an order rule: b = [[V >= 2^(S-s)] + (1 - c) >= 1] (adders only; a tie
+    is the only thing to avoid). Inside the line the order is fixed by construction (V - c*2^(S-s) with V first).
+    Entries `V`, `EXPIN`; exits `NORM`, `EXPOUT`. Extent (6 rows, 6 * (K - 1) + 8 columns)."""
+    S, K = fmt.sig_bits, fmt.K
+    shifts = [1 << j for j in range(K - 1, -1, -1)]
+    log2 = {1 << j: j for j in range(K)}
+    smax = sum(shifts)
+    consts, pre = {}, _p(name)
+    R, C = (lambda r: r0 + r), (lambda c: c0 + c)
+    done = 0
+    prev_mul, prev_u = None, None
+    cb = 0
+    for k, s in enumerate(shifts):
+        p = pre + f"S{s}."
+        done += s
+        first = k == 0
+        w = 7 if first else 6
+        g.add(p + "V", R(0), C(cb))
+        for j in range(1, w - 1):
+            g.add(p + f"D{j}", R(0), C(cb + j))
+        g.add(p + "MUL", R(0), C(cb + w - 1), "mul")
+        g.add(p + "VR", R(1), C(cb))
+        g.add(p + "M1", R(1), C(cb + w - 3), "mul")
+        g.add(p + "A1", R(1), C(cb + w - 2), "adder", {"subtract_mode": 1})
+        g.add(p + "FR", R(1), C(cb + w - 1))
+        g.add(p + "KC", R(2), C(cb + w - 3), preload=(1 << s) - 1)
+        g.add(p + "K", R(2), C(cb + w - 2), preload=1 << s)
+        consts[p + "KC"], consts[p + "K"] = (1 << s) - 1, 1 << s
+        g.add(p + "CC", R(3), C(cb + (2 if first else 1)), "comparator", {"threshold": 1 + done})
+        ue = cb + (3 if first else 2)                                  # the column of the running-sum adder U
+        g.add(p + "UF", R(4), C(ue - 1))
+        g.add(p + "U", R(4), C(ue), "adder")
+        g.add(p + "T", R(2), C(ue), addon={"shift_en": 1, "direction": 0, "shift_amt": log2[s]} if log2[s] else None)
+        g.add(p + "TR", R(3), C(ue))
+        chain = [("V", "VR"), ("D1", "D2"), ("M1", "A1"), ("K", "A1"), ("KC", "M1"), ("A1", "FR"), ("FR", "MUL"), ("T", "TR"), ("TR", "U"), ("UF", "U"), ("UF", "CC")]
+        chain += [("V", "D1")] + [(f"D{j}", f"D{j + 1}") for j in range(1, w - 2)] + [(f"D{w - 2}", "MUL")]
+        chain = [(x, y) for x, y in chain if not (x == "D1" and y == "D2" and w == 6 and False)]
+        if first:
+            g.add(p + "CB", R(1), C(cb + 1), "comparator", {"threshold": 1 << (S - s)})     # b0 = [V >= 2^(S-s)]
+            g.add(p + "X", R(1), C(cb + 2), "adder")                                          # b0 + (1 - c)
+            g.add(p + "CMP", R(1), C(cb + 3), "comparator", {"threshold": 1})                 # b = [b0 + (1 - c) >= 1]
+            g.add(p + "NC", R(2), C(cb + 2), "adder", {"subtract_mode": 1})                   # 1 - c
+            g.add(p + "K1", R(2), C(cb + 1), preload=1)
+            consts[p + "K1"] = 1
+            chain += [("VR", "CB"), ("CB", "X"), ("NC", "X"), ("X", "CMP"), ("K1", "NC"), ("CMP", "M1"), ("CMP", "T")]
+            g.link(p + "CC", p + "NC")
+            g.minuend[p + "NC"] = p + "K1"
+        else:
+            g.add(p + "SV", R(1), C(cb + 1), "adder", {"subtract_mode": 1})
+            g.add(p + "CMP", R(1), C(cb + 2), "comparator", {"threshold": 0})
+            g.add(p + "CS", R(2), C(cb + 1), addon={"shift_en": 1, "direction": 0, "shift_amt": S - s})
+            chain += [("VR", "SV"), ("CC", "CS"), ("CS", "SV"), ("SV", "CMP"), ("CMP", "M1"), ("CMP", "T")]
+            g.minuend[p + "SV"] = p + "VR"
+        g.minuend[p + "A1"] = p + "K"
+        for a_, b_ in chain:
+            g.link(p + a_, p + b_)
+        if prev_mul:
+            g.link(prev_mul, p + "V")
+        prev_mul = p + "MUL"
+        if prev_u:                                                     # the running exponent word: U -> four relays -> the next stage's fork UF
+            last = prev_u
+            for j in range(4):
+                g.add(p + f"UR{j}", R(4), C(cb - 3 + j))
+                g.link(last, p + f"UR{j}")
+                last = p + f"UR{j}"
+            g.link(last, p + "UF")
+        prev_u = p + "U"
+        cb += w
+    first_ = lambda k: pre + f"S{shifts[k]}."
+    cbl = cb - 6                                                       # the last stage's first column
+    g.add(pre + "NORM", R(0), C(cb))
+    g.link(prev_mul, pre + "NORM")
+    g.add(pre + "UX", R(4), C(cbl + 3))
+    g.link(prev_u, pre + "UX")
+    g.add(pre + "E2", R(4), C(cbl + 4), "adder")
+    g.add(pre + "C", R(5), C(cbl + 4), preload=(1 << 32) - smax)
+    g.add(pre + "EXPOUT", R(4), C(cbl + 5))
+    g.link(pre + "UX", pre + "E2"); g.link(pre + "C", pre + "E2"); g.link(pre + "E2", pre + "EXPOUT")
+    consts[pre + "C"] = (1 << 32) - smax
+    return Block(name, {"V": first_(0) + "V", "EXPIN": first_(0) + "UF"}, {"NORM": pre + "NORM", "EXPOUT": pre + "EXPOUT"}, consts, (6, cb + 1))
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------------
 def align_sticky(g, fmt, name="AL", r0=0, c0=0, pitch=7, flip=False):
     """Align with sticky. Entries: `V` (w = significand << (word - S), top aligned), `D` (the exponent difference). Exits: `OUT` = w >> T and `STK` = (w mod 2^T != 0), T = (Ka+1) + (d mod 2^Ka) + 31*[d >= 2^Ka]."""
     Ka, word = fmt.Ka, fmt.word

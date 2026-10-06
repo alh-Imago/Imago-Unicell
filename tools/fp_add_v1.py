@@ -1,15 +1,16 @@
 """tools/fp_add_v1.py -- ledger #990: a whole floating-point ADDER from flex cells, parametric in the format (Alan: "continue with the adder side").
 
-    result = a + b   (normal numbers and zero; round-to-nearest-even; no subnormal / overflow / inf / nan handling -- the same scope as nano/fp32_add_v1.py)
+    result = a + b   (round-to-nearest-even. Normal numbers, zero and, since #1006, SUBNORMAL inputs and results (gradual underflow); with `specials=True` (#1001) inf, nan and overflow too)
 
 Algorithm (no branch, no data-dependent routing, no loop; every step is a cell that exists today):
   unpack      x -> sign, exponent, significand with its hidden bit (hidden = [exp >= 1], so zero unpacks to 0); shifts only
   differences diff = eb - ea;  dA = diff * [diff >= 0],  dB = (-diff) * [-diff >= 1]     (each operand is shifted by the amount it is SMALLER by, the other by 0: no swap, no select)
   align       TWO align_sticky blocks (#988): A by dA, B by dB. Whichever operand has the smaller exponent is shifted right, its lost bits come out as a sticky flag.  eBig = ea + dA
   add/sub     S = A5 + sgn*B5, sgn = 1 - 2*(sa xor sb); X5 = (aligned << 1) + sticky (the sticky is a 3rd extra bit under guard and round); magnitude M = S * (2*[S>=0] - 1)
-  normalise   normalise_chain on the S+4-bit window (#984): NORM = M << lz, EXPOUT = (eBig + 1) - lz
+  normalise   normalise_chain_clamped on the S+4-bit window (#984, #1006): NORM = M << min(lz, eBig), EXPOUT = (eBig + 1) - that shift (>= 1: a result below the smallest normal stays unnormalised)
   round       round_rne (low = 4): the guard is bit 3, the sticky is bits 2..0
-  finish      rounding overflow: exponent + [OUT >= 2^S];  zero: exponent and sign * [NORM >= 1];  result sign = sa xor [S < 0];  pack by shifts and two adders
+  finish      pack = ((EXPOUT - 1) * nonzero << m) + rounded significand WITH its hidden bit (a rounding carry, normal or subnormal, lands in the exponent field by itself);  result sign = sa xor [S < 0]
+  unpack      the exponent used for the difference and the packed word is the EFFECTIVE one, max(e, 1) (a subnormal has the exponent of the smallest normal; hidden bit = [e >= 1])
 The exponent and the sign travel to the end in ONE word (Y = eBig + (sa << E)) down the corridor between the two align bands; the stage-to-stage values are wires, so nothing crosses.
 """
 import collections
@@ -77,22 +78,28 @@ def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None):
         for x, y in ((head, e1), (e1, e2), (head, m1), (m1, m2), (m2, wd), (e2, ch), (ch, hs)):
             g.link(x, y)
         nets.append((hs, wd))
-        # the packed word: sign << PK  +  exponent (own copies of both, on the outside of the cluster)
+        # the EFFECTIVE exponent ee = max(e, 1) = (e - [e >= 1]) + 1: a subnormal operand has the exponent of the smallest normal (ledger #1005). Directly south of the exponent lane.
+        xs = P(tag + "XS"); g.add(xs, hr + 3 * s, 4, "adder", {"subtract_mode": 1})
+        ee = P(tag + "EE"); g.add(ee, hr + 4 * s, 4, "adder")
+        k1 = b.const(P(tag + "K1"), hr + 4 * s, 3, 1)
+        g.link(e2, xs); g.link(xs, ee); g.link(k1, ee)
+        g.minuend[xs] = e2
+        nets.append((ch, xs))                                                           # ch -> one relay -> xs (a short routed lane; balance can lengthen it)
+        # the packed word: sign << PK  +  effective exponent (own copy of the sign, on the outside of the cluster)
         sa_ = P(tag + "SA"); g.add(sa_, hr - s, 4, addon=shr(W - 1))
         sb_ = P(tag + "SB"); g.add(sb_, hr - 2 * s, 4, addon=shl(PK))
         at = P(tag + "T"); g.add(at, hr - 2 * s, 3, "adder")
-        f1 = P(tag + "F1"); g.add(f1, hr, 3, addon=shl(1))
-        fu = P(tag + "FU"); g.add(fu, hr, 2)                                    # f1 -> fu -> fv -> f2 -> T: the exponent copy goes round a small loop west of the head, all direct links (no route);
-        fv = P(tag + "FV"); g.add(fv, hr - s, 2)                                # its two extra hops make it arrive at T one hop after the sign word (no tie, no balancing needed)
-        f2 = P(tag + "F2"); g.add(f2, hr - s, 3, addon=shr(W - E))
-        for x, y in ((head, sa_), (sa_, sb_), (sb_, at), (head, f1), (f1, fu), (fu, fv), (fv, f2), (f2, at)):
+        for x, y in ((head, sa_), (sa_, sb_), (sb_, at)):
             g.link(x, y)
-        out = {"head": head, "exp": e2, "w": wd, "t": at}
+        nets.append((ee, at))
+        out = {"head": head, "exp": ee, "w": wd, "t": at}
         if specials:
             # two taps for the special-value logic, reserved now as one-relay stubs on free faces (so the core's routes cannot wall them in): the magnitude word (f1 = x << 1, sign gone)
             # below / above f1, and the sign bit (sa_ = x >> (W-1)) east of sa_.
+            f1 = P(tag + "F1"); g.add(f1, hr, 3, addon=shl(1))
             tm = P(tag + "TM"); g.add(tm, hr + s, 3)
             ts = P(tag + "TS"); g.add(ts, hr - s, 5)
+            g.link(head, f1)
             g.link(f1, tm)
             g.link(sa_, ts)
             out["raw"] = [tm, ts]
@@ -190,20 +197,18 @@ def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None):
         g.route_nets(nets)
         return {"a": ua["head"], "b": ub["head"]}, {"M": mm, "P": px, "EB": addi, "SA": saa}, {**ad.consts, **bd.consts, **b.consts}
     # --- normalise / round / finish (east) ---------------------------------------------------------------------------------------------------
-    nrm = fa.normalise_chain(g, wide, P("NRM"), 10, nrm_c0)
+    nrm = fa.normalise_chain_clamped(g, wide, P("NRM"), 10, nrm_c0)
     rnd = fa.round_rne(g, fmt, P("RND"), 10, rnd_c0, low=4)
     nz = P("NZ"); g.add(nz, 19, fx + 1)
     nzc = P("NZC"); g.add(nzc, 19, fx, "comparator", {"threshold": 1})
     g.link(nzc, nz)
-    fl = P("FL"); g.add(fl, 12, fx, addon=shl(W - m))
-    fr = P("FR"); g.add(fr, 12, fx + 1, addon=shr(W - m))
-    g.link(fl, fr)
-    cmpr = P("CMPR"); g.add(cmpr, 16, fx, "comparator", {"threshold": 1 << S})
-    rr = P("RR"); g.add(rr, 16, fx + 1)
+    # the pack (ledger #1005): bits = ((er - 1) << m) + M, M = the rounded S-bit significand INCLUDING its hidden bit. A normal number: er - 1 + 1 = the exponent field. A subnormal result (the clamped
+    # normalise stops at er = 1, M < 2^m): the field is 0. A rounding carry (M = 2^S, or M = 2^m for a subnormal) lands in the exponent field by itself -- no bump step, no masking of the hidden bit.
+    kme = b.const(P("KME"), 16, fx + 1, M32)                                             # -1
     addr = P("ADDR"); g.add(addr, 16, fx + 2, "adder")
     mule = P("MULE"); g.add(mule, 17, fx + 2, "mul")
     she = P("SHE"); g.add(she, 17, fx + 3, addon=shl(m))
-    g.link(cmpr, rr); g.link(rr, addr); g.link(addr, mule); g.link(mule, she)
+    g.link(kme, addr); g.link(addr, mule); g.link(mule, she)
     k1b = b.const(P("K1B"), 24, fx, 1)
     nps = P("NPS"); g.add(nps, 23, fx, "adder", {"subtract_mode": 1})
     g.minuend[nps] = k1b
@@ -220,12 +225,14 @@ def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None):
     res = P("RES"); g.add(res, 14, fx + 5)
     g.link(addf1, addf2); g.link(addf2, res)
     nets2 = [(addi, nrm.entries["EXPIN"]), (mm, nrm.entries["V"]), (nrm.exits["NORM"], rnd.entries["X"]),
-             (rnd.exits["OUT"], fl), (rnd.exits["OUT"], cmpr), (rnd.exits["OUT"], nzc), (nrm.exits["EXPOUT"], addr), (nz, mule), (nz, mulsg),
-             (px, nps), (saa, sn), (fr, addf1), (she, addf1), (sh31, addf2)]
+             (rnd.exits["OUT"], nzc), (nrm.exits["EXPOUT"], addr), (nz, mule), (nz, mulsg),
+             (px, nps), (saa, sn), (rnd.exits["OUT"], addf1), (she, addf1), (sh31, addf2)]
     if specials:
         for nd in g.nodes.values():                           # a free corridor west of the core for the lanes of the special-value block (translation only: nothing is routed yet)
             nd["c"] += WEST
-        out, c3, route_rest = _specials(g, b, name, ua, ub, res, mule, pads=pads or {})
+        out, c3, route_rest = _specials(g, b, name, ua, ub, res, addf1, pads=pads or {})
+    if specials:
+        route_rest.early()
     g.route_nets(nets)
     g.route_nets(nets2)
     if specials:
@@ -250,7 +257,7 @@ def _specials(g, b, name, ua, ub, res, mule, row0=38, col0=30, pads=None):
         per operand x:  mag = x without its sign; c = [mag >= INF] (inf or nan); n = [mag >= INF + 1] (nan); inf = c - n; sign = x >> (m+E)
         nan out  = [ n_a + n_b + inf_a * inf_b * (sa xor sb) >= 1 ]  (quiet bit set: a NaN)       spec = [c_a + c_b >= 1]
         sign of the infinity = [sa*c_a + sb*c_b >= 1];  Z = (that sign << (m+E)) + INF + (nan << (m-1))
-        overflow: ovf = [exponent after rounding (times nonzero) >= 2^E - 1];  F_fin = R + ovf * ((R's sign + INF) - R)
+        overflow: ovf = [the packed magnitude (before the sign) >= INF] (the exponent field incl. the rounding carry reaches 2^E - 1);  F_fin = R + ovf * ((R's sign + INF) - R)
         result    F = F_fin + spec * (Z - F_fin)
     Places the cells and lays the lanes from outside at once; returns (exit cell, consts, route_rest) -- call route_rest() after the core's own routing."""
     S, E, m, W = b.S, b.E, b.m, b.W
@@ -297,7 +304,7 @@ def _specials(g, b, name, ua, ub, res, mule, row0=38, col0=30, pads=None):
     n.op("KI", "const", const=INF)
     n.op("Z1", "add", ["SH", "KI"])
     n.op("Z", "add", ["Z1", "NQ"])
-    n.op("OV", "cmp", [mule], thr=(1 << E) - 1)
+    n.op("OV", "cmp", [mule], thr=INF)                        # overflow: the packed magnitude (exponent field, rounding carry included) reaches the infinity pattern
     n.op("RR", "relay", [res])                                 # the result enters here, then fans out
     n.op("RS1", "relay", ["RR"], addon=shr(m + E))
     n.op("RS", "relay", ["RS1"], addon=shl(m + E))
@@ -531,6 +538,20 @@ def _place_and_route(g, name, n, ext, raw_a, raw_b, res, mule, row0, col0, pads=
     for (q, c), gate in gates.items():
         g.route_line(gate, names[c])                         # the last stretch along the row is reserved first, so no lane can arrive over it
 
+    def _lane(q, gate):
+        if q.endswith("ATS"):                                # A's sign tap sits north of the core: go round the north edge into the west corridor, never through the room (SUBD's routes)
+            wp = f"{q}.wp"
+            g.add(wp, 1, 12)
+            g.route(q, wp, spread=True, cross=True)
+            g.route(wp, gate, spread=True, cross=True)
+        else:
+            g.route(q, gate, spread=True, cross=True)
+
+    def route_early():                                       # the lanes that leave the core's own east side (result, overflow tap): laid BEFORE the core's routes fill that corner
+        for (q, c), gate in gates.items():
+            if q in (res, mule):
+                _lane(q, gate)
+
     def route_rest():
         for u, v in sorted(prim):
             g.route_line(names[u], names[v])
@@ -539,13 +560,9 @@ def _place_and_route(g, name, n, ext, raw_a, raw_b, res, mule, row0, col0, pads=
             for a_, b_ in zip(chain_, chain_[1:]):
                 g.route_line(a_, b_)
         for (q, c), gate in gates.items():
-            if q.endswith("ATS"):                            # A's sign tap sits north of the core: go round the north edge into the west corridor, never through the room (SUBD's routes)
-                wp = f"{q}.wp"
-                g.add(wp, 1, 12)
-                g.route(q, wp, spread=True, cross=True)
-                g.route(wp, gate, spread=True, cross=True)
-            else:
-                g.route(q, gate, spread=True, cross=True)
+            if q not in (res, mule):
+                _lane(q, gate)
+    route_rest.early = route_early
     return names["F"], consts, route_rest
 
 

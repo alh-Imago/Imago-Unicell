@@ -292,15 +292,34 @@ class Grid:
         return rec
 
     def _lengthen(self, a, b):
-        """Re-lay the route a -> b two relays longer than it is now (the free squares are re-searched; a failure restores the old route)."""
-        if self.routes[(a, b)].get("crossings") or any(nm in self.crossed for nm in self.routes[(a, b)]["relays"]):
-            raise LayoutError(f"route {a} -> {b} takes part in a crossing: not lengthened")
-        rec = self.unroute(a, b)
-        want = rec["extra"] + 2
+        """Re-lay the route a -> b two relays longer than it is now (the free squares are re-searched; a failure restores everything exactly). A route that other routes cross is lengthened too
+        (#1005): the crossing routes are lifted first and laid again afterwards (crossing the new path if they must); a route that itself crosses others is not."""
+        import copy
+        if self.routes[(a, b)].get("crossings"):
+            raise LayoutError(f"route {a} -> {b} crosses another route: not lengthened")
+        snap = (copy.deepcopy(self.nodes), list(self.links), copy.deepcopy(self.routes), dict(self.crossed))      # restore EXACTLY on a failure
         try:
-            return self.route(a, b, tag=rec["tag"], second=rec["second"], extra=want, _extra_total=want)
+            crossers = []
+            for nm in self.routes[(a, b)]["relays"]:
+                if nm in self.crossed and self.crossed[nm][1] not in crossers:
+                    crossers.append(self.crossed[nm][1])
+            lifted = []
+            for key in crossers:
+                if key not in self.routes:
+                    continue
+                if any(n2 in self.crossed for n2 in self.routes[key]["relays"]):
+                    raise LayoutError(f"route {key[0]} -> {key[1]} is crossed too: not lifted")
+                if self.routes[key]["extra"]:
+                    raise LayoutError(f"route {key[0]} -> {key[1]} is itself lengthened: cannot cross again")
+                lifted.append((key, self.unroute(*key)))
+            rec = self.unroute(a, b)
+            want = rec["extra"] + 2
+            self.route(a, b, tag=rec["tag"], second=rec["second"], extra=want, _extra_total=want)
+            for key, r2 in lifted:
+                self.route(key[0], key[1], tag=r2["tag"], second=r2["second"], cross=True)
+            return True
         except LayoutError:
-            self.route(a, b, tag=rec["tag"], second=rec["second"], extra=rec["extra"], _extra_total=rec["extra"])
+            self.nodes, self.links, self.routes, self.crossed = snap
             raise
 
     # ---- timing -----------------------------------------------------------------------------------------------------------------------
