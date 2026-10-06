@@ -1,0 +1,229 @@
+"""tools/flex_layout_v1.py -- a small LAYOUT ENGINE for flex designs (ledger #989): cells at grid squares + links between neighbours -> ICM records, with the parts that were hand-tuned in #984-#988 done by the tool.
+
+  * `add(name, r, c, core, cfg, addon, preload)` puts a cell on a square; `link(a, b, second=False)` joins two ADJACENT cells (the up/down masks of both ends are derived; `second` = the sender's second-word face).
+  * `route(a, b, second=False, extra=0)` lays a chain of plain relay rams over free squares (shortest, or exactly `extra` relays longer: a deliberate detour).
+  * `hops()` is the generator's own hop-count model (entry = 1, a cell = 1 + the latest source), so ties can be found WITHOUT running the generator; `balance()` removes them: where the two operands
+    of an adder / multiplier would arrive in the same hop (the generator refuses that: no operand order exists) it lengthens one ROUTED operand path by two relays (a longer route on a grid can only differ
+    by a detour, so +2); where a subtract must have its minuend earlier (`minuend[cell] = source`) it lengthens the subtrahend's path the same way.
+  * `records()` -> IcmV3Record list.
+Test/design-support tooling: it only writes ICM records, the RTL generator stays the oracle."""
+import collections
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "nano"))
+from icm_v3 import IcmV3Record  # noqa: E402
+
+D = {"n": (-1, 0), "s": (1, 0), "e": (0, 1), "w": (0, -1)}
+OPP = {"n": "s", "s": "n", "e": "w", "w": "e"}
+PAIR = ("adder", "mul")
+
+
+class LayoutError(AssertionError):
+    pass
+
+
+class Grid:
+    def __init__(self, rows=10, cols=14):
+        self.rows, self.cols = rows, cols
+        self.nodes, self.links, self._relay = collections.OrderedDict(), [], 0
+        self.routes = {}                  # (a, b) -> {"relays": [...], "second": bool}
+        self.minuend = {}                 # subtract cell -> the source that must arrive FIRST
+
+    # ---- building -------------------------------------------------------------------------------------------------------------------
+    def add(self, name, r, c, core="ram", cfg=None, addon=None, preload=None):
+        if (r, c) in self.at():
+            raise LayoutError(f"{name}: square ({r},{c}) already used by {self.at()[(r, c)]}")
+        if not (0 <= r < self.rows and 0 <= c < self.cols):
+            raise LayoutError(f"{name}: square ({r},{c}) is outside the {self.rows}x{self.cols} grid")
+        self.nodes[name] = {"r": r, "c": c, "core": core, "cfg": dict(cfg or {}), "addon": dict(addon or {}), "preload": preload}
+        return name
+
+    def at(self):
+        return {(n["r"], n["c"]): k for k, n in self.nodes.items()}
+
+    def pos(self, a):
+        return (self.nodes[a]["r"], self.nodes[a]["c"])
+
+    def link(self, a, b, second=False):
+        (ar, ac), (br, bc) = self.pos(a), self.pos(b)
+        if abs(ar - br) + abs(ac - bc) != 1:
+            raise LayoutError(f"{a} -> {b}: cells are not adjacent")
+        self.links.append((a, b, second))
+
+    def _free(self, extra_blocked=()):
+        return set(self.at()) | set(extra_blocked)
+
+    def _paths(self, a, b, n, blocked):
+        """Yield a simple path of EXACTLY n relay squares from a to b through free squares (n = None: the shortest)."""
+        src, dst = self.pos(a), self.pos(b)
+        if n is None:
+            prev, q = {src: None}, collections.deque([src])
+            while q:
+                cur = q.popleft()
+                for dr, dc in D.values():
+                    nxt = (cur[0] + dr, cur[1] + dc)
+                    if nxt == dst:
+                        path, x = [], cur
+                        while x != src:
+                            path.append(x)
+                            x = prev[x]
+                        path.reverse()
+                        return path
+                    if 0 <= nxt[0] < self.rows and 0 <= nxt[1] < self.cols and nxt not in blocked and nxt not in prev:
+                        prev[nxt] = cur
+                        q.append(nxt)
+            return None
+        budget = [300000]
+
+        def dfs(cur, path, seen):
+            budget[0] -= 1
+            if budget[0] < 0:
+                return None
+            left = n - len(path)
+            if left == 0:
+                return list(path) if abs(cur[0] - dst[0]) + abs(cur[1] - dst[1]) == 1 else None
+            if abs(cur[0] - dst[0]) + abs(cur[1] - dst[1]) - 1 > left:
+                return None
+            nbrs = sorted(((cur[0] + dr, cur[1] + dc) for dr, dc in D.values()), key=lambda p: abs(p[0] - dst[0]) + abs(p[1] - dst[1]))
+            for nxt in nbrs:
+                if 0 <= nxt[0] < self.rows and 0 <= nxt[1] < self.cols and nxt not in blocked and nxt not in seen and nxt != dst:
+                    seen.add(nxt)
+                    path.append(nxt)
+                    got = dfs(nxt, path, seen)
+                    if got:
+                        return got
+                    path.pop()
+                    seen.discard(nxt)
+            return None
+        return dfs(src, [], {src})
+
+    def route(self, a, b, tag=None, avoid=(), second=False, extra=0, _extra_total=None):
+        """A chain of relay rams from a to b: the shortest, or `extra` relays longer (extra must be even on a grid)."""
+        blocked = self._free(avoid)
+        short = self._paths(a, b, None, blocked)
+        if short is None:
+            raise LayoutError(f"no free route {a} -> {b}")
+        path = short if not extra else self._paths(a, b, len(short) + extra, blocked)
+        if path is None:
+            raise LayoutError(f"no free route {a} -> {b} with {extra} extra relays")
+        names, last = [], a
+        for i, (r, c) in enumerate(path):
+            self._relay += 1
+            nm = f"{tag or a + '_' + b}.{self._relay}"
+            self.add(nm, r, c)
+            self.link(last, nm, second=second and i == 0)
+            names.append(nm)
+            last = nm
+        self.link(last, b, second=second and not path)
+        self.routes[(a, b)] = {"relays": names, "second": second, "tag": tag, "extra": extra if _extra_total is None else _extra_total}
+        return names
+
+    def unroute(self, a, b):
+        rec = self.routes.pop((a, b))
+        gone = set(rec["relays"])
+        for nm in gone:
+            del self.nodes[nm]
+        self.links = [l for l in self.links if l[0] not in gone and l[1] not in gone and not (l[0] == a and l[1] == b)]
+        return rec
+
+    def _lengthen(self, a, b):
+        """Re-lay the route a -> b two relays longer than it is now (the free squares are re-searched; a failure restores the old route)."""
+        rec = self.unroute(a, b)
+        want = rec["extra"] + 2
+        try:
+            return self.route(a, b, tag=rec["tag"], second=rec["second"], extra=want, _extra_total=want)
+        except LayoutError:
+            self.route(a, b, tag=rec["tag"], second=rec["second"], extra=rec["extra"], _extra_total=rec["extra"])
+            raise
+
+    # ---- timing -----------------------------------------------------------------------------------------------------------------------
+    def sources(self):
+        srcs = collections.defaultdict(list)
+        for a, b, _ in self.links:
+            if a not in srcs[b]:
+                srcs[b].append(a)
+        return srcs
+
+    def hops(self):
+        """The generator's hop model: t = 1 + the latest source (an entry cell has t = 1)."""
+        srcs, t = self.sources(), {}
+
+        def tv(c, stack=()):
+            if c in t:
+                return t[c]
+            if c in stack:
+                raise LayoutError(f"cycle through {c}")
+            t[c] = max((tv(q, stack + (c,)) for q in srcs[c]), default=0) + 1
+            return t[c]
+        for c in self.nodes:
+            tv(c)
+        return t
+
+    def problems(self):
+        """(cell, kind, early_source, late_source) for every pair cell whose operands tie, or whose declared minuend is not strictly first."""
+        srcs, t, out = self.sources(), self.hops(), []
+        for c, n in self.nodes.items():
+            if n["core"] not in PAIR or len(srcs[c]) != 2:
+                continue
+            x, y = srcs[c]
+            if t[x] == t[y]:
+                out.append((c, "tie", x, y))
+            m = self.minuend.get(c)
+            if m is not None and t[m] >= t[y if m == x else x]:
+                out.append((c, "order", m, y if m == x else x))
+        return out
+
+    def balance(self, limit=60):
+        """Lengthen ROUTED operand paths by two relays until no pair cell ties and every declared minuend is first. Returns the number of detours added."""
+        added = 0
+        for _ in range(limit):
+            probs = self.problems()
+            if not probs:
+                return added
+            c, kind, x, y = probs[0]
+            # lengthen a routed path on the critical path of the side that should be LATER (the second operand; for a bad minuend order, the subtrahend), else of the other side
+            t, srcs = self.hops(), self.sources()
+            done = False
+            for src in ([y, x] if kind in ("order", "tie") else [x, y]):
+                cur = src
+                while cur is not None and not done:
+                    rec_key = next((k for k, rec in self.routes.items() if k[1] == cur or (rec["relays"] and rec["relays"][-1] == cur and k[1] == c)), None)
+                    if rec_key is not None:
+                        try:
+                            self._lengthen(*rec_key)
+                            done = True
+                        except LayoutError:
+                            pass
+                    if done:
+                        break
+                    preds = srcs.get(cur, [])
+                    cur = max(preds, key=lambda q: t[q]) if preds else None
+                if done:
+                    break
+            if not done:
+                raise LayoutError(f"{c}: operands {x} and {y} cannot be separated -- neither is a routed path (insert a route or a spacer on one of them)")
+            added += 1
+        raise LayoutError("balance did not settle")
+
+    # ---- output -----------------------------------------------------------------------------------------------------------------------
+    def records(self):
+        up, down, down2 = collections.defaultdict(list), collections.defaultdict(list), collections.defaultdict(list)
+        pos = {k: (n["r"], n["c"]) for k, n in self.nodes.items()}
+        for a, b, second in self.links:
+            d = next(k for k, (dr, dc) in D.items() if (pos[a][0] + dr, pos[a][1] + dc) == pos[b])
+            (down2 if second else down)[a].append(d)
+            up[b].append(OPP[d])
+        out = []
+        for k, n in self.nodes.items():
+            cfg = dict({"upstream_mask": up[k], "downstream_mask": down[k]}, **n["cfg"])
+            if down2[k]:
+                cfg["second_downstream_mask"] = down2[k]
+            out.append(IcmV3Record(cell_id=k, row=n["r"], col=n["c"], core=n["core"], core_config=cfg, addon_config=n["addon"] or {}, preload_value=n["preload"]))
+        return out
+
+    def dump(self):
+        rows = [["." for _ in range(self.cols)] for _ in range(self.rows)]
+        for k, n in self.nodes.items():
+            rows[n["r"]][n["c"]] = {"ram": "r", "adder": "+", "mul": "*", "comparator": "?"}.get(n["core"], "?") if "." in k and k.rsplit(".", 1)[-1].isdigit() is False else "r"
+        return "\n".join("".join(r) for r in rows)

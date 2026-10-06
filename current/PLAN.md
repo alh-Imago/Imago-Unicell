@@ -2,14 +2,15 @@
 *Single source of truth for what needs doing and why.*
 
 > **UPDATE (2026-10-06, ledger #991): the current open work, gathered from the ledger's own "open" / "next"
-> lines for #946-#988.** Everything below this block predates the Tang Nano line. That includes the 2026-09-02
+> lines for #946-#989.** Everything below this block predates the Tang Nano line. That includes the 2026-09-02
 > "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
 > at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.
 >
-> **fp32 on cells (the most recent thread, #982-#988; align with sticky is done at #988):** re-map the RNE input
-> to the aligner's word; steering the sum on the carry / normalise bit; add/sub of the aligned significands and
-> normalising the sum; the rounding-overflow exponent bump; sub-normal and zero handling; assembling one whole fp32
-> adder and comparing it with `fp32_add_v1`; a 24-bit generator width; a placer that checks arrival hops itself.
+> **fp on cells (the most recent thread, #982-#989; the open fp assembler with normalise / align-with-sticky / round
+> blocks for any format is done at #989):** the missing blocks are unpack, swap-larger-first, effective add/sub,
+> significand add/sub with the carry, rounding-overflow bump, pack and zero/sub-normal/inf/nan. Then assemble one whole
+> fp add and compare it with `fp32_add_v1`. Also open: a placer that decides positions itself, a VM tick-latency model
+> for the layout engine, and a 64-bit build for fp64. Full list: `docs/shared/POINTS_STATUS_AUDIT_3.md`.
 >
 > **Width (#948, #957-#963, #985):** the `--icm` generators still build 32 bits. Still to do: native-width builds,
 > the loader's narrowing, the save's padding, and the `min_bit_width` fit check (#959). The Tang's spare-bit sign

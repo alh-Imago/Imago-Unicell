@@ -349,8 +349,11 @@ multiplier high word → normalise bit, a 5-stage left-normalise with
 exponent adjust, sticky, round-to-nearest-even (#982-#984), and
 alignment: a variable right shift that also collects the sticky bits,
 built from one multiplier per stage using both of its output words
-(#987/#988). Still open: steering the sum on the carry, normalising the
-sum, and assembling one whole fp32 adder to compare with <code>fp32_add_v1</code>.</p>
+(#987/#988). An open fp assembler (<code>tools/fp_assembler_v1.py</code>, #989)
+now generates the normalise, align and round blocks for any format (fp32,
+fp16, bfloat16), with operand timing balanced automatically. Still open:
+the remaining blocks (unpack, swap, add/sub, pack, special values) and
+assembling one whole fp adder to compare with <code>fp32_add_v1</code>.</p>
 <h2>On the physical board</h2>
 <p><a href="../docs/man/tang-nano-20k-getting-started.md"><code>docs/man/tang-nano-20k-getting-started.md</code></a>
 covers the first flashable deliverable, a <code>sequencer</code> core counting on
@@ -814,8 +817,9 @@ a different axis entirely (compiler/VM/application layer, not cell
 mechanics), with reasons recorded rather than silently skipped.</p>
 <h2>Keeping this current — real, standing self-audits, not assumed clean</h2>
 <ul>
-<li><strong><code>shared/POINTS_STATUS_AUDIT.md</code></strong> / <strong><code>shared/POINTS_STATUS_
-  AUDIT_2.md</code></strong> — a curated map on top of <code>points/</code>'s own chronological
+<li><strong><code>shared/POINTS_STATUS_AUDIT.md</code></strong> / <strong><code>_2.md</code></strong> / <strong><code>_3.md</code></strong>
+  (#1-#330 / #331-#592 / #593-#996; part 3's quick reference is the
+  current open list) — a curated map on top of <code>points/</code>'s own chronological
   ledger: what's done, what's genuinely still pending, what's an open
   thought-direction with no build started.</li>
 <li><strong><code>shared/DOCS_AND_STATIC_PAGES_AUDIT.md</code></strong> (2026-09-07) — the same
@@ -6028,6 +6032,14 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 <td><strong>Step 2, <code>flex</code>.</strong> <code>-s flex --icm FILE</code> generates handshake hardware: eager forks for fan-out, joins for two-operand cells, constants as fixed-mode rams, merge cores per merge, second ports where flagged (#944-#981). No padding is needed.</td>
 </tr>
 <tr>
+<td><code>flex_layout_v1.py</code></td>
+<td>A layout engine for hand-designed flex structures: cells and links on a grid, <code>route()</code>, the generator's hop model, and <code>balance()</code>, which removes the operand-arrival ties the generator refuses and enforces "minuend first" (#989)</td>
+</tr>
+<tr>
+<td><code>fp_assembler_v1.py</code></td>
+<td>The open fp assembler: <code>FpFormat</code> (FP32, FP16, BF16, or custom) and parametric normalise / align-with-sticky / round blocks whose counts and constants are computed from the format (#989; design note <code>docs/stripped-cell/design-notes/fp_assembler_open_design.md</code>)</td>
+</tr>
+<tr>
 <td><code>flexsub_compile_v1.py</code></td>
 <td>Compiles LLVM IR for sub/flex. It uses the stock compiler and rewrites VM-only mode-2 priorities to strict mode 0 with ranks, and marks the result cell. <code>--min-bit-width N</code> (#929/#930/#940/#958).</td>
 </tr>
@@ -6481,13 +6493,14 @@ cd Imago-Unicell
 <p><em>Single source of truth for what needs doing and why.</em></p>
 <blockquote>
 <p><strong>UPDATE (2026-10-06, ledger #991): the current open work, gathered from the ledger's own "open" / "next"
-lines for #946-#988.</strong> Everything below this block predates the Tang Nano line. That includes the 2026-09-02
+lines for #946-#989.</strong> Everything below this block predates the Tang Nano line. That includes the 2026-09-02
 "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
 at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.</p>
-<p><strong>fp32 on cells (the most recent thread, #982-#988; align with sticky is done at #988):</strong> re-map the RNE input
-to the aligner's word; steering the sum on the carry / normalise bit; add/sub of the aligned significands and
-normalising the sum; the rounding-overflow exponent bump; sub-normal and zero handling; assembling one whole fp32
-adder and comparing it with <code>fp32_add_v1</code>; a 24-bit generator width; a placer that checks arrival hops itself.</p>
+<p><strong>fp on cells (the most recent thread, #982-#989; the open fp assembler with normalise / align-with-sticky / round
+blocks for any format is done at #989):</strong> the missing blocks are unpack, swap-larger-first, effective add/sub,
+significand add/sub with the carry, rounding-overflow bump, pack and zero/sub-normal/inf/nan. Then assemble one whole
+fp add and compare it with <code>fp32_add_v1</code>. Also open: a placer that decides positions itself, a VM tick-latency model
+for the layout engine, and a 64-bit build for fp64. Full list: <code>docs/shared/POINTS_STATUS_AUDIT_3.md</code>.</p>
 <p><strong>Width (#948, #957-#963, #985):</strong> the <code>--icm</code> generators still build 32 bits. Still to do: native-width builds,
 the loader's narrowing, the save's padding, and the <code>min_bit_width</code> fit check (#959). The Tang's spare-bit sign
 encoding (<code>target_extensions</code>) is not defined. A 6-bit shift amount is needed at W=36. Widening the

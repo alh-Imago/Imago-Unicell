@@ -132,7 +132,28 @@ def _flex_deliver_ram(cell, arrivals, injected):
     return ({win}, None)
 
 
+def _one_operand_at_a_time(cell, arrivals, injected, mask, deliver, what):
+    """ledger #989: a two-operand flex cell never ORs two operands that arrive in the SAME tick (the std VM does; the real handshake cell takes both and waits for both). The VM takes ONE (the lower face) and
+    acknowledges only that one -- the other stays pending and is taken next. For add and multiply that gives the same result as the RTL (commutative). For a SUBTRACT the order would be a guess, so it is refused."""
+    present = sorted((d for d in arrivals if (mask >> _DIR_BIT[d]) & 1), key=lambda d: _DIR_BIT[d])
+    if injected is not None or len(present) < 2:
+        return deliver(cell, arrivals, injected)
+    if what == "subtract":
+        raise ValueError("flex VM: both operands of a subtract arrive in the same tick -- there is no operand order (the real cell orders them by arrival); separate their path lengths")
+    win = present[0]
+    got = deliver(cell, {win: arrivals[win]}, None)
+    return ({win}, None) if got[0] is True else got
+
+
 def _flex_deliver_adder(self, arrivals, injected):
+    return _one_operand_at_a_time(self, arrivals, injected, self.adder_upstream_mask, _flex_deliver_adder1, "subtract" if self.adder_subtract_mode else "add")
+
+
+def _flex_deliver_mul(self, arrivals, injected):
+    return _one_operand_at_a_time(self, arrivals, injected, self.mul_upstream_mask, _CORE_HANDLERS["mul"].deliver, "mul")
+
+
+def _flex_deliver_adder1(self, arrivals, injected):
     """The adder: exactly the std behaviour, plus -- when carry_mode is on (ledger #976) -- the carry-out of the W-bit add is latched with the sum. For subtract it is the raw carry of a + ~b + 1 (NOT-borrow), as in adder_cell_v4sa."""
     matched = {d: v for d, v in arrivals.items() if (self.adder_upstream_mask >> _DIR_BIT[d]) & 1}
     if not matched and injected is None:
@@ -187,7 +208,7 @@ def _flex_offer_mul(self):
     return (v, valid, mask)
 
 
-register_flex_handler("mul", _dc_replace(_CORE_HANDLERS["mul"], offer_state=_flex_offer_mul))
+register_flex_handler("mul", _dc_replace(_CORE_HANDLERS["mul"], deliver=_flex_deliver_mul, offer_state=_flex_offer_mul))
 register_flex_handler("adder", CoreHandler(deliver=_flex_deliver_adder, offer_state=_flex_offer_adder, continuously_live=False, clear_valid=_flex_clear_valid_adder))
 register_flex_handler("ram", CoreHandler(deliver=_flex_deliver_ram, offer_state=SuperCell._offer_state_ram, continuously_live=False, clear_valid=SuperCell._clear_valid_ram))
 

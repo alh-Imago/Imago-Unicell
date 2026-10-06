@@ -18,6 +18,8 @@ The table below is the #982 snapshot. It is kept as written. Since then, several
 
 **Still missing (from #988):** re-mapping the RNE stage's input to the aligner's output word (two guard bits, then sticky); steering the sum on the carry / normalise bit; add/sub of the aligned and the larger significands; normalising the sum and its exponent; and assembling one whole fp32 adder and comparing it with `fp32_add_v1`. Also open: the rounding-overflow exponent bump, sub-normal and zero handling, and a 24-bit generator width. Stage 1 of the "honest list" below (shift by a data value) is answered by the multiplier: a multiplier by a power of two is a shifter.
 
+**Since then (#989):** the open fp assembler (`tools/fp_assembler_v1.py`, design note `fp_assembler_open_design.md`) makes the normalise, align-with-sticky and round blocks parametric in the format, and `tools/flex_layout_v1.balance()` replaces the hand-placed spacers and detours described next.
+
 **Layout lesson (#988):** the generator refuses two operands that arrive on the same hop. On a grid, a spacer relay placed on the straight route changes nothing; only a deliberate detour (`route_via` in `tests/vm/fp32_stage_builder_v1.py`) or a different structure does. A placer that checks arrival hops itself is open.
 
 ## Operand convention for 32-bit cells

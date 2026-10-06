@@ -19,8 +19,8 @@ fixed, and status banners were added to `ICM_FORMAT.md`,
 every live `.md` outside `archeology/` and the dated design notes finds
 nothing else misdescribing the current state. The one remaining gap, a
 done/pending map for ledger #593 onward, is now
-`POINTS_STATUS_AUDIT_3.md` (#593-#995). **Nothing on this audit's list
-is outstanding as of #996.** The one exception is #856's standing
+`POINTS_STATUS_AUDIT_3.md` (#593-#996). **Nothing on this audit's list
+is outstanding as of #997.** The one exception is #856's standing
 request for another full documentation pass once the fp32 work is
 complete.
 

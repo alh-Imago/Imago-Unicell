@@ -181,8 +181,11 @@ multiplier high word → normalise bit, a 5-stage left-normalise with
 exponent adjust, sticky, round-to-nearest-even (#982-#984), and
 alignment: a variable right shift that also collects the sticky bits,
 built from one multiplier per stage using both of its output words
-(#987/#988). Still open: steering the sum on the carry, normalising the
-sum, and assembling one whole fp32 adder to compare with `fp32_add_v1`.
+(#987/#988). An open fp assembler (`tools/fp_assembler_v1.py`, #989)
+now generates the normalise, align and round blocks for any format (fp32,
+fp16, bfloat16), with operand timing balanced automatically. Still open:
+the remaining blocks (unpack, swap, add/sub, pack, special values) and
+assembling one whole fp adder to compare with `fp32_add_v1`.
 
 ## On the physical board
 
