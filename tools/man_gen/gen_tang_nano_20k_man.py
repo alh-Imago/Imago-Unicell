@@ -143,6 +143,23 @@ def native_ff_variants():
     }
 
 
+def cell_costs_block():
+    """The measured LUT4/ALU/DFF/MULT of every flex (v4sa) cell at several widths (ledger #975), read from the committed sweep results so the numbers have one source."""
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "docs", "measurements", "flex_width_sweep_975", "costs.json")
+    d = json.load(open(src))
+    return {
+        "unit": "[LUT4, ALU, DFF, MULT] as counted by yosys synth_gowin (open flow); the device totals are device.logic.lut4_total / ff_total",
+        "source": "docs/measurements/flex_width_sweep_975/costs.json, produced by tools/flex_width_sweep_v1.py (ledger #975). MEASURED by synthesis only: no place-and-route, no timing, nothing run on the board.",
+        "widths_measured": d["widths"],
+        "flow": "single_nowidelut is the card's default flow (synthesis.nowidelut.default); single_widelut is the historical flow, whose numbers are NOT smooth in W (the wide-LUT mapper changes its mind) -- project from nowidelut.",
+        "how_to_read": ("single_*: the cell module alone with every configuration port a real input -- the honest per-cell cost of a runtime-configurable cell. array3x3_nowidelut: nine cells inside the generated assembler "
+                        "top with the configuration pinned by the harness, so constant-config logic folds away -- it shows what a hard-wired cluster costs, and is NOT a per-cell figure (adder: 9 cells cost less than 2 singles)."),
+        "fits": d["fits"],
+        "fits_note": "lut4_vs_W_nowidelut is a least-squares polynomial of the single-cell nowidelut LUT4 count against the width (degree 1, mul degree 2); max_abs_residual says how well it holds over the measured widths. The sequencer is not a function of W (it saturates at 8 bits) and is refused below 8 bits on FlexGrid.",
+        "cells": d["cells"],
+    }
+
+
 def build(db):
     logic_tiles = tiles_of(db, "M")
     bsram, dsp, pll = tiles_of(db, "B"), tiles_of(db, "D"), tiles_of(db, "P")
@@ -166,6 +183,7 @@ def build(db):
                          "NOT tested on the physical board -- see `verification`."),
         "vendor": "gowin",
         "synthesis": synthesis_block(),
+        "cell_costs": cell_costs_block(),
         "device": {
             "part": "GW2AR-LV18QN88C8/I7",
             "family": "Gowin GW2AR-18",

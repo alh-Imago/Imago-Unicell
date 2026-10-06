@@ -45,3 +45,15 @@ def test_multiword_add_from_carry_port(tmp_path):
     assert c.returncode == 0, c.stderr
     r = subprocess.run(["vvp", out], capture_output=True, text=True, timeout=120).stdout
     assert "FAIL" not in r and "ALL PASS (400" in r, r
+
+
+@pytest.mark.parametrize("t1,t2,w", [(10, 10, 8), (7, 5, 4), (300, 300, 18), (1000, 1000, 32), (65535, 3, 32)])
+def test_accumulator_cascade_gear_ratio(tmp_path, t1, t2, w):
+    """Two pulse-mode accumulators in cascade fire once per T1*T2 input events (1,000,000 > the 16-bit threshold a single cell can hold)."""
+    assert shutil.which("iverilog") and shutil.which("vvp")
+    out = str(tmp_path / "ac.vvp")
+    c = subprocess.run(["iverilog", "-g2012", "-P", f"tb_acc_cascade_v4sa.T1={t1}", "-P", f"tb_acc_cascade_v4sa.T2={t2}", "-P", f"tb_acc_cascade_v4sa.W={w}",
+                        "-o", out, os.path.join(SUBV, "tb_acc_cascade_v4sa.v"), os.path.join(SUBV, "accumulator_cell_v4sa.v")], capture_output=True, text=True)
+    assert c.returncode == 0, c.stderr
+    r = subprocess.run(["vvp", out], capture_output=True, text=True, timeout=300).stdout
+    assert "FAIL" not in r and f"period {t1 * t2} input events" in r, r

@@ -227,3 +227,21 @@ def test_native_ff_variants_regenerates_identically():
     gen, db = _chipdb()
     fresh = gen.native_ff_variants()
     assert fresh == MAN["device"]["logic"]["native_ff_variants"]
+
+
+def test_cell_costs_are_in_the_man_and_consistent():
+    """Ledger #975: the measured per-cell costs are carried in the MAN (generated from docs/measurements/flex_width_sweep_975/costs.json)."""
+    cc = MAN["cell_costs"]
+    assert cc["widths_measured"] == [4, 8, 16, 18, 24, 32]
+    assert {"adder", "mul", "nano", "accumulator", "compare", "branch", "mask", "ram"} <= set(cc["cells"])
+    for cell, v in cc["cells"].items():
+        for flow in ("single_nowidelut", "single_widelut", "array3x3_nowidelut"):
+            assert set(v[flow]) == {str(w) for w in cc["widths_measured"]}, (cell, flow)
+            assert all(len(x) == 4 for x in v[flow].values())
+    # the recorded figures the project already relied on still hold: flex adder 29/19/24 at W18 (wide-LUT flow), nano 627, accumulator 242/72/63
+    assert cc["cells"]["adder"]["single_widelut"]["18"] == [29, 19, 24, 0]
+    assert cc["cells"]["nano"]["single_widelut"]["18"][0] == 627
+    assert cc["cells"]["accumulator"]["single_widelut"]["18"] == [242, 72, 63, 0]
+    # and the clean fits
+    assert cc["fits"]["adder"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [1.0, 9.0]
+    assert cc["fits"]["nano"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [7.0, 33.0]
