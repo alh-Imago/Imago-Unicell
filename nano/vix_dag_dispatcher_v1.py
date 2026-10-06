@@ -224,18 +224,25 @@ def _resolve_operand(op: DagOperand) -> dict:
 # an opcode-specific branch of its own. A future opcode needs a new
 # `register()` call in the library module ONLY -- never a change here.
 # Ledger #979 (Alan: the compiler sets the second-output flag only when the program needs BOTH results of a cell; default OFF; a design/user can force it).
-# The request is a DagInstr param -- `{"carry_mode": 1}` on add/sub, `{"wide_mode": 1}` on mul -- read here. Anything else is ignored (it is some other param); a
+# The request is a DagInstr param -- `{"second_output": 1}` on add/sub/mul (the aliases `carry_mode` / `wide_mode` also work) -- read here. Anything else is ignored (it is some other param); a
 # truthy flag on an opcode whose tile has no such second output is REFUSED, never silently dropped.
-_SECOND_OUTPUT_FLAGS = {"add": "carry_mode", "sub": "carry_mode", "mul": "wide_mode"}
+_SECOND_OUTPUT_FLAGS = {"add": "second_output", "sub": "second_output", "mul": "second_output"}   # ledger #980: ONE generic flag; carry_mode / wide_mode are aliases
 
 
 def _second_output_params(opcode: str, instr_params: Optional[dict]) -> dict:
-    wanted = {k: int(bool(v)) for k, v in (instr_params or {}).items() if k in ("carry_mode", "wide_mode")}
+    wanted = {k: int(bool(v)) for k, v in (instr_params or {}).items() if k in ("second_output", "carry_mode", "wide_mode")}
     allowed = _SECOND_OUTPUT_FLAGS.get(opcode)
-    bad = [k for k, v in wanted.items() if v and k != allowed]
-    if bad:
-        raise ValueError(f"opcode {opcode!r} has no second output ({bad[0]} requested): only add/sub (carry_mode) and mul (wide_mode) can produce a second word")
-    return {k: v for k, v in wanted.items() if k == allowed}
+    if not allowed:
+        if any(wanted.values()):
+            raise ValueError(f"opcode {opcode!r} has no second output ({next(k for k, v in wanted.items() if v)} requested): only add/sub (carry) and mul (high word) can produce a second word")
+        return {}
+    # the legacy names are aliases of the one flag, but each belongs to ITS core: carry_mode on a mul or wide_mode on an add is still a mistake
+    legacy = {"add": "carry_mode", "sub": "carry_mode", "mul": "wide_mode"}[opcode]
+    wrong = [k for k, v in wanted.items() if v and k not in ("second_output", legacy)]
+    if wrong:
+        raise ValueError(f"opcode {opcode!r} has no second output named {wrong[0]}: use second_output (or {legacy})")
+    vals = [v for k, v in wanted.items() if k in ("second_output", legacy)]
+    return {"second_output": int(any(vals))} if vals else {}
 
 
 def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,

@@ -489,12 +489,12 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
         for r in cells.values():
             if r.core not in FLEX_STAGE1_CORES:
                 problems.append(f"{r.cell_id}: core {r.core!r} is not yet translated on flex (stage 1 covers {sorted(FLEX_STAGE1_CORES)})")
-    # --- ledger #976: SECOND-OUTPUT cells. The compiler sets ONE flag on the cell (an adder's `carry_mode`, a multiplier's `wide_mode`); the planner records which cells have it so
+    # --- ledger #976: SECOND-OUTPUT cells. The compiler sets ONE flag on the cell (`second_output`: an adder's carry, a multiplier's high word; `carry_mode`/`wide_mode` are aliases); the planner records which cells have it so
     # the assembler/emitter builds the second port (SECOND_PORT=1) and routes it. In the VM the second word goes to the SAME downstream as the first, one after the other; on flex that is
     # a merge core (arbitrate, first port first) in front of each consumer, so a consumer must be a single-input relay-type cell (ram / comparator).
-    second_ports = sorted(c for c, r in cells.items() if (r.core == "adder" and (r.core_config or {}).get("carry_mode")) or (r.core == "mul" and (r.core_config or {}).get("wide_mode")))
+    second_ports = sorted(c for c, r in cells.items() if r.core in ("adder", "mul") and (r.core_config or {}).get("second_output"))
     if second_ports and family != "flex":
-        problems.append(f"{second_ports}: a second output word (adder carry_mode / mul wide_mode) exists on the flex family only; the sub family has no second port, so it would be silently dropped")
+        problems.append(f"{second_ports}: a second output word (second_output on an adder / mul) exists on the flex family only; the sub family has no second port, so it would be silently dropped")
     elif second_ports:
         for c in second_ports:
             if c in exits_set:

@@ -50,12 +50,12 @@ TWO_OPERAND = {"adder", "mul", "nano"}   # nano: first arrival = held operand A,
 # How each core's config words translate (read from the root_definition fields vs each v4sa cell's header).
 CONFIG_NOTES = {
     "ram": "direct: fixed_mode -> cfg_fixed_mode port, init_data -> cfg_data (load_data_valid has no v4sa field)",
-    "adder": "direct: subtract_mode -> cfg_data[0]; carry_mode (flex only, ledger #976) -> cfg_data[1] and the SECOND_PORT build parameter",
+    "adder": "direct: subtract_mode -> cfg_data[0]; second_output (carry; flex only, ledger #976) -> cfg_data[1] and the SECOND_PORT build parameter",
     "comparator": "direct: threshold -> cfg_data[WIDTH-1:0]",
     "accumulator": "direct: step_amount/pulse_mode/threshold -> cfg_data[7:0]/[8]/[24:9]",
     "sequencer": "direct: VALUE_0..3 -> cfg_data bytes, SEQUENCE_LEN -> cfg_seq_len_m1",
     "latch": "no config word (v4sa latch ignores cfg_data); set/clear/toggle come from the wiring",
-    "mul": "wide_mode: v4s (sub) has no equivalent -- refused; on flex it is the mul's second output port (data_out_hi, cfg_data[0], ledger #976)",
+    "mul": "second_output (high word): v4s (sub) has no equivalent -- refused; on flex it is the mul's second output port (data_out_hi, cfg_data[0], ledger #976)",
     "nano": "topology[9:0] -> cfg_data[9:0] direct; routing_mask/cardinal_edge/out_buffer are carrier fields, no equivalent",
     "branch": "LOSSY: v4sa branch has two flowing inputs, ONE shared emit_source, and 2-bit out1/out2 routing; "
               "the ICM branch has per-outcome value_source/fixed_value/emit and 4-bit cardinal routing -- "
@@ -239,10 +239,10 @@ def analyse(path, family="flex"):
         if r.addon_config:
             v["issues"].append("addon_config present (shift/mask/invert fused on the cell): needs graph expansion "
                                "into separate cells (#905)")
-        if r.core == "mul" and cfg.get("wide_mode") and family != "flex":
-            v["issues"].append("mul wide_mode=1 has no v4s equivalent (the flex mul has it as a second output port, ledger #976)")
-        if r.core == "adder" and cfg.get("carry_mode") and family != "flex":
-            v["issues"].append("adder carry_mode=1 has no v4s equivalent (the flex adder has it as a second output port, ledger #976)")
+        if r.core == "mul" and cfg.get("second_output") and family != "flex":
+            v["issues"].append("mul second_output=1 has no v4s equivalent (the flex mul has it as a second output port, ledger #976)")
+        if r.core == "adder" and cfg.get("second_output") and family != "flex":
+            v["issues"].append("adder second_output=1 has no v4s equivalent (the flex adder has it as a second output port, ledger #976)")
         if r.core == "branch":
             vs = {cfg.get(f"value_source_{k}") for k in ("low", "equal", "high")}
             fv = {cfg.get(f"fixed_value_{k}") for k in ("low", "equal", "high")}

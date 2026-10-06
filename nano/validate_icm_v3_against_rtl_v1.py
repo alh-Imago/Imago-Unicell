@@ -27,7 +27,9 @@ def _normalize_name(name: str) -> str:
     return name.split("[")[0]
 
 
-_FLEX_ONLY_FIELDS = {"adder": ("carry_mode",)}
+_FLEX_ONLY_FIELDS = {"adder": ("second_output",)}
+# ledger #980: the ICM's canonical `second_output` is `wide_mode` in the standard multiplier RTL's field-map comment (its alias), so the comparison renames it back for that core.
+_RTL_NAME_OF = {"mul": {"second_output": "wide_mode"}}
 
 
 def validate(repo_root: str) -> int:
@@ -46,7 +48,7 @@ def validate(repo_root: str) -> int:
                       if _normalize_name(f.name) != "reserved"}
         # REAL, DOCUMENTED EXCEPTION (#976): fields that exist for the FLEX family only. This comparison reads the STANDARD family's RTL field-map
         # comments (adder_cell_v1.v), which has no carry output, so the flex-only field is named here, not silently ignored.
-        py_fields = {k: v for k, v in v3.CORE_FIELD_TABLES[sel].items() if k not in _FLEX_ONLY_FIELDS.get(name, ())}
+        py_fields = {_RTL_NAME_OF.get(name, {}).get(k, k): v for k, v in v3.CORE_FIELD_TABLES[sel].items() if k not in _FLEX_ONLY_FIELDS.get(name, ())}
         mismatches += _diff(f"core={name}", rtl_fields, py_fields)
 
     # ── nano: compare against the "nano_within_super" extraction

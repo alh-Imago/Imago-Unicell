@@ -130,6 +130,8 @@ def _resolve_and_place_vix(stmt: PlaceIR) -> Tuple[Optional[vix.HierCell], List[
     addon_config: Dict[str, object] = {}
     preload_value: Optional[int] = None
     for f in stmt.fields:
+        if tile.core in ("adder", "mul") and f.key in vtl._SECOND_ALIAS:    # ledger #980: carry_mode / wide_mode are aliases of the one flag second_output
+            f = type(f)(key=vtl._SECOND_ALIAS[f.key], value=f.value, span=f.span)
         if f.key.startswith("addon."):
             addon_config[f.key[len("addon."):]] = f.value
         elif f.key == "preload":

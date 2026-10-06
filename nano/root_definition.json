@@ -103,7 +103,7 @@
     "description": "TWO-STAGE CAPTURE, mirroring unicell_stripped_v1.v's own can_fire gating: the first arrival (any direction with upstream_mask set) becomes A (a_reg/a_arrived) \u2014 captured whenever a_arrived is clear, REGARDLESS of whether a previous sum is still being offered (a_reg and out_buffer are separate registers, so this genuinely pipelines: a new operand pair can start capturing while the previous sum drains downstream). The second arrival becomes B and fires ONLY once the output slot is free (!data_valid) \u2014 mirrors both ram_cell_v1.v's own capture gate and unicell_stripped_v1.v's own \"doubly full\" comment (a_arrived=1 AND ready_bit=0 blocks can_fire there; the equivalent block here is a_arrived=1 AND data_valid=1, exposed combinationally via ready_out)."
    },
    {
-    "name": "carry_mode",
+    "name": "second_output",
     "hi": 12,
     "lo": 12,
     "description": "points.md #976 (FLEX FAMILY ONLY): 0=the sum only; 1=also deliver the carry-out of the add as a second word (0 or 1; for subtract the raw carry, i.e. NOT-borrow) to the SAME downstream_mask, after the sum -- the same shape as mul's wide_mode. Set by the compiler, which also tells the assembler where the cell is placed; on flex it becomes the adder's SECOND_PORT build parameter and the cfg_data[1] enable. The standard (v1/v4c) adder has no carry output: a standard grid refuses carry_mode=1."
@@ -511,7 +511,7 @@
     "description": "TWO-STAGE CAPTURE, structurally identical to adder's own (capture A, then B, then fire) but multiplication instead of add/subtract, with no subtract-mode-equivalent bit at all."
    },
    {
-    "name": "wide_mode",
+    "name": "second_output",
     "hi": 12,
     "lo": 12,
     "description": "points.md #853/#854: 0=v4/v4c behaviour (Product[31:0] only, low half discarded); 1=real sequential two-phase delivery -- the SAME downstream_mask/out port delivers the low half first, then (only once fully acked) the real high half. mul_cell_v4/v4c genuinely lack this bit; only v5/v5c implement it."

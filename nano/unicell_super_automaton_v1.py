@@ -691,7 +691,7 @@ class SuperCell:
         elif core == "mul":
             cell.mul_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.mul_upstream_mask = dm(cfg.get("upstream_mask", 0))
-            cell.mul_wide_mode = bool(cfg.get("wide_mode", 0))
+            cell.mul_wide_mode = bool(cfg.get("second_output", cfg.get("wide_mode", 0)))   # ledger #980: canonical ICM name second_output; wide_mode is its alias (same bit)
         elif core == "accumulator":
             cell.acc_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.acc_inc_dir = dm(cfg.get("inc_dir", 0))
@@ -1310,7 +1310,7 @@ class SuperGrid:
         return apply_addons(value, addon_config, self.width)
 
     _UNVERIFIED_AT_OTHER_WIDTHS = frozenset({"accumulator", "branch", "priority"})   # cores whose width behaviour has not been checked against hardware (a mirror variant narrows this as it verifies them)
-    _ALLOWS_CARRY_MODE = False   # the adder's carry output (ICM `carry_mode`, ledger #976) exists on the FLEX family only; a mirror variant (FlexGrid) turns it on. Refusing here stops a flex-only design silently running without its carry word.
+    _ALLOWS_CARRY_MODE = False   # the adder's carry output (ICM `second_output`, ledger #976/#980) exists on the FLEX family only; a mirror variant (FlexGrid) turns it on. Refusing here stops a flex-only design silently running without its carry word.
     _cell_class = SuperCell      # the cell type this grid builds (a variant such as FlexGrid overrides it; ledger #965)
 
     # Class-level defaults: a subclass whose own __init__ does not call this one (VixCarrierGrid) behaves exactly as before, at 32 bits. Found by the full tests/vm run, not by thought.
@@ -1324,8 +1324,8 @@ class SuperGrid:
         self.mask = (1 << self.width) - 1
         if not self._ALLOWS_CARRY_MODE:
             for r_ in records:
-                if r_.core == "adder" and (r_.core_config or {}).get("carry_mode"):
-                    raise ValueError(f"cell {r_.cell_id}: adder carry_mode=1 (the carry as a second output word) exists on the flex family only (ledger #976); this grid is not a flex mirror")
+                if r_.core == "adder" and (r_.core_config or {}).get("second_output"):
+                    raise ValueError(f"cell {r_.cell_id}: adder second_output=1 (the carry as a second output word) exists on the flex family only (ledger #976); this grid is not a flex mirror")
         if self.width != 32:
             unverified = sorted({r.core for r in records} & self._UNVERIFIED_AT_OTHER_WIDTHS)
             if unverified:

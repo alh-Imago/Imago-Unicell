@@ -157,6 +157,9 @@ class VixTileSpec:
         return [p.name for p in self.ports]
 
 
+_SECOND_ALIAS = {"carry_mode": "second_output", "wide_mode": "second_output"}
+
+
 def place(tile: VixTileSpec, port_directions: Dict[str, str],
           params: Optional[dict] = None,
           cell_id: str = "c0",
@@ -171,6 +174,7 @@ def place(tile: VixTileSpec, port_directions: Dict[str, str],
     `cells` list (`icm_vix_v1.py`). Reuses `super_tile_library_v1.
     _resolve()` directly for port/param validation and direction-
     grouping -- the same real contract, not a re-derived one."""
+    params = {_SECOND_ALIAS.get(k, k) if tile.core in ("adder", "mul") else k: v for k, v in (params or {}).items()}   # ledger #980: carry_mode / wide_mode -> second_output
     optional = {k: v for k, v in (params or {}).items() if k in tile.optional_params}
     params = {k: v for k, v in (params or {}).items() if k not in tile.optional_params} if optional else params
     field_dirs, resolved_params = _resolve_ports(tile, port_directions, params)  # type: ignore[arg-type]
@@ -287,7 +291,7 @@ TILE_ADDER = register(VixTileSpec(
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
     arrivals_needed=2,
-    optional_params=["carry_mode"],  # ledger #976 (FLEX family only): the ONE flag the compiler sets to ask for the carry-out as a second output word, delivered after the sum to the same downstream
+    optional_params=["second_output"],  # ledger #976/#980 (FLEX family only; `carry_mode` is an accepted alias): the ONE flag the compiler sets to ask for the carry-out as a second output word, delivered after the sum to the same downstream
 ))
 
 TILE_SUBTRACTOR = register(VixTileSpec(
@@ -298,7 +302,7 @@ TILE_SUBTRACTOR = register(VixTileSpec(
            TilePort("out", "out", "downstream_mask")],
     fixed_core_config={"subtract_mode": 1},
     arrivals_needed=2,
-    optional_params=["carry_mode"],  # ledger #976 (flex only): the raw carry of a + ~b + 1, i.e. NOT-borrow
+    optional_params=["second_output"],  # ledger #976/#980 (flex only; `carry_mode` is an alias): the raw carry of a + ~b + 1, i.e. NOT-borrow
 ))
 
 TILE_MUL = register(VixTileSpec(
@@ -319,7 +323,7 @@ TILE_MUL = register(VixTileSpec(
                  "a second port to wire up.",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
-    param_names=["wide_mode"],
+    param_names=["second_output"],   # ledger #980: canonical name; `wide_mode` is an accepted alias (place() renames it)
     arrivals_needed=2,
 ))
 

@@ -2,6 +2,8 @@
 
 ## Read this first (most recent)
 
+**#980 -- ONE GENERIC ICM FLAG `second_output` (bit 12 on adder and mul; `carry_mode`/`wide_mode` are accepted aliases, rewritten on read; the ICM states the NEED, each target decides how or refuses). The std VM got two NAME reads only (behaviour unchanged). Next: per-target capability table + agnostic second-result routing mask. See points #979/#980.**
+
 **#976 -- SECOND PORT = BUILD PARAMETER `SECOND_PORT` + ONE ICM FLAG (adder `carry_mode`, mul `wide_mode`) FROM THE COMPILER (tile `optional_params`); MERGE SHAPE IN THE ASSEMBLER:** planner/emitter build the port and a merge core (sum then carry, VM order) only for flagged cells; refusals for std grid, non-ram/comparator consumers, exit, addons. RTL==VM==arithmetic. **CORRECTION: #974/#975 cost fits included the unused port -- now adder W+5 (23/18/21), LUT mul ~1.41W^2-3.94W+10.2, port-on adder +4 LUT, merge W+17.** Open: compiler producer, other consumers, carry-to-different-consumer routing.
 
 **#975 -- ACCUMULATOR CASCADE + COST-vs-WIDTH SWEEP:** two pulse accumulators in cascade fire once per T1 x T2 input events in the real RTL (1000x1000 = 1,000,000 > the 65,535 a single threshold holds) and in FlexGrid (6 tests); the flex cost sweep (13 cells x W 4/8/16/18/24/32, single cell and 3x3 array, `-nowidelut` and wide-LUT) is in `docs/measurements/flex_width_sweep_975/` and the Tang MAN `cell_costs`: adder = W+9 [SUPERSEDED by #976: W+5], nano = 7W+33, mask W+5, ram W+6, LUT mul ~2.73W^2; the wide-LUT flow is not smooth, the 3x3 array is not 9x a cell (config folds) -- project from single-cell nowidelut. Not done: merge shape, second ports enabled, P&R/timing.

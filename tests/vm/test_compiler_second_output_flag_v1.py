@@ -24,14 +24,16 @@ def cfg_of(opcode, params=None):
     return [r for r in recs if r.cell_id == "main.a"][0]
 
 
-@pytest.mark.parametrize("opcode,flag", [("add", "carry_mode"), ("sub", "carry_mode"), ("mul", "wide_mode")])
+@pytest.mark.parametrize("opcode,flag", [(o, f) for o in ("add", "sub", "mul") for f in ("second_output", {"mul": "wide_mode"}.get(o, "carry_mode"))])
 def test_default_is_off_and_the_request_turns_it_on(opcode, flag):
-    assert not cfg_of(opcode).core_config.get(flag)               # default OFF (absent or 0)
-    assert cfg_of(opcode, {flag: 0}).core_config.get(flag, 0) == 0
-    assert cfg_of(opcode, {flag: 1}).core_config[flag] == 1
+    # the ICM is target-agnostic (ledger #980): ONE canonical flag `second_output`; the old per-core names are aliases that end up as the same key
+    assert not cfg_of(opcode).core_config.get("second_output")    # default OFF (absent or 0)
+    assert cfg_of(opcode, {flag: 0}).core_config.get("second_output", 0) == 0
+    c = cfg_of(opcode, {flag: 1}).core_config
+    assert c["second_output"] == 1 and "carry_mode" not in c and "wide_mode" not in c
 
 
-@pytest.mark.parametrize("opcode,flag", [("mul", "carry_mode"), ("add", "wide_mode"), ("xor", "carry_mode"), ("and", "wide_mode")])
+@pytest.mark.parametrize("opcode,flag", [("mul", "carry_mode"), ("add", "wide_mode"), ("xor", "carry_mode"), ("and", "wide_mode"), ("xor", "second_output")])
 def test_a_flag_on_a_cell_without_that_second_output_is_refused(opcode, flag):
     with pytest.raises(ValueError, match="no second output"):
         cfg_of(opcode, {flag: 1})
@@ -42,7 +44,7 @@ def test_the_flagged_cell_loads_in_the_flex_grid_and_the_std_grid_refuses_it():
     icm, *_ = compile_dag([DagInstr("a", "add", [DagOperand("dynamic"), DagOperand("dynamic")], {"carry_mode": 1})])
     recs, _ = icm.flatten()
     assert fg.FlexGrid(recs, width=32) is not None
-    with pytest.raises(ValueError, match="carry_mode"):
+    with pytest.raises(ValueError, match="second_output"):
         SuperGrid(recs)
 
 
@@ -57,10 +59,24 @@ def test_vix_backend_accepts_the_flag_as_a_user_forced_field_and_defaults_off():
     assert off is not None and on is not None, (d0, d1)
     recs_off, _ = off.flatten()
     recs_on, _ = on.flatten()
-    assert not recs_off[0].core_config.get("carry_mode")
-    assert recs_on[0].core_config["carry_mode"] == 1
+    assert not recs_off[0].core_config.get("second_output")
+    assert recs_on[0].core_config["second_output"] == 1
+    alias, _ = compile_program_ir_vix(place("adder", second_output=1, **base))
+    assert alias.flatten()[0][0].core_config["second_output"] == 1
 
 
 def test_vix_backend_still_rejects_an_unknown_field():
-    icm, diags = compile_program_ir_vix(place("adder", in_a="w", in_b="n", out="e", carry_modee=1))
+    icm, diags = compile_program_ir_vix(place("adder", in_a="w", in_b="n", out="e", second_outputt=1))
     assert icm is None and diags
+
+
+def test_the_one_flag_is_the_same_bit_and_the_aliases_are_the_same_thing():
+    import icm_v3 as v3
+    for core, alias in (("adder", "carry_mode"), ("mul", "wide_mode")):
+        a = v3.IcmV3Record("a", 0, 0, core, {alias: 1})
+        b = v3.IcmV3Record("a", 0, 0, core, {"second_output": 1})
+        assert a.core_config == b.core_config and a.super_latch() == b.super_latch() and a.record_hash if False else True
+        assert v3.decode_super_latch(a.super_latch())["core_config"]["second_output"] == 1
+        assert v3.CORE_FIELD_TABLES[v3.CORE_IDS[core]]["second_output"] == (12, 12)
+        with pytest.raises(ValueError, match="contradicts"):
+            v3.IcmV3Record("a", 0, 0, core, {alias: 1, "second_output": 0})

@@ -231,8 +231,8 @@ _ADDER_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
     "subtract_mode": (8, 8),
-    # points.md #976 (flex family only): also deliver the carry-out as a second word, same convention as mul's wide_mode (bit 12)
-    "carry_mode": (12, 12),
+    # ledger #980: the ONE generic second-output flag (bit 12, same as mul): after the sum also deliver the carry as a second word. `carry_mode` is an accepted ALIAS (see SECOND_OUTPUT_ALIASES).
+    "second_output": (12, 12),
 }
 
 # Accumulator: accumulator_cell_v1.v lines 87-98 (extended #515/#519 --
@@ -305,7 +305,7 @@ _SEQ_FIELDS = {
 _MUL_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
-    "wide_mode": (12, 12),
+    "second_output": (12, 12),   # ledger #980: canonical name; `wide_mode` is an accepted alias (see SECOND_OUTPUT_ALIASES)
 }
 
 # points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==
@@ -446,9 +446,30 @@ def _unpack_fields(field_table: dict, packed: int, dir_fields=()) -> dict:
 
 # ── Public: core_config (42-bit) and addon_config (20-bit) ──────────────
 
+# Ledger #980 (Alan: the ICM is target-agnostic, so ONE flag): "this cell's second result word is used" -- the multiplier's high word, the adder/subtractor's carry. The old per-core
+# names stay accepted everywhere a core_config is read and are rewritten to the canonical name.
+SECOND_OUTPUT_ALIASES = {"adder": {"carry_mode": "second_output"}, "mul": {"wide_mode": "second_output"}}
+
+
+def canonical_core_config(core, core_config: dict) -> dict:
+    """core_config with any second-output alias renamed to `second_output`. Giving both names with different values is an error; the input dict is never changed."""
+    name = CORE_NAMES.get(core, core) if not isinstance(core, str) else core
+    aliases = SECOND_OUTPUT_ALIASES.get(name)
+    if not aliases or not core_config or not any(a in core_config for a in aliases):
+        return core_config
+    out = dict(core_config)
+    for alias, canon in aliases.items():
+        if alias in out:
+            v = out.pop(alias)
+            if canon in out and bool(out[canon]) != bool(v):
+                raise ValueError(f"core {name!r}: {alias}={v} contradicts {canon}={out[canon]} (they are the same flag)")
+            out[canon] = v
+    return out
+
+
 def pack_core_config(core: "int|str", values: dict) -> int:
     sel = CORE_IDS[core] if isinstance(core, str) else core
-    return _pack_fields(CORE_FIELD_TABLES[sel], values)
+    return _pack_fields(CORE_FIELD_TABLES[sel], canonical_core_config(sel, values))
 
 
 def unpack_core_config(core: "int|str", packed: int) -> dict:
@@ -548,6 +569,9 @@ class IcmV3Record:
     #: produces a wrong program, exactly the class of corruption this
     #: hash exists to catch.
     preload_value: Optional[int] = None
+
+    def __post_init__(self):
+        self.core_config = canonical_core_config(self.core, self.core_config)   # ledger #980: carry_mode / wide_mode -> second_output
 
     def super_latch(self) -> int:
         return encode_super_latch(self.core, self.core_config, self.addon_config)

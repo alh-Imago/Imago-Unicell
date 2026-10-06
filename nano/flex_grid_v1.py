@@ -181,9 +181,9 @@ class FlexGrid(SuperGrid):
     def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
         super().__init__(records, width=width, **kw)
         self._setup_merges(records, merge_mode)
-        for r in records:                                   # ledger #976: the adder's carry flag (ICM carry_mode); the cell attribute is read by the flex adder handler
+        for r in records:                                   # ledger #976: the adder's carry flag (ICM second_output); the cell attribute is read by the flex adder handler
             if r.core == "adder":
-                self.cells[(r.row, r.col)].adder_carry_mode = bool((r.core_config or {}).get("carry_mode", 0))
+                self.cells[(r.row, r.col)].adder_carry_mode = bool((r.core_config or {}).get("second_output", 0))
         if width != 32:
             for pos, c in self.cells.items():
                 if (c.addon_config or {}).get("lane_cut") and (c.addon_config or {}).get("shift_en") and (c.addon_config or {}).get("direction"):
