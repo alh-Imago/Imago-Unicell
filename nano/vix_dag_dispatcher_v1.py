@@ -223,8 +223,23 @@ def _resolve_operand(op: DagOperand) -> dict:
 # facts (tile, port style, commutativity) it needs, never hardcoding
 # an opcode-specific branch of its own. A future opcode needs a new
 # `register()` call in the library module ONLY -- never a change here.
+# Ledger #979 (Alan: the compiler sets the second-output flag only when the program needs BOTH results of a cell; default OFF; a design/user can force it).
+# The request is a DagInstr param -- `{"carry_mode": 1}` on add/sub, `{"wide_mode": 1}` on mul -- read here. Anything else is ignored (it is some other param); a
+# truthy flag on an opcode whose tile has no such second output is REFUSED, never silently dropped.
+_SECOND_OUTPUT_FLAGS = {"add": "carry_mode", "sub": "carry_mode", "mul": "wide_mode"}
+
+
+def _second_output_params(opcode: str, instr_params: Optional[dict]) -> dict:
+    wanted = {k: int(bool(v)) for k, v in (instr_params or {}).items() if k in ("carry_mode", "wide_mode")}
+    allowed = _SECOND_OUTPUT_FLAGS.get(opcode)
+    bad = [k for k, v in wanted.items() if v and k != allowed]
+    if bad:
+        raise ValueError(f"opcode {opcode!r} has no second output ({bad[0]} requested): only add/sub (carry_mode) and mul (wide_mode) can produce a second word")
+    return {k: v for k, v in wanted.items() if k == allowed}
+
+
 def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
-                       in_a_dir: str, in_b_dir: str, out_dir: str):
+                       in_a_dir: str, in_b_dir: str, out_dir: str, instr_params: Optional[dict] = None):
     """Real, single place this dispatcher decides HOW an opcode's own
     tile gets its real ports configured -- named (`adder`-style) or
     unconditional (`nano_gate`-style), per the real library entry's
@@ -234,6 +249,7 @@ def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
     if entry is None:
         raise ValueError(f"no real library entry for opcode {opcode!r} -- #752's own escalation "
                           f"ladder applies: check the shared library, then AI research, then Composer")
+    second = _second_output_params(opcode, instr_params)   # refuses a flag on an opcode that has no second output (before any branch below)
     if entry.port_style == "unconditional":
         # nano_gate has no real, named "in" port at all (#718/#781's
         # own confirmed finding) -- only "out" is real and named;
@@ -248,7 +264,7 @@ def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
     # extra_params was empty (add/sub always were); mul's is not,
     # anymore.
     return vtl.place(entry.tile, {"in_a": in_a_dir, "in_b": in_b_dir, "out": out_dir},
-                      params=dict(entry.extra_params),
+                      params={**entry.extra_params, **second},
                       cell_id=cell_id, rel_row=row, rel_col=col)
 
 
@@ -362,7 +378,7 @@ def _grow_plain_chain(instr: DagInstr, resolved: List[dict], occ: Dict[Position,
         in_b_dir = "n" if const_side != "n" else "e"
 
     out_dir = "e" if "e" not in (in_dir, in_b_dir) else "s"
-    diff = _place_for_opcode(instr.opcode, instr.name, diff_row, diff_col, in_dir, in_b_dir, out_dir)
+    diff = _place_for_opcode(instr.opcode, instr.name, diff_row, diff_col, in_dir, in_b_dir, out_dir, instr.params)
     cells.append(diff)
     return cells, Frontier(pos=(diff_row, diff_col), out_dir=out_dir)
 
@@ -475,7 +491,7 @@ def _grow_convergence(instr: DagInstr, resolved: List[dict], shape: ConvergenceS
     dr, dc = _DIR_STEP[orient["out"]]
     add_pos = (target[0] + dr, target[1] + dc)
     add = _place_for_opcode(instr.opcode, instr.name, add_pos[0], add_pos[1],
-                             _OPP[orient["out"]], _OPP[orient["out"]], "e")
+                             _OPP[orient["out"]], _OPP[orient["out"]], "e", instr.params)
     cells.append(add)
 
     b_extra = 2 if shape == ConvergenceShape.STAGGER else 0

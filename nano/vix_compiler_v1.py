@@ -123,7 +123,8 @@ def _resolve_and_place_vix(stmt: PlaceIR) -> Tuple[Optional[vix.HierCell], List[
         return None, diagnostics
 
     port_names = set(tile.port_names())
-    param_names = set(tile.param_names)
+    # ledger #979: a tile's OPTIONAL flags (e.g. an adder's carry_mode) may be given as ordinary fields -- the user/design forcing the second output; absent = off
+    param_names = set(tile.param_names) | set(getattr(tile, "optional_params", []) or [])
     port_directions: Dict[str, object] = {}
     params: Dict[str, object] = {}
     addon_config: Dict[str, object] = {}
