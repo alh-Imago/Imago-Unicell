@@ -62,7 +62,11 @@ FlexGrid and in the generated RTL (that one needs iverilog), that refused
 moves change nothing, that a design built from scratch and two library
 blocks joined port to port compute the right sums in FlexGrid, that ports
 and roles (latch set/clear, branch outcomes, sequencer with no input) are
-respected, and the `/composer` page and its JSON API.
+respected, and the `/composer` page and its JSON API. Since #1005 also:
+blocks survive a save (ICM-VIX) and still compute after reload and a
+block move, a nano is configured, a same-tick arrival is shown as an OR
+merge (not balanced away) and in-order operands XOR correctly, and the step-through gives the expected outputs
+(constants offered again with each item).
 
 ## Per-cell Verilog benches
 

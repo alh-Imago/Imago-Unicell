@@ -6,4 +6,5 @@ library models. Any design can place one as a single **block**: its cells move a
 listed after these.
 
 Set `IMAGO_LIBRARY` to keep the library somewhere else. A model is an ordinary ICM v3 file, so it can
-be shared by copying the file.
+be shared by copying the file. A model that itself holds blocks is saved as
+ICM-VIX (its blocks are placements), and is placed as one block, flat inside.

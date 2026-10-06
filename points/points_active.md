@@ -750,3 +750,37 @@ ICM v3 has no hierarchy, so Save flattens blocks; a reloaded file has no block g
 - The CORDIC example now imports with 0 pinned cells. Moving a cell fed by a branch outcome keeps every source -> destination join with its outcome and role.
 - In Chromium: built and saved a model, placed it twice in a new design, joined the ports, balanced, dragged a block. No script errors. The downloaded file computes (a+b)+c correctly in FlexGrid. At 390 px the page has no overflow, and a branch's panel shows its outcome routes.
 **Open:** a hierarchical (ICM-VIX pattern) save that keeps blocks; checking authored nano cells (pinned on import); selecting and moving several cells at once; the pre-balance view and drawing a problem's operand paths (from #1003).
+
+### #1005 -- COMPOSER: BLOCKS SURVIVE A SAVE, NANO CELLS ARE EDITABLE, AND A DESIGN CAN BE STEPPED THROUGH WITH VALUES TYPED IN (Alan: "the save part is important, and the config of the nano should be something a user can change and save as well. Now timing views one of the features in the old composer was a step through, but this required an input box, which the user can use to inject values into to test the flow and correctness of the design")
+**Saving blocks (`Layout.to_vix`, `read_design`).** ICM v3 is flat, so a design holding blocks now saves as ICM-VIX, whose patterns and placements are made for this:
+- The cells outside any block form pattern `top`, placed at (0,0) as instance `top`.
+- Each block is a placement named after the block, of a pattern named after its library model. A placement whose cells differ (its ports carry this design's joins) gets its own variant, `model~2`; ICM-VIX overrides only `io_name`/`preload_value`, so a different shape is a different pattern, as #738 has it.
+- A port keeps its io name in the pattern, and each placement clears it (an override to null): inside this design a port is a join point, not the design's own io.
+- On load, a file with a `top` placement gives its blocks back: the `top.` prefix comes off, every other placement becomes a block, and that pattern's io-named cells become its ports. Any other ICM-VIX file (the examples) loads flat, as before. Cell names are unchanged by the round trip.
+- Save ICM picks ICM-VIX when there are blocks; Save flat v3 is still there. Save to library uses the same rule. A model that holds blocks is placed in another design as ONE block (ICM-VIX has no nesting).
+**Fixed along the way.** A block's port cell has no io name in the flat records, so a re-import (after a reload, or when a later block was inserted) read a port with one join in and one out as a plain relay and folded it into the outside route. Block ports are now ANCHORS that are never folded.
+**Nano.** Nano cells are no longer pinned:
+- `routing_mask` and, for comparator-driven routing, `pattern_low` / `pattern_equal` / `pattern_high` are derived from joins (ports `out`, `low`, `equal`, `high`).
+- `cardinal_edge` (per incoming face: relay, not consume) is set per face in the panel.
+- `topology` offers the gate presets of `nano/unicell_gate_core.py` (pass A/B, not A/B, and, or, nand, nor, xor, xnor, zero, one), or a custom value.
+- A nano using the reserved up/down face bits (above the four faces) is still pinned and written back as read.
+Two facts found by stepping a nano in FlexGrid:
+- A nano with `ready = 0` never fires, so a new nano gets `ready = 1`.
+- A nano takes operand A from the first arrival and B from the second. Two words that arrive on the SAME tick are OR-merged into one word; that is a feature (Alan: "that odd number comes from the automatic or when you get two sets of values at the same time, it's a feature"). An xor fed by two symmetric routes gave 241: item 1's 12|10 = 14 became A, item 2's 240|15 = 255 became B, and 14 ^ 255 = 241. The Composer shows such a nano as a NOTE ("OR-merged") in the problems list, not as a problem, and Balance leaves it alone. Arriving in order, the same xor gives 12^10 = 6 and 0xF0^0x0F = 255.
+**Step-through (`tools/flex_layout_sim_v1.py`, the page's Run / step panel), runs in FlexGrid:**
+- Inputs are the io-named cells nothing joins into, each with a box for a list of values (decimal or 0x). Outputs are the io-named cells that join nowhere, each with an "expected" box; every value is shown green or red, with an "all match" or "mismatch" verdict.
+- Buttons: Start, Inject next, Step, Step x10, Run to settle (until nothing is pending and no value changes for 3 ticks), Run all (each item in turn, carrying on from the next one not yet injected), Stop.
+- Values in flight, relays included, are drawn on the board as gold rings with the value.
+- A log shows when each item went in and each output came out.
+- Constants (preloaded rams) are offered again with every item, as the RTL's constants are always valid (as `run_vm` does).
+- Any edit to the design ends the run.
+The page's side column now scrolls on its own beside the board, so the board stays in view while stepping.
+**Checks** (`tests/tools/test_composer_v1.py`, 21 tests, ~20 s):
+- Two blocks joined port to port: saved as ICM-VIX, reloaded with both blocks and their ports, same records, (a+b)+c = 13, 32, 342. A block moved after reload computes the same.
+- The flat v3 save loads without blocks. A model holding blocks places as one block.
+- Nano: a nano is configured and its face fields derived; a wide face field pins it. Two operands on one tick are shown as a merge note (not a problem; Balance leaves it), and the result is the xor of the two merged words. Arriving in order, it XORs [12^10, 0xF0^0x0F] = [6, 255].
+- Step-through: values in flight carry their squares; a hand-injected item then Run all gives 3, 12, 123. A preloaded constant of 5 is added to every item (6, 7, 35).
+- The API: Start first, hex values, an edit ending the run, and the save format chosen by the presence of blocks.
+- In Chromium: built the adder, stepped item 1 (its operands seen moving), ran all with a deliberately wrong expected value (marked mismatch). Placed a nano, set xor and cardinal_edge E (SUPER_LATCH 0x...1001780 decodes to exactly those fields). Saved a two-block design (an `.icm-hier.json` download) and re-imported it with 2 blocks. No script errors.
+**Open:** nested blocks; the step-through for designs FlexGrid refuses (priority, command); a pre-balance view; moving several cells at once.
+

@@ -110,14 +110,18 @@ def test_branch_cells_move_with_their_outcome_routes(tmp_path):
     assert ends(c0, e0) == ends(c1, e1)
 
 
-def test_nano_cells_are_pinned():
-    recs = [IcmV3Record(cell_id="n", row=0, col=0, core="nano", core_config={"routing_mask": 4, "topology": 3}),
+def test_nano_is_editable_and_a_wide_face_field_pins_it():
+    """A nano's direction fields come from its joins like any cell's; one using the reserved up/down bits (above the four faces) is kept exactly as read."""
+    recs = [IcmV3Record(cell_id="n", row=0, col=0, core="nano", core_config={"routing_mask": 4, "topology": 3, "ready": 1}),
             IcmV3Record(cell_id="r", row=0, col=1, core="ram", core_config={"upstream_mask": ["w"], "downstream_mask": []})]
     lay = flv.Layout(recs)
-    assert "n" in lay.pinned
-    res = lay.move("n", 5, 5)
-    assert not res["ok"] and "pinned" in res["error"]
-    assert same(recs, lay.records()) == []
+    assert "n" not in lay.pinned and lay.set_config("n", cfg={"topology": 0xBC, "cardinal_edge": 0b0100})["ok"]
+    cfg = {r.cell_id: r for r in lay.records()}["n"].core_config
+    assert cfg["topology"] == 0xBC and cfg["cardinal_edge"] == 4 and cfg["routing_mask"] == ["e"]
+    wide = [IcmV3Record(cell_id="n", row=0, col=0, core="nano", core_config={"routing_mask": 0b010100, "topology": 3})] + recs[1:]
+    lay = flv.Layout(wide)
+    assert "n" in lay.pinned and not lay.move("n", 5, 5)["ok"]
+    assert same(wide, lay.records()) == []
 
 
 def test_move_reroutes_and_the_adder_still_adds(fp16):
@@ -321,3 +325,115 @@ def test_editing_api(tmp_path, monkeypatch):
     assert res["ok"] and res["layout"]["blocks"][0]["ports"]
     assert not ctl.edit("block", {"source": "library", "file": "../../etc/passwd", "r": 1, "c": 1})["ok"]
     assert not ctl.edit("nonsense", {})["ok"]
+
+
+# ---- saving blocks (ICM-VIX), nano authoring, the step-through (#1005) ----------------------------------------------------------------
+def two_adders(tmp_path):
+    lib = flv.Layout.new(12, 20, "adder")
+    build_adder(lib)
+    path = lib.save(str(tmp_path / "adder.icm.json"))
+    lay = flv.Layout.new(22, 42, "two")
+    b1, b2 = lay.place_block(path, 1, 1)["block"], lay.place_block(path, 1, 22)["block"]
+    p1, p2 = lay.blocks[b1]["ports"], lay.blocks[b2]["ports"]
+    assert lay.add_cell("ram", 14, 10, name="C")["ok"] and lay.add_cell("ram", 16, 38, name="OUT", io="out")["ok"]
+    for a, b in ((p1["r"], p2["a"]), ("C", p2["b"]), (p2["r"], "OUT")):
+        assert lay.join(a, b)["ok"]
+    assert lay.balance()["ok"]
+    return lay, b1, b2, {p1["a"]: [1, 5, 40], p1["b"]: [2, 7, 2], "C": [10, 20, 300]}
+
+
+def test_save_keeps_blocks(tmp_path):
+    from fp_block_runner_v1 import run_vm
+    lay, b1, b2, ins = two_adders(tmp_path)
+    out = lay.save(str(tmp_path / "two.icm-hier.json"))                      # a design with blocks saves as ICM-VIX
+    doc = json.load(open(out))
+    assert doc["format_version"] == "icm-vix-v1"
+    assert [p["instance"] for p in doc["design_map"]["placements"]] == ["top", b1, b2]
+    back = flv.Layout.load(out)
+    assert set(back.blocks) == {b1, b2} and sorted(back.blocks[b2]["ports"]) == ["a", "b", "r"]
+    assert same(lay.records(), back.records()) == []                          # same cells, same names, same configuration
+    assert run_vm(back.records(), ins, {"o": "OUT"}, {}, ticks=400)["o"] == [13, 32, 342]
+    assert back.move_block(b2, 5, 22)["ok"]                                    # a reloaded block is still a block (its ports stay cells, not relays)
+    assert run_vm(back.records(), ins, {"o": "OUT"}, {}, ticks=400)["o"] == [13, 32, 342]
+    flat = lay.save(str(tmp_path / "flat.icm.json"), fmt="v3")
+    assert json.load(open(flat))["format_version"] == "icm-v3" and not flv.Layout.load(flat).blocks
+    other = flv.Layout.new(30, 50)
+    res = other.place_block(out, 1, 1)                                         # a model holding blocks is placed as ONE block (blocks do not nest)
+    assert res["ok"] and len(other.blocks) == 1 and res["ports"] == ["out"]
+
+
+def test_nano_authoring_and_its_operand_order():
+    """Two operands arriving on one tick are OR-merged (a feature): shown as a note, never "balanced" away. Arriving in order, the nano takes A then B."""
+    import flex_layout_sim_v1 as fls
+    def nano(b_row):
+        lay = flv.Layout.new(12, 14)
+        for nm, core, r, c, io in (("A", "ram", 1, 1, "a"), ("B", "ram", b_row, 1, "b"), ("N", "nano", 4, 6, None), ("O", "ram", 4, 11, "o")):
+            assert lay.add_cell(core, r, c, name=nm, io=io)["ok"]
+        assert lay.grid.nodes["N"]["cfg"]["ready"] == 1                        # a nano with ready=0 never fires
+        assert lay.set_config("N", cfg={"topology": 0xBC})["ok"]               # xor
+        for a, b in (("A", "N"), ("B", "N"), ("N", "O")):
+            assert lay.join(a, b)["ok"]
+        return lay
+    lay = nano(7)                                                              # symmetric: both operands arrive together
+    snap = lay.snapshot()
+    assert [m["cell"] for m in snap["merges"]] == ["N"] and not snap["problems"]
+    assert lay.balance()["ok"] and lay.snapshot()["merges"]                    # Balance leaves a merge alone
+    sim = fls.StepSim(lay)
+    sim.run_items({"A": [0b1100, 0xF0], "B": [0b1010, 0x0F]})
+    assert sim.view()["outputs"][0]["values"] == [(0b1100 | 0b1010) ^ (0xF0 | 0x0F)]   # item 1 merged = A, item 2 merged = B
+    lay = nano(9)                                                              # B further away: A first, then B
+    assert not lay.snapshot()["merges"]
+    sim = fls.StepSim(lay)
+    sim.run_items({"A": [0b1100, 0xF0], "B": [0b1010, 0x0F]})
+    assert sim.view()["outputs"][0]["values"] == [0b0110, 0xFF]
+
+
+def test_step_through():
+    import flex_layout_sim_v1 as fls
+    lay = flv.Layout.new(12, 20)
+    build_adder(lay)
+    sim = fls.StepSim(lay)
+    assert sim.inputs == ["A", "B"] and sim.outputs == ["R"]
+    sim.inject({"A": 1, "B": 2})
+    sim.step(3)
+    moving = [v for v in sim.state().values() if v["valid"]]
+    assert sorted(v["v"] for v in moving) == [1, 2] and all("r" in v for v in moving)      # the two operands, on their way, with their squares
+    sim.run()
+    assert sim.view()["outputs"][0]["values"] == [3]
+    sim.run_items({"A": [1, 5, 100], "B": [2, 7, 23]})                        # carries on from item 2: item 1 was injected by hand
+    assert sim.view()["outputs"][0]["values"] == [3, 12, 123] and sim.items == 3
+
+
+def test_step_through_reoffers_constants():
+    import flex_layout_sim_v1 as fls
+    lay = flv.Layout.new(10, 16)
+    for nm, core, r, c, io in (("X", "ram", 2, 1, "x"), ("K", "ram", 7, 1, None), ("ADD", "adder", 4, 8, None), ("Y", "ram", 4, 13, "y")):
+        assert lay.add_cell(core, r, c, name=nm, io=io)["ok"]
+    assert lay.set_config("K", preload=5)["ok"]
+    for a, b in (("X", "ADD"), ("K", "ADD"), ("ADD", "Y")):
+        assert lay.join(a, b)["ok"]
+    assert lay.balance()["ok"]
+    sim = fls.StepSim(lay)
+    assert sim.inputs == ["X"]
+    sim.run_items({"X": [1, 2, 30]})
+    assert sim.view()["outputs"][0]["values"] == [6, 7, 35]
+
+
+def test_step_through_and_save_api(tmp_path, monkeypatch):
+    import composer_page_v1 as cp
+    monkeypatch.setattr(cp, "LIBRARY_DIR", str(tmp_path))
+    ctl = cp.ComposerController()
+    ctl.layout = flv.Layout.new(12, 20)
+    build_adder(ctl.layout)
+    assert not ctl.sim_op({"op": "step"})["ok"]                                # Start first
+    assert ctl.sim_op({"op": "start"})["ok"]
+    res = ctl.sim_op({"op": "items", "items": {"A": "1, 5, 0x64", "B": "2 7 23"}})
+    assert res["ok"] and res["sim"]["outputs"][0]["values"] == [3, 12, 123]
+    assert ctl.edit("move", {"name": "R", "r": 5, "c": 14})["ok"] and ctl.sim is None    # an edit ends the run
+    name, text = ctl.icm_text()
+    assert json.loads(text)["format_version"] == "icm-v3" and name.endswith(".icm.json")
+    lay, *_ = two_adders(tmp_path)
+    ctl.layout = lay
+    name, text = ctl.icm_text()
+    assert json.loads(text)["format_version"] == "icm-vix-v1" and name.endswith(".icm-hier.json")
+    assert json.loads(ctl.icm_text("v3")[1])["format_version"] == "icm-v3"
