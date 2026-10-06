@@ -1,4 +1,4 @@
-# points.md Status Audit, Part 3 — 2026-10-06 (#593-#997)
+# points.md Status Audit, Part 3 — 2026-10-06 (#593-#999)
 
 Part 3 continues `POINTS_STATUS_AUDIT.md` (#1-#330) and
 `POINTS_STATUS_AUDIT_2.md` (#331-#592). Like part 2, it is organised
@@ -18,7 +18,7 @@ open item are kept apart:
   that point, so these are neither closed nor actively scheduled.
   Check the cited entry before relying on one.
 
-**#990** is claimed by `main`'s "WIP #990" commit (the fp adder from cells), which had no ledger entry when this audit was written. Its open items are the fp-on-cells items below.
+**#990** physically follows #998 in the file: the other session claimed the number in a WIP commit before this documentation branch merged, and wrote the entry afterwards (see `points/INDEX.md`).
 
 Where the ledger itself says a number is used twice or skipped (#824
 twice; #893 and #902 never used), see `points/INDEX.md`.
@@ -27,18 +27,21 @@ twice; #893 and #902 never used), see `points/INDEX.md`.
 
 ## Quick reference: what is open right now
 
-**fp on cells (the active thread, #982-#989).** The open fp assembler
-(#989, `tools/fp_assembler_v1.py` + `tools/flex_layout_v1.py`) now builds
-the normalise, align-with-sticky and round blocks for any format (fp32,
-fp16 and bfloat16 given). The composition align → round is proven, and
-`balance()` replaces the hand timing fixes. The blocks still missing are:
-unpack, swap-larger-first, the effective add/sub choice, the significand
-add/sub using the second port's carry, the rounding-overflow exponent
-bump, pack, and zero/sub-normal/inf/nan. Then assemble one whole fp add
-and compare it with `fp32_add_v1`. Also open: a placer that decides
-positions itself (block layouts are fixed templates today), a VM
-tick-latency model for the layout engine, and a 64-bit build (with a
-6-bit shift field) for fp64.
+**fp on cells (the active thread, #982-#999).** The whole fp adder is
+built from flex cells (#990, `tools/fp_add_v1.py`), parametric in the
+format. fp32 in RTL == FlexGrid == a reference anchored to
+`fp32_add_v1`, and bf16 and fp16 match too. Open for the adder:
+sub-normals, exponent overflow/underflow, inf and nan. Then multiply and
+compare built the same way. Also open: a placer that decides positions
+itself (layouts are hand templates; routing and timing balance are
+automatic), a VM tick-latency model for the layout engine, and a 64-bit
+build (with a 6-bit shift field) for fp64.
+
+**The crossing tile (#999).** `cross`, ICM core 10 (confirmed by Alan):
+no control logic, one tick per tile per direction (a register slice, so
+long chains do not lengthen the critical path). Open: native cores per
+family (built from ram slices today), and cost rows for the router and
+MAN.
 
 **Width (#948, #957-#963, #985, #970).** The `--icm` generators build 32
 bits only. Still to do: native-width builds, the loader's narrowing, the
@@ -266,7 +269,7 @@ fit, and the VM's data width (#960/#961). The nano variants compared
 (#962/#963). FlexGrid steps 1-9, and four RTL limits found and resolved
 (#964-#973).
 
-## Era 26: Second ports, the capability table and fp on cells (#974-#989)
+## Era 26: Second ports, the capability table and fp on cells (#974-#990, #999)
 
 **Done.** Second output ports, the build parameter and the merge shape
 (#974, #976). The accumulator cascade and the cost-vs-width sweep (#975).
@@ -278,16 +281,18 @@ flex shift and per-target shift checks (#985/#986). Align, and align with
 sticky (#987/#988). The open fp assembler: a layout engine with timing
 balance and parametric fp blocks proven for fp32 and fp16. In the flex VM,
 same-tick operands are no longer ORed (one is taken; a subtract raises
-an error) (#989). **Pending:** see the quick reference.
+an error) (#989). The whole fp adder from flex cells (#990) and the
+crossing tile (#999). **Pending:** see the quick reference.
 
-## Era 27: Documentation and the public site (#991-#997)
+## Era 27: Documentation, the public site and the local tools (#991-#998, #1000)
 
 **Done.** The reference docs (#991); the manual's source docs, including
 two DSL examples that no longer compiled (#992); the static pages, with
 an explainer bug fixed (#993); ledger numbering reconciled with `main`
 (#994); the public site published with the explainer, and timing
 described as pulse / ack / freeze (#995); remaining quick fixes, plus a
-regression from #993 fixed (#996); this audit (#997).
+regression from #993 fixed (#996); this audit (#997); one look for the local
+tools (#998); the sweep for #990/#999 (#1000).
 
 ---
 
@@ -306,4 +311,4 @@ three places:
 3. **Hardware runs.** No sub/flex design on the board yet, and no VIX
    Carrier in Quartus.
 
-The next audit should start at #998.
+The next audit should start at #1001.

@@ -70,6 +70,7 @@ Shell-level ports, common to every flex cell: `clk`, `rst`,
 | shift stage `shift_stage_v4sa.v` | `data_in`, `valid_in` | shift fixed at build time; on generated flex/sub designs, shifts, masks and inverts are plain wiring instead (#939/#985) | 5 / 0 / 20 |
 | nano `nano_cell_v4sa.v` | `hold_in_data` + `load_hold` (held operand A), `flow_in_data` + `valid_in` (flowing operand B) | universal 2-input bitwise gate selected by topology; no pattern compare | 159 / 0 / 48 |
 | branch `branch_cell_v4sa.v` | `in1_*`, `in2_*` (each fixed or flowing), `cfg_emit_fixed_value`; outputs `_1`, `_2` | 3-way signed compare; per-outcome routing to out1/out2/both/neither; emit source fixed/in1/in2/diff (#918) | 122 / 36 / 69 |
+| cross (no cell file; ICM core_select 10) | none: passes W↔E and N↔S straight through | the crossing tile (#999): no control logic; one tick per tile per direction (a one-word register slice per used direction). Today the netlist extractor builds each slice from a ram relay; native per-family cores are open | one register slice per used direction, no logic |
 | merge `merge_cell_v4sa.v` (flex only) | `in_a`/`in_b`, each with its own valid and `ack_out_a`/`ack_out_b` | mode `cfg_data[1:0]`: A only / B only / arbitrate (round-robin) / join-OR (#955) | 35 / 0 / 23 |
 
 Costs are from `docs/measurements/flex_width_sweep_975/` (yosys

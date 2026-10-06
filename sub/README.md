@@ -924,6 +924,30 @@ adjust, sticky, round-to-nearest-even, and a 6-stage align with sticky (one mult
 equal to FlexGrid and the Python model. Design note: `docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md`. The comparator is **signed**,
 so a bit isolated at bit 31 reads as negative (`#984`).
 
+## The whole fp adder from flex cells, and the crossing tile (`#989`/`#990`/`#999`)
+
+**The open fp assembler (`#989`).** `tools/fp_assembler_v1.py` has `FpFormat` (FP32, FP16, BF16 or custom) and parametric normalise,
+align-with-sticky and round blocks. `tools/flex_layout_v1.py` places cells and links on a grid, routes them, and `balance()` removes the
+operand-arrival ties the generator refuses. In the flex VM, same-tick operands are no longer ORed: one is taken, and a subtract raises
+an error.
+
+**The whole adder (`#990`).** `tools/fp_add_v1.py: fp_add(g, fmt)` builds the full chain from flex cells:
+- unpack and the exponent difference / swap decision, using a packed sign+exponent word;
+- two align-with-sticky blocks, then the significand add/sub and `|S|`;
+- normalise, round-to-nearest-even, the rounding-overflow bump, zero detection, sign and pack.
+
+fp32 in generated RTL (plain and random stalls) == FlexGrid == a reference anchored to `fp32_add_v1` on 3,000 pairs, with 0
+mismatches; bf16 and fp16 match too. **Scope:** normal numbers and zero. Not yet: sub-normals, exponent overflow/underflow, inf,
+nan, or formats wider than 32 bits. The placement is a hand template; routing and timing balance are automatic.
+
+**The crossing tile (`#999`).** Routing the adder hit topological walls: closed "rooms" that no lane can leave except through a data
+cell. Alan's answer is a tile that passes west↔east and north↔south straight through, with no control logic. It costs **one tick
+per tile per direction of travel**, like every other core (Alan: "add the tick as 1 per tile"): each used direction is its own
+one-word register slice, so the two axes never share state, and long chains of tiles do not lengthen the critical path. It is ICM
+core `cross`, core_select 10 (confirmed by Alan). In RTL the netlist extractor gives every used (tile, direction) an ordinary ram
+relay slice. FlexGrid models the slices as hidden relay cells. The layout engine lets a route cross another at right angles and
+adds one hop to both routes. **Open:** native cores per family (built from ram slices today), and cost rows for the router and MAN.
+
 ## Status
 
 Thirteen cell functions are proven, simulated and measured: adder, compare, accumulator, latch, sequencer, ram, router, mask, mul,
