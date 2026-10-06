@@ -559,6 +559,12 @@ class SuperCell:
             return bool(self._nano.program_done)
         return getattr(self, "_prog_program_done", False)
 
+    def _handler(self):
+        """The CoreHandler for this cell's core. The base class returns exactly what the four dispatch sites always looked up (the module-level registry); a subclass such as FlexCell
+        (flex_grid_v1.py, ledger #965) overrides it to consult its own table first. The registry itself is module-level and refuses duplicate names, so a variant cannot
+        register different behaviour for an existing core name there."""
+        return _CORE_HANDLERS.get(self.core)
+
     # Ledger #961: the data width of this cell (default 32 = the VM exactly as it always was). Set per cell by from_record(width=...), from the grid's width.
     width = 32
     mask = _MASK32
@@ -775,7 +781,7 @@ class SuperCell:
         if self.core == "nano":
             self._nano.freeze_in = self.freeze_in
             return self._nano.deliver(arrivals, injected)
-        handler = _CORE_HANDLERS.get(self.core)
+        handler = self._handler()
         if handler is None:
             raise ValueError(f"unsupported core {self.core!r}")
         if self.freeze_in:
@@ -1112,7 +1118,7 @@ class SuperCell:
         core. Continuously-live cores (accumulator/latch/RAM fixed-mode)
         return is_valid=True forever; single-shot cores return whatever
         their own data_valid register currently holds."""
-        handler = _CORE_HANDLERS.get(self.core)
+        handler = self._handler()
         if handler is None or handler.offer_state is None:
             raise ValueError(f"unsupported core {self.core!r}")
         return handler.offer_state(self)
@@ -1155,7 +1161,7 @@ class SuperCell:
                             # core -- only the discrete crossing pulse is ever
                             # offered, needing real drain detection to clear
                             # pulse_pending, unlike static mode's always-live default
-        handler = _CORE_HANDLERS.get(self.core)
+        handler = self._handler()
         return handler.continuously_live if handler is not None else False
 
     def clear_valid_on_drain(self) -> None:
@@ -1163,7 +1169,7 @@ class SuperCell:
         fully drains (pending_ack nonzero -> 0) -- matches the real RTL's
         `offer_draining` clearing `data_valid`, freeing the cell to
         capture again."""
-        handler = _CORE_HANDLERS.get(self.core)
+        handler = self._handler()
         if handler is not None and handler.clear_valid is not None:
             handler.clear_valid(self)
 
@@ -1292,6 +1298,8 @@ class SuperGrid:
     "no addressing, no shared bus" model as `CAGrid` -- generalized to
     heterogeneous core types via `icm_v3.IcmV3Record.core`."""
 
+    _cell_class = SuperCell      # the cell type this grid builds (a variant such as FlexGrid overrides it; ledger #965)
+
     # Class-level defaults: a subclass whose own __init__ does not call this one (VixCarrierGrid) behaves exactly as before, at 32 bits. Found by the full tests/vm run, not by thought.
     width = 32
     mask = _MASK32
@@ -1307,7 +1315,7 @@ class SuperGrid:
                 import warnings
                 warnings.warn(f"VM width {self.width}: the {unverified} core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)", UserWarning, stacklevel=2)
         self.cells: Dict[Tuple[int, int], SuperCell] = {
-            (r.row, r.col): SuperCell.from_record(r, self.width) for r in records
+            (r.row, r.col): self._cell_class.from_record(r, self.width) for r in records
         }
         self._pending: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
         self.tick_count = 0
