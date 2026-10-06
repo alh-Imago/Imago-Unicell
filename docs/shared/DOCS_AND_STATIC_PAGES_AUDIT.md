@@ -10,6 +10,20 @@ file content, cross-referenced against the real ledger), matching the
 same method `POINTS_STATUS_AUDIT.md`/`_2.md` already established.
 Nothing rewritten in this pass; this is the map, not the fix.*
 
+## Update, 2026-10-06 (ledger #994): what is left
+
+The quick fixes are done: `tests/vm/README.md` was rewritten, `TODO.md`
+fixed, and status banners were added to `ICM_FORMAT.md`,
+`SYSTEM_MECHANICS.md`, `MIF_FORMAT.md`, `core_creation_guide.md`,
+`AUDIT.md` and `STRUCTURE_AUDIT.md`. A full keyword and staleness scan of
+every live `.md` outside `archeology/` and the dated design notes finds
+nothing else misdescribing the current state. The one remaining gap, a
+done/pending map for ledger #593 onward, is now
+`POINTS_STATUS_AUDIT_3.md` (#593-#994). **Nothing on this audit's list
+is outstanding as of #995.** The one exception is #856's standing
+request for another full documentation pass once the fp32 work is
+complete.
+
 ## Update, 2026-10-06 (ledger #991): static pages
 
 | page | what changed | checked |

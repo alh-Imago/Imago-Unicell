@@ -1,97 +1,41 @@
-# VM Test Suite
+# VM Test Suite (`tests/vm/`)
 
-Run all: `PYTHONPATH=. pytest tests/vm/`
-Run one: `PYTHONPATH=. python tests/vm/test_fp_tiles.py`
+*Rewritten 2026-10-06 (ledger #994). The previous version listed 42 test
+files from the archived full-cell line (`test_array.py`,
+`test_fp_tiles.py`, …), and none of them exist here any more.*
 
-Tests that use the standalone runner (not pytest) must be run directly with python.
-Tests that use pytest are collected automatically.
+```bash
+python3 -m pytest tests/vm -q              # the whole suite (~1,764 tests as of #993)
+python3 -m pytest tests/vm/test_icm_v3.py  # one file
+```
 
----
+`pyproject.toml` excludes `legacy/`, `legacy_full_cell/` and `archive/`
+from collection. Those folders test archived modules and are kept for
+reference only (see the README in each).
 
-## Group map
+**Before trusting a run**, see `tests/README.md`. Many files here drive
+generated RTL through `iverilog` and skip without it. Six tests need
+`apycula`/`networkx`.
 
-### Core — cell, array, controller
-| File | What it tests | Status |
+The groups below use filename patterns rather than per-file lists, so
+the map stays true as tests are added. Each test file's own docstring
+names its ledger entry.
+
+| area | files | what they cover |
 |---|---|---|
-| test_array.py | UniCell array tick, bus, firing | ✅ passing |
-| test_controller.py | ImagoController load/run API | ✅ passing |
-| test_new_tiles.py | Basic gate operations | ✅ passing |
-| test_counter_tiles.py | Counter/accumulator tiles | ✅ passing |
-| test_ecc.py | ECC reserved — intentional skip | ⏭ skipped |
+| **Program formats** | `test_icm_v3`, `test_icm_v4`, `test_icm_vix_v1`, `test_generic_field_codec_v1`, `test_root_definition_extractor_v1`, `test_shell_compat_v1` | ICM encode/decode against RTL test vectors; the JSON schema vs the hand-typed field tables; shell versions |
+| **The std VM** | `test_unicell_super_automaton_v1`, `test_unicell_automaton_v1`, `test_vm_width_v1`, `test_vm_*`, `test_*_semantics_v1`, `test_*_roles_v1`, `test_*_core_v1` | `SuperGrid`/`SuperCell` behaviour per core; the data-width parameter (#961); introspection, autosize, mirror, the AI port |
+| **FlexGrid (the flex mirror)** | `test_flex_grid_*_v1`, `test_flex_second_port_v1`, `test_flex_free_shift_v1`, `test_target_shift_capability_v1` | each flex core against the **generated flex RTL** at W = 4…36 (#965-#986); second ports; any-amount shift; per-target capability refusals. Helper: `flex_rtl_harness_v1.py` |
+| **fp32 on cells** | `test_fp32_*_stage*_v1`, `test_fp32_*_chain_v1`, `test_fp32_stage_map_cells_v1` | unpack, carry/high-word bumps, left-normalise, sticky, RNE, align with sticky, in RTL == FlexGrid (#982-#988). Helper: `fp32_stage_builder_v1.py` |
+| **fp32 Python models** | `test_fp32_add_v1`, `_mul_`, `_div_`, `_compare_`, `_min_max_`, `_boundary_v1` | the reference models the cell designs are checked against |
+| **VIX Carrier generation** | `test_vix_*`, `test_command_*`, `test_priority_*`, `test_mul_dispatch_v1`, `test_sequencer_core_v1` | the 11-core carrier VM, command core, priority arbiter, tile and opcode libraries, DAG dispatcher |
+| **Compilers and frontends** | `test_dsl_compiler_v1`, `test_python_*frontend_v1`, `test_c_frontend_v1`, `test_llvm_*`, `test_dag_*`, `test_compiler_second_output_flag_v1` | DSL, Python-AST, C, LLVM IR (loop, DAG, VIX target) frontends; the second-output request |
+| **Tile libraries** | `test_super_tile_library_v1`, `test_composed_*`, `test_user_tile_loader_v1`, `test_tile_designer_v1`, `test_loop_tiles_v1` | Tier-0/Tier-1 tiles, user models, composed tiles |
+| **Grid-native mechanisms** | `test_fold_*`, `test_reconfig_loop_*`, `test_grid_native_*`, `test_pass_aware_drain_v1`, `test_section_drain_signal_v1`, `test_stage_pipeline_vs_fold_v1`, `test_branch_change_detector_v1`, `test_bounded_loop_ring_v1` | the reconfiguration loop and fold (#862-#885), drain events, loops built from cells |
+| **Routing, layout and lanes** | `test_rats_nest_*`, `test_lane_*`, `test_*_layout_v1`, `test_*orientation_v1`, `test_t_tree_broadcast_v1`, `test_fanout_via_rats_nest_v1`, `test_connection_check_v1` | routing, timing, fan-out, lane split/recombine, stream layout |
+| **DSP wrappers and BRAM** | `test_dsp_*`, `test_sentinel_*`, `test_shared_*`, `test_hierarchical_27leaf_collector_v1` | DSP wrapper VM and chain placement; sentinel/BRAM collectors |
+| **Cards and tools** | `test_man_tang_nano_20k_v1`, `test_card_fit_v1`, `test_walker_sim_v1`, `test_workbench_v1`, `test_cell_pipeline_explainer_v1`, `test_host_*`, `test_loader_v1` | the generated Tang MAN, card fit, the simulated Walker, the workbench, the explainer page |
 
-### Compiler stack
-| File | What it tests | Status |
-|---|---|---|
-| test_compiler.py | Basic compiler (single-bit) | ✅ passing |
-| test_compiler_int32.py | INT32 compiler — full op suite | ✅ 101/101 |
-| test_compiler_v2.py | Compiler v2 path | ✅ passing |
-| test_compiler_tile_library.py | Tile library cache behaviour | ✅ passing |
-| test_standalone_preload.py | Preloaded-A forward sim | ✅ passing |
-| test_for_loop.py | Compiled for loops | ✅ passing |
-
-### Tiles
-| File | What it tests | Status |
-|---|---|---|
-| test_fp_tiles.py | Full tile library (INT32, FP32) | ✅ 187/187 |
-| test_tile_library.py | Save/load round-trip, load_tile | ✅ passing |
-| test_cla.py | Carry-lookahead adder tile | ✅ passing |
-
-### Pond / Shore / Ward
-| File | What it tests | Status |
-|---|---|---|
-| test_pond.py | Pond core behaviour | ✅ passing |
-| test_pond_bootstrap.py | Pond bootstrap sequence | ✅ passing |
-| test_pond_connect.py | Pond connection | ✅ passing |
-| test_pond_ptt.py | PTT bus address | ✅ passing |
-| test_pond_ptt_sentry.py | Sentry cell + PTT | ✅ passing |
-| test_pond_region_scope.py | Region scoping | ✅ passing |
-| test_pond_restart.py | Pond restart behaviour | ✅ passing |
-| test_conditional_pond.py | Conditional pond | ✅ passing |
-| test_workspace_pond.py | Workspace pond | ✅ passing |
-| test_shore.py | Shore core | ✅ passing |
-| test_shore_v2.py | Shore v2 | ✅ passing |
-| test_shorekeeper.py | Shorekeeper | ✅ passing |
-| test_ward.py | Ward | ✅ passing |
-
-### Bridge
-| File | What it tests | Status |
-|---|---|---|
-| test_bridge_anomaly.py | Bridge anomaly detection | ✅ passing |
-| test_bridge_log.py | Bridge logging | ✅ passing |
-| test_device_bridge.py | Device bridge | ✅ passing |
-
-### Programs
-| File | What it tests | Status |
-|---|---|---|
-| test_program_builder.py | Multi-file program compile/run | ✅ passing |
-| test_program_image.py | Program image round-trip | ✅ passing |
-| test_branch.py | BranchPoint / DataTable | ✅ passing |
-| test_cast.py | Cast / query filtering | ✅ passing |
-
-### IO / filesystem
-| File | What it tests | Status |
-|---|---|---|
-| test_fs_search.py | Filesystem search | ✅ passing |
-| test_uniflex.py | UniFlex storage manager | ✅ passing |
-| test_gpu_array.py | GPU array | ✅ passing |
-| test_display_pond.py | Display pond — requires pygame | ⏭ skipped |
-
-### LLVM frontend
-| File | What it tests | Status |
-|---|---|---|
-| test_llvm_frontend.py | LLVM IR parse → UniCell | ⚠ needs llvmlite |
-| test_llvm_ir_mapper.py | LLVM IR mapper | ⚠ needs llvmlite |
-
-Install llvmlite: `pip install llvmlite --break-system-packages`
-
----
-
-## Archive
-`tests/vm/archive/` — retired tests, kept for reference only.
-- test_addr_latch.py — GS_ADDR_LATCH retired (2026-05-18)
-- test_bridge_integration.py — uses write_config() which was retired
-
-## Legacy
-`tests/vm/legacy/` — stale API tests from v1/v2 migration. Not run.
-Known failures: tick() removed, _stored_value removed, output_address_alt removed.
-Not worth fixing — coverage is provided by the current test suite above.
+Not in this folder: the flex/sub generator suites are plain scripts in
+`tests/test_flexsub_*.py`, and the front-end and assembler tests are in
+`tests/tools/`. See `tests/README.md`.

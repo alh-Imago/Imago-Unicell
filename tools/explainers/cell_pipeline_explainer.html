@@ -538,7 +538,7 @@ renderAddonBits();
 // The add-on controls never called recompute() before 2026-10-06 (ledger #991), so changing them
 // left the readouts stale until another control was clicked.
 ['maskEn','shiftEn','shiftAmt','shiftFine','shiftDir','laneCut','invertEn'].forEach(id => {
-  document.getElementById(id).addEventListener('change', recompute);
+  document.getElementById(id).onchange = recompute;   // property, like the rest of this page (the node test's DOM stub has no addEventListener)
 });
 recompute();
 </script>

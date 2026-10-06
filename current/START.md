@@ -152,7 +152,7 @@ short:**
    pending, or genuinely open — stated explicitly (in `current/
    latest.md` and/or `current/PLAN.md`), not left implicit in
    whichever entry happens to be last. `docs/shared/
-   POINTS_STATUS_AUDIT_2.md`'s own "Quick reference" section is the
+   POINTS_STATUS_AUDIT_3.md`'s own "Quick reference" section is the
    real model for this — a short, current, actionable list, not a
    re-narration of the whole session.
 8. **Session archive, if the session was substantial** (matching the
