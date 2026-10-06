@@ -74,10 +74,11 @@ _SHIFT_COARSE = (1, 2, 4, 8, 12, 16, 20, 24, 28)    # the supported coarse taps 
 def flex_addons(value, ad, width):
     """The add-on chain (nibble mask -> fine shift -> coarse shift -> invert) on a W-bit value, as the flex family's separate cores do it (mask_cell_v4sa, shift_stage_v4sa; invert is
     wiring). The std chain is defined on 32-bit lanes; this is the same chain on W bits: the 8-bit mask word covers the whole width, each mask bit ceil(W/8) data bits (ledger #968; = the nibble at W 25..32; mask bits beyond the last group are ignored, as in the RTL),
-    shifts are logical with zero fill inside W bits, an unsupported coarse amount is a no-op (as in the std chain), invert flips W bits. `lane_cut` (a byte-lane cut) has no W-bit
+    shifts are logical with zero fill inside W bits, ANY amount is wiring (the std chain's sparse coarse taps are a std-VM limit; on a tap the result is identical), invert flips W bits. `lane_cut` (a byte-lane cut) has no W-bit
     definition and no flex cell, so it is refused at W != 32 (see FlexGrid.__init__). At width 32 this is exactly the std function."""
-    if width == 32:
-        from unicell_super_automaton_v1 import apply_addons
+    amt0 = ad.get("shift_amt", 0)
+    if width == 32 and not (ad.get("shift_en") and amt0 and amt0 not in _SHIFT_COARSE):
+        from unicell_super_automaton_v1 import apply_addons          # the std chain, unchanged, for every config it defines (taps and none)
         return apply_addons(value, ad, 32)
     m = (1 << width) - 1
     value &= m
@@ -90,7 +91,7 @@ def flex_addons(value, ad, width):
     shift_en, right = ad.get("shift_en", 0), bool(ad.get("direction", 0))
     fine, amt = ad.get("shift_fine", 0) & 3, ad.get("shift_amt", 0)
     if shift_en:
-        total = fine + (amt if amt in _SHIFT_COARSE else 0)
+        total = fine + amt          # FLEX: the shift is pure wiring, so ANY amount 0..W is available (Alan #985), not just the std taps
         if total:
             value = (value >> total) if right else ((value << total) & m)
     if ad.get("invert_en"):

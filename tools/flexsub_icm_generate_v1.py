@@ -98,7 +98,7 @@ _ADDON_KEYS = {"nibble_mask", "mask_en", "shift_amt", "shift_en", "direction", "
 _M32 = 0xFFFFFFFF
 
 
-def addon_bit_map(ad):
+def addon_bit_map(ad, free_shift=False):
     """The addon chain as a fixed per-bit WIRING MAP. Alan #939: with the sub variant fully fixed at build time, mask / shift / invert (and the
     lane cut) are just wiring -- no cell, no latency. The VM applies the chain to every core's offered value as a pure function of 32 bits with
     constant config (apply_addons: nibble_mask -> fine shift -> coarse lane shift (+ lane_cut on right shifts) -> invert), so each OUTPUT bit is
@@ -126,7 +126,11 @@ def addon_bit_map(ad):
     fine, amt = ad.get("shift_fine", 0) & 3, ad.get("shift_amt", 0)
     if shift_en and fine:
         bits = shift(bits, fine, bool(direction))
-    if shift_en and amt in _SHIFT_COARSE:                        # an unsupported amount is a deliberate no-op (as in the RTL)
+    if free_shift and shift_en and amt and amt not in _SHIFT_COARSE:   # FLEX family only (Alan #985): the shift is pure wiring, so ANY amount is available; the std taps are only the std VM's limit
+        if ad.get("lane_cut"):
+            raise ValueError("lane_cut is defined only with the std coarse taps")
+        bits = shift(bits, amt, bool(direction))
+    elif shift_en and amt in _SHIFT_COARSE:                        # an unsupported amount is a deliberate no-op (as in the RTL)
         if direction:
             bits = shift(bits, amt, True)
             lane_cut = ad.get("lane_cut", 0)
@@ -446,7 +450,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
             elif r.core == "nano":
                 problems.append(f"{c}: addon_config on a nano -- the VM's offer pass skips nano entirely, so its addon behaviour is not defined")
             else:
-                bm = addon_bit_map(ad)
+                bm = addon_bit_map(ad, free_shift=(family == "flex"))
                 if not addon_is_identity(bm):
                     addons[c] = bm
         if r.core == "nano":

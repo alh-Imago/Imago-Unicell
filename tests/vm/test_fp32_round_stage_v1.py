@@ -36,7 +36,7 @@ def tmp():
 
 
 def sh(left):
-    return {"shift_en": 1, "direction": 0, "shift_amt": left} if left in (1, 2, 4, 8, 12, 16, 20, 24, 28) else {"shift_en": 1, "direction": 0, "shift_amt": left - left % 4 if left % 4 else left, "shift_fine": left % 4}
+    return {"shift_en": 1, "direction": 0, "shift_amt": left}       # flex: any amount is wiring (#985)
 
 
 def build():

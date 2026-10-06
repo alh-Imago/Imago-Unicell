@@ -26,7 +26,6 @@ M32 = 0xFFFFFFFF
 STAGES = (16, 8, 4, 2, 1)
 LOG2 = {16: 4, 8: 3, 4: 2, 2: 1, 1: 0}
 PITCH = 9
-TAP = {16: (12, 0), 8: (4, 1), 4: (2, 0), 2: (1, 0), 1: (1, 0)}      # (coarse tap, fine) of the right shift s - log2(s) = 12, 5, 2, 1, 1
 
 
 @pytest.fixture(scope="module")
@@ -44,7 +43,7 @@ def build():
         c0, p = PITCH * k, f"S{s}."
         g.add(p + "V", 3, 2 + c0)
         g.add(p + "CMP", 2, 2 + c0, "comparator", {"threshold": 1 << (24 - s)})
-        g.add(p + "T", 3, 4 + c0, addon={"shift_en": 1, "direction": 1, "shift_amt": TAP[s][0], "shift_fine": TAP[s][1]})   # (r_s << s) >> (s - log2 s) = r_s << log2(s): this stage's share of the count; fed from R1 (CMP's four faces are full)
+        g.add(p + "T", 3, 4 + c0, addon={"shift_en": 1, "direction": 1, "shift_amt": s - LOG2[s]})   # (r_s << s) >> (s - log2 s) = r_s << log2(s): this stage's share of the count; fed from R1 (CMP's four faces are full)
         g.add(p + "K", 1, 1 + c0, preload=1 << s)
         g.add(p + "AD", 1, 2 + c0, "adder")
         g.add(p + "SUBF", 1, 3 + c0, "adder", {"subtract_mode": 1})
