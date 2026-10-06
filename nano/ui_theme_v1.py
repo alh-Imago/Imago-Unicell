@@ -169,6 +169,7 @@ NAV_ITEMS = [
     ("cells", "2. Create cells", "/cells", "frontpanel"),
     ("walker", "3. Walker", "/walker", "frontpanel"),
     ("menu", "4. Other tools", "/menu", "frontpanel"),
+    ("composer", "Composer", "/composer", "frontpanel"),
     (None, None, None, None),
     ("workbench", "Workbench", "/", "workbench"),
     ("manual", "Manual", "/manual", "frontpanel"),

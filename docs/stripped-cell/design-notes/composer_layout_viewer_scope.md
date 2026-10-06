@@ -1,7 +1,28 @@
 # The Composer, retargeted: a viewer and editor for flex layouts
 
-*Scoped 2026-10-06 at Alan's request ("scope that out"). This is design
-only; no code exists. It follows `composer_scope.md` (#385: the
+> **Status, 2026-10-06 (ledger #1001): the viewer and drag-and-place are
+> built, for an imported ICM file** (Alan: "start with the viewer side,
+> that allows the drag and place of the imported icm file").
+> `tools/flex_layout_view_v1.py` reads ICM v3 / v4 / VIX, folds relay
+> chains and crossing tiles back into routes, and rebuilds the design as a
+> `flex_layout_v1.Grid`. `move()` lifts a cell's routes, moves it,
+> re-routes with `route_nets` and runs `balance()`; `undo()`; `save()`
+> writes ICM v3. The page is the front panel's `/composer`
+> (`nano/composer_page_v1.py`). `flex_layout_v1.py` is unchanged: phase 1's
+> `move()`/`unroute_all()` live in the new module and use the engine's own
+> `unroute`, `route_nets` and `balance`. The importer fills the Grid's
+> route table (`routes`, `crossed`) directly, because a file has no
+> builder to replay. Edits are kept as option (b) below, an ICM file,
+> because the starting point is a file. Option (a), overrides for Python
+> builders, is not built. Checks: `tests/tools/test_composer_v1.py`. An
+> imported fp16 adder re-exports record for record. After hand moves it
+> still gives the reference result in FlexGrid and in the generated RTL
+> (all 41 vectors). Refused moves change nothing. Branch- and nano-wired
+> cells stay pinned. Not built: the pre-balance view, hop-path drawing
+> for a problem, and phase 2's block library.
+
+*Scoped 2026-10-06 at Alan's request ("scope that out"). The text below is
+the design as scoped; see the status block above for what was built. It follows `composer_scope.md` (#385: the
 Composer's job is placement/routing review, not authoring) and
 `composer_full_editor_scope.md` (#677: the drag-and-drop "adjust" half,
 never built). Both of those target the Arria-era workbench grid. This

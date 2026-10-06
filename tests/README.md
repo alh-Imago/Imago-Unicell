@@ -50,11 +50,16 @@ ICM netlist extractor, the `sub` and `flex` generators (corpus,
 branch, merge, sequencer, level sources, loops, add-ons, multiplier
 ladder), the `-nowidelut` flag, and the `min_bit_width` header flag.
 
-## `tests/tools/` — the front end, MAN generator, assembler and Walker (pytest)
+## `tests/tools/` — the front end, MAN generator, assembler, Walker and Composer (pytest)
 
 ```bash
 python3 -m pytest tests/tools -q
 ```
+
+`test_composer_v1.py` (#1001) checks that an imported ICM file re-exports
+exactly, that a hand move keeps the fp16 adder correct in FlexGrid and in
+the generated RTL (that one needs iverilog), that refused moves change
+nothing, and the `/composer` page and its JSON API.
 
 ## Per-cell Verilog benches
 

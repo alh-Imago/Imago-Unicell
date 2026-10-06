@@ -6046,10 +6046,11 @@ flat-file-path template — see <code>points.md</code> #538).</p>
   (same real <code>probe_width=2</code>/<code>source_width=1</code>/no-clock configuration
   used throughout this project) -- without that step, Analysis &amp;
   Synthesis fails with <code>undefined entity "issp"</code>.</p>
-<p>This is deliberately NOT the Composer (a separate, visual placement-
-<em>review</em> tool for an already-compiled model — RTL generation is
-explicitly out of scope for it, see <code>docs/stripped-cell/design-notes/
-composer_scope.md</code>) and NOT the Walker (a live, hardware-discovery
+<p>This is deliberately NOT the Composer (a separate, visual tool that
+arranges an already-compiled design; RTL generation is explicitly out of
+scope for it; built for flex layouts at #1001 as the front panel's
+<code>/composer</code> over <code>tools/flex_layout_view_v1.py</code>, see <code>docs/stripped-cell/
+design-notes/composer_layout_viewer_scope.md</code>) and NOT the Walker (a live, hardware-discovery
 tool for mapping a <em>programmed</em> chip's own real topology cell by
 cell — see <code>points.md</code> #501). This tool's own job stops at "produce a
 real, buildable Quartus project" — it does no placement/routing
@@ -6097,6 +6098,10 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 <tr>
 <td><code>flex_layout_v1.py</code></td>
 <td>A layout engine for hand-designed flex structures: cells and links on a grid, <code>route()</code>, the generator's hop model, and <code>balance()</code>, which removes the operand-arrival ties the generator refuses and enforces "minuend first" (#989); <code>route_nets(..., use_cross=True)</code> lets a route cross another at right angles through a <code>cross</code> tile (#999)</td>
+</tr>
+<tr>
+<td><code>flex_layout_view_v1.py</code></td>
+<td>The Composer's layout side (#1001): imports an ICM file (v3, v4 or VIX), folds relay chains and crossing tiles back into routes, and rebuilds it as a <code>flex_layout_v1.Grid</code>; <code>move(name, r, c)</code> re-routes and re-balances, or refuses and changes nothing; <code>undo()</code>; <code>save()</code> writes ICM v3. Cells wired by fields the engine does not derive (nano, branch) are pinned. <code>--builder fp_add/fp16</code> loads a layout built by Python. The front panel's <code>/composer</code> page is its UI</td>
 </tr>
 <tr>
 <td><code>fp_add_v1.py</code></td>
