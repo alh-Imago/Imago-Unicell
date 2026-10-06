@@ -13,6 +13,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "nano"))
 from icm_v3 import IcmV3Record  # noqa: E402
+sys.setrecursionlimit(max(sys.getrecursionlimit(), 20000))   # hops() recurses along a path; long lanes (#1001) make paths a few hundred cells deep
 
 D = {"n": (-1, 0), "s": (1, 0), "e": (0, 1), "w": (0, -1)}
 OPP = {"n": "s", "s": "n", "e": "w", "w": "e"}
@@ -55,9 +56,34 @@ class Grid:
     def _free(self, extra_blocked=()):
         return set(self.at()) | set(extra_blocked)
 
-    def _paths(self, a, b, n, blocked):
+    def _paths(self, a, b, n, blocked, spread=False):
         """Yield a simple path of EXACTLY n relay squares from a to b through free squares (n = None: the shortest)."""
         src, dst = self.pos(a), self.pos(b)
+        if n is None and spread:
+            # SPREAD: a cheapest path where every square next to an occupied one costs more, so routes keep to the middle of the channels and do not wall cells in (loose fit, #1001)
+            import heapq
+            best, prev, hp = {src: 0.0}, {src: None}, [(0.0, src)]
+            while hp:
+                cost, cur = heapq.heappop(hp)
+                if cost > best.get(cur, 1e18):
+                    continue
+                for dr, dc in D.values():
+                    nxt = (cur[0] + dr, cur[1] + dc)
+                    if nxt == dst:
+                        path, x = [], cur
+                        while x != src:
+                            path.append(x)
+                            x = prev[x]
+                        path.reverse()
+                        return path
+                    if not (0 <= nxt[0] < self.rows and 0 <= nxt[1] < self.cols) or nxt in blocked:
+                        continue
+                    near = sum(1 for er, ec in D.values() if (nxt[0] + er, nxt[1] + ec) in blocked and (nxt[0] + er, nxt[1] + ec) not in (src, dst))
+                    nc = cost + 1.0 + 0.6 * near
+                    if nc < best.get(nxt, 1e18):
+                        best[nxt], prev[nxt] = nc, cur
+                        heapq.heappush(hp, (nc, nxt))
+            return None
         if n is None:
             prev, q = {src: None}, collections.deque([src])
             while q:
@@ -134,22 +160,31 @@ class Grid:
                 if not inbounds(nxt):
                     continue
                 if nxt in blocked:
-                    nm = at.get(nxt)
-                    beyond = (nxt[0] + dr, nxt[1] + dc)
-                    if cur == src or nm is None or nm not in owned or not self._crossable(nm, dn) or not inbounds(beyond) or beyond in blocked or beyond == dst or beyond in prev:
+                    # through ONE OR MORE crossable relays in a row (Alan: "even if it has to cross multiple times"), landing on a free square
+                    if cur == src:
                         continue
-                    prev[beyond] = (cur, [(nxt, nm), (beyond, None)])
-                    q.append(beyond)
+                    hops_, sq_ = [], nxt
+                    while sq_ in blocked:
+                        nm = at.get(sq_)
+                        if nm is None or nm not in owned or not self._crossable(nm, dn) or any(h[1] == nm for h in hops_):
+                            hops_ = None
+                            break
+                        hops_.append((sq_, nm))
+                        sq_ = (sq_[0] + dr, sq_[1] + dc)
+                    if not hops_ or not inbounds(sq_) or sq_ == dst or sq_ in prev:
+                        continue
+                    prev[sq_] = (cur, hops_ + [(sq_, None)])
+                    q.append(sq_)
                 elif nxt not in prev:
                     prev[nxt] = (cur, step)
                     q.append(nxt)
         return None
 
-    def route(self, a, b, tag=None, avoid=(), second=False, extra=0, _extra_total=None, cross=False):
+    def route(self, a, b, tag=None, avoid=(), second=False, extra=0, _extra_total=None, cross=False, spread=False):
         """A chain of relay rams from a to b: the shortest, or `extra` relays longer (extra must be even on a grid). `cross=True`: if no free route exists, the chain may pass STRAIGHT THROUGH
         another route's relay at right angles (that relay becomes a crossing tile, core "cross": pure wiring, both words pass without a register)."""
         blocked = self._free(avoid)
-        short = self._paths(a, b, None, blocked)
+        short = self._paths(a, b, None, blocked, spread)
         items = None
         if short is None and cross and not extra:
             items = self._paths_x(a, b, blocked, lambda p: 0 <= p[0] < self.rows and 0 <= p[1] < self.cols)
@@ -162,6 +197,9 @@ class Grid:
             raise LayoutError(f"no free route {a} -> {b} with {extra} extra relays")
         if items is None:
             items = [(sq, None) for sq in path]
+        return self._lay(a, b, items, tag, second, extra, _extra_total, len(path))
+
+    def _lay(self, a, b, items, tag, second, extra, _extra_total, n_path):
         names, last, crossings, n_start = [], a, [], len(self.links)
         for i, ((r, c), xn) in enumerate(items):
             if xn is not None:
@@ -177,10 +215,34 @@ class Grid:
                 names.append(nm)
             self.link(last, nm, second=second and i == 0)
             last = nm
-        self.link(last, b, second=second and not path)
+        self.link(last, b, second=second and not n_path)
         xlinks = [l for l in self.links[n_start:] if l[0] in crossings or l[1] in crossings]
         self.routes[(a, b)] = {"relays": names, "second": second, "tag": tag, "extra": extra if _extra_total is None else _extra_total, "crossings": crossings, "xlinks": xlinks}
         return names
+
+    def route_line(self, a, b, tag=None):
+        """A STRAIGHT chain of relays from cell a to cell b (same row or same column), nothing else: where it meets another route's straight relay at right angles it passes through it (that relay
+        becomes a crossing tile, one tick per tile); anything else in the way is an error. For layouts that are planned as lines (#1001: "lay out each path as a separate thing ... where they cross, use a cross")."""
+        (ar, ac), (br, bc) = self.pos(a), self.pos(b)
+        if (ar != br and ac != bc) or (ar, ac) == (br, bc):
+            raise LayoutError(f"route_line {a} -> {b}: not on one row or column")
+        dr, dc = (br > ar) - (br < ar), (bc > ac) - (bc < ac)
+        dname = next(k for k, v in D.items() if v == (dr, dc))
+        at = self.at()
+        owned = {nm for rec in self.routes.values() for nm in rec["relays"]}
+        items, sq = [], (ar + dr, ac + dc)
+        while sq != (br, bc):
+            if not (0 <= sq[0] < self.rows and 0 <= sq[1] < self.cols):
+                raise LayoutError(f"route_line {a} -> {b}: leaves the grid")
+            if sq in at:
+                nm = at[sq]
+                if nm not in owned or not self._crossable(nm, dname):
+                    raise LayoutError(f"route_line {a} -> {b}: square {sq} is taken by {nm}")
+                items.append((sq, nm))
+            else:
+                items.append((sq, None))
+            sq = (sq[0] + dr, sq[1] + dc)
+        return self._lay(a, b, items, tag, False, 0, None, len(items))
 
     def route_nets(self, nets, rounds=300, seed=1, use_cross=True):
         """Route a list of nets (a, b[, kwargs]) in an order that works: a failing net goes to the FRONT and everything is rerouted (rip-up by reordering); when that cycles, the order is
