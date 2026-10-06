@@ -23,7 +23,7 @@ def snapshot(grid):
     """Everything observable: every attribute of every cell (and of a delegated nano), the pending queue, the tick counter."""
     out = {"tick": grid.tick_count, "pending": repr(sorted(grid._pending.items(), key=repr))}
     for pos, c in sorted(grid.cells.items()):
-        d = {k: v for k, v in vars(c).items() if k != "_nano"}
+        d = {k: v for k, v in vars(c).items() if k not in ("_nano", "merge_mode", "_merge_order", "_merge_rr")}   # the flex-only merge bookkeeping is not behaviour while the flex table is empty
         if getattr(c, "_nano", None) is not None:
             d["_nano"] = {k: v for k, v in vars(c._nano).items()}
         out[pos] = repr(sorted(d.items(), key=lambda kv: kv[0]))
@@ -59,6 +59,12 @@ def hand_designs():
             "comparator": (cmpd, [(3, (0, 0, 9)), (10, (0, 0, 1))])}
 
 
+@pytest.fixture
+def empty_flex_table(monkeypatch):
+    """The skeleton proof (step 1) needs the flex handler table EMPTY: since #968+ the table holds the real flex relay/merge, so tests that prove 'FlexGrid with nothing flex-specific == SuperGrid' clear it."""
+    monkeypatch.setattr(fg, "_FLEX_HANDLERS", {})
+
+
 def test_flex_cell_and_grid_are_real_subclasses():
     assert issubclass(fg.FlexCell, vm.SuperCell) and issubclass(fg.FlexGrid, vm.SuperGrid)
     g = fg.FlexGrid([ram("A", 0, 0, [], [])])
@@ -66,7 +72,7 @@ def test_flex_cell_and_grid_are_real_subclasses():
 
 
 @pytest.mark.parametrize("name", list(hand_designs()))
-def test_empty_flexgrid_equals_supergrid_on_hand_built_designs(name):
+def test_empty_flexgrid_equals_supergrid_on_hand_built_designs(name, empty_flex_table):
     records, inj = hand_designs()[name]
     a = drive(records, inj, 40, vm.SuperGrid)
     b = drive(records, inj, 40, fg.FlexGrid)
@@ -74,7 +80,7 @@ def test_empty_flexgrid_equals_supergrid_on_hand_built_designs(name):
 
 
 @pytest.mark.parametrize("example", ["small_relay_chain", "parallel_reduction_tree", "cordic_z_convergence"])
-def test_empty_flexgrid_equals_supergrid_on_the_example_designs(example):
+def test_empty_flexgrid_equals_supergrid_on_the_example_designs(example, empty_flex_table):
     x = IcmVixFile.load(os.path.join(EX, example + ".icm-hier.json"))
     records, _ = x.flatten()
     entries = [r for r in records if r.io_name and not r.core_config.get("upstream_mask")] or records[:1]
@@ -84,14 +90,14 @@ def test_empty_flexgrid_equals_supergrid_on_the_example_designs(example):
     assert a == b
 
 
-def test_width_passes_through_the_flex_grid():
+def test_width_passes_through_the_flex_grid(empty_flex_table):
     records, inj = hand_designs()["adder"]
     a = drive(records, inj, 40, lambda r: vm.SuperGrid(r, width=18))
     b = drive(records, inj, 40, lambda r: fg.FlexGrid(r, width=18))
     assert a == b and fg.FlexGrid(records, width=18).width == 18
 
 
-def test_a_registered_flex_handler_takes_over_and_the_std_registry_is_untouched():
+def test_a_registered_flex_handler_takes_over_and_the_std_registry_is_untouched(empty_flex_table):
     std_before = dict(vm._CORE_HANDLERS)
     marker = []
     def deliver(cell, arrivals, injected):

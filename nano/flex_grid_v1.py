@@ -12,7 +12,7 @@ Why a per-class table and not the shared registry: `register_core_handler` is mo
 import os
 import sys
 
-from unicell_super_automaton_v1 import SuperCell, SuperGrid, _CORE_HANDLERS
+from unicell_super_automaton_v1 import SuperCell, SuperGrid, _CORE_HANDLERS, CoreHandler, _DIR_BIT
 
 _FLEX_HANDLERS: dict = {}
 
@@ -36,6 +36,10 @@ def _planner():
 class FlexCell(SuperCell):
     """A SuperCell whose core behaviour comes from the flex table first, then the std registry."""
 
+    merge_mode = "arbitrate"     # set per merge consumer by FlexGrid (the generator's --merge-mode)
+    _merge_order = None          # the faces feeding a merging relay, in operand order (A first); None = not a merge
+    _merge_rr = 0                # arbitrate: 1 = B has priority when both are valid (the merge core's round-robin flag)
+
     def _handler(self):
         h = _FLEX_HANDLERS.get(self.core)
         return h if h is not None else _CORE_HANDLERS.get(self.core)
@@ -58,6 +62,7 @@ class FlexCell(SuperCell):
             raise ValueError(f"flex nano at width {width}: topology {topo:#x} is not implemented by the flex nano (its default would silently pass the held value)")
 
 
+_DIRS_ALL = tuple(range(4))
 _SHIFT_COARSE = (1, 2, 4, 8, 12, 16, 20, 24, 28)    # the supported coarse taps (the same set the std VM and the generator use)
 
 
@@ -88,13 +93,50 @@ def flex_addons(value, ad, width):
     return value
 
 
+def _flex_deliver_ram(cell, arrivals, injected):
+    """The flex relay/MERGE: ram_cell_v4sa behind a merge_cell_v4sa when two or more sources feed one input (ledger #968+). With one source it is the std relay. With several:
+    ARBITRATE (two sources): when both are valid in the same tick, grant ONE (A unless the round-robin flag says B), acknowledge only that one (the other stays pending and is served
+    later) -- where the std VM ORs both into one value; the flag then rotates after every grant, so neither starves. JOIN-OR (any number of sources): accept NOTHING until every source
+    is presenting, then take them all and OR them. A = the source that comes first in the ICM record list (what the generator does)."""
+    order = getattr(cell, "_merge_order", None)
+    if cell.ram_fixed_mode or not order or injected is not None:
+        return SuperCell._deliver_ram(cell, arrivals, injected)
+    present = [d for d in order if d in arrivals and (cell.ram_upstream_mask >> _DIR_BIT[d]) & 1]
+    if cell.merge_mode == "join-or":
+        if len(present) < len(order):
+            return (False, None) if arrivals else (True, None)
+        if cell.ram_data_valid:
+            return (False, None)
+        val = 0
+        for d in present:
+            val |= arrivals[d] & cell.mask
+        cell.ram_data_reg, cell.ram_data_valid = val, True
+        return (True, None)
+    if not present:
+        return (True, None)
+    if cell.ram_data_valid:
+        return (False, None)
+    a, b = order[0], order[1]
+    if a in present and b in present:
+        win = a if not cell._merge_rr else b
+    else:
+        win = present[0]
+    cell.ram_data_reg, cell.ram_data_valid = arrivals[win] & cell.mask, True
+    cell._merge_rr = 1 if win == a else 0
+    return ({win}, None)
+
+
+register_flex_handler("ram", CoreHandler(deliver=_flex_deliver_ram, offer_state=SuperCell._offer_state_ram, continuously_live=False, clear_valid=SuperCell._clear_valid_ram))
+
+
 class FlexGrid(SuperGrid):
     """A SuperGrid of FlexCells. `family` names the mirror; width is the grid's (default 32)."""
     _cell_class = FlexCell
     family = "flex"
 
-    def __init__(self, records, width=32, **kw):
+    def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
         super().__init__(records, width=width, **kw)
+        self._setup_merges(records, merge_mode)
         if width != 32:
             for pos, c in self.cells.items():
                 if (c.addon_config or {}).get("lane_cut") and (c.addon_config or {}).get("shift_en") and (c.addon_config or {}).get("direction"):
@@ -102,3 +144,32 @@ class FlexGrid(SuperGrid):
 
     def _addons(self, value, addon_config):
         return flex_addons(value, addon_config, self.width)
+
+    def _setup_merges(self, records, merge_mode):
+        """Find every single-input cell fed by several sources (the generator places a merge core in front of it), record its operand order and its mode (the generator's own parser:
+        'arbitrate' | 'join-or' | 'cell=mode,...')."""
+        import importlib
+        _planner()
+        flexmod = importlib.import_module("flexsub_icm_flex_v1")
+        modes = flexmod.parse_merge_modes(merge_mode)
+        index = {(r.row, r.col): k for k, r in enumerate(records)}
+        by_pos = {(r.row, r.col): r for r in records}
+        for pos, c in self.cells.items():
+            if c.core not in ("ram", "comparator") or c.ram_fixed_mode and c.core == "ram":
+                continue
+            mask = c.ram_upstream_mask if c.core == "ram" else c.cmp_upstream_mask
+            faces = []
+            for d in _DIRS_ALL:
+                if (mask >> _DIR_BIT[d]) & 1:
+                    nb = self.neighbor_pos(pos[0], pos[1], d)
+                    src = by_pos.get(nb) if nb is not None else None
+                    if src is not None:
+                        faces.append((index[nb], d))
+            if len(faces) < 2:
+                continue
+            if c.core != "ram":
+                raise ValueError(f"flex merge into a {c.core} ({c.cell_id}) is not mirrored yet: only a relay (ram) behind a merge core is")
+            c._merge_order = [d for _i, d in sorted(faces)]
+            c.merge_mode = modes.get(c.cell_id, modes["*"])
+            if c.merge_mode == "arbitrate" and len(faces) > 2:
+                raise ValueError(f"flex merge of {len(faces)} sources into {c.cell_id} in arbitrate mode is a tree of round-robin cores whose grant order is not mirrored; join-or of any number of sources is")
