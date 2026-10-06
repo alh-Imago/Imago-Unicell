@@ -205,7 +205,7 @@ def test_moved_adder_in_generated_rtl(fp16, tmp_path):
     assert got == [ref_add(fmt, x, y)[0] for x, y in zip(A, B)]
 
 
-# ---- authoring from a blank board, and library blocks (#1002) ------------------------------------------------------------------------
+# ---- authoring from a blank board, and library blocks (#1004) ------------------------------------------------------------------------
 def build_adder(lay, at=(0, 0), names=("A", "B", "ADD", "R"), io=("a", "b", "r")):
     r, c = at
     for (nm, core, dr, dc), port in zip(((names[0], "ram", 2, 1), (names[1], "ram", 6, 1), (names[2], "adder", 4, 8), (names[3], "ram", 4, 14)), (io[0], io[1], None, io[2])):

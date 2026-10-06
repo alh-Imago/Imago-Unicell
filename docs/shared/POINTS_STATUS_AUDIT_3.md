@@ -34,7 +34,7 @@ format. fp32 in RTL == FlexGrid == a reference anchored to
 sub-normals, exponent overflow/underflow, inf and nan. Then multiply and
 compare built the same way. Also open: a placer that decides positions
 itself (layouts are hand templates; routing and timing balance are
-automatic; since #1002 a person can build, move and reuse designs by
+automatic; since #1003/#1004 a person can build, move and reuse designs by
 hand in the front panel's `/composer`, which routes and balances each
 edit), a VM
 tick-latency model for the layout engine, and a 64-bit
@@ -118,7 +118,7 @@ projects and workspaces (#754/#755; the checkbox was built at #766). The
 pattern-library escalation ladder (#752). The Composer full editor and
 the AI training buckets (#677; buckets' first slices were built at
 #681/#682; the Composer's drag-and-place was built for flex layouts at
-#1002, with authoring and a library of blocks).
+#1003, with authoring and a library of blocks at #1004).
 
 ## Closed in this range that part 2 had listed as open
 
