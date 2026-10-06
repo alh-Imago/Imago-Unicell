@@ -1305,6 +1305,10 @@ class SuperGrid:
     "no addressing, no shared bus" model as `CAGrid` -- generalized to
     heterogeneous core types via `icm_v3.IcmV3Record.core`."""
 
+    def _addons(self, value, addon_config):
+        """Apply one cell's add-on chain to an offered value. The base grid uses the module function; a mirror variant (FlexGrid, ledger #967) overrides it."""
+        return apply_addons(value, addon_config, self.width)
+
     _cell_class = SuperCell      # the cell type this grid builds (a variant such as FlexGrid overrides it; ledger #965)
 
     # Class-level defaults: a subclass whose own __init__ does not call this one (VixCarrierGrid) behaves exactly as before, at 32 bits. Found by the full tests/vm run, not by thought.
@@ -1537,7 +1541,7 @@ class SuperGrid:
             value, valid, downstream = cell._offer_state()
             if not valid or downstream == 0:
                 continue
-            value = apply_addons(value, cell.addon_config, self.width)
+            value = self._addons(value, cell.addon_config)
             cell.pending_ack = downstream & _MASK4
             active[pos] = True
             for direction in _DIRS:

@@ -58,7 +58,46 @@ class FlexCell(SuperCell):
             raise ValueError(f"flex nano at width {width}: topology {topo:#x} is not implemented by the flex nano (its default would silently pass the held value)")
 
 
+_SHIFT_COARSE = (1, 2, 4, 8, 12, 16, 20, 24, 28)    # the supported coarse taps (the same set the std VM and the generator use)
+
+
+def flex_addons(value, ad, width):
+    """The add-on chain (nibble mask -> fine shift -> coarse shift -> invert) on a W-bit value, as the flex family's separate cores do it (mask_cell_v4sa, shift_stage_v4sa; invert is
+    wiring). The std chain is defined on 32-bit lanes; this is the same chain on W bits: the nibble mask covers ceil(W/4) nibbles (mask bits above that are ignored, as in the RTL),
+    shifts are logical with zero fill inside W bits, an unsupported coarse amount is a no-op (as in the std chain), invert flips W bits. `lane_cut` (a byte-lane cut) has no W-bit
+    definition and no flex cell, so it is refused at W != 32 (see FlexGrid.__init__). At width 32 this is exactly the std function."""
+    if width == 32:
+        from unicell_super_automaton_v1 import apply_addons
+        return apply_addons(value, ad, 32)
+    m = (1 << width) - 1
+    value &= m
+    if ad.get("mask_en"):
+        nm = ad.get("nibble_mask", 0)
+        for nib in range((width + 3) // 4):
+            if (nm >> nib) & 1:
+                value &= ~(0xF << (4 * nib)) & m
+    shift_en, right = ad.get("shift_en", 0), bool(ad.get("direction", 0))
+    fine, amt = ad.get("shift_fine", 0) & 3, ad.get("shift_amt", 0)
+    if shift_en:
+        total = fine + (amt if amt in _SHIFT_COARSE else 0)
+        if total:
+            value = (value >> total) if right else ((value << total) & m)
+    if ad.get("invert_en"):
+        value = ~value & m
+    return value
+
+
 class FlexGrid(SuperGrid):
     """A SuperGrid of FlexCells. `family` names the mirror; width is the grid's (default 32)."""
     _cell_class = FlexCell
     family = "flex"
+
+    def __init__(self, records, width=32, **kw):
+        super().__init__(records, width=width, **kw)
+        if width != 32:
+            for pos, c in self.cells.items():
+                if (c.addon_config or {}).get("lane_cut") and (c.addon_config or {}).get("shift_en") and (c.addon_config or {}).get("direction"):
+                    raise ValueError(f"flex add-ons at width {width}: lane_cut (a byte-lane cut on right shifts) has no {width}-bit definition and no flex cell; cell {c.cell_id} at {pos} is refused")
+
+    def _addons(self, value, addon_config):
+        return flex_addons(value, addon_config, self.width)
