@@ -439,3 +439,20 @@ Alan's ruling (#963 discussion): flex is the only family where width and behavio
 **Housekeeping:** the step-1 skeleton tests ("empty FlexGrid == SuperGrid") now run with the flex handler table cleared (it is no longer empty), and ignore the flex-only merge bookkeeping attributes; `tests/vm/flex_rtl_harness_v1.py` holds the generate-and-run helpers (copied from `tests/test_flexsub_flex_merge_v1.py`, which runs its checks at import).
 **Not mirrored (stated):** exact tick counts (the VM is not cycle-accurate to the handshake family), the tree grant order of 3+ arbitrate sources, a merge into anything but a relay.
 **Next:** sequencer free-running, level sources, branch lowering, constants.
+
+
+## 970. FLEXGRID STEPS 6-9: sequencer, comparator, accumulator (continuous + pulse), latch and branch at width W equal the REAL v4sa cells; FOUR real RTL limits found (none fixed).
+
+**Method:** each flex cell has a WIDTH parameter, so the real cell is the oracle at every width it can be built, driven directly in iverilog and compared with what a FlexGrid cell delivers at that width (the std VM only ever warned these cores were "width-threaded but not verified").
+**Results (all equal, new tests in `tests/vm/`):**
+- `test_flex_grid_sequencer_v1.py` (7): sequencer_cell_v4sa at W = 8, 18, 32, 36, six configs (lengths 1-4, 0x00/0xFF values) -- the VM offers VALUE_0 first and the raw cell VALUE_1 (the generator rotates the stored values); with that one-step rotation the offers are identical; a missing rotation is caught.
+- `test_flex_grid_compare_v1.py` (6): signed(data) >= threshold at W = 4, 8, 18, 32; an unsigned mirror is caught.
+- `test_flex_grid_acclatch_v1.py` (16): accumulator continuous (steps 1/7/255, 58 pulses) and pulse mode (4 step/threshold pairs, 60 pulses) at W = 16, 18, 32, 36, incl. wrapping at the DATA width (1100 x 255 at W18); latch set/clear/toggle at W = 4, 8, 18, 32, 36.
+- `test_flex_grid_branch_v1.py` (7): branch_cell_v4sa at W = 4, 8, 18, 32, 36 (24 random cases each: routes, emit input/fixed, signed low/equal/high, which port fires and with what value); unsigned compare caught.
+**RTL LIMITS FOUND (pinned by tests or refused by FlexGrid; the RTL is NOT changed):**
+1. `compare_cell_v4sa`, W > 32: `threshold <= cfg_data[WIDTH-1:0]` on a fixed 32-bit `cfg_data`: bits above 31 select out of range and the result is x. FlexGrid refuses a comparator above 32 bits. A fix needs a decision (sign-extend the 32-bit word? a wider threshold port as the branch has for its fixed value?).
+2. `accumulator_cell_v4sa`, W < 16: `{{(WIDTH-16){1'b0}}, threshold}` / `{(WIDTH-8)}` are negative replications; the real cell does not elaborate. FlexGrid refuses an accumulator below 16 bits.
+3. `sequencer_cell_v4sa`, W < 8: same replication problem for the 8-bit stored values. FlexGrid refuses a sequencer below 8 bits.
+4. `nano_cell_v4sa` captures on `valid_in` with NO `armed` check (the same shape as the sequencer defect fixed in #956): an unconfigured cell handed a value offers a result (valid_out = 1, ack_out = 0). Safe in generated designs (valid_in is gated with ready). Pinned by `test_known_rtl_defect_an_unconfigured_flex_nano_still_captures`. One-line fix proposed, not applied.
+**Housekeeping:** `SuperGrid._UNVERIFIED_AT_OTHER_WIDTHS` (base unchanged); FlexGrid narrows it to `priority`, so it no longer warns about branch or accumulator. Constants (fixed rams) and level sources are values carried by the same cells and by the width handling already proven; their timing/gating exists only in the generator (built at 32 bits), so there is no width-W RTL design to compare them with.
+**Where FlexGrid stands:** nano (12 topologies), adder, multiplier, add-on chain (mask/shift/invert), merge (arbitrate/join-or), sequencer, comparator, accumulator, latch, branch -- each equals its real cell/design. Not mirrored: tick-exact timing; arbitrate of 3+ sources; merge into a comparator; `priority`; the MAN-file cost tables and the start-up flag (`vm flex -w36`) -- the next layer.

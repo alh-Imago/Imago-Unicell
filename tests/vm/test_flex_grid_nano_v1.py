@@ -148,3 +148,27 @@ def test_a_nano_the_flex_generator_does_not_translate_is_refused_at_other_widths
     with pytest.raises(ValueError, match="flex nano at width 18"):
         fg.FlexGrid([rec], width=18)
     assert fg.FlexGrid([rec], width=32).width == 32          # at 32 nothing is restricted (the std nano model, as always)
+
+
+def test_known_rtl_defect_an_unconfigured_flex_nano_still_captures(tmp_path):
+    """FINDING (ledger #970): nano_cell_v4sa captures on `valid_in` with no `armed` check (like the sequencer did before #956): an UNCONFIGURED cell handed a value offers a result (valid_out = 1) although its
+    ack_out (ready) is low. The generated designs are safe because they gate valid_in with the cell's ready. Pinned so a fix is noticed."""
+    assert shutil.which("iverilog") and shutil.which("vvp"), "iverilog is REQUIRED (this test must not skip silently)"
+    tb = """`timescale 1ns/1ps
+module tb;
+  reg clk=0,rst=1,freeze=0,cfgv=0,ldh=0,vin=0,ackin=0; reg [31:0] cfgd=0; reg [31:0] hin=0, fin=0;
+  wire ackout,vout; wire [31:0] dout;
+  nano_cell_v4sa #(.CELL_ID(16'd0),.WIDTH(32)) dut(.clk(clk),.rst(rst),.freeze_in(freeze),.cfg_valid(cfgv),.cfg_data(cfgd),.hold_in_data(hin),.load_hold(ldh),.flow_in_data(fin),.valid_in(vin),.ack_out(ackout),.data_out(dout),.valid_out(vout),.ack_in(ackin));
+  always #5 clk=~clk;
+  initial begin repeat(3) @(posedge clk); #1 rst=0;
+    hin=32'h1234; ldh=1; @(posedge clk); #1 ldh=0;
+    fin=32'h00FF; vin=1; @(posedge clk); #1 vin=0;
+    $display("U %b %b", ackout, vout);
+    $finish; end
+endmodule
+"""
+    f = tmp_path / "tb_unarmed.v"
+    f.write_text(tb)
+    subprocess.run(["iverilog", "-g2012", "-o", str(tmp_path / "u.vvp"), str(f), CELL], check=True, capture_output=True)
+    out = subprocess.run(["vvp", str(tmp_path / "u.vvp")], capture_output=True, text=True).stdout
+    assert "U 0 1" in out, f"the unconfigured nano no longer offers a result (ack_out=0, valid_out=1): the defect looks FIXED -- update this test. got: {out[:80]}"

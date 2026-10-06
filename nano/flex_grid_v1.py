@@ -50,6 +50,12 @@ class FlexCell(SuperCell):
         the plain two-arrival gate with one of its 12 implemented topologies (no relay / hold / update / one-shot modes). Every operation in that subset is BITWISE per bit, so a
         W-bit result is the 32-bit result truncated to W bits, which the grid already does to every value in transit; there is no W-bit arithmetic to define. A nano outside the
         subset has no flex hardware to mirror and its width behaviour is not a known fact, so it is refused. At width 32 nothing is restricted (the std nano model, as always)."""
+        if core == "comparator" and width > 32:
+            raise ValueError(f"flex comparator at width {width}: compare_cell_v4sa loads its threshold from cfg_data[WIDTH-1:0] and cfg_data is a fixed 32-bit word, so above 32 bits the threshold's upper bits are undefined (x) in the real cell and its result is x")
+        if core == "accumulator" and width < 16:
+            raise ValueError(f"flex accumulator at width {width}: accumulator_cell_v4sa zero-extends a 16-bit threshold with a replication of (WIDTH-16) and an 8-bit step with (WIDTH-8), so the real cell does not elaborate below 16 bits")
+        if core == "sequencer" and width < 8:
+            raise ValueError(f"flex sequencer at width {width}: the real sequencer_cell_v4sa stores 8-bit values and zero-extends them to the data width, and does not elaborate below 8 bits")
         if core != "nano" or width == 32:
             return
         pl = _planner()
@@ -133,6 +139,7 @@ class FlexGrid(SuperGrid):
     """A SuperGrid of FlexCells. `family` names the mirror; width is the grid's (default 32)."""
     _cell_class = FlexCell
     family = "flex"
+    _UNVERIFIED_AT_OTHER_WIDTHS = frozenset({"priority"})      # accumulator and branch are checked against the real v4sa cells at W = 16..36 / 4..36 (#970); the priority arbiter is not translated by the flex generator
 
     def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
         super().__init__(records, width=width, **kw)

@@ -1309,6 +1309,7 @@ class SuperGrid:
         """Apply one cell's add-on chain to an offered value. The base grid uses the module function; a mirror variant (FlexGrid, ledger #967) overrides it."""
         return apply_addons(value, addon_config, self.width)
 
+    _UNVERIFIED_AT_OTHER_WIDTHS = frozenset({"accumulator", "branch", "priority"})   # cores whose width behaviour has not been checked against hardware (a mirror variant narrows this as it verifies them)
     _cell_class = SuperCell      # the cell type this grid builds (a variant such as FlexGrid overrides it; ledger #965)
 
     # Class-level defaults: a subclass whose own __init__ does not call this one (VixCarrierGrid) behaves exactly as before, at 32 bits. Found by the full tests/vm run, not by thought.
@@ -1321,7 +1322,7 @@ class SuperGrid:
         self.width = 32 if w_ is None else w_
         self.mask = (1 << self.width) - 1
         if self.width != 32:
-            unverified = sorted({r.core for r in records} & {"accumulator", "branch", "priority"})
+            unverified = sorted({r.core for r in records} & self._UNVERIFIED_AT_OTHER_WIDTHS)
             if unverified:
                 import warnings
                 warnings.warn(f"VM width {self.width}: the {unverified} core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)", UserWarning, stacklevel=2)
