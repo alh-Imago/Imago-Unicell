@@ -19,6 +19,7 @@
       <a href="index.html">Home</a>
       <a href="architecture.html" class="active">Architecture</a>
       <a href="status.html">Status</a>
+      <a href="explainer.html">Explainer</a>
       <a href="docs.html">Docs</a>
       <a href="contact.html">Contact</a>
     </nav>
@@ -48,6 +49,32 @@
         a single function with a dedicated port per role. The wiring between cells is generated
         from the program file, and the two families decide timing differently (below).
       </p>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">TIMING</span> PULSE, ACK AND FREEZE</div>
+      <h2>The pulse schedules, the ack controls, the freeze holds</h2>
+      <p>
+        There is a timing pulse, but it only schedules <em>when data is passed</em> from one cell
+        to the next; the cell internals are unclocked. Most designs use the two-arrival model,
+        where a cell waits for both of its operands, so skew between paths of different length can
+        almost be ignored. What really controls the flow is the <strong>acknowledge</strong>: a
+        value moves on only when the next cell has taken the previous one.
+      </p>
+      <div class="grid">
+        <div class="panel">
+          <h3>Freeze disconnects, it doesn't stop the clock</h3>
+          <p>The freeze line disconnects a cell's inputs and outputs from the flow. A frozen cell can be reprogrammed without any data moving.</p>
+        </div>
+        <div class="panel">
+          <h3>State you can save and reload</h3>
+          <p>While frozen, each cell's state can be captured and its latch values stored as a series of data, to be reloaded into the design at any time.</p>
+        </div>
+        <div class="panel">
+          <h3>No pre-firing on a partial load</h3>
+          <p>Loading part of a design would normally let the loaded part start running. Holding freeze until the load is complete stops it from pre-firing in a half-built state.</p>
+        </div>
+      </div>
     </section>
 
     <section>
@@ -107,6 +134,9 @@
           <dt><code>core_config</code></dt><dd>bits [46:5] &mdash; per-core fields, reinterpreted depending on which core is selected</dd>
           <dt><code>addon_config</code></dt><dd>bits [66:47] &mdash; the addon chain (nibble mask, shift/lane, invert), identical across every core</dd>
         </dl>
+      </div>
+      <div class="btn-row">
+        <a class="btn" href="explainer.html">Try it: the interactive SUPER_LATCH explainer &rarr;</a>
       </div>
     </section>
 
@@ -194,7 +224,7 @@
 
 <footer class="site">
   <div class="wrap">
-    <span>IMAGO UNICELL &mdash; FIRING MODEL: TWO-ARRIVAL &mdash; CLOCK: NONE</span>
+    <span>IMAGO UNICELL &mdash; FIRING: TWO-ARRIVAL &mdash; FLOW: ACK &mdash; STATE: FREEZE &amp; CAPTURE</span>
     <span><a href="https://github.com/alh-Imago/Imago-Unicell">github.com/alh-Imago/Imago-Unicell</a></span>
   </div>
 </footer>

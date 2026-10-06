@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Imago UniCell — Topology Is Computation</title>
-<meta name="description" content="A spatial FPGA compute architecture where topology itself is the computation. No CPU, no instruction set, no shared bus -- cores wire directly to physical neighbors, and a two-arrival firing model replaces the global clock. Measured on an Arria 10 and on a Tang Nano 20K with an open toolchain; a research project, not a commercial product.">
+<meta name="description" content="A spatial FPGA compute architecture where topology itself is the computation. No CPU, no instruction set, no shared bus -- cores wire directly to physical neighbors; a two-arrival firing model absorbs path skew, an acknowledge handshake controls flow, and a freeze line lets any cell be reprogrammed, captured or reloaded. Measured on an Arria 10 and on a Tang Nano 20K with an open toolchain; a research project, not a commercial product.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -19,6 +19,7 @@
       <a href="index.html" class="active">Home</a>
       <a href="architecture.html">Architecture</a>
       <a href="status.html">Status</a>
+      <a href="explainer.html">Explainer</a>
       <a href="docs.html">Docs</a>
       <a href="contact.html">Contact</a>
     </nav>
@@ -35,8 +36,9 @@
           Imago UniCell is a spatial FPGA compute architecture. There's no CPU, no instruction
           set, and no shared bus &mdash; a physical cell holds a fixed set of real hardware cores,
           each wired directly to its North/South/East/West neighbors. Computation happens as
-          values arrive and propagate across that topology, one wire-delay hop at a time. No
-          global clock coordinates it &mdash; wire delay does.
+          values arrive and propagate across that topology, one hop at a time. A timing pulse only
+          schedules when data passes between cells; inside, the cells are unclocked, and the
+          acknowledge handshake is what controls the flow.
         </p>
         <p>
           <strong>What this actually is:</strong> a research project building working
@@ -82,7 +84,7 @@
           <circle r="5" fill="#7fae7a" class="pulse a" style="offset-path: path('M 210 170 C 260 170, 300 170, 390 170'); animation-delay: 1.2s;"/>
 
           <text x="330" y="150" fill="#627272" font-family="IBM Plex Mono, monospace" font-size="10">OUT</text>
-          <text x="20" y="320" fill="#627272" font-family="IBM Plex Mono, monospace" font-size="10">FIRES ONLY ON SECOND ARRIVAL &mdash; NO CLOCK INVOLVED</text>
+          <text x="20" y="320" fill="#627272" font-family="IBM Plex Mono, monospace" font-size="10">FIRES ONLY ON SECOND ARRIVAL &mdash; PATH SKEW ABSORBED</text>
         </svg>
       </div>
     </section>
@@ -150,7 +152,7 @@
 
 <footer class="site">
   <div class="wrap">
-    <span>IMAGO UNICELL &mdash; FIRING MODEL: TWO-ARRIVAL &mdash; CLOCK: NONE</span>
+    <span>IMAGO UNICELL &mdash; FIRING: TWO-ARRIVAL &mdash; FLOW: ACK &mdash; STATE: FREEZE &amp; CAPTURE</span>
     <span><a href="https://github.com/alh-Imago/Imago-Unicell">github.com/alh-Imago/Imago-Unicell</a></span>
   </div>
 </footer>
