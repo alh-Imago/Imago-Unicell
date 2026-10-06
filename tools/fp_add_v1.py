@@ -199,7 +199,7 @@ def fp_add(g, fmt, name="ADD", upto="all"):
     sb1 = P("SB1"); g.add(sb1, 23, fx + 3, addon=shl(W - 1))
     sb2 = P("SB2"); g.add(sb2, 23, fx + 4, addon=shr(W - 1))
     mulsg = P("MULSG"); g.add(mulsg, 22, fx + 4, "mul")
-    sh31 = P("SH31"); g.add(sh31, 22, fx + 5, addon=shl(W - 1))
+    sh31 = P("SH31"); g.add(sh31, 22, fx + 5, addon=shl(m + E))      # the result sign, up to the format's own sign bit
     for x_, y_ in ((k1b, nps), (nps, npv), (npv, sn), (sn, sb1), (sb1, sb2), (sb2, mulsg), (mulsg, sh31)):
         g.link(x_, y_)
     addf1 = P("ADDF1"); g.add(addf1, 14, fx + 3, "adder")

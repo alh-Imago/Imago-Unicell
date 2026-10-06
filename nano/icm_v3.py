@@ -124,6 +124,9 @@ SEL_BRANCH = 7
 #: change needed, just the missing entries.
 SEL_MUL = 8
 SEL_PRIORITY = 9
+#: Alan, 6 Oct 2026: `cross` -- a pure-wiring CROSSING tile (W<->E and N<->S pass straight through, no state, no control). Another entry from the reserved headroom (#317, #823 precedent):
+#: the number is provisional until the RTL core slot is fixed.
+SEL_CROSS = 10
 
 CORE_NAMES = {
     SEL_NANO: "nano",
@@ -136,6 +139,7 @@ CORE_NAMES = {
     SEL_BRANCH: "branch",
     SEL_MUL: "mul",
     SEL_PRIORITY: "priority",
+    SEL_CROSS: "cross",
 }
 CORE_IDS = {name: sel for sel, name in CORE_NAMES.items()}
 
@@ -344,6 +348,11 @@ _BRANCH_FIELDS = {
     "rolling_mode": (41, 41),
 }
 
+_CROSS_FIELDS = {
+    "downstream_mask": (0, 3),
+    "upstream_mask": (4, 7),
+}
+
 CORE_FIELD_TABLES = {
     SEL_NANO: _NANO_FIELDS,
     SEL_RAM: _RAM_FIELDS,
@@ -355,6 +364,7 @@ CORE_FIELD_TABLES = {
     SEL_BRANCH: _BRANCH_FIELDS,
     SEL_MUL: _MUL_FIELDS,
     SEL_PRIORITY: _PRIORITY_FIELDS,
+    SEL_CROSS: _CROSS_FIELDS,
 }
 
 # Direction-valued fields per core -- these accept either a raw int or a
@@ -375,6 +385,7 @@ _DIR_FIELDS = {
                     # the same real shape as branch's own route_low/equal/high
                     # below -- given the friendlier list-based interface.
     SEL_RAM: ("downstream_mask", "upstream_mask"),
+    SEL_CROSS: ("downstream_mask", "upstream_mask"),
     SEL_ADDER: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
     SEL_ACC: ("inc_dir", "dec_dir", "downstream_mask"),
     SEL_CMP: ("downstream_mask", "upstream_mask"),

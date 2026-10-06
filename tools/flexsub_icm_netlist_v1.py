@@ -152,12 +152,55 @@ def extract(path):
             edges.append((r.cell_id, dst_id, d, role, tuple(outcomes)))
             inputs[dst_id][role].append((r.cell_id, OPP[d]))
             outputs[r.cell_id].append(dst_id)
+    if any(r.core == "cross" for r in recs):
+        cells, edges, inputs, outputs, external_out = splice_crosses(cells, edges, inputs, outputs, external_out, warnings)
     try:
         for w in doc.check_connections():
             warnings.append(f"advisory connection check: {w}")
     except Exception as e:                       # advisory only -- never block the analysis
         warnings.append(f"advisory connection check unavailable: {e}")
     return doc, recs, cells, edges, inputs, outputs, external_out, warnings
+
+
+def splice_crosses(cells, edges, inputs, outputs, external_out, warnings):
+    """CROSSING tiles (core "cross", Alan 6 Oct 2026): a tile that passes data STRAIGHT THROUGH on two independent axes (W<->E and N<->S), pure wiring, no state and no control.
+    A word that enters a crossing travelling in direction d leaves it travelling in direction d. In the netlist a crossing therefore does not exist: `src -> cross -> dst` is the
+    direct edge `src -> dst` (valid/data forward, ready back, all plain wires, so the emitters need nothing new). Chains of crossings collapse the same way. A crossing whose
+    straight-through exit leaves the grid or meets a neighbour that does not listen is reported (the word would be lost)."""
+    cells = dict(cells)
+    inputs = {k: {r: list(v) for r, v in d.items()} for k, d in inputs.items()}
+    outputs = {k: list(v) for k, v in outputs.items()}
+    cross = {c for c, r in cells.items() if r.core == "cross"}
+    edges = list(edges)
+    for _ in range(len(cross) + 2):
+        hit = [e for e in edges if e[1] in cross]
+        if not hit:
+            break
+        for e in hit:
+            src, x, d, role, oc = e
+            nxt = [f for f in edges if f[0] == x and f[2] == d]
+            edges.remove(e)
+            outputs[src] = [q for q in outputs.get(src, []) if q != x]
+            inputs[x] = {r_: [(q, f_) for q, f_ in lst if not (q == src and f_ == OPP[d])] for r_, lst in inputs.get(x, {}).items()}
+            if not nxt:
+                if d in external_out.get(x, []):
+                    external_out[src].append(d)
+                else:
+                    warnings.append(f"{x} (crossing): the word from {src} travelling {d} has no listener straight through -- output dropped")
+                continue
+            f = nxt[0]
+            edges.append((src, f[1], d, f[3], oc or f[4]))
+            outputs[src].append(f[1])
+            inputs[f[1]][f[3]] = [(q, fc) for q, fc in inputs[f[1]][f[3]] if q != x or fc != OPP[d]] + [(src, OPP[d])]
+    edges = [e for e in edges if e[0] not in cross and e[1] not in cross]
+    for x in cross:
+        cells.pop(x, None)
+        inputs.pop(x, None)
+        outputs.pop(x, None)
+        external_out.pop(x, None)
+    for k in list(outputs):
+        outputs[k] = [q for q in outputs[k] if q not in cross]
+    return cells, edges, inputs, outputs, external_out
 
 
 def hop_depths(cells, edges):

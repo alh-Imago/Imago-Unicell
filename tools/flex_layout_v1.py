@@ -29,6 +29,7 @@ class Grid:
         self.nodes, self.links, self._relay = collections.OrderedDict(), [], 0
         self.routes = {}                  # (a, b) -> {"relays": [...], "second": bool}
         self.minuend = {}                 # subtract cell -> the source that must arrive FIRST
+        self.crossed = {}                 # crossing tile name -> (owner route key, crossing route key): a relay of the owner that a second route passes straight through (core "cross")
 
     # ---- building -------------------------------------------------------------------------------------------------------------------
     def add(self, name, r, c, core="ram", cfg=None, addon=None, preload=None):
@@ -98,28 +99,90 @@ class Grid:
             return None
         return dfs(src, [], {src})
 
-    def route(self, a, b, tag=None, avoid=(), second=False, extra=0, _extra_total=None):
-        """A chain of relay rams from a to b: the shortest, or `extra` relays longer (extra must be even on a grid)."""
+    def _dir(self, p, q):
+        return next(k for k, (dr, dc) in D.items() if (p[0] + dr, p[1] + dc) == q)
+
+    def _crossable(self, name, d):
+        """Can a route travelling in direction d pass STRAIGHT THROUGH the relay `name`? Only a plain relay of another route that itself runs straight, at right angles."""
+        n = self.nodes.get(name)
+        if n is None or n["core"] != "ram" or n["preload"] is not None or n["addon"] or name in self.crossed:
+            return False
+        ins = [l[0] for l in self.links if l[1] == name]
+        outs = [l[1] for l in self.links if l[0] == name]
+        if len(ins) != 1 or len(outs) != 1:
+            return False
+        din, dout = self._dir(self.pos(ins[0]), self.pos(name)), self._dir(self.pos(name), self.pos(outs[0]))
+        return din == dout and d not in (din, OPP[din]) and not any(l[2] for l in self.links if l[0] == name or l[1] == name)
+
+    def _paths_x(self, a, b, blocked, inbounds):
+        """Shortest path that may cross other routes' straight relays at right angles. Returns [(square, crossing_node_or_None)] (a crossing entry is the tile passed through, it is not a new relay)."""
+        src, dst = self.pos(a), self.pos(b)
+        at = self.at()
+        owned = {nm for rec in self.routes.values() for nm in rec["relays"]}
+        prev, q = {src: None}, collections.deque([src])
+        while q:
+            cur = q.popleft()
+            for dn, (dr, dc) in D.items():
+                nxt = (cur[0] + dr, cur[1] + dc)
+                step = [(nxt, None)]
+                if nxt == dst:
+                    path, x = [], cur
+                    while x != src:
+                        path = prev[x][1] + path
+                        x = prev[x][0]
+                    return path
+                if not inbounds(nxt):
+                    continue
+                if nxt in blocked:
+                    nm = at.get(nxt)
+                    beyond = (nxt[0] + dr, nxt[1] + dc)
+                    if cur == src or nm is None or nm not in owned or not self._crossable(nm, dn) or not inbounds(beyond) or beyond in blocked or beyond == dst or beyond in prev:
+                        continue
+                    prev[beyond] = (cur, [(nxt, nm), (beyond, None)])
+                    q.append(beyond)
+                elif nxt not in prev:
+                    prev[nxt] = (cur, step)
+                    q.append(nxt)
+        return None
+
+    def route(self, a, b, tag=None, avoid=(), second=False, extra=0, _extra_total=None, cross=False):
+        """A chain of relay rams from a to b: the shortest, or `extra` relays longer (extra must be even on a grid). `cross=True`: if no free route exists, the chain may pass STRAIGHT THROUGH
+        another route's relay at right angles (that relay becomes a crossing tile, core "cross": pure wiring, both words pass without a register)."""
         blocked = self._free(avoid)
         short = self._paths(a, b, None, blocked)
+        items = None
+        if short is None and cross and not extra:
+            items = self._paths_x(a, b, blocked, lambda p: 0 <= p[0] < self.rows and 0 <= p[1] < self.cols)
+            if items is not None:
+                short = [sq for sq, nm in items]
         if short is None:
             raise LayoutError(f"no free route {a} -> {b}")
         path = short if not extra else self._paths(a, b, len(short) + extra, blocked)
         if path is None:
             raise LayoutError(f"no free route {a} -> {b} with {extra} extra relays")
-        names, last = [], a
-        for i, (r, c) in enumerate(path):
-            self._relay += 1
-            nm = f"{tag or a + '_' + b}.{self._relay}"
-            self.add(nm, r, c)
+        if items is None:
+            items = [(sq, None) for sq in path]
+        names, last, crossings, n_start = [], a, [], len(self.links)
+        for i, ((r, c), xn) in enumerate(items):
+            if xn is not None:
+                nm = xn
+                owner = next(k for k, rec in self.routes.items() if nm in rec["relays"])
+                self.nodes[nm]["core"] = "cross"
+                self.crossed[nm] = (owner, (a, b))
+                crossings.append(nm)
+            else:
+                self._relay += 1
+                nm = f"{tag or a + '_' + b}.{self._relay}"
+                self.add(nm, r, c)
+                names.append(nm)
             self.link(last, nm, second=second and i == 0)
-            names.append(nm)
             last = nm
         self.link(last, b, second=second and not path)
-        self.routes[(a, b)] = {"relays": names, "second": second, "tag": tag, "extra": extra if _extra_total is None else _extra_total}
+        xlinks = [l for l in self.links[n_start:] if l[0] in crossings or l[1] in crossings]
+        self.routes[(a, b)] = {"relays": names, "second": second, "tag": tag, "extra": extra if _extra_total is None else _extra_total, "crossings": crossings, "xlinks": xlinks}
         return names
 
-    def route_nets(self, nets, rounds=3000, seed=1):
+    def route_nets(self, nets, rounds=300, seed=1, use_cross=True):
         """Route a list of nets (a, b[, kwargs]) in an order that works: a failing net goes to the FRONT and everything is rerouted (rip-up by reordering); when that cycles, the order is
         shuffled (seeded, so the result is deterministic)."""
         import random
@@ -130,7 +193,12 @@ class Grid:
             done, bad = [], None
             for i, (a, b, kw) in enumerate(order):
                 try:
-                    self.route(a, b, **kw)
+                    try:
+                        self.route(a, b, **kw)
+                    except LayoutError:
+                        if not use_cross:
+                            raise
+                        self.route(a, b, cross=True, **kw)        # no free way: pass straight through another route's relay (a crossing tile)
                     done.append((a, b))
                 except LayoutError:
                     bad = i
@@ -140,14 +208,21 @@ class Grid:
             last = (order[bad][0], order[bad][1])
             for a, b in reversed(done):
                 self.unroute(a, b)
-            if k % 6 == 5:
+            if k % 20 == 19:
                 rng.shuffle(order)
             else:
                 order.insert(0, order.pop(bad))
         raise LayoutError(f"route_nets: no order found; last failure {last[0]} -> {last[1]}")
 
     def unroute(self, a, b):
+        if any(nm in self.crossed for nm in self.routes[(a, b)]["relays"]):
+            raise LayoutError(f"route {a} -> {b} is crossed by another route: unroute that one first")
         rec = self.routes.pop((a, b))
+        for nm in rec.get("crossings", []):                     # give the tile back to the route that owns it: a plain relay again
+            self.nodes[nm]["core"] = "ram"
+            self.crossed.pop(nm, None)
+        xl = set(rec.get("xlinks", []))
+        self.links = [l for l in self.links if l not in xl]
         gone = set(rec["relays"])
         for nm in gone:
             del self.nodes[nm]
@@ -156,6 +231,8 @@ class Grid:
 
     def _lengthen(self, a, b):
         """Re-lay the route a -> b two relays longer than it is now (the free squares are re-searched; a failure restores the old route)."""
+        if self.routes[(a, b)].get("crossings") or any(nm in self.crossed for nm in self.routes[(a, b)]["relays"]):
+            raise LayoutError(f"route {a} -> {b} takes part in a crossing: not lengthened")
         rec = self.unroute(a, b)
         want = rec["extra"] + 2
         try:
@@ -166,10 +243,21 @@ class Grid:
 
     # ---- timing -----------------------------------------------------------------------------------------------------------------------
     def sources(self):
+        """Who feeds whom, with crossing tiles transparent (a word that enters a crossing leaves it in the same direction, in the same tick)."""
         srcs = collections.defaultdict(list)
+        out = collections.defaultdict(list)
         for a, b, _ in self.links:
-            if a not in srcs[b]:
-                srcs[b].append(a)
+            out[a].append(b)
+        for a, b, _ in self.links:
+            if self.nodes[a]["core"] == "cross":
+                continue
+            cur, d = b, self._dir(self.pos(a), self.pos(b))
+            while self.nodes[cur]["core"] == "cross":
+                cur = next((q for q in out[cur] if self._dir(self.pos(cur), self.pos(q)) == d), None)
+                if cur is None:
+                    break
+            if cur is not None and a not in srcs[cur]:
+                srcs[cur].append(a)
         return srcs
 
     def hops(self):
@@ -184,7 +272,8 @@ class Grid:
             t[c] = max((tv(q, stack + (c,)) for q in srcs[c]), default=0) + 1
             return t[c]
         for c in self.nodes:
-            tv(c)
+            if self.nodes[c]["core"] != "cross":
+                tv(c)
         return t
 
     def _descends(self, q, m):

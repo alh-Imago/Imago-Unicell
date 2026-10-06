@@ -15,6 +15,7 @@ import sys
 from dataclasses import replace as _dc_replace
 
 from unicell_super_automaton_v1 import SuperCell, SuperGrid, _CORE_HANDLERS, CoreHandler, _DIR_BIT
+from unicell_automaton_v1 import N, S, E, W
 from icm_v3 import pack_dirmask as _pack_dirmask
 
 _FLEX_HANDLERS: dict = {}
@@ -221,6 +222,10 @@ class FlexGrid(SuperGrid):
     _UNVERIFIED_AT_OTHER_WIDTHS = frozenset({"priority"})      # accumulator and branch are checked against the real v4sa cells at W = 16..36 / 4..36 (#970); the priority arbiter is not translated by the flex generator
 
     def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
+        # CROSSING tiles (core "cross", Alan 6 Oct 2026) are pure wiring: a word entering one keeps its direction and leaves by the opposite face, with no state and no tick.
+        # They are therefore not cells here at all: neighbor_pos steps THROUGH them (see below), exactly as the netlist splice does for the generated RTL.
+        self._cross = {(r.row, r.col) for r in records if r.core == "cross"}
+        records = [r for r in records if r.core != "cross"]
         super().__init__(records, width=width, **kw)
         self._setup_merges(records, merge_mode)
         for r in records:                                   # ledger #976: the adder's carry flag (ICM second_output); the cell attribute is read by the flex adder handler
@@ -240,6 +245,13 @@ class FlexGrid(SuperGrid):
             for pos, c in self.cells.items():
                 if (c.addon_config or {}).get("lane_cut") and (c.addon_config or {}).get("shift_en") and (c.addon_config or {}).get("direction"):
                     raise ValueError(f"flex add-ons at width {width}: lane_cut (a byte-lane cut on right shifts) has no {width}-bit definition and no flex cell; cell {c.cell_id} at {pos} is refused")
+
+    def neighbor_pos(self, row, col, direction):
+        dr, dc = {N: (-1, 0), S: (1, 0), E: (0, 1), W: (0, -1)}[direction]
+        pos = (row + dr, col + dc)
+        while pos in self._cross:
+            pos = (pos[0] + dr, pos[1] + dc)
+        return pos if pos in self.cells else None
 
     def _addons(self, value, addon_config):
         return flex_addons(value, addon_config, self.width)
