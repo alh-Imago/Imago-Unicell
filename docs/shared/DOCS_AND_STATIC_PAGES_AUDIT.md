@@ -10,7 +10,7 @@ file content, cross-referenced against the real ledger), matching the
 same method `POINTS_STATUS_AUDIT.md`/`_2.md` already established.
 Nothing rewritten in this pass; this is the map, not the fix.*
 
-## Update, 2026-10-06 (ledger #989): static pages
+## Update, 2026-10-06 (ledger #991): static pages
 
 | page | what changed | checked |
 |---|---|---|
@@ -23,11 +23,11 @@ Nothing rewritten in this pass; this is the map, not the fix.*
 The site's docs page links to `blob/main/...`, so the updated docs show
 there once this branch is merged to `main`.
 
-## Update, 2026-10-06 (ledger #988): second pass — the manual's source docs, and what the generator needs
+## Update, 2026-10-06 (ledger #990): second pass — the manual's source docs, and what the generator needs
 
 Alan: the manual page is built by a Python tool from the other docs,
 so the docs have to be straight before it is run. This pass covered
-every doc the two generators read, plus the rest of the #987
+every doc the two generators read, plus the rest of the #989
 "still behind" list.
 
 | doc | what changed |
@@ -78,7 +78,7 @@ The 2026-09-07 points about `docs/manual.html` possibly being orphaned
 (below) still stand. Decide which of the two generators is the one to
 keep before investing in both.
 
-## Update, 2026-10-06 (ledger #987): the Tang Nano / sub-flex catch-up, first pass
+## Update, 2026-10-06 (ledger #989): the Tang Nano / sub-flex catch-up, first pass
 
 The ledger had moved about 100 entries past the docs: the Tang Nano 20K
 (#886 onward), the sub and flex cell families (#898-#957), the Flex-Sub
@@ -103,7 +103,7 @@ ledger entry it cites:
 | `current/START.md` | a current reading list and toolchain check above the 2026-08 list |
 | `tools/project_assemble_v1.py` `--icm` help | no longer says the flex generator is unbuilt |
 
-**Still behind after this pass (not yet updated). All but the points status audits were done in the #988 pass above:**
+**Still behind after this pass (not yet updated). All but the points status audits were done in the #990 pass above:**
 
 - `docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md` and
   `CELL_CHEATSHEET.md`: no sub/flex rows (the merge core, the
