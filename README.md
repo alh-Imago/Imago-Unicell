@@ -187,8 +187,9 @@ operand timing balanced automatically. **The whole fp adder is now
 built from flex cells** (`tools/fp_add_v1.py`, #990). In generated RTL
 it matches a reference anchored to `fp32_add_v1` on 3,000 pairs, for
 normal numbers and zero. To route it, a new **crossing tile** (`cross`,
-ICM core 10, #999) lets one lane pass straight over another: pure
-wiring, with no state or latency. Still open: sub-normals, overflow, inf
+ICM core 10, #999) lets one lane pass straight over another. It has no
+control logic and costs one tick per tile per direction (a register
+slice), like every other core. Still open: sub-normals, overflow, inf
 and nan; formats wider than 32 bits; and a placer (layouts are hand
 templates today).
 

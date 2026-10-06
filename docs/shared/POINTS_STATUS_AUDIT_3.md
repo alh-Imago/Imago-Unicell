@@ -37,10 +37,11 @@ itself (layouts are hand templates; routing and timing balance are
 automatic), a VM tick-latency model for the layout engine, and a 64-bit
 build (with a 6-bit shift field) for fp64.
 
-**The crossing tile (#999).** `cross`, ICM core 10 (confirmed by Alan),
-is pure wiring. Open: a registered variant (latency 1, for long chains
-and FPGA timing), native cores per family, and cost rows for the router
-and MAN.
+**The crossing tile (#999).** `cross`, ICM core 10 (confirmed by Alan):
+no control logic, one tick per tile per direction (a register slice, so
+long chains do not lengthen the critical path). Open: native cores per
+family (built from ram slices today), and cost rows for the router and
+MAN.
 
 **Width (#948, #957-#963, #985, #970).** The `--icm` generators build 32
 bits only. Still to do: native-width builds, the loader's narrowing, the

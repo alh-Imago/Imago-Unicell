@@ -9,7 +9,7 @@
 > **fp on cells (the most recent thread, #982-#999; the whole fp adder from flex cells is done at #990 for normals and
 > zero, and the crossing tile at #999):** sub-normals, exponent overflow/underflow, inf and nan for the adder; then
 > multiply and compare built the same way. Also open: a placer that decides positions itself, a VM tick-latency model for
-> the layout engine, a 64-bit build for fp64, and for the crossing tile a registered variant, native per-family cores and
+> the layout engine, a 64-bit build for fp64, and for the crossing tile native per-family cores and
 > cost rows. Full list: `docs/shared/POINTS_STATUS_AUDIT_3.md`.
 >
 > **Width (#948, #957-#963, #985):** the `--icm` generators still build 32 bits. Still to do: native-width builds,

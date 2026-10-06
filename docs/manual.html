@@ -355,8 +355,9 @@ operand timing balanced automatically. <strong>The whole fp adder is now
 built from flex cells</strong> (<code>tools/fp_add_v1.py</code>, #990). In generated RTL
 it matches a reference anchored to <code>fp32_add_v1</code> on 3,000 pairs, for
 normal numbers and zero. To route it, a new <strong>crossing tile</strong> (<code>cross</code>,
-ICM core 10, #999) lets one lane pass straight over another: pure
-wiring, with no state or latency. Still open: sub-normals, overflow, inf
+ICM core 10, #999) lets one lane pass straight over another. It has no
+control logic and costs one tick per tile per direction (a register
+slice), like every other core. Still open: sub-normals, overflow, inf
 and nan; formats wider than 32 bits; and a placer (layouts are hand
 templates today).</p>
 <h2>On the physical board</h2>
@@ -1877,10 +1878,12 @@ an error.</p>
 mismatches; bf16 and fp16 match too. <strong>Scope:</strong> normal numbers and zero. Not yet: sub-normals, exponent overflow/underflow, inf,
 nan, or formats wider than 32 bits. The placement is a hand template; routing and timing balance are automatic.</p>
 <p><strong>The crossing tile (<code>#999</code>).</strong> Routing the adder hit topological walls: closed "rooms" that no lane can leave except through a data
-cell. Alan's answer is a tile that passes west↔east and north↔south straight through, with no ack, no state and no latency. In FPGA it
-costs routing only. It is ICM core <code>cross</code>, core_select 10 (confirmed by Alan). The netlist extractor turns it into a direct wire,
-FlexGrid steps through it, and the layout engine lets a route cross another at right angles. <strong>Open:</strong> a registered variant (latency
-1, for long chains and FPGA timing), native cores per family, and cost rows for the router and MAN.</p>
+cell. Alan's answer is a tile that passes west↔east and north↔south straight through, with no control logic. It costs <strong>one tick
+per tile per direction of travel</strong>, like every other core (Alan: "add the tick as 1 per tile"): each used direction is its own
+one-word register slice, so the two axes never share state, and long chains of tiles do not lengthen the critical path. It is ICM
+core <code>cross</code>, core_select 10 (confirmed by Alan). In RTL the netlist extractor gives every used (tile, direction) an ordinary ram
+relay slice. FlexGrid models the slices as hidden relay cells. The layout engine lets a route cross another at right angles and
+adds one hop to both routes. <strong>Open:</strong> native cores per family (built from ram slices today), and cost rows for the router and MAN.</p>
 <h2>Status</h2>
 <p>Thirteen cell functions are proven, simulated and measured: adder, compare, accumulator, latch, sequencer, ram, router, mask, mul,
 shift/shift_stage, <strong>nano</strong> (<code>#917</code>), <strong>branch</strong> (<code>#918</code>) and, flex only, <strong>merge</strong> (<code>#955</code>). Each has a testbench. Both families are driven end to end
@@ -2925,7 +2928,7 @@ than raising.</p>
 <tr>
 <td>10</td>
 <td><code>cross</code></td>
-<td>the crossing tile (#999; number confirmed by Alan): pure wiring, no RTL core yet (the netlist extractor splices it into a direct wire); flex VM only</td>
+<td>the crossing tile (#999; number confirmed by Alan): no control logic, one tick per tile per direction; no native RTL core yet (the netlist extractor builds each used direction from a ram relay slice); flex VM only</td>
 </tr>
 </tbody>
 </table>
@@ -3300,13 +3303,15 @@ comment uses them (#609). It has no upstream field (nothing to capture):</p>
 does not record its turn order (#926/#927). The sub/flex compile path
 (<code>tools/flexsub_compile_v1.py</code>) rewrites it to strict mode 0 with
 explicit ranks (#929/#930).</p>
-<p><strong>cross</strong> (10). Pure wiring: west↔east and north↔south pass straight
-through, the word keeps its direction, with zero latency and no state or
-ack (#999). It has no RTL core in any family yet; the Flex-Sub netlist
-extractor (<code>splice_crosses</code>) replaces it with a direct wire. <code>FlexGrid</code>
-steps through it; the std VM does not model it. Open: a registered
-variant (latency 1, for long chains and FPGA timing), native per-family
-cores, and cost rows.</p>
+<p><strong>cross</strong> (10). West↔east and north↔south pass straight through, the
+word keeps its direction, and there is no control logic. It costs <strong>one
+tick per tile per direction of travel</strong>, like every other core: each used
+direction is its own one-word register slice, so the two axes never
+share state (#999, Alan's change). There is no native RTL core in any
+family yet. The Flex-Sub netlist extractor (<code>splice_crosses</code>) gives every
+used (tile, direction) an ordinary ram relay slice. <code>FlexGrid</code> models
+those slices as hidden relay cells; the std VM does not model the tile.
+Open: native per-family cores and cost rows.</p>
 <table>
 <thead>
 <tr>
@@ -4059,8 +4064,8 @@ fixed cells, generated from an ICM file by the Flex-Sub assembler
 <tr>
 <td>cross (no cell file; ICM core_select 10)</td>
 <td>none: passes W↔E and N↔S straight through</td>
-<td>the crossing tile (#999): pure wiring, zero latency, no state or ack. Today the netlist extractor turns it into a direct wire; native per-family cores and a registered variant are open</td>
-<td>routing only (no LUT, no DFF)</td>
+<td>the crossing tile (#999): no control logic; one tick per tile per direction (a one-word register slice per used direction). Today the netlist extractor builds each slice from a ram relay; native per-family cores are open</td>
+<td>one register slice per used direction, no logic</td>
 </tr>
 <tr>
 <td>merge <code>merge_cell_v4sa.v</code> (flex only)</td>
@@ -6079,7 +6084,7 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 </tr>
 <tr>
 <td><code>flexsub_icm_netlist_v1.py</code></td>
-<td>Read-only (<code>splice_crosses</code> turns <code>cross</code> tiles into direct wires, #999). It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the <code>connections</code> list is advisory) and says what each family can and cannot express (#923).</td>
+<td>Read-only (<code>splice_crosses</code> gives each used direction of a <code>cross</code> tile a one-tick ram relay slice, #999). It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the <code>connections</code> list is advisory) and says what each family can and cannot express (#923).</td>
 </tr>
 <tr>
 <td><code>flexsub_icm_generate_v1.py</code></td>
@@ -6565,7 +6570,7 @@ at #886. This block is a list of what the ledger records as open. It does not se
 <p><strong>fp on cells (the most recent thread, #982-#999; the whole fp adder from flex cells is done at #990 for normals and
 zero, and the crossing tile at #999):</strong> sub-normals, exponent overflow/underflow, inf and nan for the adder; then
 multiply and compare built the same way. Also open: a placer that decides positions itself, a VM tick-latency model for
-the layout engine, a 64-bit build for fp64, and for the crossing tile a registered variant, native per-family cores and
+the layout engine, a 64-bit build for fp64, and for the crossing tile native per-family cores and
 cost rows. Full list: <code>docs/shared/POINTS_STATUS_AUDIT_3.md</code>.</p>
 <p><strong>Width (#948, #957-#963, #985):</strong> the <code>--icm</code> generators still build 32 bits. Still to do: native-width builds,
 the loader's narrowing, the save's padding, and the <code>min_bit_width</code> fit check (#959). The Tang's spare-bit sign

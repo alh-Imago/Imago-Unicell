@@ -222,10 +222,26 @@ class FlexGrid(SuperGrid):
     _UNVERIFIED_AT_OTHER_WIDTHS = frozenset({"priority"})      # accumulator and branch are checked against the real v4sa cells at W = 16..36 / 4..36 (#970); the priority arbiter is not translated by the flex generator
 
     def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
-        # CROSSING tiles (core "cross", Alan 6 Oct 2026) are pure wiring: a word entering one keeps its direction and leaves by the opposite face, with no state and no tick.
-        # They are therefore not cells here at all: neighbor_pos steps THROUGH them (see below), exactly as the netlist splice does for the generated RTL.
+        # CROSSING tiles (core "cross", Alan 6 Oct 2026): two independent straight-through axes, no control, ONE TICK PER TILE like every other core ("add the tick as 1 per tile").
+        # Each used direction of travel is its OWN one-word register slice: a hidden relay cell (core ram) at a virtual position, reached by neighbor_pos when a neighbour sends
+        # into the tile and sending on beyond it. Two words crossing in the same tile therefore never share a register, and each takes exactly one tick through the tile.
         self._cross = {(r.row, r.col) for r in records if r.core == "cross"}
-        records = [r for r in records if r.core != "cross"]
+        self._slice_real, self._slice_at = {}, {}
+        extra = []
+        for r in records:
+            if r.core != "cross":
+                continue
+            cfg_ = r.core_config or {}
+            up_ = {str(x).upper() for x in (cfg_.get("upstream_mask") or [])} if not isinstance(cfg_.get("upstream_mask"), int) else {d_ for b_, d_ in enumerate("NSEW") if (cfg_["upstream_mask"] >> b_) & 1}
+            dn_ = {str(x).upper() for x in (cfg_.get("downstream_mask") or [])} if not isinstance(cfg_.get("downstream_mask"), int) else {d_ for b_, d_ in enumerate("NSEW") if (cfg_["downstream_mask"] >> b_) & 1}
+            for d_ in "NSEW":
+                if d_ in dn_ and {"N": "S", "S": "N", "E": "W", "W": "E"}[d_] in up_:
+                    vpos = (-100 - len(extra), -100 - len(extra))
+                    self._slice_real[vpos] = (r.row, r.col, d_)
+                    self._slice_at[(r.row, r.col, {"N": N, "S": S, "E": E, "W": W}[d_])] = vpos
+                    extra.append(type(r)(cell_id=f"{r.cell_id}__{d_}", row=vpos[0], col=vpos[1], core="ram",
+                                         core_config={"upstream_mask": [{"N": "S", "S": "N", "E": "W", "W": "E"}[d_]], "downstream_mask": [d_]}, addon_config={}, io_name=None, preload_value=None))
+        records = [r for r in records if r.core != "cross"] + extra
         super().__init__(records, width=width, **kw)
         self._setup_merges(records, merge_mode)
         for r in records:                                   # ledger #976: the adder's carry flag (ICM second_output); the cell attribute is read by the flex adder handler
@@ -246,11 +262,16 @@ class FlexGrid(SuperGrid):
                 if (c.addon_config or {}).get("lane_cut") and (c.addon_config or {}).get("shift_en") and (c.addon_config or {}).get("direction"):
                     raise ValueError(f"flex add-ons at width {width}: lane_cut (a byte-lane cut on right shifts) has no {width}-bit definition and no flex cell; cell {c.cell_id} at {pos} is refused")
 
-    def neighbor_pos(self, row, col, direction):
+    def neighbor_pos(self, row, col, direction, upstream=False):
+        """The cell a word sent out through face `direction` reaches (upstream=True: the cell that SENDS into this face). A crossing tile in between is its register slice for that
+        direction of travel (a hidden cell); a slice itself sits at a virtual position and steps from its real tile."""
         dr, dc = {N: (-1, 0), S: (1, 0), E: (0, 1), W: (0, -1)}[direction]
+        if (row, col) in self._slice_real:
+            row, col, _d = self._slice_real[(row, col)]
         pos = (row + dr, col + dc)
-        while pos in self._cross:
-            pos = (pos[0] + dr, pos[1] + dc)
+        if pos in self._cross:
+            travel = {N: S, S: N, E: W, W: E}[direction] if upstream else direction
+            return self._slice_at.get((pos[0], pos[1], travel))
         return pos if pos in self.cells else None
 
     def _addons(self, value, addon_config):
@@ -272,7 +293,7 @@ class FlexGrid(SuperGrid):
             faces = []
             for d in _DIRS_ALL:
                 if (mask >> _DIR_BIT[d]) & 1:
-                    nb = self.neighbor_pos(pos[0], pos[1], d)
+                    nb = self.neighbor_pos(pos[0], pos[1], d, upstream=True)
                     src = by_pos.get(nb) if nb is not None else None
                     if src is not None:
                         faces.append((index[nb], d))

@@ -941,10 +941,12 @@ mismatches; bf16 and fp16 match too. **Scope:** normal numbers and zero. Not yet
 nan, or formats wider than 32 bits. The placement is a hand template; routing and timing balance are automatic.
 
 **The crossing tile (`#999`).** Routing the adder hit topological walls: closed "rooms" that no lane can leave except through a data
-cell. Alan's answer is a tile that passes west↔east and north↔south straight through, with no ack, no state and no latency. In FPGA it
-costs routing only. It is ICM core `cross`, core_select 10 (confirmed by Alan). The netlist extractor turns it into a direct wire,
-FlexGrid steps through it, and the layout engine lets a route cross another at right angles. **Open:** a registered variant (latency
-1, for long chains and FPGA timing), native cores per family, and cost rows for the router and MAN.
+cell. Alan's answer is a tile that passes west↔east and north↔south straight through, with no control logic. It costs **one tick
+per tile per direction of travel**, like every other core (Alan: "add the tick as 1 per tile"): each used direction is its own
+one-word register slice, so the two axes never share state, and long chains of tiles do not lengthen the critical path. It is ICM
+core `cross`, core_select 10 (confirmed by Alan). In RTL the netlist extractor gives every used (tile, direction) an ordinary ram
+relay slice. FlexGrid models the slices as hidden relay cells. The layout engine lets a route cross another at right angles and
+adds one hop to both routes. **Open:** native cores per family (built from ram slices today), and cost rows for the router and MAN.
 
 ## Status
 

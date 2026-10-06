@@ -79,7 +79,7 @@ dedicated port and a design is a generated netlist. Full detail is in
 | Second outputs (adder carry, mul high word) | none | `SECOND_PORT=1` build parameter plus a config bit |
 | Shift / mask / invert | wiring, coarse taps only | wiring, any shift 0-31 |
 | sequencer | tick-driven (`advance_in` from the host) | free-running, paced by the consumer's ack |
-| cross (ICM core 10, #999) | a direct wire after the netlist splice | same; FlexGrid steps through it. A route can cross another at right angles, which lifts the planarity wall that hand-routed fp layouts hit |
+| cross (ICM core 10, #999) | one ram relay slice per used direction (one tick each) after the netlist splice | same; FlexGrid models the slices. A route can cross another at right angles, which lifts the planarity wall that hand-routed fp layouts hit |
 
 ## Quick answers to common design questions
 

@@ -163,36 +163,53 @@ def extract(path):
 
 
 def splice_crosses(cells, edges, inputs, outputs, external_out, warnings):
-    """CROSSING tiles (core "cross", Alan 6 Oct 2026): a tile that passes data STRAIGHT THROUGH on two independent axes (W<->E and N<->S), pure wiring, no state and no control.
-    A word that enters a crossing travelling in direction d leaves it travelling in direction d. In the netlist a crossing therefore does not exist: `src -> cross -> dst` is the
-    direct edge `src -> dst` (valid/data forward, ready back, all plain wires, so the emitters need nothing new). Chains of crossings collapse the same way. A crossing whose
-    straight-through exit leaves the grid or meets a neighbour that does not listen is reported (the word would be lost)."""
+    """CROSSING tiles (core "cross", Alan 6 Oct 2026): a tile that passes data STRAIGHT THROUGH on two independent axes (W<->E and N<->S), no control, no decisions.
+    ONE TICK PER TILE, as with every other core (Alan, 6 Oct 2026: "add the tick as 1 per tile"): each direction of travel through the tile has its OWN one-word register slice,
+    so a word entering travelling in direction d leaves in direction d one tick later, and the two axes never share state. In the netlist each used (tile, direction) becomes an ordinary
+    ram relay cell `<tile>__<d>` (upstream face OPP[d], downstream face d); `src -> cross -> dst` is `src -> X__d -> dst`. A slice whose straight-through exit leaves the grid keeps the
+    external output; one whose exit meets a neighbour that does not listen is reported (the word would be lost)."""
     cells = dict(cells)
     inputs = {k: {r: list(v) for r, v in d.items()} for k, d in inputs.items()}
     outputs = {k: list(v) for k, v in outputs.items()}
     cross = {c for c, r in cells.items() if r.core == "cross"}
-    edges = list(edges)
-    for _ in range(len(cross) + 2):
-        hit = [e for e in edges if e[1] in cross]
-        if not hit:
-            break
-        for e in hit:
-            src, x, d, role, oc = e
-            nxt = [f for f in edges if f[0] == x and f[2] == d]
-            edges.remove(e)
-            outputs[src] = [q for q in outputs.get(src, []) if q != x]
-            inputs[x] = {r_: [(q, f_) for q, f_ in lst if not (q == src and f_ == OPP[d])] for r_, lst in inputs.get(x, {}).items()}
-            if not nxt:
-                if d in external_out.get(x, []):
-                    external_out[src].append(d)
-                else:
-                    warnings.append(f"{x} (crossing): the word from {src} travelling {d} has no listener straight through -- output dropped")
-                continue
-            f = nxt[0]
-            edges.append((src, f[1], d, f[3], oc or f[4]))
-            outputs[src].append(f[1])
-            inputs[f[1]][f[3]] = [(q, fc) for q, fc in inputs[f[1]][f[3]] if q != x or fc != OPP[d]] + [(src, OPP[d])]
-    edges = [e for e in edges if e[0] not in cross and e[1] not in cross]
+    V = lambda x, d: f"{x}__{d}"
+    used = set()
+    new_edges = []
+    for src, dst, d, role, oc in edges:
+        ns, nd = src, dst
+        if src in cross:
+            used.add((src, d))
+            ns = V(src, d)
+        if dst in cross:
+            used.add((dst, d))
+            nd = V(dst, d)
+        new_edges.append((ns, nd, d, "in" if dst in cross else role, () if src in cross else oc))
+    edges = new_edges
+    for x, d in sorted(used):
+        base = cells[x]
+        has_in = any(e[1] == V(x, d) for e in edges)
+        has_out = any(e[0] == V(x, d) for e in edges)
+        if not has_in:
+            continue                                   # an exit with nothing entering it
+        cells[V(x, d)] = type(base)(cell_id=V(x, d), row=base.row, col=base.col, core="ram",
+                                    core_config={"upstream_mask": [OPP[d]], "downstream_mask": [d]}, addon_config={}, io_name=None, preload_value=None)
+        if not has_out:
+            if d in external_out.get(x, []):
+                external_out[V(x, d)] = [d]
+            else:
+                warnings.append(f"{x} (crossing): the word travelling {d} has no listener straight through -- output dropped")
+    for src, dst, d, role, oc in edges:                # rebuild the per-cell views from the edge list for every edge that touches a slice
+        if dst.endswith("__" + d) and dst in cells and dst[: -len(d) - 2] in cross:
+            outputs[src] = [q for q in outputs.get(src, []) if q != dst[: -len(d) - 2]] + [dst]
+            inputs.setdefault(dst, {}).setdefault("in", [])
+            if (src, OPP[d]) not in inputs[dst]["in"]:
+                inputs[dst]["in"].append((src, OPP[d]))
+        if src.endswith("__" + d) and src in cells and src[: -len(d) - 2] in cross:
+            x = src[: -len(d) - 2]
+            outputs[src] = [dst] if dst not in outputs.get(src, []) else outputs[src]
+            keep = [(q, f) for q, f in inputs[dst][role] if q != x]
+            inputs[dst][role] = keep + ([(src, OPP[d])] if (src, OPP[d]) not in keep else [])
+    edges = [e for e in edges if e[0] in cells and e[1] in cells]
     for x in cross:
         cells.pop(x, None)
         inputs.pop(x, None)
@@ -200,6 +217,8 @@ def splice_crosses(cells, edges, inputs, outputs, external_out, warnings):
         external_out.pop(x, None)
     for k in list(outputs):
         outputs[k] = [q for q in outputs[k] if q not in cross]
+    for k in list(inputs):
+        inputs[k] = {r: [(q, f) for q, f in lst if q not in cross] for r, lst in inputs[k].items()}
     return cells, edges, inputs, outputs, external_out
 
 
