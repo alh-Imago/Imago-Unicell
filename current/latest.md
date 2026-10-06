@@ -2,6 +2,8 @@
 
 ## Read this first (most recent)
 
+**#972 -- COMPARATOR THRESHOLD GETS ITS OWN PORT (Alan's trend: two config parts = two ports; nano the exception):** `cfg_threshold [WIDTH-1:0]` on compare_cell_v4sa (still one data in, one result out); cfg_data unused; bench + flex emitter updated; at W!=32 the VM wraps the ICM threshold to a W-bit signed register; FlexGrid no longer refuses a comparator above 32 bits. 8 tests incl. six thresholds beyond the 32-bit range at W36 vs the real cell. All four #970 RTL limits are now resolved or refused-with-reason (accumulator <16 and sequencer <8 remain refusals). Next layer: MAN cost tables + start-up flag.
+
 **#971 -- NANO `armed` GATE APPLIED (Alan's go-ahead):** nano_cell_v4sa captures on `valid_in && armed` (as the sequencer, #956); bench case added (mutant caught); the pinned-defect test now asserts the fixed behaviour. Open: comparator above 32 bits -- sign-extend the config word, or add a threshold input port (decision with Alan).
 
 **#970 -- FLEXGRID STEPS 6-9: sequencer, comparator, accumulator (cont. + pulse), latch, branch at width W equal the real v4sa cells (+ 40 tests).** Each real cell driven in iverilog at every width it builds. FOUR RTL LIMITS FOUND, none fixed: (1) compare_cell_v4sa W>32: threshold from a 32-bit cfg_data -> x; (2) accumulator W<16 does not elaborate; (3) sequencer W<8 same; (4) nano_cell_v4sa captures on valid_in with no `armed` check (as the sequencer did before #956; generated designs safe; pinned by a test). FlexGrid refuses (1)-(3) with the reason; priority is the only core still warned about. Decisions for Alan: fixes for (1) and (4). FlexGrid now covers every core the flex generator translates; next layer = MAN cost tables and the start-up flag (`vm flex -w36`).

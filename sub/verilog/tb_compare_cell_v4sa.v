@@ -5,6 +5,7 @@ module tb_compare_cell_v4sa;
     reg freeze_in = 0;
     reg cfg_valid = 0;
     reg [31:0] cfg_data = 0;
+    reg [31:0] cfg_threshold = 0;
     reg [31:0] data_in = 0;
     reg valid_in = 0;
     reg ack_in = 0;
@@ -16,7 +17,7 @@ module tb_compare_cell_v4sa;
 
     compare_cell_v4sa dut (
         .clk(clk), .rst(rst), .freeze_in(freeze_in),
-        .cfg_valid(cfg_valid), .cfg_data(cfg_data),
+        .cfg_valid(cfg_valid), .cfg_data(cfg_data), .cfg_threshold(cfg_threshold),
         .data_in(data_in), .valid_in(valid_in), .ack_out(ack_out),
         .data_out(data_out), .valid_out(valid_out), .ack_in(ack_in)
     );
@@ -31,7 +32,7 @@ module tb_compare_cell_v4sa;
 
     task cfg(input [31:0] word);
         begin
-            cfg_data = word; cfg_valid = 1;
+            cfg_data = 32'h0; cfg_threshold = word; cfg_valid = 1;   // #971: the threshold has its own port
             @(posedge clk); #1;   // settle BEFORE clearing -- the proven #906/#911 fix,
             cfg_valid = 0;        // applied here from the start, not discovered again.
         end

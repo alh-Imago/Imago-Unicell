@@ -702,7 +702,7 @@ class SuperCell:
         elif core == "comparator":
             cell.cmp_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.cmp_upstream_mask = dm(cfg.get("upstream_mask", 0))
-            cell.cmp_threshold = cfg.get("threshold", 0)
+            cell.cmp_threshold = cfg.get("threshold", 0) if width == 32 else _wrap_signed(int(cfg.get("threshold", 0)), width)   # at another width the threshold is a W-bit signed register (ledger #971)
         elif core == "latch":
             cell.latch_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.latch_set_dir = dm(cfg.get("set_dir", 0))

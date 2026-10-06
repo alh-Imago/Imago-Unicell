@@ -30,7 +30,7 @@ WHAT THE EMITTER BUILDS (all of it plain valid/ready glue around the cells):
     overlaps the drain); B's ready is `aload & ack_out`, and its capture clears `aload`. `armed` = ack_out | valid_out. Arrival ORDER no longer matters: a B that comes
     first just waits -- which is why a handshake design needs none of sub's padding.
 
-  * COMPARATOR (stage 4) -- compare_cell_v4sa is a single-input cell (signed(data) >= threshold -> 0/1, threshold in cfg_data), so its handshake is exactly a relay's.
+  * COMPARATOR (stage 4) -- compare_cell_v4sa is a single-input cell (signed(data) >= threshold -> 0/1, threshold on its own cfg_threshold port, #971), so its handshake is exactly a relay's.
 
   * ACCUMULATOR and LATCH (stage 5, the LEVEL SOURCES). Their pulse inputs (inc/dec, set/clear/toggle) are bare strobes with NO handshake, and in the cells the total / state
     ALWAYS updates on a pulse while the output snapshot (`out_buffer`) is captured only when the cell is not `pending` -- so a pulse landing while pending is counted but its
@@ -389,7 +389,7 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h0), .set_in({i}_p_set), .clear_in({i}_p_clear), .toggle_in({i}_p_toggle));   // LEVEL")
         elif r.core == "comparator":
             thr = int(cfg.get("threshold", 0)) & 0xFFFFFFFF                # signed(data) >= threshold -> 0/1, exactly as the VM (a single-input cell like a relay)
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{thr:08X}), .data_in({i}_ind), .valid_in({i}_vin));   // threshold {thr}")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h0), .cfg_threshold(32'h{thr:08X}), .data_in({i}_ind), .valid_in({i}_vin));   // threshold {thr}")
         elif r.core == "nano":
             a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{int(cfg.get('topology', 0)):X}), .hold_in_data({i}_inh), .load_hold({i}_ldA), "
               f".flow_in_data({i}_inf), .valid_in({i}_vin));")

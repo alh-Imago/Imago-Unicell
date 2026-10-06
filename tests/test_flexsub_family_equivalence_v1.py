@@ -64,6 +64,8 @@ def build(base, cfgw, raw=False):
                 c.append((p, {"clk":"clk","rst":"rst","freeze_in":"1'b0","cfg_valid":"cfg_valid","cfg_data":f"32'h{cfgw:08X}"}[p]))
         if sh.get("in_data"): c.append((sh["in_data"],"din"))
         for k,p in enumerate(sh.get("stim_data",[])): c.append((p,f"sd{k}"))
+        for p in sh.get("opt_stim_data",[]):
+            if p in real_in: c.append((p,f"32'h{cfgw:08X}"))   # #971: the flex comparator's threshold has its own port; the sub cell reads the same word from cfg_data
         for k,p in enumerate(sh.get("stim_ctrl",[])): c.append((p,f"sc[{k}]"))
         if sh.get("in_valid"): c.append((sh["in_valid"],"vin"))
         for p,v in sh.get("consts",{}).items():

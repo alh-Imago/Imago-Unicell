@@ -443,7 +443,7 @@ try:
     if 5 in cmp_dirs:
         dz = cmp_dirs[5]
         topz = os.path.join(dz, json.load(open(os.path.join(dz, "ASSEMBLY.json")))["top"] + ".v")
-        txt = re.sub(r"\.cfg_data\(32'h00000005\)", ".cfg_data(32'h00000000)", open(topz).read())
+        txt = re.sub(r"\.cfg_threshold\(32'h00000005\)", ".cfg_threshold(32'h00000000)", open(topz).read())   # #971: the threshold has its own port
         dmz = os.path.join(tmp, "mutcmp")
         shutil.copytree(dz, dmz)
         open(os.path.join(dmz, os.path.basename(topz)), "w").write(txt)

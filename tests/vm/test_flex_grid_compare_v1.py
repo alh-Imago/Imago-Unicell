@@ -1,7 +1,7 @@
-"""tests/vm/test_flex_grid_compare_v1.py -- FlexGrid step 7: the COMPARATOR at width W against the REAL compare_cell_v4sa (ledger #970).
+"""tests/vm/test_flex_grid_compare_v1.py -- FlexGrid step 7: the COMPARATOR at width W against the REAL compare_cell_v4sa (ledger #970, #971).
 
-Result = 1 when signed(data) >= threshold (both W-bit signed), else 0. The RTL loads the threshold from cfg_data[WIDTH-1:0] and cfg_data is a fixed 32-bit word, so a threshold wider than 32 bits cannot be
-loaded (and at W > 32 the upper bits of the select are out of range). Requires iverilog and FAILS without it.
+Result = 1 when signed(data) >= threshold (both W-bit signed), else 0. Since #971 the threshold has its OWN WIDTH-bit port, cfg_threshold (before, it was read from the fixed 32-bit cfg_data, so above 32 bits its upper
+bits were undefined and the result x). Requires iverilog and FAILS without it.
 """
 import os
 import random
@@ -18,7 +18,7 @@ import flex_grid_v1 as fg  # noqa: E402
 from icm_v3 import IcmV3Record  # noqa: E402
 
 V = os.path.join(ROOT, "sub", "verilog")
-WIDTHS = (4, 8, 18, 32)       # 36 is refused (below): the real cell cannot load a threshold wider than its 32-bit config word
+WIDTHS = (4, 8, 18, 32, 36)
 
 
 def signed(v, w):
@@ -27,23 +27,23 @@ def signed(v, w):
 
 
 def thresholds(w):
-    top = (1 << (min(w, 32) - 1)) - 1          # largest value a 32-bit config word can carry as a positive threshold
+    top = (1 << (w - 1)) - 1                    # the largest W-bit signed threshold (now loadable at every width)
     return sorted({0, 1, -1, 2, -2, top, -top - 1, top // 2, -(top // 2)})
 
 
 def rtl_results(w, cases, tmp_path):
     assert shutil.which("iverilog") and shutil.which("vvp"), "iverilog is REQUIRED (this test must not skip silently)"
-    body = "\n".join(f"    run(32'h{t & 0xFFFFFFFF:08X}, {w}'h{v & ((1 << w) - 1):X});" for t, v in cases)
+    body = "\n".join(f"    run({w}'h{t & ((1 << w) - 1):X}, {w}'h{v & ((1 << w) - 1):X});" for t, v in cases)
     tb = f"""`timescale 1ns/1ps
 module tb;
   parameter W = {w};
-  reg clk = 0, rst = 1, freeze = 0, cfgv = 0, vin = 0, ackin = 0; reg [31:0] cfgd = 0; reg [W-1:0] din = 0;
+  reg clk = 0, rst = 1, freeze = 0, cfgv = 0, vin = 0, ackin = 0; reg [W-1:0] cfgt = 0; reg [W-1:0] din = 0;
   wire ackout, vout; wire [W-1:0] dout;
-  compare_cell_v4sa #(.CELL_ID(16'd0), .WIDTH(W)) dut (.clk(clk), .rst(rst), .freeze_in(freeze), .cfg_valid(cfgv), .cfg_data(cfgd), .data_in(din), .valid_in(vin), .ack_out(ackout), .data_out(dout), .valid_out(vout), .ack_in(ackin));
+  compare_cell_v4sa #(.CELL_ID(16'd0), .WIDTH(W)) dut (.clk(clk), .rst(rst), .freeze_in(freeze), .cfg_valid(cfgv), .cfg_data(32'h0), .cfg_threshold(cfgt), .data_in(din), .valid_in(vin), .ack_out(ackout), .data_out(dout), .valid_out(vout), .ack_in(ackin));
   always #5 clk = ~clk;
-  task run(input [31:0] t, input [W-1:0] v);
+  task run(input [W-1:0] t, input [W-1:0] v);
     begin
-      cfgd = t; cfgv = 1; @(posedge clk); #1; cfgv = 0;
+      cfgt = t; cfgv = 1; @(posedge clk); #1; cfgv = 0;
       din = v; vin = 1; @(posedge clk); #1; vin = 0;
       $display("R %h %h %h", t, v, dout);
       ackin = 1; @(posedge clk); #1; ackin = 0;
@@ -90,7 +90,7 @@ def test_flexgrid_comparator_equals_the_real_cell(w, tmp_path):
     rtl = rtl_results(w, cases, tmp_path)
     bad = []
     for t, v in cases:
-        want = rtl[(t & 0xFFFFFFFF, v & m)]
+        want = rtl[(t & m, v & m)]
         got = vm_result(t, v, w)
         if "x" in want or got is None or int(want, 16) != got:
             bad.append((t, hex(v), "vm", got, "rtl", want))
@@ -102,17 +102,25 @@ def test_the_comparison_bites_an_unsigned_compare(tmp_path):
     cases = [(-1, 5), (-1, (1 << w) - 1), (1, (1 << w) - 2)]
     rtl = rtl_results(w, cases, tmp_path)
     unsigned_mirror = [1 if (v & ((1 << w) - 1)) >= (t & ((1 << w) - 1)) else 0 for t, v in cases]
-    assert unsigned_mirror != [int(rtl[(t & 0xFFFFFFFF, v & ((1 << w) - 1))], 16) for t, v in cases]
+    assert unsigned_mirror != [int(rtl[(t & ((1 << w) - 1), v & ((1 << w) - 1))], 16) for t, v in cases]
 
 
-def test_known_rtl_limit_above_32_bits_the_threshold_cannot_be_loaded_and_flexgrid_refuses(tmp_path):
-    """FINDING (ledger #970): compare_cell_v4sa does `threshold <= cfg_data[WIDTH-1:0]` with a 32-bit cfg_data, so at W = 36 bits 35:32 select out of range and the result is x (every case below). Pinned so a fix is
-    noticed; FlexGrid refuses a comparator above 32 bits. At W <= 32 the cell and the mirror agree (the tests above)."""
+def test_a_threshold_wider_than_32_bits_now_loads_at_width_36(tmp_path):
+    """#971: the threshold has its own W-bit port, so at W = 36 thresholds beyond the 32-bit range work in the real cell and in FlexGrid (before: x). Every result is defined and equal."""
     w = 36
-    cases = [(0, 5), (-1, 5), (1, (1 << 35))]
+    m = (1 << w) - 1
+    ts = [1 << 34, -(1 << 34), (1 << 35) - 1, -(1 << 35), (1 << 32), -(1 << 32) - 1]
+    vs = [0, 1 << 33, 1 << 34, (1 << 34) + 1, m, (1 << 35), (1 << 35) - 1, m - (1 << 33)]
+    cases = [(t, v) for t in ts for v in vs]
     rtl = rtl_results(w, cases, tmp_path)
-    assert all("x" in rtl[(t & 0xFFFFFFFF, v)] for t, v in cases), rtl
+    assert not any("x" in d for d in rtl.values())
+    for t, v in cases:
+        assert vm_result(t, v, w) == int(rtl[(t & m, v & m)], 16), (t, v)
+    # and a sign-extended 32-bit word could NOT have expressed these: the thresholds below really are beyond the 32-bit signed range
+    assert all(abs(t) > (1 << 31) for t in ts)
+
+
+def test_flexgrid_builds_a_comparator_at_every_width():
     rec = IcmV3Record(cell_id="C", row=0, col=0, core="comparator", core_config={"upstream_mask": ["w"], "downstream_mask": ["e"], "threshold": 0})
-    with pytest.raises(ValueError, match="comparator"):
+    for w in (4, 8, 18, 32, 36):
         fg.FlexGrid([rec], width=w)
-    fg.FlexGrid([rec], width=32)

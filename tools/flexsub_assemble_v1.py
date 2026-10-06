@@ -59,6 +59,7 @@ FAMILIES = {
 #                        control pulses, so the "array" is N independent cells)
 #   out         primary (data, valid) output; ack_out/ack_in the primary handshake (flex only)
 #   side        extra outputs [(data, valid, ack_in)] -- observed, not chained (router b, branch 2)
+#   opt_stim_data   like stim_data, but only the ports the family's real module has
 #   stim_data   further W-bit inputs driven from distinct rotations of the live LFSR (#889's
 #               anti-collapse rule); stim_ctrl -- 1-bit inputs driven from distinct LFSR taps
 #   consts      other ports tied to a fixed value; params -- extra module parameters
@@ -74,7 +75,8 @@ SHAPES = {
                   out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
                   stim_data=["in_b"], cfg="zero"),
     "compare": dict(file=("compare_cell", ""), in_data="data_in", in_valid="valid_in",
-                    out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in", cfg="zero"),
+                    out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in", cfg="zero",
+                    opt_stim_data=["cfg_threshold"]),      # flex only: the threshold's own W-bit port (#971)
     "mask": dict(file=("mask_cell", ""), in_data="data_in", in_valid="valid_in",
                  out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in", cfg="live"),
     "ram": dict(file=("ram_cell", ""), in_data="data_in", in_valid="valid_in",
@@ -211,6 +213,12 @@ def real_ports(path, module):
     return ins, outs, params
 
 
+def _stim_ports(sh, real_in):
+    """The W-bit stimulus ports of a shape: the always-present `stim_data`, plus the `opt_stim_data` ports that THIS family's real module actually has (e.g. the flex comparator's cfg_threshold, ledger
+    #971; the sub comparator has none)."""
+    return list(sh.get("stim_data", [])) + [p for p in sh.get("opt_stim_data", []) if p in real_in]
+
+
 def _connections(family, base, real_in):
     """Ordered [(port, expression)] for one instance. Standard ports are included only when the
     real module has them."""
@@ -224,7 +232,7 @@ def _connections(family, base, real_in):
                       "cfg_data": "cfg_i" if sh.get("cfg") == "live" else "32'h0"}[p]))
     if sh.get("in_data"):
         c.append((sh["in_data"], "stage_data[i]"))
-    for p in sh.get("stim_data", []):
+    for p in _stim_ports(sh, real_in):
         c.append((p, f"stim_{p}"))
     for k, p in enumerate(sh.get("stim_ctrl", [])):
         c.append((p, f"lfsr[(i * 3 + {k * 7 + 1}) % 32]"))
@@ -327,7 +335,7 @@ def generate_top(top_name, family, base, n, width, real_in):
     a("genvar i;")
     a("generate")
     a("    for (i = 0; i < N; i = i + 1) begin : STAGE")
-    for k, p in enumerate(sh.get("stim_data", [])):
+    for k, p in enumerate(_stim_ports(sh, real_in)):
         sh_expr = f"(i + {k * 7}) % 32" if k else "i % 32"
         a(f"        wire [63:0]    rot_{p}  = (lfsr2 >> ({sh_expr}));")
         a(f"        wire [W-1:0]   stim_{p} = rot_{p}[W-1:0];")

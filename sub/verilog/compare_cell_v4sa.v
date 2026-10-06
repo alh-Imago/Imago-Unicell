@@ -13,9 +13,9 @@
 // zero-extended to the full bus width (matching the original's own
 // `{31'h0, result_bit}` convention, now `{WIDTH-1{1'b0}, result_bit}`).
 //
-// WIDTH note: the threshold is stored in the LOW WIDTH bits of cfg_data, not
-// the full 32-bit word -- with WIDTH<32, upper cfg_data bits are simply
-// unused/reserved, not reinterpreted as anything else.
+// WIDTH note (ledger #971, Alan): the threshold arrives on its OWN port, `cfg_threshold`, WIDTH bits wide, like the branch cell's `cfg_emit_fixed_value` -- the
+// trend in the flex family is that when a cell needs two config parts it has two ports. It used to be read from cfg_data[WIDTH-1:0], and cfg_data is a fixed 32-bit
+// word, so above 32 bits the upper threshold bits were undefined (x) and the result was x. `cfg_data` is now unused (kept for the uniform port shape).
 //
 // ack/freeze: identical shape and reasoning to adder_cell_v4sa.v/
 // accumulator_cell_v4sa.v -- standard ready/valid (valid_out stays high until
@@ -39,7 +39,8 @@ module compare_cell_v4sa #(
     input  wire        freeze_in,
 
     input  wire         cfg_valid,
-    input  wire [31:0]  cfg_data,
+    input  wire [31:0]  cfg_data,        // unused by this cell (kept for a uniform port shape)
+    input  wire [WIDTH-1:0] cfg_threshold, // the threshold, a full WIDTH bits (signed), loaded on cfg_valid
 
     input  wire [WIDTH-1:0]  data_in,
     input  wire               valid_in,
@@ -70,7 +71,7 @@ module compare_cell_v4sa #(
             pending     <= 1'b0;
             out_buffer  <= {WIDTH{1'b0}};
         end else if (cfg_valid) begin
-            threshold   <= cfg_data[WIDTH-1:0];
+            threshold   <= cfg_threshold;
             armed       <= 1'b1;
             pending     <= 1'b0;
             out_buffer  <= {WIDTH{1'b0}};
