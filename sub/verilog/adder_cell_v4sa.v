@@ -87,12 +87,26 @@ module adder_cell_v4sa #(
 
     output wire [WIDTH-1:0]  data_out,
     output wire               valid_out,   // stays high until ack_in, not a one-shot pulse
-    input  wire               ack_in       // backward, from the one fixed downstream receiver
+    input  wire               ack_in,      // backward, from the one fixed downstream receiver
+
+    // SECOND OUTPUT PORT (Alan's ruling, 2026-10-06: a cell that produces two results gets two
+    // ports, as branch does). The raw carry-out of the add, as a WIDTH-bit word that is 0 or 1
+    // (so it can feed an adder's in_b directly for multi-word arithmetic). Own valid/ack pair,
+    // fully independent of data_out's. For subtract (a + ~b + 1) this is the raw carry, i.e.
+    // NOT-borrow. Only produced when cfg_data[1] (carry_enable) is set: with it clear the port is
+    // silent, never goes pending, and the cell behaves exactly as before -- so leaving the three
+    // ports unconnected is safe.
+    output wire [WIDTH-1:0]  carry_out,
+    output wire               valid_out_c,
+    input  wire               ack_in_c
 );
 
     reg             subtract_mode = 1'b0;
     reg             armed         = 1'b0;   // narrow, permanent: has real config ever loaded
     reg             pending       = 1'b0;   // holding a real, not-yet-consumed result
+    reg             carry_enable  = 1'b0;   // cfg_data[1]: also produce the carry on carry_out
+    reg             pending_c     = 1'b0;   // carry result held, not yet consumed
+    reg             carry_buffer  = 1'b0;
     reg [WIDTH-1:0] out_buffer    = {WIDTH{1'b0}};
 
     // ── The real arithmetic -- unchanged from adder_v1, the same primitive
@@ -107,7 +121,10 @@ module adder_cell_v4sa #(
 
     assign data_out  = out_buffer;
     assign valid_out = pending;
-    assign ack_out   = armed && !pending && !freeze_in;   // a frozen cell must not claim
+    assign carry_out   = {{(WIDTH-1){1'b0}}, carry_buffer};
+    assign valid_out_c = pending_c;
+    // A new round needs BOTH outputs consumed (same rule as branch_cell_v4sa).
+    assign ack_out   = armed && !pending && !pending_c && !freeze_in;   // a frozen cell must not claim
                                                             // readiness -- nothing can move
 
     always @(posedge clk) begin
@@ -115,13 +132,18 @@ module adder_cell_v4sa #(
             subtract_mode <= 1'b0;
             armed         <= 1'b0;
             pending       <= 1'b0;
+            carry_enable  <= 1'b0;
+            pending_c     <= 1'b0;
+            carry_buffer  <= 1'b0;
             out_buffer    <= {WIDTH{1'b0}};
         end else if (cfg_valid) begin
             // Config load takes effect even while frozen -- loading safely
             // during a freeze is the whole point of freeze existing.
             subtract_mode <= cfg_data[0];
+            carry_enable  <= cfg_data[1];
             armed         <= 1'b1;
             pending       <= 1'b0;   // discard any in-flight result on reconfigure
+            pending_c     <= 1'b0;
             out_buffer    <= {WIDTH{1'b0}};
         end else if (!freeze_in) begin
             // Normal operation, only when not frozen. Exactly one of "clear a
@@ -129,11 +151,15 @@ module adder_cell_v4sa #(
             // cycle -- never both, since ack_out is only ever true when
             // pending is already false, so a correctly-behaving upstream
             // sender never presents valid_in while pending is still true.
-            if (pending) begin
-                if (ack_in) pending <= 1'b0;
+            if (pending || pending_c) begin
+                // each output clears independently on its own ack
+                if (pending   && ack_in)   pending   <= 1'b0;
+                if (pending_c && ack_in_c) pending_c <= 1'b0;
             end else if (valid_in) begin
-                out_buffer <= adder_sum;
-                pending    <= 1'b1;
+                out_buffer   <= adder_sum;
+                pending      <= 1'b1;
+                carry_buffer <= adder_cout;
+                pending_c    <= carry_enable;
             end
         end
         // else: frozen, not resetting, not reconfiguring -- hold everything

@@ -33,7 +33,7 @@ adder_cell_v4sa DUT (
     .clk(BOARD_CLK), .rst(rst), .freeze_in(1'b0),
     .cfg_valid(cfg_valid), .cfg_data(32'h0),
     .in_a(lfsr), .in_b(~lfsr), .valid_in(1'b1), .ack_out(ack_out),
-    .data_out(result), .valid_out(valid), .ack_in(consumer_ack)
+    .data_out(result), .valid_out(valid), .ack_in(consumer_ack), .ack_in_c(1'b1)
 );
 
 assign LED0_N = ~valid;

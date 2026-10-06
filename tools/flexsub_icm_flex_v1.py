@@ -395,7 +395,8 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
               f".flow_in_data({i}_inf), .valid_in({i}_vin));")
         else:
             word = 1 if (r.core == "adder" and cfg.get("subtract_mode", 0)) else 0
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin));")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), "
+              f"{'.ack_in_c(1' + chr(39) + 'b1)' if r.core == 'adder' else '.ack_in_hi(1' + chr(39) + 'b1)'});")   # #974: the second output port is not used by the ICM path yet -- tied high so it can never stall the cell
         if c in addons:
             a(f"assign {i}_d = {g.addon_expr(addons[c], dout)};   // addon chain as pure wiring: data only; valid and the handshake are untouched")
     a("endmodule")

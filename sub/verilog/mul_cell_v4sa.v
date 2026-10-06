@@ -30,7 +30,7 @@ module mul_cell_v4sa #(
     input  wire        freeze_in,
 
     input  wire         cfg_valid,
-    input  wire [31:0]  cfg_data,   // unused; kept for a uniform port shape
+    input  wire [31:0]  cfg_data,   // bit 0 = hi_enable (also produce the HIGH word on data_out_hi)
 
     input  wire [WIDTH-1:0]  in_a,
     input  wire [WIDTH-1:0]  in_b,
@@ -39,11 +39,22 @@ module mul_cell_v4sa #(
 
     output wire [WIDTH-1:0]  data_out,
     output wire               valid_out,   // stays high until ack_in, not a one-shot pulse
-    input  wire               ack_in       // backward, from the one fixed downstream receiver
+    input  wire               ack_in,      // backward, from the one fixed downstream receiver
+
+    // SECOND OUTPUT PORT (Alan's ruling, 2026-10-06: two results = two ports, as branch does):
+    // the HIGH word of the 2*WIDTH product, own valid/ack, independent of data_out's. Only
+    // produced when cfg_data[0] (hi_enable) is set; clear, the port is silent and the cell is
+    // exactly as before, so leaving these three ports unconnected is safe.
+    output wire [WIDTH-1:0]  data_out_hi,
+    output wire               valid_out_hi,
+    input  wire               ack_in_hi
 );
 
     reg             armed       = 1'b0;
     reg             pending     = 1'b0;
+    reg             hi_enable   = 1'b0;
+    reg             pending_hi  = 1'b0;
+    reg [WIDTH-1:0] hi_buffer   = {WIDTH{1'b0}};
     reg [WIDTH-1:0] out_buffer  = {WIDTH{1'b0}};
 
     // ── The real arithmetic -- a plain, genuinely width-generic multiply,
@@ -52,20 +63,31 @@ module mul_cell_v4sa #(
 
     assign data_out  = out_buffer;
     assign valid_out = pending;
-    assign ack_out   = armed && !pending && !freeze_in;
+    assign data_out_hi  = hi_buffer;
+    assign valid_out_hi = pending_hi;
+    // a new round needs BOTH outputs consumed (same rule as branch_cell_v4sa)
+    assign ack_out   = armed && !pending && !pending_hi && !freeze_in;
 
     always @(posedge clk) begin
         if (rst) begin
             armed       <= 1'b0;
             pending     <= 1'b0;
+            hi_enable   <= 1'b0;
+            pending_hi  <= 1'b0;
+            hi_buffer   <= {WIDTH{1'b0}};
             out_buffer  <= {WIDTH{1'b0}};
         end else if (cfg_valid) begin
             armed       <= 1'b1;
+            hi_enable   <= cfg_data[0];
             pending     <= 1'b0;
+            pending_hi  <= 1'b0;
         end else if (!freeze_in) begin
-            if (pending) begin
-                if (ack_in) pending <= 1'b0;
+            if (pending || pending_hi) begin
+                if (pending    && ack_in)    pending    <= 1'b0;
+                if (pending_hi && ack_in_hi) pending_hi <= 1'b0;
             end else if (valid_in) begin
+                hi_buffer  <= full_product[2*WIDTH-1:WIDTH];
+                pending_hi <= hi_enable;
                 out_buffer <= full_product[WIDTH-1:0];
                 pending    <= 1'b1;
             end

@@ -78,6 +78,7 @@ def build(base, cfgw, raw=False):
         for k,(d,v,a) in enumerate(sh.get("side",[])):
             L.append(f"  wire [31:0] {fam}_s{k}d; wire {fam}_s{k}v;"); c.append((d,f"{fam}_s{k}d")); c.append((v,f"{fam}_s{k}v"))
             if ack: c.append((a,"1'b1"))
+        c+=fsa._open_ports(sh,real_in)   # #974: flex-only second output port, ack tied high, outputs open; carry/hi are disabled by the zero cfg word and never compared (the sub cell has none)
         params=[".CELL_ID(16'd0)"]+[f".{k}({v.replace('i','0') if k=='SHIFT_AMT' else v.replace('i','0')})" for k,v in sh.get("params",{}).items()]
         missing=[p for p in real_in if p not in {x for x,_ in c}]
         assert not missing,(base,fam,missing)

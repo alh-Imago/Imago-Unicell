@@ -18,7 +18,7 @@ module tb_mul_cell_v4sa;
         .clk(clk), .rst(rst), .freeze_in(freeze_in),
         .cfg_valid(cfg_valid), .cfg_data(32'h0),
         .in_a(in_a), .in_b(in_b), .valid_in(valid_in), .ack_out(ack_out),
-        .data_out(data_out), .valid_out(valid_out), .ack_in(ack_in)
+        .data_out(data_out), .valid_out(valid_out), .ack_in(ack_in), .ack_in_hi(1'b1)
     );
 
     integer errors = 0;

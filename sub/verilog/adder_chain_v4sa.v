@@ -72,7 +72,8 @@ module adder_chain_v4sa #(
                 .in_a(stage_data[i]), .in_b(in_b_i), .valid_in(stage_valid[i]),
                 .ack_out(stage_ack[i]),
                 .data_out(stage_data[i+1]), .valid_out(stage_valid[i+1]),
-                .ack_in(stage_ack[i+1])
+                .ack_in(stage_ack[i+1]),
+                .ack_in_c(1'b1)   // second output port unused here (#974)
             );
         end
     endgenerate

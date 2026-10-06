@@ -49,6 +49,7 @@ def pairs(w):
 def rtl_results(kind, w, cases, tmp_path):
     assert shutil.which("iverilog") and shutil.which("vvp"), "iverilog is REQUIRED (this test must not skip silently)"
     mod, files, cfg = MODULES[kind]
+    tie = ".ack_in_c(1'b1)" if mod == "adder_cell_v4sa" else ".ack_in_hi(1'b1)"   # #974: unused second output port
     body = "\n".join(f"    run({w}'h{a:X}, {w}'h{b:X});" for a, b in cases)
     tb = f"""`timescale 1ns/1ps
 module tb;
@@ -57,7 +58,7 @@ module tb;
   reg [31:0] cfgd = 0; reg [W-1:0] ia = 0, ib = 0;
   wire ackout, vout; wire [W-1:0] dout;
   {mod} #(.CELL_ID(16'd0), .WIDTH(W)) dut (.clk(clk), .rst(rst), .freeze_in(freeze), .cfg_valid(cfgv), .cfg_data(cfgd),
-      .in_a(ia), .in_b(ib), .valid_in(vin), .ack_out(ackout), .data_out(dout), .valid_out(vout), .ack_in(ackin));
+      .in_a(ia), .in_b(ib), .valid_in(vin), .ack_out(ackout), .data_out(dout), .valid_out(vout), .ack_in(ackin), {tie});
   always #5 clk = ~clk;
   task run(input [W-1:0] a, input [W-1:0] b);
     begin
