@@ -119,17 +119,29 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
         # A second-port cell offers its second word to the SAME consumers as the first (the VM's wide_mode behaviour). Each consumer therefore sees two sources, the cell's port 1 and a
         # virtual source "<cell>#2" (port 2), and gets a merge core in front: ARBITRATE with port 1 as A, so a round is delivered first word, then second word.
         inputs = {k: {r_: list(v_) for r_, v_ in v.items()} for k, v in inputs.items()}
+        word_of = p.get("word_of", {})                                # ledger #981: per (consumer, cell) -- "first", "second" or "both" (the default)
+        p = dict(p, adder_roles={k_: dict(v_) for k_, v_ in roles.items()})
+        roles = p["adder_roles"]
         for s_ in sorted(second):
             for dst_, roles_ in inputs.items():
+                w_ = word_of.get((dst_, s_), "both")
                 for role_, lst_ in roles_.items():
                     for k_, (q_, f_) in enumerate(list(lst_)):
                         if q_ == s_:
-                            lst_.insert(k_ + 1, (s_ + "#2", f_))
+                            if w_ == "both":
+                                lst_.insert(k_ + 1, (s_ + "#2", f_))
+                            elif w_ == "second":                     # this consumer gets ONLY the second word: it reads the cell's port 2 directly, no merge needed
+                                lst_[k_] = (s_ + "#2", f_)
                             break
+                if w_ == "second" and dst_ in roles:                 # a two-operand consumer names its operands by source
+                    for ab_ in ("A", "B"):
+                        if roles[dst_].get(ab_) == s_:
+                            roles[dst_][ab_] = s_ + "#2"
             for dst_ in inputs:
-                if any(q_ == s_ + "#2" for lst_ in inputs[dst_].values() for q_, _ in lst_):
-                    merges_all[dst_] = [q_ for lst_ in inputs[dst_].values() for q_, _ in lst_]
-                    if modes.get(dst_, modes["*"]) != "arbitrate":
+                flat_ = [q_ for lst_ in inputs[dst_].values() for q_, _ in lst_]
+                if any(q_ == s_ + "#2" for q_ in flat_) and len(flat_) > 1:
+                    merges_all[dst_] = flat_
+                    if s_ in flat_ and modes.get(dst_, modes["*"]) != "arbitrate":
                         raise g.IcmGenError(f"{dst_}: --merge-mode {modes.get(dst_, modes['*'])!r} on a consumer of {s_}, which delivers two words in turn: only 'arbitrate' keeps them as separate items (join-or would fuse them)")
     if merges_all:
         # Each ICM merge (several sources into one input) becomes a real merge CORE in front of its consumer: a graph rewrite, so the fork / edge / ack machinery below

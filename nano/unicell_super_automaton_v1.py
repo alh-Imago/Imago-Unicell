@@ -1326,6 +1326,8 @@ class SuperGrid:
             for r_ in records:
                 if r_.core == "adder" and (r_.core_config or {}).get("second_output"):
                     raise ValueError(f"cell {r_.cell_id}: adder second_output=1 (the carry as a second output word) exists on the flex family only (ledger #976); this grid is not a flex mirror")
+                if r_.core in ("adder", "mul") and (r_.core_config or {}).get("second_downstream_mask"):    # ledger #981: routing the second word apart is flex-only; ignoring it here would be silent
+                    raise ValueError(f"cell {r_.cell_id}: second_downstream_mask (the second word routed to its own faces) exists on the flex family only (ledger #981); this grid is not a flex mirror")
         if self.width != 32:
             unverified = sorted({r.core for r in records} & self._UNVERIFIED_AT_OTHER_WIDTHS)
             if unverified:

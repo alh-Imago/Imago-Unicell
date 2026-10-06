@@ -2,6 +2,8 @@
 
 ## Read this first (most recent)
 
+**#981 -- THE SECOND WORD CAN GO TO ITS OWN FACES (`second_downstream_mask`, bits 13-16, adder+mul; empty = with the first word) and a per-target CAPABILITY TABLE (`nano/target_capabilities_v1.py`; compilers refuse at compile time when a target is named, ICM stays agnostic).** A consumer that gets only one word can be ANY cell: proven in the real RTL == FlexGrid == arithmetic with a 64-bit add from two 32-bit limbs (carry -> next limb's adder). Std VM touched by one more refusal line. Open: dispatcher cannot place the second-word consumer itself, automatic trigger from the graph, MAN rows for port-on cells. See points #979-#981.
+
 **#980 -- ONE GENERIC ICM FLAG `second_output` (bit 12 on adder and mul; `carry_mode`/`wide_mode` are accepted aliases, rewritten on read; the ICM states the NEED, each target decides how or refuses). The std VM got two NAME reads only (behaviour unchanged). Next: per-target capability table + agnostic second-result routing mask. See points #979/#980.**
 
 **#976 -- SECOND PORT = BUILD PARAMETER `SECOND_PORT` + ONE ICM FLAG (adder `carry_mode`, mul `wide_mode`) FROM THE COMPILER (tile `optional_params`); MERGE SHAPE IN THE ASSEMBLER:** planner/emitter build the port and a merge core (sum then carry, VM order) only for flagged cells; refusals for std grid, non-ram/comparator consumers, exit, addons. RTL==VM==arithmetic. **CORRECTION: #974/#975 cost fits included the unused port -- now adder W+5 (23/18/21), LUT mul ~1.41W^2-3.94W+10.2, port-on adder +4 LUT, merge W+17.** Open: compiler producer, other consumers, carry-to-different-consumer routing.

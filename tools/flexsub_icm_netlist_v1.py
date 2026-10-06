@@ -124,6 +124,13 @@ def extract(path):
         if r.core == "nano":                                                  # nano's OUTPUT faces live in routing_mask
             for d in _dirs(cfg, "routing_mask"):
                 faces.setdefault(d, [])
+        if r.core in ("adder", "mul") and cfg.get("second_output") and _dirs(cfg, "second_downstream_mask"):
+            # ledger #981: the SECOND word (adder carry / mul high word) has its own faces. Like a branch's outcomes, each face is tagged with the words it carries:
+            # "first" (downstream_mask only), "second" (second_downstream_mask only) or both. Without second_downstream_mask the tags stay empty = both words, as before.
+            for d in _dirs(cfg, "downstream_mask"):
+                faces.setdefault(d, []).append("first")
+            for d in _dirs(cfg, "second_downstream_mask"):
+                faces.setdefault(d, []).append("second")
         if r.core == "branch":                                                # branch routes per OUTCOME, not by mask
             for k in ("low", "equal", "high"):
                 for d in _dirs(cfg, f"route_{k}"):

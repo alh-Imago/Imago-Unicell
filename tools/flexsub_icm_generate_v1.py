@@ -365,6 +365,11 @@ def choose_multipliers(mul_cells, man, mode, nowidelut=False):
 def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelut=False):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
+    # ledger #981: which WORD(S) each (consumer, second-output cell) edge carries: "first", "second" or "both" (the default: no second_downstream_mask = the second word follows the first)
+    word_of = {}
+    for s_, d_, _f, _role, oc_ in edges:
+        if oc_ and set(oc_) <= {"first", "second"}:
+            word_of[(d_, s_)] = "both" if len(set(oc_)) == 2 else oc_[0]
     declared_width = getattr(doc, "min_bit_width", None)         # the design's DECLARED minimum bit width (ledger #958); None = absent = 32
     problems = []
     if declared_width is not None and declared_width > BUILT_WIDTH:
@@ -496,13 +501,15 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
     if second_ports and family != "flex":
         problems.append(f"{second_ports}: a second output word (second_output on an adder / mul) exists on the flex family only; the sub family has no second port, so it would be silently dropped")
     elif second_ports:
+        for c in sorted(c for c, r in cells.items() if r.core in ("adder", "mul") and (r.core_config or {}).get("second_downstream_mask") and not (r.core_config or {}).get("second_output")):
+            problems.append(f"{c}: second_downstream_mask is set but second_output is off -- there is no second word to route")
         for c in second_ports:
             if c in exits_set:
                 problems.append(f"{c}: a cell with a second output word as a design OUTPUT is not translated on flex (the host would have to take two words per result)")
             if cells[c].addon_config:
                 problems.append(f"{c}: addon_config on a cell with a second output word is not translated (the add-on chain would have to apply to the second word too)")
             for dst in cells:
-                if c in srcs_of[dst] and cells[dst].core not in ("ram", "comparator"):
+                if c in srcs_of[dst] and word_of.get((dst, c), "both") == "both" and cells[dst].core not in ("ram", "comparator"):    # a consumer that gets only ONE of the words (ledger #981) can be any cell
                     problems.append(f"{dst}: fed by {c}, which delivers a second word to the same downstream; only a single-input relay-type consumer (ram / comparator) is translated -- a {cells[dst].core} would have to pair the two words by arrival")
     if problems:
         raise IcmGenError(f"cannot generate {family} Verilog from %s:\n  - " % os.path.basename(icm_path) + "\n  - ".join(problems))
@@ -611,7 +618,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
             "eliminated_priority": eliminated, "const": const, "addons": addons, "merges": merges,
-            "branch_plans": branch_plans, "branch_port": branch_port, "second_ports": second_ports, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule, "min_bit_width": declared_width,
+            "branch_plans": branch_plans, "branch_port": branch_port, "second_ports": second_ports, "word_of": word_of, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule, "min_bit_width": declared_width,
             "mul_impl": mul_impl, "mul_info": mul_info}
 
 

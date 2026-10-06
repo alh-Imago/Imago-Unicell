@@ -233,6 +233,8 @@ _ADDER_FIELDS = {
     "subtract_mode": (8, 8),
     # ledger #980: the ONE generic second-output flag (bit 12, same as mul): after the sum also deliver the carry as a second word. `carry_mode` is an accepted ALIAS (see SECOND_OUTPUT_ALIASES).
     "second_output": (12, 12),
+    # ledger #981: where the SECOND word goes (adder carry / mul high word). Empty (0, the default) = the same faces as downstream_mask (the second word follows the first). Flex family only.
+    "second_downstream_mask": (13, 16),
 }
 
 # Accumulator: accumulator_cell_v1.v lines 87-98 (extended #515/#519 --
@@ -306,6 +308,7 @@ _MUL_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
     "second_output": (12, 12),   # ledger #980: canonical name; `wide_mode` is an accepted alias (see SECOND_OUTPUT_ALIASES)
+    "second_downstream_mask": (13, 16),   # ledger #981: faces the second word leaves by (empty = same as downstream_mask); flex family only
 }
 
 # points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==
@@ -372,7 +375,7 @@ _DIR_FIELDS = {
                     # the same real shape as branch's own route_low/equal/high
                     # below -- given the friendlier list-based interface.
     SEL_RAM: ("downstream_mask", "upstream_mask"),
-    SEL_ADDER: ("downstream_mask", "upstream_mask"),
+    SEL_ADDER: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
     SEL_ACC: ("inc_dir", "dec_dir", "downstream_mask"),
     SEL_CMP: ("downstream_mask", "upstream_mask"),
     SEL_LATCH: ("set_dir", "clear_dir", "downstream_mask"),
@@ -383,7 +386,7 @@ _DIR_FIELDS = {
     # single fixed 0=N/1=S/2=E/3=W direction CODE (#494's own real
     # constraint), not a one-hot mask -- left as a raw int.
     SEL_BRANCH: ("route_low", "route_equal", "route_high"),
-    SEL_MUL: ("downstream_mask", "upstream_mask"),
+    SEL_MUL: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
     SEL_PRIORITY: ("upstream_mask", "downstream_mask"),
 }
 

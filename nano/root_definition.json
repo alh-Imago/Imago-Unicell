@@ -109,6 +109,12 @@
     "description": "points.md #976 (FLEX FAMILY ONLY): 0=the sum only; 1=also deliver the carry-out of the add as a second word (0 or 1; for subtract the raw carry, i.e. NOT-borrow) to the SAME downstream_mask, after the sum -- the same shape as mul's wide_mode. Set by the compiler, which also tells the assembler where the cell is placed; on flex it becomes the adder's SECOND_PORT build parameter and the cfg_data[1] enable. The standard (v1/v4c) adder has no carry output: a standard grid refuses carry_mode=1."
    },
    {
+    "name": "second_downstream_mask",
+    "hi": 16,
+    "lo": 13,
+    "description": "points.md #981 (FLEX FAMILY ONLY): the faces the SECOND word (adder carry / mul high word) leaves by, as a one-hot N/S/E/W mask; 0 (default) = the same faces as downstream_mask (the second word follows the first). A face in both masks gets both words (first, then second); a face only here gets only the second word. Needs second_output=1 and a non-empty downstream_mask."
+   },
+   {
     "name": "reserved",
     "hi": 63,
     "lo": 13,
@@ -515,6 +521,12 @@
     "hi": 12,
     "lo": 12,
     "description": "points.md #853/#854: 0=v4/v4c behaviour (Product[31:0] only, low half discarded); 1=real sequential two-phase delivery -- the SAME downstream_mask/out port delivers the low half first, then (only once fully acked) the real high half. mul_cell_v4/v4c genuinely lack this bit; only v5/v5c implement it."
+   },
+   {
+    "name": "second_downstream_mask",
+    "hi": 16,
+    "lo": 13,
+    "description": "points.md #981 (FLEX FAMILY ONLY): the faces the SECOND word (adder carry / mul high word) leaves by, as a one-hot N/S/E/W mask; 0 (default) = the same faces as downstream_mask (the second word follows the first). A face in both masks gets both words (first, then second); a face only here gets only the second word. Needs second_output=1 and a non-empty downstream_mask."
    },
    {
     "name": "reserved",

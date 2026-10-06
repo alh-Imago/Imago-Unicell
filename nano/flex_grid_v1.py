@@ -12,7 +12,10 @@ Why a per-class table and not the shared registry: `register_core_handler` is mo
 import os
 import sys
 
+from dataclasses import replace as _dc_replace
+
 from unicell_super_automaton_v1 import SuperCell, SuperGrid, _CORE_HANDLERS, CoreHandler, _DIR_BIT
+from icm_v3 import pack_dirmask as _pack_dirmask
 
 _FLEX_HANDLERS: dict = {}
 
@@ -167,7 +170,24 @@ def _flex_clear_valid_adder(self):
     self.adder_delivering_carry = False
 
 
-register_flex_handler("adder", CoreHandler(deliver=_flex_deliver_adder, offer_state=SuperCell._offer_state_adder, continuously_live=False, clear_valid=_flex_clear_valid_adder))
+def _flex_offer_adder(self):
+    """ledger #981: while the CARRY (second word) is on offer it leaves by `second_downstream_mask` when one is set; otherwise by downstream_mask like the sum."""
+    v, valid, mask = SuperCell._offer_state_adder(self)
+    if getattr(self, "adder_delivering_carry", False) and getattr(self, "second_mask", 0):
+        mask = self.second_mask
+    return (v, valid, mask)
+
+
+def _flex_offer_mul(self):
+    """ledger #981: the HIGH word (second word) leaves by `second_downstream_mask` when one is set."""
+    v, valid, mask = SuperCell._offer_state_mul(self)
+    if self.mul_delivering_hi and getattr(self, "second_mask", 0):
+        mask = self.second_mask
+    return (v, valid, mask)
+
+
+register_flex_handler("mul", _dc_replace(_CORE_HANDLERS["mul"], offer_state=_flex_offer_mul))
+register_flex_handler("adder", CoreHandler(deliver=_flex_deliver_adder, offer_state=_flex_offer_adder, continuously_live=False, clear_valid=_flex_clear_valid_adder))
 register_flex_handler("ram", CoreHandler(deliver=_flex_deliver_ram, offer_state=SuperCell._offer_state_ram, continuously_live=False, clear_valid=SuperCell._clear_valid_ram))
 
 
@@ -184,6 +204,16 @@ class FlexGrid(SuperGrid):
         for r in records:                                   # ledger #976: the adder's carry flag (ICM second_output); the cell attribute is read by the flex adder handler
             if r.core == "adder":
                 self.cells[(r.row, r.col)].adder_carry_mode = bool((r.core_config or {}).get("second_output", 0))
+            if r.core in ("adder", "mul"):                  # ledger #981: where the second word goes (0 = with the first)
+                cfg_ = r.core_config or {}
+                sm_ = cfg_.get("second_downstream_mask", 0)
+                sm_ = _pack_dirmask(sm_) if isinstance(sm_, (list, tuple, set)) else int(sm_)
+                if sm_ and not cfg_.get("second_output"):
+                    raise ValueError(f"cell {r.cell_id}: second_downstream_mask is set but second_output is off -- there is no second word to route")
+                dm_ = cfg_.get("downstream_mask", 0)
+                if sm_ and not (_pack_dirmask(dm_) if isinstance(dm_, (list, tuple, set)) else int(dm_)):
+                    raise ValueError(f"cell {r.cell_id}: second_downstream_mask needs a non-empty downstream_mask (the first word needs somewhere to go, or the round never drains)")
+                self.cells[(r.row, r.col)].second_mask = sm_
         if width != 32:
             for pos, c in self.cells.items():
                 if (c.addon_config or {}).get("lane_cut") and (c.addon_config or {}).get("shift_en") and (c.addon_config or {}).get("direction"):

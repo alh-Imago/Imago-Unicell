@@ -181,6 +181,8 @@ def place(tile: VixTileSpec, port_directions: Dict[str, str],
     core_config = dict(tile.fixed_core_config)
     core_config.update(field_dirs)
     core_config.update(resolved_params)
+    if isinstance(optional.get("second_downstream_mask"), str):          # ledger #981: "se" -> ["s", "e"]
+        optional["second_downstream_mask"] = list(optional["second_downstream_mask"])
     core_config.update(optional)
     return HierCell(
         cell_id=cell_id, rel_row=rel_row, rel_col=rel_col, core=tile.core,
@@ -291,7 +293,7 @@ TILE_ADDER = register(VixTileSpec(
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
     arrivals_needed=2,
-    optional_params=["second_output"],  # ledger #976/#980 (FLEX family only; `carry_mode` is an accepted alias): the ONE flag the compiler sets to ask for the carry-out as a second output word, delivered after the sum to the same downstream
+    optional_params=["second_output", "second_downstream_mask"],  # ledger #976/#980/#981 (FLEX family only; `carry_mode` is an accepted alias): the ONE flag the compiler sets to ask for the carry-out as a second output word, delivered after the sum to the same downstream
 ))
 
 TILE_SUBTRACTOR = register(VixTileSpec(
@@ -302,7 +304,7 @@ TILE_SUBTRACTOR = register(VixTileSpec(
            TilePort("out", "out", "downstream_mask")],
     fixed_core_config={"subtract_mode": 1},
     arrivals_needed=2,
-    optional_params=["second_output"],  # ledger #976/#980 (flex only; `carry_mode` is an alias): the raw carry of a + ~b + 1, i.e. NOT-borrow
+    optional_params=["second_output", "second_downstream_mask"],  # ledger #976/#980/#981 (flex only; `carry_mode` is an alias): the raw carry of a + ~b + 1, i.e. NOT-borrow
 ))
 
 TILE_MUL = register(VixTileSpec(
@@ -323,6 +325,7 @@ TILE_MUL = register(VixTileSpec(
                  "a second port to wire up.",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
+    optional_params=["second_downstream_mask"],   # ledger #981 (flex only): faces the second word leaves by; absent = same faces as the first
     param_names=["second_output"],   # ledger #980: canonical name; `wide_mode` is an accepted alias (place() renames it)
     arrivals_needed=2,
 ))

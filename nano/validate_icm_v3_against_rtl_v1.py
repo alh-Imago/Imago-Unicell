@@ -27,7 +27,7 @@ def _normalize_name(name: str) -> str:
     return name.split("[")[0]
 
 
-_FLEX_ONLY_FIELDS = {"adder": ("second_output",)}
+_FLEX_ONLY_FIELDS = {"adder": ("second_output", "second_downstream_mask"), "mul": ("second_downstream_mask",)}   # ledger #981: second_downstream_mask is flex-only on both
 # ledger #980: the ICM's canonical `second_output` is `wide_mode` in the standard multiplier RTL's field-map comment (its alias), so the comparison renames it back for that core.
 _RTL_NAME_OF = {"mul": {"second_output": "wide_mode"}}
 

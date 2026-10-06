@@ -125,7 +125,7 @@ def ingestion_path(opcode: str, operand_kinds: List[str]) -> str:
     return "plain_chain"
 
 
-def compile_dag(instructions: List[DagInstr]
+def compile_dag(instructions: List[DagInstr], target: Optional[str] = None
                  ) -> Tuple[vix.IcmVixFile, Dict[str, Position], List[Tuple[str, int, int]], Dict[str, Tuple[int, int]]]:
     """The real dispatcher, rebuilt around incremental, frontier-based
     growth. Returns a real `IcmVixFile`, a dict of each instruction's
@@ -199,6 +199,11 @@ def compile_dag(instructions: List[DagInstr]
     icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=all_cells)},
                           placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
                           name="dag_dispatch")
+    if target is not None:                       # ledger #981: refuse at compile time what the named target cannot do (None = no check; the ICM stays target-agnostic)
+        import target_capabilities_v1 as _tc
+        issues = _tc.check_records(icm.flatten()[0], target)
+        if issues:
+            raise ValueError("target " + repr(target) + " cannot run this design: " + "; ".join(issues))
     return icm, positions, dynamic_positions, seq_orders
 
 

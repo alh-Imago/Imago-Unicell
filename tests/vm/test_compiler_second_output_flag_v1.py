@@ -80,3 +80,32 @@ def test_the_one_flag_is_the_same_bit_and_the_aliases_are_the_same_thing():
         assert v3.CORE_FIELD_TABLES[v3.CORE_IDS[core]]["second_output"] == (12, 12)
         with pytest.raises(ValueError, match="contradicts"):
             v3.IcmV3Record("a", 0, 0, core, {alias: 1, "second_output": 0})
+
+
+# ── ledger #981: the target capability table and the second-word routing field ──
+import target_capabilities_v1 as tc  # noqa: E402
+
+
+def test_capability_table_per_target():
+    import icm_v3 as v3
+    mk = lambda core, **c: v3.IcmV3Record("a", 0, 0, core, c)
+    assert tc.check_records([mk("mul", second_output=1)], "std") == []                       # the std mul has a (sequential) high word
+    assert tc.check_records([mk("adder", second_output=1)], "std")                          # std has no adder carry
+    assert tc.check_records([mk("adder", second_output=1, second_downstream_mask=["s"])], "flex") == []
+    assert tc.check_records([mk("mul", second_output=1, second_downstream_mask=["s"])], "std")   # no separate routing on std
+    assert tc.check_records([mk("mul", second_output=1)], "sub")
+    assert tc.check_records([mk("adder", second_output=1)], None) == []                      # no target named = no check
+    assert tc.check_records([], "nope")
+
+
+def test_the_compilers_refuse_at_compile_time_when_a_target_is_named():
+    flagged = [DagInstr("a", "add", [DagOperand("dynamic"), DagOperand("dynamic")], {"second_output": 1})]
+    compile_dag(flagged)                                    # no target: the target-agnostic ICM is produced
+    compile_dag(flagged, target="flex")
+    with pytest.raises(ValueError, match="cannot run this design"):
+        compile_dag(flagged, target="std")
+    base = dict(in_a="w", in_b="n", out="e")
+    icm, d = compile_program_ir_vix(place("adder", second_output=1, second_downstream_mask="s", **base), target="flex")
+    assert icm is not None and icm.flatten()[0][0].core_config["second_downstream_mask"] == ["s"], d
+    icm, d = compile_program_ir_vix(place("adder", second_output=1, **base), target="std")
+    assert icm is None and d and "std" in d[0].problem
