@@ -168,9 +168,11 @@ maps an fp32 add and multiply onto cells in 16 stages (#982). These
 stages are built from real flex cells, with no loops, and tested
 RTL == FlexGrid == the Python model: unpack, carry → exponent bump,
 multiplier high word → normalise bit, a 5-stage left-normalise with
-exponent adjust, sticky, and round-to-nearest-even (#982-#984). Still
-open: the variable right-shift for alignment, steering the sum on the
-carry, and assembling one whole fp32 adder.
+exponent adjust, sticky, round-to-nearest-even (#982-#984), and
+alignment: a variable right shift that also collects the sticky bits,
+built from one multiplier per stage using both of its output words
+(#987/#988). Still open: steering the sum on the carry, normalising the
+sum, and assembling one whole fp32 adder to compare with `fp32_add_v1`.
 
 ## On the physical board
 

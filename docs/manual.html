@@ -337,9 +337,11 @@ maps an fp32 add and multiply onto cells in 16 stages (#982). These
 stages are built from real flex cells, with no loops, and tested
 RTL == FlexGrid == the Python model: unpack, carry → exponent bump,
 multiplier high word → normalise bit, a 5-stage left-normalise with
-exponent adjust, sticky, and round-to-nearest-even (#982-#984). Still
-open: the variable right-shift for alignment, steering the sum on the
-carry, and assembling one whole fp32 adder.</p>
+exponent adjust, sticky, round-to-nearest-even (#982-#984), and
+alignment: a variable right shift that also collects the sticky bits,
+built from one multiplier per stage using both of its output words
+(#987/#988). Still open: steering the sum on the carry, normalising the
+sum, and assembling one whole fp32 adder to compare with <code>fp32_add_v1</code>.</p>
 <h2>On the physical board</h2>
 <p><a href="../docs/man/tang-nano-20k-getting-started.md"><code>docs/man/tang-nano-20k-getting-started.md</code></a>
 covers the first flashable deliverable, a <code>sequencer</code> core counting on
@@ -1840,8 +1842,8 @@ uses the carry port instead.</p>
 ICM's one <code>shift_amt</code> number (coarse + fine are only how the number is written). The sub family still makes coarse taps only, and <code>lane_cut</code> with a
 non-tap amount is refused on flex. <code>nano/target_capabilities_v1.py</code> refuses an amount a named target cannot make. At W = 36 the 5-bit field cannot
 express amounts above 31 (open).</p>
-<p><strong>fp32 stages on these cells (<code>#982</code>-<code>#984</code>).</strong> Unpack, carry → exponent bump, high word → normalise bit, a 5-stage left-normalise with exponent
-adjust, sticky, and round-to-nearest-even are built from flex cells with no loops. They are tested in generated RTL (plain and with random stalls),
+<p><strong>fp32 stages on these cells (<code>#982</code>-<code>#988</code>).</strong> Unpack, carry → exponent bump, high word → normalise bit, a 5-stage left-normalise with exponent
+adjust, sticky, round-to-nearest-even, and a 6-stage align with sticky (one multiplier per stage: high word = shifted value, low word = the bits shifted out, <code>#988</code>) are built from flex cells with no loops. They are tested in generated RTL (plain and with random stalls),
 equal to FlexGrid and the Python model. Design note: <code>docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md</code>. The comparator is <strong>signed</strong>,
 so a bit isolated at bit 31 reads as negative (<code>#984</code>).</p>
 <h2>Status</h2>
@@ -6470,13 +6472,13 @@ cd Imago-Unicell
 <p><em>Single source of truth for what needs doing and why.</em></p>
 <blockquote>
 <p><strong>UPDATE (2026-10-06, ledger #990): the current open work, gathered from the ledger's own "open" / "next"
-lines for #946-#986.</strong> Everything below this block predates the Tang Nano line. That includes the 2026-09-02
+lines for #946-#988.</strong> Everything below this block predates the Tang Nano line. That includes the 2026-09-02
 "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
 at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.</p>
-<p><strong>fp32 on cells (the most recent thread, #982-#986):</strong> align (a variable RIGHT shift; same stage structure, e.g.
-the multiplier's high word by 2^(32-s)); steering the sum on the carry / normalise bit; the rounding-overflow
-exponent bump; sub-normal and zero handling; assembling one whole fp32 adder and comparing it with
-<code>fp32_add_v1</code>; a 24-bit generator width.</p>
+<p><strong>fp32 on cells (the most recent thread, #982-#988; align with sticky is done at #988):</strong> re-map the RNE input
+to the aligner's word; steering the sum on the carry / normalise bit; add/sub of the aligned significands and
+normalising the sum; the rounding-overflow exponent bump; sub-normal and zero handling; assembling one whole fp32
+adder and comparing it with <code>fp32_add_v1</code>; a 24-bit generator width; a placer that checks arrival hops itself.</p>
 <p><strong>Width (#948, #957-#963, #985):</strong> the <code>--icm</code> generators still build 32 bits. Still to do: native-width builds,
 the loader's narrowing, the save's padding, and the <code>min_bit_width</code> fit check (#959). The Tang's spare-bit sign
 encoding (<code>target_extensions</code>) is not defined. A 6-bit shift amount is needed at W=36. Widening the

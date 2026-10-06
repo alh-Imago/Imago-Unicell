@@ -22,12 +22,19 @@ class Grid:
     def at(self):
         return {(n["r"], n["c"]): k for k, n in self.nodes.items()}
 
-    def link(self, a, b):
+    def link(self, a, b, second=False):
         (ar, ac), (br, bc) = (self.nodes[a]["r"], self.nodes[a]["c"]), (self.nodes[b]["r"], self.nodes[b]["c"])
         assert abs(ar - br) + abs(ac - bc) == 1, f"{a} -> {b}: cells are not adjacent"
-        self.links.append((a, b))
+        self.links.append((a, b, second))
 
-    def route(self, a, b, tag=None, avoid=()):
+    def route_via(self, a, b, via, tag=None):
+        """A route that is deliberately NOT the shortest: a -> a relay at the free square `via` -> b (used to lengthen a path so two operands of one cell arrive in different hops)."""
+        nm = f"{tag or a + '_' + b}.via"
+        self.add(nm, *via)
+        self.route(a, nm, tag=tag)
+        self.route(nm, b, tag=tag)
+
+    def route(self, a, b, tag=None, avoid=(), second=False):
         """Shortest chain of relay rams from a to b through free squares; returns the relay names."""
         occupied = set(self.at()) | set(avoid)
         src, dst = (self.nodes[a]["r"], self.nodes[a]["c"]), (self.nodes[b]["r"], self.nodes[b]["c"])
@@ -43,14 +50,14 @@ class Grid:
                         x = prev[x]
                     path.reverse()
                     names, last = [], a
-                    for (r, c) in path:
+                    for i, (r, c) in enumerate(path):
                         self._relay += 1
                         nm = f"{tag or a + '_' + b}.{self._relay}"
                         self.add(nm, r, c)
-                        self.link(last, nm)
+                        self.link(last, nm, second=second and i == 0)       # `second`: the FIRST hop leaves the source by its second-word face
                         names.append(nm)
                         last = nm
-                    self.link(last, b)
+                    self.link(last, b, second=second and not path)
                     return names
                 if 0 <= nxt[0] < self.rows and 0 <= nxt[1] < self.cols and nxt not in occupied and nxt not in prev:
                     prev[nxt] = cur
@@ -58,14 +65,16 @@ class Grid:
         raise AssertionError(f"no free route {a} -> {b}")
 
     def records(self):
-        up, down = collections.defaultdict(list), collections.defaultdict(list)
+        up, down, down2 = collections.defaultdict(list), collections.defaultdict(list), collections.defaultdict(list)
         pos = {k: (n["r"], n["c"]) for k, n in self.nodes.items()}
-        for a, b in self.links:
+        for a, b, second in self.links:
             d = next(k for k, (dr, dc) in D.items() if (pos[a][0] + dr, pos[a][1] + dc) == pos[b])
-            down[a].append(d)
+            (down2 if second else down)[a].append(d)
             up[b].append(OPP[d])
         out = []
         for k, n in self.nodes.items():
             cfg = dict({"upstream_mask": up[k], "downstream_mask": down[k]}, **n["cfg"])
+            if down2[k]:
+                cfg["second_downstream_mask"] = down2[k]
             out.append(IcmV3Record(cell_id=k, row=n["r"], col=n["c"], core=n["core"], core_config=cfg, addon_config=n["addon"] or {}, preload_value=n["preload"]))
         return out

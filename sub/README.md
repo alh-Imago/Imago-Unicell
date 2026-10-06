@@ -919,8 +919,8 @@ ICM's one `shift_amt` number (coarse + fine are only how the number is written).
 non-tap amount is refused on flex. `nano/target_capabilities_v1.py` refuses an amount a named target cannot make. At W = 36 the 5-bit field cannot
 express amounts above 31 (open).
 
-**fp32 stages on these cells (`#982`-`#984`).** Unpack, carry → exponent bump, high word → normalise bit, a 5-stage left-normalise with exponent
-adjust, sticky, and round-to-nearest-even are built from flex cells with no loops. They are tested in generated RTL (plain and with random stalls),
+**fp32 stages on these cells (`#982`-`#988`).** Unpack, carry → exponent bump, high word → normalise bit, a 5-stage left-normalise with exponent
+adjust, sticky, round-to-nearest-even, and a 6-stage align with sticky (one multiplier per stage: high word = shifted value, low word = the bits shifted out, `#988`) are built from flex cells with no loops. They are tested in generated RTL (plain and with random stalls),
 equal to FlexGrid and the Python model. Design note: `docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md`. The comparator is **signed**,
 so a bit isolated at bit 31 reads as negative (`#984`).
 
