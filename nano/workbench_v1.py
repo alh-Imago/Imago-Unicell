@@ -137,6 +137,7 @@ import icm_vix_v1 as vix
 from host_registry_v1 import HostResourceRegistry
 import vm_mirror_v1
 import shell_compat_v1
+import ui_theme_v1 as ui  # ledger #997: the shared look
 import connection_check_v1
 import icm_v3
 
@@ -925,45 +926,18 @@ class WorkbenchController:
 
 WORKBENCH_HTML = r"""<!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Unicell-S Workbench</title>
-<style>
-  body { font-family: 'Courier New', monospace; background: #1a1a1a; color: #ddd; margin: 0; padding: 16px; }
-  h2 { margin: 0 0 12px 0; color: #6cf; }
-  .panel { background: #222; border: 1px solid #444; border-radius: 4px; padding: 12px; margin-bottom: 12px; }
-  .panel h3 { margin: 0 0 8px 0; color: #9cf; font-size: 13px; text-transform: uppercase; }
-  textarea { width: 100%; height: 130px; background: #111; color: #9f9; border: 1px solid #444;
-             font-family: inherit; box-sizing: border-box; padding: 6px; }
-  select, input[type=number] { background: #111; color: #ddd; border: 1px solid #444; padding: 4px; }
-  button { background: #333; color: #ddd; border: 1px solid #555; padding: 6px 12px;
-           margin: 4px 4px 4px 0; cursor: pointer; font-family: inherit; }
-  button:hover { background: #444; }
-  button.danger { border-color: #844; }
-  button.danger:hover { background: #533; }
-  #grid { display: grid; gap: 4px; margin-top: 8px; }
-  .cell { border: 2px solid #555; padding: 6px; min-width: 100px; font-size: 11px; background: #1e1e1e; }
-  .cell .core { color: #6cf; font-weight: bold; }
-  .cell .pos { color: #777; font-size: 10px; }
-  .cell .dirs { font-size: 10px; margin: 2px 0; }
-  #diagnostics { color: #f88; white-space: pre-wrap; margin-top: 8px; font-size: 12px; }
-  #tickcount { color: #9f9; font-weight: bold; }
-  .region-row { display: flex; justify-content: space-between; align-items: center;
-                padding: 4px 0; border-bottom: 1px solid #333; }
-  .region-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
-  .row { display: flex; gap: 16px; flex-wrap: wrap; }
-  .col { flex: 1; min-width: 320px; }
-  label { font-size: 12px; color: #999; }
-</style>
-</head>
+<head><!--THEME_HEAD--></head>
 <body>
-<h2>Unicell-S Workbench</h2>
+<!--THEME_HEADER-->
+<main><div class="wrap">
+<div class="eyebrow">VM &middot; compile, run and drive cells</div>
+<h1>Unicell-S Workbench</h1>
 
 <div class="row">
   <div class="col">
     <div class="panel">
       <h3>Real target (points.md #605/#606)</h3>
-      <div style="color:#999;font-size:12px;margin-bottom:6px;">Optional. Set this
+      <div class="muted" style="margin-bottom:6px;">Optional. Set this
         to make the grid below a genuine, checked reflection of a real
         card/cell-count -- exactly what <code>tools/project_assemble_v1.py</code>
         would build. Leave unset for free mode (no real card correspondence).</div>
@@ -971,37 +945,37 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
       <label>cells</label> <input type="number" id="targetCells" value="4" size="4">
       <label>shell (optional -- a version1 may not support the same cores as a version3)</label>
       <select id="targetShell" onchange="showShellCoreInfo()"><option value="">(no shell check)</option></select>
-      <div id="shellCoreInfo" style="color:#777;font-size:11px;margin:2px 0;"></div>
+      <div id="shellCoreInfo" class="muted"></div>
       <button onclick="setTarget()">Set target</button>
       <button onclick="clearTarget()">Clear target (free mode)</button>
-      <div id="targetStatus" style="color:#9cf;font-size:12px;margin-top:4px;"></div>
+      <div id="targetStatus" class="status"></div>
     </div>
 
     <div class="panel">
       <h3>Demos</h3>
       <select id="demoSelect"></select>
       <button onclick="loadSelectedDemo()">Load as single program</button>
-      <div id="demoDescription" style="color:#999;font-size:12px;margin-top:4px;"></div>
+      <div id="demoDescription" class="muted"></div>
     </div>
 
     <div class="panel">
       <h3>Program source</h3>
       <select id="language"><option value="dsl">DSL</option><option value="python">Python-AST</option></select>
       <textarea id="source" placeholder="program p { place r1 as ram_constant at (0,0) { out: e init_data: 42 } }"></textarea><br>
-      <button onclick="compileProgram()">Compile (replaces everything)</button>
+      <button class="primary" onclick="compileProgram()">Compile (replaces everything)</button>
       <br>
       <label>Region name</label> <input type="text" id="regionName" value="r1" size="8">
       <label>row offset</label> <input type="number" id="rowOffset" value="0" size="3" placeholder="auto">
       <label>col offset</label> <input type="number" id="colOffset" value="0" size="3" placeholder="auto">
-      <span style="color:#777;font-size:11px;">(clear both for auto-placement)</span>
+      <span class="muted">(clear both for auto-placement)</span>
       <button onclick="loadRegion()">Load as region (adds to grid)</button>
       <div id="diagnostics"></div>
-      <div id="connectionHints" style="color:#fc6;font-size:11px;white-space:pre-line;"></div>
+      <div id="connectionHints" class="hint-text" style="white-space:pre-line;"></div>
     </div>
 
     <div class="panel">
       <h3>Save / load ICM file (points.md #607)</h3>
-      <div style="color:#999;font-size:12px;margin-bottom:6px;">Real,
+      <div class="muted" style="margin-bottom:6px;">Real,
         on-disk .icm files -- the same format the CLI tools and
         Walker/Composer already read and write.</div>
       <label>Path</label> <input type="text" id="icmPath" value="workbench_session.icm" size="30">
@@ -1013,7 +987,7 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
       <label>row offset</label> <input type="number" id="icmRowOffset" value="0" size="3" placeholder="auto">
       <label>col offset</label> <input type="number" id="icmColOffset" value="0" size="3" placeholder="auto">
       <button onclick="loadIcmRegion()">Load as region (adds to grid)</button>
-      <div id="icmStatus" style="color:#9cf;font-size:12px;margin-top:4px;"></div>
+      <div id="icmStatus" class="status"></div>
     </div>
 
     <div class="panel">
@@ -1050,11 +1024,13 @@ WORKBENCH_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+</div></main>
+<!--THEME_FOOTER-->
 <script>
 const DEMOS = {};
-const REGION_COLORS = ["#6cf", "#f96", "#9f6", "#f6c", "#fc6", "#6fc"];
+const REGION_COLORS = ["#c17f45", "#7fa6d0", "#7fae7a", "#d9b46a", "#b88ac0", "#6fb5a8"];   // copper, blue, green, gold, violet, teal (ui_theme_v1 palette)
 function colorForRegion(name) {
-  if (!name) return "#555";
+  if (!name) return "#2a352c";
   let h = 0;
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return REGION_COLORS[h % REGION_COLORS.length];
@@ -1118,8 +1094,8 @@ function renderState(state) {
     div.style.gridRow = c.row + 1;
     const dirs = cellDirections(c.core, c[c.core]);
     const dirLine = `<div class="dirs">` +
-      `<span style="color:#6f6;">out: ${dirs.out.length ? dirs.out.join(",") : "-"}</span> &nbsp; ` +
-      `<span style="color:#69f;">in: ${dirs.in.length ? dirs.in.join(",") : (c.core === "nano" ? "any" : "-")}</span></div>`;
+      `<span class="dir-out">out: ${dirs.out.length ? dirs.out.join(",") : "-"}</span> &nbsp; ` +
+      `<span class="dir-in">in: ${dirs.in.length ? dirs.in.join(",") : (c.core === "nano" ? "any" : "-")}</span></div>`;
     div.innerHTML = `<div class="core">${c.core}</div><div class="pos">(${c.row},${c.col}) ${c.region || ""}</div>` +
       dirLine +
       Object.entries(c[c.core] || {}).map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join("<br>");
@@ -1371,6 +1347,34 @@ refreshTargetStatus();
 </body>
 </html>
 """
+
+# Ledger #997: the shared look. The workbench keeps its own dense two-column layout; ui_theme_v1 supplies the palette, fonts,
+# header, nav and footer shared with the front panel and the manual.
+_WORKBENCH_CSS = """
+#grid { display: grid; gap: 4px; margin-top: 8px; overflow-x: auto; }
+.cell { border: 2px solid var(--line); padding: 6px 8px; min-width: 104px; font-size: 11px; background: var(--bg-input);
+        font-family: var(--font-mono); }
+.cell .core { color: var(--copper); font-weight: 600; }
+.cell .pos { color: var(--fg-faint); font-size: 10px; }
+.cell .dirs { font-size: 10px; margin: 2px 0; }
+.dir-out { color: var(--ok); } .dir-in { color: var(--in); }
+#diagnostics { color: var(--err); white-space: pre-wrap; margin-top: 8px; font-size: 12px; font-family: var(--font-mono); }
+#tickcount { color: var(--ok); font-weight: 600; font-family: var(--font-mono); }
+.region-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.region-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.col { flex: 1; min-width: 320px; }
+.panel label { display: inline; margin: 0 4px 0 0; font-size: 0.78rem; color: var(--fg-faint); }
+.panel input[type=text], .panel input[type=number], .panel select { margin: 2px 6px 2px 0; }
+.panel input[type=number] { width: 5.5em; }
+.panel textarea { width: 100%; height: 130px; display: block; margin: 6px 0; color: var(--ok); }
+.panel code { font-size: 0.85em; }
+"""
+WORKBENCH_HTML = (WORKBENCH_HTML
+                  .replace("<!--THEME_HEAD-->", ui.head("Unicell-S Workbench", _WORKBENCH_CSS))
+                  .replace("<!--THEME_HEADER-->", ui.header("workbench", app="workbench"))
+                  .replace("<!--THEME_FOOTER-->", ui.footer() + ui._MENU_JS))
+
 
 
 class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
