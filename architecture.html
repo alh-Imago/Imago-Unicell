@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Architecture — Imago UniCell</title>
-<meta name="description" content="How Imago UniCell works: the super carrier shell, real cores in one physical cell, cardinal wiring, the two-arrival firing model, and no shared bus at all.">
+<meta name="description" content="How Imago UniCell works: programs as placed, wired cells; the current sub and flex cell families on the Tang Nano 20K; a target-agnostic program format; and the earlier Arria 10 super carrier shell.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -32,27 +32,70 @@
       <div class="eyebrow"><span class="tag">FIG. 02</span> CORE PRINCIPLE</div>
       <h1>The wiring layout is the logic</h1>
       <p class="lead">
-        The active, recommended architecture is <code>unicell_super_v3.v</code>: a single
-        physical FPGA cell that holds eight real, different cores simultaneously &mdash; a
-        NOR-gate logic cell, RAM, an adder, an accumulator, a comparator, a latch, a
-        sequencer, and a branch/routing core. Every core is always physically present in
-        every bitstream; which one is <em>active</em> is chosen by a runtime configuration
-        write (<code>core_select</code>), not a synthesis-time choice.
+        A UniCell program is a placement of cells: which of a fixed set of hardware cores sits
+        where, and how each one is wired to its neighbours. There is no instruction stream to
+        fetch. Values arrive, a cell computes on them, and the result moves on to the next cell.
+        The architecture has been built in two hardware lines that share this principle and
+        express it differently.
       </p>
       <p>
-        Cells wire directly to their North/South/East/West physical neighbors. There is
-        <strong>no shared or addressed bus anywhere in this design</strong>. A cell fires only
-        once it has received signal arrivals from two directions &mdash; a
-        <strong>two-arrival firing model</strong>. Because wires of different physical lengths
-        carry different propagation delays, the order in which signals arrive is itself
-        meaningful: causality is a direct consequence of the board's wiring, not an externally
-        imposed clock schedule.
+        In the <strong>Arria 10 line</strong>, every cell holds eight cores at once, and a runtime
+        configuration write chooses which one is active. Cells wire directly to their
+        North/South/East/West neighbours, and there is <strong>no shared or addressed bus</strong>.
+        A two-operand cell fires once it has received arrivals from two directions (a
+        <strong>two-arrival firing model</strong>), so wire length and arrival order are part of
+        the program. In the current <strong>Tang Nano 20K line</strong>, each cell is stripped to
+        a single function with a dedicated port per role. The wiring between cells is generated
+        from the program file, and the two families decide timing differently (below).
       </p>
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 03</span> THE SUPER_LATCH CONFIG SURFACE</div>
-      <h2>One 80-bit register, five real fields</h2>
+      <div class="eyebrow"><span class="tag">FIG. 03</span> THE CURRENT LINE</div>
+      <h2>sub and flex: cells stripped to the compute</h2>
+      <p>
+        Measured on the Tang Nano 20K, the general-purpose cell paid for features most cells never
+        use. For example, every cell carried a 32-bit barrel shifter. So each function became its own
+        small cell, with no add-on chain, no cardinal routing and no runtime routing decision. Each
+        distinct role gets its own port: two operands means two ports. Shifts, masks and inverts
+        become plain wiring in a generated design.
+      </p>
+      <div class="grid">
+        <div class="panel">
+          <h3>sub &mdash; fixed latency</h3>
+          <p>32-bit, no flow control. Every cell takes exactly one clock cycle, so a design is timed when it is built: the generator pads the shorter path so both operands arrive together. One result per cycle.</p>
+        </div>
+        <div class="panel">
+          <h3>flex &mdash; handshake</h3>
+          <p>Width set at build time (18 bits on the Tang, matching its block RAM and multipliers). Each connection has its own valid/ack and the whole design has a global freeze, so no padding is needed. One item per two cycles per cell.</p>
+        </div>
+        <div class="panel">
+          <h3>The cells</h3>
+          <p>adder (with subtract), multiplier (logic or DSP block), comparator, accumulator, latch, sequencer, ram/constant, router, mask, shift, nano (a universal 2-input bitwise gate) and branch, plus a merge core on flex (arbitrate or join).</p>
+        </div>
+        <div class="panel">
+          <h3>Second results get second ports</h3>
+          <p>An adder can deliver its carry and a multiplier its high word on their own ports. These are built only when a program needs them, and they make multi-word arithmetic possible.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 04</span> ONE PROGRAM FILE, SEVERAL TARGETS</div>
+      <h2>The program format never names its target</h2>
+      <p>
+        A design is saved as an ICM file: cells at grid positions, with their configuration. The
+        file states what the design <em>needs</em>, such as a minimum bit width, a second result word
+        or a shift amount. Each target either provides that or refuses at compile time. It never
+        silently approximates. The same file can be run in the VM, generated as sub hardware,
+        or generated as flex hardware. The VM has a mirror mode for flex, so the software model and
+        the generated hardware are checked against each other at every width the cells build.
+      </p>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 05</span> THE ARRIA 10 LINE: SUPER_LATCH</div>
+      <h2>One 80-bit register configures a super carrier cell</h2>
       <p>
         Every physical cell's entire configuration lives in one register,
         <code>SUPER_LATCH[79:0]</code>, loaded by a plain synchronous write &mdash; no address
@@ -68,7 +111,7 @@
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 04</span> THE EIGHT CORES</div>
+      <div class="eyebrow"><span class="tag">FIG. 06</span> THE ARRIA 10 LINE: EIGHT CORES</div>
       <h2>Genuinely different firing semantics, verified against the real RTL bodies</h2>
       <div class="grid">
         <div class="panel">
@@ -110,17 +153,18 @@
       <p>
         A real, honest limit stated plainly: this is still fundamentally a
         <em>configuration</em> architecture, not a general-purpose one. There's no addressed
-        memory and no program counter. A narrow but real exception now exists: a compiler
-        frontend can lower single-variable bounded counting loops (ascending or descending)
-        from real LLVM IR onto a proven 4-cell loop-ring construction &mdash; genuinely working,
-        genuinely narrow, not a general loop capability. Whether and how broader
+        memory and no program counter. Counted loops compiled from LLVM IR are unrolled, or
+        lowered onto a proven 4-cell loop ring. Loops with a data-dependent exit are refused by
+        the hardware generators. Floating point is being built as a fixed pipeline of ordinary
+        cells, with no loops: normalise, sticky and round-to-nearest-even are working in
+        generated RTL. Whether and how broader
         general-purpose programming could map onto this substrate remains a genuinely open
         architectural question.
       </p>
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 05</span> A NEWER, SEPARATE GENERATION</div>
+      <div class="eyebrow"><span class="tag">FIG. 07</span> THE VIX CARRIER GENERATION</div>
       <h2>The VIX Carrier &mdash; a real 9th core, sim-verified, no silicon numbers yet</h2>
       <p>
         Alongside the shell described above, a genuinely separate, parallel core generation
@@ -135,7 +179,9 @@
         Real and sim-verified in both RTL and the VM &mdash; including a command core actually
         programming a fresh, never-configured neighbor end to end &mdash; but genuinely
         untested on real silicon: the Quartus license expired before a build could be run.
-        Stated plainly rather than left ambiguous.
+        On the Tang Nano 20K one carrier position is about 80% of the chip, which is what led to
+        the sub and flex families (FIG. 03). A single VIX-generation sequencer core is the one
+        that runs on the Tang today.
       </p>
       <div class="btn-row">
         <a class="btn" href="status.html">See current build status &rarr;</a>

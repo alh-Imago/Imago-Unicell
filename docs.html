@@ -29,7 +29,7 @@
   <div class="wrap">
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 08</span> REPOSITORY</div>
+      <div class="eyebrow"><span class="tag">FIG. 11</span> REPOSITORY</div>
       <h1>Documentation &amp; source</h1>
       <p class="lead">
         Everything below lives in the project repository. Links point at the live files on
@@ -42,61 +42,89 @@
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 09</span> KEY DOCUMENTS</div>
+      <div class="eyebrow"><span class="tag">FIG. 12</span> KEY DOCUMENTS</div>
       <ul class="doclist">
         <li>
           <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/README.md">README.md</a></span>
-          <span class="desc">Start here &mdash; what this project actually is, current status, quick start.</span>
-        </li>
-        <li>
-          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/SUPER_CELL_INTERNALS.md">docs/stripped-cell/SUPER_CELL_INTERNALS.md</a></span>
-          <span class="desc">The super carrier shell's own reference &mdash; field maps, mechanisms, real silicon numbers.</span>
-        </li>
-        <li>
-          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md">docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md</a></span>
-          <span class="desc">Every core and wrapper built so far, including the newer VIX Carrier/command-core generation, and what's actually been proven where.</span>
-        </li>
-        <li>
-          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/UNICELL_S_DSL_MANUAL.md">docs/stripped-cell/UNICELL_S_DSL_MANUAL.md</a></span>
-          <span class="desc">The DSL language reference &mdash; every example independently compiled and confirmed working.</span>
+          <span class="desc">Start here &mdash; what the project is, where things stand (the Arria 10 and Tang Nano 20K lines), and a quick start.</span>
         </li>
         <li>
           <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/README.md">docs/README.md</a></span>
-          <span class="desc">The real documentation index, kept current as new pieces land.</span>
+          <span class="desc">The documentation index.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/sub/README.md">sub/README.md</a></span>
+          <span class="desc">The current line's cells: the sub and flex families, every cell, its measurements, and the design rules behind it.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md">docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md</a></span>
+          <span class="desc">Every cell generation side by side, with ports, costs and what has been proven where.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/ICM_V3_FORMAT.md">docs/stripped-cell/ICM_V3_FORMAT.md</a></span>
+          <span class="desc">The program format's field tables, including the target-agnostic flags (minimum width, second outputs, shift).</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/ICM_VIX_FORMAT.md">docs/stripped-cell/ICM_VIX_FORMAT.md</a></span>
+          <span class="desc">The hierarchical program format the compilers emit and the hardware assembler reads.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/man/tang-nano-20k-getting-started.md">docs/man/tang-nano-20k-getting-started.md</a></span>
+          <span class="desc">Building and flashing the first deliverable onto a Tang Nano 20K.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/tools/README.md">tools/README.md</a></span>
+          <span class="desc">The assembler (program file &rarr; Verilog) and the measurement tools.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/CELL_GOTCHAS.md">docs/stripped-cell/CELL_GOTCHAS.md</a></span>
+          <span class="desc">Behaviours that will silently bite you, each one found the hard way.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/UNICELL_S_DSL_MANUAL.md">docs/stripped-cell/UNICELL_S_DSL_MANUAL.md</a></span>
+          <span class="desc">The DSL language reference &mdash; every example compiled and confirmed working.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/docs/stripped-cell/SUPER_CELL_INTERNALS.md">docs/stripped-cell/SUPER_CELL_INTERNALS.md</a></span>
+          <span class="desc">The Arria 10 line's super carrier shell: field maps, mechanisms, real silicon numbers.</span>
         </li>
         <li>
           <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/blob/main/points/INDEX.md">points/INDEX.md</a></span>
-          <span class="desc">Sequentially numbered, append-only log of every real design decision, bug found, and measurement taken &mdash; split across multiple files since it outgrew GitHub's own render limit.</span>
+          <span class="desc">Sequentially numbered, append-only log of every design decision, bug found and measurement taken &mdash; split across files since it outgrew GitHub's render limit.</span>
         </li>
         <li>
           <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/tree/main/nano">nano/</a></span>
-          <span class="desc">The current, live codebase &mdash; ICM v3 format, VM, tile library, compiler, DSL, both frontends, AI-interaction port, and the workbench.</span>
+          <span class="desc">The VM (including the flex mirror), program formats, tile libraries, compilers and frontends, and the workbench.</span>
+        </li>
+        <li>
+          <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/tree/main/sub">sub/</a></span>
+          <span class="desc">The sub and flex cell RTL, each cell with its own self-checking bench.</span>
         </li>
         <li>
           <span class="name"><a href="https://github.com/alh-Imago/Imago-Unicell/tree/main/archeology/onion">archeology/onion/</a></span>
-          <span class="desc">Earlier project work, preserved byte-for-byte and independently checksum-verified, not deleted.</span>
+          <span class="desc">Earlier project work, preserved byte for byte and checksum-verified, not deleted.</span>
         </li>
       </ul>
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 10</span> TOOLCHAIN</div>
+      <div class="eyebrow"><span class="tag">FIG. 13</span> TOOLCHAIN</div>
       <div class="grid">
         <div class="panel">
-          <h3>Quartus Prime 25.1</h3>
-          <p>Standard Edition, Windows &mdash; the authoritative path for card programming and Tcl-based testing.</p>
+          <h3>Open Gowin flow (current)</h3>
+          <p>yosys <code>synth_gowin</code>, nextpnr-himbaechel-gowin, Apicula <code>gowin_pack</code> and openFPGALoader &mdash; synthesis to a flashed Tang Nano 20K with no vendor tools.</p>
         </div>
         <div class="panel">
           <h3>Icarus Verilog</h3>
-          <p><code>iverilog -g2012</code> / <code>vvp</code> for RTL simulation &mdash; sim-first, then silicon, throughout.</p>
+          <p><code>iverilog -g2012</code> / <code>vvp</code> for RTL simulation &mdash; sim-first, then silicon, throughout. The generated designs are checked against the VM this way.</p>
         </div>
         <div class="panel">
           <h3>Python</h3>
-          <p>The entire <code>nano/</code> stack &mdash; VM, compiler, DSL, workbench &mdash; runs on the standard library alone, no mandatory dependencies.</p>
+          <p>The <code>nano/</code> stack &mdash; VM, compilers, DSL, workbench. The LLVM IR frontends need <code>llvmlite</code>; the test suites need <code>pytest</code>.</p>
         </div>
         <div class="panel">
-          <h3>Hardware</h3>
-          <p>IEI Mustang-F100-A10 (Arria 10 GX, 10AX066H2F34E2SG), plus a Waveshare USB-Blaster clone.</p>
+          <h3>Quartus Prime 25.1 (Arria 10 line)</h3>
+          <p>Standard Edition on Windows, the path for the earlier Arria 10 card (IEI Mustang-F100-A10). The licence has since expired.</p>
         </div>
       </div>
     </section>

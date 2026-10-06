@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Imago UniCell — Topology Is Computation</title>
-<meta name="description" content="A spatial FPGA compute architecture where topology itself is the computation. No CPU, no instruction set, no shared bus -- cores wire directly to physical neighbors, and a two-arrival firing model replaces the global clock. Real Quartus-confirmed hardware; a real research project, not a commercial product.">
+<meta name="description" content="A spatial FPGA compute architecture where topology itself is the computation. No CPU, no instruction set, no shared bus -- cores wire directly to physical neighbors, and a two-arrival firing model replaces the global clock. Measured on an Arria 10 and on a Tang Nano 20K with an open toolchain; a research project, not a commercial product.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -39,11 +39,10 @@
           global clock coordinates it &mdash; wire delay does.
         </p>
         <p>
-          <strong>What this actually is, stated plainly:</strong> a research project building
-          real, working pieces of this architecture, on real hardware, with real measured
-          numbers. It is not a general-purpose computer, and not something you can install today.
-          If the PCIe host-integration work succeeds, the realistic best case is an FPGA
-          accelerator card for specific spatial-dataflow workloads &mdash; not a CPU replacement.
+          <strong>What this actually is:</strong> a research project building working
+          pieces of this architecture on real hardware, with measured numbers. It is not a
+          general-purpose computer, and not something you can install today. Current work runs on
+          a small Gowin FPGA board as a testbed and proof of concept, not as an accelerator.
         </p>
         <div class="btn-row">
           <a class="btn" href="architecture.html">Read the architecture &rarr;</a>
@@ -89,43 +88,43 @@
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">STATUS</span> THE SUPER CARRIER SHELL</div>
-      <h2>Real, Quartus-confirmed silicon numbers</h2>
+      <div class="eyebrow"><span class="tag">STATUS</span> OCTOBER 2026</div>
+      <h2>Two hardware lines; the current one is the Tang Nano 20K</h2>
       <p>
-        The active, recommended architecture is <code>unicell_super_v3.v</code>: a single
-        physical FPGA cell holding eight real, different cores simultaneously &mdash; a
-        NOR-gate logic cell, RAM, an adder, an accumulator, a comparator, a latch, a
-        sequencer, and a branch/routing core &mdash; with the active one chosen by a runtime
-        configuration write, not a synthesis-time choice. Confirmed, across four independent
-        measured axes, as the cheapest, fastest, and most placement-tolerant of every shell
-        version built so far.
+        The project's first hardware line, the <strong>super carrier shell</strong> on an
+        Arria 10 card, put every core on silicon and found that card's ceiling (roughly 200-250
+        cells). Work then moved to a <strong>Sipeed Tang Nano 20K</strong> (Gowin GW2AR-18,
+        20,736 LUT4) with a fully open toolchain: yosys, nextpnr and Apicula. The original cells
+        proved far too large for that chip, so two stripped cell families were built for it.
+        <strong>sub</strong> is fixed-latency with no flow control. <strong>flex</strong> is
+        width-parameterised with a point-to-point handshake, and runs at 18 bits on the Tang.
       </p>
       <div class="grid">
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
-          <h3>Total shell cost</h3>
-          <p>479 ALM total (301.9 ALM for the shell alone) &mdash; all 8 cores physically present in every bitstream.</p>
+          <h3>Running on the board</h3>
+          <p>A UniCell core runs on the physical Tang Nano 20K, built from source to bitstream with open tools (sequencer counting on the LEDs, 177 MHz Fmax at a 27 MHz clock).</p>
         </div>
         <div class="panel">
-          <span class="badge ok">CONFIRMED</span>
-          <h3>Timing</h3>
-          <p><code>clk_div</code> 107.05 MHz &mdash; a real ~4.3&times; margin over the 25 MHz requirement.</p>
-        </div>
-        <div class="panel">
-          <span class="badge ok">CONFIRMED</span>
-          <h3>Real scale ceiling, found on purpose</h3>
-          <p>A deliberate investigation found this card's own real ceiling: roughly 200-250 cells, 65-75 MHz Fmax at that scale. Hardware exploration is closed for now as a result &mdash; work continues on the VM/compiler side.</p>
+          <span class="badge ok">MEASURED</span>
+          <h3>Cells stripped to the compute</h3>
+          <p>The adder went from 2,348 LUT4 to 23 (flex, 18-bit). A 100-cell 18-bit adder chain place-and-routes at 287 MHz. Cost against width is measured for every cell.</p>
         </div>
         <div class="panel">
           <span class="badge ok">TESTED</span>
-          <h3>Software stack</h3>
-          <p>A real VM, ICM v3/v4 program formats, tile library, DSL/Python-AST/C/LLVM-IR compiler frontends, and a working browser workbench &mdash; all genuinely tested (593 real tests), not yet independently confirmed on hardware as these specific multi-cell layouts.</p>
+          <h3>From program file to Verilog</h3>
+          <p>An assembler turns a portable ICM program file into a sub or flex design. All 41 compiled test programs and a 36-cell CORDIC produce the same results as the VM and plain arithmetic.</p>
+        </div>
+        <div class="panel">
+          <span class="badge ok">TESTED</span>
+          <h3>A VM that mirrors the target</h3>
+          <p>FlexGrid, the VM's flex mirror, matches the generated RTL at widths from 4 to 36 bits. About 1,760 VM tests and 20 RTL-driven suites pass.</p>
         </div>
       </div>
       <p>
-        A genuinely separate, newer 9-core generation (the <strong>VIX Carrier</strong>,
-        including a new command core) also exists, real and sim-verified, with no Quartus
-        data yet &mdash; see <a href="status.html">current status</a> for the honest detail.
+        The most recent work builds floating-point stages (normalise, sticky, round-to-nearest-even)
+        out of ordinary cells, with no loops. These stages are tested in generated RTL. No sub or
+        flex design has run on the board yet; that is stated plainly on the status page.
       </p>
       <div class="btn-row">
         <a class="btn" href="status.html">Full status log &rarr;</a>

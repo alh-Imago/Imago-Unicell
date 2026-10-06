@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Status — Imago UniCell</title>
-<meta name="description" content="Current build status of Imago UniCell: the super carrier shell Quartus-confirmed, a full software stack tested in simulation, PCIe integration open work.">
+<meta name="description" content="Current build status of Imago UniCell: a core running on the Tang Nano 20K, the sub and flex cell families measured and generated from ICM files, the earlier Arria 10 super carrier shell Quartus-confirmed.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
@@ -39,8 +39,79 @@
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 06</span> THE SUPER CARRIER SHELL</div>
-      <h2>The current architecture, real Quartus numbers</h2>
+      <div class="eyebrow"><span class="tag">FIG. 08</span> THE TANG NANO 20K LINE</div>
+      <h2>The current line: sub and flex cells on an open toolchain</h2>
+      <div class="log">
+
+        <div class="log-entry">
+          <div class="log-meta">SILICON — CONFIRMED ON THE PHYSICAL BOARD</div>
+          <div class="log-title">A UniCell core running on the Tang Nano 20K</div>
+          <p>
+            A sequencer core, configured and running, counts through its states on the board's LEDs. It is built from source with yosys, nextpnr-himbaechel-gowin and gowin_pack, and the committed bitstream reproduces byte for byte. <strong>177 MHz Fmax against the board's 27 MHz clock, 3% of the chip.</strong> The first version stayed in reset on the real board; the cause was isolated to the reset button and removed. Why that button failed is still not known.
+          </p>
+          <span class="badge ok">CONFIRMED</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">SYNTHESIS + PLACE-AND-ROUTE — MEASURED</div>
+          <div class="log-title">Two stripped cell families: sub and flex</div>
+          <p>
+            The original cells were too big for this chip: one carrier position is about 80% of it. So every cell was stripped to its bare compute, with no add-on chain, no cardinal routing and one dedicated port per role. <strong>sub</strong> is fixed 32-bit with exactly one cycle per cell and no flow control. <strong>flex</strong> is width-parameterised (18 bits on this chip) with a point-to-point valid/ack handshake and a global freeze. Twelve cell functions in each family, plus a merge core on flex. The adder went from 2,348 LUT4 to 23 at 18 bits, and a 100-cell 18-bit chain place-and-routes at 287 MHz.
+          </p>
+          <span class="badge ok">MEASURED</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">SIMULATION — TESTED AGAINST THE VM</div>
+          <div class="log-title">ICM program file &rarr; Verilog, for both families</div>
+          <p>
+            The assembler reads a portable ICM program file as a map and generates the design as sub (statically timed, padded) or flex (handshake) hardware. It uses DSP blocks for multiplies while the card has them, and falls back to logic otherwise. All 41 programs in the compiled test corpus and a hand-built 36-cell CORDIC give the same results as the VM and as plain arithmetic, under random stalls on flex. The generators still build 32-bit designs; native-width builds are open work.
+          </p>
+          <span class="badge ok">TESTED</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">SIMULATION — TESTED</div>
+          <div class="log-title">The VM mirrors the target: FlexGrid</div>
+          <p>
+            The VM now takes a data width, and FlexGrid mirrors the flex family. Each core is checked against the generated RTL at widths 4, 8, 18, 32 and 36. That work found four real RTL limits in the flex cells; three are fixed, and one (the sequencer below 8 bits) is refused with the reason.
+          </p>
+          <span class="badge ok">TESTED</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">SIMULATION — TESTED</div>
+          <div class="log-title">A program format that never names its target</div>
+          <p>
+            The ICM states what a design needs (a minimum bit width, a second result word, a shift amount), and each target either provides it or refuses at compile time. Adders can now deliver their carry and multipliers their high word on a second port. A 64-bit add from two 32-bit limbs is proven in RTL.
+          </p>
+          <span class="badge ok">TESTED</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">SIMULATION — IN PROGRESS</div>
+          <div class="log-title">Floating point built from ordinary cells</div>
+          <p>
+            An fp32 add and multiply are mapped onto cells in 16 stages. The carry and high-word stages, a 5-stage left-normalise with exponent adjust, sticky, and round-to-nearest-even are built with no loops and tested in generated RTL. Alignment and assembling one whole adder are next.
+          </p>
+          <span class="badge active">IN PROGRESS</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">OPEN</div>
+          <div class="log-title">No sub or flex design on the board yet; the ESP32 host link</div>
+          <p>
+            Every sub/flex result above is simulation, synthesis or place-and-route, not silicon. The planned host is an ESP32 (WROOM-32E) over SPI; its pins are not chosen yet. The board's role is a testbed and proof of concept, not an accelerator.
+          </p>
+          <span class="badge warn">OPEN</span>
+        </div>
+
+      </div>
+    </section>
+
+    <section>
+      <div class="eyebrow"><span class="tag">FIG. 09</span> THE ARRIA 10 LINE</div>
+      <h2>The super carrier shell: the earlier line, real Quartus numbers</h2>
       <div class="log">
 
         <div class="log-entry">
@@ -76,8 +147,8 @@
             A systematic array-scale investigation found this card's own real ceiling: roughly
             200-250 cells, 65-75 MHz Fmax at that scale — a genuine ~2.5-3&times; margin over
             the fabric clock, but not a large substrate by any real measure. Hardware
-            exploration is closed for now as a deliberate result; work continues on the VM and
-            compiler side, which has no such ceiling.
+            exploration on this card was closed as a deliberate result. Hardware work later
+            resumed on the Tang Nano 20K, as a testbed (FIG. 08).
           </p>
           <span class="badge ok">CONFIRMED</span>
         </div>
@@ -114,48 +185,41 @@
         </div>
 
         <div class="log-entry">
-          <div class="log-meta">OPEN — NOT BLOCKING SOFTWARE WORK</div>
+          <div class="log-meta">SUPERSEDED</div>
           <div class="log-title">PCIe host integration</div>
           <p>
-            The realistic target for this whole project, if PCIe integration succeeds, is an FPGA
-            accelerator card for specific spatial-dataflow workloads &mdash; not a general-purpose
-            computer. If it doesn't succeed, the architecture research remains real and complete
-            on its own terms.
+            Earlier this card was meant to become a PCIe accelerator. That line is closed with the
+            Arria 10 hardware work; the current plan is an ESP32 host for the Tang Nano 20K (FIG. 08).
           </p>
-          <span class="badge warn">OPEN</span>
+          <span class="badge warn">CLOSED</span>
         </div>
 
       </div>
     </section>
 
     <section>
-      <div class="eyebrow"><span class="tag">FIG. 07</span> TOOLCHAIN &amp; HARDWARE</div>
+      <div class="eyebrow"><span class="tag">FIG. 10</span> TOOLCHAIN &amp; HARDWARE</div>
       <h2>What's solid, and what's paused</h2>
       <div class="grid">
         <div class="panel">
-          <span class="badge warn">PAUSED</span>
-          <h3>Windows / Quartus path</h3>
-          <p>Card programming and Tcl-based testing via Quartus Prime 25.1 on Windows was the authoritative path; the license has since expired and renewal isn't financially feasible near-term. Sim-first discipline means correctness work continues regardless — Quartus was the periodic real-hardware-numbers checkpoint, not day-to-day correctness.</p>
-        </div>
-        <div class="panel">
-          <span class="badge warn">PAUSED</span>
-          <h3>Linux JTAG on this machine</h3>
-          <p>
-            <code>usbfs_memory_mb</code> and USB autosuspend fixes are resolved and documented,
-            but JTAG on this particular Manjaro machine remains unreliable. Paused pending a
-            dedicated second, non-Manjaro machine to isolate whether the instability is
-            board-specific or platform-specific.
-          </p>
+          <span class="badge ok">CONFIRMED</span>
+          <h3>Open Gowin toolchain (current)</h3>
+          <p>iverilog for simulation, yosys <code>synth_gowin</code> (with <code>-nowidelut</code> as the default flow, about 3&times; smaller), nextpnr-himbaechel-gowin for place-and-route, Apicula's <code>gowin_pack</code> for the bitstream, and openFPGALoader to flash. It runs on Linux end to end.</p>
         </div>
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
-          <h3>Primary hardware</h3>
-          <p>IEI Mustang-F100-A10 (Arria 10 GX, 10AX066H2F34E2SG), plus a Waveshare USB-Blaster clone.</p>
+          <h3>Hardware</h3>
+          <p>Current: Sipeed Tang Nano 20K (Gowin GW2AR-LV18QN88C8/I7), with an ESP32-WROOM-32E planned as host. Earlier: IEI Mustang-F100-A10 (Arria 10 GX, 10AX066H2F34E2SG).</p>
+        </div>
+        <div class="panel">
+          <span class="badge warn">PAUSED</span>
+          <h3>Windows / Quartus path (Arria 10)</h3>
+          <p>Quartus Prime 25.1 on Windows was the authoritative path for the Arria 10; the licence has since expired and renewal isn't feasible near-term. Linux JTAG on the original machine also remained unreliable.</p>
         </div>
         <div class="panel">
           <span class="badge ok">TESTED</span>
           <h3>Test coverage</h3>
-          <p>593 tests across the current Unicell-S software stack (592 passing, 1 skipped) — all currently passing.</p>
+          <p>1,764 VM tests plus 20 suites that drive generated RTL through iverilog, all passing. Every sub/flex cell also has its own self-checking Verilog bench.</p>
         </div>
       </div>
     </section>
