@@ -1,4 +1,4 @@
-# points.md Status Audit, Part 3 — 2026-10-06 (#593-#996)
+# points.md Status Audit, Part 3 — 2026-10-06 (#593-#997)
 
 Part 3 continues `POINTS_STATUS_AUDIT.md` (#1-#330) and
 `POINTS_STATUS_AUDIT_2.md` (#331-#592). Like part 2, it is organised
@@ -8,7 +8,7 @@ ledger wins wherever they disagree.
 
 **Method:** I read all 401 entry titles in this range. Titles in this
 project are full summary sentences. The full text was read for
-#875-#996, and wherever a title left the status unclear. Each "open"
+#875-#997, and wherever a title left the status unclear. Each "open"
 item below was then checked for a later entry closing it. Two kinds of
 open item are kept apart:
 
@@ -17,6 +17,8 @@ open item are kept apart:
   and not mentioned since. The Tang Nano line took over the queue at
   that point, so these are neither closed nor actively scheduled.
   Check the cited entry before relying on one.
+
+**#990** is claimed by `main`'s "WIP #990" commit (the fp adder from cells), which had no ledger entry when this audit was written. Its open items are the fp-on-cells items below.
 
 Where the ledger itself says a number is used twice or skipped (#824
 twice; #893 and #902 never used), see `points/INDEX.md`.
@@ -96,7 +98,7 @@ whether single-shot preloaded constants should be reproduced on purpose
   silicon still stands. The cell-built stages (#982-#988) are now the
   path to that.
 - **Docs:** #829 and #856 asked for a full documentation update. The
-  first was done at #990-#996. #856 asks for another full pass **once
+  first was done at #991-#997. #856 asks for another full pass **once
   the fp32 work is complete**, which it is not yet.
 
 ## Thought directions on record (no build)
@@ -119,7 +121,7 @@ overtaken. #595 measured the moat (it costs more), and **#596 closed
 the Arria 10 hardware exploration track by Alan's decision**. The
 config-off-shell rollout to the remaining cores was completed at #699.
 The LLVM IR compiler path (#547) was built from #610 onward. The
-"clockless" direction is restated at #994: a timing pulse schedules
+"clockless" direction is restated at #995: a timing pulse schedules
 transfers, the cell internals are unclocked, the ack controls flow, and
 freeze decouples cells.
 
@@ -278,14 +280,14 @@ balance and parametric fp blocks proven for fp32 and fp16. In the flex VM,
 same-tick operands are no longer ORed (one is taken; a subtract raises
 an error) (#989). **Pending:** see the quick reference.
 
-## Era 27: Documentation and the public site (#990-#996)
+## Era 27: Documentation and the public site (#991-#997)
 
-**Done.** The reference docs (#990); the manual's source docs, including
-two DSL examples that no longer compiled (#991); the static pages, with
-an explainer bug fixed (#992); ledger numbering reconciled with `main`
-(#993); the public site published with the explainer, and timing
-described as pulse / ack / freeze (#994); remaining quick fixes, plus a
-regression from #992 fixed (#995); this audit (#996).
+**Done.** The reference docs (#991); the manual's source docs, including
+two DSL examples that no longer compiled (#992); the static pages, with
+an explainer bug fixed (#993); ledger numbering reconciled with `main`
+(#994); the public site published with the explainer, and timing
+described as pulse / ack / freeze (#995); remaining quick fixes, plus a
+regression from #993 fixed (#996); this audit (#997).
 
 ---
 
@@ -304,4 +306,4 @@ three places:
 3. **Hardware runs.** No sub/flex design on the board yet, and no VIX
    Carrier in Quartus.
 
-The next audit should start at #997.
+The next audit should start at #998.

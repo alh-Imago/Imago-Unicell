@@ -137,7 +137,7 @@ SECTIONS = [
              "links out instead of reprinting.",
      "parts":[{"sub":"The active plan","md":"current/PLAN.md"}],
      # current/latest.md is ~940 KB (one summary per ledger entry); embedding it would more than
-     # double this page, so it is linked like points.md (ledger #992).
+     # double this page, so it is linked like points.md (ledger #993).
      "links":[("Open current/latest.md — newest state first","../current/latest.md","run"),
               ("Open points.md — the full decision log","../points.md","run"),
               ("Continue → Sessions","#sec-sessions","section")]},

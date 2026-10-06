@@ -41,7 +41,7 @@ import project_assemble_v1  # noqa: E402
 import manual_generate_v1  # noqa: E402
 import vm_ai_port_v1  # noqa: E402
 import walker_sim_v1  # noqa: E402
-import ui_theme_v1 as ui  # noqa: E402  (ledger #997: the one shared look)
+import ui_theme_v1 as ui  # noqa: E402  (ledger #998: the one shared look)
 
 
 class FrontendController:
@@ -269,7 +269,7 @@ class FrontendController:
 
 # ── Real HTML, one block per page. The look (stylesheet, header, nav,
 # footer) is shared with the workbench and the manual through
-# ui_theme_v1 (ledger #997); these functions supply only page content. ──
+# ui_theme_v1 (ledger #998); these functions supply only page content. ──
 
 def help_link(anchor: str) -> str:
     """Real, reused help icon -- opens the manual (regenerated fresh

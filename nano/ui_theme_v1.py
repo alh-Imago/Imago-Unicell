@@ -1,5 +1,5 @@
 """
-ui_theme_v1.py -- one look for every local browser tool (ledger #997).
+ui_theme_v1.py -- one look for every local browser tool (ledger #998).
 
 Before this, each tool styled itself: the front panel (`frontend_v1.py`)
 was plain light, the workbench (`workbench_v1.py`) dark Courier with

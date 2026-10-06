@@ -261,7 +261,7 @@ const CORES = [
     {name:'pattern_high', lo:37, hi:40, kind:'hex'},
   ]},
   // sel 1-9: GENERATED from nano/icm_v3.py's CORE_FIELD_TABLES / _DIR_FIELDS on 2026-10-06
-  // (ledger #992), not hand-typed. Adds what the 2026-09-07 copy lacked: adder subtract_mode /
+  // (ledger #993), not hand-typed. Adds what the 2026-09-07 copy lacked: adder subtract_mode /
   // second_output / second_downstream_mask, accumulator step/pulse/threshold, latch toggle_dir,
   // and the mul (8) and priority (9) cores.
   {sel:1, name:'ram', fields:[
@@ -535,7 +535,7 @@ function recompute() {
 renderCoreGrid();
 renderConfigFields();
 renderAddonBits();
-// The add-on controls never called recompute() before 2026-10-06 (ledger #992), so changing them
+// The add-on controls never called recompute() before 2026-10-06 (ledger #993), so changing them
 // left the readouts stale until another control was clicked.
 ['maskEn','shiftEn','shiftAmt','shiftFine','shiftDir','laneCut','invertEn'].forEach(id => {
   document.getElementById(id).onchange = recompute;   // property, like the rest of this page (the node test's DOM stub has no addEventListener)

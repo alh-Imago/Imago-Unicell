@@ -5,7 +5,7 @@ Python models: `nano/fp32_boundary_v1.py`, `fp32_add_v1.py`, `fp32_mul_v1.py`, `
 
 Status words: **PROVEN HERE** = a design of real cells run in RTL and the VM by the companion test; **EARLIER** = a mechanism proven in a prior ledger entry (named), not re-run here; **MODEL ONLY** = exists as a Python model, no cell design yet; **NO CELL** = the function has no cell that does it today.
 
-## Status update, 2026-10-06 (ledger #984, #987, #988; recorded at #993)
+## Status update, 2026-10-06 (ledger #984, #987, #988; recorded at #994)
 
 The table below is the #982 snapshot. It is kept as written. Since then, several stages it marks as missing have been built from real flex cells, with no loops, and tested in generated RTL (plain and with random stalls) == FlexGrid == Python:
 

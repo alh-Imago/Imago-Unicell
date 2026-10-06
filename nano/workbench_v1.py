@@ -137,7 +137,7 @@ import icm_vix_v1 as vix
 from host_registry_v1 import HostResourceRegistry
 import vm_mirror_v1
 import shell_compat_v1
-import ui_theme_v1 as ui  # ledger #997: the shared look
+import ui_theme_v1 as ui  # ledger #998: the shared look
 import connection_check_v1
 import icm_v3
 
@@ -1348,7 +1348,7 @@ refreshTargetStatus();
 </html>
 """
 
-# Ledger #997: the shared look. The workbench keeps its own dense two-column layout; ui_theme_v1 supplies the palette, fonts,
+# Ledger #998: the shared look. The workbench keeps its own dense two-column layout; ui_theme_v1 supplies the palette, fonts,
 # header, nav and footer shared with the front panel and the manual.
 _WORKBENCH_CSS = """
 #grid { display: grid; gap: 4px; margin-top: 8px; overflow-x: auto; }

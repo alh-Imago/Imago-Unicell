@@ -117,7 +117,7 @@ mechanics), with reasons recorded rather than silently skipped.
 ## Keeping this current — real, standing self-audits, not assumed clean
 
 - **`shared/POINTS_STATUS_AUDIT.md`** / **`_2.md`** / **`_3.md`**
-  (#1-#330 / #331-#592 / #593-#996; part 3's quick reference is the
+  (#1-#330 / #331-#592 / #593-#997; part 3's quick reference is the
   current open list) — a curated map on top of `points/`'s own chronological
   ledger: what's done, what's genuinely still pending, what's an open
   thought-direction with no build started.

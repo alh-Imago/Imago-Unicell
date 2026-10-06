@@ -34,14 +34,14 @@ import re
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import sys  # noqa: E402
 sys.path.insert(0, os.path.join(REPO_ROOT, "nano"))
-import ui_theme_v1 as ui  # noqa: E402  (ledger #997: the shared look)
+import ui_theme_v1 as ui  # noqa: E402  (ledger #998: the shared look)
 
 # Real, curated list of this project's own real docs, in a sensible
 # reading order -- not everything in the repo, the ones that actually
 # help someone using the front end understand what they're doing.
 DEFAULT_SOURCES = [
     "README.md",
-    "sub/README.md",                                     # ledger #992: the current line's cells
+    "sub/README.md",                                     # ledger #993: the current line's cells
     "docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md",
     "docs/stripped-cell/ICM_V3_FORMAT.md",
     "docs/stripped-cell/ICM_VIX_FORMAT.md",
@@ -89,7 +89,7 @@ def convert_markdown(text, doc_id):
     in_code = False
     in_list = None  # 'ul' or 'ol' or None
     in_table = False
-    # Ledger #997: consecutive plain lines form ONE paragraph (previously each wrapped source line became its own
+    # Ledger #998: consecutive plain lines form ONE paragraph (previously each wrapped source line became its own
     # <p>, so prose looked double-spaced and bold/italic spanning a line break never rendered).
     para = []
 
@@ -202,7 +202,7 @@ def convert_markdown(text, doc_id):
     return "\n".join(html_out), toc
 
 
-# Ledger #997: the manual uses the shared front-panel look (nano/ui_theme_v1.py); only its own two-column layout is here.
+# Ledger #998: the manual uses the shared front-panel look (nano/ui_theme_v1.py); only its own two-column layout is here.
 MANUAL_CSS = """
 .manual { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 32px; align-items: start; }
 .manual nav#toc { position: sticky; top: 72px; max-height: calc(100vh - 96px); overflow-y: auto; font-size: 0.78rem;

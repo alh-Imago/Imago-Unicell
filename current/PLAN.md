@@ -1,7 +1,7 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
-> **UPDATE (2026-10-06, ledger #991): the current open work, gathered from the ledger's own "open" / "next"
+> **UPDATE (2026-10-06, ledger #992): the current open work, gathered from the ledger's own "open" / "next"
 > lines for #946-#989.** Everything below this block predates the Tang Nano line. That includes the 2026-09-02
 > "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
 > at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.
