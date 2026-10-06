@@ -1,5 +1,13 @@
 # System Mechanics — what's actually shared between the two cell lines
 
+> **Status (2026-10-06):** this compares the FULL cell (`unicell64_v3.v`,
+> now in `archeology/full-cell/verilog/`) with the STRIPPED cell
+> (`unicell_stripped_v1.v`, now at `fpga/verilog/unicell_stripped/`) as of
+> 2026-08. The file paths and line numbers below date from then. The current
+> line is the Tang Nano 20K's sub/flex cell families (`sub/README.md`). Their
+> shared mechanics are the valid/ack handshake, the global freeze, and
+> dedicated ports per role (`docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md`).
+
 **Status: first document in the new `docs/` folder (started 2026-08-04,
 per Alan: "the overview of the system mechanics and the logic that is
 in both... the first place to start"). Everything below was verified

@@ -5,6 +5,23 @@ Python models: `nano/fp32_boundary_v1.py`, `fp32_add_v1.py`, `fp32_mul_v1.py`, `
 
 Status words: **PROVEN HERE** = a design of real cells run in RTL and the VM by the companion test; **EARLIER** = a mechanism proven in a prior ledger entry (named), not re-run here; **MODEL ONLY** = exists as a Python model, no cell design yet; **NO CELL** = the function has no cell that does it today.
 
+## Status update, 2026-10-06 (ledger #984, #987, #988; recorded at #994)
+
+The table below is the #982 snapshot. It is kept as written. Since then, several stages it marks as missing have been built from real flex cells, with no loops, and tested in generated RTL (plain and with random stalls) == FlexGrid == Python:
+
+| stage | now | test |
+|---|---|---|
+| 5 ALIGN (variable right shift) | **built** (#987/#988). The select form is one conditional right-shift stage per bit of d (`v - (v - (v>>s))*b`), chained six deep (shifts 1, 2, 4, 8, 16, and 31 for the d >= 32 clamp). The better form is **align with sticky from one multiplier per stage**: `P = v * 2^(31 - s*b)`. Its HIGH word (second port) is the shifted value and its LOW word is exactly the bits shifted out, which feed a sticky collector. Six stages give `w >> (6 + d)`: two guard bits under the lsb, plus a sticky flag | `test_fp32_align_stage_v1.py`, `test_fp32_align_chain_v1.py`, `test_fp32_align_sticky_v1.py` |
+| 8 NORMALISE, subtract (leading zero + left shift) | **built** (#984). Five conditional-shift stages (16, 8, 4, 2, 1); shift-by-data is a multiplier by `F = 1` or `2^s`; the count is summed from the five 0/1 words; the exponent is adjusted by it | `test_fp32_normalise_stage_v1.py`, `test_fp32_normalise_chain_v1.py` |
+| 12 sticky reduction | **built** (#984 in the round stage; #988 in the aligner) | `test_fp32_round_stage_v1.py`, `test_fp32_align_sticky_v1.py` |
+| 13 ROUND to nearest even | **built** (#984): `up = guard AND (sticky OR lsb)` from add-on relays, comparators and adders, then `(X >> 8) + up` | `test_fp32_round_stage_v1.py` |
+
+**Still missing (from #988):** re-mapping the RNE stage's input to the aligner's output word (two guard bits, then sticky); steering the sum on the carry / normalise bit; add/sub of the aligned and the larger significands; normalising the sum and its exponent; and assembling one whole fp32 adder and comparing it with `fp32_add_v1`. Also open: the rounding-overflow exponent bump, sub-normal and zero handling, and a 24-bit generator width. Stage 1 of the "honest list" below (shift by a data value) is answered by the multiplier: a multiplier by a power of two is a shifter.
+
+**Since then (#989):** the open fp assembler (`tools/fp_assembler_v1.py`, design note `fp_assembler_open_design.md`) makes the normalise, align-with-sticky and round blocks parametric in the format, and `tools/flex_layout_v1.balance()` replaces the hand-placed spacers and detours described next.
+
+**Layout lesson (#988):** the generator refuses two operands that arrive on the same hop. On a grid, a spacer relay placed on the straight route changes nothing; only a deliberate detour (`route_via` in `tests/vm/fp32_stage_builder_v1.py`) or a different structure does. A placer that checks arrival hops itself is open.
+
 ## Operand convention for 32-bit cells
 Significands are LEFT-ALIGNED in the word (sig << 8). A 32-bit cell then sees the 24-bit significand's own carries: the adder's carry out of bit 31 is the significand overflow, and the multiplier's 64-bit product is P48 << 16, so the HIGH word's top bit is the product's bit 47. (At a 24-bit cell width the same holds without shifting; FlexGrid at W24 shows it in `test_flex_grid_mif_fit_v1.py`, #978.)
 

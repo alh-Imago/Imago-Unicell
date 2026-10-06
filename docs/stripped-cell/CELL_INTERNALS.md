@@ -1,5 +1,13 @@
 # Stripped/nano cell — Internal Structure & Register Model
 
+> **Status (2026-10-06):** this is the standalone nano cell of the
+> Arria 10 era (`unicell_stripped_v1.v`). It is background for the std
+> VM's nano model (`CACell`). The current line's nano is
+> `sub/verilog/nano_cell_v4sa.v` / `_v4s.v`: a universal 2-input bitwise
+> gate with a held operand port and a flowing operand port, no pattern
+> compare, and `WIDTH`-parameterised on flex (see `sub/README.md`, #917;
+> #963 compares the three nano variants side by side).
+
 **Ground truth: `fpga/verilog/unicell_stripped_v1.v`. Built 2026-08-04 by
 reading the file directly, start to finish — this is the cell's FIRST
 standalone documentation; before this it existed only as `points.md`

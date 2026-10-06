@@ -12,6 +12,10 @@ wins — this is a summary, not the source of truth.
 field map, or arrival behaviour changes** — same living-document
 discipline as the other cross-reference docs.
 
+*Status (2026-10-06): the tables below cover the VIX Carrier generation
+(Arria 10 era, simulation only). For the Tang Nano line's sub/flex
+cells, see the section just before "Quick answers".*
+
 **`_v4` vs `_v4c`, the one fact that matters most for design work:**
 `_v4` = standalone core, own local 3-stage addon chain (`nibble_mask
 -> shift_lane -> invert`), NO `shift_fine`. `_v4c` = carrier-embedded
@@ -55,6 +59,26 @@ capability at all.
 | **priority** (`priority_cell_v4[c]`) | **1**, chosen from potentially several simultaneous candidates | Arbitrates which of several simultaneously-arrived inputs gets captured first — configurable per-direction rank (2 bits each); `scheduling_mode` selects strict priority (0) or weighted round-robin (1) | Only core whose job IS the arrival-selection decision itself, not what happens after capture. Strict mode can starve low-rank ports under sustained load — that's why weighted mode exists |
 
 ---
+
+## The sub (v4s) and flex (v4sa) cells — Tang Nano 20K line (added 2026-10-06)
+
+The tables above are the VIX `_v4`/`_v4c` generation. The current
+line's cells (`sub/verilog/`) are different: no carrier, no
+`core_select`, no addon chain, and no cardinal faces. Each role has a
+dedicated port and a design is a generated netlist. Full detail is in
+`sub/README.md` and `CORES_AND_WRAPPERS_REFERENCE.md` (ports and costs).
+
+| | sub (`_v4s`) | flex (`_v4sa`) |
+|---|---|---|
+| Width | fixed 32 | `WIDTH` parameter (18 on the Tang) |
+| Flow control | none: exactly 1 cycle per cell, timed statically, one result per cycle | valid/ack per connection plus global freeze; one item per two cycles per cell |
+| Two operands (adder, mul) | one `valid_in` for both; the generator pads the early operand | a join; arrival order is free |
+| nano | held port (`hold_in_data` + `load_hold`) and flowing port | same, `WIDTH`-wide |
+| branch | `in1`/`in2`, each fixed or flowing; outputs `out1`/`out2` | same |
+| merge | gated OR in the generated glue | `merge_cell_v4sa`: A / B / arbitrate / join-OR |
+| Second outputs (adder carry, mul high word) | none | `SECOND_PORT=1` build parameter plus a config bit |
+| Shift / mask / invert | wiring, coarse taps only | wiring, any shift 0-31 |
+| sequencer | tick-driven (`advance_in` from the host) | free-running, paced by the consumer's ack |
 
 ## Quick answers to common design questions
 

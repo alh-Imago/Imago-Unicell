@@ -1,6 +1,42 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
+> **UPDATE (2026-10-06, ledger #992): the current open work, gathered from the ledger's own "open" / "next"
+> lines for #946-#989.** Everything below this block predates the Tang Nano line. That includes the 2026-09-02
+> "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
+> at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.
+>
+> **fp on cells (the most recent thread, #982-#989; the open fp assembler with normalise / align-with-sticky / round
+> blocks for any format is done at #989):** the missing blocks are unpack, swap-larger-first, effective add/sub,
+> significand add/sub with the carry, rounding-overflow bump, pack and zero/sub-normal/inf/nan. Then assemble one whole
+> fp add and compare it with `fp32_add_v1`. Also open: a placer that decides positions itself, a VM tick-latency model
+> for the layout engine, and a 64-bit build for fp64. Full list: `docs/shared/POINTS_STATUS_AUDIT_3.md`.
+>
+> **Width (#948, #957-#963, #985):** the `--icm` generators still build 32 bits. Still to do: native-width builds,
+> the loader's narrowing, the save's padding, and the `min_bit_width` fit check (#959). The Tang's spare-bit sign
+> encoding (`target_extensions`) is not defined. A 6-bit shift amount is needed at W=36. Widening the
+> v4/v4c/`CACell` nano is open, including the question of whether the 128-bit command word grows to 132 bits
+> (#963). The sequencer does not build below 8 bits (#970).
+>
+> **Second outputs (#976-#981):** the DAG dispatcher cannot yet pick the consumer of a second word, and there is no
+> automatic trigger from the program graph (e.g. LLVM `uadd.with.overflow`, a wide `mul`). Also open: MAN cost rows
+> for port-on cells, and a pairing rule for a pair-cell consumer that takes both words.
+>
+> **VM (#927, #960-#961):** start-up flags (`vm flex -w36`), a target profile (MAN + selectable cores + a sourced
+> cost table), and the count estimator (flex is the one family with its own mirror, by Alan's ruling, #964); the std VM's raw-unsigned negative comparator threshold
+> (#947, not patched); the automatic coarse + fine split of a shift for std targets (#986).
+>
+> **Cells:** a genuine `priority` arbiter (the tenth ICM core) on flex; `command` in the sub/flex families;
+> place-and-route of whole generated designs; a per-merge mode carried in the ICM rather than on the command line
+> (#957).
+>
+> **Hardware:** no sub/flex design has run on the board yet; the ESP32-side pins and the SPI link (#888); why
+> `BTN_RST_N` held the board in reset (#896); whether the Kintex 480T can be revived (#928); whether hard-DSP
+> offload on the Arria 10 is still a goal (#943).
+>
+> **Docs:** the remaining catch-up list in `docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md`, then regenerate the
+> manual (`docs/build_manual.py`; its own section intros are stale too, see the audit).
+
 > **UPDATE (2026-09-22): a side thought from Alan, placed here as a roadmap of POTENTIAL outcomes,
 > not committed work -- three separate demonstrations, each meant to stand on its own and add
 > independent credibility to the overall project scope, not one narrow trick stretched thin.**

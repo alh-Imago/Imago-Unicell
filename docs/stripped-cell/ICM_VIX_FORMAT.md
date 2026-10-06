@@ -269,20 +269,43 @@ designed.
 - **Nested patterns** (a pattern containing other named patterns).
   None of the three real examples needed more than one level — a real,
   deliberately deferred question (`#737`), not decided against.
-- **Any LLVM IR or DSL compiler emit path targeting this format.**
-  Confirmed directly (`#746`): the entire current compiler backend
-  (`nano/dsl_compiler_v1.py`'s own `compile_program_ir()`) emits only
-  `icm_v3.IcmV3File`/`icm_v4.IcmV4File` — this format has no compiler
-  producing it yet, only the hand-authored/prototype-generated real
-  examples proven above.
-- **Workbench integration** — `nano/workbench_v1.py`'s own `save_icm`/
-  `load_icm` are still scoped to `icm_v3.IcmV3File` only; real,
-  separate work to wire this format (and its own real save/state
-  mechanism) into the workbench's own load/save flow.
-- **A VIX-specific tile library.** `#746`'s own real finding stands:
-  `super_tile_library_v1.py` only defines tiles for the old lineage;
-  no tile exists yet for `mul`/`priority`/the `_v4c` core family this
-  format is ultimately meant to describe designs built from.
+- **Since built (status as of 2026-10-06, ledger #986).** Three items
+  that this list used to call unbuilt now exist. A compiler backend:
+  `nano/vix_compiler_v1.py`'s `compile_program_ir_vix()` (#756), and
+  `nano/vix_dag_dispatcher_v1.py` for DAG-compiled programs. Both take an
+  optional `target=` and refuse at compile time what that target cannot
+  do (#981). A VIX tile library: `nano/vix_tile_library_v1.py` (#748),
+  whose tiles can declare `optional_params`, used for `second_output`
+  and `second_downstream_mask` (#976/#980/#981). Workbench loading:
+  `nano/workbench_v1.py` has `load_icm_vix()`. What the backend still
+  does not do: it wraps the whole program as ONE pattern placed at
+  (0, 0) and does not yet find reusable shared patterns.
+- **The Flex-Sub assembler reads this format as a map.** It does this
+  through `project_assemble_v1.py -s sub|flex --icm FILE`; see
+  `tools/README.md`. The authoritative wiring is each flattened cell's
+  masks plus its grid position. The `connections` list stays advisory
+  (#923).
+
+## Per-cell fields that state a need rather than a target (ledger #980/#981/#986)
+
+A flattened cell's `core_config` and `addon_config` use the same field
+names as ICM v3. The full tables, including bit positions, are in
+`ICM_V3_FORMAT.md`. Three of those fields matter specifically because
+the format is target-agnostic:
+
+- `second_output` (adder, mul): also deliver the carry or high word as
+  a second word. `carry_mode` and `wide_mode` are accepted aliases,
+  stored canonically. The default is off; the compiler sets it only when
+  a program needs both results.
+- `second_downstream_mask` (adder, mul): the faces the second word
+  leaves by. Empty means the same faces as `downstream_mask`.
+- `shift_amt` (with `shift_fine`) and `direction`: one shift number.
+  flex makes any amount from 0 to 31, std makes coarse taps plus fine,
+  and sub makes coarse taps only.
+
+The file never says which target will run it.
+`nano/target_capabilities_v1.py` records which target can meet which
+need, and std, flex and sub each refuse what they cannot make.
 
 ## `min_bit_width`: the design's declared minimum bit width (ledger #958)
 

@@ -1,5 +1,10 @@
 # Full Structural Audit — 2026-08-16
 
+> **Status (2026-10-06): a dated snapshot of 2026-08-16**, kept as a record.
+> The repo has been reorganised since: `nano/`, `tools/`, `sub/`, `docs/`,
+> `current/` and `points/`, with older material in `archeology/`. For which
+> docs are current, see `DOCS_AND_STATIC_PAGES_AUDIT.md`.
+
 **Purpose: an honest answer to "how much of a mess are we in," ahead of
 the VM/ICM/compiler/PCIe/AI-system phase. Every top-level file and
 folder checked directly, not assumed. Builds on and cross-references

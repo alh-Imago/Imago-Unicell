@@ -20,6 +20,73 @@ triggers, watchdog timescales, hardware-confirmed-vs-sim-only status),
 kept separate from this file because they aren't about WHAT exists,
 they're about HOW to use it correctly.
 
+## Four cell generations: which one this file is about
+
+*Added 2026-10-06 (ledger #992).* There are four separate cell
+generations in this repo, and their file names overlap ("v4" appears
+in three of them). Check the file, not the version number.
+
+| generation | files | target | status | section |
+|---|---|---|---|---|
+| Original shell + one core | `fpga/verilog/<core>_cell_v1.v` … | Arria 10 | Quartus / silicon (see table below) | "The SHELL" / "CORES" |
+| Super carrier shell | `unicell_super_v1.v` … `v8.v` | Arria 10 | Quartus / silicon (v3 baseline) | "The super carrier shell" |
+| VIX Carrier | `*_v4.v`, `*_v4c.v`, `unicell_vix_carrier_v1.v` | Arria 10 (not built), Tang (does not fit, #887) | simulation only | "The VIX Carrier" |
+| **sub / flex** | `sub/verilog/*_v4s.v`, `*_v4sa.v` | **Tang Nano 20K, the current line** | simulation + synthesis + place-and-route; not yet on the board | **next section** |
+
+## The sub (v4s) and flex (v4sa) families — the current line (`points.md` #898-#986)
+
+Full design record: `sub/README.md`. In summary, each cell is
+stripped to its bare compute function. There is no add-on chain, no
+cardinal routing and no runtime routing decision. Every distinct role
+gets its own dedicated port ("two roles = two ports"; the nano is the
+exception, #972). There is no `core_select`: a design is a netlist of
+fixed cells, generated from an ICM file by the Flex-Sub assembler
+(`tools/README.md`).
+
+- **sub** (`*_v4s.v`): fixed 32 bits, no handshake, exactly one
+  cycle of latency per cell, so it is timed statically. One result per
+  cycle.
+- **flex** (`*_v4sa.v`): `WIDTH`-parameterised (18 on the Tang), with a
+  point-to-point valid/ack handshake (`valid_out` held until `ack_in`)
+  and a global `freeze_in`. One item per two cycles per cell. Every
+  flex cell captures only while `armed` (fixed at #956/#971).
+
+Shell-level ports, common to every flex cell: `clk`, `rst`,
+`freeze_in`, `cfg_valid`, `cfg_data[31:0]`, `ack_out` (ready),
+`valid_out`, `data_out[WIDTH-1:0]`, `ack_in`.
+
+| cell (flex file) | role-specific ports | notes | flex cost at W=18, LUT4 / ALU / DFF |
+|---|---|---|---|
+| adder `adder_cell_v4sa.v` | `in_a`, `in_b`, `valid_in`; second port `carry_out`, `valid_out_c`, `ack_in_c` | add/subtract; carry (subtract: NOT-borrow) as a 0/1 word when `SECOND_PORT=1` and `cfg_data[1]` (#974/#976) | 23 / 18 / 21 (27 / 19 / 24 with the port built) |
+| mul `mul_cell_v4sa.v` | `in_a`, `in_b`, `valid_in`; second port `data_out_hi`, `valid_out_hi`, `ack_in_hi` | LUT multiplier, low word; high word when `SECOND_PORT=1` and `cfg_data[0]` | 394 / 18 / 20 (829 / 36 / 40 with the port built) |
+| mul (DSP) `mul_cell_v4sa_dsp.v` | as mul | one `MULT36X36`, `WIDTH <= 36` (a hardware ceiling) | 5 LUT4 + 1 DSP |
+| comparator `compare_cell_v4sa.v` | `data_in`, `valid_in`, `cfg_threshold[WIDTH-1:0]` | signed `>=` threshold, outputs 0/1 only; the threshold has its own port (#972); no value pass-through, by ruling (#978) | 19 / 18 / 21 |
+| accumulator `accumulator_cell_v4sa.v` | `inc_pulse`, `dec_pulse` | continuous or pulse mode; 8-bit step, 16-bit threshold; builds below 16 bits since #973; cascades for large event counts (#975) | 93 / 72 / 63 |
+| latch `latch_cell_v4sa.v` | `set_in`, `clear_in`, `toggle_in` | level source (valid held) | 8 / 0 / 4 |
+| sequencer `sequencer_cell_v4sa.v` | `advance_in`, `cfg_seq_len_m1` | up to 4 values; on flex `advance_in` = own ready (free-running, #956); not below 8 bits | 36 / 0 / 46 |
+| ram `ram_cell_v4sa.v` | `data_in`, `valid_in`, `cfg_fixed_mode` | relay, or a constant (fixed mode: always valid, never used up, #945) | 24 / 0 / 21 |
+| router `router_cell_v4sa.v` | outputs `_a` and `_b`, each with its own valid/ack | fixed fan-out | 10 / 0 / 23 |
+| mask `mask_cell_v4sa.v` | `data_in`, `valid_in` | 8 mask bits, each covering `ceil(W/8)` data bits (#968) | 23 / 0 / 27 |
+| shift stage `shift_stage_v4sa.v` | `data_in`, `valid_in` | shift fixed at build time; on generated flex/sub designs, shifts, masks and inverts are plain wiring instead (#939/#985) | 5 / 0 / 20 |
+| nano `nano_cell_v4sa.v` | `hold_in_data` + `load_hold` (held operand A), `flow_in_data` + `valid_in` (flowing operand B) | universal 2-input bitwise gate selected by topology; no pattern compare | 159 / 0 / 48 |
+| branch `branch_cell_v4sa.v` | `in1_*`, `in2_*` (each fixed or flowing), `cfg_emit_fixed_value`; outputs `_1`, `_2` | 3-way signed compare; per-outcome routing to out1/out2/both/neither; emit source fixed/in1/in2/diff (#918) | 122 / 36 / 69 |
+| merge `merge_cell_v4sa.v` (flex only) | `in_a`/`in_b`, each with its own valid and `ack_out_a`/`ack_out_b` | mode `cfg_data[1:0]`: A only / B only / arbitrate (round-robin) / join-OR (#955) | 35 / 0 / 23 |
+
+Costs are from `docs/measurements/flex_width_sweep_975/` (yosys
+`synth_gowin -nowidelut`, single cell, every config port a real input).
+They are synthesis figures, not place-and-route. The sub cells are
+listed in `sub/README.md` with their own measurements. Their set is the
+same except there is no merge, and there are `shift_cell_v4s` and
+`mul_cell_v4s_dsp*` variants. Not yet built in either family:
+`command` (it reprograms live, which the "no live reprogramming"
+families do not do) and a genuine `priority` arbiter.
+
+**Verification status:** every cell has a self-checking bench in
+`sub/verilog/`. Both families run end to end from ICM files through
+the generators, checked against the VM. The flex cells are also checked
+against `FlexGrid` at W = 4…36. **None has run on the physical board
+yet.** The board has run a cell from the VIX `_v4c` generation (#896).
+
 ## Real design principle: prefer a CORE over a specialist cell, stated explicitly (Alan, 2026-08-25)
 
 **The real, governing reason, not just a style preference:** a new
@@ -356,8 +423,8 @@ improvement on — the old lineage's per-core addon instances.
 | RTL (all 11 core types × 2 real variants each + matching shells + the carrier itself) | **Real, sim-verified** — every `_v4` and `_v4c` core's own standalone testbench passes; the carrier level has six real testbenches: the original full-carrier test, a mesh test, a select-redirect test, the corrected shared-addon-chain test (`#723`), and one each proving `mul`/`priority` genuinely route and compute/arbitrate through the carrier's own real ports (`#726`/`#731`) |
 | Quartus/real silicon | **Not yet run.** `project_assemble_v1.py --shell vix` (`#648`) exists and can generate a real N-cell VIX Carrier project, but the Quartus license expired (`#649`) before it could be run — no real ALM/Fmax numbers exist for this family yet. `#728`'s own reorganization also surfaced a real, separate gap: `resolve_core_file()` cannot find any `_v4c` file at all (its own regex only matches purely numeric versions) — a real, considered fix is queued (`#728`/`#729`), not yet built |
 | VM (`VixCarrierCell`/`VixCarrierGrid`/`VixCarrierSlot`) | **Real, tested** — genuinely subclasses `SuperCell` (the 8 already-modeled core types keep their own proven dispatch, inherited for free), adding only the command core as new mechanism (`#655`-`#658`, `#660`). Not yet extended to model `mul`/`priority` — real, separate, unstarted work |
-| ICM file format | **Does not exist yet.** ICM v3/v4 (below) are scoped to the OLD core lineage only — the VIX Carrier has no portable, on-disk program format of its own; it lives in RTL simulation and the VM's own in-memory classes only |
-| Compiler/DSL reachability | **Not yet wired in.** The DSL/LLVM-IR frontends target the OLD lineage's tile library; promoting any of this to a compiler target is real, separate, unstarted work |
+| ICM file format | **Exists since #747: ICM-VIX** (`nano/icm_vix_v1.py`, `ICM_VIX_FORMAT.md`), hierarchical patterns plus a design map. *(This row said "does not exist yet" until 2026-10-06.)* |
+| Compiler/DSL reachability | **Wired in since #748/#756:** a VIX tile library (`nano/vix_tile_library_v1.py`), a backend (`nano/vix_compiler_v1.py`) and a DAG dispatcher (`nano/vix_dag_dispatcher_v1.py`) emit ICM-VIX. ICM-VIX files are also the input to the Flex-Sub assembler. *(This row said "not yet wired in" until 2026-10-06.)* |
 | "Mutable core count" (`VIXb`) | **Real, still open, now demonstrated twice.** Wiring in both `mul` and `priority` each required the same ~20 lines of hand-coordinated edits across the shared carrier file (`#726`/`#731`) — a genuine, repeated cost a real mutable-count mechanism was always meant to remove. A further, related idea (a "carrier build system" — select which cores a given design needs, build and test a carrier sized to exactly that set) is recorded and explicitly queued, not started (`#726`'s own note) |
 
 

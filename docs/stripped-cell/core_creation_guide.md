@@ -1,5 +1,13 @@
 # From raw Verilog to a real core — a process guide (Alan/Claude, 2026-09-08)
 
+> **Status (2026-10-06):** this process is for the VIX generation's
+> `_v4`/`_v4c` cores (and still applies there). Adding or changing a cell
+> in the Tang Nano line's sub/flex families (`sub/verilog/*_v4s.v`,
+> `*_v4sa.v`) touches a different chain: the planner, the emitters,
+> FlexGrid, the capability table, and the cost sweep. That checklist is in
+> `CORE_CHANGE_IMPACT_MAP.md` ("Changing a sub/flex cell"). Step 0 below
+> (verify the raw design before trusting it) applies to both.
+
 This is a real, reusable process, written down because it's needed
 more than once now (9 existing cores, `mul` as the 10th) and will be
 needed again by anyone — including future sessions — adding a new

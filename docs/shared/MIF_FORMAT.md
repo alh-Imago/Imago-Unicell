@@ -1,5 +1,14 @@
 # MIF — MathTrix Internal Float
 
+> **Status (2026-10-06):** `fp_tiles.py`, cited below, is no longer in the
+> working tree. It is preserved in the onion archives under `archeology/onion/`
+> (e.g. `old_full_cell_tile_library.onion`; see `archeology/README.md`). The MIF split-float design is
+> being rebuilt from ordinary cells. Python models: `nano/fp32_add_v1.py`,
+> `fp32_mul_v1.py`, `fp32_boundary_v1.py`. Cell stages are built in RTL ==
+> FlexGrid (#978-#988: unpack, carry and high-word bumps, normalise, sticky,
+> round-to-nearest-even, align with sticky). See
+> `docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md`.
+
 **Promoted to `docs/` 2026-08-04 — genuinely shared/target-agnostic: a
 pipeline-internal arithmetic format used by MathTrix computation
 regions regardless of which cell architecture eventually executes them.
