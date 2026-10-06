@@ -18,7 +18,8 @@ Nothing rewritten in this pass; this is the map, not the fix.*
 | `tools/manual_generate_v1.py` (live `/manual`) | `DEFAULT_SOURCES` gains sub/README, the cores reference, both ICM format docs and the Tang getting-started guide | generates; `tests/tools` 49 passed |
 | `tools/explainers/cell_pipeline_explainer.html` | core field tables for core_select 1-9 now generated from `icm_v3.py` (it lacked mul, priority, adder subtract/second output, accumulator step/pulse/threshold, latch toggle); `shift_fine` control added; **existing bug fixed:** the add-on controls never triggered a recompute | 300 random configurations (10 cores x 30) driven through the page in Chromium == `icm_v3.encode_super_latch()`, 0 mismatches |
 | `tools/explainers/chaos_topology_demo.html` | unchanged: a captured historical run (2026-09-07 finding stands) | — |
-| `gh-pages` site (5 pages) | Home, Architecture, Status and Docs rewritten for both hardware lines (Tang Nano / sub-flex current, Arria 10 earlier); figures renumbered across pages; Contact unchanged; layout and CSS untouched | Chromium, desktop and phone: no horizontal scroll; tags balanced. **Committed on a local branch made from `gh-pages`, NOT pushed**: publishing waits on Alan's go-ahead |
+| `gh-pages` site (now 6 pages, with `explainer.html`) | **Published at #993** (fast-forward to `f049875`). |
+| `gh-pages` site, #991 detail | Home, Architecture, Status and Docs rewritten for both hardware lines (Tang Nano / sub-flex current, Arria 10 earlier); figures renumbered across pages; Contact unchanged; layout and CSS untouched | Chromium, desktop and phone: no horizontal scroll; tags balanced. **Committed on a local branch made from `gh-pages`, NOT pushed**: publishing waits on Alan's go-ahead |
 
 The site's docs page links to `blob/main/...`, so the updated docs show
 there once this branch is merged to `main`.

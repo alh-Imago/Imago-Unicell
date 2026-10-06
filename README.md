@@ -5,8 +5,18 @@ computation**. There's no CPU, no instruction set, no shared bus.
 Programs are described as physical topology — which of a fixed set of
 hardware cores sits where, wired to its physical neighbors — and
 computation happens as values arrive and propagate outward across that
-topology, one wire-delay hop at a time. No global clock coordinates it;
-wire delay does.
+topology, one hop at a time.
+
+**Timing, in Alan's words (2026-10-06):** there is a timing pulse, but
+it only schedules when data is passed from one cell to the next; the
+cell internals are unclocked. Most designs use the two-arrival model (a
+cell waits for both of its operands), so skew between paths can almost
+be ignored. It is the **ack** that really controls flow. That is why
+the **freeze** line works so well. It disconnects a cell's inputs and
+outputs from the flow, so a frozen cell can be reprogrammed without
+moving any data. Each cell's state can be captured and its latch values
+stored as a series of data, to be reloaded at any time. Freeze also
+stops a partly loaded design from pre-firing in a half-built state.
 
 **What this is:** a research project building working pieces of a new
 FPGA architecture, on real hardware, with measured numbers. It is not
