@@ -15,11 +15,11 @@ def port(cell):
     return re.sub(r"\W", "_", cell)
 
 
-def run_rtl(tmp, name, recs, entries, exits, mode, settle=6000):
+def run_rtl(tmp, name, recs, entries, exits, mode, settle=6000, cycles=3000):
     """entries: {cell: [values]}; exits: {label: cell}. Returns {label: [values]}."""
     d, r = h.build(tmp, f"{name}_{mode}", recs)
     assert r.returncode == 0, r.stderr[:1500]
-    _, got = h.run_level(d, {port(c): v for c, v in entries.items()}, mode, 4, settle=settle)
+    _, got = h.run_level(d, {port(c): v for c, v in entries.items()}, mode, 4, settle=settle, cycles=cycles)
     return {k: got[port(c)] for k, c in exits.items()}
 
 

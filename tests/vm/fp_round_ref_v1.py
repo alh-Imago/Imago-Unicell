@@ -40,8 +40,17 @@ def add_ref(fmt, a, b, mode):
         if sa == sb:
             return SG if sa else 0
         return SG if mode == "rdn" else 0
-    neg = exact < 0
-    mag = -exact if neg else exact
+    return round_pack(fmt, -exact if exact < 0 else exact, exact < 0, mode)
+
+
+def round_pack(fmt, mag, neg, mode):
+    """Round the exact positive magnitude `mag` (a Fraction, not zero) once, in `mode`, and pack it with its sign (subnormals, overflow to the infinity or the largest finite number by mode and sign)."""
+    E, m = fmt.exp_bits, fmt.sig_bits - 1
+    emax = (1 << E) - 1
+    bias = (1 << (E - 1)) - 1
+    SG = 1 << (m + E)
+    INF = emax << m
+    MAXF = INF - 1
     emin = 1 - bias
     e2 = mag.numerator.bit_length() - mag.denominator.bit_length()          # floor(log2 mag) within 1
     while Fraction(2) ** e2 > mag:
@@ -78,3 +87,29 @@ def add_ref(fmt, a, b, mode):
             ee += 1
         bits = ((ee + bias) << m) | int((rounded / Fraction(2) ** ee - 1) * (1 << m))
     return (SG if neg else 0) | bits
+
+
+def mul_ref(fmt, a, b, mode):
+    """Exact product, ONE rounding (ledger #1008). The sign is always the xor of the signs (a zero or an underflowed result keeps it); inf * 0 and any nan give the canonical quiet nan; inf * finite = inf."""
+    E, m = fmt.exp_bits, fmt.sig_bits - 1
+    emax = (1 << E) - 1
+    bias = (1 << (E - 1)) - 1
+    SG = 1 << (m + E)
+    INF = emax << m
+    qnan = INF | (1 << (m - 1))
+    sa, ea, fa_ = decode(fmt, a)
+    sb, eb, fb = decode(fmt, b)
+    a_nan, b_nan = ea == emax and fa_, eb == emax and fb
+    a_inf, b_inf = ea == emax and not fa_, eb == emax and not fb
+    a_zero, b_zero = ea == 0 and not fa_, eb == 0 and not fb
+    s = (sa ^ sb) * SG
+    if a_nan or b_nan or (a_inf and b_zero) or (b_inf and a_zero):
+        return qnan
+    if a_inf or b_inf:
+        return s | INF
+    if a_zero or b_zero:
+        return s
+
+    def val(e, f):
+        return Fraction(f if e == 0 else f | (1 << m)) * Fraction(2) ** ((max(e, 1)) - bias - m)
+    return round_pack(fmt, val(ea, fa_) * val(eb, fb), bool(sa ^ sb), mode)

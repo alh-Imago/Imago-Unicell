@@ -26,3 +26,6 @@ Inputs use the effective exponent max(e,1) (hidden bit = [e>=1] as before). The 
 
 ## Rounding modes (#1007)
 The rounding step is `round_mode(mode)`: rne guard AND (sticky OR lsb); rna guard; rtz nothing; rup/rdn [guard+sticky>=1] x (1-sign)/sign using the result sign. The mode is fixed when the adder is built. Overflow becomes infinity or the largest finite number by mode and sign; the sign of an exact zero is the shared sign of equal-signed operands, else +0 (-0 for rdn), computed in the far-east unit and sent to the finish as ONE 0/1 lane (bit packing). Lesson: keep every mode's block on the same footprint (output on row 4); a different footprint changes which lanes get walled in.
+
+## The multiplier (#1008)
+fp16 multiply = unpack, 22-bit product in one word, exponent sum, an UNDERFLOW right shift with sticky (new: a product below the smallest normal loses bits), the adder's clamped normalise, `round_mode`, pack, overflow/specials, sign = xor (always). Built as three placed netlists (`netplace_v1`) plus the three blocks; constants are the only subtract minuends. fp32 needs the 48-bit product split into partial products.
