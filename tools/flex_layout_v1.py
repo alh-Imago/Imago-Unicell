@@ -186,6 +186,10 @@ class Grid:
         blocked = self._free(avoid)
         short = self._paths(a, b, None, blocked, spread)
         items = None
+        if short is not None and cross and not extra and len(short) > 40:        # a long free way round may be worse than crossing a few lines (#1007: a lane went round the whole board)
+            alt = self._paths_x(a, b, blocked, lambda p: 0 <= p[0] < self.rows and 0 <= p[1] < self.cols)
+            if alt is not None and sum(1 for sq, nm in alt if nm) and len(alt) + 24 < len(short):
+                items, short = alt, [sq for sq, nm in alt]
         if short is None and cross and not extra:
             items = self._paths_x(a, b, blocked, lambda p: 0 <= p[0] < self.rows and 0 <= p[1] < self.cols)
             if items is not None:

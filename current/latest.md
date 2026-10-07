@@ -11999,3 +11999,5 @@ field already reserves the headroom for it (values 6-31, confirmed live
 in `nano/icm_v3.py`'s own code). Deliberately deferred -- Alan's own
 words: "sort after all this is sorted." Don't raise it again until he
 does.
+
+- #1007 (7 Oct 2026): rounding modes rne/rna/rtz/rup/rdn (build-time `rounding=`), zero sign per mode, overflow value per mode; whole adder proven in RTL against an exact reference in every mode. Open: runtime mode word, multiply, compare.

@@ -298,3 +298,69 @@ def round_rne(g, fmt, name="RN", r0=0, c0=0, low=8, ext_sticky=False):
     g.route(P("GDC"), P("ADD2"))                                              # (the guard's lane runs along row 1, the significand's along row 0)
     g.route(P("SIG"), P("ADD3"), avoid=[(R(1), C(1))])
     return Block(name, entries, {"OUT": P("OUT")}, {}, (7, 12 + e))
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------------
+ROUND_MODES = ("rne", "rna", "rtz", "rup", "rdn")
+
+
+def round_mode(g, fmt, mode="rne", name="RN", r0=0, c0=0, low=8):
+    """Rounding in any of the five IEEE modes (ledger #1007), same word layout as `round_rne` (the significand at bit `low` with `low` extra bits under it: guard = bit low-1, sticky = the rest).
+    rne: guard AND (sticky OR lsb) (= round_rne);  rna (ties away): guard;  rtz (toward zero): nothing -- the truncated significand;  rup / rdn: [guard OR sticky] AND (the result is positive / negative).
+    The directed modes also need the RESULT SIGN: entry `SGN` (a 0/1 word). Entry `X`; exit `OUT` = (X >> low) + round_up (a carry out of the significand is left for the exponent step)."""
+    if mode not in ROUND_MODES:
+        raise ValueError(f"rounding mode {mode!r}: one of {ROUND_MODES}")
+    if mode == "rne":
+        return round_rne(g, fmt, name, r0, c0, low=low)
+    word, pre = fmt.word, _p(name)
+    R, C = (lambda r: r0 + r), (lambda c: c0 + c)
+    one = {"shift_en": 1, "direction": 1, "shift_amt": 1}
+    P = lambda t: pre + t
+    g.add(P("XR"), R(3), C(1))
+    g.add(P("SIG"), R(2), C(1), addon={"shift_en": 1, "direction": 1, "shift_amt": low})
+    g.link(P("XR"), P("SIG"))
+    # (every mode keeps round_rne's footprint: the input at (3,1), the output on row 4, the long lanes on rows 1-2 -- a block with its output on row 1 was walled in by the normalise lanes)
+    if mode == "rtz":
+        g.add(P("OUT"), R(4), C(10))
+        g.route(P("SIG"), P("OUT"), avoid=[(R(1), C(1))])
+        return Block(name, {"X": P("XR")}, {"OUT": P("OUT")}, {}, (7, 12))
+    g.add(P("XB"), R(3), C(2))
+    g.add(P("GDR"), R(2), C(2), addon={"shift_en": 1, "direction": 0, "shift_amt": word - low})
+    g.add(P("GDR2"), R(1), C(2), addon=one)
+    g.add(P("GDC"), R(1), C(3), "comparator", {"threshold": 1 << (word - 2)})
+    for a, b in (("XR", "XB"), ("XB", "GDR"), ("GDR", "GDR2"), ("GDR2", "GDC")):
+        g.link(P(a), P(b))
+    a3 = 9 if mode == "rna" else 10
+    g.add(P("ADD3"), R(4), C(a3), "adder")
+    g.add(P("OUT"), R(4), C(a3 + 1))
+    g.link(P("ADD3"), P("OUT"))
+    if mode == "rna":
+        g.route(P("GDC"), P("ADD3"))
+        g.route(P("SIG"), P("ADD3"), avoid=[(R(1), C(1))])
+        return Block(name, {"X": P("XR")}, {"OUT": P("OUT")}, {}, (7, 12))
+    # rup / rdn: inexact = [guard + sticky >= 1]; round up by inexact * (the sign selector): rdn -> the sign, rup -> 1 - the sign
+    consts = {}
+    g.add(P("STR"), R(3), C(3), addon={"shift_en": 1, "direction": 0, "shift_amt": word + 1 - low})
+    g.add(P("STR2"), R(3), C(4), addon=one)
+    g.add(P("STC"), R(3), C(5), "comparator", {"threshold": 1})
+    g.add(P("ADDI"), R(4), C(7), "adder")
+    g.add(P("CMPI"), R(4), C(8), "comparator", {"threshold": 1})
+    g.add(P("MULS"), R(4), C(9), "mul")
+    for a, b in (("XB", "STR"), ("STR", "STR2"), ("STR2", "STC"), ("ADDI", "CMPI"), ("CMPI", "MULS"), ("MULS", "ADD3")):
+        g.link(P(a), P(b))
+    if mode == "rdn":
+        g.add(P("SGN"), R(5), C(9))                                        # the sign enters from the south, under the output row
+        g.link(P("SGN"), P("MULS"))
+    else:
+        g.add(P("K1"), R(5), C(8), preload=1)
+        g.add(P("SSUB"), R(5), C(9), "adder", {"subtract_mode": 1})
+        g.add(P("SGD"), R(5), C(10))                                       # one relay after the entry, so the entry does not tie with the constant
+        g.add(P("SGN"), R(5), C(11))
+        consts[P("K1")] = 1
+        g.minuend[P("SSUB")] = P("K1")
+        g.link(P("SGN"), P("SGD")); g.link(P("SGD"), P("SSUB")); g.link(P("K1"), P("SSUB")); g.link(P("SSUB"), P("MULS"))
+    g.route(P("GDC"), P("ADDI"))
+    g.route(P("STC"), P("ADDI"))
+    g.route(P("SIG"), P("ADD3"), avoid=[(R(1), C(1))])
+    return Block(name, {"X": P("XR"), "SGN": P("SGN")}, {"OUT": P("OUT")}, consts, (7, 12))
+

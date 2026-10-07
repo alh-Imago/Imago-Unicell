@@ -47,9 +47,11 @@ class AddBuild:
         return name
 
 
-def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None):
+def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None, rounding="rne"):
     """Build the adder on grid g. Returns (entries {a, b}, exits {result}, consts). `upto="M"` stops after the add/subtract and exposes the taps M (magnitude of the sum), P (= [S >= 0]),
     EB (= max exponent + 1) and SA (= sign of a). `specials=True` (ledger #1001) adds the IEEE special values on the output side: inf/nan inputs, overflow to inf (see `_specials`)."""
+    if rounding not in fa.ROUND_MODES:
+        raise ValueError(f"rounding {rounding!r}: one of {fa.ROUND_MODES}")
     b = AddBuild(g, fmt)
     S, E, m, Ka, W = b.S, b.E, b.m, b.Ka, b.W
     L = W - 1 - (m + E)                                   # the format's own top-align shift (0 for fp32)
@@ -92,7 +94,7 @@ def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None):
         for x, y in ((head, sa_), (sa_, sb_), (sb_, at)):
             g.link(x, y)
         nets.append((ee, at))
-        out = {"head": head, "exp": ee, "w": wd, "t": at}
+        out = {"head": head, "exp": ee, "w": wd, "t": at, "ch": ch, "xs": xs, "ee": ee}
         if specials:
             # two taps for the special-value logic, reserved now as one-relay stubs on free faces (so the core's routes cannot wall them in): the magnitude word (f1 = x << 1, sign gone)
             # below / above f1, and the sign bit (sa_ = x >> (W-1)) east of sa_.
@@ -161,12 +163,12 @@ def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None):
     wpb = P("WPB"); g.add(wpb, 31, ux + 1)
     wps2 = P("WPS2"); g.add(wps2, 28, xe + 5)
     wps = P("WPS"); g.add(wps, 28, ux - 2)                 # the sign lane runs back west along the south, under the finish
-    subt = P("SUBT"); g.add(subt, 16, ux - 4, "adder", {"subtract_mode": 1})
-    g.minuend[subt] = xb
+    subt = P("SUBT"); g.add(subt, 16, ux - 4, "adder", {"subtract_mode": 1})      # ku - Ta (the constant is the minuend, so no arrival order between the two packed-word lanes matters; #1007)
     addu = P("ADDU"); g.add(addu, 16, ux - 5, "adder")
-    ku = b.const(P("KU"), 15, ux - 5, (3 << PK) // 2 * 1)                             # 1.5 * 2^PK : (sb - sa + 1) in the upper field, diff + 2^(PK-1) in the lower
+    ku = b.const(P("KU"), 15, ux - 4, (3 << PK) // 2 * 1)                             # 1.5 * 2^PK : (sb - sa + 1) in the upper field, diff + 2^(PK-1) in the lower
     uf = P("UF"); g.add(uf, 16, ux - 6)
-    g.link(subt, addu); g.link(ku, addu); g.link(addu, uf)
+    g.link(subt, addu); g.link(ku, subt); g.link(addu, uf)
+    g.minuend[subt] = ku                                                                 # U = Tb + (ku - Ta) = (Tb - Ta) + ku
     l1 = P("L1"); g.add(l1, 15, ux - 6, addon=shl(W - PK))
     l2 = P("L2"); g.add(l2, 14, ux - 6, addon=shr(W - PK))
     k5 = b.const(P("K5"), 13, ux - 7, -(1 << (PK - 1)))
@@ -192,13 +194,13 @@ def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None):
     sgn = P("SGN"); g.add(sgn, 22, ux - 6)
     for x_, y_ in ((uf, h1), (h1, h2), (h2, h3), (h3, h4), (h4, sgs), (k1s, sgs), (sgs, sgn)):
         g.link(x_, y_)
-    nets += [(ua["t"], wpa), (wpa, xa), (ub["t"], wpb), (wpb, xb), (xa, subt), (xb, subt), (ea2, adde2), (sgn, wps), (wps, wps2), (wps2, mult)]
+    nets += [(ua["t"], wpa), (wpa, xa), (ub["t"], wpb), (wpb, xb), (xa, subt), (xb, addu), (ea2, adde2), (sgn, wps), (wps, wps2), (wps2, mult)]
     if upto == "M":
         g.route_nets(nets)
         return {"a": ua["head"], "b": ub["head"]}, {"M": mm, "P": px, "EB": addi, "SA": saa}, {**ad.consts, **bd.consts, **b.consts}
     # --- normalise / round / finish (east) ---------------------------------------------------------------------------------------------------
     nrm = fa.normalise_chain_clamped(g, wide, P("NRM"), 10, nrm_c0)
-    rnd = fa.round_rne(g, fmt, P("RND"), 10, rnd_c0, low=4)
+    rnd = fa.round_mode(g, fmt, rounding, P("RND"), 10, rnd_c0, low=4)
     nz = P("NZ"); g.add(nz, 19, fx + 1)
     nzc = P("NZC"); g.add(nzc, 19, fx, "comparator", {"threshold": 1})
     g.link(nzc, nz)
@@ -217,20 +219,45 @@ def fp_add(g, fmt, name="ADD", upto="all", specials=False, pads=None):
     sb1 = P("SB1"); g.add(sb1, 23, fx + 3, addon=shl(W - 1))
     sb2 = P("SB2"); g.add(sb2, 23, fx + 4, addon=shr(W - 1))
     mulsg = P("MULSG"); g.add(mulsg, 22, fx + 4, "mul")
-    sh31 = P("SH31"); g.add(sh31, 22, fx + 5, addon=shl(m + E))      # the result sign, up to the format's own sign bit
-    for x_, y_ in ((k1b, nps), (nps, npv), (npv, sn), (sn, sb1), (sb1, sb2), (sb2, mulsg), (mulsg, sh31)):
+    adds = P("ADDS"); g.add(adds, 22, fx + 5, "adder")                # + the zero-sign correction (#1007)
+    sh31 = P("SH31"); g.add(sh31, 22, fx + 6, addon=shl(m + E))      # the result sign, up to the format's own sign bit
+    for x_, y_ in ((k1b, nps), (nps, npv), (npv, sn), (sn, sb1), (sb1, sb2), (sb2, mulsg), (mulsg, adds), (adds, sh31)):
         g.link(x_, y_)
+    # the sign of an EXACT ZERO result (#1007): the operands' signs if they are equal (so -0 + -0 = -0), else +0 -- but -0 when rounding down. A zero result has nz = 0, so the finished word is
+    # 0 and the sign word is 0: the correction mz = zs * (1 - nz) is simply added to the sign flag (before sh31 moves it up to the sign bit).
+    #   zs = sa * [signs equal]  (rne, rna, rtz, rup);   zs = [sa + 1 - equal >= 1] = [sa - equal >= 0]  (rdn: -0 whenever either operand is negative)
+    k1n = b.const(P("K1N"), 18, fx + 8, 1)
+    nnz = P("NNZ"); g.add(nnz, 18, fx + 9, "adder", {"subtract_mode": 1})
+    mz = P("MZ"); g.add(mz, 18, fx + 10, "mul")
+    mzs = P("MZS"); g.add(mzs, 18, fx + 11)                        # a plain relay: the sign word is shifted up once, by sh31, after the correction is added
+    g.minuend[nnz] = k1n
+    for x_, y_ in ((k1n, nnz), (nnz, mz), (mz, mzs)):
+        g.link(x_, y_)
+    # zs is worked out WHERE its two bits already are (the far-east unit: saa, and h3 = the signs-equal bit) and travels as ONE 0/1 lane to mz (bit packing, Alan #1007: fewer lanes to route)
+    if rounding == "rdn":
+        zss = P("ZSS"); g.add(zss, 19, ux - 5, "adder", {"subtract_mode": 1})
+        zs = P("ZS"); g.add(zs, 19, ux - 4, "comparator", {"threshold": 0})
+        g.link(h3, zss); g.link(zss, zs)
+        zs_in = zss
+        g.minuend[zss] = saa
+    else:
+        zs = P("ZS"); g.add(zs, 19, ux - 5, "mul")
+        g.link(h3, zs)
+        zs_in = zs
     addf1 = P("ADDF1"); g.add(addf1, 14, fx + 3, "adder")
     addf2 = P("ADDF2"); g.add(addf2, 14, fx + 4, "adder")
     res = P("RES"); g.add(res, 14, fx + 5)
     g.link(addf1, addf2); g.link(addf2, res)
     nets2 = [(addi, nrm.entries["EXPIN"]), (mm, nrm.entries["V"]), (nrm.exits["NORM"], rnd.entries["X"]),
              (rnd.exits["OUT"], nzc), (nrm.exits["EXPOUT"], addr), (nz, mule), (nz, mulsg),
-             (px, nps), (saa, sn), (rnd.exits["OUT"], addf1), (she, addf1), (sh31, addf2)]
+             (px, nps), (saa, sn), (rnd.exits["OUT"], addf1), (she, addf1), (sh31, addf2),
+             (mzs, adds), (nzc, nnz), (saa, zs_in), (zs, mz)]
+    if "SGN" in rnd.entries:
+        nets2.append((sb2, rnd.entries["SGN"]))
     if specials:
         for nd in g.nodes.values():                           # a free corridor west of the core for the lanes of the special-value block (translation only: nothing is routed yet)
             nd["c"] += WEST
-        out, c3, route_rest = _specials(g, b, name, ua, ub, res, addf1, pads=pads or {})
+        out, c3, route_rest = _specials(g, b, name, ua, ub, res, addf1, pads=pads or {}, rounding=rounding)
     if specials:
         route_rest.early()
     g.route_nets(nets)
@@ -252,7 +279,7 @@ class _Net:
         return name
 
 
-def _specials(g, b, name, ua, ub, res, mule, row0=38, col0=30, pads=None):
+def _specials(g, b, name, ua, ub, res, mule, row0=38, col0=30, pads=None, rounding="rne"):
     """IEEE special values on the output side (ledger #1001), around the finished adder: inputs inf / nan, overflow to inf.  Everything is cells that exist today.
         per operand x:  mag = x without its sign; c = [mag >= INF] (inf or nan); n = [mag >= INF + 1] (nan); inf = c - n; sign = x >> (m+E)
         nan out  = [ n_a + n_b + inf_a * inf_b * (sa xor sb) >= 1 ]  (quiet bit set: a NaN)       spec = [c_a + c_b >= 1]
@@ -308,9 +335,27 @@ def _specials(g, b, name, ua, ub, res, mule, row0=38, col0=30, pads=None):
     n.op("RR", "relay", [res])                                 # the result enters here, then fans out
     n.op("RS1", "relay", ["RR"], addon=shr(m + E))
     n.op("RS", "relay", ["RS1"], addon=shl(m + E))
-    n.op("KI2", "const", const=INF)
-    n.op("IS", "add", ["RS", "KI2"])
-    n.op("D1", "sub", ["IS", "RR"])
+    # the value a finite overflow becomes: the infinity, or the largest finite number when the mode rounds that sign toward zero (rtz: always; rup: negative; rdn: positive)
+    if rounding in ("rne", "rna"):
+        n.op("KI2", "const", const=INF)
+        n.op("IS", "add", ["RS", "KI2"])
+    elif rounding == "rtz":
+        n.op("KI2", "const", const=INF - 1)
+        n.op("IS", "add", ["RS", "KI2"])
+    elif rounding == "rup":
+        n.op("KI2", "const", const=INF)
+        n.op("DS", "sub", ["KI2", "RS1"])                   # INF - the sign bit: negative -> the largest finite
+        n.op("IS", "add", ["RS", "DS"])
+    else:
+        n.op("KI2", "const", const=INF - 1)
+        n.op("DS", "add", ["KI2", "RS1"])                   # (INF - 1) + the sign bit: negative -> the infinity
+        n.op("IS", "add", ["RS", "DS"])
+    if rounding in ("rup", "rdn"):                             # IS is built from RR (deeper), so "IS - RR" would need its minuend to arrive LATER than the subtrahend: negate RR on its own, then a plain adder (order-free)
+        n.op("KZ", "const", const=0)
+        n.op("NR", "sub", ["KZ", "RR"])
+        n.op("D1", "add", ["IS", "NR"])
+    else:
+        n.op("D1", "sub", ["IS", "RR"])
     n.op("M1X", "mul", ["OV", "D1"])
     n.op("FF", "add", ["RR", "M1X"])
     n.op("D2", "sub", ["Z", "FF"])
@@ -570,15 +615,15 @@ _PADS = {}
 _LAST_NETS = {}          # in-stub cell name -> the netlist edge (u, v) it ends, of the block built last
 
 
-def fp_add_grid(fmt, specials=True, rows=220, cols=330, name="ADD", attempts=1):
+def fp_add_grid(fmt, specials=True, rows=220, cols=330, name="ADD", attempts=1, rounding="rne"):
     """Build the adder (with the special-value block) on a fresh grid and return (grid, entries, exits, consts), timing ties and subtract orders of the block already removed.
     The block's lines cannot be lengthened by `Grid.balance` (they cross other lines), so a lane that must arrive later is given a deeper track (`pads`, +2 relays per row): the block is laid again
     with the pads the previous try asked for (the geometry is computed, so this is a handful of tries; the pads are remembered per format)."""
     from flex_layout_v1 import Grid
-    pads = dict(_PADS.get(fmt.name, {})) if specials else {}
+    pads = dict(_PADS.get((fmt.name, rounding), {})) if specials else {}
     for attempt in range(attempts):
         g = Grid(rows=rows, cols=cols)
-        ent, ex, consts = fp_add(g, fmt, name=name, specials=specials, pads=pads)
+        ent, ex, consts = fp_add(g, fmt, name=name, specials=specials, pads=pads, rounding=rounding)
         if not specials:
             break
         probs = [p_ for p_ in g.problems() if p_[0].startswith(f"{name}.SP.")]
@@ -601,5 +646,5 @@ def fp_add_grid(fmt, specials=True, rows=220, cols=330, name="ADD", attempts=1):
         if not grown:
             break
     if specials:
-        _PADS[fmt.name] = pads
+        _PADS[(fmt.name, rounding)] = pads
     return g, ent, ex, consts
