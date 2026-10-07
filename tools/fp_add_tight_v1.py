@@ -136,7 +136,7 @@ def build_combine(fmt, rounding="rne"):
     n.op("SF", "relay", ["ADDSUM"])
     n.op("CMPP", "cmp", ["SF"], thr=0)                                        # p = [S >= 0]
     n.op("P2", "relay", ["CMPP"], addon=shl(1))
-    n.op("KM1", "const", const=M32)
+    n.op("KM1", "const", const=(1 << W) - 1)
     n.op("SUBP", "add", ["P2", "KM1"])
     n.op("SG2", "relay", ["SUBP"])                                            # 2p - 1 = +-1
     n.op("MULM", "mul", ["SF", "SG2"])
@@ -169,7 +169,7 @@ def build_pack(fmt):
         n.op(e, "relay", [])
     n.op("NZC", "cmp", ["RO"], thr=1)
     n.op("NZ", "relay", ["NZC"])
-    n.op("KME", "const", const=M32)
+    n.op("KME", "const", const=(1 << W) - 1)
     n.op("ADDR", "add", ["KME", "EXR"])
     n.op("MULE", "mul", ["ADDR", "NZ"])
     n.op("SHE", "relay", ["MULE"], addon=shl(m))
