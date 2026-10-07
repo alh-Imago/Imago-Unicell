@@ -123,8 +123,10 @@
   (<code class="mono">nano/icm_v3.py</code>'s own <code class="mono">CORE_FIELD_TABLES</code>/
   <code class="mono">_ADDON_FIELDS</code>), not transcribed from memory. Pick a core, set its
   fields, and watch the real 80-bit <code class="mono">SUPER_LATCH</code> value assemble.</p>
-  <p>All eleven ICM v3 cores (core_select 0-10, including the <code class="mono">cross</code> tile, #999), the add-on chain and the fine shift. Re-checked
-  2026-10-06 against <code class="mono">icm_v3.encode_super_latch()</code> on 300 random
+  <p>All eleven ICM v3 cores (core_select 0-10, including the <code class="mono">cross</code> tile, #999), the add-on chain and the fine shift. The
+  <code class="mono">priority</code> core (9) carries three scheduling modes: strict, weighted round-robin and the sequenced channel, whose fixed turn order
+  is saved in <code class="mono">sequence_len</code> and <code class="mono">sequence_0..3</code> (#1018). Re-checked
+  2026-10-07 against <code class="mono">icm_v3.encode_super_latch()</code> on 300 random
   configurations. This is the ICM v3 record encoding used by the VM and the Arria 10 shells; the
   Tang Nano line's sub/flex cells are generated from the same records by the Flex-Sub assembler
   and are not configured through this latch.</p>
@@ -263,7 +265,8 @@ const CORES = [
   // sel 1-10: GENERATED from nano/icm_v3.py's CORE_FIELD_TABLES / _DIR_FIELDS on 2026-10-06
   // (ledger #993), not hand-typed. Adds what the 2026-09-07 copy lacked: adder subtract_mode /
   // second_output / second_downstream_mask, accumulator step/pulse/threshold, latch toggle_dir,
-  // and the mul (8) and priority (9) cores.
+  // and the mul (8) and priority (9) cores. 2026-10-07 (ledger #1018): priority gained sequence_len / sequence_0..3, the saved turn order
+  // of its sequenced channel (scheduling_mode 2); the rest is unchanged.
   {sel:1, name:'ram', fields:[
     {name:'downstream_mask', lo:0, hi:3, kind:'dirs'},
     {name:'upstream_mask', lo:4, hi:7, kind:'dirs'},
@@ -335,6 +338,11 @@ const CORES = [
     {name:'priority_rank_e', lo:12, hi:13, kind:'hex'},
     {name:'priority_rank_w', lo:14, hi:15, kind:'hex'},
     {name:'scheduling_mode', lo:16, hi:17, kind:'hex'},
+    {name:'sequence_len', lo:18, hi:20, kind:'hex'},
+    {name:'sequence_0', lo:21, hi:22, kind:'hex'},
+    {name:'sequence_1', lo:23, hi:24, kind:'hex'},
+    {name:'sequence_2', lo:25, hi:26, kind:'hex'},
+    {name:'sequence_3', lo:27, hi:28, kind:'hex'},
   ]},
   {sel:10, name:'cross', fields:[
     {name:'downstream_mask', lo:0, hi:3, kind:'dirs'},

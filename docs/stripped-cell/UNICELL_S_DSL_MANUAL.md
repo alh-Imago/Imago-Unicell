@@ -184,7 +184,7 @@ LLVM paths place them directly, and the VIX library
 | `ram_constant` | `out` | `init_data` | A fixed value, offered forever. No `in` port — nothing ever recaptures it. |
 | `ram_flowing` | `in`, `out` | — | Captures one value, offers it, re-opens once drained. |
 | `adder` | `in_a`, `in_b`, `out` | — | 32-bit add. `in_a`/`in_b` **share one underlying field** — whichever configured direction's arrival lands first becomes A, the second becomes B; direction alone doesn't decide the role. |
-| `subtractor` | `in_a`, `in_b`, `out` | — | The same adder core with `subtract_mode` fixed on: `A - B`. The same first-arrival-is-A rule applies, so operand order depends on arrival timing (`points.md` #611; see #926-#930 for how the LLVM paths pin it). |
+| `subtractor` | `in_a`, `in_b`, `out` | — | The same adder core with `subtract_mode` fixed on: `A - B`. The same first-arrival-is-A rule applies, so operand order depends on arrival timing (`points.md` #611; see #926-#930 for how the LLVM paths pin it; since #1018 the compiled file records the turn order, so the saved file itself says which operand is A). |
 | `accumulator` | `inc`, `dec`, `out` | `step_amount` | A running total, continuously offered. Each `inc` arrival adds `step_amount` and each `dec` arrival subtracts it (8-bit, required; use `1` for a plain counter). `inc`/`dec` are genuinely separate fields (unlike the adder). Same-tick arrivals on both net to zero. `pulse_mode`/`threshold` are not exposed by this tile. |
 | `comparator` | `in`, `out` | `threshold` | Stateless: `1` if the input (signed) is `>= threshold`, else `0`. |
 | `latch` | `set`, `clear`, `out` | — | A continuously-live sticky bit. `clear` wins if both arrive the same tick. |

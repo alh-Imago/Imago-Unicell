@@ -71,16 +71,19 @@ Shell-level ports, common to every flex cell: `clk`, `rst`,
 | nano `nano_cell_v4sa.v` | `hold_in_data` + `load_hold` (held operand A), `flow_in_data` + `valid_in` (flowing operand B) | universal 2-input bitwise gate selected by topology; no pattern compare | 159 / 0 / 48 |
 | branch `branch_cell_v4sa.v` | `in1_*`, `in2_*` (each fixed or flowing), `cfg_emit_fixed_value`; outputs `_1`, `_2` | 3-way signed compare; per-outcome routing to out1/out2/both/neither; emit source fixed/in1/in2/diff (#918) | 122 / 36 / 69 |
 | cross (no cell file; ICM core_select 10) | none: passes W↔E and N↔S straight through | the crossing tile (#999): no control logic; one tick per tile per direction (a one-word register slice per used direction). Today the netlist extractor builds each slice from a ram relay; native per-family cores are open | one register slice per used direction, no logic |
+| priority `priority_cell_v4sa.v` (flex only) | up to four faces `in_n/s/e/w`, each with its own valid and ready (`ack_out_*`, high only for the granted face); one output | strict (lowest rank wins), weighted (surplus round robin) or sequenced channel (a fixed repeating turn order, only the due face is taken); `cfg_data`: `[3:0]` mask, `[11:4]` ranks, `[12]` weighted, `[13]` sequenced, `[16:14]` turns, `[24:17]` the order (#1017/#1018) | 291 / 155 / 94 (W=32, every config port a real input; configuration pinned in a generated design it is far smaller, see `sub/README.md`) |
 | merge `merge_cell_v4sa.v` (flex only) | `in_a`/`in_b`, each with its own valid and `ack_out_a`/`ack_out_b` | mode `cfg_data[1:0]`: A only / B only / arbitrate (round-robin) / join-OR (#955) | 35 / 0 / 23 |
 
 Costs are from `docs/measurements/flex_width_sweep_975/` (yosys
 `synth_gowin -nowidelut`, single cell, every config port a real input).
 They are synthesis figures, not place-and-route. The sub cells are
 listed in `sub/README.md` with their own measurements. Their set is the
-same except there is no merge, and there are `shift_cell_v4s` and
+same except there is no merge and no priority, and there are `shift_cell_v4s` and
 `mul_cell_v4s_dsp*` variants. Not yet built in either family:
 `command` (it reprograms live, which the "no live reprogramming"
-families do not do) and a genuine `priority` arbiter.
+families do not do). The `priority` arbiter is built on the flex family
+(`priority_cell_v4sa`, #1017/#1018); on sub it exists only as the
+two-source strict form that the generator turns into operand wiring.
 
 **Verification status:** every cell has a self-checking bench in
 `sub/verilog/`. Both families run end to end from ICM files through
@@ -365,6 +368,17 @@ starvation problem with the first (`#730`):
   N,N,N,W,N,N,N,W — not clustered). Real, honest limit: this is
   proportional fairness, not an arbitrary, exact, pre-specified
   sequence — that would need a genuinely different, bigger core.
+- **Sequenced channel** (`scheduling_mode=2`, Alan's `#772`): a fixed,
+  repeating TURN ORDER of up to four turns (a face may repeat). Only the
+  face whose turn it is can be taken; every other arrival waits however
+  early it came and however long the due face takes (head-of-line
+  blocking, on purpose: the cell, not the wiring, guarantees the order).
+  The turn advances when the due face's word is taken and wraps; an empty
+  order never captures. Until `#1018` this existed only as a VM
+  prototype (`pri_seq_order` set by hand, not in the saved file, no RTL).
+  Now the order is saved in the ICM file (`sequence_len`, `sequence_0..3`,
+  see `ICM_V3_FORMAT.md`), the VM reads it from there, and the flex RTL
+  `priority_cell_v4sa` implements all three modes.
 
 **`#719`-`#723`: the real, corrected shape of the shared addon chain
 and config-off-shell wiring — the single most important structural

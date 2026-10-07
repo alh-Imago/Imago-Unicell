@@ -145,3 +145,20 @@ global.document = {
   querySelectorAll: () => [],
 };
 """
+
+
+def test_explainer_priority_field_table_matches_the_real_encoder_table():
+    """ledger #1018: the explainer's hand-copied core field tables (sel 1-10) must equal icm_v3's own tables, name for name and bit for bit -- the priority core gained the
+    sequenced channel's turn-order fields, and a copy that lags the encoder would show wrong bit positions."""
+    js = _read_explainer_js()
+    for sel, name in ((9, "priority"),):
+        m = re.search(r"\{sel:%d, name:'%s', fields:\[(.*?)\]\}," % (sel, name), js, re.S)
+        assert m, f"no {name} entry in the explainer"
+        got = {n: (int(lo), int(hi)) for n, lo, hi in re.findall(r"\{name:'(\w+)', lo:(\d+), hi:(\d+)", m.group(1))}
+        assert got == dict(v3.CORE_FIELD_TABLES[sel]), (got, v3.CORE_FIELD_TABLES[sel])
+    # and every other core 1-10 too (the table is generated from the encoder; this keeps it honest)
+    for sel in range(1, 11):
+        m = re.search(r"\{sel:%d, name:'(\w+)', fields:\[(.*?)\]\}," % sel, js, re.S)
+        assert m, sel
+        got = {n: (int(lo), int(hi)) for n, lo, hi in re.findall(r"\{name:'(\w+)', lo:(\d+), hi:(\d+)", m.group(2))}
+        assert got == dict(v3.CORE_FIELD_TABLES[sel]), (m.group(1), got)

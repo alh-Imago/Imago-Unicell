@@ -1884,14 +1884,65 @@ one-word register slice, so the two axes never share state, and long chains of t
 core <code>cross</code>, core_select 10 (confirmed by Alan). In RTL the netlist extractor gives every used (tile, direction) an ordinary ram
 relay slice. FlexGrid models the slices as hidden relay cells. The layout engine lets a route cross another at right angles and
 adds one hop to both routes. <strong>Open:</strong> native cores per family (built from ram slices today), and cost rows for the router and MAN.</p>
+<h2><code>priority_cell_v4sa</code>: the last flex core, with all three of the VM's modes (<code>#1017</code>/<code>#1018</code>)</h2>
+<p>The priority core is the VM's N-way arbiter: up to four faces (N, S, E, W) compete for one output. On flex it is a core with its own bench, like every other cell.
+Each face has its own data, valid and ready, so a face is <strong>ready only when it is the one granted</strong>: the winner is acknowledged, the losers keep their items where
+they are and are never blocked. One item per two cycles, <code>freeze_in</code> gates everything, one cycle of latency, <code>WIDTH</code>-parameterised.</p>
+<table>
+<thead>
+<tr>
+<th>mode</th>
+<th><code>cfg_data</code></th>
+<th>behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0 strict</td>
+<td><code>[12]=0 [13]=0</code></td>
+<td>the candidate with the lowest rank wins (<code>score = 3 - rank</code>); ties go N, S, E, W</td>
+</tr>
+<tr>
+<td>1 weighted</td>
+<td><code>[12]=1</code></td>
+<td>surplus round robin: every candidate's credit grows by its weight each round, the highest credit wins, only the winner's credit is reduced (by the total weight of that round's candidates). 3:1 gives <code>n n n s</code> exactly; 2:2:1 gives <code>n s n s e</code></td>
+</tr>
+<tr>
+<td>2 sequenced</td>
+<td><code>[13]=1</code></td>
+<td>a fixed repeating turn order (<code>[16:14]</code> turns, <code>[24:17]</code> the faces, 2 bits each); ONLY the due face is a candidate, every other arrival waits, the turn advances when the due face is taken. An empty order never captures</td>
+</tr>
+</tbody>
+</table>
+<p><code>[3:0]</code> is the upstream mask and <code>[11:4]</code> the four 2-bit ranks (weights in mode 1). A candidate is a face that is valid <strong>and</strong> enabled by the mask.
+The VM's downstream mask is not in the cell: a consumer is wiring, and the generator forks the one output to every consumer.</p>
+<p><strong>Sequenced channel, and why it is in the file now.</strong> Mode 2 is Alan's #772: the order is guaranteed by the cell's own state, not by path lengths or placement,
+at the price of head-of-line blocking (a face that never delivers stops the whole channel; that is the point). It existed only as a VM prototype, because the ICM file
+had nowhere to record the turn order. It now does (<code>sequence_len</code>, <code>sequence_0..3</code>, see <code>docs/stripped-cell/ICM_V3_FORMAT.md</code>); the compiler's placers write it, the VM
+reads it, and the generators act on it:</p>
+<ul>
+<li>A <strong>two-turn</strong> sequenced priority in front of a two-operand cell becomes plain operand wiring, with the <strong>turn</strong> deciding A and B (so <code>x - y</code> generates on sub from the
+  saved file). A strict two-source priority is eliminated the same way, by rank.</li>
+<li>Any other priority stays a real core on <strong>flex</strong>; <strong>sub</strong> has no priority core and refuses one it cannot eliminate.</li>
+<li>Refused with the reason: a sequenced priority with no usable recorded order, an order longer than four turns, a due face the mask excludes, a due face nobody feeds
+  (the VM would wait for ever), a constant (always-valid) source, and any other mode value.</li>
+</ul>
+<p><strong>Cost</strong> (<code>synth_gowin -nowidelut</code>, W=32, every config port a real input): 291 LUTs, 155 ALUs, 94 flip-flops. It is the largest of the flex cells, almost all of it the weighted
+mode's 8-bit credit arithmetic. A generated design pins the configuration, so the cost depends on the mode. Measured on a whole generated design (a two-face priority plus
+its three ram cells, whole-design totals LUT / ALU / flip-flops): strict 46 / 0 / 133, weighted 108 / 51 / 149, sequenced 51 / 6 / 136 (the three rams are the common floor).</p>
+<p><strong>Proof.</strong> <code>tb_priority_cell_v4sa.v</code> (129 checks: unarmed, rank order, backpressure, the losers served in order, ties, the mask, a lone candidate, weighted 3:1 / 2:2:1 / 1:1:1:1,
+reconfiguration, freeze; and for mode 2 turn orders N,E / N,N,S / W,S,E,N, an early arrival waiting, an empty order, a masked due face, restart at turn 0, freeze); 22 planted defects,
+every one caught (<code>tests/vm/test_priority_cell_v1.py</code>); generated designs under random stalls and skewed arrivals, nothing lost, duplicated or reordered, weighted shares and sequenced
+order exact (<code>tests/vm/test_priority_flex_v1.py</code>, <code>tests/vm/test_priority_sequence_v1.py</code>); a compiled <code>x - y</code> from the saved file, generated RTL == VM
+(<code>tests/test_flexsub_icm_generate_v1.py</code>). <strong>Not mirrored:</strong> FlexGrid has no priority model, so the RTL is the reference (as for a merge of more than two sources).</p>
 <h2>Status</h2>
-<p>Thirteen cell functions are proven, simulated and measured: adder, compare, accumulator, latch, sequencer, ram, router, mask, mul,
-shift/shift_stage, <strong>nano</strong> (<code>#917</code>), <strong>branch</strong> (<code>#918</code>) and, flex only, <strong>merge</strong> (<code>#955</code>). Each has a testbench. Both families are driven end to end
+<p>Fourteen cell functions are proven, simulated and measured: adder, compare, accumulator, latch, sequencer, ram, router, mask, mul,
+shift/shift_stage, <strong>nano</strong> (<code>#917</code>), <strong>branch</strong> (<code>#918</code>) and, flex only, <strong>merge</strong> (<code>#955</code>) and <strong>priority</strong> (<code>#1017</code>/<code>#1018</code>). Each has a testbench. Both families are driven end to end
 by the ICM generators (<code>tools/flexsub_icm_generate_v1.py</code> for sub, <code>tools/flexsub_icm_flex_v1.py</code> for flex; every core the planner translates,
 including the sequencer on flex since <code>#956</code>), checked against the real VM. The flex family is also mirrored by <code>FlexGrid</code> at any width the cells build.
 <strong>Not on real hardware yet</strong> (the board has run a cell from the original family, <code>#896</code>).</p>
-<p>Still to do: <code>command</code>, which is structurally at odds with "no live reprogramming", since reprogramming is its whole purpose; a genuine <code>priority</code>
-arbiter; the <code>--icm</code> generators at widths other than 32; the sequencer below 8 bits; a 6-bit shift amount for W = 36; and place-and-route of whole
+<p>Still to do: <code>command</code>, which is structurally at odds with "no live reprogramming", since reprogramming is its whole purpose; a FlexGrid model of the priority
+core; priority orders longer than four turns; the <code>--icm</code> generators at widths other than 32; the sequencer below 8 bits; a 6-bit shift amount for W = 36; and place-and-route of whole
 generated designs.</p>
 <h2>A stated design rule (Alan's own, confirmed across every cell built so far)</h2>
 <p>However many genuinely distinct roles a function needs -- operands, or
@@ -3272,7 +3323,8 @@ comment uses them (#609). It has no upstream field (nothing to capture):</p>
 </tbody>
 </table>
 <p><strong>priority</strong> (9). The ranks are 2 bits each (#814). The width of
-<code>scheduling_mode</code> is a generous 2 bits, not a hardware-confirmed width:</p>
+<code>scheduling_mode</code> is a generous 2 bits, not a hardware-confirmed width.
+The sequenced channel's turn order has been saved in the file since #1018:</p>
 <table>
 <thead>
 <tr>
@@ -3297,12 +3349,46 @@ comment uses them (#609). It has no upstream field (nothing to capture):</p>
 <td><code>scheduling_mode</code></td>
 <td><code>[17:16]</code> (0 strict, 1 weighted round-robin, 2 sequenced channel)</td>
 </tr>
+<tr>
+<td><code>sequence_len</code></td>
+<td><code>[20:18]</code> (turns in the order, 1..4; 0 = none recorded)</td>
+</tr>
+<tr>
+<td><code>sequence_0</code> / <code>_1</code> / <code>_2</code> / <code>_3</code></td>
+<td><code>[22:21]</code> / <code>[24:23]</code> / <code>[26:25]</code> / <code>[28:27]</code> (the face due at each turn: 0 n, 1 s, 2 e, 3 w)</td>
+</tr>
 </tbody>
 </table>
-<p>Mode 2 exists only in the VM. No RTL implements it, and a saved file
-does not record its turn order (#926/#927). The sub/flex compile path
-(<code>tools/flexsub_compile_v1.py</code>) rewrites it to strict mode 0 with
-explicit ranks (#929/#930).</p>
+<p><strong>Mode 2, the sequenced channel (#772, ported to flex and recorded in
+the file at #1018).</strong> A fixed, repeating turn order. Only the face whose
+turn it is can be taken; every other arrival waits, however early it
+comes and however long the due face takes (head-of-line blocking, by
+design). The turn advances when the due face's word is taken and wraps
+at <code>sequence_len</code>. A face may appear more than once (<code>N, N, S</code>). An
+empty order never captures. The VM reads the order from these fields
+when it loads the file (a caller can still set <code>pri_seq_order</code> by hand,
+which overrides). An older file with mode 2 and no recorded order
+cannot be run as intended: the VM never captures, and the flex/sub
+generator refuses it with that reason. The compiler's two placers
+(<code>vix_dag_dispatcher_v1</code>, <code>vix_virtual_layout_v1</code>) write the order for
+the ordered operand pair, <code>A</code> first.</p>
+<p>How the generators treat it (<code>tools/flexsub_icm_generate_v1.py</code>,
+<code>tools/flexsub_icm_flex_v1.py</code>):</p>
+<ul>
+<li><strong>Strict and weighted</strong> priorities: a two-source strict priority in
+  front of a two-operand cell is replaced by operand wiring (the
+  lower rank is operand A); on flex any other priority stays a real core,
+  <code>priority_cell_v4sa</code>. Sub has no priority core and refuses one it
+  cannot eliminate.</li>
+<li><strong>Sequenced, two turns, in front of a two-operand cell:</strong> also
+  replaced by wiring, with the <strong>turn</strong> deciding the operands (turn 0's
+  face is A, turn 1's is B), whichever arrives first. <code>x - y</code> therefore
+  generates on sub straight from the saved file.</li>
+<li><strong>Sequenced, anything else:</strong> a real core on flex only.</li>
+<li><strong>Refused, with the reason:</strong> an order that is missing, longer than
+  four, or names a face the <code>upstream_mask</code> excludes (the VM would wait
+  for it for ever), or a face with no source connected.</li>
+</ul>
 <p><strong>cross</strong> (10). West↔east and north↔south pass straight through, the
 word keeps its direction, and there is no control logic. It costs <strong>one
 tick per tile per direction of travel</strong>, like every other core: each used
@@ -3557,8 +3643,9 @@ and refuses dangling or unheard faces.</p>
 <li>A saved file does not record which cell is the program's result. The
   flex/sub compile path marks it with <code>io_name='result'</code>; stock
   <code>llvm_cli</code> files rely on sink inference (#940).</li>
-<li>The priority mode-2 turn order is not saved (#926). This is handled on
-  sub/flex by #930's rank rewrite, not by a format change.</li>
+<li>(Closed at #1018: the priority mode-2 turn order is now saved in the
+  file. <code>flexsub_compile_v1</code> keeps the faithful mode 2 when the file
+  records it, and only still rewrites an older file to strict ranks, #930.)</li>
 <li>An ICM way to name a second word's consumer from the DAG dispatcher
   (VIX <code>place</code> can already name it, #981), and an automatic trigger
   from the program graph (for example LLVM <code>uadd.with.overflow</code>).</li>
@@ -4068,6 +4155,12 @@ fixed cells, generated from an ICM file by the Flex-Sub assembler
 <td>one register slice per used direction, no logic</td>
 </tr>
 <tr>
+<td>priority <code>priority_cell_v4sa.v</code> (flex only)</td>
+<td>up to four faces <code>in_n/s/e/w</code>, each with its own valid and ready (<code>ack_out_*</code>, high only for the granted face); one output</td>
+<td>strict (lowest rank wins), weighted (surplus round robin) or sequenced channel (a fixed repeating turn order, only the due face is taken); <code>cfg_data</code>: <code>[3:0]</code> mask, <code>[11:4]</code> ranks, <code>[12]</code> weighted, <code>[13]</code> sequenced, <code>[16:14]</code> turns, <code>[24:17]</code> the order (#1017/#1018)</td>
+<td>291 / 155 / 94 (W=32, every config port a real input; configuration pinned in a generated design it is far smaller, see <code>sub/README.md</code>)</td>
+</tr>
+<tr>
 <td>merge <code>merge_cell_v4sa.v</code> (flex only)</td>
 <td><code>in_a</code>/<code>in_b</code>, each with its own valid and <code>ack_out_a</code>/<code>ack_out_b</code></td>
 <td>mode <code>cfg_data[1:0]</code>: A only / B only / arbitrate (round-robin) / join-OR (#955)</td>
@@ -4079,10 +4172,12 @@ fixed cells, generated from an ICM file by the Flex-Sub assembler
 <code>synth_gowin -nowidelut</code>, single cell, every config port a real input).
 They are synthesis figures, not place-and-route. The sub cells are
 listed in <code>sub/README.md</code> with their own measurements. Their set is the
-same except there is no merge, and there are <code>shift_cell_v4s</code> and
+same except there is no merge and no priority, and there are <code>shift_cell_v4s</code> and
 <code>mul_cell_v4s_dsp*</code> variants. Not yet built in either family:
 <code>command</code> (it reprograms live, which the "no live reprogramming"
-families do not do) and a genuine <code>priority</code> arbiter.</p>
+families do not do). The <code>priority</code> arbiter is built on the flex family
+(<code>priority_cell_v4sa</code>, #1017/#1018); on sub it exists only as the
+two-source strict form that the generator turns into operand wiring.</p>
 <p><strong>Verification status:</strong> every cell has a self-checking bench in
 <code>sub/verilog/</code>. Both families run end to end from ICM files through
 the generators, checked against the VM. The flex cells are also checked
@@ -4541,7 +4636,18 @@ starvation problem with the first (<code>#730</code>):
   3:1 weight gives an exact 6:2 ratio over 8 turns, in the pattern
   N,N,N,W,N,N,N,W — not clustered). Real, honest limit: this is
   proportional fairness, not an arbitrary, exact, pre-specified
-  sequence — that would need a genuinely different, bigger core.</p>
+  sequence — that would need a genuinely different, bigger core.
+- <strong>Sequenced channel</strong> (<code>scheduling_mode=2</code>, Alan's <code>#772</code>): a fixed,
+  repeating TURN ORDER of up to four turns (a face may repeat). Only the
+  face whose turn it is can be taken; every other arrival waits however
+  early it came and however long the due face takes (head-of-line
+  blocking, on purpose: the cell, not the wiring, guarantees the order).
+  The turn advances when the due face's word is taken and wraps; an empty
+  order never captures. Until <code>#1018</code> this existed only as a VM
+  prototype (<code>pri_seq_order</code> set by hand, not in the saved file, no RTL).
+  Now the order is saved in the ICM file (<code>sequence_len</code>, <code>sequence_0..3</code>,
+  see <code>ICM_V3_FORMAT.md</code>), the VM reads it from there, and the flex RTL
+  <code>priority_cell_v4sa</code> implements all three modes.</p>
 <p><strong><code>#719</code>-<code>#723</code>: the real, corrected shape of the shared addon chain
 and config-off-shell wiring — the single most important structural
 fact for anyone extending this family, worth reading in full even
@@ -5126,7 +5232,7 @@ LLVM paths place them directly, and the VIX library
 <td><code>subtractor</code></td>
 <td><code>in_a</code>, <code>in_b</code>, <code>out</code></td>
 <td>—</td>
-<td>The same adder core with <code>subtract_mode</code> fixed on: <code>A - B</code>. The same first-arrival-is-A rule applies, so operand order depends on arrival timing (<code>points.md</code> #611; see #926-#930 for how the LLVM paths pin it).</td>
+<td>The same adder core with <code>subtract_mode</code> fixed on: <code>A - B</code>. The same first-arrival-is-A rule applies, so operand order depends on arrival timing (<code>points.md</code> #611; see #926-#930 for how the LLVM paths pin it; since #1018 the compiled file records the turn order, so the saved file itself says which operand is A).</td>
 </tr>
 <tr>
 <td><code>accumulator</code></td>

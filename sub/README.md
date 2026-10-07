@@ -948,16 +948,52 @@ core `cross`, core_select 10 (confirmed by Alan). In RTL the netlist extractor g
 relay slice. FlexGrid models the slices as hidden relay cells. The layout engine lets a route cross another at right angles and
 adds one hop to both routes. **Open:** native cores per family (built from ram slices today), and cost rows for the router and MAN.
 
+## `priority_cell_v4sa`: the last flex core, with all three of the VM's modes (`#1017`/`#1018`)
+
+The priority core is the VM's N-way arbiter: up to four faces (N, S, E, W) compete for one output. On flex it is a core with its own bench, like every other cell.
+Each face has its own data, valid and ready, so a face is **ready only when it is the one granted**: the winner is acknowledged, the losers keep their items where
+they are and are never blocked. One item per two cycles, `freeze_in` gates everything, one cycle of latency, `WIDTH`-parameterised.
+
+| mode | `cfg_data` | behaviour |
+|---|---|---|
+| 0 strict | `[12]=0 [13]=0` | the candidate with the lowest rank wins (`score = 3 - rank`); ties go N, S, E, W |
+| 1 weighted | `[12]=1` | surplus round robin: every candidate's credit grows by its weight each round, the highest credit wins, only the winner's credit is reduced (by the total weight of that round's candidates). 3:1 gives `n n n s` exactly; 2:2:1 gives `n s n s e` |
+| 2 sequenced | `[13]=1` | a fixed repeating turn order (`[16:14]` turns, `[24:17]` the faces, 2 bits each); ONLY the due face is a candidate, every other arrival waits, the turn advances when the due face is taken. An empty order never captures |
+
+`[3:0]` is the upstream mask and `[11:4]` the four 2-bit ranks (weights in mode 1). A candidate is a face that is valid **and** enabled by the mask.
+The VM's downstream mask is not in the cell: a consumer is wiring, and the generator forks the one output to every consumer.
+
+**Sequenced channel, and why it is in the file now.** Mode 2 is Alan's #772: the order is guaranteed by the cell's own state, not by path lengths or placement,
+at the price of head-of-line blocking (a face that never delivers stops the whole channel; that is the point). It existed only as a VM prototype, because the ICM file
+had nowhere to record the turn order. It now does (`sequence_len`, `sequence_0..3`, see `docs/stripped-cell/ICM_V3_FORMAT.md`); the compiler's placers write it, the VM
+reads it, and the generators act on it:
+
+- A **two-turn** sequenced priority in front of a two-operand cell becomes plain operand wiring, with the **turn** deciding A and B (so `x - y` generates on sub from the
+  saved file). A strict two-source priority is eliminated the same way, by rank.
+- Any other priority stays a real core on **flex**; **sub** has no priority core and refuses one it cannot eliminate.
+- Refused with the reason: a sequenced priority with no usable recorded order, an order longer than four turns, a due face the mask excludes, a due face nobody feeds
+  (the VM would wait for ever), a constant (always-valid) source, and any other mode value.
+
+**Cost** (`synth_gowin -nowidelut`, W=32, every config port a real input): 291 LUTs, 155 ALUs, 94 flip-flops. It is the largest of the flex cells, almost all of it the weighted
+mode's 8-bit credit arithmetic. A generated design pins the configuration, so the cost depends on the mode. Measured on a whole generated design (a two-face priority plus
+its three ram cells, whole-design totals LUT / ALU / flip-flops): strict 46 / 0 / 133, weighted 108 / 51 / 149, sequenced 51 / 6 / 136 (the three rams are the common floor).
+
+**Proof.** `tb_priority_cell_v4sa.v` (129 checks: unarmed, rank order, backpressure, the losers served in order, ties, the mask, a lone candidate, weighted 3:1 / 2:2:1 / 1:1:1:1,
+reconfiguration, freeze; and for mode 2 turn orders N,E / N,N,S / W,S,E,N, an early arrival waiting, an empty order, a masked due face, restart at turn 0, freeze); 22 planted defects,
+every one caught (`tests/vm/test_priority_cell_v1.py`); generated designs under random stalls and skewed arrivals, nothing lost, duplicated or reordered, weighted shares and sequenced
+order exact (`tests/vm/test_priority_flex_v1.py`, `tests/vm/test_priority_sequence_v1.py`); a compiled `x - y` from the saved file, generated RTL == VM
+(`tests/test_flexsub_icm_generate_v1.py`). **Not mirrored:** FlexGrid has no priority model, so the RTL is the reference (as for a merge of more than two sources).
+
 ## Status
 
-Thirteen cell functions are proven, simulated and measured: adder, compare, accumulator, latch, sequencer, ram, router, mask, mul,
-shift/shift_stage, **nano** (`#917`), **branch** (`#918`) and, flex only, **merge** (`#955`). Each has a testbench. Both families are driven end to end
+Fourteen cell functions are proven, simulated and measured: adder, compare, accumulator, latch, sequencer, ram, router, mask, mul,
+shift/shift_stage, **nano** (`#917`), **branch** (`#918`) and, flex only, **merge** (`#955`) and **priority** (`#1017`/`#1018`). Each has a testbench. Both families are driven end to end
 by the ICM generators (`tools/flexsub_icm_generate_v1.py` for sub, `tools/flexsub_icm_flex_v1.py` for flex; every core the planner translates,
 including the sequencer on flex since `#956`), checked against the real VM. The flex family is also mirrored by `FlexGrid` at any width the cells build.
 **Not on real hardware yet** (the board has run a cell from the original family, `#896`).
 
-Still to do: `command`, which is structurally at odds with "no live reprogramming", since reprogramming is its whole purpose; a genuine `priority`
-arbiter; the `--icm` generators at widths other than 32; the sequencer below 8 bits; a 6-bit shift amount for W = 36; and place-and-route of whole
+Still to do: `command`, which is structurally at odds with "no live reprogramming", since reprogramming is its whole purpose; a FlexGrid model of the priority
+core; priority orders longer than four turns; the `--icm` generators at widths other than 32; the sequencer below 8 bits; a 6-bit shift amount for W = 36; and place-and-route of whole
 generated designs.
 
 ## A stated design rule (Alan's own, confirmed across every cell built so far)

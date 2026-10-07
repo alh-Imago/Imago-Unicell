@@ -200,7 +200,8 @@ comment uses them (#609). It has no upstream field (nothing to capture):
 | `second_downstream_mask` | `[16:13]` | faces the high word leaves by; empty = same as `downstream_mask`. #981 |
 
 **priority** (9). The ranks are 2 bits each (#814). The width of
-`scheduling_mode` is a generous 2 bits, not a hardware-confirmed width:
+`scheduling_mode` is a generous 2 bits, not a hardware-confirmed width.
+The sequenced channel's turn order has been saved in the file since #1018:
 
 | Field | Bits |
 |---|---|
@@ -208,11 +209,39 @@ comment uses them (#609). It has no upstream field (nothing to capture):
 | `downstream_mask` | `[7:4]` |
 | `priority_rank_n` / `_s` / `_e` / `_w` | `[9:8]` / `[11:10]` / `[13:12]` / `[15:14]` |
 | `scheduling_mode` | `[17:16]` (0 strict, 1 weighted round-robin, 2 sequenced channel) |
+| `sequence_len` | `[20:18]` (turns in the order, 1..4; 0 = none recorded) |
+| `sequence_0` / `_1` / `_2` / `_3` | `[22:21]` / `[24:23]` / `[26:25]` / `[28:27]` (the face due at each turn: 0 n, 1 s, 2 e, 3 w) |
 
-Mode 2 exists only in the VM. No RTL implements it, and a saved file
-does not record its turn order (#926/#927). The sub/flex compile path
-(`tools/flexsub_compile_v1.py`) rewrites it to strict mode 0 with
-explicit ranks (#929/#930).
+**Mode 2, the sequenced channel (#772, ported to flex and recorded in
+the file at #1018).** A fixed, repeating turn order. Only the face whose
+turn it is can be taken; every other arrival waits, however early it
+comes and however long the due face takes (head-of-line blocking, by
+design). The turn advances when the due face's word is taken and wraps
+at `sequence_len`. A face may appear more than once (`N, N, S`). An
+empty order never captures. The VM reads the order from these fields
+when it loads the file (a caller can still set `pri_seq_order` by hand,
+which overrides). An older file with mode 2 and no recorded order
+cannot be run as intended: the VM never captures, and the flex/sub
+generator refuses it with that reason. The compiler's two placers
+(`vix_dag_dispatcher_v1`, `vix_virtual_layout_v1`) write the order for
+the ordered operand pair, `A` first.
+
+How the generators treat it (`tools/flexsub_icm_generate_v1.py`,
+`tools/flexsub_icm_flex_v1.py`):
+
+- **Strict and weighted** priorities: a two-source strict priority in
+  front of a two-operand cell is replaced by operand wiring (the
+  lower rank is operand A); on flex any other priority stays a real core,
+  `priority_cell_v4sa`. Sub has no priority core and refuses one it
+  cannot eliminate.
+- **Sequenced, two turns, in front of a two-operand cell:** also
+  replaced by wiring, with the **turn** deciding the operands (turn 0's
+  face is A, turn 1's is B), whichever arrives first. `x - y` therefore
+  generates on sub straight from the saved file.
+- **Sequenced, anything else:** a real core on flex only.
+- **Refused, with the reason:** an order that is missing, longer than
+  four, or names a face the `upstream_mask` excludes (the VM would wait
+  for it for ever), or a face with no source connected.
 
 **cross** (10). West↔east and north↔south pass straight through, the
 word keeps its direction, and there is no control logic. It costs **one
@@ -394,8 +423,9 @@ Still open:
 - A saved file does not record which cell is the program's result. The
   flex/sub compile path marks it with `io_name='result'`; stock
   `llvm_cli` files rely on sink inference (#940).
-- The priority mode-2 turn order is not saved (#926). This is handled on
-  sub/flex by #930's rank rewrite, not by a format change.
+- (Closed at #1018: the priority mode-2 turn order is now saved in the
+  file. `flexsub_compile_v1` keeps the faithful mode 2 when the file
+  records it, and only still rewrites an older file to strict ranks, #930.)
 - An ICM way to name a second word's consumer from the DAG dispatcher
   (VIX `place` can already name it, #981), and an automatic trigger
   from the program graph (for example LLVM `uadd.with.overflow`).
