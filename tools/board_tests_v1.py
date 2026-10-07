@@ -415,23 +415,30 @@ def load(fs):
     return r.returncode == 0, (r.stdout + r.stderr)[-1500:]
 
 
-def read_lines(ser, seconds, want=2):
-    """read from an ALREADY OPEN port for `seconds`, return the UCT lines (the port is never closed between tests: some USB-serial bridges stop sending after a close/open)"""
-    got = []
+def read_lines(ser, seconds, name, sim_line=""):
+    """read from an ALREADY OPEN port, collect well-formed result lines of THIS test (`UCT <name> res=.. w=..`), ignore everything else (boot text, another test's old lines, garbage while the chip reconfigures).
+    Stops as soon as a line equals the simulation's (apart from the cycle count) or two well-formed lines were seen. returns (lines, other_lines_seen, port_vanished)"""
+    mine, other = [], 0
+    strip = lambda t: re.sub(r"last=[0-9A-F]+", "", t)
     t0, buf = time.time(), b""
+    good = re.compile(r"UCT (\S+) res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=[01] last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]+$")
     while time.time() - t0 < seconds:
         try:
             buf += ser.read(256)
         except (serial.SerialException, OSError):
-            return got, True            # the port vanished
+            return mine, other, True
         while b"\n" in buf:
             line, buf = buf.split(b"\n", 1)
             text = line.decode("ascii", "replace").strip()
-            if text.startswith("UCT"):
-                got.append(text)
-                if len(got) >= want:
-                    return got, False
-    return got, False
+            m = good.search(text)                      # junk bytes can sit in front of a good line (the chip's pins glitch while it reconfigures): find the good part
+            if m and m.group(1) == name:
+                text = m.group(0)
+                mine.append(text)
+                if (sim_line and strip(text) == strip(sim_line)) or len(mine) >= 2:
+                    return mine, other, False
+            elif "UCT" in text:
+                other += 1
+    return mine, other, False
 
 
 def open_port(port):
@@ -443,14 +450,18 @@ def open_port(port):
     return s
 
 
-def listen(ser, port):
-    """listen on the held-open port; if it is gone (or silent) try reopening it, then every other serial port. returns (lines, ser, port, ports seen, note)"""
-    time.sleep(1.0)
+def listen(ser, port, name, sim_line):
+    """after a load: let the chip start, THROW AWAY everything buffered so far (the previous design's lines), then read this test's lines. If the held port is silent or gone, reopen it, then try every other port."""
+    time.sleep(1.5)
     seen = serial_ports()
-    lines, gone = read_lines(ser, LISTEN_S)
+    try:
+        ser.reset_input_buffer()
+    except Exception:  # noqa: BLE001
+        pass
+    lines, other, gone = read_lines(ser, LISTEN_S, name, sim_line)
     if lines:
-        return lines, ser, port, seen, "held-open port"
-    note = "held-open port silent" if not gone else "held-open port vanished"
+        return lines, ser, port, seen, "held-open port" + (f" ({other} lines of other tests ignored)" if other else "")
+    note = ("held-open port vanished" if gone else f"held-open port had no line for this test ({other} lines of other tests seen)")
     try:
         ser.close()
     except Exception:  # noqa: BLE001
@@ -460,7 +471,7 @@ def listen(ser, port):
             ser = open_port(p)
         except (serial.SerialException, OSError):
             continue
-        lines, gone = read_lines(ser, 3.0)
+        lines, other, gone = read_lines(ser, 3.0, name, sim_line)
         if lines:
             return lines, ser, p, seen, note + "; answered after reopening " + p
         ser.close()
@@ -486,15 +497,13 @@ def main():
         ok, msg = load(fs)
         status, line, answered, seen, note = "NOLOAD", "", "", [], ""
         if ok:
-            lines, ser, answered, seen, note = listen(ser, port)
+            lines, ser, answered, seen, note = listen(ser, port, name, meta.get("sim_line", ""))
             line = lines[-1] if lines else ""
             if lines:
                 port = answered
             m = re.search(r"res=([PF])", line)
             status = ("PASS" if m.group(1) == "P" else "FAIL") if m else "NOREPORT"
-            if m and not line.startswith(f"UCT {name} "):
-                status = "WRONGTEST(the line is from another bitstream: the board did not reload)"
-            elif m and meta.get("sim_line"):
+            if m and meta.get("sim_line"):
                 same = re.sub(r"last=[0-9A-F]+", "", line) == re.sub(r"last=[0-9A-F]+", "", meta["sim_line"])
                 if status == "PASS" and not same:
                     status = "PASS(line differs from simulation)"
