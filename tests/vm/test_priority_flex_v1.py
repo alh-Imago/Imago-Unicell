@@ -1,7 +1,7 @@
 """tests/vm/test_priority_flex_v1.py -- ledger #1017: the PRIORITY core in a generated flex design (generator -> Verilog -> iverilog). Three source streams feed one priority cell (faces N, W, S), its
 output goes to an exit ram. Checked: one item from each source offered at the same moment is served in RANK order (strict); in a long stream nothing is lost, duplicated or corrupted and every
 source's own order is kept, through random input gaps and exit stalls, in both modes; weighted mode shares the output between the sources; the refusals (sequenced mode 2, the sub family, a constant
-source) with their reasons. Requires iverilog."""
+source) with their reasons (the sequenced channel's own tests are in test_priority_sequence_v1.py). Requires iverilog."""
 import json
 import os
 import re
@@ -170,8 +170,8 @@ def test_weighted_shares_the_output():
 
 def test_refusals_have_reasons():
     tmp = tempfile.mkdtemp()
-    d, r = build(tmp, "pri_seq", design(2, (0, 1, 2)))
-    assert r.returncode != 0 and "sequenced channel" in (r.stderr + r.stdout)
+    d, r = build(tmp, "pri_seq", design(2, (0, 1, 2)))             # sequenced channel with NO turn order recorded (an old file): refused with the reason
+    assert r.returncode != 0 and "turn order" in (r.stderr + r.stdout)
     d, r = build(tmp, "pri_sub", design(0, (1, 0, 2)), )
     assert r.returncode == 0
     icm = os.path.join(tmp, "pri_strict_sub.icm")

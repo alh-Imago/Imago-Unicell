@@ -60,7 +60,7 @@ CONFIG_NOTES = {
     "branch": "LOSSY: v4sa branch has two flowing inputs, ONE shared emit_source, and 2-bit out1/out2 routing; "
               "the ICM branch has per-outcome value_source/fixed_value/emit and 4-bit cardinal routing -- "
               "translation exists only for the representable subset (see per-cell verdict)",
-    "priority": "flex only (ledger #1017): priority_cell_v4sa; upstream_mask -> cfg_data[3:0], priority_rank_n/s/e/w -> [5:4]/[7:6]/[9:8]/[11:10], scheduling_mode -> [12] (0 strict, 1 weighted; 2 = sequenced channel: refused)",
+    "priority": "flex only (ledger #1017): priority_cell_v4sa; upstream_mask -> cfg_data[3:0], priority_rank_n/s/e/w -> [5:4]/[7:6]/[9:8]/[11:10], scheduling_mode 1 -> [12] weighted; scheduling_mode 2 (sequenced channel, #1018) -> [13], sequence_len -> [16:14], sequence_0..3 -> [18:17]/[20:19]/[22:21]/[24:23]; a 2-turn order into a two-operand cell is eliminated to wiring",
     "command": "NO Flex-Sub cell (live reprogramming is incompatible with fixed paths, #905)",
 }
 
@@ -248,6 +248,17 @@ def hop_depths(cells, edges):
 FACE_ORDER = "NSEW"
 
 
+def sequence_faces(cfg):
+    """The recorded turn order of a sequenced priority as face letters ['N', 'E', ...], or None when the file records none / an impossible one
+    (length 0 or over 4, or a due face the upstream mask excludes -- the VM would wait for it for ever)."""
+    n = int(cfg.get("sequence_len", 0))
+    if not 1 <= n <= 4:
+        return None
+    faces = ["NSEW"[int(cfg.get(f"sequence_{i}", 0)) & 3] for i in range(n)]
+    up = {str(u).upper() for u in (cfg.get("upstream_mask") or [])}
+    return faces if all(f in up for f in faces) else None
+
+
 def eliminate_priority(cells, inputs, outputs):
     """Rewrite `priority -> two-operand cell` into direct operand wiring (the fixed-port families have
     dedicated in_a/in_b, so the arbiter that serialised two operands onto ONE input is not needed).
@@ -257,7 +268,7 @@ def eliminate_priority(cells, inputs, outputs):
     ties broken N > S > E > W. So A = earlier-arriving source; on an arrival tie, lower rank, then
     N > S > E > W. Returns (cells, inputs, outputs, tiekeys, eliminated, problems); tiekeys[(cell, src)] =
     (rank, face_index) is the tie-break for the pair now feeding `cell`.
-    Refused, with the reason: weighted round-robin / sequenced modes, a priority that does not feed exactly
+    Refused, with the reason: weighted round-robin / a sequenced channel with no usable recorded order, a priority that does not feed exactly
     one two-operand cell as that cell's only source, and anything but exactly two candidates."""
     cells, inputs, outputs = dict(cells), {k: {r: list(v) for r, v in d.items()} for k, d in inputs.items()}, \
         {k: list(v) for k, v in outputs.items()}
@@ -267,7 +278,14 @@ def eliminate_priority(cells, inputs, outputs):
         srcs = inputs.get(pid, {}).get("in", [])
         mode = cfg.get("scheduling_mode", 0)
         cons = outputs.get(pid, [])
-        if mode != 0:
+        seq_faces = None
+        if mode == 2:
+            # ledger #1018: a SEQUENCED channel whose turn order is recorded is a fixed wiring statement -- turn 0's face is operand A, turn 1's is operand B, whenever
+            # each arrives (the VM's due face is awaited, the other waits). Eliminable as a 2 -> 1 join exactly like strict, with the TURN as the operand key.
+            seq_faces = sequence_faces(cfg)
+            if seq_faces is None or len(seq_faces) != 2 or seq_faces[0] == seq_faces[1] or sorted(seq_faces) != sorted(f for _, f in srcs):
+                continue          # stays a core (flex) or is refused there, with the reason
+        elif mode != 0:
             problems.append(f"{pid}: priority scheduling_mode={mode} ({'weighted round-robin' if mode == 1 else 'sequenced channel'}) "
                             f"-- the arrival order depends on arbiter state, not wiring; only strict mode 0 is eliminable")
             continue
@@ -281,7 +299,7 @@ def eliminate_priority(cells, inputs, outputs):
                             f"(a priority in front of a one-input cell is stream arbitration, which has no fixed-port form)")
             continue
         for src, face in srcs:
-            tiekeys[(c, src)] = (cfg.get(f"priority_rank_{face.lower()}", 0), FACE_ORDER.index(face))
+            tiekeys[(c, src)] = ((seq_faces.index(face) if seq_faces else cfg.get(f"priority_rank_{face.lower()}", 0)), FACE_ORDER.index(face))
             outputs[src] = [c if x == pid else x for x in outputs[src]]
         inputs[c]["in"] = [(src, face) for src, face in srcs]
         del cells[pid], inputs[pid], outputs[pid]

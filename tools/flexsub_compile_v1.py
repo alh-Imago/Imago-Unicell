@@ -33,8 +33,8 @@ DIR_LETTER = {0: "n", 1: "s", 2: "e", 3: "w"}      # icm_v3._DIR_BITS: n=0, s=1,
 
 
 def retarget_records(records, seq_orders):
-    """Return (new_records, changed_cell_ids). Each priority named by `seq_orders` (label -> (dirA, dirB), direction
-    indices) becomes scheduling_mode 0 with rank 0 on dirA's face and rank 1 on dirB's. Records are copied, never
+    """Return (new_records, changed_cell_ids). A sequenced priority whose file already records its turn order (#1018: sequence_len / sequence_0..) is KEPT as it is -- nothing to change.
+    Otherwise each priority named by `seq_orders` (label -> (dirA, dirB), direction indices; an older file that does not record the order) becomes scheduling_mode 0 with rank 0 on dirA's face and rank 1 on dirB's. Records are copied, never
     mutated in place. Raises ValueError if a named priority is missing or not in sequenced mode."""
     recs = copy.deepcopy(records)
     byid = {r.cell_id: r for r in recs}
@@ -48,6 +48,8 @@ def retarget_records(records, seq_orders):
             raise ValueError(f"{cid}: expected scheduling_mode 2, found {cfg.get('scheduling_mode')!r}")
         if da == db or da not in DIR_LETTER or db not in DIR_LETTER:
             raise ValueError(f"{cid}: bad sequence order {(da, db)}")
+        if int(cfg.get("sequence_len", 0)) == 2 and (int(cfg.get("sequence_0", -1)), int(cfg.get("sequence_1", -1))) == (da, db):
+            continue        # ledger #1018: the file RECORDS the turn order itself, so the faithful sequenced channel is kept (the generator turns it into operand wiring / the RTL core)
         cfg["scheduling_mode"] = 0
         for d in DIR_LETTER.values():
             cfg[f"priority_rank_{d}"] = 0

@@ -494,9 +494,11 @@ def _grow_convergence(instr: DagInstr, resolved: List[dict], shape: ConvergenceS
     orient = choose_two_way_orientation(target, a_frontier.pos, b_frontier.pos)
 
     scheduling_mode = 2 if shape == ConvergenceShape.SEQUENCER else 0
+    pri_params = {"priority_rank_n": 0, "priority_rank_s": 0, "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": scheduling_mode}
+    if scheduling_mode == 2:     # ledger #1018: the turn order (operand A's face first) is recorded in the cell's own config, so it survives in the saved ICM
+        pri_params.update({"sequence_len": 2, "sequence_0": _dir_const(orient["in_a"]), "sequence_1": _dir_const(orient["in_b"])})
     pri = vtl.place(vtl.TILE_PRIORITY, {"in": [orient["in_a"], orient["in_b"]], "out": orient["out"]},
-                     params={"priority_rank_n": 0, "priority_rank_s": 0, "priority_rank_e": 0,
-                             "priority_rank_w": 0, "scheduling_mode": scheduling_mode},
+                     params=pri_params,
                      cell_id=f"pri_{instr.name}", rel_row=target[0], rel_col=target[1])
     cells.append(pri)
 

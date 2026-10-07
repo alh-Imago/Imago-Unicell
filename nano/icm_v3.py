@@ -329,6 +329,13 @@ _PRIORITY_FIELDS = {
     "priority_rank_e": (12, 13),
     "priority_rank_w": (14, 15),
     "scheduling_mode": (16, 17),
+    # ledger #1018: the TURN ORDER of the sequenced channel (scheduling_mode 2) is now recorded in the file. sequence_len = how many turns (1..4, 0 = none
+    # recorded); sequence_0..3 = the face due at each turn, as a direction code (0 n, 1 s, 2 e, 3 w). Absent / 0 = exactly the old files.
+    "sequence_len": (18, 20),
+    "sequence_0": (21, 22),
+    "sequence_1": (23, 24),
+    "sequence_2": (25, 26),
+    "sequence_3": (27, 28),
 }
 
 _BRANCH_FIELDS = {

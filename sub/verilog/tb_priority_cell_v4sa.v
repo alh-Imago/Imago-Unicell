@@ -6,7 +6,8 @@
 // Run:  iverilog -g2012 -o /tmp/tb_p.vvp tb_priority_cell_v4sa.v priority_cell_v4sa.v && vvp /tmp/tb_p.vvp
 // Covers: unarmed silence; STRICT priority (lowest rank wins, N > S > E > W on ties, only the winner is acknowledged, the losers wait and are served in order); the upstream mask; a lone
 // candidate; backpressure (a pending result blocks every input); full-width data; WEIGHTED (surplus round robin) proportions 3:1, 2:2:1 and equal weights; reconfiguration clearing credits
-// and a pending result; freeze.
+// and a pending result; freeze. SEQUENCED channel (#1018): only the due face is taken, early arrivals wait, repeated faces in the order, empty order never captures, a masked-off due
+// face blocks, reconfiguration restarts at turn 0, freeze does not advance the turn.
 `timescale 1ns/1ps
 module tb_priority_cell_v4sa;
     reg clk = 0, rst = 1, freeze_in = 0, cfg_valid = 0, ack_in = 0;
@@ -35,6 +36,10 @@ module tb_priority_cell_v4sa;
     // cfg: mask, ranks (n,s,e,w), mode
     task do_cfg(input [3:0] mask, input [1:0] rn, input [1:0] rs, input [1:0] re, input [1:0] rw, input mode);
         begin cfg_data = {19'b0, mode, rw, re, rs, rn, mask}; cfg_valid = 1; step; cfg_valid = 0; end
+    endtask
+    // sequenced: mask, turn order (len 0..4, t0..t3 face codes)
+    task do_cfg_seq(input [3:0] mask, input [2:0] len, input [1:0] t0, input [1:0] t1, input [1:0] t2, input [1:0] t3);
+        begin cfg_data = {7'b0, t3, t2, t1, t0, len, 1'b1, 1'b0, 8'b0, mask}; cfg_valid = 1; step; cfg_valid = 0; end
     endtask
     task drain; begin ack_in = 1; step; ack_in = 0; end endtask
     // one round: sample which face is granted just before the edge, then take the edge
@@ -141,6 +146,86 @@ module tb_priority_cell_v4sa;
         freeze_in = 0; #1;
         check_cond(an === 1'b1, "freeze released: ready again");
         serve(xf); check_cond(d === 32'h11111111, "after freeze the item is taken");
+
+
+        // ---- SEQUENCED channel (mode 2): order N, E, N, E ... all four faces offering; only the due face is acknowledged ----
+        do_cfg_seq(4'hF, 3'd2, 2'd0, 2'd2, 2'd0, 2'd0);
+        vn = 1; vs = 1; ve = 1; vw = 1; #1;
+        check_cond({xn, xs, xe, xw} === 4'b1000, "sequenced: only the due face (north) is ready");
+        seq = 0;
+        for (k = 0; k < 6; k = k + 1) begin serve_always(xf); seq = (seq << 8) | ch(xf); end
+        check_cond(seq[47:0] === "nenene", "sequenced 2-turn order N,E: n e n e n e (south and west never taken)");
+        vn = 0; vs = 0; ve = 0; vw = 0;
+
+        // ---- an early arrival waits, however long ----
+        do_cfg_seq(4'hF, 3'd2, 2'd0, 2'd2, 2'd0, 2'd0);
+        ve = 1; #1;
+        check_cond(ae === 1'b0, "early arrival: east is not ready while north is due");
+        step; step; step; check_cond(vo === 1'b0, "early arrival: nothing captured while it waits");
+        vw = 1; #1; check_cond(aw === 1'b0, "early arrival: west is not in the order, never ready"); vw = 0;
+        vn = 1; serve(xf); check_cond(xf === 4'b0001, "early arrival: north's turn is taken first");
+        ve = 1; #1; check_cond(ae === 1'b1, "early arrival: east, already waiting, is taken on its turn");
+        serve(xf); check_cond(xf === 4'b0100 && d === 32'h33333333, "early arrival: east served second, its own word");
+        ve = 0; vn = 0;
+
+        // ---- a face may take several turns: N, N, S ----
+        do_cfg_seq(4'hF, 3'd3, 2'd0, 2'd0, 2'd1, 2'd0);
+        vn = 1; vs = 1; seq = 0;
+        for (k = 0; k < 6; k = k + 1) begin serve_always(xf); seq = (seq << 8) | ch(xf); end
+        check_cond(seq[47:0] === "nnsnns", "sequenced N,N,S: n n s n n s");
+        vn = 0; vs = 0;
+
+        // ---- four turns, all four faces, in the order W, S, E, N ----
+        do_cfg_seq(4'hF, 3'd4, 2'd3, 2'd1, 2'd2, 2'd0);
+        vn = 1; vs = 1; ve = 1; vw = 1; seq = 0;
+        for (k = 0; k < 8; k = k + 1) begin serve_always(xf); seq = (seq << 8) | ch(xf); end
+        check_cond(seq[63:0] === "wsenwsen", "sequenced W,S,E,N: w s e n w s e n");
+        vn = 0; vs = 0; ve = 0; vw = 0;
+
+        // ---- a lone turn: one face only, the others never taken ----
+        do_cfg_seq(4'hF, 3'd1, 2'd1, 2'd0, 2'd0, 2'd0);
+        vn = 1; vs = 1; dw = 32'hDEADBEEF; seq = 0;
+        for (k = 0; k < 3; k = k + 1) begin serve_always(xf); seq = (seq << 8) | ch(xf); end
+        check_cond(seq[23:0] === "sss", "sequenced single turn: s s s");
+        vn = 0; vs = 0; dw = 32'h44444444;
+
+        // ---- an empty order never captures ----
+        do_cfg_seq(4'hF, 3'd0, 2'd0, 2'd0, 2'd0, 2'd0);
+        vn = 1; vs = 1; ve = 1; vw = 1; #1;
+        check_cond(an === 1'b0 && as_ === 1'b0 && ae === 1'b0 && aw === 1'b0, "empty order: nothing is ready");
+        step; step; check_cond(vo === 1'b0, "empty order: nothing captured");
+        vn = 0; vs = 0; ve = 0; vw = 0;
+
+        // ---- the due face is masked off: the cell waits for it for ever (as the VM does) ----
+        do_cfg_seq(4'b1110, 3'd2, 2'd0, 2'd2, 2'd0, 2'd0);
+        vn = 1; ve = 1; vs = 1; #1;
+        check_cond(an === 1'b0 && ae === 1'b0 && as_ === 1'b0, "masked due face: nothing is ready");
+        step; step; check_cond(vo === 1'b0, "masked due face: nothing captured");
+        vn = 0; ve = 0; vs = 0;
+
+        // ---- reconfiguration restarts at turn 0; a pending result is discarded ----
+        do_cfg_seq(4'hF, 3'd2, 2'd0, 2'd2, 2'd0, 2'd0);
+        vn = 1; ve = 1;
+        serve_always(xf);                                    // north taken, turn is now east
+        round(xf);                                           // east taken, left pending
+        do_cfg_seq(4'hF, 3'd2, 2'd0, 2'd2, 2'd0, 2'd0);
+        check_cond(vo === 1'b0, "sequenced reconfig: the pending result is discarded");
+        serve_always(xf); check_cond(xf === 4'b0001, "sequenced reconfig: the order restarts at turn 0 (north)");
+        vn = 0; ve = 0;
+
+        // ---- freeze: the turn does not advance, nothing is ready ----
+        do_cfg_seq(4'hF, 3'd2, 2'd0, 2'd2, 2'd0, 2'd0);
+        vn = 1; ve = 1; freeze_in = 1; #1;
+        check_cond(an === 1'b0, "sequenced freeze: not ready");
+        step; step; check_cond(vo === 1'b0, "sequenced freeze: nothing captured");
+        freeze_in = 0; #1;
+        serve(xf); check_cond(xf === 4'b0001, "sequenced freeze released: still turn 0 (north)");
+        vn = 0; ve = 0;
+
+        // ---- a sequenced cell carries the full 32-bit word of the due face ----
+        do_cfg_seq(4'hF, 3'd1, 2'd3, 2'd0, 2'd0, 2'd0);
+        dw = 32'hCAFEF00D; vw = 1; serve(xf); check_cond(d === 32'hCAFEF00D, "sequenced: the full 32-bit word passes");
+        dw = 32'h44444444;
 
         if (errors == 0) $display("ALL PASS"); else $display("FAILED: %0d", errors);
         $finish;

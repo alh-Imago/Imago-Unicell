@@ -107,10 +107,20 @@ try:
     print("retarget unit checks")
     from icm_v3 import IcmV3File
     f, rep, _ = fc.compile_for_flexsub("define i32 @f(i32 %x, i32 %y) {\nentry:\n  %r = sub i32 %x, %y\n  ret i32 %r\n}\n", "t")
+    import copy
     pri = [r for r in f.records if r.core == "priority"]
-    check("x - y: the priority is strict mode 0 with DIFFERENT ranks (A=0, B=1)",
-          len(pri) == 1 and pri[0].core_config["scheduling_mode"] == 0
-          and sorted([pri[0].core_config["priority_rank_n"], pri[0].core_config["priority_rank_s"]]) == [0, 1], str(pri[0].core_config if pri else None))
+    check("x - y: the priority is the SEQUENCED channel (mode 2) with its turn order recorded in the file (#1018: x first, then y)",
+          len(pri) == 1 and pri[0].core_config["scheduling_mode"] == 2 and pri[0].core_config["sequence_len"] == 2
+          and pri[0].core_config["sequence_0"] != pri[0].core_config["sequence_1"] and rep["retargeted"] == [], str(pri[0].core_config if pri else None))
+    legacy = copy.deepcopy([r for r in f.records])
+    lp = [r for r in legacy if r.core == "priority"][0]
+    da, db = lp.core_config["sequence_0"], lp.core_config["sequence_1"]
+    for k in ("sequence_len", "sequence_0", "sequence_1"):               # an OLDER file (order not recorded) is still retargeted to strict ranks
+        lp.core_config.pop(k, None)
+    recs_old, changed_old = fc.retarget_records(legacy, {lp.cell_id.split("pri_", 1)[1]: (da, db)})
+    lp2 = [r for r in recs_old if r.core == "priority"][0]
+    check("an older file without the recorded order still retargets to strict ranks (A=0, B=1)",
+          changed_old == [lp.cell_id] and lp2.core_config["scheduling_mode"] == 0 and sorted([lp2.core_config["priority_rank_n"], lp2.core_config["priority_rank_s"]]) == [0, 1])
     f2, rep2, _ = fc.compile_for_flexsub("define i32 @f(i32 %x, i32 %y) {\nentry:\n  %r = add i32 %x, %y\n  ret i32 %r\n}\n", "t")
     check("x + y (commutative): nothing to retarget", rep2["retargeted"] == [])
     import copy
@@ -168,6 +178,8 @@ try:
     file, report, _ = fc.compile_for_flexsub(src, "ctl")
     for r in file.records:                       # NEGATIVE CONTROL: erase the identity the ranks carry
         if r.core == "priority":
+            r.core_config["scheduling_mode"] = 0                    # no sequence, no ranks: nothing says which operand is A
+            r.core_config["sequence_len"] = 0
             for dch in "nsew":
                 r.core_config[f"priority_rank_{dch}"] = 0
     icm = os.path.join(tmp, "ctl.icm")

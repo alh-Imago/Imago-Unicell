@@ -583,9 +583,39 @@
     "description": "0=strict rank, 1=weighted round-robin (Surplus Round Robin, #814), 2=sequenced channel"
    },
    {
+    "name": "sequence_len",
+    "hi": 20,
+    "lo": 18,
+    "description": "ledger #1018: number of turns in the sequenced channel's order (1..4); 0 = none recorded"
+   },
+   {
+    "name": "sequence_0",
+    "hi": 22,
+    "lo": 21,
+    "description": "face due at turn 0 (0 n, 1 s, 2 e, 3 w)"
+   },
+   {
+    "name": "sequence_1",
+    "hi": 24,
+    "lo": 23,
+    "description": "face due at turn 1"
+   },
+   {
+    "name": "sequence_2",
+    "hi": 26,
+    "lo": 25,
+    "description": "face due at turn 2"
+   },
+   {
+    "name": "sequence_3",
+    "hi": 28,
+    "lo": 27,
+    "description": "face due at turn 3"
+   },
+   {
     "name": "reserved",
     "hi": 63,
-    "lo": 18,
+    "lo": 29,
     "description": "unused"
    }
   ]

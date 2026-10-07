@@ -187,15 +187,36 @@ try:
                         break
                 want = (x + y) & 0xFFFFFFFF
                 check(f"{name}({x}, {y}): RTL == VM == arithmetic ({want}), one pulse", got == [(3, want)] and vmv == want, f"rtl={got[:3]} vm={vmv} want={want}")
-        # a program that needs an ORDERED operand pair: the compiler uses the sequenced-channel priority, whose turn
-        # order is NOT recorded in the saved ICM v3 (found: the VM cannot run the saved file either) -> refused, with that reason
+        # a program that needs an ORDERED operand pair: the compiler uses the sequenced-channel priority. Since #1018 its turn order IS recorded in the saved ICM, so the file generates
+        # (the arbiter becomes operand wiring, the turn deciding A / B) and the saved file runs on the VM; the RTL equals the VM.
         src = os.path.join(tmp, "subx.ll")
         open(src, "w").write("define i32 @f(i32 %x, i32 %y) {\nentry:\n  %a = sub i32 %x, %y\n  ret i32 %a\n}\n")
         icm = os.path.join(tmp, "subx.icm")
         llvm_cli_v1.main([src, "-o", icm])
-        r = cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_subx"))
-        check("x - y (sequenced-channel priority, order not in the file): refused, names the reason",
-              r.returncode != 0 and "sequenced channel" in r.stderr, r.stderr.strip()[:240])
+        dc = os.path.join(tmp, "g_subx")
+        r = cli("-s", "sub", "--icm", icm, "--output", dc)
+        check("x - y (sequenced-channel priority, order RECORDED in the file): generates, the arbiter eliminated", r.returncode == 0
+              and len(json.load(open(os.path.join(dc, "ASSEMBLY.json")))["eliminated_priority_cells"]) == 1, r.stderr.strip()[:240])
+        if r.returncode == 0:
+            doc, recs, cells, edges, inputs, outputs, ext, w = nl.extract(icm)
+            ents = sorted([c for c in recs if c.core == "ram" and not (c.core_config or {}).get("upstream_mask")], key=lambda c: (c.row, c.col))
+            port_names = [re.sub(r"[^A-Za-z0-9_]", "_", c.cell_id) for c in ents]
+            for x, y in ((6, 7), (100, 3), (0, 0), (123456789, 987654321)):
+                got = [(c, dv) for c, v, dv in simulate(dc, [x, y], names=port_names) if v]
+                grid = vm.SuperGrid(recs)
+                for c, val in zip(ents, (x, y)):
+                    cell = grid.cells[(c.row, c.col)]
+                    cell.ram_data_reg, cell.ram_data_valid = val & 0xFFFFFFFF, True
+                ex = [c.cell_id for c in recs if not outputs.get(c.cell_id)][0]
+                exc = grid.cells[next((c.row, c.col) for c in recs if c.cell_id == ex)]
+                vmv = None
+                for _ in range(160):
+                    grid.tick()
+                    if getattr(exc, f"{exc.core}_data_valid", None):
+                        vmv = getattr(exc, f"{exc.core}_out_buffer")
+                        break
+                check(f"sub({x}, {y}): RTL == VM (the saved file's recorded turn order), a difference of the two", len(got) == 1 and got[0][1] == vmv
+                      and vmv in ((x - y) & 0xFFFFFFFF, (y - x) & 0xFFFFFFFF), f"rtl={got[:3]} vm={vmv}")
 
     print("refusals are specific, never silent")
     sys.path.insert(0, os.path.join(ROOT, "nano"))

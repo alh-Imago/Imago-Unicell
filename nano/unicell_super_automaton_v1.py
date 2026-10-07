@@ -741,6 +741,10 @@ class SuperCell:
             cell.pri_rank_e = int(cfg.get("priority_rank_e", 0)) & 0x3
             cell.pri_rank_w = int(cfg.get("priority_rank_w", 0)) & 0x3
             cell.pri_scheduling_mode = int(cfg.get("scheduling_mode", 0))
+            # ledger #1018: a recorded turn order (sequenced channel). Absent = () as before; a caller may still set pri_seq_order afterwards.
+            _sl = int(cfg.get("sequence_len", 0)) & 0x7
+            cell.pri_seq_order = tuple(int(cfg.get(f"sequence_{i}", 0)) & 0x3 for i in range(min(_sl, 4)))
+            cell.pri_seq_index = 0
             cell.pri_credit_n = 0
             cell.pri_credit_s = 0
             cell.pri_credit_e = 0

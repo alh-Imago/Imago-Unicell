@@ -491,8 +491,16 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
         if r.core == "priority":                                  # ledger #1017: what priority_cell_v4sa can and cannot do
             pcfg = r.core_config or {}
             pmode = int(pcfg.get("scheduling_mode", 0))
-            if pmode not in (0, 1):
-                problems.append(f"{c}: priority scheduling_mode={pmode} (sequenced channel) -- the turn order is not recorded in the ICM format and no RTL implements it; only 0 (strict) and 1 (weighted round robin) are translated")
+            if pmode not in (0, 1, 2):
+                problems.append(f"{c}: priority scheduling_mode={pmode} -- not a mode the VM defines (0 strict, 1 weighted round robin, 2 sequenced channel)")
+            elif pmode == 2:             # ledger #1018: a sequenced channel needs its recorded turn order, and every due face must have a source (the VM waits for a due face for ever)
+                sf = nl.sequence_faces(pcfg)
+                if sf is None:
+                    problems.append(f"{c}: sequenced channel (scheduling_mode 2) without a usable recorded turn order (sequence_len 1..4, every due face in upstream_mask) -- the VM would never capture or wait for ever; not translated")
+                else:
+                    have = {f for _, f in inputs.get(c, {}).get("in", [])}
+                    if not set(sf) <= have:
+                        problems.append(f"{c}: sequenced channel turn order {''.join(sf)} names a face with no source connected ({''.join(sorted(have))}) -- the VM waits for it for ever; not translated")
             if not srcs_of[c]:
                 problems.append(f"{c}: a priority with no source connected")
         seq_srcs = [q for q in srcs_of[c] if cells[q].core == "sequencer"]

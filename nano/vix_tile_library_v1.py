@@ -428,4 +428,5 @@ TILE_PRIORITY = register(VixTileSpec(
     ports=[TilePort("in", "in", "upstream_mask"), TilePort("out", "out", "downstream_mask")],
     param_names=["priority_rank_n", "priority_rank_s", "priority_rank_e", "priority_rank_w",
                  "scheduling_mode"],
+    optional_params=["sequence_len", "sequence_0", "sequence_1", "sequence_2", "sequence_3"],   # ledger #1018: the sequenced channel's turn order
 ))

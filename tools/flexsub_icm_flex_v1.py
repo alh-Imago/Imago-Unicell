@@ -64,7 +64,7 @@ WHAT THE EMITTER BUILDS (all of it plain valid/ready glue around the cells):
     VALUE_(k mod n)) -- deliberate and deterministic, and DIFFERENT from the VM, whose arrival-paired adder pairs the sequence with ITSELF (#937). Recorded as a test.
 
 STAGES 1-8 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator, accumulator, latch, branch,
-two-source merges (as a core), the sequencer and constants -- every ICM core the planner translates including the N-way `priority` arbiter (priority_cell_v4sa, ledger #1017; only the VM's sequenced-channel mode is refused). Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
+two-source merges (as a core), the sequencer and constants -- every ICM core the planner translates including the N-way `priority` arbiter (priority_cell_v4sa, ledger #1017: strict, weighted, and -- #1018 -- the sequenced channel with its recorded turn order). Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
 """
 import json
 import os
@@ -430,10 +430,13 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
               f".ack_out({i}_rdy), .data_out_1({dout}), .valid_out_1({i}_p1_v), .ack_in_1({i}_p1_ai), .data_out_2({i}_d2u), .valid_out_2({i}_p2_v), .ack_in_2({i}_p2_ai));")
         elif r.core == "priority":
             faces = [f_.lower() for _, f_ in inputs[c]["in"]]
-            word = sum(1 << "nsew".index(f_) for f_ in faces) | (sum((int(cfg.get(f"priority_rank_{f_}", 0)) & 3) << (4 + 2 * "nsew".index(f_)) for f_ in "nsew")) | ((int(cfg.get("scheduling_mode", 0)) & 1) << 12)
+            word = sum(1 << "nsew".index(f_) for f_ in faces) | (sum((int(cfg.get(f"priority_rank_{f_}", 0)) & 3) << (4 + 2 * "nsew".index(f_)) for f_ in "nsew")) | ((1 << 12) if int(cfg.get("scheduling_mode", 0)) == 1 else 0)
+            if int(cfg.get("scheduling_mode", 0)) == 2:         # ledger #1018: the sequenced channel, its recorded turn order in bits [24:14]
+                sq = int(cfg.get("sequence_len", 0))
+                word |= (1 << 13) | (sq << 14) | sum((int(cfg.get(f"sequence_{k}", 0)) & 3) << (17 + 2 * k) for k in range(sq))
             a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{word:08X}), "
               + ", ".join(f".in_{f_}({i}_d{f_}), .valid_in_{f_}({i}_v{f_}), .ack_out_{f_}({i}_rdy{f_})" for f_ in "nsew")
-              + f", .data_out({dout}), .valid_out({i}_v), .ack_in({i}_ai));   // priority: {'weighted round robin' if cfg.get('scheduling_mode', 0) else 'strict'}, faces {''.join(faces)}")
+              + f", .data_out({dout}), .valid_out({i}_v), .ack_in({i}_ai));   // priority: { {0: 'strict', 1: 'weighted round robin', 2: 'sequenced channel ' + ''.join('nsew'[int(cfg.get(f'sequence_{k}', 0)) & 3] for k in range(int(cfg.get('sequence_len', 0)))) }.get(int(cfg.get('scheduling_mode', 0)), '?') }, faces {''.join(faces)}")
         elif r.core == "merge":
             eA, eB = by_dst[c]
             a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{MERGE_MODES[merge_node_mode[c]]}), .in_a({i}_ina), .valid_in_a({eA}_v), "

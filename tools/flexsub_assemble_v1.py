@@ -86,8 +86,8 @@ SHAPES = {
                   cfg="live", cfg_or=0x2, cfg_clr=0x1),                   # mode 2 = ARBITRATE (neither source starves); the bits above 1 are unused
     "priority": dict(file=("priority_cell", ""), families=("flex",), in_data="in_n", in_valid="valid_in_n",
                      out=("data_out", "valid_out"), ack_out="ack_out_n", ack_in="ack_in",
-                     stim_data=["in_s", "in_e", "in_w"], consts={"valid_in_s": "1'b1", "valid_in_e": "1'b1", "valid_in_w": "1'b1"},    # the other three faces always offer; their readies are left open
-                     cfg="live", cfg_or=0xF),                                # all four faces enabled; ranks and the mode come from the live config (#1017)
+                     stim_data=["in_s", "in_e", "in_w"], consts={"valid_in_s": "1'b0", "valid_in_e": "1'b0", "valid_in_w": "1'b0"},    # the other three faces never offer, so north is the lone candidate and the chain flows
+                     cfg="live", cfg_or=0xF, cfg_clr=0x3000),                # all four faces enabled; the live config's ranks stay live, the weighted / sequenced bits are cleared (strict) so the cell always passes north (#1017/#1018)
     "ram": dict(file=("ram_cell", ""), in_data="data_in", in_valid="valid_in",
                 out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
                 consts={"cfg_fixed_mode": "1'b0"}, cfg="live"),     # flowing mode (the chainable one)

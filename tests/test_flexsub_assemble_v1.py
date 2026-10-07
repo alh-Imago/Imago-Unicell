@@ -112,7 +112,7 @@ try:
     for given, want in (("adder", "adder"), ("adder_cell", "adder"), ("adder_cell_v4sa", "adder"),
                         ("mul_cell_v4sa_dsp", "mul_dsp"), ("mul_dsp3", "mul_dsp3"), ("shift_stage_v4s", "shift_stage")):
         check(f"normalise {given!r} -> {want!r}", fsa.normalise_cell_name(given) == want, fsa.normalise_cell_name(given))
-    check("flex has 14 cells (the merge added at #976), sub has 16 (branch_cell_v4s completes the sub set)", len(fsa.cells_for("flex")) == 14 and len(fsa.cells_for("sub")) == 16,
+    check("flex has 15 cells (the merge added at #976, the priority core at #1017), sub has 16 (branch_cell_v4s completes the sub set)", len(fsa.cells_for("flex")) == 15 and len(fsa.cells_for("sub")) == 16,
           f"{len(fsa.cells_for('flex'))}/{len(fsa.cells_for('sub'))}")
 
     print("CLI generation + error paths")
