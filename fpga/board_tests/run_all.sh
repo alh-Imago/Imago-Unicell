@@ -18,17 +18,7 @@ wait_ports() {
   done
   return 1
 }
-# software replug of the board's USB device (FTDI 0403:6010), found by its USB id, not by a port name
-soft_replug() {
-  for d in /sys/bus/usb/devices/*; do
-    [ -r "$d/idVendor" ] || continue
-    if [ "$(cat "$d/idVendor")" = "0403" ] && [ -w "$d/authorized" ]; then
-      echo "  software replug of $d" >> "raw/$n.ports"
-      echo 0 > "$d/authorized"; sleep 2; echo 1 > "$d/authorized"; return 0
-    fi
-  done
-  echo "  no software replug possible (no 0403 device found)" >> "raw/$n.ports"; return 1
-}
+echo "Waiting 20 s for the board to finish booting its demo ..."; sleep 20
 count=0
 # optional controls (use:  sudo env ONLY="relay_chain ram_hold" PAUSE=10 ./run_all.sh )
 #   ONLY  = run just these tests;   PAUSE = seconds to wait before each load (default 0);   BATCH = tests between replug prompts (default 4)
@@ -40,6 +30,7 @@ for f in *.fs; do
   if [ "$count" -ge "${BATCH:-4}" ]; then
     echo "--- $count tests done. UNPLUG the board's USB cable, plug it back in, wait 5 seconds, then press Enter ---"
     read dummy
+    echo "waiting 20 s for the board to finish booting its demo ..."; sleep 20
     count=0
   fi
   count=$((count+1))
@@ -63,7 +54,7 @@ for f in *.fs; do
     [ -s "raw/$n.bin" ] && break
     # silent: the chip may still be running and only the board's USB-serial bridge stuck. Do a SOFTWARE replug of the USB device
     # (the board keeps its power, so the FPGA keeps running the test), wait for the port to come back, and read again.
-    soft_replug; sleep 3
+    sleep 2
   done
   dmesg 2>/dev/null | grep -i -E "ftdi|ttyUSB|usb 3-|usb 1-|usb 2-" | tail -4 >> "raw/$n.ports"
   echo "[$n] $(wc -c < "raw/$n.bin") bytes   $(tail -1 "raw/$n.ports" | tr -d '\n')"
