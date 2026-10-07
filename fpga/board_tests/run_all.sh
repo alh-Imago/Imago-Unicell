@@ -27,15 +27,25 @@ for f in *.fs; do
   sleep 3
   for try in 1 2 3; do
     # the USB ports can change number after many loads: use the one named on the command line, else the highest-numbered ttyUSB
-    P=${1:-$(ls /dev/ttyUSB* 2>/dev/null | sort -V | tail -1)}
-    echo "$(ls /dev/ttyUSB* 2>&1 | tr '\n' ' ') -> using $P (try $try)" >> "raw/$n.ports"
-    stty -F "$P" 115200 raw -echo 2>>"raw/$n.ports"
-    timeout 7 cat "$P" > "raw/$n.bin" 2>>"raw/$n.ports"
+    # listen on EVERY ttyUSB port at once (or only the one named on the command line) and keep the capture of whichever one speaks
+    PORTS=${1:-$(ls /dev/ttyUSB* 2>/dev/null)}
+    echo "ports now: $(echo $PORTS) (try $try)" >> "raw/$n.ports"
+    : > "raw/$n.bin"
+    for P in $PORTS; do
+      stty -F "$P" 115200 raw -echo 2>>"raw/$n.ports"
+      ( timeout 7 cat "$P" > "raw/$n.$(basename $P).bin" 2>/dev/null ) &
+    done
+    wait
+    for P in $PORTS; do
+      b=$(wc -c < "raw/$n.$(basename $P).bin" 2>/dev/null || echo 0)
+      echo "  $(basename $P): $b bytes" >> "raw/$n.ports"
+      [ "$b" -gt "$(wc -c < "raw/$n.bin")" ] && cp "raw/$n.$(basename $P).bin" "raw/$n.bin" && echo "  data came on $(basename $P)" >> "raw/$n.ports"
+    done
     [ -s "raw/$n.bin" ] && break
     sleep 2
   done
   dmesg 2>/dev/null | grep -i -E "ftdi|ttyUSB|usb 3-|usb 1-|usb 2-" | tail -4 >> "raw/$n.ports"
-  echo "[$n] $(wc -c < "raw/$n.bin") bytes   ($(tail -1 "raw/$n.ports"))"
+  echo "[$n] $(wc -c < "raw/$n.bin") bytes   $(grep -h 'data came on' "raw/$n.ports" | tail -1)"
 done
 python3 board_collect.py
 echo
