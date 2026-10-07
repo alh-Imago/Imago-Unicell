@@ -365,6 +365,27 @@ SH = r"""#!/bin/sh
 #         sudo ./run_all.sh /dev/ttyUSB1 (name it yourself)
 cd "$(dirname "$0")" || exit 1
 rm -rf raw; mkdir raw
+
+# wait (up to 25 s) until the board's USB serial ports exist again
+wait_ports() {
+  i=0
+  while [ $i -lt 25 ]; do
+    if [ -n "$1" ]; then [ -e "$1" ] && return 0; else [ "$(ls /dev/ttyUSB* 2>/dev/null | wc -l)" -ge 2 ] && return 0; fi
+    sleep 1; i=$((i+1))
+  done
+  return 1
+}
+# software replug of the board's USB device (FTDI 0403:6010), found by its USB id, not by a port name
+soft_replug() {
+  for d in /sys/bus/usb/devices/*; do
+    [ -r "$d/idVendor" ] || continue
+    if [ "$(cat "$d/idVendor")" = "0403" ] && [ -w "$d/authorized" ]; then
+      echo "  software replug of $d" >> "raw/$n.ports"
+      echo 0 > "$d/authorized"; sleep 2; echo 1 > "$d/authorized"; return 0
+    fi
+  done
+  echo "  no software replug possible (no 0403 device found)" >> "raw/$n.ports"; return 1
+}
 count=0
 # optional controls (use:  sudo env ONLY="relay_chain ram_hold" PAUSE=10 ./run_all.sh )
 #   ONLY  = run just these tests;   PAUSE = seconds to wait before each load (default 0);   BATCH = tests between replug prompts (default 4)
@@ -383,24 +404,23 @@ for f in *.fs; do
   openFPGALoader -b tangnano20k "$f" > "raw/$n.loader.txt" 2>&1; echo $? > "raw/$n.rc"
   sleep 3
   for try in 1 2 3; do
+    wait_ports "$1" || echo "  ports did not come back within 25 s" >> "raw/$n.ports"
+    sleep 1
     # the USB ports can change number after many loads: use the one named on the command line, else the highest-numbered ttyUSB
     # read ONLY the serial line (the highest-numbered ttyUSB, or the port named on the command line). Never open the programming port
     # (the other ttyUSB): holding it open while the loader runs broke the next load.
     P=${1:-$(ls /dev/ttyUSB* 2>/dev/null | sort -V | tail -1)}
     echo "ports now: $(ls /dev/ttyUSB* 2>&1 | tr '\n' ' ') -> reading $P (try $try)" >> "raw/$n.ports"
-    stty -F "$P" 115200 raw -echo 2>>"raw/$n.ports"
-    timeout 7 cat "$P" > "raw/$n.bin" 2>>"raw/$n.ports"
-    echo "  $(basename $P): $(wc -c < "raw/$n.bin") bytes" >> "raw/$n.ports"
+    : > "raw/$n.bin"
+    if [ -n "$P" ]; then
+      stty -F "$P" 115200 raw -echo 2>>"raw/$n.ports"
+      timeout 7 cat "$P" > "raw/$n.bin" 2>>"raw/$n.ports"
+    fi
+    echo "  ${P:-none}: $(wc -c < "raw/$n.bin") bytes" >> "raw/$n.ports"
     [ -s "raw/$n.bin" ] && break
     # silent: the chip may still be running and only the board's USB-serial bridge stuck. Do a SOFTWARE replug of the USB device
     # (the board keeps its power, so the FPGA keeps running the test), wait for the port to come back, and read again.
-    UD=$(readlink -f "/sys/class/tty/$(basename $P)/device/.." 2>/dev/null)
-    if [ -n "$UD" ] && [ -w "$UD/authorized" ]; then
-      echo "  silent: software replug of $UD" >> "raw/$n.ports"
-      echo 0 > "$UD/authorized"; sleep 2; echo 1 > "$UD/authorized"; sleep 5
-    else
-      echo "  silent: no software replug possible ($UD)" >> "raw/$n.ports"; sleep 2
-    fi
+    soft_replug; sleep 3
   done
   dmesg 2>/dev/null | grep -i -E "ftdi|ttyUSB|usb 3-|usb 1-|usb 2-" | tail -4 >> "raw/$n.ports"
   echo "[$n] $(wc -c < "raw/$n.bin") bytes   $(tail -1 "raw/$n.ports" | tr -d '\n')"
