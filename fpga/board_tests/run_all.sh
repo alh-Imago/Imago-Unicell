@@ -52,9 +52,21 @@ for f in *.fs; do
     fi
     echo "  ${P:-none}: $(wc -c < "raw/$n.bin") bytes" >> "raw/$n.ports"
     [ -s "raw/$n.bin" ] && break
-    # silent: the chip may still be running and only the board's USB-serial bridge stuck. Do a SOFTWARE replug of the USB device
-    # (the board keeps its power, so the FPGA keeps running the test), wait for the port to come back, and read again.
-    sleep 2
+    # silent. Recovery, one step per retry:  after try 1 -> load the SAME bitstream again;  after try 2 -> (only with USBRESET=1) a proper
+    # USB device reset (the usbreset ioctl, which makes Linux rebind the serial driver; an earlier attempt by authorize-toggling left the board without ports)
+    if [ "$try" = 1 ]; then
+      echo "  silent: loading $n again" >> "raw/$n.ports"
+      openFPGALoader -b tangnano20k "$f" > "raw/$n.loader2.txt" 2>&1; sleep 5
+    elif [ "$try" = 2 ] && [ "$USBRESET" = 1 ]; then
+      echo "  silent: USB device reset" >> "raw/$n.ports"
+      for d in /sys/bus/usb/devices/*; do
+        [ -r "$d/idVendor" ] && [ "$(cat "$d/idVendor")" = "0403" ] || continue
+        python3 -c "import fcntl,os,sys;fd=os.open('/dev/bus/usb/%03d/%03d'%(int(open(sys.argv[1]+'/busnum').read()),int(open(sys.argv[1]+'/devnum').read())),os.O_WRONLY);fcntl.ioctl(fd,0x5514)" "$d" >> "raw/$n.ports" 2>&1
+      done
+      sleep 6
+    else
+      sleep 2
+    fi
   done
   dmesg 2>/dev/null | grep -i -E "ftdi|ttyUSB|usb 3-|usb 1-|usb 2-" | tail -4 >> "raw/$n.ports"
   echo "[$n] $(wc -c < "raw/$n.bin") bytes   $(tail -1 "raw/$n.ports" | tr -d '\n')"
