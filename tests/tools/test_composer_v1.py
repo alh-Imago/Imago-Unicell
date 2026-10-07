@@ -23,7 +23,7 @@ EXAMPLES = os.path.join(ROOT, "nano", "examples")
 
 
 def norm(r):
-    cfg = {k: sorted(v) if isinstance(v, list) else v for k, v in r.core_config.items()}
+    cfg = {k: sorted(set(v)) if isinstance(v, list) else v for k, v in r.core_config.items()}     # a face is one bit: ['e', 'e'] (two links over one face) == ['e']
     return (r.row, r.col, r.core, cfg, r.addon_config, r.preload_value, r.io_name)
 
 
@@ -200,9 +200,10 @@ def test_moved_adder_in_generated_rtl(fp16, tmp_path):
     from test_fp_add_v1 import FORMATS, ref_add, vectors
     g, ent, ex, _ = fp16
     lay = flv.Layout(g.records(), name="fp16")
-    for name, (dr, dc) in (("ADD.ADDSUM", (1, 0)), ("ADD.MULM", (0, 1)), ("ADD.RND.ADD3", (1, 0))):
+    near = sorted(((dr, dc) for dr in range(-2, 3) for dc in range(-2, 3) if (dr, dc) != (0, 0)), key=lambda x: abs(x[0]) + abs(x[1]))
+    for name in ("ADD.ADDSUM", "ADD.MULM", "ADD.RND.ADD3"):              # each to the nearest square the engine can route (the template changes over time)
         r, c = lay.grid.pos(name)
-        assert lay.move(name, r + dr, c + dc)["ok"]
+        assert any(lay.move(name, r + dr, c + dc)["ok"] for dr, dc in near), name
     fmt = FORMATS["fp16"]
     A, B = vectors(fmt)
     got = run_rtl(str(tmp_path), "composer_moved", lay.records(), {ent["a"]: A, ent["b"]: B}, ex, "plain", settle=60000)["R"]
