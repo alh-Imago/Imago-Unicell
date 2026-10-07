@@ -1,0 +1,20 @@
+{
+ "group": "A",
+ "tests": [
+  "relay_chain",
+  "relay_chain_stalled",
+  "adder_stream",
+  "adder_stalled",
+  "adder_constant"
+ ],
+ "sim_lines": {
+  "relay_chain": "UCT relay_chain res=P n=0010 e=0010 bad=0000 to=0 last=00000024 sig=8F73AB53 w=00000001,FFFFFFFF,80000000,7FFFFFFF,12345678,DEADBEEF,A5A5A5A5,5A5A5A5A",
+  "relay_chain_stalled": "UCT relay_chain_stalled res=P n=0018 e=0018 bad=0000 to=0 last=0000004D sig=FF788960 w=00001000,00001011,00001022,00001033,00001044,00001055,00001066,00001077",
+  "adder_stream": "UCT adder_stream res=P n=000C e=000C bad=0000 to=0 last=0000001B sig=FFFF91FD w=0000000B,00000016,00000021,00000000,80000000,FFFFFF64,000000CD,00000132",
+  "adder_stalled": "UCT adder_stalled res=P n=0014 e=0014 bad=0000 to=0 last=00000043 sig=15170B1B w=000003E9,000003ED,000003F1,000003F5,000003F9,000003FD,00000401,00000405",
+  "adder_constant": "UCT adder_constant res=P n=0008 e=0008 bad=0000 to=0 last=00000013 sig=00000339 w=00000006,00000007,00000008,00000009,0000000A,0000000B,0000000C,0000000D"
+ },
+ "fmax_mhz": 121.5,
+ "lut4": 6982,
+ "dff": 2684
+}
