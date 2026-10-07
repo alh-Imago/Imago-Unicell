@@ -8,6 +8,8 @@ for fs in sorted(glob.glob(os.path.join(HERE, "*.fs"))):
     name = os.path.splitext(os.path.basename(fs))[0]
     meta = json.load(open(fs[:-3] + ".json")) if os.path.exists(fs[:-3] + ".json") else {}
     sim = meta.get("sim_line", "")
+    if not os.path.exists(os.path.join(HERE, "raw", name + ".rc")):
+        continue          # not run this time (ONLY=...)
     raw = open(os.path.join(HERE, "raw", name + ".bin"), "rb").read() if os.path.exists(os.path.join(HERE, "raw", name + ".bin")) else b""
     text = raw.decode("ascii", "replace")
     mine = [m.group(0) for m in re.finditer(r"UCT " + re.escape(name) + r" res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=\d last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]*", text)]

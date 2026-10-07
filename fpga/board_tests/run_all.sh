@@ -8,8 +8,12 @@
 cd "$(dirname "$0")" || exit 1
 
 rm -rf raw; mkdir raw
+# optional controls (use:  sudo env ONLY="relay_chain ram_hold" PAUSE=10 ./run_all.sh )
+#   ONLY  = run just these tests;   PAUSE = seconds to wait before each load (default 0)
 for f in *.fs; do
   n=${f%.fs}
+  if [ -n "$ONLY" ]; then case " $ONLY " in *" $n "*) ;; *) continue ;; esac; fi
+  [ -n "$PAUSE" ] && sleep "$PAUSE"
   echo "[$n] loading ..."
   openFPGALoader -b tangnano20k "$f" > "raw/$n.loader.txt" 2>&1; echo $? > "raw/$n.rc"
   sleep 3
@@ -22,6 +26,7 @@ for f in *.fs; do
     [ -s "raw/$n.bin" ] && break
     sleep 2
   done
+  dmesg 2>/dev/null | grep -i -E "ftdi|ttyUSB|usb 3-|usb 1-|usb 2-" | tail -4 >> "raw/$n.ports"
   echo "[$n] $(wc -c < "raw/$n.bin") bytes   ($(tail -1 "raw/$n.ports"))"
 done
 python3 board_collect.py
