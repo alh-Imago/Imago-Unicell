@@ -38,10 +38,6 @@ def pick_port(arg):
 
 
 def load(fs):
-    # a second SRAM load onto a chip that already runs a design did not take effect on the real board (the old design kept running), so first
-    # send the chip back to its power-up state (reload from flash), THEN load the test.
-    subprocess.run(["openFPGALoader", "-b", "tangnano20k", "--reset"], capture_output=True, text=True)
-    time.sleep(2.0)
     r = subprocess.run(["openFPGALoader", "-b", "tangnano20k", fs], capture_output=True, text=True)
     return r.returncode == 0, (r.stdout + r.stderr)[-1500:]
 
@@ -105,7 +101,7 @@ def read_with_cat(port, name, sim_line, seconds=6):
 
 def listen(ser, port, name, sim_line):
     """after a load: let the chip start, THROW AWAY everything buffered so far (the previous design's lines), then read this test's lines. If the held port is silent or gone, reopen it, then try every other port."""
-    time.sleep(1.5)
+    time.sleep(3.0)
     seen = serial_ports()
     try:
         ser.reset_input_buffer()
@@ -156,7 +152,7 @@ def main():
                     ser.close()                   # the shell tools below must be the only readers
                 except Exception:  # noqa: BLE001
                     pass
-                time.sleep(1.5)
+                time.sleep(3.0)
                 lines, nraw, nother, head = read_with_cat(port, name, meta.get("sim_line", ""))
                 note = f"stty+cat: {nraw} raw bytes, {nother} lines of other tests, first bytes {head!r}"
                 answered = port
