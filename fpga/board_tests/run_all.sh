@@ -8,12 +8,20 @@
 cd "$(dirname "$0")" || exit 1
 
 rm -rf raw; mkdir raw
+count=0
 # optional controls (use:  sudo env ONLY="relay_chain ram_hold" PAUSE=10 ./run_all.sh )
-#   ONLY  = run just these tests;   PAUSE = seconds to wait before each load (default 0)
+#   ONLY  = run just these tests;   PAUSE = seconds to wait before each load (default 0);   BATCH = tests between replug prompts (default 4)
 for f in *.fs; do
   n=${f%.fs}
   if [ -n "$ONLY" ]; then case " $ONLY " in *" $n "*) ;; *) continue ;; esac; fi
   [ -n "$PAUSE" ] && sleep "$PAUSE"
+  # the real board stops answering after about 5 loads in a row (ledger #1024): ask for an unplug/replug every BATCH tests (default 4)
+  if [ "$count" -ge "${BATCH:-4}" ]; then
+    echo "--- $count tests done. UNPLUG the board's USB cable, plug it back in, wait 5 seconds, then press Enter ---"
+    read dummy
+    count=0
+  fi
+  count=$((count+1))
   echo "[$n] loading ..."
   openFPGALoader -b tangnano20k "$f" > "raw/$n.loader.txt" 2>&1; echo $? > "raw/$n.rc"
   sleep 3
