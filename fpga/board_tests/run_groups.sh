@@ -4,6 +4,13 @@
 # first load after a power-up always worked). Each bitstream prints the five result lines in turn (one test every 2.5 s, 12.5 s per round).
 # Needs: openFPGALoader, python3, root (sudo). Usage:  sudo ./run_groups.sh [/dev/ttyUSB1]
 cd "$(dirname "$0")" || exit 1
+for f in groups/group_A.fs groups/group_A.json groups/group_B.fs groups/group_B.json board_collect.py; do
+  if [ ! -f "$f" ]; then
+    echo "MISSING FILE: $(pwd)/$f"
+    echo "Unzip the whole unicell_board_tests.zip into this folder (it contains a 'groups' folder), then run this again."
+    exit 1
+  fi
+done
 rm -rf raw; mkdir raw
 wait_ports() { i=0; while [ $i -lt 25 ]; do
     if [ -n "$1" ]; then [ -e "$1" ] && return 0; else [ "$(ls /dev/ttyUSB* 2>/dev/null | wc -l)" -ge 2 ] && return 0; fi
