@@ -38,6 +38,10 @@ def pick_port(arg):
 
 
 def load(fs):
+    # a second SRAM load onto a chip that already runs a design did not take effect on the real board (the old design kept running), so first
+    # send the chip back to its power-up state (reload from flash), THEN load the test.
+    subprocess.run(["openFPGALoader", "-b", "tangnano20k", "--reset"], capture_output=True, text=True)
+    time.sleep(2.0)
     r = subprocess.run(["openFPGALoader", "-b", "tangnano20k", fs], capture_output=True, text=True)
     return r.returncode == 0, (r.stdout + r.stderr)[-1500:]
 

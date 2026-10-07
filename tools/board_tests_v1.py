@@ -376,6 +376,9 @@ ONE = r"""#!/bin/sh
 # e.g.   sudo ./run_one.sh adder_stream        (you may need sudo for the loader; the port is /dev/ttyUSB1 unless you name it)
 cd "$(dirname "$0")" || exit 1
 PORT=${2:-/dev/ttyUSB1}
+# a second load onto a running design did not take effect on the real board: send the chip back to power-up state first
+openFPGALoader -b tangnano20k --reset
+sleep 2
 openFPGALoader -b tangnano20k "$1.fs" || exit 1
 sleep 1.5
 stty -F "$PORT" 115200 raw -echo
@@ -422,6 +425,10 @@ def pick_port(arg):
 
 
 def load(fs):
+    # a second SRAM load onto a chip that already runs a design did not take effect on the real board (the old design kept running), so first
+    # send the chip back to its power-up state (reload from flash), THEN load the test.
+    subprocess.run(["openFPGALoader", "-b", "tangnano20k", "--reset"], capture_output=True, text=True)
+    time.sleep(2.0)
     r = subprocess.run(["openFPGALoader", "-b", "tangnano20k", fs], capture_output=True, text=True)
     return r.returncode == 0, (r.stdout + r.stderr)[-1500:]
 
