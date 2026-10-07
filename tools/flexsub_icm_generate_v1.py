@@ -98,23 +98,25 @@ _ADDON_KEYS = {"nibble_mask", "mask_en", "shift_amt", "shift_en", "direction", "
 _M32 = 0xFFFFFFFF
 
 
-def addon_bit_map(ad, free_shift=False):
+def addon_bit_map(ad, free_shift=False, width=32):
     """The addon chain as a fixed per-bit WIRING MAP. Alan #939: with the sub variant fully fixed at build time, mask / shift / invert (and the
     lane cut) are just wiring -- no cell, no latency. The VM applies the chain to every core's offered value as a pure function of 32 bits with
     constant config (apply_addons: nibble_mask -> fine shift -> coarse lane shift (+ lane_cut on right shifts) -> invert), so each OUTPUT bit is
     a constant, an input bit, or its inverse. Computed symbolically by mirroring apply_addons step for step; tests check it against the VM's own
-    function over structured and random configs. Returns 32 entries: ("c", 0|1) or ("v", input_bit, inverted)."""
-    bits = [("v", k, 0) for k in range(32)]
+    function over structured and random configs. Returns `width` (default 32) entries: ("c", 0|1) or ("v", input_bit, inverted)."""
+    if width != 32 and (ad.get("lane_cut") or (ad.get("mask_en") and width > 32)):
+        raise ValueError(f"lane_cut / a nibble mask are defined for the 32-bit cell only; this build is {width} bits wide (#1011)")
+    bits = [("v", k, 0) for k in range(width)]
 
     def shift(bs, n, right):
         out = []
-        for i in range(32):
+        for i in range(width):
             j = i + n if right else i - n
-            out.append(bs[j] if 0 <= j < 32 else ("c", 0))
+            out.append(bs[j] if 0 <= j < width else ("c", 0))
         return out
 
     def kill(bs, mask):
-        return [bs[i] if (mask >> i) & 1 else ("c", 0) for i in range(32)]
+        return [bs[i] if (mask >> i) & 1 else ("c", 0) for i in range(width)]
     if ad.get("mask_en"):
         nm = ad.get("nibble_mask", 0)
         keep = 0
@@ -136,7 +138,7 @@ def addon_bit_map(ad, free_shift=False):
             lane_cut = ad.get("lane_cut", 0)
             lane_s = amt + fine
             lane_ones = (1 << lane_s) - 1
-            lane_kill = _M32
+            lane_kill = (1 << width) - 1                              # (= _M32 at the 32-bit cell; wider cells must not lose their upper lanes, ledger #1011)
             if lane_cut & 1:
                 lane_kill &= ~((lane_ones << 8) >> lane_s) & _M32
             if lane_cut & 2:
@@ -366,7 +368,7 @@ def choose_multipliers(mul_cells, man, mode, nowidelut=False):
                   "logic_unit": unit, "synth_flow": flow, "lut_multiplier_cost_estimate": (n_lut * cost) if cost else None, "lut_budget": budget, "reason": why}
 
 
-def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelut=False):
+def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelut=False, width=None):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
     # ledger #981: which WORD(S) each (consumer, second-output cell) edge carries: "first", "second" or "both" (the default: no second_downstream_mask = the second word follows the first)
@@ -376,7 +378,8 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
             word_of[(d_, s_)] = "both" if len(set(oc_)) == 2 else oc_[0]
     declared_width = getattr(doc, "min_bit_width", None)         # the design's DECLARED minimum bit width (ledger #958); None = absent = 32
     problems = []
-    if declared_width is not None and declared_width > BUILT_WIDTH:
+    bw = width or BUILT_WIDTH                       # ledger #1011: the flex family can be built wider (-w); everything else stays BUILT_WIDTH
+    if declared_width is not None and declared_width > bw:
         problems.append(f"the design declares min_bit_width = {declared_width} in its header, but this generator builds {BUILT_WIDTH}-bit designs only (width plumbing is not built yet): "
                         f"a design that needs at least {declared_width} bits cannot be met by a {BUILT_WIDTH}-bit build, so it is refused rather than silently built too narrow "
                         f"(a declared minimum up to {BUILT_WIDTH} IS met: building wider than the minimum satisfies it)")
@@ -450,7 +453,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
             elif r.core == "nano":
                 problems.append(f"{c}: addon_config on a nano -- the VM's offer pass skips nano entirely, so its addon behaviour is not defined")
             else:
-                bm = addon_bit_map(ad, free_shift=(family == "flex"))
+                bm = addon_bit_map(ad, free_shift=(family == "flex"), width=bw)
                 if not addon_is_identity(bm):
                     addons[c] = bm
         if r.core == "nano":
@@ -826,10 +829,12 @@ def emit_top(top, p, width=32):
     return "\n".join(L) + "\n", pad_count[0]
 
 
-def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate"):
+def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate", width=None):
+    if width not in (None, BUILT_WIDTH) and family != "flex":
+        raise ValueError("-w with --icm applies to -s flex only (the sub family is fixed 32 bits)")
     if family == "flex":
         import flexsub_icm_flex_v1 as ff
-        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut, merge_mode=merge_mode)
+        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut, merge_mode=merge_mode, width=width)
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
     p = plan(icm_path, align, man=man, mul_mode=mul_mode, nowidelut=nowidelut)

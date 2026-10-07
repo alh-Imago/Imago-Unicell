@@ -26,7 +26,9 @@ module ram_cell_v4sa #(
     input  wire        freeze_in,
 
     input  wire         cfg_valid,
-    input  wire [31:0]  cfg_data,
+    // ledger #1011: the constant / init word SCALES with the cell: a WIDTH-bit cell has a WIDTH-bit init port (never narrower than the 32-bit config bus,
+    // so every existing 32-bit-or-narrower instance is byte-for-byte the same port as before).
+    input  wire [(WIDTH > 32 ? WIDTH : 32)-1:0]  cfg_data,
     input  wire         cfg_fixed_mode,
 
     input  wire [WIDTH-1:0]  data_in,

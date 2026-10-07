@@ -107,7 +107,12 @@ def _pname(io, cid):
     return re.sub(r"[^A-Za-z0-9_]", "_", io or cid)
 
 
-def emit_top_flex(top, p, merge_mode="arbitrate"):
+def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
+    W = width                                                       # ledger #1011: the cell word. 32 = every existing build, byte-identical output
+    WM = (1 << W) - 1
+    CW = max(W, 32)                                                  # a ram's constant port is never narrower than the 32-bit config bus, and scales above it
+    CM = (1 << CW) - 1
+    WP = "" if W == 32 else f", .WIDTH({W})"
     modes = parse_merge_modes(merge_mode)
     cells, inputs, roles = p["cells"], p["inputs"], p["adder_roles"]
     branch_plans, branch_port = p["branch_plans"], p["branch_port"]
@@ -196,10 +201,10 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
     ports = []
     for c in entries:
         n = _pname(cells[c].io_name, c)
-        ports += [f"    input  wire [31:0] in_{n}_data", f"    input  wire        in_{n}_valid", f"    output wire        in_{n}_ack"]
+        ports += [f"    input  wire [{W-1}:0] in_{n}_data", f"    input  wire        in_{n}_valid", f"    output wire        in_{n}_ack"]
     for c in exits_l:
         n = _pname(cells[c].io_name, c)
-        ports += [f"    output wire [31:0] out_{n}_data", f"    output wire        out_{n}_valid", f"    input  wire        out_{n}_ack"]
+        ports += [f"    output wire [{W-1}:0] out_{n}_data", f"    output wire        out_{n}_valid", f"    input  wire        out_{n}_ack"]
     a(",\n".join(ports))
     a(");")
 
@@ -236,13 +241,13 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             by_dst[dst].append(e)
     for c in order:
         i = ident(c)
-        a(f"wire [31:0] {i}_d; wire {i}_v; wire {i}_rdy; wire {i}_ai; wire {i}_vin;")
+        a(f"wire [{W-1}:0] {i}_d; wire {i}_v; wire {i}_rdy; wire {i}_ai; wire {i}_vin;")
         if c in addons:
-            a(f"wire [31:0] {i}_rd;")
+            a(f"wire [{W-1}:0] {i}_rd;")
         if c in branch_plans or c in second:
-            a(f"wire {i}_p1_v, {i}_p1_ai, {i}_p2_v, {i}_p2_ai; wire [31:0] {i}_d2u;")
+            a(f"wire {i}_p1_v, {i}_p1_ai, {i}_p2_v, {i}_p2_ai; wire [{W-1}:0] {i}_d2u;")
         if c in second:
-            a(f"wire [31:0] {ident(c + '#2')}_d = {i}_d2u;          // the second word, as the virtual source {c}#2 the consumer's merge core reads")
+            a(f"wire [{W-1}:0] {ident(c + '#2')}_d = {i}_d2u;          // the second word, as the virtual source {c}#2 the consumer's merge core reads")
         if c in merge_cells:
             a(f"wire {i}_rdya, {i}_rdyb;")
     for e, *_ in edges:
@@ -323,7 +328,7 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             if bp["mode"] == "const_ref":
                 k = ident(bp["const_ref"])
                 a(f"assign {sack} = {rd} & {k}_v;                          // the stream is consumed when the cell fires, and needs the constant reference present")
-                a(f"wire {i}_in1v = {sv}, {i}_in2v = {k}_v; wire [31:0] {i}_in1d = {sd}, {i}_in2d = {k}_d;")
+                a(f"wire {i}_in1v = {sv}, {i}_in2v = {k}_v; wire [{W-1}:0] {i}_in1d = {sd}, {i}_in2d = {k}_d;")
                 bp_in2_fixed = 0
             else:                                                     # rolling: the stream feeds both inputs, in2 is a HELD copy
                 a(f"reg {i}_ld = 1'b0;                                    // the reference has been loaded")
@@ -331,19 +336,19 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
                 a(f"wire {i}_fire = {sv} & {i}_ld & {rd};                 // later arrivals load AND compare on the same edge (the compare reads the OLD reference)")
                 a(f"assign {sack} = ~{i}_ld | {rd};")
                 a(f"always @(posedge clk) begin if (rst) {i}_ld <= 1'b0; else if ({i}_first) {i}_ld <= 1'b1; end")
-                a(f"wire {i}_in1v = {i}_fire, {i}_in2v = {i}_fire | {i}_first; wire [31:0] {i}_in1d = {sd}, {i}_in2d = {sd};")
+                a(f"wire {i}_in1v = {i}_fire, {i}_in2v = {i}_fire | {i}_first; wire [{W-1}:0] {i}_in1d = {sd}, {i}_in2d = {sd};")
                 bp_in2_fixed = 1
             bp["_in2_fixed"] = bp_in2_fixed
             continue
         if dst in roots:
             a(f"assign {i}_vin = 1'b0;")
-            a(f"wire [31:0] {i}_ind = 32'h0;")
+            a(f"wire [{W-1}:0] {i}_ind = {W}'h0;")
             continue
         if not es:                                                  # an entry: the host drives it through the top-level handshake
             n = _pname(r.io_name, dst)
             a(f"assign {i}_vin = in_{n}_valid;")
             a(f"assign in_{n}_ack = {i}_rdy;")
-            a(f"wire [31:0] {i}_ind = in_{n}_data;")
+            a(f"wire [{W-1}:0] {i}_ind = in_{n}_data;")
             continue
         srcdata = {e: ident(s) + "_d" for e, s, d, _ in edges if d == dst}
         if r.core == "nano":
@@ -357,14 +362,14 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             a(f"assign {eB}_a = {i}_aload & {i}_rdy;")
             a(f"assign {i}_vin = {eB}_v & {i}_aload;")
             a(f"always @(posedge clk) begin if (rst) {i}_aload <= 1'b0; else if ({i}_cap) {i}_aload <= 1'b0; else if ({i}_ldA) {i}_aload <= 1'b1; end")
-            a(f"wire [31:0] {i}_inh = {srcdata[eA]}, {i}_inf = {srcdata[eB]};")
+            a(f"wire [{W-1}:0] {i}_inh = {srcdata[eA]}, {i}_inf = {srcdata[eB]};")
         elif r.core == "merge":
             eA, eB = es
             joins.append({"cell": dst, "kind": f"merge core ({merge_node_mode[dst]})", "sources": merge_cells[dst]})
             a(f"assign {i}_vin = 1'b0;")
             a(f"assign {eA}_a = {i}_rdya;                              // the CORE arbitrates / joins; here the two inputs are simply connected")
             a(f"assign {eB}_a = {i}_rdyb;")
-            a(f"wire [31:0] {i}_ina = {srcdata[eA]}, {i}_inb = {srcdata[eB]};")
+            a(f"wire [{W-1}:0] {i}_ina = {srcdata[eA]}, {i}_inb = {srcdata[eB]};")
         elif r.core in ("accumulator", "latch"):
             joins.append({"cell": dst, "kind": f"{r.core} pulse inputs"})
             byrole = {}
@@ -385,12 +390,12 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             a(f"assign {i}_vin = {eA}_v & {eB}_v;      // join: both operands must be present")
             a(f"assign {eA}_a = {i}_rdy & {eB}_v;")
             a(f"assign {eB}_a = {i}_rdy & {eA}_v;")
-            a(f"wire [31:0] {i}_ina = {srcdata[eA]}, {i}_inb = {srcdata[eB]};")
+            a(f"wire [{W-1}:0] {i}_ina = {srcdata[eA]}, {i}_inb = {srcdata[eB]};")
         else:
             (e,) = es
             a(f"assign {i}_vin = {e}_v;")
             a(f"assign {e}_a = {i}_rdy;")
-            a(f"wire [31:0] {i}_ind = {srcdata[e]};")
+            a(f"wire [{W-1}:0] {i}_ind = {srcdata[e]};")
     a("")
 
     # ---- the cells ----
@@ -405,19 +410,19 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             bp = branch_plans[c]
             rb = bp["route_bits"]
             word = (bp["_in2_fixed"] << 1) | (bp["emit_source"] << 2) | (rb["low"] << 4) | (rb["equal"] << 6) | (rb["high"] << 8)
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{word:X}), "
-              f".cfg_emit_fixed_value(32'h{bp['emit_fixed'] & 0xFFFFFFFF:08X}), .in1_data({i}_in1d), .in1_valid({i}_in1v), .in2_data({i}_in2d), .in2_valid({i}_in2v), "
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{word:X}), "
+              f".cfg_emit_fixed_value({W}'h{bp['emit_fixed'] & WM:0{(W+3)//4}X}), .in1_data({i}_in1d), .in1_valid({i}_in1v), .in2_data({i}_in2d), .in2_valid({i}_in2v), "
               f".ack_out({i}_rdy), .data_out_1({dout}), .valid_out_1({i}_p1_v), .ack_in_1({i}_p1_ai), .data_out_2({i}_d2u), .valid_out_2({i}_p2_v), .ack_in_2({i}_p2_ai));")
         elif r.core == "merge":
             eA, eB = by_dst[c]
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{MERGE_MODES[merge_node_mode[c]]}), .in_a({i}_ina), .valid_in_a({eA}_v), "
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{MERGE_MODES[merge_node_mode[c]]}), .in_a({i}_ina), .valid_in_a({eA}_v), "
               f".ack_out_a({i}_rdya), .in_b({i}_inb), .valid_in_b({eB}_v), .ack_out_b({i}_rdyb), .data_out({dout}), .valid_out({i}_v), .ack_in({i}_ai));   // mode {MERGE_MODES[merge_node_mode[c]]}: {merge_node_mode[c]}")
         elif r.core == "ram" and c in roots:
-            val = (r.preload_value if r.preload_value is not None else cfg.get("init_data", 0)) & 0xFFFFFFFF
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{val:08X}), .cfg_fixed_mode(1'b1), .data_in({i}_ind), .valid_in({i}_vin));   // CONSTANT {val}")
+            val = (r.preload_value if r.preload_value is not None else cfg.get("init_data", 0)) & CM
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data({CW}'h{val:0{CW // 4}X}), .cfg_fixed_mode(1'b1), .data_in({i}_ind), .valid_in({i}_vin));   // CONSTANT {val}")
         elif r.core == "ram":
             fm = 1 if cfg.get("fixed_mode", 0) else 0
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h0), .cfg_fixed_mode(1'b{fm}), .data_in({i}_ind), .valid_in({i}_vin));")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h0), .cfg_fixed_mode(1'b{fm}), .data_in({i}_ind), .valid_in({i}_vin));")
         elif r.core == "sequencer":
             # Free-running, paced by the CONSUMER's ack (Alan: the consumer clears, the sequencer sees it, switches to the next value and waits). advance_in is tied to the cell's own
             # READY (armed & not pending), so it offers a new value whenever the previous one has been taken -- the VM's "advance when drained". The cell pulses the NEXT index's value, so the
@@ -427,18 +432,18 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             n_vals = len_m1 + 1
             rot = [vals[(j - 1) % n_vals] if j < n_vals else 0 for j in range(4)]
             word = rot[0] | (rot[1] << 8) | (rot[2] << 16) | (rot[3] << 24)
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{word:08X}), .cfg_seq_len_m1(2'd{len_m1}), .advance_in({i}_rdy));   // free-running, paced by the consumer's ack")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h{word:08X}), .cfg_seq_len_m1(2'd{len_m1}), .advance_in({i}_rdy));   // free-running, paced by the consumer's ack")
         elif r.core == "accumulator":
             word = (int(cfg.get("step_amount", 0)) & 0xFF) | ((1 if cfg.get("pulse_mode", 0) else 0) << 8) | ((int(cfg.get("threshold", 0)) & 0xFFFF) << 9)
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{word:08X}), .inc_pulse({i}_p_inc), .dec_pulse({i}_p_dec));   "
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h{word:08X}), .inc_pulse({i}_p_inc), .dec_pulse({i}_p_dec));   "
               f"// {'LEVEL (continuous)' if c in levels else 'event source (pulse mode)'}")
         elif r.core == "latch":
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h0), .set_in({i}_p_set), .clear_in({i}_p_clear), .toggle_in({i}_p_toggle));   // LEVEL")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h0), .set_in({i}_p_set), .clear_in({i}_p_clear), .toggle_in({i}_p_toggle));   // LEVEL")
         elif r.core == "comparator":
-            thr = int(cfg.get("threshold", 0)) & 0xFFFFFFFF                # signed(data) >= threshold -> 0/1, exactly as the VM (a single-input cell like a relay)
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h0), .cfg_threshold(32'h{thr:08X}), .data_in({i}_ind), .valid_in({i}_vin));   // threshold {thr}")
+            thr = int(cfg.get("threshold", 0)) & WM                # signed(data) >= threshold -> 0/1, exactly as the VM (a single-input cell like a relay)
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h0), .cfg_threshold({W}'h{thr:0{(W+3)//4}X}), .data_in({i}_ind), .valid_in({i}_vin));   // threshold {thr}")
         elif r.core == "nano":
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{int(cfg.get('topology', 0)):X}), .hold_in_data({i}_inh), .load_hold({i}_ldA), "
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h{int(cfg.get('topology', 0)):X}), .hold_in_data({i}_inh), .load_hold({i}_ldA), "
               f".flow_in_data({i}_inf), .valid_in({i}_vin));")
         elif c in second:
             # ledger #976: the cell is built WITH its second port (SECOND_PORT=1) and the enable bit is set: adder cfg_data[1] / mul cfg_data[0]. Port 1 and port 2 each have their own valid/ack.
@@ -447,10 +452,10 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
             else:
                 word, p2 = 1, ".data_out_hi({i}_d2u), .valid_out_hi({i}_p2_v), .ack_in_hi({i}_p2_ai)"
             c2 = common.replace(f".valid_out({i}_v)", f".valid_out({i}_p1_v)").replace(f".ack_in({i}_ai)", f".ack_in({i}_p1_ai)")
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]}), .SECOND_PORT(1)) {i} ({c2}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {p2.format(i=i)});   // second output port ON")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}), .SECOND_PORT(1){WP}) {i} ({c2}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {p2.format(i=i)});   // second output port ON")
         else:
             word = 1 if (r.core == "adder" and cfg.get("subtract_mode", 0)) else 0
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), "
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), "
               f"{'.ack_in_c(1' + chr(39) + 'b1)' if r.core == 'adder' else '.ack_in_hi(1' + chr(39) + 'b1)'});")   # #974: the second output port is not enabled here -- tied high so it can never stall the cell
         if c in addons:
             a(f"assign {i}_d = {g.addon_expr(addons[c], dout)};   // addon chain as pure wiring: data only; valid and the handshake are untouched")
@@ -458,10 +463,10 @@ def emit_top_flex(top, p, merge_mode="arbitrate"):
     return "\n".join(L) + "\n", forks, joins
 
 
-def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None, merge_mode="arbitrate"):
+def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None, merge_mode="arbitrate", width=None):
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
-    p = g.plan(icm_path, True, family="flex", nowidelut=nowidelut)
+    p = g.plan(icm_path, True, family="flex", nowidelut=nowidelut, width=width)
     levels = {c for c in p["cells"] if g.is_level(p["cells"][c])}
     only_const = sorted(c for c in p["exits"] if c in p["const"] and c not in levels)
     if only_const:
@@ -471,7 +476,7 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowi
     top = top or f"icm_{stem}_flex"
     cell_dir = cell_dir or fsa.DEFAULT_CELL_DIR
     os.makedirs(output, exist_ok=True)
-    text, forks, joins = emit_top_flex(top, p, merge_mode)
+    text, forks, joins = emit_top_flex(top, p, merge_mode, width or g.BUILT_WIDTH)
     top_path = os.path.join(output, f"{top}.v")
     open(top_path, "w").write(text)
     dep_pairs = fsa._derive_deps(top_path, cell_dir)
@@ -485,6 +490,6 @@ def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowi
            "constants": sorted(c for c in p["const"] if not p["inputs"].get(c) and c not in levels), "level_sources": sorted(levels), "const_derived": sorted(c for c in p["const"] if p["inputs"].get(c)), "exit_rule": p["exit_rule"], "pruned_dead_cells": p["pruned"],
            "exits": list(p["exits"]), "adder_roles": p["adder_roles"], "eliminated_priority_cells": p["eliminated_priority"],
            "addon_wiring": {c: {k: v for k, v in (p["cells"][c].addon_config or {}).items() if v} for c in p["addons"]},
-           "min_bit_width": p["min_bit_width"], "built_width": g.BUILT_WIDTH, "note": "handshake design: every port has valid/ack; no latency alignment, no padding", "synth_flags": "-nowidelut" if nowidelut else "(wide-LUT mapping)", "synth_flags_reason": nowidelut_why, "files": files + [f"{top}.ys"]}
+           "min_bit_width": p["min_bit_width"], "built_width": width or g.BUILT_WIDTH, "note": "handshake design: every port has valid/ack; no latency alignment, no padding", "synth_flags": "-nowidelut" if nowidelut else "(wide-LUT mapping)", "synth_flags_reason": nowidelut_why, "files": files + [f"{top}.ys"]}
     json.dump(rec, open(os.path.join(output, "ASSEMBLY.json"), "w"), indent=2)
     return rec

@@ -23,10 +23,10 @@ def run_rtl(tmp, name, recs, entries, exits, mode, settle=6000, cycles=3000, wid
     return {k: got[port(c)] for k, c in exits.items()}
 
 
-def run_vm(recs, entries, exits, consts, ticks=2500):
+def run_vm(recs, entries, exits, consts, ticks=2500, width=32):
     """The VM offers a PRELOADED constant once; the RTL's constants are always valid -> here every constant is an ordinary entry injected with each item."""
     recs = [type(r)(cell_id=r.cell_id, row=r.row, col=r.col, core=r.core, core_config=r.core_config, addon_config=r.addon_config, io_name=r.io_name, preload_value=None) if r.cell_id in consts else r for r in recs]
-    g = fg.FlexGrid(recs, width=32)
+    g = fg.FlexGrid(recs, width=width)
     pos = {r.cell_id: (r.row, r.col) for r in recs}
     seen = {k: [] for k in exits}
     n = len(next(iter(entries.values())))

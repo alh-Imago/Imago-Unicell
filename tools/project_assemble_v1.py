@@ -1521,7 +1521,7 @@ def main():
         import flexsub_icm_generate_v1 as fig
         try:
             r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
-                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode)
+                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode, width=args.width)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1

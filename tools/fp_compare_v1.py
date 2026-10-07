@@ -35,8 +35,9 @@ def _operand(n, t, head, fmt):
 
 
 def build(fmt, heads):
-    assert fmt.exp_bits + fmt.sig_bits <= 31, "the keys are signed words: the format must fit 31 bits (fp32 needs a split)"
+    assert fmt.exp_bits + fmt.sig_bits <= fmt.word - 1, "the keys are signed words: the format must fit word-1 bits (fp32 needs word 64, ledger #1011)"
     n = npl.Net()
+    n.mask = (1 << fmt.word) - 1                                          # constants are masked to the cell word (ledger #1011)
     _operand(n, "A", heads["a"], fmt)
     _operand(n, "B", heads["b"], fmt)
     n.op("K0a", "const", const=0)
@@ -45,7 +46,7 @@ def build(fmt, heads):
     n.op("C1", "cmp", ["DF"], thr=1)
     n.op("C0", "cmp", ["DF"], thr=0)
     n.op("RS", "add", ["C1", "C0"])
-    n.op("KM", "const", const=M32)
+    n.op("KM", "const", const=(1 << fmt.word) - 1)                       # -1 in the cell word (0xFFFFFFFF at 32 bits)
     n.op("R", "add", ["RS", "KM"])                                       # -1 / 0 / +1
     n.op("US", "add", ["A.N", "B.N"])
     n.op("UC", "cmp", ["US"], thr=1)
