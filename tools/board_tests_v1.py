@@ -356,6 +356,21 @@ echo Finished. Results are in %~dp0board_results.txt
 pause
 """
 
+SH = r"""#!/bin/sh
+# run_all.sh -- ledger #1023 (Linux): load each self-checking test bitstream onto the Tang Nano 20K, read its result line from the
+# board's USB serial port, and gather everything into ONE file: board_results.txt (also board_results.csv).
+#
+# Needs: openFPGALoader, python3 with pyserial (sudo apt install openfpgaloader python3-serial), the board plugged in by USB-C, and
+# permission for the USB devices: add yourself to the dialout group once (sudo usermod -aG dialout $USER, then log out and in),
+# or run this with sudo.
+# Usage:  ./run_all.sh              (auto-detects the serial port)
+#         ./run_all.sh /dev/ttyUSB1 (name it yourself: the board shows two ports, the FPGA UART is the second)
+cd "$(dirname "$0")" || exit 1
+python3 board_run.py "$1"
+echo
+echo "Finished. Results are in $(pwd)/board_results.txt"
+"""
+
 RUNPY = r'''#!/usr/bin/env python3
 """board_run.py -- loads every <name>.fs next to this file with openFPGALoader, listens to the board's serial port for the test's result line, and writes ONE results file
 (board_results.txt, plus board_results.csv). Ledger #1023.  usage: python board_run.py [COMPORT]"""
@@ -387,7 +402,7 @@ def pick_port(arg):
     cand = [p for p in ports if "BL616" in (p.description or "") or "JTAG" in (p.description or "").upper() or "Sipeed" in (p.manufacturer or "") or (p.vid, p.pid) == (0x359F, 0x3101)]
     pool = cand or ports
     if not pool:
-        sys.exit("no serial port found: plug the board in, or name it:  python board_run.py COM7")
+        sys.exit("no serial port found: plug the board in, or name it:  python3 board_run.py /dev/ttyUSB1   (Windows: COM7)")
     pool.sort(key=lambda p: p.device)
     return pool[-1].device       # the Tang Nano 20K shows two COM ports; the FPGA UART is the second one
 
@@ -463,7 +478,7 @@ def readme(results):
     L = ["# Tang Nano 20K on-board tests (ledger #1023)\n",
          "Each `<name>.fs` is a complete, self-checking bitstream: a UniCell flex design, a fixed input stream, and the expected answers built in. When it has run it sends one line over the board's USB serial port "
          "(115200 baud, repeated about every 0.3 s) and lights the LEDs: **LED1 on = PASS, LED2 on = FAIL, LED3 on = finished, LED0 = heartbeat** (all active low, LED numbers as on the board silkscreen's `LED0..LED3` = pins 15-18).\n",
-         "## To run them all\n", "1. Plug the board in by USB-C. 2. Install `openFPGALoader` and `pip install pyserial` (see `docs/shared/TOOLCHAIN_SETUP.md`). 3. Double-click `run_all.bat` (or `run_all.bat COM7` to name the serial port). "
+         "## To run them all\n", "1. Plug the board in by USB-C. 2. Install `openFPGALoader` and `pip install pyserial` (see `docs/shared/TOOLCHAIN_SETUP.md`). 3. **Linux:** `./run_all.sh` (or `./run_all.sh /dev/ttyUSB1`; you may need `sudo usermod -aG dialout $USER` once, then log out and in, or run it with sudo; `sudo apt install openfpgaloader python3-serial`). **Windows:** `run_all.bat` (or `run_all.bat COM7`). "
          "4. Read `board_results.txt` (and `board_results.csv`).\n",
          "The bitstreams are loaded to SRAM only (gone at power-off); the flash is not touched.\n",
          "## The line\n", "`UCT <name> res=P|F n=<words received> e=<words expected> bad=<wrong or extra words> to=<1 if it timed out> last=<cycle of the last word> sig=<checksum> w=<first 8 words>` (all hex). "
@@ -472,7 +487,7 @@ def readme(results):
     for r in results:
         L.append(f"| `{r['name']}` | {r['what']} | {r.get('lut4', '')} | {r.get('dff', '')} | {r.get('fmax_mhz', '')} |")
     L += ["\n## What a failure would mean\n", "- **NOLOAD**: the loader could not program the board (cable, driver, `openFPGALoader` not on the PATH).",
-          "- **NOREPORT**: it loaded but nothing came back on the serial port: wrong COM port (the board shows two; the FPGA UART is the second), or the UART pin (69) does not reach the PC the way the MAN file says (it has never been used by this project). The LEDs still show the verdict.",
+          "- **NOREPORT**: it loaded but nothing came back on the serial port: wrong serial port (the board shows two, e.g. /dev/ttyUSB0 and /dev/ttyUSB1 or COM7 and COM8; the FPGA UART is the second; on Linux also check the dialout group), or the UART pin (69) does not reach the PC the way the MAN file says (it has never been used by this project). The LEDs still show the verdict.",
           "- **FAIL** with a line: the design ran on silicon and gave a different answer from the simulation: compare `board` and `simulated` (`bad=` counts wrong words, `n=` the words that arrived).",
           "\n## Honest limits\n", "- Every bitstream passed in simulation (with the UART text decoded) and closed timing at 27 MHz in place-and-route, but nothing here has been on the board yet. The UART pin is unverified (the earlier smoke test used LEDs only).",
           "- 27 MHz only: there is no PLL, so this is not a speed test. The designs are small (a few cells), so they test the cell RTL and the handshake on real silicon, not capacity.",
@@ -499,6 +514,9 @@ def main():
         results.append(r)
     open(os.path.join(a.out, "run_all.bat"), "w", newline="\r\n").write(BAT)
     open(os.path.join(a.out, "board_run.py"), "w").write(RUNPY)
+    sh = os.path.join(a.out, "run_all.sh")
+    open(sh, "w", newline="\n").write(SH)
+    os.chmod(sh, 0o755)
     open(os.path.join(a.out, "README.md"), "w").write(readme(results))
     print(f"wrote {len(results)} tests to {a.out}")
 

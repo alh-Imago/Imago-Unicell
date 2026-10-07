@@ -29,7 +29,7 @@ def pick_port(arg):
     cand = [p for p in ports if "BL616" in (p.description or "") or "JTAG" in (p.description or "").upper() or "Sipeed" in (p.manufacturer or "") or (p.vid, p.pid) == (0x359F, 0x3101)]
     pool = cand or ports
     if not pool:
-        sys.exit("no serial port found: plug the board in, or name it:  python board_run.py COM7")
+        sys.exit("no serial port found: plug the board in, or name it:  python3 board_run.py /dev/ttyUSB1   (Windows: COM7)")
     pool.sort(key=lambda p: p.device)
     return pool[-1].device       # the Tang Nano 20K shows two COM ports; the FPGA UART is the second one
 

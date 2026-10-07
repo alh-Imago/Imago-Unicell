@@ -4,7 +4,7 @@ Each `<name>.fs` is a complete, self-checking bitstream: a UniCell flex design, 
 
 ## To run them all
 
-1. Plug the board in by USB-C. 2. Install `openFPGALoader` and `pip install pyserial` (see `docs/shared/TOOLCHAIN_SETUP.md`). 3. Double-click `run_all.bat` (or `run_all.bat COM7` to name the serial port). 4. Read `board_results.txt` (and `board_results.csv`).
+1. Plug the board in by USB-C. 2. Install `openFPGALoader` and `pip install pyserial` (see `docs/shared/TOOLCHAIN_SETUP.md`). 3. **Linux:** `./run_all.sh` (or `./run_all.sh /dev/ttyUSB1`; you may need `sudo usermod -aG dialout $USER` once, then log out and in, or run it with sudo; `sudo apt install openfpgaloader python3-serial`). **Windows:** `run_all.bat` (or `run_all.bat COM7`). 4. Read `board_results.txt` (and `board_results.csv`).
 
 The bitstreams are loaded to SRAM only (gone at power-off); the flash is not touched.
 
@@ -30,7 +30,7 @@ The bitstreams are loaded to SRAM only (gone at power-off); the flash is not tou
 ## What a failure would mean
 
 - **NOLOAD**: the loader could not program the board (cable, driver, `openFPGALoader` not on the PATH).
-- **NOREPORT**: it loaded but nothing came back on the serial port: wrong COM port (the board shows two; the FPGA UART is the second), or the UART pin (69) does not reach the PC the way the MAN file says (it has never been used by this project). The LEDs still show the verdict.
+- **NOREPORT**: it loaded but nothing came back on the serial port: wrong serial port (the board shows two, e.g. /dev/ttyUSB0 and /dev/ttyUSB1 or COM7 and COM8; the FPGA UART is the second; on Linux also check the dialout group), or the UART pin (69) does not reach the PC the way the MAN file says (it has never been used by this project). The LEDs still show the verdict.
 - **FAIL** with a line: the design ran on silicon and gave a different answer from the simulation: compare `board` and `simulated` (`bad=` counts wrong words, `n=` the words that arrived).
 
 ## Honest limits
@@ -41,4 +41,4 @@ The bitstreams are loaded to SRAM only (gone at power-off); the flash is not tou
 
 ## Rebuilding the bitstreams
 
-The `.fs` files are not kept in git (about 4.5 MB each). Rebuild them with `python3 tools/board_tests_v1.py` (needs yosys, `pip install yowasp-nextpnr-himbaechel-gowin apycula`, iverilog; about 6 minutes), or use the zip that was sent with the ledger #1023 session.
+The `.fs` files are not kept in git (about 4.5 MB each). Rebuild them with `python3 tools/board_tests_v1.py` (needs yosys, `pip install yowasp-nextpnr-himbaechel-gowin apycula`, iverilog; about 6 minutes).
