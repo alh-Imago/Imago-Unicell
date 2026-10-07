@@ -21,6 +21,8 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import flexsub_assemble_v1 as fsa  # noqa: E402
 
 PORT2_CELLS = ("adder", "mul", "mul_dsp")
+# ledger #1022: build-parameter variants of a cell, measured beside the default (stored as single_nowidelut_<name>): the ram's ONE-SHOT preload (OFFER_PRELOAD) and HOLD behaviours (#1021)
+VARIANTS = {"ram": {"oneshot": {"OFFER_PRELOAD": 1}, "hold": {"HOLD": 1}}}
 WORK = "/tmp/flex_sweep"
 
 
@@ -53,6 +55,8 @@ def run(job):
         res["single_widelut"] = synth(deps, mod, pre, "")
         res["single_nowidelut"] = synth(deps, mod, pre, "-nowidelut")
         res["array3x3_nowidelut"] = synth([top + ".v"] + deps, top, "", "-nowidelut")
+        for vname, prm in VARIANTS.get(cell, {}).items():
+            res[f"single_nowidelut_{vname}"] = synth(deps, mod, pre + "".join(f" chparam -set {k} {v} {mod};" for k, v in prm.items()), "-nowidelut")
         if cell in PORT2_CELLS:
             res["single_nowidelut_port2"] = synth(deps, mod, pre + f" chparam -set SECOND_PORT 1 {mod};", "-nowidelut")
     except Exception as e:  # noqa: BLE001
@@ -95,7 +99,12 @@ def write_readme(costs_path):
     for c, v in d["cells"].items():
         if "single_nowidelut_port2" in v:
             L.append(f"| {c} (port off -> on) | " + " | ".join(f"{v['single_nowidelut'][str(w)][0]}/{v['single_nowidelut'][str(w)][2]} -> {v['single_nowidelut_port2'][str(w)][0]}/{v['single_nowidelut_port2'][str(w)][2]}" for w in W) + " |")
-    L += ["\n## Single cell, flip-flops (DFF)\n", "| cell | " + " | ".join(f"W{w}" for w in W) + " |", "|---|" + "---|" * len(W)]
+    L += ["\n## Build-parameter variants (ledger #1021/#1022), LUT4 / DFF\n", "| cell variant | " + " | ".join(f"W{w}" for w in W) + " |", "|---|" + "---|" * len(W)]
+    for c, v in d["cells"].items():
+        for vk in (k for k in v if k.startswith("single_nowidelut_") and not k.endswith("_port2")):
+            L.append(f"| {c} {vk[len('single_nowidelut_'):]} (default -> variant) | " + " | ".join(f"{v['single_nowidelut'][str(w)][0]}/{v['single_nowidelut'][str(w)][2]} -> {v[vk][str(w)][0]}/{v[vk][str(w)][2]}" for w in W) + " |")
+    L += ["\nThe ram's one-shot preload (`OFFER_PRELOAD`) costs nothing measurable; HOLD adds about two LUT4 and one flip-flop at every width. The priority cell is a single measured cell (all three modes in one build): about 3W + 194 LUT4, 155 ALU, W + 62 flip-flops.\n",
+          "## Single cell, flip-flops (DFF)\n", "| cell | " + " | ".join(f"W{w}" for w in W) + " |", "|---|" + "---|" * len(W)]
     for c, v in d["cells"].items():
         L.append(f"| {c} | " + " | ".join(str(v["single_nowidelut"][str(w)][2]) for w in W) + " |")
     L += ["\nALU (carry-chain) cells, `mul_dsp` DSP blocks and the wide-LUT and 3x3 numbers are in `costs.json`.\n", "## How to read this\n",
@@ -119,6 +128,7 @@ def main():
     ap.add_argument("--widths", default="4,8,16,18,24,32")
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "measurements", "flex_width_sweep_975", "costs.json"))
+    ap.add_argument("--only", default="", help="comma list of cells to (re)measure and MERGE into the existing costs.json (the other cells keep their numbers)")
     ap.add_argument("--readme-only", action="store_true", help="rebuild README.md from the existing costs.json, measure nothing")
     a = ap.parse_args()
     if a.readme_only:
@@ -128,6 +138,12 @@ def main():
     os.makedirs(WORK, exist_ok=True)
     widths = [int(x) for x in a.widths.split(",")]
     cells = fsa.cells_for("flex")
+    only = [x for x in a.only.split(",") if x]
+    if only:
+        bad_ = [x for x in only if x not in cells]
+        if bad_:
+            sys.exit(f"--only: unknown cell(s) {bad_}; the assembler knows {cells}")
+        cells = only
     jobs = [(c, w) for c in cells for w in widths if not (c == "mul_dsp" and w > 36)]
     with Pool(a.jobs) as p:
         results = p.map(run, jobs)
@@ -138,13 +154,20 @@ def main():
                    "single_nowidelut_port2 = the same with the second output port built (SECOND_PORT=1, adder / mul / mul_dsp only); array3x3_* = nine cells in the generated assembler top "
                    "(config pinned by the harness, so constant-config logic folds away: NOT a per-cell figure).",
            "widths": widths, "cells": {}, "fits": {}}
+    if only:                                              # merge: keep every other cell's committed numbers
+        old = json.load(open(a.out))
+        out["cells"] = old["cells"]
+        out["note"] = old["note"]
+        out["widths"] = old["widths"]
+        for c in only:
+            out["cells"].pop(c, None)
     for r in results:
         d = out["cells"].setdefault(r["cell"], {})
-        for k in ("single_nowidelut", "single_widelut", "array3x3_nowidelut", "single_nowidelut_port2"):
+        for k in ("single_nowidelut", "single_widelut", "array3x3_nowidelut", "single_nowidelut_port2", "single_nowidelut_oneshot", "single_nowidelut_hold"):
             if k in r:
                 d.setdefault(k, {})[str(r["w"])] = r[k]
     out["cells"] = dict(sorted(out["cells"].items()))
-    out["fits"] = fits(out["cells"], widths)
+    out["fits"] = fits(out["cells"], out["widths"] if only else widths)
     json.dump(out, open(a.out, "w"), indent=1)
     write_readme(a.out)
     print(f"wrote {a.out}: {len(results)} builds")

@@ -250,3 +250,14 @@ def test_cell_costs_are_in_the_man_and_consistent():
     # and the clean fits
     assert cc["fits"]["adder"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [1.0, 5.0]
     assert cc["fits"]["nano"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [7.0, 33.0]
+
+
+def test_priority_and_ram_variant_costs_are_in_the_man():
+    """Ledger #1022: the priority cell and the ram's one-shot / hold variants are in the measured costs (and so in the MAN)."""
+    cc = MAN["cell_costs"]["cells"]
+    assert set(cc["priority"]["single_nowidelut"]) == {"4", "8", "16", "18", "24", "32"}
+    assert cc["priority"]["single_nowidelut"]["32"] == [291, 155, 94, 0]
+    assert cc["ram"]["single_nowidelut"]["18"] == [24, 0, 21, 0]                       # the plain ram is unchanged by the new options
+    assert cc["ram"]["single_nowidelut_oneshot"]["18"] == cc["ram"]["single_nowidelut"]["18"]
+    hold, plain = cc["ram"]["single_nowidelut_hold"], cc["ram"]["single_nowidelut"]
+    assert all(hold[w][0] - plain[w][0] == 2 and hold[w][2] - plain[w][2] == 1 for w in plain)

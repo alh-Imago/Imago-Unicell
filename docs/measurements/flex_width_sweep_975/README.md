@@ -18,6 +18,7 @@ Each cell was built at widths 4, 8, 16, 18, 24, 32: the **single cell** alone (e
 | mul | 16 | 70 | 313 | 394 | 728 | 1332 | 1.41W^2 -3.94W +10.2 | 4.1 |
 | mul_dsp | 5 | 5 | 5 | 5 | 5 | 5 | 5 (flat) | 0.0 |
 | nano | 61 | 89 | 145 | 159 | 201 | 257 | 7.00W +33.0 | 0.0 |
+| priority | 206 | 218 | 242 | 248 | 266 | 291 | 3.03W +193.7 | 0.4 |
 | ram | 10 | 14 | 22 | 24 | 30 | 38 | 1.00W +6.0 | 0.0 |
 | router | 10 | 10 | 10 | 10 | 10 | 10 | 10 (flat) | 0.0 |
 | sequencer | 21 | 36 | 36 | 36 | 36 | 36 | 36 (saturates from W8; no useful fit) | - |
@@ -30,6 +31,15 @@ Each cell was built at widths 4, 8, 16, 18, 24, 32: the **single cell** alone (e
 | adder (port off -> on) | 9/7 -> 13/10 | 13/11 -> 17/14 | 21/19 -> 25/22 | 23/21 -> 27/24 | 29/27 -> 33/30 | 37/35 -> 41/38 |
 | mul (port off -> on) | 16/6 -> 31/12 | 70/10 -> 152/20 | 313/18 -> 645/36 | 394/20 -> 829/40 | 728/26 -> 1504/52 | 1332/34 -> 2695/68 |
 | mul_dsp (port off -> on) | 5/6 -> 8/12 | 5/10 -> 8/20 | 5/18 -> 8/36 | 5/20 -> 8/40 | 5/26 -> 8/52 | 5/34 -> 8/68 |
+
+## Build-parameter variants (ledger #1021/#1022), LUT4 / DFF
+
+| cell variant | W4 | W8 | W16 | W18 | W24 | W32 |
+|---|---|---|---|---|---|---|
+| ram oneshot (default -> variant) | 10/7 -> 10/7 | 14/11 -> 14/11 | 22/19 -> 22/19 | 24/21 -> 24/21 | 30/27 -> 30/27 | 38/35 -> 38/35 |
+| ram hold (default -> variant) | 10/7 -> 12/8 | 14/11 -> 16/12 | 22/19 -> 24/20 | 24/21 -> 26/22 | 30/27 -> 32/28 | 38/35 -> 40/36 |
+
+The ram's one-shot preload (`OFFER_PRELOAD`) costs nothing measurable; HOLD adds about two LUT4 and one flip-flop at every width. The priority cell is a single measured cell (all three modes in one build): about 3W + 194 LUT4, 155 ALU, W + 62 flip-flops.
 
 ## Single cell, flip-flops (DFF)
 
@@ -45,6 +55,7 @@ Each cell was built at widths 4, 8, 16, 18, 24, 32: the **single cell** alone (e
 | mul | 6 | 10 | 18 | 20 | 26 | 34 |
 | mul_dsp | 6 | 10 | 18 | 20 | 26 | 34 |
 | nano | 20 | 28 | 44 | 48 | 60 | 76 |
+| priority | 66 | 70 | 78 | 80 | 86 | 94 |
 | ram | 7 | 11 | 19 | 21 | 27 | 35 |
 | router | 9 | 13 | 21 | 23 | 29 | 37 |
 | sequencer | 26 | 46 | 46 | 46 | 46 | 46 |
@@ -77,6 +88,7 @@ Whole cells that fit if the device held nothing else (single-cell nowidelut cost
 | mul | 1296 | 296 | 66 | 52 | 28 | 15 |
 | mul_dsp | 4147 | 4147 | 4147 | 4147 | 4147 | 4147 |
 | nano | 339 | 232 | 143 | 130 | 103 | 80 |
+| priority | 100 | 95 | 85 | 83 | 77 | 71 |
 | ram | 2073 | 1481 | 942 | 864 | 691 | 545 |
 | router | 2073 | 2073 | 2073 | 2073 | 2073 | 2073 |
 | sequencer | 987 | 576 | 576 | 576 | 576 | 576 |

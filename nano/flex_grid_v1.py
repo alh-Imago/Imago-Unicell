@@ -105,6 +105,19 @@ def _flex_deliver_ram(cell, arrivals, injected):
     ARBITRATE (two sources): when both are valid in the same tick, grant ONE (A unless the round-robin flag says B), acknowledge only that one (the other stays pending and is served
     later) -- where the std VM ORs both into one value; the flag then rotates after every grant, so neither starves. JOIN-OR (any number of sources): accept NOTHING until every source
     is presenting, then take them all and OR them. A = the source that comes first in the ICM record list (what the generator does)."""
+    if cell.ram_fixed_mode and getattr(cell, "_hold", False):
+        # ledger #1021: HOLD (ram_cell_v4sa with HOLD=1): a fixed ram with a source. It offers its stored word again whenever the consumer is ready (it is never used up), and ANY word arriving
+        # replaces the stored value; the arrival is always acknowledged. It offers nothing until a word has been written (or preloaded, load_data_valid). The std VM refuses arrivals to a fixed ram.
+        matched = {d: v for d, v in arrivals.items() if (cell.ram_upstream_mask >> _DIR_BIT[d]) & 1}
+        if not matched and injected is None:
+            return (True, None)
+        val = 0
+        for v in matched.values():
+            val |= v & cell.mask
+        if injected is not None:
+            val |= injected & cell.mask
+        cell.ram_data_reg, cell.ram_data_valid = val, True
+        return (True, None)
     order = getattr(cell, "_merge_order", None)
     if cell.ram_fixed_mode or not order or injected is not None:
         return SuperCell._deliver_ram(cell, arrivals, injected)
@@ -137,13 +150,34 @@ def _one_operand_at_a_time(cell, arrivals, injected, mask, deliver, what):
     """ledger #989: a two-operand flex cell never ORs two operands that arrive in the SAME tick (the std VM does; the real handshake cell takes both and waits for both). The VM takes ONE (the lower face) and
     acknowledges only that one -- the other stays pending and is taken next. For add and multiply that gives the same result as the RTL (commutative). For a SUBTRACT the order would be a guess, so it is refused."""
     present = sorted((d for d in arrivals if (mask >> _DIR_BIT[d]) & 1), key=lambda d: _DIR_BIT[d])
+    a_attr = "adder_a_arrived" if cell.core == "adder" else "mul_a_arrived"
+    a_in = bool(getattr(cell, a_attr, False))
+    two_faces = bin(mask & 0xF).count("1") >= 2
+    if injected is None and a_in and two_faces:
+        # ledger #1022: the real cell has TWO operand ports (a join, vin = vA & vB): a second word from the face that already supplied operand A must WAIT for the other face, it is never taken as B.
+        # (The std VM pairs any two successive arrivals; that let a held/constant source pair with itself.) The refused word stays pending, as the hardware leaves it unacknowledged.
+        present = [d for d in present if d != getattr(cell, "_a_face", None)]
+        if not present:
+            return (set(), None) if arrivals else (True, None)
     if injected is not None or len(present) < 2:
+        if injected is None and present:
+            win = present[0]
+            got = deliver(cell, {win: arrivals[win]}, None)
+            if got[0] is True:
+                if not a_in and getattr(cell, a_attr, False):
+                    cell._a_face = win
+                return ({win}, None)
+            return got
         return deliver(cell, arrivals, injected)
-    if what == "subtract":
+    if what == "subtract" and not a_in:
         raise ValueError("flex VM: both operands of a subtract arrive in the same tick -- there is no operand order (the real cell orders them by arrival); separate their path lengths")
     win = present[0]
     got = deliver(cell, {win: arrivals[win]}, None)
-    return ({win}, None) if got[0] is True else got
+    if got[0] is True:
+        if not a_in and getattr(cell, a_attr, False):
+            cell._a_face = win
+        return ({win}, None)
+    return got
 
 
 def _flex_deliver_adder(self, arrivals, injected):
@@ -219,7 +253,7 @@ class FlexGrid(SuperGrid):
     _cell_class = FlexCell
     family = "flex"
     _ALLOWS_CARRY_MODE = True
-    _UNVERIFIED_AT_OTHER_WIDTHS = frozenset({"priority"})      # accumulator and branch are checked against the real v4sa cells at W = 16..36 / 4..36 (#970); the priority arbiter is not translated by the flex generator
+    _UNVERIFIED_AT_OTHER_WIDTHS = frozenset()      # accumulator and branch are checked against the real v4sa cells at W = 16..36 / 4..36 (#970); the priority arbiter at W = 32 and 18, all three modes (#1022)
 
     def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
         # CROSSING tiles (core "cross", Alan 6 Oct 2026): two independent straight-through axes, no control, ONE TICK PER TILE like every other core ("add the tick as 1 per tile").
@@ -244,6 +278,14 @@ class FlexGrid(SuperGrid):
         records = [r for r in records if r.core != "cross"] + extra
         super().__init__(records, width=width, **kw)
         self._setup_merges(records, merge_mode)
+        by_pos_ = {(r.row, r.col) for r in records}
+        for pos_, c_ in self.cells.items():                 # ledger #1021: a FIXED ram that something feeds is a HOLD ram (the generator's rule); a fixed ram nothing feeds is the constant
+            if c_.core == "ram" and c_.ram_fixed_mode and c_.ram_upstream_mask:
+                for d_ in _DIRS_ALL:
+                    if (c_.ram_upstream_mask >> _DIR_BIT[d_]) & 1:
+                        nb_ = self.neighbor_pos(pos_[0], pos_[1], d_, upstream=True)
+                        if nb_ is not None and nb_ in by_pos_:
+                            c_._hold = True
         for r in records:                                   # ledger #976: the adder's carry flag (ICM second_output); the cell attribute is read by the flex adder handler
             if r.core == "adder":
                 self.cells[(r.row, r.col)].adder_carry_mode = bool((r.core_config or {}).get("second_output", 0))
