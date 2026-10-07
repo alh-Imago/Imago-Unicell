@@ -35,8 +35,8 @@ def same(got, want):
 
 def build(mode):
     if mode not in _BUILT:
-        g = Grid(rows=200, cols=700)
-        ent, ex, consts, _ = fm.fp_mul_tight(g, FMT, rounding=mode)
+        g = Grid(rows=200, cols=400)
+        ent, ex, consts, _ = fm.fp_mul_tight_u(g, FMT, rounding=mode)
         assert g.balance(limit=400) >= 0 and g.problems() == []
         _BUILT[mode] = (g, ent, ex)
     return _BUILT[mode]
@@ -122,7 +122,7 @@ def test_tight_fp32_multiplier_at_word_64_rtl(mode):
     """The same tight multiplier for fp32 at a 64-bit cell word (ledger #1011 gave the word, #1014 the tight placement)."""
     from test_fp_wide_v1 import mul_vectors, FP32W64, INF as INF32
     g = Grid(rows=260, cols=1100)
-    ent, ex, consts, _ = fm.fp_mul_tight(g, FP32W64, rounding=mode)
+    ent, ex, consts, _ = fm.fp_mul_tight_u(g, FP32W64, rounding=mode)
     assert g.balance(limit=500) >= 0 and g.problems() == []
     V = mul_vectors()
     A, B = zip(*V)
