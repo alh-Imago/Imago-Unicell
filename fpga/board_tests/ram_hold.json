@@ -1,0 +1,31 @@
+{
+ "name": "ram_hold",
+ "what": "the ram's HOLD behaviour: 7 is written once and added to six items; it is offered again each time (never used up) (#1021)",
+ "expected": [
+  8,
+  9,
+  10,
+  11,
+  12,
+  13
+ ],
+ "sim_line": "UCT ram_hold res=P n=0006 e=0006 bad=0000 to=0 last=0000000F sig=000001F9 w=00000008,00000009,0000000A,0000000B,0000000C,0000000D",
+ "inputs": {
+  "W": [
+   7
+  ],
+  "X": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ]
+ },
+ "gaps": false,
+ "stalls": false,
+ "fmax_mhz": 160.4,
+ "lut4": 814,
+ "dff": 398
+}
