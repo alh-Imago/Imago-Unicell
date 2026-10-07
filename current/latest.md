@@ -1,6 +1,12 @@
-# Current State (as of 2026-10-06, ledger #1005). The active line is the Tang Nano 20K with the sub (v4s) and flex (v4sa) cell families, the Flex-Sub assembler (ICM -> Verilog), FlexGrid (the VM's flex mirror), second output ports and the target-agnostic ICM flags; the most recent thread is floating point built from cells (#982-#1001: the whole fp adder with inf/nan/overflow is built, with the crossing tile; subnormals next). Newest entries first below. (The header line that stood here until #991 read "as of 2026-09-28, THE BOARD HAS ARRIVED"; that entry is #886, further down.)
+# Current State (as of 2026-10-07, ledger #1009). The active line is the Tang Nano 20K with the sub (v4s) and flex (v4sa) cell families, the Flex-Sub assembler (ICM -> Verilog), FlexGrid (the VM's flex mirror), second output ports and the target-agnostic ICM flags; the most recent thread is floating point built from cells (#982-#1009: the fp adder is complete in all five rounding modes with subnormals, inf, nan and overflow; the fp16 multiplier and the fp16/bf16 comparator are built too; fp32 multiply and compare next). Newest entries first below. (The header line that stood here until #991 read "as of 2026-09-28, THE BOARD HAS ARRIVED"; that entry is #886, further down.)
 
 ## Read this first (most recent)
+
+**#1009 -- THE COMPARATOR FROM CELLS (fp16 and bfloat16), full IEEE including NaN (Alan: "start on the compare").** One netlist of ~640 cells (`tools/fp_compare_v1.py`): key = magnitude x (1 - 2 sign) (so -0 == +0 by itself), d = key_a - key_b, result -1 / 0 / +1, or 2 when either input is a nan. RTL (plain + stall) == the exact reference on 1,474 vectors (`tests/vm/test_fp_compare_v1.py`, ~20 s). fp32 needs the difference split (next, with the fp32 multiply). Std VM untouched.**
+
+**#1008 -- THE fp16 MULTIPLIER FROM CELLS, all five rounding modes, subnormals, zeros, inf, nan, overflow (Alan: "start on the fp16 side, that should give you shape first").** Unpack, 22-bit product in one word, exponent sum, an UNDERFLOW right shift with sticky (new: a product below the smallest normal loses bits; a sum does not), the adder's clamped normalise and `round_mode`, pack, overflow / specials, sign = xor always. Built as three placed netlists plus the three blocks; the adder's special-value placer is now general (`tools/netplace_v1.py`). RTL == the exact reference on 489 vectors in every mode, and with random stalls (`tests/vm/test_fp_mul_v1.py`). The grid builds in ~6 s, first run right. Open: fp32 (48-bit product, split partial products). Std VM untouched.**
+
+**#1007 -- ROUNDING MODES FOR THE CELL-BUILT ADDER: rne, rna, rtz, rup, rdn (build-time `rounding=`), the sign of an exact zero per mode, the overflow value per mode (Alan: "start in the rounding first").** `round_mode` in `tools/fp_assembler_v1.py`; zero sign computed where its bits are and sent as one 0/1 lane (Alan's bit packing); the exponent-difference subtract made order-free. Whole adder in RTL == an exact reference (`tests/vm/fp_round_ref_v1.py`, anchored to numpy incl. fesetround) in every mode at fp32, rtz/rdn at fp16 (`tests/vm/test_fp_round_modes_v1.py`). Open: a runtime mode word. Std VM untouched.**
 
 **#1006 -- SUBNORMALS: the adder takes subnormal inputs and gives subnormal results (gradual underflow) from cells -- effective input exponent max(e,1), a CLAMPED normalise (shift = min(leading zeros, exponent-1), one straight line of 124 cells, no router), a pack that folds the rounding carry into the exponent field, overflow from the packed magnitude. RTL fp32 (plain+stall), fp16 and FlexGrid == numpy incl. subnormals and signed zeros (`tests/vm/test_fp_special_v1.py`, `test_fp_normalise_clamp_v1.py`). The IEEE add is now complete (normals, subnormals, zeros, inf, nan, overflow). (#1005 was taken by the Composer.) Std VM untouched.**
 
@@ -12019,9 +12025,3 @@ field already reserves the headroom for it (values 6-31, confirmed live
 in `nano/icm_v3.py`'s own code). Deliberately deferred -- Alan's own
 words: "sort after all this is sorted." Don't raise it again until he
 does.
-
-- #1007 (7 Oct 2026): rounding modes rne/rna/rtz/rup/rdn (build-time `rounding=`), zero sign per mode, overflow value per mode; whole adder proven in RTL against an exact reference in every mode. Open: runtime mode word, multiply, compare.
-
-- #1008 (7 Oct 2026): fp16 MULTIPLIER from cells (all five rounding modes, subnormals, specials) proven in RTL vs an exact reference; netlist placer made general (`tools/netplace_v1.py`). Open: fp32 product (48 bits), compare.
-
-- #1009 (7 Oct 2026): fp16/bf16 COMPARATOR from cells (-1/0/+1, 2 unordered), full IEEE incl. NaN, proven in RTL. add + mul + compare now complete at fp16. Open: fp32 mul and compare.
