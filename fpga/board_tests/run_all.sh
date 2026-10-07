@@ -35,7 +35,15 @@ for f in *.fs; do
     timeout 7 cat "$P" > "raw/$n.bin" 2>>"raw/$n.ports"
     echo "  $(basename $P): $(wc -c < "raw/$n.bin") bytes" >> "raw/$n.ports"
     [ -s "raw/$n.bin" ] && break
-    sleep 2
+    # silent: the chip may still be running and only the board's USB-serial bridge stuck. Do a SOFTWARE replug of the USB device
+    # (the board keeps its power, so the FPGA keeps running the test), wait for the port to come back, and read again.
+    UD=$(readlink -f "/sys/class/tty/$(basename $P)/device/.." 2>/dev/null)
+    if [ -n "$UD" ] && [ -w "$UD/authorized" ]; then
+      echo "  silent: software replug of $UD" >> "raw/$n.ports"
+      echo 0 > "$UD/authorized"; sleep 2; echo 1 > "$UD/authorized"; sleep 5
+    else
+      echo "  silent: no software replug possible ($UD)" >> "raw/$n.ports"; sleep 2
+    fi
   done
   dmesg 2>/dev/null | grep -i -E "ftdi|ttyUSB|usb 3-|usb 1-|usb 2-" | tail -4 >> "raw/$n.ports"
   echo "[$n] $(wc -c < "raw/$n.bin") bytes   $(tail -1 "raw/$n.ports" | tr -d '\n')"
