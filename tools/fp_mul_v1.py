@@ -59,12 +59,13 @@ def build_n1(fmt, heads, rounding):
     bias = (1 << (E - 1)) - 1
     INF = ((1 << E) - 1) << m
     n = npl.Net()
+    n.mask = (1 << W) - 1
     _unpack(n, "A", heads["a"], fmt)
     _unpack(n, "B", heads["b"], fmt)
     n.op("PRD", "mul", ["A.SIG", "B.SIG"])
     n.op("O.PV", "relay", ["PRD"], addon=shl(W - 2 * S))                # the product, top aligned (the align block's input)
     n.op("ES", "add", ["A.EE", "B.EE"])
-    n.op("KE", "const", const=(-(bias - 1)) & M32)
+    n.op("KE", "const", const=(-(bias - 1)) & ((1 << W) - 1))
     n.op("E1", "add", ["ES", "KE"])                                      # the biased exponent if the product's top bit is set
     n.op("C1", "cmp", ["E1"], thr=1)                                     # E1 >= 1
     n.op("K1c", "const", const=1)
@@ -117,12 +118,13 @@ def build_n2(fmt, rounding, rout, expout, sgn, spec, zw):
     E, m, W = fmt.exp_bits, fmt.sig_bits - 1, fmt.word
     INF = ((1 << E) - 1) << m
     n = npl.Net()
+    n.mask = (1 << W) - 1
     n.op("RO", "relay", [rout])
     n.op("EXR", "relay", [expout])
     n.op("SPR", "relay", [spec])
     n.op("ZWR", "relay", [zw])
     n.op("NZC", "cmp", ["RO"], thr=1)                                    # the rounded significand is not zero
-    n.op("KM1", "const", const=M32)
+    n.op("KM1", "const", const=(1 << W) - 1)
     n.op("ADDR", "add", ["EXR", "KM1"])                                 # EXPOUT - 1
     n.op("MULE", "mul", ["ADDR", "NZC"])
     n.op("SHE", "relay", ["MULE"], addon=shl(m))

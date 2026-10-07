@@ -22,14 +22,32 @@ def ram(cid, r, c, up, down, **kw):
     return IcmV3Record(cell_id=cid, row=r, col=c, core="ram", core_config={"upstream_mask": up, "downstream_mask": down}, **kw)
 
 
-def build(tmp, name, recs):
+def build(tmp, name, recs, width=None):
     icm = os.path.join(tmp, name + ".icm")
-    IcmV3File(name=name, records=recs).save(icm)
+    f = IcmV3File(name=name, records=recs)
+    if width and width > 32:
+        # ledger #1010: a flex cell wider than 32 bits may shift by up to width-1 (the flex shift is pure wiring, Alan #985), but the std 80-bit SUPER_LATCH packs the shift amount in 5 bits (max 31). The
+        # latch word is only a derived field of the file (the flex generator reads the addon_config dict), so for such a record it is written as 0 here; nano/icm_v3.py is NOT changed.
+        from icm_v3 import IcmV3Record as _R
+        _orig = _R.super_latch
+
+        def _tolerant(self):
+            try:
+                return _orig(self)
+            except ValueError:
+                return 0
+        _R.super_latch = _tolerant
+        try:
+            f.save(icm)
+        finally:
+            _R.super_latch = _orig
+    else:
+        f.save(icm)
     d = os.path.join(tmp, "g_" + name)
-    return d, cli("-s", "flex", "--icm", icm, "--output", d)
+    return d, cli("-s", "flex", "--icm", icm, "--output", d, *(["-w", str(width)] if width else []))
 
 
-def run_level(folder, streams, mode="plain", seed=1, settle=60, cycles=3000, serial=False):
+def run_level(folder, streams, mode="plain", seed=1, settle=60, cycles=3000, serial=False, width=32):
     """streams: {entry port suffix: [values]} (lengths may DIFFER). mode: plain (items back-to-back, exit always ready) | stall (random input gaps + random exit stalls) |
     skewfirst / skewlast (the first / last input slow, to stagger them). Returns (levels {exit: per-cycle data}, got {exit: [values captured on valid&ack]})."""
     rec = json.load(open(os.path.join(folder, "ASSEMBLY.json")))
@@ -42,9 +60,9 @@ def run_level(folder, streams, mode="plain", seed=1, settle=60, cycles=3000, ser
     for k, name in enumerate(ins):
         vals = streams[name]
         n = len(vals)
-        decl.append(f"  reg [31:0] mem_{name} [0:{n}]; integer idx_{name} = 0; reg act_{name} = 0; wire ack_{name};\n"
-                    f"  wire [31:0] d_{name} = (idx_{name} < {n}) ? mem_{name}[idx_{name}] : 32'h0;")
-        decl.append("  initial begin " + " ".join(f"mem_{name}[{j}] = 32'd{v};" for j, v in enumerate(vals)) + " end")
+        decl.append(f"  reg [{width-1}:0] mem_{name} [0:{n}]; integer idx_{name} = 0; reg act_{name} = 0; wire ack_{name};\n"
+                    f"  wire [{width-1}:0] d_{name} = (idx_{name} < {n}) ? mem_{name}[idx_{name}] : {width}'h0;")
+        decl.append("  initial begin " + " ".join(f"mem_{name}[{j}] = {width}'d{v};" for j, v in enumerate(vals)) + " end")
         slow3 = f"(lfsr[{(3 * k + 2) % 31}] & lfsr[{(5 * k + 7) % 31}] & lfsr[{(2 * k + 13) % 31}])"
         gap = (f"(lfsr[{(3 * k + 2) % 31}] | lfsr[{(5 * k + 7) % 31}])" if mode == "stall" else
                slow3 if (mode == "skewfirst" and k == 0) or (mode == "skewlast" and k == len(ins) - 1) else "(1'b1)")
@@ -56,7 +74,7 @@ def run_level(folder, streams, mode="plain", seed=1, settle=60, cycles=3000, ser
     cap = []
     for k, name in enumerate(outs):
         ready = f"lfsr[{(7 * k + 11) % 31}]" if mode == "stall" else "1'b1"
-        decl.append(f"  wire [31:0] od_{name}; wire ov_{name}; wire oa_{name} = {ready};")
+        decl.append(f"  wire [{width-1}:0] od_{name}; wire ov_{name}; wire oa_{name} = {ready};")
         cap.append(f'      $display("LV {name} %0d %0d", cyc, od_{name});\n'
                    f'      if (ov_{name} && oa_{name}) begin $display("GOT {name} %0d", od_{name}); got_n <= got_n + 1; end')
         conn.append(f".out_{name}_data(od_{name}), .out_{name}_valid(ov_{name}), .out_{name}_ack(oa_{name})")

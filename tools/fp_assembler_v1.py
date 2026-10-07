@@ -94,11 +94,11 @@ def normalise_chain(g, fmt, name="N", r0=0, c0=0, pitch=9):
     g.link(pre + "EXPIN", pre + "E1")
     g.add(pre + "E2", R(5), C(X + 4), "adder")
     g.route(pre + "E1", pre + "E2")
-    g.add(pre + "C", R(6), C(X + 4), preload=(1 << 32) - smax)
+    g.add(pre + "C", R(6), C(X + 4), preload=(1 << fmt.word) - smax)
     g.link(pre + "C", pre + "E2")
     g.add(pre + "EXPOUT", R(5), C(X + 5))
     g.link(pre + "E2", pre + "EXPOUT")
-    consts[pre + "C"] = (1 << 32) - smax
+    consts[pre + "C"] = (1 << fmt.word) - smax
     for k in range(K):
         g.route(first(k) + "V", first(k) + "MUL", avoid=[(R(0), C(4 + pitch * k))])
     for k in range(K - 1):
@@ -189,10 +189,10 @@ def normalise_chain_clamped(g, fmt, name="N", r0=0, c0=0):
     g.add(pre + "UX", R(4), C(cbl + 3))
     g.link(prev_u, pre + "UX")
     g.add(pre + "E2", R(4), C(cbl + 4), "adder")
-    g.add(pre + "C", R(5), C(cbl + 4), preload=(1 << 32) - smax)
+    g.add(pre + "C", R(5), C(cbl + 4), preload=(1 << fmt.word) - smax)
     g.add(pre + "EXPOUT", R(4), C(cbl + 5))
     g.link(pre + "UX", pre + "E2"); g.link(pre + "C", pre + "E2"); g.link(pre + "E2", pre + "EXPOUT")
-    consts[pre + "C"] = (1 << 32) - smax
+    consts[pre + "C"] = (1 << fmt.word) - smax
     return Block(name, {"V": first_(0) + "V", "EXPIN": first_(0) + "UF"}, {"NORM": pre + "NORM", "EXPOUT": pre + "EXPOUT"}, consts, (6, cb + 1))
 
 
@@ -213,7 +213,7 @@ def align_sticky(g, fmt, name="AL", r0=0, c0=0, pitch=7, flip=False):
         g.add(p + "B2", R(1), C(3 + c), addon=None if last else {"shift_en": 1, "direction": 1, "shift_amt": 1})                 # -> bit 30 (the comparator is SIGNED)
         g.add(p + "BC", R(1), C(4 + c), "comparator", {"threshold": (1 << Ka) if last else 1 << (word - 2)})
         g.add(p + "BX", R(1), C(5 + c))
-        kc = ((1 << (word - 1 - s)) - (1 << (word - 1))) & M32
+        kc = ((1 << (word - 1 - s)) - (1 << (word - 1))) & ((1 << word) - 1)
         g.add(p + "K", R(2), C(4 + c), preload=kc)
         g.add(p + "KM", R(2), C(5 + c), "mul")                                          # b * Kc
         g.add(p + "C", R(1), C(6 + c), preload=1 << (word - 1))

@@ -160,9 +160,9 @@ def _place_net(g, name, n, ext, row0, col0, gatecol, pads=None):
     consts = {}
     for q, c in constin:
         r_, c_ = sq(c, const_side[(q, c)])
-        g.add(names[q], r_, c_, preload=n.cells[q]["const"] & M32)
+        g.add(names[q], r_, c_, preload=n.cells[q]["const"] & getattr(n, "mask", M32))
         g.link(names[q], names[c])
-        consts[names[q]] = n.cells[q]["const"] & M32
+        consts[names[q]] = n.cells[q]["const"] & getattr(n, "mask", M32)
     corner = {}
     for e in sec:
         u, v = e
