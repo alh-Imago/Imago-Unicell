@@ -29,7 +29,7 @@ do not include `priority_cell_v4sa`), orders longer than four turns (refused), a
 **Docs.** #856 asks for one more full documentation pass once the fp32 work is complete. fp32 multiply and compare now exist at word 64, but the adder and the full pipeline do not,
 so this is still premature.
 
-**Waiting on Alan:** whether single-shot preloaded constants should be reproduced on purpose (#939).
+**#939 resolved (#1021):** the ram cell now has three behaviours (constant, one-shot with optional preload, hold), flex-only; the constant default is unchanged.
 
 ## Closed by decision (new in this part)
 

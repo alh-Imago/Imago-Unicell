@@ -64,7 +64,7 @@ Shell-level ports, common to every flex cell: `clk`, `rst`,
 | accumulator `accumulator_cell_v4sa.v` | `inc_pulse`, `dec_pulse` | continuous or pulse mode; 8-bit step, 16-bit threshold; builds below 16 bits since #973; cascades for large event counts (#975) | 93 / 72 / 63 |
 | latch `latch_cell_v4sa.v` | `set_in`, `clear_in`, `toggle_in` | level source (valid held) | 8 / 0 / 4 |
 | sequencer `sequencer_cell_v4sa.v` | `advance_in`, `cfg_seq_len_m1` | up to 4 values; on flex `advance_in` = own ready (free-running, #956); not below 8 bits | 36 / 0 / 46 |
-| ram `ram_cell_v4sa.v` | `data_in`, `valid_in`, `cfg_fixed_mode` | relay, or a constant (fixed mode: always valid, never used up, #945) | 24 / 0 / 21 |
+| ram `ram_cell_v4sa.v` | `data_in`, `valid_in`, `cfg_fixed_mode` | relay, or a constant (fixed mode: always valid, never used up, #945); #1021 adds `OFFER_PRELOAD` (one-shot preload) and `HOLD` (fixed + source: re-offers on consumer ready, input updates the value), flex-only | 24 / 0 / 21 |
 | router `router_cell_v4sa.v` | outputs `_a` and `_b`, each with its own valid/ack | fixed fan-out | 10 / 0 / 23 |
 | mask `mask_cell_v4sa.v` | `data_in`, `valid_in` | 8 mask bits, each covering `ceil(W/8)` data bits (#968) | 23 / 0 / 27 |
 | shift stage `shift_stage_v4sa.v` | `data_in`, `valid_in` | shift fixed at build time; on generated flex/sub designs, shifts, masks and inverts are plain wiring instead (#939/#985) | 5 / 0 / 20 |

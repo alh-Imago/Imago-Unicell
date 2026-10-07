@@ -149,6 +149,7 @@ given deployment needs to change shift amounts without a rebuild.
 | `latch_cell_v4s` | 4 | three dedicated pulses (set/clear/toggle), CLEAR>SET>TOGGLE kept |
 | `sequencer_cell_v4s` | 85 | `advance_in` forward pulse replaces "ack completed" as the trigger |
 | `ram_cell_v4s` | small | flowing vs. fixed(ROM) mode, both simulated |
+| `ram_cell_v4sa` | small (+0 to 1 FF/LUT for the options) | constant (fixed), one-shot (flowing, `OFFER_PRELOAD` preload), hold (`HOLD`: fixed + source, re-offers when the consumer is ready, input updates it; #1021) |
 | `router_cell_v4s` | 35 | genuinely fixed fan-out, zero runtime decision |
 | `mask_cell_v4s` | 66 | direct extraction of `nibble_mask_addon_v1`, unchanged |
 | `mul_cell_v4s` | 4,277 | vs `mul_full` 7,015 -- only 39% reduction using a LUT-built array multiplier; see the real DSP-block result below, which supersedes this as the recommended choice |

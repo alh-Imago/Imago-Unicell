@@ -1052,6 +1052,11 @@ given deployment needs to change shift amounts without a rebuild.</p>
 <td>flowing vs. fixed(ROM) mode, both simulated</td>
 </tr>
 <tr>
+<td><code>ram_cell_v4sa</code></td>
+<td>small (+0 to 1 FF/LUT for the options)</td>
+<td>constant (fixed), one-shot (flowing, <code>OFFER_PRELOAD</code> preload), hold (<code>HOLD</code>: fixed + source, re-offers when the consumer is ready, input updates it; #1021)</td>
+</tr>
+<tr>
 <td><code>router_cell_v4s</code></td>
 <td>35</td>
 <td>genuinely fixed fan-out, zero runtime decision</td>
@@ -3102,6 +3107,38 @@ extension.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>The ram's three behaviours (#1021).</strong> One cell, three ways to offer its word (Alan's naming: <em>offer on tick</em>, <em>offer on ack, one-shot</em>, <em>offer on ack, hold</em>):</p>
+<table>
+<thead>
+<tr>
+<th>Spelling in the ICM</th>
+<th>Behaviour</th>
+<th>VM</th>
+<th>flex (v4sa)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fixed_mode=1</code>, nothing feeds it</td>
+<td><strong>constant</strong>: offered every tick, never used up (<code>load_data_valid=1</code> needed in the VM)</td>
+<td>yes</td>
+<td>yes (default)</td>
+</tr>
+<tr>
+<td><code>fixed_mode=0</code> (flowing); <code>load_data_valid=1</code> adds a preload</td>
+<td><strong>one-shot</strong>: offered once, then empty; the normal ram function; the preload is offered once</td>
+<td>yes</td>
+<td>yes (<code>OFFER_PRELOAD</code>)</td>
+</tr>
+<tr>
+<td><code>fixed_mode=1</code> <strong>and a source feeds it</strong></td>
+<td><strong>hold</strong>: offers the stored word again each time the consumer is ready (request = the consumer's ready, no extra port); a word arriving on the input replaces the stored value; empty until first written or preloaded</td>
+<td>no: the VM refuses arrivals to a fixed ram</td>
+<td>yes (<code>HOLD</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Flex-only generators record hold/one-shot as build parameters, not new <code>cfg_data</code> bits (the ram already uses all 42). The VM and the standard grid are unchanged, so a hold design runs in RTL only; this is a documented VM-vs-flex difference.</p>
 <p><strong>adder</strong> (2):</p>
 <table>
 <thead>
@@ -4115,7 +4152,7 @@ fixed cells, generated from an ICM file by the Flex-Sub assembler
 <tr>
 <td>ram <code>ram_cell_v4sa.v</code></td>
 <td><code>data_in</code>, <code>valid_in</code>, <code>cfg_fixed_mode</code></td>
-<td>relay, or a constant (fixed mode: always valid, never used up, #945)</td>
+<td>relay, or a constant (fixed mode: always valid, never used up, #945); #1021 adds <code>OFFER_PRELOAD</code> (one-shot preload) and <code>HOLD</code> (fixed + source: re-offers on consumer ready, input updates the value), flex-only</td>
 <td>24 / 0 / 21</td>
 </tr>
 <tr>

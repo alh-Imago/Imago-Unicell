@@ -49,7 +49,7 @@ CORE_TO_SHAPE = {
 TWO_OPERAND = {"adder", "mul", "nano"}   # nano: first arrival = held operand A, second = flowing operand B (VM CACell)
 # How each core's config words translate (read from the root_definition fields vs each v4sa cell's header).
 CONFIG_NOTES = {
-    "ram": "direct: fixed_mode -> cfg_fixed_mode port, init_data -> cfg_data (load_data_valid has no v4sa field)",
+    "ram": "direct: fixed_mode -> cfg_fixed_mode port, init_data -> cfg_data. THREE behaviours (ledger #1021): fixed + no source = a CONSTANT; flowing (default) = one-shot, offer then empty, and with load_data_valid the init word is offered ONCE at start (flex: OFFER_PRELOAD); fixed + a source = HOLD, the arriving words replace the stored value, offered continuously, never drained (flex: HOLD; starts empty unless load_data_valid / preload_value gives it a value). One-shot-with-preload and hold are flex only",
     "adder": "direct: subtract_mode -> cfg_data[0]; second_output (carry; flex only, ledger #976) -> cfg_data[1] and the SECOND_PORT build parameter",
     "comparator": "direct: threshold -> cfg_data[WIDTH-1:0]",
     "accumulator": "direct: step_amount/pulse_mode/threshold -> cfg_data[7:0]/[8]/[24:9]",

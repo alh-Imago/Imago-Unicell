@@ -19,7 +19,15 @@
 
 module ram_cell_v4sa #(
     parameter [15:0] CELL_ID = 16'h0000,
-    parameter        WIDTH   = 32
+    parameter        WIDTH   = 32,
+    // ledger #1021 (Alan, 7 Oct 2026): 1 = a FLOWING-mode ram offers its configured value ONCE, at start, then behaves as an ordinary flowing ram (the VM's `load_data_valid`: a preloaded,
+    // non-fixed ram offers its constant once and then waits). 0 (default) = as before: the configured value is loaded but not offered until something is written. Fixed mode is unaffected.
+    parameter        OFFER_PRELOAD = 0,
+    // ledger #1021 (Alan, 7 Oct 2026: "offer on tick (constant), offer on ack (one shot and empty), offer on ack (hold value, re-offer on request; the value stored is the in port, that updates its
+    // contents)"). HOLD = 1 gives FIXED mode its third behaviour: the cell still offers its value continuously and is never drained (a consumer takes a copy whenever it is ready: that readiness IS
+    // the request), but data arriving on the in-port now REPLACES the stored value (always accepted; the next copy is the new word). It starts empty (offers nothing) until a word has been written,
+    // or holds the configured word at once when OFFER_PRELOAD = 1. Only fixed mode is changed; HOLD = 0 (default) is the constant exactly as before.
+    parameter        HOLD = 0
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -43,10 +51,11 @@ module ram_cell_v4sa #(
     reg                  fixed_mode  = 1'b0;
     reg                  armed       = 1'b0;
     reg                  pending     = 1'b0;   // flowing mode only
+    reg                  have        = 1'b0;   // HOLD only: a value is stored
     reg [WIDTH-1:0]      data_reg    = {WIDTH{1'b0}};
 
     assign data_out  = data_reg;
-    assign valid_out = fixed_mode ? armed : pending;
+    assign valid_out = fixed_mode ? ((HOLD != 0) ? (armed && have) : armed) : pending;
     // Fixed mode is always ready (nothing to offer-and-wait-for, it is a
     // constant); flowing mode follows the standard pending/ack discipline.
     assign ack_out   = fixed_mode ? (armed && !freeze_in) : (armed && !pending && !freeze_in);
@@ -57,11 +66,13 @@ module ram_cell_v4sa #(
             armed       <= 1'b0;
             pending     <= 1'b0;
             data_reg    <= {WIDTH{1'b0}};
+            have        <= 1'b0;
         end else if (cfg_valid) begin
             fixed_mode  <= cfg_fixed_mode;
             data_reg    <= cfg_data[WIDTH-1:0];
             armed       <= 1'b1;
-            pending     <= 1'b0;
+            pending     <= (OFFER_PRELOAD != 0) && !cfg_fixed_mode;   // OFFER_PRELOAD: the configured word is the first (and only preloaded) offer
+            have        <= (OFFER_PRELOAD != 0);                       // HOLD: OFFER_PRELOAD = the configured word is already the held value; otherwise start empty
         end else if (!freeze_in) begin
             if (!fixed_mode) begin
                 if (pending) begin
@@ -71,7 +82,12 @@ module ram_cell_v4sa #(
                     pending  <= 1'b1;
                 end
             end
-            // fixed_mode: data_reg and valid_out (via armed) simply hold
+            else if (HOLD != 0 && valid_in) begin
+                // HOLD (#1021): a word arriving in fixed mode replaces the held value (ack_out is already always high in fixed mode)
+                data_reg <= data_in;
+                have     <= 1'b1;
+            end
+            // fixed_mode without HOLD: data_reg and valid_out (via armed) simply hold
             // forever, same as v4s.
         end
     end

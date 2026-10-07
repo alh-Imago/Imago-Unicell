@@ -124,6 +124,16 @@ extension.
 | `load_data_valid` | `[9]` |
 | `init_data` | `[41:10]` (32-bit) |
 
+**The ram's three behaviours (#1021).** One cell, three ways to offer its word (Alan's naming: *offer on tick*, *offer on ack, one-shot*, *offer on ack, hold*):
+
+| Spelling in the ICM | Behaviour | VM | flex (v4sa) |
+|---|---|---|---|
+| `fixed_mode=1`, nothing feeds it | **constant**: offered every tick, never used up (`load_data_valid=1` needed in the VM) | yes | yes (default) |
+| `fixed_mode=0` (flowing); `load_data_valid=1` adds a preload | **one-shot**: offered once, then empty; the normal ram function; the preload is offered once | yes | yes (`OFFER_PRELOAD`) |
+| `fixed_mode=1` **and a source feeds it** | **hold**: offers the stored word again each time the consumer is ready (request = the consumer's ready, no extra port); a word arriving on the input replaces the stored value; empty until first written or preloaded | no: the VM refuses arrivals to a fixed ram | yes (`HOLD`) |
+
+Flex-only generators record hold/one-shot as build parameters, not new `cfg_data` bits (the ram already uses all 42). The VM and the standard grid are unchanged, so a hold design runs in RTL only; this is a documented VM-vs-flex difference.
+
 **adder** (2):
 
 | Field | Bits | Notes |

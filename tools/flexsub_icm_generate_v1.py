@@ -512,11 +512,22 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                             f"stream; the sub translation (one host advance pulse per item) would pair them with the stream -- different semantics. "
                             f"Not translated: feed the sequencer to a single-input consumer, or decide the pairing rule explicitly.")
         is_source = not srcs_of[c]
-        if r.preload_value is not None and not (r.core == "ram" and is_source):
+        if r.preload_value is not None and not (r.core == "ram" and (is_source or ((r.core_config or {}).get("fixed_mode") and family == "flex"))):
             problems.append(f"{c}: preload_value on a cell that is not a source ram")
         if spec["kind"] == "pair" and len(srcs_of[c]) != 2:
             problems.append(f"{c}: {r.core} has {len(srcs_of[c])} source(s), needs exactly 2 "
                             f"(one stream carrying both operands needs a stagger spec -- not translated)")
+        if r.core == "ram":
+            rcfg = r.core_config or {}
+            fixed, ldv = bool(rcfg.get("fixed_mode", 0)), bool(rcfg.get("load_data_valid", 0))
+            if fixed and srcs_of[c]:                               # ledger #1021: a HOLD ram -- fixed mode whose value is replaced by what arrives on its in-port
+                if family != "flex":
+                    problems.append(f"{c}: a fixed-mode ram with a source is a HOLD ram (its stored value is replaced by what arrives); that mode (ram_cell_v4sa HOLD) exists on the flex family only")
+                elif len(srcs_of[c]) != 1:
+                    problems.append(f"{c}: a hold ram takes exactly one source (the words that replace its value); it has {len(srcs_of[c])}")
+            elif ldv and not fixed and r.preload_value is None:     # ledger #1021: a ONE-SHOT preload -- offered once at start, then an ordinary flowing ram
+                if family != "flex":
+                    problems.append(f"{c}: a ram with load_data_valid (its preload is offered once) is the ONE-SHOT mode (ram_cell_v4sa OFFER_PRELOAD); that mode exists on the flex family only")
         if is_source and r.core not in ("ram", "sequencer") and not (r.core == "branch" and c in branch_plans and branch_plans[c]["stream"] is None):
             problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
     if family == "flex":
@@ -547,6 +558,10 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
 
     # constant-valued nodes: preloaded / fixed-mode source rams and anything fed only by them (always available)
     const = {c for c, r in cells.items() if not srcs_of[c] and (r.preload_value is not None or (r.core_config or {}).get("fixed_mode"))}
+    # ledger #1021: the ram's other two behaviours. HOLD = fixed mode WITH a source (the words arriving replace the stored value; offered to consumers continuously, never drained).
+    # ONE-SHOT = a flowing ram with load_data_valid (its configured word is offered once at start). Both are flex-only (the checks refuse them on sub).
+    hold_set = {c for c, r in cells.items() if r.core == "ram" and (r.core_config or {}).get("fixed_mode") and srcs_of[c]}
+    oneshot_set = {c for c, r in cells.items() if r.core == "ram" and not (r.core_config or {}).get("fixed_mode") and (r.core_config or {}).get("load_data_valid") and r.preload_value is None}
     level = {c for c, r in cells.items() if is_level(r)}
     const |= level                       # a level source is ALWAYS VALID: for timing it behaves like a constant (its data changes, its availability does not)
     grew = True
@@ -589,8 +604,8 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
         # the VM's hop-count time -- operand IDENTITY only. A branch that absorbed its reference merge still pays that merge's hop in the VM.
         t_vm[c] = max((t_vm[q] for q in srcs), default=0) + 1 + (1 if "merge_removed" in branch_plans.get(c, {}) else 0)
         if CORES[r.core]["kind"] == "pair":
-            if all(q in const for q in srcs):
-                raise IcmGenError(f"{c}: both operands are constant or level (always-valid) sources -- nothing live to time the result by")
+            if all(q in const or q in hold_set for q in srcs):
+                raise IcmGenError(f"{c}: both operands are constant, hold or level (always-valid) sources -- nothing live to time the result by")
             tks = [tiekeys.get((c, q)) for q in srcs]
             if all(t is not None for t in tks) and tks[0][0] != tks[1][0]:
                 # DIFFERENT ranks (a file written by flexsub_compile_v1, #929): rank DEFINES operand identity, because this
@@ -650,7 +665,9 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                     branch_port[(dst, q)] = branch_plans[q]["ports"][_FACE_OPP[face_at_dst]]
     return {"doc": doc, "recs": recs, "cells": cells, "edges": edges, "inputs": inputs, "outputs": outputs,
             "t_out": t_rtl, "t_vm": t_vm, "order": order, "adder_roles": roles, "align": align, "warnings": warnings,
-            "eliminated_priority": eliminated, "const": const, "addons": addons, "merges": merges,
+            "eliminated_priority": eliminated, "const": const,
+            "holds": hold_set,
+            "oneshots": oneshot_set, "addons": addons, "merges": merges,
             "branch_plans": branch_plans, "branch_port": branch_port, "second_ports": second_ports, "word_of": word_of, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule, "min_bit_width": declared_width,
             "mul_impl": mul_impl, "mul_info": mul_info}
 
