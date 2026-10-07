@@ -77,6 +77,28 @@ def open_port(port):
     return s
 
 
+GOOD = re.compile(r"UCT (\S+) res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=[01] last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]+$")
+
+
+def read_with_cat(port, name, sim_line, seconds=6):
+    """Linux: do exactly what works by hand -- `stty -F PORT 115200 raw -echo`, then `cat PORT` for a few seconds -- and parse what came out. Returns (lines of THIS test, raw bytes received, other lines seen, first raw bytes)."""
+    subprocess.run(["stty", "-F", port, "115200", "raw", "-echo"], capture_output=True)
+    try:
+        r = subprocess.run(["timeout", str(seconds), "cat", port], capture_output=True, timeout=seconds + 5)
+        raw = r.stdout
+    except subprocess.TimeoutExpired as e:
+        raw = e.stdout or b""
+    text = raw.decode("ascii", "replace")
+    mine, other = [], 0
+    for chunk in text.replace("\r", "\n").split("\n"):
+        m = GOOD.search(chunk.strip())
+        if m and m.group(1) == name:
+            mine.append(m.group(0))
+        elif "UCT" in chunk:
+            other += 1
+    return mine, len(raw), other, raw[:100]
+
+
 def listen(ser, port, name, sim_line):
     """after a load: let the chip start, THROW AWAY everything buffered so far (the previous design's lines), then read this test's lines. If the held port is silent or gone, reopen it, then try every other port."""
     time.sleep(1.5)
@@ -115,7 +137,7 @@ def main():
     if not tests:
         sys.exit("no .fs files next to board_run.py")
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ser = open_port(port)
+    ser = open_port(port) if not sys.platform.startswith("linux") else None
     rows, out = [], [f"UniCell on-board test run  {stamp}   serial port {port}   {len(tests)} bitstreams   ports at start: {serial_ports()}", "=" * 100]
     for fs in tests:
         name = os.path.splitext(os.path.basename(fs))[0]
@@ -124,7 +146,24 @@ def main():
         ok, msg = load(fs)
         status, line, answered, seen, note = "NOLOAD", "", "", [], ""
         if ok:
-            lines, ser, answered, seen, note = listen(ser, port, name, meta.get("sim_line", ""))
+            lines, note, answered, seen = [], "", "", serial_ports()
+            if sys.platform.startswith("linux"):
+                try:
+                    ser.close()                   # the shell tools below must be the only readers
+                except Exception:  # noqa: BLE001
+                    pass
+                time.sleep(1.5)
+                lines, nraw, nother, head = read_with_cat(port, name, meta.get("sim_line", ""))
+                note = f"stty+cat: {nraw} raw bytes, {nother} lines of other tests, first bytes {head!r}"
+                answered = port
+                if not lines:                      # one more try: the chip may need a moment longer
+                    time.sleep(2.0)
+                    lines, nraw2, nother2, head2 = read_with_cat(port, name, meta.get("sim_line", ""), 8)
+                    note += f"; retry: {nraw2} raw bytes, {nother2} other lines, first bytes {head2!r}"
+                ser = None
+            if not lines and ser is not None:
+                lines, ser, answered, seen, note2 = listen(ser, port, name, meta.get("sim_line", ""))
+                note = (note + "; " if note else "") + note2
             line = lines[-1] if lines else ""
             if lines:
                 port = answered
