@@ -82,6 +82,14 @@ def build_front(fmt, rounding="rne", specials=False):
     n.op("ZS", "cmp", ["XS"], thr=1 if rounding == "rdn" else 2)
     n.op("ZSH", "relay", ["ZS"], addon=shl(1))
     n.op("PKW", "add", ["A.SG", "ZSH"])                                       # the flags for the pack, ONE word: sa + 2 * zs
+    # the exits (east face): the two significands, the two shift amounts, eBig + 1, the +-1 and the flags word
+    n.op("O.VA", "relay", ["A.SIG"])
+    n.op("O.VB", "relay", ["B.SIG"])
+    n.op("O.DA", "relay", ["DA"])
+    n.op("O.DB", "relay", ["DB"])
+    n.op("O.EXPIN", "relay", ["EXPIN"])
+    n.op("O.SGN", "relay", ["SGN"])
+    n.op("O.PKW", "relay", ["PKW"])
     return n
 
 
@@ -99,3 +107,157 @@ def operand_fixed(top=2, flip=15, specials=False):
         fx["B." + k] = (flip - (top + r), c)
     fx["EAd"] = (top - 1, 2)                         # the spacer beside A's effective exponent (its one output lane forks here)
     return fx
+
+
+def place_front(g, fmt, name, r0, c0, rounding="rne", seed=1, iters=60000, rows=26, cols=50, pitch=3):
+    n = build_front(fmt, rounding)
+    fx = operand_fixed()
+    pos = tp.autoplace(n, fx, rows, cols, seed=seed, iters=iters, free_rect=(0, 8, rows - 2, cols - 4), pitch=pitch)
+    allpos = dict(fx)
+    allpos.update(pos)
+    ports = {"A.X": "W", "B.X": "W", **{o: "E" for o in n.order if o.startswith("O.")}}
+    res = tp.place_map(g, name, n, [], r0, c0, extra=allpos, ports=ports)
+    return n, allpos, res
+
+
+def build_combine(fmt, rounding="rne"):
+    """COMBINE (east end of the align bands): the two aligned operands (+ their stickies) meet, add / subtract, magnitude, and the result's sign."""
+    E, m, W = fmt.exp_bits, fmt.sig_bits - 1, fmt.word
+    n = npl.Net()
+    n.mask = (1 << W) - 1
+    for e in ("AOUT", "ASTK", "BOUT", "BSTK", "SGNI", "PKI"):
+        n.op(e, "relay", [])
+    n.op("AR", "relay", ["AOUT"], addon=shl(1))
+    n.op("BR", "relay", ["BOUT"], addon=shl(1))
+    n.op("ADDA", "add", ["AR", "ASTK"])
+    n.op("ADDB", "add", ["BR", "BSTK"])
+    n.op("MULT", "mul", ["ADDB", "SGNI"])                                     # +-1 times the second operand: add / subtract
+    n.op("ADDSUM", "add", ["ADDA", "MULT"])
+    n.op("SF", "relay", ["ADDSUM"])
+    n.op("CMPP", "cmp", ["SF"], thr=0)                                        # p = [S >= 0]
+    n.op("P2", "relay", ["CMPP"], addon=shl(1))
+    n.op("KM1", "const", const=M32)
+    n.op("SUBP", "add", ["P2", "KM1"])
+    n.op("SG2", "relay", ["SUBP"])                                            # 2p - 1 = +-1
+    n.op("MULM", "mul", ["SF", "SG2"])
+    n.op("O.M", "relay", ["MULM"])                                            # the magnitude
+    # the result's sign: sb2 = (1 - p + sa) mod 2; the flags word PKI = sa + 2 zs
+    n.op("K1B", "const", const=1)
+    n.op("NPS", "sub", ["K1B", "CMPP"])
+    n.op("NPV", "relay", ["NPS"])
+    n.op("SAH", "relay", ["PKI"], addon=shl(W - 1))
+    n.op("SAV", "relay", ["SAH"], addon=shr(W - 1))
+    n.op("ZSV", "relay", ["PKI"], addon=shr(1))
+    n.op("SN", "add", ["NPV", "SAV"])
+    n.op("SB1", "relay", ["SN"], addon=shl(W - 1))
+    n.op("SB2", "relay", ["SB1"], addon=shr(W - 1))                           # the result sign, 0 / 1
+    n.op("ZS2", "relay", ["ZSV"], addon=shl(1))
+    n.op("SGW", "add", ["SB2", "ZS2"])
+    n.op("O.SGW", "relay", ["SGW"])                                           # sign + 2 zs, one word, for the pack
+    if rounding != "rne" and rounding != "rna":
+        pass
+    n.op("O.SGR", "relay", ["SB2"])                                           # the sign for the rounding block (directed modes)
+    return n
+
+
+def build_pack(fmt):
+    """PACK (west end of the bottom band, beside the front): bits = ((er - 1) << m) + M + (sign << (m+E)), the zero-sign correction."""
+    E, m, W = fmt.exp_bits, fmt.sig_bits - 1, fmt.word
+    n = npl.Net()
+    n.mask = (1 << W) - 1
+    for e in ("RO", "EXR", "SGWI"):
+        n.op(e, "relay", [])
+    n.op("NZC", "cmp", ["RO"], thr=1)
+    n.op("NZ", "relay", ["NZC"])
+    n.op("KME", "const", const=M32)
+    n.op("ADDR", "add", ["KME", "EXR"])
+    n.op("MULE", "mul", ["ADDR", "NZ"])
+    n.op("SHE", "relay", ["MULE"], addon=shl(m))
+    n.op("SBH", "relay", ["SGWI"], addon=shl(W - 1))
+    n.op("SBV", "relay", ["SBH"], addon=shr(W - 1))
+    n.op("ZSH", "relay", ["SGWI"], addon=shr(1))
+    n.op("MULSG", "mul", ["SBV", "NZ"])
+    n.op("K1N", "const", const=1)
+    n.op("NNZ", "sub", ["K1N", "NZC"])
+    n.op("MZ", "mul", ["ZSH", "NNZ"])
+    n.op("ADDS", "add", ["MULSG", "MZ"])
+    n.op("SH31", "relay", ["ADDS"], addon=shl(m + E))
+    n.op("ADDF1", "add", ["RO", "SHE"])
+    n.op("ADDF2", "add", ["ADDF1", "SH31"])
+    n.op("O.F", "relay", ["ADDF2"])
+    return n
+
+
+def _scratch_place(g_main, fmt, name, n, entries, rows, cols, pitch, outs, gap=1, seeds=fmt1.SEEDS):
+    sg = fmt1._scratch(g_main)
+    nm, c, _ = fmt1.place_net_tight(sg, n, name, 2, 2, entries, rows, cols, pitch=pitch, gap=gap, outs=outs, seeds=seeds)
+    return sg, nm, c
+
+
+def fp_add_tight_u(g, fmt, name="ADD", rounding="rne", gap=6, seed=None, front_seed=None):
+    """The adder as a U. Returns (entries {a, b}, exits {R}, consts, info)."""
+    import fp_assembler_v1 as fa
+    S, E, m, W = fmt.sig_bits, fmt.exp_bits, fmt.sig_bits - 1, fmt.word
+    wlow = fmt.Ka + 3
+    wide = fa.FpFormat(fmt.name + "+4", S + 4, E, W)
+    consts = {}
+    kw = {"spread": True}
+    snap, last = fmt1._snapshot(g), None
+    for sd in ([front_seed] if front_seed else fmt1.SEEDS):
+        try:
+            n1, allpos, (nm1, c1, lanes1) = place_front(g, fmt, f"{name}.FR", 2, 2, rounding=rounding, seed=sd)
+            break
+        except Exception as e:
+            last = e
+            fmt1._restore(g, snap)
+    else:
+        raise last
+    consts.update(c1)
+    r1min, r1max, _, c1max = fmt1._bbox(g)
+    # ---- top bands: ALA (flipped: its D bus at the bottom) over ALB (D bus at the top), both flowing east
+    sg = fmt1._scratch(g)
+    ala = fa.align_sticky(sg, fmt, f"{name}.ALA", 6, 6, flip=True)
+    consts.update(ala.consts)
+    h_a, w_a = fmt1._transplant(g, sg, 2, c1max + gap + 2)
+    rowB = r1max - h_a + 1
+    sg = fmt1._scratch(g)
+    alb = fa.align_sticky(sg, fmt, f"{name}.ALB", 6, 6)
+    consts.update(alb.consts)
+    h_b, w_b = fmt1._transplant(g, sg, rowB, c1max + gap + 2)
+    g.route_nets([(nm1["O.DA"], ala.entries["D"], kw), (nm1["O.VA"], ala.entries["V"], kw),
+                  (nm1["O.DB"], alb.entries["D"], kw), (nm1["O.VB"], alb.entries["V"], kw)])
+    cal_right = max(nd["c"] for k, nd in g.nodes.items() if k.startswith((f"{name}.ALA", f"{name}.ALB")))
+    # ---- combine, east of the bands
+    sg, ncb, cc = _scratch_place(g, fmt, f"{name}.CB", build_combine(fmt, rounding), ["AOUT", "ASTK", "BOUT", "BSTK", "SGNI", "PKI"], 18, 36, 3, ["O.M", "O.SGW", "O.SGR"])
+    consts.update(cc)
+    fmt1._transplant(g, sg, 2, cal_right + gap)
+    g.route_nets([(ala.exits["OUT"], ncb["AOUT"], kw), (ala.exits["STK"], ncb["ASTK"], kw), (alb.exits["OUT"], ncb["BOUT"], kw), (alb.exits["STK"], ncb["BSTK"], kw),
+                  (nm1["O.SGN"], ncb["SGNI"], kw), (nm1["O.PKW"], ncb["PKI"], kw)])
+    ccmax = max(nd["c"] for k, nd in g.nodes.items() if k.startswith(f"{name}.CB"))
+    rbot = max(nd["r"] for nd in g.nodes.values()) + gap + 1
+    # ---- bottom band, built right to left: NRM under the combine's right end, then RND, then the pack beside the front
+    sg = fmt1._scratch(g)
+    nrm = fa.normalise_chain_clamped(sg, wide, f"{name}.NRM", 0, 0)
+    consts.update(nrm.consts)
+    _, _, cmin, cmax = fmt1._bbox(sg)
+    c_nr = ccmax - (cmax - cmin)
+    fmt1._transplant(g, sg, rbot, c_nr, flip_h=True)
+    g.route_nets([(nm1["O.EXPIN"], nrm.entries["EXPIN"], kw), (ncb["O.M"], nrm.entries["V"], kw)])
+    sg = fmt1._scratch(g)
+    rnd = fa.round_mode(sg, fmt, rounding, f"{name}.RND", 0, 0, low=4)
+    consts.update(rnd.consts)
+    _, _, cmin, cmax = fmt1._bbox(sg)
+    c_rd = c_nr - gap - (cmax - cmin + 1)
+    fmt1._transplant(g, sg, rbot, c_rd, flip_h=True)
+    sg, npk, cp = _scratch_place(g, fmt, f"{name}.PK", build_pack(fmt), ["RO", "EXR", "SGWI"], 12, 24, 3, ["O.F"])
+    consts.update(cp)
+    _, _, cmin, cmax = fmt1._bbox(sg)
+    c_pk = c_rd - gap - (cmax - cmin + 1)
+    if c_pk < 0:
+        raise tp.LayoutError(f"the bottom band does not fit: needs {-c_pk} more columns on the left")
+    fmt1._transplant(g, sg, rbot, c_pk, flip_h=True)
+    nets = [(nrm.exits["NORM"], rnd.entries["X"]), (rnd.exits["OUT"], npk["RO"]), (nrm.exits["EXPOUT"], npk["EXR"]), (ncb["O.SGW"], npk["SGWI"])]
+    if "SGN" in rnd.entries:
+        nets.append((ncb["O.SGR"], rnd.entries["SGN"]))
+    g.route_nets([(a, b, kw) for a, b in nets])
+    return {"a": nm1["A.X"], "b": nm1["B.X"]}, {"R": npk["O.F"]}, consts, []
