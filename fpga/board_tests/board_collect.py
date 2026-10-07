@@ -30,6 +30,9 @@ for fs in sorted(glob.glob(os.path.join(HERE, "*.fs"))):
             f"   capture  : {len(raw)} bytes, {len(mine)} lines of this test, other tests seen: {others or 'none'}", f"   built    : {meta.get('lut4', '?')} LUT4, {meta.get('dff', '?')} flip-flops, Fmax {meta.get('fmax_mhz', '?')} MHz"]
     if not status.startswith("PASS"):
         out.append("   loader output: " + loader.replace("\n", " | ")[-600:])
+        pl = os.path.join(HERE, "raw", name + ".ports")
+        if os.path.exists(pl):
+            out.append("   ports    : " + open(pl, errors="replace").read().replace("\n", " | ")[-500:])
     out.append("")
     rows.append([name, status, line, sim, meta.get("lut4", ""), meta.get("dff", ""), meta.get("fmax_mhz", "")])
 n = sum(1 for r in rows if r[1].startswith("PASS"))

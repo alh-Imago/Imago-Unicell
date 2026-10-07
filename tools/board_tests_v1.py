@@ -364,16 +364,22 @@ SH = r"""#!/bin/sh
 # Usage:  sudo ./run_all.sh              (serial port /dev/ttyUSB1)
 #         sudo ./run_all.sh /dev/ttyUSB1 (name it yourself)
 cd "$(dirname "$0")" || exit 1
-PORT=${1:-/dev/ttyUSB1}
 rm -rf raw; mkdir raw
 for f in *.fs; do
   n=${f%.fs}
   echo "[$n] loading ..."
   openFPGALoader -b tangnano20k "$f" > "raw/$n.loader.txt" 2>&1; echo $? > "raw/$n.rc"
   sleep 3
-  stty -F "$PORT" 115200 raw -echo 2>/dev/null
-  timeout 7 cat "$PORT" > "raw/$n.bin" 2>/dev/null
-  echo "[$n] $(wc -c < "raw/$n.bin") bytes"
+  for try in 1 2 3; do
+    # the USB ports can change number after many loads: use the one named on the command line, else the highest-numbered ttyUSB
+    P=${1:-$(ls /dev/ttyUSB* 2>/dev/null | sort -V | tail -1)}
+    echo "$(ls /dev/ttyUSB* 2>&1 | tr '\n' ' ') -> using $P (try $try)" >> "raw/$n.ports"
+    stty -F "$P" 115200 raw -echo 2>>"raw/$n.ports"
+    timeout 7 cat "$P" > "raw/$n.bin" 2>>"raw/$n.ports"
+    [ -s "raw/$n.bin" ] && break
+    sleep 2
+  done
+  echo "[$n] $(wc -c < "raw/$n.bin") bytes   ($(tail -1 "raw/$n.ports"))"
 done
 python3 board_collect.py
 echo
@@ -412,6 +418,9 @@ for fs in sorted(glob.glob(os.path.join(HERE, "*.fs"))):
             f"   capture  : {len(raw)} bytes, {len(mine)} lines of this test, other tests seen: {others or 'none'}", f"   built    : {meta.get('lut4', '?')} LUT4, {meta.get('dff', '?')} flip-flops, Fmax {meta.get('fmax_mhz', '?')} MHz"]
     if not status.startswith("PASS"):
         out.append("   loader output: " + loader.replace("\n", " | ")[-600:])
+        pl = os.path.join(HERE, "raw", name + ".ports")
+        if os.path.exists(pl):
+            out.append("   ports    : " + open(pl, errors="replace").read().replace("\n", " | ")[-500:])
     out.append("")
     rows.append([name, status, line, sim, meta.get("lut4", ""), meta.get("dff", ""), meta.get("fmax_mhz", "")])
 n = sum(1 for r in rows if r[1].startswith("PASS"))
