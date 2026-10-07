@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flex_layout_v1 import LayoutError  # noqa: E402
 
 
-def place_map(g, name, n, rows, r0, c0, route_order=None, cross=True, extra=None, retries=0):
+def place_map(g, name, n, rows, r0, c0, route_order=None, cross=True, extra=None, retries=0, ports=None):
     """Place netlist `n` on grid g from `rows` (a list of strings of whitespace-separated op names / dots), the top-left at (r0, c0). Returns (names {op: grid name}, consts {grid name: value}, routed [(src, dst)])."""
     at = {}
     for i, line in enumerate(rows):
@@ -69,7 +69,16 @@ def place_map(g, name, n, rows, r0, c0, route_order=None, cross=True, extra=None
     order = route_order or sorted(routed, key=lambda e: abs(placed[e[0]][0] - placed[e[1]][0]) + abs(placed[e[0]][1] - placed[e[1]][1]))
     import random
     rr = random.Random(5)
-    stubs = _assign_stubs(g, names, placed, routed)
+    reserved = set()
+    for op, side in (ports or {}).items():                           # a face kept free for a lane from / to another block (east for an output, west for an entry)
+        nm = names[op]
+        r_, c_ = g.pos(nm)
+        occ_ = g.at()
+        fr = [(r_ + dr, c_ + dc) for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)) if (r_ + dr, c_ + dc) not in occ_ and 0 <= r_ + dr < g.rows and 0 <= c_ + dc < g.cols and (r_ + dr, c_ + dc) not in reserved]
+        if not fr:
+            raise LayoutError(f"{nm}: no free face for its outside lane")
+        reserved.add(max(fr, key=lambda q: (q[1] if side == 'E' else -q[1], -abs(q[0] - r_))))
+    stubs = _assign_stubs(g, names, placed, routed, reserved)
     done = []
     doneset = set()
     for attempt in range(retries + 1):
@@ -86,6 +95,7 @@ def place_map(g, name, n, rows, r0, c0, route_order=None, cross=True, extra=None
                         keep.update((s1, s2))
                 keep.update(sq for sq in nbrs(nq) if sq != stubs[(q, c)][0])
                 keep.update(sq for sq in nbrs(nc_) if sq != stubs[(q, c)][1])
+                keep.update(reserved)
                 keep -= ours
                 g.route(nq, nc_, cross=cross, avoid=keep, spread=True)
                 done.append((q, c))
@@ -190,10 +200,10 @@ def autoplace(n, fixed, rows, cols, seed=1, iters=60000, free_rect=None, crowd=1
     return out
 
 
-def _assign_stubs(g, names, placed, routed):
+def _assign_stubs(g, names, placed, routed, reserved=()):
     """Give every routed lane its own square beside each end (the first and the last relay of the lane), chosen before anything is routed, so no lane can wall a cell in (ledger #1013)."""
     occ = g.at()
-    taken, stubs = {}, {}
+    taken, stubs = {sq: None for sq in reserved}, {}
     D4 = ((-1, 0), (1, 0), (0, -1), (0, 1))
     def free(nm):
         r, c = g.pos(nm)

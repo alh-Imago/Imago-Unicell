@@ -63,13 +63,12 @@ def build_n1(fmt, rounding="rne"):
     n.op("SH", "relay", ["XS"], addon=shl(W - 1))
     n.op("SGN", "relay", ["SH"], addon=shr(W - 1))
     n.op("O.SGR", "relay", ["SGN"])
-    n.op("O.SGF", "relay", ["SGN"])
     n.op("ZSH", "relay", ["SGN"], addon=shl(m + E))
     # the special values: spec = an inf / nan input; nan = a nan input, or (an inf / nan input) with a zero operand
     n.op("CSb", "relay", ["B.C"])                                              # one relay later than A.C, so the two do not arrive together
     n.op("CS", "add", ["A.C", "CSb"])
     n.op("SPC", "cmp", ["CS"], thr=1)
-    n.op("O.SPEC", "relay", ["SPC"])
+    n.op("SPK", "relay", ["SPC"], addon=shl(m + E + 1))                        # the flags ride in ONE word: result | spec << (m+E+1) | sign << (m+E+2) (one long lane instead of three)
     n.op("NS1", "add", ["A.N", "B.N"])
     n.op("IZ", "mul", ["SPC", "ZA"])
     n.op("NS3", "add", ["NS1", "IZ"])
@@ -78,7 +77,9 @@ def build_n1(fmt, rounding="rne"):
     n.op("KIZ", "const", const=INF)
     n.op("Z1", "add", ["ZSH", "KIZ"])
     n.op("ZW", "add", ["Z1", "NQ"])
-    n.op("O.ZW", "relay", ["ZW"])
+    n.op("SGK", "relay", ["SGN"], addon=shl(m + E + 2))
+    n.op("PK1", "add", ["ZW", "SPK"])
+    n.op("O.PK", "add", ["PK1", "SGK"])
     return n
 
 
@@ -121,7 +122,8 @@ def place_auto(g, fmt, name, r0, c0, seed=1, iters=60000, rows=26, cols=50, pitc
     pos = tp.autoplace(n, fx, rows, cols, seed=seed, iters=iters, free_rect=(0, 8, rows - 2, cols - 4), pitch=pitch)
     allpos = dict(fx)
     allpos.update(pos)
-    res = tp.place_map(g, name, n, [], r0, c0, extra=allpos, retries=retries)
+    ports = {"A.X": "W", "B.X": "W", **{o: "E" for o in n.order if o.startswith("O.")}}
+    res = tp.place_map(g, name, n, [], r0, c0, extra=allpos, retries=retries, ports=ports)
     return n, allpos, res
 
 
@@ -129,57 +131,113 @@ def place_auto(g, fmt, name, r0, c0, seed=1, iters=60000, rows=26, cols=50, pitc
 SEEDS = (1, 5, 6, 7, 8, 9, 10, 11, 12)
 
 
+def _snapshot(g):
+    import copy
+    return copy.deepcopy((g.nodes, g.links, g.routes, g.minuend, g.crossed, g._relay))
+
+
+def _restore(g, snap):
+    import copy
+    nodes, links, routes, minuend, crossed, rel = copy.deepcopy(snap)
+    g.nodes.clear(); g.nodes.update(nodes)
+    g.links[:] = links
+    g.routes.clear(); g.routes.update(routes)
+    g.minuend.clear(); g.minuend.update(minuend)
+    g.crossed.clear(); g.crossed.update(crossed)
+    g._relay = rel
+
+
+def place_net_tight(g, n, name, r0, c0, entries, rows, cols, pitch=3, seeds=SEEDS, gap=3, outs=()):
+    """Tightly place netlist `n` (ledger #1013/#1014): the `entries` (ops with no sources: the lanes from other blocks arrive there) sit in column 0, one per `pitch` rows; every other op is annealed
+    onto a pitch lattice east of them and routed with lane stubs. Returns (names, consts, lanes)."""
+    snap, last = _snapshot(g), None
+    fixed = {e: (pitch * k, 0) for k, e in enumerate(entries)}
+    for sd in seeds:
+        try:
+            pos = tp.autoplace(n, fixed, rows, cols, seed=sd, free_rect=(0, gap, rows - 1, cols - 1), pitch=pitch)
+            allp = dict(fixed)
+            allp.update(pos)
+            return tp.place_map(g, name, n, [], r0, c0, extra=allp, ports={**{e: "W" for e in entries}, **{o: "E" for o in outs}})
+        except Exception as e:                       # a layout that cannot be routed: undo and try the next seed
+            last = e
+            _restore(g, snap)
+    raise last
+
+
+def build_n3_tight():
+    import fp_mul_v1 as fm
+    n = npl.Net()
+    n.op("SH1", "relay", [], addon=shl(1))
+    n.op("STKR", "relay", [])
+    n.op("O.X", "add", ["SH1", "STKR"])
+    return n
+
+
+def build_n2_tight(fmt, rounding):
+    import fp_mul_v1 as fm
+    n = fm.build_n2(fmt, rounding, "RO", "EXR", "SGX", "SPR", "ZWR")
+    E, m, W = fmt.exp_bits, fmt.sig_bits - 1, fmt.word
+    Fw = m + E + 1
+    for c in ("RO", "EXR"):
+        n.cells[c]["srcs"] = []
+    mk = lambda kind, srcs, addon=None: {"kind": kind, "srcs": srcs, "thr": None, "addon": addon, "const": None}
+    n.cells["PKR"] = mk("relay", [])                                            # the packed flags word
+    n.cells["SPS"] = mk("relay", ["PKR"], shl(W - Fw - 1))                      # spec -> the top bit
+    n.cells["ZSX"] = mk("relay", ["PKR"], shl(W - Fw))                          # the special value (the low Fw bits) -> the top
+    n.cells["SGX"] = mk("relay", ["PKR"], shr(Fw + 1))                          # the sign
+    n.cells["SPR"] = mk("relay", ["SPS"], shr(W - 1))
+    n.cells["ZWR"] = mk("relay", ["ZSX"], shr(W - Fw))
+    n.order = ["PKR", "SPS", "ZSX"] + [c for c in n.order if c not in ("PKR", "SPS", "ZSX")]
+    n.cells["MAGc"] = {"kind": "relay", "srcs": ["MAG"], "thr": None, "addon": None, "const": None}        # MAG has five connections: a copy takes two of its users (a cell has four faces)
+    n.order.insert(n.order.index("MAG") + 1, "MAGc")
+    for c in ("OV", "NM"):
+        n.cells[c]["srcs"] = ["MAGc" if x == "MAG" else x for x in n.cells[c]["srcs"]]
+    return n
+
+
 def fp_mul_tight(g, fmt, name="MUL", rounding="rne", pads=None, seed=None):
-    """The multiplier with a TIGHT front block (N1); the rest as fp_mul_v1. Returns (entries {a, b}, exits {R}, consts, placed)."""
+    """The multiplier with TIGHT N1, N3 and N2 blocks; AL / NR / RND as fp_mul_v1. Returns (entries {a, b}, exits {R}, consts, placed)."""
     import fp_assembler_v1 as fa
     import fp_mul_v1 as fm
     S, E, m, W = fmt.sig_bits, fmt.exp_bits, fmt.sig_bits - 1, fmt.word
-    pads = pads or {}
     fal = fa.FpFormat(fmt.name + ".al", 2 * S, E, W)
     sn = W - (fal.Ka + 1)
     fnr = fa.FpFormat(fmt.name + ".nr", sn, E, W)
     low = sn + 1 - S
     consts, placed = {}, []
-    last = None
+    snap, last = _snapshot(g), None
     for sd in ([seed] if seed else SEEDS):
-        snap = (dict(g.nodes), list(g.links), dict(g.routes), dict(g.minuend), dict(g.crossed), g._relay)
         try:
             n1, allpos, (nm1, c1, lanes1) = place_auto(g, fmt, f"{name}.N1", 2, 2, seed=sd, rounding=rounding)
             break
-        except Exception as e:                       # a layout that cannot be routed: undo and try the next seed
+        except Exception as e:
             last = e
-            g.nodes.clear(); g.nodes.update(snap[0]); g.links[:] = snap[1]; g.routes.clear(); g.routes.update(snap[2])
-            g.minuend.clear(); g.minuend.update(snap[3]); g.crossed.clear(); g.crossed.update(snap[4]); g._relay = snap[5]
+            _restore(g, snap)
     else:
         raise last
     consts.update(c1)
     edge = max(c for _, c in (g.pos(q) for q in g.nodes)) + 8
     al = fa.align_sticky(g, fal, f"{name}.AL", 2, edge)
     consts.update(al.consts)
+    kw = {"spread": True}
+    g.route_nets([(nm1["O.D"], al.entries["D"], kw), (nm1["O.PV"], al.entries["V"], kw)])          # the lanes into a block are laid as soon as it stands (before other lanes wall it in)
     edge2 = edge + al.extent[1] + 4
     nr = fa.normalise_chain_clamped(g, fnr, f"{name}.NR", 2, edge2)
     consts.update(nr.consts)
+    g.route_nets([(nm1["O.EXPIN"], nr.entries["EXPIN"], kw), (al.exits["OUT"], nr.entries["V"], kw)])
     edge3 = edge2 + nr.extent[1] + 6
-    n3 = fm.build_n3(nr.exits["NORM"], al.exits["STK"])
-    nm3, c3, lanes3, rest3, map3 = npl.place_net(g, f"{name}.N3", n3, {nr.exits["NORM"], al.exits["STK"]}, 2, edge3 + 4, edge3, pads.get("N3"))
+    nm3, c3, _ = place_net_tight(g, build_n3_tight(), f"{name}.N3", 2, edge3 + 4, ["SH1", "STKR"], 6, 8, pitch=2, gap=1, outs=["O.X"])
     consts.update(c3)
-    placed.append((f"{name}.N3", map3))
     edge4 = max(c for _, c in (g.pos(q) for q in g.nodes)) + 8
     rnd = fa.round_mode(g, fmt, rounding, f"{name}.RND", 2, edge4, low=low)
     consts.update(rnd.consts)
     edge5 = edge4 + rnd.extent[1] + 6
-    n2 = fm.build_n2(fmt, rounding, rnd.exits["OUT"], nr.exits["EXPOUT"], nm1["O.SGF"], nm1["O.SPEC"], nm1["O.ZW"])
-    ext2 = {rnd.exits["OUT"], nr.exits["EXPOUT"], nm1["O.SGF"], nm1["O.SPEC"], nm1["O.ZW"]}
-    nm2, c2, lanes2, rest2, map2 = npl.place_net(g, f"{name}.N2", n2, ext2, 2, edge5 + 4, edge5, pads.get("N2"))
+    n2 = build_n2_tight(fmt, rounding)
+    nm2, c2, _ = place_net_tight(g, n2, f"{name}.N2", 2, edge5 + 4, ["RO", "EXR", "PKR"], 18, 36, outs=["F"])
     consts.update(c2)
-    placed.append((f"{name}.N2", map2))
-    nets = [(nm1["O.PV"], al.entries["V"]), (nm1["O.D"], al.entries["D"]), (al.exits["OUT"], nr.entries["V"]), (nm1["O.EXPIN"], nr.entries["EXPIN"]),
-            (nm3["O.X"], rnd.entries["X"])]
+    nets = [(nr.exits["NORM"], nm3["SH1"]), (al.exits["STK"], nm3["STKR"]), (nm3["O.X"], rnd.entries["X"]),
+            (rnd.exits["OUT"], nm2["RO"]), (nr.exits["EXPOUT"], nm2["EXR"]), (nm1["O.PK"], nm2["PKR"])]
     if "SGN" in rnd.entries:
         nets.append((nm1["O.SGR"], rnd.entries["SGN"]))
-    kw = {"spread": True}
-    allnets = [(a, b, kw) for a, b in lanes3 + lanes2] + [(a, b, kw) for a, b in nets]
-    g.route_nets(allnets)
-    for rr in (rest3, rest2):
-        rr()
+    g.route_nets([(a, b, {"spread": True}) for a, b in nets])
     return {"a": nm1["A.X"], "b": nm1["B.X"]}, {"R": nm2["F"]}, consts, placed

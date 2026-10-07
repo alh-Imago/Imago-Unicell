@@ -114,4 +114,21 @@ def test_multiplier_with_random_stalls_rtl_fp16(mode):
 
 def test_tight_front_is_small():
     g, ent, ex = build("rne")
-    assert len(g.nodes) < 3500, len(g.nodes)             # the loose multiplier is 5805 cells
+    assert len(g.nodes) < 1500, len(g.nodes)             # the loose multiplier is 5805 cells (#1013: 2125; #1014: 1229)
+
+
+@pytest.mark.parametrize("mode", ("rne", "rdn"))
+def test_tight_fp32_multiplier_at_word_64_rtl(mode):
+    """The same tight multiplier for fp32 at a 64-bit cell word (ledger #1011 gave the word, #1014 the tight placement)."""
+    from test_fp_wide_v1 import mul_vectors, FP32W64, INF as INF32
+    g = Grid(rows=260, cols=1100)
+    ent, ex, consts, _ = fm.fp_mul_tight(g, FP32W64, rounding=mode)
+    assert g.balance(limit=500) >= 0 and g.problems() == []
+    V = mul_vectors()
+    A, B = zip(*V)
+    d = tempfile.mkdtemp()
+    got = run_rtl(d, f"multight32w64_{mode}", g.records(), {ent["a"]: list(A), ent["b"]: list(B)}, ex, "plain", settle=6000, cycles=len(V) * 60 + 9000, width=64)["R"]
+    nan = lambda v: (v & INF32) == INF32 and (v & 0x7FFFFF) != 0  # noqa: E731
+    want = [mul_ref(fa.FP32, a, b, mode) for a, b in V]
+    bad = [(hex(a), hex(b), hex(x), hex(w)) for a, b, x, w in zip(A, B, got, want) if x != w and not (nan(x) and nan(w))]
+    assert len(got) == len(V) and not bad, (mode, len(got), len(g.nodes), bad[:5])
