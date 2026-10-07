@@ -340,7 +340,7 @@ nano and sequencer captured while unarmed (#956/#971), the comparator
 threshold above 32 bits (it now has its own port, #972), the
 accumulator below 16 bits (#973), and the mask above 32 bits (the mask
 word now scales with the width, #968).</p>
-<h3>fp32 on cells</h3>
+<h3>Floating point on cells</h3>
 <p><a href="../docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md"><code>docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md</code></a>
 maps an fp32 add and multiply onto cells in 16 stages (#982). These
 stages are built from real flex cells, with no loops, and tested
@@ -351,15 +351,34 @@ alignment: a variable right shift that also collects the sticky bits,
 built from one multiplier per stage using both of its output words
 (#987/#988). An open fp assembler (<code>tools/fp_assembler_v1.py</code>, #989)
 generates those blocks for any format (fp32, fp16, bfloat16), with
-operand timing balanced automatically. <strong>The whole fp adder is now
-built from flex cells</strong> (<code>tools/fp_add_v1.py</code>, #990). In generated RTL
-it matches a reference anchored to <code>fp32_add_v1</code> on 3,000 pairs, for
-normal numbers and zero. To route it, a new <strong>crossing tile</strong> (<code>cross</code>,
-ICM core 10, #999) lets one lane pass straight over another. It has no
-control logic and costs one tick per tile per direction (a register
-slice), like every other core. Still open: sub-normals, overflow, inf
-and nan; formats wider than 32 bits; and a placer (layouts are hand
-templates today).</p>
+operand timing balanced automatically.</p>
+<p>Built from flex cells and bit-exact in the generated RTL (as of #1027):</p>
+<ul>
+<li><strong>The adder</strong> (<code>tools/fp_add_v1.py</code>, #990): normals and zero (#990);
+  inf, nan and overflow (#1001); subnormal inputs and results with
+  gradual underflow (#1006); all five IEEE rounding modes and the sign
+  of an exact zero (#1007). It also runs at fp64 on a 64-bit cell word
+  (#1027).</li>
+<li><strong>The multiplier</strong> (<code>tools/fp_mul_v1.py</code>, #1008): fp16, all five
+  modes, subnormals, zeros, inf, nan and overflow; fp32 on a 64-bit
+  cell word (#1011).</li>
+<li><strong>The comparator</strong> (<code>tools/fp_compare_v1.py</code>, #1009): -1 / 0 / +1,
+  or 2 when either input is a nan; fp16, bfloat16, and fp32 on a 64-bit
+  word (#1011).</li>
+<li><strong>Wider words</strong> (#1010/#1011): <code>-s flex --icm -w W</code> builds a W-bit
+  design, and the ram's constant port scales with the cell.</li>
+<li><strong>Tight placement</strong> (<code>tools/tightplace_v1.py</code>, #1012-#1016, #1026):
+  the loose builds were mostly relays (a placer gives every op a column
+  and routes through gutter lanes, <code>tools/netplace_v1.py</code>). Drawing each
+  block as a map shrank the comparator from 641 to 74 cells, the fp16
+  multiplier from 5,805 to 1,103 (folded into a U), and the fp16 adder
+  from 1,702 to 1,531 (<code>*_tight_v1.py</code>).</li>
+</ul>
+<p>To route these, the <strong>crossing tile</strong> (<code>cross</code>, ICM core 10, #999) lets
+one lane pass straight over another. It has no control logic and costs
+one tick per tile per direction (a register slice), like every other
+core. Still open: an automatic placer (layouts are drawn or templated),
+and a delay-line cell for the remaining pure-delay lanes (#1015).</p>
 <h2>On the physical board</h2>
 <p><a href="../docs/man/tang-nano-20k-getting-started.md"><code>docs/man/tang-nano-20k-getting-started.md</code></a>
 covers the first flashable deliverable, a <code>sequencer</code> core counting on
@@ -368,7 +387,18 @@ the LEDs. It is built from source to a committed bitstream
 working on the physical board</strong> (#896); use v2, because v1's reset
 button held the design in reset. The board's MAN file
 (<code>docs/man/tang-nano-20k.man.json</code>) is generated from the chip database
-rather than written by hand. The planned ESP32 host link (an
+rather than written by hand.</p>
+<p><strong>The flex cells have run on the board</strong> (#1023-#1025). Ten
+self-checking bitstreams (relay chains, adders with stalls and
+constants, the three priority modes, the ram's hold and one-shot) each
+feed a generated flex design a fixed stream and compare the output with
+words from FlexGrid stored in the bitstream. All ten pass on the real
+Tang Nano 20K and match the simulation. Because the board's USB serial
+link went silent after repeated loads, they run as two grouped
+bitstreams, one load per power-up: <code>tools/board_tests_v1.py</code>,
+<code>tools/board_groups_v1.py</code>, and <code>run_groups.sh</code> give 10 of 10 PASS in
+one run. This proves the cell RTL and the handshake on silicon at
+27 MHz with small designs, not capacity or speed. The planned ESP32 host link (an
 ESP32-WROOM-32E) is not wired yet (#888).</p>
 <hr />
 <h2>The Arria 10 line: the super carrier shell (Unicell-S)</h2>
@@ -6252,7 +6282,43 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 </tr>
 <tr>
 <td><code>fp_add_v1.py</code></td>
-<td>The whole fp adder from flex cells: <code>fp_add(g, fmt)</code>, parametric in <code>FpFormat</code> (#990). Scope: normals and zero</td>
+<td>The whole fp adder from flex cells: <code>fp_add(g, fmt, ...)</code>, parametric in <code>FpFormat</code> (#990). Normals and zero (#990), inf / nan / overflow (<code>specials=True</code>, #1001), subnormals (#1006), the five IEEE rounding modes (<code>rounding=</code>, #1007); fp64 on a 64-bit word (#1027)</td>
+</tr>
+<tr>
+<td><code>fp_add_tight_v1.py</code></td>
+<td>The same adder tightly placed as a U: fp16 1,702 -&gt; 1,531 cells, bit-exact in all five modes (#1026, #1027 for fp64)</td>
+</tr>
+<tr>
+<td><code>fp_mul_v1.py</code></td>
+<td>The fp multiplier from flex cells: fp16 in all five modes with subnormals, zeros, inf, nan, overflow (#1008); fp32 on a 64-bit word (#1011)</td>
+</tr>
+<tr>
+<td><code>fp_mul_tight_v1.py</code></td>
+<td>The multiplier tightly placed: front block (#1013), the whole multiplier (#1014), folded into a U (<code>fp_mul_tight_u</code>, #1016): fp16 5,805 -&gt; 1,103 cells</td>
+</tr>
+<tr>
+<td><code>fp_compare_v1.py</code></td>
+<td>The fp comparator from flex cells: -1 / 0 / +1, 2 for unordered (nan); fp16, bfloat16 (#1009), fp32 on a 64-bit word (#1011)</td>
+</tr>
+<tr>
+<td><code>fp_compare_tight_v1.py</code></td>
+<td>The comparator tightly placed: 641 -&gt; 74 cells (#1012)</td>
+</tr>
+<tr>
+<td><code>netplace_v1.py</code></td>
+<td>Places a small netlist of flex cells on a <code>Grid</code> by Alan's rule: each path its own line, joined one at a time, a crossing tile wherever two lines meet (#1008; from the adder's special-value block, #1001)</td>
+</tr>
+<tr>
+<td><code>tightplace_v1.py</code></td>
+<td>Tight placement from a hand-drawn text map: neighbours on the map are linked directly, only the other connections are routed, lane stubs keep nothing walled in (#1013)</td>
+</tr>
+<tr>
+<td><code>board_tests_v1.py</code></td>
+<td>The on-board test package: a self-checking bitstream per test (fixed input stream, captured output, expected words from FlexGrid, a verdict line on the serial port), with its batch file and results collector (#1023, #1024)</td>
+</tr>
+<tr>
+<td><code>board_groups_v1.py</code></td>
+<td>The board tests grouped into two bitstreams of five, one load per power-up, with a rotating selector (#1025)</td>
 </tr>
 <tr>
 <td><code>fp_assembler_v1.py</code></td>

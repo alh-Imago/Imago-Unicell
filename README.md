@@ -171,7 +171,7 @@ threshold above 32 bits (it now has its own port, #972), the
 accumulator below 16 bits (#973), and the mask above 32 bits (the mask
 word now scales with the width, #968).
 
-### fp32 on cells
+### Floating point on cells
 
 [`docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md`](docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md)
 maps an fp32 add and multiply onto cells in 16 stages (#982). These
@@ -183,15 +183,35 @@ alignment: a variable right shift that also collects the sticky bits,
 built from one multiplier per stage using both of its output words
 (#987/#988). An open fp assembler (`tools/fp_assembler_v1.py`, #989)
 generates those blocks for any format (fp32, fp16, bfloat16), with
-operand timing balanced automatically. **The whole fp adder is now
-built from flex cells** (`tools/fp_add_v1.py`, #990). In generated RTL
-it matches a reference anchored to `fp32_add_v1` on 3,000 pairs, for
-normal numbers and zero. To route it, a new **crossing tile** (`cross`,
-ICM core 10, #999) lets one lane pass straight over another. It has no
-control logic and costs one tick per tile per direction (a register
-slice), like every other core. Still open: sub-normals, overflow, inf
-and nan; formats wider than 32 bits; and a placer (layouts are hand
-templates today).
+operand timing balanced automatically.
+
+Built from flex cells and bit-exact in the generated RTL (as of #1027):
+
+- **The adder** (`tools/fp_add_v1.py`, #990): normals and zero (#990);
+  inf, nan and overflow (#1001); subnormal inputs and results with
+  gradual underflow (#1006); all five IEEE rounding modes and the sign
+  of an exact zero (#1007). It also runs at fp64 on a 64-bit cell word
+  (#1027).
+- **The multiplier** (`tools/fp_mul_v1.py`, #1008): fp16, all five
+  modes, subnormals, zeros, inf, nan and overflow; fp32 on a 64-bit
+  cell word (#1011).
+- **The comparator** (`tools/fp_compare_v1.py`, #1009): -1 / 0 / +1,
+  or 2 when either input is a nan; fp16, bfloat16, and fp32 on a 64-bit
+  word (#1011).
+- **Wider words** (#1010/#1011): `-s flex --icm -w W` builds a W-bit
+  design, and the ram's constant port scales with the cell.
+- **Tight placement** (`tools/tightplace_v1.py`, #1012-#1016, #1026):
+  the loose builds were mostly relays (a placer gives every op a column
+  and routes through gutter lanes, `tools/netplace_v1.py`). Drawing each
+  block as a map shrank the comparator from 641 to 74 cells, the fp16
+  multiplier from 5,805 to 1,103 (folded into a U), and the fp16 adder
+  from 1,702 to 1,531 (`*_tight_v1.py`).
+
+To route these, the **crossing tile** (`cross`, ICM core 10, #999) lets
+one lane pass straight over another. It has no control logic and costs
+one tick per tile per direction (a register slice), like every other
+core. Still open: an automatic placer (layouts are drawn or templated),
+and a delay-line cell for the remaining pure-delay lanes (#1015).
 
 ## On the physical board
 
@@ -202,7 +222,19 @@ the LEDs. It is built from source to a committed bitstream
 working on the physical board** (#896); use v2, because v1's reset
 button held the design in reset. The board's MAN file
 (`docs/man/tang-nano-20k.man.json`) is generated from the chip database
-rather than written by hand. The planned ESP32 host link (an
+rather than written by hand.
+
+**The flex cells have run on the board** (#1023-#1025). Ten
+self-checking bitstreams (relay chains, adders with stalls and
+constants, the three priority modes, the ram's hold and one-shot) each
+feed a generated flex design a fixed stream and compare the output with
+words from FlexGrid stored in the bitstream. All ten pass on the real
+Tang Nano 20K and match the simulation. Because the board's USB serial
+link went silent after repeated loads, they run as two grouped
+bitstreams, one load per power-up: `tools/board_tests_v1.py`,
+`tools/board_groups_v1.py`, and `run_groups.sh` give 10 of 10 PASS in
+one run. This proves the cell RTL and the handshake on silicon at
+27 MHz with small designs, not capacity or speed. The planned ESP32 host link (an
 ESP32-WROOM-32E) is not wired yet (#888).
 
 ---
