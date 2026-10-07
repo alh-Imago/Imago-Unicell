@@ -6,6 +6,8 @@
 > "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
 > at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.
 >
+> **UPDATE (2026-10-07, ledger #1020): the blocks below predate #1000.** The current open list is the quick reference in `docs/shared/POINTS_STATUS_AUDIT_4.md`. Since this block was written: the adder's special values, subnormals and rounding modes, the multiplier and comparator, fp32 at a 64-bit word, tight placement, the Composer, and the whole priority core (all three modes, turn order saved in the ICM) are done; `command` in sub/flex is closed as not to be ported, and the sub sequencer's refusal stands (both Alan's decisions, #1020).
+>
 > **fp on cells (the most recent thread, #982-#999; the whole fp adder from flex cells is done at #990 for normals and
 > zero, and the crossing tile at #999):** sub-normals, exponent overflow/underflow, inf and nan for the adder; then
 > multiply and compare built the same way. Also open: a placer that decides positions itself, a VM tick-latency model for

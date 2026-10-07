@@ -1941,7 +1941,7 @@ shift/shift_stage, <strong>nano</strong> (<code>#917</code>), <strong>branch</st
 by the ICM generators (<code>tools/flexsub_icm_generate_v1.py</code> for sub, <code>tools/flexsub_icm_flex_v1.py</code> for flex; every core the planner translates,
 including the sequencer on flex since <code>#956</code>), checked against the real VM. The flex family is also mirrored by <code>FlexGrid</code> at any width the cells build.
 <strong>Not on real hardware yet</strong> (the board has run a cell from the original family, <code>#896</code>).</p>
-<p>Still to do: <code>command</code>, which is structurally at odds with "no live reprogramming", since reprogramming is its whole purpose; a FlexGrid model of the priority
+<p>Not to be done: <code>command</code> is not ported to sub or flex, by Alan's decision (#1020): it rewrites other cells' configuration live, and a sub/flex cell is one function fixed at build time. Still to do: a FlexGrid model of the priority
 core; priority orders longer than four turns; the <code>--icm</code> generators at widths other than 32; the sequencer below 8 bits; a 6-bit shift amount for W = 36; and place-and-route of whole
 generated designs.</p>
 <h2>A stated design rule (Alan's own, confirmed across every cell built so far)</h2>
@@ -6682,6 +6682,7 @@ cd Imago-Unicell
 lines for #946-#999.</strong> Everything below this block predates the Tang Nano line. That includes the 2026-09-02
 "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
 at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.</p>
+<p><strong>UPDATE (2026-10-07, ledger #1020): the blocks below predate #1000.</strong> The current open list is the quick reference in <code>docs/shared/POINTS_STATUS_AUDIT_4.md</code>. Since this block was written: the adder's special values, subnormals and rounding modes, the multiplier and comparator, fp32 at a 64-bit word, tight placement, the Composer, and the whole priority core (all three modes, turn order saved in the ICM) are done; <code>command</code> in sub/flex is closed as not to be ported, and the sub sequencer's refusal stands (both Alan's decisions, #1020).</p>
 <p><strong>fp on cells (the most recent thread, #982-#999; the whole fp adder from flex cells is done at #990 for normals and
 zero, and the crossing tile at #999):</strong> sub-normals, exponent overflow/underflow, inf and nan for the adder; then
 multiply and compare built the same way. Also open: a placer that decides positions itself, a VM tick-latency model for

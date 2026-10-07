@@ -992,7 +992,7 @@ by the ICM generators (`tools/flexsub_icm_generate_v1.py` for sub, `tools/flexsu
 including the sequencer on flex since `#956`), checked against the real VM. The flex family is also mirrored by `FlexGrid` at any width the cells build.
 **Not on real hardware yet** (the board has run a cell from the original family, `#896`).
 
-Still to do: `command`, which is structurally at odds with "no live reprogramming", since reprogramming is its whole purpose; a FlexGrid model of the priority
+Not to be done: `command` is not ported to sub or flex, by Alan's decision (#1020): it rewrites other cells' configuration live, and a sub/flex cell is one function fixed at build time. Still to do: a FlexGrid model of the priority
 core; priority orders longer than four turns; the `--icm` generators at widths other than 32; the sequencer below 8 bits; a 6-bit shift amount for W = 36; and place-and-route of whole
 generated designs.
 

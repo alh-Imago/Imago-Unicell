@@ -6,6 +6,8 @@ Part 3 continues `POINTS_STATUS_AUDIT.md` (#1-#330) and
 second**. It is a map on top of the ledger and does not edit it. The
 ledger wins wherever they disagree.
 
+> **Continued in `POINTS_STATUS_AUDIT_4.md` (#1000-#1020, 2026-10-07).** Several items below are closed there; part 4's quick reference is the current list.
+
 **Method:** I read all 401 entry titles in this range. Titles in this
 project are full summary sentences. The full text was read for
 #875-#997, and wherever a title left the status unclear. Each "open"
