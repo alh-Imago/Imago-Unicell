@@ -113,3 +113,22 @@ def mul_ref(fmt, a, b, mode):
     def val(e, f):
         return Fraction(f if e == 0 else f | (1 << m)) * Fraction(2) ** ((max(e, 1)) - bias - m)
     return round_pack(fmt, val(ea, fa_) * val(eb, fb), bool(sa ^ sb), mode)
+
+
+def cmp_ref(fmt, a, b):
+    """The comparison as a 32-bit word (ledger #1009): 0xFFFFFFFF (a < b), 0 (a == b, so +0 == -0), 1 (a > b), 2 (unordered: a nan)."""
+    E, m = fmt.exp_bits, fmt.sig_bits - 1
+    emax = (1 << E) - 1
+    bias = (1 << (E - 1)) - 1
+    sa, ea, fa_ = decode(fmt, a)
+    sb, eb, fb = decode(fmt, b)
+    if (ea == emax and fa_) or (eb == emax and fb):
+        return 2
+
+    def val(s, e, f):
+        if e == emax:
+            return float("inf") * (-1 if s else 1)
+        mag = Fraction(f if e == 0 else f | (1 << m)) * Fraction(2) ** ((max(e, 1)) - bias - m)
+        return -mag if s else mag
+    x, y = val(sa, ea, fa_), val(sb, eb, fb)
+    return 0xFFFFFFFF if x < y else (1 if x > y else 0)

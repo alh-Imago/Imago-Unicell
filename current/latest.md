@@ -12003,3 +12003,5 @@ does.
 - #1007 (7 Oct 2026): rounding modes rne/rna/rtz/rup/rdn (build-time `rounding=`), zero sign per mode, overflow value per mode; whole adder proven in RTL against an exact reference in every mode. Open: runtime mode word, multiply, compare.
 
 - #1008 (7 Oct 2026): fp16 MULTIPLIER from cells (all five rounding modes, subnormals, specials) proven in RTL vs an exact reference; netlist placer made general (`tools/netplace_v1.py`). Open: fp32 product (48 bits), compare.
+
+- #1009 (7 Oct 2026): fp16/bf16 COMPARATOR from cells (-1/0/+1, 2 unordered), full IEEE incl. NaN, proven in RTL. add + mul + compare now complete at fp16. Open: fp32 mul and compare.

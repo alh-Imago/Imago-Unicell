@@ -822,3 +822,13 @@ The page's side column now scrolls on its own beside the board, so the board sta
 **Tests:** `tests/vm/test_fp_mul_v1.py` (9: numpy anchor, modes differ, five modes in RTL, two stall runs, ~5 min each in parallel). Regression: blocks, cross tile, the round-mode block tests pass.
 **Open:** fp32 (the 24x24 product is 48 bits: split partial products with carries); compare; a runtime-selectable mode word; native crossing cores.
 **Std VM untouched. Touched (tools only): new `tools/fp_mul_v1.py`, `tools/netplace_v1.py` (the adder's code is read, not changed).**
+
+
+### #1009 -- THE FLOATING-POINT COMPARATOR FROM CELLS: fp16 AND bfloat16, FULL IEEE INCLUDING NAN (`tools/fp_compare_v1.py`; Alan: "start on the compare")
+**Result:** one netlist, ~640 cells, built in under a second; matches the exact reference `cmp_ref` on 1,000+ vectors in the generated RTL, fp16 and bfloat16, and under random stalls. First build, first run: right. `cmp_ref` matches numpy's float16 comparison on 4000 random pairs.
+**Output:** a 32-bit word: 0xFFFFFFFF (a < b), 0 (a == b), 1 (a > b), 2 (unordered: a nan input). (The old `nano/fp32_compare_v1.py` leaves NaN unspecified; this one does not.)
+**Algorithm:** key = magnitude x (1 - 2 sign), so -0 and +0 are both 0 (equal by themselves, no special case) and the infinities are the largest keys; d = key_a + (0 - key_b) (a constant is the only minuend); r = [d >= 1] + [d >= 0] - 1; nan = [nan_a + nan_b >= 1] and the result is r + nan x (2 - r). No rounding, no alignment, no normalise.
+**Limit:** the keys are signed 32-bit words, so the format must fit 31 bits (asserted): fp16 and bfloat16 yes, fp32 needs the difference split (the next step, with the fp32 multiply). **Reuses** the netlist placer made in #1008 (`netplace_v1`).
+**Tests:** `tests/vm/test_fp_compare_v1.py` (4, ~20 s): numpy anchor, fp16 and bf16 whole comparator in RTL, stalls. `cmp_ref` added to `tests/vm/fp_round_ref_v1.py`.
+**Scope now (fp16 / bf16):** add, multiply and compare each complete IEEE, from cells, in RTL. **Open:** fp32 multiply (48-bit product) and fp32 compare; runtime rounding-mode word; real placer; native crossing cores.
+**Std VM untouched. Touched (tools only): new `tools/fp_compare_v1.py`.**
