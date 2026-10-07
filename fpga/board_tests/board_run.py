@@ -39,7 +39,7 @@ def pick_port(arg):
 
 def load(fs):
     r = subprocess.run(["openFPGALoader", "-b", "tangnano20k", fs], capture_output=True, text=True)
-    return r.returncode == 0, (r.stdout + r.stderr)[-400:]
+    return r.returncode == 0, (r.stdout + r.stderr)[-1500:]
 
 
 def read_lines(ser, seconds, want=2):
@@ -128,7 +128,7 @@ def main():
         print(f"[{name}] {status}", flush=True)
         out += [f"{name:<22} {status}", f"   what     : {meta.get('what', '')}", f"   board    : {line or '(nothing received)'}", f"   simulated: {meta.get('sim_line', '')}"]
         out.append(f"   loader   : {'ok' if ok else 'FAILED'}; serial ports seen after loading: {seen}; {note}")
-        if not ok or status == "NOREPORT":
+        if not ok or not status.startswith("PASS"):
             out.append("   loader output: " + msg.replace("\n", " | "))
         out.append(f"   built    : {meta.get('lut4', '?')} LUT4, {meta.get('dff', '?')} flip-flops, Fmax {meta.get('fmax_mhz', '?')} MHz (27 MHz needed)")
         out.append("")
