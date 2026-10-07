@@ -43,7 +43,7 @@ INPUT_FIELDS = {
 CORE_TO_SHAPE = {
     "ram": "ram", "adder": "adder", "comparator": "compare", "accumulator": "accumulator",
     "sequencer": "sequencer", "latch": "latch", "mul": "mul", "nano": "nano", "branch": "branch",
-    "priority": None, "command": None,
+    "priority": "priority", "command": None,
 }
 # Two-operand cores: operand roles are by ARRIVAL ORDER in the VM.
 TWO_OPERAND = {"adder", "mul", "nano"}   # nano: first arrival = held operand A, second = flowing operand B (VM CACell)
@@ -60,7 +60,7 @@ CONFIG_NOTES = {
     "branch": "LOSSY: v4sa branch has two flowing inputs, ONE shared emit_source, and 2-bit out1/out2 routing; "
               "the ICM branch has per-outcome value_source/fixed_value/emit and 4-bit cardinal routing -- "
               "translation exists only for the representable subset (see per-cell verdict)",
-    "priority": "NO Flex-Sub cell",
+    "priority": "flex only (ledger #1017): priority_cell_v4sa; upstream_mask -> cfg_data[3:0], priority_rank_n/s/e/w -> [5:4]/[7:6]/[9:8]/[11:10], scheduling_mode -> [12] (0 strict, 1 weighted; 2 = sequenced channel: refused)",
     "command": "NO Flex-Sub cell (live reprogramming is incompatible with fixed paths, #905)",
 }
 

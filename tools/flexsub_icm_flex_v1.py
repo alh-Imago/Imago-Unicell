@@ -64,7 +64,7 @@ WHAT THE EMITTER BUILDS (all of it plain valid/ready glue around the cells):
     VALUE_(k mod n)) -- deliberate and deterministic, and DIFFERENT from the VM, whose arrival-paired adder pairs the sequence with ITSELF (#937). Recorded as a test.
 
 STAGES 1-8 SCOPE (everything else is refused by plan(family="flex") with its reason, never silently mistranslated): ram, adder, mul, nano, comparator, accumulator, latch, branch,
-two-source merges (as a core), the sequencer and constants -- every ICM core the planner translates (a genuine `priority` arbiter, not the compiler's eliminated ones, is the one left). Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
+two-source merges (as a core), the sequencer and constants -- every ICM core the planner translates including the N-way `priority` arbiter (priority_cell_v4sa, ledger #1017; only the VM's sequenced-channel mode is refused). Operand identity (A vs B) comes from the same rules as sub (ranks, then arrival-order estimate).
 """
 import json
 import os
@@ -77,7 +77,7 @@ sys.path.insert(0, TOOLS_DIR)
 import flexsub_assemble_v1 as fsa  # noqa: E402
 import flexsub_icm_generate_v1 as g  # noqa: E402
 
-FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa", "merge": "merge_cell_v4sa", "sequencer": "sequencer_cell_v4sa"}
+FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa", "merge": "merge_cell_v4sa", "sequencer": "sequencer_cell_v4sa", "priority": "priority_cell_v4sa"}
 
 
 MERGE_MODES = {"arbitrate": 2, "join-or": 3}
@@ -250,6 +250,8 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
             a(f"wire [{W-1}:0] {ident(c + '#2')}_d = {i}_d2u;          // the second word, as the virtual source {c}#2 the consumer's merge core reads")
         if c in merge_cells:
             a(f"wire {i}_rdya, {i}_rdyb;")
+        if cells[c].core == "priority":
+            a(f"wire {i}_rdyn, {i}_rdys, {i}_rdye, {i}_rdyw;")
     for e, *_ in edges:
         a(f"wire {e}_v; wire {e}_a;")
     a("")
@@ -363,6 +365,19 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
             a(f"assign {i}_vin = {eB}_v & {i}_aload;")
             a(f"always @(posedge clk) begin if (rst) {i}_aload <= 1'b0; else if ({i}_cap) {i}_aload <= 1'b0; else if ({i}_ldA) {i}_aload <= 1'b1; end")
             a(f"wire [{W-1}:0] {i}_inh = {srcdata[eA]}, {i}_inf = {srcdata[eB]};")
+        elif r.core == "priority":
+            # ledger #1017: the arbiter has four input faces, each with its own valid / data / ready; a face with no source never offers. Only the granted face is acknowledged.
+            faces = [f_.lower() for _, f_ in inputs[dst]["in"]]
+            joins.append({"cell": dst, "kind": f"priority core (mode {int((r.core_config or {}).get('scheduling_mode', 0))}, faces {''.join(faces)})", "sources": [q for q, _ in inputs[dst]["in"]]})
+            a(f"assign {i}_vin = 1'b0;")
+            a(f"assign {i}_rdy = 1'b0;                                  // (the arbiter has one ready per face, below)")
+            for fc in "nsew":
+                if fc in faces:
+                    e = es[faces.index(fc)]
+                    a(f"assign {e}_a = {i}_rdy{fc};")
+                    a(f"wire {i}_v{fc} = {e}_v; wire [{W-1}:0] {i}_d{fc} = {srcdata[e]};")
+                else:
+                    a(f"wire {i}_v{fc} = 1'b0; wire [{W-1}:0] {i}_d{fc} = {W}'h0;                  // no source on this face")
         elif r.core == "merge":
             eA, eB = es
             joins.append({"cell": dst, "kind": f"merge core ({merge_node_mode[dst]})", "sources": merge_cells[dst]})
@@ -413,6 +428,12 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
             a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{word:X}), "
               f".cfg_emit_fixed_value({W}'h{bp['emit_fixed'] & WM:0{(W+3)//4}X}), .in1_data({i}_in1d), .in1_valid({i}_in1v), .in2_data({i}_in2d), .in2_valid({i}_in2v), "
               f".ack_out({i}_rdy), .data_out_1({dout}), .valid_out_1({i}_p1_v), .ack_in_1({i}_p1_ai), .data_out_2({i}_d2u), .valid_out_2({i}_p2_v), .ack_in_2({i}_p2_ai));")
+        elif r.core == "priority":
+            faces = [f_.lower() for _, f_ in inputs[c]["in"]]
+            word = sum(1 << "nsew".index(f_) for f_ in faces) | (sum((int(cfg.get(f"priority_rank_{f_}", 0)) & 3) << (4 + 2 * "nsew".index(f_)) for f_ in "nsew")) | ((int(cfg.get("scheduling_mode", 0)) & 1) << 12)
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{word:08X}), "
+              + ", ".join(f".in_{f_}({i}_d{f_}), .valid_in_{f_}({i}_v{f_}), .ack_out_{f_}({i}_rdy{f_})" for f_ in "nsew")
+              + f", .data_out({dout}), .valid_out({i}_v), .ack_in({i}_ai));   // priority: {'weighted round robin' if cfg.get('scheduling_mode', 0) else 'strict'}, faces {''.join(faces)}")
         elif r.core == "merge":
             eA, eB = by_dst[c]
             a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'h{MERGE_MODES[merge_node_mode[c]]}), .in_a({i}_ina), .valid_in_a({eA}_v), "

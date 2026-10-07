@@ -79,6 +79,8 @@ CORES = {
     # A pulse-mode accumulator already matches (a discrete event on the threshold crossing), so it stays an ordinary timed source.
     "accumulator": {"kind": "level", "module": "accumulator_cell_v4s"},
     "latch": {"kind": "level", "module": "latch_cell_v4s"},
+    # priority (ledger #1017): the N-way arbiter exists on the FLEX family only (priority_cell_v4sa). On sub, a priority that is not eliminated stays refused.
+    "priority": {"kind": "single", "module": "priority_cell_v4sa", "flex_only": True},
 }
 _LEVEL_ALLOWED = {"accumulator": {"inc_dir", "dec_dir", "downstream_mask", "step_amount", "pulse_mode", "threshold"},
                   "latch": {"set_dir", "clear_dir", "downstream_mask", "toggle_dir"}}
@@ -306,7 +308,7 @@ MUL_REALISATIONS = {"lut": {"module": "mul_cell_v4s", "cost": {"LUT4": {"default
                     "dsp2": {"module": "mul_cell_v4s_dsp2", "primitive": "MULT36X36"}}
 MUL_MODULES = {k: v["module"] for k, v in MUL_REALISATIONS.items()}
 BUILT_WIDTH = 32     # the width every --icm generator builds today (ledger #958: a declared min_bit_width above this is refused)
-FLEX_STAGE1_CORES = {"ram", "adder", "mul", "nano", "comparator", "accumulator", "latch", "branch", "sequencer"}
+FLEX_STAGE1_CORES = {"ram", "adder", "mul", "nano", "comparator", "accumulator", "latch", "branch", "sequencer", "priority"}
 LUT_BUDGET_FRACTION = 0.9
 
 
@@ -389,6 +391,10 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                             f"which is a different behaviour -- fix the wiring (the neighbour must listen on the opposite face).")
     # priority arbiters that only serialised two operands onto one input are eliminated (dedicated ports replace them)
     cells, inputs, outputs, tiekeys, eliminated, pri_problems = nl.eliminate_priority(cells, inputs, outputs)
+    if family == "flex":
+        # ledger #1017: on flex a priority that is not eliminable (weighted, 3-4 sources, stream arbitration in front of a one-input cell, several consumers) is built as the real core
+        # priority_cell_v4sa; only what that core cannot do is refused (checked below, per cell).
+        pri_problems = []
     problems += pri_problems
     cells, inputs, outputs, branch_plans, br_problems = lower_branches(cells, inputs, outputs)
     problems += br_problems
@@ -440,6 +446,9 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
     for r in cells.values():
         c = r.cell_id
         spec = CORES.get(r.core)
+        if spec is not None and spec.get("flex_only") and family != "flex":
+            problems.append(f"{c}: core {r.core!r} unsupported on sub -- the arbiter that could not be eliminated exists as a core on the flex family only (priority_cell_v4sa, ledger #1017)")
+            continue
         if spec is None:
             why = ("no v4s branch cell exists (branch_cell_v4sa is flex-only)" if r.core == "branch"
                    else "arbiter that could not be eliminated (see above)" if r.core == "priority" else "not yet translated")
@@ -479,6 +488,13 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                 problems.append(f"{c}: addon_config on a {r.core} is not translated")
             if not srcs_of[c]:
                 problems.append(f"{c}: {r.core} with no pulse input connected -- nothing can ever change it")
+        if r.core == "priority":                                  # ledger #1017: what priority_cell_v4sa can and cannot do
+            pcfg = r.core_config or {}
+            pmode = int(pcfg.get("scheduling_mode", 0))
+            if pmode not in (0, 1):
+                problems.append(f"{c}: priority scheduling_mode={pmode} (sequenced channel) -- the turn order is not recorded in the ICM format and no RTL implements it; only 0 (strict) and 1 (weighted round robin) are translated")
+            if not srcs_of[c]:
+                problems.append(f"{c}: a priority with no source connected")
         seq_srcs = [q for q in srcs_of[c] if cells[q].core == "sequencer"]
         if seq_srcs and family == "flex" and spec["kind"] != "pair" and len(srcs_of[c]) > 1:
             problems.append(f"{c}: a sequencer feeding a MERGE is not translated on flex (which of its values the merge should take is ambiguous)")
@@ -604,7 +620,9 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                         "valid_from": valid_from, "const_operands": [q for q in (sa, sb) if q in const]}
         else:
             live = [q for q in srcs if q not in const]
-            if len(srcs) > 1 and CORES[r.core]["kind"] != "level":   # a MERGE (gated OR, Alan #924: "a free OR when needed")
+            if r.core == "priority" and any(q in const for q in srcs):
+                raise IcmGenError(f"{c}: a priority with a constant (always-valid) source -- it would win every round it is allowed to (strict) or take its share for ever, and the stream would be starved. Not translated.")
+            if len(srcs) > 1 and CORES[r.core]["kind"] != "level" and r.core != "priority":   # a MERGE (gated OR, Alan #924: "a free OR when needed"); a priority arbitrates its own sources
                 if len(live) != len(srcs):
                     raise IcmGenError(f"{c}: a merge that includes a constant source -- the constant is always valid, so the OR "
                                       f"would swamp the stream; no definite behaviour. Not translated.")
