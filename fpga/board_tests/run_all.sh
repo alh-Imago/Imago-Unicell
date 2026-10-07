@@ -47,7 +47,7 @@ for f in *.fs; do
     echo "ports now: $(ls /dev/ttyUSB* 2>&1 | tr '\n' ' ') -> reading $P (try $try)" >> "raw/$n.ports"
     : > "raw/$n.bin"
     if [ -n "$P" ]; then
-      stty -F "$P" 115200 raw -echo 2>>"raw/$n.ports"
+      stty -F "$P" 115200 raw -echo -hupcl clocal -crtscts 2>>"raw/$n.ports"
       timeout 7 cat "$P" > "raw/$n.bin" 2>>"raw/$n.ports"
     fi
     echo "  ${P:-none}: $(wc -c < "raw/$n.bin") bytes" >> "raw/$n.ports"
