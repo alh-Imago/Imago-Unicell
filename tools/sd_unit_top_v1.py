@@ -21,7 +21,7 @@ RTL = ["sd_unit_v1.v", "sd_stream_v1.v", "sd_spi_v1.v", "spi_bridge_v1.v", "play
 PINS = {  # docs/man/tang-nano-20k.man.json
     "BOARD_CLK": 4, "SD_CLK": 83, "SD_CMD": 82, "SD_DAT0": 84, "SD_DAT3": 81,
     "SPI_CS_N": 73, "SPI_SCLK": 74, "SPI_MOSI": 75, "SPI_MISO": 76, "READY": 77,
-    "LED_N[0]": 15, "LED_N[1]": 16, "LED_N[2]": 17, "LED_N[3]": 18,
+    "LED_N[0]": 15, "LED_N[1]": 16, "LED_N[2]": 17, "LED_N[3]": 18, "LED_N[4]": 19, "LED_N[5]": 20,
 }
 
 
@@ -50,7 +50,7 @@ module unit_top #(parameter INIT_DIV = 34, parameter FAST_DIV = {fast_div}, para
     input  wire BOARD_CLK,
     output wire SD_CLK, output wire SD_CMD, input wire SD_DAT0, output wire SD_DAT3,
     input  wire SPI_SCLK, input wire SPI_CS_N, input wire SPI_MOSI, output wire SPI_MISO, output wire READY,
-    output wire [3:0] LED_N
+    output wire [5:0] LED_N
 );
     wire clk = BOARD_CLK;
     reg [RSTW-1:0] rcnt = 0;
@@ -67,11 +67,12 @@ module unit_top #(parameter INIT_DIV = 34, parameter FAST_DIV = {fast_div}, para
         .lane_data(lane_data), .lane_valid(lane_valid), .lane_ack(lane_ack), .out_data(out_data), .out_valid(out_valid), .out_ack(out_ack), .ready_line(ready_line));
     {top} D (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), {conn});
     assign READY = ready_line;
-    // LEDs (active low): LED0 heartbeat (FPGA loaded and running); LED1 the ESP32 has pulled CS low at least once;
-    // LED2 the ESP32 has clocked SCLK at least once; LED3 the SD card is up and error-free.
-    reg [24:0] hb = 25'd0; reg seen_cs = 1'b0, seen_clk = 1'b0;
-    always @(posedge clk) begin hb <= hb + 1'b1; if (!SPI_CS_N) seen_cs <= 1'b1; if (SPI_SCLK) seen_clk <= 1'b1; end
-    assign LED_N = ~{{ready_line, seen_clk, seen_cs, hb[24]}};
+    // LEDs (active low outputs, lit = true): LED0 heartbeat (FPGA loaded and running); LED1 the ESP32 has pulled CS low at least once;
+    // LED2 the ESP32 has clocked SCLK at least once; LED3 the SD card is up and error-free; LED4 a 1 has arrived on MOSI while CS was low
+    // (proves the MOSI wire); LED5 unused. LED1/LED2/LED4 stay lit until the bitstream is reloaded.
+    reg [24:0] hb = 25'd0; reg seen_cs = 1'b0, seen_clk = 1'b0, seen_mosi = 1'b0;
+    always @(posedge clk) begin hb <= hb + 1'b1; if (!SPI_CS_N) seen_cs <= 1'b1; if (SPI_SCLK) seen_clk <= 1'b1; if (!SPI_CS_N && SPI_MOSI) seen_mosi <= 1'b1; end
+    assign LED_N = ~{{1'b0, seen_mosi, ready_line, seen_clk, seen_cs, hb[24]}};
 endmodule
 `default_nettype wire
 """

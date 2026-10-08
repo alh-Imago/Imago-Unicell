@@ -53,7 +53,7 @@ def test_the_generated_top_does_load_play_read_save(built):
     tb = f"""`timescale 1ns/1ps
 module tb;
   reg clk = 0; always #5 clk = ~clk;
-  wire SD_CLK, SD_CMD, SD_DAT3, SPI_MISO, READY; wire [3:0] LED_N; wire SD_DAT0;
+  wire SD_CLK, SD_CMD, SD_DAT3, SPI_MISO, READY; wire [5:0] LED_N; wire SD_DAT0;
 {MASTER.replace("wire miso;", "wire miso = SPI_MISO;")}
   unit_top T(.BOARD_CLK(clk), .SD_CLK(SD_CLK), .SD_CMD(SD_CMD), .SD_DAT0(SD_DAT0), .SD_DAT3(SD_DAT3), .SPI_SCLK(sclk), .SPI_CS_N(cs_n), .SPI_MOSI(mosi), .SPI_MISO(SPI_MISO), .READY(READY), .LED_N(LED_N));
   defparam T.INIT_DIV = 3; defparam T.FAST_DIV = 1; defparam T.RSTW = 3;
@@ -88,7 +88,7 @@ endmodule
     finally:
         shutil.rmtree(d, ignore_errors=True)
     assert "GLOBAL TIMEOUT" not in out and "ID 57320001" in out, out[-400:]
-    assert "LED 0001 READY 1" in out, out[:300]   # LED3 (SD up), LED2 (SCLK seen), LED1 (CS seen) lit; LED0 heartbeat still off this early
+    assert "LED 100001 READY 1" in out, out[:300]   # LED4 (MOSI seen), LED3 (SD up), LED2 (SCLK seen), LED1 (CS seen) lit; LED0 heartbeat off this early; LED5 unused
     want = [(a + b) & 0xFFFFFFFF for a, b in pairs]
     assert [int(x) for x in re.findall(r"^S (\d+)$", out, re.M)] == want
     assert [int(x) for x in re.findall(r"^C (\d+)$", out, re.M)] == want
@@ -137,7 +137,7 @@ def test_the_cordic_example_runs_one_item_at_a_time_through_the_generated_top():
         tb = f"""`timescale 1ns/1ps
 module tb;
   reg clk = 0; always #5 clk = ~clk;
-  wire SD_CLK, SD_CMD, SD_DAT3, SPI_MISO, READY; wire [3:0] LED_N; wire SD_DAT0;
+  wire SD_CLK, SD_CMD, SD_DAT3, SPI_MISO, READY; wire [5:0] LED_N; wire SD_DAT0;
 {MASTER.replace("wire miso;", "wire miso = SPI_MISO;")}
   unit_top T(.BOARD_CLK(clk), .SD_CLK(SD_CLK), .SD_CMD(SD_CMD), .SD_DAT0(SD_DAT0), .SD_DAT3(SD_DAT3), .SPI_SCLK(sclk), .SPI_CS_N(cs_n), .SPI_MOSI(mosi), .SPI_MISO(SPI_MISO), .READY(READY), .LED_N(LED_N));
   defparam T.INIT_DIV = 3; defparam T.FAST_DIV = 1; defparam T.RSTW = 3;
