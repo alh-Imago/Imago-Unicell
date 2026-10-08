@@ -7,8 +7,8 @@ feedback loops, so the membrane cannot circulate in a ring; instead each TIME ST
     D  = V_prev - L             (subtract; V_prev arrives first)
     V  = D + I_t                (the input current of this step)
     S  = [V >= TH]              (comparator: 1 = spike)
-    R  = S << log2(TH)          (relay with a left-shift addon: S * TH, TH a power of two)
-    V' = V - R                  (soft reset: a spike removes one threshold's worth)
+    R  = S * (-TH)              (a multiplier with the constant -TH)
+    V' = V + R                  (soft reset: a spike removes one threshold's worth)
 
 Entries I_0 .. I_{T-1} (one word per step); exits S_0 .. S_{T-1} (spike 0/1) and VF (the membrane after the last step).  Step 0 starts from an empty membrane (V = I_0).
 `lif_ref` is the exact integer reference.  Netlist placed with the tight placer; the cells are the existing flex cells only."""
@@ -38,8 +38,6 @@ def lif_ref(currents, k=3, th=256, v0=0, mask=(1 << 32) - 1):
 
 def build_stage(k=3, th=256, first=False):
     """One time step as its own small netlist. Entries: PV (the membrane from the previous step; absent in the first stage) and I (this step's input); exits O.S (spike) and O.W (the membrane handed on)."""
-    assert th & (th - 1) == 0, "the threshold is a power of two (the reset is a shift)"
-    lg = th.bit_length() - 1
     n = npl.Net()
     kk = (1 << k) - 1
     if first:
