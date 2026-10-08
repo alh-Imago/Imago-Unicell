@@ -132,3 +132,54 @@ def test_tight_fp32_multiplier_at_word_64_rtl(mode):
     want = [mul_ref(fa.FP32, a, b, mode) for a, b in V]
     bad = [(hex(a), hex(b), hex(x), hex(w)) for a, b, x, w in zip(A, B, got, want) if x != w and not (nan(x) and nan(w))]
     assert len(got) == len(V) and not bad, (mode, len(got), len(g.nodes), bad[:5])
+
+
+# ---- fp64 (ledger #1028): the 106-bit product through a 64-bit word (four limb products, top 64 bits + a jammed sticky) ------------------------------------------------------------------
+F64 = fa.FpFormat("fp64", 53, 11, 64)
+_B64 = {}
+
+
+def vectors64(seed=7):
+    E64, M64 = 11, 52
+    SG64 = 1 << (M64 + E64)
+    INF64 = ((1 << E64) - 1) << M64
+    r = random.Random(seed)
+    sp = [0, SG64, 1, SG64 | ((1 << M64) - 1), 1 << M64, 1023 << M64, SG64 | (1023 << M64), INF64 - 1, INF64, SG64 | INF64, INF64 | (1 << 51), 0x3FF5555555555555, 0x0015555555555555]
+    V = [(a, b) for a in sp for b in sp]
+    bias = 1023
+    for _ in range(60):                                      # exponents summing near the underflow boundary and the overflow boundary
+        for tgt in (bias, 2 * bias + 1):
+            e1 = r.randrange(1, 2047 - 1)
+            e2 = min(max(tgt + r.randrange(-3, 4) - e1, 1), 2046)
+            V.append((r.choice([0, SG64]) | (e1 << M64) | r.getrandbits(M64), r.choice([0, SG64]) | (e2 << M64) | r.getrandbits(M64)))
+    for _ in range(30):                                      # ordinary products: every limb carries something
+        e1, e2 = r.randrange(400, 1600), r.randrange(400, 1600)
+        V.append((r.choice([0, SG64]) | (e1 << M64) | r.getrandbits(M64), r.choice([0, SG64]) | (e2 << M64) | r.getrandbits(M64)))
+    for _ in range(20):                                      # subnormals
+        V.append((r.choice([0, SG64]) | r.getrandbits(M64), r.choice([0, SG64]) | (r.randrange(0, 2047) << M64) | r.getrandbits(M64)))
+    for _ in range(20):                                      # a number times a power of two: exact; subnormal results for the small ones (ties)
+        V.append((r.choice([0, SG64]) | (r.randrange(1, 60) << M64) | r.getrandbits(M64), r.choice([0, SG64]) | (r.randrange(1, 1023) << M64)))
+    for _ in range(12):                                      # products whose low bits are ONLY a sticky: significands with a few top bits and a lone low bit
+        a = (1023 << M64) | (r.getrandbits(8) << 44) | 1
+        b = (1023 << M64) | (r.getrandbits(8) << 44) | 1
+        V.append((a, b))
+    return V
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_fp64_multiplier_in_each_mode_rtl(mode):
+    if mode not in _B64:
+        g = Grid(rows=200, cols=900)
+        ent, ex, consts, _ = fm.fp_mul_tight_u(g, F64, rounding=mode)
+        assert g.balance(limit=900) >= 0 and g.problems() == []
+        _B64[mode] = (g, ent, ex)
+    g, ent, ex = _B64[mode]
+    V = vectors64()
+    A, B = zip(*V)
+    W = [mul_ref(F64, a, b, mode) for a, b in V]
+    d = tempfile.mkdtemp()
+    got = run_rtl(d, f"mul64_{mode}", g.records(), {ent["a"]: list(A), ent["b"]: list(B)}, ex, "plain", settle=8000, cycles=len(V) * 70 + 12000, width=64)["R"]
+    nan = lambda v: (v & 0x7FF0000000000000) == 0x7FF0000000000000 and (v & ((1 << 52) - 1)) != 0  # noqa: E731
+    assert len(got) == len(W), (len(got), len(W))
+    bad = [(hex(a), hex(b), hex(w), hex(x)) for a, b, w, x in zip(A, B, W, got) if x != w and not (nan(x) and nan(w))]
+    assert not bad, (mode, len(bad), bad[:6])
