@@ -49,3 +49,11 @@ def test_web_sketch_link_layer_matches_the_bridge_and_wiring():
     for name, n in (("C_LOAD", 1), ("C_SAVE", 2), ("C_PLAY", 4), ("C_CAP_CLEAR", 8), ("C_CLEAR_DONE", 16), ("C_SD_REINIT", 32)):
         assert re.search(r"\b%s = %d\b" % (name, n), link), name
     assert "DESIGN_CORDIC 1" in ino and "/api/run" in ino and "Basic" in ino or "authenticate" in ino
+
+
+def test_quickstart_exists_and_readme_points_to_it_and_the_unit():
+    q = open(os.path.join(ROOT, "quickstart.py")).read()
+    assert "test_unit_designs_v1.py" in q and "unit_bringup_guide.md" in q
+    readme = open(os.path.join(ROOT, "README.md")).read()
+    assert "python3 quickstart.py" in readme and "The small unit: Tang Nano 20K" in readme
+    assert "not wired yet (#888)" not in readme

@@ -1,6 +1,6 @@
 # Small unit bring-up guide: Tang Nano 20K + ESP32 (CORDIC unit)
 
-Ledger #1036. Nothing here has run on real hardware yet, so the order below goes from "does the link talk at all" to "does the card work", and each step has a clear pass/fail.
+Ledger #1036. The CORDIC unit, the SPI link and the SD round trip have all run on the real Tang Nano 20K (see the results below); the WiFi sketch has not. The order below goes from "does the link talk at all" to "does the card work", and each step has a clear pass/fail.
 
 ## What you need
 - Tang Nano 20K with the 16 GB SanDisk Ultra (SDHC) in its microSD slot, USB-C cable.

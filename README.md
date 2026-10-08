@@ -234,8 +234,17 @@ link went silent after repeated loads, they run as two grouped
 bitstreams, one load per power-up: `tools/board_tests_v1.py`,
 `tools/board_groups_v1.py`, and `run_groups.sh` give 10 of 10 PASS in
 one run. This proves the cell RTL and the handshake on silicon at
-27 MHz with small designs, not capacity or speed. The planned ESP32 host link (an
-ESP32-WROOM-32E) is not wired yet (#888).
+27 MHz with small designs, not capacity or speed. The ESP32 host link is now
+built and running: see [The small unit](#the-small-unit-tang-nano-20k--sd-card--esp32) below.
+
+---
+
+## The small unit: Tang Nano 20K + SD card + ESP32
+
+A working test tool built around any flex design (ledger #1036, addenda 1-12). An SD card (raw 512-byte blocks) feeds a playout RAM, the design runs, a capture RAM collects the results and writes them back to the card; an ESP32 controls it all over SPI (and by WiFi: a password-protected web page for running the unit from a phone or laptop).
+**Verified on the real board:** the CORDIC design (all six test angles match the simulator) and a full SD-card round trip. The reduction-tree and relay designs also fit the Nano and pass in simulation, but have no bitstream yet. The Wasserstein engine does not fit this chip.
+**Not yet tried on hardware:** the WiFi web sketch, the S1 reset button, loading a design from the ESP32 (research only).
+Start with [`docs/unit_bringup_guide.md`](docs/unit_bringup_guide.md); the ready-made bitstream is `fpga/build/unit_cordic_v1/unit_top.fs`; the ESP32 sketches are in `tools/esp32/`.
 
 ---
 
@@ -451,6 +460,7 @@ check before trusting a run:
 ```bash
 git clone https://github.com/alh-Imago/Imago-Unicell.git
 cd Imago-Unicell
+python3 quickstart.py        # checks what you have installed, runs a 10-second self-test, says what to do next
 which iverilog yosys && python3 -c "import pytest, llvmlite"
 
 # Run the VM test suite, then the flex/sub suites (each is a plain script)

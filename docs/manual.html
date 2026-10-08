@@ -398,8 +398,14 @@ link went silent after repeated loads, they run as two grouped
 bitstreams, one load per power-up: <code>tools/board_tests_v1.py</code>,
 <code>tools/board_groups_v1.py</code>, and <code>run_groups.sh</code> give 10 of 10 PASS in
 one run. This proves the cell RTL and the handshake on silicon at
-27 MHz with small designs, not capacity or speed. The planned ESP32 host link (an
-ESP32-WROOM-32E) is not wired yet (#888).</p>
+27 MHz with small designs, not capacity or speed. The ESP32 host link is now
+built and running: see <a href="#the-small-unit-tang-nano-20k--sd-card--esp32">The small unit</a> below.</p>
+<hr />
+<h2>The small unit: Tang Nano 20K + SD card + ESP32</h2>
+<p>A working test tool built around any flex design (ledger #1036, addenda 1-12). An SD card (raw 512-byte blocks) feeds a playout RAM, the design runs, a capture RAM collects the results and writes them back to the card; an ESP32 controls it all over SPI (and by WiFi: a password-protected web page for running the unit from a phone or laptop).
+<strong>Verified on the real board:</strong> the CORDIC design (all six test angles match the simulator) and a full SD-card round trip. The reduction-tree and relay designs also fit the Nano and pass in simulation, but have no bitstream yet. The Wasserstein engine does not fit this chip.
+<strong>Not yet tried on hardware:</strong> the WiFi web sketch, the S1 reset button, loading a design from the ESP32 (research only).
+Start with <a href="../docs/unit_bringup_guide.md"><code>docs/unit_bringup_guide.md</code></a>; the ready-made bitstream is <code>fpga/build/unit_cordic_v1/unit_top.fs</code>; the ESP32 sketches are in <code>tools/esp32/</code>.</p>
 <hr />
 <h2>The Arria 10 line: the super carrier shell (Unicell-S)</h2>
 <p><em>This was the active line until 2026-09; it is now the earlier line (see
@@ -631,6 +637,7 @@ from a clone of this repo. The flex/sub suites need <code>iverilog</code> and
 check before trusting a run:</p>
 <pre><code class="language-bash">git clone https://github.com/alh-Imago/Imago-Unicell.git
 cd Imago-Unicell
+python3 quickstart.py        # checks what you have installed, runs a 10-second self-test, says what to do next
 which iverilog yosys &amp;&amp; python3 -c &quot;import pytest, llvmlite&quot;
 
 # Run the VM test suite, then the flex/sub suites (each is a plain script)
@@ -5849,7 +5856,7 @@ unverified against the schematic, so start with the SRAM (non-persistent) write 
 </ul>
 <div class="partsub">Small unit bring-up: Tang Nano + ESP32<span class="partsrc">docs/unit_bringup_guide.md</span></div>
 <h1>Small unit bring-up guide: Tang Nano 20K + ESP32 (CORDIC unit)</h1>
-<p>Ledger #1036. Nothing here has run on real hardware yet, so the order below goes from "does the link talk at all" to "does the card work", and each step has a clear pass/fail.</p>
+<p>Ledger #1036. The CORDIC unit, the SPI link and the SD round trip have all run on the real Tang Nano 20K (see the results below); the WiFi sketch has not. The order below goes from "does the link talk at all" to "does the card work", and each step has a clear pass/fail.</p>
 <h2>What you need</h2>
 <ul>
 <li>Tang Nano 20K with the 16 GB SanDisk Ultra (SDHC) in its microSD slot, USB-C cable.</li>

@@ -25,3 +25,8 @@ llvmlite             # required by nano/llvm_ir_frontend_v1.py (#611) --
 # cupy               # only used if a real CUDA device is available;
 #                      nano/gpu_array_v1.py falls back to numpy
 #                      automatically otherwise
+
+# Small unit / Tang Nano 20K bitstream building (only for that job; see quickstart.py)
+# yowasp-yosys, yowasp-nextpnr-himbaechel-gowin, apycula   (pip install --break-system-packages ...)
+# openFPGALoader (apt or its project page) loads the bitstream; arduino-cli or the Arduino IDE builds the ESP32 sketches
+
