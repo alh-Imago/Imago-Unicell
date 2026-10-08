@@ -2,6 +2,13 @@
 
 What each design taught the placer / layout engine (`tools/flex_layout_v1.py`, `tightplace_v1.py`, `netplace_v1.py`, `fp_mul_tight_v1.place_net_tight`). Newest first. Each lesson says what went wrong, what fixed it, and what the tools could do about it.
 
+## PLACER RULE: make a subtract order-free (Alan, 8 Oct 2026; found in the 1-D Wasserstein engine, #1034)
+R1. **Rewrite `a - b` as `a + (-1)*b`.** A subtract is the one common two-operand op where operand ORDER matters (minuend must be A, and the VM pairs operands by arrival order, not by face). An add and a multiply are commutative, so after the rewrite the pair needs no order, only that the two operands do not arrive on the same tick (no tie). The multiply is by a 32-bit all-ones constant (-1), one extra cell.
+- **When to apply:** the minuend's lane is the LONG one (it would arrive second) and the balancer cannot shorten the other lane or delay it; or the placer would otherwise need a delay cell per sub.
+- **Cost:** one mul core (large in pure logic, ~5.7k LUT4 low-half only; use the DSP block on FPGA) and its latency; so prefer a delay/relay if one is cheaper, and prefer the rewrite when several subs share one negated term.
+- **Placer implementation idea:** a pass before placement that flags every sub whose minuend arrival depth exceeds the subtrahend's and inserts neg-multiply on the subtrahend; mark the inserted mul so a later pass can drop it if the balancer finds slack.
+- Status: manual in the Wasserstein engine; not yet automatic in the placer.
+
 ## From the cross / merge / second-output ports (#1036)
 0b. **A cell that produces two words (carry, high word) is two lanes, not one.** With `second_downstream_mask` the second word leaves by its own faces, so the placer must lay two output lanes from one cell and treat them as independent nets (they need not arrive together). **A merge core has two named input faces (A, B)**: which source lands on A matters for arbitrate's first grant, so place the source meant to win a tie on the lower-ordered face (N before S before E before W).
 0c. **A wiring tile needs a different word on each face**; anything in the generator that assumed one output word per cell (the carrier's shared output, the layout view's per-cell data) must treat cross and corner as four slices.
