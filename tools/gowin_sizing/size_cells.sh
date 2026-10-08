@@ -32,3 +32,8 @@ run command_cell_v4      command_cell_v4.v
 run adder_cell_v4        adder_cell_v4.v adder_v1.v $ADD
 run nano_gate_v4         nano_gate_v4.v $ADD
 run mul_cell_v4          mul_cell_v4.v bitwise_multiplier_32bit.v $ADD
+run mul_cell_v5          mul_cell_v5.v bitwise_multiplier_32bit.v $ADD
+run priority_cell_v4     priority_cell_v4.v $ADD
+run corner_cell_v4       corner_cell_v4.v
+run cross_cell_v4        cross_cell_v4.v corner_cell_v4.v
+run merge_cell_v4        merge_cell_v4.v $ADD
