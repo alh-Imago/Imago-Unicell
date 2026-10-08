@@ -24,3 +24,9 @@ Reproduce: `tools/gowin_sizing/size_cells.sh full|lean`, `tools/gowin_sizing/siz
 Full carrier position (every core shell, one shared addon chain): v1d 18,238 LUT4 / 1,294 FF (87.9% of LUT4); v1 18,246 / 1,292.
 
 Notes: mul v5 costs about 5,000 LUT4 more than v4 (the second output word) -- worth checking whether the multiplier core can share logic. Corner/cross are tiny but FF-heavy (four one-word slices). One carrier position fills ~88% of a Nano 20K, so the Nano holds one position only.
+
+## Why mul v5 is ~5,000 LUT4 bigger than v4 (checked)
+The control logic for the second word is small. The difference is the multiplier itself: v4 only uses Product[31:0], so synthesis deletes the upper half of the partial-product array; v5 needs Product[63:32], so the whole 32x32 array stays.
+Multiplier alone (yosys synth_gowin): full 64-bit product = 6739 LUT4 + 1698 smaller LUTs + 97 ALU; low 32 bits only = 3277 LUT4 + 966 smaller LUTs + 32 ALU. So the high half costs about as much again as the low half -- it is inherent to the array, not a v5 defect.
+Caveat: the sizing scripts count LUT1-4 only; ALU (carry-chain) cells are not in the totals, so all figures under-count slightly.
+Ways down (not done, need a decision): (1) use the Gowin DSP multiplier blocks on FPGA (the repo already has a DSP wrapper cell) -- near-zero LUTs, FPGA-only, not silicon; (2) a sequential shift-add multiplier -- ~100-200 LUTs but 32 ticks of latency instead of 0; (3) keep it, since mul is one core of fourteen per carrier position.
