@@ -71,7 +71,7 @@ button:disabled{opacity:.5}table{width:100%;border-collapse:collapse;margin-top:
 <small>Blocks below 16 are refused. Saving overwrites raw blocks on the card.</small>
 <div class="row"><input id="blk" type="number" min="16" value="64" aria-label="start block"><input id="nb" type="number" min="1" max="8" value="1" aria-label="blocks"></div>
 <div class="row"><button class="alt" id="sload">Load blocks into the unit</button><button class="alt" id="ssave">Save results to blocks</button><button class="alt" id="sinit">Re-init card</button></div></div>
-<div id="msg"></div></main>
+<div id="msg"></div><p><small>Design and simulate on your own computer: <a href="https://github.com/alh-Imago/Imago-Unicell" target="_blank" rel="noopener">github.com/alh-Imago/Imago-Unicell</a>, then <code>python3 nano/frontend_v1.py</code> (needs internet only to fetch it; this unit works without).</small></p></main>
 <script>
 const $=id=>document.getElementById(id);let lanes=1;
 function msg(t,bad){const m=$('msg');m.textContent=t;m.className=bad?'bad':''}
