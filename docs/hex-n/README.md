@@ -41,5 +41,8 @@ Feedback lines currently share the same accumulator as forward input
 
 ## Status
 
-Scoping stage. No RTL or VM work started yet — waiting on the Tang Nano 20K
-board to arrive before BL616 firmware and cell design work begins in earnest.
+Scoping stage, with a first behavioural prototype. The Tang Nano 20K has arrived and
+the UniCell small unit (SD card + SPI bridge + ESP32) runs on it, which changes the
+pin budget and the ESP32 link: see `walkthrough-v0.2.md` (review, open questions,
+measured cost). `rtl/hexn_cell_v0.v` + `tests/test_hexn_cell_v0.py` are scoping
+prototypes that pin down assumptions, not decisions.
