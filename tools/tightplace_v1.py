@@ -77,7 +77,7 @@ def place_map(g, name, n, rows, r0, c0, route_order=None, cross=True, extra=None
         fr = [(r_ + dr, c_ + dc) for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)) if (r_ + dr, c_ + dc) not in occ_ and 0 <= r_ + dr < g.rows and 0 <= c_ + dc < g.cols and (r_ + dr, c_ + dc) not in reserved]
         if not fr:
             raise LayoutError(f"{nm}: no free face for its outside lane")
-        reserved.add(max(fr, key=lambda q: (q[1] if side == 'E' else -q[1], -abs(q[0] - r_))))
+        reserved.add(max(fr, key=lambda q: (-q[0], -abs(q[1] - c_)) if side == 'N' else (q[1] if side == 'E' else -q[1], -abs(q[0] - r_))))      # 'N' (#1030): the face on the top side
     stubs = _assign_stubs(g, names, placed, routed, reserved)
     done = []
     doneset = set()
