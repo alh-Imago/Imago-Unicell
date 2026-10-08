@@ -33,13 +33,13 @@ from flex_layout_v1 import D, OPP, PAIR, Grid, LayoutError  # noqa: E402
 from icm_v3 import IcmV3File, IcmV3Record  # noqa: E402
 
 MASKS = ("upstream_mask", "downstream_mask", "second_downstream_mask")
-PINNED_CORES = ("priority", "command")
+PINNED_CORES = ("priority", "command", "corner")      # a corner tile (ledger #1035) turns words by its `turn` bit, not by routing: the view keeps its wiring exactly as filed
 MARGIN = 3                     # free squares kept round an imported design, so routes can go round its edge
 UNDO_DEPTH = 40
 OUT_FIELD = {"out": "downstream_mask", "second": "second_downstream_mask", "low": "route_low", "equal": "route_equal", "high": "route_high"}
 IN_FIELD = {"in": "upstream_mask", "set": "set_dir", "clear": "clear_dir", "toggle": "toggle_dir", "inc": "inc_dir", "dec": "dec_dir"}
 SHORT = {"ram": "ram", "adder": "add", "mul": "mul", "comparator": "cmp", "accumulator": "acc", "latch": "lat", "sequencer": "seq", "branch": "br", "nano": "nano",
-         "priority": "pri", "cross": "x"}
+         "priority": "pri", "cross": "x", "corner": "cor"}
 
 
 def table(core):

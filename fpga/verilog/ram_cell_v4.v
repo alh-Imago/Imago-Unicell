@@ -132,7 +132,12 @@ module ram_cell_v4 #(
                                (ram_sel_e ? data_in_e : 32'h0) |
                                (ram_sel_w ? data_in_w : 32'h0);
 
-    wire capture_now = ram_any_upstream_arrived && !data_valid && !fixed_mode &&
+    // HOLD (ledger #1035, ported from the flex ram's HOLD #1021): a FIXED ram that has an upstream face holds its word, offers it again and again (never used up), and ANY word arriving on an
+    // upstream face REPLACES it, always acknowledged. It offers nothing until a word has been written (or preloaded: cfg load_data_valid). No new config bit: fixed_mode with a non-empty upstream_mask
+    // was a dead combination before (fixed cells never captured); a fixed ram with NO upstream is still the plain constant, a flowing ram is unchanged.
+    wire hold_mode   = fixed_mode && (|upstream_mask[3:0]);
+    wire can_capture = hold_mode || (!data_valid && !fixed_mode);
+    wire capture_now = ram_any_upstream_arrived && can_capture &&
                        !effective_freeze && effective_armed && !program_in;
 
     assign ack_out_n = capture_now && ram_sel_n;
@@ -186,7 +191,7 @@ module ram_cell_v4 #(
     // Real, honest gating: an inactive or disarmed cell never signals
     // ready, same real convention as adder_cell_v4.v's own (#618) and
     // nano's own real `ready_bit && armed` (#615).
-    assign ready_out = effective_armed && !data_valid && !fixed_mode && !effective_freeze;
+    assign ready_out = effective_armed && can_capture && !effective_freeze;
     assign status_data_valid = data_valid;
 
     // ── points.md #617: real, targeted programming channel — same

@@ -71,6 +71,7 @@ than raising.
 | 8 | `mul` | VM core since #757; table added #823 |
 | 9 | `priority` | VM core since #751; table added #823 |
 | 10 | `cross` | the crossing tile (#999; number confirmed by Alan): no control logic, one tick per tile per direction; no native RTL core yet (the netlist extractor builds each used direction from a ram relay slice); flex VM only |
+| 11 | `corner` | the corner tile (#1035, Alan): a wiring tile that TURNS words instead of passing them straight (see below); one `turn` bit; native RTL core `corner_cell_v4[c]` and carrier `core_select` 12 (the carrier numbers its cores differently from the ICM; 11 is the `v1d` addon pseudo-target); flex VM, std (super-cell) VM and netlist splice |
 
 A saved file's `cell_type` is derived, not declared: the minimum shell
 that can run every core in it (`minimum_shell_version()`, so
@@ -267,6 +268,25 @@ Open: native per-family cores and cost rows.
 |---|---|
 | `downstream_mask` | `[3:0]` |
 | `upstream_mask` | `[7:4]` |
+
+**corner** (11, #1035). The turning cousin of `cross`: two lanes meet in one square and each is bent through a right angle. `turn` 0 pairs **E-N and W-S**,
+`turn` 1 pairs **E-S and W-N**. Each pairing carries words in both directions, so the tile holds four independent one-word slices (one per face a word can enter by);
+a word that enters by face X leaves by `partner(X)`, one tick per tile, nothing transformed (no addon chain). Where it exists:
+the flex VM (`FlexGrid`, hidden ram slices, like `cross`), the netlist splice (`splice_crosses` now handles both tiles, so the flex/sub RTL generators need no new cell),
+the std VM (`corner_cell_automaton_v1.CornerCell`, built by `SuperGrid` for a `corner` record) and the carrier RTL (`corner_cell_v4.v` / `corner_cell_v4c.v`, same module;
+`corner_shell_v1[c].v`; `core_select` 12 in `unicell_vix_carrier_v1[d].v`). In the carrier the single `ready_out` reads "at least one slice is empty"; a word that arrives at a full
+slice is simply not acknowledged and the sender keeps offering it. Targeted programming: PROG_ID 2 carries the `turn` bit, PROG_ID 7 (COMPLETE) re-arms.
+
+| Field | Bits |
+|---|---|
+| `downstream_mask` | `[3:0]` (derived from the joins; the VM ignores it) |
+| `upstream_mask` | `[7:4]` (derived from the joins; the VM ignores it) |
+| `turn` | `[8]` |
+
+**ram HOLD (#1035).** The std/carrier ram absorbs the flex ram's HOLD with no new config bit: `fixed_mode = 1` with a non-empty `upstream_mask` (a combination that was dead before,
+a fixed ram never captured). The cell offers its stored word again and again (never used up), any word arriving on an upstream face REPLACES it (always acknowledged), and it offers nothing
+until a word has been written or preloaded (`load_data_valid`). A fixed ram with no upstream is still the plain constant; a flowing ram is unchanged. Differences from the flex HOLD:
+the flex cell uses valid/ack on one input and re-offers on consumer ready; the carrier uses fire/arrived/ack with `ready_out`, ORs simultaneous arrivals (flex merges by priority).
 
 ## `addon_config[19:0]` (plus `shift_fine`)
 

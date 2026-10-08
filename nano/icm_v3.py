@@ -127,6 +127,10 @@ SEL_PRIORITY = 9
 #: Alan, 6 Oct 2026: `cross` -- a pure-wiring CROSSING tile (W<->E and N<->S pass straight through, no state, no control). Another entry from the reserved headroom (#317, #823 precedent):
 #: Core number 10 CONFIRMED by Alan (6 Oct 2026, "10 fits, it looks like an X on an angle"); the native RTL core slot per family is still to be built.
 SEL_CROSS = 10
+#: Alan, 8 Oct 2026: `corner` -- the CROSSING tile's sibling: a pure-wiring tile that pairs its four faces as TURNS instead of straight-throughs, two independent paths in one square.
+#: `turn` 0 pairs E-N and W-S ("E can be sent N while W is sent S"); `turn` 1 pairs E-S and W-N ("and vice versa"). Each path carries words in both directions, one register slice per direction of travel.
+#: Core number 11; the native RTL core slot per family is still to be built (like `cross`, the netlist step turns it into ordinary ram relay cells).
+SEL_CORNER = 11
 
 CORE_NAMES = {
     SEL_NANO: "nano",
@@ -140,6 +144,7 @@ CORE_NAMES = {
     SEL_MUL: "mul",
     SEL_PRIORITY: "priority",
     SEL_CROSS: "cross",
+    SEL_CORNER: "corner",
 }
 CORE_IDS = {name: sel for sel, name in CORE_NAMES.items()}
 
@@ -360,6 +365,26 @@ _CROSS_FIELDS = {
     "upstream_mask": (4, 7),
 }
 
+_CORNER_FIELDS = {
+    "downstream_mask": (0, 3),
+    "upstream_mask": (4, 7),
+    "turn": (8, 8),
+}
+
+_OPPOSITE = {"N": "S", "S": "N", "E": "W", "W": "E"}
+_CORNER_PAIRS = {0: {"E": "N", "N": "E", "W": "S", "S": "W"}, 1: {"E": "S", "S": "E", "W": "N", "N": "W"}}
+
+
+def wiring_tile_partner(core, core_config=None):
+    """For a pure-wiring tile (`cross` or `corner`): {face a: face b} -- a word that ENTERS through face a LEAVES through face b. cross: the opposite face; corner: the turn pairing
+    (`turn` 0: E-N and W-S; `turn` 1: E-S and W-N). Faces are the letters N, S, E, W."""
+    if core == "cross":
+        return dict(_OPPOSITE)
+    if core == "corner":
+        return dict(_CORNER_PAIRS[int((core_config or {}).get("turn", 0)) & 1])
+    raise ValueError(f"{core!r} is not a wiring tile")
+
+
 CORE_FIELD_TABLES = {
     SEL_NANO: _NANO_FIELDS,
     SEL_RAM: _RAM_FIELDS,
@@ -372,6 +397,7 @@ CORE_FIELD_TABLES = {
     SEL_MUL: _MUL_FIELDS,
     SEL_PRIORITY: _PRIORITY_FIELDS,
     SEL_CROSS: _CROSS_FIELDS,
+    SEL_CORNER: _CORNER_FIELDS,
 }
 
 # Direction-valued fields per core -- these accept either a raw int or a
@@ -393,6 +419,7 @@ _DIR_FIELDS = {
                     # below -- given the friendlier list-based interface.
     SEL_RAM: ("downstream_mask", "upstream_mask"),
     SEL_CROSS: ("downstream_mask", "upstream_mask"),
+    SEL_CORNER: ("downstream_mask", "upstream_mask"),
     SEL_ADDER: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
     SEL_ACC: ("inc_dir", "dec_dir", "downstream_mask"),
     SEL_CMP: ("downstream_mask", "upstream_mask"),

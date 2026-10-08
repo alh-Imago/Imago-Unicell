@@ -41,3 +41,5 @@ names its ledger entry.
 Not in this folder: the flex/sub generator suites are plain scripts in
 `tests/test_flexsub_*.py`, and the front-end and assembler tests are in
 `tests/tools/`. See `tests/README.md`.
+
+| **corner tile and HOLD ram (#1035)** | `test_corner_tile_v1` (flex VM + generated RTL + ICM codec), `test_vix_corner_v1` (std VM `SuperGrid` + introspection), `test_vix_ram_hold_v1` (std VM HOLD), `test_rtl_hold_corner_v1` (iverilog: `tb_ram_hold_v4` on `ram_cell_v4`/`v4c`, `tb_corner_cell_v4` on `corner_cell_v4`/`v4c`, the existing ram testbenches, and both carriers with core 12 added) | the turning wiring tile (E-N/W-S or E-S/W-N) and the ram HOLD mode (fixed + upstream = hold, offer repeatedly, replace on arrival) in every model. NOT yet driven through the carrier's `core_select` 12 end to end: the carriers compile with it and their existing testbenches pass |

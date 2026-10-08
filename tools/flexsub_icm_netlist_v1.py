@@ -152,7 +152,7 @@ def extract(path):
             edges.append((r.cell_id, dst_id, d, role, tuple(outcomes)))
             inputs[dst_id][role].append((r.cell_id, OPP[d]))
             outputs[r.cell_id].append(dst_id)
-    if any(r.core == "cross" for r in recs):
+    if any(r.core in ("cross", "corner") for r in recs):
         cells, edges, inputs, outputs, external_out = splice_crosses(cells, edges, inputs, outputs, external_out, warnings)
     try:
         for w in doc.check_connections():
@@ -163,49 +163,57 @@ def extract(path):
 
 
 def splice_crosses(cells, edges, inputs, outputs, external_out, warnings):
-    """CROSSING tiles (core "cross", Alan 6 Oct 2026): a tile that passes data STRAIGHT THROUGH on two independent axes (W<->E and N<->S), no control, no decisions.
-    ONE TICK PER TILE, as with every other core (Alan, 6 Oct 2026: "add the tick as 1 per tile"): each direction of travel through the tile has its OWN one-word register slice,
-    so a word entering travelling in direction d leaves in direction d one tick later, and the two axes never share state. In the netlist each used (tile, direction) becomes an ordinary
-    ram relay cell `<tile>__<d>` (upstream face OPP[d], downstream face d); `src -> cross -> dst` is `src -> X__d -> dst`. A slice whose straight-through exit leaves the grid keeps the
-    external output; one whose exit meets a neighbour that does not listen is reported (the word would be lost)."""
+    """WIRING TILES -- the CROSSING tile (core "cross", Alan 6 Oct 2026: W<->E and N<->S straight through) and the CORNER tile (core "corner", 8 Oct 2026: two independent turns in one square,
+    `turn` 0 = E-N and W-S, `turn` 1 = E-S and W-N). No control, no decisions. ONE TICK PER TILE, as with every other core (Alan, 6 Oct 2026: "add the tick as 1 per tile"): each direction of travel
+    through the tile has its OWN one-word register slice, so a word entering the tile leaves it (straight on, or round the corner) one tick later, and the paths never share state. In the netlist each
+    used (tile, direction of travel on the way IN) becomes an ordinary ram relay cell `<tile>__<k>` (upstream face OPP[k], downstream the partner face); `src -> tile -> dst` is `src -> X__k -> dst`.
+    A slice whose exit leaves the grid keeps the external output; one whose exit meets a neighbour that does not listen is reported (the word would be lost)."""
+    from icm_v3 import wiring_tile_partner
     cells = dict(cells)
     inputs = {k: {r: list(v) for r, v in d.items()} for k, d in inputs.items()}
     outputs = {k: list(v) for k, v in outputs.items()}
-    cross = {c for c, r in cells.items() if r.core == "cross"}
-    V = lambda x, d: f"{x}__{d}"
+    cross = {c for c, r in cells.items() if r.core in ("cross", "corner")}
+    part = {c: wiring_tile_partner(cells[c].core, cells[c].core_config) for c in cross}
+    V = lambda x, k: f"{x}__{k}"
+    key_out = lambda x, d: OPP[part[x][d]]               # the direction of travel on the way IN of the slice that leaves through face d (straight: d itself)
     used = set()
     new_edges = []
     for src, dst, d, role, oc in edges:
         ns, nd = src, dst
         if src in cross:
-            used.add((src, d))
-            ns = V(src, d)
+            k = key_out(src, d)
+            used.add((src, k))
+            ns = V(src, k)
         if dst in cross:
             used.add((dst, d))
             nd = V(dst, d)
         new_edges.append((ns, nd, d, "in" if dst in cross else role, () if src in cross else oc))
     edges = new_edges
-    for x, d in sorted(used):
+    meta = {}                                            # slice cell -> (tile, direction of travel in, face out)
+    for x, k in sorted(used):
         base = cells[x]
-        has_in = any(e[1] == V(x, d) for e in edges)
-        has_out = any(e[0] == V(x, d) for e in edges)
+        has_in = any(e[1] == V(x, k) for e in edges)
+        has_out = any(e[0] == V(x, k) for e in edges)
         if not has_in:
             continue                                   # an exit with nothing entering it
-        cells[V(x, d)] = type(base)(cell_id=V(x, d), row=base.row, col=base.col, core="ram",
-                                    core_config={"upstream_mask": [OPP[d]], "downstream_mask": [d]}, addon_config={}, io_name=None, preload_value=None)
+        f_out = part[x][OPP[k]]
+        cells[V(x, k)] = type(base)(cell_id=V(x, k), row=base.row, col=base.col, core="ram",
+                                    core_config={"upstream_mask": [OPP[k]], "downstream_mask": [f_out]}, addon_config={}, io_name=None, preload_value=None)
+        meta[V(x, k)] = (x, k, f_out)
         if not has_out:
-            if d in external_out.get(x, []):
-                external_out[V(x, d)] = [d]
+            if f_out in external_out.get(x, []):
+                external_out[V(x, k)] = [f_out]
             else:
-                warnings.append(f"{x} (crossing): the word travelling {d} has no listener straight through -- output dropped")
+                warnings.append(f"{x} ({base.core}): the word entering travelling {k} has no listener on face {f_out} -- output dropped")
     for src, dst, d, role, oc in edges:                # rebuild the per-cell views from the edge list for every edge that touches a slice
-        if dst.endswith("__" + d) and dst in cells and dst[: -len(d) - 2] in cross:
-            outputs[src] = [q for q in outputs.get(src, []) if q != dst[: -len(d) - 2]] + [dst]
+        if dst in meta:
+            x = meta[dst][0]
+            outputs[src] = [q for q in outputs.get(src, []) if q != x] + [dst]
             inputs.setdefault(dst, {}).setdefault("in", [])
             if (src, OPP[d]) not in inputs[dst]["in"]:
                 inputs[dst]["in"].append((src, OPP[d]))
-        if src.endswith("__" + d) and src in cells and src[: -len(d) - 2] in cross:
-            x = src[: -len(d) - 2]
+        if src in meta:
+            x = meta[src][0]
             outputs[src] = [dst] if dst not in outputs.get(src, []) else outputs[src]
             keep = [(q, f) for q, f in inputs[dst][role] if q != x]
             inputs[dst][role] = keep + ([(src, OPP[d])] if (src, OPP[d]) not in keep else [])

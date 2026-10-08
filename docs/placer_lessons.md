@@ -2,6 +2,10 @@
 
 What each design taught the placer / layout engine (`tools/flex_layout_v1.py`, `tightplace_v1.py`, `netplace_v1.py`, `fp_mul_tight_v1.place_net_tight`). Newest first. Each lesson says what went wrong, what fixed it, and what the tools could do about it.
 
+## From the corner tile (#1035)
+0. **Tile kinds the placer knows: logic cells, relays, crossing tiles, and now corner tiles.** A corner is the only wiring tile that changes direction, so a lane may now bend INSIDE a square: a route that has to jump a congested crossing can turn at a corner instead of spending two relays. The router (`route_nets(use_cross=True)`) still lays straight crossings only; corners are placed by hand or by a netlist (`Grid.add(name, r, c, "corner", {"turn": t})`) and the layout view keeps them pinned (it will not move or re-route through them). *Tool idea:* teach `route()` to use a corner as a free bend.
+   Lanes through a corner are one tick per tile, the same as a relay, so timing balance counts it as a relay hop.
+
 ## From the 2-D flow medium (#1034)
 1. **Exits pinned to the tile edge.** Left to the annealer, an exit cell can end up inside the tile, walled in by the tile's own relays: its lane cannot leave. Pin entries to the west column AND exits to the east column (`_place_pinned` in `flow2d_flex_v1.py`). *Tool idea:* make `place_net_tight` pin `outs` the way it pins `entries`.
 2. **Stubs.** One relay on an open face of every exit and entry that a lane will use, placed before any lane is routed, so lanes laid earlier cannot close the pin in. Check the stub opens onto free space (flood fill), not a pocket; re-place the tile with the next seed if not.

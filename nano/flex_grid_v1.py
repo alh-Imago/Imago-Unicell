@@ -16,7 +16,7 @@ from dataclasses import replace as _dc_replace
 
 from unicell_super_automaton_v1 import SuperCell, SuperGrid, _CORE_HANDLERS, CoreHandler, _DIR_BIT
 from unicell_automaton_v1 import N, S, E, W
-from icm_v3 import pack_dirmask as _pack_dirmask
+from icm_v3 import pack_dirmask as _pack_dirmask, wiring_tile_partner
 
 _FLEX_HANDLERS: dict = {}
 
@@ -259,23 +259,27 @@ class FlexGrid(SuperGrid):
         # CROSSING tiles (core "cross", Alan 6 Oct 2026): two independent straight-through axes, no control, ONE TICK PER TILE like every other core ("add the tick as 1 per tile").
         # Each used direction of travel is its OWN one-word register slice: a hidden relay cell (core ram) at a virtual position, reached by neighbor_pos when a neighbour sends
         # into the tile and sending on beyond it. Two words crossing in the same tile therefore never share a register, and each takes exactly one tick through the tile.
-        self._cross = {(r.row, r.col) for r in records if r.core == "cross"}
-        self._slice_real, self._slice_at = {}, {}
+        self._cross = {(r.row, r.col) for r in records if r.core in ("cross", "corner")}
+        self._slice_real, self._slice_in, self._slice_out = {}, {}, {}
         extra = []
         for r in records:
-            if r.core != "cross":
+            if r.core not in ("cross", "corner"):
                 continue
             cfg_ = r.core_config or {}
             up_ = {str(x).upper() for x in (cfg_.get("upstream_mask") or [])} if not isinstance(cfg_.get("upstream_mask"), int) else {d_ for b_, d_ in enumerate("NSEW") if (cfg_["upstream_mask"] >> b_) & 1}
             dn_ = {str(x).upper() for x in (cfg_.get("downstream_mask") or [])} if not isinstance(cfg_.get("downstream_mask"), int) else {d_ for b_, d_ in enumerate("NSEW") if (cfg_["downstream_mask"] >> b_) & 1}
-            for d_ in "NSEW":
-                if d_ in dn_ and {"N": "S", "S": "N", "E": "W", "W": "E"}[d_] in up_:
+            part_ = wiring_tile_partner(r.core, cfg_)        # a word entering through face a leaves through face part_[a]; a cross passes straight through, a corner turns (ledger #1035)
+            for d_ in "NSEW":                                # d_ = the face a slice LEAVES through (= its direction of travel on the way out)
+                f_in = part_[d_]
+                if d_ in dn_ and f_in in up_:
                     vpos = (-100 - len(extra), -100 - len(extra))
+                    k_in = {"N": "S", "S": "N", "E": "W", "W": "E"}[f_in]        # the direction of travel on the way IN
                     self._slice_real[vpos] = (r.row, r.col, d_)
-                    self._slice_at[(r.row, r.col, {"N": N, "S": S, "E": E, "W": W}[d_])] = vpos
+                    self._slice_out[(r.row, r.col, {"N": N, "S": S, "E": E, "W": W}[d_])] = vpos
+                    self._slice_in[(r.row, r.col, {"N": N, "S": S, "E": E, "W": W}[k_in])] = vpos
                     extra.append(type(r)(cell_id=f"{r.cell_id}__{d_}", row=vpos[0], col=vpos[1], core="ram",
-                                         core_config={"upstream_mask": [{"N": "S", "S": "N", "E": "W", "W": "E"}[d_]], "downstream_mask": [d_]}, addon_config={}, io_name=None, preload_value=None))
-        records = [r for r in records if r.core != "cross"] + extra
+                                         core_config={"upstream_mask": [f_in], "downstream_mask": [d_]}, addon_config={}, io_name=None, preload_value=None))
+        records = [r for r in records if r.core not in ("cross", "corner")] + extra
         super().__init__(records, width=width, **kw)
         self._setup_merges(records, merge_mode)
         by_pos_ = {(r.row, r.col) for r in records}
@@ -312,8 +316,9 @@ class FlexGrid(SuperGrid):
             row, col, _d = self._slice_real[(row, col)]
         pos = (row + dr, col + dc)
         if pos in self._cross:
-            travel = {N: S, S: N, E: W, W: E}[direction] if upstream else direction
-            return self._slice_at.get((pos[0], pos[1], travel))
+            if upstream:                                     # who sends into my face `direction`: the slice that LEAVES the tile through the opposite face
+                return self._slice_out.get((pos[0], pos[1], {N: S, S: N, E: W, W: E}[direction]))
+            return self._slice_in.get((pos[0], pos[1], direction))      # a word sent out through `direction` enters the tile travelling `direction`
         return pos if pos in self.cells else None
 
     def _addons(self, value, addon_config):

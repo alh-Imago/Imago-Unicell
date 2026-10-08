@@ -64,6 +64,7 @@ from unicell_automaton_v1 import CACell, N, S, E, W, _DIRS, _DIR_BIT, _OPPOSITE,
 
 import icm_v3 as v3
 import generic_field_codec_v1 as gfc
+import corner_cell_automaton_v1 as _corner
 
 _ROOT_DEFINITION = gfc.load_root_definition()
 
@@ -814,6 +815,21 @@ class SuperCell:
 
     # ── RAM: ram_cell_v1.v ────────────────────────────────────────────
     def _deliver_ram(self, arrivals, injected):
+        if self.ram_fixed_mode and self.ram_upstream_mask:
+            # HOLD (ledger #1035, ported from the flex ram's HOLD, #1021): a FIXED ram that something feeds -- the rule the flex generator already uses, so NO new config bit is needed: fixed_mode=1 with a
+            # non-empty upstream_mask. It keeps offering its stored word whenever a consumer is ready (never used up), and ANY word arriving on an upstream face REPLACES the stored value; the arrival is
+            # always acknowledged. It offers nothing until a word has been written (or preloaded with load_data_valid). A fixed ram with NO upstream is still the plain constant below.
+            matched = {d: v for d, v in arrivals.items() if (self.ram_upstream_mask >> _DIR_BIT[d]) & 1}
+            if not matched and injected is None:
+                return (True, None)
+            val = 0
+            for v in matched.values():
+                val |= v & self.mask
+            if injected is not None:
+                val |= injected & self.mask
+            self.ram_data_reg = val
+            self.ram_data_valid = True
+            return (True, None)
         if self.ram_fixed_mode:
             # capture_now requires !fixed_mode in the real RTL -- a fixed
             # cell never captures, ever, matching that exactly.
@@ -1338,7 +1354,7 @@ class SuperGrid:
                 import warnings
                 warnings.warn(f"VM width {self.width}: the {unverified} core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)", UserWarning, stacklevel=2)
         self.cells: Dict[Tuple[int, int], SuperCell] = {
-            (r.row, r.col): self._cell_class.from_record(r, self.width) for r in records
+            (r.row, r.col): (_corner.CornerCell.from_record(r, self.width) if r.core == "corner" else self._cell_class.from_record(r, self.width)) for r in records     # ledger #1035: the corner wiring core has its own cell type
         }
         self._pending: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
         self.tick_count = 0
@@ -1531,11 +1547,23 @@ class SuperGrid:
                 cell.clear_valid_on_drain()
                 active[pos] = True
 
+        # ── Corner cells (ledger #1035): acknowledged slices empty, then every full slice offers on its partner face.
+        for pos, cell in self.cells.items():
+            if cell.core == "corner":
+                cell.drain(pre_tick_pending.get(pos, 0))
+                for out_dir, value in cell.offers():
+                    nb = self.neighbor_pos(pos[0], pos[1], out_dir)
+                    if nb is not None:
+                        outgoing.append((nb, pos, out_dir, value))
+                        active[pos] = True
+                    else:
+                        cell.pending_ack &= ~(1 << _DIR_BIT[out_dir]) & _MASK4    # nobody there to acknowledge: the word waits, offered again when a neighbour exists (never, in a fixed grid)
+
         # ── Pass 4: the generic offer pass -- every non-nano cell with
         # pending_ack==0 and something valid to offer re-arms and fires,
         # whether or not anything was captured this same tick. ──
         for pos, cell in self.cells.items():
-            if cell.core == "nano" or cell.pending_ack != 0:
+            if cell.core in ("nano", "corner") or cell.pending_ack != 0:
                 continue
             if getattr(cell, "freeze_in", False):
                 # points.md #656: real, necessary defensive check --

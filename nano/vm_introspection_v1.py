@@ -176,6 +176,13 @@ def cell_to_dict(cell) -> Dict[str, Any]:
             "data_valid": cell.pri_data_valid,
             "winning_dir": cell.pri_winning_dir,
         }
+    elif cell.core == "corner":
+        # ledger #1035: the corner wiring tile (corner_cell_automaton_v1.CornerCell): one word per entry face.
+        base["corner"] = {
+            "turn": cell.turn,
+            "slices": {"nsew"[f]: v for f, v in sorted(cell.slice_value.items())},
+            "waiting_for_ack": cell.pending_ack,
+        }
     else:
         raise ValueError(f"unrecognized core {cell.core!r} -- introspection doesn't "
                           f"know this core's own field names yet")
