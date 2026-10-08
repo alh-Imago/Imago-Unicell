@@ -110,8 +110,6 @@ def test_engine_in_flexgrid(engine):
     assert stream(engine, its) == [W.w2_ref(*a, *b) for a, b in its]
 
 
-@pytest.mark.skip(reason="the flex generator refuses a same-tick operand pair even on an add or a multiply (order-free); the engine has two such ties "
-                         "(a square's two copies). Needs the generator to accept ties on commutative cores -- open, ledger #1034")
 def test_engine_in_generated_rtl(engine):
     from fp_block_runner_v1 import run_rtl
     g, ent, ex, _ = engine

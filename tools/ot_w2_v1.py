@@ -90,7 +90,7 @@ def _neg(net, name, src):
     return net.op(name, "mul", [src, f"{name}.K"])
 
 
-def front_net(side, n, T):
+def front_net(side, n, T, with_kz=True):
     """One signature's front: entries X0..X{n-1}, W0..W{n-2}; exits the breakpoint keys O.F*, their payloads O.P*, the first position O.X0 and the pad (key T, payload 0)."""
     net = npl.Net()
     for i in range(n):
@@ -114,9 +114,11 @@ def front_net(side, n, T):
     net.op("O.X0", "relay", ["X0"])
     net.op("KT", "const", const=T)                                           # the pad: key T, payload 0 (its segment has no length)
     net.op("O.KT", "relay", ["KT"])
-    net.op("KZ", "const", const=0)
-    net.op("O.KZ", "relay", ["KZ"])
-    outs = [f"O.F{i}" for i in range(n - 1)] + [f"O.P{i}" for i in range(n - 1)] + ["O.X0", "O.KT", "O.KZ"]
+    outs = [f"O.F{i}" for i in range(n - 1)] + [f"O.P{i}" for i in range(n - 1)] + ["O.X0", "O.KT"]
+    if with_kz:                                                              # the pad's payload (0); left out when nothing consumes it, since a constant-only output has nothing live to pace it
+        net.op("KZ", "const", const=0)
+        net.op("O.KZ", "relay", ["KZ"])
+        outs.append("O.KZ")
     return net, [f"X{i}" for i in range(n)] + [f"W{i}" for i in range(n - 1)], outs
 
 
@@ -242,6 +244,18 @@ def _route_batches(g, batches):
         g.route_nets([(a, b, {"spread": True, "avoid": tuple(guard - {face(b, -1), face(a, +1)})}) for a, b in nets])
 
 
+def _last_pad_payload_unused(n):
+    """True when the LAST lane is still the constant pad after the merge network, so its payload (the last segment has no use for one) is never consumed."""
+    pads_left = {n - 1, 2 * n - 1}
+    for stage in merge_stages(2 * n):
+        for a, b in stage:
+            if a in pads_left and b in pads_left:
+                continue
+            pads_left.discard(a)
+            pads_left.discard(b)
+    return (2 * n - 1) in pads_left
+
+
 def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10, pads=None, info=None):
     """Place the engine on grid g as tiles (a front per signature, one tile per compare-exchange, a back) joined by routes.
     Returns (entries {port: cell}, exits {"W2": cell}, consts)."""
@@ -251,7 +265,7 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10, pads=None, info=None)
     # fronts, stacked in the first column
     fronts, row, wmax = {}, r0, 0
     for side in ("M", "N"):
-        net, ents, outs = front_net(side, n, T)
+        net, ents, outs = front_net(side, n, T, with_kz=not (side == "N" and _last_pad_payload_unused(n)))
         nm, cs, (h, w) = _tile(g, net, f"{name}.F{side}", ents, outs, row, c0, pads=pads, info=info)
         consts.update(cs)
         fronts[side] = nm
@@ -265,7 +279,7 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10, pads=None, info=None)
     lanes = []
     for side in ("M", "N"):
         f = fronts[side]
-        lanes += [(f[f"O.F{i}"], f[f"O.P{i}"]) for i in range(n - 1)] + [(f["O.KT"], f["O.KZ"])]
+        lanes += [(f[f"O.F{i}"], f[f"O.P{i}"]) for i in range(n - 1)] + [(f["O.KT"], f.get("O.KZ"))]
     pads_left = {n - 1, n2 - 1}                                  # the lanes still carrying a pad (the last of each signature's list)
     col = c0 + wmax + gap
     for si, stage in enumerate(merge_stages(n2)):
@@ -316,8 +330,8 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10, pads=None, info=None)
 
 def w2_grid(n=4, T=64, rows=300, cols=400, name="W2"):
     """Build the engine on a fresh grid. Returns (grid, entries, exits, consts). The engine has no subtract, so there is no operand ORDER to keep; operand ties
-    (two words reaching an add or a multiply on the same tick) are exact in FlexGrid. The flex generator still refuses such ties (it needs an operand order for
-    every pair core), so the generated-RTL check waits on that (see the module notes and ledger #1034)."""
+    (two words reaching an add or a multiply on the same tick) are exact in FlexGrid AND in the generated RTL (ledger #1036: the flex generator now accepts a tie on a
+    commutative core -- mul, add -- and still refuses it for subtract)."""
     from flex_layout_v1 import Grid
     g = Grid(rows=rows, cols=cols)
     ent, ex, consts = w2_engine(g, n, T, name=name)

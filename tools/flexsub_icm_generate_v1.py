@@ -615,11 +615,14 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                 sa, sb = sorted(srcs, key=lambda q: tiekeys[(c, q)])
                 identity_by = "rank"
             else:
-                sa, sb = sorted(srcs, key=lambda q: ident_key(c, q))
-                if t_vm[sa] == t_vm[sb] and tiekeys.get((c, sa)) is None:
+                commutative = r.core == "mul" or (r.core == "adder" and not r.core_config.get("subtract_mode", 0))
+                sa, sb = sorted(srcs, key=lambda q: (ident_key(c, q), q) if commutative else ident_key(c, q))
+                if t_vm[sa] == t_vm[sb] and tiekeys.get((c, sa)) is None and commutative:
+                    pass                                           # ledger #1036: a tie on a COMMUTATIVE core (mul, add) needs no operand order -- A/B are fixed by name; the result is the same
+                elif t_vm[sa] == t_vm[sb] and tiekeys.get((c, sa)) is None:
                     raise IcmGenError(f"{c}: both operands arrive at hop {t_vm[sa]} with no arbiter to order them -- a same-time pair "
                                       f"is an OR-combined single arrival in the VM; no operand order exists. Not translated.")
-                identity_by = "arbiter tie-break" if (tiekeys.get((c, sa)) is not None and t_vm[sa] == t_vm[sb]) else "arrival order"
+                identity_by = "arbiter tie-break" if (tiekeys.get((c, sa)) is not None and t_vm[sa] == t_vm[sb]) else ("commutative tie" if (commutative and t_vm[sa] == t_vm[sb]) else "arrival order")
             live = [q for q in (sa, sb) if q not in const]                  # constants never constrain timing
             pad = {sa: 0, sb: 0}
             hf = CORES[r.core].get("hold_flow")
