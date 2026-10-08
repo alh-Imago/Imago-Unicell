@@ -1,4 +1,4 @@
-"""nano/corner_cell_automaton_v1.py -- ledger #1035: the CORNER wiring core in the VIX / super-cell VM (the model of fpga/verilog/corner_cell_v4.v / corner_cell_v4c.v and of core_select 11 in the carriers).
+"""nano/corner_cell_automaton_v1.py -- ledger #1035/#1036: the CORNER (and, with core="cross", the CROSS) wiring core in the VIX / super-cell VM (the model of fpga/verilog/corner_cell_v4.v / corner_cell_v4c.v and of core_select 11 in the carriers).
 
 A pure-wiring tile: `turn` 0 pairs E-N and W-S, `turn` 1 pairs E-S and W-N; every pairing carries words in BOTH directions, so the cell holds four independent one-word slices, one per face a word can enter by.
 A word that arrives on face X is held in slice X and offered on partner(X); when the neighbour acknowledges, the slice empties. It transforms nothing (no addon chain), costs one tick per tile.
@@ -14,6 +14,7 @@ from unicell_automaton_v1 import N, S, E, W, _DIRS, _DIR_BIT, _MASK4
 
 # in-face -> out-face, per turn
 PARTNER = {0: {E: N, N: E, W: S, S: W}, 1: {E: S, S: E, W: N, N: W}}
+STRAIGHT = {N: S, S: N, E: W, W: E}               # the cross tile
 
 
 @dataclass
@@ -22,7 +23,8 @@ class CornerCell:
     col: int
     turn: int = 0
     cell_id: int = 0
-    core: str = field(default="corner", init=False)
+    core: str = "corner"                                            # "corner" or "cross" (ledger #1036: the same four-slice tile, straight pairing)
+    is_wiring: bool = field(default=True, init=False)
     addon_config: dict = field(default_factory=dict)
     freeze_in: bool = False
     width: int = 32
@@ -33,12 +35,12 @@ class CornerCell:
     @classmethod
     def from_record(cls, rec, width: int = 32) -> "CornerCell":
         cfg = rec.core_config or {}
-        c = cls(row=rec.row, col=rec.col, turn=int(cfg.get("turn", 0)) & 1, cell_id=rec.cell_id)
+        c = cls(row=rec.row, col=rec.col, turn=int(cfg.get("turn", 0)) & 1, cell_id=rec.cell_id, core=rec.core)
         c.width, c.mask = width, (1 << width) - 1
         return c
 
     def partner(self, face: int) -> int:
-        return PARTNER[self.turn][face]
+        return STRAIGHT[face] if self.core == "cross" else PARTNER[self.turn][face]
 
     # ---- the interface SuperGrid.tick() uses ----
     def deliver(self, arrivals: Dict[int, int], injected: Optional[int] = None):

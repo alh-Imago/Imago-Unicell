@@ -33,6 +33,7 @@
 //     would have split routing_mask bits between two destinations and
 //     genuinely reduced where the result could go.
 //
+// ledger #1036: cfg_data[39:34] = second_downstream_mask (faces the HIGH word leaves by; 0 = with the low word; the wide_mode bit [12] is the mul's second_output)
 // cfg_data[63:0] field map (atomic boot-load path):
 //   [5:0]   downstream_mask  — one-hot(s), N/S/E/W real + 2 reserved
 //   [11:6]  upstream_mask    — one-hot(s), N/S/E/W real + 2 reserved
@@ -93,6 +94,7 @@ module mul_cell_v5c #(
     reg [3:0]  pending_ack     = 4'h0;
     reg        armed           = 1'b0;
     reg        wide_mode       = 1'b0;
+    reg [5:0]  second_downstream_mask = 6'h0;   // ledger #1036: faces the HIGH word leaves by (0 = the same faces as the low word); cfg_data[39:34]
     reg        delivering_hi   = 1'b0;
     // Real, necessary fix, found by testbench: without this, the
     // ORIGINAL any_fire mechanism (unchanged from v4c) independently
@@ -192,6 +194,7 @@ module mul_cell_v5c #(
     localparam [2:0] PROG_ID_DOWNSTREAM_MASK = 3'd0;
     localparam [2:0] PROG_ID_UPSTREAM_MASK   = 3'd1;
     localparam [2:0] PROG_ID_WIDE_MODE       = 3'd2;
+    localparam [2:0] PROG_ID_SECOND_DOWNSTREAM_MASK = 3'd4;   // ledger #1036
     localparam [2:0] PROG_ID_COMPLETE        = 3'd7;
 
     wire prog_any_arrived = prog_arrived_in_n | prog_arrived_in_s | prog_arrived_in_e | prog_arrived_in_w;
@@ -227,6 +230,7 @@ module mul_cell_v5c #(
             pending_ack     <= 4'h0;
             armed           <= 1'b0;
             wide_mode       <= 1'b0;
+            second_downstream_mask <= 6'h0;
             delivering_hi   <= 1'b0;
             phase1_offered  <= 1'b0;
             program_done_r  <= 1'b0;
@@ -234,6 +238,7 @@ module mul_cell_v5c #(
             downstream_mask <= cfg_data[5:0];
             upstream_mask   <= cfg_data[11:6];
             wide_mode       <= cfg_data[12];
+            second_downstream_mask <= cfg_data[39:34];
             a_arrived       <= 1'b0;
             data_valid      <= 1'b0;
             pending_ack     <= 4'h0;
@@ -245,6 +250,7 @@ module mul_cell_v5c #(
                 PROG_ID_DOWNSTREAM_MASK: downstream_mask <= prog_word[5:0];
                 PROG_ID_UPSTREAM_MASK:   upstream_mask   <= prog_word[5:0];
                 PROG_ID_WIDE_MODE:       wide_mode       <= prog_word[0];
+                PROG_ID_SECOND_DOWNSTREAM_MASK: second_downstream_mask <= prog_word[5:0];
                 PROG_ID_COMPLETE: begin
                     program_done_r <= 1'b1;
                     armed          <= prog_word[0];
@@ -289,7 +295,7 @@ module mul_cell_v5c #(
             // which would read 0) -- the exact fix for the one-cycle
             // "reads 0 while still valid" window that broke the
             // discarded parallel-path design.
-            pending_ack <= start_hi_phase ? downstream_mask[3:0] : next_pending_ack;
+            pending_ack <= start_hi_phase ? ((|second_downstream_mask[3:0]) ? second_downstream_mask[3:0] : downstream_mask[3:0]) : next_pending_ack;
             if (any_fire) phase1_offered <= 1'b1;
 
             if (!program_in) program_done_r <= 1'b0;

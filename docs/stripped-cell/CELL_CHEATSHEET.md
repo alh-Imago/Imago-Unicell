@@ -38,7 +38,7 @@ capability at all.
 | **Live per-core config** | Each core's own fields are incrementally, independently PROG_ID-writable at runtime (config-off-shell) without touching other fields or resetting the core |
 | **Live addon config (`v1d` only)** | A reserved pseudo-target, `SEL_ADDON_CONFIG=5'd11`, lets a programming session address the carrier's OWN shared `addon_config`/`shift_fine` incrementally, with zero effect on `core_select`/`core_config` — real, sim-proven, `#841` |
 | **Programming channel** | Gated to whichever core is selected only — `PROG_ID` values collide across core types, so routing matters |
-| **Core-select values** | 0=nano 1=adder 2=ram 3=compare 4=branch 5=accumulator 6=latch 7=sequencer 8=command 9=mul 10=priority 11=addon-config (`v1d`, pseudo-target, not a core), 12=corner (#1035; 12 and not 11 because `v1d` reserves 11), 13-31 reserved |
+| **Core-select values** | 0=nano 1=adder 2=ram 3=compare 4=branch 5=accumulator 6=latch 7=sequencer 8=command 9=mul 10=priority 11=addon-config (`v1d`, pseudo-target, not a core), 12=corner (#1035; 12 and not 11 because `v1d` reserves 11) 13=cross 14=merge (#1036), 15-31 reserved |
 
 ---
 

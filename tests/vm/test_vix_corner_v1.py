@@ -72,3 +72,32 @@ def test_introspection_reports_the_corner():
     g = SuperGrid(build(1, ("w",)))
     d = intro.cell_at(g, 2, 2)
     assert d["core"] == "corner" and d["corner"]["turn"] == 1
+
+
+# ---- ledger #1036: the cross tile in the same std-VM cell ----
+STRAIGHT = {"n": "s", "s": "n", "e": "w", "w": "e"}
+
+
+@pytest.mark.parametrize("ins", [("w", "n"), ("e", "s"), ("w", "s")])
+def test_cross_passes_straight_through(ins):
+    recs = [v3.IcmV3Record(cell_id="X", row=2, col=2, core="cross", core_config={})]
+    for a in ins:
+        dr, dc = FACE[a]
+        recs.append(v3.IcmV3Record(cell_id="S" + a, row=2 + dr, col=2 + dc, core="ram", core_config={"upstream_mask": [], "downstream_mask": [OPP[a]]}))
+        o = STRAIGHT[a]
+        dr, dc = FACE[o]
+        recs.append(v3.IcmV3Record(cell_id="K" + o, row=2 + dr, col=2 + dc, core="ram", core_config={"upstream_mask": [OPP[o]], "downstream_mask": []}))
+    g = SuperGrid(recs)
+    pos = {r.cell_id: (r.row, r.col) for r in recs}
+    for k, a in enumerate(ins):
+        g.inject(*pos["S" + a], 50 + k)
+    got = {}
+    for _ in range(40):
+        g.tick()
+        for a in ins:
+            c = g.cells[pos["K" + STRAIGHT[a]]]
+            if c.ram_data_valid:
+                got[STRAIGHT[a]] = c.ram_data_reg
+                c.ram_data_valid = False
+    for k, a in enumerate(ins):
+        assert got[STRAIGHT[a]] == 50 + k

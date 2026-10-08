@@ -105,11 +105,27 @@ def test_without_the_flag_nothing_changes(tmp):
     assert ".SECOND_PORT(1)" not in text
 
 
-def test_std_grid_refuses_the_flex_only_carry_flag():
+def test_std_grid_accepts_the_second_output_flag_and_matches_flex():
+    """ledger #1036: the carry flag is part of the standard cells too -- the std SuperGrid delivers sum then carry, exactly the words FlexGrid does."""
     import unicell_super_automaton_v1 as vm
-    with pytest.raises(ValueError, match="flex family only"):
-        vm.SuperGrid(design("adder", carry_mode=1))
-    fg.FlexGrid(design("adder", carry_mode=1))          # the flex mirror accepts it
+    recs = design("adder", carry_mode=1)
+    streams = {"X": [5, M32, 0x7FFFFFFF], "Y": [3, 1, 0x7FFFFFFF]}
+    flex = vm_words(recs, streams, words_per_item=2)
+    pos = {r.cell_id: (r.row, r.col) for r in recs}
+    g = vm.SuperGrid(recs)
+    e, seen = g.cells[pos["E"]], []
+    for k in range(3):
+        for name, vals in streams.items():
+            g.inject(*pos[name], vals[k])
+        start = len(seen)
+        for _ in range(80):
+            g.tick()
+            if e.ram_data_valid:
+                seen.append(e.ram_data_reg)
+                e.ram_data_valid = False
+            if len(seen) - start >= 2:
+                break
+    assert seen == flex and len(flex) == 6
 
 
 def test_planner_refusals(tmp):

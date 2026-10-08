@@ -356,7 +356,7 @@ COMPOSER_CSS = """
 """
 
 CORE_COLOURS = {"adder": "#c17f45", "mul": "#d9b46a", "comparator": "#7fa6d0", "const": "#7fae7a", "io": "#e9ede6", "ram": "#627262", "cross": "#d0786a",
-                "branch": "#b48ad0", "nano": "#b48ad0", "latch": "#a7b58c", "accumulator": "#8cb5ad", "sequencer": "#b5a58c", "priority": "#9aab98", "corner": "#d0a06a"}
+                "branch": "#b48ad0", "nano": "#b48ad0", "latch": "#a7b58c", "accumulator": "#8cb5ad", "sequencer": "#b5a58c", "priority": "#9aab98", "corner": "#d0a06a", "merge": "#8fb0c8"}
 
 
 def page_composer():

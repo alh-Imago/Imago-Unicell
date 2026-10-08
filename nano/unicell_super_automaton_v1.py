@@ -332,6 +332,11 @@ class SuperCell:
     adder_a_arrived: bool = False
     adder_out_buffer: int = 0
     adder_data_valid: bool = False
+    # ledger #1036: the optional SECOND OUTPUT word (ICM `second_output`; adder = the carry-out, mul = the high word) and where it leaves (`second_downstream_mask`, 0 = with the first word).
+    adder_carry_mode: bool = False
+    adder_captured_carry: int = 0
+    adder_delivering_carry: bool = False
+    second_mask: int = 0
 
     # ── mul: mul_cell_v4c.v (points.md #724) -- real, separate RTL
     # from adder, not a mode flag on it. Confirmed directly (#724): no
@@ -450,6 +455,17 @@ class SuperCell:
     pri_data_reg: int = 0
     pri_data_valid: bool = False
     pri_winning_dir: int = 0
+    # ledger #1036: the MERGE core (flex merge_cell_v4sa in the main theme). Faces A/B = the first/second set bit of the upstream mask in N,S,E,W order.
+    mrg_upstream_mask: int = 0
+    mrg_downstream_mask: int = 0
+    mrg_mode: int = 2              # 0 A only, 1 B only, 2 arbitrate (round-robin), 3 join-or
+    mrg_rr: int = 0                # arbitrate: 1 = B wins a same-tick tie
+    mrg_a_val: int = 0
+    mrg_a_have: bool = False
+    mrg_b_val: int = 0
+    mrg_b_have: bool = False
+    mrg_out_buffer: int = 0
+    mrg_data_valid: bool = False
     # Points.md #772: a real, THIRD priority mode Alan proposed directly
     # -- "sequenced channel," not arbitrated by rank among whoever's
     # present, but a fixed, cyclic turn order (much like sequencer's own
@@ -582,6 +598,16 @@ class SuperCell:
     def _wrap(self, v: int) -> int:
         return _wrap_signed(v, self.width)
 
+    @staticmethod
+    def _second_mask(cell, rec, cfg, dm) -> None:
+        """ledger #1036 (was flex-only, #981): where the SECOND word (adder carry / mul high word) leaves; 0 = by downstream_mask like the first. Needs the flag on and a first destination."""
+        sm = dm(cfg.get("second_downstream_mask", 0))
+        if sm and not cfg.get("second_output", cfg.get("carry_mode", cfg.get("wide_mode", 0))):
+            raise ValueError(f"cell {rec.cell_id}: second_downstream_mask is set but second_output is off -- there is no second word to route")
+        if sm and not dm(cfg.get("downstream_mask", 0)):
+            raise ValueError(f"cell {rec.cell_id}: second_downstream_mask needs a non-empty downstream_mask (the first word needs somewhere to go, or the round never drains)")
+        cell.second_mask = sm
+
     @classmethod
     def from_record(cls, rec: "v3.IcmV3Record", width: int = 32) -> "SuperCell":
         core = rec.core
@@ -689,10 +715,13 @@ class SuperCell:
             cell.adder_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.adder_upstream_mask = dm(cfg.get("upstream_mask", 0))
             cell.adder_subtract_mode = bool(cfg.get("subtract_mode", 0))
+            cell.adder_carry_mode = bool(cfg.get("second_output", cfg.get("carry_mode", 0)))   # ledger #1036: canonical ICM name second_output; carry_mode is its alias
+            cls._second_mask(cell, rec, cfg, dm)
         elif core == "mul":
             cell.mul_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.mul_upstream_mask = dm(cfg.get("upstream_mask", 0))
             cell.mul_wide_mode = bool(cfg.get("second_output", cfg.get("wide_mode", 0)))   # ledger #980: canonical ICM name second_output; wide_mode is its alias (same bit)
+            cls._second_mask(cell, rec, cfg, dm)
         elif core == "accumulator":
             cell.acc_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.acc_inc_dir = dm(cfg.get("inc_dir", 0))
@@ -751,6 +780,10 @@ class SuperCell:
             cell.pri_credit_e = 0
             cell.pri_credit_w = 0
             cell.pri_data_valid = False
+        elif core == "merge":
+            cell.mrg_upstream_mask = dm(cfg.get("upstream_mask", 0))
+            cell.mrg_downstream_mask = dm(cfg.get("downstream_mask", 0))
+            cell.mrg_mode = int(cfg.get("mode", 2)) & 3
         else:
             raise ValueError(f"unsupported core {core!r} for VM dispatch (reserved core_select, #317)")
         return cell
@@ -786,6 +819,7 @@ class SuperCell:
             "accumulator": self.acc_downstream_mask, "comparator": self.cmp_downstream_mask,
             "latch": self.latch_downstream_mask, "sequencer": self.seq_downstream_mask,
             "branch": self.br_active_route, "priority": self.pri_downstream_mask,
+            "merge": self.mrg_downstream_mask,
         }.get(self.core, 0)
 
     def deliver(self, arrivals: Dict[int, int], injected: Optional[int] = None
@@ -855,6 +889,8 @@ class SuperCell:
     # carry-chain trick, just the equivalent arithmetic result, wrapped
     # the same way every other signed result in this VM already is. ──
     def _deliver_adder(self, arrivals, injected):
+        if self.adder_carry_mode and self.adder_data_valid:      # ledger #1036: with the second word pending, no operand is taken until the whole two-word delivery is done (as the multiplier's wide_mode)
+            return (False, None)
         matched = {d: v for d, v in arrivals.items() if (self.adder_upstream_mask >> _DIR_BIT[d]) & 1}
         if not matched and injected is None:
             return (True, None)
@@ -871,8 +907,12 @@ class SuperCell:
             return (False, None)  # doubly full -- B blocked until prior sum drains
         if self.adder_subtract_mode:
             self.adder_out_buffer = (self.adder_a_reg - val) & self.mask
+            raw = self.adder_a_reg + ((~val) & self.mask) + 1       # the raw carry of a + ~b + 1 (NOT-borrow), as in the RTL
         else:
             self.adder_out_buffer = (self.adder_a_reg + val) & self.mask
+            raw = self.adder_a_reg + val
+        self.adder_captured_carry = (raw >> self.width) & 1
+        self.adder_delivering_carry = False
         self.adder_data_valid = True
         self.adder_a_arrived = False
         return (True, None)
@@ -1078,6 +1118,57 @@ class SuperCell:
     # every OTHER existing core still returns a plain True/False, since
     # accepting all-or-nothing together is their own real, correct
     # behavior; only this core genuinely needs the distinction. ──
+    # ── merge (ledger #1036): the flex merge core in the main theme. Two faces A (first set upstream bit in N,S,E,W order) and B (second); the mode picks what happens.
+    #   0 A only / 1 B only: that face is passed, the other is never accepted.   2 ARBITRATE: one at a time; a same-tick tie goes to the face the round-robin flag favours, and the flag
+    #   rotates after every grant (neither can starve).   3 JOIN-OR: each face's word is held as it arrives (acknowledged at once) and, once BOTH are held, A|B is offered as one word.
+    #   No new word is taken while a result is still on offer (as every single-shot core).
+    def _mrg_faces(self):
+        fs = [d for d in _DIRS if (self.mrg_upstream_mask >> _DIR_BIT[d]) & 1]
+        return (fs[0] if fs else None), (fs[1] if len(fs) > 1 else None)
+
+    def _deliver_merge(self, arrivals, injected):
+        if self.mrg_data_valid:
+            return (set(), None)
+        a, b = self._mrg_faces()
+        va = arrivals.get(a) if a is not None else None
+        vb = arrivals.get(b) if b is not None else None
+        m = self.mrg_mode
+        if m == 3:
+            taken = set()
+            if va is not None and not self.mrg_a_have:
+                self.mrg_a_val, self.mrg_a_have = va & self.mask, True
+                taken.add(a)
+            if vb is not None and not self.mrg_b_have:
+                self.mrg_b_val, self.mrg_b_have = vb & self.mask, True
+                taken.add(b)
+            if self.mrg_a_have and self.mrg_b_have:
+                self.mrg_out_buffer = (self.mrg_a_val | self.mrg_b_val) & self.mask
+                self.mrg_data_valid = True
+                self.mrg_a_have = self.mrg_b_have = False
+            return (taken, None)
+        if m == 0:
+            win = a if va is not None else None
+        elif m == 1:
+            win = b if vb is not None else None
+        else:
+            if va is not None and vb is not None:
+                win = b if self.mrg_rr else a
+            else:
+                win = a if va is not None else (b if vb is not None else None)
+        if win is None:
+            return (set(), None)
+        self.mrg_out_buffer = (va if win == a else vb) & self.mask
+        self.mrg_data_valid = True
+        if m == 2:
+            self.mrg_rr = 1 if win == a else 0
+        return ({win}, None)
+
+    def _offer_state_merge(self) -> Tuple[int, bool, int]:
+        return (self.mrg_out_buffer, self.mrg_data_valid, self.mrg_downstream_mask)
+
+    def _clear_valid_merge(self) -> None:
+        self.mrg_data_valid = False
+
     def _deliver_priority(self, arrivals, injected):
         if self.pri_data_valid:
             return (set(), None)   # already full -- capture_now's own real !data_valid gate
@@ -1154,10 +1245,12 @@ class SuperCell:
         return (self.ram_data_reg, self.ram_data_valid, self.ram_downstream_mask)
 
     def _offer_state_adder(self) -> Tuple[int, bool, int]:
-        return (self.adder_out_buffer, self.adder_data_valid, self.adder_downstream_mask)
+        mask = self.second_mask if (self.adder_delivering_carry and self.second_mask) else self.adder_downstream_mask
+        return (self.adder_out_buffer, self.adder_data_valid, mask)
 
     def _offer_state_mul(self) -> Tuple[int, bool, int]:
-        return (self.mul_out_buffer, self.mul_data_valid, self.mul_downstream_mask)
+        mask = self.second_mask if (self.mul_delivering_hi and self.second_mask) else self.mul_downstream_mask
+        return (self.mul_out_buffer, self.mul_data_valid, mask)
 
     def _offer_state_comparator(self) -> Tuple[int, bool, int]:
         return (self.cmp_out_buffer, self.cmp_data_valid, self.cmp_downstream_mask)
@@ -1204,7 +1297,13 @@ class SuperCell:
         self.ram_data_valid = False
 
     def _clear_valid_adder(self) -> None:
+        # ledger #1036: carry mode -- the sum's drain does NOT finish the round: the buffer is reloaded with the carry word and offered next; only the carry's own drain clears it
+        if self.adder_carry_mode and not self.adder_delivering_carry:
+            self.adder_out_buffer = self.adder_captured_carry
+            self.adder_delivering_carry = True
+            return
         self.adder_data_valid = False
+        self.adder_delivering_carry = False
 
     def _clear_valid_mul(self) -> None:
         # points.md #853/#854: mirrors the real, tested RTL's own
@@ -1301,6 +1400,9 @@ register_core_handler("comparator", CoreHandler(
 register_core_handler("priority", CoreHandler(
     deliver=SuperCell._deliver_priority, offer_state=SuperCell._offer_state_priority,
     continuously_live=False, clear_valid=SuperCell._clear_valid_priority))
+register_core_handler("merge", CoreHandler(
+    deliver=SuperCell._deliver_merge, offer_state=SuperCell._offer_state_merge,
+    continuously_live=False, clear_valid=SuperCell._clear_valid_merge))
 register_core_handler("latch", CoreHandler(
     deliver=SuperCell._deliver_latch, offer_state=SuperCell._offer_state_latch,
     continuously_live=True))
@@ -1342,19 +1444,14 @@ class SuperGrid:
         w_ = _icm_width.validate_min_bit_width(width)
         self.width = 32 if w_ is None else w_
         self.mask = (1 << self.width) - 1
-        if not self._ALLOWS_CARRY_MODE:
-            for r_ in records:
-                if r_.core == "adder" and (r_.core_config or {}).get("second_output"):
-                    raise ValueError(f"cell {r_.cell_id}: adder second_output=1 (the carry as a second output word) exists on the flex family only (ledger #976); this grid is not a flex mirror")
-                if r_.core in ("adder", "mul") and (r_.core_config or {}).get("second_downstream_mask"):    # ledger #981: routing the second word apart is flex-only; ignoring it here would be silent
-                    raise ValueError(f"cell {r_.cell_id}: second_downstream_mask (the second word routed to its own faces) exists on the flex family only (ledger #981); this grid is not a flex mirror")
+        # ledger #1036: the second output word (adder carry, mul high word) and its own routing are now part of the standard cells too (optional config), so there is nothing to refuse here.
         if self.width != 32:
             unverified = sorted({r.core for r in records} & self._UNVERIFIED_AT_OTHER_WIDTHS)
             if unverified:
                 import warnings
                 warnings.warn(f"VM width {self.width}: the {unverified} core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)", UserWarning, stacklevel=2)
         self.cells: Dict[Tuple[int, int], SuperCell] = {
-            (r.row, r.col): (_corner.CornerCell.from_record(r, self.width) if r.core == "corner" else self._cell_class.from_record(r, self.width)) for r in records     # ledger #1035: the corner wiring core has its own cell type
+            (r.row, r.col): (_corner.CornerCell.from_record(r, self.width) if r.core in ("corner", "cross") else self._cell_class.from_record(r, self.width)) for r in records     # ledger #1035: the corner wiring core has its own cell type
         }
         self._pending: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
         self.tick_count = 0
@@ -1549,7 +1646,7 @@ class SuperGrid:
 
         # ── Corner cells (ledger #1035): acknowledged slices empty, then every full slice offers on its partner face.
         for pos, cell in self.cells.items():
-            if cell.core == "corner":
+            if getattr(cell, "is_wiring", False):
                 cell.drain(pre_tick_pending.get(pos, 0))
                 for out_dir, value in cell.offers():
                     nb = self.neighbor_pos(pos[0], pos[1], out_dir)
@@ -1563,7 +1660,7 @@ class SuperGrid:
         # pending_ack==0 and something valid to offer re-arms and fires,
         # whether or not anything was captured this same tick. ──
         for pos, cell in self.cells.items():
-            if cell.core in ("nano", "corner") or cell.pending_ack != 0:
+            if cell.core == "nano" or getattr(cell, "is_wiring", False) or cell.pending_ack != 0:
                 continue
             if getattr(cell, "freeze_in", False):
                 # points.md #656: real, necessary defensive check --

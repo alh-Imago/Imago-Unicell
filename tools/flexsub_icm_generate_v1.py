@@ -530,6 +530,8 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                     problems.append(f"{c}: a ram with load_data_valid (its preload is offered once) is the ONE-SHOT mode (ram_cell_v4sa OFFER_PRELOAD); that mode exists on the flex family only")
         if is_source and r.core not in ("ram", "sequencer") and not (r.core == "branch" and c in branch_plans and branch_plans[c]["stream"] is None):
             problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
+    if family != "flex" and getattr(doc, "_merge_core_modes", None):
+        problems.append(f"{sorted(doc._merge_core_modes)}: a merge core (A only / B only / arbitrate / join-or) exists on the flex family only (merge_cell_v4sa); the sub family has no merge cell")
     if family == "flex":
         # STAGES 1-2 of the flex emitter (the handshake family): ram, adder, mul and constants only. Everything else is refused, with the reason, until it is built AND
         # verified -- never silently mistranslated. Timing/alignment refusals below that only make sense for FIXED latency do not apply to a handshake design.
@@ -668,7 +670,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
             "eliminated_priority": eliminated, "const": const,
             "holds": hold_set,
             "oneshots": oneshot_set, "addons": addons, "merges": merges,
-            "branch_plans": branch_plans, "branch_port": branch_port, "second_ports": second_ports, "word_of": word_of, "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule, "min_bit_width": declared_width,
+            "branch_plans": branch_plans, "branch_port": branch_port, "second_ports": second_ports, "word_of": word_of, "merge_core_modes": getattr(doc, "_merge_core_modes", {}), "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule, "min_bit_width": declared_width,
             "mul_impl": mul_impl, "mul_info": mul_info}
 
 

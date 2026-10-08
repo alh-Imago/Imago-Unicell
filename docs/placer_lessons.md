@@ -2,6 +2,10 @@
 
 What each design taught the placer / layout engine (`tools/flex_layout_v1.py`, `tightplace_v1.py`, `netplace_v1.py`, `fp_mul_tight_v1.place_net_tight`). Newest first. Each lesson says what went wrong, what fixed it, and what the tools could do about it.
 
+## From the cross / merge / second-output ports (#1036)
+0b. **A cell that produces two words (carry, high word) is two lanes, not one.** With `second_downstream_mask` the second word leaves by its own faces, so the placer must lay two output lanes from one cell and treat them as independent nets (they need not arrive together). **A merge core has two named input faces (A, B)**: which source lands on A matters for arbitrate's first grant, so place the source meant to win a tie on the lower-ordered face (N before S before E before W).
+0c. **A wiring tile needs a different word on each face**; anything in the generator that assumed one output word per cell (the carrier's shared output, the layout view's per-cell data) must treat cross and corner as four slices.
+
 ## From the corner tile (#1035)
 0. **Tile kinds the placer knows: logic cells, relays, crossing tiles, and now corner tiles.** A corner is the only wiring tile that changes direction, so a lane may now bend INSIDE a square: a route that has to jump a congested crossing can turn at a corner instead of spending two relays. The router (`route_nets(use_cross=True)`) still lays straight crossings only; corners are placed by hand or by a netlist (`Grid.add(name, r, c, "corner", {"turn": t})`) and the layout view keeps them pinned (it will not move or re-route through them). *Tool idea:* teach `route()` to use a corner as a free bend.
    Lanes through a corner are one tick per tile, the same as a relay, so timing balance counts it as a relay hop.

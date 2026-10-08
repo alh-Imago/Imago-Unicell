@@ -15,7 +15,8 @@
 `timescale 1ns / 1ps
 
 module corner_cell_v4 #(
-    parameter [15:0] CELL_ID = 16'h0000
+    parameter [15:0] CELL_ID = 16'h0000,
+    parameter CROSS = 0               // ledger #1036: 1 = the CROSS tile (straight through: N<->S, E<->W; `turn` is ignored). cross_cell_v4[c] sets it.
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -53,6 +54,9 @@ module corner_cell_v4 #(
     // partner face of each face, as a 2-bit index (turn 0: N-E, S-W;  turn 1: N-W, S-E)
     function [1:0] partner(input [1:0] f, input t);
         begin
+            if (CROSS) begin
+                case (f) 2'd0: partner = 2'd1; 2'd1: partner = 2'd0; 2'd2: partner = 2'd3; default: partner = 2'd2; endcase
+            end else
             case (f)
                 2'd0: partner = t ? 2'd3 : 2'd2;   // N
                 2'd1: partner = t ? 2'd2 : 2'd3;   // S

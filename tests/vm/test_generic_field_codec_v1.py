@@ -25,7 +25,7 @@ def test_field_table_matches_icm_v3_for_every_core():
     # not by remembering to bump a hardcoded range again.
     for sel in v3.CORE_NAMES:
         if sel not in gfc.CORE_SELECT_TO_ROOT_KEY:       # `cross` (10) and `corner` (11): pure-wiring tiles with no RTL core slot (so no root-definition entry) yet -- icm_v3's own table is their only definition
-            assert sel in (v3.SEL_CROSS, v3.SEL_CORNER), sel
+            assert sel in (v3.SEL_CROSS, v3.SEL_CORNER), sel   # (merge, 12, has a root-definition entry)
             continue
         generic = gfc.field_table(ROOT, sel)
         hand_typed = v3.CORE_FIELD_TABLES[sel]

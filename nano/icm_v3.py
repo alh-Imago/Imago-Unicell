@@ -131,6 +131,29 @@ SEL_CROSS = 10
 #: `turn` 0 pairs E-N and W-S ("E can be sent N while W is sent S"); `turn` 1 pairs E-S and W-N ("and vice versa"). Each path carries words in both directions, one register slice per direction of travel.
 #: Core number 11; the native RTL core slot per family is still to be built (like `cross`, the netlist step turns it into ordinary ram relay cells).
 SEL_CORNER = 11
+#: Alan, 8 Oct 2026: `merge` -- the flex family's MERGE core, brought into the main theme. Two input faces (the two set bits of `upstream_mask`, in N,S,E,W order: the first is A, the second B) and one output;
+#: `mode` 0 = A only, 1 = B only, 2 = ARBITRATE (one at a time, round-robin), 3 = JOIN-OR (wait for both, output A|B). Core number 12 (the carrier numbers it 14).
+SEL_MERGE = 12
+
+def merge_cores_as_relays(records):
+    """ledger #1036: the flex family builds a merge as a relay (ram) fed by two sources with a merge core in front (the mode is per consumer cell). An ICM `merge` core therefore becomes a
+    plain ram relay with the same masks, and its MODE is returned as {cell_id: 'arbitrate' | 'join-or'}. Modes 0 (A only) and 1 (B only) are pure pass-throughs of one face -- there is nothing
+    to build for them on flex -- and are refused with that reason. Returns (records, modes)."""
+    modes, out = {}, []
+    for r in records:
+        if r.core != "merge":
+            out.append(r)
+            continue
+        cfg = r.core_config or {}
+        m = int(cfg.get("mode", 2)) & 3
+        if m not in (2, 3):
+            raise ValueError(f"cell {r.cell_id}: merge mode {m} ({'A only' if m == 0 else 'B only'}) is a pass-through of one face; the flex family builds only arbitrate (2) and join-or (3) merges -- use a ram relay instead")
+        modes[r.cell_id] = {2: "arbitrate", 3: "join-or"}[m]
+        out.append(type(r)(cell_id=r.cell_id, row=r.row, col=r.col, core="ram",
+                           core_config={"upstream_mask": cfg.get("upstream_mask", 0), "downstream_mask": cfg.get("downstream_mask", 0)},
+                           addon_config=r.addon_config, io_name=r.io_name, preload_value=r.preload_value))
+    return out, modes
+
 
 CORE_NAMES = {
     SEL_NANO: "nano",
@@ -145,6 +168,7 @@ CORE_NAMES = {
     SEL_PRIORITY: "priority",
     SEL_CROSS: "cross",
     SEL_CORNER: "corner",
+    SEL_MERGE: "merge",
 }
 CORE_IDS = {name: sel for sel, name in CORE_NAMES.items()}
 
@@ -317,7 +341,7 @@ _MUL_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
     "second_output": (12, 12),   # ledger #980: canonical name; `wide_mode` is an accepted alias (see SECOND_OUTPUT_ALIASES)
-    "second_downstream_mask": (13, 16),   # ledger #981: faces the second word leaves by (empty = same as downstream_mask); flex family only
+    "second_downstream_mask": (13, 16),   # ledger #981: faces the second word leaves by (empty = same as downstream_mask); flex family and the standard cells (#1036)
 }
 
 # points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==
@@ -371,6 +395,13 @@ _CORNER_FIELDS = {
     "turn": (8, 8),
 }
 
+# ledger #1036: merge (the flex merge_cell_v4sa as a main-theme core)
+_MERGE_FIELDS = {
+    "downstream_mask": (0, 3),
+    "upstream_mask": (4, 7),
+    "mode": (8, 9),            # 0 A only, 1 B only, 2 arbitrate (round-robin), 3 join-or
+}
+
 _OPPOSITE = {"N": "S", "S": "N", "E": "W", "W": "E"}
 _CORNER_PAIRS = {0: {"E": "N", "N": "E", "W": "S", "S": "W"}, 1: {"E": "S", "S": "E", "W": "N", "N": "W"}}
 
@@ -398,6 +429,7 @@ CORE_FIELD_TABLES = {
     SEL_PRIORITY: _PRIORITY_FIELDS,
     SEL_CROSS: _CROSS_FIELDS,
     SEL_CORNER: _CORNER_FIELDS,
+    SEL_MERGE: _MERGE_FIELDS,
 }
 
 # Direction-valued fields per core -- these accept either a raw int or a
@@ -420,6 +452,7 @@ _DIR_FIELDS = {
     SEL_RAM: ("downstream_mask", "upstream_mask"),
     SEL_CROSS: ("downstream_mask", "upstream_mask"),
     SEL_CORNER: ("downstream_mask", "upstream_mask"),
+    SEL_MERGE: ("downstream_mask", "upstream_mask"),
     SEL_ADDER: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
     SEL_ACC: ("inc_dir", "dec_dir", "downstream_mask"),
     SEL_CMP: ("downstream_mask", "upstream_mask"),

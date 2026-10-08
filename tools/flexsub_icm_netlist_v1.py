@@ -110,6 +110,12 @@ def load_records(path):
 def extract(path):
     """Flatten the ICM-VIX file and derive the real netlist from masks + positions."""
     doc, recs = load_records(path)
+    from icm_v3 import merge_cores_as_relays
+    recs, merge_core_modes = merge_cores_as_relays(recs)      # ledger #1036: an ICM merge core is a relay with a merge core in front on flex; its mode is returned to the planner
+    try:
+        doc._merge_core_modes = merge_core_modes
+    except AttributeError:
+        pass
     cells = {r.cell_id: r for r in recs}
     pos = {(r.row, r.col): r.cell_id for r in recs}
     edges, warnings = [], []

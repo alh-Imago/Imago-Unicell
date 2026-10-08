@@ -40,12 +40,11 @@ def test_a_flag_on_a_cell_without_that_second_output_is_refused(opcode, flag):
     assert cfg_of(opcode, {flag: 0}) is not None                  # an explicit OFF is harmless anywhere
 
 
-def test_the_flagged_cell_loads_in_the_flex_grid_and_the_std_grid_refuses_it():
+def test_the_flagged_cell_loads_in_the_flex_grid_and_the_std_grid_accepts_it():
     icm, *_ = compile_dag([DagInstr("a", "add", [DagOperand("dynamic"), DagOperand("dynamic")], {"carry_mode": 1})])
     recs, _ = icm.flatten()
     assert fg.FlexGrid(recs, width=32) is not None
-    with pytest.raises(ValueError, match="second_output"):
-        SuperGrid(recs)
+    assert SuperGrid(recs) is not None                            # ledger #1036: the standard cells have the second output too
 
 
 def place(tile, **fields):

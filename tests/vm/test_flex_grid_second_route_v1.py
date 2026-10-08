@@ -137,7 +137,21 @@ def test_set_without_the_flag_or_without_a_first_face_is_refused():
         fg.FlexGrid(no_first, width=32)
 
 
-def test_the_std_grid_refuses_the_flex_only_routing():
+def test_the_std_grid_routes_the_second_word_too():
+    """ledger #1036: second_downstream_mask is part of the standard cells; the std grid sends the high word south and the low word east, as FlexGrid does."""
     import unicell_super_automaton_v1 as vm
-    with pytest.raises(ValueError, match="flex family only"):
-        vm.SuperGrid(split_design("mul", ["s"]))
+    recs = split_design("mul", ["s"])
+    pos = {r.cell_id: (r.row, r.col) for r in recs}
+    g = vm.SuperGrid(recs)
+    g.inject(*pos["X"], 0x12345678)
+    g.inject(*pos["Y"], 0x9ABCDEF0)
+    s_, c_ = g.cells[pos["S"]], g.cells[pos["C"]]
+    out = {}
+    for _ in range(100):
+        g.tick()
+        for k, c in (("S", s_), ("C", c_)):
+            if c.ram_data_valid:
+                out[k] = c.ram_data_reg
+                c.ram_data_valid = False
+    full = 0x12345678 * 0x9ABCDEF0
+    assert out == {"S": full & 0xFFFFFFFF, "C": full >> 32}

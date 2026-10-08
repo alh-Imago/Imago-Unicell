@@ -3016,6 +3016,16 @@ than raising.</p>
 <td><code>cross</code></td>
 <td>the crossing tile (#999; number confirmed by Alan): no control logic, one tick per tile per direction; no native RTL core yet (the netlist extractor builds each used direction from a ram relay slice); flex VM only</td>
 </tr>
+<tr>
+<td>12</td>
+<td><code>merge</code></td>
+<td>the merge core (#1036): two input faces, one result, four modes (A only / B only / arbitrate / join-or) — the flex <code>merge_cell_v4sa</code> brought into the main theme; native RTL <code>merge_cell_v4[c]</code>, carrier <code>core_select</code> 14; std VM, flex (as a relay behind a merge core)</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>corner</code></td>
+<td>the corner tile (#1035, Alan): a wiring tile that TURNS words instead of passing them straight (see below); one <code>turn</code> bit; native RTL core <code>corner_cell_v4[c]</code> and carrier <code>core_select</code> 12 (the carrier numbers its cores differently from the ICM; 11 is the <code>v1d</code> addon pseudo-target); flex VM, std (super-cell) VM and netlist splice</td>
+</tr>
 </tbody>
 </table>
 <p>A saved file's <code>cell_type</code> is derived, not declared: the minimum shell
@@ -3483,6 +3493,72 @@ Open: native per-family cores and cost rows.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>corner</strong> (11, #1035). The turning cousin of <code>cross</code>: two lanes meet in one square and each is bent through a right angle. <code>turn</code> 0 pairs <strong>E-N and W-S</strong>,
+<code>turn</code> 1 pairs <strong>E-S and W-N</strong>. Each pairing carries words in both directions, so the tile holds four independent one-word slices (one per face a word can enter by);
+a word that enters by face X leaves by <code>partner(X)</code>, one tick per tile, nothing transformed (no addon chain). Where it exists:
+the flex VM (<code>FlexGrid</code>, hidden ram slices, like <code>cross</code>), the netlist splice (<code>splice_crosses</code> now handles both tiles, so the flex/sub RTL generators need no new cell),
+the std VM (<code>corner_cell_automaton_v1.CornerCell</code>, built by <code>SuperGrid</code> for a <code>corner</code> record) and the carrier RTL (<code>corner_cell_v4.v</code> / <code>corner_cell_v4c.v</code>, same module;
+<code>corner_shell_v1[c].v</code>; <code>core_select</code> 12 in <code>unicell_vix_carrier_v1[d].v</code>). In the carrier the single <code>ready_out</code> reads "at least one slice is empty"; a word that arrives at a full
+slice is simply not acknowledged and the sender keeps offering it. Targeted programming: PROG_ID 2 carries the <code>turn</code> bit, PROG_ID 7 (COMPLETE) re-arms.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Bits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>downstream_mask</code></td>
+<td><code>[3:0]</code> (derived from the joins; the VM ignores it)</td>
+</tr>
+<tr>
+<td><code>upstream_mask</code></td>
+<td><code>[7:4]</code> (derived from the joins; the VM ignores it)</td>
+</tr>
+<tr>
+<td><code>turn</code></td>
+<td><code>[8]</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>cross, now native (#1036).</strong> <code>cross_cell_v4[c].v</code> is the corner module with <code>CROSS=1</code> (N&lt;-&gt;S, E&lt;-&gt;W, <code>turn</code> ignored); carrier <code>core_select</code> 13; the std VM builds it from the same <code>CornerCell</code> (<code>core="cross"</code>).
+Wiring tiles bypass the carrier's shared addon chain (it broadcasts ONE word to all four faces; a wiring tile sends a different word out of each).</p>
+<p><strong>merge (12, #1036).</strong> Faces A and B are the first and second set bits of <code>upstream_mask</code> in N,S,E,W order. <code>mode</code> (bits 8-9): 0 A only (B is never accepted), 1 B only, 2 ARBITRATE (one word at a time; a same-tick tie goes
+to the face the round-robin flag favours, and the flag rotates after EVERY grant), 3 JOIN-OR (each half is held as it arrives and acknowledged at once; when both are held, A|B is offered as one word). A plain OR of simultaneous
+arrivals (what a ram with two upstream faces does) fuses two separate items into one when both stay valid; the modes make the choice explicit. On the flex family an ICM <code>merge</code> becomes a relay behind <code>merge_cell_v4sa</code> with the
+mode per cell (modes 0/1 are pass-throughs of one face and are refused there); the sub family has no merge cell and refuses it. Differences from the flex cell: the carrier cell acknowledges each join-OR half as it arrives
+(flex acknowledges both together) and offers with fire/ack.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Bits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>downstream_mask</code></td>
+<td><code>[3:0]</code></td>
+</tr>
+<tr>
+<td><code>upstream_mask</code></td>
+<td><code>[7:4]</code></td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td><code>[9:8]</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Second output (adder carry / mul high word) in the main theme (#1036).</strong> <code>second_output</code> (the adder's carry, 0/1, as a second word; the multiplier's <code>wide_mode</code> is the same flag) and <code>second_downstream_mask</code> (where the
+second word leaves; 0 = by <code>downstream_mask</code> like the first) were flex-only; the std VM now implements both and no longer refuses them. Hardware: <code>adder_cell_v4/v4c</code> (<code>cfg_data[33]</code> second_output, <code>[39:34]</code> second_downstream_mask;
+PROG_ID 4 / 5) and <code>mul_cell_v5/v5c</code> (<code>wide_mode</code> <code>[12]</code>, <code>[39:34]</code> second_downstream_mask; PROG_ID 4). Two-phase delivery: the sum, then (once fully acknowledged) the carry; no new operand is taken meanwhile. The carrier's multiplier
+shell now instantiates <code>mul_cell_v5[c]</code> (identical to v4 with <code>wide_mode</code> off). In the standalone v4 adder the carry word passes through the cell's addon chain like any other output.</p>
+<p><strong>ram HOLD (#1035).</strong> The std/carrier ram absorbs the flex ram's HOLD with no new config bit: <code>fixed_mode = 1</code> with a non-empty <code>upstream_mask</code> (a combination that was dead before,
+a fixed ram never captured). The cell offers its stored word again and again (never used up), any word arriving on an upstream face REPLACES it (always acknowledged), and it offers nothing
+until a word has been written or preloaded (<code>load_data_valid</code>). A fixed ram with no upstream is still the plain constant; a flowing ram is unchanged. Differences from the flex HOLD:
+the flex cell uses valid/ack on one input and re-offers on consumer ready; the carrier uses fire/arrived/ack with <code>ready_out</code>, ORs simultaneous arrivals (flex merges by priority).</p>
 <h2><code>addon_config[19:0]</code> (plus <code>shift_fine</code>)</h2>
 <p>These fields are identical across every core. The add-ons sit on the
 periphery and do not depend on the core (<code>unicell_super_v1.v</code> lines
@@ -4220,6 +4296,24 @@ fixed cells, generated from an ICM file by the Flex-Sub assembler
 <td>none: passes W↔E and N↔S straight through</td>
 <td>the crossing tile (#999): no control logic; one tick per tile per direction (a one-word register slice per used direction). Today the netlist extractor builds each slice from a ram relay; native per-family cores are open</td>
 <td>one register slice per used direction, no logic</td>
+</tr>
+<tr>
+<td>corner (<code>corner_cell_v4.v</code> / <code>corner_cell_v4c.v</code>; ICM core_select 11; carrier <code>core_select</code> 12, #1035)</td>
+<td>none: pairs E-N + W-S (<code>turn</code> 0) or E-S + W-N (<code>turn</code> 1), both ways</td>
+<td>the corner tile: no control logic; four independent one-word slices, one tick per tile, no addon chain (the v4 and v4c are the same module); lets two lanes cross by turning</td>
+<td>four one-word register slices, no logic</td>
+</tr>
+<tr>
+<td>cross (<code>cross_cell_v4.v</code> / <code>cross_cell_v4c.v</code>; ICM core_select 10; carrier <code>core_select</code> 13, #1036)</td>
+<td>none: W&lt;-&gt;E and N&lt;-&gt;S straight through</td>
+<td>the crossing tile as a native core: the corner module with CROSS=1; four one-word slices, one tick per tile, no addon chain; bypasses the carrier's shared addon chain</td>
+<td>four one-word register slices, no logic</td>
+</tr>
+<tr>
+<td>merge (<code>merge_cell_v4.v</code> / <code>merge_cell_v4c.v</code>; ICM core_select 12; carrier <code>core_select</code> 14, #1036)</td>
+<td>two faces (A, B) from <code>upstream_mask</code>; <code>mode</code> in <code>cfg_data[13:12]</code></td>
+<td>A only / B only / arbitrate (round-robin) / join-OR; one word held at a time; v4 has the three-addon chain, v4c does not</td>
+<td>1 result register + 2 join holds</td>
 </tr>
 <tr>
 <td>priority <code>priority_cell_v4sa.v</code> (flex only)</td>
@@ -6258,7 +6352,7 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 </tr>
 <tr>
 <td><code>flexsub_icm_netlist_v1.py</code></td>
-<td>Read-only (<code>splice_crosses</code> gives each used direction of a <code>cross</code> tile a one-tick ram relay slice, #999). It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the <code>connections</code> list is advisory) and says what each family can and cannot express (#923).</td>
+<td>Read-only (<code>splice_crosses</code> gives each used direction of a <code>cross</code> or <code>corner</code> tile a one-tick ram relay slice, #999/#1035; a corner pairs its faces by <code>turn</code>). It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the <code>connections</code> list is advisory) and says what each family can and cannot express (#923).</td>
 </tr>
 <tr>
 <td><code>flexsub_icm_generate_v1.py</code></td>

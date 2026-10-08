@@ -71,6 +71,7 @@ than raising.
 | 8 | `mul` | VM core since #757; table added #823 |
 | 9 | `priority` | VM core since #751; table added #823 |
 | 10 | `cross` | the crossing tile (#999; number confirmed by Alan): no control logic, one tick per tile per direction; no native RTL core yet (the netlist extractor builds each used direction from a ram relay slice); flex VM only |
+| 12 | `merge` | the merge core (#1036): two input faces, one result, four modes (A only / B only / arbitrate / join-or) — the flex `merge_cell_v4sa` brought into the main theme; native RTL `merge_cell_v4[c]`, carrier `core_select` 14; std VM, flex (as a relay behind a merge core) |
 | 11 | `corner` | the corner tile (#1035, Alan): a wiring tile that TURNS words instead of passing them straight (see below); one `turn` bit; native RTL core `corner_cell_v4[c]` and carrier `core_select` 12 (the carrier numbers its cores differently from the ICM; 11 is the `v1d` addon pseudo-target); flex VM, std (super-cell) VM and netlist splice |
 
 A saved file's `cell_type` is derived, not declared: the minimum shell
@@ -282,6 +283,26 @@ slice is simply not acknowledged and the sender keeps offering it. Targeted prog
 | `downstream_mask` | `[3:0]` (derived from the joins; the VM ignores it) |
 | `upstream_mask` | `[7:4]` (derived from the joins; the VM ignores it) |
 | `turn` | `[8]` |
+
+**cross, now native (#1036).** `cross_cell_v4[c].v` is the corner module with `CROSS=1` (N<->S, E<->W, `turn` ignored); carrier `core_select` 13; the std VM builds it from the same `CornerCell` (`core="cross"`).
+Wiring tiles bypass the carrier's shared addon chain (it broadcasts ONE word to all four faces; a wiring tile sends a different word out of each).
+
+**merge (12, #1036).** Faces A and B are the first and second set bits of `upstream_mask` in N,S,E,W order. `mode` (bits 8-9): 0 A only (B is never accepted), 1 B only, 2 ARBITRATE (one word at a time; a same-tick tie goes
+to the face the round-robin flag favours, and the flag rotates after EVERY grant), 3 JOIN-OR (each half is held as it arrives and acknowledged at once; when both are held, A|B is offered as one word). A plain OR of simultaneous
+arrivals (what a ram with two upstream faces does) fuses two separate items into one when both stay valid; the modes make the choice explicit. On the flex family an ICM `merge` becomes a relay behind `merge_cell_v4sa` with the
+mode per cell (modes 0/1 are pass-throughs of one face and are refused there); the sub family has no merge cell and refuses it. Differences from the flex cell: the carrier cell acknowledges each join-OR half as it arrives
+(flex acknowledges both together) and offers with fire/ack.
+
+| Field | Bits |
+|---|---|
+| `downstream_mask` | `[3:0]` |
+| `upstream_mask` | `[7:4]` |
+| `mode` | `[9:8]` |
+
+**Second output (adder carry / mul high word) in the main theme (#1036).** `second_output` (the adder's carry, 0/1, as a second word; the multiplier's `wide_mode` is the same flag) and `second_downstream_mask` (where the
+second word leaves; 0 = by `downstream_mask` like the first) were flex-only; the std VM now implements both and no longer refuses them. Hardware: `adder_cell_v4/v4c` (`cfg_data[33]` second_output, `[39:34]` second_downstream_mask;
+PROG_ID 4 / 5) and `mul_cell_v5/v5c` (`wide_mode` `[12]`, `[39:34]` second_downstream_mask; PROG_ID 4). Two-phase delivery: the sum, then (once fully acknowledged) the carry; no new operand is taken meanwhile. The carrier's multiplier
+shell now instantiates `mul_cell_v5[c]` (identical to v4 with `wide_mode` off). In the standalone v4 adder the carry word passes through the cell's addon chain like any other output.
 
 **ram HOLD (#1035).** The std/carrier ram absorbs the flex ram's HOLD with no new config bit: `fixed_mode = 1` with a non-empty `upstream_mask` (a combination that was dead before,
 a fixed ram never captured). The cell offers its stored word again and again (never used up), any word arriving on an upstream face REPLACES it (always acknowledged), and it offers nothing

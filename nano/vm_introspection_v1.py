@@ -176,9 +176,16 @@ def cell_to_dict(cell) -> Dict[str, Any]:
             "data_valid": cell.pri_data_valid,
             "winning_dir": cell.pri_winning_dir,
         }
-    elif cell.core == "corner":
+    elif cell.core == "merge":
+        # ledger #1036: the merge core
+        base["merge"] = {
+            "upstream_mask": cell.mrg_upstream_mask, "downstream_mask": cell.mrg_downstream_mask, "mode": cell.mrg_mode,
+            "round_robin_favours_b": cell.mrg_rr, "a_held": cell.mrg_a_have, "b_held": cell.mrg_b_have,
+            "out_buffer": cell.mrg_out_buffer, "data_valid": cell.mrg_data_valid,
+        }
+    elif cell.core in ("corner", "cross"):
         # ledger #1035: the corner wiring tile (corner_cell_automaton_v1.CornerCell): one word per entry face.
-        base["corner"] = {
+        base[cell.core] = {
             "turn": cell.turn,
             "slices": {"nsew"[f]: v for f, v in sorted(cell.slice_value.items())},
             "waiting_for_ack": cell.pending_ack,

@@ -81,6 +81,7 @@ CORE_SELECT_TO_ROOT_KEY = {
                       # already, this closes the serialization-table gap).
     9: "priority",   # points.md #823: added alongside icm_v3.py's own
                       # SEL_PRIORITY -- same VM-provisional status, #751.
+    12: "merge",      # ledger #1036: the merge core (10 `cross` and 11 `corner` are wiring tiles with no entry)
 }
 
 

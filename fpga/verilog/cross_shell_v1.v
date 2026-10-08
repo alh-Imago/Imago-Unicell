@@ -1,14 +1,17 @@
-// mul_shell_v1.v — points.md #724: the real cardinal wrapper for
-// mul_cell_v4.v, same real pattern as every other _shell_v1 file --
-// a real cardinal wrapper, not a core edit. mul_cell_v4.v itself is
-// untouched. Its own two flat, single-bit live-control ports
-// (active, freeze_in) become real 4-way cardinal port sets here,
-// OR-combined internally, matching nano_shell_v1.v's own real
-// design rationale exactly.
+// SPDX-License-Identifier: CERN-OHL-P-2.0
+// Copyright (c) 2026 Imago UniCell Project
+// Hardware design — see LICENSE-HARDWARE and NOTICE
+//
+// cross_shell_v1.v — points.md #720: the real cardinal wrapper for
+// cross_cell_v4.v (the carrier-specific variant, internal addon chain
+// removed -- see that file's own header for the full real reasoning).
+// Otherwise IDENTICAL to ram_shell_v1.v: same cardinal OR-combining
+// for active/freeze, same port list, only the instantiated core
+// differs.
 `default_nettype none
 `timescale 1ns / 1ps
 
-module mul_shell_v1 #(
+module cross_shell_v1 #(
     parameter [15:0] CELL_ID = 16'h0000
 ) (
     input  wire        clk,
@@ -18,7 +21,7 @@ module mul_shell_v1 #(
     input  wire         freeze_in_n, freeze_in_s, freeze_in_e, freeze_in_w,
 
     input  wire         cfg_valid,
-    input  wire [63:0]  cfg_data,
+    input  wire [79:0]  cfg_data,
 
     input  wire [31:0]  data_in_n,   data_in_s,   data_in_e,   data_in_w,
     input  wire         arrived_n,   arrived_s,   arrived_e,   arrived_w,
@@ -38,14 +41,13 @@ module mul_shell_v1 #(
     input  wire          prog_arrived_in_n, prog_arrived_in_s, prog_arrived_in_e, prog_arrived_in_w,
     output wire          prog_ack_out_n,    prog_ack_out_s,    prog_ack_out_e,    prog_ack_out_w,
 
-    output wire         status_data_valid,
-    output wire         status_a_arrived
+    output wire         status_data_valid
 );
 
     wire active_comb = active_in_n | active_in_s | active_in_e | active_in_w;
     wire freeze_comb = freeze_in_n | freeze_in_s | freeze_in_e | freeze_in_w;
 
-    mul_cell_v5 #(.CELL_ID(CELL_ID)) CORE (
+    cross_cell_v4 #(.CELL_ID(CELL_ID)) CORE (
         .clk(clk), .rst(rst), .active(active_comb),
         .cfg_valid(cfg_valid), .cfg_data(cfg_data),
         .data_in_n(data_in_n), .data_in_s(data_in_s), .data_in_e(data_in_e), .data_in_w(data_in_w),
@@ -64,7 +66,7 @@ module mul_shell_v1 #(
         .prog_ack_out_n(prog_ack_out_n), .prog_ack_out_s(prog_ack_out_s),
         .prog_ack_out_e(prog_ack_out_e), .prog_ack_out_w(prog_ack_out_w),
         .freeze_in(freeze_comb),
-        .status_data_valid(status_data_valid), .status_a_arrived(status_a_arrived)
+        .status_data_valid(status_data_valid)
     );
 
 endmodule

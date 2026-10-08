@@ -114,6 +114,7 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
     CM = (1 << CW) - 1
     WP = "" if W == 32 else f", .WIDTH({W})"
     modes = parse_merge_modes(merge_mode)
+    modes.update(p.get("merge_core_modes", {}))                       # ledger #1036: an ICM merge core carries its own mode
     cells, inputs, roles = p["cells"], p["inputs"], p["adder_roles"]
     branch_plans, branch_port = p["branch_plans"], p["branch_port"]
     order, exits_l, addons = p["order"], list(p["exits"]), p["addons"]

@@ -619,5 +619,29 @@
     "description": "unused"
    }
   ]
+ },
+ "merge": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/merge_cell_v4c.v",
+  "_provenance_note": "ledger #1036: the merge core (flex merge_cell_v4sa brought into the main theme). Field positions are icm_v3.py's own _MERGE_FIELDS (the ICM super-latch layout; the RTL cell's own cfg_data is the carrier layout: [5:0] downstream, [11:6] upstream, [13:12] mode).",
+  "fields": [
+   {
+    "name": "downstream_mask",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot(s), N/S/E/W, routing_mask convention"
+   },
+   {
+    "name": "upstream_mask",
+    "hi": 7,
+    "lo": 4,
+    "description": "the TWO input faces (first set bit in N,S,E,W order = A, second = B)"
+   },
+   {
+    "name": "mode",
+    "hi": 9,
+    "lo": 8,
+    "description": "0 A only, 1 B only, 2 arbitrate (round-robin), 3 join-or"
+   }
+  ]
  }
 }

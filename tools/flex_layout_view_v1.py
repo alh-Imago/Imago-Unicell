@@ -39,7 +39,7 @@ UNDO_DEPTH = 40
 OUT_FIELD = {"out": "downstream_mask", "second": "second_downstream_mask", "low": "route_low", "equal": "route_equal", "high": "route_high"}
 IN_FIELD = {"in": "upstream_mask", "set": "set_dir", "clear": "clear_dir", "toggle": "toggle_dir", "inc": "inc_dir", "dec": "dec_dir"}
 SHORT = {"ram": "ram", "adder": "add", "mul": "mul", "comparator": "cmp", "accumulator": "acc", "latch": "lat", "sequencer": "seq", "branch": "br", "nano": "nano",
-         "priority": "pri", "cross": "x", "corner": "cor"}
+         "priority": "pri", "cross": "x", "corner": "cor", "merge": "mer"}
 
 
 def table(core):

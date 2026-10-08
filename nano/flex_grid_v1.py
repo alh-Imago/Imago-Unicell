@@ -16,6 +16,7 @@ from dataclasses import replace as _dc_replace
 
 from unicell_super_automaton_v1 import SuperCell, SuperGrid, _CORE_HANDLERS, CoreHandler, _DIR_BIT
 from unicell_automaton_v1 import N, S, E, W
+import icm_v3 as _icm_v3
 from icm_v3 import pack_dirmask as _pack_dirmask, wiring_tile_partner
 
 _FLEX_HANDLERS: dict = {}
@@ -259,6 +260,10 @@ class FlexGrid(SuperGrid):
         # CROSSING tiles (core "cross", Alan 6 Oct 2026): two independent straight-through axes, no control, ONE TICK PER TILE like every other core ("add the tick as 1 per tile").
         # Each used direction of travel is its OWN one-word register slice: a hidden relay cell (core ram) at a virtual position, reached by neighbor_pos when a neighbour sends
         # into the tile and sending on beyond it. Two words crossing in the same tile therefore never share a register, and each takes exactly one tick through the tile.
+        records, _mm = _icm_v3.merge_cores_as_relays(list(records))     # ledger #1036: an ICM merge core is a relay behind a merge core on flex, its mode per cell
+        if _mm:
+            import importlib
+            merge_mode = {**importlib.import_module("flexsub_icm_flex_v1").parse_merge_modes(merge_mode), **_mm}
         self._cross = {(r.row, r.col) for r in records if r.core in ("cross", "corner")}
         self._slice_real, self._slice_in, self._slice_out = {}, {}, {}
         extra = []
