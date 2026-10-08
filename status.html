@@ -54,6 +54,33 @@
         </div>
 
         <div class="log-entry">
+          <div class="log-meta">SILICON &mdash; CONFIRMED ON THE PHYSICAL BOARD (8 OCT 2026)</div>
+          <div class="log-title">The small unit: a design, an SD card and an ESP32 over SPI</div>
+          <p>
+            Any flex design can be wrapped in a test tool: an SD card (raw blocks) feeds a playout RAM, the design runs, a capture RAM collects the results and saves them back to the card, and an ESP32 controls it all over SPI. The CORDIC design runs through it on the real Tang Nano 20K: <strong>all six test angles match the simulator</strong>, and a full SD-card round trip (results saved to the card, loaded back as inputs, same answers) passes. The unit costs about 2,150 LUT4; the whole CORDIC unit is 2,556 LUT4 (12% of the chip), 4 of 46 block RAMs, 155 MHz capable at the 27 MHz clock. Bring-up took five rewires and one reseated SD card; every step is written up in the bring-up guide.
+          </p>
+          <span class="badge ok">CONFIRMED</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">SIMULATION &mdash; TESTED; NOT YET RUN ON THE BOARD</div>
+          <div class="log-title">Other designs, a reset button and WiFi control</div>
+          <p>
+            A 4-input reduction tree (about 2,333 LUT4 with the unit) and a relay chain (about 2,152) both fit the Nano and pass in simulation through the generated unit, driven only over simulated SPI; they have no bitstream yet. The Tang's S1 button now resets the unit (simulated, bitstream built, not yet pressed). An ESP32 sketch serves a password-protected web page for running the unit from a phone or laptop on the same WiFi; it is syntax-checked but has not been run on a real ESP32, and it is plain HTTP for a trusted network only. <strong>The Wasserstein engine does not fit this chip</strong>, even at its smallest size; it needs a bigger part.
+          </p>
+          <span class="badge warn">TESTED IN SIMULATION</span>
+        </div>
+
+        <div class="log-entry">
+          <div class="log-meta">RESEARCH &mdash; READ FROM THE BOARD SCHEMATIC, NOTHING BUILT</div>
+          <div class="log-title">Loading a new design from the ESP32</div>
+          <p>
+            The board has JTAG test points, and a route exists on paper: the ESP32 reads a bitstream from the SD card through the running unit, stores it, and sends it into the FPGA through those pads. The USB debugger chip shares the same JTAG lines, so contention is a risk. This waits for a spare board rather than risking the working one.
+          </p>
+          <span class="badge warn">QUEUED</span>
+        </div>
+
+        <div class="log-entry">
           <div class="log-meta">SYNTHESIS + PLACE-AND-ROUTE — MEASURED</div>
           <div class="log-title">Two stripped cell families: sub and flex</div>
           <p>
@@ -210,7 +237,7 @@
         <div class="panel">
           <span class="badge ok">CONFIRMED</span>
           <h3>Hardware</h3>
-          <p>Current: Sipeed Tang Nano 20K (Gowin GW2AR-LV18QN88C8/I7), with an ESP32-WROOM-32E planned as host. Earlier: IEI Mustang-F100-A10 (Arria 10 GX, 10AX066H2F34E2SG).</p>
+          <p>Current: Sipeed Tang Nano 20K (Gowin GW2AR-LV18QN88C8/I7), with an ESP32 (38-pin dev board) wired as host over SPI, working. Earlier: IEI Mustang-F100-A10 (Arria 10 GX, 10AX066H2F34E2SG).</p>
         </div>
         <div class="panel">
           <span class="badge warn">PAUSED</span>
@@ -220,7 +247,7 @@
         <div class="panel">
           <span class="badge ok">TESTED</span>
           <h3>Test coverage</h3>
-          <p>1,764 VM tests plus 20 suites that drive generated RTL through iverilog, all passing. Every sub/flex cell also has its own self-checking Verilog bench.</p>
+          <p>2,192 VM tests (counted 8 Oct 2026) plus the suites that drive generated RTL through iverilog. The small-unit suites were run for this update; the whole set was not re-run for this page. Every sub/flex cell also has its own self-checking Verilog bench.</p>
         </div>
       </div>
     </section>

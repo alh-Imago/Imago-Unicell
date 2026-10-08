@@ -108,6 +108,11 @@
           <p>A UniCell core runs on the physical Tang Nano 20K, built from source to bitstream with open tools (sequencer counting on the LEDs, 177 MHz Fmax at a 27 MHz clock).</p>
         </div>
         <div class="panel">
+          <span class="badge ok">CONFIRMED</span>
+          <h3>A design, an SD card and an ESP32</h3>
+          <p>A small test tool around any flex design: SD-card blocks in, results out, controlled over SPI by an ESP32. The CORDIC design runs through it on the board and matches the simulator, including a full SD round trip. WiFi control is written but not yet run on hardware.</p>
+        </div>
+        <div class="panel">
           <span class="badge ok">MEASURED</span>
           <h3>Cells stripped to the compute</h3>
           <p>The adder went from 2,348 LUT4 to 23 (flex, 18-bit). A 100-cell 18-bit adder chain place-and-routes at 287 MHz. Cost against width is measured for every cell.</p>
@@ -120,7 +125,7 @@
         <div class="panel">
           <span class="badge ok">TESTED</span>
           <h3>A VM that mirrors the target</h3>
-          <p>FlexGrid, the VM's flex mirror, matches the generated RTL at widths from 4 to 36 bits. About 1,760 VM tests and 20 RTL-driven suites pass.</p>
+          <p>FlexGrid, the VM's flex mirror, matches the generated RTL at widths from 4 to 36 bits. About 2,190 VM tests plus the RTL-driven suites; the small-unit suites were re-run for this update.</p>
         </div>
       </div>
       <p>
