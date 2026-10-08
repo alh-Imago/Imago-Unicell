@@ -49,4 +49,5 @@ Not in this folder: the flex/sub generator suites are plain scripts in
 - `test_sd_spi_v1.py` -- ledger #1036: sd_spi_v1 against a behavioural SD card (bring-up, read, write, SDHC and byte-addressed) and the whole small unit card -> RAM -> 4-point W2 engine -> RAM -> card (about 4.5 min).
 - `test_spi_bridge_v1.py` -- ledger #1036: spi_bridge_v1 / sd_unit_v1 with a simulated ESP32 (registers, words over SPI, SD load/play/save over SPI, and the 4-point W2 engine driven only over SPI, ~5.5 min).
 - `test_sd_unit_top_v1.py` -- ledger #1036: tools/sd_unit_top_v1.py output (pins, simulated load/play/read/save, Gowin synthesis).
+- `test_unit_designs_v1.py` -- ledger #1036: the reduction tree and relay chain run through the generated unit top, driven only over simulated SPI.
 - `test_unit_bringup_v1.py` -- ledger #1036: the committed CORDIC unit bitstream package, the ESP32 sketch's pins/registers and the wiring sheet agree with the generator and the SPI bridge.

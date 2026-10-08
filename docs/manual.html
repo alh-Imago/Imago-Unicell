@@ -5913,12 +5913,24 @@ If the ESP32 is a camera module (ESP32-CAM) the camera uses several of IO18/19/2
 <p><code>cordic</code> needs no SD card at all (the ESP32 pushes the angles in over SPI), so it proves the FPGA design and the link before the card is involved. <code>sdtest</code> uses raw card block 64 (change with <code>sdtest 200</code>); it overwrites that block. <strong>The sketch refuses blocks below 16</strong>: block 0 holds a FAT32 card's partition table. A raw-written block inside the card's file area will corrupt a file there, so use a spare card, or re-format afterwards.
 <code>wires</code> drives CS and then SCLK by hand for 4 s each so you can watch Tang LED1 and LED2 light: it proves those two wires arrive before any SPI traffic is involved.
 <code>miso</code> tells you whether the MISO wire is connected to something that drives it (it reads the pin with the ESP32's pull-down and pull-up in turn: a floating wire changes, a driven one doesn't).
-<strong>Counting holes on the Tang:</strong> the Tang's header pins do not start at breadboard column 1; count from the Tang's own first pin (in our setup column 8), and wire 'hole 1' there. A wire in a column with no Tang pin connects to nothing.
+<strong>Counting holes on the Tang:</strong> the Tang's header pins do not start at breadboard column 1; count from the Tang's own first pin (in our setup column 4; always count from the Tang's own first pin), and wire 'hole 1' there. A wire in a column with no Tang pin connects to nothing.
 <code>status</code> also reports which SD command failed and the last byte the card sent (FF = the line sat idle high, i.e. the card said nothing; 00 = stuck low). <code>sdinit</code> re-runs the card start-up without reloading the FPGA: reseat the card, type <code>sdinit</code>, then <code>status</code>.
 <strong>First hardware result (8 Oct 2026):</strong> <code>id</code>, <code>scratch</code> and <code>cordic</code> all passed on the real Tang Nano 20K + ESP32: the six CORDIC angles matched the simulator. The SD card then reported error 2 (no answer from the card); reseating the card fixed it (a contact problem), and <code>sdtest</code> then passed: SD ROUND TRIP OK. If it drops out again: reseat, <code>sdinit</code>, <code>status</code>.
 Other commands: <code>z 100 200 300</code> (your own angles), <code>load 64 1</code> / <code>save 64 1</code>, <code>reg 8</code> (read a register), <code>reg 7 0x1234</code> (write), <code>words 0 8</code> (dump results RAM), <code>help</code>.</p>
 <h2>Reading the unit by hand (for later designs)</h2>
 <p>Registers, SPI protocol and the card layout are in <code>docs/playout_capture_v1.md</code> and <code>fpga/build/unit_cordic_v1/lanes.json</code>. A different design is wrapped the same way: <code>python3 tools/sd_unit_top_v1.py --icm &lt;design.icm&gt; --output &lt;dir&gt;</code> then <code>tools/gowin_sizing/build_unit_bitstream.sh &lt;dir&gt;</code>.</p>
+<h2>WiFi remote control (ledger #1036 addendum 9)</h2>
+<p><code>tools/esp32/unicell_unit_web/</code> is a second sketch (same wiring, same SPI layer in <code>unit_link.h</code>) that puts the unit on your WiFi. <strong>It has been syntax-checked and its logic is covered by the simulation tests, but it has not yet been run on a real ESP32: treat the first run as a test.</strong></p>
+<ol>
+<li>Choose the design that is loaded on the FPGA: near the top of <code>unicell_unit_web.ino</code> leave exactly one of <code>DESIGN_CORDIC</code> (default), <code>DESIGN_TREE4</code>, <code>DESIGN_RELAY</code> defined. This sets how many input words make one item and what the page says.</li>
+<li>Upload it the same way as the serial sketch (Arduino IDE or <code>arduino-cli compile/upload</code>, board ESP32 Dev Module).</li>
+<li>Serial Monitor (115200, Newline): the first boot prints a generated web password. Type <code>wifi &lt;ssid&gt; &lt;password&gt;</code>; it restarts, joins your WiFi and prints the address. Other commands: <code>ip</code> (address + password), <code>webpass &lt;new, 8+ chars&gt;</code>, <code>wificlear</code>, <code>id</code>, <code>reboot</code>.</li>
+<li>Open <code>http://unicell.local/</code> (or the printed IP) in a browser on the same WiFi. Login: user <code>unicell</code>, the web password.</li>
+<li>If WiFi cannot be joined, the ESP32 makes its own network <strong>UniCell-Unit</strong> (password = the web password); join it and open <code>http://192.168.4.1/</code>.</li>
+</ol>
+<p>The page shows the unit status (ID, SD card, errors), a box to type input numbers (one item per line, or separated by anything that is not a digit), and a Run button that sends them over SPI, plays them through the design and shows the results. A second panel loads input from, or saves results to, raw SD blocks (blocks below 16 are refused).
+Endpoints (for scripts): <code>GET /api/status</code>, <code>POST /api/run</code> (field <code>items</code>), <code>POST /api/sd</code> (<code>op</code>=load|save, <code>block</code>, <code>n</code>), <code>POST /api/sdinit</code>. Example: <code>curl -u unicell:PASSWORD -d "items=50000 -50000 0" http://unicell.local/api/run</code>.
+<strong>Limits, honestly:</strong> plain HTTP with a password, for a trusted home or lab network only, never the internet; at most 512 words per run; one request at a time; it can overwrite raw SD blocks (16 and up).</p>
 <div class="partsub">MAN files (card capabilities)<span class="partsrc">docs/man/README.md</span></div>
 <h1>MAN files</h1>
 <p>A MAN file describes a <strong>target card's real identity and capabilities</strong> —
@@ -6656,6 +6668,7 @@ its own README, setup, and dependencies. None require the UniCell VM or
 hardware to run, except where noted above (Quartus, for <code>placement_extract_v1.py</code>
 specifically).
 - <code>esp32/unicell_unit_bridge/</code> -- Arduino sketch: ESP32 as SPI master to the small unit (docs/unit_bringup_guide.md).
+- <code>esp32/unicell_unit_web/</code> -- Arduino sketch: WiFi web control of the small unit (run, SD load/save, status; docs/unit_bringup_guide.md, WiFi section).
 - <code>sd_unit_top_v1.py</code> -- ledger #1036: wrap any flex design (an ICM) in the SD-card + ESP32-SPI small unit; writes a Tang Nano <code>unit_top.v</code>, pin file, lane map and README (docs/playout_capture_v1.md).</p>
 <div class="partsub">Arria 10 programming procedure<span class="partsrc">hardware/Arria10_Programming_Procedure.md</span></div>
 <h1>Imago UniCell — Arria 10 GX660 Programming Procedure</h1>

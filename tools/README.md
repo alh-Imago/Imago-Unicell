@@ -231,4 +231,5 @@ its own README, setup, and dependencies. None require the UniCell VM or
 hardware to run, except where noted above (Quartus, for `placement_extract_v1.py`
 specifically).
 - `esp32/unicell_unit_bridge/` -- Arduino sketch: ESP32 as SPI master to the small unit (docs/unit_bringup_guide.md).
+- `esp32/unicell_unit_web/` -- Arduino sketch: WiFi web control of the small unit (run, SD load/save, status; docs/unit_bringup_guide.md, WiFi section).
 - `sd_unit_top_v1.py` -- ledger #1036: wrap any flex design (an ICM) in the SD-card + ESP32-SPI small unit; writes a Tang Nano `unit_top.v`, pin file, lane map and README (docs/playout_capture_v1.md).
