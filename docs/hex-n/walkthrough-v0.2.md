@@ -33,11 +33,23 @@ What this does to the open points (my reading, to be confirmed):
 - **Direction is a configurable property of each pair**, not implicit. v0.1's removal of the direction bit (config 4 -> 3 bits) contradicts this; it should stay: gate 2 + active 1 + direction 1 = 4 bits per pair.
 - **"Greater chance of flowing"** is new and is not in any note. Two readings: (a) *graded, deterministic*: more active wires fill the accumulator sooner, so that path reaches its threshold earlier and carries more; (b) *literally probabilistic*: the accumulated value is compared with a random number, so the chance of a path firing rises with its weight. (b) needs a pseudo-random source in each cell (a small shift register, which is fine here: this is not the security use). It makes runs non-repeatable unless the random source is seeded and the VM copies it bit for bit, which matters for training.
 
-## Decisions I need from you
-1. Temporal accumulation over the window (README and Alan's recollection; gives the bias a job). Spatial count was v0.1's reading. Leaning temporal, to confirm.
-2. NOT of the face's fire decision, or of the channel's own input?
-3. One window or two per hop?
-4. Is "greater chance of flowing" literal probability (needs a seeded pseudo-random source per cell) or graded and deterministic?
+## Decided by Alan, 9 Oct 2026
+1. **Temporal accumulation** (a weight that builds over the window), not a one-off 0-4 count.
+2. **Graded and deterministic**: more active wires fill the accumulator sooner and carry more; no random source.
+3. **Direction is configurable per pair**, and a wire can carry flow **both ways, never at the same time**: that reverse flow is the **feedback** that makes the cell behave like a simple neural net (forward pass, then feedback pass) rather than a feed-forward logic mesh.
+
+## What those decisions imply (my reading, to confirm)
+- **Time-shared direction.** Each pair is logically ONE wire whose direction is set by a phase: forward in one window, feedback in the next (or fixed forward / fixed back by config; three modes: forward only, back only, alternating). On the die this is two unidirectional wires and a mux (the fabric has no internal tri-state); only at the package pins would a real bidirectional pin be needed.
+- **That is the loop fix, done properly.** v0.1 separated in and out per channel and clocked the whole cell to avoid a combinational loop. With one direction live at a time there is no loop at all, and the same window tick also provides the phase.
+- **The gate formula must change.** v0.1 had `out = GATE(fire, own in)`, which needs the channel's own input while it is the output. Under time-sharing that input is not live in the same phase. Suggest `out = GATE(face fire, the face's other-phase value)` or simply `GATE(fire, 1)`: needs a decision (below).
+- **Accumulator.** Proposal: each clock, add the number of active input pairs currently flowing into the face; at the window end compare with the face threshold (wide enough for window length x pairs); the 16-bit shared value is the bias/damping applied to the total before the compare; clear at the window end. "Greater chance of flowing" then means: more active wires -> the total clears the threshold by a bigger margin / sooner, and the margin can scale the output (graded) if wanted.
+- **Prototype status.** `rtl/hexn_cell_v0.v` still implements the v0.1 spatial reading; it is superseded by the above and kept only as the first measurement.
+
+## Still open
+1. What does NOT negate (the face's fire decision, or the pair's carried value)?
+2. How is the output formed from fire plus the carried value now that in and out share a wire?
+3. Is the output on/off, or graded (the margin above threshold)?
+4. Alternating phase: one global phase for the mesh, or per-pair?
 5. First bring-up shape: one 6x8 cell through the unit, or the 7-cell flower?
 
 ## Proposed next steps once decided
