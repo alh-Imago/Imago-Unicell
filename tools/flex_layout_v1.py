@@ -389,7 +389,8 @@ class Grid:
                 out.append((c, "tie", x, y))
             m = self.minuend.get(c)
             if m is not None:                     # `m` names a cell UPSTREAM of one of the two sources (the route's last relay is the actual source)
-                mx = next((q for q in (x, y) if self._descends(q, m)), None)
+                direct = {m, *self.routes.get((m, c), {}).get("relays", [])}                  # #1031: the operand that IS the declared minuend (or the last relay of its own route) wins even when the other operand also descends from it (v - (v >> k))
+                mx = next((q for q in (x, y) if q in direct), None) or next((q for q in (x, y) if self._descends(q, m)), None)
                 if mx is None:
                     raise LayoutError(f"{c}: declared minuend {m} is upstream of neither operand")
                 oth = y if mx == x else x

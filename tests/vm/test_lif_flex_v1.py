@@ -57,3 +57,21 @@ def test_two_neuron_network_rtl(mode):
         sp, fv = L.net_ref(v, W, K, TH)
         for j in range(N):
             assert [got[f"S{j}_{t}"][q] for t in range(T)] == sp[j] and got[f"VF{j}"][q] == fv[j], (q, j, v)
+
+
+def test_subtract_from_the_same_source_keeps_its_minuend_rtl():
+    """#1031: v - (v >> 3), where BOTH operands of the subtract descend from v: the declared minuend (the first operand) must be recognised by the layout engine and arrive first."""
+    import netplace_v1 as npl
+    import fp_add_v1 as fa
+    import fp_mul_tight_v1 as f
+    n = npl.Net()
+    n.op("PV", "relay", [])
+    n.op("L", "relay", ["PV"], addon=fa.shr(3))
+    n.op("O.D", "sub", ["PV", "L"])
+    for sd in (1, 2, 3):
+        g = Grid(rows=30, cols=60)
+        nm, _, _ = f.place_net_tight(g, n, "X", 2, 2, ["PV"], 12, 24, pitch=3, gap=2, outs=["O.D"], seeds=(sd,))
+        assert g.balance(limit=60) >= 0 and g.problems() == []
+        vals = [0, 5, 8, 100, 255, 1000, 12345]
+        got = run_rtl(tempfile.mkdtemp(), f"mn{sd}", g.records(), {nm["PV"]: vals}, {"D": nm["O.D"]}, "plain", settle=5000, cycles=6000)["D"]
+        assert got == [v - (v >> 3) for v in vals]
