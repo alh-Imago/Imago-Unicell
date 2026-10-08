@@ -1,4 +1,4 @@
-"""tools/flow2d_flex_v1.py -- WORK IN PROGRESS (not yet in the ledger): a 2x2 sheet over 2 steps is bit-exact in the RTL; the 3x3 sheet does not route yet (tile exits walled in; pair spacing fix `pw = wa + pgap + wb + pgap` still to be applied and tested). Was to be ledger #1034: FLOW DYNAMICS IN TWO DIMENSIONS (Alan: "try the 2d mechanics"): the 1-D medium of #1033 (tools/flow_flex_v1.py) on an R x Q sheet of cells, four neighbours each.
+"""tools/flow2d_flex_v1.py -- ledger #1034: FLOW DYNAMICS IN TWO DIMENSIONS (Alan: "try the 2d mechanics"): the 1-D medium of #1033 (tools/flow_flex_v1.py) on an R x Q sheet of cells, four neighbours each.
 Per step every cell hands on, conservatively (closed edges):
   * STANDARD flow: d = C >> k to EACH existing neighbour (north, south, west, east);
   * INSTRUCTED flow: two command words per cell per step, aE and aS: it hands  pE = (C*aE) >> s  to its EAST neighbour and  pS = (C*aS) >> s  to its SOUTH neighbour.
@@ -110,9 +110,9 @@ def build_a2(i, j, R, Q, k, s):
         n.op("Dm", "relay", ["D"], addon=shl(1 if nb == 2 else 2))
         tot = "Dm"
     else:
-        n.op("Dm", "relay", ["D"], addon=shl(1))
-        n.op("Dm2", "relay", ["Dm"])                               # (a spacer: arrives after Db, so the add below has no tie)
-        n.op("Dt", "add", ["Dm2", "Db"])
+        n.op("Dd", "relay", ["D"])
+        n.op("K3", "const", const=3)
+        n.op("Dt", "mul", ["Dd", "K3"])                            # 3 * d: one multiplier by a constant (an add of 2d and d tied in time and the balancer could not separate them)
         tot = "Dt"
     if j < Q - 1:
         n.op("AE", "relay", [])
