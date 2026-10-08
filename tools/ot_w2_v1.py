@@ -179,14 +179,28 @@ def port_names(n):
     return [f"XM{i}" for i in range(n)] + [f"WM{i}" for i in range(n - 1)] + [f"XN{i}" for i in range(n)] + [f"WN{i}" for i in range(n - 1)]
 
 
-def _tile(g, net, name, entries, outs, r0, c0, rows=40, cols=60):
-    """Place a small netlist tightly on a scratch grid and move it onto g with its top-left at (r0, c0). Returns ({op: grid name}, consts, (height, width))."""
+def _apply_pads(net, pads):
+    """Delay an op's input by k relays: {(op, source op): k}. How the engine fixes an operand tie or a subtract whose minuend would arrive second (see w2_grid)."""
+    for (op, src), k in sorted(pads.items()):
+        prev = src
+        for j in range(k):
+            prev = net.op(f"{op}~{src}~{j}", "relay", [prev])
+        net.cells[op]["srcs"] = [prev if x == src else x for x in net.cells[op]["srcs"]]
+
+
+def _tile(g, net, name, entries, outs, r0, c0, rows=40, cols=60, pads=None, info=None):
+    """Place a small netlist tightly on a scratch grid and move it onto g with its top-left at (r0, c0). Returns ({op: grid name}, consts, (height, width)).
+    `pads` delays chosen inputs (see _apply_pads); `info` collects grid name -> (tile, op, netlist) for the padding loop."""
     import fp_mul_tight_v1 as fmt1
+    _apply_pads(net, (pads or {}).get(name, {}))
     sg = fmt1._scratch(g, rows, cols)
     names, consts, _ = fmt1.place_net_tight(sg, net, name, 2, 2, entries, rows, cols, pitch=3, gap=2, outs=outs)
     rmin, rmax, cmin, cmax = fmt1._bbox(sg)
     fmt1._transplant(g, sg, r0, c0)
     g._relay = max(g._relay, sg._relay)
+    if info is not None:
+        for op, gn in names.items():
+            info[gn] = (name, op, net)
     return names, consts, (rmax - rmin + 1, cmax - cmin + 1)
 
 
@@ -201,7 +215,7 @@ def _route_batches(g, batches):
         g.route_nets([(a, b, {"spread": True, "avoid": tuple(guard - {face(b, -1), face(a, +1)})}) for a, b in nets])
 
 
-def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10):
+def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10, pads=None, info=None):
     """Place the engine on grid g as tiles (a front per signature, one tile per compare-exchange, a back) joined by routes.
     Returns (entries {port: cell}, exits {"W2": cell}, consts)."""
     n2 = 2 * n
@@ -211,7 +225,7 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10):
     fronts, row, wmax = {}, r0, 0
     for side in ("M", "N"):
         net, ents, outs = front_net(side, n, T)
-        nm, cs, (h, w) = _tile(g, net, f"{name}.F{side}", ents, outs, row, c0)
+        nm, cs, (h, w) = _tile(g, net, f"{name}.F{side}", ents, outs, row, c0, pads=pads, info=info)
         consts.update(cs)
         fronts[side] = nm
         for i in range(n):
@@ -230,7 +244,7 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10):
         row, wmax = r0, 0
         for ci, (a, b) in enumerate(stage):
             net, ents, outs = ce_net()
-            nm, cs, (h, w) = _tile(g, net, f"{name}.C{si}.{ci}", ents, outs, row, col)
+            nm, cs, (h, w) = _tile(g, net, f"{name}.C{si}.{ci}", ents, outs, row, col, pads=pads, info=info)
             consts.update(cs)
             (ka, pa), (kb, pb) = lanes[a], lanes[b]
             nets += [(ka, nm["KA"]), (kb, nm["KB"]), (pa, nm["PA"]), (pb, nm["PB"])]
@@ -243,7 +257,7 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10):
     row, wmax, prev, terms = r0, 0, None, []
     for i in range(n2):                                   # the segments, one tile each, in a column
         net, ents, outs = seg_net(i == 0, i == n2 - 1)
-        nm, cs, (h, w) = _tile(g, net, f"{name}.G{i}", ents, outs, row, col)
+        nm, cs, (h, w) = _tile(g, net, f"{name}.G{i}", ents, outs, row, col, pads=pads, info=info)
         consts.update(cs)
         nets.append((lanes[i][0], nm["KA"]))
         if i < n2 - 1:
@@ -260,9 +274,48 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10):
     nets = []
     col += wmax + gap
     net, ents, outs = sum_net(n2)
-    nm, cs, _ = _tile(g, net, f"{name}.SUM", ents, outs, r0, col)
+    nm, cs, _ = _tile(g, net, f"{name}.SUM", ents, outs, r0, col, pads=pads, info=info)
     consts.update(cs)
     nets += [(t, nm[f"T{i}"]) for i, t in enumerate(terms)]
     batches.append(nets)
     _route_batches(g, batches)
     return ent, {"W2": nm["O.W2"]}, consts
+
+
+_PADS = {}
+
+
+def w2_grid(n=4, T=64, rows=300, cols=400, attempts=8, name="W2"):
+    """Build the engine on a fresh grid with its operand timing fixed. The lines between and inside the tiles cross each other, so `Grid.balance` cannot lengthen them;
+    instead each problem is traced to the op and input it concerns, that input gets delay relays in its tile's netlist (`pads`), and the engine is laid again (the
+    geometry is computed, so a few tries settle it; the pads are remembered per size). Returns (grid, entries, exits, consts)."""
+    from flex_layout_v1 import Grid
+    pads = {t: dict(p) for t, p in _PADS.get((n, T), {}).items()}
+    for _ in range(attempts):
+        g, info = Grid(rows=rows, cols=cols), {}
+        ent, ex, consts = w2_engine(g, n, T, name=name, pads=pads, info=info)
+        probs = g.problems()
+        if not probs:
+            break
+        t = g.hops()
+        imm_src = {}                                       # a cell's immediate source (a cell, or the last relay of a route) -> the op it carries
+        for (a, b), v in g.routes.items():
+            imm_src[(b, v["relays"][-1] if v["relays"] else a)] = a
+        for a, b, _ in g.links:
+            imm_src.setdefault((b, a), a)
+        for c, kind, x, y in probs:
+            tile, op, net = info[c]
+            late = y
+            arr = lambda q: t[q] + g.xdelay.get((c, q), 0)
+            need = 1 if kind == "tie" else arr(x) - arr(y) + 1
+            src_cell = imm_src.get((c, late), late)
+            src_op = info.get(src_cell, (None, None))[1]
+            if src_op is None or src_op not in net.cells[op]["srcs"]:
+                src_op = next(q for q in net.cells[op]["srcs"] if q != info.get(imm_src.get((c, x), x), (None, None))[1])
+            key = (op, src_op)
+            pads.setdefault(tile, {})[key] = pads.get(tile, {}).get(key, 0) + max(1, need)
+    else:
+        raise RuntimeError(f"w2_grid: timing problems remain after {attempts} attempts: {g.problems()[:4]}")
+    _PADS[(n, T)] = pads
+    return g, ent, ex, consts
+
