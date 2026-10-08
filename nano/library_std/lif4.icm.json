@@ -1,0 +1,4016 @@
+{
+  "format_version": "icm-v3",
+  "cell_type": "unicell_super_v1",
+  "name": "lif4",
+  "description": "a leaky-integrate-and-fire neuron over 4 time steps (#1030): inputs I0..I3, spikes S0..S3, final membrane VF",
+  "records": [
+    {
+      "cell_id": "LIF.T0.I",
+      "row": 3,
+      "col": 2,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": "I0",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000081"
+    },
+    {
+      "cell_id": "LIF.T0.V",
+      "row": 3,
+      "col": 4,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e",
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000000010c1"
+    },
+    {
+      "cell_id": "LIF.T0.S",
+      "row": 3,
+      "col": 7,
+      "core": "comparator",
+      "core_config": {
+        "threshold": 256,
+        "downstream_mask": [
+          "e",
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000002010c4"
+    },
+    {
+      "cell_id": "LIF.T0.O.S",
+      "row": 3,
+      "col": 10,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": "S0",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001001"
+    },
+    {
+      "cell_id": "LIF.T0.KN",
+      "row": 6,
+      "col": 11,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 4294967040,
+      "super_latch_hex": "0x00000000000000000101"
+    },
+    {
+      "cell_id": "LIF.T0.R",
+      "row": 6,
+      "col": 10,
+      "core": "mul",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n",
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000b08"
+    },
+    {
+      "cell_id": "LIF.T0.O.W",
+      "row": 6,
+      "col": 7,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w",
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001242"
+    },
+    {
+      "cell_id": "LIF.T1.I",
+      "row": 6,
+      "col": 18,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": "I1",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000081"
+    },
+    {
+      "cell_id": "LIF.T1.KC",
+      "row": 4,
+      "col": 20,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 7,
+      "super_latch_hex": "0x00000000000000000021"
+    },
+    {
+      "cell_id": "LIF.T1.M",
+      "row": 3,
+      "col": 20,
+      "core": "mul",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001488"
+    },
+    {
+      "cell_id": "LIF.T1.KC2",
+      "row": 4,
+      "col": 23,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 7,
+      "super_latch_hex": "0x00000000000000000021"
+    },
+    {
+      "cell_id": "LIF.T1.A",
+      "row": 3,
+      "col": 23,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001482"
+    },
+    {
+      "cell_id": "LIF.T1.D",
+      "row": 3,
+      "col": 26,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {
+        "shift_en": 1,
+        "direction": 1,
+        "shift_amt": 3
+      },
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00006300000000001041"
+    },
+    {
+      "cell_id": "LIF.T1.V",
+      "row": 6,
+      "col": 23,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "s",
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000000012c2"
+    },
+    {
+      "cell_id": "LIF.T1.S",
+      "row": 9,
+      "col": 26,
+      "core": "comparator",
+      "core_config": {
+        "threshold": 256,
+        "downstream_mask": [
+          "n",
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000201064"
+    },
+    {
+      "cell_id": "LIF.T1.O.S",
+      "row": 6,
+      "col": 26,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": "S1",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000401"
+    },
+    {
+      "cell_id": "LIF.T1.KN",
+      "row": 12,
+      "col": 27,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 4294967040,
+      "super_latch_hex": "0x00000000000000000101"
+    },
+    {
+      "cell_id": "LIF.T1.R",
+      "row": 12,
+      "col": 26,
+      "core": "mul",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n",
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000b08"
+    },
+    {
+      "cell_id": "LIF.T1.O.W",
+      "row": 12,
+      "col": 23,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n",
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001282"
+    },
+    {
+      "cell_id": "LIF.T2.I",
+      "row": 6,
+      "col": 34,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": "I2",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000081"
+    },
+    {
+      "cell_id": "LIF.T2.KC",
+      "row": 4,
+      "col": 36,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 7,
+      "super_latch_hex": "0x00000000000000000021"
+    },
+    {
+      "cell_id": "LIF.T2.M",
+      "row": 3,
+      "col": 36,
+      "core": "mul",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001488"
+    },
+    {
+      "cell_id": "LIF.T2.KC2",
+      "row": 4,
+      "col": 39,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 7,
+      "super_latch_hex": "0x00000000000000000021"
+    },
+    {
+      "cell_id": "LIF.T2.A",
+      "row": 3,
+      "col": 39,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001482"
+    },
+    {
+      "cell_id": "LIF.T2.D",
+      "row": 3,
+      "col": 42,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {
+        "shift_en": 1,
+        "direction": 1,
+        "shift_amt": 3
+      },
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00006300000000001041"
+    },
+    {
+      "cell_id": "LIF.T2.V",
+      "row": 6,
+      "col": 39,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "s",
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000000012c2"
+    },
+    {
+      "cell_id": "LIF.T2.S",
+      "row": 9,
+      "col": 42,
+      "core": "comparator",
+      "core_config": {
+        "threshold": 256,
+        "downstream_mask": [
+          "n",
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000201064"
+    },
+    {
+      "cell_id": "LIF.T2.O.S",
+      "row": 6,
+      "col": 42,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": "S2",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000401"
+    },
+    {
+      "cell_id": "LIF.T2.KN",
+      "row": 12,
+      "col": 43,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 4294967040,
+      "super_latch_hex": "0x00000000000000000101"
+    },
+    {
+      "cell_id": "LIF.T2.R",
+      "row": 12,
+      "col": 42,
+      "core": "mul",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n",
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000b08"
+    },
+    {
+      "cell_id": "LIF.T2.O.W",
+      "row": 12,
+      "col": 39,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n",
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001282"
+    },
+    {
+      "cell_id": "LIF.T3.I",
+      "row": 6,
+      "col": 50,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": "I3",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000081"
+    },
+    {
+      "cell_id": "LIF.T3.KC",
+      "row": 4,
+      "col": 52,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 7,
+      "super_latch_hex": "0x00000000000000000021"
+    },
+    {
+      "cell_id": "LIF.T3.M",
+      "row": 3,
+      "col": 52,
+      "core": "mul",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001488"
+    },
+    {
+      "cell_id": "LIF.T3.KC2",
+      "row": 4,
+      "col": 55,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 7,
+      "super_latch_hex": "0x00000000000000000021"
+    },
+    {
+      "cell_id": "LIF.T3.A",
+      "row": 3,
+      "col": 55,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001482"
+    },
+    {
+      "cell_id": "LIF.T3.D",
+      "row": 3,
+      "col": 58,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {
+        "shift_en": 1,
+        "direction": 1,
+        "shift_amt": 3
+      },
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00006300000000001041"
+    },
+    {
+      "cell_id": "LIF.T3.V",
+      "row": 6,
+      "col": 55,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [
+          "s",
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000000012c2"
+    },
+    {
+      "cell_id": "LIF.T3.S",
+      "row": 9,
+      "col": 58,
+      "core": "comparator",
+      "core_config": {
+        "threshold": 256,
+        "downstream_mask": [
+          "n",
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000201064"
+    },
+    {
+      "cell_id": "LIF.T3.O.S",
+      "row": 6,
+      "col": 58,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": "S3",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000401"
+    },
+    {
+      "cell_id": "LIF.T3.KN",
+      "row": 12,
+      "col": 59,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": 4294967040,
+      "super_latch_hex": "0x00000000000000000101"
+    },
+    {
+      "cell_id": "LIF.T3.R",
+      "row": 12,
+      "col": 58,
+      "core": "mul",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n",
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000b08"
+    },
+    {
+      "cell_id": "LIF.T3.O.W",
+      "row": 12,
+      "col": 55,
+      "core": "adder",
+      "core_config": {
+        "downstream_mask": [],
+        "upstream_mask": [
+          "n",
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": "VF",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001202"
+    },
+    {
+      "cell_id": "LIF.T0.I_LIF.T0.V.1",
+      "row": 3,
+      "col": 3,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.V_LIF.T0.S.2",
+      "row": 3,
+      "col": 5,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.V_LIF.T0.S.3",
+      "row": 3,
+      "col": 6,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.V_LIF.T0.Q.6",
+      "row": 4,
+      "col": 4,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T0.V_LIF.T0.Q.7",
+      "row": 5,
+      "col": 4,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T0.Q",
+      "row": 6,
+      "col": 4,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T0.Q_LIF.T0.O.W.8",
+      "row": 6,
+      "col": 5,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.Q_LIF.T0.O.W.9",
+      "row": 6,
+      "col": 6,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.S_LIF.T0.O.S.4",
+      "row": 3,
+      "col": 8,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.S_LIF.T0.O.S.5",
+      "row": 3,
+      "col": 9,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.S_LIF.T0.R.14",
+      "row": 4,
+      "col": 7,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T0.S_LIF.T0.R.15",
+      "row": 4,
+      "col": 8,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.S_LIF.T0.R.16",
+      "row": 4,
+      "col": 9,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.S_LIF.T0.R.17",
+      "row": 4,
+      "col": 10,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001041"
+    },
+    {
+      "cell_id": "LIF.T0.S_LIF.T0.R.18",
+      "row": 5,
+      "col": 10,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T0.R_LIF.T0.O.W.10",
+      "row": 6,
+      "col": 9,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000821"
+    },
+    {
+      "cell_id": "LIF.T0.R_LIF.T0.O.W.11",
+      "row": 5,
+      "col": 9,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000501"
+    },
+    {
+      "cell_id": "LIF.T0.R_LIF.T0.O.W.12",
+      "row": 5,
+      "col": 8,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T0.R_LIF.T0.O.W.13",
+      "row": 5,
+      "col": 7,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.54",
+      "row": 7,
+      "col": 7,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.55",
+      "row": 7,
+      "col": 8,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.56",
+      "row": 7,
+      "col": 9,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.57",
+      "row": 7,
+      "col": 10,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.58",
+      "row": 7,
+      "col": 11,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.59",
+      "row": 7,
+      "col": 12,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.60",
+      "row": 7,
+      "col": 13,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001021"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.61",
+      "row": 6,
+      "col": 13,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.62",
+      "row": 5,
+      "col": 13,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.63",
+      "row": 4,
+      "col": 13,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.64",
+      "row": 3,
+      "col": 13,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.65",
+      "row": 3,
+      "col": 14,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.66",
+      "row": 3,
+      "col": 15,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.67",
+      "row": 3,
+      "col": 16,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T0.O.W_LIF.T1.PV.68",
+      "row": 3,
+      "col": 17,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.PV",
+      "row": 3,
+      "col": 18,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.PV_LIF.T1.M.19",
+      "row": 3,
+      "col": 19,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.I_LIF.T1.V.40",
+      "row": 6,
+      "col": 19,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.I_LIF.T1.V.41",
+      "row": 6,
+      "col": 20,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.I_LIF.T1.V.42",
+      "row": 6,
+      "col": 21,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.I_LIF.T1.V.43",
+      "row": 6,
+      "col": 22,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.M_LIF.T1.A.20",
+      "row": 3,
+      "col": 21,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.M_LIF.T1.A.21",
+      "row": 3,
+      "col": 22,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.A_LIF.T1.D.22",
+      "row": 3,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.A_LIF.T1.D.23",
+      "row": 3,
+      "col": 25,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.D_LIF.T1.V.44",
+      "row": 4,
+      "col": 26,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T1.D_LIF.T1.V.45",
+      "row": 4,
+      "col": 25,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T1.D_LIF.T1.V.46",
+      "row": 5,
+      "col": 25,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T1.D_LIF.T1.V.47",
+      "row": 5,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T1.D_LIF.T1.V.48",
+      "row": 5,
+      "col": 23,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T1.V_LIF.T1.Q.28",
+      "row": 7,
+      "col": 23,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T1.V_LIF.T1.Q.29",
+      "row": 8,
+      "col": 23,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T1.Q",
+      "row": 9,
+      "col": 23,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T1.Q_LIF.T1.O.W.30",
+      "row": 10,
+      "col": 23,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T1.Q_LIF.T1.O.W.31",
+      "row": 11,
+      "col": 23,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T1.V_LIF.T1.S.49",
+      "row": 6,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001041"
+    },
+    {
+      "cell_id": "LIF.T1.V_LIF.T1.S.50",
+      "row": 7,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T1.V_LIF.T1.S.51",
+      "row": 7,
+      "col": 25,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001041"
+    },
+    {
+      "cell_id": "LIF.T1.V_LIF.T1.S.52",
+      "row": 8,
+      "col": 25,
+      "core": "cross",
+      "core_config": {
+        "downstream_mask": [
+          "s",
+          "e"
+        ],
+        "upstream_mask": [
+          "n",
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000000012ca"
+    },
+    {
+      "cell_id": "LIF.T1.V_LIF.T1.S.53",
+      "row": 9,
+      "col": 25,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T1.S_LIF.T1.O.S.24",
+      "row": 8,
+      "col": 26,
+      "core": "cross",
+      "core_config": {
+        "downstream_mask": [
+          "n",
+          "e"
+        ],
+        "upstream_mask": [
+          "s",
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000000014aa"
+    },
+    {
+      "cell_id": "LIF.T1.S_LIF.T1.O.S.25",
+      "row": 7,
+      "col": 26,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.S_LIF.T1.R.26",
+      "row": 10,
+      "col": 26,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T1.S_LIF.T1.R.27",
+      "row": 11,
+      "col": 26,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T1.R_LIF.T1.O.W.32",
+      "row": 12,
+      "col": 25,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T1.R_LIF.T1.O.W.33",
+      "row": 13,
+      "col": 25,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T1.R_LIF.T1.O.W.34",
+      "row": 14,
+      "col": 25,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T1.R_LIF.T1.O.W.35",
+      "row": 14,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T1.R_LIF.T1.O.W.36",
+      "row": 14,
+      "col": 23,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T1.R_LIF.T1.O.W.37",
+      "row": 14,
+      "col": 22,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000821"
+    },
+    {
+      "cell_id": "LIF.T1.R_LIF.T1.O.W.38",
+      "row": 13,
+      "col": 22,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.R_LIF.T1.O.W.39",
+      "row": 12,
+      "col": 22,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.104",
+      "row": 12,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001021"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.105",
+      "row": 11,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.106",
+      "row": 10,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.107",
+      "row": 9,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.108",
+      "row": 8,
+      "col": 24,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.109",
+      "row": 8,
+      "col": 27,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001021"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.110",
+      "row": 7,
+      "col": 27,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.111",
+      "row": 6,
+      "col": 27,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.112",
+      "row": 5,
+      "col": 27,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.113",
+      "row": 4,
+      "col": 27,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.114",
+      "row": 3,
+      "col": 27,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.115",
+      "row": 3,
+      "col": 28,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.116",
+      "row": 3,
+      "col": 29,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.117",
+      "row": 3,
+      "col": 30,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.118",
+      "row": 3,
+      "col": 31,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.119",
+      "row": 3,
+      "col": 32,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T1.O.W_LIF.T2.PV.120",
+      "row": 3,
+      "col": 33,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.PV",
+      "row": 3,
+      "col": 34,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.PV_LIF.T2.M.69",
+      "row": 3,
+      "col": 35,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.I_LIF.T2.V.90",
+      "row": 6,
+      "col": 35,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.I_LIF.T2.V.91",
+      "row": 6,
+      "col": 36,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.I_LIF.T2.V.92",
+      "row": 6,
+      "col": 37,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.I_LIF.T2.V.93",
+      "row": 6,
+      "col": 38,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.M_LIF.T2.A.70",
+      "row": 3,
+      "col": 37,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.M_LIF.T2.A.71",
+      "row": 3,
+      "col": 38,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.A_LIF.T2.D.72",
+      "row": 3,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.A_LIF.T2.D.73",
+      "row": 3,
+      "col": 41,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.D_LIF.T2.V.94",
+      "row": 4,
+      "col": 42,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T2.D_LIF.T2.V.95",
+      "row": 4,
+      "col": 41,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T2.D_LIF.T2.V.96",
+      "row": 5,
+      "col": 41,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T2.D_LIF.T2.V.97",
+      "row": 5,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T2.D_LIF.T2.V.98",
+      "row": 5,
+      "col": 39,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T2.V_LIF.T2.Q.78",
+      "row": 7,
+      "col": 39,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T2.V_LIF.T2.Q.79",
+      "row": 8,
+      "col": 39,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T2.Q",
+      "row": 9,
+      "col": 39,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T2.Q_LIF.T2.O.W.80",
+      "row": 10,
+      "col": 39,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T2.Q_LIF.T2.O.W.81",
+      "row": 11,
+      "col": 39,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T2.V_LIF.T2.S.99",
+      "row": 6,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001041"
+    },
+    {
+      "cell_id": "LIF.T2.V_LIF.T2.S.100",
+      "row": 7,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T2.V_LIF.T2.S.101",
+      "row": 7,
+      "col": 41,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001041"
+    },
+    {
+      "cell_id": "LIF.T2.V_LIF.T2.S.102",
+      "row": 8,
+      "col": 41,
+      "core": "cross",
+      "core_config": {
+        "downstream_mask": [
+          "s",
+          "e"
+        ],
+        "upstream_mask": [
+          "n",
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000000012ca"
+    },
+    {
+      "cell_id": "LIF.T2.V_LIF.T2.S.103",
+      "row": 9,
+      "col": 41,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T2.S_LIF.T2.O.S.74",
+      "row": 8,
+      "col": 42,
+      "core": "cross",
+      "core_config": {
+        "downstream_mask": [
+          "n",
+          "e"
+        ],
+        "upstream_mask": [
+          "s",
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x000000000000000014aa"
+    },
+    {
+      "cell_id": "LIF.T2.S_LIF.T2.O.S.75",
+      "row": 7,
+      "col": 42,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.S_LIF.T2.R.76",
+      "row": 10,
+      "col": 42,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T2.S_LIF.T2.R.77",
+      "row": 11,
+      "col": 42,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T2.R_LIF.T2.O.W.82",
+      "row": 12,
+      "col": 41,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T2.R_LIF.T2.O.W.83",
+      "row": 13,
+      "col": 41,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T2.R_LIF.T2.O.W.84",
+      "row": 14,
+      "col": 41,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T2.R_LIF.T2.O.W.85",
+      "row": 14,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T2.R_LIF.T2.O.W.86",
+      "row": 14,
+      "col": 39,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T2.R_LIF.T2.O.W.87",
+      "row": 14,
+      "col": 38,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000821"
+    },
+    {
+      "cell_id": "LIF.T2.R_LIF.T2.O.W.88",
+      "row": 13,
+      "col": 38,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.R_LIF.T2.O.W.89",
+      "row": 12,
+      "col": 38,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.156",
+      "row": 12,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001021"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.157",
+      "row": 11,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.158",
+      "row": 10,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.159",
+      "row": 9,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.160",
+      "row": 8,
+      "col": 40,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.161",
+      "row": 8,
+      "col": 43,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001021"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.162",
+      "row": 7,
+      "col": 43,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.163",
+      "row": 6,
+      "col": 43,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.164",
+      "row": 5,
+      "col": 43,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.165",
+      "row": 4,
+      "col": 43,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.166",
+      "row": 3,
+      "col": 43,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.167",
+      "row": 3,
+      "col": 44,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.168",
+      "row": 3,
+      "col": 45,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.169",
+      "row": 3,
+      "col": 46,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.170",
+      "row": 3,
+      "col": 47,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.171",
+      "row": 3,
+      "col": 48,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T2.O.W_LIF.T3.PV.172",
+      "row": 3,
+      "col": 49,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.PV",
+      "row": 3,
+      "col": 50,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.PV_LIF.T3.M.121",
+      "row": 3,
+      "col": 51,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.I_LIF.T3.V.142",
+      "row": 6,
+      "col": 51,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.I_LIF.T3.V.143",
+      "row": 6,
+      "col": 52,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.I_LIF.T3.V.144",
+      "row": 6,
+      "col": 53,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.I_LIF.T3.V.145",
+      "row": 6,
+      "col": 54,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.M_LIF.T3.A.122",
+      "row": 3,
+      "col": 53,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.M_LIF.T3.A.123",
+      "row": 3,
+      "col": 54,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.A_LIF.T3.D.124",
+      "row": 3,
+      "col": 56,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.A_LIF.T3.D.125",
+      "row": 3,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "LIF.T3.D_LIF.T3.V.146",
+      "row": 4,
+      "col": 58,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T3.D_LIF.T3.V.147",
+      "row": 4,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T3.D_LIF.T3.V.148",
+      "row": 5,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T3.D_LIF.T3.V.149",
+      "row": 5,
+      "col": 56,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T3.D_LIF.T3.V.150",
+      "row": 5,
+      "col": 55,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T3.V_LIF.T3.Q.130",
+      "row": 7,
+      "col": 55,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.V_LIF.T3.Q.131",
+      "row": 8,
+      "col": 55,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.Q",
+      "row": 9,
+      "col": 55,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.Q_LIF.T3.O.W.132",
+      "row": 10,
+      "col": 55,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.Q_LIF.T3.O.W.133",
+      "row": 11,
+      "col": 55,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.V_LIF.T3.S.151",
+      "row": 6,
+      "col": 56,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001041"
+    },
+    {
+      "cell_id": "LIF.T3.V_LIF.T3.S.152",
+      "row": 7,
+      "col": 56,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T3.V_LIF.T3.S.153",
+      "row": 7,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001041"
+    },
+    {
+      "cell_id": "LIF.T3.V_LIF.T3.S.154",
+      "row": 8,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.V_LIF.T3.S.155",
+      "row": 9,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "LIF.T3.S_LIF.T3.O.S.126",
+      "row": 8,
+      "col": 58,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T3.S_LIF.T3.O.S.127",
+      "row": 7,
+      "col": 58,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T3.S_LIF.T3.R.128",
+      "row": 10,
+      "col": 58,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.S_LIF.T3.R.129",
+      "row": 11,
+      "col": 58,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.R_LIF.T3.O.W.134",
+      "row": 12,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000841"
+    },
+    {
+      "cell_id": "LIF.T3.R_LIF.T3.O.W.135",
+      "row": 13,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "LIF.T3.R_LIF.T3.O.W.136",
+      "row": 14,
+      "col": 57,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000301"
+    },
+    {
+      "cell_id": "LIF.T3.R_LIF.T3.O.W.137",
+      "row": 14,
+      "col": 56,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T3.R_LIF.T3.O.W.138",
+      "row": 14,
+      "col": 55,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "w"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000901"
+    },
+    {
+      "cell_id": "LIF.T3.R_LIF.T3.O.W.139",
+      "row": 14,
+      "col": 54,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000821"
+    },
+    {
+      "cell_id": "LIF.T3.R_LIF.T3.O.W.140",
+      "row": 13,
+      "col": 54,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    },
+    {
+      "cell_id": "LIF.T3.R_LIF.T3.O.W.141",
+      "row": 12,
+      "col": 54,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    }
+  ],
+  "record_hash": "e2b4e8165ff77c93785aae27ceeddd977b43e109b6ec1739d1e7324bf67237e0"
+}

@@ -66,7 +66,12 @@ respected, and the `/composer` page and its JSON API. Since #1005 also:
 blocks survive a save (ICM-VIX) and still compute after reload and a
 block move, a nano is configured, a same-tick arrival is shown as an OR
 merge (not balanced away) and in-order operands XOR correctly, and the step-through gives the expected outputs
-(constants offered again with each item).
+(constants offered again with each item). Since #1032 also: the standard
+library's reference vectors are right against arithmetic, `lif_ref` and
+numpy; each small standard model places as standard; and a block's
+status follows edits (moved: non-standard but intact; reconfigured:
+broken with the first mismatch; kept across a save and reload; restored by
+undo).
 
 ## Per-cell Verilog benches
 

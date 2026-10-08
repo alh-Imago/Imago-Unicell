@@ -142,7 +142,7 @@ class Layout:
         doc, recs, blocks = read_design(path)
         lay = Layout(recs, name=os.path.basename(path), description=getattr(doc, "description", "") or "", min_bit_width=getattr(doc, "min_bit_width", None),
                      anchors={k for v in blocks.values() for k in v["ports"].values()})
-        lay.blocks = {b: v for b, v in blocks.items() if all(k in lay.grid.nodes for k in v["cells"])}
+        lay.blocks = lay._adopt_blocks({b: v for b, v in blocks.items() if all(k in lay.grid.nodes for k in v["cells"])})
         return lay
 
     @staticmethod
@@ -341,8 +341,110 @@ class Layout:
                     g.minuend[c] = origin.get(first, first)
 
     # ---- queries ----------------------------------------------------------------------------------------------------------------------
+    def members(self, b):
+        """A block's cells: its logic cells (stored), the relays and crossing tiles of every route between two of them (derived: they change as routes are re-laid)."""
+        g = self.grid
+        logic = [k for k in self.blocks[b]["logic"] if k in g.nodes]
+        mine = set(logic)
+        out = list(logic)
+        for (a, z), v in g.routes.items():
+            if a in mine and z in mine:
+                out += [nm for nm in v["relays"] if nm in g.nodes]
+        return out
+
+    def _block_map(self):
+        return {k: b for b in self.blocks for k in self.members(b)}
+
     def block_of(self, k):
-        return next((b for b, v in self.blocks.items() if k in v["cells"]), None)
+        return next((b for b in self.blocks if k in self.blocks[b]["logic"]), None) or next((b for b in self.blocks if k in self.members(b)), None)
+
+    def _adopt_blocks(self, blocks):
+        """Blocks from a file or an insertion: keep only the LOGIC cells as members (relays are derived), and find each block's model for the standard / function checks."""
+        out = {}
+        for b, v in blocks.items():
+            v = dict(v)
+            cells = v.pop("cells", None)
+            if "logic" not in v:
+                v["logic"] = [k for k in (cells or []) if k in self.grid.nodes and self.is_logic(k)]
+            if "ref" not in v:
+                path = find_model(v.get("file", ""))
+                v["ref"], v["vectors"] = model_reference(path) if path else (None, None)
+                v.setdefault("source", next((s for d, s in zip(LIBRARY_DIRS, ("std", "library", "example")) if path and os.path.dirname(os.path.abspath(path)) == os.path.abspath(d)), None))
+            v.setdefault("check", None)
+            out[b] = v
+        return out
+
+    def signature(self, cells, prefix=None):
+        """What a block IS, independent of where it stands and of its joins to the outside: each logic cell (name without the block prefix, position relative to the
+        block, core, configuration without its face fields, add-on, constant) and each join between two of its cells (ports, roles, and its length in relays)."""
+        g = self.grid
+        cells = [k for k in cells if k in g.nodes]
+        if not cells:
+            return "[]"
+        r0, c0 = min(g.nodes[k]["r"] for k in cells), min(g.nodes[k]["c"] for k in cells)
+        cut = (lambda k: k[len(prefix):] if prefix and k.startswith(prefix) else k)
+        mine = set(cells)
+        items = []
+        for k in cells:
+            n = g.nodes[k]
+            base = self._orig_cfg[k] if k in self._orig_cfg else self._base_cfg(n["core"], n["cfg"])
+            items.append(["cell", cut(k), n["r"] - r0, n["c"] - c0, n["core"], base, n["addon"] or {}, n["preload"]])
+        for (a, z), v in g.routes.items():
+            if a in mine and z in mine:
+                tag = self.tags.get((a, z, v["second"]), {"out": ("second",) if v["second"] else ("out",), "in": ("in",)})
+                items.append(["join", cut(a), cut(z), v["second"], len(v["relays"]), sorted(tag["out"]), sorted(tag["in"])])
+        for (a, z, sec), tag in self.tags.items():
+            if a in mine and z in mine and (a, z) not in g.routes:
+                items.append(["link", cut(a), cut(z), sec, sorted(tag["out"]), sorted(tag["in"])])
+        return json.dumps(sorted(items, key=lambda x: json.dumps(x, sort_keys=True)), sort_keys=True)
+
+    def block_status(self, b, run=None):
+        """{"standard": True / False / None (model not found), "function": "standard" | "intact" | "broken" | "unchecked" | "no-vectors", "detail": ...}.
+        A modified block is run on its own in FlexGrid against its model's reference vectors (cached until it changes again)."""
+        v = self.blocks[b]
+        logic = [k for k in v["logic"] if k in self.grid.nodes]
+        sig = self.signature(logic, prefix=b + ".")
+        standard = None if v.get("ref") is None else sig == v["ref"]
+        if standard:
+            return {"standard": True, "function": "standard", "detail": "unchanged from its model"}
+        if not v.get("vectors"):
+            return {"standard": standard, "function": "no-vectors", "detail": "the model has no reference vectors to check against" if standard is False else "model not found"}
+        if v.get("check") and v["check"]["sig"] == sig:
+            return dict(v["check"]["result"], standard=standard)
+        if run is False or (run is None and len(self.members(b)) > AUTO_CHECK_CELLS):
+            return {"standard": standard, "function": "unchecked", "detail": "press Check function"}
+        res = self._run_check(b, v["vectors"])
+        v["check"] = {"sig": sig, "result": res}
+        return dict(res, standard=standard)
+
+    def _run_check(self, b, vec):
+        import flex_layout_sim_v1 as fls
+        v = self.blocks[b]
+        cells = set(self.members(b))
+        port_io = {k: io for io, k in v["ports"].items()}
+        recs = [IcmV3Record(cell_id=r.cell_id, row=r.row, col=r.col, core=r.core, core_config=r.core_config, addon_config=r.addon_config,
+                            io_name=port_io.get(r.cell_id), preload_value=r.preload_value) for r in self.records(file_coords=False) if r.cell_id in cells]
+        missing = [io for io in list(vec.get("inputs", {})) + list(vec.get("outputs", {})) if io not in v["ports"]]
+        if missing:
+            return {"function": "broken", "detail": f"port(s) {', '.join(missing)} no longer exist"}
+        try:
+            alone = Layout(recs, name=b)
+            alone.io = {k: io for k, io in port_io.items() if k in alone.grid.nodes}
+            sim = fls.StepSim(alone, width=vec.get("width"))
+            sim.run_items({v["ports"][io]: vals for io, vals in vec["inputs"].items()})
+        except Exception as e:                          # a block the VM cannot run any more is broken by definition
+            return {"function": "broken", "detail": f"it no longer runs: {e.__class__.__name__}: {e}"}
+        for io, want in vec["outputs"].items():
+            got = sim.seen.get(v["ports"][io], [])
+            if got != want:
+                i = next((i for i, (x, y) in enumerate(zip(got, want)) if x != y), min(len(got), len(want)))
+                return {"function": "broken", "detail": f"output {io}, item {i + 1}: expected {want[i] if i < len(want) else 'nothing'}, got {got[i] if i < len(got) else 'nothing'}"}
+        return {"function": "intact", "detail": f"{sum(len(w) for w in vec['outputs'].values())} reference output(s) still match"}
+
+    def check_block(self, b):
+        if b not in self.blocks:
+            return {"ok": False, "error": f"no block {b}"}
+        return dict(self.block_status(b, run=True), ok=True)
 
     def _relay_of(self, k):
         return next((key for key, v in self.grid.routes.items() if k in v["relays"]), None)
@@ -352,7 +454,8 @@ class Layout:
         return n is not None and n["core"] != "cross" and self._relay_of(k) is None
 
     def movable(self, k):
-        return self.is_logic(k) and k not in self.pinned and self.block_of(k) is None
+        """A logic cell that is not pinned (a cell inside a block too: editing a block in place is allowed, and its status shows it)."""
+        return self.is_logic(k) and k not in self.pinned
 
     def joins(self, k):
         """Every join touching cell k: [(a, b, second)]."""
@@ -371,7 +474,7 @@ class Layout:
         srcs = collections.defaultdict(list)
         for (a, b, s), tag in self.tags.items():
             srcs[b].append(a)
-        cells = []
+        cells, bmap = [], self._block_map()
         for k, n in g.nodes.items():
             if k in in_route and n["core"] != "cross":
                 continue
@@ -382,7 +485,7 @@ class Layout:
             except (ValueError, KeyError) as e:
                 latch, bad = None, str(e)
             cells.append({"name": k, "r": n["r"], "c": n["c"], "core": n["core"], "hop": t.get(k), "cfg": r.core_config, "addon": n["addon"], "preload": n["preload"],
-                          "io": self.io.get(k), "movable": self.movable(k), "pinned": k in self.pinned, "block": self.block_of(k), "latch": latch, "latch_error": bad,
+                          "io": self.io.get(k), "movable": self.movable(k), "pinned": k in self.pinned, "block": bmap.get(k), "latch": latch, "latch_error": bad,
                           "minuend": g.minuend.get(k), "sources": srcs.get(k, [])})
         routes, nxt = [], self._next_map()
         for (a, b), v in g.routes.items():
@@ -392,11 +495,13 @@ class Layout:
         loose = [{"a": a, "b": b, "second": s} for a, b, s in g.links if (a, b) not in g.routes and a not in in_route and b not in in_route]
         blocks = []
         for name, v in self.blocks.items():
-            sq = [g.pos(k) for k in v["cells"] if k in g.nodes]
+            mem = self.members(name)
+            sq = [g.pos(k) for k in mem]
             if not sq:
                 continue
-            blocks.append({"name": name, "file": v["file"], "r0": min(p[0] for p in sq), "c0": min(p[1] for p in sq), "r1": max(p[0] for p in sq), "c1": max(p[1] for p in sq),
-                           "cells": len(v["cells"]), "ports": [{"io": io, "cell": k, "r": g.pos(k)[0], "c": g.pos(k)[1]} for io, k in v["ports"].items() if k in g.nodes]})
+            blocks.append({"name": name, "file": v["file"], "source": v.get("source"), "r0": min(p[0] for p in sq), "c0": min(p[1] for p in sq), "r1": max(p[0] for p in sq),
+                           "c1": max(p[1] for p in sq), "cells": len(mem), "status": self.block_status(name),
+                           "ports": [{"io": io, "cell": k, "r": g.pos(k)[0], "c": g.pos(k)[1]} for io, k in v["ports"].items() if k in g.nodes]})
         by_core = collections.Counter(n["core"] for n in g.nodes.values())
         return {
             "name": self.name, "rows": g.rows, "cols": g.cols, "offset": list(self.offset),
@@ -517,12 +622,13 @@ class Layout:
         return {"rerouted": [f"{a} -> {b}" for a, b, _ in nets], "detours": detours}
 
     # ---- editing: the public operations ------------------------------------------------------------------------------------------------
-    def move(self, name, r, c):
-        """Move logic cell `name` to layout square (r, c): its routes are lifted, laid again and the layout re-balanced, or the move is refused and nothing changes."""
+    def move(self, name, r, c, whole_block=True):
+        """Move logic cell `name` to layout square (r, c): its routes are lifted, laid again and the layout re-balanced, or the move is refused and nothing changes.
+        A cell inside a block moves its whole block, unless whole_block is False (editing the block in place)."""
         g = self.grid
         if name not in g.nodes:
             return {"ok": False, "error": f"no cell {name}"}
-        if self.block_of(name):
+        if whole_block and self.block_of(name):
             return self.move_block(self.block_of(name), r - g.nodes[name]["r"], c - g.nodes[name]["c"], relative=True)
         if not self.movable(name):
             why = "a relay of a route (move the cells at its ends)" if self._relay_of(name) else "pinned: it is wired by fields the layout engine does not derive" if name in self.pinned else "not movable"
@@ -536,8 +642,11 @@ class Layout:
             return {"ok": False, "error": f"({r},{c}) is taken by {occ}"}
         return self._transaction(lambda: self._move_group([name], r - g.nodes[name]["r"], c - g.nodes[name]["c"]))
 
-    def add_cell(self, core, r, c, name=None, cfg=None, addon=None, preload=None, io=None):
+    def add_cell(self, core, r, c, name=None, cfg=None, addon=None, preload=None, io=None, block=None):
+        """Place a new cell; `block` makes it part of that block (an edit to the block, which its status then shows)."""
         g = self.grid
+        if block is not None and block not in self.blocks:
+            return {"ok": False, "error": f"no block {block}"}
         if core not in icm_v3.CORE_IDS or core == "cross":
             return {"ok": False, "error": f"unknown core {core!r}" if core != "cross" else "a crossing tile is made by routing, not placed"}
         if name is None:
@@ -554,6 +663,8 @@ class Layout:
                 raise LayoutError(f"({r},{c}) is " + ("taken" if g.at().get((r, c)) else "off the board"))
             g.add(name, r, c, core=core, cfg={"ready": 1} if core == "nano" else {}, addon={}, preload=None)     # a nano with ready=0 never fires
             self._present[name] = set()
+            if block is not None:
+                self.blocks[block]["logic"].append(name)
             res = self._configure(name, cfg or {}, addon or {}, preload, io)
             return dict(res, name=name)
         return self._transaction(do)
@@ -668,8 +779,6 @@ class Layout:
         g = self.grid
         if name not in g.nodes or not self.is_logic(name):
             return {"ok": False, "error": f"no cell {name} to delete (a relay goes with its route: delete the join)"}
-        if self.block_of(name):
-            return {"ok": False, "error": f"{name} is inside block {self.block_of(name)}: delete or unpack the block"}
         if name in self.pinned and any(name in t[:2] for t in self.tags):
             return {"ok": False, "error": f"{name} is pinned with fixed wiring: it cannot be deleted alone"}
 
@@ -694,6 +803,9 @@ class Layout:
             self.pinned.discard(k)
         for c in [c for c, m in g.minuend.items() if m in names]:
             del g.minuend[c]
+        for v in self.blocks.values():                        # a deleted cell leaves its block (and a deleted port leaves the block's ports)
+            v["logic"] = [k for k in v["logic"] if k not in names]
+            v["ports"] = {io: k for io, k in v["ports"].items() if k not in names}
         if nets:
             g.route_nets(nets, rounds=60)
 
@@ -723,8 +835,9 @@ class Layout:
         return {"ok": True}
 
     # ---- blocks: a saved design placed as one unit ------------------------------------------------------------------------------------
-    def place_block(self, path, r, c, name=None):
-        """Insert the ICM file at `path` with its top-left at layout square (r, c). Its io_name cells become the block's ports."""
+    def place_block(self, path, r, c, name=None, as_components=False, source=None):
+        """Insert the ICM file at `path` with its top-left at layout square (r, c). Its io_name cells become the block's ports. as_components=True places the same
+        cells as ordinary cells (no block). The block remembers its model's signature and reference vectors (`<model>.test.json`) for the standard / function checks."""
         try:
             doc, recs, _ = read_design(path)                  # a model that itself holds blocks comes in flat: blocks do not nest
         except Exception as e:                              # a bad file is a refusal, not a crash
@@ -753,9 +866,17 @@ class Layout:
             if sq in at:
                 return {"ok": False, "error": f"the block does not fit: ({sq[0]},{sq[1]}) is taken by {at[sq]}"}
         ports = {x.io_name: f"{name}.{x.cell_id}" for x in recs if x.io_name}
+        try:
+            ref, vec = model_reference(path)
+        except Exception:                                   # no reference: the block is placed, its status says "model not found"
+            ref, vec = None, None
 
         def do():
-            self._rebuild(self.records(file_coords=True) + new, extra_blocks={name: {"file": os.path.basename(path), "cells": [x.cell_id for x in new], "ports": ports}})
+            if as_components:
+                self._rebuild(self.records(file_coords=True) + new)
+                return {"components": len(new), "prefix": name + "."}
+            self._rebuild(self.records(file_coords=True) + new, extra_blocks={name: {"file": os.path.basename(path), "cells": [x.cell_id for x in new], "ports": ports,
+                                                                                      "ref": ref, "vectors": vec, "source": source}})
             return {"block": name, "ports": sorted(ports)}
         return self._transaction(do)
 
@@ -769,6 +890,7 @@ class Layout:
         self.warnings = []
         self._build(recs, board, anchors={k for v in keep["blocks"].values() for k in v["ports"].values()})
         self.__dict__.update(keep)
+        self.blocks = self._adopt_blocks(self.blocks)
         self.warnings = warnings + self.warnings
         for c, m in minuends.items():
             if c in self.grid.nodes and m in self.grid.nodes:
@@ -779,7 +901,7 @@ class Layout:
         if name not in self.blocks:
             return {"ok": False, "error": f"no block {name}"}
         g = self.grid
-        cells = [k for k in self.blocks[name]["cells"] if k in g.nodes]
+        cells = [k for k in self.blocks[name]["logic"] if k in g.nodes]
         if not relative:
             r -= min(g.nodes[k]["r"] for k in cells)
             c -= min(g.nodes[k]["c"] for k in cells)
@@ -792,8 +914,9 @@ class Layout:
             return {"ok": False, "error": f"no block {name}"}
 
         def do():
-            v = self.blocks.pop(name)
-            return {"unpacked": name, "cells": len(v["cells"])}
+            n = len(self.members(name))
+            self.blocks.pop(name)
+            return {"unpacked": name, "cells": n}
         return self._transaction(do)
 
     def delete_block(self, name):
@@ -801,10 +924,14 @@ class Layout:
             return {"ok": False, "error": f"no block {name}"}
 
         def do():
-            v = self.blocks.pop(name)
             g = self.grid
-            self._delete([k for k in v["cells"] if k in g.nodes and self.is_logic(k)])
-            left = {k for k in v["cells"] if k in g.nodes}          # relays of fixed (pinned) chains inside the block
+            logic = [k for k in self.blocks[name]["logic"] if k in g.nodes]
+            mine = set(logic)
+            fixed = {k for a, z, _ in g.links for k in (a, z) if k not in mine and not self.is_logic(k) and self._relay_of(k) is None
+                     and all(x in mine or not self.is_logic(x) for x in (a, z))}      # relays of fixed (pinned) chains inside the block
+            self.blocks.pop(name)
+            self._delete(logic)
+            left = {k for k in fixed if k in g.nodes}
             g.links = [l for l in g.links if l[0] not in left and l[1] not in left]
             for k in left:
                 del g.nodes[k]
@@ -873,7 +1000,7 @@ class Layout:
         so blocks survive a save. A block's ports keep their io names in the pattern and are cleared per placement (they are joins inside this design, not its own io)."""
         import icm_vix_v1 as vix
         recs = self.records()
-        inblock = {k: b for b, v in self.blocks.items() for k in v["cells"]}
+        inblock = self._block_map()
         top = [r for r in recs if r.cell_id not in inblock]
         patterns, placements, seen = {}, [], {}
 
@@ -914,6 +1041,67 @@ class Layout:
 
 
 TOP = "top"
+NANO_DIR = os.path.join(TOOLS_DIR, "..", "nano")
+# where a block's model is looked for by name (to tell whether a block is still standard after a reload): the standard library, the user's library, the examples
+LIBRARY_DIRS = [os.path.join(NANO_DIR, "library_std"), os.environ.get("IMAGO_LIBRARY", os.path.join(NANO_DIR, "library")), os.path.join(NANO_DIR, "examples")]
+AUTO_CHECK_CELLS = 600          # a modified block up to this size is re-checked after every edit; a larger one when asked (Check function)
+_REF_CACHE = {}
+
+
+def vectors_path(model_path):
+    """The reference test vectors that travel with a library model: `<model>.test.json` beside it."""
+    return re.sub(r"(\.icm-hier|\.icm)?\.json$|\.icm$", "", model_path) + ".test.json"
+
+
+def find_model(file_name):
+    for d in LIBRARY_DIRS:
+        p = os.path.join(d, os.path.basename(file_name))
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def model_reference(path):
+    """(signature, vectors) of a library model file, cached by path and modification time. The signature is what a block placed from it must still match to be standard."""
+    try:
+        key = (os.path.abspath(path), os.path.getmtime(path))
+    except OSError:
+        return None, None
+    if key not in _REF_CACHE:
+        lay = Layout.load(path)
+        vec = None
+        vp = vectors_path(path)
+        if os.path.isfile(vp):
+            with open(vp) as f:
+                vec = json.load(f)
+        _REF_CACHE[key] = (lay.signature([k for k in lay.grid.nodes if lay.is_logic(k)], prefix=""), vec)
+    return _REF_CACHE[key]
+
+
+def make_vectors(layout, inputs=None, n=8, seed=1):
+    """Reference test vectors for a design: its io inputs fed `inputs` ({io: [values]}, or n deterministic values each), its io outputs as FlexGrid gives them.
+    These are the model's own behaviour, recorded, so a later copy can be checked against it."""
+    import random
+    import flex_layout_sim_v1 as fls
+    sim = fls.StepSim(layout)
+    io_of = {k: layout.io.get(k) or k for k in sim.inputs}
+    rng = random.Random(seed)
+    top = (1 << min(sim.width, 16)) - 1
+    if inputs is None:
+        inputs = {io_of[k]: [0, 1, 2, 3][: min(n, 4)] + [rng.randint(0, top) for _ in range(max(0, n - 4))] for k in sim.inputs}
+    cell_of = {io: k for k, io in io_of.items()}
+    sim.run_items({cell_of[io]: list(v) for io, v in inputs.items() if io in cell_of})
+    return {"width": sim.width, "inputs": {io: list(v) for io, v in inputs.items()},
+            "outputs": {layout.io.get(k) or k: list(sim.seen[k]) for k in sim.outputs}}
+
+
+def save_model(layout, path, vectors=None, fmt=None):
+    """Save a design as a library model: the ICM file and, beside it, its reference test vectors (recorded now if not given)."""
+    layout.save(path, fmt)
+    vec = vectors if vectors is not None else make_vectors(layout)
+    with open(vectors_path(path), "w") as f:
+        json.dump(vec, f, indent=1)
+    return path, vec
 
 
 def read_design(path):
