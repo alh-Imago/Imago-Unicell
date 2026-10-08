@@ -9,11 +9,11 @@ Ledger #1036. Nothing here has run on real hardware yet, so the order below goes
 - A PC with: Arduino IDE 2, and a way to load the FPGA bitstream (step 1).
 
 ## Step 1 -- load the FPGA (no ESP32 needed yet)
-The ready-made bitstream is `fpga/build/unit_cordic_v1/unit_top.fs` (CORDIC unit: 2,454 LUT4 = 12%, 4 of 46 block RAMs, 165 MHz capable, 27 MHz used).
+The ready-made bitstream is `fpga/build/unit_cordic_v1/unit_top.fs` (CORDIC unit: 2,556 LUT4 = 12%, 4 of 46 block RAMs, 155 MHz capable, 27 MHz used).
 Use whichever loader you already used for the smoke test:
 - command line: `openFPGALoader -b tangnano20k fpga/build/unit_cordic_v1/unit_top.fs` (SRAM: lost when the board loses power; add `-f` to write it to flash);
 - or the Gowin Programmer program: device GW2AR-18, "SRAM Program", file `unit_top.fs`.
-LEDs (lit = true): **LED0 blinks slowly (about once a second) = the FPGA is loaded and running. If LED0 is not blinking the bitstream did not load.** LED1 = the ESP32 has pulled chip-select low at least once (stays lit until the next load). LED2 = the ESP32 has clocked SCLK at least once. LED3 = the SD card is up and error-free. LED4 (the fifth LED) = a 1 has arrived on MOSI while chip-select was low: it proves the MOSI wire. (LED1, LED2 and LED4 stay lit until the FPGA is reloaded; LED5 is unused.) So: after loading, LED0 should blink; after the first `id`, LED1 and LED2 should light; if they don't, the CS or SCLK wire isn't reaching the FPGA.
+LEDs (lit = true): **LED0 blinks slowly (about once a second) = the FPGA is loaded and running. If LED0 is not blinking the bitstream did not load.** LED1 = the ESP32 has pulled chip-select low at least once (stays lit until the next load). LED2 = the ESP32 has clocked SCLK at least once. LED3 = the SD card is up and error-free. LED4 (the fifth LED) = a 1 has arrived on MOSI while chip-select was low: it proves the MOSI wire. (LED1, LED2 and LED4 stay lit until you press the Tang's **S1 button** or reload the FPGA; LED5 is unused.) **S1 (see the S1 label on the board) is the unit's reset:** hold it for a moment and the whole unit restarts as at power-up (SD card re-initialised, registers cleared, LED1/2/4 cleared) with no reload. If it does nothing, the bitstream predates 9 Oct 2026. So: after loading, LED0 should blink; after the first `id`, LED1 and LED2 should light; if they don't, the CS or SCLK wire isn't reaching the FPGA.
 
 ## Step 2 -- ESP32 side (one time)
 1. Install Arduino IDE 2 (arduino.cc).

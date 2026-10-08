@@ -55,7 +55,7 @@ module tb;
   reg clk = 0; always #5 clk = ~clk;
   wire SD_CLK, SD_CMD, SD_DAT3, SPI_MISO, READY; wire [5:0] LED_N; wire SD_DAT0;
 {MASTER.replace("wire miso;", "wire miso = SPI_MISO;")}
-  unit_top T(.BOARD_CLK(clk), .SD_CLK(SD_CLK), .SD_CMD(SD_CMD), .SD_DAT0(SD_DAT0), .SD_DAT3(SD_DAT3), .SPI_SCLK(sclk), .SPI_CS_N(cs_n), .SPI_MOSI(mosi), .SPI_MISO(SPI_MISO), .READY(READY), .LED_N(LED_N));
+  unit_top T(.BOARD_CLK(clk), .KEY_S1(1'b0), .SD_CLK(SD_CLK), .SD_CMD(SD_CMD), .SD_DAT0(SD_DAT0), .SD_DAT3(SD_DAT3), .SPI_SCLK(sclk), .SPI_CS_N(cs_n), .SPI_MOSI(mosi), .SPI_MISO(SPI_MISO), .READY(READY), .LED_N(LED_N));
   defparam T.INIT_DIV = 3; defparam T.FAST_DIV = 1; defparam T.RSTW = 3;
   sd_card_model_v1 #(.SDHC(1), .BLOCKS(20)) card(.sclk(SD_CLK), .mosi(SD_CMD), .cs_n(SD_DAT3), .miso(SD_DAT0));
   integer j;
@@ -139,7 +139,7 @@ module tb;
   reg clk = 0; always #5 clk = ~clk;
   wire SD_CLK, SD_CMD, SD_DAT3, SPI_MISO, READY; wire [5:0] LED_N; wire SD_DAT0;
 {MASTER.replace("wire miso;", "wire miso = SPI_MISO;")}
-  unit_top T(.BOARD_CLK(clk), .SD_CLK(SD_CLK), .SD_CMD(SD_CMD), .SD_DAT0(SD_DAT0), .SD_DAT3(SD_DAT3), .SPI_SCLK(sclk), .SPI_CS_N(cs_n), .SPI_MOSI(mosi), .SPI_MISO(SPI_MISO), .READY(READY), .LED_N(LED_N));
+  unit_top T(.BOARD_CLK(clk), .KEY_S1(1'b0), .SD_CLK(SD_CLK), .SD_CMD(SD_CMD), .SD_DAT0(SD_DAT0), .SD_DAT3(SD_DAT3), .SPI_SCLK(sclk), .SPI_CS_N(cs_n), .SPI_MOSI(mosi), .SPI_MISO(SPI_MISO), .READY(READY), .LED_N(LED_N));
   defparam T.INIT_DIV = 3; defparam T.FAST_DIV = 1; defparam T.RSTW = 3;
   sd_card_model_v1 #(.SDHC(1), .BLOCKS(20)) card(.sclk(SD_CLK), .mosi(SD_CMD), .cs_n(SD_DAT3), .miso(SD_DAT0));
   integer j;

@@ -20,7 +20,7 @@ V = os.path.join(ROOT, "fpga", "verilog")
 M32 = 0xFFFFFFFF
 
 
-def run_unit(icm, items, expect):
+def run_unit(icm, items, expect, press_key=False):
     assert shutil.which("iverilog") and shutil.which("vvp"), "iverilog is REQUIRED"
     d = tempfile.mkdtemp(prefix="unitdes_")
     try:
@@ -30,18 +30,21 @@ def run_unit(icm, items, expect):
         words = [w & M32 for it in items for w in it]
         n = len(items)
         loads = "\n".join(f"    wbuf[{i}] = 32'd{w};" for i, w in enumerate(words))
+        keystim = ("    wr_reg(8'd7, 32'hABCD1234); rd_reg(8'd7); $display(\"SCR_BEFORE %h\", rv);\n"
+                   "    @(negedge clk); key = 1'b1; repeat (6) @(negedge clk); key = 1'b0; repeat (200) @(negedge clk);\n"
+                   "    rd_reg(8'd7); $display(\"SCR_AFTER %h\", rv);\n") if press_key else ""
         tb = f"""`timescale 1ns/1ps
 module tb;
   reg clk = 0; always #5 clk = ~clk;
-  wire SD_CLK, SD_CMD, SD_DAT3, SPI_MISO, READY; wire [5:0] LED_N; wire SD_DAT0 = 1'b1;
+  reg key = 1'b0; wire SD_CLK, SD_CMD, SD_DAT3, SPI_MISO, READY; wire [5:0] LED_N; wire SD_DAT0 = 1'b1;
 {MASTER.replace("wire miso;", "wire miso = SPI_MISO;")}
-  unit_top T(.BOARD_CLK(clk), .SD_CLK(SD_CLK), .SD_CMD(SD_CMD), .SD_DAT0(SD_DAT0), .SD_DAT3(SD_DAT3), .SPI_SCLK(sclk), .SPI_CS_N(cs_n), .SPI_MOSI(mosi), .SPI_MISO(SPI_MISO), .READY(READY), .LED_N(LED_N));
+  unit_top T(.BOARD_CLK(clk), .KEY_S1(key), .SD_CLK(SD_CLK), .SD_CMD(SD_CMD), .SD_DAT0(SD_DAT0), .SD_DAT3(SD_DAT3), .SPI_SCLK(sclk), .SPI_CS_N(cs_n), .SPI_MOSI(mosi), .SPI_MISO(SPI_MISO), .READY(READY), .LED_N(LED_N));
   defparam T.INIT_DIV = 3; defparam T.FAST_DIV = 1; defparam T.RSTW = 3;
   integer j;
   initial begin
 {loads}
     repeat (40) @(negedge clk);
-    wr_reg(8'd2, 32'h8); wr_reg(8'd8, 32'd1); wr_reg(8'd9, 32'd1);
+{keystim}    wr_reg(8'd2, 32'h8); wr_reg(8'd8, 32'd1); wr_reg(8'd9, 32'd1);
     wr_words(16'd0, {len(words)});
     wr_reg(8'd5, 32'd{len(words)}); wr_reg(8'd2, 32'h4);
     poll_n = 0; rd_reg(8'd6); while (rv < {n} && poll_n < 4000) begin rd_reg(8'd6); poll_n = poll_n + 1; end
@@ -71,6 +74,8 @@ endmodule
     finally:
         shutil.rmtree(d, ignore_errors=True)
     assert "GLOBAL TIMEOUT" not in res, res[-400:]
+    if press_key:
+        assert "SCR_BEFORE abcd1234" in res and "SCR_AFTER 00000000" in res, res[-400:]
     got = [int(x) for x in re.findall(r"^S (\d+)$", res, re.M)]
     assert got == [e & M32 for e in expect], (got, expect)
 
@@ -83,3 +88,9 @@ def test_parallel_reduction_tree_sums_four_words():
 def test_small_relay_chain_passes_the_word_through():
     items = [[7], [123456789], [0], [0xFFFFFFFF]]
     run_unit(os.path.join(ROOT, "nano", "examples", "small_relay_chain.icm-hier.json"), items, [i[0] for i in items])
+
+
+def test_button_s1_restarts_the_unit_and_it_still_works_afterwards():
+    """The Tang's S1 button (pin 88) is the unit's reset: a scratch register written over SPI reads 0 after it, and a run after the reset still gives the right answers."""
+    items = [[5], [6], [7]]
+    run_unit(os.path.join(ROOT, "nano", "examples", "small_relay_chain.icm-hier.json"), items, [5, 6, 7], press_key=True)
