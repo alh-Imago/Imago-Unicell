@@ -30,3 +30,6 @@ The control logic for the second word is small. The difference is the multiplier
 Multiplier alone (yosys synth_gowin): full 64-bit product = 6739 LUT4 + 1698 smaller LUTs + 97 ALU; low 32 bits only = 3277 LUT4 + 966 smaller LUTs + 32 ALU. So the high half costs about as much again as the low half -- it is inherent to the array, not a v5 defect.
 Caveat: the sizing scripts count LUT1-4 only; ALU (carry-chain) cells are not in the totals, so all figures under-count slightly.
 Ways down (not done, need a decision): (1) use the Gowin DSP multiplier blocks on FPGA (the repo already has a DSP wrapper cell) -- near-zero LUTs, FPGA-only, not silicon; (2) a sequential shift-add multiplier -- ~100-200 LUTs but 32 ticks of latency instead of 0; (3) keep it, since mul is one core of fourteen per carrier position.
+
+## Decision (Alan, 2026-10-08)
+The Gowin DSP blocks are the preferred multiplier on FPGA (the flex and sub variants already work that way). The pure-logic mul core (v4/v5/v5c) is the FALLBACK / ASIC path and stays as it is. The full carrier position (~18.2k LUT4+, 88%+ of a Nano 20K) is not meant to fit the current Tang card; it is an ASIC design call, so no carrier change is made for size. A DSP-based carrier mul would mean a two-step carrier design (approached before) -- not started. Shift stays combined coarse+fine (limited core-config bus room).
