@@ -35,6 +35,8 @@ If the ESP32 is a camera module (ESP32-CAM) the camera uses several of IO18/19/2
 
 `cordic` needs no SD card at all (the ESP32 pushes the angles in over SPI), so it proves the FPGA design and the link before the card is involved. `sdtest` uses raw card block 64 (change with `sdtest 200`); it overwrites that block. **The sketch refuses blocks below 16**: block 0 holds a FAT32 card's partition table. A raw-written block inside the card's file area will corrupt a file there, so use a spare card, or re-format afterwards.
 `wires` drives CS and then SCLK by hand for 4 s each so you can watch Tang LED1 and LED2 light: it proves those two wires arrive before any SPI traffic is involved.
+`miso` tells you whether the MISO wire is connected to something that drives it (it reads the pin with the ESP32's pull-down and pull-up in turn: a floating wire changes, a driven one doesn't).
+**Counting holes on the Tang:** the Tang's header pins do not start at breadboard column 1; count from the Tang's own first pin (in our setup column 8), and wire 'hole 1' there. A wire in a column with no Tang pin connects to nothing.
 Other commands: `z 100 200 300` (your own angles), `load 64 1` / `save 64 1`, `reg 8` (read a register), `reg 7 0x1234` (write), `words 0 8` (dump results RAM), `help`.
 
 ## Reading the unit by hand (for later designs)

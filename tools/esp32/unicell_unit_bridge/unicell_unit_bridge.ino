@@ -134,9 +134,19 @@ static void cmd_wires() {
   SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   Serial.println("done. LED1/LED2 stay lit until the FPGA is reloaded or its reset button is pressed.");
 }
+// MISO test: is the MISO wire connected to something that DRIVES it? A floating pin follows the ESP32's own pull resistors; a pin driven by the FPGA reads the same either way.
+static void cmd_miso() {
+  SPI.end();
+  pinMode(PIN_MISO, INPUT_PULLDOWN); delay(20); int a = digitalRead(PIN_MISO);
+  pinMode(PIN_MISO, INPUT_PULLUP);   delay(20); int b = digitalRead(PIN_MISO);
+  Serial.printf("MISO (IO19) with pull-DOWN reads %d, with pull-UP reads %d\n", a, b);
+  if (a != b) Serial.println("=> FLOATING: nothing is driving the MISO wire. Check it goes from ESP32 IO19 to Tang pin 76 (top header, third pin from the USB end) and that the FPGA is loaded.");
+  else Serial.printf("=> DRIVEN steadily at %d: the FPGA (or something) is holding the line, so the MISO wire is connected.\n", a);
+  SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
+}
 static void cmd_help() {
   Serial.println("commands:  id | status | scratch | cordic | z <a> [a ...] | sdtest [block=64] | load <block> <n> | save <block> <n> |");
-  Serial.println("           reg <n> [value] | words <addr> <n>  (dump capture RAM) | wires | help");
+  Serial.println("           reg <n> [value] | words <addr> <n>  (dump capture RAM) | wires | miso | help");
   Serial.println("first time: id, then scratch, then cordic (no SD needed), then status, then sdtest.  Blocks are RAW: never use block 0.");
 }
 
@@ -148,6 +158,7 @@ static void handle(char* s) {
   else if (!strcmp(cmd, "scratch")) cmd_scratch();
   else if (!strcmp(cmd, "cordic")) cmd_cordic();
   else if (!strcmp(cmd, "wires")) cmd_wires();
+  else if (!strcmp(cmd, "miso")) cmd_miso();
   else if (!strcmp(cmd, "z")) { if (rest) cmd_z(rest); else Serial.println("usage: z <angle> [angle ...]"); }
   else if (!strcmp(cmd, "sdtest")) cmd_sdtest(rest ? strtoul(rest, NULL, 0) : 64);
   else if (!strcmp(cmd, "load") || !strcmp(cmd, "save")) {
