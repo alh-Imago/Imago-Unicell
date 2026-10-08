@@ -31,16 +31,16 @@ Typical run: read ID -> wait STATUS bit0 -> START_BLOCK=16, NBLOCKS=n, CONTROL=1
 
 **The card (16 GB SanDisk Ultra, Class 10 = SDHC, block-addressed).** Raw blocks overwrite whatever is there: a FAT32 card keeps its partition table in block 0, so use blocks well away from it (the tests and README use 16 for input and 17 for results; such cards normally start their partition much later, but check yours). A standard-capacity (byte-addressed, SD 1.x) card is also handled (CMD8 "illegal command", no HCS, CMD16 = 512) and tested against a simulated one.
 
-**Breadboard wiring (ESP32 camera-board terminals <-> Tang Nano edge connector; proposed, not wired, check with a continuity test).** 3.3 V logic both sides, each board on its own USB power:
-| signal | ESP32 terminal | Tang Nano package pin | direction |
-|---|---|---|---|
-| SCLK | IO18 | 74 | ESP32 -> FPGA |
-| MOSI | IO23 | 75 | ESP32 -> FPGA |
-| MISO | IO19 | 76 | FPGA -> ESP32 |
-| CS_N | IO5 | 73 | ESP32 -> FPGA |
-| READY | IO34 | 77 | FPGA -> ESP32 |
-| GND | GND | any GND | shared |
-The Tang Nano's package pin numbers are not its labelled header holes: read the hole for pins 73-77 off the board's own pinout sheet. Start with SCLK at 1 MHz or less.
+**Breadboard wiring (bare ESP32 dev board on the breadboard, one card at each end; no camera board; from the Sipeed pinout sheet, 8 Oct 2026).** 3.3 V logic both sides, each board on its own USB power:
+| signal | ESP32 pin | Tang Nano package pin | Tang Nano header hole | direction |
+|---|---|---|---|---|
+| CS_N | IO5 | 73 | left header, hole 1 (top, IOT40A) | ESP32 -> FPGA |
+| SCLK | IO18 | 74 | left header, hole 2 (IOT34B) | ESP32 -> FPGA |
+| MOSI | IO23 | 75 | left header, hole 3 (IOT34A) | ESP32 -> FPGA |
+| READY | IO34 | 77 | left header, hole 5 (IOT30A, labelled LCD_CLK) | FPGA -> ESP32 |
+| MISO | IO19 | 76 | RIGHT header, hole 3, below 5V and GND (IOT30B) | FPGA -> ESP32 |
+| GND | GND | any GND | either header | shared |
+Left hole 4 is pin 85 (SD data 1): leave it unconnected. MISO is on the opposite header from the other four, so it needs one jumper across the board. All five pins are in 3.3 V banks. LED0-LED3 are pins 15-18, as used by the generated top. IO5 is an ESP32 strapping pin; it is safe as chip-select (idles high) but keep the FPGA from driving it during ESP32 boot. Start with SCLK at 1 MHz or less.
 
 **Measured (simulation, ledger #1036).** `tests/vm/test_spi_bridge_v1.py`: registers (ID, scratch), words written to the playout RAM over SPI and results read back over SPI, the SD load/play/save sequence over SPI, and the 4-point Wasserstein-2 engine driven only by a simulated ESP32 (results equal the reference over SPI and on the card, ~5.5 min). `tests/vm/test_sd_unit_top_v1.py`: the generated top for a small adder design -- the generated unit_top.v in simulation with a simulated card and ESP32, the pin file, and Gowin synthesis. Size (yosys, pre place-and-route): the whole unit around a 2-lane adder design = about 1,900 LUT4 + 330 ALU + 1,030 FF + 4 BSRAM, about 9% of a Nano 20K.
 
