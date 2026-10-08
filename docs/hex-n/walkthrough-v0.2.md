@@ -51,12 +51,20 @@ What this does to the open points (my reading, to be confirmed):
 **The four codes shape the choice of path:**
 | Code | Better name | Meaning (proposed) |
 |---|---|---|
-| AND | **BOTH** (two-condition) | the path is chosen only when two conditions are met together. My reading of the two: the forward flow reaches the face's threshold AND the feedback/reference agrees. Not stated; to confirm |
+| AND | **ALL THREE** | the path is chosen only when all of these hold: (1) the in-path is active, (2) the face's accumulated weight has reached its threshold, (3) the feedback agrees (Alan, 9 Oct: "it would depend on those three: the threshold, the feedback and the in path") |
 | OR | **CHOOSE** | when paths carry equal weight, one is picked (arbitrate, like the flex family's merge core) |
 | XOR | **STEER** | the incoming flow decides which way it goes (a branch/switch, like the flex branch core): this value one way, that value the other |
 | NOT | **NEGATIVE** | the pair's active flow is subtracted from the face's accumulated weight (the inhibitory case) |
 UniCell's flex family already has the matching pieces (merge arbitrate/join, branch select), which the Hex-N RTL could reuse.
 **Runtime vs training.** Per the earlier decision the deployed cell is frozen (no learning at run time). So "positive feedback reinforces it" is read as: *during training*, reinforcement raises lane counts toward the target; *at run time*, the feedback phase adds to the accumulator for that window only (transient), without changing any stored lane bit. To confirm.
+
+## Draft cell definition, v0.3 (plain words; to be checked, then coded)
+1. A cell has 6 faces; each face has pairs (lanes). Each pair has: an **active** bit, a **direction mode** (forward / back / alternating), and one of **four path codes**.
+2. Each window has two phases: a **forward** phase, then a **feedback** phase (one global phase for the mesh).
+3. During a window each face **accumulates**: active lanes flowing in add to its weight; lanes coded NEGATIVE subtract. Positive strength is simply how many lanes are active.
+4. At the window end the face's **weight is compared with its threshold** (graded: the margin above it is kept).
+5. A pair's path code decides whether its output is passed: **ALL THREE** (in-path active, weight at threshold, feedback agrees), **CHOOSE** (equal weights: pick one), **STEER** (the in-flow value picks which way), **NEGATIVE** (already counted as a subtraction).
+6. In the feedback phase the flow runs the other way along the same pairs and adds to the accumulator for that window only (nothing stored changes). Training changes the active-lane bits, thresholds and codes offline, then freezes them.
 
 ## Still open
 1. ~~What does NOT negate~~ answered: it is a negative weight (above). Positive is not a code (it is lane count); AND is the two-condition case.
