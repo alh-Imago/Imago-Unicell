@@ -36,6 +36,7 @@ names its ledger entry.
 | **DSP wrappers and BRAM** | `test_dsp_*`, `test_sentinel_*`, `test_shared_*`, `test_hierarchical_27leaf_collector_v1` | DSP wrapper VM and chain placement; sentinel/BRAM collectors |
 | **Cards and tools** | `test_man_tang_nano_20k_v1`, `test_card_fit_v1`, `test_walker_sim_v1`, `test_workbench_v1`, `test_cell_pipeline_explainer_v1`, `test_host_*`, `test_loader_v1` | the generated Tang MAN, card fit, the simulated Walker, the workbench, the explainer page |
 | **Priority, ram modes, board tests** | `test_priority_*_v1`, `test_ram_modes_flex_v1`, `test_ram_offer_preload_v1`, `test_flex_grid_priority_hold_v1`, `test_board_tests_v1`, `test_board_groups_v1` | the flex priority core in all three modes (#1017/#1018), the ram's constant / one-shot / hold behaviours (#1021), FlexGrid against them (#1022), and the on-board test package and its grouped bitstreams (#1023-#1025) |
+| **Optimal transport** | `test_ot_w2_v1` | the 1D W2 engine (#1034): the merge formula vs the north-west corner algorithm vs a quantile integral, the merge network, and the n = 4 engine streamed in FlexGrid (the RTL test is skipped: generator ties) |
 
 Not in this folder: the flex/sub generator suites are plain scripts in
 `tests/test_flexsub_*.py`, and the front-end and assembler tests are in

@@ -6285,6 +6285,10 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 <td>Builds the Composer's standard library <code>nano/library_std/</code> (#1032): add, sub, mul, <code>lif4</code>, <code>fp16_add</code>, each an ICM model with io-named ports and <code>&lt;model&gt;.test.json</code> reference vectors recorded in FlexGrid. Re-run it to rebuild after a builder changes</td>
 </tr>
 <tr>
+<td><code>ot_w2_v1.py</code></td>
+<td>The 1D Wasserstein-2 distance engine (#1034, after Mirauta et al., arXiv:2610.04091): two sorted signatures of n Diracs (integer positions, weights summing to T) in, exact <code>T·W2²</code> out. The north-west corner walk becomes a Batcher odd-even merge of cumulative-weight breakpoints, each carrying a signed position step; then running sums, squares, weights and an adder tree. <code>w2_nwca</code> / <code>w2_ref</code> references, <code>w2_engine</code>, <code>w2_grid</code>. Order-free (a − b as a + (−1)·b). n = 4: 5,584 cells, 675 hops, exact in FlexGrid; the RTL check waits on the generator accepting ties on add/mul</td>
+</tr>
+<tr>
 <td><code>fp_add_v1.py</code></td>
 <td>The whole fp adder from flex cells: <code>fp_add(g, fmt, ...)</code>, parametric in <code>FpFormat</code> (#990). Normals and zero (#990), inf / nan / overflow (<code>specials=True</code>, #1001), subnormals (#1006), the five IEEE rounding modes (<code>rounding=</code>, #1007); fp64 on a 64-bit word (#1027)</td>
 </tr>
