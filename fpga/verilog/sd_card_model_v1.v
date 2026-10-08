@@ -1,7 +1,7 @@
 // sd_card_model_v1.v -- SIMULATION ONLY: a behavioural SD card in SPI mode (mode 0) for testing sd_spi_v1. Not synthesisable.
 // Understands CMD0, CMD8, CMD55, ACMD41 (ready after READY_AFTER tries), CMD58 (CCS = SDHC), CMD17 (read block), CMD24 (write block). Storage: mem[block*512 + byte].
 `timescale 1ns/1ps
-module sd_card_model_v1 #(parameter SDHC = 1, parameter BLOCKS = 8, parameter READY_AFTER = 3) (
+module sd_card_model_v1 #(parameter SDHC = 1, parameter BLOCKS = 8, parameter READY_AFTER = 3, parameter V1 = 0) (
     input  wire sclk, input wire mosi, input wire cs_n, output wire miso
 );
     reg [7:0] mem [0:BLOCKS*512-1];
@@ -27,7 +27,8 @@ module sd_card_model_v1 #(parameter SDHC = 1, parameter BLOCKS = 8, parameter RE
             push(8'hFF);                                             // one byte of delay before the response
             case (idx)
                 0: begin push(8'h01); app = 0; end
-                8: begin push(8'h01); push(8'h00); push(8'h00); push(8'h01); push(8'hAA); end
+                8: begin if (V1) push(8'h05); else begin push(8'h01); push(8'h00); push(8'h00); push(8'h01); push(8'hAA); end end   // an SD 1.x card: illegal command
+                16: push(8'h00);
                 55: begin push(8'h01); app = 1; end
                 41: begin
                         if (acmd_tries >= READY_AFTER) push(8'h00); else push(8'h01);

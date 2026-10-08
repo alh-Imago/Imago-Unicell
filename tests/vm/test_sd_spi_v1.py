@@ -25,7 +25,7 @@ module tb;
   always @(posedge clk) src_data <= src[src_addr];
   sd_spi_v1 #(.INIT_DIV(3), .FAST_DIV(1)) dut(.clk(clk), .rst(rst), .sd_clk(sd_clk), .sd_mosi(sd_mosi), .sd_miso(sd_miso), .sd_cs_n(sd_cs_n), .ready(ready), .error(error), .err_code(err_code),
       .busy(busy), .rd_req(rd_req), .wr_req(wr_req), .block(block), .block_done(block_done), .w_valid(w_valid), .w_data(w_data), .w_index(w_index), .src_addr(src_addr), .src_data(src_data));
-  sd_card_model_v1 #(.SDHC(__SDHC__), .BLOCKS(8)) card(.sclk(sd_clk), .mosi(sd_mosi), .cs_n(sd_cs_n), .miso(sd_miso));
+  sd_card_model_v1 #(.SDHC(__SDHC__), .BLOCKS(8), .V1(__V1__)) card(.sclk(sd_clk), .mosi(sd_mosi), .cs_n(sd_cs_n), .miso(sd_miso));
   always #5 clk=~clk;
   integer i, j, k, n;
   always @(posedge clk) if (w_valid) $display("W %0d %0d", w_index, w_data);
@@ -66,7 +66,7 @@ def tmp():
 @pytest.mark.parametrize("sdhc", [1, 0])
 def test_bring_up_read_a_block_and_write_a_block(tmp, sdhc):
     tb = os.path.join(tmp, f"tb{sdhc}.v")
-    open(tb, "w").write(TB.replace("__SDHC__", str(sdhc)))
+    open(tb, "w").write(TB.replace("__SDHC__", str(sdhc)).replace("__V1__", str(1 - sdhc)))
     out_f = os.path.join(tmp, f"tb{sdhc}.vvp")
     r = subprocess.run(["iverilog", "-g2012", "-o", out_f, tb] + FILES, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[:1500]

@@ -63,7 +63,7 @@ module sd_spi_v1 #(
 
     // ---- sequencer ----
     localparam [5:0]
-        ST_BOOT = 0, ST_PWR = 1, ST_WAIT = 2, ST_I1 = 3, ST_I2 = 4, ST_I3 = 5, ST_I4 = 6, ST_I5 = 7, ST_IDLE = 8,
+        ST_BOOT = 0, ST_PWR = 1, ST_WAIT = 2, ST_I1 = 3, ST_I2 = 4, ST_I3 = 5, ST_I4 = 6, ST_I5 = 7, ST_IDLE = 8, ST_I6 = 9,
         C_SEND = 10, C_RESP0 = 11, C_RESP = 12, C_RESP2 = 13, C_EXT = 14, C_EXT2 = 15, C_FIN = 16, C_END = 17,
         ST_RD1 = 20, ST_RDTOK = 21, ST_RDTOK2 = 22, ST_RDD = 23, ST_RDD2 = 24, ST_RDCRC = 25, ST_RDCRC2 = 26,
         ST_WR1 = 30, ST_WR2 = 31, ST_WR3 = 32, ST_WR4 = 33, ST_WR5 = 34, ST_WR6 = 35, ST_WR7 = 36, ST_WR8 = 37, ST_WR9 = 38, ST_WRB = 39, ST_WRB2 = 40,
@@ -73,7 +73,7 @@ module sd_spi_v1 #(
     reg [31:0] cmd_arg, ext;
     reg [7:0]  cmd_crc, r1;
     reg [2:0]  cmd_n, extra_n;
-    reg        keep_cs, ccs;
+    reg        keep_cs, ccs, v2;
     reg [4:0]  poll;
     reg [8:0]  byte_i;
     reg [23:0] wacc;
@@ -95,7 +95,7 @@ module sd_spi_v1 #(
     always @(posedge clk) begin
         xb_go <= 1'b0; w_valid <= 1'b0; block_done <= 1'b0;
         if (rst) begin
-            st <= ST_BOOT; ready <= 1'b0; error <= 1'b0; err_code <= 5'd0; busy <= 1'b1; sd_cs_n <= 1'b1; fast <= 1'b0; ccs <= 1'b0; cnt <= 0;
+            st <= ST_BOOT; ready <= 1'b0; error <= 1'b0; err_code <= 5'd0; busy <= 1'b1; sd_cs_n <= 1'b1; fast <= 1'b0; ccs <= 1'b0; v2 <= 1'b0; cnt <= 0;
             w_data <= 0; w_index <= 0; wacc <= 0; byte_i <= 0; cmd_n <= 0; poll <= 0; ext <= 0; r1 <= 8'hFF; nxt <= ST_BOOT; ret <= ST_BOOT;
             cmd_idx <= 0; cmd_arg <= 0; cmd_crc <= 0; extra_n <= 0; keep_cs <= 0; blk_l <= 0;
         end else case (st)
@@ -129,12 +129,16 @@ module sd_spi_v1 #(
 
             // ---- initialisation ----
             ST_I1: if (r1 != 8'h01) fail(5'd3); else start_cmd(6'd8, 32'h000001AA, 8'h87, 3'd4, 1'b0, ST_I2);
-            ST_I2: begin cnt <= 0; start_cmd(6'd55, 32'h0, 8'h65, 3'd0, 1'b0, ST_I3); end
-            ST_I3: start_cmd(6'd41, 32'h40000000, 8'h77, 3'd0, 1'b0, ST_I4);
+            ST_I2: begin cnt <= 0; v2 <= !r1[2]; start_cmd(6'd55, 32'h0, 8'h65, 3'd0, 1'b0, ST_I3); end     // an SD 1.x card answers CMD8 "illegal command" (R1 bit 2)
+            ST_I3: start_cmd(6'd41, v2 ? 32'h40000000 : 32'h0, 8'h77, 3'd0, 1'b0, ST_I4);                 // HCS only for a v2 card
             ST_I4: if (r1 == 8'h00) start_cmd(6'd58, 32'h0, 8'hFD, 3'd4, 1'b0, ST_I5);
                    else if (cnt >= ACMD41_TRIES) fail(5'd4);
                    else begin cnt <= cnt + 1'b1; start_cmd(6'd55, 32'h0, 8'h65, 3'd0, 1'b0, ST_I3); end
-            ST_I5: begin ccs <= ext[30]; fast <= 1'b1; ready <= 1'b1; busy <= 1'b0; st <= ST_IDLE; end
+            ST_I5: begin ccs <= ext[30];
+                         if (ext[30]) begin fast <= 1'b1; ready <= 1'b1; busy <= 1'b0; st <= ST_IDLE; end
+                         else start_cmd(6'd16, 32'd512, 8'hFF, 3'd0, 1'b0, ST_I6);                        // a byte-addressed card: fix the block length at 512
+                     end
+            ST_I6: if (r1 != 8'h00) fail(5'd11); else begin fast <= 1'b1; ready <= 1'b1; busy <= 1'b0; st <= ST_IDLE; end
 
             // ---- idle: take a request ----
             ST_IDLE: if (rd_req) begin busy <= 1'b1; blk_l <= blk_addr; start_cmd(6'd17, blk_addr, 8'hFF, 3'd0, 1'b1, ST_RD1); end

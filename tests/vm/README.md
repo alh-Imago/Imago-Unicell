@@ -47,3 +47,5 @@ Not in this folder: the flex/sub generator suites are plain scripts in
 - `test_flex_commutative_tie_v1.py` -- ledger #1036: the flex generator accepts a same-tick operand pair on mul / add (RTL = arithmetic, plain and stalled) and still refuses it for subtract.
 - `test_playout_v1.py` -- ledger #1036: playout_v1 / capture_v1 (block-RAM feed and capture): lanes get their words in order under stalls; the 4-point W2 engine runs playout -> engine -> capture and equals the reference.
 - `test_sd_spi_v1.py` -- ledger #1036: sd_spi_v1 against a behavioural SD card (bring-up, read, write, SDHC and byte-addressed) and the whole small unit card -> RAM -> 4-point W2 engine -> RAM -> card (about 4.5 min).
+- `test_spi_bridge_v1.py` -- ledger #1036: spi_bridge_v1 / sd_unit_v1 with a simulated ESP32 (registers, words over SPI, SD load/play/save over SPI, and the 4-point W2 engine driven only over SPI, ~5.5 min).
+- `test_sd_unit_top_v1.py` -- ledger #1036: tools/sd_unit_top_v1.py output (pins, simulated load/play/read/save, Gowin synthesis).
