@@ -190,11 +190,22 @@ def _tile(g, net, name, entries, outs, r0, c0, rows=40, cols=60):
     return names, consts, (rmax - rmin + 1, cmax - cmin + 1)
 
 
-def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=6):
+def _route_batches(g, batches):
+    """Route the joins between tiles, batch after batch (one batch per column of tiles). Every port in the whole engine is kept clear (the square west of each tile
+    input, east of each tile output), so no route can wall off a port that a later route needs; each join may use only its own two."""
+    def face(cell, dc):
+        r, c = g.pos(cell)
+        return (r, c + dc)
+    guard = {face(b, -1) for nets in batches for _, b in nets} | {face(a, +1) for nets in batches for a, _ in nets}
+    for nets in batches:
+        g.route_nets([(a, b, {"spread": True, "avoid": tuple(guard - {face(b, -1), face(a, +1)})}) for a, b in nets])
+
+
+def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10):
     """Place the engine on grid g as tiles (a front per signature, one tile per compare-exchange, a back) joined by routes.
     Returns (entries {port: cell}, exits {"W2": cell}, consts)."""
     n2 = 2 * n
-    consts, nets = {}, []
+    consts, nets, batches = {}, [], []
     ent = {}
     # fronts, stacked in the first column
     fronts, row, wmax = {}, r0, 0
@@ -226,6 +237,8 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=6):
             lanes[a], lanes[b] = (nm["LO"], nm["PL"]), (nm["HI"], nm["PH"])
             row += h + gap
             wmax = max(wmax, w)
+        batches.append(nets)                                               # each column's lanes are one batch: small batches route quickly
+        nets = []
         col += wmax + gap
     row, wmax, prev, terms = r0, 0, None, []
     for i in range(n2):                                   # the segments, one tile each, in a column
@@ -243,10 +256,13 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=6):
         prev = nm
         row += h + gap
         wmax = max(wmax, w)
+    batches.append(nets)
+    nets = []
     col += wmax + gap
     net, ents, outs = sum_net(n2)
     nm, cs, _ = _tile(g, net, f"{name}.SUM", ents, outs, r0, col)
     consts.update(cs)
     nets += [(t, nm[f"T{i}"]) for i, t in enumerate(terms)]
-    g.route_nets([(a, b, {"spread": True}) for a, b in nets])
+    batches.append(nets)
+    _route_batches(g, batches)
     return ent, {"W2": nm["O.W2"]}, consts
