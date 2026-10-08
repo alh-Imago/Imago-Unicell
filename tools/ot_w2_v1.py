@@ -80,6 +80,16 @@ def merge_pairs(n2):
     return out
 
 
+NEG1 = M32                                                                   # -1 as a 32-bit word: a - b is built as a + (-1) * b
+
+
+def _neg(net, name, src):
+    """(-1) * src: a multiplier with a constant -1 beside it. The engine has NO subtract: every two-input op is an add or a multiply, so operand ORDER never
+    matters (FlexGrid takes a same-tick pair one operand at a time, which is exact for add and multiply)."""
+    net.op(f"{name}.K", "const", const=NEG1)
+    return net.op(name, "mul", [src, f"{name}.K"])
+
+
 def front_net(side, n, T):
     """One signature's front: entries X0..X{n-1}, W0..W{n-2}; exits the breakpoint keys O.F*, their payloads O.P*, the first position O.X0 and the pad (key T, payload 0)."""
     net = npl.Net()
@@ -87,15 +97,18 @@ def front_net(side, n, T):
         net.op(f"X{i}", "relay", [])
     for i in range(n - 1):
         net.op(f"W{i}", "relay", [])
+    for i in range(n):                                                       # mu uses -x[i] for i < n-1, nu uses -x[i] for i > 0
+        if (side == "M" and i < n - 1) or (side == "N" and i > 0):
+            _neg(net, f"NX{i}", f"X{i}")
     prev = None
     for i in range(n - 1):
         f = f"F{i}"
         net.op(f, "relay" if i == 0 else "add", ["W0"] if i == 0 else [prev, f"W{i}"])
         prev = f
         if side == "M":
-            net.op(f"P{i}", "sub", [f"X{i + 1}", f"X{i}"])                  # x[i+1] - x[i]
+            net.op(f"P{i}", "add", [f"X{i + 1}", f"NX{i}"])                 # x[i+1] - x[i]
         else:
-            net.op(f"P{i}", "sub", [f"X{i}", f"X{i + 1}"])                  # -(x[i+1] - x[i])
+            net.op(f"P{i}", "add", [f"X{i}", f"NX{i + 1}"])                 # -(x[i+1] - x[i])
         net.op(f"O.F{i}", "relay", [f])
         net.op(f"O.P{i}", "relay", [f"P{i}"])
     net.op("O.X0", "relay", ["X0"])
@@ -112,14 +125,18 @@ def ce_net():
     net = npl.Net()
     for e in ("KA", "KB", "PA", "PB"):
         net.op(e, "relay", [])
-    net.op("D", "sub", ["KA", "KB"])
-    net.op("S", "cmp", ["D"], thr=1)
+    _neg(net, "NKB", "KB")
+    net.op("D", "add", ["KA", "NKB"])                    # d = ka - kb
+    net.op("S", "cmp", ["D"], thr=1)                     # s = [ka > kb]
     net.op("M", "mul", ["D", "S"])
-    net.op("LO", "sub", ["KA", "M"])
-    net.op("HI", "add", ["KB", "M"])
-    net.op("E", "sub", ["PA", "PB"])
+    _neg(net, "NM", "M")
+    net.op("LO", "add", ["KA", "NM"])                    # min key = ka - d*s
+    net.op("HI", "add", ["KB", "M"])                     # max key = kb + d*s
+    _neg(net, "NPB", "PB")
+    net.op("E", "add", ["PA", "NPB"])
     net.op("F", "mul", ["E", "S"])
-    net.op("PL", "sub", ["PA", "F"])
+    _neg(net, "NF", "F")
+    net.op("PL", "add", ["PA", "NF"])                    # the payload of the min key
     net.op("PH", "add", ["PB", "F"])
     return net, ["KA", "KB", "PA", "PB"], ["LO", "HI", "PL", "PH"]
 
@@ -132,10 +149,12 @@ def seg_net(first, last):
     for e in ents:
         net.op(e, "relay", [])
     if first:
-        net.op("DIN", "sub", ["XM", "XN"])
+        _neg(net, "NXN", "XN")
+        net.op("DIN", "add", ["XM", "NXN"])
         net.op("DT", "relay", ["KA"])
     else:
-        net.op("DT", "sub", ["KA", "KP"])
+        _neg(net, "NKP", "KP")
+        net.op("DT", "add", ["KA", "NKP"])
     net.op("DC", "relay", ["DIN"])                                       # copies: the square needs the value on two inputs
     net.op("DD", "relay", ["DC"])
     net.op("SQ", "mul", ["DC", "DD"])
@@ -290,42 +309,11 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10, pads=None, info=None)
     return ent, {"W2": nm["O.W2"]}, consts
 
 
-_PADS = {}
-
-
-def w2_grid(n=4, T=64, rows=300, cols=400, attempts=8, name="W2"):
-    """Build the engine on a fresh grid with its operand timing fixed. The lines between and inside the tiles cross each other, so `Grid.balance` cannot lengthen them;
-    instead each problem is traced to the op and input it concerns, that input gets delay relays in its tile's netlist (`pads`), and the engine is laid again (the
-    geometry is computed, so a few tries settle it; the pads are remembered per size). Returns (grid, entries, exits, consts)."""
+def w2_grid(n=4, T=64, rows=300, cols=400, name="W2"):
+    """Build the engine on a fresh grid. Returns (grid, entries, exits, consts). The engine has no subtract, so there is no operand ORDER to keep; operand ties
+    (two words reaching an add or a multiply on the same tick) are exact in FlexGrid. The flex generator still refuses such ties (it needs an operand order for
+    every pair core), so the generated-RTL check waits on that (see the module notes and ledger #1033)."""
     from flex_layout_v1 import Grid
-    pads = {t: dict(p) for t, p in _PADS.get((n, T), {}).items()}
-    for _ in range(attempts):
-        g, info = Grid(rows=rows, cols=cols), {}
-        ent, ex, consts = w2_engine(g, n, T, name=name, pads=pads, info=info)
-        probs = g.problems()
-        if not probs:
-            break
-        if os.environ.get("W2_DEBUG"):
-            print("w2_grid problems:", probs[:6], flush=True)
-        t = g.hops()
-        imm_src = {}                                       # a cell's immediate source (a cell, or the last relay of a route) -> the op it carries
-        for (a, b), v in g.routes.items():
-            imm_src[(b, v["relays"][-1] if v["relays"] else a)] = a
-        for a, b, _ in g.links:
-            imm_src.setdefault((b, a), a)
-        for c, kind, x, y in probs:
-            tile, op, net = info[c]
-            late = y
-            arr = lambda q: t[q] + g.xdelay.get((c, q), 0)
-            need = 1 if kind == "tie" else arr(x) - arr(y) + 1
-            src_cell = imm_src.get((c, late), late)
-            src_op = info.get(src_cell, (None, None))[1]
-            if src_op is None or src_op not in net.cells[op]["srcs"]:
-                src_op = next(q for q in net.cells[op]["srcs"] if q != info.get(imm_src.get((c, x), x), (None, None))[1])
-            key = (op, src_op)
-            pads.setdefault(tile, {})[key] = pads.get(tile, {}).get(key, 0) + max(1, need)
-    else:
-        raise RuntimeError(f"w2_grid: timing problems remain after {attempts} attempts: {g.problems()[:4]}")
-    _PADS[(n, T)] = pads
+    g = Grid(rows=rows, cols=cols)
+    ent, ex, consts = w2_engine(g, n, T, name=name)
     return g, ent, ex, consts
-
