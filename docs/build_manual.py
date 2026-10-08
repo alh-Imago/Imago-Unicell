@@ -120,6 +120,7 @@ SECTIONS = [
              "open Gowin toolchain, and the first bitstream confirmed on the board. Earlier: "
              "the Arria 10 card's programming procedure and bring-up findings.",
      "parts":[{"sub":"Tang Nano 20K: getting started","md":"docs/man/tang-nano-20k-getting-started.md"},
+              {"sub":"Small unit bring-up: Tang Nano + ESP32","md":"docs/unit_bringup_guide.md"},
               {"sub":"MAN files (card capabilities)","md":"docs/man/README.md"},
               {"sub":"Toolchain setup (both lines)","md":"docs/shared/TOOLCHAIN_SETUP.md"},
               {"sub":"Tools: the assembler and measurement tools","md":"tools/README.md"},

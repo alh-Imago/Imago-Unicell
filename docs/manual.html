@@ -5847,6 +5847,73 @@ unverified against the schematic, so start with the SRAM (non-persistent) write 
 <li><code>fpga/build/unicell_tang_nano_20k_smoke_v2.{fs,cst}</code> -- the real, committed, confirmed-working bitstream</li>
 <li><code>fpga/build/unicell_tang_nano_20k_smoke_v2_report.json</code> -- the real nextpnr timing/utilization report</li>
 </ul>
+<div class="partsub">Small unit bring-up: Tang Nano + ESP32<span class="partsrc">docs/unit_bringup_guide.md</span></div>
+<h1>Small unit bring-up guide: Tang Nano 20K + ESP32 (CORDIC unit)</h1>
+<p>Ledger #1036. Nothing here has run on real hardware yet, so the order below goes from "does the link talk at all" to "does the card work", and each step has a clear pass/fail.</p>
+<h2>What you need</h2>
+<ul>
+<li>Tang Nano 20K with the 16 GB SanDisk Ultra (SDHC) in its microSD slot, USB-C cable.</li>
+<li>The ESP32 dev board on the breadboard, USB cable, 5 jumper wires plus a ground wire (table in <code>docs/playout_capture_v1.md</code>):
+  CS_N IO5 -&gt; pin 73, SCLK IO18 -&gt; 74, MOSI IO23 -&gt; 75, MISO IO19 &lt;- 76 (right-hand header), READY IO34 &lt;- 77, GND to GND.</li>
+<li>A PC with: Arduino IDE 2, and a way to load the FPGA bitstream (step 1).</li>
+</ul>
+<h2>Step 1 -- load the FPGA (no ESP32 needed yet)</h2>
+<p>The ready-made bitstream is <code>fpga/build/unit_cordic_v1/unit_top.fs</code> (CORDIC unit: 2,454 LUT4 = 12%, 4 of 46 block RAMs, 165 MHz capable, 27 MHz used).
+Use whichever loader you already used for the smoke test:
+- command line: <code>openFPGALoader -b tangnano20k fpga/build/unit_cordic_v1/unit_top.fs</code> (SRAM: lost when the board loses power; add <code>-f</code> to write it to flash);
+- or the Gowin Programmer program: device GW2AR-18, "SRAM Program", file <code>unit_top.fs</code>.
+LEDs: the four board LEDs are active-low; they show the unit's status (the generated top's README, <code>fpga/build/unit_cordic_v1/README_UNIT.md</code>).</p>
+<h2>Step 2 -- ESP32 side (one time)</h2>
+<ol>
+<li>Install Arduino IDE 2 (arduino.cc).</li>
+<li>Boards: File &gt; Preferences &gt; "Additional boards manager URLs", add <code>https://espressif.github.io/arduino-esp32/package_esp32_index.json</code>. Tools &gt; Board &gt; Boards Manager &gt; search "esp32" &gt; install "esp32 by Espressif Systems".</li>
+<li>Tools &gt; Board &gt; "ESP32 Dev Module" (or the exact board you have). Tools &gt; Port &gt; the ESP32's COM port.</li>
+<li>File &gt; Open <code>tools/esp32/unicell_unit_bridge/unicell_unit_bridge.ino</code> (the folder name and file name must match, as they do). Upload. If it says "Connecting......", hold the board's BOOT button until it starts.</li>
+<li>Tools &gt; Serial Monitor, set <strong>115200 baud</strong> and <strong>Newline</strong> at the bottom. You should see "UniCell unit bridge ready" and the ID check.
+Pins are <code>#define</code>s at the top of the sketch if your wiring differs.
+If the ESP32 is a camera module (ESP32-CAM) the camera uses several of IO18/19/23: tell me which board it is and I will re-pin.</li>
+</ol>
+<h2>Step 3 -- the test ladder (type each into the Serial Monitor)</h2>
+<table>
+<thead>
+<tr>
+<th>command</th>
+<th>pass looks like</th>
+<th>if it fails</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>ID = 0x57320001 OK</code></td>
+<td><code>0x00000000</code> or <code>0xFFFFFFFF</code>: MISO/CS wiring or no common ground; check FPGA is loaded</td>
+</tr>
+<tr>
+<td><code>scratch</code></td>
+<td><code>SCRATCH read-back OK</code></td>
+<td>wiring on MOSI/SCLK; lower <code>SPI_HZ</code> (500000)</td>
+</tr>
+<tr>
+<td><code>cordic</code></td>
+<td>six lines <code>ok</code>, <code>CORDIC OK</code> (z0=50000 -&gt; -404)</td>
+<td>wrong numbers: tell me which</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>sd_ready=1 sd_error=0</code>, <code>READY pin=1</code></td>
+<td>sd_ready=0: card not found; sd_error=1 gives an err_code (send me the line)</td>
+</tr>
+<tr>
+<td><code>sdtest</code></td>
+<td><code>SD ROUND TRIP OK</code></td>
+<td>send me the whole output</td>
+</tr>
+</tbody>
+</table>
+<p><code>cordic</code> needs no SD card at all (the ESP32 pushes the angles in over SPI), so it proves the FPGA design and the link before the card is involved. <code>sdtest</code> uses raw card block 64 (change with <code>sdtest 200</code>); it overwrites that block. <strong>The sketch refuses blocks below 16</strong>: block 0 holds a FAT32 card's partition table. A raw-written block inside the card's file area will corrupt a file there, so use a spare card, or re-format afterwards.
+Other commands: <code>z 100 200 300</code> (your own angles), <code>load 64 1</code> / <code>save 64 1</code>, <code>reg 8</code> (read a register), <code>reg 7 0x1234</code> (write), <code>words 0 8</code> (dump results RAM), <code>help</code>.</p>
+<h2>Reading the unit by hand (for later designs)</h2>
+<p>Registers, SPI protocol and the card layout are in <code>docs/playout_capture_v1.md</code> and <code>fpga/build/unit_cordic_v1/lanes.json</code>. A different design is wrapped the same way: <code>python3 tools/sd_unit_top_v1.py --icm &lt;design.icm&gt; --output &lt;dir&gt;</code> then <code>tools/gowin_sizing/build_unit_bitstream.sh &lt;dir&gt;</code>.</p>
 <div class="partsub">MAN files (card capabilities)<span class="partsrc">docs/man/README.md</span></div>
 <h1>MAN files</h1>
 <p>A MAN file describes a <strong>target card's real identity and capabilities</strong> —
@@ -6504,6 +6571,10 @@ covers GW1N, #889). They write only to temporary folders unless noted.</p>
 <td>the 1-cell and 100-cell flex adder chain place-and-route (#908/#910)</td>
 </tr>
 <tr>
+<td><code>gowin_sizing/build_unit_bitstream.sh</code></td>
+<td>a generated small unit (sd_unit_top_v1 output) -&gt; flashable Tang Nano 20K bitstream (yowasp-yosys for block RAM; #1036)</td>
+</tr>
+<tr>
 <td><code>gowin_sizing/build_smoke_bitstream.sh</code></td>
 <td>the flashable Tang smoke-test bitstream, end to end, with a pinned seed (#892/#896)</td>
 </tr>
@@ -6579,6 +6650,7 @@ documentation once populated.</p>
 its own README, setup, and dependencies. None require the UniCell VM or
 hardware to run, except where noted above (Quartus, for <code>placement_extract_v1.py</code>
 specifically).
+- <code>esp32/unicell_unit_bridge/</code> -- Arduino sketch: ESP32 as SPI master to the small unit (docs/unit_bringup_guide.md).
 - <code>sd_unit_top_v1.py</code> -- ledger #1036: wrap any flex design (an ICM) in the SD-card + ESP32-SPI small unit; writes a Tang Nano <code>unit_top.v</code>, pin file, lane map and README (docs/playout_capture_v1.md).</p>
 <div class="partsub">Arria 10 programming procedure<span class="partsrc">hardware/Arria10_Programming_Procedure.md</span></div>
 <h1>Imago UniCell — Arria 10 GX660 Programming Procedure</h1>

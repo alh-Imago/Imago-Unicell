@@ -138,6 +138,7 @@ covers GW1N, #889). They write only to temporary folders unless noted.
 | `gowin_sizing/size_cells.sh`, `size_carrier.sh` | the ORIGINAL cells and VIX carrier on the GW2A, full and lean (#886/#887; synthesis only) |
 | `gowin_sizing/gen_mesh_top.py`, `run_mesh_sweep.py` | pin-bound wrappers and the N=1 / 3x3 place-and-route sweep of the original standalone cells (#889) |
 | `gowin_sizing/build_adder_v4sa_scaling.sh` | the 1-cell and 100-cell flex adder chain place-and-route (#908/#910) |
+| `gowin_sizing/build_unit_bitstream.sh` | a generated small unit (sd_unit_top_v1 output) -> flashable Tang Nano 20K bitstream (yowasp-yosys for block RAM; #1036) |
 | `gowin_sizing/build_smoke_bitstream.sh` | the flashable Tang smoke-test bitstream, end to end, with a pinned seed (#892/#896) |
 
 **Measurement pitfalls the ledger records:** observe every output bit
@@ -229,4 +230,5 @@ Each tool that isn't a single script lives in its own subdirectory with
 its own README, setup, and dependencies. None require the UniCell VM or
 hardware to run, except where noted above (Quartus, for `placement_extract_v1.py`
 specifically).
+- `esp32/unicell_unit_bridge/` -- Arduino sketch: ESP32 as SPI master to the small unit (docs/unit_bringup_guide.md).
 - `sd_unit_top_v1.py` -- ledger #1036: wrap any flex design (an ICM) in the SD-card + ESP32-SPI small unit; writes a Tang Nano `unit_top.v`, pin file, lane map and README (docs/playout_capture_v1.md).
