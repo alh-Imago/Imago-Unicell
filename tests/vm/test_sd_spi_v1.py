@@ -124,7 +124,7 @@ module tb;
       .cmd_load(cmd_load), .cmd_save(cmd_save), .start_block(start_block), .nblocks(nblocks), .busy(busy), .done(done), .ready(ready), .error(error), .err_code(err_code),
       .pl_wr_en(pl_wr_en), .pl_wr_addr(pl_wr_addr), .pl_wr_data(pl_wr_data), .cap_rd_addr(cap_rd_addr), .cap_rd_data(rdat[31:0]));
   sd_card_model_v1 #(.SDHC(1), .BLOCKS(4)) card(.sclk(sd_clk), .mosi(sd_mosi), .cs_n(sd_cs_n), .miso(sd_miso));
-  playout_v1 #(.LANES({lanes}), .AW(10)) P(.clk(clk), .rst(rst), .wr_en(pl_wr_en), .wr_addr(pl_wr_addr), .wr_data(pl_wr_data), .start(start), .count(11'd{lanes * len(its)}), .busy(pbusy), .done(pdone), .lane_data(ld), .lane_valid(lv), .lane_ack(la));
+  playout_v1 #(.LANES({lanes}), .AW(10)) P(.clk(clk), .rst(rst), .wr_en(pl_wr_en), .wr_addr(pl_wr_addr), .wr_data(pl_wr_data), .start(start), .count(11'd{lanes * len(its)}), .max_out(11'd0), .rpi(11'd1), .results(11'd0), .busy(pbusy), .done(pdone), .lane_data(ld), .lane_valid(lv), .lane_ack(la));
   capture_v1 #(.OUTS(1), .AW(10)) C(.clk(clk), .rst(rst), .clear(1'b0), .out_data(od), .out_valid(ov), .out_ack(oa), .count(ccount), .rd_addr(cap_rd_addr), .rd_data(rdat));
   {top} dut(.clk(clk), .rst(rst), .cfg_valid(cfg_valid), {conn_in}, .out_{outp}_data(od), .out_{outp}_valid(ov), .out_{outp}_ack(oa));
   always #5 clk=~clk;

@@ -88,7 +88,7 @@ endmodule
     info = {"design_top": top, "entries": ins, "exits": outs, "word_layout": "item-major, lane-minor, little-endian 32-bit words on the card (item k, lane j at word k*LANES + j); results in arrival order",
             "lanes": L, "outs": O, "sd_pins": {k: PINS[k] for k in PINS if k.startswith("SD_")}, "spi_pins": {k: PINS[k] for k in PINS if k.startswith("SPI_") or k == "READY"},
             "registers": {"0": "ID 0x57320001", "1": "STATUS [0]sd_ready [1]sd_error [2]sd_busy [3]play_busy [4]sd_done [5]play_done [6]capture_nonempty [12:8]err_code", "2": "CONTROL [0]sd_load [1]sd_save [2]play_start [3]capture_clear [4]clear_done",
-                          "3": "START_BLOCK", "4": "NBLOCKS", "5": "PLAY_COUNT (words = items*lanes)", "6": "CAP_COUNT (ro)", "7": "SCRATCH"},
+                          "3": "START_BLOCK", "4": "NBLOCKS", "5": "PLAY_COUNT (words = items*lanes)", "6": "CAP_COUNT (ro)", "7": "SCRATCH", "8": "MAX_OUT: pacing for designs that hold ONE item at a time -- at most this many results outstanding (0 = unlimited)", "9": "RPI: results per item (default 1)"},
             "spi": "mode 0, MSB first, SCLK slower than clk/16 (27 MHz -> <= 1.6 MHz). 0x01 WR_REG addr d3..d0 | 0x02 RD_REG addr pad then 4 bytes | 0x03 WR_WORDS hi lo words | 0x04 RD_WORDS hi lo pad words"}
     json.dump(info, open(os.path.join(out, "lanes.json"), "w"), indent=1)
     files = [os.path.join("rtl", f) for f in RTL] + [os.path.join("design", f) for f in rec["files"] if f.endswith(".v")] + ["unit_top.v"]
@@ -96,7 +96,7 @@ endmodule
     open(os.path.join(out, "README_UNIT.md"), "w").write(f"""# Small unit for design `{top}` ({L} entry lanes, {O} exits)
 Sources: FILES.txt. Pins: unit_top.cst (top module `unit_top`). Lanes and registers: lanes.json.
 Typical sequence over SPI (ESP32): read ID (reg 0) -> wait STATUS bit0 (card up) -> set START_BLOCK / NBLOCKS, CONTROL=1 (load) -> wait STATUS bit4 -> set PLAY_COUNT = items*{L}, CONTROL=4 (play) ->
-poll CAP_COUNT (reg 6) until all results are in -> RD_WORDS from capture address 0 (and/or set START_BLOCK, NBLOCKS and CONTROL=2 to save them to the card; CONTROL=0x10 clears the done bits first).
+(a design that holds ONE item at a time, e.g. the CORDIC, needs pacing: CONTROL=8 to clear the capture, MAX_OUT=1, RPI=1 first) poll CAP_COUNT (reg 6) until all results are in -> RD_WORDS from capture address 0 (and/or set START_BLOCK, NBLOCKS and CONTROL=2 to save them to the card; CONTROL=0x10 clears the done bits first).
 Use blocks well away from block 0 (a FAT32 card keeps its partition table there): e.g. input at block 16.., results at block 17.. or later. Raw blocks overwrite whatever is there.
 NOT run on a board. The SD slot's pull-ups are not listed in the board file: the .cst turns the FPGA's internal pull-ups on for the SD pins.
 """)

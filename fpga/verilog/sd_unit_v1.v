@@ -33,7 +33,7 @@ module sd_unit_v1 #(
     output wire                  ready_line
 );
     wire ctl_sd_load, ctl_sd_save, ctl_play_start, ctl_cap_clear;
-    wire [31:0] start_block; wire [15:0] nblocks; wire [AW:0] play_count;
+    wire [31:0] start_block; wire [15:0] nblocks; wire [AW:0] play_count, max_out, rpi;
     wire sd_busy, sd_done, sd_ready, sd_error; wire [4:0] err_code;
     wire sd_pl_en, br_pl_en; wire [AW-1:0] sd_pl_addr, br_pl_addr; wire [31:0] sd_pl_data, br_pl_data;
     localparam TAGW = (OUTS > 1) ? $clog2(OUTS) : 1;
@@ -50,7 +50,7 @@ module sd_unit_v1 #(
     spi_bridge_v1 #(.AW(AW)) BR (
         .clk(clk), .rst(rst), .sclk(spi_sclk), .cs_n(spi_cs_n), .mosi(spi_mosi), .miso(spi_miso),
         .ctl_sd_load(ctl_sd_load), .ctl_sd_save(ctl_sd_save), .ctl_play_start(ctl_play_start), .ctl_cap_clear(ctl_cap_clear),
-        .start_block(start_block), .nblocks(nblocks), .play_count(play_count),
+        .start_block(start_block), .nblocks(nblocks), .play_count(play_count), .max_out(max_out), .rpi(rpi),
         .sd_ready(sd_ready), .sd_error(sd_error), .sd_busy(sd_busy), .play_busy(play_busy), .err_code(err_code),
         .sd_done_pulse(sd_done), .play_done_pulse(play_done), .cap_count(cap_count),
         .pl_wr_en(br_pl_en), .pl_wr_addr(br_pl_addr), .pl_wr_data(br_pl_data), .cap_rd_addr(br_cap_addr), .cap_rd_data(cap_rd_data));
@@ -58,7 +58,7 @@ module sd_unit_v1 #(
     wire pl_en = sd_pl_en | br_pl_en;                 // the two writers never run together (software sequence); the SD stream wins if they ever do
     playout_v1 #(.LANES(LANES), .AW(AW)) P (
         .clk(clk), .rst(rst), .wr_en(pl_en), .wr_addr(sd_pl_en ? sd_pl_addr : br_pl_addr), .wr_data(sd_pl_en ? sd_pl_data : br_pl_data),
-        .start(ctl_play_start), .count(play_count), .busy(play_busy), .done(play_done),
+        .start(ctl_play_start), .count(play_count), .max_out(max_out), .rpi(rpi), .results(cap_count), .busy(play_busy), .done(play_done),
         .lane_data(lane_data), .lane_valid(lane_valid), .lane_ack(lane_ack));
 
     capture_v1 #(.OUTS(OUTS), .AW(AW)) C (

@@ -48,7 +48,7 @@ module tb;
   reg clk=0, rst=1, wr_en=0, start=0; reg [9:0] wr_addr=0; reg [31:0] wr_data=0; reg [10:0] count={lanes * items};
   wire busy, done; wire [{lanes}*32-1:0] ld; wire [{lanes - 1}:0] lv; reg [{lanes - 1}:0] la=0;
   reg [31:0] lfsr=32'hACE1; integer got=0, cyc=0;
-  playout_v1 #(.LANES({lanes}), .AW(10)) dut(.clk(clk), .rst(rst), .wr_en(wr_en), .wr_addr(wr_addr), .wr_data(wr_data), .start(start), .count(count), .busy(busy), .done(done), .lane_data(ld), .lane_valid(lv), .lane_ack(la));
+  playout_v1 #(.LANES({lanes}), .AW(10)) dut(.clk(clk), .rst(rst), .wr_en(wr_en), .wr_addr(wr_addr), .wr_data(wr_data), .start(start), .count(count), .max_out(11'd0), .rpi(11'd1), .results(11'd0), .busy(busy), .done(done), .lane_data(ld), .lane_valid(lv), .lane_ack(la));
   always #5 clk=~clk;
   integer j;
   always @(posedge clk) begin
@@ -59,7 +59,7 @@ module tb;
     if (done) begin $display("DONE %0d", cyc); $finish; end
   end
   initial begin
-    repeat(4) @(negedge clk); rst=0; @(negedge clk); cfg_valid=1; @(negedge clk); cfg_valid=0; repeat(3) @(negedge clk);
+    repeat(4) @(negedge clk); rst=0; @(negedge clk);
 {loads}
     wr_en=0; @(negedge clk); start=1; @(negedge clk); start=0;
     repeat(200000) @(posedge clk); $display("TIMEOUT"); $finish;
@@ -115,7 +115,7 @@ module tb;
   reg clk=0, rst=1, cfg_valid=0, wr_en=0, start=0; reg [9:0] wr_addr=0; reg [31:0] wr_data=0; reg [10:0] count={lanes * len(its)};
   wire busy, done; wire [{lanes}*32-1:0] ld; wire [{lanes - 1}:0] lv, la;
   wire [31:0] od; wire ov, oa; wire [10:0] ccount; reg [9:0] raddr=0; wire [32:0] rdat;
-  playout_v1 #(.LANES({lanes}), .AW(10)) P(.clk(clk), .rst(rst), .wr_en(wr_en), .wr_addr(wr_addr), .wr_data(wr_data), .start(start), .count(count), .busy(busy), .done(done), .lane_data(ld), .lane_valid(lv), .lane_ack(la));
+  playout_v1 #(.LANES({lanes}), .AW(10)) P(.clk(clk), .rst(rst), .wr_en(wr_en), .wr_addr(wr_addr), .wr_data(wr_data), .start(start), .count(count), .max_out(11'd0), .rpi(11'd1), .results(11'd0), .busy(busy), .done(done), .lane_data(ld), .lane_valid(lv), .lane_ack(la));
   capture_v1 #(.OUTS(1), .AW(10)) C(.clk(clk), .rst(rst), .clear(1'b0), .out_data(od), .out_valid(ov), .out_ack(oa), .count(ccount), .rd_addr(raddr), .rd_data(rdat));
   {top} dut(.clk(clk), .rst(rst), .cfg_valid(cfg_valid), {conn_in}, .out_{outp}_data(od), .out_{outp}_valid(ov), .out_{outp}_ack(oa));
   always #5 clk=~clk;
@@ -139,3 +139,41 @@ endmodule
     assert "TIMEOUT" not in out, out[-600:]
     got = [int(x) for x in re.findall(r"^R (\d+)$", out, re.M)]
     assert got == [W.w2_ref(*a, *b) for a, b in its]
+
+
+def test_pacing_keeps_the_items_in_flight_at_the_limit(tmp):
+    """max_out = 1, rpi = 1: the next item is only issued once the previous item's result has been captured. A stand-in 'design' takes an item (both lanes acked) and produces its result 60 cycles
+    later; the testbench records the most items ever outstanding. Paced: 1. Unpaced (max_out = 0): more than 1."""
+    def run(max_out):
+        tb = f"""`timescale 1ns/1ps
+module tb;
+  reg clk=0, rst=1, wr_en=0, start=0; reg [9:0] wr_addr=0; reg [31:0] wr_data=0; reg [10:0] count=12, maxo={max_out}, results=0;
+  wire busy, done; wire [63:0] ld; wire [1:0] lv; reg [1:0] la=0;
+  playout_v1 #(.LANES(2), .AW(10)) dut(.clk(clk), .rst(rst), .wr_en(wr_en), .wr_addr(wr_addr), .wr_data(wr_data), .start(start), .count(count), .max_out(maxo), .rpi(11'd1), .results(results), .busy(busy), .done(done), .lane_data(ld), .lane_valid(lv), .lane_ack(la));
+  always #5 clk=~clk;
+  integer taken=0, outstanding=0, maxout=0, delay=0, i;
+  reg [1:0] seen = 0;
+  always @(posedge clk) begin
+    la <= lv & ~la;                               // consume a lane one cycle after it is offered
+    if (|(lv & la)) seen <= seen | (lv & la);
+    if (&(seen | (lv & la)) && |(lv & la)) begin taken <= taken + 1; outstanding <= outstanding + 1; seen <= 0; delay <= 60; end
+    if (delay > 0) begin delay <= delay - 1; if (delay == 1) begin results <= results + 1; outstanding <= outstanding - 1; end end
+    if (outstanding > maxout) maxout <= outstanding;
+    if (done) begin $display("MAX %0d TAKEN %0d", maxout, taken); $finish; end
+  end
+  initial begin
+    repeat(3) @(negedge clk); rst=0; @(negedge clk);
+    for (i = 0; i < 12; i = i + 1) begin wr_en=1; wr_addr=i; wr_data=i+1; @(negedge clk); end
+    wr_en=0; @(negedge clk); start=1; @(negedge clk); start=0;
+    repeat(100000) @(posedge clk); $display("TIMEOUT"); $finish;
+  end
+endmodule
+"""
+        out = sim(tmp, tb, RAMS[:1])
+        m = re.search(r"MAX (\d+) TAKEN (\d+)", out)
+        assert m, out[-300:]
+        return int(m.group(1)), int(m.group(2))
+    paced = run(1)
+    unpaced = run(0)
+    assert paced[0] <= 1 and paced[1] == 6, paced
+    assert unpaced[0] > 1, unpaced

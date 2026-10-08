@@ -18,6 +18,11 @@ module playout_v1 #(
     // control
     input  wire                     start,       // one-cycle pulse: play words 0 .. count-1
     input  wire [AW:0]              count,       // total words (items * LANES); must be a multiple of LANES
+    // optional pacing for designs that cannot hold several items at once (a non-pipelined design): at most `max_out` results outstanding (0 = unlimited);
+    // each item is expected to produce `rpi` results; `results` is the capture count (clear the capture RAM before a paced run)
+    input  wire [AW:0]              max_out,
+    input  wire [AW:0]              rpi,
+    input  wire [AW:0]              results,
     output wire                     busy,
     output reg                      done,        // one-cycle pulse when the last word has been taken by its consumer
     // the lanes (to the design's in_*_data / in_*_valid / in_*_ack)
@@ -30,6 +35,8 @@ module playout_v1 #(
     always @(posedge clk) if (wr_en) mem[wr_addr] <= wr_data;
 
     reg [AW:0]  total, issued;
+    reg [AW+1:0] expected;
+    wire gate_ok = (lane != 0) || (max_out == 0) || (results >= expected) || ((expected - results) < max_out);
     reg [LW-1:0] lane;
     reg         running, pending;
     reg [WIDTH-1:0] rdata;
@@ -50,21 +57,22 @@ module playout_v1 #(
     always @(posedge clk) begin
         done <= 1'b0;
         if (rst) begin
-            running <= 1'b0; pending <= 1'b0; lvalid <= {LANES{1'b0}}; issued <= 0; total <= 0; lane <= 0; pend_lane <= 0;
+            running <= 1'b0; pending <= 1'b0; lvalid <= {LANES{1'b0}}; issued <= 0; total <= 0; lane <= 0; pend_lane <= 0; expected <= 0;
         end else begin
             for (i = 0; i < LANES; i = i + 1) if (lvalid[i] && lane_ack[i]) lvalid[i] <= 1'b0;
             if (pending) begin                           // the word read last cycle lands in its lane
                 ldata[pend_lane] <= rdata;
                 lvalid[pend_lane] <= 1'b1;
                 pending <= 1'b0;
-            end else if (running && issued < total && !lvalid[lane]) begin
+            end else if (running && issued < total && !lvalid[lane] && gate_ok) begin
                 pend_lane <= lane;
                 pending <= 1'b1;
                 issued <= issued + 1;
+                if (lane == 0) expected <= expected + rpi;
                 lane <= (lane == LANES-1) ? 0 : lane + 1'b1;
             end
             if (start) begin
-                running <= 1'b1; total <= count; issued <= 0; lane <= 0;
+                running <= 1'b1; total <= count; issued <= 0; lane <= 0; expected <= 0;
             end else if (running && issued >= total && !pending && (lvalid & ~lane_ack) == 0) begin
                 running <= 1'b0; done <= 1'b1;
             end

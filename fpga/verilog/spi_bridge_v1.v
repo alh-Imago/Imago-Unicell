@@ -8,6 +8,7 @@
 //   0x03 WR_WORDS : addrHi addrLo, then 4-byte words (auto-increment)  into the PLAYOUT RAM until CS rises
 //   0x04 RD_WORDS : addrHi addrLo, pad, then 4-byte words (auto-increment) from the CAPTURE RAM until CS rises
 // Registers: 0 ID (ro, 0x57320001) | 1 STATUS (ro) | 2 CONTROL (wo, pulses) | 3 START_BLOCK | 4 NBLOCKS | 5 PLAY_COUNT | 6 CAP_COUNT (ro) | 7 SCRATCH
+//   8 MAX_OUT (pacing: at most this many results outstanding, 0 = unlimited) | 9 RPI (results per item, default 1). Pacing is for designs that hold ONE item at a time; clear the capture first (CONTROL bit 3).
 //   STATUS: [0] sd_ready [1] sd_error [2] sd_busy [3] play_busy [4] sd_done (sticky) [5] play_done (sticky) [6] capture non-empty [12:8] sd err_code
 //   CONTROL: [0] sd_load [1] sd_save [2] play_start [3] capture_clear [4] clear the two sticky done bits (they also clear when an op starts)
 `default_nettype none
@@ -27,6 +28,8 @@ module spi_bridge_v1 #(
     output reg  [31:0]     start_block,
     output reg  [15:0]     nblocks,
     output reg  [AW:0]     play_count,
+    output reg  [AW:0]     max_out,
+    output reg  [AW:0]     rpi,
     input  wire            sd_ready,
     input  wire            sd_error,
     input  wire            sd_busy,
@@ -70,6 +73,8 @@ module spi_bridge_v1 #(
             8'd5: regread = {{(31-AW){1'b0}}, play_count};
             8'd6: regread = {{(31-AW){1'b0}}, cap_count};
             8'd7: regread = scratch;
+            8'd8: regread = {{(31-AW){1'b0}}, max_out};
+            8'd9: regread = {{(31-AW){1'b0}}, rpi};
             default: regread = 32'h0;
         endcase
     endfunction
@@ -96,7 +101,7 @@ module spi_bridge_v1 #(
         if (sd_done_pulse) sd_done_seen <= 1'b1;
         if (play_done_pulse) play_done_seen <= 1'b1;
         if (rst) begin
-            bidx <= 0; cmd <= 0; tx_next <= 0; start_block <= 0; nblocks <= 0; play_count <= 0; scratch <= 0; wdata <= 0; rv <= 0; word_cur <= 0;
+            bidx <= 0; cmd <= 0; tx_next <= 0; start_block <= 0; nblocks <= 0; play_count <= 0; max_out <= 0; rpi <= 1; scratch <= 0; wdata <= 0; rv <= 0; word_cur <= 0;
             sd_done_seen <= 0; play_done_seen <= 0; wr_ptr <= 0; rd_ptr <= 0; cap_rd_addr <= 0; pl_wr_addr <= 0; pl_wr_data <= 0; raddr <= 0; hi <= 0;
         end else if (!active) begin
             bidx <= 0; cmd <= 0; tx_next <= 8'h00;
@@ -122,6 +127,8 @@ module spi_bridge_v1 #(
                                 8'd4: nblocks <= {wdata[7:0], rxb};
                                 8'd5: play_count <= {wdata[23:0], rxb};
                                 8'd7: scratch <= {wdata[23:0], rxb};
+                                8'd8: max_out <= {wdata[23:0], rxb};
+                                8'd9: rpi <= {wdata[23:0], rxb};
                                 default: ;
                             endcase
                         end
