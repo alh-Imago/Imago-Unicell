@@ -56,3 +56,13 @@ Registers, SPI protocol and the card layout are in `docs/playout_capture_v1.md` 
 The page shows the unit status (ID, SD card, errors), a box to type input numbers (one item per line, or separated by anything that is not a digit), and a Run button that sends them over SPI, plays them through the design and shows the results. A second panel loads input from, or saves results to, raw SD blocks (blocks below 16 are refused).
 Endpoints (for scripts): `GET /api/status`, `POST /api/run` (field `items`), `POST /api/sd` (`op`=load|save, `block`, `n`), `POST /api/sdinit`. Example: `curl -u unicell:PASSWORD -d "items=50000 -50000 0" http://unicell.local/api/run`.
 **Limits, honestly:** plain HTTP with a password, for a trusted home or lab network only, never the internet; at most 512 words per run; one request at a time; it can overwrite raw SD blocks (16 and up).
+
+## Loading a new design from the ESP32 (research from the Sipeed schematic Rev 1.3; NOT built, NOT tried)
+What the schematic (Tang_Nano_20K_3923, 28 Aug 2025) shows:
+- **JTAG test points** on the board: TP6 = TMS (FPGA pin 5), TP3 = TCK (pin 6), TP5 = TDI (pin 7), TP4 = TDO (pin 8), TP2 = GND. **TP1 = RECONFIG_N** (pin 9): pulling it low makes the FPGA reload from its flash.
+- The BL616 USB chip drives the same four JTAG nets straight from its GPIO pins (no buffer, no series resistor). An ESP32 wired to the test points would share those nets, so: never run openFPGALoader and the ESP32 at the same time, and put about 1 k in series with each ESP32 line. Whether the BL616 leaves the pins released when idle is not known.
+- The boot flash (XT25F64F, 64 Mbit) hangs only on the FPGA's dedicated MSPI pins (59-63, 57). The ESP32 cannot reach it; the FPGA reads it itself at power-up.
+- MODE0/MODE1 are pins 88/87 = the two buttons S1/S2 (each pulled low by 1 k). The slave-SPI configuration pins (CS 55, SCLK 52, DIN 54, DOUT 53) are also on header J5, but which MODE setting selects that route has not been checked against Gowin's configuration guide.
+- The FPGA's pins 75 and 76 (our MOSI/MISO) are also wired to the BL616's own SPI port. It has stayed quiet so far, which is why our link works.
+Proposed route: (1) the ESP32 reads the new bitstream's blocks from the SD card through the running unit (needs a raw-block read register in the bridge), keeps the ~1 MB file in its own flash; (2) it bit-bangs it into the FPGA over JTAG through TP3-TP6 (SRAM load, volatile, like openFPGALoader now); (3) every generated design already contains the SD + SPI unit, so the link returns. TP1 would let the ESP32 reboot the FPGA from the board flash. Persistent install of a finished design stays `openFPGALoader -f` from a PC.
+
