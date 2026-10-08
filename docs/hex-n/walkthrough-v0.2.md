@@ -66,6 +66,20 @@ UniCell's flex family already has the matching pieces (merge arbitrate/join, bra
 5. A pair's path code decides whether its output is passed: **ALL THREE** (in-path active, weight at threshold, feedback agrees), **CHOOSE** (equal weights: pick one), **STEER** (the in-flow value picks which way), **NEGATIVE** (already counted as a subtraction).
 6. In the feedback phase the flow runs the other way along the same pairs and adds to the accumulator for that window only (nothing stored changes). Training changes the active-lane bits, thresholds and codes offline, then freezes them.
 
+## Prototype v1 (9 Oct 2026): `rtl/hexn_cell_v1.v` + `tests/test_hexn_cell_v1.py`
+Implements the plain-words cell above. Checked against an independent cycle-accurate Python model on 60 random configurations x 3 windows (every clock of `tx` compared; over 200 transmitted clocks exercised). Simulation only; not placed-and-routed; not on hardware.
+**The assumptions I had to make (each marked A1..A7 in the RTL; correct any of them):**
+- A1 accumulator: +1 per active receiving lane per clock, NEGATIVE lanes -1, floored at 0, saturating.
+- A2 the shared 16-bit bias is ADDED to the threshold (more bias = less excitable); clamped to the weight width.
+- A3 graded output: margin above threshold, capped at 6, sets a burst of 1+margin clocks high (more margin = more flow at the neighbour).
+- A4 "feedback agrees" = any net positive feedback arrived in the feedback phase.
+- A5 "in-path" = some active lane received in the forward phase.
+- A6 CHOOSE: the lowest-numbered active sending-capable CHOOSE lane on the face wins (fixed priority).
+- A7 STEER: an even lane sends when the in-path was active, an odd lane when it was not.
+Also: dir has four modes (in only / out only / in then out / out then in); the mesh controller supplies `phase`, `ph_start`, `win_end`; phases must be at least 7 clocks.
+**Measured (yosys synth_gowin, config held outside, before place-and-route, NOT optimised):** a 6-face x 4-lane cell is about 1,300 LUT + 315 carry cells + 600 mux cells + 117 flip-flops; 6 x 8 lanes about 3,300 LUT + 570 carry + 1,600 mux + 141 flip-flops. That is far above the first guess (v0's 66 LUT4) because the accumulate/compare/graded-burst logic is much richer; it would allow only roughly 8-10 small cells on a Nano 20K as written. I have not tried to optimise it (the config lives in registers in a real build too, which adds flip-flops).
+`rtl/hexn_cell_v0.v` is the earlier spatial-count prototype, kept only for its measurement.
+
 ## Still open
 1. ~~What does NOT negate~~ answered: it is a negative weight (above). Positive is not a code (it is lane count); AND is the two-condition case.
 2. How is the output formed from fire plus the carried value now that in and out share a wire?
