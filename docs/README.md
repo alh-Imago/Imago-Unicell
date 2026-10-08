@@ -22,6 +22,7 @@ The documents that describe the current line:
 - **`../sub/README.md`** — the sub/flex families: every cell, what was
   stripped and why, measured costs, the design rules (two roles = two
   ports), the merge core, the FlexGrid fixes and the second ports.
+- **`unit_bringup_guide.md`** and **`playout_capture_v1.md`** — the small unit (Tang Nano 20K + SD card + ESP32): bring-up on the real board, WiFi control, the register map, wiring sheet and measured results. `../quickstart.py` is the first command after a clone.
 - **`man/README.md`** and **`man/tang-nano-20k-getting-started.md`** —
   the card files (Arria 10 and Tang Nano 20K). They cover what the
   assembler reads (`native_width`, DSP primitives, `synthesis.nowidelut`,

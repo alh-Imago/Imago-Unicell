@@ -1,6 +1,8 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
+> **UPDATE (2026-10-08, ledger #1036 addenda 4-12): the small-unit tool and what is open on it.** Done: SD + SPI-bridge unit around any flex design; CORDIC and an SD round trip verified on the real Tang Nano 20K with an ESP32; WiFi web sketch written; S1 reset; quickstart.py. OPEN, in order: (1) on hardware: load the rebuilt bitstream and try S1; run the WiFi sketch on a real ESP32; (2) build bitstreams for the reduction-tree and relay designs; (3) raw SD-block read register in the bridge; (4) host-side PC helper and an optional offline "local kit" served by the ESP32; (5) with a SPARE Tang Nano 20K (about 6 weeks): the ESP32 JTAG loader (schematic notes in docs/unit_bringup_guide.md); (6) the Wasserstein engine needs a bigger part. The statement further down that "no sub/flex design has run on the board" and the ESP32 link being unwired are out of date: both are now done (#896+, #1036).
+>
 > **UPDATE (2026-10-06, ledger #992): the current open work, gathered from the ledger's own "open" / "next"
 > lines for #946-#999.** Everything below this block predates the Tang Nano line. That includes the 2026-09-02
 > "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K

@@ -766,6 +766,7 @@ The documents that describe the current line:</p>
 <li><strong><code>../sub/README.md</code></strong> — the sub/flex families: every cell, what was
   stripped and why, measured costs, the design rules (two roles = two
   ports), the merge core, the FlexGrid fixes and the second ports.</li>
+<li><strong><code>unit_bringup_guide.md</code></strong> and <strong><code>playout_capture_v1.md</code></strong> — the small unit (Tang Nano 20K + SD card + ESP32): bring-up on the real board, WiFi control, the register map, wiring sheet and measured results. <code>../quickstart.py</code> is the first command after a clone.</li>
 <li><strong><code>man/README.md</code></strong> and <strong><code>man/tang-nano-20k-getting-started.md</code></strong> —
   the card files (Arria 10 and Tang Nano 20K). They cover what the
   assembler reads (<code>native_width</code>, DSP primitives, <code>synthesis.nowidelut</code>,
@@ -6989,6 +6990,7 @@ cd Imago-Unicell
 <section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§08 / 09</span></div><h1 class="ptitle">Roadmap &amp; The Project&#x27;s Own Record</h1><p class="intro">Where the project is heading, the active plan, and the full, honest, append-only decision log &mdash; every real design decision, bug found, and measurement taken, with its actual reasoning, not just a changelog line. <code>points.md</code> itself is genuinely huge (300+ numbered entries, one growing project-long log) &mdash; linked below rather than embedded inline, the same real reason the Session Logs section (next) links out instead of reprinting.</p><hr class="rule"><div class="doc"><h1>Imago UniCell — Active Plan</h1>
 <p><em>Single source of truth for what needs doing and why.</em></p>
 <blockquote>
+<p><strong>UPDATE (2026-10-08, ledger #1036 addenda 4-12): the small-unit tool and what is open on it.</strong> Done: SD + SPI-bridge unit around any flex design; CORDIC and an SD round trip verified on the real Tang Nano 20K with an ESP32; WiFi web sketch written; S1 reset; quickstart.py. OPEN, in order: (1) on hardware: load the rebuilt bitstream and try S1; run the WiFi sketch on a real ESP32; (2) build bitstreams for the reduction-tree and relay designs; (3) raw SD-block read register in the bridge; (4) host-side PC helper and an optional offline "local kit" served by the ESP32; (5) with a SPARE Tang Nano 20K (about 6 weeks): the ESP32 JTAG loader (schematic notes in docs/unit_bringup_guide.md); (6) the Wasserstein engine needs a bigger part. The statement further down that "no sub/flex design has run on the board" and the ESP32 link being unwired are out of date: both are now done (#896+, #1036).</p>
 <p><strong>UPDATE (2026-10-06, ledger #992): the current open work, gathered from the ledger's own "open" / "next"
 lines for #946-#999.</strong> Everything below this block predates the Tang Nano line. That includes the 2026-09-02
 "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
