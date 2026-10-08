@@ -193,8 +193,16 @@ def _tile(g, net, name, entries, outs, r0, c0, rows=40, cols=60, pads=None, info
     `pads` delays chosen inputs (see _apply_pads); `info` collects grid name -> (tile, op, netlist) for the padding loop."""
     import fp_mul_tight_v1 as fmt1
     _apply_pads(net, (pads or {}).get(name, {}))
-    sg = fmt1._scratch(g, rows, cols)
-    names, consts, _ = fmt1.place_net_tight(sg, net, name, 2, 2, entries, rows, cols, pitch=3, gap=2, outs=outs)
+    last = None
+    for k in range(4):                                     # a tile that does not fit tightly (e.g. after padding) gets a larger scratch area and a wider pitch
+        sg = fmt1._scratch(g, rows + 20 * k, cols + 30 * k)
+        try:
+            names, consts, _ = fmt1.place_net_tight(sg, net, name, 2, 2, entries, rows + 20 * k, cols + 30 * k, pitch=3 + (k >= 2), gap=2, outs=outs)
+            break
+        except Exception as e:
+            last = e
+    else:
+        raise last
     rmin, rmax, cmin, cmax = fmt1._bbox(sg)
     fmt1._transplant(g, sg, r0, c0)
     g._relay = max(g._relay, sg._relay)
@@ -297,6 +305,8 @@ def w2_grid(n=4, T=64, rows=300, cols=400, attempts=8, name="W2"):
         probs = g.problems()
         if not probs:
             break
+        if os.environ.get("W2_DEBUG"):
+            print("w2_grid problems:", probs[:6], flush=True)
         t = g.hops()
         imm_src = {}                                       # a cell's immediate source (a cell, or the last relay of a route) -> the op it carries
         for (a, b), v in g.routes.items():
