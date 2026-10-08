@@ -296,10 +296,10 @@ def test_library_blocks_compose_and_move(tmp_path):
     ins = {p1["a"]: [1, 5, 40], p1["b"]: [2, 7, 2], "C": [10, 20, 300]}
     assert run_vm(lay.records(), ins, {"o": "OUT"}, {}, ticks=400)["o"] == [13, 32, 342]
     assert lay.move_block(b2["block"], 6, 22)["ok"]
-    assert min(lay.grid.nodes[k]["r"] for k in lay.blocks[b2["block"]]["cells"]) == 6
+    assert min(lay.grid.nodes[k]["r"] for k in lay.members(b2["block"])) == 6
     r, c = lay.grid.pos(p2["a"])
     assert lay.move(p2["a"], r + 1, c)["ok"]                                  # dragging a cell inside a block moves the whole block
-    assert min(lay.grid.nodes[k]["r"] for k in lay.blocks[b2["block"]]["cells"]) == 7
+    assert min(lay.grid.nodes[k]["r"] for k in lay.members(b2["block"])) == 7
     assert run_vm(lay.records(), ins, {"o": "OUT"}, {}, ticks=400)["o"] == [13, 32, 342]
     assert lay.delete_block(b1["block"])["ok"] and not any(k.startswith(b1["block"] + ".") for k in lay.grid.nodes)
     assert lay.unpack_block(b2["block"])["ok"] and not lay.blocks and lay.movable(p2["a"])
@@ -438,3 +438,104 @@ def test_step_through_and_save_api(tmp_path, monkeypatch):
     name, text = ctl.icm_text()
     assert json.loads(text)["format_version"] == "icm-vix-v1" and name.endswith(".icm-hier.json")
     assert json.loads(ctl.icm_text("v3")[1])["format_version"] == "icm-v3"
+
+
+# ---- standard library, editable blocks, "non-standard" and "function compromised" (#1032) ------------------------------------------------
+STD = os.path.join(ROOT, "nano", "library_std")
+
+
+def test_standard_library_vectors_are_right():
+    """The reference vectors shipped with each standard model are correct against an independent reference, not just against the model itself."""
+    import lif_flex_v1 as lif
+    M = (1 << 32) - 1
+    for name, op in (("add", lambda a, b: (a + b) & M), ("sub", lambda a, b: (a - b) & M), ("mul", lambda a, b: (a * b) & M)):
+        v = json.load(open(os.path.join(STD, f"{name}.test.json")))
+        assert v["outputs"]["r"] == [op(a, b) for a, b in zip(v["inputs"]["a"], v["inputs"]["b"])], name
+    v = json.load(open(os.path.join(STD, "lif4.test.json")))
+    for i in range(len(v["inputs"]["I0"])):
+        sp, vf = lif.lif_ref([v["inputs"][f"I{t}"][i] for t in range(4)])
+        assert [v["outputs"][f"S{t}"][i] for t in range(4)] == sp and v["outputs"]["VF"][i] == vf
+    np = pytest.importorskip("numpy")
+    v = json.load(open(os.path.join(STD, "fp16_add.test.json")))
+    f = lambda x: np.array([x], dtype=np.uint16).view(np.float16)
+    assert v["outputs"]["r"] == [int((f(a) + f(b)).view(np.uint16)[0]) for a, b in zip(v["inputs"]["a"], v["inputs"]["b"])]
+
+
+def test_each_small_standard_model_places_as_standard():
+    for name in ("add", "sub", "mul", "lif4"):
+        lay = flv.Layout.new(40, 200)
+        res = lay.place_block(os.path.join(STD, f"{name}.icm.json"), 2, 2, source="std")
+        assert res["ok"], res
+        st = lay.block_status(res["block"])
+        assert st["standard"] is True and st["function"] == "standard", (name, st)
+
+
+def test_block_status_follows_edits(tmp_path):
+    lib = flv.Layout.new(12, 20, "adder")
+    build_adder(lib)
+    path, vec = flv.save_model(lib, str(tmp_path / "adder.icm.json"))
+    assert os.path.exists(tmp_path / "adder.test.json") and len(vec["outputs"]["r"]) == 8
+    lay = flv.Layout.new(22, 42)
+    b = lay.place_block(path, 1, 1)["block"]
+    assert lay.block_status(b)["function"] == "standard"
+    op = f"{b}.ADD"
+    r, c = lay.grid.pos(op)
+    assert any(lay.move(op, r + dr, c + dc, whole_block=False)["ok"] for dr, dc in ((1, 0), (0, 1), (-1, 0), (2, 0)))
+    st = lay.block_status(b)
+    assert st["standard"] is False and st["function"] == "intact"                       # moved inside: non-standard, function holds
+    assert lay.set_config(op, cfg={"subtract_mode": 1})["ok"]
+    st = lay.block_status(b)
+    assert st["function"] == "broken" and "expected" in st["detail"]                   # now it subtracts: compromised, with the first mismatch
+    out = lay.save(str(tmp_path / "d.icm-hier.json"))
+    monkey = flv.LIBRARY_DIRS[:]
+    flv.LIBRARY_DIRS[:] = [str(tmp_path)]
+    try:
+        back = flv.Layout.load(out)                                                     # after a reload the model is found again by name
+        assert back.block_status(b)["function"] == "broken"
+    finally:
+        flv.LIBRARY_DIRS[:] = monkey
+    assert lay.undo()["ok"] and lay.undo()["ok"] and lay.block_status(b)["function"] == "standard"
+    assert lay.add_cell("ram", 3, 18, name="X", block=b)["ok"] and lay.block_status(b)["standard"] is False
+    assert lay.undo()["ok"] and lay.delete_cell(f"{b}.R")["ok"]
+    assert "no longer exist" in lay.block_status(b)["detail"]
+
+
+def test_large_block_is_checked_on_request(tmp_path, monkeypatch):
+    lib = flv.Layout.new(12, 20, "adder")
+    build_adder(lib)
+    path, _ = flv.save_model(lib, str(tmp_path / "adder.icm.json"))
+    lay = flv.Layout.new(22, 42)
+    b = lay.place_block(path, 1, 1)["block"]
+    monkeypatch.setattr(flv, "AUTO_CHECK_CELLS", 3)
+    assert lay.set_config(f"{b}.ADD", cfg={"subtract_mode": 1})["ok"]
+    assert lay.block_status(b)["function"] == "unchecked"
+    assert lay.check_block(b)["function"] == "broken"
+
+
+def test_place_as_components_and_lif_exit_on_an_adder():
+    import flex_layout_sim_v1 as fls
+    lay = flv.Layout.new(40, 200)
+    res = lay.place_block(os.path.join(STD, "lif4.icm.json"), 2, 2, as_components=True)
+    assert res["ok"] and not lay.blocks and res["components"] > 0
+    model = flv.Layout.load(os.path.join(STD, "lif4.icm.json"))
+    assert model.grid.nodes[next(k for k, io in model.io.items() if io == "VF")]["core"] == "adder"
+    sim = fls.StepSim(model)                                                          # an exit that is not a ram is read (and freed) once per item
+    sim.run_items({k: [40, 100, 300] for k, io in model.io.items() if io.startswith("I")})
+    vf = next(k for k, io in model.io.items() if io == "VF")
+    assert sim.seen[vf] == [133, 108, 147]
+
+
+def test_save_library_records_what_was_stepped(tmp_path, monkeypatch):
+    import composer_page_v1 as cp
+    monkeypatch.setattr(cp, "LIBRARY_DIR", str(tmp_path))
+    ctl = cp.ComposerController()
+    ctl.layout = flv.Layout.new(12, 20)
+    build_adder(ctl.layout)
+    assert ctl.sim_op({"op": "start"})["ok"] and ctl.sim_op({"op": "items", "items": {"A": "5, 6", "B": "7, 8"}})["ok"]
+    res = ctl.save_library({"name": "my adder"})
+    assert res["ok"] and res["vectors"] == 2
+    v = json.load(open(tmp_path / "my_adder.test.json"))
+    assert v["inputs"] == {"a": [5, 6], "b": [7, 8]} and v["outputs"] == {"r": [12, 14]}
+    lib = cp.library()
+    assert any(m["source"] == "std" and m["name"] == "lif4.icm.json" and m["tested"] for m in lib)
+    assert any(m["source"] == "library" and m["name"] == "my_adder.icm.json" for m in lib)

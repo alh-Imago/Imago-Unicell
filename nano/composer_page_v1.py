@@ -21,12 +21,14 @@ import flex_layout_view_v1 as flv  # noqa: E402
 import ui_theme_v1 as ui  # noqa: E402
 
 EXAMPLES_DIR = os.path.join(HERE, "examples")
+STD_DIR = os.path.join(HERE, "library_std")          # the ready-made STANDARD library (read-only here; built by tools/composer_stdlib_v1.py)
 LIBRARY_DIR = os.environ.get("IMAGO_LIBRARY", os.path.join(HERE, "library"))
+DIRS = {"std": STD_DIR, "library": LIBRARY_DIR, "example": EXAMPLES_DIR}
 
 
 def _icm_files(d):
     try:
-        return sorted(f for f in os.listdir(d) if f.endswith((".icm", ".json")) and not f.startswith("."))
+        return sorted(f for f in os.listdir(d) if f.endswith((".icm", ".json")) and not f.endswith(".test.json") and not f.startswith("."))
     except OSError:
         return []
 
@@ -35,13 +37,36 @@ def examples():
     return _icm_files(EXAMPLES_DIR)
 
 
+_DESC = {}
+
+
+def _describe(path):
+    """A model's one-line description (from its file), cached by modification time."""
+    try:
+        key = (path, os.path.getmtime(path))
+        if key not in _DESC:
+            with open(path) as f:
+                _DESC[key] = (json.load(f).get("description") or "")[:200]
+        return _DESC[key]
+    except (OSError, ValueError):
+        return ""
+
+
 def library():
-    """Library models: the user's library folder first, then the shipped examples."""
-    return [{"name": f, "source": "library"} for f in _icm_files(LIBRARY_DIR)] + [{"name": f, "source": "example"} for f in examples()]
+    """Library models: the standard library, the user's library, then the shipped examples."""
+    flv.LIBRARY_DIRS[:] = [STD_DIR, LIBRARY_DIR, EXAMPLES_DIR]       # where a block's model is found again after a reload
+    out = []
+    for source in ("std", "library", "example"):
+        d = DIRS[source] if source != "library" else LIBRARY_DIR
+        for f in _icm_files(d):
+            if f.endswith(".test.json"):
+                continue
+            out.append({"name": f, "source": source, "desc": _describe(os.path.join(d, f)), "tested": os.path.isfile(flv.vectors_path(os.path.join(d, f)))})
+    return out
 
 
 def _library_path(name, source):
-    d = LIBRARY_DIR if source == "library" else EXAMPLES_DIR
+    d = {"std": STD_DIR, "library": LIBRARY_DIR}.get(source, EXAMPLES_DIR)
     base = os.path.basename(name or "")
     if base not in _icm_files(d):
         raise ValueError(f"no {source} model {base}")
@@ -135,9 +160,11 @@ class ComposerController:
                 return {"ok": False, "error": "no layout: import a file or start a new design"}
             try:
                 if action == "move":
-                    res = lay.move(str(req["name"]), int(req["r"]), int(req["c"]))
+                    res = lay.move(str(req["name"]), int(req["r"]), int(req["c"]), whole_block=bool(req.get("whole_block", True)))
                 elif action == "add":
-                    res = lay.add_cell(str(req["core"]), int(req["r"]), int(req["c"]), name=req.get("name") or None)
+                    res = lay.add_cell(str(req["core"]), int(req["r"]), int(req["c"]), name=req.get("name") or None, block=req.get("block") or None)
+                elif action == "check_block":
+                    res = lay.check_block(str(req["name"]))
                 elif action == "config":
                     res = lay.set_config(str(req["name"]), cfg=_ints(req.get("cfg")), addon=_ints(req.get("addon")), preload=req.get("preload"), io=req.get("io"))
                 elif action == "join":
@@ -158,9 +185,10 @@ class ComposerController:
                             p = os.path.join(d, os.path.basename(req.get("file") or "block.icm.json"))
                             with open(p, "w") as f:
                                 f.write(req["text"])
-                            res = lay.place_block(p, int(req["r"]), int(req["c"]))
+                            res = lay.place_block(p, int(req["r"]), int(req["c"]), as_components=bool(req.get("components")), source="file")
                     else:
-                        res = lay.place_block(_library_path(req.get("file"), req.get("source") or "library"), int(req["r"]), int(req["c"]))
+                        src = req.get("source") or "library"
+                        res = lay.place_block(_library_path(req.get("file"), src), int(req["r"]), int(req["c"]), as_components=bool(req.get("components")), source=src)
                 elif action == "move_block":
                     res = lay.move_block(str(req["name"]), int(req["r"]), int(req["c"]))
                 elif action == "unpack_block":
@@ -193,10 +221,16 @@ class ComposerController:
             if os.path.exists(path) and not req.get("overwrite"):
                 return {"ok": False, "error": f"{name} is already in the library", "exists": True}
             try:
-                self.layout.save(path)
+                vec = None
+                sim = self.sim
+                if sim and sim.items and sim.fed:                     # what the person just stepped through becomes the model's reference
+                    io_in = {k: self.layout.io.get(k) or k for k in sim.inputs}
+                    vec = {"width": sim.width, "inputs": {io_in[k]: [item.get(k, 0) for item in sim.fed] for k in sim.inputs},
+                           "outputs": {self.layout.io.get(k) or k: list(sim.seen[k]) for k in sim.outputs}}
+                _, vec = flv.save_model(self.layout, path, vectors=vec)
             except Exception as e:
                 return {"ok": False, "error": f"{e.__class__.__name__}: {e}"}
-            return self._state({"saved": name})
+            return self._state({"saved": name, "vectors": sum(len(v) for v in vec["outputs"].values())})
 
     def icm_text(self, fmt=None):
         """(file name, text): ICM-VIX when the design holds blocks (they survive), else ICM v3; fmt="v3" forces one flat file."""
@@ -274,6 +308,11 @@ COMPOSER_CSS = """
 .blk rect.body { fill: var(--bg-panel-2); stroke: var(--copper); stroke-width: 1.2; }
 .blk.sel rect.body { stroke: var(--fg); stroke-width: 1.8; }
 .blk { cursor: move; }
+.blk.open rect.body { fill: none; stroke-dasharray: 4 2; }
+.blk.open { cursor: default; }
+.blk .bar { fill: var(--bg-panel-2); stroke: var(--copper); stroke-width: .6; cursor: move; }
+.badge { font-family: var(--font-mono); pointer-events: none; }
+.st-ok { color: var(--ok); } .st-mod { color: var(--warn); } .st-bad { color: var(--err); }
 .blk text { font-family: var(--font-mono); fill: var(--fg); pointer-events: none; }
 .port { fill: var(--gold); stroke: #0e130f; stroke-width: .6; cursor: crosshair; }
 .ghost rect { fill: none; stroke-width: 1.6; }
@@ -346,7 +385,8 @@ changes nothing. <b>Save ICM</b> writes ICM v3; <b>Save to library</b> keeps the
   <button data-mode="join" title="tap the source cell, then the destination">Join</button>
   <button data-mode="delete" title="tap a cell, a route or a block to remove it">Delete</button>
   <button data-mode="block" title="tap a square to put the chosen library model there (its top-left)">Insert block</button>
-  <select id="libSel" title="library models: your library folder, then the examples"></select>
+  <select id="libSel" title="the standard library, your library, then the examples"></select>
+  <label class="filepick" title="place the model's cells as ordinary cells instead of one block"><input type="checkbox" id="asComp"> as components</label>
   <label class="filepick" title="use any ICM file as a block">or a file <input type="file" id="blockFile" accept=".json,.icm"></label>
 </div>
 <div class="palette" id="palette"></div>
@@ -362,7 +402,7 @@ changes nothing. <b>Save ICM</b> writes ICM v3; <b>Save to library</b> keeps the
       <button id="undo" title="undo the last edit">Undo</button>
       <button id="balance" title="add timing detours until no operand pair ties">Balance</button>
       <button id="heat" title="tint cells by hop depth">Hop heat</button>
-      <button id="inside" title="draw blocks as their cells instead of one tile">Block insides</button>
+      <button id="inside" title="blocks: open when zoomed in (auto), always tiles, or always open">Blocks: auto</button>
       <button id="save" class="primary" title="download the design: ICM-VIX when it holds blocks (they are kept), else ICM v3">Save ICM</button>
       <button id="saveFlat" title="download one flat ICM v3 file (blocks become plain cells)">Save flat v3</button>
       <button id="saveLib" title="save into the library, for use as a block">Save to library</button>
@@ -394,14 +434,18 @@ const $ = id => document.getElementById(id);
 const svg = $('board'), view = $('view'), wrap = $('wrap');
 function W() { return Math.max(1, wrap.getBoundingClientRect().width); }
 function H() { return Math.max(1, wrap.getBoundingClientRect().height); }
-let L = null, LIB = [], cellBy = {}, blockBy = {}, occ = {}, sel = null, selBlock = null, heat = false, inside = false;
+let L = null, LIB = [], cellBy = {}, blockBy = {}, occ = {}, sel = null, selBlock = null, heat = false, blockMode = 'auto', openNow = '';
 let mode = 'select', placeCore = 'adder', joinSrc = null, joinPort = null, blockUpload = null, SIM = null, simInputs = {}, simExpect = {};
 let vb = {x: 0, y: 0, w: 400, h: 300};
 
 function status(msg, kind) { const s = $('status'); s.textContent = msg || ''; s.className = kind || ''; }
 function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])); }
-function setVB() { svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
+let lodTimer = null, drawnScale = 0;
+function setVB() {
+  svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  if (L && blockMode === 'auto' && L.blocks.length) { clearTimeout(lodTimer); lodTimer = setTimeout(() => { if (openKey() !== openNow || (!drawnScale || vb.w / drawnScale > 1.6 || drawnScale / vb.w > 1.6)) draw(true); }, 120); }
+}
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
   return r.json();
@@ -431,7 +475,21 @@ function heatColour(h, max) {
   return `hsl(${Math.round(210 - 190 * t)},55%,${Math.round(38 + 14 * t)}%)`;
 }
 function fileSquare(r, c) { return [r - L.offset[0], c - L.offset[1]]; }
-function hidden(c) { return !inside && c.block; }
+function isOpen(b) {                 // a block shows its cells when zoomed in far enough (auto), or always / never
+  if (!b) return false;
+  if (blockMode !== 'auto') return blockMode === 'open';
+  const px = W() / vb.w * S;
+  return px >= 14 && (b.c1 - b.c0 + 1) * px >= 240;
+}
+function openKey() { return L ? L.blocks.filter(isOpen).map(b => b.name).join('|') : ''; }
+function hidden(c) { return c.block && !isOpen(blockBy[c.block]); }
+function statusBadge(st) {
+  if (!st) return ['', ''];
+  if (st.function === 'standard') return ['st-ok', 'standard ✓'];
+  if (st.standard === null || st.standard === undefined) return ['st-mod', st.function === 'intact' ? 'model not found · function ✓' : 'model not found'];
+  return {intact: ['st-mod', 'modified · function ✓'], broken: ['st-bad', 'modified · function ✗'], unchecked: ['st-mod', 'modified · unchecked'], 'no-vectors': ['st-mod', 'modified · no reference']}[st.function] || ['st-mod', 'modified'];
+}
+const BADGE_FILL = {'st-ok': 'var(--ok)', 'st-mod': 'var(--warn)', 'st-bad': 'var(--err)'};
 
 // ---- drawing -------------------------------------------------------------------------------------------------------------------------
 function draw(keepView) {
@@ -450,7 +508,7 @@ function draw(keepView) {
   for (const rt of L.routes) {
     for (const p of rt.points.slice(1, -1)) occ[p[0] + ',' + p[1]] = 'route:' + rt.from + '|' + rt.to;
     const a = cellBy[rt.from], b = cellBy[rt.to];
-    if (a && b && a.block && a.block === b.block && !inside) continue;
+    if (a && b && a.block && a.block === b.block && hidden(a)) continue;
     const pts = rt.points.map(p => `${p[1] * S + S / 2},${p[0] * S + S / 2}`).join(' ');
     const line = el('polyline', {points: pts, class: 'route' + (rt.second ? ' second' : ''), stroke: a ? colour(a) : COL.ram}, rg);
     line.dataset.from = rt.from; line.dataset.to = rt.to;
@@ -481,24 +539,39 @@ function draw(keepView) {
     const t = el('text', {x: S / 2, y: S / 2 + 1.2, 'text-anchor': 'middle', 'font-size': 3.2, class: 'lbl lblsmall'}, gr);
     t.textContent = short.length > 6 ? short.slice(0, 6) : short;
   }
-  const bg = $('blocks');
-  if (!inside) for (const b of L.blocks) {
-    const gr = el('g', {class: 'blk' + (selBlock === b.name ? ' sel' : ''), transform: `translate(${b.c0 * S},${b.r0 * S})`}, bg);
+  const bg = $('blocks'), ppu = W() / vb.w;      // screen pixels per board unit: tile text and port dots are sized to stay readable when zoomed out
+  for (const b of L.blocks) {
+    const open = isOpen(b), [cls, txt] = statusBadge(b.status);
+    const gr = el('g', {class: 'blk' + (open ? ' open' : '') + (selBlock === b.name ? ' sel' : ''), transform: `translate(${b.c0 * S},${b.r0 * S})`}, bg);
     gr.dataset.block = b.name;
     const w = (b.c1 - b.c0 + 1) * S, h = (b.r1 - b.r0 + 1) * S;
     el('rect', {class: 'body', x: .6, y: .6, width: w - 1.2, height: h - 1.2, rx: 2}, gr);
-    const fs = Math.max(2.4, Math.min(5, h / 3, w / Math.max(4, b.name.length) * 1.6));
-    const t = el('text', {x: w / 2, y: h / 2, 'text-anchor': 'middle', 'font-size': fs}, gr);
-    t.textContent = b.name;
-    const t2 = el('text', {x: w / 2, y: h / 2 + fs, 'text-anchor': 'middle', 'font-size': fs * .6, fill: 'var(--fg-dim)'}, gr);
-    t2.textContent = `${b.file} · ${b.cells} cells`;
+    if (open) {                         // zoomed in: an outline and a header bar (drag the bar to move the whole block; the cells inside are edited one by one)
+      const bar = el('rect', {class: 'bar', x: .6, y: -6, width: Math.min(w - 1.2, 120), height: 5.4, rx: 1}, gr);
+      bar.dataset.bar = b.name;
+      const t = el('text', {x: 2.4, y: -2, 'font-size': 3}, gr);
+      t.textContent = `${b.name} · ${txt}`;
+      t.style.fill = BADGE_FILL[cls] || 'var(--fg)';
+    } else {
+      const fs = Math.max(2.4, Math.min(Math.max(5, 13 / ppu), h * .28, w / Math.max(4, b.name.length) * 1.4));
+      const t = el('text', {x: w / 2, y: h / 2 - fs * .2, 'text-anchor': 'middle', 'font-size': fs}, gr);
+      t.textContent = b.name;
+      const t2 = el('text', {x: w / 2, y: h / 2 + fs * .8, 'text-anchor': 'middle', 'font-size': fs * .6}, gr);
+      t2.textContent = `${b.file} · ${b.cells} cells`;
+      t2.style.fill = 'var(--fg-dim)';
+      const t3 = el('text', {class: 'badge', x: w / 2, y: h / 2 + fs * 1.7, 'text-anchor': 'middle', 'font-size': fs * .6}, gr);
+      t3.textContent = txt;
+      t3.style.fill = BADGE_FILL[cls] || 'var(--fg-dim)';
+    }
     for (const p of b.ports) {
-      const pc = el('circle', {class: 'port', cx: (p.c - b.c0) * S + S / 2, cy: (p.r - b.r0) * S + S / 2, r: 2.6}, gr);
+      const pr = open ? 1.6 : Math.min(S * 1.2, Math.max(2.6, 4 / ppu));
+      const pc = el('circle', {class: 'port', cx: (p.c - b.c0) * S + S / 2, cy: (p.r - b.r0) * S + S / 2, r: pr}, gr);
       pc.dataset.name = p.cell;
-      const pt = el('text', {x: (p.c - b.c0) * S + S / 2, y: (p.r - b.r0) * S + S / 2 - 3.6, 'text-anchor': 'middle', 'font-size': 3}, gr);
+      const pt = el('text', {x: (p.c - b.c0) * S + S / 2, y: (p.r - b.r0) * S + S / 2 - (open ? 5.6 : pr + 1), 'text-anchor': 'middle', 'font-size': open ? 3 : Math.min(S * 1.4, Math.max(3, 10 / ppu))}, gr);
       pt.textContent = p.io;
     }
   }
+  openNow = openKey(); drawnScale = vb.w;
   drawSim();
   updateLabels(); summary(); problems(); runPanel();
   if (!keepView) fit();
@@ -616,11 +689,16 @@ function bitbar(c) {
 function showSelected() {
   const box = $('cfg');
   if (selBlock && blockBy[selBlock]) {
-    const b = blockBy[selBlock];
-    box.innerHTML = `<b>block ${esc(b.name)}</b><br>from ${esc(b.file)} · ${b.cells} cells<br>ports: ` +
-      (b.ports.map(p => `<b>${esc(p.io)}</b> (${esc(p.cell)})`).join(', ') || 'none') +
-      `<div class="actions"><button id="bUnpack" title="turn the block's cells into ordinary cells">Unpack</button><button id="bDel">Delete block</button></div>` +
-      `<div style="margin-top:6px">In Join mode, tap a port (gold dot) to join from or to it. Drag the block to move it; its joins are laid again.</div>`;
+    const b = blockBy[selBlock], st = b.status || {}, [cls, txt] = statusBadge(st);
+    const src = {std: 'standard library', library: 'your library', example: 'examples', file: 'a file'}[b.source] || 'unknown';
+    box.innerHTML = `<b>block ${esc(b.name)}</b><br>model ${esc(b.file)} (${src}) · ${b.cells} cells<br>ports: ` +
+      (b.ports.map(p => `<b>${esc(p.io)}</b>`).join(', ') || 'none') +
+      `<div class="${cls}" style="margin-top:6px"><b>${txt}</b></div><div>${esc(st.detail || '')}</div>` +
+      (st.standard === false ? `<div style="margin-top:4px;color:var(--fg-faint)">non-standard: its cells or joins differ from ${esc(b.file)}</div>` : '') +
+      `<div class="actions"><button id="bCheck" title="run the block on its own against its model's reference vectors">Check function</button>` +
+      `<button id="bUnpack" title="turn the block's cells into ordinary cells">Unpack</button><button id="bDel">Delete block</button></div>` +
+      `<div style="margin-top:6px">Zoom in to open the block and edit its cells; drag its header bar (or the tile) to move it. In Join mode, tap a port (gold dot).</div>`;
+    $('bCheck').onclick = () => { status(`checking ${b.name} against its reference vectors (a large block takes a while)…`); edit('check_block', {name: b.name}, r => `${b.name}: ${statusBadge(r)[1]}. ${r.detail || ''}`); };
     $('bUnpack').onclick = () => edit('unpack_block', {name: b.name}, `unpacked ${b.name}: its cells are ordinary cells now`);
     $('bDel').onclick = () => edit('delete_block', {name: b.name}, `deleted ${b.name}`);
     return;
@@ -629,10 +707,10 @@ function showSelected() {
   if (!c) { box.textContent = L ? 'tap a cell or a block' : 'nothing loaded'; return; }
   const m = META.cores[c.core] || {fields: [], ports: [], roles: []};
   const [fr, fc] = fileSquare(c.r, c.c);
-  const ro = c.pinned || !!c.block;
+  const ro = c.pinned;
   let h = `<b>${esc(c.name)}</b> · ${c.core}${c.block ? ' · in block ' + esc(c.block) : ''}<br>file square (${fr}, ${fc}) · hop ${c.hop ?? '?'}` +
     (c.pinned ? '<br><span style="color:var(--warn)">pinned: wiring kept exactly as the file had it</span>' : '') +
-    (c.block ? '<br><span style="color:var(--fg-faint)">read-only inside a block: unpack it to edit</span>' : '');
+    (c.block ? `<br><span style="color:var(--warn)">inside block ${esc(c.block)}: an edit here makes the block non-standard (its status shows whether its function still holds)</span>` : '');
   h += `<div class="row"><label>io name <small>(a port when used as a block)</small></label><input type="text" data-k="io" value="${esc(c.io || '')}" ${ro ? 'disabled' : ''}></div>`;
   if (c.core === 'ram') h += `<div class="row"><label>preload <small>(a constant)</small></label><input type="text" data-k="preload" value="${c.preload ?? ''}" placeholder="none" ${ro ? 'disabled' : ''}></div>`;
   for (const f of m.fields) {
@@ -732,7 +810,8 @@ function palette() {
 }
 function libOptions() {
   const s = $('libSel'), cur = s.value;
-  s.innerHTML = '<option value="">library model…</option>' + LIB.map(m => `<option value="${m.source}|${esc(m.name)}">${m.source === 'library' ? '' : 'example: '}${esc(m.name)}</option>`).join('');
+  const group = (src, label) => { const ms = LIB.filter(m => m.source === src); return ms.length ? `<optgroup label="${label}">` + ms.map(m => `<option value="${m.source}|${esc(m.name)}" title="${esc(m.desc || '')}">${esc(m.name.replace(/(\.icm-hier|\.icm)?\.json$/, ''))}${m.tested ? '' : ' (no reference)'}</option>`).join('') + '</optgroup>' : ''; };
+  s.innerHTML = '<option value="">library model…</option>' + group('std', 'Standard library') + group('library', 'Your library') + group('example', 'Examples');
   if ([...s.options].some(o => o.value === cur)) s.value = cur;
 }
 $('libSel').onchange = () => { blockUpload = null; if ($('libSel').value) setMode('block'); };
@@ -773,7 +852,8 @@ async function tapAt(ev, target) {
   const name = portEl ? portEl.dataset.name : cellG ? cellG.dataset.name : null;
   if (mode === 'place') {
     if (occ[r + ',' + c] || r < 0 || c < 0 || r >= L.rows || c >= L.cols) { status('that square is taken or off the board', 'err'); return; }
-    const res = await edit('add', {core: placeCore, r, c}, x => `placed ${x.name}; set its fields on the right, then join it`);
+    const inBlk = L.blocks.find(b => isOpen(b) && r >= b.r0 && r <= b.r1 && c >= b.c0 && c <= b.c1);
+    const res = await edit('add', {core: placeCore, r, c, block: inBlk ? inBlk.name : null}, x => `placed ${x.name}` + (inBlk ? ` inside block ${inBlk.name} (the block is now non-standard)` : '') + '; set its fields on the right, then join it');
     if (res) { sel = res.name; selBlock = null; draw(true); showSelected(); }
     return;
   }
@@ -783,7 +863,9 @@ async function tapAt(ev, target) {
     if (blockUpload) body = Object.assign({r, c}, blockUpload);
     else if (v) { const i = v.indexOf('|'); body = {r, c, source: v.slice(0, i), file: v.slice(i + 1)}; }
     else { status('choose a library model (or a file) first', 'err'); return; }
+    body.components = $('asComp').checked;
     const res = await edit('block', body);
+    if (res && res.components) { blockUpload = null; setMode('select'); status(`placed ${res.components} cells as components (prefix ${res.prefix})`, 'ok'); return; }
     if (res) {
       blockUpload = null; selBlock = res.block; sel = null; setMode('select'); showSelected();
       status(`inserted block ${res.block}; ports: ${res.ports.join(', ') || 'none (give cells io names to make ports)'}`, 'ok');
@@ -808,7 +890,8 @@ async function tapAt(ev, target) {
     if (route && route.dataset.from) { edit('unjoin', {a: route.dataset.from, b: route.dataset.to}, `unjoined ${route.dataset.from} → ${route.dataset.to}`); return; }
     return;
   }
-  if (blkG && !portEl) { selBlock = blkG.dataset.block; sel = null; draw(true); showSelected(); return; }
+  const barEl = target.closest && target.closest('.bar');
+  if (barEl || (blkG && !portEl && !name && !isOpen(blockBy[blkG.dataset.block]))) { selBlock = (barEl || blkG).dataset.bar || blkG.dataset.block; sel = null; draw(true); showSelected(); return; }
   if (name) { sel = name; selBlock = null; draw(true); showSelected(); }
 }
 
@@ -821,7 +904,8 @@ svg.addEventListener('pointerdown', ev => {
   if (mode === 'select' && L) {
     const blkG = ev.target.closest('.blk'), cellG = ev.target.closest('.cell');
     const c = cellG && cellBy[cellG.dataset.name];
-    const b = blkG ? blockBy[blkG.dataset.block] : (c && c.block && !inside ? blockBy[c.block] : null);
+    const bar = ev.target.closest('.bar');
+    const b = bar ? blockBy[bar.dataset.bar] : (blkG && !isOpen(blockBy[blkG.dataset.block])) ? blockBy[blkG.dataset.block] : (c && c.block && !isOpen(blockBy[c.block]) ? blockBy[c.block] : null);
     if (b) { const [r, cc] = squareAt(ev); drag = {block: b, r0: r, c0: cc, r, cc, moved: false}; return; }
     if (c && c.movable) { drag = {c, r: c.r, cc: c.c, moved: false}; return; }
   }
@@ -884,7 +968,7 @@ function clearGhost() { $('over').innerHTML = ''; }
 async function doMove(c, r, cc) {
   const [fr, fc] = fileSquare(r, cc);
   status(`moving ${c.name} to (${fr}, ${fc}): re-routing…`);
-  const res = await edit('move', {name: c.name, r, c: cc}, x => `moved ${c.name} to (${fr}, ${fc}); re-routed ${x.rerouted.length} join(s)` + (x.detours ? `, ${x.detours} timing detour(s) added` : '') + (L.problems.length ? `; ${L.problems.length} problem(s) left` : ''));
+  const res = await edit('move', {name: c.name, r, c: cc, whole_block: false}, x => `moved ${c.name} to (${fr}, ${fc}); re-routed ${x.rerouted.length} join(s)` + (x.detours ? `, ${x.detours} timing detour(s) added` : '') + (L.problems.length ? `; ${L.problems.length} problem(s) left` : ''));
   if (res) { sel = c.name; showSelected(); }
 }
 async function doMoveBlock(b, dr, dc) {
@@ -916,7 +1000,7 @@ $('fit').onclick = fit;
 $('zin').onclick = () => zoom(1 / 1.4);
 $('zout').onclick = () => zoom(1.4);
 $('heat').onclick = () => { heat = !heat; $('heat').classList.toggle('primary', heat); draw(true); };
-$('inside').onclick = () => { inside = !inside; $('inside').classList.toggle('primary', inside); draw(true); showSelected(); };
+$('inside').onclick = () => { blockMode = {auto: 'tiles', tiles: 'open', open: 'auto'}[blockMode]; $('inside').textContent = 'Blocks: ' + blockMode; $('inside').classList.toggle('primary', blockMode !== 'auto'); draw(true); showSelected(); };
 $('undo').onclick = () => edit('undo', {}, 'undone');
 $('balance').onclick = () => edit('balance', {}, r => r.detours ? `balanced: ${r.detours} timing detour(s) added` : 'already balanced');
 $('save').onclick = () => { if (!L) { status('nothing to save', 'err'); return; } window.location = '/composer/api/save'; if (L.blocks.length) status('saved as ICM-VIX: each block is a placement of its model, so it comes back as a block', 'ok'); };

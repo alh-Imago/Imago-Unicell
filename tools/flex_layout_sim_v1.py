@@ -40,6 +40,7 @@ class StepSim:
         self.io = {k: io.get(k) for k in self.inputs + self.outputs}
         self.seen = {k: [] for k in self.outputs}
         self.ticks, self.items, self.log = 0, 0, []
+        self.fed = []                                              # what each injected item gave each input (a saved model's reference inputs)
 
     # ---- driving -------------------------------------------------------------------------------------------------------------------------
     def inject(self, values):
@@ -51,6 +52,7 @@ class StepSim:
         for k, v in self.consts.items():
             self.grid.inject(*self.pos[k], v)
         self.items += 1
+        self.fed.append({k: int(v) for k, v in values.items()})
         self.log.append(f"tick {self.ticks}: item {self.items} in: " + ", ".join(f"{self.io.get(k) or k}={v}" for k, v in values.items()))
 
     def _collect(self):
@@ -66,9 +68,16 @@ class StepSim:
                     v, ok, _ = cell._offer_state()
                 except Exception:
                     continue
-                if ok and (not self.seen[k] or self.seen[k][-1] != v):
+                if not ok:
+                    continue
+                if cell.is_continuously_live():               # a live value (accumulator, latch): recorded when it changes
+                    if not self.seen[k] or self.seen[k][-1] != v:
+                        self.seen[k].append(v)
+                        got.append((k, v))
+                else:                                         # a one-shot result (adder, mul, comparator, ...): read it, and the read frees the cell, as an ack would
                     self.seen[k].append(v)
                     got.append((k, v))
+                    cell.clear_valid_on_drain()
         for k, v in got:
             self.log.append(f"tick {self.ticks}: out {self.io.get(k) or k} = {v}")
         return got

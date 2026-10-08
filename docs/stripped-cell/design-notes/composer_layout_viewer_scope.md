@@ -1,5 +1,23 @@
 # The Composer, retargeted: a viewer and editor for flex layouts
 
+> **Status, 2026-10-08 (ledger #1032): a standard library, blocks that
+> open as you zoom in, editable in place, and two indicators.** Blocks are
+> editable, including those from the standard library, and each shows:
+> (a) NON-STANDARD when its cells or inside joins differ from its model,
+> by comparing a position-free signature with the model file's;
+> (b) FUNCTION COMPROMISED when, run on its own in FlexGrid, it no longer
+> gives its model's reference outputs (`<model>.test.json`; the first
+> mismatch is shown). A modified block up to 600 cells is re-checked after
+> each edit; a larger one when you press Check function. The standard
+> library is `nano/library_std/`: add, sub, mul, the LIF neuron (4 steps)
+> and the fp16 adder, built by `tools/composer_stdlib_v1.py`, with vectors
+> checked against arithmetic, `lif_ref` and numpy. Zoomed out, a block is
+> a tile with its ports and status; zoomed in, it opens to its cells,
+> which can be moved, configured, added (a cell placed inside an open
+> block joins it) and deleted. A model can also be placed "as components".
+> Save to library records the values just stepped through as the new
+> model's reference.
+>
 > **Status, 2026-10-06 (ledger #1005): blocks survive a save, nano cells are
 > editable, and a design can be stepped through.** A design holding blocks
 > saves as ICM-VIX: the free cells are pattern `top`, and each block is a
