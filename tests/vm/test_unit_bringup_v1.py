@@ -57,3 +57,14 @@ def test_quickstart_exists_and_readme_points_to_it_and_the_unit():
     readme = open(os.path.join(ROOT, "README.md")).read()
     assert "python3 quickstart.py" in readme and "The small unit: Tang Nano 20K" in readme
     assert "not wired yet (#888)" not in readme
+
+
+def test_web_sketch_file_card_pins_are_off_the_unit_link_and_documented():
+    ino = open(os.path.join(WEB, "unicell_unit_web.ino")).read()
+    pins = {k: int(re.search(r"#define %s\s+(\d+)" % k, ino).group(1)) for k in ("FILE_CS", "FILE_SCK", "FILE_MOSI", "FILE_MISO")}
+    assert pins == {"FILE_CS": 32, "FILE_SCK": 33, "FILE_MOSI": 25, "FILE_MISO": 26}
+    assert not set(pins.values()) & {5, 18, 19, 23, 34}          # the unit link's pins
+    assert not set(pins.values()) & {0, 2, 12, 15}               # strapping pins
+    doc = open(os.path.join(ROOT, "docs", "unit_bringup_guide.md")).read()
+    for row in ("| CS | IO32 |", "| CLK / SCK | IO33 |", "| MOSI / DI | IO25 |", "| MISO / DO | IO26 |"):
+        assert row in doc, row

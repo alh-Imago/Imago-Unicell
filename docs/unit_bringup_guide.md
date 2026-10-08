@@ -66,3 +66,17 @@ What the schematic (Tang_Nano_20K_3923, 28 Aug 2025) shows:
 - The FPGA's pins 75 and 76 (our MOSI/MISO) are also wired to the BL616's own SPI port. It has stayed quiet so far, which is why our link works.
 Proposed route: (1) the ESP32 reads the new bitstream's blocks from the SD card through the running unit (needs a raw-block read register in the bridge), keeps the ~1 MB file in its own flash; (2) it bit-bangs it into the FPGA over JTAG through TP3-TP6 (SRAM load, volatile, like openFPGALoader now); (3) every generated design already contains the SD + SPI unit, so the link returns. TP1 would let the ESP32 reboot the FPGA from the board flash. Persistent install of a finished design stays `openFPGALoader -f` from a PC.
 
+## The ESP32's own SD card (optional; ledger #1036 addendum 13)
+A second card, on the ESP32 itself (NOT the one in the Tang's slot), to keep bitstreams, input files, results and the offline kit, and to upload or download them from the web page ("Files on the ESP32's own card"). It uses a separate SPI bus on four free pins, so it does not touch the link to the unit:
+
+| SD module | ESP32 pin |
+|---|---|
+| CS | IO32 |
+| CLK / SCK | IO33 |
+| MOSI / DI | IO25 |
+| MISO / DO | IO26 |
+| VCC | 3V3 |
+| GND | GND |
+
+**Which module to buy:** a plain **3.3 V-only microSD breakout** (a bare socket on a small board, for example Adafruit's "MicroSD SPI or SDIO card breakout", product 4682, which is marked "3V ONLY"). Avoid the very cheap blue modules with a voltage regulator and level shifter: they are made for 5 V boards, and some keep the MISO line driven even when the card is not selected, which makes the card fail to start on an ESP32 (reported on the Arduino forum). If you already own one, power it from 5 V (VIN) only if it has the regulator, and if the card still does not start, that is the cause. Format the card FAT32 (cards over 32 GB need a FAT32 formatter). The card is read when the ESP32 starts, so insert it before power-up or press the ESP32's reset. Files: names of letters, digits, . - _ and space (at most 40, no folders), up to 32 MB each. **Not yet tried on hardware.**
+

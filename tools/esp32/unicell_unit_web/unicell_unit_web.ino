@@ -12,6 +12,8 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <Preferences.h>
+#include <FS.h>
+#include <SD.h>
 #include "unit_link.h"
 
 // ---- which design is on the FPGA --------------------------------------------------------------------------------------------------------------------
@@ -35,6 +37,19 @@
   #define LANE_NAMES   "angle z0"
   #define EXAMPLE      "50000\n-50000\n0\n12345\n-12345\n90000"
 #endif
+
+// ---- the ESP32's OWN SD card (optional; holds bitstreams, input files, results, the offline kit) ----------------------------------------------------
+// A separate SPI bus (HSPI) on four free pins, so it cannot disturb the link to the unit (IO5/18/19/23). Use a 3.3 V-ONLY microSD breakout (see docs/unit_bringup_guide.md).
+#define FILE_CS    32
+#define FILE_SCK   33
+#define FILE_MOSI  25
+#define FILE_MISO  26
+#define FILE_MAX_BYTES (32UL * 1024UL * 1024UL)
+static SPIClass fileSpi(HSPI);
+static bool haveFiles = false;
+static File upFile;
+static String upError;
+static uint32_t upBytes = 0;
 
 static WebServer server(80);
 static Preferences prefs;
@@ -71,6 +86,10 @@ button:disabled{opacity:.5}table{width:100%;border-collapse:collapse;margin-top:
 <small>Blocks below 16 are refused. Saving overwrites raw blocks on the card.</small>
 <div class="row"><input id="blk" type="number" min="16" value="64" aria-label="start block"><input id="nb" type="number" min="1" max="8" value="1" aria-label="blocks"></div>
 <div class="row"><button class="alt" id="sload">Load blocks into the unit</button><button class="alt" id="ssave">Save results to blocks</button><button class="alt" id="sinit">Re-init card</button></div></div>
+<div class="card"><h2>Files on the ESP32's own card</h2>
+<small id="fhint"></small>
+<table id="ftab"><tbody></tbody></table>
+<div class="row"><input id="fup" type="file"><button class="alt" id="fsend">Upload</button></div></div>
 <div id="msg"></div><p><small>Design and simulate on your own computer: <a href="https://github.com/alh-Imago/Imago-Unicell" target="_blank" rel="noopener">github.com/alh-Imago/Imago-Unicell</a>, then <code>python3 nano/frontend_v1.py</code> (needs internet only to fetch it; this unit works without).</small></p></main>
 <script>
 const $=id=>document.getElementById(id);let lanes=1;
@@ -85,9 +104,13 @@ $('ex').onclick=()=>{$('items').value=EXAMPLE};
 $('run').onclick=async()=>{$('run').disabled=true;msg('Running...');try{const txt=$('items').value;const r=await api('/api/run',{items:txt});
  const rows=txt.trim().split(/\n+/);$('res').hidden=false;$('res').tBodies[0].innerHTML=r.results.map((v,i)=>'<tr><td>'+(i+1)+'</td><td>'+(rows[i]||'')+'</td><td>'+v+'</td></tr>').join('');msg(r.results.length+' result(s)')}catch(e){msg(e.message,true)}$('run').disabled=false;status()};
 async function sd(op){if(op==='save'&&!confirm('Overwrite raw card blocks starting at '+$('blk').value+'?'))return;try{if(op==='init'){await api('/api/sdinit',{x:1})}else{await api('/api/sd',{op:op,block:$('blk').value,n:$('nb').value})}msg('SD '+op+' done')}catch(e){msg(e.message,true)}status()}
+async function files(){try{const f=await api('/api/files');$('fhint').textContent=f.card?(f.used+' of '+f.total+' kB used. Names: letters, digits . - _ and space.'):'No SD card in the ESP32 (the ESP32 reads its own card on start-up: insert it and press its reset).';
+ $('ftab').tBodies[0].innerHTML=f.files.map(x=>'<tr><td style="text-align:left">'+x.name+'</td><td>'+x.size+' B</td><td><a href="/files?name='+encodeURIComponent(x.name)+'">download</a></td><td><a href="#" data-del="'+x.name+'">delete</a></td></tr>').join('')}catch(e){$('fhint').textContent=e.message}}
+$('ftab').onclick=async e=>{const n=e.target.dataset&&e.target.dataset.del;if(!n)return;e.preventDefault();if(!confirm('Delete '+n+'?'))return;try{await api('/api/filedel',{name:n});files()}catch(x){msg(x.message,1)}};
+$('fsend').onclick=async()=>{const f=$('fup').files[0];if(!f){msg('choose a file first',1);return}msg('Uploading '+f.name+'...');try{const fd=new FormData();fd.append('file',f,f.name);const r=await fetch('/api/upload',{method:'POST',body:fd});const j=await r.json().catch(()=>({ok:false,error:'bad reply'}));if(!r.ok||j.ok===false)throw new Error(j.error||('HTTP '+r.status));msg('Uploaded '+j.bytes+' bytes');files()}catch(x){msg(x.message,1)}};
 $('sload').onclick=()=>sd('load');$('ssave').onclick=()=>sd('save');$('sinit').onclick=()=>sd('init');
 let EXAMPLE='';fetch('/api/status').then(r=>r.json()).then(s=>{EXAMPLE=s.example;$('items').value=s.example});
-status();setInterval(status,3000);
+status();setInterval(status,3000);files();
 </script></body></html>)HTML";
 
 static bool authed() {
@@ -142,6 +165,64 @@ static void handleSd() {
   sendJson(200, "{\"ok\":true}");
 }
 static void handleSdInit() { if (!authed()) return; wr_reg(R_CONTROL, C_SD_REINIT); delay(300); sendJson(200, "{\"ok\":true}"); }
+
+// file names: letters, digits, dot, dash, underscore, space; 1-40 characters; no path, no leading dot (the card's root folder only)
+static bool goodName(const String& n) {
+  if (n.length() < 1 || n.length() > 40 || n[0] == '.') return false;
+  for (unsigned i = 0; i < n.length(); i++) { char c = n[i]; if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_' || c == ' ')) return false; }
+  return true;
+}
+static void handleFiles() {
+  if (!authed()) return;
+  if (!haveFiles) { sendJson(200, "{\"ok\":true,\"card\":false,\"files\":[]}"); return; }
+  String j = "{\"ok\":true,\"card\":true,\"total\":" + String((unsigned long)(SD.totalBytes() / 1024)) + ",\"used\":" + String((unsigned long)(SD.usedBytes() / 1024)) + ",\"files\":[";
+  File root = SD.open("/"); bool first = true;
+  for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+    if (f.isDirectory()) continue;
+    String n = f.name(); if (!goodName(n)) continue;
+    if (!first) j += ","; first = false;
+    j += "{\"name\":\"" + n + "\",\"size\":" + String((unsigned long)f.size()) + "}";
+  }
+  sendJson(200, j + "]}");
+}
+static void handleDownload() {
+  if (!authed()) return;
+  String n = server.arg("name");
+  if (!haveFiles || !goodName(n)) { sendErr(404, "no such file"); return; }
+  File f = SD.open("/" + n, FILE_READ);
+  if (!f || f.isDirectory()) { sendErr(404, "no such file"); return; }
+  server.sendHeader("Content-Disposition", "attachment; filename=\"" + n + "\"");
+  server.streamFile(f, "application/octet-stream"); f.close();
+}
+static void handleFileDelete() {
+  if (!authed()) return;
+  String n = server.arg("name");
+  if (!haveFiles || !goodName(n)) { sendErr(400, "bad name"); return; }
+  if (!SD.remove("/" + n)) { sendErr(404, "could not delete"); return; }
+  sendJson(200, "{\"ok\":true}");
+}
+static void handleUploadDone() {
+  if (!authed()) return;
+  if (upError.length()) { sendErr(400, upError); return; }
+  sendJson(200, String("{\"ok\":true,\"bytes\":") + upBytes + "}");
+}
+static void handleUploadData() {            // runs while the file arrives; it cannot send a reply, so it records an error for handleUploadDone
+  HTTPUpload& u = server.upload();
+  if (u.status == UPLOAD_FILE_START) {
+    upError = ""; upBytes = 0;
+    if (!server.authenticate("unicell", webPass.c_str())) { upError = "not logged in"; return; }
+    if (!haveFiles) { upError = "no SD card in the ESP32"; return; }
+    if (!goodName(u.filename)) { upError = "file name not allowed (letters, digits . - _ space; at most 40; no folders)"; return; }
+    upFile = SD.open("/" + u.filename, FILE_WRITE);
+    if (!upFile) upError = "could not create the file";
+  } else if (u.status == UPLOAD_FILE_WRITE) {
+    if (upError.length() || !upFile) return;
+    upBytes += u.currentSize;
+    if (upBytes > FILE_MAX_BYTES) { upError = "file too big (limit 32 MB)"; upFile.close(); return; }
+    if (upFile.write(u.buf, u.currentSize) != u.currentSize) upError = "write failed (card full?)";
+  } else if (u.status == UPLOAD_FILE_END) { if (upFile) upFile.close(); }
+  else if (u.status == UPLOAD_FILE_ABORTED) { if (upFile) upFile.close(); upError = "upload aborted"; }
+}
 static void handleNotFound() { sendErr(404, "not found"); }
 
 static String randomPass() {
@@ -178,6 +259,9 @@ static void serialCmd(char* s) {
 void setup() {
   Serial.begin(115200);
   link_begin();
+  fileSpi.begin(FILE_SCK, FILE_MISO, FILE_MOSI, FILE_CS);
+  haveFiles = SD.begin(FILE_CS, fileSpi, 4000000);
+  Serial.println(haveFiles ? "ESP32 SD card: found" : "ESP32 SD card: none (fine; the file panel will say so)");
   prefs.begin("unicell", false);
   wifiSsid = prefs.getString("ssid", ""); wifiPass = prefs.getString("pass", ""); webPass = prefs.getString("webpass", "");
   if (webPass.length() < 8) { webPass = randomPass(); prefs.putString("webpass", webPass); Serial.printf("\nFirst boot: web password generated: %s   (change with: webpass <new>)\n", webPass.c_str()); }
@@ -188,6 +272,10 @@ void setup() {
   server.on("/api/run", HTTP_POST, handleRun);
   server.on("/api/sd", HTTP_POST, handleSd);
   server.on("/api/sdinit", HTTP_POST, handleSdInit);
+  server.on("/api/files", HTTP_GET, handleFiles);
+  server.on("/files", HTTP_GET, handleDownload);
+  server.on("/api/filedel", HTTP_POST, handleFileDelete);
+  server.on("/api/upload", HTTP_POST, handleUploadDone, handleUploadData);
   server.onNotFound(handleNotFound);
   server.begin();
   Serial.println("Type  ip  to see the address and password; help = any other word.");
