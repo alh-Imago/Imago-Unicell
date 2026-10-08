@@ -45,8 +45,19 @@ What this does to the open points (my reading, to be confirmed):
 - **Accumulator.** Proposal: each clock, add the number of active input pairs currently flowing into the face; at the window end compare with the face threshold (wide enough for window length x pairs); the 16-bit shared value is the bias/damping applied to the total before the compare; clear at the window end. "Greater chance of flowing" then means: more active wires -> the total clears the threshold by a bigger margin / sooner, and the margin can scale the output (graded) if wanted.
 - **Prototype status.** `rtl/hexn_cell_v0.v` still implements the v0.1 spatial reading; it is superseded by the above and kept only as the first measurement.
 
+## What the four "gates" mean in the neural reading (Alan, 9 Oct 2026; my table, to confirm)
+"NOT" is the wrong word here. Alan's description: NOT is really a **negative value**; the positive case is its opposite; and the others are about **choosing paths**: a **choice made between equal paths**, and an **XOR that depends on the flow in** ("if it is this we go that way, if it is that we go the other way").
+| Code | Better name | Meaning (proposed) |
+|---|---|---|
+| 3 | **NEGATIVE** (inhibit) | the pair's active flow is subtracted from the face's accumulated weight |
+| (positive) | **POSITIVE** (excite) | the pair's active flow is added; this is the plain case. Which of AND/OR is this is not stated |
+| OR | **CHOOSE** | when paths carry equal weight, one is picked (arbitrate, like the flex family's merge core) |
+| XOR | **STEER** | the incoming flow decides which way it goes (a branch/switch, like the flex branch core): this value one way, that value the other |
+| AND | (unclear) | probably "both must be present" (coincidence/join); not described yet |
+So the four codes are really {positive, negative, choose, steer}, with AND/OR/XOR/NOT only their logic-gate shadows. UniCell's flex family already has the matching pieces (merge arbitrate/join, branch select), which the Hex-N RTL could reuse.
+
 ## Still open
-1. What does NOT negate (the face's fire decision, or the pair's carried value)?
+1. ~~What does NOT negate~~ answered: it is a negative weight (above). Still to confirm: which of the four codes is plain positive, and what AND does.
 2. How is the output formed from fire plus the carried value now that in and out share a wire?
 3. Is the output on/off, or graded (the margin above threshold)?
 4. Alternating phase: one global phase for the mesh, or per-pair?
