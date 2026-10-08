@@ -46,18 +46,20 @@ What this does to the open points (my reading, to be confirmed):
 - **Prototype status.** `rtl/hexn_cell_v0.v` still implements the v0.1 spatial reading; it is superseded by the above and kept only as the first measurement.
 
 ## What the four "gates" mean in the neural reading (Alan, 9 Oct 2026; my table, to confirm)
-"NOT" is the wrong word here. Alan's description: NOT is really a **negative value**; the positive case is its opposite; and the others are about **choosing paths**: a **choice made between equal paths**, and an **XOR that depends on the flow in** ("if it is this we go that way, if it is that we go the other way").
+"NOT" is the wrong word here. Alan's description, in two parts.
+**Positive is not a gate.** Positive means *strengthening a path*: increasing the number of active lanes along it so it reaches a desired target. Once trained, that lane pattern becomes the reference, and positive feedback reinforces it. So positive is carried by the **active-lane bits / the count of active lanes** (the accumulated weight itself), and by the feedback phase, not by one of the four codes.
+**The four codes shape the choice of path:**
 | Code | Better name | Meaning (proposed) |
 |---|---|---|
-| 3 | **NEGATIVE** (inhibit) | the pair's active flow is subtracted from the face's accumulated weight |
-| (positive) | **POSITIVE** (excite) | the pair's active flow is added; this is the plain case. Which of AND/OR is this is not stated |
+| AND | **BOTH** (two-condition) | the path is chosen only when two conditions are met together. My reading of the two: the forward flow reaches the face's threshold AND the feedback/reference agrees. Not stated; to confirm |
 | OR | **CHOOSE** | when paths carry equal weight, one is picked (arbitrate, like the flex family's merge core) |
 | XOR | **STEER** | the incoming flow decides which way it goes (a branch/switch, like the flex branch core): this value one way, that value the other |
-| AND | (unclear) | probably "both must be present" (coincidence/join); not described yet |
-So the four codes are really {positive, negative, choose, steer}, with AND/OR/XOR/NOT only their logic-gate shadows. UniCell's flex family already has the matching pieces (merge arbitrate/join, branch select), which the Hex-N RTL could reuse.
+| NOT | **NEGATIVE** | the pair's active flow is subtracted from the face's accumulated weight (the inhibitory case) |
+UniCell's flex family already has the matching pieces (merge arbitrate/join, branch select), which the Hex-N RTL could reuse.
+**Runtime vs training.** Per the earlier decision the deployed cell is frozen (no learning at run time). So "positive feedback reinforces it" is read as: *during training*, reinforcement raises lane counts toward the target; *at run time*, the feedback phase adds to the accumulator for that window only (transient), without changing any stored lane bit. To confirm.
 
 ## Still open
-1. ~~What does NOT negate~~ answered: it is a negative weight (above). Still to confirm: which of the four codes is plain positive, and what AND does.
+1. ~~What does NOT negate~~ answered: it is a negative weight (above). Positive is not a code (it is lane count); AND is the two-condition case.
 2. How is the output formed from fire plus the carried value now that in and out share a wire?
 3. Is the output on/off, or graded (the margin above threshold)?
 4. Alternating phase: one global phase for the mesh, or per-pair?
