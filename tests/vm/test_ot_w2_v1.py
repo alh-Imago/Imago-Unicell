@@ -1,4 +1,4 @@
-"""tests/vm/test_ot_w2_v1.py -- ledger #1033: the 1D Wasserstein-2 distance engine built from flex cells (tools/ot_w2_v1.py), after Mirauta et al., arXiv:2610.04091.
+"""tests/vm/test_ot_w2_v1.py -- ledger #1034: the 1D Wasserstein-2 distance engine built from flex cells (tools/ot_w2_v1.py), after Mirauta et al., arXiv:2610.04091.
 
 Three independent references agree: the merge formula the cells implement, the paper's north-west corner algorithm, and a numerical quantile integral. The cell design is then
 checked against them in FlexGrid and in the generated RTL."""
@@ -111,7 +111,7 @@ def test_engine_in_flexgrid(engine):
 
 
 @pytest.mark.skip(reason="the flex generator refuses a same-tick operand pair even on an add or a multiply (order-free); the engine has two such ties "
-                         "(a square's two copies). Needs the generator to accept ties on commutative cores -- open, ledger #1033")
+                         "(a square's two copies). Needs the generator to accept ties on commutative cores -- open, ledger #1034")
 def test_engine_in_generated_rtl(engine):
     from fp_block_runner_v1 import run_rtl
     g, ent, ex, _ = engine

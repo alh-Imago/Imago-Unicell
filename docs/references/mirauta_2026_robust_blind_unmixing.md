@@ -8,7 +8,7 @@ Computer Science and Informatics; Materials Innovation Factory).
 
 The paper itself is not stored here: it is on arXiv, and whether to republish the PDF is for its
 authors to decide. These notes are our own summary, written to see which of its algorithms could
-be built from UniCell cells (ledger #1033).
+be built from UniCell cells (ledger #1034).
 
 ## What the paper does (our summary)
 
@@ -58,11 +58,27 @@ blocks (about 1,500 cells each) would make a merge network far too large.
 
 ## Built so far
 
-`tools/ot_w2_v1.py` (ledger #1033): the **1D W2 distance engine**. Two sorted signatures of `n`
+`tools/ot_w2_v1.py` (ledger #1034): the **1D W2 distance engine**. Two sorted signatures of `n`
 Diracs each (integer positions, integer weights summing to `T`) go in, and the exact
 `T · W2²` comes out. The trick that makes it a fixed network: each cumulative-weight breakpoint
 carries one signed payload, the step in that signature's position (μ positive, ν negative).
 After the merge, a running sum of the payloads gives Q_μ − Q_ν on every segment, so the
 north-west corner walk needs no indexing. It is checked against two independent references (the
-merge formula and a direct north-west corner implementation) in FlexGrid and in the generated
-RTL. See `tests/vm/test_ot_w2_v1.py`.
+merge formula and a direct north-west corner implementation) and a numerical quantile integral.
+
+The n = 4, T = 64 engine is **exact in FlexGrid**: 7 streamed items, all bit for bit, in 3,076
+ticks. It uses 5,584 cells (4,813 ram/route, 605 cross, 80 adder, 78 mul, 8 comparator). The
+longest path is 675 hops, so the latency is about 1,350 cycles per result, and the engine is
+pipelined: a new item can go in every few hundred ticks. The design has no subtract, because
+a − b is built as a + (−1)·b, so no operand order has to be balanced. A compare-exchange
+between two pad lanes is decided at build time.
+
+**Open.** The generated-RTL check is skipped. The flex generator refuses a same-tick operand
+pair even on a commutative add or multiply, and the engine has two such ties (a square's two
+copies). Either the generator accepts ties on commutative cores, or those two squares get a
+spacer. See `tests/vm/test_ot_w2_v1.py`.
+
+**Feeding it.** At 115 kbaud over JTAG one item (4n + 2 values) takes a few ms, so a host-fed
+engine is limited by the link, not by the fabric. For real throughput the signatures would be
+preloaded into the 8 MB RAM and streamed out through the Arria 10 RAM interface tree (ledger
+#255–#271, one bus in and one out), with one engine per tile working in parallel.

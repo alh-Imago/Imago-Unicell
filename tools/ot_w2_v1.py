@@ -1,4 +1,4 @@
-"""tools/ot_w2_v1.py -- ledger #1033: the 1D WASSERSTEIN-2 DISTANCE between two discrete distributions, built from flex cells as a FIXED network
+"""tools/ot_w2_v1.py -- ledger #1034: the 1D WASSERSTEIN-2 DISTANCE between two discrete distributions, built from flex cells as a FIXED network
 (after Mirauta et al., "Robust blind unmixing", arXiv:2610.04091, section 4.1; notes in docs/references/mirauta_2026_robust_blind_unmixing.md).
 
 Inputs: two SORTED signatures of n Diracs each, integer positions x and integer weights w, both totalling T.  Output: S = T * W2^2, exact (an integer).
@@ -317,7 +317,7 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10, pads=None, info=None)
 def w2_grid(n=4, T=64, rows=300, cols=400, name="W2"):
     """Build the engine on a fresh grid. Returns (grid, entries, exits, consts). The engine has no subtract, so there is no operand ORDER to keep; operand ties
     (two words reaching an add or a multiply on the same tick) are exact in FlexGrid. The flex generator still refuses such ties (it needs an operand order for
-    every pair core), so the generated-RTL check waits on that (see the module notes and ledger #1033)."""
+    every pair core), so the generated-RTL check waits on that (see the module notes and ledger #1034)."""
     from flex_layout_v1 import Grid
     g = Grid(rows=rows, cols=cols)
     ent, ex, consts = w2_engine(g, n, T, name=name)
