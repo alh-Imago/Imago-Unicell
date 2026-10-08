@@ -88,7 +88,7 @@ endmodule
     finally:
         shutil.rmtree(d, ignore_errors=True)
     assert "GLOBAL TIMEOUT" not in out and "ID 57320001" in out, out[-400:]
-    assert "LED 1110 READY 1" in out, out[:300]
+    assert "LED 0001 READY 1" in out, out[:300]   # LED3 (SD up), LED2 (SCLK seen), LED1 (CS seen) lit; LED0 heartbeat still off this early
     want = [(a + b) & 0xFFFFFFFF for a, b in pairs]
     assert [int(x) for x in re.findall(r"^S (\d+)$", out, re.M)] == want
     assert [int(x) for x in re.findall(r"^C (\d+)$", out, re.M)] == want

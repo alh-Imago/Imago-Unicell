@@ -13,7 +13,7 @@ The ready-made bitstream is `fpga/build/unit_cordic_v1/unit_top.fs` (CORDIC unit
 Use whichever loader you already used for the smoke test:
 - command line: `openFPGALoader -b tangnano20k fpga/build/unit_cordic_v1/unit_top.fs` (SRAM: lost when the board loses power; add `-f` to write it to flash);
 - or the Gowin Programmer program: device GW2AR-18, "SRAM Program", file `unit_top.fs`.
-LEDs: the four board LEDs are active-low; they show the unit's status (the generated top's README, `fpga/build/unit_cordic_v1/README_UNIT.md`).
+LEDs (lit = true): **LED0 blinks slowly (about once a second) = the FPGA is loaded and running. If LED0 is not blinking the bitstream did not load.** LED1 = the ESP32 has pulled chip-select low at least once (stays lit until the next load). LED2 = the ESP32 has clocked SCLK at least once. LED3 = the SD card is up and error-free. So: after loading, LED0 should blink; after the first `id`, LED1 and LED2 should light; if they don't, the CS or SCLK wire isn't reaching the FPGA.
 
 ## Step 2 -- ESP32 side (one time)
 1. Install Arduino IDE 2 (arduino.cc).

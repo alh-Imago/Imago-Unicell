@@ -67,7 +67,11 @@ module unit_top #(parameter INIT_DIV = 34, parameter FAST_DIV = {fast_div}, para
         .lane_data(lane_data), .lane_valid(lane_valid), .lane_ack(lane_ack), .out_data(out_data), .out_valid(out_valid), .out_ack(out_ack), .ready_line(ready_line));
     {top} D (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), {conn});
     assign READY = ready_line;
-    assign LED_N = {{3'b111, ~ready_line}};            // LED0 on = the SD card is up
+    // LEDs (active low): LED0 heartbeat (FPGA loaded and running); LED1 the ESP32 has pulled CS low at least once;
+    // LED2 the ESP32 has clocked SCLK at least once; LED3 the SD card is up and error-free.
+    reg [24:0] hb = 25'd0; reg seen_cs = 1'b0, seen_clk = 1'b0;
+    always @(posedge clk) begin hb <= hb + 1'b1; if (!SPI_CS_N) seen_cs <= 1'b1; if (SPI_SCLK) seen_clk <= 1'b1; end
+    assign LED_N = ~{{ready_line, seen_clk, seen_cs, hb[24]}};
 endmodule
 `default_nettype wire
 """
