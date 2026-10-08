@@ -1,4 +1,4 @@
-"""tests/vm/test_flow_flex_v1.py -- ledger #1032: the flow medium (standard diffusion + instructed pump) on the flex cells (tools/flow_flex_v1.py), proven in the generated RTL against the exact reference, with and
+"""tests/vm/test_flow_flex_v1.py -- ledger #1033: the flow medium (standard diffusion + instructed pump) on the flex cells (tools/flow_flex_v1.py), proven in the generated RTL against the exact reference, with and
 without random stalls, and the conservation law (total amount never changes). Requires iverilog."""
 import os
 import random

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tools/flow_demo_v1.py -- ledger #1032: the flow medium working. Profiles printed here come out of the GENERATED RTL; each run is checked against the exact reference and for conservation.
+"""tools/flow_demo_v1.py -- ledger #1033: the flow medium working. Profiles printed here come out of the GENERATED RTL; each run is checked against the exact reference and for conservation.
 A slug of fluid (4000) starts in cell 1 of a closed row of cells; three runs of the same hardware:
   standard   no commands: diffusion only (spreads both ways, the walls reflect it)
   pumped     the same pump command on every cell all the time: a steady drift to the right on top of the diffusion
