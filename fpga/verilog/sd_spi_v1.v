@@ -20,6 +20,8 @@ module sd_spi_v1 #(
     output reg         ready,
     output reg         error,
     output reg  [4:0]  err_code,
+    output reg  [5:0]  err_cmd,      // the command (CMD index) being sent when the error happened
+    output reg  [7:0]  err_rx,       // the last byte the card sent before the error (FF = line idle high, 00 = stuck low)
     output reg         busy,
     input  wire        rd_req,
     input  wire        wr_req,
@@ -87,7 +89,7 @@ module sd_spi_v1 #(
         begin xb_tx <= b; xb_go <= 1'b1; st <= ST_WAIT; nxt <= next; end
     endtask
     task fail(input [4:0] code);
-        begin err_code <= code; st <= ST_ERR; end
+        begin err_code <= code; err_cmd <= cmd_idx; err_rx <= xb_rx; st <= ST_ERR; end
     endtask
     wire [31:0] blk_addr = ccs ? block : {block[22:0], 9'b0};
     reg  [31:0] blk_l;
@@ -95,7 +97,7 @@ module sd_spi_v1 #(
     always @(posedge clk) begin
         xb_go <= 1'b0; w_valid <= 1'b0; block_done <= 1'b0;
         if (rst) begin
-            st <= ST_BOOT; ready <= 1'b0; error <= 1'b0; err_code <= 5'd0; busy <= 1'b1; sd_cs_n <= 1'b1; fast <= 1'b0; ccs <= 1'b0; v2 <= 1'b0; cnt <= 0;
+            st <= ST_BOOT; ready <= 1'b0; error <= 1'b0; err_code <= 5'd0; err_cmd <= 6'd0; err_rx <= 8'd0; busy <= 1'b1; sd_cs_n <= 1'b1; fast <= 1'b0; ccs <= 1'b0; v2 <= 1'b0; cnt <= 0;
             w_data <= 0; w_index <= 0; wacc <= 0; byte_i <= 0; cmd_n <= 0; poll <= 0; ext <= 0; r1 <= 8'hFF; nxt <= ST_BOOT; ret <= ST_BOOT;
             cmd_idx <= 0; cmd_arg <= 0; cmd_crc <= 0; extra_n <= 0; keep_cs <= 0; blk_l <= 0;
         end else case (st)

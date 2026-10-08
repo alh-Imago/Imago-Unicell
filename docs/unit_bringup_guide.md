@@ -37,6 +37,8 @@ If the ESP32 is a camera module (ESP32-CAM) the camera uses several of IO18/19/2
 `wires` drives CS and then SCLK by hand for 4 s each so you can watch Tang LED1 and LED2 light: it proves those two wires arrive before any SPI traffic is involved.
 `miso` tells you whether the MISO wire is connected to something that drives it (it reads the pin with the ESP32's pull-down and pull-up in turn: a floating wire changes, a driven one doesn't).
 **Counting holes on the Tang:** the Tang's header pins do not start at breadboard column 1; count from the Tang's own first pin (in our setup column 8), and wire 'hole 1' there. A wire in a column with no Tang pin connects to nothing.
+`status` also reports which SD command failed and the last byte the card sent (FF = the line sat idle high, i.e. the card said nothing; 00 = stuck low). `sdinit` re-runs the card start-up without reloading the FPGA: reseat the card, type `sdinit`, then `status`.
+**First hardware result (8 Oct 2026):** `id`, `scratch` and `cordic` all passed on the real Tang Nano 20K + ESP32: the six CORDIC angles matched the simulator. The SD card then reported error 2 (no answer from the card).
 Other commands: `z 100 200 300` (your own angles), `load 64 1` / `save 64 1`, `reg 8` (read a register), `reg 7 0x1234` (write), `words 0 8` (dump results RAM), `help`.
 
 ## Reading the unit by hand (for later designs)

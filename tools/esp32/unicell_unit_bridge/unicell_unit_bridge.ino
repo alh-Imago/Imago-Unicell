@@ -65,9 +65,9 @@ static bool wait_status(uint32_t mask, uint32_t ms) {
 }
 static void print_status() {
   uint32_t s = rd_reg(R_STATUS);
-  Serial.printf("STATUS 0x%04X: sd_ready=%u sd_error=%u sd_busy=%u play_busy=%u sd_done=%u play_done=%u cap_nonempty=%u err_code=%u | READY pin=%d | CAP_COUNT=%u\n",
+  Serial.printf("STATUS 0x%04X: sd_ready=%u sd_error=%u sd_busy=%u play_busy=%u sd_done=%u play_done=%u cap_nonempty=%u err_code=%u (failed cmd %u, card last sent 0x%02X) | READY pin=%d | CAP_COUNT=%u\n",
     (unsigned)s, (unsigned)(s & 1), (unsigned)((s >> 1) & 1), (unsigned)((s >> 2) & 1), (unsigned)((s >> 3) & 1), (unsigned)((s >> 4) & 1),
-    (unsigned)((s >> 5) & 1), (unsigned)((s >> 6) & 1), (unsigned)((s >> 8) & 31), digitalRead(PIN_READY), (unsigned)rd_reg(R_CAP_COUNT));
+    (unsigned)((s >> 5) & 1), (unsigned)((s >> 6) & 1), (unsigned)((s >> 8) & 31), (unsigned)((s >> 16) & 63), (unsigned)(s >> 24), digitalRead(PIN_READY), (unsigned)rd_reg(R_CAP_COUNT));
 }
 
 // feed n angles through the design one at a time (pacing), straight from the ESP32 (no SD card involved)
@@ -144,9 +144,11 @@ static void cmd_miso() {
   else Serial.printf("=> DRIVEN steadily at %d: the FPGA (or something) is holding the line, so the MISO wire is connected.\n", a);
   SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
 }
+// re-run the SD card start-up without reloading the FPGA (after reseating the card, say)
+static void cmd_sdinit() { wr_reg(R_CONTROL, 0x20); delay(300); print_status(); }
 static void cmd_help() {
   Serial.println("commands:  id | status | scratch | cordic | z <a> [a ...] | sdtest [block=64] | load <block> <n> | save <block> <n> |");
-  Serial.println("           reg <n> [value] | words <addr> <n>  (dump capture RAM) | wires | miso | help");
+  Serial.println("           reg <n> [value] | words <addr> <n>  (dump capture RAM) | wires | miso | sdinit | help");
   Serial.println("first time: id, then scratch, then cordic (no SD needed), then status, then sdtest.  Blocks are RAW: never use block 0.");
 }
 
@@ -159,6 +161,7 @@ static void handle(char* s) {
   else if (!strcmp(cmd, "cordic")) cmd_cordic();
   else if (!strcmp(cmd, "wires")) cmd_wires();
   else if (!strcmp(cmd, "miso")) cmd_miso();
+  else if (!strcmp(cmd, "sdinit")) cmd_sdinit();
   else if (!strcmp(cmd, "z")) { if (rest) cmd_z(rest); else Serial.println("usage: z <angle> [angle ...]"); }
   else if (!strcmp(cmd, "sdtest")) cmd_sdtest(rest ? strtoul(rest, NULL, 0) : 64);
   else if (!strcmp(cmd, "load") || !strcmp(cmd, "save")) {

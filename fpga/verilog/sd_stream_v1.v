@@ -26,6 +26,8 @@ module sd_stream_v1 #(
     output wire            ready,
     output wire            error,
     output wire [4:0]      err_code,
+    output wire [5:0]      err_cmd,
+    output wire [7:0]      err_rx,
     // playout RAM write port
     output wire            pl_wr_en,
     output wire [AW-1:0]   pl_wr_addr,
@@ -46,7 +48,7 @@ module sd_stream_v1 #(
 
     sd_spi_v1 #(.INIT_DIV(INIT_DIV), .FAST_DIV(FAST_DIV)) S (
         .clk(clk), .rst(rst), .sd_clk(sd_clk), .sd_mosi(sd_mosi), .sd_miso(sd_miso), .sd_cs_n(sd_cs_n),
-        .ready(ready), .error(error), .err_code(err_code), .busy(sd_busy),
+        .ready(ready), .error(error), .err_code(err_code), .err_cmd(err_cmd), .err_rx(err_rx), .busy(sd_busy),
         .rd_req(rd_req), .wr_req(wr_req), .block(blk), .block_done(sd_block_done),
         .w_valid(w_valid), .w_data(w_data), .w_index(w_index), .src_addr(src_addr), .src_data(cap_rd_data));
 

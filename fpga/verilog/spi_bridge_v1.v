@@ -9,7 +9,7 @@
 //   0x04 RD_WORDS : addrHi addrLo, pad, then 4-byte words (auto-increment) from the CAPTURE RAM until CS rises
 // Registers: 0 ID (ro, 0x57320001) | 1 STATUS (ro) | 2 CONTROL (wo, pulses) | 3 START_BLOCK | 4 NBLOCKS | 5 PLAY_COUNT | 6 CAP_COUNT (ro) | 7 SCRATCH
 //   8 MAX_OUT (pacing: at most this many results outstanding, 0 = unlimited) | 9 RPI (results per item, default 1). Pacing is for designs that hold ONE item at a time; clear the capture first (CONTROL bit 3).
-//   STATUS: [0] sd_ready [1] sd_error [2] sd_busy [3] play_busy [4] sd_done (sticky) [5] play_done (sticky) [6] capture non-empty [12:8] sd err_code
+//   STATUS: [0] sd_ready [1] sd_error [2] sd_busy [3] play_busy [4] sd_done (sticky) [5] play_done (sticky) [6] capture non-empty [12:8] sd err_code [21:16] command that failed [31:24] last byte the card sent. CONTROL [5] = re-run the SD start-up (no reload needed)
 //   CONTROL: [0] sd_load [1] sd_save [2] play_start [3] capture_clear [4] clear the two sticky done bits (they also clear when an op starts)
 `default_nettype none
 module spi_bridge_v1 #(
@@ -25,6 +25,7 @@ module spi_bridge_v1 #(
     output reg             ctl_sd_save,
     output reg             ctl_play_start,
     output reg             ctl_cap_clear,
+    output reg             ctl_sd_reinit,
     output reg  [31:0]     start_block,
     output reg  [15:0]     nblocks,
     output reg  [AW:0]     play_count,
@@ -35,6 +36,8 @@ module spi_bridge_v1 #(
     input  wire            sd_busy,
     input  wire            play_busy,
     input  wire [4:0]      err_code,
+    input  wire [5:0]      err_cmd,
+    input  wire [7:0]      err_rx,
     input  wire            sd_done_pulse,
     input  wire            play_done_pulse,
     input  wire [AW:0]     cap_count,
@@ -67,7 +70,7 @@ module spi_bridge_v1 #(
     function [31:0] regread(input [7:0] a);
         case (a)
             8'd0: regread = ID;
-            8'd1: regread = {19'b0, err_code, 1'b0, (cap_count != 0), play_done_seen, sd_done_seen, play_busy, sd_busy, sd_error, sd_ready};
+            8'd1: regread = {err_rx, 2'b0, err_cmd, 3'b0, err_code, 1'b0, (cap_count != 0), play_done_seen, sd_done_seen, play_busy, sd_busy, sd_error, sd_ready};
             8'd3: regread = start_block;
             8'd4: regread = {16'b0, nblocks};
             8'd5: regread = {{(31-AW){1'b0}}, play_count};
@@ -97,7 +100,7 @@ module spi_bridge_v1 #(
 
     // byte level: one decision per received byte; the byte AFTER it (tx_next) is prepared here, in the many clock cycles before the next byte starts
     always @(posedge clk) begin
-        ctl_sd_load <= 1'b0; ctl_sd_save <= 1'b0; ctl_play_start <= 1'b0; ctl_cap_clear <= 1'b0; pl_wr_en <= 1'b0;
+        ctl_sd_load <= 1'b0; ctl_sd_save <= 1'b0; ctl_play_start <= 1'b0; ctl_cap_clear <= 1'b0; ctl_sd_reinit <= 1'b0; pl_wr_en <= 1'b0;
         if (sd_done_pulse) sd_done_seen <= 1'b1;
         if (play_done_pulse) play_done_seen <= 1'b1;
         if (rst) begin
@@ -121,6 +124,7 @@ module spi_bridge_v1 #(
                                     if ({wdata[23:0], rxb} & 32'h2) begin ctl_sd_save <= 1'b1; sd_done_seen <= 1'b0; end
                                     if ({wdata[23:0], rxb} & 32'h4) begin ctl_play_start <= 1'b1; play_done_seen <= 1'b0; end
                                     if ({wdata[23:0], rxb} & 32'h8) ctl_cap_clear <= 1'b1;
+                                    if ({wdata[23:0], rxb} & 32'h20) ctl_sd_reinit <= 1'b1;
                                     if ({wdata[23:0], rxb} & 32'h10) begin sd_done_seen <= 1'b0; play_done_seen <= 1'b0; end
                                 end
                                 8'd3: start_block <= {wdata[23:0], rxb};
