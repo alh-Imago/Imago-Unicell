@@ -25,11 +25,20 @@ A cell has 6 faces; each face has 4 channels (6x8 version) or 8 (6x16); a channe
 | 6 faces x 8 channels (6x16) | 240 | 48 | 54 | about 184 |
 Rough capacity on a Nano 20K after the unit (2,150 LUT4 / 1,870 FF): flip-flops limit it to roughly 100 cells of 6x8 or 55 of 6x16, before routing; the W2 engine showed routing can take most of the chip, so treat these as upper bounds. **Not placed-and-routed.**
 
+
+## Alan's recollection of the original intent (9 Oct 2026, from memory, "it's been a while")
+A simple neural cell: it has an **accumulated weight**; connections are made in **pairs whose direction can be set either way**; each can have **one of four logic gates** applied; and the original concept was **single wires, where the more of them are active the greater the chance of flowing down that path**.
+What this does to the open points (my reading, to be confirmed):
+- **Accumulation is temporal** (point 1 goes the README's way): a weight that builds up, not a one-shot 0-4 count. That also gives the 16-bit shared value a job (it is wide enough to be compared against a running total) and makes the thresholds wider than 3 bits.
+- **Direction is a configurable property of each pair**, not implicit. v0.1's removal of the direction bit (config 4 -> 3 bits) contradicts this; it should stay: gate 2 + active 1 + direction 1 = 4 bits per pair.
+- **"Greater chance of flowing"** is new and is not in any note. Two readings: (a) *graded, deterministic*: more active wires fill the accumulator sooner, so that path reaches its threshold earlier and carries more; (b) *literally probabilistic*: the accumulated value is compared with a random number, so the chance of a path firing rises with its weight. (b) needs a pseudo-random source in each cell (a small shift register, which is fine here: this is not the security use). It makes runs non-repeatable unless the random source is seeded and the VM copies it bit for bit, which matters for training.
+
 ## Decisions I need from you
-1. Spatial count (0..4, v0.1) or temporal accumulation over the window (README, gives the bias a job)?
+1. Temporal accumulation over the window (README and Alan's recollection; gives the bias a job). Spatial count was v0.1's reading. Leaning temporal, to confirm.
 2. NOT of the face's fire decision, or of the channel's own input?
 3. One window or two per hop?
-4. First bring-up shape: one 6x8 cell through the unit, or the 7-cell flower?
+4. Is "greater chance of flowing" literal probability (needs a seeded pseudo-random source per cell) or graded and deterministic?
+5. First bring-up shape: one 6x8 cell through the unit, or the 7-cell flower?
 
 ## Proposed next steps once decided
 Pattern RAM + SPI loader for the cell; wrap one cell as a unit "design" (inputs register in, outputs to capture); Python/VM model kept bit-identical to the RTL; the 7-cell flower; first fitness task and a simple evolutionary search on the PC; patterns saved to the ESP32 file card.
