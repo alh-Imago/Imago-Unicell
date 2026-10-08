@@ -122,9 +122,21 @@ static void cmd_sdtest(uint32_t block) {
   for (int i = 0; i < 6; i++) { bool m = viacard[i] == direct[i]; ok &= m; Serial.printf("  %6ld -> via SPI %6ld | via card %6ld %s\n", (long)r1[i], (long)direct[i], (long)viacard[i], m ? "ok" : "WRONG"); }
   Serial.println(ok ? "SD ROUND TRIP OK" : "SD ROUND TRIP MISMATCH");
 }
+// wire test: drive CS and SCLK by hand, slowly, so the FPGA's LEDs show whether each wire arrives (LED1 = CS seen, LED2 = SCLK seen)
+static void cmd_wires() {
+  SPI.end();
+  pinMode(PIN_SCLK, OUTPUT); digitalWrite(PIN_SCLK, LOW); pinMode(PIN_MOSI, OUTPUT); digitalWrite(PIN_MOSI, LOW);
+  Serial.println("CS (IO5) goes LOW for 4 s now: Tang LED1 should light and stay lit.");
+  digitalWrite(PIN_CS, LOW); delay(4000); digitalWrite(PIN_CS, HIGH);
+  Serial.println("SCLK (IO18) goes HIGH for 4 s now: Tang LED2 should light and stay lit.");
+  digitalWrite(PIN_SCLK, HIGH); delay(4000); digitalWrite(PIN_SCLK, LOW);
+  Serial.printf("MISO (IO19) reads %d, READY (IO34) reads %d (idle expected: MISO 0 or 1 steady, READY 0 until the SD card is up).\n", digitalRead(PIN_MISO), digitalRead(PIN_READY));
+  SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
+  Serial.println("done. LED1/LED2 stay lit until the FPGA is reloaded or its reset button is pressed.");
+}
 static void cmd_help() {
   Serial.println("commands:  id | status | scratch | cordic | z <a> [a ...] | sdtest [block=64] | load <block> <n> | save <block> <n> |");
-  Serial.println("           reg <n> [value] | words <addr> <n>  (dump capture RAM) | help");
+  Serial.println("           reg <n> [value] | words <addr> <n>  (dump capture RAM) | wires | help");
   Serial.println("first time: id, then scratch, then cordic (no SD needed), then status, then sdtest.  Blocks are RAW: never use block 0.");
 }
 
@@ -135,6 +147,7 @@ static void handle(char* s) {
   else if (!strcmp(cmd, "status")) print_status();
   else if (!strcmp(cmd, "scratch")) cmd_scratch();
   else if (!strcmp(cmd, "cordic")) cmd_cordic();
+  else if (!strcmp(cmd, "wires")) cmd_wires();
   else if (!strcmp(cmd, "z")) { if (rest) cmd_z(rest); else Serial.println("usage: z <angle> [angle ...]"); }
   else if (!strcmp(cmd, "sdtest")) cmd_sdtest(rest ? strtoul(rest, NULL, 0) : 64);
   else if (!strcmp(cmd, "load") || !strcmp(cmd, "save")) {
