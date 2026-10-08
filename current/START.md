@@ -10,7 +10,49 @@
 **below are relative to the REPOSITORY ROOT (run these from a terminal**
 **opened at the repo root, not from inside `current/`).**
 
-## Read these first (in order)
+## Current line (2026-10, ledger #886 onward) -- read these first
+
+Active work is on the **Tang Nano 20K** with the **sub (v4s) and flex
+(v4sa) cell families** in `sub/`, the Flex-Sub assembler in `tools/`,
+and the VM's flex mirror `FlexGrid`. The 2026-08 reading list further
+down describes the Arria 10 / stripped-cell era. It is still the
+background for the std VM and ICM v3, but it is not where current
+work happens.
+
+**1. Check the toolchain BEFORE trusting any test run (#965).** Without
+`iverilog`, the flex/sub suites print `SKIP` and exit 0, which looks
+like a pass:
+
+```bash
+which iverilog yosys && python3 -c "import pytest, llvmlite"
+# if missing: apt-get update && apt-get install -y iverilog yosys; pip install pytest llvmlite
+# place-and-route also needs: pip install yowasp-nextpnr-himbaechel-gowin apycula
+```
+
+**2. Read, in order:**
+
+```bash
+cat README.md                          # "Where things stand" -- the two hardware lines and what is current
+cat current/latest.md | head -60       # one summary per recent ledger entry, newest first
+cat points/points_active.md            # the open ledger tail (#946 onward); older: points/INDEX.md
+cat sub/README.md                      # the sub/flex families: every cell, measurements, design rules, recent changes
+cat docs/stripped-cell/ICM_V3_FORMAT.md   # field tables incl. second_output / second_downstream_mask / min_bit_width / shift
+cat docs/man/README.md                 # the Tang MAN: native_width, DSP primitives, -nowidelut, cell_costs
+cat tools/README.md                    # the Flex-Sub assembler and the measurement tools
+cat docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md   # which docs are current and which are known stale
+```
+
+**3. Baseline the tests before changing anything** (record the counts):
+
+```bash
+python3 -m pytest tests/vm -q
+for t in tests/test_*.py; do python3 "$t" > /dev/null || echo "FAILED: $t"; done
+```
+
+As of #986: `tests/vm` 1763 passed; 20 top-level suites, 0 failed.
+
+## Arria 10 / stripped-cell era reading list (2026-08) -- background
+
 ```bash
 git pull
 git submodule update --init --recursive              # NEW (2026-08-16): grabs tools/onion -- appears EMPTY otherwise. See "Onion archival tool" note below before first use each fresh session.
@@ -27,7 +69,7 @@ cat docs/shared/TOOLCHAIN_SETUP.md                # NEW (2026-08-04): current Qu
 cat docs/full-cell/CELL_INTERNALS.md              # NEW (2026-08-04): the FULL cell's own field map, built by reading unicell64_v3.v directly -- flags the RTL's own known-stale header comment (wrong auth_mask position)
 cat current/VM_CORE_GAP_ANALYSIS.md               # NEW (2026-08-08): full sweep of all 77 root Python files vs the nano cell -- zero target it, 35 target the old format, 8 real gaps mapped against the VM-core rebuild plan (points.md #216/#217)
 cat current/latest.md                                 # current state + recent decisions (most recent at TOP) -- READ THE CRITICAL CORRECTION AT THE TOP FIRST (points.md #228)
-cat points/points_active.md                           # the FULL detailed narrative, currently-open tail (2026-09-02: points.md split across points/ -- see points/INDEX.md; GitHub stopped rendering it past ~2MB)
+cat points/points_active.md                           # the currently-open tail, fresh since #946 -- ALSO read the end of the latest sealed part: tail -c 70000 points/points_11_875-945.md (2026-09-02: points.md split across points/ -- see points/INDEX.md; GitHub stopped rendering it past ~2MB)
 cat current/PLAN.md                                   # what needs doing
 ```
 
@@ -110,7 +152,7 @@ short:**
    pending, or genuinely open — stated explicitly (in `current/
    latest.md` and/or `current/PLAN.md`), not left implicit in
    whichever entry happens to be last. `docs/shared/
-   POINTS_STATUS_AUDIT_2.md`'s own "Quick reference" section is the
+   POINTS_STATUS_AUDIT_3.md`'s own "Quick reference" section is the
    real model for this — a short, current, actionable list, not a
    re-narration of the whole session.
 8. **Session archive, if the session was substantial** (matching the
@@ -152,6 +194,9 @@ any live original — this exact discipline is what caught the
 collision bug the one time it mattered.
 
 ## GROUND TRUTH
+**Since 2026-10 (#898 onward) the active cells are `sub/verilog/*_cell_v4s.v` and `*_cell_v4sa.v`; the generated RTL is the
+oracle for `FlexGrid` (#964). The paragraph below is the 2026-08 statement, kept for the Arria 10 / stripped-cell line.**
+
 **`fpga/verilog/unicell_stripped_v1.v` is the ACTIVE line — build everything on it (#107's "reality" fork).**
 `fpga/verilog/unicell64_v3.v` remains the FULL cell's own ground truth for that SEPARATE "dream" line
 (#107) — untouched since 2026-07-31, not currently being developed, but not abandoned either.

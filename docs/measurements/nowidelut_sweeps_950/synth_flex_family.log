@@ -1,0 +1,15 @@
+FLEX family (v4sa), one cell each, WIDTH 32:
+  flex: accumulator                  default     70/    17/  69/  118   nowidelut     57/  0/  69/  118   LUT4 default/nowidelut 1.23x  <== differs
+  flex: adder                        default     67/    16/  37/   79   nowidelut     54/  0/  37/   79   LUT4 default/nowidelut 1.24x  <== differs
+  flex: branch                       default    178/    96/  69/   84   nowidelut    123/  0/  69/   84   LUT4 default/nowidelut 1.45x  <== differs
+  flex: compare                      default     58/    38/  37/   48   nowidelut     25/  0/  37/   48   LUT4 default/nowidelut 2.32x  <== differs
+  flex: latch                        default     16/     2/   5/   49   nowidelut     16/  0/   5/   49   LUT4 default/nowidelut 1.00x
+  flex: mask                         default     68/    16/   5/   88   nowidelut     55/  0/   5/   88   LUT4 default/nowidelut 1.24x  <== differs
+  flex: mul                          default   3657/  2885/  37/   79   nowidelut   1088/  0/  37/   79   LUT4 default/nowidelut 3.36x  <== differs
+  flex: mul_dsp                      default     36/    16/   5/   79   nowidelut     23/  0/   5/   79   LUT4 default/nowidelut 1.57x  <== differs
+  flex: nano                         default   1530/  1303/   5/  121   nowidelut    297/  0/   5/  121   LUT4 default/nowidelut 5.15x  <== differs
+  flex: ram                          default     68/    16/   5/   79   nowidelut     55/  0/   5/   79   LUT4 default/nowidelut 1.24x  <== differs
+  flex: router                       default     81/    63/   5/   81   nowidelut     26/  0/   5/   81   LUT4 default/nowidelut 3.12x  <== differs
+  flex: sequencer                    default     59/    11/   5/   89   nowidelut     52/  0/   5/   89   LUT4 default/nowidelut 1.13x  <== differs
+  flex: shift_stage                  default     36/    16/   5/   79   nowidelut     23/  0/   5/   79   LUT4 default/nowidelut 1.57x  <== differs
+SUMMARY flex: 13 cells; >5% LUT4 change in 12 ; total LUT4 default 5924 nowidelut 1894

@@ -184,6 +184,92 @@ super-carrier" section for the full rule.
 
 ---
 
+## Gotchas found since the Tang Nano line began (`#875`-`#986`, added 2026-10-06)
+
+Each one below cost real time once. "VM" means the std VM
+(`SuperGrid`) unless stated otherwise. "flex/sub" means the
+`sub/verilog` families and their generators.
+
+### Comparator — it is SIGNED, so a value with bit 31 set reads negative (`#984`; VM and every RTL family)
+`signed(data) >= threshold`. If a bit is isolated at bit 31 and
+compared with a positive threshold, it never fires. Shift it down one
+first (the fp32 round stage puts it at bit 30 and uses threshold 2^30).
+The comparator also answers on EVERY arrival (0 or 1). It has no
+emit-only-on-match option, so it cannot be a one-shot trigger by itself
+(`#875`). Use a rolling-mode `branch` for change detection.
+
+### Comparator — a negative threshold differs between the std VM and the RTL (`#947`, not patched)
+The std VM loads the 32-bit `threshold` field raw (unsigned), although
+it declares it signed. A threshold with bit 31 set is therefore a huge
+positive number in the VM and a negative number in both RTL families.
+The compiler never emits one. FlexGrid at W != 32 wraps it to a W-bit
+signed register (`#972`).
+
+### Preloaded ram that is NOT in fixed mode is single-shot in the VM (`#939`)
+It offers its constant once, so within one run only the first item of
+a stream sees it. The flex/sub generators read `preload_value` as an
+always-valid constant, which is the per-call meaning. They agree only
+with a fresh VM grid per item. For a constant that every item sees,
+use `fixed_mode` (on flex a fixed-mode ram is always valid and never
+used up, `#945`).
+
+### An exit cell is not a valid probe of a level source in the VM (`#938`)
+A continuous accumulator or a latch offers a level. After you clear an
+exit cell by hand, it can recapture a stale offer snapshot one item
+old. Read the source's own state (`acc_total`, `latch_state`) instead.
+
+### Two-operand cells pair by ARRIVAL ORDER in the VM, by handshake in flex RTL (`#923`/`#976`)
+In the VM, operand A is the first arrival and B the second, whatever
+the direction. Same-tick arrivals OR-combine into one operand. Feed a
+two-operand cell from ONE interleaved stream (`a0, b0, a1, b1, ...`),
+or drive VM tests item by item. Then check the result values and the
+result COUNT, not just the timing: a count of exactly half was how a
+silent collision was caught (`#883`).
+
+### A nano that has not been started refuses everything, including its own constant (`#880`)
+A held constant can only be captured after the first program arms the
+cell. With `hold_in`, the held operand then survives firing and
+reprogramming.
+
+### Do not force cell state from a test harness (`#885`)
+Clearing `valid` by hand leaves `pending_ack` set, so stale offers
+re-fire and cells refill with old data. Clearing `pending_ack` as well
+stalls the grid. Drain through a real sink cell instead (for example
+an accumulator that acknowledges and discards).
+
+### flex/sub — every unused second-output ack must be tied high (`#974`)
+`adder_cell_v4sa.ack_in_c` and `mul_cell_v4sa*.ack_in_hi`: if a second
+word is enabled and never acknowledged, the cell never starts a new
+round. The generator and the hand-built tops tie them; a hand-written
+instantiation must too.
+
+### flex/sub — a cell must be `armed` before it captures (`#956`/`#971`)
+Before these fixes, `nano_cell_v4sa` captured on `valid_in` without
+checking `armed`, and an unconfigured `sequencer_cell_v4sa` with
+`advance_in` high offered a spurious value. Generated designs were safe
+because they configure first (`#970`). Both cells now gate on `armed`,
+like every other v4sa cell. If you hand-build an older copy of either
+cell, configure it before sending data.
+
+### flex — the mask's meaning depends on the width (`#968`)
+There are always 8 mask bits. Each covers `ceil(W/8)` data bits, so the
+same mask value selects different bits at W = 18 than at W = 32.
+
+### Shift amounts a target cannot make are silent no-ops (`#986`)
+std: coarse taps plus fine; sub: coarse taps only; flex: any amount
+0-31. An unsupported amount does nothing in that target's VM or RTL,
+with no error. Name the target when compiling so
+`target_capabilities_v1` refuses it.
+
+### Measuring: observe every output bit, or synthesis deletes the logic (`#889`/`#902`/`#908`)
+If only `result[0]` is observed (or a config input is tied constant),
+yosys and nextpnr legally remove the logic you meant to measure.
+XOR-reduce every output and drive inputs from an LFSR. A cell that
+"costs the same as the adder" is a warning sign.
+
+### Measuring: the flex/sub suites SKIP without `iverilog` and exit 0 (`#965`)
+Run `which iverilog yosys` before trusting a green run.
+
 ## Wiring/structural gotchas — real, enforced by a composed tile, not just described here
 
 ### A continuously-live constant source double-counts at a two-arrival (matched-pair) core (`#742`)

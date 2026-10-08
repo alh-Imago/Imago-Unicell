@@ -173,7 +173,21 @@
     "reason": "spine clock region limits cascade -- a SPATIAL/placement constraint, not arithmetic (Arria 10 handbook 683461 sec 3.3.5 p46, points.md #26)",
     "latency_per_block_cycles": null,
     "latency_note": "card-dependent (Alan, 2026-09-21): the recollection figures (0/1 to over 8) are from the Arria 10 docs and will differ per card/part; left unset here deliberately -- kept LOOSE until a real per-card figure is supplied"
-   }
+   },
+   "primitives": [],
+   "primitives_note": "No DSP primitives are listed for this card yet: no assembler cell targets the Arria 10's DSP blocks (the DSP multiplier cell instantiates Gowin's MULT36X36). With none listed, the assembler realises a multiplier in logic. A primitive is added here as {name, operands, product_bits, blocks_per_instance} once a cell exists that can use it -- the assembler reads this list, it does not assume it.",
+   "abilities": [],
+   "abilities_note": "An OPEN list of card-specific DSP abilities, each {name, note}, that an assembler cell may ask for by name. EMPTY. CORRECTION (2026-10-04): an earlier version of this note recorded that Alan had said these DSP blocks have an option to shift. That came from a voice-to-text message that may have been garbled; on follow-up Alan did not recall it, and the ledger has NO record of any shift ability on this card's hard DSP blocks. The only shift near the DSP work is the alignment shifter inside the soft floating-point IP (points.md #472), which is ordinary logic, not a DSP-block ability. Nothing is recorded; add an ability here only from a real source (the Arria 10 handbook 683461, or a measurement).",
+   "soft_units": [
+    {
+     "name": "Floating Point Hardware 2 Multi-cycle (Nios II Custom Instruction variant)",
+     "kind": "SOFT -- built entirely from fabric logic; uses ZERO of the card's DSP blocks",
+     "how_it_arose": "Chosen as a 'DSP wrapper' on the premise that it would use the hard DSP blocks (points.md #453/#461). The real Fitter summary showed Total DSP Blocks 0 / 1,687 and a floating-point datapath (FPAddSub, with an alignment shifter) built from LUTs/ALMs: the premise was wrong and the IP is a soft implementation (#472).",
+     "verified_on_actual_hardware": "Real Quartus build clean (Flow Status Successful); 568 ALM; 158.88 MHz on clk_div against a 25 MHz target; two real operations (A=0xAAAA0001, B=0x55550002 first): fire asserted, result read back matching the test's deterministic pattern, ACK cleared fire, and the wrapper re-armed for the second operation (#472).",
+     "function_note": "An IEEE-754 FLOATING-POINT datapath. It is NOT an integer multiplier, so it is not a drop-in for the assembler's integer `mul` core; it is recorded here as a known-working soft DSP on this card. The hard-DSP alternative ('Native Floating Point DSP Intel Arria 10 FPGA IP') was never chosen and remains undecided (#472, #475).",
+     "provenance": "points.md #453, #461, #469, #471, #472, #475"
+    }
+   ]
   },
   "source": "Chip Planner GUI resource-properties inspection, read directly by Alan (points.md #275/#276/#277), 2026-08-10. NOT yet cross-checked against a real Quartus .pin file \u2014 no .pin file is currently committed to this repo (per #28/#29's own canonical DEVICE-FACTS generator method: 'run the Fitter once, parse output_files/<revision>.pin'). Treat DSP/M20K coordinates above as real and Chip-Planner-confirmed, but the FULL exhaustive device-half dataset (every ball, every function) this schema is meant to eventually hold is still outstanding."
  },
@@ -284,5 +298,13 @@
   "points.md #448 \u2014 real JTAG per-command overhead measured, informs the jtag.note field above",
   "points.md #449 \u2014 SHAPE (per-build logical map) vs MAN (per-card-model capability spec) separation agreed",
   "points.md #454, docs/man/mustang-f100-a10-v3.pin.txt \u2014 real .pin file from Alan's own actual v3 build; CLK_100M/LED/JTAG/config pins and independent PCIe-unused confirmation now real data, not hand-assembled from memory"
- ]
+ ],
+ "synthesis": {
+  "tool": "Intel Quartus (the real build); the open ballpark path is yosys synth_intel_alm -family cyclone10gx",
+  "nowidelut": {
+   "supported": false,
+   "default": false,
+   "note": "synth_intel_alm has NO equivalent of synth_gowin's -nowidelut (that option concerns Gowin's MUX2_LUT5..8 wide-LUT muxes, an architecture feature this card does not have). The assembler refuses the flag here rather than silently ignore it (ledger #950). Whether the Quartus flow has a comparable switch has not been looked at."
+  }
+ }
 }

@@ -45,6 +45,10 @@ on top of.
 from __future__ import annotations
 
 import hashlib
+try:
+    from . import icm_width_v1 as _w
+except ImportError:
+    import icm_width_v1 as _w
 import json
 from dataclasses import dataclass, field
 from typing import Optional
@@ -120,6 +124,36 @@ SEL_BRANCH = 7
 #: change needed, just the missing entries.
 SEL_MUL = 8
 SEL_PRIORITY = 9
+#: Alan, 6 Oct 2026: `cross` -- a pure-wiring CROSSING tile (W<->E and N<->S pass straight through, no state, no control). Another entry from the reserved headroom (#317, #823 precedent):
+#: Core number 10 CONFIRMED by Alan (6 Oct 2026, "10 fits, it looks like an X on an angle"); the native RTL core slot per family is still to be built.
+SEL_CROSS = 10
+#: Alan, 8 Oct 2026: `corner` -- the CROSSING tile's sibling: a pure-wiring tile that pairs its four faces as TURNS instead of straight-throughs, two independent paths in one square.
+#: `turn` 0 pairs E-N and W-S ("E can be sent N while W is sent S"); `turn` 1 pairs E-S and W-N ("and vice versa"). Each path carries words in both directions, one register slice per direction of travel.
+#: Core number 11; the native RTL core slot per family is still to be built (like `cross`, the netlist step turns it into ordinary ram relay cells).
+SEL_CORNER = 11
+#: Alan, 8 Oct 2026: `merge` -- the flex family's MERGE core, brought into the main theme. Two input faces (the two set bits of `upstream_mask`, in N,S,E,W order: the first is A, the second B) and one output;
+#: `mode` 0 = A only, 1 = B only, 2 = ARBITRATE (one at a time, round-robin), 3 = JOIN-OR (wait for both, output A|B). Core number 12 (the carrier numbers it 14).
+SEL_MERGE = 12
+
+def merge_cores_as_relays(records):
+    """ledger #1036: the flex family builds a merge as a relay (ram) fed by two sources with a merge core in front (the mode is per consumer cell). An ICM `merge` core therefore becomes a
+    plain ram relay with the same masks, and its MODE is returned as {cell_id: 'arbitrate' | 'join-or'}. Modes 0 (A only) and 1 (B only) are pure pass-throughs of one face -- there is nothing
+    to build for them on flex -- and are refused with that reason. Returns (records, modes)."""
+    modes, out = {}, []
+    for r in records:
+        if r.core != "merge":
+            out.append(r)
+            continue
+        cfg = r.core_config or {}
+        m = int(cfg.get("mode", 2)) & 3
+        if m not in (2, 3):
+            raise ValueError(f"cell {r.cell_id}: merge mode {m} ({'A only' if m == 0 else 'B only'}) is a pass-through of one face; the flex family builds only arbitrate (2) and join-or (3) merges -- use a ram relay instead")
+        modes[r.cell_id] = {2: "arbitrate", 3: "join-or"}[m]
+        out.append(type(r)(cell_id=r.cell_id, row=r.row, col=r.col, core="ram",
+                           core_config={"upstream_mask": cfg.get("upstream_mask", 0), "downstream_mask": cfg.get("downstream_mask", 0)},
+                           addon_config=r.addon_config, io_name=r.io_name, preload_value=r.preload_value))
+    return out, modes
+
 
 CORE_NAMES = {
     SEL_NANO: "nano",
@@ -132,6 +166,9 @@ CORE_NAMES = {
     SEL_BRANCH: "branch",
     SEL_MUL: "mul",
     SEL_PRIORITY: "priority",
+    SEL_CROSS: "cross",
+    SEL_CORNER: "corner",
+    SEL_MERGE: "merge",
 }
 CORE_IDS = {name: sel for sel, name in CORE_NAMES.items()}
 
@@ -227,6 +264,10 @@ _ADDER_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
     "subtract_mode": (8, 8),
+    # ledger #980: the ONE generic second-output flag (bit 12, same as mul): after the sum also deliver the carry as a second word. `carry_mode` is an accepted ALIAS (see SECOND_OUTPUT_ALIASES).
+    "second_output": (12, 12),
+    # ledger #981: where the SECOND word goes (adder carry / mul high word). Empty (0, the default) = the same faces as downstream_mask (the second word follows the first). Flex family only.
+    "second_downstream_mask": (13, 16),
 }
 
 # Accumulator: accumulator_cell_v1.v lines 87-98 (extended #515/#519 --
@@ -294,9 +335,13 @@ _SEQ_FIELDS = {
 # placed in the super shell, confirmed directly before #542 was built).
 # points.md #823: `mul` -- structurally identical to `_ADDER_FIELDS` minus `subtract_mode` (confirmed directly
 # against `unicell_super_automaton_v1.py`'s own `elif core == "mul":` field list: only downstream_mask/upstream_mask).
+# points.md #853/#854: `wide_mode` added at bit 12 -- the same real, tested position mul_cell_v5/v5c.v's own RTL
+# uses, and the same position root_definition.json's own JSON schema was updated to (kept in sync deliberately).
 _MUL_FIELDS = {
     "downstream_mask": (0, 3),
     "upstream_mask": (4, 7),
+    "second_output": (12, 12),   # ledger #980: canonical name; `wide_mode` is an accepted alias (see SECOND_OUTPUT_ALIASES)
+    "second_downstream_mask": (13, 16),   # ledger #981: faces the second word leaves by (empty = same as downstream_mask); flex family and the standard cells (#1036)
 }
 
 # points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==
@@ -313,6 +358,13 @@ _PRIORITY_FIELDS = {
     "priority_rank_e": (12, 13),
     "priority_rank_w": (14, 15),
     "scheduling_mode": (16, 17),
+    # ledger #1018: the TURN ORDER of the sequenced channel (scheduling_mode 2) is now recorded in the file. sequence_len = how many turns (1..4, 0 = none
+    # recorded); sequence_0..3 = the face due at each turn, as a direction code (0 n, 1 s, 2 e, 3 w). Absent / 0 = exactly the old files.
+    "sequence_len": (18, 20),
+    "sequence_0": (21, 22),
+    "sequence_1": (23, 24),
+    "sequence_2": (25, 26),
+    "sequence_3": (27, 28),
 }
 
 _BRANCH_FIELDS = {
@@ -332,6 +384,38 @@ _BRANCH_FIELDS = {
     "rolling_mode": (41, 41),
 }
 
+_CROSS_FIELDS = {
+    "downstream_mask": (0, 3),
+    "upstream_mask": (4, 7),
+}
+
+_CORNER_FIELDS = {
+    "downstream_mask": (0, 3),
+    "upstream_mask": (4, 7),
+    "turn": (8, 8),
+}
+
+# ledger #1036: merge (the flex merge_cell_v4sa as a main-theme core)
+_MERGE_FIELDS = {
+    "downstream_mask": (0, 3),
+    "upstream_mask": (4, 7),
+    "mode": (8, 9),            # 0 A only, 1 B only, 2 arbitrate (round-robin), 3 join-or
+}
+
+_OPPOSITE = {"N": "S", "S": "N", "E": "W", "W": "E"}
+_CORNER_PAIRS = {0: {"E": "N", "N": "E", "W": "S", "S": "W"}, 1: {"E": "S", "S": "E", "W": "N", "N": "W"}}
+
+
+def wiring_tile_partner(core, core_config=None):
+    """For a pure-wiring tile (`cross` or `corner`): {face a: face b} -- a word that ENTERS through face a LEAVES through face b. cross: the opposite face; corner: the turn pairing
+    (`turn` 0: E-N and W-S; `turn` 1: E-S and W-N). Faces are the letters N, S, E, W."""
+    if core == "cross":
+        return dict(_OPPOSITE)
+    if core == "corner":
+        return dict(_CORNER_PAIRS[int((core_config or {}).get("turn", 0)) & 1])
+    raise ValueError(f"{core!r} is not a wiring tile")
+
+
 CORE_FIELD_TABLES = {
     SEL_NANO: _NANO_FIELDS,
     SEL_RAM: _RAM_FIELDS,
@@ -343,6 +427,9 @@ CORE_FIELD_TABLES = {
     SEL_BRANCH: _BRANCH_FIELDS,
     SEL_MUL: _MUL_FIELDS,
     SEL_PRIORITY: _PRIORITY_FIELDS,
+    SEL_CROSS: _CROSS_FIELDS,
+    SEL_CORNER: _CORNER_FIELDS,
+    SEL_MERGE: _MERGE_FIELDS,
 }
 
 # Direction-valued fields per core -- these accept either a raw int or a
@@ -363,7 +450,10 @@ _DIR_FIELDS = {
                     # the same real shape as branch's own route_low/equal/high
                     # below -- given the friendlier list-based interface.
     SEL_RAM: ("downstream_mask", "upstream_mask"),
-    SEL_ADDER: ("downstream_mask", "upstream_mask"),
+    SEL_CROSS: ("downstream_mask", "upstream_mask"),
+    SEL_CORNER: ("downstream_mask", "upstream_mask"),
+    SEL_MERGE: ("downstream_mask", "upstream_mask"),
+    SEL_ADDER: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
     SEL_ACC: ("inc_dir", "dec_dir", "downstream_mask"),
     SEL_CMP: ("downstream_mask", "upstream_mask"),
     SEL_LATCH: ("set_dir", "clear_dir", "downstream_mask"),
@@ -374,7 +464,7 @@ _DIR_FIELDS = {
     # single fixed 0=N/1=S/2=E/3=W direction CODE (#494's own real
     # constraint), not a one-hot mask -- left as a raw int.
     SEL_BRANCH: ("route_low", "route_equal", "route_high"),
-    SEL_MUL: ("downstream_mask", "upstream_mask"),
+    SEL_MUL: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
     SEL_PRIORITY: ("upstream_mask", "downstream_mask"),
 }
 
@@ -437,9 +527,30 @@ def _unpack_fields(field_table: dict, packed: int, dir_fields=()) -> dict:
 
 # ── Public: core_config (42-bit) and addon_config (20-bit) ──────────────
 
+# Ledger #980 (Alan: the ICM is target-agnostic, so ONE flag): "this cell's second result word is used" -- the multiplier's high word, the adder/subtractor's carry. The old per-core
+# names stay accepted everywhere a core_config is read and are rewritten to the canonical name.
+SECOND_OUTPUT_ALIASES = {"adder": {"carry_mode": "second_output"}, "mul": {"wide_mode": "second_output"}}
+
+
+def canonical_core_config(core, core_config: dict) -> dict:
+    """core_config with any second-output alias renamed to `second_output`. Giving both names with different values is an error; the input dict is never changed."""
+    name = CORE_NAMES.get(core, core) if not isinstance(core, str) else core
+    aliases = SECOND_OUTPUT_ALIASES.get(name)
+    if not aliases or not core_config or not any(a in core_config for a in aliases):
+        return core_config
+    out = dict(core_config)
+    for alias, canon in aliases.items():
+        if alias in out:
+            v = out.pop(alias)
+            if canon in out and bool(out[canon]) != bool(v):
+                raise ValueError(f"core {name!r}: {alias}={v} contradicts {canon}={out[canon]} (they are the same flag)")
+            out[canon] = v
+    return out
+
+
 def pack_core_config(core: "int|str", values: dict) -> int:
     sel = CORE_IDS[core] if isinstance(core, str) else core
-    return _pack_fields(CORE_FIELD_TABLES[sel], values)
+    return _pack_fields(CORE_FIELD_TABLES[sel], canonical_core_config(sel, values))
 
 
 def unpack_core_config(core: "int|str", packed: int) -> dict:
@@ -540,6 +651,9 @@ class IcmV3Record:
     #: hash exists to catch.
     preload_value: Optional[int] = None
 
+    def __post_init__(self):
+        self.core_config = canonical_core_config(self.core, self.core_config)   # ledger #980: carry_mode / wide_mode -> second_output
+
     def super_latch(self) -> int:
         return encode_super_latch(self.core, self.core_config, self.addon_config)
 
@@ -609,12 +723,18 @@ class IcmV3File:
     records: list  # list[IcmV3Record]
     format_version: str = "icm-v3"
     description: str = ""
+    # Ledger #958: the design's declared minimum bit width (see icm_width_v1.py). None = absent = 32. A user DECLARATION, so it is stored, written into the file's
+    # top-level metadata only when set (every existing file serialises byte-for-byte as before) and covered by record_hash() only when set.
+    min_bit_width: Optional[int] = None
+
+    def __post_init__(self):
+        _w.validate_min_bit_width(self.min_bit_width)
 
     def record_hash(self) -> str:
-        return hashlib.sha256(_canonical_records_json(self.records).encode()).hexdigest()
+        return hashlib.sha256((_canonical_records_json(self.records) + _w.hash_suffix(self.min_bit_width)).encode()).hexdigest()
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "format_version": self.format_version,
             # Real, computed minimum shell version this file actually
             # needs -- NOT hardcoded, since which cores are used
@@ -625,6 +745,9 @@ class IcmV3File:
             "records": [r.to_dict() for r in self.records],
             "record_hash": self.record_hash(),
         }
+        if self.min_bit_width is not None:
+            d["min_bit_width"] = self.min_bit_width
+        return d
 
     def save(self, path: str) -> None:
         with open(path, "w") as f:
@@ -637,7 +760,7 @@ class IcmV3File:
         if d.get("format_version") != "icm-v3":
             raise ValueError(f"not an icm-v3 file: format_version={d.get('format_version')!r}")
         records = [IcmV3Record.from_dict(r) for r in d["records"]]
-        icm = IcmV3File(name=d["name"], records=records, description=d.get("description", ""))
+        icm = IcmV3File(name=d["name"], records=records, description=d.get("description", ""), min_bit_width=d.get("min_bit_width"))
         stored_hash = d.get("record_hash")
         if stored_hash is not None and stored_hash != icm.record_hash():
             raise ValueError(

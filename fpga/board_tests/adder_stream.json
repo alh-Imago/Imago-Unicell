@@ -1,0 +1,54 @@
+{
+ "name": "adder_stream",
+ "what": "an adder joins two streams, 12 sums (32-bit wraparound included)",
+ "expected": [
+  11,
+  22,
+  33,
+  0,
+  2147483648,
+  4294967140,
+  205,
+  306,
+  0,
+  6,
+  8,
+  10
+ ],
+ "sim_line": "UCT adder_stream res=P n=000C e=000C bad=0000 to=0 last=0000001B sig=FFFF91FD w=0000000B,00000016,00000021,00000000,80000000,FFFFFF64,000000CD,00000132",
+ "inputs": {
+  "X": [
+   1,
+   2,
+   3,
+   4294967295,
+   2147483647,
+   100,
+   200,
+   300,
+   2147483648,
+   5,
+   6,
+   7
+  ],
+  "Y": [
+   10,
+   20,
+   30,
+   1,
+   1,
+   4294967040,
+   5,
+   6,
+   2147483648,
+   1,
+   2,
+   3
+  ]
+ },
+ "gaps": false,
+ "stalls": false,
+ "fmax_mhz": 127.0,
+ "lut4": 1792,
+ "dff": 704
+}

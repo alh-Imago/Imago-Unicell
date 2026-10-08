@@ -9,7 +9,7 @@ NOTHING was built yet. Since then, a real, working LLVM IR frontend
 ascending/descending single-variable counting loops, `select`, and
 `icmp eq`/`ne` are all real today, each verified end-to-end through
 the actual VM. The concept-stage framing and open questions below may
-no longer all be open — check `points/points_active.md` #612 onward
+no longer all be open — check `points/INDEX.md` (parts 7-11) from #612 onward
 and `docs/stripped-cell/UNICELL_S_DSL_MANUAL.md` §7 for the real,
 current status rather than assuming this note alone reflects it.
 

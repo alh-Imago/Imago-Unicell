@@ -1,11 +1,51 @@
 # Imago UniCell — Active Plan
 *Single source of truth for what needs doing and why.*
 
+> **UPDATE (2026-10-08, ledger #1036 addenda 4-12): the small-unit tool and what is open on it.** Done: SD + SPI-bridge unit around any flex design; CORDIC and an SD round trip verified on the real Tang Nano 20K with an ESP32; WiFi web sketch written; S1 reset; quickstart.py. OPEN, in order: (1) on hardware: load the rebuilt bitstream and try S1; run the WiFi sketch on a real ESP32; (2) build bitstreams for the reduction-tree and relay designs; (3) raw SD-block read register in the bridge; (4) host-side PC helper and an optional offline "local kit" served by the ESP32; (5) with a SPARE Tang Nano 20K (about 6 weeks): the ESP32 JTAG loader (schematic notes in docs/unit_bringup_guide.md); (6) the Wasserstein engine needs a bigger part. The statement further down that "no sub/flex design has run on the board" and the ESP32 link being unwired are out of date: both are now done (#896+, #1036).
+>
+> **UPDATE (2026-10-06, ledger #992): the current open work, gathered from the ledger's own "open" / "next"
+> lines for #946-#999.** Everything below this block predates the Tang Nano line. That includes the 2026-09-02
+> "hardware exploration is CLOSED" note: it applied to the Arria 10, and hardware work resumed on the Tang Nano 20K
+> at #886. This block is a list of what the ledger records as open. It does not set an order; that is Alan's call.
+>
+> **UPDATE (2026-10-07, ledger #1020): the blocks below predate #1000.** The current open list is the quick reference in `docs/shared/POINTS_STATUS_AUDIT_4.md`. Since this block was written: the adder's special values, subnormals and rounding modes, the multiplier and comparator, fp32 at a 64-bit word, tight placement, the Composer, and the whole priority core (all three modes, turn order saved in the ICM) are done; `command` in sub/flex is closed as not to be ported, and the sub sequencer's refusal stands (both Alan's decisions, #1020).
+>
+> **fp on cells (the most recent thread, #982-#999; the whole fp adder from flex cells is done at #990 for normals and
+> zero, and the crossing tile at #999):** sub-normals, exponent overflow/underflow, inf and nan for the adder; then
+> multiply and compare built the same way. Also open: a placer that decides positions itself, a VM tick-latency model for
+> the layout engine, a 64-bit build for fp64, and for the crossing tile native per-family cores and
+> cost rows. Full list: `docs/shared/POINTS_STATUS_AUDIT_3.md`.
+>
+> **Width (#948, #957-#963, #985):** the `--icm` generators still build 32 bits. Still to do: native-width builds,
+> the loader's narrowing, the save's padding, and the `min_bit_width` fit check (#959). The Tang's spare-bit sign
+> encoding (`target_extensions`) is not defined. A 6-bit shift amount is needed at W=36. Widening the
+> v4/v4c/`CACell` nano is open, including the question of whether the 128-bit command word grows to 132 bits
+> (#963). The sequencer does not build below 8 bits (#970).
+>
+> **Second outputs (#976-#981):** the DAG dispatcher cannot yet pick the consumer of a second word, and there is no
+> automatic trigger from the program graph (e.g. LLVM `uadd.with.overflow`, a wide `mul`). Also open: MAN cost rows
+> for port-on cells, and a pairing rule for a pair-cell consumer that takes both words.
+>
+> **VM (#927, #960-#961):** start-up flags (`vm flex -w36`), a target profile (MAN + selectable cores + a sourced
+> cost table), and the count estimator (flex is the one family with its own mirror, by Alan's ruling, #964); the std VM's raw-unsigned negative comparator threshold
+> (#947, not patched); the automatic coarse + fine split of a shift for std targets (#986).
+>
+> **Cells:** a genuine `priority` arbiter (the tenth ICM core) on flex; `command` in the sub/flex families;
+> place-and-route of whole generated designs; a per-merge mode carried in the ICM rather than on the command line
+> (#957).
+>
+> **Hardware:** no sub/flex design has run on the board yet; the ESP32-side pins and the SPI link (#888); why
+> `BTN_RST_N` held the board in reset (#896); whether the Kintex 480T can be revived (#928); whether hard-DSP
+> offload on the Arria 10 is still a goal (#943).
+>
+> **Docs:** the remaining catch-up list in `docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md`, then regenerate the
+> manual (`docs/build_manual.py`; its own section intros are stale too, see the audit).
+
 > **UPDATE (2026-09-22): a side thought from Alan, placed here as a roadmap of POTENTIAL outcomes,
 > not committed work -- three separate demonstrations, each meant to stand on its own and add
 > independent credibility to the overall project scope, not one narrow trick stretched thin.**
 > (1) **LaTeX -> compute, pushed as far as it goes** -- the active near-term technical thrust
-> (floating point, grounded from real TRIX/MIF prior art at `points/points_active.md` `#827` but not
+> (floating point, grounded from real TRIX/MIF prior art at `points/points_10_811-874.md` `#827` but not
 > yet built; then real arithmetic tiles; a bounded expression evaluator; a LaTeX parser feeding it;
 > a frontend able to actually demo the whole chain end to end, per Alan's own note that the frontend
 > isn't there yet even for a basic demo). Eventually reaching toward OPTIMAL TRANSPORT (Wasserstein
@@ -23,7 +63,7 @@
 > None of these three are started. Recorded here, in the forward-looking plan, rather than the
 > points ledger, because Alan's own words: "it's just a side thought... but this gives a roadmap of
 > the potential outcomes" -- prospective, not a decision or design commitment the append-only ledger
-> discipline is for. See `points/points_active.md` `#827` for the floating-point grounding already
+> discipline is for. See `points/points_10_811-874.md` `#827` for the floating-point grounding already
 > done, and the surrounding session's own `#824`-`#836` entries for the broader architecture context
 > this sits alongside (the VIX Carrier clarification, the LLVM/compiler gap list, the photonic and
 > command-bus interconnect prospects). **Alan's own timeframe estimate: 6 months to a year at
@@ -35,7 +75,7 @@
 > anything built so far) -- not a number to treat as either a floor or a ceiling.
 >
 > **UPDATE (2026-09-02, later same-date session): the simulated Walker
-> from this note's own queued item is DONE (`points/points_active.md`
+> from this note's own queued item is DONE (`points/points_07_572-652.md`
 > `#601`/`#602`) -- built on a real prerequisite fix (`#601`: `#598`'s
 > "VM mirror mode already exists" claim was checked and found false,
 > so `VMSession.from_man()` got built first). A pipeline walkthrough
@@ -47,7 +87,7 @@
 > intent a genuine environment to be built AND TESTED in.**
 >
 > **UPDATE (2026-09-02): hardware exploration is CLOSED for now --
-> Alan's own real, deliberate decision (`points/points_active.md` #596),
+> Alan's own real, deliberate decision (`points/points_07_572-652.md` #596),
 > not reflected in anything below this note.** A real, converged
 > investigation found this card's own real ceiling (~200-250 cells,
 > ~65-75 MHz Fmax at that scale) and found no lever (shared storage,

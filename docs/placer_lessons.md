@@ -1,0 +1,42 @@
+# Placer and layout-engine lessons (kept by Alan's request, 8 Oct 2026)
+
+What each design taught the placer / layout engine (`tools/flex_layout_v1.py`, `tightplace_v1.py`, `netplace_v1.py`, `fp_mul_tight_v1.place_net_tight`). Newest first. Each lesson says what went wrong, what fixed it, and what the tools could do about it.
+
+## PLACER RULE: make a subtract order-free (Alan, 8 Oct 2026; found in the 1-D Wasserstein engine, #1034)
+R1. **Rewrite `a - b` as `a + (-1)*b`.** A subtract is the one common two-operand op where operand ORDER matters (minuend must be A, and the VM pairs operands by arrival order, not by face). An add and a multiply are commutative, so after the rewrite the pair needs no order, only that the two operands do not arrive on the same tick (no tie). The multiply is by a 32-bit all-ones constant (-1), one extra cell.
+- **When to apply:** the minuend's lane is the LONG one (it would arrive second) and the balancer cannot shorten the other lane or delay it; or the placer would otherwise need a delay cell per sub.
+- **Cost:** one mul core (large in pure logic, ~5.7k LUT4 low-half only; use the DSP block on FPGA) and its latency; so prefer a delay/relay if one is cheaper, and prefer the rewrite when several subs share one negated term.
+- **Placer implementation idea:** a pass before placement that flags every sub whose minuend arrival depth exceeds the subtrahend's and inserts neg-multiply on the subtrahend; mark the inserted mul so a later pass can drop it if the balancer finds slack.
+- Status: manual in the Wasserstein engine; not yet automatic in the placer.
+
+## From the cross / merge / second-output ports (#1036)
+0b. **A cell that produces two words (carry, high word) is two lanes, not one.** With `second_downstream_mask` the second word leaves by its own faces, so the placer must lay two output lanes from one cell and treat them as independent nets (they need not arrive together). **A merge core has two named input faces (A, B)**: which source lands on A matters for arbitrate's first grant, so place the source meant to win a tie on the lower-ordered face (N before S before E before W).
+0c. **A wiring tile needs a different word on each face**; anything in the generator that assumed one output word per cell (the carrier's shared output, the layout view's per-cell data) must treat cross and corner as four slices.
+
+## From the corner tile (#1035)
+0. **Tile kinds the placer knows: logic cells, relays, crossing tiles, and now corner tiles.** A corner is the only wiring tile that changes direction, so a lane may now bend INSIDE a square: a route that has to jump a congested crossing can turn at a corner instead of spending two relays. The router (`route_nets(use_cross=True)`) still lays straight crossings only; corners are placed by hand or by a netlist (`Grid.add(name, r, c, "corner", {"turn": t})`) and the layout view keeps them pinned (it will not move or re-route through them). *Tool idea:* teach `route()` to use a corner as a free bend.
+   Lanes through a corner are one tick per tile, the same as a relay, so timing balance counts it as a relay hop.
+
+## From the 2-D flow medium (#1034)
+1. **Exits pinned to the tile edge.** Left to the annealer, an exit cell can end up inside the tile, walled in by the tile's own relays: its lane cannot leave. Pin entries to the west column AND exits to the east column (`_place_pinned` in `flow2d_flex_v1.py`). *Tool idea:* make `place_net_tight` pin `outs` the way it pins `entries`.
+2. **Stubs.** One relay on an open face of every exit and entry that a lane will use, placed before any lane is routed, so lanes laid earlier cannot close the pin in. Check the stub opens onto free space (flood fill), not a pocket; re-place the tile with the next seed if not.
+3. **Pair spacing.** Repeating pairs need a gap AFTER the last tile of a pair as well as inside it (`pw = A + gap + B + gap`); with no gap the east exits of one pair touch the west entries of the next and nothing routes. Size every repeat from measured widths, not guesses.
+4. **Short lanes by construction.** Split a cell into "work out" (A) and "add what arrives" (B) tiles so the lateral lanes between neighbours are one pair wide; the one long lane (the amount from step t to t+1) is routed first or early.
+5. **Route the shortest, most constrained lane first** (the within-pair lane), while both ends are still open.
+6. **Fan-out is four faces, input included.** A cell can feed three others. A value that must go to four places needs a relay tree (`Da`, `Db`); `place_map` says "more connections than faces" when it is wrong.
+
+## From the 1-D flow medium (#1033)
+7. **A subtract's minuend must arrive first, and when its lane is the LONG one the balancer cannot fix it.** Negate the other term with a multiplier by -1 (a 32-bit all-ones constant) and ADD: an add needs no operand order, only no tie.
+8. **A spacer relay in front of a multiplier whose second operand is an entry** (both would arrive in hop 1: a tie).
+
+## From the LIF neuron (#1030/#1031)
+9. **A subtract whose operands both descend from the same cell** (`v - (v >> k)`) confused the engine's minuend test; fixed in `Grid.problems()` (#1031): the operand that IS the declared minuend wins. The multiply-add form `(v*(2^k-1) + 2^k-1) >> k` avoids the question entirely.
+10. **Put one small tile per time step / repeat, placed on its own scratch grid and transplanted**, rather than annealing one huge netlist: the big one made the balancer spin for minutes, the tiles place in seconds.
+11. **The balancer needs a ROUTED path to stretch.** Two operands joined by direct adjacency cannot be separated; give one a spacer relay.
+12. **Entries on the top edge** (`place_map` port side 'N') are available for tiles stacked in a row.
+
+## From the fp64 adder and multiplier (#1027, #1029)
+13. **Constants are word-wide.** `-1` is `(1 << W) - 1`, not a 32-bit constant.
+14. **Retry loops with seeds, snapshot/restore.** A placement that cannot route is undone and tried with the next seed; stop retrying on errors that are not "taken or outside the grid".
+15. **Route long lanes first;** shuffle the order only when a fixed order cycles.
+16. **A block whose result needs more bits than the word** is split into limb products with a jammed sticky; a flags word that no longer fits becomes a small code.

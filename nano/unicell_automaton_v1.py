@@ -201,6 +201,7 @@ class CACell:
     out_buffer: Optional[int] = None     # the offered output -- separate from data_reg
     pending_ack: int = 0                 # 4-bit mask, bit order N,S,E,W (points.md #89/#90)
     _needs_confirm: bool = False         # points.md #77's terminal-output contract (see below)
+    mask: int = _MASK32                  # data width mask (ledger #966): 32 bits unless a width-aware grid sets it
 
     @property
     def ready(self) -> bool:
@@ -348,9 +349,9 @@ class CACell:
 
         arrived_val = 0
         for v in arrivals.values():
-            arrived_val |= (v & _MASK32)
+            arrived_val |= (v & self.mask)
         if injected is not None:
-            arrived_val |= (injected & _MASK32)
+            arrived_val |= (injected & self.mask)
 
         is_relay = any_relay_dir and not any_consume_dir  # pure, legitimate combined-relay only
 
@@ -402,7 +403,7 @@ class CACell:
 
         a = self.a_data
         b = arrived_val
-        computed = compute_gate(self.topology, a, b)
+        computed = compute_gate(self.topology, a, b, self.mask)
         self.data_reg = computed
 
         if self.hold_in:
@@ -465,11 +466,11 @@ class CACell:
         if not (self.hold_in and self.fb_internal_in) or self.effective_freeze:
             return
         second_val = self.out_buffer if self.out_buffer is not None else 0
-        computed = compute_gate(self.topology, self.a_data, second_val)
+        computed = compute_gate(self.topology, self.a_data, second_val, self.mask)
         if self.a_self_update_in:
-            self.a_data = computed & _MASK32
+            self.a_data = computed & self.mask
         else:
-            self.out_buffer = computed & _MASK32
+            self.out_buffer = computed & self.mask
 
     def _emit(self, value: int, route_override: Optional[int] = None) -> int:
         """Common tail: apply invert_out, load out_buffer, arm pending_ack
@@ -482,7 +483,7 @@ class CACell:
         _needs_confirm marks exactly this case; only confirm_read() clears
         it, matching the host-side "memory-reading top command layer"
         #77 describes -- something a cell cannot determine about itself."""
-        fired = (~value) & _MASK32 if self.invert_out else value & _MASK32
+        fired = (~value) & self.mask if self.invert_out else value & self.mask
         self.out_buffer = fired
         route = self.routing_mask & _MASK4 if route_override is None else route_override
         route &= _MASK4

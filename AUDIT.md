@@ -1,5 +1,12 @@
 # Root Python Consolidation Audit (2026-06-22)
 
+> **Status (2026-10-06): historical.** This June 2026 audit of the 76
+> root-level `.py` files was overtaken by the archeology sweeps. There are no
+> `.py` files at the repo root now: the active code is in `nano/` and
+> `tools/`, and the older files are in `archeology/` (see
+> `current/VM_CORE_GAP_ANALYSIS.md`, also historical, and
+> `docs/shared/STRUCTURE_AUDIT.md`).
+
 76 `.py` files at the repo root. This audit classifies them, proposes a package
 layout, and flags the decisions only Alan can make. **No files moved** — moving
 requires updating hundreds of import sites (see Execution risk) and resolving the

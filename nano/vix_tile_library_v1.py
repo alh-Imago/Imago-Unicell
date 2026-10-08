@@ -146,12 +146,18 @@ class VixTileSpec:
     description: str
     ports: List[TilePort] = field(default_factory=list)
     param_names: List[str] = field(default_factory=list)
+    # ledger #976: OPTIONAL core_config flags a compiler may set on a placed tile (default: absent = off), e.g. an adder's `carry_mode`. Unlike `param_names` they are never required, so
+    # no existing caller changes; `place(..., params={"carry_mode": 1})` writes them into the cell's core_config.
+    optional_params: List[str] = field(default_factory=list)
     fixed_core_config: dict = field(default_factory=dict)
     proven: str = "sim-only"  # matches CORES_AND_WRAPPERS_REFERENCE.md's own vocabulary
     arrivals_needed: int = 1
 
     def port_names(self) -> List[str]:
         return [p.name for p in self.ports]
+
+
+_SECOND_ALIAS = {"carry_mode": "second_output", "wide_mode": "second_output"}
 
 
 def place(tile: VixTileSpec, port_directions: Dict[str, str],
@@ -168,10 +174,16 @@ def place(tile: VixTileSpec, port_directions: Dict[str, str],
     `cells` list (`icm_vix_v1.py`). Reuses `super_tile_library_v1.
     _resolve()` directly for port/param validation and direction-
     grouping -- the same real contract, not a re-derived one."""
+    params = {_SECOND_ALIAS.get(k, k) if tile.core in ("adder", "mul") else k: v for k, v in (params or {}).items()}   # ledger #980: carry_mode / wide_mode -> second_output
+    optional = {k: v for k, v in (params or {}).items() if k in tile.optional_params}
+    params = {k: v for k, v in (params or {}).items() if k not in tile.optional_params} if optional else params
     field_dirs, resolved_params = _resolve_ports(tile, port_directions, params)  # type: ignore[arg-type]
     core_config = dict(tile.fixed_core_config)
     core_config.update(field_dirs)
     core_config.update(resolved_params)
+    if isinstance(optional.get("second_downstream_mask"), str):          # ledger #981: "se" -> ["s", "e"]
+        optional["second_downstream_mask"] = list(optional["second_downstream_mask"])
+    core_config.update(optional)
     return HierCell(
         cell_id=cell_id, rel_row=rel_row, rel_col=rel_col, core=tile.core,
         core_config=core_config, addon_config=addon_config or {},
@@ -281,6 +293,7 @@ TILE_ADDER = register(VixTileSpec(
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
     arrivals_needed=2,
+    optional_params=["second_output", "second_downstream_mask"],  # ledger #976/#980/#981 (FLEX family only; `carry_mode` is an accepted alias): the ONE flag the compiler sets to ask for the carry-out as a second output word, delivered after the sum to the same downstream
 ))
 
 TILE_SUBTRACTOR = register(VixTileSpec(
@@ -291,18 +304,29 @@ TILE_SUBTRACTOR = register(VixTileSpec(
            TilePort("out", "out", "downstream_mask")],
     fixed_core_config={"subtract_mode": 1},
     arrivals_needed=2,
+    optional_params=["second_output", "second_downstream_mask"],  # ledger #976/#980/#981 (flex only; `carry_mode` is an alias): the raw carry of a + ~b + 1, i.e. NOT-borrow
 ))
 
 TILE_MUL = register(VixTileSpec(
     name="mul", core="mul",
     description="Points.md #724: combinational 32-bit multiply, "
                  "truncated product (Product[31:0] only, matching LLVM "
-                 "IR's own mul truncation semantics). Same real shared-"
-                 "upstream_mask shape as adder -- confirmed against "
-                 "mul_cell_v4c.v directly: no subtract-mode equivalent "
-                 "exists (bit [12] is genuine reserved headroom).",
+                 "IR's own mul truncation semantics) by default. Same "
+                 "real shared-upstream_mask shape as adder -- confirmed "
+                 "against mul_cell_v4c.v directly: no subtract-mode "
+                 "equivalent exists (bit [12] is genuine reserved "
+                 "headroom in v4/v4c). Points.md #853/#854: that "
+                 "headroom now carries a real `wide_mode` param -- when "
+                 "set, the SAME 'out' port delivers the low half first, "
+                 "then (only once fully acked) the product's real high "
+                 "half, mirroring mul_cell_v5/v5c.v's own tested RTL "
+                 "exactly. No new port: a wide_mode consumer sees two "
+                 "real, sequential deliveries on the one 'out' port, not "
+                 "a second port to wire up.",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
+    optional_params=["second_downstream_mask"],   # ledger #981 (flex only): faces the second word leaves by; absent = same faces as the first
+    param_names=["second_output"],   # ledger #980: canonical name; `wide_mode` is an accepted alias (place() renames it)
     arrivals_needed=2,
 ))
 
@@ -404,4 +428,5 @@ TILE_PRIORITY = register(VixTileSpec(
     ports=[TilePort("in", "in", "upstream_mask"), TilePort("out", "out", "downstream_mask")],
     param_names=["priority_rank_n", "priority_rank_s", "priority_rank_e", "priority_rank_w",
                  "scheduling_mode"],
+    optional_params=["sequence_len", "sequence_0", "sequence_1", "sequence_2", "sequence_3"],   # ledger #1018: the sequenced channel's turn order
 ))

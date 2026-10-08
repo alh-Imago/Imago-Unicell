@@ -550,11 +550,30 @@ def generate_single_core_top(top_name, module_name, base_name, n, rows, cols, ce
     return "\n".join(lines) + "\n"
 
 
+def load_man_identity(path):
+    """Vendor-neutral: the facts every consumer of a MAN file needs regardless of vendor (points.md #887).
+    The VM mirror only needs the card id and a name; it must not require Intel-only fields (`alm_total`,
+    `CLK_100M`, ...) just to lay out a grid."""
+    with open(path) as f:
+        man = json.load(f)
+    return {"card_id": man["card_id"], "part": man["device"]["part"],
+            "vendor": man.get("vendor", "intel"), "man_version": man.get("man_version")}
+
+
 def load_man(path):
     with open(path) as f:
         man = json.load(f)
     device = man["device"]
     board = man["board"]
+    # points.md #887: this loader drives the QUARTUS project generator and is Intel/Arria-shaped end to end
+    # (family string, ALM budget, CLK_100M, LED0_N/LED1_N). Refuse a foreign-vendor MAN with a clear message
+    # instead of a bare KeyError deep inside the generator.
+    if man.get("vendor", "intel") != "intel" or device.get("alm_total") is None:
+        raise ValueError(
+            f"{path}: MAN file {man.get('card_id')!r} describes a non-Intel device "
+            f"(vendor={man.get('vendor')!r}; logic is counted in {device.get('logic', {}).get('unit', '?')}, not ALM). "
+            f"The Quartus project generator supports Intel MAN files only; use load_man_identity() for "
+            f"vendor-neutral facts or the target's own toolchain flow.")
     return {
         # Real, deliberate choice: NOT device["family"] directly (the
         # MAN file's own value is "Arria 10 GX", a real, accurate
@@ -1435,8 +1454,8 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--man", required=True, help="Path to a MAN file (real card capabilities)")
-    ap.add_argument("--cells", required=True, type=int, help="Number of cells to generate")
+    ap.add_argument("--man", default=None, help="Path to a MAN file (real card capabilities). Required for every mode except `-s flex` given -w (see -s/-w).")
+    ap.add_argument("--cells", default=None, type=int, help="Number of cells to generate (not used with --icm: the ICM file defines the cells)")
     ap.add_argument("--output", required=True, help="Output folder for the generated project (required -- prevents build artifacts landing inside the tracked repo by accident)")
     ap.add_argument("--top", default=None, help="Top-level module name (default: auto-generated)")
     ap.add_argument("-S", "--single-core", default=None,
@@ -1463,7 +1482,98 @@ def main():
                      help="points.md #590: real, inline comma-separated dependency list (e.g. \"compare_cell_v3.v,latch_cell_v3.v,ram_cell_v1.v,...\") -- an alternative to --file-list for a short real override. Takes precedence over --file-list if both are given.")
     ap.add_argument("--target", default="quartus", choices=["quartus", "yosys"],
                      help="points.md #663: 'quartus' (default) generates the real .qsf/.sdc pair this tool always has. 'yosys' generates a real .ys synthesis script instead (synth_intel_alm -family cyclone10gx -- the closest real family Yosys supports; Arria 10 has NO real model in this open-source techlib, so this gives a genuine same-generation ALM ballpark, not a real Arria 10 number). Cannot combine with --probe.")
+    ap.add_argument("-s", "--family", default=None, choices=["flex", "sub", "nano"],
+                     help="Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s. For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1).")
+    ap.add_argument("--icm", default=None, metavar="FILE",
+                     help="STEP 2 of the Flex-Sub plan: read this ICM-VIX file (*.icm-hier.json) as a map and generate the design it describes as Verilog into --output. Requires -s sub (fixed-latency design: tools/flexsub_icm_generate_v1.py) or -s flex (handshake design: tools/flexsub_icm_flex_v1.py, ledger #944 onward); --cells is not used.")
+    ap.add_argument("--nowidelut", action="store_true",
+                     help="Gowin synthesis (-s flex / -s sub, step-1 chains and --icm): FORCE `synth_gowin -nowidelut`. This is already the DEFAULT for the Gowin generators (ledger #951 / Alan's "
+                          "ruling after #950: smaller in every cell measured, ~3x smaller and ~3x faster for the LUT multiplier); the card's MAN (synthesis.nowidelut) decides the default, and "
+                          "forcing it where the MAN says the toolchain does not support it (the Arria 10 / synth_intel_alm path) is refused.")
+    ap.add_argument("--wide-lut", action="store_true",
+                     help="Opt OUT of the -nowidelut default: write the historical `synth_gowin` line (wide-LUT / MUX2_LUT mapping). Same Gowin-only scope as --nowidelut.")
+    ap.add_argument("--merge-mode", default="arbitrate", metavar="SPEC",
+                     help="With -s flex --icm: the mode of the MERGE core (merge_cell_v4sa) placed at each ICM merge, chosen PER MERGE. SPEC is a default mode, or 'consumer=mode,...,default': "
+                          "e.g. 'arbitrate', 'join-or', or 's0.gather=join-or,arbitrate'. arbitrate (default) = take one source at a time, round-robin: right when the paths are ALTERNATIVES "
+                          "(a branch's outcomes rejoining, e.g. the cordic's gather). join-or = WAIT for all sources, then OR: right when the paths are HALVES of one item (the VM's 'free OR' "
+                          "used as a feature). Merges of 3-4 sources become a tree of two-input cores. A core is placed only where an ICM merge exists.")
+    ap.add_argument("--mul", default="auto", choices=["auto", "lut", "dsp"],
+                     help="With --icm: how `mul` cells are realised. auto (default) = the DSP cell (mul_cell_v4s_dsp2, one MULT36X36, a few dozen LUTs) while the MAN's card has DSP blocks left, the exact LUT multiplier (~4,277 LUT4 each) as the fall back, and a refusal if even that cannot fit the card; lut = always the LUT multiplier; dsp = always DSP (refused if the card has too few). Needs --man for resource information; without one auto uses the LUT multiplier.")
+    ap.add_argument("--no-align", action="store_true",
+                     help="With --icm: do NOT pad early adder operands with relay cells. A negative control -- the generated design is then expected to compute the wrong answer.")
+    ap.add_argument("-w", "--width", type=int, default=None,
+                     help="Cell data width for `-s flex` (e.g. -w 18). Overrides the MAN file's device.logic.native_width; required when no --man is given. Rejected with `-s sub` (fixed 32) and with the default/nano path.")
     args = ap.parse_args()
+    if args.nowidelut and args.wide_lut:
+        ap.error("--nowidelut and --wide-lut contradict each other")
+    if (args.nowidelut or args.wide_lut) and args.family not in ("flex", "sub"):
+        ap.error("--nowidelut / --wide-lut are Gowin `synth_gowin` options and apply only to -s flex / -s sub (the generated .ys scripts); the original nano/Quartus path targets "
+                 "synth_intel_alm, which has no such option -- it would be silently ignored, so it is refused")
+    args.nowidelut_request = True if args.nowidelut else (False if args.wide_lut else None)
+    if args.merge_mode != "arbitrate" and not (args.icm and args.family == "flex"):
+        ap.error("--merge-mode applies only to -s flex --icm (the merge core exists in the flex family)")
+
+    if args.icm:
+        if args.family not in ("sub", "flex"):
+            print("error: --icm needs -s sub or -s flex", file=sys.stderr)
+            return 1
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import flexsub_icm_generate_v1 as fig
+        try:
+            r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
+                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode, width=args.width)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        if r.get("family") == "flex":
+            print(f"Family: flex   Source: {r['source']}   Cells: {r['cells']}   Forks: {len(r['forks'])}   Joins: {len(r['joins'])}")
+            print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})   (handshake design: no alignment, no padding)")
+            return 0
+        print(f"Family: sub   Source: {r['source']}   Cells: {r['cells']}   Pad relay cells: {r['pad_relay_cells']}"
+              f"{'' if r['align'] else '   (ALIGNMENT OFF: negative control)'}")
+        print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
+        for c, t in r["output_latency_cycles"].items():
+            print(f"Latency to output {c}: {t} cycles")
+        return 0
+
+    if args.family in ("flex", "sub"):
+        # Step 1 of the Flex-Sub plan: a separate, additive path; nothing below this block runs.
+        _ignored = [n for n, v in (("--logiclock", args.logiclock), ("--shell-file", args.shell_file),
+                                   ("--shell-module", args.shell_module), ("--file-list", args.file_list),
+                                   ("--files", args.files), ("--probe", args.probe),
+                                   ("--target", args.target if args.target != "quartus" else None),
+                                   ("--shell", args.shell if args.shell != "v3" else None)) if v]
+        if _ignored:
+            print(f"error: {', '.join(_ignored)} do not apply with -s {args.family} (carrier/shell-lineage options)", file=sys.stderr)
+            return 1
+        if args.cells is None:
+            ap.error("the following arguments are required: --cells")
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import flexsub_assemble_v1 as fsa
+        try:
+            r = fsa.assemble_flexsub(args.family, args.single_core, args.cells, args.output,
+                                     man_path=args.man, width_arg=args.width, top=args.top,
+                                     cell_dir=args.core_path, nowidelut=args.nowidelut_request)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        print(f"Family: {args.family} ({r['cell_module']})")
+        print(f"Cells:  {r['cells']}  Width: {r['width']}  (from {r['width_source']})")
+        print(f"Card:   {r['man'] or 'none (no --man)'}")
+        print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
+        print("Build:  " + os.path.join(args.output, "build.sh") + ("  (synthesis + place-and-route)" if r["pnr"] else "  (synthesis only)"))
+        return 0
+
+    if args.family is None or args.family == "nano":
+        if args.width is not None:
+            ap.error("-w/--width only applies with -s flex")
+    _missing = [n for n, v in (("--man", args.man), ("--cells", args.cells)) if not v]
+    if _missing:
+        ap.error("the following arguments are required: " + ", ".join(_missing))
+    if args.no_align:
+        ap.error("--no-align only applies with --icm")
+    if args.mul != "auto":
+        ap.error("--mul only applies with --icm")
 
     if args.shell_file and not args.shell_module:
         print("error: --shell-file requires --shell-module (the real module name inside that file)", file=sys.stderr)

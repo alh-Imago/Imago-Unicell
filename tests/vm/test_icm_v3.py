@@ -132,10 +132,10 @@ def test_unassigned_core_select_is_inert_not_error_on_decode():
     # inert (all outputs zero), not X. decode_super_latch should reflect
     # that: readable, flagged as reserved, not raising.
     # points.md #823: 8 and 9 are now SEL_MUL/SEL_PRIORITY -- probe 10,
-    # the next value still genuinely unassigned.
-    latch = 10
+    # the next value still genuinely unassigned. 10 is now SEL_CROSS and 11 SEL_CORNER (wiring tiles), 11 SEL_CORNER and 12 SEL_MERGE, so probe 13.
+    latch = 13
     decoded = v3.decode_super_latch(latch)
-    assert decoded["core"] == "reserved_10"
+    assert decoded["core"] == "reserved_13"
     assert decoded["core_config"] == {"_raw": 0}
 
 

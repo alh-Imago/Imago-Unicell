@@ -84,6 +84,22 @@ COMMAND_PROG_ID_COMPLETE = 7
 
 _DIR_FROM_CODE = {0: N, 1: S, 2: E, 3: W}
 
+# points.md #868: command's OWN incremental self-reprogram table, mirroring
+# command_cell_v4.v's own real `case (prog_id)` block line for line
+# (PROG_ID_MODE/POLARITY -> prog_word[0]; DRIVE_DIR -> prog_word[2:0];
+# TOGGLE_PATTERN -> prog_word[3:0]; COMPLETE -> program_done + armed <=
+# prog_word[0]). Until #868 the VM had NO such path: program_word() raised
+# "no PROG_ID table exists for this core type" on a command cell, so #863's
+# RTL-proven arm/disarm cycle could not be exercised at the VM level at all.
+_COMMAND_PROG_TABLE = {
+    PROG_ID_MODE: ("bool", "command_mode"),
+    PROG_ID_POLARITY: ("bool", "command_polarity"),
+    PROG_ID_DRIVE_DIR: ("raw3", "command_drive_dir"),
+    PROG_ID_TOGGLE_PATTERN: ("raw4", "command_toggle_pattern"),
+    COMMAND_PROG_ID_COMPLETE: ("complete", None),
+}
+_COMMAND_RAW_MASK = {"raw3": 0x7, "raw4": 0xF}
+
 
 @dataclass
 class VixCarrierCell(SuperCell):
@@ -119,6 +135,32 @@ class VixCarrierCell(SuperCell):
     #: cell is one of a slot's own 9 co-resident cores -- `None` for a
     #: plain, standalone cell in an ordinary `VixCarrierGrid`.
     _owning_slot: Optional["VixCarrierSlot"] = None
+
+    # points.md #868: real, RTL-faithful self-reprogramming for the command
+    # cell itself (see _COMMAND_PROG_TABLE). Every other core type keeps its
+    # own, unchanged SuperCell dispatch.
+    def _prog_table(self):
+        if self.core == "command":
+            return _COMMAND_PROG_TABLE
+        return super()._prog_table()
+
+    def program_word(self, prog_id: int, data: int) -> None:
+        if self.core != "command":
+            return super().program_word(prog_id, data)
+        entry = _COMMAND_PROG_TABLE.get(prog_id)
+        if entry is None:
+            return   # unrecognized ID: no-op, matching the RTL's own `default: ;`
+        kind, field = entry
+        if kind == "complete":
+            # Unlike the 8 other cores (which model no armed gate at all),
+            # command really has one: COMPLETE writes it, and NOTHING else
+            # ever clears it -- not even finishing a relay sequence.
+            self._prog_program_done = True
+            self.command_armed = bool(data & 1)
+        elif kind == "bool":
+            setattr(self, field, bool(data & 1))
+        else:
+            setattr(self, field, data & _COMMAND_RAW_MASK[kind])
 
     def _resolve_command_target(self):
         """Points.md #658: real dynamic resolution for a slot-embedded
@@ -276,7 +318,11 @@ def _relay_word(self: VixCarrierCell, word: int, toggle_match: bool) -> None:
             self._propagate_freeze(False)
         return
 
-    if target.core not in _PROG_TABLES and target.core != "nano":
+    # points.md #868: ask the TARGET for its own table (polymorphic) instead of
+    # testing membership in the original 8-core dict -- otherwise a command cell
+    # could never relay into another command cell, even though the RTL has both
+    # the drive side (prog_data_out) and the receive side (prog_data_in).
+    if target._prog_table() is None and target.core != "nano":
         raise NotImplementedError(
             f"command cell's own programmer-mode relay has no real PROG_ID table for "
             f"core {target.core!r} -- unrecognized core type, not silently skipped here"

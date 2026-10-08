@@ -1,0 +1,59 @@
+columns:  LUT4 / MUX2_LUT / ALU / DFF   (synthesis only)
+
+SUB family (v4s), one cell each:
+  sub: accumulator                   default     66/    16/  64/  113   nowidelut     53/  0/  64/  113   LUT4 default/nowidelut 1.25x  <== differs
+  sub: adder                         default     33/    16/  32/   74   nowidelut     51/  0/  32/   74   LUT4 default/nowidelut 0.65x
+  sub: branch                        default    173/    94/  64/   79   nowidelut    149/  0/  64/   79   LUT4 default/nowidelut 1.16x  <== differs
+  sub: compare                       default     55/    38/  32/   43   nowidelut     22/  0/  32/   43   LUT4 default/nowidelut 2.50x  <== differs
+  sub: latch                         default     15/     1/   0/   44   nowidelut     12/  0/   0/   44   LUT4 default/nowidelut 1.25x  <== differs
+  sub: mask                          default     65/    16/   0/   83   nowidelut     83/  0/   0/   83   LUT4 default/nowidelut 0.78x
+  sub: mul                           default   3685/  2885/  32/   74   nowidelut   1118/  0/  32/   74   LUT4 default/nowidelut 3.30x  <== differs
+  sub: mul_dsp                       default   3685/  2885/  32/   74   nowidelut   1116/  0/  32/   74   LUT4 default/nowidelut 3.30x  <== differs
+  sub: mul_dsp2                      default     33/    16/   0/   74   nowidelut     51/  0/   0/   74   LUT4 default/nowidelut 0.65x
+  sub: mul_dsp3                      default    101/    16/  32/  159   nowidelut     88/  0/  32/  159   LUT4 default/nowidelut 1.15x  <== differs
+  sub: nano                          default   1558/  1303/   0/  116   nowidelut    332/  0/   0/  116   LUT4 default/nowidelut 4.69x  <== differs
+  sub: ram                           default     64/    16/   0/   74   nowidelut     51/  0/   0/   74   LUT4 default/nowidelut 1.25x  <== differs
+  sub: router                        default     76/    62/   0/   76   nowidelut     52/  0/   0/   76   LUT4 default/nowidelut 1.46x  <== differs
+  sub: sequencer                     default     55/    10/   0/   84   nowidelut     48/  0/   0/   84   LUT4 default/nowidelut 1.15x  <== differs
+  sub: shift                         default   3303/  2573/  62/   86   nowidelut   1099/  0/  62/   86   LUT4 default/nowidelut 3.01x  <== differs
+  sub: shift_stage                   default     33/    16/   0/   74   nowidelut     51/  0/   0/   74   LUT4 default/nowidelut 0.65x
+
+FLEX family (v4sa), one cell each:
+  accumulator                        (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  adder                              (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  branch                             (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  compare                            (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  latch                              (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  mask                               (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  mul                                (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  mul_dsp                            (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  nano                               (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  ram                                (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  router                             (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  sequencer                          (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+  shift_stage                        (not generated: -s flex needs either --man (its native_width sets WIDTH) or -w N (e.g.)
+
+ORIGINAL nano family (v4 cells, shifter included), -noiopads as the repo's own sizing script:
+  nano(v4) full: ram_cell_v4         default   2416/  1503/  55/  100   nowidelut   1241/  0/  55/  100   LUT4 default/nowidelut 1.95x  <== differs
+  nano(v4) full: latch_cell_v4       default    243/    58/  24/   38   nowidelut    210/  0/  24/   38   LUT4 default/nowidelut 1.16x  <== differs
+  nano(v4) full: accumulator_cell_v4 default   2398/  1533/ 183/  129   nowidelut   1171/  0/ 183/  129   LUT4 default/nowidelut 2.05x  <== differs
+  nano(v4) full: compare_cell_v4     default    575/   184/  56/   61   nowidelut    408/  0/  56/   61   LUT4 default/nowidelut 1.41x  <== differs
+  nano(v4) full: branch_cell_v4      default   3036/  2122/  87/  140   nowidelut   1237/  0/  87/  140   LUT4 default/nowidelut 2.45x  <== differs
+  nano(v4) full: sequencer_cell_v4   default    686/   291/  31/   69   nowidelut    460/  0/  31/   69   LUT4 default/nowidelut 1.49x  <== differs
+  nano(v4) full: adder_cell_v4       default   2348/  1517/  87/  101   nowidelut   1130/  0/  87/  101   LUT4 default/nowidelut 2.08x  <== differs
+  nano(v4) full: nano_gate_v4        default   3898/  2752/  55/  113   nowidelut   1672/  0/  55/  113   LUT4 default/nowidelut 2.33x  <== differs
+  nano(v4) full: mul_cell_v4         default   7015/  4746/  87/  100   nowidelut   2454/  0/  87/  100   LUT4 default/nowidelut 2.86x  <== differs
+
+ORIGINAL nano family, `lean` (shifter replaced by pass-through stubs):
+  nano(v4) lean: ram_cell_v4         default    397/   116/   0/   80   nowidelut    345/  0/   0/   80   LUT4 default/nowidelut 1.15x  <== differs
+  nano(v4) lean: latch_cell_v4       default    186/   126/   0/   25   nowidelut     93/  0/   0/   25   LUT4 default/nowidelut 2.00x  <== differs
+  nano(v4) lean: accumulator_cell_v4 default    360/    93/ 128/  109   nowidelut    269/  0/ 128/  109   LUT4 default/nowidelut 1.34x  <== differs
+  nano(v4) lean: compare_cell_v4     default    484/   183/  32/   48   nowidelut    315/  0/  32/   48   LUT4 default/nowidelut 1.54x  <== differs
+  nano(v4) lean: branch_cell_v4      default    718/   356/  32/  120   nowidelut    345/  0/  32/  120   LUT4 default/nowidelut 2.08x  <== differs
+  nano(v4) lean: sequencer_cell_v4   default    173/    48/   0/   55   nowidelut    145/  0/   0/   55   LUT4 default/nowidelut 1.19x  <== differs
+  nano(v4) lean: adder_cell_v4       default    248/    50/  32/   81   nowidelut    211/  0/  32/   81   LUT4 default/nowidelut 1.18x  <== differs
+  nano(v4) lean: nano_gate_v4        default   1750/  1186/   0/   93   nowidelut    760/  0/   0/   93   LUT4 default/nowidelut 2.30x  <== differs
+  nano(v4) lean: mul_cell_v4         default   5723/  4197/  32/   80   nowidelut   1562/  0/  32/   80   LUT4 default/nowidelut 3.66x  <== differs
+
+SUMMARY: 34 cells measured; the flag changed LUT4 by more than 5% in 30: ['nano/accumulator_cell_v4/full', 'nano/accumulator_cell_v4/lean', 'nano/adder_cell_v4/full', 'nano/adder_cell_v4/lean', 'nano/branch_cell_v4/full', 'nano/branch_cell_v4/lean', 'nano/compare_cell_v4/full', 'nano/compare_cell_v4/lean', 'nano/latch_cell_v4/full', 'nano/latch_cell_v4/lean', 'nano/mul_cell_v4/full', 'nano/mul_cell_v4/lean', 'nano/nano_gate_v4/full', 'nano/nano_gate_v4/lean', 'nano/ram_cell_v4/full', 'nano/ram_cell_v4/lean', 'nano/sequencer_cell_v4/full', 'nano/sequencer_cell_v4/lean', 'sub/accumulator', 'sub/branch', 'sub/compare', 'sub/latch', 'sub/mul', 'sub/mul_dsp', 'sub/mul_dsp3', 'sub/nano', 'sub/ram', 'sub/router', 'sub/sequencer', 'sub/shift']
+         total LUT4 across all measured cells: default 45654, nowidelut 18404

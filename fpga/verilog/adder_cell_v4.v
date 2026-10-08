@@ -45,6 +45,7 @@
 // cardinal channel remains genuinely unbuilt (#84), same as
 // everywhere else in this project today.
 //
+// ledger #1036: cfg_data[39:34] = second_downstream_mask, cfg_data[33] = second_output (carry word)
 // cfg_data[63:0] field map (atomic boot-load path, unchanged from v1):
 //   [5:0]   downstream_mask  — one-hot(s), N/S/E/W real + 2 reserved
 //   [11:6]  upstream_mask    — one-hot(s), N/S/E/W real + 2 reserved
@@ -107,6 +108,13 @@ module adder_cell_v4 #(
     reg [5:0]  downstream_mask = 6'h0;
     reg [5:0]  upstream_mask   = 6'h0;
     reg        subtract_mode   = 1'b0;
+    // ledger #1036: the optional SECOND OUTPUT word (the carry-out, 0/1) -- cfg_data[33] second_output, cfg_data[39:34] second_downstream_mask (0 = the carry leaves by downstream_mask
+    // like the sum). Same two-phase delivery as the multiplier's wide_mode: the sum, then (once it is fully acknowledged) the carry; no new operand is taken meanwhile.
+    reg        second_output   = 1'b0;
+    reg [5:0]  second_downstream_mask = 6'h0;
+    reg        captured_carry  = 1'b0;
+    reg        delivering_carry = 1'b0;
+    reg        phase1_offered  = 1'b0;
     reg [19:0] addon_config    = 20'h0;
     reg [3:0]  pending_ack     = 4'h0;
     // points.md #617: real, staged-reconfiguration arm state,
@@ -140,7 +148,8 @@ module adder_cell_v4 #(
                                (sel_e ? data_in_e : 32'h0) |
                                (sel_w ? data_in_w : 32'h0);
 
-    wire capture_now = any_upstream_arrived && !a_arrived && !effective_freeze &&
+    wire block_for_second = second_output && data_valid;
+    wire capture_now = any_upstream_arrived && !a_arrived && !effective_freeze && !block_for_second &&
                        effective_armed && !program_in;
     wire can_fire = any_upstream_arrived && a_arrived && !data_valid && !effective_freeze &&
                     effective_armed && !program_in;
@@ -169,11 +178,13 @@ module adder_cell_v4 #(
                              (!downstream_mask[3] || ready_in_w);
 
     wire [3:0] ack_in_vec = {ack_in_w, ack_in_e, ack_in_s, ack_in_n};
-    wire any_fire = want_to_offer && (pending_ack == 4'h0) && targets_all_ready;
+    wire any_fire = want_to_offer && !phase1_offered && (pending_ack == 4'h0) && targets_all_ready;
     wire [3:0] next_pending_ack = any_fire              ? (downstream_mask[3:0] & ~ack_in_vec) :
                                   (pending_ack != 4'h0)  ? (pending_ack     & ~ack_in_vec) :
                                                            pending_ack;
     wire offer_draining = (pending_ack != 4'h0) && (next_pending_ack == 4'h0);
+    wire start_carry_phase = offer_draining && second_output && !delivering_carry;
+    wire genuinely_done    = offer_draining && !start_carry_phase;
 
     assign fire_n = pending_ack[0];
     assign fire_s = pending_ack[1];
@@ -208,7 +219,7 @@ module adder_cell_v4 #(
     // Real, honest gating: ready_out reflects `armed` the same way
     // nano's own real ready_out does (`ready_bit && armed`, #615) —
     // an inactive or disarmed cell is never ready.
-    assign ready_out = effective_armed && !effective_freeze && !(a_arrived && data_valid);
+    assign ready_out = effective_armed && !effective_freeze && !(a_arrived && data_valid) && !block_for_second;
     assign status_data_valid = data_valid;
     assign status_a_arrived  = a_arrived;
 
@@ -234,6 +245,8 @@ module adder_cell_v4 #(
     localparam [2:0] PROG_ID_UPSTREAM_MASK   = 3'd1;
     localparam [2:0] PROG_ID_SUBTRACT_MODE   = 3'd2;
     localparam [2:0] PROG_ID_ADDON_CONFIG    = 3'd3;
+    localparam [2:0] PROG_ID_SECOND_OUTPUT   = 3'd4;   // ledger #1036 (word[0])
+    localparam [2:0] PROG_ID_SECOND_DOWNSTREAM_MASK = 3'd5;
     localparam [2:0] PROG_ID_COMPLETE        = 3'd7;
 
     wire prog_any_arrived = prog_arrived_in_n | prog_arrived_in_s | prog_arrived_in_e | prog_arrived_in_w;
@@ -266,6 +279,11 @@ module adder_cell_v4 #(
             downstream_mask <= 6'h0;
             upstream_mask   <= 6'h0;
             subtract_mode   <= 1'b0;
+            second_output   <= 1'b0;
+            second_downstream_mask <= 6'h0;
+            captured_carry  <= 1'b0;
+            delivering_carry <= 1'b0;
+            phase1_offered  <= 1'b0;
             addon_config    <= 20'h0;
             pending_ack     <= 4'h0;
             armed           <= 1'b0;
@@ -276,6 +294,10 @@ module adder_cell_v4 #(
             downstream_mask <= cfg_data[5:0];
             upstream_mask   <= cfg_data[11:6];
             subtract_mode   <= cfg_data[12];
+            second_output   <= cfg_data[33];
+            second_downstream_mask <= cfg_data[39:34];
+            delivering_carry <= 1'b0;
+            phase1_offered  <= 1'b0;
             addon_config    <= cfg_data[32:13];
             a_arrived       <= 1'b0;
             data_valid      <= 1'b0;
@@ -289,6 +311,8 @@ module adder_cell_v4 #(
                 PROG_ID_DOWNSTREAM_MASK: downstream_mask <= prog_word[5:0];
                 PROG_ID_UPSTREAM_MASK:   upstream_mask   <= prog_word[5:0];
                 PROG_ID_SUBTRACT_MODE:   subtract_mode   <= prog_word[0];
+                PROG_ID_SECOND_OUTPUT:   second_output   <= prog_word[0];
+                PROG_ID_SECOND_DOWNSTREAM_MASK: second_downstream_mask <= prog_word[5:0];
                 PROG_ID_ADDON_CONFIG:    addon_config    <= prog_word[19:0];
                 PROG_ID_COMPLETE: begin
                     program_done_r <= 1'b1;
@@ -300,16 +324,24 @@ module adder_cell_v4 #(
             if (can_fire) begin
                 out_buffer <= adder_sum;
                 data_valid <= 1'b1;
+                captured_carry   <= adder_cout;
+                delivering_carry <= 1'b0;
+                phase1_offered   <= 1'b0;
                 a_arrived  <= 1'b0;
             end else if (capture_now) begin
                 a_reg     <= upstream_val;
                 a_arrived <= 1'b1;
             end
 
-            if (offer_draining) begin
+            if (start_carry_phase) begin
+                out_buffer       <= {31'h0, captured_carry};
+                delivering_carry <= 1'b1;
+            end else if (genuinely_done) begin
                 data_valid <= 1'b0;
             end
-            pending_ack <= next_pending_ack;
+            if (any_fire) phase1_offered <= 1'b1;
+            // a phase transition re-arms pending_ack this very cycle (no window where it reads 0 while data_valid is still high)
+            pending_ack <= start_carry_phase ? ((|second_downstream_mask[3:0]) ? second_downstream_mask[3:0] : downstream_mask[3:0]) : next_pending_ack;
 
             if (!program_in) program_done_r <= 1'b0;
         end

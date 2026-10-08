@@ -102,6 +102,7 @@ program my_program {
     define my_sentinel {
         place acc as accumulator at (0, 0) {
             out: e
+            step_amount: 1
         }
         place cmp as comparator at (0, 1) {
             in: w
@@ -168,20 +169,31 @@ can paper over.
 
 ## 4. Tier-0 tiles — built-in primitives
 
-One tile per physical core the super cell can become. Every tile below
-is verified directly against the live registry (`nano/
-super_tile_library_v1.py`), not transcribed from memory.
+One tile per physical core the super cell can become, plus fixed-
+configuration variants (`subtractor`, the `nano_*` loop tiles). Every
+tile below is verified directly against the live registry (`nano/
+super_tile_library_v1.py`), not transcribed from memory. Last
+re-checked against the registry 2026-10-06: 14 tiles. The `mul` and
+`priority` cores have no tile in this (Arria 10 lineage) library; the
+LLVM paths place them directly, and the VIX library
+(`nano/vix_tile_library_v1.py`) has its own tiles.
 
 | Tile | Ports | Params | Notes |
 |---|---|---|---|
-| `nano_gate` | `out` | `topology` | A two-arrival NOR-tree gate. Accepts input from **any** physically wired neighbor — there's no `in`-style port to configure, because this core has no `upstream_mask` at all. `target: universal` — the only tile that also runs on a plain Unicell-n grid (see §8). |
+| `nano_gate` | `out` | `topology` | A two-arrival NOR-tree gate. Accepts input from **any** physically wired neighbor — there's no `in`-style port to configure, because this core has no `upstream_mask` at all. `target: universal` — runs on a plain Unicell-n grid too (see §8), as do the four `nano_*` loop tiles below. |
 | `ram_constant` | `out` | `init_data` | A fixed value, offered forever. No `in` port — nothing ever recaptures it. |
 | `ram_flowing` | `in`, `out` | — | Captures one value, offers it, re-opens once drained. |
 | `adder` | `in_a`, `in_b`, `out` | — | 32-bit add. `in_a`/`in_b` **share one underlying field** — whichever configured direction's arrival lands first becomes A, the second becomes B; direction alone doesn't decide the role. |
-| `accumulator` | `inc`, `dec`, `out` | — | A running total, continuously offered. `inc`/`dec` are genuinely separate fields (unlike the adder). Same-tick arrivals on both net to zero. |
+| `subtractor` | `in_a`, `in_b`, `out` | — | The same adder core with `subtract_mode` fixed on: `A - B`. The same first-arrival-is-A rule applies, so operand order depends on arrival timing (`points.md` #611; see #926-#930 for how the LLVM paths pin it; since #1018 the compiled file records the turn order, so the saved file itself says which operand is A). |
+| `accumulator` | `inc`, `dec`, `out` | `step_amount` | A running total, continuously offered. Each `inc` arrival adds `step_amount` and each `dec` arrival subtracts it (8-bit, required; use `1` for a plain counter). `inc`/`dec` are genuinely separate fields (unlike the adder). Same-tick arrivals on both net to zero. `pulse_mode`/`threshold` are not exposed by this tile. |
 | `comparator` | `in`, `out` | `threshold` | Stateless: `1` if the input (signed) is `>= threshold`, else `0`. |
 | `latch` | `set`, `clear`, `out` | — | A continuously-live sticky bit. `clear` wins if both arrive the same tick. |
 | `branch` | `in`, `route_low`, `route_equal`, `route_high` | `rolling_mode` | Real, added `points.md` #608. Captures the first arrival as a reference (or continuously updates it if `rolling_mode` is set), then routes each later arrival out `route_low`/`route_equal`/`route_high` depending on how it compares against that reference. Always emits on every outcome — passes the arrived value straight through, no fixed-override params exposed yet. |
+| `sequencer` | `out` | `VALUE_0`…`VALUE_3`, `SEQUENCE_LEN` | A fixed cyclic sequence of up to 4 8-bit values, advancing when the current offer is acked; no input port. Param names are uppercase because the RTL's own field names are (`points.md` #609). |
+| `nano_hold_trigger` | `out` | — | Holds its first arrival and delivers it unchanged only on a later, separate trigger arrival, which decouples relay length from delivery timing (#700/#701). `target: universal`. |
+| `nano_loop_var` | `out` | — | A loop-carried variable's storage cell (PASS_A, `hold_in` fixed on). Its update/re-emit signals are control-plane signals, not tile params (#638). `target: universal`. |
+| `nano_loop_ctrl` | `continue_out`, `exit_out` | `pattern_low` | Ascending-loop exit decision: the loop variable is routed to `continue_out` while the bound is greater, else to `exit_out` (#652). `target: universal`. |
+| `nano_loop_ctrl_desc` | `continue_out`, `exit_out` | `pattern_high` | The descending-loop counterpart, with the patterns mirrored (#661). `target: universal`. |
 
 ## 5. Tier-1 tiles — built-in composed tiles
 
@@ -243,7 +255,7 @@ your own version with it fixed:
 ```
 program p {
     define alarm_at_10 {
-        place acc as accumulator at (0, 0) { out: e }
+        place acc as accumulator at (0, 0) { out: e  step_amount: 1 }
         place cmp as comparator at (0, 1) {
             in: w
             out: e
@@ -378,19 +390,29 @@ for the same logical program.
   answer. See `docs/stripped-cell/design-notes/
   llvm_ir_compiler_scope.md` for the original scoping note (some of
   what it named as future work has since shipped — check `points/
-  points_active.md` #612 onward for the real, current status rather
+  points/INDEX.md` (parts 7-11: #612 onward) for the real, current status rather
   than assuming the scope note alone is up to date).
 
 ## 8. Targets — Unicell-n vs. Unicell-S
 
 Every built-in tile is tagged `target: "universal"` or `target:
-"super-only"` (`points.md #339`). `nano_gate` is the only universal
-one — it's the only tile using nothing beyond the basic subset a plain
+"super-only"` (`points.md #339`). The `nano_*` tiles are the universal
+ones — they use nothing beyond the basic subset a plain
 Unicell-n cell (`unicell_stripped_v1.v` alone, no super shell) also
-has. Everything else uses one of Unicell-S's five extra cores (RAM,
-adder, accumulator, comparator, latch), which simply don't exist on a
-plain Unicell-n grid. This manual's own `place`/`define` grammar always
-targets Unicell-S; there's no dedicated Unicell-n program format yet.
+has. Everything else uses one of Unicell-S's other cores (RAM, adder,
+accumulator, comparator, latch, sequencer, branch), which simply don't
+exist on a plain Unicell-n grid. This manual's own `place`/`define`
+grammar always targets Unicell-S; there's no dedicated Unicell-n
+program format yet.
+
+**The Tang Nano 20K's sub/flex families are not a DSL target.** They
+are reached from a saved ICM file through the Flex-Sub assembler
+(`tools/project_assemble_v1.py -s sub|flex --icm FILE`; see
+`tools/README.md`), so a DSL program reaches them by being compiled to
+an ICM file first. Programs compiled from LLVM IR for those families go
+through `tools/flexsub_compile_v1.py`. That tool fixes the operand
+order of non-commutative operations and marks the result cell, which a
+plain DSL/LLVM ICM file does not record (`points.md` #926-#940).
 
 ## 9. What this isn't
 

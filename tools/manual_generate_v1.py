@@ -32,13 +32,21 @@ import os
 import re
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys  # noqa: E402
+sys.path.insert(0, os.path.join(REPO_ROOT, "nano"))
+import ui_theme_v1 as ui  # noqa: E402  (ledger #998: the shared look)
 
 # Real, curated list of this project's own real docs, in a sensible
 # reading order -- not everything in the repo, the ones that actually
 # help someone using the front end understand what they're doing.
 DEFAULT_SOURCES = [
     "README.md",
+    "sub/README.md",                                     # ledger #993: the current line's cells
+    "docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md",
+    "docs/stripped-cell/ICM_V3_FORMAT.md",
+    "docs/stripped-cell/ICM_VIX_FORMAT.md",
     "docs/man/README.md",
+    "docs/man/tang-nano-20k-getting-started.md",
     "docs/shapes/README.md",
     "tools/README.md",
     "docs/stripped-cell/SUPER_CELL_INTERNALS.md",
@@ -81,9 +89,23 @@ def convert_markdown(text, doc_id):
     in_code = False
     in_list = None  # 'ul' or 'ol' or None
     in_table = False
+    # Ledger #998: consecutive plain lines form ONE paragraph (previously each wrapped source line became its own
+    # <p>, so prose looked double-spaced and bold/italic spanning a line break never rendered).
+    para = []
+
+    def flush_para():
+        if para:
+            html_out.append(f"<p>{convert_inline(' '.join(para))}</p>")
+            para.clear()
+
     i = 0
     while i < len(lines):
         line = lines[i]
+        is_plain = (line.strip() != "" and not line.strip().startswith("```") and not re.match(r"^(#{1,4})\s+", line)
+                    and not re.match(r"^\s*---+\s*$", line) and not line.strip().startswith("|")
+                    and not re.match(r"^\s*[-*]\s+", line) and not re.match(r"^\s*\d+\.\s+", line))
+        if not in_code and not is_plain:
+            flush_para()
 
         if line.strip().startswith("```"):
             if not in_code:
@@ -162,9 +184,16 @@ def convert_markdown(text, doc_id):
             i += 1
             continue
 
-        html_out.append(f"<p>{convert_inline(line)}</p>")
+        if in_list and line[:1] in (" ", "\t") and html_out and html_out[-1].endswith("</li>"):
+            # An indented continuation of the previous list item: append it to that item.
+            html_out[-1] = html_out[-1][:-len("</li>")] + " " + convert_inline(line.strip()) + "</li>"
+            i += 1
+            continue
+
+        para.append(line.strip())
         i += 1
 
+    flush_para()
     if in_list:
         html_out.append(f"</{in_list}>")
     if in_table:
@@ -173,19 +202,21 @@ def convert_markdown(text, doc_id):
     return "\n".join(html_out), toc
 
 
+# Ledger #998: the manual uses the shared front-panel look (nano/ui_theme_v1.py); only its own two-column layout is here.
 MANUAL_CSS = """
-<style>
-body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #222; line-height: 1.6; }
-nav#toc { position: fixed; top: 20px; right: 20px; width: 220px; font-size: 0.8em; max-height: 90vh; overflow-y: auto; background: #fafafa; padding: 10px; border: 1px solid #ddd; }
-nav#toc a { display: block; text-decoration: none; color: #444; padding: 2px 0; }
-main { margin-right: 250px; }
-code { background: #f0f0f0; padding: 1px 4px; }
-pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
-table { border-collapse: collapse; margin: 10px 0; }
-th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
-hr { border: none; border-top: 1px solid #ddd; margin: 24px 0; }
-h1 { border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 40px; }
-</style>
+.manual { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 32px; align-items: start; }
+.manual nav#toc { position: sticky; top: 72px; max-height: calc(100vh - 96px); overflow-y: auto; font-size: 0.78rem;
+                  background: var(--bg-panel); border: 1px solid var(--line); padding: 10px 12px; order: 2; }
+.manual nav#toc a { display: block; color: var(--fg-dim); padding: 2px 0; font-family: var(--font-mono); }
+.manual nav#toc a:hover { color: var(--copper); text-decoration: none; }
+.manual article { min-width: 0; max-width: 860px; }
+.manual article h1 { border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 40px; }
+.manual article table { border-collapse: collapse; margin: 10px 0; font-size: 0.86rem; display: block; overflow-x: auto; }
+.manual article th, .manual article td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; color: var(--fg-dim); }
+.manual article th { color: var(--fg); font-family: var(--font-mono); font-weight: 500; }
+.manual article hr { border: none; border-top: 1px solid var(--line); margin: 24px 0; }
+.manual article p, .manual article li { max-width: none; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .manual { grid-template-columns: 1fr; } .manual nav#toc { position: static; max-height: 40vh; order: 0; } }
 """
 
 
@@ -204,20 +235,21 @@ def generate_manual(source_paths):
         all_toc.extend(toc)
 
     toc_html = "\n".join(
-        f'<a href="#{anchor}" style="margin-left:{(lvl-1)*10}px">{convert_inline(t)}</a>'
+        f'<a href="#{anchor}" style="padding-left:{(lvl-1)*10}px">{convert_inline(t)}</a>'
         for lvl, t, anchor in all_toc
     )
 
-    return f"""<!doctype html><html><head><meta charset="utf-8"><title>Imago UniCell Manual</title>{MANUAL_CSS}</head>
-<body>
-<nav id="toc">{toc_html}</nav>
-<main>
+    body = f"""<div class="manual">
+<nav id="toc" aria-label="Contents">{toc_html}</nav>
+<article>
+<div class="eyebrow">Manual &middot; generated live from the repository's docs</div>
 <h1 id="top">Imago UniCell Manual</h1>
 <p><i>Regenerated fresh from this project's own real docs -- not a
 separately hand-maintained copy. See tools/manual_generate_v1.py.</i></p>
 {"".join(body_parts)}
-</main>
-</body></html>"""
+</article>
+</div>"""
+    return ui.page("Manual", body, active="manual", app="frontpanel", extra_css=MANUAL_CSS, narrow=False)
 
 
 def main():

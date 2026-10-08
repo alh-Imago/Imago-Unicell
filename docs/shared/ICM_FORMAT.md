@@ -1,5 +1,12 @@
 # `.icm` File Format Specification
 
+> **Status (2026-10-06):** this is ICM **v2**, the format of the archived
+> full-cell line (addressed-bus `gs`/`in`/`out` records). Its claim that the
+> same file runs on any target "without modification" was true only for that
+> bus model. Current programs use **ICM v3/v4** (`docs/stripped-cell/ICM_V3_FORMAT.md`)
+> and **ICM-VIX** (`docs/stripped-cell/ICM_VIX_FORMAT.md`). Those are the formats
+> the VM, the compilers and the Tang Nano's Flex-Sub assembler read.
+
 **Promoted to `docs/` 2026-08-04 — genuinely shared/target-agnostic,
 per points.md #136's own finding (checked then, re-confirmed now): no
 compiler stage anywhere maps this format's logical addresses to either

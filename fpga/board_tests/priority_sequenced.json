@@ -1,0 +1,51 @@
+{
+ "name": "priority_sequenced",
+ "what": "priority core, sequenced channel with the fixed turn order south, west, west, north",
+ "expected": [
+  31,
+  21,
+  22,
+  11,
+  32,
+  23,
+  24,
+  12,
+  33,
+  25,
+  26,
+  13,
+  34
+ ],
+ "sim_line": "UCT priority_sequenced res=P n=000D e=000D bad=0000 to=0 last=0000001C sig=00013888 w=0000001F,00000015,00000016,0000000B,00000020,00000017,00000018,0000000C",
+ "inputs": {
+  "E1": [
+   11,
+   12,
+   13,
+   14,
+   15,
+   16
+  ],
+  "E2": [
+   21,
+   22,
+   23,
+   24,
+   25,
+   26
+  ],
+  "E3": [
+   31,
+   32,
+   33,
+   34,
+   35,
+   36
+  ]
+ },
+ "gaps": false,
+ "stalls": false,
+ "fmax_mhz": 139.5,
+ "lut4": 1106,
+ "dff": 471
+}

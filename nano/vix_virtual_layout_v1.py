@@ -638,9 +638,11 @@ def _lower(nodes: List[_Node]):
             shape = choose_convergence_shape(has_real_convergence=True, is_commutative=n.entry.is_commutative,
                                              all_arrival_ticks_knowable=False)
             seq = shape == ConvergenceShape.SEQUENCER
+            pri_params = {"priority_rank_n": 0, "priority_rank_s": 0, "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": 2 if seq else 0}
+            if seq:      # ledger #1018: the turn order is recorded in the cell's config (and so in the saved ICM)
+                pri_params.update({"sequence_len": 2, "sequence_0": _dir_const(faces[0]), "sequence_1": _dir_const(faces[1])})
             pri = vtl.place(vtl.TILE_PRIORITY, {"in": faces, "out": n.rot},
-                            params={"priority_rank_n": 0, "priority_rank_s": 0, "priority_rank_e": 0,
-                                    "priority_rank_w": 0, "scheduling_mode": 2 if seq else 0},
+                            params=pri_params,
                             cell_id=f"pri_{n.name}", rel_row=n.pos[0], rel_col=n.pos[1])
             cells.append(pri)
             cp = n.second()

@@ -43,7 +43,7 @@ module mul_shell_v1c #(
     wire active_comb = active_in_n | active_in_s | active_in_e | active_in_w;
     wire freeze_comb = freeze_in_n | freeze_in_s | freeze_in_e | freeze_in_w;
 
-    mul_cell_v4c #(.CELL_ID(CELL_ID)) CORE (
+    mul_cell_v5c #(.CELL_ID(CELL_ID)) CORE (
         .clk(clk), .rst(rst), .active(active_comb),
         .cfg_valid(cfg_valid), .cfg_data(cfg_data),
         .data_in_n(data_in_n), .data_in_s(data_in_s), .data_in_e(data_in_e), .data_in_w(data_in_w),

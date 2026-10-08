@@ -1,0 +1,48 @@
+{
+ "name": "relay_chain",
+ "what": "four ram cells in a row pass 16 distinct words through unchanged (the basic handshake)",
+ "expected": [
+  1,
+  4294967295,
+  2147483648,
+  2147483647,
+  305419896,
+  3735928559,
+  2779096485,
+  1515870810,
+  0,
+  1,
+  2,
+  3,
+  3405705229,
+  252645135,
+  4042322160,
+  42
+ ],
+ "sim_line": "UCT relay_chain res=P n=0010 e=0010 bad=0000 to=0 last=00000024 sig=8F73AB53 w=00000001,FFFFFFFF,80000000,7FFFFFFF,12345678,DEADBEEF,A5A5A5A5,5A5A5A5A",
+ "inputs": {
+  "E": [
+   1,
+   4294967295,
+   2147483648,
+   2147483647,
+   305419896,
+   3735928559,
+   2779096485,
+   1515870810,
+   0,
+   1,
+   2,
+   3,
+   3405705229,
+   252645135,
+   4042322160,
+   42
+  ]
+ },
+ "gaps": false,
+ "stalls": false,
+ "fmax_mhz": 128.5,
+ "lut4": 1792,
+ "dff": 652
+}

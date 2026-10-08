@@ -117,7 +117,7 @@ register(LibraryEntry(target="add", tile=vtl.TILE_ADDER, is_commutative=True,
 register(LibraryEntry(target="sub", tile=vtl.TILE_SUBTRACTOR, is_commutative=False,
                        port_style="named", extra_params={}))
 register(LibraryEntry(target="mul", tile=vtl.TILE_MUL, is_commutative=True,
-                       port_style="named", extra_params={}))
+                       port_style="named", extra_params={"second_output": 0}))
 register(LibraryEntry(target="and", tile=vtl.TILE_NANO_GATE, is_commutative=True,
                        port_style="unconditional", extra_params={"topology": 0x007}))
 register(LibraryEntry(target="or", tile=vtl.TILE_NANO_GATE, is_commutative=True,
@@ -184,4 +184,4 @@ register(LibraryEntry(target="copy", tile=vtl.TILE_RAM_FLOWING, is_commutative=T
 # NOT built. Here it lowers to the same `mul` core so the design still simulates, and the placer PINS it
 # to a site -- the binding is what a card build needs, and it is reported, never hidden. ──
 register(LibraryEntry(target="mul_dsp", tile=vtl.TILE_MUL, is_commutative=True,
-                       port_style="named", extra_params={}, resource="dsp"))
+                       port_style="named", extra_params={"second_output": 0}, resource="dsp"))

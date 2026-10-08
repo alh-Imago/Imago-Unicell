@@ -39,7 +39,7 @@ import icm_vix_v1 as vix
 import vix_tile_library_v1 as vtl
 
 
-def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = ""
+def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", target: Optional[str] = None
                             ) -> Tuple[Optional[vix.IcmVixFile], List[CompileDiagnostic]]:
     """The real, first VIX-targeting backend. Returns `(icm_vix_file,
     diagnostics)` -- `icm_vix_file` is `None` if any error-severity
@@ -96,6 +96,15 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = ""
         description=f"compiled from a Unicell-S program named '{program_ir.name}' "
                     f"(real, VIX Carrier target, #756)",
     )
+    if target is not None:                       # ledger #981: refuse at compile time what the named target cannot do (None = no check; the ICM stays target-agnostic)
+        import target_capabilities_v1 as _tc
+        for issue in _tc.check_records(icm.flatten()[0], target):
+            diagnostics.append(CompileDiagnostic(
+                severity="error", stage="place", what=f"checking the design against target {target!r}", problem=issue,
+                why="the ICM states the need (second_output / second_downstream_mask); each target decides whether it can deliver it (target_capabilities_v1)",
+                suggestion="pick a target that supports it, or compile without that flag"))
+        if any(d.severity == "error" for d in diagnostics):
+            return None, diagnostics
     return icm, diagnostics
 
 
@@ -123,12 +132,15 @@ def _resolve_and_place_vix(stmt: PlaceIR) -> Tuple[Optional[vix.HierCell], List[
         return None, diagnostics
 
     port_names = set(tile.port_names())
-    param_names = set(tile.param_names)
+    # ledger #979: a tile's OPTIONAL flags (e.g. an adder's carry_mode) may be given as ordinary fields -- the user/design forcing the second output; absent = off
+    param_names = set(tile.param_names) | set(getattr(tile, "optional_params", []) or [])
     port_directions: Dict[str, object] = {}
     params: Dict[str, object] = {}
     addon_config: Dict[str, object] = {}
     preload_value: Optional[int] = None
     for f in stmt.fields:
+        if tile.core in ("adder", "mul") and f.key in vtl._SECOND_ALIAS:    # ledger #980: carry_mode / wide_mode are aliases of the one flag second_output
+            f = type(f)(key=vtl._SECOND_ALIAS[f.key], value=f.value, span=f.span)
         if f.key.startswith("addon."):
             addon_config[f.key[len("addon."):]] = f.value
         elif f.key == "preload":

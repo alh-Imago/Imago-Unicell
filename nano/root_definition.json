@@ -98,9 +98,27 @@
    },
    {
     "name": "reserved",
-    "hi": 63,
+    "hi": 11,
     "lo": 9,
     "description": "TWO-STAGE CAPTURE, mirroring unicell_stripped_v1.v's own can_fire gating: the first arrival (any direction with upstream_mask set) becomes A (a_reg/a_arrived) \u2014 captured whenever a_arrived is clear, REGARDLESS of whether a previous sum is still being offered (a_reg and out_buffer are separate registers, so this genuinely pipelines: a new operand pair can start capturing while the previous sum drains downstream). The second arrival becomes B and fires ONLY once the output slot is free (!data_valid) \u2014 mirrors both ram_cell_v1.v's own capture gate and unicell_stripped_v1.v's own \"doubly full\" comment (a_arrived=1 AND ready_bit=0 blocks can_fire there; the equivalent block here is a_arrived=1 AND data_valid=1, exposed combinationally via ready_out)."
+   },
+   {
+    "name": "second_output",
+    "hi": 12,
+    "lo": 12,
+    "description": "points.md #976 (FLEX FAMILY ONLY): 0=the sum only; 1=also deliver the carry-out of the add as a second word (0 or 1; for subtract the raw carry, i.e. NOT-borrow) to the SAME downstream_mask, after the sum -- the same shape as mul's wide_mode. Set by the compiler, which also tells the assembler where the cell is placed; on flex it becomes the adder's SECOND_PORT build parameter and the cfg_data[1] enable. The standard (v1/v4c) adder has no carry output: a standard grid refuses carry_mode=1."
+   },
+   {
+    "name": "second_downstream_mask",
+    "hi": 16,
+    "lo": 13,
+    "description": "points.md #981 (FLEX FAMILY ONLY): the faces the SECOND word (adder carry / mul high word) leaves by, as a one-hot N/S/E/W mask; 0 (default) = the same faces as downstream_mask (the second word follows the first). A face in both masks gets both words (first, then second); a face only here gets only the second word. Needs second_output=1 and a non-empty downstream_mask."
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 13,
+    "description": "genuinely free headroom"
    }
   ]
  },
@@ -477,8 +495,8 @@
  },
  "_manual_overrides_warning": "REAL, HONEST FLAG: nano_within_super.fields (hold_in through a_self_update_in) were added MANUALLY, not by regenerate_root_definition_v1.py. These are PORTS on unicell_stripped_v1.v wired individually via core_config bits in unicell_super_v1.v/v2.v/v3.v, physically separated from nano's own cfg_data field-map comment block by ~150 lines of other core instantiations -- the mechanical extractor genuinely cannot see them (confirmed, not assumed). RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL WIPE THESE FIVE FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, until the extractor is taught to handle this real, structural case (a real, deliberately-deferred piece of tooling work). EXTENDED #650: dynamic_route_en/pattern_low/pattern_equal/pattern_high were ALSO added manually, same real reason -- nano_gate_v4.v's own comparator-driven routing (#140's VM equivalent), never exposed here before. RUNNING regenerate_root_definition_v1.py WITHOUT --check WILL ALSO WIPE THESE FOUR FIELDS -- re-add them manually (matching icm_v3.py's own _NANO_FIELDS table exactly) after any future regeneration, same as the five fields above.",
  "mul": {
-  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/mul_cell_v4c.v",
-  "_provenance_note": "points.md #823: mul had no real_definition entry at all -- added to close a serialization gap surfaced by the LLVM CLI, not extracted from a fresh RTL read this session. Field positions taken directly from icm_v3.py's own hand-typed _MUL_FIELDS, which mirrors _ADDER_FIELDS minus subtract_mode (unicell_super_automaton_v1.py's own `elif core == \"mul\":` dispatch has no subtract-mode equivalent).",
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/mul_cell_v5c.v",
+  "_provenance_note": "points.md #823: mul had no real_definition entry at all -- added to close a serialization gap surfaced by the LLVM CLI, not extracted from a fresh RTL read this session. Field positions taken directly from icm_v3.py's own hand-typed _MUL_FIELDS, which mirrors _ADDER_FIELDS minus subtract_mode (unicell_super_automaton_v1.py's own `elif core == \"mul\":` dispatch has no subtract-mode equivalent). points.md #853/#854: wide_mode carved out of the old single reserved field at bit 12 -- mul_cell_v5c.v's own real, tested RTL location -- source_file updated to the v5c generation that actually has this field; v4c genuinely lacks it.",
   "fields": [
    {
     "name": "downstream_mask",
@@ -494,9 +512,27 @@
    },
    {
     "name": "reserved",
-    "hi": 63,
+    "hi": 11,
     "lo": 8,
     "description": "TWO-STAGE CAPTURE, structurally identical to adder's own (capture A, then B, then fire) but multiplication instead of add/subtract, with no subtract-mode-equivalent bit at all."
+   },
+   {
+    "name": "second_output",
+    "hi": 12,
+    "lo": 12,
+    "description": "points.md #853/#854: 0=v4/v4c behaviour (Product[31:0] only, low half discarded); 1=real sequential two-phase delivery -- the SAME downstream_mask/out port delivers the low half first, then (only once fully acked) the real high half. mul_cell_v4/v4c genuinely lack this bit; only v5/v5c implement it."
+   },
+   {
+    "name": "second_downstream_mask",
+    "hi": 16,
+    "lo": 13,
+    "description": "points.md #981 (FLEX FAMILY ONLY): the faces the SECOND word (adder carry / mul high word) leaves by, as a one-hot N/S/E/W mask; 0 (default) = the same faces as downstream_mask (the second word follows the first). A face in both masks gets both words (first, then second); a face only here gets only the second word. Needs second_output=1 and a non-empty downstream_mask."
+   },
+   {
+    "name": "reserved",
+    "hi": 63,
+    "lo": 13,
+    "description": "genuinely free headroom"
    }
   ]
  },
@@ -547,10 +583,64 @@
     "description": "0=strict rank, 1=weighted round-robin (Surplus Round Robin, #814), 2=sequenced channel"
    },
    {
+    "name": "sequence_len",
+    "hi": 20,
+    "lo": 18,
+    "description": "ledger #1018: number of turns in the sequenced channel's order (1..4); 0 = none recorded"
+   },
+   {
+    "name": "sequence_0",
+    "hi": 22,
+    "lo": 21,
+    "description": "face due at turn 0 (0 n, 1 s, 2 e, 3 w)"
+   },
+   {
+    "name": "sequence_1",
+    "hi": 24,
+    "lo": 23,
+    "description": "face due at turn 1"
+   },
+   {
+    "name": "sequence_2",
+    "hi": 26,
+    "lo": 25,
+    "description": "face due at turn 2"
+   },
+   {
+    "name": "sequence_3",
+    "hi": 28,
+    "lo": 27,
+    "description": "face due at turn 3"
+   },
+   {
     "name": "reserved",
     "hi": 63,
-    "lo": 18,
+    "lo": 29,
     "description": "unused"
+   }
+  ]
+ },
+ "merge": {
+  "source_file": "/home/claude/Imago-Unicell/fpga/verilog/merge_cell_v4c.v",
+  "_provenance_note": "ledger #1036: the merge core (flex merge_cell_v4sa brought into the main theme). Field positions are icm_v3.py's own _MERGE_FIELDS (the ICM super-latch layout; the RTL cell's own cfg_data is the carrier layout: [5:0] downstream, [11:6] upstream, [13:12] mode).",
+  "fields": [
+   {
+    "name": "downstream_mask",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot(s), N/S/E/W, routing_mask convention"
+   },
+   {
+    "name": "upstream_mask",
+    "hi": 7,
+    "lo": 4,
+    "description": "the TWO input faces (first set bit in N,S,E,W order = A, second = B)"
+   },
+   {
+    "name": "mode",
+    "hi": 9,
+    "lo": 8,
+    "description": "0 A only, 1 B only, 2 arbitrate (round-robin), 3 join-or"
    }
   ]
  }

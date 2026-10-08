@@ -1,0 +1,20 @@
+{
+ "name": "ram_oneshot",
+ "what": "the ram's ONE-SHOT preload: the configured 100 is offered once; only the first item sees it, the rest wait (#1021)",
+ "expected": [
+  110
+ ],
+ "sim_line": "UCT ram_oneshot res=P n=0001 e=0001 bad=0000 to=0 last=00000005 sig=0000006E w=0000006E",
+ "inputs": {
+  "E": [
+   10,
+   20,
+   30
+  ]
+ },
+ "gaps": false,
+ "stalls": false,
+ "fmax_mhz": 174.2,
+ "lut4": 714,
+ "dff": 352
+}

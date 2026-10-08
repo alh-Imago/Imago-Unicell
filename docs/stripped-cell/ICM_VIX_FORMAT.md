@@ -269,17 +269,70 @@ designed.
 - **Nested patterns** (a pattern containing other named patterns).
   None of the three real examples needed more than one level — a real,
   deliberately deferred question (`#737`), not decided against.
-- **Any LLVM IR or DSL compiler emit path targeting this format.**
-  Confirmed directly (`#746`): the entire current compiler backend
-  (`nano/dsl_compiler_v1.py`'s own `compile_program_ir()`) emits only
-  `icm_v3.IcmV3File`/`icm_v4.IcmV4File` — this format has no compiler
-  producing it yet, only the hand-authored/prototype-generated real
-  examples proven above.
-- **Workbench integration** — `nano/workbench_v1.py`'s own `save_icm`/
-  `load_icm` are still scoped to `icm_v3.IcmV3File` only; real,
-  separate work to wire this format (and its own real save/state
-  mechanism) into the workbench's own load/save flow.
-- **A VIX-specific tile library.** `#746`'s own real finding stands:
-  `super_tile_library_v1.py` only defines tiles for the old lineage;
-  no tile exists yet for `mul`/`priority`/the `_v4c` core family this
-  format is ultimately meant to describe designs built from.
+- **Since built (status as of 2026-10-06, ledger #986).** Three items
+  that this list used to call unbuilt now exist. A compiler backend:
+  `nano/vix_compiler_v1.py`'s `compile_program_ir_vix()` (#756), and
+  `nano/vix_dag_dispatcher_v1.py` for DAG-compiled programs. Both take an
+  optional `target=` and refuse at compile time what that target cannot
+  do (#981). A VIX tile library: `nano/vix_tile_library_v1.py` (#748),
+  whose tiles can declare `optional_params`, used for `second_output`
+  and `second_downstream_mask` (#976/#980/#981). Workbench loading:
+  `nano/workbench_v1.py` has `load_icm_vix()`. What the backend still
+  does not do: it wraps the whole program as ONE pattern placed at
+  (0, 0) and does not yet find reusable shared patterns.
+- **The Flex-Sub assembler reads this format as a map.** It does this
+  through `project_assemble_v1.py -s sub|flex --icm FILE`; see
+  `tools/README.md`. The authoritative wiring is each flattened cell's
+  masks plus its grid position. The `connections` list stays advisory
+  (#923).
+
+## Per-cell fields that state a need rather than a target (ledger #980/#981/#986)
+
+A flattened cell's `core_config` and `addon_config` use the same field
+names as ICM v3. The full tables, including bit positions, are in
+`ICM_V3_FORMAT.md`. Three of those fields matter specifically because
+the format is target-agnostic:
+
+- `second_output` (adder, mul): also deliver the carry or high word as
+  a second word. `carry_mode` and `wide_mode` are accepted aliases,
+  stored canonically. The default is off; the compiler sets it only when
+  a program needs both results.
+- `second_downstream_mask` (adder, mul): the faces the second word
+  leaves by. Empty means the same faces as `downstream_mask`.
+- `shift_amt` (with `shift_fine`) and `direction`: one shift number.
+  flex makes any amount from 0 to 31, std makes coarse taps plus fine,
+  and sub makes coarse taps only.
+
+The file never says which target will run it.
+`nano/target_capabilities_v1.py` records which target can meet which
+need, and std, flex and sub each refuse what they cannot make.
+
+## `min_bit_width`: the design's declared minimum bit width (ledger #958)
+
+A design may declare, in its **header**, the minimum number of bits it needs. Alan's ruling: the ICM stays 32 bits wide and as open and cross-targetable as possible; the flag has to be
+part of the transferable artifact; **when it is absent the width is 32**, so no existing file changes in any way. The load and save functions deal with the width; the ICM does not
+hard-wire a target.
+
+| | |
+|---|---|
+| field | `min_bit_width`, an integer from 1 to 64 (`bool`, strings, 0 and 65+ are refused) |
+| where | ICM-VIX: inside `header` (`{"cores_used": [...], "cell_count": N, "min_bit_width": 18}`). ICM v3 / v4 (flat files, whose top-level keys already are their metadata): a top-level `min_bit_width` key |
+| absent | means 32. Nothing is written for it, so a file without the flag is byte-for-byte what it was before |
+| stored, not derived | the VIX header's `cores_used` and `cell_count` are recomputed from the data every time (they are never hand-maintained). `min_bit_width` cannot be derived from the data, it is a **user declaration**, so it is the one stored header field |
+| integrity | when present it is part of `record_hash`, so a hand-edit that changes what the design means (or deleting the flag) is caught on load. When absent the hash is exactly what it always was |
+
+**Meaning: a requirement, "at least this many bits".** Building wider always satisfies it. So a consumer that only builds 32-bit designs accepts any declared minimum up to 32, and must
+**refuse** a larger one (it cannot meet it) rather than ignore it. Today's `--icm` generators build 32-bit designs only: they record the declared value in `ASSEMBLY.json`
+(`min_bit_width`, `built_width`) and refuse more than 32. Narrowing a design to a target's native width on load, and widening the flex / nano cells (to 36) for a design that needs it, are the
+loader's and the save function's job and are not built yet. The `flexsub_compile_v1.py --min-bit-width N` option declares it where the design is produced.
+
+### What the base ICM deliberately does NOT do: sign data in spare bits is a TARGET item (Alan's ruling, ledger #959)
+
+The ICM is built for **strict 8 / 16 / 32-bit** systems, where a value is just a number: when a design is saved narrower than 32 bits its values are written **sign-extended** to the full
+32-bit field, so the file is a plain, lossless 32-bit ICM that **any** consumer can read, whether or not it ever looks at the header. A narrow target reads the header, takes the declared
+`min_bit_width`, and checks that every value fits; a value that does not fit is **refused, never silently truncated**.
+
+A target whose native widths are **not** 8 / 16 / 32 (the Tang's are 18 and 36) may have spare bits in which sign information could be stored. That is a **target-specific encoding**, not part
+of the ICM: a strict 8/16/32-bit reader does not store or expect a sign there, and an ICM that carried it would confuse such a reader. So it is defined and written by **that target's own save and load**,
+and declared in the file **when it is used** (i.e. for widths other than 8, 16 or 32), never assumed. The base ICM and its `min_bit_width` flag are unaffected, and the flag itself never confuses a
+strict system: "at least 18 bits" is satisfied by rounding up to 32.

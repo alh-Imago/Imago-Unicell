@@ -125,7 +125,7 @@ def ingestion_path(opcode: str, operand_kinds: List[str]) -> str:
     return "plain_chain"
 
 
-def compile_dag(instructions: List[DagInstr]
+def compile_dag(instructions: List[DagInstr], target: Optional[str] = None
                  ) -> Tuple[vix.IcmVixFile, Dict[str, Position], List[Tuple[str, int, int]], Dict[str, Tuple[int, int]]]:
     """The real dispatcher, rebuilt around incremental, frontier-based
     growth. Returns a real `IcmVixFile`, a dict of each instruction's
@@ -199,6 +199,11 @@ def compile_dag(instructions: List[DagInstr]
     icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=all_cells)},
                           placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
                           name="dag_dispatch")
+    if target is not None:                       # ledger #981: refuse at compile time what the named target cannot do (None = no check; the ICM stays target-agnostic)
+        import target_capabilities_v1 as _tc
+        issues = _tc.check_records(icm.flatten()[0], target)
+        if issues:
+            raise ValueError("target " + repr(target) + " cannot run this design: " + "; ".join(issues))
     return icm, positions, dynamic_positions, seq_orders
 
 
@@ -223,8 +228,30 @@ def _resolve_operand(op: DagOperand) -> dict:
 # facts (tile, port style, commutativity) it needs, never hardcoding
 # an opcode-specific branch of its own. A future opcode needs a new
 # `register()` call in the library module ONLY -- never a change here.
+# Ledger #979 (Alan: the compiler sets the second-output flag only when the program needs BOTH results of a cell; default OFF; a design/user can force it).
+# The request is a DagInstr param -- `{"second_output": 1}` on add/sub/mul (the aliases `carry_mode` / `wide_mode` also work) -- read here. Anything else is ignored (it is some other param); a
+# truthy flag on an opcode whose tile has no such second output is REFUSED, never silently dropped.
+_SECOND_OUTPUT_FLAGS = {"add": "second_output", "sub": "second_output", "mul": "second_output"}   # ledger #980: ONE generic flag; carry_mode / wide_mode are aliases
+
+
+def _second_output_params(opcode: str, instr_params: Optional[dict]) -> dict:
+    wanted = {k: int(bool(v)) for k, v in (instr_params or {}).items() if k in ("second_output", "carry_mode", "wide_mode")}
+    allowed = _SECOND_OUTPUT_FLAGS.get(opcode)
+    if not allowed:
+        if any(wanted.values()):
+            raise ValueError(f"opcode {opcode!r} has no second output ({next(k for k, v in wanted.items() if v)} requested): only add/sub (carry) and mul (high word) can produce a second word")
+        return {}
+    # the legacy names are aliases of the one flag, but each belongs to ITS core: carry_mode on a mul or wide_mode on an add is still a mistake
+    legacy = {"add": "carry_mode", "sub": "carry_mode", "mul": "wide_mode"}[opcode]
+    wrong = [k for k, v in wanted.items() if v and k not in ("second_output", legacy)]
+    if wrong:
+        raise ValueError(f"opcode {opcode!r} has no second output named {wrong[0]}: use second_output (or {legacy})")
+    vals = [v for k, v in wanted.items() if k in ("second_output", legacy)]
+    return {"second_output": int(any(vals))} if vals else {}
+
+
 def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
-                       in_a_dir: str, in_b_dir: str, out_dir: str):
+                       in_a_dir: str, in_b_dir: str, out_dir: str, instr_params: Optional[dict] = None):
     """Real, single place this dispatcher decides HOW an opcode's own
     tile gets its real ports configured -- named (`adder`-style) or
     unconditional (`nano_gate`-style), per the real library entry's
@@ -234,6 +261,7 @@ def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
     if entry is None:
         raise ValueError(f"no real library entry for opcode {opcode!r} -- #752's own escalation "
                           f"ladder applies: check the shared library, then AI research, then Composer")
+    second = _second_output_params(opcode, instr_params)   # refuses a flag on an opcode that has no second output (before any branch below)
     if entry.port_style == "unconditional":
         # nano_gate has no real, named "in" port at all (#718/#781's
         # own confirmed finding) -- only "out" is real and named;
@@ -241,7 +269,14 @@ def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
         # accepted unconditionally, no upstream_mask to configure.
         return vtl.place(entry.tile, {"out": out_dir}, params=dict(entry.extra_params),
                           cell_id=cell_id, rel_row=row, rel_col=col)
+    # points.md #853/#854: a real, pre-existing gap, exposed (not
+    # introduced) by mul's own new wide_mode param -- this branch never
+    # passed entry.extra_params at all, unlike the "unconditional"
+    # branch above. Harmless while every "named" tile's own
+    # extra_params was empty (add/sub always were); mul's is not,
+    # anymore.
     return vtl.place(entry.tile, {"in_a": in_a_dir, "in_b": in_b_dir, "out": out_dir},
+                      params={**entry.extra_params, **second},
                       cell_id=cell_id, rel_row=row, rel_col=col)
 
 
@@ -355,7 +390,7 @@ def _grow_plain_chain(instr: DagInstr, resolved: List[dict], occ: Dict[Position,
         in_b_dir = "n" if const_side != "n" else "e"
 
     out_dir = "e" if "e" not in (in_dir, in_b_dir) else "s"
-    diff = _place_for_opcode(instr.opcode, instr.name, diff_row, diff_col, in_dir, in_b_dir, out_dir)
+    diff = _place_for_opcode(instr.opcode, instr.name, diff_row, diff_col, in_dir, in_b_dir, out_dir, instr.params)
     cells.append(diff)
     return cells, Frontier(pos=(diff_row, diff_col), out_dir=out_dir)
 
@@ -459,16 +494,18 @@ def _grow_convergence(instr: DagInstr, resolved: List[dict], shape: ConvergenceS
     orient = choose_two_way_orientation(target, a_frontier.pos, b_frontier.pos)
 
     scheduling_mode = 2 if shape == ConvergenceShape.SEQUENCER else 0
+    pri_params = {"priority_rank_n": 0, "priority_rank_s": 0, "priority_rank_e": 0, "priority_rank_w": 0, "scheduling_mode": scheduling_mode}
+    if scheduling_mode == 2:     # ledger #1018: the turn order (operand A's face first) is recorded in the cell's own config, so it survives in the saved ICM
+        pri_params.update({"sequence_len": 2, "sequence_0": _dir_const(orient["in_a"]), "sequence_1": _dir_const(orient["in_b"])})
     pri = vtl.place(vtl.TILE_PRIORITY, {"in": [orient["in_a"], orient["in_b"]], "out": orient["out"]},
-                     params={"priority_rank_n": 0, "priority_rank_s": 0, "priority_rank_e": 0,
-                             "priority_rank_w": 0, "scheduling_mode": scheduling_mode},
+                     params=pri_params,
                      cell_id=f"pri_{instr.name}", rel_row=target[0], rel_col=target[1])
     cells.append(pri)
 
     dr, dc = _DIR_STEP[orient["out"]]
     add_pos = (target[0] + dr, target[1] + dc)
     add = _place_for_opcode(instr.opcode, instr.name, add_pos[0], add_pos[1],
-                             _OPP[orient["out"]], _OPP[orient["out"]], "e")
+                             _OPP[orient["out"]], _OPP[orient["out"]], "e", instr.params)
     cells.append(add)
 
     b_extra = 2 if shape == ConvergenceShape.STAGGER else 0

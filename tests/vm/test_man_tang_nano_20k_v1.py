@@ -1,0 +1,266 @@
+"""
+test_man_tang_nano_20k_v1.py -- points.md #887: the MAN file for the Sipeed Tang Nano 20K.
+
+What these tests protect, in order of how much a mistake would cost on real hardware:
+  * every PIN in the MAN exists in the chip database's QFN88 table with the recorded location and bank
+    (proves the pin is real; it does NOT prove the board is wired that way -- the MAN says so itself);
+  * every RESOURCE COUNT is what the chip database says (46 block RAMs, 12 DSP tiles, 648 logic tiles giving
+    20,736 LUT4 and 15,552 FF), and the embedded-SDRAM port list is the database's own;
+  * the committed MAN and .cst are exactly what the generator produces (no hand edits, no drift);
+  * the loaders behave: the fit tool sizes the carrier in LUT4 without touching the Intel path, the VM mirror
+    accepts a Gowin MAN, and the Quartus generator refuses one CLEARLY;
+  * the MAN does not quietly claim more than was verified.
+The chip-database tests skip if `apycula`/`msgpack` are not installed.
+"""
+import importlib.util
+import json
+import os
+import re
+import sys
+
+import pytest
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "nano"))
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+
+import card_fit_v1 as cf  # noqa: E402
+import vm_mirror_v1 as vmm  # noqa: E402
+import project_assemble_v1 as pa  # noqa: E402
+
+MAN_PATH = os.path.join(ROOT, "docs", "man", "tang-nano-20k.man.json")
+CST_PATH = os.path.join(ROOT, "docs", "man", "tang-nano-20k.cst")
+ARRIA_PATH = os.path.join(ROOT, "docs", "man", "mustang-f100-a10.man.json")
+GEN_PATH = os.path.join(ROOT, "tools", "man_gen", "gen_tang_nano_20k_man.py")
+
+MAN = json.load(open(MAN_PATH))
+
+
+def _chipdb():
+    pytest.importorskip("apycula")
+    pytest.importorskip("msgpack")
+    spec = importlib.util.spec_from_file_location("gen_tang_man", GEN_PATH)
+    gen = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gen)
+    return gen, gen.load_chipdb()
+
+
+def _pin_records(node, path=""):
+    """Every dict in the MAN that names a package pin and its recorded location."""
+    if isinstance(node, dict):
+        if "pin" in node and "package_location" in node:
+            yield path, node
+        for k, v in node.items():
+            yield from _pin_records(v, f"{path}.{k}" if path else k)
+
+
+def test_the_man_has_the_expected_identity_and_blocks():
+    assert MAN["vendor"] == "gowin" and MAN["man_version"] == "1.1"
+    assert MAN["device"]["part"] == "GW2AR-LV18QN88C8/I7" and MAN["device"]["package"] == "QFN88"
+    assert MAN["device"]["logic"]["unit"] == "LUT4" and MAN["device"]["alm_total"] is None
+    for block in ("clock", "buttons", "leds", "uart", "spi_flash", "sd_card", "sdram", "jtag", "host_link"):
+        assert block in MAN["board"], block
+    assert MAN["board"]["clock"]["CLK_27M"]["pin"] == 4 and MAN["board"]["clock"]["CLK_27M"]["freq_hz"] == 27000000
+
+
+def test_every_pin_exists_in_the_chip_database_with_the_recorded_location_and_bank():
+    gen, db = _chipdb()
+    qn = db["pinout"][gen.DEVICE_KEY][gen.PACKAGE_KEY]
+    records = list(_pin_records(MAN["board"]))
+    assert len(records) >= 30, "the pin walk must actually find the pins"
+    for path, rec in records:
+        loc, funcs = qn[str(rec["pin"])]
+        assert rec["package_location"] == loc, f"{path}: pin {rec['pin']} is {loc} in the chip database"
+        assert rec["bank"] == db["pin_bank"][loc], f"{path}: bank"
+        assert rec["io_standard"] == "LVCMOS33"
+        if funcs:
+            assert rec["chip_function"] == "/".join(funcs), f"{path}: chip function"
+
+
+def test_no_package_pin_is_assigned_to_two_different_signals():
+    roles = {}
+    for path, rec in _pin_records(MAN["board"]):
+        roles.setdefault(rec["pin"], set()).add(path)
+    clashes = {p: sorted(r) for p, r in roles.items() if len(r) > 1}
+    assert not clashes, f"a pin is listed under more than one role: {clashes}"
+
+
+def test_resource_counts_match_the_chip_database():
+    gen, db = _chipdb()
+    logic = MAN["device"]["logic"]
+    tiles = gen.tiles_of(db, "M")
+    assert logic["tiles"] == len(tiles) == 648
+    assert logic["lut4_total"] == len(tiles) * 32 == 20736
+    assert logic["ff_total"] == len(tiles) * 24 == 15552
+    bram_sites = sum(len(c["y_segments"]) for c in MAN["device"]["bram"]["columns"])
+    assert bram_sites == MAN["device"]["bram"]["blocks"] == len(gen.tiles_of(db, "B")) == 46
+    dsp_sites = sum(len(c["y_segments"]) for c in MAN["device"]["dsp"]["columns"])
+    assert dsp_sites == MAN["device"]["dsp"]["total_blocks"] == len(gen.tiles_of(db, "D")) == 12
+    assert MAN["device"]["dsp"]["multipliers_18x18"] == 48 == 12 * MAN["device"]["dsp"]["multipliers_per_block_derived"]
+    assert MAN["device"]["io"]["banks"] == 8 == len({db["pin_bank"][v[0]] for v in
+                                                    db["pinout"][gen.DEVICE_KEY][gen.PACKAGE_KEY].values()})
+
+
+def test_the_embedded_sdram_ports_are_the_chip_databases_own_and_the_geometry_is_consistent():
+    gen, db = _chipdb()
+    sd = MAN["device"]["embedded_memory"]["sdram"]
+    real = db["sip_cst"][gen.DEVICE_KEY][gen.PACKAGE_KEY]
+    assert [p["name"] for p in sd["ports"]] == [r[0] for r in real] and sd["port_count"] == len(real) == 55
+    names = [p["name"] for p in sd["ports"]]
+    assert sum(n.startswith("IO_sdram_dq[") for n in names) == sd["data_width"] == 32
+    assert sum(n.startswith("O_sdram_addr[") for n in names) == sd["row_address_bits"] == 11
+    assert sum(n.startswith("O_sdram_ba[") for n in names) == 2 and sd["banks"] == 4
+    assert sum(n.startswith("O_sdram_dqm[") for n in names) == 4
+    assert sd["banks"] * 2 ** sd["row_address_bits"] * 2 ** sd["column_address_bits_derived"] * sd["data_width"] == sd["bits"]
+    assert all(p["io_standard"] == "LVCMOS33" for p in sd["ports"])
+    assert sd["board_pins"] is None, "the SDRAM is inside the package: it has no board pins"
+
+
+def test_the_committed_man_and_constraints_are_exactly_what_the_generator_produces():
+    gen, db = _chipdb()
+    man = gen.build(db)
+    assert json.dumps(man, indent=2) + "\n" == open(MAN_PATH).read(), "docs/man/tang-nano-20k.man.json is stale"
+    assert gen.build_cst(man) == open(CST_PATH).read(), "docs/man/tang-nano-20k.cst is stale"
+
+
+def test_the_constraints_file_agrees_with_the_man_and_uses_no_pin_twice():
+    text = open(CST_PATH).read()
+    locs = re.findall(r'IO_LOC\s+"([^"]+)"\s+(\d+);', text)
+    assert len(locs) >= 25
+    pins = [int(p) for _, p in locs]
+    assert len(pins) == len(set(pins)), "a package pin is constrained to two ports"
+    by_port = {n: int(p) for n, p in locs}
+    b = MAN["board"]
+    assert by_port["clk"] == b["clock"]["CLK_27M"]["pin"] == 4
+    assert by_port["uart_tx"] == b["uart"]["tx"]["pin"] and by_port["uart_rx"] == b["uart"]["rx"]["pin"]
+    assert [by_port[f"led_n[{i}]"] for i in range(6)] == [15, 16, 17, 18, 19, 20]
+    assert by_port["sd_clk"] == b["sd_card"]["clk"]["pin"] and by_port["flash_cs_n"] == b["spi_flash"]["cs_n"]["pin"]
+    assert "sdram" not in " ".join(by_port).lower(), "the embedded SDRAM must not be given board pins"
+
+
+def test_the_fit_tool_sizes_the_carrier_in_lut4_and_it_does_not_fit_at_the_default_ceiling():
+    for shell, expect in (("vix_carrier_v1d", 20736 // 17339), ("vix_carrier_v1", 20736 // 16574)):
+        t = cf.target_from_man(MAN_PATH, rows=4, cols=4, shell=shell)
+        assert t.cell_budget == expect == 1
+        assert t.max_cells == 0, "one carrier position is 80-84% of the LUT4 budget: over the 80% ceiling"
+    assert cf.target_from_man(MAN_PATH, rows=4, cols=4, shell="nano_lean").cell_budget == 11
+    assert cf.target_from_man(MAN_PATH, rows=4, cols=4, shell="ram_lean").cell_budget == 52
+    assert cf.target_from_man(MAN_PATH, rows=4, cols=4, shell="command").cell_budget == 61
+
+
+def test_the_fit_tool_refuses_an_unmeasured_shell_on_a_lut4_device_and_leaves_the_intel_path_alone():
+    with pytest.raises(ValueError, match="LUT4"):
+        cf.target_from_man(MAN_PATH, rows=4, cols=4, shell="super_v3")     # an ALM-measured shell, wrong unit
+    arria = cf.target_from_man(ARRIA_PATH, rows=4, cols=4, shell="super_v3")
+    assert arria.cell_budget == int(251680 // cf.ALM_PER_POSITION["super_v3"]), "the Intel path is unchanged"
+
+
+def test_the_measured_lut4_table_is_internally_consistent():
+    t = cf.LUT4_PER_POSITION
+    for cell in ("nano", "ram", "adder", "branch", "accumulator", "compare", "sequencer", "latch", "mul"):
+        assert t[f"{cell}_lean"] < t[f"{cell}_full"], f"{cell}: removing the addon chain cannot add area"
+    assert t["command"] == 338, "the command cell has no addon chain, so it has no lean form"
+    assert t["vix_carrier_v1d"] > t["vix_carrier_v1"], "v1d adds the addon-addressing mechanism"
+    assert all(v < MAN["device"]["logic"]["lut4_total"] for v in t.values()), "no single position exceeds the chip"
+
+
+def test_the_vm_mirror_accepts_a_gowin_man_but_the_quartus_generator_refuses_it_clearly():
+    b = vmm.load_mirror_bounds(MAN_PATH, 4)
+    assert b.card_id == "sipeed-tang-nano-20k-01" and b.cells == 4
+    with pytest.raises(ValueError, match="non-Intel"):
+        pa.load_man(MAN_PATH)
+    assert pa.load_man(ARRIA_PATH)["family"] == "Arria 10", "the Intel loader still works for the Arria MAN"
+    assert vmm.load_mirror_bounds(ARRIA_PATH, 4).card_id.startswith("mustang")
+
+
+def test_the_man_does_not_claim_more_than_was_verified():
+    v = MAN["verification"]
+    assert v["schematic"] == "NOT CHECKED"
+    assert v["physical_board"].startswith("NOT TESTED")
+    hl = MAN["board"]["host_link"]
+    assert hl["status"].startswith("PROPOSED") and "NOT" in hl["status"]
+    host = hl["host"]
+    assert "ESP32-D" in host["device"] and "WROOM-32E" in host["device"], "the host is the kit's ESP32-D, not a C-series"
+    assert "C series" not in host["device"] and "ESP32-C" not in host["device"]
+    assert host["strapping_pins"] == [0, 2, 5, 12, 15], "the kit documentation's five strapping pins"
+    assert "NOT read" in host["kit"]["extension_pinout"] or "NOT READ" in host["kit"]["extension_pinout"], "the kit's own pin-table images were not read"
+    assert "photographs" in host["kit"]["extension_pinout"] and "continuity" in host["kit"]["extension_pinout"], "the terminal labels came from photographs and need a continuity check"
+    assert host["kit"]["extension_terminals"]["right"][:7] == ["IO23", "IO22", "TXD", "RXD", "IO21", "IO19", "IO18"]
+    assert "NOT from the kit documentation" in host["chip_inside_module_note"], \
+        "the D0WD-V3 inside the module is general knowledge, not something the kit page says"
+    assert hl["esp32_side_pins"]["MISO"] == "IO19" and hl["esp32_side_pins"]["READY_IRQ"] == "IO34" and "PROPOSED" in hl["esp32_side_pins_note"] and "UNVERIFIED" in hl["esp32_side_pins_note"], \
+        "the ESP32-side pins are only a proposal from the photographed terminal labels"
+    assert all(int(hl["esp32_side_pins"][k][2:]) not in host["strapping_pins"] for k in ("MISO", "READY_IRQ")), "an FPGA-driven line must not sit on a strapping pin"
+    assert any("HAZARD" in n and "strapping" in n for n in hl["notes"]), "the strapping-pin hazard must stay recorded"
+    assert all(v is False for k, v in MAN["capabilities"].items() if k.endswith("_integrated")), \
+        "nothing has been built on this board yet"
+    assert MAN["board"]["not_yet_mapped"], "the unmapped interfaces must stay listed until they are mapped"
+
+def test_native_ff_variants_are_read_live_from_yosys_not_hand_typed():
+    """points.md #907: Alan's own real finding -- #906's adder_cell_v4sa measured
+    37 LUT4 against the plain adder_cell_v4s's 66 because its hold-unless-
+    capturing logic maps onto DFFRE's own native clock-enable pin. This records
+    that fact, generated from yosys's real Gowin cell library, not hand-typed,
+    so it can never silently drift from what the toolchain actually provides."""
+    v = MAN["device"]["logic"]["native_ff_variants"]
+    assert "cells_sim.v" in v["source"] and "not hand-typed" in v["source"]
+    names = {item["name"]: item for item in v["variants"]}
+    assert len(names) == 20, "the real, full Gowin DFF primitive set"
+    # the specific primitive #906's own measured result depends on
+    assert names["DFFRE"]["native_ce"] is True and names["DFFRE"]["native_init_pin"] == "RESET"
+    assert names["DFFE"]["native_ce"] is True and names["DFFE"]["native_init_pin"] is None
+    assert names["DFF"]["native_ce"] is False and names["DFF"]["native_init_pin"] is None
+    # every variant has a real clock edge, and negative-edge variants are named DFFN*
+    for name, item in names.items():
+        expected_edge = "negedge" if name.startswith("DFFN") else "posedge"
+        assert item["clock_edge"] == expected_edge, name
+    # the real, honest limit: never both an init pin from the sync AND async
+    # families at once (that would need two native controls, which do not exist)
+    sync, async_ = {"SET", "RESET"}, {"PRESET", "CLEAR"}
+    for name, item in names.items():
+        pin = item["native_init_pin"]
+        assert pin is None or pin in sync or pin in async_
+    assert "only one native extra input exists per flip-flop, not two" in v["note"]
+    assert "#906" in v["note"] and "37 LUT4" in v["note"]
+
+
+def test_native_ff_variants_regenerates_identically():
+    """Confirms the committed MAN file's new field matches a fresh run of the
+    real generator, same discipline as the file's own staleness test."""
+    gen, db = _chipdb()
+    fresh = gen.native_ff_variants()
+    assert fresh == MAN["device"]["logic"]["native_ff_variants"]
+
+
+def test_cell_costs_are_in_the_man_and_consistent():
+    """Ledger #975: the measured per-cell costs are carried in the MAN (generated from docs/measurements/flex_width_sweep_975/costs.json)."""
+    cc = MAN["cell_costs"]
+    assert cc["widths_measured"] == [4, 8, 16, 18, 24, 32]
+    assert {"adder", "mul", "nano", "accumulator", "compare", "branch", "mask", "ram"} <= set(cc["cells"])
+    for cell, v in cc["cells"].items():
+        for flow in ("single_nowidelut", "single_widelut", "array3x3_nowidelut"):
+            assert set(v[flow]) == {str(w) for w in cc["widths_measured"]}, (cell, flow)
+            assert all(len(x) == 4 for x in v[flow].values())
+    # the recorded figures the project already relied on still hold: flex adder 23/18/21 at W18 (wide-LUT flow, second port NOT built -- the #976 default), nano 627, accumulator 242/72/63
+    assert cc["cells"]["adder"]["single_widelut"]["18"] == [23, 18, 21, 0]
+    assert "merge" in cc["cells"]
+    # the second output port is a build option with its own recorded cost (adder +4 LUT4 / +3 DFF; the multiplier needs the whole product so it roughly doubles)
+    for c in ("adder", "mul", "mul_dsp"):
+        assert set(cc["cells"][c]["single_nowidelut_port2"]) == set(cc["cells"][c]["single_nowidelut"])
+    assert cc["cells"]["adder"]["single_nowidelut_port2"]["18"][0] == cc["cells"]["adder"]["single_nowidelut"]["18"][0] + 4
+    assert cc["cells"]["nano"]["single_widelut"]["18"][0] == 627
+    assert cc["cells"]["accumulator"]["single_widelut"]["18"] == [242, 72, 63, 0]
+    # and the clean fits
+    assert cc["fits"]["adder"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [1.0, 5.0]
+    assert cc["fits"]["nano"]["lut4_vs_W_nowidelut"]["coeffs_high_to_low"] == [7.0, 33.0]
+
+
+def test_priority_and_ram_variant_costs_are_in_the_man():
+    """Ledger #1022: the priority cell and the ram's one-shot / hold variants are in the measured costs (and so in the MAN)."""
+    cc = MAN["cell_costs"]["cells"]
+    assert set(cc["priority"]["single_nowidelut"]) == {"4", "8", "16", "18", "24", "32"}
+    assert cc["priority"]["single_nowidelut"]["32"] == [291, 155, 94, 0]
+    assert cc["ram"]["single_nowidelut"]["18"] == [24, 0, 21, 0]                       # the plain ram is unchanged by the new options
+    assert cc["ram"]["single_nowidelut_oneshot"]["18"] == cc["ram"]["single_nowidelut"]["18"]
+    hold, plain = cc["ram"]["single_nowidelut_hold"], cc["ram"]["single_nowidelut"]
+    assert all(hold[w][0] - plain[w][0] == 2 and hold[w][2] - plain[w][2] == 1 for w in plain)

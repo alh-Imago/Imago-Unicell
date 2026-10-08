@@ -46,6 +46,10 @@ established "config file vs. runtime checkpoint" split, e.g.
 from __future__ import annotations
 
 import hashlib
+try:
+    from . import icm_width_v1 as _w
+except ImportError:
+    import icm_width_v1 as _w
 import json
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -152,6 +156,10 @@ class IcmV4File:
     dsp_wrapper_records: List[DspWrapperRecord] = field(default_factory=list)
     format_version: str = "icm-v4"
     description: str = ""
+    min_bit_width: Optional[int] = None          # ledger #958: the declared minimum bit width (None = absent = 32); see icm_width_v1.py
+
+    def __post_init__(self):
+        _w.validate_min_bit_width(self.min_bit_width)
 
     def record_hash(self) -> str:
         """Real, single hash over BOTH real record kinds together --
@@ -170,10 +178,16 @@ class IcmV4File:
             "super_records": super_canon,
             "dsp_wrapper_records": json.loads(_canonical_dsp_records_json(self.dsp_wrapper_records)),
         }
-        canon_json = json.dumps(canon, sort_keys=True, separators=(",", ":"))
+        canon_json = json.dumps(canon, sort_keys=True, separators=(",", ":")) + _w.hash_suffix(self.min_bit_width)
         return hashlib.sha256(canon_json.encode()).hexdigest()
 
     def to_dict(self) -> dict:
+        d = self._to_dict_base()
+        if self.min_bit_width is not None:
+            d["min_bit_width"] = self.min_bit_width
+        return d
+
+    def _to_dict_base(self) -> dict:
         return {
             "format_version": self.format_version,
             "cell_type": ["unicell_super_v1", "dsp_arith_wrapper_v1"],
@@ -198,7 +212,7 @@ class IcmV4File:
         dsp_wrapper_records = [DspWrapperRecord.from_dict(r) for r in d.get("dsp_wrapper_records", [])]
         icm = IcmV4File(
             name=d["name"], super_records=super_records, dsp_wrapper_records=dsp_wrapper_records,
-            description=d.get("description", ""),
+            description=d.get("description", ""), min_bit_width=d.get("min_bit_width"),
         )
         stored_hash = d.get("record_hash")
         if stored_hash is not None and stored_hash != icm.record_hash():

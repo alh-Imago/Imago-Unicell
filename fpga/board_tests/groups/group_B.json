@@ -1,0 +1,20 @@
+{
+ "group": "B",
+ "tests": [
+  "priority_strict",
+  "priority_weighted",
+  "priority_sequenced",
+  "ram_hold",
+  "ram_oneshot"
+ ],
+ "sim_lines": {
+  "priority_strict": "UCT priority_strict res=P n=0012 e=0012 bad=0000 to=0 last=00000026 sig=00337F82 w=00000015,00000016,00000017,00000018,00000019,0000001A,0000000B,0000000C",
+  "priority_weighted": "UCT priority_weighted res=P n=0012 e=0012 bad=0000 to=0 last=00000026 sig=0039D826 w=00000015,0000001F,00000016,0000000B,00000020,00000017,00000018,00000021",
+  "priority_sequenced": "UCT priority_sequenced res=P n=000D e=000D bad=0000 to=0 last=0000001C sig=00013888 w=0000001F,00000015,00000016,0000000B,00000020,00000017,00000018,0000000C",
+  "ram_hold": "UCT ram_hold res=P n=0006 e=0006 bad=0000 to=0 last=0000000F sig=000001F9 w=00000008,00000009,0000000A,0000000B,0000000C,0000000D",
+  "ram_oneshot": "UCT ram_oneshot res=P n=0001 e=0001 bad=0000 to=0 last=00000005 sig=0000006E w=0000006E"
+ },
+ "fmax_mhz": 116.3,
+ "lut4": 4610,
+ "dff": 2116
+}

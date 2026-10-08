@@ -1,0 +1,488 @@
+{
+  "format_version": "icm-v3",
+  "cell_type": "unicell_super_v1",
+  "name": "sub",
+  "description": "r = a - b (integer subtract; a is the minuend)",
+  "records": [
+    {
+      "cell_id": "A",
+      "row": 2,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": "a",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000041"
+    },
+    {
+      "cell_id": "B",
+      "row": 6,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": "b",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000021"
+    },
+    {
+      "cell_id": "OP",
+      "row": 4,
+      "col": 8,
+      "core": "adder",
+      "core_config": {
+        "subtract_mode": 1,
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w",
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000003482"
+    },
+    {
+      "cell_id": "R",
+      "row": 4,
+      "col": 14,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": "r",
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001001"
+    },
+    {
+      "cell_id": "A_OP.1",
+      "row": 3,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000241"
+    },
+    {
+      "cell_id": "A_OP.2",
+      "row": 4,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "A_OP.3",
+      "row": 4,
+      "col": 2,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "A_OP.4",
+      "row": 4,
+      "col": 3,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "A_OP.5",
+      "row": 4,
+      "col": 4,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "A_OP.6",
+      "row": 4,
+      "col": 5,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "A_OP.7",
+      "row": 4,
+      "col": 6,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "A_OP.8",
+      "row": 4,
+      "col": 7,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "OP_R.17",
+      "row": 4,
+      "col": 9,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "OP_R.18",
+      "row": 4,
+      "col": 10,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "OP_R.19",
+      "row": 4,
+      "col": 11,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "OP_R.20",
+      "row": 4,
+      "col": 12,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "OP_R.21",
+      "row": 4,
+      "col": 13,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "B_OP.22",
+      "row": 5,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000481"
+    },
+    {
+      "cell_id": "B_OP.23",
+      "row": 5,
+      "col": 2,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "B_OP.24",
+      "row": 5,
+      "col": 3,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "B_OP.25",
+      "row": 5,
+      "col": 4,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "B_OP.26",
+      "row": 5,
+      "col": 5,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "B_OP.27",
+      "row": 5,
+      "col": 6,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001081"
+    },
+    {
+      "cell_id": "B_OP.28",
+      "row": 5,
+      "col": 7,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "s"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001041"
+    },
+    {
+      "cell_id": "B_OP.29",
+      "row": 6,
+      "col": 7,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "e"
+        ],
+        "upstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "B_OP.30",
+      "row": 6,
+      "col": 8,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "w"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001021"
+    },
+    {
+      "cell_id": "B_OP.31",
+      "row": 5,
+      "col": 8,
+      "core": "ram",
+      "core_config": {
+        "downstream_mask": [
+          "n"
+        ],
+        "upstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000421"
+    }
+  ],
+  "record_hash": "ed4725662c3b2b283d3ec3d6c838df24710cae6ed30cea200e4a7862cc7d1878"
+}

@@ -15,12 +15,13 @@ naming what's explicitly not built rather than faking it:
   CLIs use, never a separate, parallel implementation that could drift
   out of sync. The Walker page is explicit that it's the SIMULATED
   version (points.md #602) -- a VM-mirrored grid, not real silicon.
-- The Composer link is a REAL, HONEST PLACEHOLDER. No real code exists
-  behind it yet -- its own real scope (`docs/stripped-cell/design-
-  notes/composer_scope.md`) is a visual placement-review tool with RTL
-  generation explicitly excluded. This slot exists now, deliberately,
-  so wiring in the real thing later needs no restructuring -- but it
-  says plainly "not built yet" rather than pretending to work.
+- The Composer (/composer, `composer_page_v1.py`) builds a design on a
+  blank board or imports an ICM file: place cells, set their fields,
+  join them, insert saved designs from the library as blocks, drag cells
+  and blocks; every edit goes through the layout engine
+  (`tools/flex_layout_view_v1.py` over `tools/flex_layout_v1.py`). It
+  generates no RTL (`docs/stripped-cell/design-notes/
+  composer_layout_viewer_scope.md`).
 - Every real, action-performing page ALSO shows the exact equivalent
   CLI command, per Alan's own explicit request -- some people will
   always prefer the command line.
@@ -38,9 +39,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import man_generate_v1  # noqa: E402
 import project_assemble_v1  # noqa: E402
+import composer_page_v1  # noqa: E402
 import manual_generate_v1  # noqa: E402
 import vm_ai_port_v1  # noqa: E402
 import walker_sim_v1  # noqa: E402
+import ui_theme_v1 as ui  # noqa: E402  (ledger #998: the one shared look)
 
 
 class FrontendController:
@@ -266,27 +269,9 @@ class FrontendController:
         }
 
 
-# ── Real HTML, one block per page. Deliberately plain -- this is a
-# real, working tool, not a design showcase. ─────────────────────────
-
-PAGE_CSS = """
-<style>
-body { font-family: -apple-system, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #222; line-height: 1.5; }
-h1 { font-size: 1.4em; } h2 { font-size: 1.1em; margin-top: 2em; }
-nav a { margin-right: 16px; }
-.placeholder { background: #f5f5f0; border-left: 4px solid #c9a227; padding: 12px 16px; margin: 16px 0; }
-.real { background: #f0f5f0; border-left: 4px solid #4a8; padding: 12px 16px; margin: 16px 0; }
-label { display: block; margin-top: 10px; font-size: 0.9em; }
-input { width: 100%; padding: 6px; box-sizing: border-box; margin-top: 2px; }
-button { margin-top: 16px; padding: 8px 20px; }
-pre { background: #f4f4f4; padding: 10px; overflow-x: auto; font-size: 0.85em; }
-.result { margin-top: 16px; padding: 10px; }
-.result.ok { background: #eafaf0; } .result.err { background: #faeaea; }
-</style>
-"""
-
-NAV = '<nav><a href="/">Start</a> <a href="/man">1. Card / MAN file</a> <a href="/cells">2. Create cells</a> <a href="/walker">3. Walker</a> <a href="/menu">4. Other tools</a></nav>'
-
+# ── Real HTML, one block per page. The look (stylesheet, header, nav,
+# footer) is shared with the workbench and the manual through
+# ui_theme_v1 (ledger #998); these functions supply only page content. ──
 
 def help_link(anchor: str) -> str:
     """Real, reused help icon -- opens the manual (regenerated fresh
@@ -294,13 +279,11 @@ def help_link(anchor: str) -> str:
     per Alan's own 'one button reuse of something built' idea. Never
     new help text written by hand here -- always a link into the
     real, existing documentation."""
-    return f'<a href="/manual#{anchor}" target="_blank" title="Help" style="float:right; text-decoration:none; font-size:1.3em;">&#9432;</a>'
+    return f'<a class="help" href="/manual#{anchor}" target="_blank" title="Help: open the manual at this section">&#9432;</a>'
 
 
 def page_welcome() -> str:
-    return f"""<!doctype html><html><head><title>Imago UniCell</title>{PAGE_CSS}</head><body>
-{NAV}
-<h1>Imago UniCell -- getting started{help_link('doc0-imago-unicell')}</h1>
+    return ui.page("Imago UniCell", f"""<h1>Imago UniCell -- getting started{help_link('doc0-imago-unicell')}</h1>
 <p>This tool walks through the real, current steps for taking a card
 from "nothing generated yet" to a real, buildable Quartus project,
 matching the order this project's own build process actually follows:</p>
@@ -308,12 +291,12 @@ matching the order this project's own build process actually follows:</p>
 <li><b>Card / MAN file</b> -- describe your card's own real capabilities once.</li>
 <li><b>Create cells</b> -- generate a real, importable Quartus project for N cells.</li>
 <li><b>Walker</b> -- simulated, live discovery of a VM-mirrored design's own topology (real hardware discovery is a separate, later step).</li>
-<li><b>Other tools</b> -- the real VM/workbench, the compiler, and (not yet built) Composer.</li>
+<li><b>Other tools</b> -- the real VM/workbench and the compiler; the <a href="/composer">Composer</a> builds and arranges designs on the board.</li>
 </ol>
 <p>Every real, action-performing page here also shows the exact
 equivalent command-line invocation -- this tool is a convenience, not
 the only way to do any of this.</p>
-</body></html>"""
+""", active="start")
 
 
 def page_man(result: Optional[Dict[str, Any]] = None) -> str:
@@ -324,9 +307,7 @@ def page_man(result: Optional[Dict[str, Any]] = None) -> str:
             result_html = f'<div class="result {cls}"><b>Wrote:</b> {result["output"]}<h2>Equivalent CLI</h2><pre>{result["cli_equivalent"]}</pre></div>'
         else:
             result_html = f'<div class="result {cls}"><b>Error:</b> {result.get("error")}</div>'
-    return f"""<!doctype html><html><head><title>Card / MAN file</title>{PAGE_CSS}</head><body>
-{NAV}
-<h1>Step 1: describe your card{help_link('doc1-man-files')}</h1>
+    return ui.page("Card / MAN file", f"""<h1>Step 1: describe your card{help_link('doc1-man-files')}</h1>
 <div class="real">Real, working -- generates an actual, schema-compatible MAN
 file via <code>tools/man_generate_v1.py</code> (points.md #557).</div>
 
@@ -335,8 +316,8 @@ file via <code>tools/man_generate_v1.py</code> (points.md #557).</div>
 (<code>project_assemble_v1.py</code>'s own <code>load_man()</code>)
 actually reads today, versus what's real but only documentation --
 so nothing here is asked for without a stated reason.</p>
-<table style="width:100%; border-collapse:collapse; font-size:0.9em;">
-<tr style="text-align:left; border-bottom:1px solid #ccc;"><th>Field</th><th>Required to build a project</th><th>Why</th></tr>
+<table class="fields">
+<tr><th>Field</th><th>Required to build a project</th><th>Why</th></tr>
 <tr><td>Card ID</td><td>Yes</td><td>identifies the card in generated projects</td></tr>
 <tr><td>Device part</td><td>Yes</td><td>Quartus device setting</td></tr>
 <tr><td>Quartus FAMILY string</td><td>No</td><td>the build tool always uses the literal "Arria 10" regardless -- kept here for documentation only</td></tr>
@@ -349,7 +330,7 @@ so nothing here is asked for without a stated reason.</p>
 <tr><td>Additional pin locations (below)</td><td>No</td><td>not consumed by the build pipeline today -- real documentation for JTAG device pins, configuration pins, or anything else, kept for future tools (e.g. Walker)</td></tr>
 </table>
 
-<form method="post" action="/man">
+<form class="tool" method="post" action="/man">
 <label><input type="checkbox" name="free_format" value="1" id="free_format_cb"
 onchange="document.getElementById('card_fields').style.display = this.checked ? 'none' : '';
 document.getElementById('free_format_fields').style.display = this.checked ? '' : 'none';
@@ -391,12 +372,12 @@ Recognized groups: <code>jtag</code> (device pins, e.g. <code>jtag.tck = PIN_AH1
 <code>config</code> (configuration pins, e.g. <code>config.nCONFIG = PIN_AF13</code>),
 or anything else (e.g. <code>extra.pcie_refclk_p = PIN_AB28</code>).
 This is a real, user-supplied table -- it is NEVER auto-parsed from a .pin file or any other source.
-<textarea name="pin_table" rows="6" style="width:100%; padding:6px; box-sizing:border-box; margin-top:2px; font-family:monospace;" placeholder="jtag.tck = PIN_AH12&#10;jtag.tdi = PIN_AH13&#10;config.nCONFIG = PIN_AF13&#10;extra.pcie_refclk_p = PIN_AB28"></textarea></label>
+<textarea name="pin_table" rows="6" placeholder="jtag.tck = PIN_AH12&#10;jtag.tdi = PIN_AH13&#10;config.nCONFIG = PIN_AF13&#10;extra.pcie_refclk_p = PIN_AB28"></textarea></label>
 <label>Output path (e.g. docs/man/my-card.man.json)<input name="output" required></label>
-<button type="submit">Generate MAN file</button>
+<button type="submit" class="primary">Generate MAN file</button>
 </form>
 {result_html}
-</body></html>"""
+""", active="man")
 
 
 def page_cells(result: Optional[Dict[str, Any]] = None) -> str:
@@ -430,9 +411,7 @@ def page_cells(result: Optional[Dict[str, Any]] = None) -> str:
             result_html = f'<div class="result {cls}"><b>Error:</b> {result.get("error")}</div>'
     core_options = "".join(f'<option value="{c}">{c}</option>' for c in project_assemble_v1.CORE_REGISTRY)
     shell_options = "".join(f'<option value="{s}">{s}</option>' for s in sorted(project_assemble_v1.SHELL_REGISTRY))
-    return f"""<!doctype html><html><head><title>Create cells</title>{PAGE_CSS}</head><body>
-{NAV}
-<h1>Step 2: generate a real Quartus project{help_link('doc3-project-assemble-v1py-real-n-cell-quartus-project-generator')}</h1>
+    return ui.page("Create cells", f"""<h1>Step 2: generate a real Quartus project{help_link('doc3-project-assemble-v1py-real-n-cell-quartus-project-generator')}</h1>
 <div class="real">Real, working -- generates a complete, importable Quartus
 project for N cells via <code>tools/project_assemble_v1.py</code>
 (points.md #552/#554/#555). One real, unconstrained input feeds the
@@ -443,8 +422,8 @@ own logic constant and collapsing it away (a real failure this project
 hit and fixed, #554).</div>
 
 <h2>What's actually needed, and why</h2>
-<table style="width:100%; border-collapse:collapse; font-size:0.9em;">
-<tr style="text-align:left; border-bottom:1px solid #ccc;"><th>Field</th><th>Required</th><th>Why</th></tr>
+<table class="fields">
+<tr><th>Field</th><th>Required</th><th>Why</th></tr>
 <tr><td>MAN file path</td><td>Yes</td><td>real card capabilities (Step 1's own output)</td></tr>
 <tr><td>Cell count</td><td>Yes</td><td>how many cells to array into the grid</td></tr>
 <tr><td>Output folder</td><td>Yes</td><td>must be outside this repo (#556) -- prevents build artifacts landing in the tracked tree by accident</td></tr>
@@ -459,7 +438,7 @@ hit and fixed, #554).</div>
 <tr><td>Dependency file list / inline files</td><td>No</td><td>override the shell's own registered dependency list explicitly (#590)</td></tr>
 </table>
 
-<form method="post" action="/cells">
+<form class="tool" method="post" action="/cells">
 <label>MAN file path<input name="man_path" required></label>
 <label>Cell count<input name="cells" type="number" required></label>
 <label>Output folder (outside this repo -- required, #556)<input name="output" required></label>
@@ -471,7 +450,7 @@ hit and fixed, #554).</div>
 
 <h2>Shell / placement options (ignored if a single core type is set above)</h2>
 <label>Shell (default v3, #578)<select name="shell">{shell_options}</select></label>
-<label><input name="logiclock" type="checkbox" style="width:auto; display:inline; margin-right:6px;">Enable per-cell LogicLock placement regions (#582)</label>
+<label class="inline"><input name="logiclock" type="checkbox">Enable per-cell LogicLock placement regions (#582)</label>
 <label>LogicLock fixed ALM/cell (optional -- leave blank for AUTO_SIZE, #583)<input name="ll_fixed_alm" type="number" step="0.01"></label>
 <label>LogicLock headroom multiplier (default 1.25 = 25%, #583)<input name="ll_headroom" type="number" step="0.01" value="1.25"></label>
 
@@ -481,10 +460,10 @@ hit and fixed, #554).</div>
 <label>Dependency file list path (one real filename per line)<input name="file_list"></label>
 <label>Inline dependency list (comma-separated filenames -- takes precedence over the file list above)<input name="files"></label>
 
-<button type="submit">Generate project</button>
+<button type="submit" class="primary">Generate project</button>
 </form>
 {result_html}
-</body></html>"""
+""", active="cells")
 
 
 def page_walker(result: Optional[Dict[str, Any]] = None) -> str:
@@ -501,9 +480,7 @@ def page_walker(result: Optional[Dict[str, Any]] = None) -> str:
             )
         else:
             result_html = f'<div class="result {cls}"><b>Error:</b><pre>{result.get("error")}</pre></div>'
-    return f"""<!doctype html><html><head><title>Walker</title>{PAGE_CSS}</head><body>
-{NAV}
-<h1>Step 3: the Walker{help_link('doc3-tools')}</h1>
+    return ui.page("Walker", f"""<h1>Step 3: the Walker{help_link('doc3-tools')}</h1>
 <div class="real">Real, working -- the SIMULATED Walker (points.md #602):
 runs the exact same real ping protocol #501 designed for real hardware
 (self answers with its own identity; a cardinal ping relays exactly one
@@ -520,8 +497,8 @@ a real, separate, later step once this VM-side methodology is
 confirmed useful.</div>
 
 <h2>What's actually needed, and why</h2>
-<table style="width:100%; border-collapse:collapse; font-size:0.9em;">
-<tr style="text-align:left; border-bottom:1px solid #ccc;"><th>Field</th><th>Required</th><th>Why</th></tr>
+<table class="fields">
+<tr><th>Field</th><th>Required</th><th>Why</th></tr>
 <tr><td>MAN file path</td><td>Yes</td><td>the real card this session mirrors -- see Step 1</td></tr>
 <tr><td>Cell count</td><td>Yes</td><td>must match the real N-cell layout your program's own placements were written against</td></tr>
 <tr><td>Program (Unicell-S DSL)</td><td>Yes</td><td>the design to load and discover -- compiled fresh each run, same discipline as the manual page</td></tr>
@@ -529,23 +506,21 @@ confirmed useful.</div>
 <tr><td>Output path</td><td>Yes</td><td>where the real SHAPE file is written</td></tr>
 </table>
 
-<form method="post" action="/walker">
+<form class="tool" method="post" action="/walker">
 <label>MAN file path<input name="man_path" required></label>
 <label>Cell count<input name="cells" type="number" required></label>
-<label>Program (Unicell-S DSL source)<textarea name="dsl" rows="10" required style="width:100%; padding:6px; box-sizing:border-box; margin-top:2px; font-family:monospace;" placeholder="program my_design {{&#10;    place r1 as ram_constant at (0, 0) {{&#10;        out: e&#10;        init_data: 1&#10;    }}&#10;}}"></textarea></label>
+<label>Program (Unicell-S DSL source)<textarea name="dsl" rows="10" required placeholder="program my_design {{&#10;    place r1 as ram_constant at (0, 0) {{&#10;        out: e&#10;        init_data: 1&#10;    }}&#10;}}"></textarea></label>
 <label>Start row (optional, default 0)<input name="start_row" type="number" value="0"></label>
 <label>Start col (optional, default 0)<input name="start_col" type="number" value="0"></label>
 <label>Output SHAPE path (e.g. docs/shapes/my-design.shape.json)<input name="output" required></label>
-<button type="submit">Run simulated Walker</button>
+<button type="submit" class="primary">Run simulated Walker</button>
 </form>
 {result_html}
-</body></html>"""
+""", active="walker")
 
 
 def page_menu() -> str:
-    return f"""<!doctype html><html><head><title>Other tools</title>{PAGE_CSS}</head><body>
-{NAV}
-<h1>Step 4: the rest of the toolchain{help_link('doc0-whats-built-on-top-of-it-and-how-its-verified')}</h1>
+    return ui.page("Other tools", f"""<h1>Step 4: the rest of the toolchain{help_link('doc0-whats-built-on-top-of-it-and-how-its-verified')}</h1>
 
 <h2>VM / Workbench -- real, working</h2>
 <div class="real">A real, already-working browser tool: compile a
@@ -584,20 +559,50 @@ see <code>docs/stripped-cell/UNICELL_S_DSL_MANUAL.md</code> for the
 language reference.</div>
 <pre>python3 nano/dsl_cli_v1.py your_program.uc -o out.icm</pre>
 
-<h2>Composer -- not built yet</h2>
-<div class="placeholder">This slot exists for later, deliberately not
-faked. Composer's own real, decided scope
-(<code>docs/stripped-cell/design-notes/composer_scope.md</code>) is a
-visual PLACEMENT-REVIEW tool for an already-compiled model -- letting
-a person see where the automated loader put things and adjust it
-before committing. RTL generation is explicitly, deliberately excluded
-from its own scope -- that job belongs to Step 2's own real generator
-instead. No code exists for Composer yet.</div>
-</body></html>"""
+<h2>Composer -- build and arrange a layout</h2>
+<div class="real">Start a blank board or import an ICM file. Place cells,
+set each one's fields (the panel shows the SUPER_LATCH it encodes to, as
+the explainer does) and join them; the layout engine
+(<code>tools/flex_layout_v1.py</code>) lays every route and balances the
+operand timing. Save a design to the library and it can be placed in
+another design as a single block, joined at its io-named ports. Drag
+cells and blocks; a move that cannot be routed is refused. Run / step
+injects values into the inputs and steps the design in FlexGrid, showing
+each value on the board and checking the outputs. Save writes ICM v3, or
+ICM-VIX when the design holds blocks, so they come back as blocks. No RTL
+is generated here
+(<code>docs/stripped-cell/design-notes/composer_layout_viewer_scope.md</code>).
+<a href="/composer">Open the Composer</a>.</div>
+<pre>python3 tools/flex_layout_view_v1.py FILE.icm.json   # the same import, from the command line</pre>
+""", active="menu")
 
 
 class FrontendHandler(http.server.BaseHTTPRequestHandler):
     controller: Optional[FrontendController] = None
+    composer: Optional["composer_page_v1.ComposerController"] = None
+
+    def _json_response(self, obj, status: int = 200) -> None:
+        body = json.dumps(obj).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json_body(self) -> Dict[str, Any]:
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            return {}
+        try:
+            got = json.loads(self.rfile.read(length).decode())
+        except ValueError:
+            return {}
+        return got if isinstance(got, dict) else {}
+
+    def _composer(self) -> "composer_page_v1.ComposerController":
+        if FrontendHandler.composer is None:
+            FrontendHandler.composer = composer_page_v1.ComposerController()
+        return FrontendHandler.composer
 
     def _html_response(self, html: str, status: int = 200) -> None:
         body = html.encode()
@@ -630,6 +635,22 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
             self._html_response(page_walker())
         elif self.path == "/menu":
             self._html_response(page_menu())
+        elif self.path == "/composer":
+            self._html_response(composer_page_v1.page_composer())
+        elif self.path == "/composer/api/state":
+            self._json_response(self._composer().state())
+        elif self.path.startswith("/composer/api/save"):
+            name, text = self._composer().icm_text("v3" if "fmt=v3" in self.path else "vix" if "fmt=vix" in self.path else None)
+            if text is None:
+                self._json_response({"ok": False, "error": "no layout loaded"}, status=404)
+                return
+            body = text.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif self.path.startswith("/manual"):
             # Regenerated fresh from the current repo state every time
             # -- never a stale, separately hand-maintained copy (#558).
@@ -638,6 +659,19 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
             self._html_response("<h1>404</h1>", status=404)
 
     def do_POST(self):
+        if self.path.startswith("/composer/api/"):
+            req = self._read_json_body()
+            act = self.path[len("/composer/api/"):]
+            if act == "load":
+                self._json_response(self._composer().load(req))
+            elif act == "save_library":
+                self._json_response(self._composer().save_library(req))
+            elif act == "sim":
+                self._json_response(self._composer().sim_op(req))
+            else:
+                res = self._composer().edit(act, req)
+                self._json_response(res, status=404 if res.get("error", "").startswith("unknown action") else 200)
+            return
         fields = self._read_form_body()
         if self.path == "/man":
             result = self.controller.generate_man(fields)
@@ -670,6 +704,7 @@ def _url_unquote(s: str) -> str:
 
 def serve(port: int = 7421, open_browser: bool = False) -> http.server.HTTPServer:
     FrontendHandler.controller = FrontendController()
+    FrontendHandler.composer = composer_page_v1.ComposerController()
     server = http.server.HTTPServer(("localhost", port), FrontendHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
