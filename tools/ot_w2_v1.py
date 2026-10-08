@@ -266,10 +266,15 @@ def w2_engine(g, n=4, T=64, name="W2", r0=2, c0=2, gap=10, pads=None, info=None)
     for side in ("M", "N"):
         f = fronts[side]
         lanes += [(f[f"O.F{i}"], f[f"O.P{i}"]) for i in range(n - 1)] + [(f["O.KT"], f["O.KZ"])]
+    pads_left = {n - 1, n2 - 1}                                  # the lanes still carrying a pad (the last of each signature's list)
     col = c0 + wmax + gap
     for si, stage in enumerate(merge_stages(n2)):
         row, wmax = r0, 0
         for ci, (a, b) in enumerate(stage):
+            if a in pads_left and b in pads_left:                 # both lanes are the constant pad (T, 0): equal keys never swap, so this compare-exchange is
+                continue                                          # decided at build time (a tile driven only by constants has nothing live to time it by)
+            pads_left.discard(a)
+            pads_left.discard(b)
             net, ents, outs = ce_net()
             nm, cs, (h, w) = _tile(g, net, f"{name}.C{si}.{ci}", ents, outs, row, col, pads=pads, info=info)
             consts.update(cs)
