@@ -183,11 +183,14 @@ def test_the_man_does_not_claim_more_than_was_verified():
     assert "ESP32-D" in host["device"] and "WROOM-32E" in host["device"], "the host is the kit's ESP32-D, not a C-series"
     assert "C series" not in host["device"] and "ESP32-C" not in host["device"]
     assert host["strapping_pins"] == [0, 2, 5, 12, 15], "the kit documentation's five strapping pins"
-    assert "NOT READ" in host["kit"]["extension_pinout"], "the extension board's pin tables are images nobody has read"
+    assert "NOT read" in host["kit"]["extension_pinout"] or "NOT READ" in host["kit"]["extension_pinout"], "the kit's own pin-table images were not read"
+    assert "photographs" in host["kit"]["extension_pinout"] and "continuity" in host["kit"]["extension_pinout"], "the terminal labels came from photographs and need a continuity check"
+    assert host["kit"]["extension_terminals"]["right"][:7] == ["IO23", "IO22", "TXD", "RXD", "IO21", "IO19", "IO18"]
     assert "NOT from the kit documentation" in host["chip_inside_module_note"], \
         "the D0WD-V3 inside the module is general knowledge, not something the kit page says"
-    assert hl["esp32_side_pins"] is None and "NOT CHOSEN" in hl["esp32_side_pins_note"], \
-        "no ESP32-side pins may be claimed until the free GPIOs are known"
+    assert hl["esp32_side_pins"]["MISO"] == "IO19" and hl["esp32_side_pins"]["READY_IRQ"] == "IO34" and "PROPOSED" in hl["esp32_side_pins_note"] and "UNVERIFIED" in hl["esp32_side_pins_note"], \
+        "the ESP32-side pins are only a proposal from the photographed terminal labels"
+    assert all(int(hl["esp32_side_pins"][k][2:]) not in host["strapping_pins"] for k in ("MISO", "READY_IRQ")), "an FPGA-driven line must not sit on a strapping pin"
     assert any("HAZARD" in n and "strapping" in n for n in hl["notes"]), "the strapping-pin hazard must stay recorded"
     assert all(v is False for k, v in MAN["capabilities"].items() if k.endswith("_integrated")), \
         "nothing has been built on this board yet"

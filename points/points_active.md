@@ -1014,3 +1014,5 @@ The vectors are checked independently in the tests: add/sub/mul against arithmet
 
 ### #1036 addendum 2 -- PLAYOUT / CAPTURE BLOCK-RAM FEED. `fpga/verilog/playout_v1.v` + `capture_v1.v` (vendor-neutral, map to Gowin BSRAM / Intel M10K), tested alone and around the W2 engine (docs/playout_capture_v1.md, tests/vm/test_playout_v1.py). Host link (UART / SD / ESP) not built yet.
 
+### #1036 addendum 3 -- SD CARD FEED: THE SMALL UNIT RUNS CARD TO CARD IN SIMULATION. `sd_spi_v1.v` (SPI-mode raw-block SD), `sd_stream_v1.v` (card <-> playout / capture RAMs), `sd_card_model_v1.v` (sim only). The 4-point W2 engine reads its signatures from a simulated card, computes, and writes the squared distances back to a card block; they equal the reference (tests/vm/test_sd_spi_v1.py). Not on hardware yet; board file warns the slot's pins have no listed pull-ups. ESP32 side: see the camera-board pin note in docs/playout_capture_v1.md.
+

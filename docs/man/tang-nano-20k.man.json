@@ -3503,7 +3503,41 @@
             "24-pin FFC connector for an OV2640 camera",
             "14-pin screw terminal and female headers"
           ],
-          "extension_pinout": "two pin tables exist in the kit documentation as IMAGES; NOT READ. So which ESP32 GPIOs the extension board leaves free is UNKNOWN"
+          "extension_pinout": "the kit's pin tables are IMAGES and were NOT READ; instead the project owner sent three photographs of the board (2026-10-08) and the screw-terminal / header labels were READ from them: left block top to bottom I36 I39 I34 I35 IO32 IO33 IO25 IO26 IO27 IO14 IO12 IO13 GND 5V; right block IO23 IO22 TXD RXD IO21 IO19 IO18 IO5 IO4 IO0 IO2 IO15 GND 3V3. Which of these the camera connector or the SD slot also use is general knowledge of the common ESP32 camera board / SDMMC pinout, NOT read from this kit, and must be checked with a continuity test",
+          "extension_terminals": {
+            "left": [
+              "I36",
+              "I39",
+              "I34",
+              "I35",
+              "IO32",
+              "IO33",
+              "IO25",
+              "IO26",
+              "IO27",
+              "IO14",
+              "IO12",
+              "IO13",
+              "GND",
+              "5V"
+            ],
+            "right": [
+              "IO23",
+              "IO22",
+              "TXD",
+              "RXD",
+              "IO21",
+              "IO19",
+              "IO18",
+              "IO5",
+              "IO4",
+              "IO0",
+              "IO2",
+              "IO15",
+              "GND",
+              "3V3"
+            ]
+          }
         },
         "chip_inside_module_note": "an ESP32-WROOM-32E module contains an ESP32-D0WD-V3; that is general knowledge of the module, NOT from the kit documentation, and has not been checked against the physical part",
         "strapping_pins": [
@@ -3523,8 +3557,15 @@
         "io_voltage": "3.3 V, matching this board's LVCMOS33 I/O (no level shifter expected)"
       },
       "planned_interface": "SPI, ESP32 = master, FPGA = slave",
-      "esp32_side_pins": null,
-      "esp32_side_pins_note": "NOT CHOSEN. Needs the extension board's pin tables (images in the kit documentation) to know which GPIOs are free, and must avoid the strapping pins for any line the FPGA drives (MISO, ready/interrupt).",
+      "esp32_side_pins": {
+        "SCLK": "IO18",
+        "MOSI": "IO23",
+        "MISO": "IO19",
+        "CS_N": "IO5",
+        "READY_IRQ": "IO34",
+        "GND": "GND (either terminal block): the two boards must share ground"
+      },
+      "esp32_side_pins_note": "PROPOSED, not wired. These are the ESP32's default VSPI pins (IO18 / IO23 / IO19 / IO5 -- the dedicated route, so no GPIO-matrix clock limit), taken from the terminal labels read in the owner's photographs. The FPGA drives only MISO (IO19, not a strapping pin) and READY (IO34, an input-only pin, never a strapping pin); IO5 is a strapping pin but is driven by the ESP32 (CS_N) and only listened to by the FPGA. The SD slot's own pins (IO14 / IO15 / IO2 / IO4 / IO12 / IO13, general knowledge) are left alone. UNVERIFIED: whether a camera (if one is fitted) or anything else on the extension board also drives IO18 / IO19 / IO23 / IO5 / IO34; with no camera fitted these are expected to be free.",
       "reference_pins": {
         "CS_N": {
           "pin": 73,
