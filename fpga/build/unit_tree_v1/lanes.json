@@ -1,0 +1,41 @@
+{
+ "design_top": "icm_parallel_reduction_tree_flex",
+ "entries": [
+  "input_0",
+  "input_1",
+  "input_2",
+  "input_3"
+ ],
+ "exits": [
+  "output"
+ ],
+ "word_layout": "item-major, lane-minor, little-endian 32-bit words on the card (item k, lane j at word k*LANES + j); results in arrival order",
+ "lanes": 4,
+ "outs": 1,
+ "sd_pins": {
+  "SD_CLK": 83,
+  "SD_CMD": 82,
+  "SD_DAT0": 84,
+  "SD_DAT3": 81
+ },
+ "spi_pins": {
+  "SPI_CS_N": 73,
+  "SPI_SCLK": 74,
+  "SPI_MOSI": 75,
+  "SPI_MISO": 76,
+  "READY": 77
+ },
+ "registers": {
+  "0": "ID 0x57320001",
+  "1": "STATUS [0]sd_ready [1]sd_error [2]sd_busy [3]play_busy [4]sd_done [5]play_done [6]capture_nonempty [12:8]err_code",
+  "2": "CONTROL [0]sd_load [1]sd_save [2]play_start [3]capture_clear [4]clear_done",
+  "3": "START_BLOCK",
+  "4": "NBLOCKS",
+  "5": "PLAY_COUNT (words = items*lanes)",
+  "6": "CAP_COUNT (ro)",
+  "7": "SCRATCH",
+  "8": "MAX_OUT: pacing for designs that hold ONE item at a time -- at most this many results outstanding (0 = unlimited)",
+  "9": "RPI: results per item (default 1)"
+ },
+ "spi": "mode 0, MSB first, SCLK slower than clk/16 (27 MHz -> <= 1.6 MHz). 0x01 WR_REG addr d3..d0 | 0x02 RD_REG addr pad then 4 bytes | 0x03 WR_WORDS hi lo words | 0x04 RD_WORDS hi lo pad words"
+}
