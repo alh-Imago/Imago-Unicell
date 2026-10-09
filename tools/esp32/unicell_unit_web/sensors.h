@@ -31,6 +31,7 @@ static uint16_t rd_digital(int pin) { return digitalRead(pin) ? 65535 : 0; }
 // Thermistor on an analog pin: ASSUMED a 10 k NTC (B = 3950) in a divider with a 10 k resistor, thermistor on the GND side. If your kit wires it the other way round, swap
 // the two resistances in the formula. Result = (degC + 40) * 100, so -40 C -> 0 and 25 C -> 6500 (clamped to 16 bits). The ESP32 ADC is not linear; treat it as indicative.
 static uint16_t rd_thermistor(int pin) {
+  (void)analogRead(pin); delayMicroseconds(100);                       // discard the first read (crosstalk from the previously read channel)
   uint32_t sum = 0; for (int i = 0; i < 8; i++) sum += analogRead(pin);
   float v = sum / 8.0f; if (v < 1) v = 1; if (v > 4094) v = 4094;
   float r = 10000.0f * v / (4095.0f - v);                              // thermistor resistance
@@ -86,6 +87,7 @@ static void sensors_begin() {
 
 static uint16_t sensor_amount(const Sensor& s) {
   if (s.pin < 0) return s.custom ? s.custom() : 0;
+  (void)analogRead(s.pin); delayMicroseconds(100);              // throw one read away: the ESP32 ADC's sample capacitor still holds the PREVIOUS channel's voltage, which leaks into a high-impedance sensor (a pot or thermistor divider) as crosstalk
   uint32_t sum = 0;
   for (int i = 0; i < 8; i++) sum += analogRead(s.pin);        // 12-bit reads, averaged over 8 to calm the noise
   return (uint16_t)((sum / 8) << 4);                           // 0..4095 -> 0..65520 (12-bit scaled up to the 16-bit amount field)
