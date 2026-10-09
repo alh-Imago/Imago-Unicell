@@ -68,3 +68,13 @@ def test_web_sketch_file_card_pins_are_off_the_unit_link_and_documented():
     doc = open(os.path.join(ROOT, "docs", "unit_bringup_guide.md")).read()
     for row in ("| CS | IO32 |", "| CLK / SCK | IO33 |", "| MOSI / DI | IO25 |", "| MISO / DO | IO26 |"):
         assert row in doc, row
+
+
+def test_web_sketch_has_the_live_sensor_feed_with_free_adc1_pins():
+    """addendum 17: /api/live, sensors.h with ADC1-only default pins that do not clash with the unit link (5/18/19/23/34) or the file card (32/33/25/26)."""
+    ino = open(os.path.join(WEB, "unicell_unit_web.ino")).read()
+    h = open(os.path.join(WEB, "sensors.h")).read()
+    assert '"/api/live"' in ino and '#include "sensors.h"' in ino
+    used = {5, 18, 19, 23, 34, 32, 33, 25, 26}
+    pins = [int(p) for p in re.findall(r'\{\s*"[^"]+",\s*\d+,\s*(\d+),', h)]
+    assert pins and not (set(pins) & used) and all(32 <= p <= 39 for p in pins)

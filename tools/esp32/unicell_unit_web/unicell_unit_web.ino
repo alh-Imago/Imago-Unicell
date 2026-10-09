@@ -15,6 +15,7 @@
 #include <FS.h>
 #include <SD.h>
 #include "unit_link.h"
+#include "sensors.h"
 
 // ---- which design is on the FPGA --------------------------------------------------------------------------------------------------------------------
 #define DESIGN_CORDIC 1      // 1 input word per item, 1 result: the CORDIC z-convergence (fpga/build/unit_cordic_v1)
@@ -82,6 +83,11 @@ button:disabled{opacity:.5}table{width:100%;border-collapse:collapse;margin-top:
 <textarea id="items" spellcheck="false"></textarea>
 <div class="row"><button id="run">Run through the design</button><button class="alt" id="ex">Example</button></div>
 <table id="res" hidden><thead><tr><th>#</th><th>input</th><th>result</th></tr></thead><tbody></tbody></table></div>
+<div class="card"><h2>Live sensors</h2>
+<small id="livehint">Reads the sensors listed in sensors.h and feeds them to the design, one sample at a time.</small>
+<div class="row"><button class="alt" id="livebtn">Start live feed</button></div>
+<table id="livetab" hidden><thead><tr><th style="text-align:left">sensor</th><th>loc</th><th>amount</th></tr></thead><tbody></tbody></table>
+<div id="liveres"></div></div>
 <div class="card"><h2>SD card (raw blocks)</h2>
 <small>Blocks below 16 are refused. Saving overwrites raw blocks on the card.</small>
 <div class="row"><input id="blk" type="number" min="16" value="64" aria-label="start block"><input id="nb" type="number" min="1" max="8" value="1" aria-label="blocks"></div>
@@ -108,6 +114,9 @@ async function files(){try{const f=await api('/api/files');$('fhint').textConten
  $('ftab').tBodies[0].innerHTML=f.files.map(x=>'<tr><td style="text-align:left">'+x.name+'</td><td>'+x.size+' B</td><td><a href="/files?name='+encodeURIComponent(x.name)+'">download</a></td><td><a href="#" data-del="'+x.name+'">delete</a></td></tr>').join('')}catch(e){$('fhint').textContent=e.message}}
 $('ftab').onclick=async e=>{const n=e.target.dataset&&e.target.dataset.del;if(!n)return;e.preventDefault();if(!confirm('Delete '+n+'?'))return;try{await api('/api/filedel',{name:n});files()}catch(x){msg(x.message,1)}};
 $('fsend').onclick=async()=>{const f=$('fup').files[0];if(!f){msg('choose a file first',1);return}msg('Uploading '+f.name+'...');try{const fd=new FormData();fd.append('file',f,f.name);const r=await fetch('/api/upload',{method:'POST',body:fd});const j=await r.json().catch(()=>({ok:false,error:'bad reply'}));if(!r.ok||j.ok===false)throw new Error(j.error||('HTTP '+r.status));msg('Uploaded '+j.bytes+' bytes');files()}catch(x){msg(x.message,1)}};
+let liveOn=false,liveT=null;
+async function liveTick(){if(!liveOn)return;try{const j=await api('/api/live');$('livetab').hidden=false;$('livetab').tBodies[0].innerHTML=j.readings.map(r=>'<tr><td style="text-align:left">'+r.name+'</td><td>'+r.loc+'</td><td>'+r.amount+'</td></tr>').join('');$('liveres').textContent='design result: '+j.result+'  ('+j.ms+' ms)'}catch(e){$('liveres').textContent=e.message;liveOn=false;$('livebtn').textContent='Start live feed';return}liveT=setTimeout(liveTick,500)}
+$('livebtn').onclick=()=>{liveOn=!liveOn;$('livebtn').textContent=liveOn?'Stop live feed':'Start live feed';if(liveOn)liveTick();else clearTimeout(liveT)};
 $('sload').onclick=()=>sd('load');$('ssave').onclick=()=>sd('save');$('sinit').onclick=()=>sd('init');
 let EXAMPLE='';fetch('/api/status').then(r=>r.json()).then(s=>{EXAMPLE=s.example;$('items').value=s.example});
 status();setInterval(status,3000);files();
@@ -154,6 +163,28 @@ static void handleRun() {
   String j = "{\"ok\":true,\"results\":[";
   for (int i = 0; i < items; i++) { if (i) j += ","; j += String((long)out[i]); }
   sendJson(200, j + "]}");
+}
+
+// Live sensor feed: read the first LANES sensors, make one item (one word per lane), run it through the design, return readings + result.
+// Tree / relay designs get the packed SensorTrix word (amount<<16 | location); the CORDIC gets the raw 16-bit amount as its angle (scale it in your sensor function).
+static void handleLive() {
+  if (!authed()) return;
+  if (SENSOR_COUNT < LANES) { sendErr(400, String("this design needs ") + LANES + " sensor(s); sensors.h lists " + SENSOR_COUNT); return; }
+  int32_t in[LANES], out[1]; String r = "";
+  uint32_t t0 = millis();
+  for (int i = 0; i < LANES; i++) {
+    uint16_t a = sensor_amount(SENSORS[i]);
+#if defined(DESIGN_CORDIC)
+    in[i] = (int32_t)a;
+#else
+    in[i] = (int32_t)sensor_word(SENSORS[i], a);
+#endif
+    if (i) r += ",";
+    r += String("{\"name\":\"") + SENSORS[i].name + "\",\"loc\":" + SENSORS[i].loc + ",\"amount\":" + a + "}";
+  }
+  const char* err = run_items(in, 1, LANES, out);
+  if (*err) { sendErr(500, err); return; }
+  sendJson(200, String("{\"ok\":true,\"readings\":[") + r + "],\"result\":" + String((long)out[0]) + ",\"ms\":" + String(millis() - t0) + "}");
 }
 
 static void handleSd() {
@@ -270,6 +301,7 @@ void setup() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/run", HTTP_POST, handleRun);
+  server.on("/api/live", HTTP_GET, handleLive);
   server.on("/api/sd", HTTP_POST, handleSd);
   server.on("/api/sdinit", HTTP_POST, handleSdInit);
   server.on("/api/files", HTTP_GET, handleFiles);
