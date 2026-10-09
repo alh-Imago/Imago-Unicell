@@ -18,7 +18,7 @@
 #include "sensors.h"
 
 // ---- which design is on the FPGA --------------------------------------------------------------------------------------------------------------------
-#define DESIGN_CORDIC 1      // 1 input word per item, 1 result: the CORDIC z-convergence (fpga/build/unit_cordic_v1)
+#define DESIGN_CORDIC 1      // 1 input word per item, 1 result: the CORDIC z-convergence (fpga/build/unit_cordic_v1). When you pick TREE4 or RELAY below, comment THIS line out (it is harmless if you forget: TREE4 / RELAY win)
 // #define DESIGN_TREE4 1    // 4 input words per item, 1 result: the sum of the four (nano/examples/parallel_reduction_tree)
 // #define DESIGN_RELAY 1    // 1 input word per item, the same word back (nano/examples/small_relay_chain)
 
@@ -33,6 +33,7 @@
   #define LANE_NAMES   "one input word per item"
   #define EXAMPLE      "7\n123456\n-5"
 #else
+  #define LIVE_RAW_ANGLE 1       // CORDIC: the live feed sends the raw 16-bit amount as the angle (set only when neither TREE4 nor RELAY is chosen)
   #define DESIGN_NAME  "CORDIC z convergence"
   #define LANES        1
   #define LANE_NAMES   "angle z0"
@@ -111,7 +112,7 @@ static void handleLive() {
   uint32_t t0 = millis();
   for (int i = 0; i < LANES; i++) {
     uint16_t a = sensor_amount(SENSORS[i]);
-#if defined(DESIGN_CORDIC)
+#if defined(LIVE_RAW_ANGLE)
     in[i] = (int32_t)a;
 #else
     in[i] = (int32_t)sensor_word(SENSORS[i], a);
