@@ -101,7 +101,7 @@ button:disabled{opacity:.5}table{width:100%;border-collapse:collapse;margin-top:
 const $=id=>document.getElementById(id);let lanes=1;
 function msg(t,bad){const m=$('msg');m.textContent=t;m.className=bad?'bad':''}
 async function api(path,body){const o=body?{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)}:{};
- const r=await fetch(path,o);const j=await r.json().catch(()=>({ok:false,error:'bad reply'}));if(!r.ok||j.ok===false)throw new Error(j.error||('HTTP '+r.status));return j}
+ const c=new AbortController();const tm=setTimeout(()=>c.abort(),8000);o.signal=c.signal;let r;try{r=await fetch(path,o)}catch(e){throw new Error(e.name==='AbortError'?'no answer from the ESP32 (8 s)':e.message)}finally{clearTimeout(tm)}const j=await r.json().catch(()=>({ok:false,error:'bad reply'}));if(!r.ok||j.ok===false)throw new Error(j.error||('HTTP '+r.status));return j}
 function tile(l,v,ok){return '<div class="tile"><b>'+l+'</b><span class="dot '+(ok===true?'ok':ok===false?'bad':'')+'"></span>'+v+'</div>'}
 async function status(){try{const s=await api('/api/status');lanes=s.lanes;$('design').textContent=s.design;$('lanehint').textContent='One item per line, '+s.laneNames+' (whole numbers, negatives allowed).';
  $('tiles').innerHTML=tile('Unit link',s.idOk?'answers (ID '+s.id+')':'no answer',s.idOk)+tile('SD card',s.sdReady&&!s.sdError?'ready':(s.sdError?'error '+s.errCode+' (cmd '+s.errCmd+', rx 0x'+s.errRx.toString(16)+')':'not ready'),s.sdReady&&!s.sdError)
@@ -206,15 +206,17 @@ static bool goodName(const String& n) {
 static void handleFiles() {
   if (!authed()) return;
   if (!haveFiles) { sendJson(200, "{\"ok\":true,\"card\":false,\"files\":[]}"); return; }
-  String j = "{\"ok\":true,\"card\":true,\"total\":" + String((unsigned long)(SD.totalBytes() / 1024)) + ",\"used\":" + String((unsigned long)(SD.usedBytes() / 1024)) + ",\"files\":[";
-  File root = SD.open("/"); bool first = true;
+  // NOTE: SD.usedBytes() scans the whole card's allocation table and can block this single-threaded server for many seconds on a big card (the page then looks dead),
+  // so "used" is the sum of the listed files' sizes and "total" is the card size, both instant.
+  String list = ""; bool first = true; uint64_t used = 0;
+  File root = SD.open("/");
   for (File f = root.openNextFile(); f; f = root.openNextFile()) {
     if (f.isDirectory()) continue;
     String n = f.name(); if (!goodName(n)) continue;
-    if (!first) j += ","; first = false;
-    j += "{\"name\":\"" + n + "\",\"size\":" + String((unsigned long)f.size()) + "}";
+    if (!first) list += ","; first = false; used += f.size();
+    list += "{\"name\":\"" + n + "\",\"size\":" + String((unsigned long)f.size()) + "}";
   }
-  sendJson(200, j + "]}");
+  sendJson(200, "{\"ok\":true,\"card\":true,\"total\":" + String((unsigned long)(SD.cardSize() / 1024)) + ",\"used\":" + String((unsigned long)(used / 1024)) + ",\"files\":[" + list + "]}");
 }
 static void handleDownload() {
   if (!authed()) return;
