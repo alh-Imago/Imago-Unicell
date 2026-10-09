@@ -30,7 +30,7 @@ It was built from evidence (what the tests run, what imports what, what was last
 | SPI bridge, playout, capture, SD streamer | LIVE | Hardware-proven for the CORDIC path. |
 | S1 reset button | LIVE (proven on the board) | 9 Oct 2026 (Alan, counting LEDs from 1): fourth LED (guide's LED3, SD up) goes off while S1 is held and comes back on release, i.e. the unit restarts and the SD card re-initialises; first LED (LED0) keeps blinking. Not yet checked after a press: `id` and `status` from the ESP32. |
 | ESP32 bridge sketch (`unicell_unit_bridge`) | LIVE | Used on the board. |
-| ESP32 web sketch (WiFi page, file card, live sensors, `sensors.h`) | EXPERIMENTAL | Syntax-checked against stubs only; never compiled for or run on an ESP32. |
+| ESP32 web sketch (WiFi page, file card, live sensors, `sensors.h`) | EXPERIMENTAL (compiles and runs; `id` passes) | 9 Oct 2026 (Alan): runs on the ESP32, serial menu answers, `id` returns `ID = 0x57320001 OK` after an S1 press. WiFi page, file card and live sensors not yet tried. |
 | SensorTrix live feed | EXPERIMENTAL | Simulation test passes (`tests/vm/test_unit_live_feed_v1.py`); no sensor attached. |
 | SunFounder kit readers (thermistor, ultrasonic, DHT11, ...) | EXPERIMENTAL | Written, not wired; thermistor circuit is an assumption. |
 | ESP32 JTAG loader | EXPERIMENTAL (proposal only) | Not built; needs a spare Tang. |
