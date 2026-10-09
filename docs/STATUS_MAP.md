@@ -28,7 +28,7 @@ It was built from evidence (what the tests run, what imports what, what was last
 | CORDIC unit bitstream | LIVE | On the board: six reference answers; SD round trip matched. |
 | Reduction tree, relay chain designs | EXPERIMENTAL | Pass in simulation through the real unit top; fit on the part (measured); no bitstream built, nothing on hardware. |
 | SPI bridge, playout, capture, SD streamer | LIVE | Hardware-proven for the CORDIC path. |
-| S1 reset button | LIVE (partly proven) | Pressed on the board 9 Oct 2026: it cleared the latched LED4 (Alan). Not yet confirmed: LED1/LED2 clearing, LED0 still blinking, `id` and `status` passing afterwards (SD re-initialised). |
+| S1 reset button | LIVE (proven on the board) | 9 Oct 2026 (Alan, counting LEDs from 1): fourth LED (guide's LED3, SD up) goes off while S1 is held and comes back on release, i.e. the unit restarts and the SD card re-initialises; first LED (LED0) keeps blinking. Not yet checked after a press: `id` and `status` from the ESP32. |
 | ESP32 bridge sketch (`unicell_unit_bridge`) | LIVE | Used on the board. |
 | ESP32 web sketch (WiFi page, file card, live sensors, `sensors.h`) | EXPERIMENTAL | Syntax-checked against stubs only; never compiled for or run on an ESP32. |
 | SensorTrix live feed | EXPERIMENTAL | Simulation test passes (`tests/vm/test_unit_live_feed_v1.py`); no sensor attached. |
