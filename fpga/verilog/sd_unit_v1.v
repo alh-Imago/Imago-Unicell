@@ -12,7 +12,8 @@ module sd_unit_v1 #(
     parameter [31:0] DESIGN_ID = 32'h0,
     parameter NSENS = 2,              // sensor pins that can feed the design directly (lane j <- pin j for j < NSENS)
     parameter DIRECT_RAW = 0,         // 1: the lane word is the bare 16-bit amount (a CORDIC angle), 0: the packed SensorTrix word {amount, location = lane+1}
-    parameter DIRECT_DEFAULT = 0      // 1: power up in direct mode
+    parameter DIRECT_DEFAULT = 0,     // 1: power up in direct mode
+    parameter SENS_INVERT = 0         // 1: the sensor pins are active LOW (buttons that pull the pin to ground when pressed)
 ) (
     input  wire                  clk,
     input  wire                  rst,
@@ -38,6 +39,7 @@ module sd_unit_v1 #(
     output wire                  direct_on,     // for the LEDs: direct mode is on ...
     output wire                  live_nz,       // ... the newest result's amount is not zero
     output wire                  live_two,      // ... and it is at least two sensors' worth (>= 16384)
+    output wire [15:0]           live_amt,      // the newest result's amount (for a display)
     // for a status LED / READY line
     output wire                  ready_line
 );
@@ -82,7 +84,7 @@ module sd_unit_v1 #(
     // ---- DIRECT mode: the sensor pins feed the design with no ESP32 and no RAM in the path. About every millisecond a word per lane is offered (valid held until the design takes it);
     // the design's result is accepted at once and latched (registers 12, 13). A digital sensor reads as 8192 when active, 0 when not: four active sensors sum to 32768 and cannot overflow 16 bits.
     reg [NSENS-1:0] sp1, sp2;
-    always @(posedge clk) begin sp1 <= sens_pins; sp2 <= sp1; end
+    always @(posedge clk) begin sp1 <= sens_pins ^ {NSENS{SENS_INVERT[0]}}; sp2 <= sp1; end
     wire [LANES+NSENS-1:0] sp_pad = {{LANES{1'b0}}, sp2};
     reg [14:0] tick; reg [LANES*32-1:0] d_data; reg [LANES-1:0] d_valid;
     wire tick_hit = (tick == 15'd26999);
@@ -108,6 +110,7 @@ module sd_unit_v1 #(
         else if (out_valid[0]) begin live_result <= out_data[31:0]; live_count <= live_count + 1'b1; end
     end
     assign direct_on = direct_en;
+    assign live_amt  = live_result[31:16];
     assign live_nz   = |live_result[31:16];
     assign live_two  = live_result[31:16] >= 16'd16384;
 
