@@ -19,7 +19,7 @@ struct Sensor {
   SensorFn    custom;   // used when pin == -1
 };
 
-// ---- ready-made readers for the SunFounder ESP32 Ultimate Starter Kit parts (pins are YOUR choice: wire them, then put the pin in the table below) -----------------
+// ---- ready-made readers for the SunFounder ESP32 Ultimate Starter Kit parts (pins are YOUR choice: wire them, then put the pin in the table below; the web page's Setup card chooses which sensor feeds which input) -----------------
 // Free GPIOs on this build (not used by the unit link 5/18/19/23/34 or the file card 32/33/25/26, and not strapping/flash pins): digital 4, 13, 14, 16, 17, 21, 22, 27
 // (4, 13, 14, 27 are also the ones kept free for the later JTAG loader); analog (ADC1, input-only) 35, 36, 39.
 // Every reading is scaled to 0..65535 so it fits the 16-bit amount field; the scaling is written in each function and is yours to change.
@@ -62,14 +62,15 @@ DIGITAL_SENSOR(rd_tilt, 17)
 static uint16_t rd_thermistor39() { return rd_thermistor(39); }
 static uint16_t rd_ultra()        { return rd_ultrasonic(22, 21); }
 
-// The table. ACTIVE lines are fed live, in order, one per design input lane (the tree needs four, CORDIC and relay need one). Uncomment or add lines for what you wire.
+// The table. EVERY line here can be chosen on the web page's Setup card (one sensor per design input lane); only the chosen ones are read, so listing a sensor you have not wired is harmless.
+// Add a line for each new sensor; the order is the order on the page, and the first entries are the default for input 1, 2, 3, 4.
 static Sensor SENSORS[] = {
   { "potentiometer",  1, 35, nullptr },            // analog, 0..4095 scaled up to 0..65520
   { "light sensor",   2, 36, nullptr },            // analog (photoresistor in a divider): brighter or darker depending on how the module is wired
   { "thermistor",     3, -1, rd_thermistor39 },    // analog pin 39, see rd_thermistor for the assumed circuit
-  // { "PIR motion",     4, -1, rd_pir },
-  // { "tilt switch",    5, -1, rd_tilt },
-  // { "ultrasonic mm",  6, -1, rd_ultra },
+  { "PIR motion",     4, -1, rd_pir },             // digital pin 16
+  { "tilt switch",    5, -1, rd_tilt },            // digital pin 17
+  { "ultrasonic mm",  6, -1, rd_ultra },           // trigger 22, echo 21 (echo needs a voltage divider)
 };
 static const int SENSOR_COUNT = sizeof(SENSORS) / sizeof(SENSORS[0]);
 

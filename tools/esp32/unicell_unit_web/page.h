@@ -18,6 +18,7 @@ h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .tile{border:1px solid var(--line);border-radius:8px;padding:8px 10px}.tile b{display:block;font-size:12px;color:var(--dim);font-weight:600}
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:var(--dim)}.ok{background:var(--ok)}.bad{background:var(--bad)}
+select{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:14px system-ui,sans-serif}label{display:block;font-size:12px;color:var(--dim)}
 textarea,input{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:14px ui-monospace,monospace}
 textarea{min-height:110px}.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.row>*{flex:1 1 120px}
 button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 14px;font:600 14px system-ui;cursor:pointer}button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
@@ -26,6 +27,11 @@ button:disabled{opacity:.5}table{width:100%;border-collapse:collapse;margin-top:
 </style></head><body><main>
 <h1>UniCell unit</h1><p class="sub" id="design"></p>
 <div class="card"><h2>Status</h2><div class="tiles" id="tiles"></div></div>
+<div class="card"><h2>Setup</h2>
+<small>Which design is loaded on the FPGA (it must match the bitstream on the Tang) and which sensor feeds each input. Kept in the ESP32.</small>
+<div class="row"><label>Design<select id="cfgdesign"></select></label></div>
+<div class="row" id="cfglanes"></div>
+<div class="row"><button class="alt" id="cfgsave">Save setup</button></div></div>
 <div class="card"><h2>Run</h2>
 <small id="lanehint"></small>
 <textarea id="items" spellcheck="false"></textarea>
@@ -66,6 +72,10 @@ let liveOn=false,liveT=null;
 async function liveTick(){if(!liveOn)return;try{const j=await api('/api/live');$('livetab').hidden=false;$('livetab').tBodies[0].innerHTML=j.readings.map(r=>'<tr><td style="text-align:left">'+r.name+'</td><td>'+r.loc+'</td><td>'+r.amount+'</td></tr>').join('');const u=j.result>>>0;$('liveres').textContent='design result: '+j.result+(/CORDIC/.test($('design').textContent)?'':'  = word amount '+(u>>>16)+', location '+(u&65535))+'  ('+j.ms+' ms)'}catch(e){$('liveres').textContent=e.message;liveOn=false;$('livebtn').textContent='Start live feed';return}liveT=setTimeout(liveTick,500)}
 $('livebtn').onclick=()=>{liveOn=!liveOn;$('livebtn').textContent=liveOn?'Stop live feed':'Start live feed';if(liveOn)liveTick();else clearTimeout(liveT)};
 $('sload').onclick=()=>sd('load');$('ssave').onclick=()=>sd('save');$('sinit').onclick=()=>sd('init');
+async function loadCfg(){try{const c=await api('/api/config');window.CFG=c;$('cfgdesign').innerHTML=c.designs.map(d=>'<option value="'+d.key+'"'+(d.key===c.design?' selected':'')+'>'+d.name+'</option>').join('');drawLanes()}catch(e){msg(e.message,true)}}
+function drawLanes(){const c=window.CFG;if(!c)return;const d=c.designs.find(x=>x.key===$('cfgdesign').value)||c.designs[0];let h='';for(let i=0;i<d.lanes;i++){h+='<label>Input '+(i+1)+' sensor<select id="cfgs'+i+'">'+c.sensors.map((n,k)=>'<option value="'+k+'"'+(c.laneSensor[i]===k?' selected':'')+'>'+n+'</option>').join('')+'</select></label>'}$('cfglanes').innerHTML=h}
+$('cfgdesign').onchange=drawLanes;
+$('cfgsave').onclick=async()=>{const c=window.CFG;if(!c)return;const d=c.designs.find(x=>x.key===$('cfgdesign').value);const b={design:d.key};for(let i=0;i<d.lanes;i++)b['s'+i]=$('cfgs'+i).value;try{await api('/api/config',b);msg('Saved');location.reload()}catch(e){msg(e.message,true)}};
 let EXAMPLE='';fetch('/api/status').then(r=>r.json()).then(s=>{EXAMPLE=s.example;$('items').value=s.example});
-status();setInterval(status,3000);files();
+status();setInterval(status,3000);files();loadCfg();
 </script></body></html>)HTML";

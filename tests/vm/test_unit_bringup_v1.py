@@ -48,7 +48,8 @@ def test_web_sketch_link_layer_matches_the_bridge_and_wiring():
         assert re.search(r"\b%s = %d\b" % (name, n), link), name
     for name, n in (("C_LOAD", 1), ("C_SAVE", 2), ("C_PLAY", 4), ("C_CAP_CLEAR", 8), ("C_CLEAR_DONE", 16), ("C_SD_REINIT", 32)):
         assert re.search(r"\b%s = %d\b" % (name, n), link), name
-    assert "DESIGN_CORDIC 1" in ino and "/api/run" in ino and "Basic" in ino or "authenticate" in ino
+    dh = open(os.path.join(WEB, "design.h")).read()
+    assert all(k in dh for k in ('"cordic"', '"relay"', '"tree"')) and "/api/run" in ino and ("Basic" in ino or "authenticate" in ino)
 
 
 def test_quickstart_exists_and_readme_points_to_it_and_the_unit():
@@ -105,3 +106,16 @@ def test_web_page_lives_in_a_header_and_is_valid_javascript():
         open(p, "w").write(js)
         r = subprocess.run(["node", "--check", p], capture_output=True, text=True)
         assert r.returncode == 0, r.stderr[:500]
+
+
+def test_design_and_sensor_choice_is_runtime_not_a_sketch_edit():
+    """addendum 33: no compile-time DESIGN_ switch left in the .ino; design.h holds the three designs; /api/config exists; the Setup card is in the page; every default sensor index is valid."""
+    ino = open(os.path.join(WEB, "unicell_unit_web.ino")).read()
+    dh = open(os.path.join(WEB, "design.h")).read()
+    page = open(os.path.join(WEB, "page.h")).read()
+    h = open(os.path.join(WEB, "sensors.h")).read()
+    assert not re.search(r"^\s*#define\s+DESIGN_", ino, re.M) and "#define LANES" not in ino
+    assert '"/api/config"' in ino and 'id="cfgsave"' in page and "design_index" in dh
+    n = len(re.findall(r'^\s*\{\s*"[^"]+",\s*\d+,\s*-?\d+,', h, re.M))
+    assert n >= 4                                           # enough sensors for the 4-lane tree defaults 0..3
+    assert re.search(r"MAX_LANES 4", dh) and re.search(r"g_laneSensor\[MAX_LANES\] = \{ 0, 1, 2, 3 \}", dh)

@@ -6,7 +6,7 @@
 //    Until WiFi is set (or if it cannot connect) the ESP32 makes its own network "UniCell-Unit" (password = the web password): join it and open http://192.168.4.1/
 //  * SECURITY: this is plain HTTP with a password, for a trusted home/lab network only. Do not expose it to the internet. It can overwrite raw SD-card blocks (never blocks below 16).
 //
-// Pick the design that is loaded on the FPGA (one line below), then upload this sketch.
+// Upload this sketch, then on the web page's Setup card pick the design that is loaded on the FPGA (it must match the bitstream) and which sensor feeds each input.
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
@@ -17,28 +17,8 @@
 #include "unit_link.h"
 #include "sensors.h"
 
-// ---- which design is on the FPGA --------------------------------------------------------------------------------------------------------------------
-#define DESIGN_CORDIC 1      // 1 input word per item, 1 result: the CORDIC z-convergence (fpga/build/unit_cordic_v1). When you pick TREE4 or RELAY below, comment THIS line out (it is harmless if you forget: TREE4 / RELAY win)
-// #define DESIGN_TREE4 1    // 4 input words per item, 1 result: the sum of the four (nano/examples/parallel_reduction_tree)
-// #define DESIGN_RELAY 1    // 1 input word per item, the same word back (nano/examples/small_relay_chain)
-
-#if defined(DESIGN_TREE4)
-  #define DESIGN_NAME  "Parallel reduction tree (sum of 4)"
-  #define LANES        4
-  #define LANE_NAMES   "four input words per item"
-  #define EXAMPLE      "1 2 3 4\n10 20 30 40\n100 200 300 400"
-#elif defined(DESIGN_RELAY)
-  #define DESIGN_NAME  "Relay chain (word passes through)"
-  #define LANES        1
-  #define LANE_NAMES   "one input word per item"
-  #define EXAMPLE      "7\n123456\n-5"
-#else
-  #define LIVE_RAW_ANGLE 1       // CORDIC: the live feed sends the raw 16-bit amount as the angle (set only when neither TREE4 nor RELAY is chosen)
-  #define DESIGN_NAME  "CORDIC z convergence"
-  #define LANES        1
-  #define LANE_NAMES   "angle z0"
-  #define EXAMPLE      "50000\n-50000\n0\n12345\n-12345\n90000"
-#endif
+// ---- which design is on the FPGA, and which sensor feeds each input: chosen at run time (web page "Setup" card, or `design relay` in the Serial Monitor), kept in flash ----
+#include "design.h"
 
 // ---- the ESP32's OWN SD card (optional; holds bitstreams, input files, results, the offline kit) ----------------------------------------------------
 // A separate SPI bus (HSPI) on four free pins, so it cannot disturb the link to the unit (IO5/18/19/23). Use a 3.3 V-ONLY microSD breakout (see docs/unit_bringup_guide.md).
@@ -68,14 +48,14 @@ static bool authed() {
 static void sendJson(int code, const String& body) { server.sendHeader("Cache-Control", "no-store"); server.send(code, "application/json", body); }
 static void sendErr(int code, const String& e) { sendJson(code, String("{\"ok\":false,\"error\":\"") + e + "\"}"); }
 
-static String exampleJson() { String s = EXAMPLE; s.replace("\n", "\\n"); return s; }
+static String exampleJson() { String s = dsg().example; s.replace("\n", "\\n"); return s; }
 
 static void handleRoot() { if (!authed()) return; server.sendHeader("Cache-Control", "no-store"); server.send_P(200, "text/html", PAGE); }
 
 static void handleStatus() {
   if (!authed()) return;
   uint32_t id = rd_reg(R_ID), s = rd_reg(R_STATUS), cap = rd_reg(R_CAP_COUNT);
-  String j = "{\"ok\":true,\"design\":\"" DESIGN_NAME "\",\"lanes\":" + String(LANES) + ",\"laneNames\":\"" LANE_NAMES "\",\"example\":\"" + exampleJson() + "\"";
+  String j = "{\"ok\":true,\"design\":\"" + String(dsg().name) + "\",\"lanes\":" + String(dsg().lanes) + ",\"laneNames\":\"" + dsg().laneNames + "\",\"example\":\"" + exampleJson() + "\"";
   j += ",\"id\":\"0x" + String(id, HEX) + "\",\"idOk\":" + (id == UNIT_ID ? "true" : "false");
   j += ",\"sdReady\":" + String((s & S_SD_READY) ? "true" : "false") + ",\"sdError\":" + String((s & S_SD_ERROR) ? "true" : "false");
   j += ",\"errCode\":" + String((s >> 8) & 31) + ",\"errCmd\":" + String((s >> 16) & 63) + ",\"errRx\":" + String(s >> 24);
@@ -94,35 +74,63 @@ static void handleRun() {
       char* e; long long v = strtoll(p, &e, 10); in[n++] = (int32_t)v; p = e;
     } else p++;
   }
-  if (n == 0 || n % LANES) { sendErr(400, String("need a multiple of ") + LANES + " numbers per run (" + LANE_NAMES + ")"); return; }
-  int items = n / LANES;
-  const char* err = run_items(in, items, LANES, out);
+  const int L = dsg().lanes;
+  if (n == 0 || n % L) { sendErr(400, String("need a multiple of ") + L + " numbers per run (" + dsg().laneNames + ")"); return; }
+  int items = n / L;
+  const char* err = run_items(in, items, L, out);
   if (*err) { sendErr(500, err); return; }
   String j = "{\"ok\":true,\"results\":[";
   for (int i = 0; i < items; i++) { if (i) j += ","; j += String((long)out[i]); }
   sendJson(200, j + "]}");
 }
 
-// Live sensor feed: read the first LANES sensors, make one item (one word per lane), run it through the design, return readings + result.
+// Live sensor feed: read the sensor chosen for each input lane, make one item (one word per lane), run it through the design, return readings + result.
 // Tree / relay designs get the packed SensorTrix word (amount<<16 | location); the CORDIC gets the raw 16-bit amount as its angle (scale it in your sensor function).
 static void handleLive() {
   if (!authed()) return;
-  if (SENSOR_COUNT < LANES) { sendErr(400, String("this design needs ") + LANES + " sensor(s); sensors.h lists " + SENSOR_COUNT); return; }
-  int32_t in[LANES], out[1]; String r = "";
+  const int L = dsg().lanes;
+  int32_t in[MAX_LANES], out[1]; String r = "";
   uint32_t t0 = millis();
-  for (int i = 0; i < LANES; i++) {
-    uint16_t a = sensor_amount(SENSORS[i]);
-#if defined(LIVE_RAW_ANGLE)
-    in[i] = (int32_t)a;
-#else
-    in[i] = (int32_t)sensor_word(SENSORS[i], a);
-#endif
+  for (int i = 0; i < L; i++) {
+    const Sensor& sn = SENSORS[g_laneSensor[i]];
+    uint16_t a = sensor_amount(sn);
+    in[i] = dsg().rawAngle ? (int32_t)a : (int32_t)sensor_word(sn, a);
     if (i) r += ",";
-    r += String("{\"name\":\"") + SENSORS[i].name + "\",\"loc\":" + SENSORS[i].loc + ",\"amount\":" + a + "}";
+    r += String("{\"name\":\"") + sn.name + "\",\"loc\":" + sn.loc + ",\"amount\":" + a + "}";
   }
-  const char* err = run_items(in, 1, LANES, out);
+  const char* err = run_items(in, 1, L, out);
   if (*err) { sendErr(500, err); return; }
   sendJson(200, String("{\"ok\":true,\"readings\":[") + r + "],\"result\":" + String((long)out[0]) + ",\"ms\":" + String(millis() - t0) + "}");
+}
+
+// Setup: which design is on the FPGA and which sensor feeds each input lane. Saved in flash; read back at start-up.
+static void handleConfig() {
+  if (!authed()) return;
+  String j = String("{\"ok\":true,\"design\":\"") + dsg().key + "\",\"designs\":[";
+  for (int i = 0; i < DESIGN_COUNT; i++) { if (i) j += ","; j += String("{\"key\":\"") + DESIGNS[i].key + "\",\"name\":\"" + DESIGNS[i].name + "\",\"lanes\":" + DESIGNS[i].lanes + "}"; }
+  j += "],\"sensors\":[";
+  for (int i = 0; i < SENSOR_COUNT; i++) { if (i) j += ","; j += String("\"") + SENSORS[i].name + "\""; }
+  j += "],\"laneSensor\":[";
+  for (int i = 0; i < MAX_LANES; i++) { if (i) j += ","; j += String(g_laneSensor[i]); }
+  sendJson(200, j + "]}");
+}
+static void saveConfig() {
+  prefs.putString("design", dsg().key);
+  String l = ""; for (int i = 0; i < MAX_LANES; i++) { if (i) l += ","; l += String(g_laneSensor[i]); }
+  prefs.putString("lsens", l);
+}
+static void handleConfigSet() {
+  if (!authed()) return;
+  int d = design_index(server.arg("design").c_str());
+  if (d < 0) { sendErr(400, "unknown design"); return; }
+  int ls[MAX_LANES]; for (int i = 0; i < MAX_LANES; i++) ls[i] = g_laneSensor[i];
+  for (int i = 0; i < MAX_LANES; i++) {
+    String k = String("s") + i;
+    if (server.hasArg(k)) { int v = server.arg(k).toInt(); if (v < 0 || v >= SENSOR_COUNT) { sendErr(400, "unknown sensor"); return; } ls[i] = v; }
+  }
+  g_design = d; for (int i = 0; i < MAX_LANES; i++) g_laneSensor[i] = ls[i];
+  saveConfig();
+  sendJson(200, "{\"ok\":true}");
 }
 
 static void handleSd() {
@@ -223,8 +231,10 @@ static void serialCmd(char* s) {
   else if (!strcmp(cmd, "webpass")) Serial.println("usage: webpass <at least 8 characters, no spaces>");
   else if (!strcmp(cmd, "ip")) Serial.printf("http://%s/  user: unicell  password: %s\n", (apMode ? WiFi.softAPIP() : WiFi.localIP()).toString().c_str(), webPass.c_str());
   else if (!strcmp(cmd, "id")) { uint32_t v = rd_reg(R_ID); Serial.printf("ID = 0x%08X %s\n", (unsigned)v, v == UNIT_ID ? "OK" : "WRONG"); }
+  else if (!strcmp(cmd, "design") && a && design_index(a) >= 0) { g_design = design_index(a); saveConfig(); Serial.printf("design: %s (it must match the bitstream on the FPGA)\n", dsg().name); }
+  else if (!strcmp(cmd, "design")) Serial.printf("design now: %s.  usage: design cordic | relay | tree\n", dsg().name);
   else if (!strcmp(cmd, "reboot")) ESP.restart();
-  else Serial.println("commands: wifi <ssid> <password> | wificlear | webpass <pw> | ip | id | reboot");
+  else Serial.println("commands: wifi <ssid> <password> | wificlear | webpass <pw> | ip | id | design <cordic|relay|tree> | reboot");
 }
 
 void setup() {
@@ -237,12 +247,16 @@ void setup() {
   prefs.begin("unicell", false);
   wifiSsid = prefs.getString("ssid", ""); wifiPass = prefs.getString("pass", ""); webPass = prefs.getString("webpass", "");
   if (webPass.length() < 8) { webPass = randomPass(); prefs.putString("webpass", webPass); Serial.printf("\nFirst boot: web password generated: %s   (change with: webpass <new>)\n", webPass.c_str()); }
-  Serial.println("\nUniCell unit web control. Design: " DESIGN_NAME);
+  g_design = design_index(prefs.getString("design", "cordic").c_str()); if (g_design < 0) g_design = 0;
+  design_parse_lanes(prefs.getString("lsens", "").c_str());
+  Serial.printf("\nUniCell unit web control. Design: %s  (change it on the page's Setup card, or: design cordic|relay|tree)\n", dsg().name);
   startNetwork();
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/run", HTTP_POST, handleRun);
   server.on("/api/live", HTTP_GET, handleLive);
+  server.on("/api/config", HTTP_GET, handleConfig);
+  server.on("/api/config", HTTP_POST, handleConfigSet);
   server.on("/api/sd", HTTP_POST, handleSd);
   server.on("/api/sdinit", HTTP_POST, handleSdInit);
   server.on("/api/files", HTTP_GET, handleFiles);
