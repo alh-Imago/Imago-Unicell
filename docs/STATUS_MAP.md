@@ -17,7 +17,7 @@ It was built from evidence (what the tests run, what imports what, what was last
 | Flex / sub cell families (the current cells) | **LIVE** | `sub/verilog/`, `tools/flexsub_*`, `tools/project_assemble_v1.py` | Generated and simulated; the CORDIC unit built from them runs on the Tang. |
 | Compiler / composer / tile libraries | **LIVE** | `nano/` (DSL, Python AST, LLVM IR frontends, composer page, tile libraries) | Tested; composer opens via `quickstart.py --composer`. |
 | Arria 10 / Carrier line (VIX Carrier cores, super shells, Quartus projects, ISSP scripts) | **LIVE target card** (bring-up stalled) | `fpga/verilog/`, `fpga/quartus/`, `fpga/*.tcl`, `hardware/` | Still a target card (Alan, 9 Oct 2026); the PCIe/BAR0 bring-up is stalled and Alan may have a simple fix. Older core versions and their Quartus projects / Tcl scripts are archived in `fpga/archive/arria10_super_line/` (reclaimable); v4, v4c, v4s, v4sa and the VIX carrier v1d stay. |
-| Kintex-7 XC7K480T card | **LIVE target card** (not brought up) | `fpga/archive/kintex7_xc7k480t/` | Still a target card (Alan). It sits under `archive/` only by name; say if it should move to `fpga/kintex7_xc7k480t/`. |
+| Kintex-7 XC7K480T card | **LIVE target card** (PCIe dead, JTAG works) | `fpga/archive/kintex7_xc7k480t/` | Brought up in June 2026 (PCIe Gen2 x8, XDMA, BAR0 round trip proven on real silicon); the PCIe interface then failed, JTAG still works (Alan, 9 Oct 2026). Plan: use it stand-alone, powered via a 1x riser, programmed and tested over JTAG. Sits under `archive/` by Alan's choice for now. |
 | Full-cell line (addressed-bus cell, old VM/compiler/OS stack, Trix family) | **ARCHIVED** | `archeology/` (incl. `archeology/onion/`), `tests/vm/legacy_full_cell/` | Superseded; kept. SensorTrix is the example: its format is reused (live feed), its tiles are not. |
 | Hex-N (hex-cell neural substrate) | **EXPERIMENTAL** | branch `Hex-N` (`docs/hex-n/`, `rtl/hexn_cell_v1.v`) | Behavioural RTL + cycle-accurate model only; large (about 1,300 LUT per small cell); not on hardware. Not for main. |
 
@@ -53,7 +53,7 @@ An early count here said 105 of 361 files in `fpga/verilog` were unreferenced; t
 
 ## Rulings made (Alan, 9 Oct 2026) and what was done
 
-1. **Arria 10 and Kintex 480T are still target cards**: both labelled LIVE target above.
+1. **Arria 10 and Kintex 480T are still target cards (the Kintex is the card whose PCIe died and JTAG works)**: both labelled LIVE target above.
 2. **Older core versions should be archived**: keep v4, v4c, v4s, v4sa (plus unnumbered add-ons and the v5/v5c file); archive the rest and the Arria 10 scripts that use them. **Done (addendum 21)**: 293 files moved to `fpga/archive/arria10_super_line/` with a manifest and `tools/archive_move_v1.py --reclaim` to bring any back; paths rewritten; before/after checks identical (22 tests, 7 generated projects, flex/sub scripts, small-unit suites). Left in place: the `unicell_super_v1..v9` shells (the composer lists them), and carrier v1 (many testbenches use it; v1d is the latest). Earlier, the three unused shells went to `fpga/archive/older_cores/`. Quartus is not available here, so the archived projects were not compiled.
 3. **The odd nine scripts**: labelled and moved to `tools/experimental/` (README there).
 4. **`fpga/board_tests/`** (twelve diagnostic tops): left in place and still listed LIVE as bring-up tools. RULING STILL OPEN if Alan meant these when he said "the fpga test tools" go in a marked folder under tools.

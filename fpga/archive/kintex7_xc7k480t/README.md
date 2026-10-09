@@ -3,6 +3,9 @@
 Work completed June 2026. Card lost to PCIe interface failure after
 timing violations stressed the hardware.
 
+## Current state (Alan, 9 Oct 2026)
+The PCIe side is dead; the JTAG side still works. Plan: use the card as a large stand-alone FPGA board, powered through a cheap 1x PCIe riser (power only, PCIe link unused) and programmed and tested over JTAG, much like the Tang Nano but bigger. Not yet tried. Check the riser can supply the card's 12V rail and idle current.
+
 ## What was proven
 - PCIe Gen2 x8 enumeration confirmed
 - XDMA driver loaded, /dev/xdma0_user accessible  
