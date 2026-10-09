@@ -135,3 +135,12 @@ def test_design_id_register_agrees_between_generator_bridge_sketch_and_packages(
         info = json.load(open(os.path.join(ROOT, "fpga", "build", pkg, "lanes.json")))
         assert int(info["design_id"], 16) == want, pkg
     assert len({U.design_id(t) for t in U.KNOWN_IDS}) == 3
+
+
+def test_sensors_sampled_on_core0_and_page_has_the_plot():
+    ino = open(os.path.join(WEB, "unicell_unit_web.ino")).read()
+    smp = open(os.path.join(WEB, "sampler.h")).read()
+    page = open(os.path.join(WEB, "page.h")).read()
+    assert "xTaskCreatePinnedToCore(sampler_task" in smp and ", 0);" in smp, "the sampler runs pinned to core 0"
+    assert "sampler_begin();" in ino and "g_latest[i]" in ino and "sensor_amount(sn)" not in ino, "the web handler takes the latest value, it does not read the sensor itself"
+    assert 'id="plot"' in page and 'id="plotmode"' in page and "function plot()" in page

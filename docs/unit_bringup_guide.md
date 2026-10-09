@@ -42,6 +42,8 @@ If the ESP32 is a camera module (ESP32-CAM) the camera uses several of IO18/19/2
 Other commands: `z 100 200 300` (your own angles), `load 64 1` / `save 64 1`, `reg 8` (read a register), `reg 7 0x1234` (write), `words 0 8` (dump results RAM), `help`.
 
 ## Reading the unit by hand (for later designs)
+Live sensors are now read on the ESP32's second core (`sampler.h`), so a slow sensor no longer holds up the page, and the Live sensors card draws a plot: a strip chart (one band per input plus the design's result) or an X-Y plot of input 1 against input 2. The page polls five times a second while the feed is on.
+
 The page's "Design on the Tang" tile reads the bitstream's design ID (register 10) and warns if it differs from the Setup choice (one click fixes Setup). Bitstreams built before 9 Oct 2026 have no ID and show grey; reload the current `.fs` files to get it.
 
 Registers, SPI protocol and the card layout are in `docs/playout_capture_v1.md` and `fpga/build/unit_cordic_v1/lanes.json`. A different design is wrapped the same way: `python3 tools/sd_unit_top_v1.py --icm <design.icm> --output <dir>` then `tools/gowin_sizing/build_unit_bitstream.sh <dir>`.

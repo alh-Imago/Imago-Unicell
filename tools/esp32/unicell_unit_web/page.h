@@ -41,7 +41,9 @@ button:disabled{opacity:.5}table{width:100%;border-collapse:collapse;margin-top:
 <small id="livehint">Reads the sensors listed in sensors.h and feeds them to the design, one sample at a time.</small>
 <div class="row"><button class="alt" id="livebtn">Start live feed</button></div>
 <table id="livetab" hidden><thead><tr><th style="text-align:left">sensor</th><th>loc</th><th>amount</th></tr></thead><tbody></tbody></table>
-<div id="liveres"></div></div>
+<div id="liveres"></div>
+<div class="row"><label>Plot<select id="plotmode"><option value="strips">Strip chart: one band per input, plus the result</option><option value="xy">X-Y: input 1 across, input 2 up</option></select></label></div>
+<canvas id="plot" height="260" style="width:100%;height:260px;margin-top:8px;border:1px solid var(--line);border-radius:8px" hidden></canvas></div>
 <div class="card"><h2>SD card (raw blocks)</h2>
 <small>Blocks below 16 are refused. Saving overwrites raw blocks on the card.</small>
 <div class="row"><input id="blk" type="number" min="16" value="64" aria-label="start block"><input id="nb" type="number" min="1" max="8" value="1" aria-label="blocks"></div>
@@ -68,8 +70,18 @@ async function files(){try{const f=await api('/api/files');$('fhint').textConten
  $('ftab').tBodies[0].innerHTML=f.files.map(x=>'<tr><td style="text-align:left">'+x.name+'</td><td>'+x.size+' B</td><td><a href="/files?name='+encodeURIComponent(x.name)+'">download</a></td><td><a href="#" data-del="'+x.name+'">delete</a></td></tr>').join('')}catch(e){$('fhint').textContent=e.message}}
 $('ftab').onclick=async e=>{const n=e.target.dataset&&e.target.dataset.del;if(!n)return;e.preventDefault();if(!confirm('Delete '+n+'?'))return;try{await api('/api/filedel',{name:n});files()}catch(x){msg(x.message,1)}};
 $('fsend').onclick=async()=>{const f=$('fup').files[0];if(!f){msg('choose a file first',1);return}msg('Uploading '+f.name+'...');try{const fd=new FormData();fd.append('file',f,f.name);const r=await fetch('/api/upload',{method:'POST',body:fd});const j=await r.json().catch(()=>({ok:false,error:'bad reply'}));if(!r.ok||j.ok===false)throw new Error(j.error||('HTTP '+r.status));msg('Uploaded '+j.bytes+' bytes');files()}catch(x){msg(x.message,1)}};
-let liveOn=false,liveT=null;
-async function liveTick(){if(!liveOn)return;try{const j=await api('/api/live');$('livetab').hidden=false;$('livetab').tBodies[0].innerHTML=j.readings.map(r=>'<tr><td style="text-align:left">'+r.name+'</td><td>'+r.loc+'</td><td>'+r.amount+'</td></tr>').join('');const u=j.result>>>0;$('liveres').textContent='design result: '+j.result+(/CORDIC/.test($('design').textContent)?'':'  = word amount '+(u>>>16)+', location '+(u&65535))+'  ('+j.ms+' ms)'}catch(e){$('liveres').textContent=e.message;liveOn=false;$('livebtn').textContent='Start live feed';return}liveT=setTimeout(liveTick,500)}
+let liveOn=false,liveT=null;const HN=240,HIST=[[],[],[],[]],RES=[];
+const COL=['#58a6ff','#3fb950','#d29922','#f778ba'];
+function plot(){const cv=$('plot');if(cv.hidden)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=260;cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);const cs=getComputedStyle(document.body),ink=cs.color,dim=cs.getPropertyValue('--dim')||'#888',line=cs.getPropertyValue('--line')||'#444';g.clearRect(0,0,W,H);g.font='11px system-ui';g.lineWidth=1.5;
+ const L=Math.min(lanes||1,4);
+ if($('plotmode').value==='xy'&&L>=2){const a=HIST[0],b=HIST[1],n=Math.min(a.length,b.length),P=28;g.strokeStyle=line;g.strokeRect(P,6,W-P-6,H-P-6);g.fillStyle=dim;g.fillText('input 1 ->',W-70,H-6);g.fillText('input 2',2,12);
+  const X=v=>P+(W-P-6)*v/65535,Y=v=>6+(H-P-6)*(1-v/65535);g.beginPath();for(let i=0;i<n;i++){const x=X(a[a.length-n+i]),y=Y(b[b.length-n+i]);i?g.lineTo(x,y):g.moveTo(x,y)}g.strokeStyle=COL[0];g.stroke();
+  if(n){g.fillStyle=COL[2];g.beginPath();g.arc(X(a[a.length-1]),Y(b[b.length-1]),4,0,7);g.fill()}return}
+ const bands=L+1,bh=(H-4)/bands;for(let k=0;k<bands;k++){const y0=2+k*bh,d=k<L?HIST[k]:RES;let lo=0,hi=65535;if(k===L&&d.length){lo=Math.min(...d);hi=Math.max(...d);if(hi===lo){hi=lo+1}}
+  g.strokeStyle=line;g.strokeRect(0.5,y0+0.5,W-1,bh-3);g.fillStyle=dim;g.fillText(k<L?'input '+(k+1):'result',4,y0+11);
+  g.beginPath();for(let i=0;i<d.length;i++){const x=W*(i+HN-d.length)/(HN-1),y=y0+bh-5-(bh-9)*(d[i]-lo)/(hi-lo);i?g.lineTo(x,y):g.moveTo(x,y)}g.strokeStyle=COL[k%4];g.stroke()}}
+$('plotmode').onchange=plot;addEventListener('resize',plot);
+async function liveTick(){if(!liveOn)return;try{const j=await api('/api/live');$('livetab').hidden=false;$('plot').hidden=false;j.readings.forEach((r,i)=>{HIST[i].push(r.amount);if(HIST[i].length>HN)HIST[i].shift()});{const u=j.result>>>0;RES.push(/CORDIC/.test($('design').textContent)?j.result:(u>>>16));if(RES.length>HN)RES.shift()}plot();$('livetab').tBodies[0].innerHTML=j.readings.map(r=>'<tr><td style="text-align:left">'+r.name+'</td><td>'+r.loc+'</td><td>'+r.amount+'</td></tr>').join('');const u=j.result>>>0;$('liveres').textContent='design result: '+j.result+(/CORDIC/.test($('design').textContent)?'':'  = word amount '+(u>>>16)+', location '+(u&65535))+'  ('+j.ms+' ms)'}catch(e){$('liveres').textContent=e.message;liveOn=false;$('livebtn').textContent='Start live feed';return}liveT=setTimeout(liveTick,200)}
 $('livebtn').onclick=()=>{liveOn=!liveOn;$('livebtn').textContent=liveOn?'Stop live feed':'Start live feed';if(liveOn)liveTick();else clearTimeout(liveT)};
 $('sload').onclick=()=>sd('load');$('ssave').onclick=()=>sd('save');$('sinit').onclick=()=>sd('init');
 async function loadCfg(){try{const c=await api('/api/config');window.CFG=c;$('cfgdesign').innerHTML=c.designs.map(d=>'<option value="'+d.key+'"'+(d.key===c.design?' selected':'')+'>'+d.name+'</option>').join('');drawLanes()}catch(e){msg(e.message,true)}}

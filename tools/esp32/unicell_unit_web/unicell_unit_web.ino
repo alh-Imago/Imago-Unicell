@@ -19,6 +19,7 @@
 
 // ---- which design is on the FPGA, and which sensor feeds each input: chosen at run time (web page "Setup" card, or `design relay` in the Serial Monitor), kept in flash ----
 #include "design.h"
+#include "sampler.h"
 
 // ---- the ESP32's OWN SD card (optional; holds bitstreams, input files, results, the offline kit) ----------------------------------------------------
 // A separate SPI bus (HSPI) on four free pins, so it cannot disturb the link to the unit (IO5/18/19/23). Use a 3.3 V-ONLY microSD breakout (see docs/unit_bringup_guide.md).
@@ -95,14 +96,14 @@ static void handleLive() {
   uint32_t t0 = millis();
   for (int i = 0; i < L; i++) {
     const Sensor& sn = SENSORS[g_laneSensor[i]];
-    uint16_t a = sensor_amount(sn);
+    uint16_t a = g_latest[i];                      // sampled continuously on core 0 (sampler.h)
     in[i] = dsg().rawAngle ? (int32_t)a : (int32_t)sensor_word(sn, a);
     if (i) r += ",";
     r += String("{\"name\":\"") + sn.name + "\",\"loc\":" + sn.loc + ",\"amount\":" + a + "}";
   }
   const char* err = run_items(in, 1, L, out);
   if (*err) { sendErr(500, err); return; }
-  sendJson(200, String("{\"ok\":true,\"readings\":[") + r + "],\"result\":" + String((long)out[0]) + ",\"ms\":" + String(millis() - t0) + "}");
+  sendJson(200, String("{\"ok\":true,\"readings\":[") + r + "],\"seq\":" + String((unsigned long)g_sampleSeq) + ",\"result\":" + String((long)out[0]) + ",\"ms\":" + String(millis() - t0) + "}");
 }
 
 // Setup: which design is on the FPGA and which sensor feeds each input lane. Saved in flash; read back at start-up.
@@ -243,6 +244,7 @@ void setup() {
   Serial.begin(115200);
   link_begin();
   sensors_begin();
+  sampler_begin();
   fileSpi.begin(FILE_SCK, FILE_MISO, FILE_MOSI, FILE_CS);
   haveFiles = SD.begin(FILE_CS, fileSpi, 4000000);
   Serial.println(haveFiles ? "ESP32 SD card: found" : "ESP32 SD card: none (fine; the file panel will say so)");
