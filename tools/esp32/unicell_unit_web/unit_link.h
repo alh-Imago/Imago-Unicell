@@ -12,7 +12,7 @@
 #define SPI_HZ    1000000
 
 enum { R_ID = 0, R_STATUS = 1, R_CONTROL = 2, R_START_BLOCK = 3, R_NBLOCKS = 4, R_PLAY_COUNT = 5,
-       R_CAP_COUNT = 6, R_SCRATCH = 7, R_MAX_OUT = 8, R_RPI = 9 };
+       R_CAP_COUNT = 6, R_SCRATCH = 7, R_MAX_OUT = 8, R_RPI = 9, R_DESIGN_ID = 10 };
 enum { C_LOAD = 1, C_SAVE = 2, C_PLAY = 4, C_CAP_CLEAR = 8, C_CLEAR_DONE = 16, C_SD_REINIT = 32 };
 enum { S_SD_READY = 1, S_SD_ERROR = 2, S_SD_BUSY = 4, S_PLAY_BUSY = 8, S_SD_DONE = 16, S_PLAY_DONE = 32, S_CAP_NONEMPTY = 64 };
 static const uint32_t UNIT_ID = 0x57320001UL;

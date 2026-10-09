@@ -8,7 +8,8 @@ module sd_unit_v1 #(
     parameter OUTS     = 1,
     parameter AW       = 10,
     parameter INIT_DIV = 34,
-    parameter FAST_DIV = 1
+    parameter FAST_DIV = 1,
+    parameter [31:0] DESIGN_ID = 32'h0
 ) (
     input  wire                  clk,
     input  wire                  rst,
@@ -47,7 +48,7 @@ module sd_unit_v1 #(
         .busy(sd_busy), .done(sd_done), .ready(sd_ready), .error(sd_error), .err_code(err_code), .err_cmd(err_cmd), .err_rx(err_rx),
         .pl_wr_en(sd_pl_en), .pl_wr_addr(sd_pl_addr), .pl_wr_data(sd_pl_data), .cap_rd_addr(sd_cap_addr), .cap_rd_data(cap_rd_data));
 
-    spi_bridge_v1 #(.AW(AW)) BR (
+    spi_bridge_v1 #(.AW(AW), .DESIGN_ID(DESIGN_ID)) BR (
         .clk(clk), .rst(rst), .sclk(spi_sclk), .cs_n(spi_cs_n), .mosi(spi_mosi), .miso(spi_miso),
         .ctl_sd_load(ctl_sd_load), .ctl_sd_save(ctl_sd_save), .ctl_play_start(ctl_play_start), .ctl_cap_clear(ctl_cap_clear), .ctl_sd_reinit(ctl_sd_reinit),
         .start_block(start_block), .nblocks(nblocks), .play_count(play_count), .max_out(max_out), .rpi(rpi),

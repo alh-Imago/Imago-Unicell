@@ -13,12 +13,13 @@ struct DesignInfo {
   int         lanes;      // input words per item
   const char* laneNames;
   const char* example;
+  uint32_t    id;         // the DESIGN_ID the FPGA bitstream reports (register 10): four ASCII letters, set by tools/sd_unit_top_v1.py
   bool        rawAngle;   // true: the live feed sends the bare 16-bit amount (CORDIC angle); false: the packed SensorTrix word
 };
 static const DesignInfo DESIGNS[] = {
-  { "cordic", "CORDIC z convergence",                 1, "angle z0",                  "50000\n-50000\n0\n12345\n-12345\n90000",           true  },   // fpga/build/unit_cordic_v1
-  { "relay",  "Relay chain (word passes through)",    1, "one input word per item",   "7\n123456\n-5",                                    false },   // fpga/build/unit_relay_v1
-  { "tree",   "Parallel reduction tree (sum of 4)",   4, "four input words per item", "1 2 3 4\n10 20 30 40\n100 200 300 400",             false },   // fpga/build/unit_tree_v1
+  { "cordic", "CORDIC z convergence",                 1, "angle z0",                  "50000\n-50000\n0\n12345\n-12345\n90000",           0x434F5244UL, true  },   // fpga/build/unit_cordic_v1
+  { "relay",  "Relay chain (word passes through)",    1, "one input word per item",   "7\n123456\n-5",                                    0x52454C59UL, false },   // fpga/build/unit_relay_v1
+  { "tree",   "Parallel reduction tree (sum of 4)",   4, "four input words per item", "1 2 3 4\n10 20 30 40\n100 200 300 400",             0x54524545UL, false },   // fpga/build/unit_tree_v1
 };
 static const int DESIGN_COUNT = sizeof(DESIGNS) / sizeof(DESIGNS[0]);
 
@@ -26,6 +27,8 @@ static int g_design = 0;                                    // index into DESIGN
 static int g_laneSensor[MAX_LANES] = { 0, 1, 2, 3 };        // index into SENSORS[] for each input lane
 
 static const DesignInfo& dsg() { return DESIGNS[g_design]; }
+// what the FPGA says is loaded (register 10) -> index into DESIGNS, or -1 (0 = an older bitstream with no ID, anything else = a design this sketch does not know)
+static int design_by_id(uint32_t id) { for (int i = 0; i < DESIGN_COUNT; i++) if (DESIGNS[i].id == id) return i; return -1; }
 static int design_index(const char* key) { for (int i = 0; i < DESIGN_COUNT; i++) if (!strcmp(DESIGNS[i].key, key)) return i; return -1; }
 
 // "0,1,2,3" -> g_laneSensor (anything out of range is ignored, so a stale value from an older sketch cannot break the live feed)

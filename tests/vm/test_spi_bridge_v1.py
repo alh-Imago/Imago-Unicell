@@ -112,7 +112,9 @@ def test_registers_over_spi(tmp):
     wr_reg(8'd5, 32'h0000000C); rd_reg(8'd5); $display("PC %h", rv);
     wait_status(32'h1); $display("STATUS %h polls %0d", rv, poll_n);
     rd_reg(8'd6); $display("CAP %h", rv);
+    rd_reg(8'd10); $display("DID %h", rv);
     """)
+    assert "DID 00000000" in out, "register 10 reads 0 when no design ID is set"
     assert "ID 57320001" in out and "SCR deadbeef" in out and "SB 00001234" in out and "NB 00000005" in out and "PC 0000000c" in out, out[:600]
     m = re.search(r"STATUS ([0-9a-f]{8})", out)
     assert m and int(m.group(1), 16) & 1, "the SD card must come up (ready bit)"

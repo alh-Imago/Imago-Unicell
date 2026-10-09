@@ -7,13 +7,14 @@
 //   0x02 RD_REG   : addr, pad, then 4 more clocks return d3 d2 d1 d0   (send any 4 bytes while reading)
 //   0x03 WR_WORDS : addrHi addrLo, then 4-byte words (auto-increment)  into the PLAYOUT RAM until CS rises
 //   0x04 RD_WORDS : addrHi addrLo, pad, then 4-byte words (auto-increment) from the CAPTURE RAM until CS rises
-// Registers: 0 ID (ro, 0x57320001) | 1 STATUS (ro) | 2 CONTROL (wo, pulses) | 3 START_BLOCK | 4 NBLOCKS | 5 PLAY_COUNT | 6 CAP_COUNT (ro) | 7 SCRATCH
+// Registers: 0 ID (ro, 0x57320001) | 1 STATUS (ro) | 2 CONTROL (wo, pulses) | 3 START_BLOCK | 4 NBLOCKS | 5 PLAY_COUNT | 6 CAP_COUNT (ro) | 7 SCRATCH | 10 DESIGN_ID (ro, set by the generator per design; 0 = none)
 //   8 MAX_OUT (pacing: at most this many results outstanding, 0 = unlimited) | 9 RPI (results per item, default 1). Pacing is for designs that hold ONE item at a time; clear the capture first (CONTROL bit 3).
 //   STATUS: [0] sd_ready [1] sd_error [2] sd_busy [3] play_busy [4] sd_done (sticky) [5] play_done (sticky) [6] capture non-empty [12:8] sd err_code [21:16] command that failed [31:24] last byte the card sent. CONTROL [5] = re-run the SD start-up (no reload needed)
 //   CONTROL: [0] sd_load [1] sd_save [2] play_start [3] capture_clear [4] clear the two sticky done bits (they also clear when an op starts)
 `default_nettype none
 module spi_bridge_v1 #(
-    parameter AW = 10
+    parameter AW = 10,
+    parameter [31:0] DESIGN_ID = 32'h0     // which design is wrapped (register 10); the generator sets it, 0 = not set
 ) (
     input  wire            clk,
     input  wire            rst,
@@ -78,6 +79,7 @@ module spi_bridge_v1 #(
             8'd7: regread = scratch;
             8'd8: regread = {{(31-AW){1'b0}}, max_out};
             8'd9: regread = {{(31-AW){1'b0}}, rpi};
+            8'd10: regread = DESIGN_ID;
             default: regread = 32'h0;
         endcase
     endfunction

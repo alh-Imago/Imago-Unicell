@@ -26,6 +26,16 @@ PINS = {  # docs/man/tang-nano-20k.man.json
 }
 
 
+# Design IDs (register 10): the four ASCII letters for the designs the web sketch knows, otherwise the CRC32 of the design's top-module name.
+KNOWN_IDS = {"icm_cordic_z_convergence_flex": "CORD", "icm_small_relay_chain_flex": "RELY", "icm_parallel_reduction_tree_flex": "TREE"}
+
+
+def design_id(top):
+    import zlib
+    k = KNOWN_IDS.get(top)
+    return int.from_bytes(k.encode(), "big") if k else zlib.crc32(top.encode()) & 0xFFFFFFFF
+
+
 def build(icm, out, fast_div=2):
     os.makedirs(out, exist_ok=True)
     dd = os.path.join(out, "design")
@@ -64,7 +74,7 @@ module unit_top #(parameter INIT_DIV = 34, parameter FAST_DIV = {fast_div}, para
     wire [{L}*32-1:0] lane_data; wire [{L - 1}:0] lane_valid, lane_ack;
     wire [{O}*32-1:0] out_data;  wire [{O - 1}:0] out_valid, out_ack;
     wire ready_line;
-    sd_unit_v1 #(.LANES({L}), .OUTS({O}), .AW(10), .INIT_DIV(INIT_DIV), .FAST_DIV(FAST_DIV)) U (
+    sd_unit_v1 #(.LANES({L}), .OUTS({O}), .AW(10), .INIT_DIV(INIT_DIV), .FAST_DIV(FAST_DIV), .DESIGN_ID(32'h{design_id(top):08X})) U (
         .clk(clk), .rst(rst), .sd_clk(SD_CLK), .sd_mosi(SD_CMD), .sd_miso(SD_DAT0), .sd_cs_n(SD_DAT3),
         .spi_sclk(SPI_SCLK), .spi_cs_n(SPI_CS_N), .spi_mosi(SPI_MOSI), .spi_miso(SPI_MISO),
         .lane_data(lane_data), .lane_valid(lane_valid), .lane_ack(lane_ack), .out_data(out_data), .out_valid(out_valid), .out_ack(out_ack), .ready_line(ready_line));
@@ -95,8 +105,8 @@ endmodule
     open(os.path.join(out, "unit_top.cst"), "w").write("\n".join(cst) + "\n")
     info = {"design_top": top, "entries": ins, "exits": outs, "word_layout": "item-major, lane-minor, little-endian 32-bit words on the card (item k, lane j at word k*LANES + j); results in arrival order",
             "lanes": L, "outs": O, "sd_pins": {k: PINS[k] for k in PINS if k.startswith("SD_")}, "spi_pins": {k: PINS[k] for k in PINS if k.startswith("SPI_") or k == "READY"},
-            "registers": {"0": "ID 0x57320001", "1": "STATUS [0]sd_ready [1]sd_error [2]sd_busy [3]play_busy [4]sd_done [5]play_done [6]capture_nonempty [12:8]err_code", "2": "CONTROL [0]sd_load [1]sd_save [2]play_start [3]capture_clear [4]clear_done",
-                          "3": "START_BLOCK", "4": "NBLOCKS", "5": "PLAY_COUNT (words = items*lanes)", "6": "CAP_COUNT (ro)", "7": "SCRATCH", "8": "MAX_OUT: pacing for designs that hold ONE item at a time -- at most this many results outstanding (0 = unlimited)", "9": "RPI: results per item (default 1)"},
+            "design_id": "0x%08X" % design_id(top), "registers": {"0": "ID 0x57320001", "1": "STATUS [0]sd_ready [1]sd_error [2]sd_busy [3]play_busy [4]sd_done [5]play_done [6]capture_nonempty [12:8]err_code", "2": "CONTROL [0]sd_load [1]sd_save [2]play_start [3]capture_clear [4]clear_done",
+                          "3": "START_BLOCK", "4": "NBLOCKS", "5": "PLAY_COUNT (words = items*lanes)", "6": "CAP_COUNT (ro)", "7": "SCRATCH", "8": "MAX_OUT: pacing for designs that hold ONE item at a time -- at most this many results outstanding (0 = unlimited)", "9": "RPI: results per item (default 1)", "10": "DESIGN_ID (ro): which design is loaded (0x%08X)" % design_id(top)},
             "spi": "mode 0, MSB first, SCLK slower than clk/16 (27 MHz -> <= 1.6 MHz). 0x01 WR_REG addr d3..d0 | 0x02 RD_REG addr pad then 4 bytes | 0x03 WR_WORDS hi lo words | 0x04 RD_WORDS hi lo pad words"}
     json.dump(info, open(os.path.join(out, "lanes.json"), "w"), indent=1)
     files = [os.path.join("rtl", f) for f in RTL] + [os.path.join("design", f) for f in rec["files"] if f.endswith(".v")] + ["unit_top.v"]

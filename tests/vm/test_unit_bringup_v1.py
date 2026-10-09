@@ -119,3 +119,19 @@ def test_design_and_sensor_choice_is_runtime_not_a_sketch_edit():
     n = len(re.findall(r'^\s*\{\s*"[^"]+",\s*\d+,\s*-?\d+,', h, re.M))
     assert n >= 4                                           # enough sensors for the 4-lane tree defaults 0..3
     assert re.search(r"MAX_LANES 4", dh) and re.search(r"g_laneSensor\[MAX_LANES\] = \{ 0, 1, 2, 3 \}", dh)
+
+
+def test_design_id_register_agrees_between_generator_bridge_sketch_and_packages():
+    """Register 10 (DESIGN_ID): the bridge exposes it, the generator sets it, the sketch knows the same ids, and each committed package carries its own."""
+    vlog = open(os.path.join(ROOT, "fpga", "verilog", "spi_bridge_v1.v")).read()
+    assert "8'd10: regread = DESIGN_ID" in vlog
+    dh = open(os.path.join(WEB, "design.h")).read()
+    ul = open(os.path.join(WEB, "unit_link.h")).read()
+    assert re.search(r"R_DESIGN_ID = 10", ul)
+    import json
+    for key, top, pkg in (("cordic", "icm_cordic_z_convergence_flex", "unit_cordic_v1"), ("relay", "icm_small_relay_chain_flex", "unit_relay_v1"), ("tree", "icm_parallel_reduction_tree_flex", "unit_tree_v1")):
+        want = U.design_id(top)
+        assert re.search(r'"%s".*0x%08XUL' % (key, want), dh, re.I), key
+        info = json.load(open(os.path.join(ROOT, "fpga", "build", pkg, "lanes.json")))
+        assert int(info["design_id"], 16) == want, pkg
+    assert len({U.design_id(t) for t in U.KNOWN_IDS}) == 3

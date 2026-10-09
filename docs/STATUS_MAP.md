@@ -26,7 +26,7 @@ It was built from evidence (what the tests run, what imports what, what was last
 | Part | State | Evidence / limit |
 |---|---|---|
 | CORDIC unit bitstream | LIVE | On the board: six reference answers; SD round trip matched. |
-| Reduction tree, relay chain designs | LIVE (proven on the board) | Built 9 Oct 2026 (timing met at 27 MHz) and run on the Tang Nano 20K through the unit: relay passes words unchanged, tree sums four. Bitstreams in `fpga/build/unit_relay_v1/` and `unit_tree_v1/`. |
+| Reduction tree, relay chain designs | LIVE (proven on the board) | Built 9 Oct 2026 (timing met at 27 MHz) and run on the Tang Nano 20K through the unit: relay passes words unchanged, tree sums four. Bitstreams in `fpga/build/unit_relay_v1/` and `unit_tree_v1/`. Rebuilt 9 Oct with the design ID register (register 10); simulated, not yet re-run on the board. |
 | SPI bridge, playout, capture, SD streamer | LIVE | Hardware-proven for the CORDIC path. |
 | S1 reset button | LIVE (proven on the board) | 9 Oct 2026 (Alan, counting LEDs from 1): fourth LED (guide's LED3, SD up) goes off while S1 is held and comes back on release, i.e. the unit restarts and the SD card re-initialises; first LED (LED0) keeps blinking. Not yet checked after a press: `id` and `status` from the ESP32. |
 | ESP32 bridge sketch (`unicell_unit_bridge`) | LIVE | Used on the board. |

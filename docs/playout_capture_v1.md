@@ -23,6 +23,8 @@ Terminal labels read from the photographs (the kit's pin-table images are still 
 Proposed SPI link, ESP32 master, FPGA slave: SCLK IO18, MOSI IO23, MISO IO19, CS_N IO5, READY IO34 (the ESP32's default VSPI pins, so full-speed hardware SPI). The FPGA drives only MISO and READY, neither a strapping pin (IO5 is a strapping pin but the ESP32 drives it). On the FPGA side the edge connector pins 73-77 from the board file. Not wired. Unverified: whether a fitted camera, or anything else on the board, also uses IO18/19/23/5/34 (expected free with no camera fitted) -- check with a continuity test. The ESP32's own SD slot (IO14/15/2/4/12/13) is left alone.
 
 ## The SPI bridge and the whole unit (ledger #1036)
+Register 10 (DESIGN_ID, read-only) says which design the bitstream wraps: ASCII `CORD`, `RELY`, `TREE` for the known ones, otherwise the CRC32 of the design's top-module name (set by `tools/sd_unit_top_v1.py`, also in `lanes.json`). 0 = an older bitstream.
+
 `spi_bridge_v1.v` is an SPI slave (mode 0, MSB first, everything in the system clock domain): SCLK must be slower than clk/16 (27 MHz -> at most ~1.6 MHz; 1 MHz or less on a breadboard). `sd_unit_v1.v` ties it to `sd_stream_v1`, `playout_v1` and `capture_v1` around any flex design. `tools/sd_unit_top_v1.py --icm design.icm --output dir` wraps any flex design and writes `unit_top.v`, `unit_top.cst`, `lanes.json` (which entry is which lane), `FILES.txt`, `README_UNIT.md`.
 
 SPI transaction (CS low ... CS high, big-endian): `0x01 WR_REG addr d3..d0` | `0x02 RD_REG addr pad` then four more clocks return d3..d0 | `0x03 WR_WORDS hi lo` then 4-byte words (auto-increment) into the playout RAM | `0x04 RD_WORDS hi lo pad` then 4-byte words out of the capture RAM.

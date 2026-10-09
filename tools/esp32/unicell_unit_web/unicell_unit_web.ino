@@ -54,9 +54,11 @@ static void handleRoot() { if (!authed()) return; server.sendHeader("Cache-Contr
 
 static void handleStatus() {
   if (!authed()) return;
-  uint32_t id = rd_reg(R_ID), s = rd_reg(R_STATUS), cap = rd_reg(R_CAP_COUNT);
+  uint32_t id = rd_reg(R_ID), s = rd_reg(R_STATUS), cap = rd_reg(R_CAP_COUNT), did = (id == UNIT_ID) ? rd_reg(R_DESIGN_ID) : 0;
+  int loaded = design_by_id(did);
   String j = "{\"ok\":true,\"design\":\"" + String(dsg().name) + "\",\"lanes\":" + String(dsg().lanes) + ",\"laneNames\":\"" + dsg().laneNames + "\",\"example\":\"" + exampleJson() + "\"";
   j += ",\"id\":\"0x" + String(id, HEX) + "\",\"idOk\":" + (id == UNIT_ID ? "true" : "false");
+  j += ",\"loaded\":\"" + String(loaded >= 0 ? DESIGNS[loaded].name : (did ? "an unknown design" : "an older bitstream (no ID)")) + "\",\"loadedKey\":\"" + String(loaded >= 0 ? DESIGNS[loaded].key : "") + "\",\"match\":" + (loaded == g_design ? "true" : "false");
   j += ",\"sdReady\":" + String((s & S_SD_READY) ? "true" : "false") + ",\"sdError\":" + String((s & S_SD_ERROR) ? "true" : "false");
   j += ",\"errCode\":" + String((s >> 8) & 31) + ",\"errCmd\":" + String((s >> 16) & 63) + ",\"errRx\":" + String(s >> 24);
   j += ",\"readyPin\":" + String(digitalRead(PIN_READY)) + ",\"capCount\":" + String(cap);
@@ -230,7 +232,7 @@ static void serialCmd(char* s) {
   else if (!strcmp(cmd, "webpass") && a && strlen(a) >= 8) { webPass = a; prefs.putString("webpass", webPass); Serial.println("web password changed (the own-network password too, after a restart)"); }
   else if (!strcmp(cmd, "webpass")) Serial.println("usage: webpass <at least 8 characters, no spaces>");
   else if (!strcmp(cmd, "ip")) Serial.printf("http://%s/  user: unicell  password: %s\n", (apMode ? WiFi.softAPIP() : WiFi.localIP()).toString().c_str(), webPass.c_str());
-  else if (!strcmp(cmd, "id")) { uint32_t v = rd_reg(R_ID); Serial.printf("ID = 0x%08X %s\n", (unsigned)v, v == UNIT_ID ? "OK" : "WRONG"); }
+  else if (!strcmp(cmd, "id")) { uint32_t v = rd_reg(R_ID); Serial.printf("ID = 0x%08X %s\n", (unsigned)v, v == UNIT_ID ? "OK" : "WRONG"); if (v == UNIT_ID) { uint32_t d = rd_reg(R_DESIGN_ID); int k = design_by_id(d); Serial.printf("design on the Tang = 0x%08X (%s); Setup says %s\n", (unsigned)d, k >= 0 ? DESIGNS[k].name : (d ? "unknown" : "older bitstream, no ID"), dsg().name); } }
   else if (!strcmp(cmd, "design") && a && design_index(a) >= 0) { g_design = design_index(a); saveConfig(); Serial.printf("design: %s (it must match the bitstream on the FPGA)\n", dsg().name); }
   else if (!strcmp(cmd, "design")) Serial.printf("design now: %s.  usage: design cordic | relay | tree\n", dsg().name);
   else if (!strcmp(cmd, "reboot")) ESP.restart();

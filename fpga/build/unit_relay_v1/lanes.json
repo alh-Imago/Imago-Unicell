@@ -22,6 +22,7 @@
   "SPI_MISO": 76,
   "READY": 77
  },
+ "design_id": "0x52454C59",
  "registers": {
   "0": "ID 0x57320001",
   "1": "STATUS [0]sd_ready [1]sd_error [2]sd_busy [3]play_busy [4]sd_done [5]play_done [6]capture_nonempty [12:8]err_code",
@@ -32,7 +33,8 @@
   "6": "CAP_COUNT (ro)",
   "7": "SCRATCH",
   "8": "MAX_OUT: pacing for designs that hold ONE item at a time -- at most this many results outstanding (0 = unlimited)",
-  "9": "RPI: results per item (default 1)"
+  "9": "RPI: results per item (default 1)",
+  "10": "DESIGN_ID (ro): which design is loaded (0x52454C59)"
  },
  "spi": "mode 0, MSB first, SCLK slower than clk/16 (27 MHz -> <= 1.6 MHz). 0x01 WR_REG addr d3..d0 | 0x02 RD_REG addr pad then 4 bytes | 0x03 WR_WORDS hi lo words | 0x04 RD_WORDS hi lo pad words"
 }
