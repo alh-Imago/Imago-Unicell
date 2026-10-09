@@ -127,7 +127,7 @@ def test_design_id_register_agrees_between_generator_bridge_sketch_and_packages(
     assert "8'd10: regread = DESIGN_ID" in vlog
     dh = open(os.path.join(WEB, "design.h")).read()
     ul = open(os.path.join(WEB, "unit_link.h")).read()
-    assert re.search(r"R_DESIGN_ID = 10", ul)
+    assert re.search(r"R_DESIGN_ID = 10", ul) and re.search(r"R_DIRECT = 11", ul) and re.search(r"R_SENS = 14", ul)
     import json
     for key, top, pkg in (("cordic", "icm_cordic_z_convergence_flex", "unit_cordic_v1"), ("relay", "icm_small_relay_chain_flex", "unit_relay_v1"), ("tree", "icm_parallel_reduction_tree_flex", "unit_tree_v1")):
         want = U.design_id(top)
@@ -144,3 +144,13 @@ def test_sensors_sampled_on_core0_and_page_has_the_plot():
     assert "xTaskCreatePinnedToCore(sampler_task" in smp and ", 0);" in smp, "the sampler runs pinned to core 0"
     assert "sampler_begin();" in ino and "g_latest[i]" in ino and "sensor_amount(sn)" not in ino, "the web handler takes the latest value, it does not read the sensor itself"
     assert 'id="plot"' in page and 'id="plotmode"' in page and "function plot()" in page
+
+
+def test_direct_mode_registers_page_card_and_run_guard():
+    vlog = open(os.path.join(ROOT, "fpga", "verilog", "spi_bridge_v1.v")).read()
+    assert "8'd11: direct_en <= rxb[0]" in vlog and "8'd12: regread = live_result" in vlog
+    ino = open(os.path.join(WEB, "unicell_unit_web.ino")).read()
+    ul = open(os.path.join(WEB, "unit_link.h")).read()
+    page = open(os.path.join(WEB, "page.h")).read()
+    assert '"/api/direct", HTTP_GET' in ino and '"/api/direct", HTTP_POST' in ino and 'id="dirbtn"' in page
+    assert "rd_reg(R_DIRECT) & 1" in ul, "a run must refuse while the sensor pins are feeding the design"

@@ -93,5 +93,15 @@ A second card, on the ESP32 itself (NOT the one in the Tang's slot), to keep bit
 
 ## Other ready-made bitstreams (built 9 Oct 2026, timing met at 27 MHz, NOT yet run on a board)
 - `fpga/build/unit_relay_v1/unit_top.fs` -- relay chain: one word in, the same word out. Test: load, LED0 blinks, `id` passes, then in the web sketch's Live sensors card one sensor's word should come back unchanged.
+- `fpga/build/unit_tree_direct_v1/unit_top.fs` -- the same tree, but it powers up in DIRECT mode (see below), so the sensor pins feed it with no ESP32 involved at all.
 - `fpga/build/unit_tree_v1/unit_top.fs` -- reduction tree: four words in, their sum out (amounts add, locations add). Test: Live sensors with four sensors active; the result's top 16 bits are the sum of the four amounts.
 Load either with `openFPGALoader -b tangnano20k <file>`. The bridge sketch's `cordic` command only fits the CORDIC bitstream; for these two use the web sketch, or `reg` / `words` by hand. Simulation results for both: `tests/vm/test_unit_live_feed_v1.py`.
+
+
+## Direct mode: a sensor wired straight to the Tang (no ESP32 in the path)
+
+Every current bitstream can feed the design from sensor pins on the Tang itself. Wire a **digital** sensor (PIR, tilt switch, a button) with its signal on **Tang pin 72 (input 1)** and/or **pin 71 (input 2)**, power it from 3V3 (or what the module needs, but its signal must not exceed 3.3 V), and GND to GND. The pins are pulled low inside the FPGA, so an unwired pin reads 0. (Pins 72 and 71 are the next two on the same header as the ESP32 link pins 73 to 77; the build accepts them, but they have not been checked on the board: if your header differs, change `SENS` in `tools/sd_unit_top_v1.py`.)
+
+In direct mode the FPGA itself builds a word per input about once a millisecond (8192 when the sensor is active, 0 when not; location = the input number), feeds it to the design, and latches the newest result. No SPI, no playout RAM, no host. **LED5** (the sixth) lights when the result carries at least one active sensor, **LED4** (the fifth) at two or more.
+
+Two ways in: on the page, the **Direct sensors** card has a switch (register 11) and reads the result out (registers 12 to 14), so the ESP32 only reads; or load `fpga/build/unit_tree_direct_v1/unit_top.fs`, which powers up in direct mode, and unplug the ESP32 completely, then touch the sensor: the LEDs follow. In direct mode the ESP-fed Run and live feed refuse to run (switch direct off first). The tree design is the useful one for this: one active sensor gives amount 8192, two give 16384. CORDIC is not meaningful in direct mode.

@@ -7,13 +7,14 @@
 //   0x02 RD_REG   : addr, pad, then 4 more clocks return d3 d2 d1 d0   (send any 4 bytes while reading)
 //   0x03 WR_WORDS : addrHi addrLo, then 4-byte words (auto-increment)  into the PLAYOUT RAM until CS rises
 //   0x04 RD_WORDS : addrHi addrLo, pad, then 4-byte words (auto-increment) from the CAPTURE RAM until CS rises
-// Registers: 0 ID (ro, 0x57320001) | 1 STATUS (ro) | 2 CONTROL (wo, pulses) | 3 START_BLOCK | 4 NBLOCKS | 5 PLAY_COUNT | 6 CAP_COUNT (ro) | 7 SCRATCH | 10 DESIGN_ID (ro, set by the generator per design; 0 = none)
+// Registers: 0 ID (ro, 0x57320001) | 1 STATUS (ro) | 2 CONTROL (wo, pulses) | 3 START_BLOCK | 4 NBLOCKS | 5 PLAY_COUNT | 6 CAP_COUNT (ro) | 7 SCRATCH | 10 DESIGN_ID (ro, set by the generator per design; 0 = none) | 11 DIRECT (rw bit 0: feed the design from the sensor pins) | 12 LIVE_RESULT (ro) | 13 LIVE_COUNT (ro) | 14 SENSOR_PINS (ro)
 //   8 MAX_OUT (pacing: at most this many results outstanding, 0 = unlimited) | 9 RPI (results per item, default 1). Pacing is for designs that hold ONE item at a time; clear the capture first (CONTROL bit 3).
 //   STATUS: [0] sd_ready [1] sd_error [2] sd_busy [3] play_busy [4] sd_done (sticky) [5] play_done (sticky) [6] capture non-empty [12:8] sd err_code [21:16] command that failed [31:24] last byte the card sent. CONTROL [5] = re-run the SD start-up (no reload needed)
 //   CONTROL: [0] sd_load [1] sd_save [2] play_start [3] capture_clear [4] clear the two sticky done bits (they also clear when an op starts)
 `default_nettype none
 module spi_bridge_v1 #(
     parameter AW = 10,
+    parameter DIRECT_DEFAULT = 0,           // 1 = the unit powers up in DIRECT mode (sensor pins feed the design with no ESP32 involved)
     parameter [31:0] DESIGN_ID = 32'h0     // which design is wrapped (register 10); the generator sets it, 0 = not set
 ) (
     input  wire            clk,
@@ -32,6 +33,10 @@ module spi_bridge_v1 #(
     output reg  [AW:0]     play_count,
     output reg  [AW:0]     max_out,
     output reg  [AW:0]     rpi,
+    output reg             direct_en,       // register 11 bit 0: the design is fed from the sensor pins, not from the playout RAM
+    input  wire [31:0]     live_result,     // register 12: the design's newest result in direct mode
+    input  wire [31:0]     live_count,      // register 13: how many results arrived in direct mode
+    input  wire [3:0]      sens_state,      // register 14: the sensor pins as the FPGA sees them
     input  wire            sd_ready,
     input  wire            sd_error,
     input  wire            sd_busy,
@@ -80,6 +85,10 @@ module spi_bridge_v1 #(
             8'd8: regread = {{(31-AW){1'b0}}, max_out};
             8'd9: regread = {{(31-AW){1'b0}}, rpi};
             8'd10: regread = DESIGN_ID;
+            8'd11: regread = {31'b0, direct_en};
+            8'd12: regread = live_result;
+            8'd13: regread = live_count;
+            8'd14: regread = {28'b0, sens_state};
             default: regread = 32'h0;
         endcase
     endfunction
@@ -106,7 +115,7 @@ module spi_bridge_v1 #(
         if (sd_done_pulse) sd_done_seen <= 1'b1;
         if (play_done_pulse) play_done_seen <= 1'b1;
         if (rst) begin
-            bidx <= 0; cmd <= 0; tx_next <= 0; start_block <= 0; nblocks <= 0; play_count <= 0; max_out <= 0; rpi <= 1; scratch <= 0; wdata <= 0; rv <= 0; word_cur <= 0;
+            bidx <= 0; cmd <= 0; tx_next <= 0; start_block <= 0; nblocks <= 0; play_count <= 0; max_out <= 0; rpi <= 1; direct_en <= DIRECT_DEFAULT[0]; scratch <= 0; wdata <= 0; rv <= 0; word_cur <= 0;
             sd_done_seen <= 0; play_done_seen <= 0; wr_ptr <= 0; rd_ptr <= 0; cap_rd_addr <= 0; pl_wr_addr <= 0; pl_wr_data <= 0; raddr <= 0; hi <= 0;
         end else if (!active) begin
             bidx <= 0; cmd <= 0; tx_next <= 8'h00;
@@ -135,6 +144,7 @@ module spi_bridge_v1 #(
                                 8'd7: scratch <= {wdata[23:0], rxb};
                                 8'd8: max_out <= {wdata[23:0], rxb};
                                 8'd9: rpi <= {wdata[23:0], rxb};
+                                8'd11: direct_en <= rxb[0];
                                 default: ;
                             endcase
                         end

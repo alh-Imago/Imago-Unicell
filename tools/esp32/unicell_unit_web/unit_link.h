@@ -12,7 +12,7 @@
 #define SPI_HZ    1000000
 
 enum { R_ID = 0, R_STATUS = 1, R_CONTROL = 2, R_START_BLOCK = 3, R_NBLOCKS = 4, R_PLAY_COUNT = 5,
-       R_CAP_COUNT = 6, R_SCRATCH = 7, R_MAX_OUT = 8, R_RPI = 9, R_DESIGN_ID = 10 };
+       R_CAP_COUNT = 6, R_SCRATCH = 7, R_MAX_OUT = 8, R_RPI = 9, R_DESIGN_ID = 10, R_DIRECT = 11, R_LIVE_RESULT = 12, R_LIVE_COUNT = 13, R_SENS = 14 };
 enum { C_LOAD = 1, C_SAVE = 2, C_PLAY = 4, C_CAP_CLEAR = 8, C_CLEAR_DONE = 16, C_SD_REINIT = 32 };
 enum { S_SD_READY = 1, S_SD_ERROR = 2, S_SD_BUSY = 4, S_PLAY_BUSY = 8, S_SD_DONE = 16, S_PLAY_DONE = 32, S_CAP_NONEMPTY = 64 };
 static const uint32_t UNIT_ID = 0x57320001UL;
@@ -66,6 +66,7 @@ static bool wait_status(uint32_t mask, uint32_t ms) {
 static const char* run_items(const int32_t* w, int items, int lanes, int32_t* out) {
   if (items < 1 || lanes < 1 || items * lanes > MAX_WORDS) return "too many words (limit 512)";
   if (rd_reg(R_ID) != UNIT_ID) return "the unit does not answer (check the FPGA is loaded and the SPI wiring)";
+  if (rd_reg(R_DIRECT) & 1) return "direct mode is on (the sensor pins are feeding the design): switch it off on the Direct card first";
   wr_reg(R_CONTROL, C_CAP_CLEAR);
   wr_reg(R_MAX_OUT, 1); wr_reg(R_RPI, 1);
   wr_words(0, w, items * lanes);

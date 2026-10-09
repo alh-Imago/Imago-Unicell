@@ -106,6 +106,22 @@ static void handleLive() {
   sendJson(200, String("{\"ok\":true,\"readings\":[") + r + "],\"seq\":" + String((unsigned long)g_sampleSeq) + ",\"result\":" + String((long)out[0]) + ",\"ms\":" + String(millis() - t0) + "}");
 }
 
+// Direct mode: the sensor pins wired to the Tang feed the design themselves; this ESP32 only READS the result out (registers 12, 13, 14) and can switch the mode (register 11).
+static void handleDirect() {
+  if (!authed()) return;
+  if (rd_reg(R_ID) != UNIT_ID) { sendErr(500, "the unit does not answer"); return; }
+  uint32_t on = rd_reg(R_DIRECT) & 1, res = rd_reg(R_LIVE_RESULT), cnt = rd_reg(R_LIVE_COUNT), pins = rd_reg(R_SENS) & 15;
+  sendJson(200, String("{\"ok\":true,\"on\":") + (on ? "true" : "false") + ",\"result\":" + String((long)(int32_t)res) + ",\"count\":" + String((unsigned long)cnt) + ",\"pins\":" + String((unsigned long)pins) + "}");
+}
+static void handleDirectSet() {
+  if (!authed()) return;
+  bool want = server.arg("on") == "1";
+  if (rd_reg(R_ID) != UNIT_ID) { sendErr(500, "the unit does not answer"); return; }
+  wr_reg(R_DIRECT, want ? 1 : 0);
+  if (((rd_reg(R_DIRECT) & 1) != 0) != want) { sendErr(500, "this bitstream has no direct mode: reload a current unit_top.fs (fpga/build/unit_*_v1)"); return; }
+  sendJson(200, "{\"ok\":true}");
+}
+
 // Setup: which design is on the FPGA and which sensor feeds each input lane. Saved in flash; read back at start-up.
 static void handleConfig() {
   if (!authed()) return;
@@ -259,6 +275,8 @@ void setup() {
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/run", HTTP_POST, handleRun);
   server.on("/api/live", HTTP_GET, handleLive);
+  server.on("/api/direct", HTTP_GET, handleDirect);
+  server.on("/api/direct", HTTP_POST, handleDirectSet);
   server.on("/api/config", HTTP_GET, handleConfig);
   server.on("/api/config", HTTP_POST, handleConfigSet);
   server.on("/api/sd", HTTP_POST, handleSd);

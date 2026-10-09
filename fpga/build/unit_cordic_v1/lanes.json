@@ -34,6 +34,10 @@
   "7": "SCRATCH",
   "8": "MAX_OUT: pacing for designs that hold ONE item at a time -- at most this many results outstanding (0 = unlimited)",
   "9": "RPI: results per item (default 1)",
+  "11": "DIRECT (rw bit 0): 1 = the design is fed from the sensor pins SENS[0..1] (Tang pins 72, 71), not from the playout RAM; the unit powers up in this mode if built with --direct",
+  "12": "LIVE_RESULT (ro): newest result in direct mode",
+  "13": "LIVE_COUNT (ro): results received in direct mode",
+  "14": "SENSOR_PINS (ro): the sensor pins as the FPGA sees them",
   "10": "DESIGN_ID (ro): which design is loaded (0x434F5244)"
  },
  "spi": "mode 0, MSB first, SCLK slower than clk/16 (27 MHz -> <= 1.6 MHz). 0x01 WR_REG addr d3..d0 | 0x02 RD_REG addr pad then 4 bytes | 0x03 WR_WORDS hi lo words | 0x04 RD_WORDS hi lo pad words"

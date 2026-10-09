@@ -44,6 +44,10 @@ button:disabled{opacity:.5}table{width:100%;border-collapse:collapse;margin-top:
 <div id="liveres"></div>
 <div class="row"><label>Plot<select id="plotmode"><option value="strips">Strip chart: one band per input, plus the result</option><option value="xy">X-Y: input 1 across, input 2 up</option></select></label><label>Scale<select id="plotscale"><option value="auto">Auto (zoom to the data)</option><option value="full">Full range (0 to 65535)</option></select></label></div>
 <canvas id="plot" height="260" style="width:100%;height:260px;margin-top:8px;border:1px solid var(--line);border-radius:8px" hidden></canvas></div>
+<div class="card"><h2>Direct sensors (no ESP32 in the path)</h2>
+<small>Wire a digital sensor (PIR or tilt switch, signal to Tang pin 72 for input 1, pin 71 for input 2; GND to GND; the pins are pulled low). The Tang then feeds the design itself, about once a millisecond, and this page only reads the result out. LED5 lights for one active sensor, LED4 for two.</small>
+<div class="row"><button class="alt" id="dirbtn">Switch direct mode on</button></div>
+<div id="dirout"></div></div>
 <div class="card"><h2>SD card (raw blocks)</h2>
 <small>Blocks below 16 are refused. Saving overwrites raw blocks on the card.</small>
 <div class="row"><input id="blk" type="number" min="16" value="64" aria-label="start block"><input id="nb" type="number" min="1" max="8" value="1" aria-label="blocks"></div>
@@ -70,6 +74,11 @@ async function files(){try{const f=await api('/api/files');$('fhint').textConten
  $('ftab').tBodies[0].innerHTML=f.files.map(x=>'<tr><td style="text-align:left">'+x.name+'</td><td>'+x.size+' B</td><td><a href="/files?name='+encodeURIComponent(x.name)+'">download</a></td><td><a href="#" data-del="'+x.name+'">delete</a></td></tr>').join('')}catch(e){$('fhint').textContent=e.message}}
 $('ftab').onclick=async e=>{const n=e.target.dataset&&e.target.dataset.del;if(!n)return;e.preventDefault();if(!confirm('Delete '+n+'?'))return;try{await api('/api/filedel',{name:n});files()}catch(x){msg(x.message,1)}};
 $('fsend').onclick=async()=>{const f=$('fup').files[0];if(!f){msg('choose a file first',1);return}msg('Uploading '+f.name+'...');try{const fd=new FormData();fd.append('file',f,f.name);const r=await fetch('/api/upload',{method:'POST',body:fd});const j=await r.json().catch(()=>({ok:false,error:'bad reply'}));if(!r.ok||j.ok===false)throw new Error(j.error||('HTTP '+r.status));msg('Uploaded '+j.bytes+' bytes');files()}catch(x){msg(x.message,1)}};
+let dirOn=false;
+async function dirTick(){try{const d=await api('/api/direct');dirOn=d.on;$('dirbtn').textContent=d.on?'Switch direct mode off':'Switch direct mode on';const u=d.result>>>0;
+ $('dirout').innerHTML=d.on?'sensor pins: input 1 '+((d.pins&1)?'HIGH':'low')+', input 2 '+((d.pins&2)?'HIGH':'low')+'<br>design result: '+d.result+' = word amount '+(u>>>16)+' ('+((u>>>16)/8192)+' sensor(s) active), location '+(u&65535)+'<br><small>'+d.count+' results since switching on (the Tang computes them by itself)</small>':'<small>Direct mode is off.</small>'}catch(e){$('dirout').textContent=e.message}}
+$('dirbtn').onclick=async()=>{try{await api('/api/direct',{on:dirOn?0:1})}catch(e){msg(e.message,true)}dirTick()};
+setInterval(()=>{if(!liveOn)dirTick()},800);dirTick();
 let liveOn=false,liveT=null;const HN=240,HIST=[[],[],[],[]],RES=[];
 const COL=['#58a6ff','#3fb950','#d29922','#f778ba'];
 const AUTO=()=>$('plotscale').value==='auto';function rng(d,min){let lo=0,hi=65535;if(d.length&&(min===1||AUTO())){lo=Math.min(...d);hi=Math.max(...d);if(hi-lo<min){const m=(hi+lo)/2;lo=m-min/2;hi=m+min/2}}return[lo,hi]}
