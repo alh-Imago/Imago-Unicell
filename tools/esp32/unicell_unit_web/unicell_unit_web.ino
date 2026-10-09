@@ -290,6 +290,7 @@ static void serialCmd(char* s) {
 void setup() {
   Serial.begin(115200);
   link_begin();
+  sensors_begin();
   fileSpi.begin(FILE_SCK, FILE_MISO, FILE_MOSI, FILE_CS);
   haveFiles = SD.begin(FILE_CS, fileSpi, 4000000);
   Serial.println(haveFiles ? "ESP32 SD card: found" : "ESP32 SD card: none (fine; the file panel will say so)");
