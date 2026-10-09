@@ -18,6 +18,7 @@
 > | `quartus/`, `*.tcl`, `issp_loader.py`, `icm_stream.py` | the Arria 10 Quartus projects and the JTAG / ISSP host scripts |
 > | `build_tangnano20k_sweep.bat` | an unattended yosys / nextpnr / Apicula sweep of every core type for the Tang, run on Windows |
 > | `archive/kintex7_xc7k480t/` | the Kintex 480T card (`#928`) |
+> | `archive/arria10_super_line/` | older cores, old Quartus projects and Arria 10 scripts (archived 9 Oct 2026; `MANIFEST.tsv`, `tools/archive_move_v1.py --reclaim`) |
 >
 > **The current line's cells are not here:** they are in `sub/verilog/`
 > (see `sub/README.md`). Toolchain setup for both lines is in

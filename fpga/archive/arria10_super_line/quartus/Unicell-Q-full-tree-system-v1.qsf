@@ -27,7 +27,7 @@ set_location_assignment PIN_E23 -to CLK_100M
 # registered read address fixes this. Watch "Total block memory bits"
 # in the fit report -- should be nonzero this time.
 # ──
-set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../../../verilog/adder_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/bram_controller_v2.v
 set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v

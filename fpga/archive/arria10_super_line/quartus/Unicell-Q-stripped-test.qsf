@@ -6,7 +6,7 @@ set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
 
 # ── Board reference clock -- same physical pin as every other project on
-# this board (Unicell-Q.sdc confirmed this on-card, 21 Jun 2026). ──
+# this board (../../../quartus/Unicell-Q.sdc confirmed this on-card, 21 Jun 2026). ──
 set_location_assignment PIN_E23 -to CLK_100M
 
 # ── Sources -- ONLY the stripped cell and this test top. Deliberately not

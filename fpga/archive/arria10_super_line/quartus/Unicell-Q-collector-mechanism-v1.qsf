@@ -23,15 +23,15 @@ set_location_assignment PIN_E23 -to CLK_100M
 # -- five real RTL bugs found and fixed that way before this file ever
 # existed, documented in points.md #404.
 # ──
-set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../../../verilog/adder_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/ram_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/accumulator_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/compare_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/latch_cell_v1.v
-set_global_assignment -name VERILOG_FILE ../verilog/nibble_mask_addon_v1.v
-set_global_assignment -name VERILOG_FILE ../verilog/shift_lane_addon_v1.v
-set_global_assignment -name VERILOG_FILE ../verilog/invert_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../../../verilog/nibble_mask_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../../../verilog/shift_lane_addon_v1.v
+set_global_assignment -name VERILOG_FILE ../../../verilog/invert_addon_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/unicell_stripped_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/unicell_super_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/cell_command_sequencer_v1.v

@@ -149,14 +149,14 @@ def extract_field_map(filepath: str, occurrence: int = 0) -> Optional[RootDefini
 # `root_definition.json` whenever the RTL's own comments change. ──────
 
 CORE_RTL_FILES = {
-    "nano": "fpga/verilog/unicell_stripped/unicell_stripped_v1.v",
-    "ram": "fpga/verilog/ram_cell/ram_cell_v1.v",
-    "adder": "fpga/verilog/adder_cell/adder_cell_v1.v",
-    "accumulator": "fpga/verilog/accumulator_cell/accumulator_cell_v1.v",
-    "comparator": "fpga/verilog/compare_cell/compare_cell_v1.v",
-    "latch": "fpga/verilog/latch_cell/latch_cell_v1.v",
-    "sequencer": "fpga/verilog/sequencer_cell/sequencer_cell_v1.v",
-    "branch": "fpga/verilog/branch_cell/branch_cell_v1.v",
+    "nano": "fpga/archive/arria10_super_line/verilog/unicell_stripped/unicell_stripped_v1.v",
+    "ram": "fpga/archive/arria10_super_line/verilog/ram_cell/ram_cell_v1.v",
+    "adder": "fpga/archive/arria10_super_line/verilog/adder_cell/adder_cell_v1.v",
+    "accumulator": "fpga/archive/arria10_super_line/verilog/accumulator_cell/accumulator_cell_v1.v",
+    "comparator": "fpga/archive/arria10_super_line/verilog/compare_cell/compare_cell_v1.v",
+    "latch": "fpga/archive/arria10_super_line/verilog/latch_cell/latch_cell_v1.v",
+    "sequencer": "fpga/archive/arria10_super_line/verilog/sequencer_cell/sequencer_cell_v1.v",
+    "branch": "fpga/archive/arria10_super_line/verilog/branch_cell/branch_cell_v1.v",
 }
 
 SUPER_LATCH_RTL_FILE = "fpga/verilog/unicell_super/unicell_super_v1.v"

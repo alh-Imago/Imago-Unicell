@@ -51,7 +51,7 @@ VERILOG_DIR = os.path.join(REPO_ROOT, "fpga", "verilog")
 
 # Real, complete dependency set for unicell_super_v3.v -- every file
 # it actually instantiates, confirmed directly against its own real
-# QSF (fpga/quartus/top_super_v3_branch_test_v1.qsf, #548), not
+# QSF (fpga/archive/arria10_super_line/quartus/top_super_v3_branch_test_v1.qsf, #548), not
 # assumed.
 V3_DEPENDENCIES = [
     "adder_v1.v",
@@ -141,6 +141,13 @@ def find_dependency_file(basename, src_dir):
         subdir = os.path.join(src_dir, entry)
         if os.path.isdir(subdir):
             candidate = os.path.join(subdir, basename)
+            if os.path.exists(candidate):
+                return candidate
+    # archived older cores (fpga/archive/arria10_super_line, moved there by tools/archive_move_v1.py) are still found, so old projects keep generating
+    archive = os.path.join(REPO_ROOT, "fpga", "archive", "arria10_super_line", "verilog")
+    if os.path.isdir(archive) and os.path.abspath(src_dir) == os.path.abspath(VERILOG_DIR):
+        for entry in [""] + sorted(os.listdir(archive)):
+            candidate = os.path.join(archive, entry, basename)
             if os.path.exists(candidate):
                 return candidate
     raise FileNotFoundError(

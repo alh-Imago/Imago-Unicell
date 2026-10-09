@@ -3,7 +3,7 @@
 :: sweep of every UniCell core type on the Sipeed Tang Nano 20K
 :: (Gowin GW2AR-LV18QN88C8/I7), via the open-source yosys /
 :: nextpnr-himbaechel / Apicula flow -- the same open-source spirit as
-:: build_icebreaker.bat, ported to Gowin.
+:: ../../../build_icebreaker.bat, ported to Gowin.
 ::
 :: For each entry below, runs: yosys (synth_gowin) -> nextpnr-himbaechel
 :: -> gowin_pack, and appends LUT/DFF/Fmax to ONE consolidated summary

@@ -23,7 +23,7 @@ set_location_assignment PIN_AH2 -to LED1_N
 # the compute cell's own 50-cell base figure (#148) and the RAM cell's
 # own 50-cell base figure (#249/#250) for a direct three-way per-cell-
 # type comparison. ──
-set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../../../verilog/adder_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/top_adder_chain50_v1.v
 

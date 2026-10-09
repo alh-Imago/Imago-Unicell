@@ -3,7 +3,7 @@
 #
 # Same board reference clock as every other project on this card: 100.00 MHz
 # single-ended on CLK_100M (E23), confirmed on-card 21 Jun 2026 (see
-# Unicell-Q.sdc). The design divides it by 4 internally to a 25 MHz fabric
+# ../../../quartus/Unicell-Q.sdc). The design divides it by 4 internally to a 25 MHz fabric
 # clock -- WITHOUT this file Quartus assumes a fake 1 GHz clock on every
 # node and reports meaningless numbers; this is what makes the Fmax report
 # real.

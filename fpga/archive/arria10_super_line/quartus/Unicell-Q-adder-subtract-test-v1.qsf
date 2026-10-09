@@ -19,7 +19,7 @@ set_location_assignment PIN_E23 -to CLK_100M
 set_location_assignment PIN_AE7 -to LED0_N
 set_location_assignment PIN_AH2 -to LED1_N
 
-set_global_assignment -name VERILOG_FILE ../verilog/adder_v1.v
+set_global_assignment -name VERILOG_FILE ../../../verilog/adder_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/adder_cell_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/debug_issp_probe_v1.v
 set_global_assignment -name VERILOG_FILE ../verilog/top_adder_subtract_test_v1.v

@@ -9,7 +9,7 @@
 #   defaults: instance_index = 0, hw_name_match = "USB-Blaster"
 #
 # Same discovery/open/close/source-write conventions as this project's
-# existing `issp_unicell.tcl` (deliberately mirrored, not reinvented) --
+# existing `../../../issp_unicell.tcl` (deliberately mirrored, not reinvented) --
 # see that file for the general pattern this one follows.
 #
 # BIT MAP — must match sentinel_issp_bridge_v1.v's own documented layout:
@@ -48,7 +48,7 @@ proc sn_open {match} {
 }
 proc sn_close {} { end_insystem_source_probe }
 
-# ── low-level source write, same field-packing convention as issp_unicell.tcl
+# ── low-level source write, same field-packing convention as ../../../issp_unicell.tcl
 proc sn_src_fields {snap go cmd data} {
     set hi [expr {(($snap & 1) << 1) | ($go & 1)}]
     set hex [format "%x%08x%08x" $hi [expr {$cmd & 0xFFFFFFFF}] [expr {$data & 0xFFFFFFFF}]]

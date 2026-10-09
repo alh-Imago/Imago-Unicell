@@ -6,7 +6,7 @@
 
 **Capture.** Flex exit ports in (`out_data/valid/ack`), round-robin between exits, one word per cycle, stored as {exit tag, data} in arrival order; `count` says how many; host reads through `rd_addr/rd_data` (valid one cycle later). When full it stops acking, so the design stalls and nothing is lost.
 
-**Host side.** The only host-facing signals are the write port, `start/count/done` and the read port, so JTAG, a UART/USB-serial link (Tang Nano's BL616), or an SD card can fill and read them. The old Intel ISSP bridge (`fpga/host_bridge_bram_icm.tcl`) is not usable on Gowin.
+**Host side.** The only host-facing signals are the write port, `start/count/done` and the read port, so JTAG, a UART/USB-serial link (Tang Nano's BL616), or an SD card can fill and read them. The old Intel ISSP bridge (`fpga/archive/arria10_super_line/scripts/host_bridge_bram_icm.tcl`) is not usable on Gowin.
 
 **Measured.** Test `tests/vm/test_playout_v1.py`: playout alone gives every lane its own words in order under random consumer stalls; the 4-point Wasserstein-2 engine (#1034) fed only by playout and read only from capture gives the reference squared distances (cfg_valid pulse needed after reset, as for any flex design). Gowin synthesis (yosys, pre place-and-route): playout with 14 lanes ~ 370 LUT + ~570 FF + 2 BSRAM; capture, 1 exit ~ 75 LUT + 87 FF + 2 BSRAM. (ALU cells not counted.)
 
