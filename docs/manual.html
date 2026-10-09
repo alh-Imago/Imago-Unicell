@@ -495,6 +495,9 @@ hardware history to fully confirmed — standalone, and through the
 real v3 shell's own <code>core_select</code> routing — in one session.</p>
 <p>For full detail, see <a href="../docs/stripped-cell/SUPER_CELL_INTERNALS.md"><code>docs/stripped-cell/SUPER_CELL_INTERNALS.md</code></a>.</p>
 <h2>The Arria 10's scale ceiling, and why hardware work on it closed</h2>
+<blockquote>
+<p><strong>9 Oct 2026:</strong> the Arria 10 (and the Kintex-7 480T) are still target cards; bring-up is stalled, not abandoned, and a possible fix is being looked at. The text below is the measured record of why it stalled.</p>
+</blockquote>
 <p><strong>This card's own real, measured ceiling is roughly 200-250 cells,</strong>
 at a real Fmax of 65-75 MHz at that scale (251,680 ALM / ~1030 ALM per
 real cell, <code>unicell_super_v3.v</code>'s own array-scale measurement — every
@@ -630,8 +633,16 @@ Tang Nano 20K one carrier position measures ~80% of the chip, #887,
 which is what led to the sub/flex families.) Full detail:
 <a href="../docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md"><code>docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md</code></a>.</p>
 <h2>Quick start</h2>
-<p>No installable package exists yet — everything runs as scripts directly
-from a clone of this repo. The flex/sub suites need <code>iverilog</code> and
+<p><strong>One-stop install (new, 9 Oct 2026):</strong> get the folder (a <code>git clone</code>, or the
+zip / <code>.onion</code> kit built by <code>tools/make_package_v1.py</code>), then run
+<code>python3 quickstart.py --install</code>. It makes a private environment in the
+folder, installs everything pip can supply (numpy, llvmlite, pycparser, pytest
+and the YoWASP yosys / nextpnr / apycula bitstream tools) and runs the
+self-test. Two things pip cannot supply are listed with the command for your
+system: <code>iverilog</code> (simulation) and <code>openFPGALoader</code> (loading the board).
+Tested on Linux only; the Windows and macOS paths are written but not run.</p>
+<p>There is no pip-installable package yet — everything runs as scripts directly
+from the folder. The flex/sub suites need <code>iverilog</code> and
 <code>yosys</code> on the path, and <code>pytest</code> and <code>llvmlite</code> installed. <strong>Without
 <code>iverilog</code> they skip and exit 0, which looks like a pass</strong> (#965), so
 check before trusting a run:</p>
@@ -5984,6 +5995,10 @@ Proposed route: (1) the ESP32 reads the new bitstream's blocks from the SD card 
 </tbody>
 </table>
 <p><strong>Which module to buy:</strong> a plain <strong>3.3 V-only microSD breakout</strong> (a bare socket on a small board, for example Adafruit's "MicroSD SPI or SDIO card breakout", product 4682, which is marked "3V ONLY"). Avoid the very cheap blue modules with a voltage regulator and level shifter: they are made for 5 V boards, and some keep the MISO line driven even when the card is not selected, which makes the card fail to start on an ESP32 (reported on the Arduino forum). If you already own one, power it from 5 V (VIN) only if it has the regulator, and if the card still does not start, that is the cause. Use a card of 32 GB or less (SDHC), formatted FAT32; a spare 8-16 GB card is plenty. A tiny 20x18 mm bare 3.3 V module sold in 10-packs with 6-way pin strips to solder (CS, MOSI, CLK, MISO, 3V3, GND; read the order off its silkscreen, it varies) is the right kind. If the card will not start, shorten the wires, add a 10 k pull-up from MISO and from CS to 3V3, and lower the 4000000 in <code>SD.begin</code> to 1000000. The card is read when the ESP32 starts, so insert it before power-up or press the ESP32's reset. Files: names of letters, digits, . - _ and space (at most 40, no folders), up to 32 MB each. <strong>Not yet tried on hardware.</strong></p>
+<h2>Live sensors (addendum 17, not run on hardware)</h2>
+<p><code>tools/esp32/unicell_unit_web/sensors.h</code> lists the sensors to feed into the running design; the web page's <strong>Live sensors</strong> panel (and <code>GET /api/live</code>) reads them, turns each into a SensorTrix word (amount in bits 31..16, location number in bits 15..0), runs one item through the design and shows the readings and the result. Defaults: three analog inputs on GPIO 35, 36, 39. Use <strong>ADC1 pins only</strong> (GPIO 32 to 39): ADC2 does not work while WiFi is on. To add a sensor from your pack, add one line to <code>SENSORS[]</code>: an ADC1 pin for an analog sensor, or pin -1 and a function returning 0..65535 for an I2C/digital one (include its Arduino library at the top of <code>sensors.h</code>). The number of sensors listed must be at least the design's input lanes (1 for CORDIC and relay, 4 for the tree). The CORDIC build receives the raw amount as its angle, so scale it in your function. Simulated end to end: <code>tests/vm/test_unit_live_feed_v1.py</code>.</p>
+<h3>Parts from the SunFounder ESP32 Ultimate Starter Kit (readers written, nothing wired or run)</h3>
+<p><code>sensors.h</code> has ready readers for: potentiometer, light sensor and soil moisture (plain analog, ADC1 pins 35/36/39 only), thermistor (assumed 10 k NTC, B 3950, 10 k divider; swap the resistances if your module is wired the other way), button / tilt switch / PIR motion / obstacle avoidance / line tracking (digital, 0 or 65535; many read LOW when active), ultrasonic (trigger + echo, distance in mm; its echo pin is 5 V, use a divider), and DHT11 (needs the Adafruit "DHT sensor library", off until <code>USE_DHT11</code> is defined). Free digital pins: 16, 17, 21, 22 (and 4, 13, 14, 27, which stay reserved for a later JTAG loader). Not covered: joystick (two analog axes need two ADC1 pins, only three are free), IR receiver (needs a decoding library), camera, displays and motors. Three sensors are active by default (potentiometer, light, thermistor), so the CORDIC and relay builds work as soon as they are wired; the 4-lane tree needs a fourth line enabled in the table.</p>
 <div class="partsub">MAN files (card capabilities)<span class="partsrc">docs/man/README.md</span></div>
 <h1>MAN files</h1>
 <p>A MAN file describes a <strong>target card's real identity and capabilities</strong> —
@@ -6418,6 +6433,9 @@ constraints and facts are in <code>docs/man/tang-nano-20k.man.json</code> /
 before comparing (<code>#965</code>).</p>
 <div class="partsub">Tools: the assembler and measurement tools<span class="partsrc">tools/README.md</span></div>
 <h1>Tools</h1>
+<blockquote>
+<p>Nine one-off, demo and measurement scripts now live in <a href="../experimental/README.md"><code>experimental/</code></a> (moved 9 Oct 2026). Mentions of them below use the old paths.</p>
+</blockquote>
 <p>Standalone utilities and offshoots built alongside the Imago UniCell project.</p>
 <h2><code>project_assemble_v1.py</code> — real N-cell Quartus project generator</h2>
 <p>Given a MAN file (a card's own real capabilities, see <code>docs/man/</code>)
@@ -6723,6 +6741,10 @@ specifically).
 - <code>esp32/unicell_unit_bridge/</code> -- Arduino sketch: ESP32 as SPI master to the small unit (docs/unit_bringup_guide.md).
 - <code>esp32/unicell_unit_web/</code> -- Arduino sketch: WiFi web control of the small unit (run, SD load/save, status; docs/unit_bringup_guide.md, WiFi section).
 - <code>sd_unit_top_v1.py</code> -- ledger #1036: wrap any flex design (an ICM) in the SD-card + ESP32-SPI small unit; writes a Tang Nano <code>unit_top.v</code>, pin file, lane map and README (docs/playout_capture_v1.md).</p>
+<h2><code>make_package_v1.py</code> -- the one-stop download (zip and .onion)</h2>
+<p><code>python3 tools/make_package_v1.py [--onion]</code> builds <code>dist/unicell-kit-&lt;date&gt;-&lt;commit&gt;.zip</code> (every tracked file + the Onion tool + START_HERE.txt) and, with <code>--onion</code> and the <code>onion</code> command available, the same tree as a <code>.onion</code> packed by the tool inside it, round-trip checked. Unzip, then <code>python3 quickstart.py --install</code>. The <code>.onion</code> is packed with <code>--no-audit</code> because Onion's audit block overflows its 16-bit length field on a tree this large (about 1,650 files); a bug in Onion, not in the package.</p>
+<h2><code>verilog_versions_v1.py</code> -- index of older core versions</h2>
+<p>Writes <code>fpga/verilog/VERSIONS.md</code>: for every versioned core family, what still names each older version (so it is clear which can be archived safely).</p>
 <div class="partsub">Arria 10 programming procedure<span class="partsrc">hardware/Arria10_Programming_Procedure.md</span></div>
 <h1>Imago UniCell — Arria 10 GX660 Programming Procedure</h1>
 <h2>Repeatable guide for IEI Mustang-F100 cards (2-card and 8-card builds)</h2>

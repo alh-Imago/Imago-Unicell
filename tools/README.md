@@ -1,5 +1,7 @@
 # Tools
 
+> Nine one-off, demo and measurement scripts now live in [`experimental/`](experimental/README.md) (moved 9 Oct 2026). Mentions of them below use the old paths.
+
 Standalone utilities and offshoots built alongside the Imago UniCell project.
 
 ## `project_assemble_v1.py` — real N-cell Quartus project generator
@@ -233,3 +235,9 @@ specifically).
 - `esp32/unicell_unit_bridge/` -- Arduino sketch: ESP32 as SPI master to the small unit (docs/unit_bringup_guide.md).
 - `esp32/unicell_unit_web/` -- Arduino sketch: WiFi web control of the small unit (run, SD load/save, status; docs/unit_bringup_guide.md, WiFi section).
 - `sd_unit_top_v1.py` -- ledger #1036: wrap any flex design (an ICM) in the SD-card + ESP32-SPI small unit; writes a Tang Nano `unit_top.v`, pin file, lane map and README (docs/playout_capture_v1.md).
+
+## `make_package_v1.py` -- the one-stop download (zip and .onion)
+`python3 tools/make_package_v1.py [--onion]` builds `dist/unicell-kit-<date>-<commit>.zip` (every tracked file + the Onion tool + START_HERE.txt) and, with `--onion` and the `onion` command available, the same tree as a `.onion` packed by the tool inside it, round-trip checked. Unzip, then `python3 quickstart.py --install`. The `.onion` is packed with `--no-audit` because Onion's audit block overflows its 16-bit length field on a tree this large (about 1,650 files); a bug in Onion, not in the package.
+
+## `verilog_versions_v1.py` -- index of older core versions
+Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still names each older version (so it is clear which can be archived safely).

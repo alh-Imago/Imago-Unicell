@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): MEASUREMENT script; results are in the ledger. Re-runnable, not tested. Moved here from tools/.
 """tools/measure_flag_across_families_v1.py -- does `synth_gowin -nowidelut` matter for EVERY family, or only flex? (ledger #950; Alan: "you would have to test
 and see if it makes a difference on the nano and sub designs too").
 
@@ -14,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # tools/experimental/ -> repo root
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import flexsub_assemble_v1 as fsa  # noqa: E402
 

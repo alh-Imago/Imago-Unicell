@@ -1,3 +1,4 @@
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): EXPERIMENTAL: random-topology exploration; no test, one-off. Moved here from tools/.
 """
 chaos_topology_v1.py — genuine random-topology exploration, per Alan's
 own real proposal (points.md, day 3): random core assignment, random
@@ -17,7 +18,7 @@ import random
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "nano"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "nano"))
 
 from icm_v3 import IcmV3Record, SEL_NANO, SEL_RAM, SEL_ADDER, SEL_ACC, SEL_CMP, SEL_LATCH
 from unicell_super_automaton_v1 import SuperGrid

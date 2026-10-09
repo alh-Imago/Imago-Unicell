@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): MEASUREMENT script; results are in the ledger. Re-runnable, not tested. Moved here from tools/.
 """tools/measure_flag_pnr_v1.py -- REAL place-and-route of every sub and flex cell, default vs `-nowidelut`, with a CREDIBLE Fmax (ledger #950).
 
 Run: python3 tools/measure_flag_pnr_v1.py [--only cell,cell]     (needs yosys + yowasp-nextpnr-himbaechel-gowin; writes only under /tmp; sequential, minutes on one core)
@@ -14,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # tools/experimental/ -> repo root
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import flexsub_assemble_v1 as fsa  # noqa: E402
 

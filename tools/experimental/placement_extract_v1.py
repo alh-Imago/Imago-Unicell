@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): EXPERIMENTAL: Quartus (Arria 10) placement extractor; Arria 10 is a target card but this tool has no test. Moved here from tools/.
 """
 placement_extract_v1.py — points.md #456/#457: merges real Quartus
 placement data into per-instance physical bounding boxes, closing the

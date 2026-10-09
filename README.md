@@ -306,6 +306,8 @@ For full detail, see [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/strippe
 
 ## The Arria 10's scale ceiling, and why hardware work on it closed
 
+> **9 Oct 2026:** the Arria 10 (and the Kintex-7 480T) are still target cards; bring-up is stalled, not abandoned, and a possible fix is being looked at. The text below is the measured record of why it stalled.
+
 **This card's own real, measured ceiling is roughly 200-250 cells,**
 at a real Fmax of 65-75 MHz at that scale (251,680 ALM / ~1030 ALM per
 real cell, `unicell_super_v3.v`'s own array-scale measurement — every
@@ -451,8 +453,17 @@ which is what led to the sub/flex families.) Full detail:
 
 ## Quick start
 
-No installable package exists yet — everything runs as scripts directly
-from a clone of this repo. The flex/sub suites need `iverilog` and
+**One-stop install (new, 9 Oct 2026):** get the folder (a `git clone`, or the
+zip / `.onion` kit built by `tools/make_package_v1.py`), then run
+`python3 quickstart.py --install`. It makes a private environment in the
+folder, installs everything pip can supply (numpy, llvmlite, pycparser, pytest
+and the YoWASP yosys / nextpnr / apycula bitstream tools) and runs the
+self-test. Two things pip cannot supply are listed with the command for your
+system: `iverilog` (simulation) and `openFPGALoader` (loading the board).
+Tested on Linux only; the Windows and macOS paths are written but not run.
+
+There is no pip-installable package yet — everything runs as scripts directly
+from the folder. The flex/sub suites need `iverilog` and
 `yosys` on the path, and `pytest` and `llvmlite` installed. **Without
 `iverilog` they skip and exit 0, which looks like a pass** (#965), so
 check before trusting a run:

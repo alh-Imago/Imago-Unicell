@@ -12,3 +12,7 @@ imago_vm.egg-info/
 # argument specifically so generated project folders never land here
 # by accident, but this catches it anyway if it ever does.
 /build_*/
+
+# private environment made by quickstart.py --install, and built packages
+.venv/
+dist/

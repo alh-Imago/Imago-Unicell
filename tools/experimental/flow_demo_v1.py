@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): DEMO of a live-line generator (flow medium); no test of its own. Moved here from tools/.
 """tools/flow_demo_v1.py -- ledger #1033: the flow medium working. Profiles printed here come out of the GENERATED RTL; each run is checked against the exact reference and for conservation.
 A slug of fluid (4000) starts in cell 1 of a closed row of cells; three runs of the same hardware:
   standard   no commands: diffusion only (spreads both ways, the walls reflect it)
@@ -9,7 +10,7 @@ import os
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # tools/experimental/ -> repo root
 for sub in ("tools", "tests/vm"):
     sys.path.insert(0, os.path.join(ROOT, sub))
 from fp_block_runner_v1 import run_rtl  # noqa: E402

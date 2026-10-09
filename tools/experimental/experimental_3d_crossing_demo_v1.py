@@ -1,3 +1,4 @@
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): EXPERIMENTAL: 3D toy-grid crossing demo; no test. Moved here from nano/.
 """
 experimental_3d_crossing_demo_v1.py — the real, concrete test of the
 architecture question: can a 6-cardinal fabric build a shape that's
@@ -16,6 +17,8 @@ genuine conflict, not just an inconvenience (this project's own
 established constraint: one cell, one wired role at a time).
 """
 
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "nano"))   # experimental_3d_grid_v1 stays in nano/
 from experimental_3d_grid_v1 import Grid3D, ToyCell3D, N, S, E, W, U, D, pack_dirmask
 
 grid = Grid3D()

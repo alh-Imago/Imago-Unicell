@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): MEASUREMENT script; results are in the ledger. Re-runnable, not tested. Moved here from tools/.
 """tools/measure_cell_width_v1.py -- what a flex cell costs on the Gowin fabric at 32 vs 18 bits, in BOTH synthesis flows.
 
 Run: python3 tools/measure_cell_width_v1.py          (needs yosys; read-only, writes only /tmp)
@@ -12,7 +13,7 @@ import re
 import subprocess
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # tools/experimental/ -> repo root
 SUB = os.path.join(ROOT, "sub", "verilog")
 ADDER_DEP = os.path.join(ROOT, "fpga", "verilog", "adder_v1.v")
 

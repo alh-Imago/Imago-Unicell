@@ -1,5 +1,5 @@
 """Ledger #1036 addendum 6: the committed CORDIC unit bitstream package, the ESP32 sketch and the pin map agree with each other."""
-import os, re, sys
+import os, re, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import sd_unit_top_v1 as U
@@ -78,3 +78,15 @@ def test_web_sketch_has_the_live_sensor_feed_with_free_adc1_pins():
     used = {5, 18, 19, 23, 34, 32, 33, 25, 26}
     pins = [int(p) for p in re.findall(r'\{\s*"[^"]+",\s*\d+,\s*(\d+),', h)]
     assert pins and not (set(pins) & used) and all(32 <= p <= 39 for p in pins)
+
+
+def test_install_option_packaging_and_reorganisation_hold_together():
+    """addendum 20: quickstart --install exists (dry run does nothing), the nine experimental scripts live under tools/experimental, the three dead shells are archived."""
+    q = subprocess.run([sys.executable, os.path.join(ROOT, "quickstart.py"), "--install", "--dry-run"], capture_output=True, text=True)
+    assert q.returncode == 0 and "dry run" in q.stdout and "yowasp-yosys" in q.stdout
+    for n in ("chaos_topology_v1", "flow_demo_v1", "lif_demo_v1", "measure_cell_width_v1", "measure_flag_across_families_v1", "measure_flag_pnr_v1", "placement_extract_v1",
+              "experimental_3d_chaos_run_v1", "experimental_3d_crossing_demo_v1"):
+        assert os.path.exists(os.path.join(ROOT, "tools", "experimental", n + ".py")), n
+    for n in ("corner_shell_v1", "cross_shell_v1", "merge_shell_v1"):
+        assert os.path.exists(os.path.join(ROOT, "fpga", "archive", "older_cores", n + ".v")) and not os.path.exists(os.path.join(ROOT, "fpga", "verilog", n + ".v"))
+    assert os.path.exists(os.path.join(ROOT, "tools", "make_package_v1.py")) and os.path.exists(os.path.join(ROOT, "fpga", "verilog", "VERSIONS.md"))

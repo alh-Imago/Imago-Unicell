@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): DEMO of a live-line generator (LIF neuron); no test of its own. Moved here from tools/.
 """tools/lif_demo_v1.py -- ledger #1030: show the LIF neuron working. The spike trains printed here come out of the GENERATED RTL of the flex cells (not from the Python reference); each line is
 checked against the reference and the script says so.
   1. one neuron, 16 steps, constant input current swept: the f-I curve (leak, threshold, soft reset)
@@ -8,7 +9,7 @@ import os
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # tools/experimental/ -> repo root
 for sub in ("tools", "tests/vm"):
     sys.path.insert(0, os.path.join(ROOT, sub))
 from fp_block_runner_v1 import run_rtl  # noqa: E402

@@ -1,3 +1,4 @@
+# STATUS (docs/STATUS_MAP.md, 9 Oct 2026): EXPERIMENTAL: 3D toy-grid chaos run; no test. Moved here from nano/.
 """
 experimental_3d_chaos_run_v1.py — a modest (5x5x5) random 3D grid,
 seeded with real random relay wiring and multiple simultaneous
@@ -9,6 +10,8 @@ does a moderately busy 6-cardinal fabric actually look like in motion"
 import random
 import time
 
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "nano"))   # experimental_3d_grid_v1 stays in nano/
 from experimental_3d_grid_v1 import Grid3D, ToyCell3D, N, S, E, W, U, D, _DIRS, _OPPOSITE, pack_dirmask
 
 random.seed(42)   # reproducible chaos, not different chaos every run
