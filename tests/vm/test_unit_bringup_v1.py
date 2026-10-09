@@ -1,5 +1,5 @@
 """Ledger #1036 addendum 6: the committed CORDIC unit bitstream package, the ESP32 sketch and the pin map agree with each other."""
-import os, re, subprocess, sys
+import os, re, shutil, subprocess, sys, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import sd_unit_top_v1 as U
@@ -90,3 +90,18 @@ def test_install_option_packaging_and_reorganisation_hold_together():
     for n in ("corner_shell_v1", "cross_shell_v1", "merge_shell_v1"):
         assert os.path.exists(os.path.join(ROOT, "fpga", "archive", "older_cores", n + ".v")) and not os.path.exists(os.path.join(ROOT, "fpga", "verilog", n + ".v"))
     assert os.path.exists(os.path.join(ROOT, "tools", "make_package_v1.py")) and os.path.exists(os.path.join(ROOT, "fpga", "verilog", "VERSIONS.md"))
+
+
+def test_web_page_lives_in_a_header_and_is_valid_javascript():
+    """addendum 28: the Arduino IDE injected function prototypes into the page when it sat in the .ino (page dead on the real board). The page is in page.h; the .ino holds no raw string, and the script parses."""
+    ino = open(os.path.join(WEB, "unicell_unit_web.ino")).read()
+    page = open(os.path.join(WEB, "page.h")).read()
+    assert 'R"HTML(' not in ino and '#include "page.h"' in ino
+    m = re.search(r'R"HTML\((.*?)\)HTML"', page, re.S)
+    assert m and "#line" not in m.group(1)
+    js = re.search(r"<script>(.*?)</script>", m.group(1), re.S).group(1)
+    if shutil.which("node"):
+        p = os.path.join(tempfile.mkdtemp(), "page.js")
+        open(p, "w").write(js)
+        r = subprocess.run(["node", "--check", p], capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr[:500]
