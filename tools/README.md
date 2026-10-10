@@ -247,3 +247,6 @@ Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still n
 
 ## `nor_adder_v1.py` -- a 32-bit adder from NOR-built gates only
 `python3 tools/nor_adder_v1.py --measure` rebuilds the hand-drawn Kogge-Stone tile (17 `nano` gates + relay/shift cells), assembles it and the dedicated adder cell against the Tang Nano 20K MAN, runs yosys and FlexGrid, and writes `docs/measurements/nor_adder_v1.json`; `--check` fails if that file is out of date. `build_folded()` is the near-square layout used for the carrier-line cost (Table D). Proof of correctness: `tests/vm/test_nor_adder_v1.py`.
+
+## `nor_adder_3d_v1.py` -- the NOR-built adder in a six-neighbour grid (VM only)
+`python3 tools/nor_adder_3d_v1.py --measure` searches layouts of the same adder in `nano/experimental_3d_nor_v2.py` (gate and shift cells on a six-face grid), checks the best against real addition and writes `docs/measurements/nor_adder_3d_v1.json`; `--check` fails if the file is out of date. Tests: `tests/vm/test_nor_adder_3d_v1.py`. Thought experiment: no RTL.

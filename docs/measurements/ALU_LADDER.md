@@ -1,6 +1,6 @@
 # The ALU ladder: what the project has built at each level, and what it cost
 
-*Ledger #1036 addenda 47 to 49, 10 Oct 2026. Working material for the papers: one place where every size and every claim has its source and its status. Four tables are generated from the repo's own measurement files (`python3 tools/alu_ladder_v1.py --write`; `--check` says whether they are current). Everything else was written by hand from the ledger entry named beside it.*
+*Ledger #1036 addenda 47 to 50, 10 Oct 2026. Working material for the papers: one place where every size and every claim has its source and its status. Five tables are generated from the repo's own measurement files (`python3 tools/alu_ladder_v1.py --write`; `--check` says whether they are current). Everything else was written by hand from the ledger entry named beside it.*
 
 ## The idea in one paragraph
 
@@ -89,6 +89,20 @@ Cost is a **calculation, not a build**: the number of positions the toolchain wo
 <!-- END GENERATED: carrier -->
 
 What the table shows. On the carrier line the cost of a function is almost entirely the **number of positions**, because every position costs the same whatever it does: the NOR-built adder needs 133 positions where the dedicated cell needs 7 (19 times), and layout decides whether it fits at all: laid out long and thin it would need 343 positions and not fit the card (the project's own ceiling for this shell is about 244 positions). Table C is the other side of the same story: the flex line strips each cell to the one core it needs, so the same design is 838 LUT4 on the Tang Nano 20K instead of a block that would fill most of an Arria 10. That is the substrate effect described in the project notes: the extra cores and the stripped cells add function while lowering the cost of a position. The cell counts in the original line's own design note (a 45-cell packed shift-adder, verified only in Python; its Verilog top is marked stale and never computed a sum) describe the same algorithm; this build has 36 logic and fan-out cells before placement and 103 after, so the two agree within the difference in what is counted.
+
+## Table E: the same adder with six neighbours (rung 1d, thought experiment)
+
+Some of the project's cores have 3D addressing, and stacked chips are where hardware is heading, so the toy 3D grid (`nano/experimental_3d_grid_v1.py`, left as it was) was extended into a separate model, `nano/experimental_3d_nor_v2.py`, with the two behaviours the adder needs: a gate cell and the shift add-on. The same netlist is laid out in it by `tools/nor_adder_3d_v1.py` (stage tiles placed by a formula, the rest by a free-square search) and checked against real addition on 238 pairs. **VM only**: no RTL exists for a six-port cell, and nothing here says an FPGA can hold one (the nano's routing mask is six bits wide in the RTL but only four directions are implemented). Two modelling differences from the real cells, stated once: the model has no flow control (one item at a time, like the standard-mode VM), and a gate accepts both operands in the same tick (every gate here is commutative; the real nano needs the held operand a tick earlier). The model's gate, shift and relay behaviour was checked against the standard-mode VM on small flat designs for all six gate topologies.
+
+<!-- BEGIN GENERATED: d3 -->
+| NOR-built 32-bit adder, same word-level network | cells used | grid squares paid for | ticks | status |
+|---|---:|---:|---:|---|
+| four neighbours, long and thin (Table C) | 80 | 343 (dense near-square array) | 32 | RTL and VM |
+| four neighbours, folded (Table D) | 103 | 133 (dense near-square array) | 56 | RTL and VM |
+| **six neighbours (3D toy grid)** | 44 | 81 (bounding box) | 22 | **VM only** |
+<!-- END GENERATED: d3 -->
+
+What it shows. Six faces remove two of the three costs of four: only one fan-out relay is left (for P0, which would otherwise use all six faces), and wires can pass over one another instead of around. What stays is the cost of the three-cell cycle (shift, shift, gate), which needs one relay on any cubic lattice, and the long lane that carries P to the final sum. The stage is an eight-cell tile whose links are all direct; only two orientation sequences of the tile fit together without overlap. The count is 44 cells against 80 (and 103 when folded for the carrier's array), but the 3D layout was found by a search over seeds and orientations, the 2D tile was drawn by hand, and the comparison is between a model and generated hardware: treat the ratio (about 1.8 to 2.3 times fewer cells, about 1.6 times fewer squares than the folded 2D block) as indicative, not measured.
 
 ## Floating point from cells (rung 3)
 

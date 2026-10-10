@@ -85,6 +85,18 @@ def carrier_table():
     return "\n".join(out)
 
 
+def d3_table():
+    t = json.load(open(os.path.join(ROOT, "docs", "measurements", "nor_adder_3d_v1.json")))
+    n = json.load(open(os.path.join(ROOT, "docs", "measurements", "nor_adder_v1.json")))
+    c = n["carrier"]
+    out = ["| NOR-built 32-bit adder, same word-level network | cells used | grid squares paid for | ticks | status |",
+           "|---|---:|---:|---:|---|",
+           f"| four neighbours, long and thin (Table C) | {n['nor_adder']['placed_cells']} | {c['nor_built_long_and_thin']['positions']} (dense near-square array) | {n['nor_adder']['ticks_flexgrid']} | RTL and VM |",
+           f"| four neighbours, folded (Table D) | {c['nor_built_folded']['cells_used']} | {c['nor_built_folded']['positions']} (dense near-square array) | {c['nor_built_folded']['ticks_std_vm']} | RTL and VM |",
+           f"| **six neighbours (3D toy grid)** | {t['cells']} | {t['bounding_box_squares']} (bounding box) | {t['ticks'][0]} | **VM only** |"]
+    return "\n".join(out)
+
+
 def block(name, text):
     return BEGIN.format(name) + "\n" + text + "\n" + END.format(name)
 
@@ -96,9 +108,9 @@ def splice(doc, name, text):
 
 
 def main():
-    tables = {"cells": cell_table(), "units": unit_table(), "nor": nor_table(), "carrier": carrier_table()}
+    tables = {"cells": cell_table(), "units": unit_table(), "nor": nor_table(), "carrier": carrier_table(), "d3": d3_table()}
     if len(sys.argv) < 2:
-        print(tables["cells"]); print(); print(tables["units"]); print(); print(tables["nor"]); print(); print(tables["carrier"]); return 0
+        print(tables["cells"]); print(); print(tables["units"]); print(); print(tables["nor"]); print(); print(tables["carrier"]); print(); print(tables["d3"]); return 0
     doc = open(DOC, encoding="utf-8").read()
     new = doc
     for k, t in tables.items():

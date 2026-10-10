@@ -1,0 +1,20 @@
+{
+ "bounding_box_squares": 81,
+ "cells": 44,
+ "gates": 17,
+ "orientations": [
+  0,
+  5,
+  0,
+  5,
+  0
+ ],
+ "plain_relays": 17,
+ "seed": 29,
+ "shift_cells": 10,
+ "ticks": [
+  22
+ ],
+ "vectors_checked": 238,
+ "what": "32-bit add mod 2^32, same word-level network as nor_adder_v1, six-neighbour toy grid (VM only, no RTL, no flow control)"
+}

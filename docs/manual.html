@@ -6769,6 +6769,8 @@ specifically).
 <p>Writes <code>fpga/verilog/VERSIONS.md</code>: for every versioned core family, what still names each older version (so it is clear which can be archived safely).</p>
 <h2><code>nor_adder_v1.py</code> -- a 32-bit adder from NOR-built gates only</h2>
 <p><code>python3 tools/nor_adder_v1.py --measure</code> rebuilds the hand-drawn Kogge-Stone tile (17 <code>nano</code> gates + relay/shift cells), assembles it and the dedicated adder cell against the Tang Nano 20K MAN, runs yosys and FlexGrid, and writes <code>docs/measurements/nor_adder_v1.json</code>; <code>--check</code> fails if that file is out of date. <code>build_folded()</code> is the near-square layout used for the carrier-line cost (Table D). Proof of correctness: <code>tests/vm/test_nor_adder_v1.py</code>.</p>
+<h2><code>nor_adder_3d_v1.py</code> -- the NOR-built adder in a six-neighbour grid (VM only)</h2>
+<p><code>python3 tools/nor_adder_3d_v1.py --measure</code> searches layouts of the same adder in <code>nano/experimental_3d_nor_v2.py</code> (gate and shift cells on a six-face grid), checks the best against real addition and writes <code>docs/measurements/nor_adder_3d_v1.json</code>; <code>--check</code> fails if the file is out of date. Tests: <code>tests/vm/test_nor_adder_3d_v1.py</code>. Thought experiment: no RTL.</p>
 <div class="partsub">Arria 10 programming procedure<span class="partsrc">hardware/Arria10_Programming_Procedure.md</span></div>
 <h1>Imago UniCell — Arria 10 GX660 Programming Procedure</h1>
 <h2>Repeatable guide for IEI Mustang-F100 cards (2-card and 8-card builds)</h2>
