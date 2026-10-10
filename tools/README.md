@@ -236,6 +236,9 @@ specifically).
 - `esp32/unicell_unit_web/` -- Arduino sketch: WiFi web control of the small unit (run, SD load/save, status; docs/unit_bringup_guide.md, WiFi section).
 - `sd_unit_top_v1.py` -- ledger #1036: wrap any flex design (an ICM) in the SD-card + ESP32-SPI small unit; writes a Tang Nano `unit_top.v`, pin file, lane map and README (docs/playout_capture_v1.md).
 
+## `alu_ladder_v1.py` -- the measured tables of `docs/measurements/ALU_LADDER.md`
+`python3 tools/alu_ladder_v1.py [--write|--check]` builds the cell-cost and board-unit tables from `docs/measurements/flex_width_sweep_975/costs.json` and the committed `fpga/build/unit_*_v1/unit_top_report.json`; `--write` puts them in the page, `--check` fails if the page is out of date (run it after rebuilding a bitstream).
+
 ## `make_package_v1.py` -- the one-stop download (zip and .onion)
 `python3 tools/make_package_v1.py [--onion]` builds `dist/unicell-kit-<date>-<commit>.zip` (every tracked file + the Onion tool + START_HERE.txt) and, with `--onion` and the `onion` command available, the same tree as a `.onion` packed by the tool inside it, round-trip checked. Unzip, then `python3 quickstart.py --install`. The `.onion` is packed with `--no-audit` because Onion's audit block overflows its 16-bit length field on a tree this large (about 1,650 files); a bug in Onion, not in the package.
 
