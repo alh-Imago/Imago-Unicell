@@ -1,5 +1,13 @@
 # Imago UniCell
 
+> **Status (10 October 2026): an unconfirmed idea. This project is not being developed, and nothing here is proven beyond what is listed below. Please do not spend time on it expecting a finished or validated system.**
+>
+> - **What exists and was measured:** a Python VM and a Verilog implementation (Tang Nano 20K) that agree cycle for cycle on small designs, a compiler path from LLVM IR and Python, and designs that ran live on the Tang board (CORDIC, relay, a 4-input reduction tree).
+> - **What was tested and did not favour it:** on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See `docs/measurements/UNICELL_VS_PURE.md`.
+> - **What is NOT shown:** freeze, save and restore of a running design has only been run in simulation (VM and RTL), never on a physical card. A hand-written Verilog design gets the same behaviour from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`). The statements about freeze and state capture below are design intent, not hardware results.
+> - **Prior art:** every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in `docs/prior_art/PRIOR_ART_REPORT.md`; it is not a proof of novelty either way.
+> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (latest entries: addenda 58 to 69).
+
 A spatial compute architecture built on one principle: **topology is
 computation**. There's no CPU, no instruction set, no shared bus.
 Programs are described as physical topology — which of a fixed set of
