@@ -34,6 +34,19 @@ Data in this system moves only between neighbours, in order, with a handshake. M
 
 Question 1 is settled: design it in the **flex family** (v4sa) first, because it is easier. Alan is not sure it fits the **sub** family (v4s), which has no timing control (no ack handshake and no freeze), and a trapdoor pair depends on time control. My reading, as an inference and not checked against the sub RTL: the flex cells' ack and freeze give a pair a way to wait and to stop, which the sub cells lack; whether the sub family could carry a trapdoor with a purely fixed schedule is left open and is not part of the first design. The carrier line stays a later question.
 
+## Revision (Alan, 10 Oct 2026, 15:23 and 15:26): on the Tang it is a "programmed corridor"
+
+On an FPGA the JTAG load goes through the vendor's configuration logic, which the cells cannot reach, so the Tang has no real command bus for a trapdoor to tap (the flex designs are programmed by constants fixed at synthesis plus one shared `cfg_valid` pulse). Alan's answer: how this works differs by card and manufacturer, which is why the card's `.man` file matters, and on the Tang, and realistically on the sub family, the trapdoor becomes **a specified part of the design: a programmed corridor**, a dedicated point-to-point path between the two cells of the pair.
+
+What that changes, as I understand it (an inference, to be checked):
+- **No shared medium, so no contention and no time slots.** The time-division schedule, the host slot and the arbitration questions above apply to a real shared bus (the full cell, the silicon) and not to a corridor.
+- **Many corridors are possible.** Each is its own wire path, so they do not share capacity.
+- **The price is timing.** A longer corridor means longer wires and a longer delay; each one can slow the whole design (a lower maximum clock) if it is not broken up with register stages, and registers add ticks of latency. Nothing is measured; the cost per corridor length on the Tang is a number to get from place-and-route, not to guess.
+- **The sub family may fit after all.** A corridor needs no timing control, only a fixed, known latency. Whether it fits is still to be checked against the sub RTL.
+- **It is declared in the design, per card.** How a corridor is written down (in the design description, the assembler input or the card's `.man` file) is open.
+
+The earlier sections (a time-controlled pair on a shared command bus) stay as the description of the bus-based version for the full cell and silicon.
+
 ## Out of scope for this note
 
 The design, any RTL, a VM model, a throughput figure, and a claim that this beats relays. None of that is known yet.
