@@ -30,6 +30,10 @@ Data in this system moves only between neighbours, in order, with a handshake. M
 6. Does it fit the tile model as a bridge, so it can be described with the existing words?
 7. Cost: extra logic per cell (a bus tap and a slot counter) against what it saves in relay cells. Nothing measured.
 
+## Decision (Alan, 10 Oct 2026, 15:20): flex first
+
+Question 1 is settled: design it in the **flex family** (v4sa) first, because it is easier. Alan is not sure it fits the **sub** family (v4s), which has no timing control (no ack handshake and no freeze), and a trapdoor pair depends on time control. My reading, as an inference and not checked against the sub RTL: the flex cells' ack and freeze give a pair a way to wait and to stop, which the sub cells lack; whether the sub family could carry a trapdoor with a purely fixed schedule is left open and is not part of the first design. The carrier line stays a later question.
+
 ## Out of scope for this note
 
 The design, any RTL, a VM model, a throughput figure, and a claim that this beats relays. None of that is known yet.
