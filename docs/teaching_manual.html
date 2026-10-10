@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Imago UniCell — Teaching Manual</title>
+<style>
+  :root{
+    --paper:#E9E6DC; --paper-edge:#DED9CB; --ink:#1C1B17; --ink-soft:#5C584C;
+    --accent:#15756D; --accent-bright:#1E9B90; --rule:#C3BCAB;
+    --tab-rest:#CDC7B7; --tab-ink:#46423a; --code-bg:#26241F; --code-ink:#D9E8E4;
+    --serif:Georgia,'Iowan Old Style','Times New Roman',serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:#15140f; color:var(--ink); font-family:var(--serif);
+    display:flex; justify-content:center; align-items:stretch;
+  }
+  /* the manual sits as a "page" with the tab rail on its right edge */
+  .manual{
+    position:relative; display:flex; width:min(980px,100%); height:100%;
+    background:var(--paper);
+    box-shadow:0 0 0 1px var(--paper-edge), 0 24px 60px rgba(0,0,0,.55);
+  }
+  .page{
+    flex:1; overflow-y:auto; padding:54px clamp(28px,6vw,84px) 40px;
+  }
+  .reading{max-width:660px; margin:0 auto}
+  .panel{display:none} .panel.active{display:block}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--ink-soft);
+    display:flex; justify-content:space-between; align-items:baseline;
+    border-bottom:1px solid var(--rule); padding-bottom:10px;
+  }
+  .sectno{color:var(--accent)}
+  .ptitle{
+    font-family:var(--mono); font-weight:600; font-size:clamp(26px,4vw,38px);
+    line-height:1.12; letter-spacing:-.01em; margin:26px 0 14px;
+  }
+  .intro{font-size:18px; line-height:1.6; color:#322f28; margin:0 0 8px}
+  .rule{border:0; border-top:2px solid var(--ink); margin:22px 0 26px; opacity:.85}
+
+  /* rendered doc body */
+  .doc{font-size:16.5px; line-height:1.72}
+  .doc h1,.doc h2,.doc h3{font-family:var(--mono); font-weight:600; line-height:1.2}
+  .doc h1{font-size:24px; margin:34px 0 12px}
+  .doc h2{font-size:20px; margin:30px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--rule)}
+  .doc h3{font-size:16px; margin:24px 0 8px; color:var(--ink-soft); letter-spacing:.02em}
+  .doc p{margin:0 0 16px}
+  .doc strong{color:#000}
+  .doc em{color:#3a372f}
+  .doc a{color:var(--accent); text-decoration:none; border-bottom:1px solid rgba(21,117,109,.35)}
+  .doc a:hover{color:var(--accent-bright); border-bottom-color:var(--accent-bright)}
+  .doc code{font-family:var(--mono); font-size:.86em; background:#DED9C9;
+    padding:1px 5px; border-radius:3px}
+  .doc pre{background:var(--code-bg); color:var(--code-ink); padding:16px 18px;
+    border-radius:6px; overflow-x:auto; font-size:13.5px; line-height:1.6;
+    border-left:3px solid var(--accent)}
+  .doc pre code{background:none; padding:0; color:inherit}
+  .doc blockquote{margin:16px 0; padding:4px 18px; border-left:3px solid var(--rule);
+    color:var(--ink-soft); font-style:italic}
+  .doc hr{border:0; border-top:1px solid var(--rule); margin:26px 0}
+  .doc ul,.doc ol{padding-left:22px; margin:0 0 16px}
+  .doc li{margin:5px 0}
+  .doc table{border-collapse:collapse; width:100%; margin:0 0 16px; font-size:14px}
+  .doc th,.doc td{border:1px solid var(--rule); padding:6px 10px; text-align:left}
+  .doc th{font-family:var(--mono); background:#DED9C9}
+
+  /* the "try it / reference" callout */
+  .tryit{margin:30px 0 8px; border:1px solid var(--rule); background:#E2DECF;
+    border-radius:6px; padding:14px 16px}
+  .tryit-label{font-family:var(--mono); font-size:10.5px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--ink-soft); margin-bottom:8px}
+  .ref{display:flex; align-items:center; gap:10px; text-decoration:none;
+    color:var(--ink); padding:7px 6px; border-radius:4px; font-family:var(--mono);
+    font-size:13.5px}
+  .ref:hover{background:#D7D2C1}
+  .ref-kind{font-size:11px; color:var(--ink-soft); min-width:34px}
+  .ref-run .ref-kind{color:var(--accent)}
+  .ref-run .ref-text{color:var(--accent); font-weight:600}
+
+  .pagenav{display:flex; justify-content:space-between; margin-top:34px;
+    border-top:1px solid var(--rule); padding-top:16px}
+  .pn{font-family:var(--mono); font-size:13px; background:none; border:0;
+    color:var(--ink-soft); cursor:pointer; padding:6px 2px}
+  .pn:hover{color:var(--accent)}
+  .pn-empty{visibility:hidden}
+
+  /* right-edge binder tabs */
+  .rail{width:46px; flex:0 0 46px; background:var(--paper-edge);
+    display:flex; flex-direction:column; gap:7px; padding:18px 0 18px 0;
+    border-left:1px solid #cfc9ba; overflow-y:auto; overflow-x:hidden}
+  .rail::-webkit-scrollbar{width:0}
+  .tab{position:relative; left:0; width:46px; min-height:74px; flex:0 0 auto; border:0; cursor:pointer;
+    background:var(--tab-rest); color:var(--tab-ink); font-family:var(--mono);
+    writing-mode:vertical-rl; text-orientation:mixed; padding:14px 0;
+    display:flex; align-items:center; justify-content:flex-start; gap:12px;
+    border-radius:0 5px 5px 0; box-shadow:inset 2px 0 4px rgba(0,0,0,.08);
+    transition:left .12s ease, background .12s ease}
+  .tab:hover{left:-4px; background:#D8D2C2}
+  .tab .tab-num{font-size:11px; letter-spacing:.1em; opacity:.7}
+  .tab .tab-label{font-size:12.5px; letter-spacing:.14em; text-transform:uppercase}
+  .tab.active{left:-7px; background:var(--accent); color:#EAF6F4;
+    box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  .tab:focus-visible{outline:2px solid var(--accent-bright); outline-offset:2px}
+
+  @media (max-width:640px){
+    .ptitle{font-size:26px} .page{padding:38px 22px 32px}
+    .tab{min-height:74px; width:42px} .rail{width:42px; flex-basis:42px}
+  }
+  /* multi-doc chapter: sub-section divider */
+  .partsub{font-family:var(--mono); font-size:15px; font-weight:600;
+    margin:38px 0 14px; padding-bottom:8px; border-bottom:2px solid var(--ink);
+    display:flex; justify-content:space-between; align-items:baseline}
+  .partsub:first-child{margin-top:6px}
+  .partsrc{font-size:10.5px; font-weight:400; letter-spacing:.06em; color:var(--ink-soft)}
+  /* sessions index */
+  .sesslist{display:flex; flex-direction:column; gap:2px; margin-top:6px}
+  .sess{display:flex; justify-content:space-between; align-items:baseline;
+    text-decoration:none; color:var(--ink); font-family:var(--mono);
+    font-size:13px; padding:8px 10px; border-radius:4px; border-bottom:1px solid var(--rule)}
+  .sess:hover{background:#D7D2C1}
+  .sess-name{color:var(--accent)}
+  .sess-file{font-size:11px; color:var(--ink-soft)}
+
+  /* ── The Lab ── */
+  .lab-pad{margin:6px 0 22px}
+  .lab-pad-label,.lab-tools-label,.lab-files-label{font-family:var(--mono);
+    font-size:10.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--ink-soft); margin-bottom:8px}
+  .lab-code{width:100%; min-height:300px; resize:vertical; background:var(--code-bg);
+    color:var(--code-ink); border:0; border-left:3px solid var(--accent);
+    border-radius:6px; padding:16px 18px; font-family:var(--mono);
+    font-size:13px; line-height:1.6; white-space:pre; overflow:auto}
+  .lab-code:focus{outline:2px solid var(--accent-bright); outline-offset:2px}
+  .lab-paths{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:8px 0 26px}
+  .lab-card{border:1px solid var(--rule); background:#E2DECF; border-radius:6px;
+    padding:16px 16px 18px}
+  .lab-card p{font-size:14.5px; line-height:1.55; margin:0 0 10px}
+  .lab-card-tag{font-family:var(--mono); font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; font-weight:600; margin-bottom:10px;
+    display:inline-block; padding:3px 8px; border-radius:3px}
+  .tag-direct{background:#D7D2C1; color:#3a372f}
+  .tag-browser{background:var(--accent); color:#EAF6F4}
+  .lab-cmd{font-family:var(--mono); font-size:12.5px; background:var(--code-bg);
+    color:var(--code-ink); padding:9px 12px; border-radius:5px; overflow-x:auto;
+    white-space:nowrap}
+  .lab-note{color:var(--ink-soft); font-size:13px!important; margin-top:8px!important}
+  .wb-open{display:inline-block; margin-top:12px; font-family:var(--mono);
+    font-size:13px; color:var(--accent); text-decoration:none; font-weight:600}
+  .wb-open:hover{color:var(--accent-bright)}
+  .wb-badge{display:inline-block; margin-left:10px; font-family:var(--mono);
+    font-size:11px; padding:2px 8px; border-radius:10px; background:#D7D2C1;
+    color:var(--ink-soft)}
+  .wb-badge.up{background:#1E9B90; color:#EAF6F4}
+  .wb-badge.down{background:#D7D2C1; color:var(--ink-soft)}
+  .lab-tools{margin:0 0 24px}
+  .lab-files{border-top:1px solid var(--rule); padding-top:18px}
+  .lab-files p{font-size:14.5px; line-height:1.6; margin:0 0 12px}
+  @media (max-width:640px){ .lab-paths{grid-template-columns:1fr} }
+  @media (prefers-reduced-motion:reduce){ .tab{transition:none} }
+</style>
+</head>
+<body>
+  <div class="manual">
+    <div class="page"><div class="reading">
+      <section class="panel active" id="sec-start" role="tabpanel"><div class="eyebrow">Imago UniCell · Teaching Manual<span class="sectno">§01 / 02</span></div><h1 class="ptitle">How Computers Work, Seen Step by Step</h1><p class="intro">A plan for teaching how computers work from the very bottom: one kind of logic gate, then the other gates made from it, then why timing matters and why moving data costs something. The UniCell design is finished and is not being extended for this; its tools (the composer and the VM) let a learner pause a small circuit and look at every value. <strong>This is a plan, not a course yet.</strong> Each proposed lesson says whether it has actually been run.</p><hr class="rule"><div class="doc"><h1>Learning how computers work, using UniCell as the backdrop</h1>
+<blockquote>
+<p><strong>Status (10 October 2026): a plan, not a course yet.</strong> Nothing here is finished or tested with real learners. The design of UniCell is frozen and is not being extended for this. The main manual (<code>docs/manual.html</code>) stays the manual for UniCell itself; this folder is the separate teaching side.</p>
+</blockquote>
+<h2>The idea</h2>
+<p>Most people meet computing as a finished thing: a screen, an app, a black box. This folder tries the opposite. It starts from one tiny part and builds upward, so you can watch why logic works the way it does, why timing matters, and why moving data costs something.</p>
+<p>UniCell suits this because nothing is hidden. A program is a small grid of cells wired to their neighbours. Each cell does one simple thing. Values move one hop at a time, so you can pause, step forward and look.</p>
+<p>UniCell is the <strong>backdrop</strong>, not the subject. Each lesson teaches a general idea first (why one kind of gate is enough, why carry is the hard part of adding). UniCell is just the way to see it. You do not need to care about the architecture to follow along.</p>
+<h2>What you can see</h2>
+<p>The tools already exist and are not being changed:</p>
+<ul>
+<li><strong>The composer</strong> places cells on a board, sets what each one does, joins them, and steps a design tick by tick while showing every value. Start it with <code>python3 quickstart.py --composer</code>.</li>
+<li><strong>The VM</strong> runs the same designs in Python, so nothing needs hardware.</li>
+<li><strong>The nano cell</strong> (the flex version) is the starting point. Inside it are ten NOR gates, named <code>g0</code> to <code>g9</code>, and a setting that picks which one's output comes out. A magnified view that draws those ten gates with live values would be the one new piece worth building, and it would only display what is already there.</li>
+</ul>
+<h2>The lesson ladder (proposed)</h2>
+<p>Each rung is one small circuit, one page of plain writing, and one thing to try. "Checked" means it was run on 10 October 2026 from Python (the step simulator, not the browser page).</p>
+<ol>
+<li><strong>One NOR gate.</strong> Why a single kind of gate is enough. <em>Checked:</em> the gate core gives the right truth tables for NOR, NOT, OR, AND, NAND, XOR and XNOR.</li>
+<li><strong>Making other gates from NOR.</strong> NOT, OR, AND and XOR are all built from the same ten NOR gates inside the nano cell. <em>Checked:</em> AND and XOR built by hand in the composer layout gave correct results at width 1.</li>
+<li><strong>Waiting for both inputs.</strong> A cell fires only when its second input arrives; the first is held. <em>Checked:</em> if both arrive on the same tick, nothing comes out and nothing complains. This is a good lesson and a trap, so every lesson needs to say it.</li>
+<li><strong>Moving data costs time.</strong> <em>Checked:</em> the library adder took 18 ticks to return 7 + 5 = 12, mostly because values walk through relay cells.</li>
+<li><strong>Combining in parallel.</strong> The reduction tree. <em>Not yet checked in the step viewer.</em></li>
+<li><strong>Remembering and sequencing.</strong> Memory and the sequencer. <em>Not yet checked.</em></li>
+<li><strong>Numbers that are not whole.</strong> The floating-point adder. <em>Not yet checked, and the library version (1,712 cells) is too big to start with.</em></li>
+</ol>
+<h2>What this does not claim</h2>
+<ul>
+<li>UniCell was tested against hand-written hardware and did not come out ahead (see <code>docs/measurements/UNICELL_VS_PURE.md</code>). Teaching with it does not change that.</li>
+<li>Some designs have run on the Tang Nano 20K board. Lessons may say "this also ran on a real board" only for those, and only where the repo's ledger says so.</li>
+<li>The step viewer was checked from Python. It still needs trying in the browser with someone who has never seen the project.</li>
+</ul>
+<h2>Next steps</h2>
+<ol>
+<li>Check rungs 5 to 7 and the hierarchical example files in the step viewer.</li>
+<li>Write rung 1 as a full lesson and show it to one or two people who do not know the project.</li>
+<li>Only if that goes well, decide whether the magnified cell view is worth building.</li>
+</ol></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-backdrop"><span class="ref-kind">§</span><span class="ref-text">Continue → The Backdrop</span></a></aside><nav class="pagenav"><span class="pn pn-empty"></span><button class="pn pn-next" data-target="sec-backdrop">Backdrop ›</button></nav></section>
+<section class="panel" id="sec-backdrop" role="tabpanel"><div class="eyebrow">Imago UniCell · Teaching Manual<span class="sectno">§02 / 02</span></div><h1 class="ptitle">The Backdrop: What UniCell Is</h1><p class="intro">UniCell is the thing the lessons are drawn on, not the thing being taught. Read the status notice at the top of this page first: UniCell is an unconfirmed idea, it did not come out ahead of hand-written hardware when measured, and some of what it describes has only been run in simulation. That does not matter for teaching logic, timing and routing, but it should never be hidden. For the full technical manual about UniCell itself, see <code>docs/manual.html</code>.</p><hr class="rule"><div class="doc"><h1>Imago UniCell</h1>
+<blockquote>
+<p><strong>Status (10 October 2026): an unconfirmed idea. This project is not being developed, and nothing here is proven beyond what is listed below. Please do not spend time on it expecting a finished or validated system.</strong></p>
+<ul>
+<li><strong>What exists and was measured:</strong> a Python VM and a Verilog implementation (Tang Nano 20K) that agree cycle for cycle on small designs, a compiler path from LLVM IR and Python, and designs that ran live on the Tang board (CORDIC, relay, a 4-input reduction tree).</li>
+<li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
+<li><strong>What is NOT shown:</strong> freeze, save and restore of a running design has only been run in simulation (VM and RTL), never on a physical card. A hand-written Verilog design gets the same behaviour from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>). The statements about freeze and state capture below are design intent, not hardware results.</li>
+<li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (latest entries: addenda 58 to 69).</li>
+</ul>
+<p><strong>A possible new use (10 October 2026): teaching.</strong> The design is finished and is not being extended, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>. It is a plan only, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
+</blockquote>
+<p>A spatial compute architecture built on one principle: <strong>topology is
+computation</strong>. There's no CPU, no instruction set, no shared bus.
+Programs are described as physical topology — which of a fixed set of
+hardware cores sits where, wired to its physical neighbors — and
+computation happens as values arrive and propagate outward across that
+topology, one hop at a time.</p>
+<p><strong>Timing, in Alan's words (2026-10-06):</strong> there is a timing pulse, but
+it only schedules when data is passed from one cell to the next; the
+cell internals are unclocked. Most designs use the two-arrival model (a
+cell waits for both of its operands), so skew between paths can almost
+be ignored. It is the <strong>ack</strong> that really controls flow. That is why
+the <strong>freeze</strong> line works so well. It disconnects a cell's inputs and
+outputs from the flow, so a frozen cell can be reprogrammed without
+moving any data. Each cell's state can be captured and its latch values
+stored as a series of data, to be reloaded at any time. Freeze also
+stops a partly loaded design from pre-firing in a half-built state.</p>
+<p><strong>What this is:</strong> a research project building working pieces of a new
+FPGA architecture, on real hardware, with measured numbers. It is not
+a general-purpose computer, not commercially packaged, and not
+something you can <code>pip install</code> today.</p>
+<hr />
+<h2>Where things stand (October 2026)</h2>
+<p>The project has two hardware lines. The second one is where current
+work happens.</p>
+<ol>
+<li><strong>The Arria 10 line (2026-08/09)</strong> — the super carrier shell
+   (<code>unicell_super_v3.v</code>, 8 cores per cell) on an IEI Mustang-F100-A10.
+   Every core was confirmed on that silicon over JTAG. A measured
+   ceiling of roughly 200-250 cells on that card closed hardware work
+   there (see <a href="#the-arria-10-line-the-super-carrier-shell-unicell-s">The Arria 10 line</a>
+   below). It is still the reference for the VM's standard ("std") mode.</li>
+<li><strong>The Tang Nano 20K line (from 2026-09-28, ledger #886 onward)</strong> — a
+   Sipeed Tang Nano 20K (Gowin GW2AR-LV18, 20,736 LUT4, 48 18x18
+   multipliers) arrived and hardware work resumed on it, with a fully
+   open toolchain (yosys → nextpnr-himbaechel-gowin → gowin_pack). A
+   UniCell core has <strong>run on the physical board</strong> (#896). Measuring the
+   original cells on this chip showed they are far too large for it
+   (one VIX carrier position is ~80% of the chip, #887), so two new,
+   stripped cell families were built for it: <strong>sub</strong> and <strong>flex</strong>
+   (below). The board's role is a testbed and proof of concept, not an
+   accelerator (#891).</li>
+</ol>
+<p>The ledger in <a href="../points/INDEX.md"><code>points/</code></a> is the full record. Every
+design decision, measurement and correction is there with its reasoning.
+<a href="../current/latest.md"><code>current/latest.md</code></a> has a one-paragraph summary per
+recent entry.</p>
+<h2>The active line: the sub and flex cell families (<code>sub/</code>)</h2>
+<p>Alan's direction for the Tang (#898): strip each cell down to its bare
+compute function. That means no add-on chain, no 4-way cardinal
+routing and no runtime routing decisions: "computing through physics,
+not control." Every cell lives in <a href="../sub/verilog/"><code>sub/verilog/</code></a> with
+its own self-checking testbench. The full design record is
+<a href="../sub/README.md"><code>sub/README.md</code></a>.</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Files</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>sub</strong> (v4s)</td>
+<td><code>*_cell_v4s.v</code></td>
+<td>Fixed 32-bit, no handshake. Every cell has exactly one cycle of latency, so a design is timed statically: the generator pads early operands with relay cells. Add-ons (mask, shift, invert) become plain wiring. One result per cycle.</td>
+</tr>
+<tr>
+<td><strong>flex</strong> (v4sa)</td>
+<td><code>*_cell_v4sa.v</code></td>
+<td><code>WIDTH</code>-parameterised (the Tang's native width is <strong>18</strong>, #903/#913), with a point-to-point valid/ack handshake and a global freeze (#906). No alignment or padding is needed; one item per two cycles per cell.</td>
+</tr>
+</tbody>
+</table>
+<p>Cells in both families: adder (add/subtract), multiplier (LUT, and a
+DSP version using <code>MULT36X36</code>), comparator, accumulator, latch,
+sequencer, ram, router, mask, shift stage, nano (the universal 2-input
+gate), and branch. Flex also has a <strong>merge</strong> core (<code>merge_cell_v4sa</code>:
+A only / B only / arbitrate / join-OR, #955).</p>
+<p>Main results, all measured with yosys <code>synth_gowin</code> and, where stated,
+real place-and-route:</p>
+<ul>
+<li><strong>Stripping pays.</strong> For example, the adder went from 2,348 LUT4
+  (full cell) to 66 LUT4 (v4s, #898). Fixing a config value at build
+  time instead of loading it at runtime cuts further: a shift stage costs
+  26 LUT4 against 3,261 (#899).</li>
+<li><strong>The handshake is cheaper than expected.</strong> The flex adder with
+  ack+freeze is 37 LUT4, against 66 for the no-ack v4s (#906); the
+  nano shows the same (#917).</li>
+<li><strong>18 bits fits the chip.</strong> ALU use scales exactly with width (32 → 18
+  = 0.5625 on every arithmetic cell). A 100-cell 18-bit chain
+  place-and-routes at 287 MHz against the board's 27 MHz clock (#910).</li>
+<li><strong><code>-nowidelut</code> is the default Gowin flow</strong> (#950/#952). It is about
+  3x smaller across all families, and the LUT multiplier is ~3x smaller
+  <em>and</em> ~3x faster. The card's MAN file sets the default; <code>--wide-lut</code>
+  opts out.</li>
+<li><strong>Cost against width</strong> for every flex cell at W = 4…32 is in
+  <a href="../docs/measurements/flex_width_sweep_975/"><code>docs/measurements/flex_width_sweep_975/</code></a>
+  and in the Tang MAN's <code>cell_costs</code> (#975/#976). For example,
+  adder = W + 5 LUT4 and nano = 7W + 33.</li>
+<li><strong>Second output ports</strong> (#974-#981): the adder can deliver its carry
+  and the multiplier its high word as a second word on its own port.
+  That makes multi-word arithmetic work: a 64-bit add from two 32-bit
+  limbs is proven in RTL. The port is a build parameter (<code>SECOND_PORT</code>)
+  and costs nothing unless a design asks for it.</li>
+</ul>
+<h3>From an ICM file to Verilog: the Flex-Sub assembler</h3>
+<p>The existing assembler (<code>tools/project_assemble_v1.py</code>) takes a family
+flag and can read an ICM-VIX file as a map of the design:</p>
+<pre><code class="language-bash"># an N-cell chain of one flex cell type at the card's native width
+python3 tools/project_assemble_v1.py -s flex -S adder --cells 100 --man docs/man/tang-nano-20k.man.json --output build/chain
+
+# a whole design from an ICM-VIX file, as handshake (flex) or fixed-latency (sub) hardware
+python3 tools/project_assemble_v1.py -s flex --icm nano/examples/cordic_z_convergence.icm-hier.json --man docs/man/tang-nano-20k.man.json --output build/cordic
+python3 tools/project_assemble_v1.py -s sub  --icm nano/examples/parallel_reduction_tree.icm-hier.json --man docs/man/tang-nano-20k.man.json --output build/tree
+</code></pre>
+<p>The width comes from <code>-w</code>, else the MAN's <code>native_width</code>, else 32
+(#914). The multiplier uses DSP blocks while the MAN says the card has
+them, falls back to the LUT multiplier, and refuses if even that does
+not fit (<code>--mul auto|lut|dsp</code>, #941/#942). Each merge's mode can be
+chosen (<code>--merge-mode</code>, #957). Every compiled program in the test
+corpus (41 programs, compiled from LLVM IR via
+<code>tools/flexsub_compile_v1.py</code>) and the hand-built 36-cell CORDIC run as
+generated Verilog. Each one's output equals the VM's and plain
+arithmetic, under random stalls on flex. <strong>Limits:</strong> the <code>--icm</code>
+generators still build 32-bit designs; genuine cycles (rings with a
+data-dependent exit) are refused; on sub, a sequencer feeding a
+two-operand cell is refused.</p>
+<h2>The ICM stays target-agnostic</h2>
+<p>The program format never names a target or a family. It states what a
+design <em>needs</em>, and each target either provides it or refuses:</p>
+<ul>
+<li><strong><code>min_bit_width</code></strong> (#958/#959) is an optional header flag in ICM v3,
+  v4 and VIX files: "this design needs at least N bits". If it is
+  absent, the width is 32. Values stay sign-extended in the 32-bit
+  fields. A target narrower than the flag refuses; it never truncates.</li>
+<li><strong><code>second_output</code></strong> (bit 12 on adder and mul; <code>carry_mode</code> and
+  <code>wide_mode</code> are accepted aliases) and <strong><code>second_downstream_mask</code></strong>
+  (bits 13-16) ask for the carry or high word, optionally on its own
+  faces (#980/#981). The compiler sets the flag only when a program
+  needs both results; the default is off.</li>
+<li><strong>Shift amount</strong> (#985/#986) is one number. flex makes any amount
+  from 0 to 31 (it is wiring); std makes coarse taps plus fine; sub
+  makes coarse taps only.</li>
+<li><strong>Per-target capability table</strong> (<code>nano/target_capabilities_v1.py</code>):
+  when a target is named, the compiler refuses at compile time what that
+  target cannot do. With no target named, the ICM is produced unchanged.</li>
+</ul>
+<p>Field tables: <a href="../docs/stripped-cell/ICM_V3_FORMAT.md"><code>docs/stripped-cell/ICM_V3_FORMAT.md</code></a>,
+<a href="../docs/stripped-cell/ICM_VIX_FORMAT.md"><code>docs/stripped-cell/ICM_VIX_FORMAT.md</code></a>.</p>
+<h2>The VM: std mode and mirror mode (<code>FlexGrid</code>)</h2>
+<p>Alan's ruling (#960): the VM comes <em>before</em> the fit, because a fit can
+only be proved by a VM that can mirror the target.</p>
+<ul>
+<li><strong>std mode</strong> (<code>SuperGrid(records, width=W)</code>) is the original VM,
+  unchanged in behaviour. Since #961 it takes a data width (default 32).</li>
+<li><strong>mirror mode for flex</strong> (<code>nano/flex_grid_v1.py</code>, <code>FlexGrid(records,
+  width=W, merge_mode=...)</code>) is a subclass with its own per-core
+  handlers. An empty <code>FlexGrid</code> is proved identical to <code>SuperGrid</code>
+  (#965). Each flex core was then added and checked against the
+  <strong>generated RTL as the oracle</strong> at W = 4, 8, 18, 32 and 36 (#966-#973).
+  Where the RTL has a limit, FlexGrid refuses with the reason rather
+  than guessing.</li>
+</ul>
+<p>That work also found and fixed real RTL defects in the flex cells: the
+nano and sequencer captured while unarmed (#956/#971), the comparator
+threshold above 32 bits (it now has its own port, #972), the
+accumulator below 16 bits (#973), and the mask above 32 bits (the mask
+word now scales with the width, #968).</p>
+<h3>Floating point on cells</h3>
+<p><a href="../docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md"><code>docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md</code></a>
+maps an fp32 add and multiply onto cells in 16 stages (#982). These
+stages are built from real flex cells, with no loops, and tested
+RTL == FlexGrid == the Python model: unpack, carry → exponent bump,
+multiplier high word → normalise bit, a 5-stage left-normalise with
+exponent adjust, sticky, round-to-nearest-even (#982-#984), and
+alignment: a variable right shift that also collects the sticky bits,
+built from one multiplier per stage using both of its output words
+(#987/#988). An open fp assembler (<code>tools/fp_assembler_v1.py</code>, #989)
+generates those blocks for any format (fp32, fp16, bfloat16), with
+operand timing balanced automatically.</p>
+<p>Built from flex cells and bit-exact in the generated RTL (as of #1027):</p>
+<ul>
+<li><strong>The adder</strong> (<code>tools/fp_add_v1.py</code>, #990): normals and zero (#990);
+  inf, nan and overflow (#1001); subnormal inputs and results with
+  gradual underflow (#1006); all five IEEE rounding modes and the sign
+  of an exact zero (#1007). It also runs at fp64 on a 64-bit cell word
+  (#1027).</li>
+<li><strong>The multiplier</strong> (<code>tools/fp_mul_v1.py</code>, #1008): fp16, all five
+  modes, subnormals, zeros, inf, nan and overflow; fp32 on a 64-bit
+  cell word (#1011).</li>
+<li><strong>The comparator</strong> (<code>tools/fp_compare_v1.py</code>, #1009): -1 / 0 / +1,
+  or 2 when either input is a nan; fp16, bfloat16, and fp32 on a 64-bit
+  word (#1011).</li>
+<li><strong>Wider words</strong> (#1010/#1011): <code>-s flex --icm -w W</code> builds a W-bit
+  design, and the ram's constant port scales with the cell.</li>
+<li><strong>Tight placement</strong> (<code>tools/tightplace_v1.py</code>, #1012-#1016, #1026):
+  the loose builds were mostly relays (a placer gives every op a column
+  and routes through gutter lanes, <code>tools/netplace_v1.py</code>). Drawing each
+  block as a map shrank the comparator from 641 to 74 cells, the fp16
+  multiplier from 5,805 to 1,103 (folded into a U), and the fp16 adder
+  from 1,702 to 1,531 (<code>*_tight_v1.py</code>).</li>
+</ul>
+<p>To route these, the <strong>crossing tile</strong> (<code>cross</code>, ICM core 10, #999) lets
+one lane pass straight over another. It has no control logic and costs
+one tick per tile per direction (a register slice), like every other
+core. Still open: an automatic placer (layouts are drawn or templated),
+and a delay-line cell for the remaining pure-delay lanes (#1015).</p>
+<h2>On the physical board</h2>
+<p><a href="../docs/man/tang-nano-20k-getting-started.md"><code>docs/man/tang-nano-20k-getting-started.md</code></a>
+covers the first flashable deliverable, a <code>sequencer</code> core counting on
+the LEDs. It is built from source to a committed bitstream
+(<code>fpga/build/unicell_tang_nano_20k_smoke_v2.fs</code>). It is <strong>confirmed
+working on the physical board</strong> (#896); use v2, because v1's reset
+button held the design in reset. The board's MAN file
+(<code>docs/man/tang-nano-20k.man.json</code>) is generated from the chip database
+rather than written by hand.</p>
+<p><strong>The flex cells have run on the board</strong> (#1023-#1025). Ten
+self-checking bitstreams (relay chains, adders with stalls and
+constants, the three priority modes, the ram's hold and one-shot) each
+feed a generated flex design a fixed stream and compare the output with
+words from FlexGrid stored in the bitstream. All ten pass on the real
+Tang Nano 20K and match the simulation. Because the board's USB serial
+link went silent after repeated loads, they run as two grouped
+bitstreams, one load per power-up: <code>tools/board_tests_v1.py</code>,
+<code>tools/board_groups_v1.py</code>, and <code>run_groups.sh</code> give 10 of 10 PASS in
+one run. This proves the cell RTL and the handshake on silicon at
+27 MHz with small designs, not capacity or speed. The ESP32 host link is now
+built and running: see <a href="#the-small-unit-tang-nano-20k--sd-card--esp32">The small unit</a> below.</p>
+<hr />
+<h2>The small unit: Tang Nano 20K + SD card + ESP32</h2>
+<p>A working test tool built around any flex design (ledger #1036, addenda 1-12). An SD card (raw 512-byte blocks) feeds a playout RAM, the design runs, a capture RAM collects the results and writes them back to the card; an ESP32 controls it all over SPI (and by WiFi: a password-protected web page for running the unit from a phone or laptop).
+<strong>Verified on the real board:</strong> the CORDIC design (all six test angles match the simulator) and a full SD-card round trip. The reduction-tree and relay designs also fit the Nano and pass in simulation, but have no bitstream yet. The Wasserstein engine does not fit this chip.
+<strong>Not yet tried on hardware:</strong> the WiFi web sketch, the S1 reset button, loading a design from the ESP32 (research only).
+Start with <a href="../docs/unit_bringup_guide.md"><code>docs/unit_bringup_guide.md</code></a>; the ready-made bitstream is <code>fpga/build/unit_cordic_v1/unit_top.fs</code>; the ESP32 sketches are in <code>tools/esp32/</code>.</p>
+<hr />
+<h2>The Arria 10 line: the super carrier shell (Unicell-S)</h2>
+<p><em>This was the active line until 2026-09; it is now the earlier line (see
+"Where things stand" above). It remains the reference for the VM's std
+mode and for ICM v3/v4.</em></p>
+<p>The <strong>super carrier shell</strong> is — a
+single physical FPGA cell that holds multiple real, different cores
+simultaneously, with the active one chosen by a runtime configuration
+write (<code>core_select</code>), not a synthesis-time choice. Every core is
+always physically present in every bitstream; only the selected one
+ever does real work. Cells wire directly to their North/South/East/
+West physical neighbors — there is no addressed bus anywhere in this
+design.</p>
+<p><strong><code>unicell_super_v3.v</code> is the recommended baseline for this line</strong> — the
+real, cheapest, fastest, and most placement-tolerant of every shell
+version built and measured, confirmed across four independent real
+axes (ALM, Fmax, register-scaling behavior at array scale, and
+tolerance of physical placement constraints). It holds 8 cores (nano,
+RAM, adder, accumulator, comparator, latch, sequencer, branch), each
+with its own separate, dedicated internal storage:</p>
+<table>
+<thead>
+<tr>
+<th>Shell</th>
+<th>Real change from v3</th>
+<th>Real N=1 ALM / Fmax</th>
+<th>Real N=10 array avg (ALM/cell)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unicell_super_v1.v</code></td>
+<td>6 cores (original)</td>
+<td>233 ALM / 129.48 MHz</td>
+<td>not measured at array scale</td>
+</tr>
+<tr>
+<td><code>unicell_super_v2.v</code></td>
+<td>+sequencer (7 total)</td>
+<td>305 ALM / 99.57 MHz</td>
+<td>not measured at array scale</td>
+</tr>
+<tr>
+<td><strong><code>unicell_super_v3.v</code></strong></td>
+<td><strong>+branch cell (8 total) — current baseline</strong></td>
+<td><strong>479 ALM / 107.05 MHz</strong></td>
+<td><strong>1030.5 ALM/cell / 68.5-75.1 MHz</strong></td>
+</tr>
+<tr>
+<td><code>unicell_super_v4.v</code></td>
+<td>shared external storage (1 register for all 8 cores)</td>
+<td>708 ALM / 96.9 MHz</td>
+<td>1307.4 ALM/cell / 58.6 MHz — <strong>costs more, not adopted</strong></td>
+</tr>
+<tr>
+<td><code>unicell_super_v5.v</code></td>
+<td>v4's storage, written per-bit instead of one wide mux</td>
+<td>721 ALM / 95.0 MHz</td>
+<td>not measured — <strong>ties v4, not adopted</strong></td>
+</tr>
+<tr>
+<td><code>unicell_super_v6.v</code>/<code>v7.v</code>/<code>v8.v</code></td>
+<td>3 cores' own config fields read live off the shell instead of re-latched locally</td>
+<td>483-487 ALM / 96-107 MHz</td>
+<td>not measured — <strong>one core (compare) shows a real, solid win; the other two are inconclusive against normal build variance</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Real, honest summary of that exploration:</strong> v4/v5's shared-storage
+idea was tried, measured, and found to cost more than it saves — a
+real, negative, useful result, not a dead end hidden from view. v6-v8
+found one small, real, confirmed win (the comparator core) and two
+inconclusive results, closed for now rather than chased further.
+Full detail, including every real Quartus number behind the table
+above, is in the ledger (<code>points/points_07_572-652.md</code> onward; see
+<code>points/INDEX.md</code>).</p>
+<p>(target: IEI Mustang-F100-A10, Arria 10 GX, 10AX066H2F34E2SG, 25 MHz
+fabric clock)</p>
+<p><strong>Every one of this project's own core capabilities has real,
+independent, JTAG-based functional confirmation on actual silicon</strong> —
+not just simulation, not just "Quartus compiled it" — via a real
+In-System Sources and Probes debug channel built specifically to give
+an unambiguous pass/fail regardless of whether a given board's own
+LEDs are reliably wired (a real uncertainty found and worked around
+early in this project). Branch cell in particular went from zero real
+hardware history to fully confirmed — standalone, and through the
+real v3 shell's own <code>core_select</code> routing — in one session.</p>
+<p>For full detail, see <a href="../docs/stripped-cell/SUPER_CELL_INTERNALS.md"><code>docs/stripped-cell/SUPER_CELL_INTERNALS.md</code></a>.</p>
+<h2>The Arria 10's scale ceiling, and why hardware work on it closed</h2>
+<blockquote>
+<p><strong>9 Oct 2026:</strong> the Arria 10 (and the Kintex-7 480T) are still target cards; bring-up is stalled, not abandoned, and a possible fix is being looked at. The text below is the measured record of why it stalled.</p>
+</blockquote>
+<p><strong>This card's own real, measured ceiling is roughly 200-250 cells,</strong>
+at a real Fmax of 65-75 MHz at that scale (251,680 ALM / ~1030 ALM per
+real cell, <code>unicell_super_v3.v</code>'s own array-scale measurement — every
+alternative design tried costs more, not less, per cell). That Fmax
+is a genuine ~2.5-3x margin over the card's actual 25 MHz fabric-clock
+requirement — functionally comfortable — but 200-250 cells is not a
+large substrate by any real measure, and a systematic investigation
+(shared storage, config-sharing, physical placement constraints, a
+"moat" of small buffer cells around each super-cell) found no lever
+that moved this ceiling by more than a small amount, let alone an
+order of magnitude.</p>
+<p>Multi-card scaling remains real and possible in principle (a switched
+PCIe backplane, not the direct card-to-card link this device's own
+transceivers can't provide), but reaching a genuinely serious workload
+that way would need tens to hundreds of cards and the enterprise-class
+backplane infrastructure that implies — a real, honest cost that
+undercuts the point of a small, novel compute substrate rather than
+fulfilling it.</p>
+<p><strong>Conclusion at the time: this project's near-term identity is a
+small, correctness-proven hardware platform, not a compute
+accelerator in any competitive sense.</strong> Hardware exploration on the
+Arria 10 was closed as a deliberate result. (Hardware work has since
+resumed on a different, smaller board, the Tang Nano 20K, as a
+testbed: see "Where things stand" above.) The genuinely promising path to real scale is a future custom
+ASIC (matching this project's own clockless/asynchronous architecture
+ideas, closest in spirit to Wave Computing's own DPU design) —
+confirmed as real and worth pursuing eventually, and confirmed as not
+a near-term undertaking. Ongoing work continues on the VM and
+tooling side, where scale and design exploration remain genuinely
+free of any real hardware ceiling.</p>
+<h2>The software stack (shared by both lines), and how it's verified</h2>
+<p>Everything below lives in <a href="../nano/"><code>nano/</code></a> unless noted, and every
+piece states plainly whether it's simulation-only or independently
+confirmed on real hardware — that distinction is kept honest
+throughout the project's own documentation, never blurred.</p>
+<ul>
+<li><strong>ICM v3/v4</strong> — the program format: real <code>SUPER_LATCH[79:0]</code> encode/
+  decode, verified two independent ways (bit-for-bit against real,
+  iverilog-compiled RTL test vectors, and mechanically re-derived
+  straight from the RTL's own comments). ICM v4 extends this with a
+  second real record kind for DSP wrapper cells (below), mixed freely
+  with ordinary super-cell records in the same file.</li>
+<li><strong>A real VM</strong> (<code>SuperGrid</code>/<code>SuperCell</code>) — event-driven, every core in
+  every shell version, a real registry so a new core type can be added
+  without touching the VM's own dispatch code. It takes a data width
+  (<code>width=W</code>, default 32), and <code>FlexGrid</code> mirrors the flex family (see
+  above).</li>
+<li><strong>A tile library</strong> — primitive cores plus composed multi-cell patterns
+  (<code>sentinel</code>, <code>dual_threshold_monitor</code>, <code>twin_sentinel</code>, DSP-wrapper
+  compositions), with real nested composition.</li>
+<li><strong>A compiler and a real, purpose-built DSL</strong> — <code>place</code>/<code>define</code>/<code>expose</code>
+  syntax, real diagnostics (what/problem/why/suggestion, not bare
+  exceptions), a naming-hygiene lint, and a circular-reference guard.
+  See <a href="../docs/stripped-cell/UNICELL_S_DSL_MANUAL.md"><code>docs/stripped-cell/UNICELL_S_DSL_MANUAL.md</code></a>
+  — every example in it was independently compiled and confirmed
+  working before being written down, not just described.</li>
+<li><strong>A second, genuinely independent frontend</strong> — a real Python-AST
+  parser (a declarative subset of actual Python syntax), proven to
+  produce byte-identical output to the DSL for the same program.</li>
+<li><strong>A real LLVM IR frontend</strong> — compiles real, working loops (both
+  ascending and descending counting patterns) straight from LLVM IR's
+  own <code>phi</code>/<code>br</code>/<code>icmp</code> control flow onto a real, proven 4-cell bounded
+  loop-ring construction, plus <code>select</code> (ternary) and <code>icmp eq</code>/<code>ne</code>,
+  each lowered to a small composition of existing primitives — no
+  bespoke hardware needed for any of it. Deliberately narrow, stated
+  plainly: single induction variable, no nested loops yet.</li>
+<li><strong>A real AI-interaction port</strong> (<code>VMSession</code>) — compile → load → run →
+  inspect, in one clean object, with real JSON introspection of any
+  cell or the whole grid.</li>
+<li><strong>A step-by-step, tabbed browser front end</strong> — the recommended
+  starting point: MAN file generation, Quartus project generation,
+  and the simulated Walker, each its own tab, walking through this
+  project's own real build process in order. Every action-performing
+  page also shows the exact equivalent CLI command. Run it with:
+  <code>bash
+  python3 nano/frontend_v1.py
+  # → http://localhost:7421</code></li>
+<li><strong>A working browser workbench</strong> — compile a program, watch it run,
+  drive individual cells, load multiple independent programs onto one
+  shared grid as named regions, or let it auto-play at a chosen rate
+  until you pause it or the design naturally settles. Linked from the
+  front end above ("Other tools"), or run directly:
+  <code>bash
+  python3 nano/workbench_v1.py
+  # → http://localhost:7420</code></li>
+<li><strong>Real hard-IP wrapper cells</strong> — a DSP arithmetic/comparison wrapper
+  and a shared-BRAM interface, both <strong>independently confirmed on real
+  silicon</strong>: correct fire/ACK/re-arming for the DSP wrapper, and real
+  BRAM read/write plus real ICM (<code>SUPER_LATCH</code>) loading over an actual
+  JTAG host bridge — the first genuinely host-driven hardware success
+  in this project's own history. Honest note: the current DSP wrapper
+  uses a real, hardware-confirmed soft-logic floating-point IP, not
+  the chip's own hard DSP blocks — that path is real and deferred, not
+  yet built.</li>
+<li><strong>Real MAN/SHAPE/placement tooling</strong> (<code>tools/</code>, <code>docs/man/</code>,
+  <code>docs/shapes/</code>) — a MAN file captures one card's own real, fixed
+  capabilities (device resources, confirmed pin assignments); a SHAPE
+  file captures one <em>compiled design's</em> own real cell-to-cell wiring,
+  extracted straight from its RTL; a placement file adds real physical
+  bounding boxes pulled from Quartus's own Control Signals report. See
+  <code>tools/README.md</code> for each tool's own real scope and honest
+  limitations.</li>
+<li><strong>A real Quartus project generator</strong> (<code>tools/project_assemble_v1.py</code>)
+  — given a MAN file and a cell count, produces a complete, ready-to-
+  import Quartus project for a real N-cell array, guarding directly
+  against a real, already-confirmed Quartus behavior (pruning logic it
+  can prove unreachable) rather than assuming it away. Now also
+  supports targeting any real shell version (not just the built-in
+  ones), a real per-cell LogicLock placement mode, and a custom,
+  explicit dependency-file list (with a real, advisory compatibility
+  check) for mixing and matching core versions without hand-writing a
+  Quartus project file list each time.</li>
+</ul>
+<h2>The VIX Carrier — a 9-core generation (sim-only, no Quartus data)</h2>
+<p>Alongside <code>unicell_super_v1.v</code>-<code>v8.v</code> above, a genuinely separate,
+parallel core family was built: a real 9th core (<code>command</code>), each of
+the 9 cores wrapped in its own new cardinal control shell (so
+<code>active</code>/<code>freeze_in</code>/nano's own feedback ports become real 4-way
+cardinal ports instead of flat wires), all combined into one
+mutually-exclusive, runtime-selected cell: <code>unicell_vix_carrier_v1.v</code>
+("V" for version, "IX" for the real 9th-core count). The command core
+watches for a real toggle pattern to trigger a burst, or drives a
+freeze-and-relay programming sequence onto a neighboring cell — real,
+new mechanisms this project didn't have before.</p>
+<p><strong>Real, honest status:</strong> RTL and VM both real and sim-verified —
+including a genuine bounded loop-ring wired through the new cardinal
+shells, and a command core actually programming a fresh, never-
+configured target end to end. <strong>No Quartus/silicon data exists for
+this family yet</strong> — the Quartus license expired before a real build
+could be run — and it has no portable, on-disk ICM file format of its
+own; ICM v3/v4 above are scoped to the older lineage only. (On the
+Tang Nano 20K one carrier position measures ~80% of the chip, #887,
+which is what led to the sub/flex families.) Full detail:
+<a href="../docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md"><code>docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md</code></a>.</p>
+<h2>Quick start</h2>
+<p><strong>One-stop install (new, 9 Oct 2026):</strong> get the folder (a <code>git clone</code>, or the
+zip / <code>.onion</code> kit built by <code>tools/make_package_v1.py</code>), then run
+<code>python3 quickstart.py --install</code>. It makes a private environment in the
+folder, installs everything pip can supply (numpy, llvmlite, pycparser, pytest
+and the YoWASP yosys / nextpnr / apycula bitstream tools) and runs the
+self-test. Two things pip cannot supply are listed with the command for your
+system: <code>iverilog</code> (simulation) and <code>openFPGALoader</code> (loading the board).
+Tested on Linux only; the Windows and macOS paths are written but not run.</p>
+<p>There is no pip-installable package yet — everything runs as scripts directly
+from the folder. The flex/sub suites need <code>iverilog</code> and
+<code>yosys</code> on the path, and <code>pytest</code> and <code>llvmlite</code> installed. <strong>Without
+<code>iverilog</code> they skip and exit 0, which looks like a pass</strong> (#965), so
+check before trusting a run:</p>
+<pre><code class="language-bash">git clone https://github.com/alh-Imago/Imago-Unicell.git
+cd Imago-Unicell
+python3 quickstart.py        # checks what you have installed, runs a 10-second self-test, says what to do next
+which iverilog yosys &amp;&amp; python3 -c &quot;import pytest, llvmlite&quot;
+
+# Run the VM test suite, then the flex/sub suites (each is a plain script)
+python3 -m pytest tests/vm -q
+for t in tests/test_*.py; do python3 &quot;$t&quot; || echo &quot;FAILED: $t&quot;; done
+
+# Compile a DSL program to a real ICM v3 file
+python3 nano/dsl_cli_v1.py your_program.uc -o out.icm
+
+# Generate Verilog for the Tang Nano 20K from an ICM-VIX file (flex family)
+python3 tools/project_assemble_v1.py -s flex --icm nano/examples/small_relay_chain.icm-hier.json \
+    --man docs/man/tang-nano-20k.man.json --output build/relay
+
+# Or drive the whole compile → run → inspect loop from Python directly
+python3 -c &quot;
+import sys; sys.path.insert(0, 'nano')
+from vm_ai_port_v1 import VMSession
+
+session = VMSession.from_dsl('''
+program my_sentinel {
+    place s1 as sentinel at (0, 0) {
+        inc: n
+        dec: s
+        clear: s
+        out: e
+        cmp.threshold: 8
+    }
+}
+''')
+session.tick(5)
+print(session.describe())
+&quot;
+
+# Or open the tabbed front end (MAN file -&gt; Quartus project -&gt; Walker)
+python3 nano/frontend_v1.py
+
+# Or just open the browser workbench directly
+python3 nano/workbench_v1.py
+</code></pre>
+<h2>Documentation</h2>
+<ul>
+<li><a href="../docs/README.md"><code>docs/README.md</code></a> — the documentation index.</li>
+<li><a href="../sub/README.md"><code>sub/README.md</code></a> — the sub and flex cell families:
+  every cell, its measurements, and the design rules behind it.</li>
+<li><a href="../docs/man/README.md"><code>docs/man/README.md</code></a> — MAN files: one card's
+  fixed capabilities (Arria 10 and Tang Nano 20K), including the DSP,
+  synthesis and cost tables the assembler reads.</li>
+<li><a href="../docs/man/tang-nano-20k-getting-started.md"><code>docs/man/tang-nano-20k-getting-started.md</code></a>
+  — flashing the first deliverable onto the board.</li>
+<li><a href="../docs/stripped-cell/ICM_V3_FORMAT.md"><code>docs/stripped-cell/ICM_V3_FORMAT.md</code></a>
+  and <a href="../docs/stripped-cell/ICM_VIX_FORMAT.md"><code>docs/stripped-cell/ICM_VIX_FORMAT.md</code></a>
+  — the program formats, including the target-agnostic flags.</li>
+<li><a href="../tools/README.md"><code>tools/README.md</code></a> — the assembler (both lines),
+  the Flex-Sub generators, the measurement tools, and their limits.</li>
+<li><a href="../docs/stripped-cell/UNICELL_S_DSL_MANUAL.md"><code>docs/stripped-cell/UNICELL_S_DSL_MANUAL.md</code></a>
+  — the DSL language reference.</li>
+<li><a href="../docs/stripped-cell/SUPER_CELL_INTERNALS.md"><code>docs/stripped-cell/SUPER_CELL_INTERNALS.md</code></a>
+  — the Arria 10 line's shell/RTL reference.</li>
+<li><code>points/</code> — the project's append-only, numbered decision log (split
+  across files since it outgrew GitHub's render limit; start at
+  <a href="../points/INDEX.md"><code>points/INDEX.md</code></a>). Every design decision, bug
+  found and measurement taken is in here with its reasoning.</li>
+<li><a href="../current/latest.md"><code>current/latest.md</code></a> — a short summary per recent
+  ledger entry, newest first.</li>
+<li><a href="../docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md"><code>docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md</code></a>
+  — which docs are current and which have fallen behind. Read it before
+  relying on an older reference doc.</li>
+</ul>
+<h2>What's genuinely archived, and why</h2>
+<p>A large amount of earlier work — an older, addressed-bus cell
+architecture (<code>gate_state</code>-configured cells sharing a wired-OR bus), its
+own compiler/VM/tile-library stack, an OS-layer (Companion/Shore/Ward),
+a domain-model ecosystem (the Trix family), and assorted tooling — is
+real prior work, but built for a fundamentally different, incompatible
+architecture than the one described above. None of it is deleted:
+every file is preserved byte-for-byte, independently checksum-verified,
+in <code>archeology/onion/</code> (real, searchable metadata per archive — see
+<code>points.md</code> #364-#367 for the full record of what moved and why). If
+you're looking for something referenced in older material and it's not
+where you expect, it's very likely in there.</p>
+<p>The Trix family specifically is a real, deliberate conclusion, not
+just an artifact of the archival sweep: designing a proper interface
+for even one small, well-bounded piece of real hardware (see the DSP
+design notes under <code>docs/stripped-cell/design-notes/</code>) takes genuine,
+careful, bit-level work — checking exactly which operations touch which
+part of a value, finding real constraints that only show up once you
+go and check. Trix wasn't one domain needing that treatment; it was a
+whole family of them (fluid dynamics, neuron models, MIDI, sensor data,
+and more), each with a genuinely different natural structure, each
+needing that same depth of design work done again from scratch — on a
+substrate that's still flat 32-bit integers today, with no signed
+number representation and no fixed-point convention at all. Real,
+useful domain logic, not lost — just not something this substrate is
+ready to carry yet, and not a small gap to close.</p>
+<h2>Licence</h2>
+<p>Imago UniCell is dual-licensed, with software and hardware under
+separate permissive licences appropriate to each:</p>
+<ul>
+<li><strong>Software</strong> (the Python VM, compiler, tooling) — <a href="../LICENSE">MIT License</a></li>
+<li><strong>Hardware</strong> (Verilog RTL, cell architecture, FPGA gateware) —
+  <a href="../LICENSE-HARDWARE">CERN Open Hardware Licence v2 - Permissive</a></li>
+</ul>
+<p>Both are permissive and attribution-only. You are free to use, study,
+modify, make, and distribute every part of this project, including
+commercially, provided you retain the relevant notices. See
+<a href="../NOTICE">NOTICE</a> for the full explanation of which licence covers which
+files and why.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-start"><span class="ref-kind">§</span><span class="ref-text">← Back to Start</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-start">‹ Start</button><span class="pn pn-empty"></span></nav></section>
+    </div></div>
+    <div class="rail" role="tablist" aria-label="Manual sections">
+      <button class="tab active" data-target="sec-start" role="tab" aria-selected="true"><span class="tab-num">01</span><span class="tab-label">Start</span></button>
+<button class="tab" data-target="sec-backdrop" role="tab" aria-selected="false"><span class="tab-num">02</span><span class="tab-label">Backdrop</span></button>
+    </div>
+  </div>
+<script>
+  const tabs = [...document.querySelectorAll('.tab')];
+  const panels = [...document.querySelectorAll('.panel')];
+  const page = document.querySelector('.page');
+  function show(id){
+    panels.forEach(p=>p.classList.toggle('active', p.id===id));
+    tabs.forEach(t=>{
+      const on = t.dataset.target===id;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on?'true':'false');
+    });
+    page.scrollTop = 0;
+  }
+  tabs.forEach(t=>t.addEventListener('click', ()=>show(t.dataset.target)));
+  document.addEventListener('click', e=>{
+    const b = e.target.closest('[data-target]');
+    if(b && b.classList.contains('pn')) show(b.dataset.target);
+  });
+  // internal section cross-links (#sec-...)
+  document.querySelectorAll('.ref[href^="#sec-"]').forEach(a=>{
+    a.addEventListener('click', e=>{ e.preventDefault(); show(a.getAttribute('href').slice(1)); });
+  });
+  // detect a running local Workbench (localhost:7420). Works from a local
+  // clone / file://; on hosted https the call is blocked as mixed content, so
+  // we just show the start instruction instead of a false "not running".
+  (function(){
+    const badge = document.getElementById('wb-badge');
+    if(!badge) return;
+    if(location.protocol === 'https:'){
+      badge.textContent = 'start it locally to enable'; badge.className='wb-badge down'; return;
+    }
+    const done = (up)=>{ badge.textContent = up ? 'running ✓' : 'not started';
+      badge.className = 'wb-badge ' + (up?'up':'down'); };
+    const t = setTimeout(()=>done(false), 1500);
+    fetch('http://localhost:7420/', {mode:'no-cors'})
+      .then(()=>{ clearTimeout(t); done(true); })
+      .catch(()=>{ clearTimeout(t); done(false); });
+  })();
+</script>
+</body>
+</html>

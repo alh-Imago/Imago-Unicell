@@ -35,4 +35,12 @@ for continued work, and add the sealed file's own row to `points/INDEX.md`.
 
 **Deliberately NOT done.** `docs/manual.html` was not rebuilt, at Alan's instruction. `README.md` is one of the manual's inputs (`docs/build_manual.py`), so the manual is now one paragraph behind the README until someone rebuilds it; `CLAUDE.md` says to rebuild after editing such a doc, and Alan's instruction takes precedence. The magnified cell view and any lesson text beyond the intro are not built. The GitHub archive setting, the public gh-pages site and the other items left open in addendum 69 are unchanged and still Alan's call. This entry does not alter the status in addendum 69: UniCell is still an unconfirmed idea, and the teaching use claims nothing about it that the measurements do not support.
 
-Next entry: #1038.
+---
+
+## #1038 -- A SEPARATE TEACHING MANUAL BUILDER (Alan's decision, 10 Oct 2026, late evening)
+
+Alan, on the manual: leave the main manual as it is, clone its build so it writes a separate teaching manual, same style, slightly different content, and use the newer file from here on. Done as a clone, not a change: `docs/build_teaching_manual.py` is `docs/build_manual.py` with the same renderer, page and style, but its own `SECTIONS` list (two tabs for now: the teaching plan `docs/teaching/README.md`, and the repository `README.md` as "The Backdrop") and its own output, `docs/teaching_manual.html`. The output sits beside `manual.html` on purpose, because the builder's link rewriting assumes the output is exactly one level below the repo root. The headings and page title say "Teaching Manual" instead of "Field Manual". To add a lesson, write it as markdown, add one dict to `SECTIONS`, and re-run `python3 docs/build_teaching_manual.py` (the file's docstring says so).
+
+Checked: it builds (2 sections, 56,709 bytes), the page has 2 tabs and 2 panels, no "Field Manual" text remains, and the rewritten links point one level up as in the main manual. `docs/build_manual.py` and `docs/manual.html` are byte-identical to before. NOT checked: how the page looks in a browser; I read the generated HTML only. The main manual is still one paragraph behind the README (see #1037); that is unchanged and still Alan's call. No lessons exist yet beyond the plan, so the teaching manual is a frame, not a course.
+
+Next entry: #1039.
