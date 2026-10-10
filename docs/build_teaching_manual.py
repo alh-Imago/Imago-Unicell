@@ -62,9 +62,16 @@ SECTIONS = [
              "where one value goes, and the priority cell decides which of several waiting values "
              "goes next. Try both with your own numbers.",
      "html":open(os.path.join(HERE, "teaching", "branching_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to Chaining","#sec-chaining","section"),("Continue → Start","#sec-start","section")]},
+     "links":[("← Back to Chaining","#sec-chaining","section"),("Continue → Joining and Splitting","#sec-joinsplit","section")]},
 
-    {"id":"start","num":"05","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"joinsplit","num":"05","tab":"Join & Split","title":"Joining and Splitting Paths",
+     "intro":"Two small cells show how data meets and parts. The merge cell brings two paths into "
+             "one; the router cell sends one path to up to two places. Both teach what has to "
+             "wait for what.",
+     "html":open(os.path.join(HERE, "teaching", "joinsplit_fragment.html"), encoding="utf-8").read(),
+     "links":[("← Back to Branching","#sec-branching","section"),("Continue → Start","#sec-start","section")]},
+
+    {"id":"start","num":"06","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -75,7 +82,7 @@ SECTIONS = [
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
      "links":[("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"06","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"07","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "

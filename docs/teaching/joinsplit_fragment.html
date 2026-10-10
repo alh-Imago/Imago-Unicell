@@ -1,0 +1,199 @@
+<!-- Joining and splitting fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). -->
+<div class="joinsplit" id="js-root">
+<style>
+  .joinsplit h2{margin-top:1.6em}
+  .joinsplit .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .joinsplit button,.joinsplit select,.joinsplit input{font:inherit;font-size:.95em}
+  .joinsplit .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .joinsplit .bar button{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .joinsplit .bar button.go{background:var(--accent);color:#fff}
+  .joinsplit input[type=text],.joinsplit select{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+  .joinsplit .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;margin:.6em 0}
+  .joinsplit label.f{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--ink-soft)}
+  .joinsplit label.f input,.joinsplit label.f select{width:100%}
+  .joinsplit label.ck{display:flex;gap:6px;align-items:center;font-size:.92em;cursor:pointer}
+  .joinsplit .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .joinsplit .lane{display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:2em;margin:.2em 0}
+  .joinsplit .tag{font-family:var(--mono);font-weight:bold;min-width:3.6em;font-size:.9em}
+  .joinsplit .tok{font-family:var(--mono);font-size:.82em;padding:1px 8px;border-radius:9px;border:1px solid var(--rule);background:#fff}
+  .joinsplit .tok.front{border-color:var(--accent);border-width:2px}
+  .joinsplit .tok.won{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .joinsplit .tok.held{background:#efe6c8;border-color:var(--ink-soft)}
+  .joinsplit .cellbox{display:inline-block;border:2px solid var(--ink-soft);border-radius:10px;background:var(--paper-edge);padding:6px 14px;font-family:var(--mono);font-size:.9em;margin:.4em 0}
+  .joinsplit .board{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:10px 12px}
+  .joinsplit .mono{font-family:var(--mono);font-size:.88em}
+  .joinsplit .sinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:.6em 0}
+  .joinsplit .sink{border:1px solid var(--rule);border-radius:8px;padding:6px 10px;background:rgba(255,255,255,.4)}
+  .joinsplit .sink.pend{border-color:var(--accent);box-shadow:0 0 0 3px rgba(21,117,109,.18)}
+  .joinsplit ol.log{font-family:var(--mono);font-size:.82em;margin:.4em 0;padding-left:2em}
+  .joinsplit .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+</style>
+
+<p class="lead">Two small cells that look almost too simple: <strong>merge</strong> brings two paths into one, and <strong>router</strong> sends one path to up to two places. Between them they show the two ways data can meet or part, and what has to wait for what.</p>
+
+<h2>1. The merge cell: two paths become one</h2>
+<p>The merge cell has two inputs, A and B, and one output. It has four modes, chosen when the design is built:</p>
+<ul>
+  <li><strong>A only</strong> and <strong>B only</strong>: a plain pass-through of one input. The other input is never accepted.</li>
+  <li><strong>Arbitrate</strong>: either input may go, one at a time. If both are waiting, one wins, and then the <em>loser</em> gets priority next time, so neither can starve. Right when the two paths are alternatives that join again.</li>
+  <li><strong>Join (OR)</strong>: waits for <em>both</em> inputs, then outputs A OR B, bit by bit, and takes both together. Right when the two paths are two halves of one item.</li>
+</ul>
+<p>Why not just OR the two whenever they arrive? Two separate items that happen to be waiting together would be fused into one wrong value. Arbitrate and Join are the safe versions of that idea.</p>
+
+<div class="grid2">
+  <label class="f">Mode<select id="mg-mode"><option value="arb">arbitrate (one at a time, fair)</option><option value="a">A only</option><option value="b">B only</option><option value="or">join (wait for both, then A OR B)</option></select></label>
+  <label class="f">A has waiting (values, comma-separated)<input type="text" id="mg-a" value="1, 2, 3"></label>
+  <label class="f">B has waiting<input type="text" id="mg-b" value="10, 20, 30"></label>
+</div>
+<div class="bar"><button type="button" class="go" id="mg-one">Let one through</button><button type="button" id="mg-all">Run until nothing can go</button><button type="button" id="mg-reset">Reset</button>
+  <span>Try:</span><button type="button" data-p="join">halves of one item</button></div>
+<div class="board">
+  <div class="lane"><span class="tag">A</span><span id="mg-qa" class="lane"></span></div>
+  <div class="lane"><span class="tag">B</span><span id="mg-qb" class="lane"></span></div>
+  <div class="mono" id="mg-prio"></div>
+  <div class="lane"><span class="tag">out</span><span id="mg-out" class="lane"></span></div>
+</div>
+<div class="says" id="mg-says" aria-live="polite"></div>
+<ol class="log" id="mg-log"></ol>
+
+<h2>2. The router cell: one path goes to two places</h2>
+<p>The router copies every value it takes to each of its <strong>enabled</strong> outputs, A and B. Which outputs are enabled is fixed when the design is built. It does not look at the value: it never decides, it just copies. (Deciding is the branch cell's job.)</p>
+<p>The rule to watch: the router takes a new value only when <em>every enabled output has been taken</em> by whoever it feeds. A disabled output never holds anything up. A slow or stuck receiver on one output holds back the other as well. Each receiver below can be set to <em>accepting</em> or <em>stuck</em>.</p>
+
+<div class="grid2">
+  <label class="f">Values arriving at the router<input type="text" id="rt-in" value="5, 6, 7, 8"></label>
+</div>
+<div class="bar"><label class="ck"><input type="checkbox" id="rt-ea" checked> output A enabled</label>
+  <label class="ck"><input type="checkbox" id="rt-eb" checked> output B enabled</label>
+  <label class="ck"><input type="checkbox" id="rt-sa" checked> receiver A accepting</label>
+  <label class="ck"><input type="checkbox" id="rt-sb" checked> receiver B accepting</label></div>
+<div class="bar"><button type="button" class="go" id="rt-step">Step one tick</button><button type="button" id="rt-run">Run 20 ticks</button><button type="button" id="rt-reset">Reset</button>
+  <span>Try:</span><button type="button" data-p="stuck">receiver B stuck</button><button type="button" data-p="off">output B disabled</button></div>
+<div class="board">
+  <div class="lane"><span class="tag">waiting</span><span id="rt-q" class="lane"></span></div>
+  <div class="cellbox" id="rt-cell">router</div>
+  <div class="sinks">
+    <div class="sink" id="rt-ka"><b>output A</b> <span class="mono" id="rt-sta"></span><div class="lane" id="rt-ga"></div></div>
+    <div class="sink" id="rt-kb"><b>output B</b> <span class="mono" id="rt-stb"></span><div class="lane" id="rt-gb"></div></div>
+  </div>
+</div>
+<div class="says" id="rt-says" aria-live="polite"></div>
+
+<h2>3. What to notice</h2>
+<ul>
+  <li><strong>Merge is where order can be lost.</strong> Two separate paths have no common clock, so the merge can only choose one at a time. That is why the page says "join" for halves of one item: it waits for both and cannot get the pairing wrong.</li>
+  <li><strong>Fair is a design choice.</strong> Arbitrate hands priority to whoever just lost. Compare the strict priority cell on the Branching page, where a busy face can starve the rest.</li>
+  <li><strong>Waiting is how the cells stay correct.</strong> The router never drops a value and never overwrites one. If any enabled output is stuck, everything behind it waits, and that stillness is the whole mechanism.</li>
+  <li><strong>The router copies; the branch chooses.</strong> A router sends the same value to everything enabled, every time. A branch sends a value to different places depending on the value.</li>
+</ul>
+<p class="fine">A simplified picture, one round or one tick at a time, drawn by this page's script from the cells' Verilog (<a href="../sub/verilog/merge_cell_v4sa.v">merge</a>, <a href="../sub/verilog/router_cell_v4sa.v">router</a>). The real cells also keep a one-cycle output buffer, a valid/ack handshake on every port, and freeze; the merge's items are shown as whole values and the join's OR is computed on 18-bit words. The VM is not running here. Numbers are 18 bits wide and signed for display.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('js-root'); if(!root) return;
+  var BITS=18,MOD=Math.pow(2,BITS),HALF=MOD/2;
+  function wrap(v){var u=Number(BigInt.asUintN(BITS,BigInt(Math.trunc(v))));return u>=HALF?u-MOD:u;}
+  function uns(v){return Number(BigInt.asUintN(BITS,BigInt(v)));}
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+  function parseList(t){var parts=String(t).split(/[\s,]+/).filter(function(x){return x!=='';}),vals=[],bad=false;
+    parts.forEach(function(p){var n=Number(p);if(!isFinite(n)||Math.floor(n)!==n||Math.abs(n)>9e15)bad=true;else vals.push(wrap(n));});return {vals:vals,bad:bad};}
+  function chips(arr,front){return arr.map(function(v,k){return '<span class="tok'+(front&&k===0?' front':'')+'">'+v+'</span>';}).join('')||'<span class="mono" style="color:var(--ink-soft)">empty</span>';}
+  function bin(v){var s=uns(v).toString(2);while(s.length<4)s='0'+s;return s;}
+
+  /* ---------- merge ---------- */
+  var M=null;
+  function mReset(){
+    var a=parseList($('mg-a').value),b=parseList($('mg-b').value);
+    M={a:a.vals,b:b.vals,rr:0,out:[],log:[],msg:''};
+    if(a.bad||b.bad)M.msg='Use whole numbers separated by commas.';else M.msg='Press "Let one through" to run a round.';
+    M.bad=a.bad||b.bad;mPaint();
+  }
+  function mRound(){
+    if(M.bad)return false;
+    var mode=$('mg-mode').value,A=M.a.length>0,B=M.b.length>0,ga=false,gb=false,v,note;
+    if(mode==='or'){
+      if(!(A&&B)){M.msg=A||B?'Join waits for both. '+(A?'A is waiting but B has nothing':'B is waiting but A has nothing')+', so '+(A?'A':'B')+' holds its value.':'Nothing is waiting.';return false;}
+      var x=M.a.shift(),y=M.b.shift();v=wrap(uns(x)|uns(y));
+      note=x+' OR '+y+' = '+v+'  ('+bin(x)+' | '+bin(y)+' = '+bin(v)+')';M.log.push('join: '+note);M.out.push({v:v,s:'A|B'});M.msg='Both were waiting, so both were taken together: '+note+'.';return true;
+    }
+    if(mode==='a'){ga=A;}else if(mode==='b'){gb=B;}
+    else{ga=A&&(!B||!M.rr);gb=B&&!ga;}
+    if(!ga&&!gb){
+      if(mode==='a')M.msg=A?'':'A only: A has nothing. B is never accepted in this mode'+(B?', so its values stay put.':'.');
+      else if(mode==='b')M.msg=B?'':'B only: B has nothing. A is never accepted in this mode'+(A?', so its values stay put.':'.');
+      else M.msg='Nothing is waiting.';
+      return false;
+    }
+    if(ga){v=M.a.shift();}else{v=M.b.shift();}
+    M.out.push({v:v,s:ga?'A':'B'});
+    if(mode==='arb'){
+      var both=(A&&B);
+      M.msg=(both?'Both were waiting. ':'')+(ga?'A':'B')+' went through with '+v+(both?'; '+(ga?'B':'A')+' has priority next time.':'.');
+      M.log.push((both?'both waiting':'one waiting')+' -> '+(ga?'A':'B')+' wins, '+v+' goes out');
+      M.rr=ga?1:0;
+    }else{M.msg=(ga?'A':'B')+' passed through with '+v+'.';M.log.push((ga?'A':'B')+' passes '+v);}
+    return true;
+  }
+  function mPaint(){
+    $('mg-qa').innerHTML=chips(M.a,true);$('mg-qb').innerHTML=chips(M.b,true);
+    var mode=$('mg-mode').value;
+    $('mg-prio').textContent=mode==='arb'?('If both wait, '+(M.rr?'B':'A')+' wins the next round.'):mode==='or'?'Join takes one value from each side per output.':'';
+    $('mg-out').innerHTML=M.out.length?M.out.map(function(o){return '<span class="tok won" title="from '+o.s+'">'+o.v+' <small>'+o.s+'</small></span>';}).join(''):'<span class="mono" style="color:var(--ink-soft)">nothing yet</span>';
+    $('mg-says').textContent=M.msg;
+    $('mg-log').innerHTML=M.log.slice(-10).map(function(t){return '<li>'+esc(t)+'</li>';}).join('');
+  }
+  ['mg-mode','mg-a','mg-b'].forEach(function(id){$(id).addEventListener('input',mReset);$(id).addEventListener('change',mReset);});
+  $('mg-one').addEventListener('click',function(){mRound();mPaint();});
+  $('mg-all').addEventListener('click',function(){var n=0;while(n<400&&mRound())n++;mPaint();});
+  $('mg-reset').addEventListener('click',mReset);
+  $('js-root').querySelector('[data-p="join"]').addEventListener('click',function(){$('mg-mode').value='or';$('mg-a').value='5, 12';$('mg-b').value='3, 1';mReset();});
+
+  /* ---------- router ---------- */
+  var R=null;
+  function rReset(){
+    var l=parseList($('rt-in').value);
+    R={q:l.vals.slice(),pa:null,pb:null,ga:[],gb:[],ticks:0,msg:l.bad?'Use whole numbers separated by commas.':'Press "Step one tick".',bad:l.bad};rPaint();
+  }
+  function rTick(){
+    if(R.bad)return false;
+    var ea=$('rt-ea').checked,eb=$('rt-eb').checked,sa=$('rt-sa').checked,sb=$('rt-sb').checked;
+    var busyA=ea&&R.pa!==null,busyB=eb&&R.pb!==null,notes=[],act=false;
+    /* each output clears on its own receiver's accept */
+    if(R.pa!==null){if(sa){R.ga.push(R.pa);notes.push('receiver A took '+R.pa);R.pa=null;act=true;}else notes.push('receiver A is stuck, still holding '+R.pa);}
+    if(R.pb!==null){if(sb){R.gb.push(R.pb);notes.push('receiver B took '+R.pb);R.pb=null;act=true;}else notes.push('receiver B is stuck, still holding '+R.pb);}
+    /* a new value is taken only if no enabled output was busy before this tick (the cell's own rule) */
+    if(!busyA&&!busyB&&R.q.length){
+      var v=R.q.shift();if(ea)R.pa=v;if(eb)R.pb=v;
+      notes.push('router took '+v+(ea||eb?' and offered it to '+[ea?'A':'',eb?'B':''].filter(Boolean).join(' and '):' (no output is enabled, so it goes nowhere)'));act=true;
+    }else if(R.q.length&&(busyA||busyB)){
+      notes.push('router cannot take the next value: '+[busyA?'A':'',busyB?'B':''].filter(Boolean).join(' and ')+' still hold'+((busyA&&busyB)?'':'s')+' the last one');
+    }
+    R.ticks++;R.msg='Tick '+R.ticks+': '+(notes.join('; ')||'nothing to do')+'.';return act;
+  }
+  function rPaint(){
+    $('rt-q').innerHTML=chips(R.q,true);
+    var ea=$('rt-ea').checked,eb=$('rt-eb').checked;
+    $('rt-sta').textContent=!ea?'(disabled)':R.pa!==null?'holding '+R.pa+', waiting to be taken':'free';
+    $('rt-stb').textContent=!eb?'(disabled)':R.pb!==null?'holding '+R.pb+', waiting to be taken':'free';
+    $('rt-ka').className='sink'+(R.pa!==null?' pend':'');$('rt-kb').className='sink'+(R.pb!==null?' pend':'');
+    $('rt-ga').innerHTML='<span class="mono">received:</span> '+chips(R.ga.map(function(v){return v;}),false).replace(/class="tok"/g,'class="tok won"');
+    $('rt-gb').innerHTML='<span class="mono">received:</span> '+chips(R.gb.map(function(v){return v;}),false).replace(/class="tok"/g,'class="tok won"');
+    $('rt-says').textContent=R.msg;
+  }
+  ['rt-in'].forEach(function(id){$(id).addEventListener('input',rReset);});
+  ['rt-ea','rt-eb','rt-sa','rt-sb'].forEach(function(id){$(id).addEventListener('change',function(){
+    if(id==='rt-ea'||id==='rt-eb'){ /* switching an output on or off is a design change: start again */ rReset();} else {rPaint();}
+  });});
+  $('rt-step').addEventListener('click',function(){rTick();rPaint();});
+  $('rt-run').addEventListener('click',function(){for(var i=0;i<20;i++){if(!rTick()&&!R.q.length&&R.pa===null&&R.pb===null)break;}rPaint();});
+  $('rt-reset').addEventListener('click',rReset);
+  [].forEach.call(root.querySelectorAll('[data-p="stuck"],[data-p="off"]'),function(b){b.addEventListener('click',function(){
+    $('rt-ea').checked=true;$('rt-eb').checked=true;$('rt-sa').checked=true;$('rt-sb').checked=true;
+    if(b.getAttribute('data-p')==='stuck')$('rt-sb').checked=false;else $('rt-eb').checked=false;rReset();});});
+
+  mReset();rReset();
+})();
+</script>
+</div>

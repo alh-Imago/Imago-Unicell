@@ -89,4 +89,14 @@ Alan asked for the branch and priority cells as simple builders with results, li
 
 **Checked.** Real Chromium (Playwright): the branch table for the three examples matches hand calculation; diff wrap-around at 18 bits (131071 minus -1 gives -131072) is right; a decimal is refused; priority presets run to the end without errors. The weighted example was traced by hand round by round (1 N, 2 N, 3 N, 10 S, ...) and agrees with the page. The page's formulas were also read line by line against the VM's Python priority code (`unicell_super_automaton_v1.py`, the credit and score lines) and the Verilog. No console errors and no sideways overflow at 390 px. NOT checked: the page was not run against the actual Verilog or a running VM priority cell (no `iverilog` in this session; the repo's bench `tb_priority_cell_v4sa.v` was not run). The branch is shown without its fixed/flowing input modes or its separate output handshakes, and the page says so. Main manual unchanged.
 
-Next entry: #1043.
+---
+
+## #1043 -- TEACHING MANUAL PART 5: JOINING AND SPLITTING (merge and router) (Alan's direction)
+
+Alan's order for the remaining pages: merge and router next, then latch and sequencer, then the shift and mask parts. This entry is the first. Tab 05 "Join & Split" of `docs/teaching_manual.html` (source `docs/teaching/joinsplit_fragment.html`); Start and Backdrop move to tabs 06 and 07.
+
+**Merge builder.** Two waiting lists A and B, a mode, and "let one through". Modes from `merge_cell_v4sa.v`: A only, B only (the other input is never accepted), arbitrate (one at a time; the loser gets priority next time, the first tie goes to A), join (waits for both, outputs A OR B bit by bit, takes both). The join shows the binary of the OR. **Router builder.** A list of arriving values, switches for output A and B enabled, and for receiver A and B accepting or stuck, "step one tick" and "run 20 ticks". Rule from `router_cell_v4sa.v`: a value is copied to every enabled output, and a new value is taken only when no enabled output was still holding the last one (decided on the state before the tick, as the RTL does); a disabled output never blocks.
+
+**Checked.** Real Chromium: arbitrate gives 1,10,2,20,3,30; A only and B only give their own lists and leave the other side untouched; join gives 5 OR 3 = 7 and 12 OR 1 = 13 and holds a lone value; router with both receivers accepting delivers 5,6,7,8 to both; with B stuck, A gets only the first value and the router holds the rest (the other output is held back too); unstuck, both finish; output B disabled, A finishes alone. No console errors, no sideways overflow at 390 px. NOT checked: not run against the Verilog benches or a live VM cell (no `iverilog` here); the real cells' one-cycle output buffer, valid/ack on every port and freeze are left out and the page says so. Main manual unchanged.
+
+Next entry: #1044.
