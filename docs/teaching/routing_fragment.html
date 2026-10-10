@@ -1,0 +1,202 @@
+<!-- Routing fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). -->
+<div class="routing" id="route-root">
+<style>
+
+  .routing h2{margin-top:1.6em}
+  .routing .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .routing button,.routing select,.routing input{font:inherit;font-size:.95em}
+  .routing .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .routing .bar button{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .routing input[type=number],.routing select{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+  .routing label.ck{display:flex;gap:6px;align-items:center;font-size:.92em}
+  .routing .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px;margin:.6em 0}
+  .routing label.f{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--ink-soft)}
+  .routing label.f input,.routing label.f select{width:100%}
+  .routing .board{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:10px 12px;overflow-x:auto}
+  .routing .rowlab{font-size:.78em;color:var(--ink-soft);margin:.5em 0 2px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .routing .rowlab b{font-family:var(--mono);color:var(--ink)}
+  .routing .word{display:flex;gap:7px;width:max-content}
+  .routing .grp{display:flex;gap:2px}
+  .routing .bit{box-sizing:border-box;width:22px;height:28px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);border:1.5px solid var(--rule);border-radius:4px;background:#fff;font-size:.9em}
+  .routing .bit.one{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .routing .bit.lost{outline:2px solid #b5533a;outline-offset:1px}
+  .routing .bit.fill{border-style:dashed;border-color:var(--accent)}
+  .routing .bit.cut{background:#e8d5cf;color:#8a3b25;border-color:#b5533a}
+  .routing .idx{display:flex;gap:7px;width:max-content;font-family:var(--mono);font-size:.62em;color:var(--ink-soft)}
+  .routing .idx .grp span{width:22px;text-align:center;display:inline-block}
+  .routing .gbtn{display:flex;gap:7px;width:max-content;margin:.2em 0}
+  .routing .gbtn button{width:70px;box-sizing:border-box;padding:2px 0;border:2px solid var(--accent);border-radius:6px;background:var(--paper-edge);cursor:pointer;font-family:var(--mono);font-size:.7em;color:var(--ink)}
+  .routing .gbtn button[aria-pressed="true"]{background:#b5533a;border-color:#b5533a;color:#fff}
+  .routing .hint{display:none;font-size:.8em;color:var(--ink-soft);margin:.2em 0}
+  @media (max-width:640px){.routing .hint{display:block}}
+  .routing .arrow{font-family:var(--mono);color:var(--ink-soft);font-size:.8em;margin:.3em 0}
+  .routing .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .routing .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .routing .key{display:flex;flex-wrap:wrap;gap:14px;font-size:.8em;color:var(--ink-soft);margin:.4em 0}
+  .routing .key i{display:inline-block;width:1.1em;height:1.1em;border-radius:3px;vertical-align:middle;margin-right:4px;border:1.5px solid var(--rule)}
+
+  .routing h2{margin-top:1.6em}
+  .routing .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .routing button,.routing select,.routing input{font:inherit;font-size:.95em}
+  .routing .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .routing .bar button{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .routing .bar button.go{background:var(--accent);color:#fff}
+  .routing input[type=text],.routing select{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+  .routing .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;margin:.6em 0}
+  .routing label.f{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--ink-soft)}
+  .routing label.f input,.routing label.f select{width:100%}
+  .routing label.ck{display:flex;gap:6px;align-items:center;font-size:.92em;cursor:pointer}
+  .routing .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .routing .lane{display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:2em;margin:.2em 0}
+  .routing .tag{font-family:var(--mono);font-weight:bold;min-width:3.6em;font-size:.9em}
+  .routing .tok{font-family:var(--mono);font-size:.82em;padding:1px 8px;border-radius:9px;border:1px solid var(--rule);background:#fff}
+  .routing .tok.front{border-color:var(--accent);border-width:2px}
+  .routing .tok.won{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .routing .tok.held{background:#efe6c8;border-color:var(--ink-soft)}
+  .routing .cellbox{display:inline-block;border:2px solid var(--ink-soft);border-radius:10px;background:var(--paper-edge);padding:6px 14px;font-family:var(--mono);font-size:.9em;margin:.4em 0}
+  .routing .board{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:10px 12px}
+  .routing .mono{font-family:var(--mono);font-size:.88em}
+  .routing .sinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:.6em 0}
+  .routing .sink{border:1px solid var(--rule);border-radius:8px;padding:6px 10px;background:rgba(255,255,255,.4)}
+  .routing .sink.pend{border-color:var(--accent);box-shadow:0 0 0 3px rgba(21,117,109,.18)}
+  .routing ol.log{font-family:var(--mono);font-size:.82em;margin:.4em 0;padding-left:2em}
+  .routing .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+
+  .routing .lamp{display:inline-flex;align-items:center;justify-content:center;width:3.4em;height:3.4em;border-radius:50%;border:3px solid var(--ink-soft);font-family:var(--mono);font-size:1.5em;font-weight:bold;background:#fff}
+  .routing .lamp.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .routing .row{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin:.4em 0}
+  .routing .col{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.85em;color:var(--ink-soft)}
+  .routing .offer{font-family:var(--mono);border:2px dashed var(--rule);border-radius:8px;padding:6px 12px;min-width:9em;text-align:center}
+  .routing .offer.pend{border-style:solid;border-color:var(--accent)}
+  .routing .vals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:.5em 0}
+  .routing .vals label{font-size:.82em;color:var(--ink-soft);display:flex;flex-direction:column;gap:3px}
+  .routing .vals input{width:100%}
+  .routing .slots{display:flex;gap:8px;margin:.5em 0}
+  .routing .slotv{flex:1;min-width:0;text-align:center;border:2px solid var(--rule);border-radius:8px;padding:6px 2px;font-family:var(--mono);background:#fff}
+  .routing .slotv.cur{border-color:var(--accent);background:rgba(21,117,109,.14);font-weight:bold}
+  .routing .slotv small{display:block;font-size:.7em;color:var(--ink-soft)}
+  .routing input[type=number]{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink)}
+
+  .routing .cy .bit{background:#f3ecd6;border-style:dotted;color:var(--ink-soft)}
+  .routing .cy .bit.one{background:#d9a441;border-color:#d9a441;color:#fff}
+  .routing .chipout{display:inline-block;font-family:var(--mono);border:2px solid var(--ink-soft);border-radius:8px;padding:2px 10px;margin:.3em 0}
+  .routing .chipout.one{background:#d9a441;border-color:#d9a441;color:#fff}
+  .routing .hint{display:none;font-size:.8em;color:var(--ink-soft);margin:.2em 0}
+  @media (max-width:640px){.routing .hint{display:block}}
+
+
+  .routing .tile{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)}
+  .routing .tile .nm{font-family:var(--mono);font-weight:bold}
+  .routing .facehead{font-size:.8em;color:var(--ink-soft);display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:6px 10px;margin-top:.6em}
+  .routing .sendrow{display:flex;gap:5px;align-items:center}
+  .routing .sendrow input{width:5.5em}
+  .routing .sendrow button{padding:3px 9px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);cursor:pointer}
+  .routing .tok.in{background:#efe6c8;border-color:var(--ink-soft)}
+  .routing .pict{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:8px}
+  .routing svg{display:block;width:100%;max-width:380px;height:auto;margin:0 auto}
+  .routing svg text{font-family:var(--mono);fill:var(--ink)}
+  @media (max-width:640px){.routing .tile,.routing .facehead{grid-template-columns:auto 1fr}.routing .facehead{display:none}}
+</style>
+
+<p class="lead">Cells sit on a flat grid and words travel between neighbours. What happens when two paths need to cross? Two wires on a flat board cannot, so there are two small <strong>wiring tiles</strong>. The <strong>cross</strong> tile lets one word go straight through while another crosses it at right angles. The <strong>corner</strong> tile turns words round a bend. Neither one changes a word. They only decide which way it leaves.</p>
+
+<h2>1. One tile, four faces</h2>
+<p>A tile has four faces, N, S, E and W, and each face can be an entry and an exit. A word that comes in by a face is held in that face's own slot and offered to the paired face on the other side. The four slots are independent, so four words can be inside at once, each going its own way. Crossing a tile costs one tick.</p>
+<ul>
+  <li><strong>Cross</strong>: N and S are paired, and E and W are paired. A word entering at W leaves at E, one entering at N leaves at S, and so on, both ways.</li>
+  <li><strong>Corner, turn 0</strong>: E is paired with N, and W is paired with S.</li>
+  <li><strong>Corner, turn 1</strong>: E is paired with S, and W is paired with N. This is the mirror image, so a corner can send "E to N while W goes to S" or "E to S while W goes to N".</li>
+</ul>
+
+<div class="grid2">
+  <label class="f">Tile<select id="rt2-kind"><option value="cross">cross (straight through)</option><option value="c0">corner, turn 0 (E&harr;N, W&harr;S)</option><option value="c1">corner, turn 1 (E&harr;S, W&harr;N)</option></select></label>
+</div>
+<div class="pict"><svg id="rt2-svg" viewBox="0 0 380 312" role="img" aria-label="The wiring tile and its four faces"></svg></div>
+<div class="bar"><span>Examples:</span><button type="button" data-e="cross2">Two words crossing</button><button type="button" data-e="turn">E and W turn opposite ways</button><button type="button" data-e="block">One exit stuck</button></div>
+
+<div class="facehead"><span></span><span>send a word in by this face</span><span>inside the tile</span><span>left the tile by this face</span></div>
+<div id="rt2-faces"></div>
+<div class="bar"><button type="button" class="go" id="rt2-tick">Tick</button><button type="button" id="rt2-run">Run 6 ticks</button><button type="button" id="rt2-reset">Reset</button></div>
+<div class="says" id="rt2-says" aria-live="polite"></div>
+
+<h2>2. What to notice</h2>
+<ul>
+  <li><strong>Crossing needs no decisions.</strong> The cross tile never looks at a word. Pairs of faces are wired together, and that is the whole job. Without it, one path would have to wait for the other, or take a long detour.</li>
+  <li><strong>Four slots mean no collisions.</strong> A word going W to E and a word going N to S use different slots and pass each other in the same tick. Only two words entering by the <em>same</em> face have to queue.</li>
+  <li><strong>A stuck exit holds up only its own lane.</strong> Switch one exit to stuck: the word aimed at it waits where it is, and the other three lanes carry on. This is the same waiting rule as every other cell.</li>
+  <li><strong>A corner is a cross with a bend.</strong> Both have the same four slots and the same one-tick cost. The only difference is which face each slot leads to. A corner's turn setting picks one of the two bend patterns.</li>
+  <li><strong>They are routing only.</strong> The composer's routes are built from plain relay cells and these tiles. A word that goes through ten tiles has taken ten ticks, and the words that came in had their order kept.</li>
+</ul>
+<p class="fine">A simplified picture, one tick at a time. A word that arrives in a tick is held; it is offered at the next tick, and leaves when the neighbour on that side accepts it (the "accepting" switches stand for that neighbour). Taken from the Python model of the tiles, <code>nano/corner_cell_automaton_v1.py</code>, and the ledger entries #1035 and #1036. The real tiles also exist as Verilog (<code>corner_cell_v4.v</code>, <code>corner_cell_v4c.v</code>) and, on the flex family, a cross or corner is lowered to ram relays before the generators run; this page shows the model's behaviour, not that lowering, and the VM is not running here.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('route-root'); if(!root) return;
+  function $(id){return document.getElementById(id);}
+  var F=['N','S','E','W'],P={cross:{N:'S',S:'N',E:'W',W:'E'},c0:{E:'N',N:'E',W:'S',S:'W'},c1:{E:'S',S:'E',W:'N',N:'W'}};
+  var T=null,n=0;
+  var host=$('rt2-faces'),rows={};
+  F.forEach(function(f){
+    var d=document.createElement('div');d.className='tile';
+    d.innerHTML='<span class="nm">'+f+'</span>'
+      +'<div class="sendrow"><input type="text" aria-label="word to send in by '+f+'" value="" placeholder="e.g. 5"><button type="button">Send</button><span class="q"></span></div>'
+      +'<div class="lane"></div>'
+      +'<div class="lane"><span class="rcv"></span><label class="ck" style="font-size:.78em"><input type="checkbox" checked aria-label="the neighbour at '+f+' accepts"> accepting</label></div>';
+    host.appendChild(d);
+    rows[f]={d:d,inp:d.querySelector('input[type=text]'),btn:d.querySelector('button'),q:d.querySelector('.q'),slot:d.children[2],rcv:d.querySelector('.rcv'),acc:d.querySelector('input[type=checkbox]')};
+    rows[f].btn.addEventListener('click',function(){var v=Number(rows[f].inp.value);if(rows[f].inp.value.trim()===''||!isFinite(v)||Math.floor(v)!==v)return;T.q[f].push(v);rows[f].inp.value='';paint();});
+    rows[f].inp.addEventListener('keydown',function(e){if(e.key==='Enter')rows[f].btn.click();});
+    rows[f].acc.addEventListener('change',paint);
+  });
+  function reset(msg){T={q:{N:[],S:[],E:[],W:[]},slot:{},out:{N:[],S:[],E:[],W:[]},msg:msg||'Send some words in, then press Tick.',ticks:0};paint();}
+  function partner(f){return P[$('rt2-kind').value][f];}
+  function tick(){
+    var notes=[],f,o,did=false;T.ticks++;
+    /* 1. offers: a held word leaves by its partner face if the neighbour there accepts it */
+    F.forEach(function(f){if(T.slot[f]!==undefined){o=partner(f);
+      if(rows[o].acc.checked){T.out[o].push(T.slot[f]);notes.push(T.slot[f]+' left by '+o+' (it came in by '+f+')');delete T.slot[f];did=true;}
+      else notes.push(T.slot[f]+' is waiting to leave by '+o+', but the neighbour there is not accepting');}});
+    /* 2. arrivals: a face whose slot is empty takes the next word waiting to enter */
+    F.forEach(function(f){if(T.q[f].length&&T.slot[f]===undefined){T.slot[f]=T.q[f].shift();notes.push(T.slot[f]+' came in by '+f);did=true;}
+      else if(T.q[f].length)notes.push('a word waits to enter by '+f+' because its slot is still full');});
+    T.msg='Tick '+T.ticks+': '+(notes.join('; ')||'nothing happened')+'.';
+  }
+  var cols={N:[190,40],S:[190,260],E:[340,150],W:[40,150]};
+  function draw(){
+    var k=$('rt2-kind').value,s='',i;
+    s+='<rect x="130" y="90" width="120" height="120" rx="14" fill="var(--paper-edge)" stroke="var(--ink-soft)" stroke-width="3"/>';
+    var edge={N:[190,90],S:[190,210],E:[250,150],W:[130,150]},ctr=[190,150];
+    var pairs=[];F.forEach(function(f){var o=P[k][f];if(f<o||F.indexOf(f)<F.indexOf(o))pairs.push([f,o]);});
+    pairs.forEach(function(pr){var a=edge[pr[0]],b=edge[pr[1]],on=(T.slot[pr[0]]!==undefined)||(T.slot[pr[1]]!==undefined);
+      var d=(k==='cross')?'M'+a[0]+','+a[1]+' L'+b[0]+','+b[1]:'M'+a[0]+','+a[1]+' Q'+ctr[0]+','+ctr[1]+' '+b[0]+','+b[1];
+      s+='<path d="'+d+'" stroke="'+(on?'var(--accent-bright)':'var(--ink-soft)')+'" stroke-width="'+(on?6:4)+'" fill="none" stroke-linecap="round"/>';});
+    F.forEach(function(f){var c=cols[f],a=edge[f];s+='<path d="M'+c[0]+','+c[1]+' L'+a[0]+','+a[1]+'" stroke="var(--rule)" stroke-width="3"/>';
+      s+='<text x="'+c[0]+'" y="'+(f==='N'?c[1]-8:f==='S'?c[1]+18:c[1]+5)+'" text-anchor="'+(f==='E'?'start':f==='W'?'end':'middle')+'" font-size="14" font-weight="bold" dx="'+(f==='E'?8:f==='W'?-8:0)+'">'+f+'</text>';
+      if(T.slot[f]!==undefined){var sx=a[0]+(f==='W'?12:f==='E'?-12:0)+(f==='N'||f==='S'?0:0),sy=a[1]+(f==='N'?14:f==='S'?-14:0);
+        s+='<rect x="'+(sx-16)+'" y="'+(sy-11)+'" width="32" height="22" rx="8" fill="var(--accent)"/><text x="'+sx+'" y="'+(sy+5)+'" text-anchor="middle" font-size="12" fill="#fff" style="fill:#fff">'+T.slot[f]+'</text>';}});
+    s+='<text x="190" y="306" text-anchor="middle" font-size="11" fill="var(--ink-soft)">'+(k==='cross'?'cross: N↔S, E↔W':k==='c0'?'corner, turn 0: E↔N, W↔S':'corner, turn 1: E↔S, W↔N')+'</text>';
+    $('rt2-svg').innerHTML=s;
+  }
+  function paint(){
+    F.forEach(function(f){var r=rows[f];
+      r.q.innerHTML=T.q[f].map(function(v){return '<span class="tok in">'+v+'</span>';}).join('');
+      r.slot.innerHTML=T.slot[f]!==undefined?'<span class="tok front">'+T.slot[f]+'</span> <span class="sc">&rarr; '+partner(f)+'</span>':'<span class="sc">empty</span>';
+      r.rcv.innerHTML=T.out[f].length?T.out[f].map(function(v){return '<span class="tok won">'+v+'</span>';}).join(''):'<span class="sc">nothing</span> ';
+    });
+    $('rt2-says').textContent=T.msg;draw();
+  }
+  var EX={
+    cross2:function(k){$('rt2-kind').value='cross';reset('Send W→E and N→S at the same time: they cross without meeting.');T.q.W=[11,12];T.q.N=[21,22];paint();},
+    turn:function(){$('rt2-kind').value='c0';reset('Corner turn 0: what enters by E leaves by N, and what enters by W leaves by S, at the same time.');T.q.E=[1,2];T.q.W=[7,8];paint();},
+    block:function(){$('rt2-kind').value='cross';reset('The neighbour at E is stuck. Words aimed at E wait; the other lanes carry on.');F.forEach(function(f){rows[f].acc.checked=true;});rows.E.acc.checked=false;T.q.W=[3,4];T.q.N=[5,6];T.q.E=[9];paint();}
+  };
+  [].forEach.call(root.querySelectorAll('[data-e]'),function(b){b.addEventListener('click',function(){F.forEach(function(f){rows[f].acc.checked=true;});EX[b.getAttribute('data-e')]();});});
+  $('rt2-kind').addEventListener('change',function(){reset();});
+  $('rt2-tick').addEventListener('click',function(){tick();paint();});
+  $('rt2-run').addEventListener('click',function(){for(var i=0;i<6;i++)tick();paint();});
+  $('rt2-reset').addEventListener('click',function(){F.forEach(function(f){rows[f].acc.checked=true;});reset();});
+  reset();
+})();
+</script>
+</div>

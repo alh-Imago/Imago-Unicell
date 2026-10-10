@@ -135,4 +135,16 @@ Alan asked whether the add and multiply units had been done; they were only bloc
 
 **Still not on any hands-on page:** ram's flowing mode (the Chaining page has only the fixed constant).
 
-Next entry: #1047.
+---
+
+## #1047 -- TEACHING MANUAL: RAM ON THE MEMORY PAGE, AND A ROUTING PAGE FOR THE CROSS AND CORNER TILES (Alan's direction)
+
+Alan asked which other cells have a special mode; I read the headers and found ram (constant, one-shot, hold, with an optional preload) and the branch's per-input fixed or flowing choice as the ones not yet on a page. He asked for memory next, then the special routing parts, the cross and the corner.
+
+**Memory page (tab, now 08).** Retitled "Remembering: Latch, Sequencer and Ram". New section: a ram builder with three modes from `ram_cell_v4sa.v`: constant (fixed; always offered, never drains, ignores writes), one-shot (flowing; a written word is offered once and the cell is empty when taken; a write while a word is waiting is refused), hold (`HOLD=1`, #1021/#1035; keeps offering its word, copies can be taken again and again, a write replaces it; empty until written or preloaded), plus a "start with the configured word inside" option (`OFFER_PRELOAD`; a constant always has it). Buttons: write the word in, receiver takes, reset. The page works at word level (no handshake ticks).
+
+**Routing page (new tab 07).** Cross and corner tiles, from the Python model `nano/corner_cell_automaton_v1.py` and the ledger (#1035, #1036): four faces N/S/E/W, four independent one-word slots, a word entering by a face is held in that face's slot and offered to its partner face, one tick per tile; cross pairs N-S and E-W, corner turn 0 pairs E-N and W-S, turn 1 pairs E-S and W-N. A picture of the tile (pairing lines, held words) plus per-face send boxes, "inside" slots and what left by each face, an "accepting" switch per exit to stand for the neighbour, Tick / Run 6 / Reset and three examples (two words crossing, E and W turning opposite ways, one exit stuck). A word arriving in a tick is held, offered at the next tick, and leaves when that exit's neighbour accepts; a stuck exit holds up only its own lane. Tabs now: 01 Tour, 02 Family, 03 Chaining, 04 Maths, 05 Branching, 06 Join & Split, 07 Routing, 08 Memory, 09 Bits, 10 Start, 11 Backdrop.
+
+**Checked.** Real Chromium: ram: 15 behaviour checks (constant ignores a write and copies repeatedly; one-shot starts empty, refuses a second write while waiting, empties when taken, preload offers once; hold copies repeatedly, a write replaces, preload holds the configured word); latch and sequencer checks still pass. Routing: cross sends W-to-E and N-to-S together (11,12 and 21,22); corner turn 0 sends E-to-N and W-to-S (1,2 and 7,8); turn 1 sends E-to-S and W-to-N; with E stuck the other lanes carry on and the held words come out when it accepts; three words entering by the same face come out in order. No console errors, no sideways overflow at 390 px. A layout slip found by looking (idle pairing lines too faint, face label on top of the caption) was fixed. NOT checked: nothing was run against the Verilog (`corner_cell_v4.v`) or a live VM cell (no `iverilog`); the routing page follows the Python model's description, and the page does not show how the flex family lowers a cross or corner to ram relays. The branch cell's per-input fixed or flowing mode is still not on the Branching page. Main manual unchanged.
+
+Next entry: #1048.

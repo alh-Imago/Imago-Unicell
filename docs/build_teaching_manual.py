@@ -75,23 +75,30 @@ SECTIONS = [
              "one; the router cell sends one path to up to two places. Both teach what has to "
              "wait for what.",
      "html":open(os.path.join(HERE, "teaching", "joinsplit_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to Branching","#sec-branching","section"),("Continue → Memory","#sec-memory","section")]},
+     "links":[("← Back to Branching","#sec-branching","section"),("Continue → Routing","#sec-routing","section")]},
 
-    {"id":"memory","num":"07","tab":"Memory","title":"Remembering: Latch and Sequencer",
+    {"id":"routing","num":"07","tab":"Routing","title":"Crossing and Turning: Cross and Corner Tiles",
+     "intro":"Two wiring tiles let paths cross and turn on a flat grid. They change nothing about a "
+             "word; they only decide which way it leaves. Send words in and watch them cross.",
+     "html":open(os.path.join(HERE, "teaching", "routing_fragment.html"), encoding="utf-8").read(),
+     "links":[("← Back to Joining and Splitting","#sec-joinsplit","section"),("Continue → Memory","#sec-memory","section")]},
+
+    {"id":"memory","num":"08","tab":"Memory","title":"Remembering: Latch, Sequencer and Ram",
      "intro":"Everything so far let go of its value as soon as it passed it on. The latch keeps one "
-             "bit until it is told to change; the sequencer keeps a short list and steps through it. "
+             "bit until it is told to change; the sequencer keeps a short list and steps through it; "
+             "the ram cell holds a word in one of three ways. "
              "Press the buttons and watch what is stored and what is reported.",
      "html":open(os.path.join(HERE, "teaching", "memory_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to Joining and Splitting","#sec-joinsplit","section"),("Continue → Bits","#sec-bits","section")]},
+     "links":[("← Back to Routing","#sec-routing","section"),("Continue → Bits","#sec-bits","section")]},
 
-    {"id":"bits","num":"08","tab":"Bits","title":"Reshaping Words: Shift and Mask",
+    {"id":"bits","num":"09","tab":"Bits","title":"Reshaping Words: Shift and Mask",
      "intro":"A word is a row of bits. The shift stage slides the bits along; the mask cell switches "
              "whole groups of them off. See each stage's bits, what fell off the end, and how the two "
              "together can pull a field out of a word.",
      "html":open(os.path.join(HERE, "teaching", "bits_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Memory","#sec-memory","section"),("Continue → Start","#sec-start","section")]},
 
-    {"id":"start","num":"09","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"start","num":"10","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -102,7 +109,7 @@ SECTIONS = [
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
      "links":[("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"10","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"11","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "

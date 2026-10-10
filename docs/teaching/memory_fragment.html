@@ -46,7 +46,7 @@
 </style>
 
 
-<p class="lead">Everything so far forgot its value as soon as it passed it on. Two small cells <em>keep</em> something. The <strong>latch</strong> remembers a single bit until it is told to change; the <strong>sequencer</strong> remembers a short list and steps through it one value at a time.</p>
+<p class="lead">Everything so far forgot its value as soon as it passed it on. Three cells <em>keep</em> something. The <strong>latch</strong> remembers a single bit until it is told to change; the <strong>sequencer</strong> remembers a short list and steps through it one value at a time; the <strong>ram</strong> cell holds a whole word, in one of three ways.</p>
 
 <h2>1. The latch: one bit that stays</h2>
 <p>A latch has three one-bit event inputs: <strong>set</strong> (make it 1), <strong>clear</strong> (make it 0) and <strong>toggle</strong> (flip it). Nothing else changes it. If events arrive together the order is fixed: <strong>clear beats set, and set beats toggle</strong>. After each event the cell reports its new value on its output and holds that report until the receiver takes it.</p>
@@ -83,14 +83,37 @@
 </div>
 <div class="says" id="sq-says" aria-live="polite"></div>
 
-<h2>3. What to notice</h2>
+<h2>3. The ram cell: one word, three ways to hold it</h2>
+<p>A ram cell holds one word. What it does with that word depends on how the design was built:</p>
+<ul>
+  <li><strong>Constant</strong> (fixed): the word is always on offer and never runs out. Any number of copies can be taken, any time. It ignores anything written to it. This is the mode the Chaining page used for its constants.</li>
+  <li><strong>One-shot</strong> (flowing): a word written in is offered once. When the receiver takes it, the cell is empty again and ready for the next. While a word is waiting, a new write is refused.</li>
+  <li><strong>Hold</strong>: it keeps offering its word, like a constant, and copies can be taken again and again, but a new word written in <em>replaces</em> it. This is the cell that behaves like a memory location: write, then read as often as you like.</li>
+</ul>
+<p>One-shot and hold can start empty or start with the configured word already inside. A constant always has it.</p>
+<div class="grid2">
+  <label class="f">Mode<select id="rm-mode"><option value="const">constant</option><option value="one">one-shot (empty once taken)</option><option value="hold">hold (replace on write, copy on read)</option></select></label>
+  <label class="f">Configured word<input type="number" id="rm-cfg" value="42" step="1"></label>
+  <label class="f">Word to write in<input type="number" id="rm-w" value="7" step="1"></label>
+  <label class="ck" style="align-self:end"><input type="checkbox" id="rm-pre"> start with the configured word inside</label>
+</div>
+<div class="bar"><button type="button" class="go" id="rm-write">Write the word in</button><button type="button" class="go" id="rm-take">Receiver takes</button><button type="button" id="rm-reset">Reset</button></div>
+<div class="board"><div class="row">
+  <div class="col"><div class="lamp" id="rm-lamp" style="width:auto;border-radius:12px;padding:0 .5em;min-width:3.4em">&ndash;</div>the stored word</div>
+  <div class="col"><div class="offer" id="rm-offer">nothing offered</div>what the cell is offering</div>
+</div>
+<div class="lane" style="margin-top:.6em"><span class="tag">taken</span><span id="rm-got" class="lane"></span></div></div>
+<div class="says" id="rm-says" aria-live="polite"></div>
+
+<h2>4. What to notice</h2>
 <ul>
   <li><strong>Memory is just a value that is not thrown away.</strong> The latch keeps its bit through any number of ticks in which nothing happens. Every other cell on the earlier pages passed its value on and let go.</li>
   <li><strong>Remembering and reporting are separate.</strong> The latch updates its bit on every event, but it can only <em>tell</em> the next cell when its last report has been taken. Under pressure the memory is right and the report is late.</li>
   <li><strong>A fixed order needs no program.</strong> The sequencer's whole behaviour is a counter that wraps and four stored values. That is how a repeating pattern, such as the steps of a motor or a lamp, can come from a cell and not from instructions.</li>
+  <li><strong>Constant, one-shot and hold are three kinds of memory.</strong> A constant never changes, a one-shot is a mailbox that empties when read, and a hold is a memory location that keeps its word until overwritten. The hardware difference is tiny; what it means for the rest of the design is large.</li>
   <li><strong>The first advance does not repeat the starting value.</strong> The cell starts standing on value 0 and the first advance steps on to value 1, which is the first one offered. Value 0 comes out last in the first lap.</li>
 </ul>
-<p class="fine">A simplified picture, one tick at a time, drawn by this page's script from the cells' Verilog (<a href="../sub/verilog/latch_cell_v4sa.v">latch</a>, <a href="../sub/verilog/sequencer_cell_v4sa.v">sequencer</a>). The real cells carry a valid/ack handshake on every port, a freeze input and a configuration step; the page shows the stored value, the offer and the receiver's acceptance only. Each press of Advance here waits one tick for the receiver, if needed, so you can see a full cycle without counting ticks. The VM is not running. The latch holds one bit and the sequencer's values are 8 bits wide.</p>
+<p class="fine">A simplified picture, one tick at a time, drawn by this page's script from the cells' Verilog (<a href="../sub/verilog/latch_cell_v4sa.v">latch</a>, <a href="../sub/verilog/sequencer_cell_v4sa.v">sequencer</a>, <a href="../sub/verilog/ram_cell_v4sa.v">ram</a>). The real cells carry a valid/ack handshake on every port, a freeze input and a configuration step; the page shows the stored value, the offer and the receiver's acceptance only. Each press of Advance here waits one tick for the receiver, if needed, so you can see a full cycle without counting ticks. The VM is not running. The latch holds one bit and the sequencer's values are 8 bits wide.</p>
 
 <script>
 (function(){
@@ -153,7 +176,40 @@
     $('sq-got').innerHTML=(S.got.length?S.got.map(function(g){return '<span class="tok won">'+g+'</span>';}).join(''):'<span class="mono" style="color:var(--ink-soft)">nothing yet</span>')+(S.pend?' <span class="tok held" title="waiting to be taken">'+S.off+'</span>':'');
     $('sq-says').textContent=S.msg;
   }
-  lReset();sReset();
+    /* ---------- ram ---------- */
+  var R=null;
+  function rmNum(id){var raw=$(id).value,n=Number(raw);return(raw===''||!isFinite(n)||Math.floor(n)!==n||Math.abs(n)>9e15)?null:wrapW(n);}
+  function wrapW(v){var M=Math.pow(2,18),u=((v%M)+M)%M;return u>=M/2?u-M:u;}
+  function rmReset(){
+    var m=$('rm-mode').value,c=rmNum('rm-cfg'),pre=$('rm-pre').checked||m==='const';
+    $('rm-pre').disabled=(m==='const');
+    R={mode:m,data:c===null?0:c,pend:(m==='one'&&pre),have:(m==='hold'&&pre),got:[],bad:c===null,
+       msg:c===null?'Type a whole number for the configured word.':m==='const'?'A constant is always on offer.':(pre?'Starts with the configured word inside.':'Starts empty. Write a word in.')};
+    rmPaint();
+  }
+  function rmOffering(){return R.mode==='const'||(R.mode==='one'&&R.pend)||(R.mode==='hold'&&R.have);}
+  function rmPaint(){
+    var empty=(R.mode==='one'&&!R.pend)||(R.mode==='hold'&&!R.have);
+    $('rm-lamp').textContent=empty?'\u2013':R.data;
+    $('rm-offer').textContent=rmOffering()?'offering '+R.data:'nothing offered';$('rm-offer').className='offer'+(rmOffering()?' pend':'');
+    $('rm-got').innerHTML=R.got.length?R.got.map(function(g){return '<span class="tok won">'+g+'</span>';}).join(''):'<span class="mono" style="color:var(--ink-soft)">nothing yet</span>';
+    $('rm-says').textContent=R.msg;
+  }
+  $('rm-write').addEventListener('click',function(){
+    if(R.bad)return;var v=rmNum('rm-w');if(v===null){R.msg='Type a whole number to write.';rmPaint();return;}
+    if(R.mode==='const')R.msg='A constant ignores its input: nothing was stored. Its word is still '+R.data+'.';
+    else if(R.mode==='one'){if(R.pend)R.msg='Refused: the cell is still holding '+R.data+' and has not been told it was taken. The sender must wait.';else{R.data=v;R.pend=true;R.msg='Stored '+v+' and now offering it once.';}}
+    else{var had=R.have;R.data=v;R.have=true;R.msg=(had?'Replaced the held word with '+v+'.':'Stored '+v+'.')+' It will be offered again and again.';}
+    rmPaint();});
+  $('rm-take').addEventListener('click',function(){
+    if(R.bad)return;
+    if(R.mode==='const'){R.got.push(R.data);R.msg='Took a copy of '+R.data+'. The constant is unchanged and can be copied again.';}
+    else if(R.mode==='one'){if(R.pend){R.got.push(R.data);R.pend=false;R.msg='Took '+R.data+'. The cell is now empty: a second take finds nothing.';}else R.msg='Nothing to take: the cell is empty.';}
+    else{if(R.have){R.got.push(R.data);R.msg='Took a copy of '+R.data+'. The word stays in the cell, so it can be copied again.';}else R.msg='Nothing to take yet: nothing has been written.';}
+    if(R.got.length>12)R.got=R.got.slice(-12);rmPaint();});
+  $('rm-reset').addEventListener('click',rmReset);
+  ['rm-mode','rm-cfg','rm-pre'].forEach(function(id){$(id).addEventListener('input',rmReset);$(id).addEventListener('change',rmReset);});
+  lReset();sReset();rmReset();
 })();
 </script>
 </div>
