@@ -55,9 +55,16 @@ SECTIONS = [
              "input of the next, through dedicated ports with no shared bus. Drag cells into a "
              "simple grid, type a number in, and see what comes out of the end of the chain.",
      "html":open(os.path.join(HERE, "teaching", "chaining_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to the Family","#sec-family","section"),("Continue → Start","#sec-start","section")]},
+     "links":[("← Back to the Family","#sec-family","section"),("Continue → Branching","#sec-branching","section")]},
 
-    {"id":"start","num":"04","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"branching","num":"04","tab":"Branching","title":"Branching and Decisions",
+     "intro":"Chained cells run straight on. Two flex cells make choices: the branch cell decides "
+             "where one value goes, and the priority cell decides which of several waiting values "
+             "goes next. Try both with your own numbers.",
+     "html":open(os.path.join(HERE, "teaching", "branching_fragment.html"), encoding="utf-8").read(),
+     "links":[("← Back to Chaining","#sec-chaining","section"),("Continue → Start","#sec-start","section")]},
+
+    {"id":"start","num":"05","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -68,7 +75,7 @@ SECTIONS = [
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
      "links":[("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"05","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"06","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "

@@ -1,0 +1,269 @@
+<!-- Branching fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). -->
+<div class="branching" id="branch-root">
+<style>
+  .branching h2{margin-top:1.6em}
+  .branching .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .branching button,.branching select,.branching input{font:inherit;font-size:.95em}
+  .branching .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .branching .bar button,.branching .btn{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .branching .bar button.go{background:var(--accent);color:#fff}
+  .branching input[type=text],.branching input[type=number],.branching select{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+  .branching .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;margin:.6em 0}
+  .branching label.f{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--ink-soft)}
+  .branching label.f input,.branching label.f select{width:100%}
+  .branching .routes{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 14px;align-items:center;margin:.6em 0;font-size:.92em;max-width:420px}
+  .branching .routes b{font-family:var(--mono)}
+  .branching .routes label{display:flex;gap:5px;align-items:center;cursor:pointer}
+  .branching .picture{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:8px;overflow-x:auto}
+  .branching svg{display:block;width:100%;max-width:640px;height:auto;margin:0 auto}
+  .branching svg text{font-family:var(--mono);fill:var(--ink)}
+  .branching .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .branching table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:.85em;margin:.6em 0}
+  .branching th,.branching td{border-bottom:1px solid var(--rule);padding:4px 8px;text-align:left}
+  .branching tr.sel td{background:rgba(21,117,109,.16)}
+  .branching tbody tr{cursor:pointer}
+  .branching .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  /* priority */
+  .branching .face{display:grid;grid-template-columns:2.2em auto auto 1fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--rule)}
+  .branching .face .nm{font-family:var(--mono);font-weight:bold;font-size:1.1em}
+  .branching .face .en{display:flex;gap:4px;align-items:center;font-size:.85em;color:var(--ink-soft)}
+  .branching .face .qx{grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:1.9em}
+  .branching .face input[type=text]{width:100%}
+  .branching .face.off{opacity:.55}
+  .branching .tok{font-family:var(--mono);font-size:.82em;padding:1px 8px;border-radius:9px;border:1px solid var(--rule);background:#fff}
+  .branching .tok.front{border-color:var(--accent);border-width:2px}
+  .branching .tok.won{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .branching .sc{font-family:var(--mono);font-size:.72em;color:var(--ink-soft)}
+  .branching .outrow{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:.5em 0;min-height:2em}
+  .branching ol.log{font-family:var(--mono);font-size:.82em;margin:.4em 0;padding-left:2em}
+  .branching ol.log li{margin:.15em 0}
+  .branching .seqrow{display:none}
+  .branching .seqrow.on{display:block}
+  @media (max-width:520px){.branching .face{grid-template-columns:2em auto 1fr}.branching .face .en2{grid-column:1 / -1}}
+</style>
+
+<p class="lead">Chained cells run straight on. Two flex cells make choices: the <strong>branch</strong> cell decides where one value goes, and the <strong>priority</strong> cell decides which of several waiting values goes next. Neither one needs a program. The choice is made by the cell, with its settings fixed beforehand.</p>
+
+<h2>1. The branch cell: where does this value go?</h2>
+<p>A branch cell compares its two inputs as signed numbers and gets one of three answers: <strong>low</strong> (in1 is below in2), <strong>equal</strong> or <strong>high</strong>. For each answer you have chosen in advance which of its two output ports gets the result: out1, out2, both, or neither (the value is dropped). What goes out is also chosen in advance: a constant, in1, in2, or the difference in1 &minus; in2.</p>
+
+<div class="bar" id="br-presets"><span>Examples:</span>
+  <button type="button" data-p="lanes">Two lanes</button>
+  <button type="button" data-p="alarm">Alarm on too big</button>
+  <button type="button" data-p="diff">Report only differences</button></div>
+
+<div class="grid2">
+  <label class="f">in1 (the stream: separate values with commas)<input type="text" id="br-in1" value="3, 9, 5, 12, 5"></label>
+  <label class="f">in2 (the limit it is compared with)<input type="number" id="br-in2" value="5" step="1"></label>
+  <label class="f">What goes out<select id="br-emit"><option value="in1">in1 itself</option><option value="in2">in2</option><option value="diff">the difference, in1 &minus; in2</option><option value="fixed">a fixed constant</option></select></label>
+  <label class="f">The constant (used only if "fixed")<input type="number" id="br-fixed" value="1" step="1"></label>
+</div>
+<div class="routes" id="br-routes">
+  <span></span><b>out1</b><b>out2</b>
+</div>
+
+<div class="picture"><svg id="br-svg" viewBox="0 0 640 250" role="img" aria-label="The branch cell with its two inputs, three answers and two outputs"></svg></div>
+<div class="says" id="br-says" aria-live="polite"></div>
+<p style="margin:.2em 0;font-size:.88em;color:var(--ink-soft)">Each value in the stream is one round. Click a row to see it in the picture.</p>
+<table id="br-table"><thead><tr><th>in1</th><th>in2</th><th>answer</th><th>out1</th><th>out2</th></tr></thead><tbody></tbody></table>
+
+<h2>2. The priority cell: who goes next?</h2>
+<p>A priority cell has four input faces (N, S, E, W) and one output. Several faces can have a value waiting at once; the cell lets exactly one through per round, and the others simply wait where they are. Only the winner is acknowledged, so nobody else loses anything. You pick how the winner is chosen:</p>
+<ul>
+  <li><strong>Strict</strong>: the face with the best rank always wins. Rank 0 is the highest priority. A busy high-priority face can starve the others.</li>
+  <li><strong>Weighted</strong>: shares in proportion to weight (0 to 3). Every waiting face earns credit equal to its weight each round, the highest credit wins, and the winner pays back the total weight of that round.</li>
+  <li><strong>Sequenced</strong>: a fixed turn order, such as N, E, N, W. Only the face whose turn it is can go, even if the others have been waiting longer.</li>
+</ul>
+<p>A tie is always broken in the order N, then S, then E, then W. A face that is switched off never wins, however long it waits.</p>
+
+<div class="bar" id="pr-presets"><span>Examples:</span>
+  <button type="button" data-p="strict">Emergency lane (strict)</button>
+  <button type="button" data-p="weighted">Fair shares (weighted)</button>
+  <button type="button" data-p="seq">Strict turns (sequenced)</button></div>
+<div class="grid2">
+  <label class="f">How the winner is chosen<select id="pr-mode"><option value="strict">strict: best rank wins</option><option value="weighted">weighted: shares by weight</option><option value="seq">sequenced: fixed turn order</option></select></label>
+  <label class="f seqrow" id="pr-seqbox">Turn order (up to four of N S E W, e.g. N E N W)<input type="text" id="pr-seq" value="N E N W"></label>
+</div>
+<div id="pr-faces"></div>
+
+<div class="bar"><button type="button" class="go" id="pr-one">Let one through</button><button type="button" id="pr-all">Run until nothing can go</button><button type="button" id="pr-reset">Reset</button></div>
+<p style="margin:.4em 0 0;font-size:.88em;color:var(--ink-soft)">Output, in the order values left the cell:</p>
+<div class="outrow" id="pr-out"></div>
+<div class="says" id="pr-says" aria-live="polite"></div>
+<ol class="log" id="pr-log"></ol>
+
+<h2>3. What to notice</h2>
+<ul>
+  <li><strong>A branch does not run code.</strong> Its three answers and where each one goes are settings, fixed when the design is built. What varies is only the data.</li>
+  <li><strong>Dropping a value is a choice.</strong> Setting "neither" for an answer makes the cell swallow the value silently, which is how a branch filters a stream.</li>
+  <li><strong>Waiting is part of the design.</strong> In the priority cell the losers keep their values and wait; nothing is lost. Under strict priority they may wait a long time, and that is the trade you made.</li>
+  <li><strong>Sequenced mode blocks on purpose.</strong> If it is E's turn and E has nothing, the cell waits for E while N and W hold their values. That makes the order certain, at the price of speed.</li>
+</ul>
+<p class="fine">A simplified picture. It shows the decision each cell makes, taken from its Verilog (<a href="../sub/verilog/branch_cell_v4sa.v">branch</a>, <a href="../sub/verilog/priority_cell_v4sa.v">priority</a>), one round at a time. The real cells also handle the valid/ack handshake, a fixed or flowing mode for each branch input, and two outputs that can each be blocked separately; those are left out here. Numbers are 18 bits wide and signed, like the Tang Nano 20K build. The picture is drawn by this page's script, not by running the VM.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('branch-root'); if(!root) return;
+  var BITS=18,MOD=Math.pow(2,BITS),HALF=MOD/2;
+  function wrap(v){var u=Number(BigInt.asUintN(BITS,BigInt(Math.trunc(v))));return u>=HALF?u-MOD:u;}
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+  function parseList(t){ /* -> {vals:[], bad:bool} */
+    var parts=String(t).split(/[\s,]+/).filter(function(x){return x!=='';}),vals=[],bad=false;
+    parts.forEach(function(p){var n=Number(p);if(!isFinite(n)||Math.floor(n)!==n||Math.abs(n)>9e15)bad=true;else vals.push(wrap(n));});
+    return {vals:vals,bad:bad};
+  }
+
+  /* ---------- branch ---------- */
+  var OUTC=['low','equal','high'],routes={low:[1,0],equal:[1,0],high:[0,1]},selRow=0;
+  var rt=$('br-routes');
+  OUTC.forEach(function(o){
+    var lab=document.createElement('b');lab.textContent=o;rt.appendChild(lab);
+    [0,1].forEach(function(k){var l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.setAttribute('data-o',o);c.setAttribute('data-k',k);
+      c.setAttribute('aria-label',o+' goes to out'+(k+1));
+      c.addEventListener('change',function(){routes[o][k]=c.checked?1:0;branchUpdate();});l.appendChild(c);l.appendChild(document.createTextNode(' yes'));rt.appendChild(l);});
+  });
+  function syncRoutes(){[].forEach.call(rt.querySelectorAll('input'),function(c){c.checked=!!routes[c.getAttribute('data-o')][+c.getAttribute('data-k')];});}
+  var BP={
+    lanes:{in1:'3, 9, 5, 12, 5',in2:5,emit:'in1',fixed:1,r:{low:[1,0],equal:[1,0],high:[0,1]}},
+    alarm:{in1:'3, 9, 5, 12, 5',in2:8,emit:'fixed',fixed:1,r:{low:[0,0],equal:[0,0],high:[0,1]}},
+    diff:{in1:'3, 9, 5, 12, 5',in2:5,emit:'diff',fixed:1,r:{low:[1,0],equal:[0,0],high:[1,0]}}
+  };
+  [].forEach.call(root.querySelectorAll('#br-presets [data-p]'),function(b){b.addEventListener('click',function(){
+    var p=BP[b.getAttribute('data-p')];$('br-in1').value=p.in1;$('br-in2').value=p.in2;$('br-emit').value=p.emit;$('br-fixed').value=p.fixed;
+    routes={low:p.r.low.slice(),equal:p.r.equal.slice(),high:p.r.high.slice()};selRow=0;syncRoutes();branchUpdate();});});
+  ['br-in1','br-in2','br-emit','br-fixed'].forEach(function(id){$(id).addEventListener('input',function(){branchUpdate();});$(id).addEventListener('change',function(){branchUpdate();});});
+
+  function branchRound(a,b,emit,fx){
+    var an=a<b?'low':(a===b?'equal':'high'),v;
+    v=emit==='in1'?a:emit==='in2'?b:emit==='diff'?wrap(a-b):wrap(fx);
+    var r=routes[an];
+    return {a:a,b:b,answer:an,val:v,o1:r[0]?v:null,o2:r[1]?v:null};
+  }
+  var emitName={in1:'in1',in2:'in2',diff:'in1 − in2',fixed:'the fixed constant'};
+  function draw(row,emit){
+    var s='',A=row?row.answer:'';
+    function wire(x1,y1,x2,y2,on){return '<path d="M'+x1+','+y1+' L'+x2+','+y2+'" stroke="'+(on?'var(--accent-bright)':'var(--rule)')+'" stroke-width="'+(on?4:3)+'" fill="none"/>';}
+    function arrow(x,y,c){return '<path d="M'+(x-9)+','+(y-6)+' L'+x+','+y+' L'+(x-9)+','+(y+6)+' Z" fill="'+c+'"/>';}
+    s+='<rect x="190" y="20" width="250" height="210" rx="12" fill="var(--paper-edge)" stroke="var(--ink-soft)" stroke-width="2"/><text x="315" y="44" text-anchor="middle" font-size="15" font-weight="bold">branch</text>';
+    /* inputs */
+    s+=wire(60,80,190,80,!!row)+arrow(190,80,'var(--accent)')+'<text x="8" y="76" font-size="13">in1</text><text x="8" y="94" font-size="13" fill="var(--ink-soft)">'+(row?row.a:'')+'</text>';
+    s+=wire(60,180,190,180,!!row)+arrow(190,180,'var(--accent)')+'<text x="8" y="176" font-size="13">in2</text><text x="8" y="194" font-size="13">'+(row?row.b:'')+'</text>';
+    s+='<text x="196" y="72" font-size="11" fill="var(--ink-soft)">in1</text><text x="196" y="172" font-size="11" fill="var(--ink-soft)">in2</text>';
+    /* three answers */
+    OUTC.forEach(function(o,i){var x=240+i*0,y=62+i*50,on=(A===o);
+      s+='<rect x="'+(250)+'" y="'+y+'" width="140" height="38" rx="8" fill="'+(on?'var(--accent)':'#fff')+'" stroke="'+(on?'var(--accent)':'var(--rule)')+'" stroke-width="2"/>'
+        +'<text x="320" y="'+(y+24)+'" text-anchor="middle" font-size="14" font-weight="bold" fill="'+(on?'#fff':'var(--ink)')+'">'+o.toUpperCase()+'</text>';
+      /* routes drawn as small markers on the right edge of the lamp */
+      [0,1].forEach(function(k){s+='<circle cx="'+(396+k*14)+'" cy="'+(y+19)+'" r="4.5" fill="'+(routes[o][k]?(on?'var(--accent)':'var(--ink-soft)'):'none')+'" stroke="var(--ink-soft)" stroke-width="1.5"/>';});
+    });
+    s+='<text x="396" y="58" font-size="10" fill="var(--ink-soft)">1 2</text>';
+    /* outputs */
+    var o1=row&&row.o1!==null,o2=row&&row.o2!==null;
+    s+=wire(440,100,570,100,o1)+arrow(570,100,o1?'var(--accent)':'var(--rule)')+'<text x="580" y="96" font-size="13">out1</text><text x="580" y="116" font-size="14" font-weight="bold">'+(o1?row.o1:'–')+'</text>';
+    s+=wire(440,170,570,170,o2)+arrow(570,170,o2?'var(--accent)':'var(--rule)')+'<text x="580" y="166" font-size="13">out2</text><text x="580" y="186" font-size="14" font-weight="bold">'+(o2?row.o2:'–')+'</text>';
+    s+='<text x="315" y="222" text-anchor="middle" font-size="11" fill="var(--ink-soft)">sends: '+emitName[emit]+'</text>';
+    $('br-svg').innerHTML=s;
+  }
+  function branchUpdate(){
+    var l=parseList($('br-in1').value),b2=Number($('br-in2').value),fx=Number($('br-fixed').value),emit=$('br-emit').value;
+    var tb=$('br-table').querySelector('tbody');tb.innerHTML='';
+    if(l.bad||!isFinite(b2)||Math.floor(b2)!==b2||!isFinite(fx)||Math.floor(fx)!==fx||$('br-in2').value===''||(emit==='fixed'&&$('br-fixed').value==='')){
+      draw(null,emit);$('br-says').textContent='Use whole numbers only: in1 as a comma-separated list, in2 and the constant as single numbers.';return;}
+    if(!l.vals.length){draw(null,emit);$('br-says').textContent='Type at least one number for in1.';return;}
+    var b=wrap(b2),rows=l.vals.map(function(a){return branchRound(a,b,emit,fx);});
+    if(selRow>=rows.length)selRow=0;
+    rows.forEach(function(r,i){var tr=document.createElement('tr');if(i===selRow)tr.className='sel';
+      tr.innerHTML='<td>'+r.a+'</td><td>'+r.b+'</td><td>'+r.answer+'</td><td>'+(r.o1===null?'–':r.o1)+'</td><td>'+(r.o2===null?'–':r.o2)+'</td>';
+      tr.tabIndex=0;tr.setAttribute('role','button');
+      function pick(){selRow=i;branchUpdate();}
+      tr.addEventListener('click',pick);tr.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick();}});tb.appendChild(tr);});
+    var r=rows[selRow];draw(r,emit);
+    var cmp=r.answer==='low'?r.a+' is below '+r.b:r.answer==='equal'?r.a+' equals '+r.b:r.a+' is above '+r.b;
+    var dest=(r.o1!==null&&r.o2!==null)?'both out1 and out2':r.o1!==null?'out1':r.o2!==null?'out2':'nowhere';
+    $('br-says').textContent=(dest==='nowhere'?cmp+', so the answer is "'+r.answer+'". For that answer neither port is switched on, so the value is dropped.'
+      :cmp+', so the answer is "'+r.answer+'". That answer is set to go to '+dest+', carrying '+emitName[emit]+' = '+r.val+'.');
+  }
+
+  /* ---------- priority ---------- */
+  var F=['N','S','E','W'],pst=[{en:1,rank:0,q:'1, 2, 3'},{en:1,rank:1,q:'10, 20'},{en:1,rank:2,q:'100'},{en:1,rank:3,q:''}];
+  var live=null; /* {q:[arrays], credit:[4], idx, out:[], log:[], last:-1, msg} */
+  var faces=$('pr-faces'),modeEl=$('pr-mode'),seqEl=$('pr-seq'),inputs=[];
+  F.forEach(function(nm,i){
+    var d=document.createElement('div');d.className='face';
+    d.innerHTML='<span class="nm">'+nm+'</span><label class="en"><input type="checkbox" checked aria-label="'+nm+' switched on"> on</label>'
+      +'<label class="en en2"><span class="rk">rank</span> <select aria-label="'+nm+' rank"><option>0</option><option>1</option><option>2</option><option>3</option></select></label>'
+      +'<input type="text" aria-label="'+nm+' waiting values" placeholder="values waiting, e.g. 4, 5, 6"><div class="qx"></div>';
+    faces.appendChild(d);
+    var cb=d.querySelector('input[type=checkbox]'),sel=d.querySelector('select'),tx=d.querySelector('input[type=text]');
+    inputs.push({d:d,cb:cb,sel:sel,tx:tx,qx:d.querySelector('.qx'),rk:d.querySelector('.rk')});
+    cb.addEventListener('change',function(){pst[i].en=cb.checked?1:0;reset();});
+    sel.addEventListener('change',function(){pst[i].rank=+sel.value;reset();});
+    tx.addEventListener('input',function(){pst[i].q=tx.value;reset();});
+  });
+  modeEl.addEventListener('change',reset);seqEl.addEventListener('input',reset);
+  function syncCtl(){inputs.forEach(function(x,i){x.cb.checked=!!pst[i].en;x.sel.value=String(pst[i].rank);x.tx.value=pst[i].q;});}
+  var PP={
+    strict:{mode:'strict',f:[{en:1,rank:0,q:'1, 2, 3'},{en:1,rank:1,q:'10, 20'},{en:1,rank:2,q:'100'},{en:1,rank:3,q:'1000'}]},
+    weighted:{mode:'weighted',f:[{en:1,rank:3,q:'1, 2, 3, 4, 5, 6'},{en:1,rank:1,q:'10, 20, 30, 40'},{en:1,rank:0,q:'100, 200'},{en:0,rank:0,q:'7'}]},
+    seq:{mode:'seq',seq:'N E N S',f:[{en:1,rank:0,q:'1, 2, 3'},{en:1,rank:0,q:'10, 20'},{en:1,rank:0,q:''},{en:1,rank:0,q:'100'}]}
+  };
+  [].forEach.call(root.querySelectorAll('#pr-presets [data-p]'),function(b){b.addEventListener('click',function(){
+    var p=PP[b.getAttribute('data-p')];modeEl.value=p.mode;if(p.seq)seqEl.value=p.seq;pst=p.f.map(function(x){return {en:x.en,rank:x.rank,q:x.q};});syncCtl();reset();});});
+
+  function parseSeq(){var t=seqEl.value.toUpperCase().split(/[\s,]+/).filter(Boolean),o=[],bad=false;t.forEach(function(c){var k=F.indexOf(c);if(k<0)bad=true;else o.push(k);});return {order:o.slice(0,4),bad:bad,cut:o.length>4};}
+  function reset(){
+    var bad=[],q=pst.map(function(p,i){var l=parseList(p.q);if(l.bad)bad.push(F[i]);return l.vals;});
+    live={q:q,credit:[0,0,0,0],idx:0,out:[],log:[],last:-1,msg:'',bad:bad,done:false};
+    seqEl.parentNode.className='f seqrow'+(modeEl.value==='seq'?' on':'');
+    inputs.forEach(function(x){x.rk.textContent=modeEl.value==='weighted'?'weight':'rank';});
+    if(bad.length)live.msg='Use whole numbers separated by commas for '+bad.join(', ')+'.';
+    else if(modeEl.value==='seq'){var s=parseSeq();if(s.bad)live.msg='The turn order may only use N, S, E and W.';else if(!s.order.length)live.msg='An empty turn order never lets anything through.';else if(s.cut)live.msg='Only the first four turns are used.';}
+    else live.msg='Press "Let one through" to run a round.';
+    if(!live.msg)live.msg='Press "Let one through" to run a round.';
+    paintP();
+  }
+  function round(){ /* one round per the RTL; returns false if nothing could go */
+    var mode=modeEl.value,order=parseSeq().order,L=live,i;
+    if(L.bad.length||(mode==='seq'&&parseSeq().bad))return false;
+    var due=(mode==='seq'&&order.length)?order[L.idx]:-1;
+    var cand=[0,0,0,0];
+    for(i=0;i<4;i++)cand[i]=(L.q[i].length>0&&pst[i].en&&(mode!=='seq'||i===due))?1:0;
+    if(mode==='seq'&&!order.length){L.msg='An empty turn order never lets anything through.';L.done=true;return false;}
+    if(!cand.some(Boolean)){
+      var why;
+      if(mode==='seq')why='It is '+F[due]+"'s turn and "+F[due]+(pst[due].en?' has nothing waiting':' is switched off')+'. The cell waits for it: '+F.filter(function(n,k){return k!==due&&L.q[k].length&&pst[k].en;}).join(', ')+(F.some(function(n,k){return k!==due&&L.q[k].length&&pst[k].en;})?' hold their values (blocked by design).':'(nothing else is waiting).');
+      else{var off=F.filter(function(n,k){return L.q[k].length&&!pst[k].en;});why=off.length?'Nothing can go. '+off.join(', ')+(off.length>1?' have':' has')+' values waiting but '+(off.length>1?'are':'is')+' switched off, so '+(off.length>1?'they never win.':'it never wins.'):'Nothing is waiting.';}
+      L.msg=why;L.done=true;return false;
+    }
+    var score=[0,0,0,0],inc=[0,0,0,0],total=0;
+    for(i=0;i<4;i++){if(cand[i])total+=pst[i].rank;inc[i]=L.credit[i]+(cand[i]?pst[i].rank:0);score[i]=mode==='weighted'?inc[i]:(3-pst[i].rank);}
+    var win=-1;for(i=0;i<4;i++){if(cand[i]&&(win<0||score[i]>score[win]))win=i;}
+    var v=L.q[win].shift();L.out.push({v:v,f:win});L.last=win;
+    if(mode==='weighted'){for(i=0;i<4;i++){L.credit[i]=(i===win)?(inc[i]>total?inc[i]-total:0):inc[i];}}
+    if(mode==='seq')L.idx=(L.idx+1>=order.length)?0:L.idx+1;
+    var cs=[];for(i=0;i<4;i++)if(cand[i])cs.push(F[i]+(mode==='weighted'?' credit '+inc[i]:mode==='seq'?'':' score '+score[i]));
+    L.log.push('candidates '+cs.join(', ')+' → '+F[win]+' wins, '+v+' goes out');
+    L.msg=F[win]+' went through with '+v+'.'+(mode==='strict'?' Rank '+pst[win].rank+' (lowest number wins).':mode==='weighted'?' Highest credit wins; it pays back '+total+'.':' It was '+F[win]+"'s turn.");
+    return true;
+  }
+  function paintP(){
+    var L=live,mode=modeEl.value;
+    inputs.forEach(function(x,i){
+      x.d.className='face'+(pst[i].en?'':' off');
+      x.qx.innerHTML=L.q[i].map(function(v,k){return '<span class="tok'+(k===0?' front':'')+'">'+v+'</span>';}).join('')+(mode==='weighted'?'<span class="sc">credit '+L.credit[i]+'</span>':'');
+    });
+    $('pr-out').innerHTML=L.out.length?L.out.map(function(o){return '<span class="tok won" title="from '+F[o.f]+'">'+o.v+' <small>'+F[o.f]+'</small></span>';}).join(''):'<span class="sc">nothing yet</span>';
+    $('pr-says').textContent=L.msg;
+    $('pr-log').innerHTML=L.log.slice(-12).map(function(t){return '<li>'+esc(t)+'</li>';}).join('');
+    if(L.log.length>12)$('pr-log').insertAdjacentHTML('afterbegin','<li style="list-style:none">&hellip; (earlier rounds not shown)</li>');
+  }
+  $('pr-one').addEventListener('click',function(){round();paintP();});
+  $('pr-all').addEventListener('click',function(){var n=0;while(n<400&&round())n++;if(n>=400)live.msg='Stopped after 400 rounds.';paintP();});
+  $('pr-reset').addEventListener('click',reset);
+
+  syncRoutes();syncCtl();branchUpdate();reset();
+})();
+</script>
+</div>

@@ -77,4 +77,16 @@ Alan asked for the concept of chaining cells: a simple grid of blocks, the flex 
 
 **Parts 1 and 2 looked at in a real browser too** (screenshots at desktop and 390 px; no console errors). One defect found and fixed: in the Tour's first route card the inline command `python3 quickstart.py --composer` ran out of the card and over its neighbour; it now wraps inside the card. This replaces the "not looked at in a real browser" notes in #1039 and #1040. Phone layout of the Chaining board scrolls sideways (hint shown). Main manual and its builder unchanged.
 
-Next entry: #1042.
+---
+
+## #1042 -- TEACHING MANUAL PART 4: BRANCHING AND DECISIONS (Alan's direction)
+
+Alan asked for the branch and priority cells as simple builders with results, like the Chaining tab. Tab 04 "Branching" of `docs/teaching_manual.html` (source `docs/teaching/branching_fragment.html`); the builder now has six tabs (Tour, Family, Chaining, Branching, Start, Backdrop).
+
+**Branch builder.** Type a stream of in1 values and an in2 limit; choose what goes out (in1, in2, in1 minus in2, or a fixed constant) and, for each of the three answers low / equal / high, tick out1 and/or out2 (neither = the value is dropped). A picture of the cell lights the answer and the output wires for the selected round; a table shows every round. Three examples: two lanes, alarm on too big, report only differences. Rules from `sub/verilog/branch_cell_v4sa.v`: signed 3-way compare, diff = in1 + ~in2 + 1, one shared emit source, per-answer routing.
+
+**Priority builder.** Four faces N/S/E/W, each with an on switch, a rank or weight, and a queue of waiting values. Three modes from `priority_cell_v4sa.v`: strict (rank 0 best, score 3 minus rank), weighted (surplus round robin: every candidate gains its weight each round, highest credit wins, winner pays the round's total weight, clamped at 0), sequenced (fixed turn order of up to four turns, only the due face may go, head-of-line blocking, empty order never captures). Ties N, S, E, W. Buttons: let one through, run until nothing can go, reset. A round log and the output order are shown; a message explains why nothing can go (a face switched off, or waiting for its turn).
+
+**Checked.** Real Chromium (Playwright): the branch table for the three examples matches hand calculation; diff wrap-around at 18 bits (131071 minus -1 gives -131072) is right; a decimal is refused; priority presets run to the end without errors. The weighted example was traced by hand round by round (1 N, 2 N, 3 N, 10 S, ...) and agrees with the page. The page's formulas were also read line by line against the VM's Python priority code (`unicell_super_automaton_v1.py`, the credit and score lines) and the Verilog. No console errors and no sideways overflow at 390 px. NOT checked: the page was not run against the actual Verilog or a running VM priority cell (no `iverilog` in this session; the repo's bench `tb_priority_cell_v4sa.v` was not run). The branch is shown without its fixed/flowing input modes or its separate output handshakes, and the page says so. Main manual unchanged.
+
+Next entry: #1043.
