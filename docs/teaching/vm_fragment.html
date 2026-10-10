@@ -1,0 +1,175 @@
+<!-- VM overview fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). -->
+<div class="vmov" id="vm-root">
+<style>
+  .vmov h2{margin-top:1.6em}
+  .vmov .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .vmov button{font:inherit;font-size:.9em}
+  .vmov .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .vmov .linkrow a{display:inline-block;padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink);font-size:.9em}
+  .vmov .map{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:12px}
+  .vmov .rowtitle{font-family:var(--mono);font-size:.72em;letter-spacing:.08em;color:var(--ink-soft);margin:.6em 0 4px}
+  .vmov .rowtitle:first-child{margin-top:0}
+  .vmov .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+  .vmov .flow .arr{align-self:center;color:var(--accent);font-size:1.2em}
+  .vmov .row{display:flex;flex-wrap:wrap;gap:8px}
+  .vmov .nd{border:2px solid var(--rule);border-radius:9px;background:#fff;padding:6px 10px;cursor:pointer;text-align:left;color:var(--ink);line-height:1.25;min-width:7em}
+  .vmov .nd small{display:block;font-family:var(--mono);font-size:.7em;color:var(--ink-soft);margin-top:2px}
+  .vmov .nd.core{border-color:var(--accent)}
+  .vmov .nd.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .vmov .nd.on small{color:#d8efe9}
+  .vmov .panel{margin:.8em 0;padding:10px 14px;border:1px solid var(--rule);border-left:5px solid var(--accent);border-radius:8px;background:rgba(21,117,109,.07)}
+  .vmov .panel h3{margin:0 0 .3em;font-size:1.05em}
+  .vmov .panel p{margin:.35em 0;font-size:.95em;line-height:1.45}
+  .vmov .panel .w{font-family:var(--mono);font-size:.82em;word-break:break-all}
+  .vmov .panel .hon{color:#8a3b25}
+  .vmov table{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .vmov th,.vmov td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .vmov pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.78em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0}
+  .vmov pre.out{background:#1b2420;color:#bfe3d6;font-family:var(--mono);font-size:.78em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.2em 0 .8em}
+  .vmov .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .vmov .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+</style>
+
+<p class="lead">Every picture on the earlier pages was drawn by a small script in the page itself. The <strong>VM</strong> is the real thing those pictures imitate: a program that holds a whole design as cells, advances it one tick at a time, and lets you look at every value. This page is a map of it: what the parts are, where they live, how they connect, and how far each part has been trusted.</p>
+
+<h2>1. The map</h2>
+<p>A design goes in at the left and results come out at the right. Click any box to read what it is and where it lives. Boxes with a green outline are the ones you use every time.</p>
+<div class="map">
+  <div class="rowtitle">THE ROUTE OF A DESIGN</div>
+  <div class="flow" id="vm-flow"></div>
+  <div class="rowtitle">HOW IT IS CHECKED</div>
+  <div class="row" id="vm-checks"></div>
+  <div class="rowtitle">LOOKING INSIDE, AND OTHER WAYS IN</div>
+  <div class="row" id="vm-extra"></div>
+</div>
+<div class="panel" id="vm-panel" aria-live="polite"></div>
+
+<h2>2. The two modes</h2>
+<p>There is one idea of a cell grid and two versions of the VM, because the hardware has two relatives.</p>
+<table>
+  <thead><tr><th></th><th>Standard mode</th><th>Mirror mode for the flex family</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Name in the code</strong></td><td><code>SuperGrid</code></td><td><code>FlexGrid</code>, a subclass of it</td></tr>
+    <tr><td><strong>Models</strong></td><td>The original cell grid, the reference for the Arria 10 line</td><td>The flex cells (the ones in this manual), with their valid/ack handshake</td></tr>
+    <tr><td><strong>Word width</strong></td><td>Chosen when the grid is made (default 32)</td><td>Chosen to match the target: 18 for the Tang Nano 20K</td></tr>
+    <tr><td><strong>How it is trusted</strong></td><td>It is the long-standing reference</td><td>Each flex cell was added one at a time and checked against the Verilog that the generator really produces, at word widths 4, 8, 18, 32 and 36</td></tr>
+    <tr><td><strong>When the hardware has a limit</strong></td><td>&ndash;</td><td>It refuses, and says why, instead of guessing</td></tr>
+  </tbody>
+</table>
+<p>The rule behind this: the Verilog is the ground truth. The VM comes <em>before</em> any fit to a real chip, because a fit can only be proved by a VM that can mirror the target. An empty FlexGrid was first proved identical to a SuperGrid, then flex behaviour was added one cell at a time.</p>
+
+<h2>3. Run it yourself</h2>
+<p>The same engine that sits behind the composer's Run / Step panel can be driven from a few lines of Python. This loads the library adder from the Composer page, puts 7 and 5 on its two input cells and runs it at 18 bits:</p>
+<pre class="code">import sys
+sys.path.insert(0, "tools"); sys.path.insert(0, "nano")
+from flex_layout_view_v1 import Layout
+from flex_layout_sim_v1 import StepSim
+
+layout = Layout.load("nano/library_std/add.icm.json")
+sim = StepSim(layout, width=18)       # the flex (mirror) VM at 18 bits
+sim.inject({"A": 7, "B": 5})          # values on the two input cells
+ticks = sim.run()                     # step until nothing moves any more
+print("settled after", ticks, "ticks")
+for line in sim.log: print(line)
+print("r =", sim.seen["R"])</pre>
+<p>Output from running exactly that, in the repository folder:</p>
+<pre class="out">settled after 21 ticks
+tick 0: item 1 in: a=7, b=5
+tick 18: out r = 12
+r = [12]</pre>
+<p>Use <code>sim.step(1)</code> instead of <code>sim.run()</code> to advance one tick at a time, and <code>sim.state()</code> to see every cell's value and whether it is waiting to be taken. Doing that here, the number of cells holding a value was 2 for ticks 1 to 9, 1 for ticks 10 to 17, and 0 from tick 18 on. This is the measurement drawn on the Tour page, now seen as it was taken.</p>
+<div class="says">Why 18 ticks for one addition? The adder itself is one cell. The other 26 cells are the input and output ports and the relays that carry the words along the routes. The VM counts every hop, and so does the hardware.</div>
+
+<h2>4. How far to trust it</h2>
+<ul>
+  <li><strong>Checked against the Verilog, cell by cell.</strong> Each flex cell's behaviour in FlexGrid was compared with the generated Verilog, run in a simulator, at several widths. That work found and fixed real faults in the Verilog itself (a cell that captured while not yet configured, and some width limits).</li>
+  <li><strong>Checked against the board.</strong> Ten self-checking designs (relay chains, adders with stalls, the three priority modes, the ram hold and one-shot) run on a real Tang Nano 20K and match what FlexGrid says. That shows the cell logic and the handshake on real silicon, at 27 MHz and small sizes. It does not show capacity or speed.</li>
+  <li><strong>The test suite.</strong> More than two thousand tests live under <code>tests/vm</code>. A full run takes hours, so they are run on demand.</li>
+  <li><strong>Freeze, save and restore</strong> of a running design has only been run in simulation, never on a physical card.</li>
+  <li><strong>The GPU array backend</strong> is written, but its header says it was written where no GPU was available, so the GPU path is untested there. Even in its design only the choice of which cells are ready to act is done in bulk; each cell's own logic still runs as ordinary Python.</li>
+  <li><strong>Not the same as timing on a chip.</strong> The VM counts ticks of the design, not nanoseconds. The board's clock speed is a property of the chip and the build.</li>
+</ul>
+<p class="fine">Facts on this page come from the README's VM section, the file headers of <code>nano/unicell_super_automaton_v1.py</code>, <code>nano/flex_grid_v1.py</code>, <code>tools/flex_layout_sim_v1.py</code>, <code>nano/gpu_array_v1.py</code>, <code>nano/vm_mirror_v1.py</code>, <code>nano/vm_introspection_v1.py</code>, <code>nano/vm_ai_port_v1.py</code> and <code>nano/walker_sim_v1.py</code>, and from running the example above. The test and board figures are quoted from the README and the repository's own notes, not re-run for this page. The map is a summary: the real code has more parts than are drawn here.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('vm-root'); if(!root) return;
+  function $(id){return document.getElementById(id);}
+  var N={
+    design:{t:'The design',s:'an ICM file',core:1,
+      what:'A list of cells and which faces each one listens on and sends out of. It comes from the composer (Save ICM), from a Python program that builds designs, or from the library. The Composer page shows a real one.',
+      where:[['../docs/stripped-cell/ICM_V3_FORMAT.md','docs/stripped-cell/ICM_V3_FORMAT.md']],
+      note:'The same file feeds the VM and the Verilog generator, so what the VM runs is what would be built.'},
+    loader:{t:'Loader and layout',s:'Layout.load',core:1,
+      what:'Reads the file, rebuilds the picture of which cells are joined and which are relays, and can check it: it lists problems (for instance two operands that would arrive on the same tick) and can balance a design by adding delay.',
+      where:[['../tools/flex_layout_view_v1.py','tools/flex_layout_view_v1.py'],['../tools/flex_layout_v1.py','tools/flex_layout_v1.py']],
+      note:'The composer is a front end for this module: every edit is a request to it, and a refused edit changes nothing.'},
+    std:{t:'Standard grid',s:'SuperGrid',
+      what:'The original VM. Cells hold their state and each tick has several passes: arrivals are delivered, finished cells are emptied, and every cell with something ready offers it to its neighbours. It models the cell family the Arria 10 line is built on, with a settable word width.',
+      where:[['../nano/unicell_super_automaton_v1.py','nano/unicell_super_automaton_v1.py']],
+      note:'It is the reference. Flex mode is built on top of it rather than changing it.'},
+    flex:{t:'Mirror grid for flex',s:'FlexGrid',core:1,
+      what:'The version of the VM that behaves like the flex cells on the Tang Nano 20K: same handshake, same widths. Each cell kind in this manual has its own handler in it.',
+      where:[['../nano/flex_grid_v1.py','nano/flex_grid_v1.py']],
+      note:'Where the Verilog has a limit, FlexGrid refuses and says why. Checked against the generated Verilog at widths 4, 8, 18, 32 and 36.'},
+    step:{t:'Stepper',s:'StepSim',core:1,
+      what:'A small driver that loads a layout into FlexGrid and gives you inject, step, run and state. The composer’s Run / Step panel is this. You type values for the input cells, press step, and read every cell’s value tick by tick.',
+      where:[['../tools/flex_layout_sim_v1.py','tools/flex_layout_sim_v1.py']],
+      note:'Section 3 of this page uses it directly.'},
+    out:{t:'Results',s:'values by tick',core:1,
+      what:'Everything the output cells received, with the tick it arrived on, and the state of every cell at any tick. The adder’s answer, 12, arrived at tick 18.',
+      where:[],note:'This is the "pause a circuit and look at every value" that the lessons rely on.'},
+    rtl:{t:'Generated Verilog',s:'the oracle',
+      what:'The flex Verilog cells, and the designs the generator writes from an ICM file. FlexGrid is compared with these in a simulator. When they disagree, the Verilog is right and the VM is wrong.',
+      where:[['../sub/verilog/','sub/verilog/']],note:'A simulator for Verilog (iverilog) must be installed to run these checks; without it those tests print SKIP and look like a pass.'},
+    tests:{t:'Test suite',s:'tests/vm',
+      what:'More than two thousand tests of the VM, the cells, the layout engine and the compilers. A quick check runs only those touching changed files; a full run takes hours.',
+      where:[['../tests/vm/','tests/vm/']],note:'Run on demand rather than all the time.'},
+    board:{t:'Real board',s:'Tang Nano 20K',
+      what:'Ten self-checking designs run on the physical board and match FlexGrid’s answers. They prove the cell logic and handshake on silicon at small sizes.',
+      where:[['../README.md','README.md']],note:'This is not a test of capacity or speed.'},
+    intro:{t:'Introspection',s:'JSON of any cell',
+      what:'Turns any cell, or the whole grid, into plain data so another program can read every field. This is how the explainer and other tools see inside.',
+      where:[['../nano/vm_introspection_v1.py','nano/vm_introspection_v1.py']],note:'Kept separate from the VM so it cannot break the VM’s own logic.'},
+    ckpt:{t:'Checkpoint and restore',s:'save a running design',
+      what:'A cell can write out its state and be rebuilt from it, and the grid can freeze every cell. The idea is to stop a running design, keep it, and carry on later.',
+      where:[['../docs/freeze/PURE_VERILOG_FREEZE.md','docs/freeze/PURE_VERILOG_FREEZE.md']],note:'Only run in simulation, never on a physical card.'},
+    mirror:{t:'Card mirror and Walker',s:'MAN files',
+      what:'Checks that a design only uses squares a real card could build, and simulates the "walker" that discovers a card’s layout by pinging cells, so the idea can be tested without hardware.',
+      where:[['../nano/vm_mirror_v1.py','nano/vm_mirror_v1.py'],['../nano/walker_sim_v1.py','nano/walker_sim_v1.py']],note:'It checks the shape of the layout, not the cost in chip resources.'},
+    ai:{t:'Driver port and Workbench',s:'for programs and people',
+      what:'A defined way for any program (a script, a test, an AI) to drive the VM, and a small web page, the Workbench, built on it. The front panel with the composer is a separate page on the next port along.',
+      where:[['../nano/vm_ai_port_v1.py','nano/vm_ai_port_v1.py'],['../nano/workbench_v1.py','nano/workbench_v1.py']],note:'The port is only the interface; no model is attached to it.'},
+    gpu:{t:'GPU array backend',s:'optional',
+      what:'An optional way to do the bulk work of "which cells are ready" on a GPU or with NumPy. The per-cell logic stays ordinary Python.',
+      where:[['../nano/gpu_array_v1.py','nano/gpu_array_v1.py']],note:'The NumPy path is tested. The GPU path was written without a GPU to try it on, and its own header says it is unverified.'}
+  };
+  var FLOW=['design','loader',['std','flex'],'step','out'];
+  var cur=null;
+  function btn(id){
+    var n=N[id],b=document.createElement('button');b.type='button';b.className='nd'+(n.core?' core':'');b.setAttribute('data-id',id);
+    b.innerHTML='<span></span><small></small>';b.firstChild.textContent=n.t;b.lastChild.textContent=n.s;
+    b.addEventListener('click',function(){show(id);});return b;
+  }
+  var flow=$('vm-flow');
+  FLOW.forEach(function(x,i){
+    if(i)flow.insertAdjacentHTML('beforeend','<span class="arr">→</span>');
+    if(Array.isArray(x)){var w=document.createElement('div');w.style.cssText='display:flex;flex-direction:column;gap:6px';x.forEach(function(y){w.appendChild(btn(y));});flow.appendChild(w);}
+    else flow.appendChild(btn(x));
+  });
+  ['rtl','tests','board'].forEach(function(id){$('vm-checks').appendChild(btn(id));});
+  ['intro','ckpt','mirror','ai','gpu'].forEach(function(id){$('vm-extra').appendChild(btn(id));});
+  function show(id){
+    cur=id;var n=N[id];
+    [].forEach.call(root.querySelectorAll('.nd'),function(b){b.className='nd'+(N[b.getAttribute('data-id')].core?' core':'')+(b.getAttribute('data-id')===id?' on':'');});
+    var p=$('vm-panel');p.innerHTML='<h3></h3><p class="wh"></p><p class="w"></p><p class="hon"></p>';
+    p.querySelector('h3').textContent=n.t+' ('+n.s+')';p.querySelector('.wh').textContent=n.what;
+    var w=p.querySelector('.w');
+    if(n.where.length){w.textContent='Where: ';n.where.forEach(function(x,i){if(i)w.appendChild(document.createTextNode(', '));var a=document.createElement('a');a.href=x[0];a.textContent=x[1];w.appendChild(a);});}else w.remove();
+    var h=p.querySelector('.hon');h.textContent=n.note;h.style.color='var(--ink-soft)';
+  }
+  show('flex');
+})();
+</script>
+</div>
