@@ -20,7 +20,7 @@ on:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: ubuntu-latest becomes Ubuntu 26 on 19 Oct 2026, which would change the iverilog and yosys versions
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
