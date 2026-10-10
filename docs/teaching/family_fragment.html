@@ -1,0 +1,181 @@
+<!-- Family fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). Each cell gets its own page later; this is the brief overview. -->
+<div class="family" id="family-root">
+<style>
+  .family h2{margin-top:1.6em}
+  .family .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .family .chips{display:flex;flex-wrap:wrap;gap:8px;margin:.6em 0}
+  .family .chips button{font:inherit;font-size:.92em;padding:5px 13px;border:2px solid var(--accent);border-radius:999px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .family .chips button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .family .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:12px;margin:.6em 0}
+  .family .cell{border:2px solid var(--rule);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.35);transition:border-color .15s,transform .15s}
+  .family .cell:hover,.family .cell:focus-within{border-color:var(--accent);transform:translateY(-2px)}
+  .family .cell[hidden]{display:none}
+  .family .cell .grp{font-family:var(--mono);font-size:.68em;letter-spacing:.08em;color:var(--ink-soft);text-transform:uppercase}
+  .family .cell h3{margin:.15em 0 .3em;font-size:1.05em}
+  .family .cell p{margin:.3em 0;font-size:.92em;line-height:1.4}
+  .family .cell .io{font-family:var(--mono);font-size:.78em;color:var(--accent)}
+  .family .cell .src{font-family:var(--mono);font-size:.78em;word-break:break-all}
+  .family .cell .soon{font-size:.75em;color:var(--ink-soft);font-style:italic}
+  .family .chain{display:flex;align-items:center;gap:0;margin:.8em 0;overflow-x:auto;padding:6px 2px}
+  .family .node{flex:0 0 auto;text-align:center;font-family:var(--mono);font-size:.75em;color:var(--ink-soft)}
+  .family .slot{width:64px;height:54px;border:2px solid var(--ink-soft);border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--paper-edge);transition:background .2s,border-color .2s}
+  .family .slot .tok{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;display:none;align-items:center;justify-content:center;font-size:.85em;font-weight:bold}
+  .family .slot.full .tok{display:flex}
+  .family.frozen .slot{border-color:#5a8fb5;background:#dbe8f1}
+  .family .link{flex:0 0 52px;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:var(--mono);font-size:.62em;color:var(--ink-soft)}
+  .family .link span{padding:0 4px;border-radius:4px;opacity:.35}
+  .family .link span.lit{opacity:1;background:var(--accent-bright);color:#fff}
+  .family .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:.4em 0}
+  .family .controls button{font:inherit;font-size:.95em;padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .family .controls button[aria-pressed="true"]{background:#5a8fb5;border-color:#5a8fb5;color:#fff}
+  .family .says{min-height:2.8em;margin:.5em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .family .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.6em;padding-top:.6em}
+  @media (prefers-reduced-motion:reduce){.family .cell,.family .slot{transition:none}.family .cell:hover,.family .cell:focus-within{transform:none}}
+</style>
+
+<p class="lead">The nano cell from the Tour is one member of a family. There are fourteen kinds of flex cell in the repository; this page gives each one a sentence and a link. Every cell will get its own page later, with a live picture like the nano's.</p>
+
+<h2>1. What every flex cell shares</h2>
+<p>Whatever a cell computes, they all hand data on the same way. A cell that has a result holds it, raising a <em>valid</em> signal, until the next cell takes it and answers with an <em>ack</em>. A global <em>freeze</em> stops everything where it stands. Each cell also has a width setting (18 bits on the Tang Nano 20K board). Try the freeze below, or block the sink to see an item wait.</p>
+<div class="controls">
+  <button type="button" id="family-freeze" aria-pressed="false">Freeze</button>
+  <button type="button" id="family-block" aria-pressed="false">Block the sink</button>
+  <button type="button" id="family-pause" aria-pressed="false">Pause</button>
+  <button type="button" id="family-step">Step</button>
+</div>
+<div class="chain" id="family-chain" aria-hidden="true"></div>
+<div class="says" id="family-says" aria-live="polite"></div>
+<p class="fine" style="border:0;margin:.2em 0;padding:0">A simplified picture: it shows the idea (hold until taken, pass on only when the next cell is free, one item per two steps through each cell), not the exact signals of any one cell.</p>
+
+<h2>2. The cells</h2>
+<div class="chips" id="family-chips" role="group" aria-label="Filter the cells">
+  <button type="button" data-g="all" aria-pressed="true">All</button>
+  <button type="button" data-g="logic" aria-pressed="false">Logic and flow</button>
+  <button type="button" data-g="math" aria-pressed="false">Arithmetic</button>
+  <button type="button" data-g="mem" aria-pressed="false">Memory and sequence</button>
+</div>
+
+<div class="grid" id="family-grid">
+  <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>nano</h3>
+    <p>Ten NOR gates and a setting that picks which gate's answer comes out. The cell from the Tour.</p>
+    <p class="io">held A + flowing B &rarr; one result</p>
+    <p class="src"><a href="../sub/verilog/nano_cell_v4sa.v">nano_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>branch</h3>
+    <p>Compares two values and decides lower, equal or higher. What it emits for that outcome is chosen when it is set up. Either input can be a fixed value or a live stream.</p>
+    <p class="io">two inputs &rarr; a three-way decision</p>
+    <p class="src"><a href="../sub/verilog/branch_cell_v4sa.v">branch_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>merge</h3>
+    <p>Where two paths join. Pass only A, pass only B, take whichever arrives (taking turns), or wait for both and combine them with OR.</p>
+    <p class="io">two paths &rarr; one</p>
+    <p class="src"><a href="../sub/verilog/merge_cell_v4sa.v">merge_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>priority</h3>
+    <p>Up to four inputs compete for one output. Strict ranking, weighted turns, or a fixed repeating order. A loser keeps its item and waits.</p>
+    <p class="io">up to four inputs &rarr; one</p>
+    <p class="src"><a href="../sub/verilog/priority_cell_v4sa.v">priority_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>router</h3>
+    <p>One input out to up to two places. Which outputs are switched on is set in advance, never decided while it runs.</p>
+    <p class="io">one input &rarr; up to two outputs</p>
+    <p class="src"><a href="../sub/verilog/router_cell_v4sa.v">router_cell_v4sa.v</a></p></div>
+
+  <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>adder</h3>
+    <p>Adds two values, or subtracts. The carry can come out on a second port.</p>
+    <p class="io">A, B &rarr; sum</p>
+    <p class="src"><a href="../sub/verilog/adder_cell_v4sa.v">adder_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>mul</h3>
+    <p>Multiplies two values. One version is built from ordinary logic, another uses the chip's multiplier blocks. The top half of the product can come out on a second port.</p>
+    <p class="io">A, B &rarr; product</p>
+    <p class="src"><a href="../sub/verilog/mul_cell_v4sa.v">mul_cell_v4sa.v</a><br><a href="../sub/verilog/mul_cell_v4sa_dsp.v">mul_cell_v4sa_dsp.v</a></p></div>
+  <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>compare</h3>
+    <p>Says whether a value is at least a threshold (signed), answering 1 or 0.</p>
+    <p class="io">value &rarr; 1 or 0</p>
+    <p class="src"><a href="../sub/verilog/compare_cell_v4sa.v">compare_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>accumulator</h3>
+    <p>A running count that goes up or down when it receives an up pulse or a down pulse.</p>
+    <p class="io">up / down pulses &rarr; count</p>
+    <p class="src"><a href="../sub/verilog/accumulator_cell_v4sa.v">accumulator_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>shift stage</h3>
+    <p>Slides all the bits left or right by an amount fixed when the design is built. Chain several for a bigger shift.</p>
+    <p class="io">value &rarr; shifted value</p>
+    <p class="src"><a href="../sub/verilog/shift_stage_v4sa.v">shift_stage_v4sa.v</a></p></div>
+  <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>mask</h3>
+    <p>Cuts out chosen groups of bits by setting them to zero. An 8-bit mask says which groups.</p>
+    <p class="io">value &rarr; value with groups cleared</p>
+    <p class="src"><a href="../sub/verilog/mask_cell_v4sa.v">mask_cell_v4sa.v</a></p></div>
+
+  <div class="cell" data-g="mem"><div class="grp">Memory and sequence</div><h3>ram</h3>
+    <p>Holds a word. In fixed mode it is a constant that is always there. In flowing mode it holds a value until the next cell takes it.</p>
+    <p class="io">word in &rarr; word out</p>
+    <p class="src"><a href="../sub/verilog/ram_cell_v4sa.v">ram_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="mem"><div class="grp">Memory and sequence</div><h3>latch</h3>
+    <p>Remembers one bit. Set it, clear it, or toggle it.</p>
+    <p class="io">set / clear / toggle &rarr; one bit</p>
+    <p class="src"><a href="../sub/verilog/latch_cell_v4sa.v">latch_cell_v4sa.v</a></p></div>
+  <div class="cell" data-g="mem"><div class="grp">Memory and sequence</div><h3>sequencer</h3>
+    <p>Holds up to four small stored values (8 bits each) and moves on to the next one each time it gets an advance pulse.</p>
+    <p class="io">advance pulse &rarr; next stored value</p>
+    <p class="src"><a href="../sub/verilog/sequencer_cell_v4sa.v">sequencer_cell_v4sa.v</a></p></div>
+</div>
+<p class="fine" style="margin-top:.6em">The full story of how each cell was designed, with the measured costs, is in <a href="../sub/README.md">sub/README.md</a>. There is also an <code>adder_chain_v4sa.v</code> in the same folder, which strings adders together; it is a helper, not a separate kind of cell.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('family-root'); if(!root) return;
+  var RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  /* ---- filter chips ---- */
+  var chips=document.getElementById('family-chips').querySelectorAll('button'), cells=document.getElementById('family-grid').children;
+  [].forEach.call(chips,function(c){c.addEventListener('click',function(){
+    var g=c.getAttribute('data-g');
+    [].forEach.call(chips,function(o){o.setAttribute('aria-pressed',o===c?'true':'false');});
+    [].forEach.call(cells,function(e){e.hidden=!(g==='all'||e.getAttribute('data-g')===g);});
+  });});
+
+  /* ---- the shared handshake: source -> 4 cells -> sink ---- */
+  var N=4, slots=[], links=[], chain=document.getElementById('family-chain');
+  function node(label){var d=document.createElement('div');d.className='node';d.textContent=label;return d;}
+  function slotEl(){var s=document.createElement('div');s.className='slot';var t=document.createElement('div');t.className='tok';s.appendChild(t);return s;}
+  function linkEl(){var l=document.createElement('div');l.className='link';var v=document.createElement('span');v.textContent='valid →';var a=document.createElement('span');a.textContent='← ack';l.appendChild(v);l.appendChild(a);return l;}
+  chain.appendChild(node('source'));
+  chain.appendChild(linkEl()); links.push(chain.lastChild);
+  for(var i=0;i<N;i++){var s=slotEl();chain.appendChild(s);slots.push(s);chain.appendChild(linkEl());links.push(chain.lastChild);}
+  chain.appendChild(node('sink'));
+  /* state: each slot holds an item number or 0; links[i] sits before slot i (links[N] after the last slot) */
+  var st=[0,0,0,0],next=1,tick=0,frozen=false,blocked=false,paused=RM,says=document.getElementById('family-says');
+  var fz=document.getElementById('family-freeze'),bk=document.getElementById('family-block'),ps=document.getElementById('family-pause'),sp=document.getElementById('family-step');
+  function draw(valid,ack){
+    for(var i=0;i<N;i++){slots[i].className='slot'+(st[i]?' full':'');slots[i].firstChild.textContent=st[i]||'';}
+    for(var k=0;k<=N;k++){var s2=links[k].children;s2[0].className=valid[k]?'lit':'';s2[1].className=ack[k]?'lit':'';}
+  }
+  function step(move){
+    var old=st.slice(),valid=[],ack=[],k,waiting=false;
+    for(k=0;k<=N;k++){
+      var holds=(k===0)?(tick%2===0):!!old[k-1];             /* the source offers an item every other step */
+      var free=(k===N)?!blocked:!old[k];                      /* the sink takes unless blocked; a cell is free when empty */
+      valid[k]=holds;ack[k]=holds&&free;
+      if(holds&&!free&&k>0)waiting=true;
+    }
+    if(move&&!frozen){
+      var nw=old.slice();
+      if(old[N-1]&&!blocked) nw[N-1]=0;                       /* the sink takes the last cell's item */
+      for(k=N-1;k>=1;k--){ if(old[k-1]&&!old[k]){nw[k]=old[k-1];nw[k-1]=0;} }
+      if(!old[0]&&(tick%2===0)){nw[0]=next++;}
+      st=nw;tick++;
+    }
+    draw(valid,ack);
+    says.textContent=frozen?'Frozen: nothing moves, and every item stays exactly where it is until the freeze is lifted.':
+      blocked&&waiting?'The sink is not taking items, so each cell keeps its item (valid stays up) until the next cell is free. The pile-up spreads backwards, and nothing is lost.':
+      waiting?'An item is waiting: it stays put because the next cell has not answered with an ack yet.':
+      'Items pass on whenever the next cell is free. Each cell takes one, then offers it, so a cell handles one item every two steps.';
+  }
+  function pressed(btn,on,onTxt,offTxt){btn.setAttribute('aria-pressed',on?'true':'false');btn.textContent=on?onTxt:offTxt;}
+  fz.addEventListener('click',function(){frozen=!frozen;pressed(fz,frozen,'Unfreeze','Freeze');root.classList.toggle('frozen',frozen);step(false);});
+  bk.addEventListener('click',function(){blocked=!blocked;pressed(bk,blocked,'Unblock the sink','Block the sink');step(false);});
+  ps.addEventListener('click',function(){paused=!paused;pressed(ps,paused,'Play','Pause');});
+  sp.addEventListener('click',function(){step(true);});
+  if(RM){pressed(ps,true,'Play','Pause');}
+  step(false);
+  setInterval(function(){ if(paused||root.offsetParent===null) return; step(true); },650);
+})();
+</script>
+</div>

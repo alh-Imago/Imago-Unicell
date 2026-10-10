@@ -41,9 +41,16 @@ SECTIONS = [
              "everything is, where it lives in the repository, and the three commands that get "
              "you to a working screen.",
      "html":open(os.path.join(HERE, "teaching", "tour_fragment.html"), encoding="utf-8").read(),
-     "links":[("Continue → Start","#sec-start","section")]},
+     "links":[("Continue → The Family","#sec-family","section")]},
 
-    {"id":"start","num":"02","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"family","num":"02","tab":"Family","title":"The Rest of the Flex Family",
+     "intro":"The nano cell is one of fourteen kinds of flex cell. Here is a sentence and a link "
+             "for each, grouped by what they do, plus the one thing they all share: how they hand "
+             "data on. Each cell will get its own page later. This is the brief overview.",
+     "html":open(os.path.join(HERE, "teaching", "family_fragment.html"), encoding="utf-8").read(),
+     "links":[("← Back to the Tour","#sec-tour","section"),("Continue → Start","#sec-start","section")]},
+
+    {"id":"start","num":"03","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -54,7 +61,7 @@ SECTIONS = [
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
      "links":[("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"03","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"04","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "
