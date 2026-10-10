@@ -4,7 +4,7 @@ Alan (the author) is not a programmer. Focus on concepts, architecture decisions
 
 ## Start of every session
 
-1. Read `current/START.md` (its "Current line" section first), then `current/latest.md`, `points/points_active.md`, `current/PLAN.md`.
+1. Read `current/START.md` (its "Current line" section first), then the top of `current/latest.md` (`head -c 12000`; the file is about 1 MB and newest first), the tail of the ledger (`tail -c 15000 points/points_active.md`; the whole file is about 300 KB), and the newest update blocks at the top of `current/PLAN.md` (about 100 KB).
 2. Check the toolchain before trusting any test run. Without `iverilog` the flex/sub suites print SKIP and exit 0, which looks like a pass (#965):
    `which iverilog yosys && python3 -c "import pytest, llvmlite"`
    Install steps are in `current/START.md`.
