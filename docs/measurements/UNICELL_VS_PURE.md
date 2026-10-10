@@ -59,3 +59,6 @@ The same program gave the right answer in the standard VM, FlexGrid, the flex RT
 ## What this leaves
 
 On one 4-stage design, what survives the test is: exact VM-to-RTL agreement, and freeze-and-reload in the VM (once the in-flight words are included). Size and flex throughput go to the pure design, change time on the Tang does not favour UniCell, and authoring effort is untested. The arguments that remain open need other experiments: a timed authoring comparison, the carrier line, a Tang state-readout path, and larger designs.
+
+
+**Update (addendum 60):** the checkpoint gap in point 4 is closed in the VM by `nano/mixed_grid_checkpoint_v2.py`, which also stores the words in flight; the cut-at-every-tick test passes (`tests/vm/test_mixed_grid_checkpoint_v2.py`). Still not shown on hardware.
