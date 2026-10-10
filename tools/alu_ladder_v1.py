@@ -74,6 +74,17 @@ def nor_table():
     return "\n".join(out)
 
 
+def carrier_table():
+    c = json.load(open(os.path.join(ROOT, "docs", "measurements", "nor_adder_v1.json")))["carrier"]
+    out = ["| 32-bit adder on the carrier line (Arria 10 reference) | cells used | positions the toolchain builds | ALM at 1,030.52 per position | share of the card (251,680 ALM) | standard-mode VM ticks |",
+           "|---|---:|---:|---:|---:|---:|"]
+    for key, label in (("dedicated_adder", "dedicated adder cell"), ("nor_built_folded", "from nano gates and shift cells, folded into a near-square block"),
+                       ("nor_built_long_and_thin", "the same, laid out long and thin (as in Table C)")):
+        r = c[key]
+        out.append(f"| {label} | {r['cells_used']} | {r['positions']} | {r['alm']:,} | {r['percent_of_card']}% | {r['ticks_std_vm']} |")
+    return "\n".join(out)
+
+
 def block(name, text):
     return BEGIN.format(name) + "\n" + text + "\n" + END.format(name)
 
@@ -85,9 +96,9 @@ def splice(doc, name, text):
 
 
 def main():
-    tables = {"cells": cell_table(), "units": unit_table(), "nor": nor_table()}
+    tables = {"cells": cell_table(), "units": unit_table(), "nor": nor_table(), "carrier": carrier_table()}
     if len(sys.argv) < 2:
-        print(tables["cells"]); print(); print(tables["units"]); print(); print(tables["nor"]); return 0
+        print(tables["cells"]); print(); print(tables["units"]); print(); print(tables["nor"]); print(); print(tables["carrier"]); return 0
     doc = open(DOC, encoding="utf-8").read()
     new = doc
     for k, t in tables.items():

@@ -11,6 +11,7 @@ import pytest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "..", "tools"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "nano"))
 from fp_block_runner_v1 import run_rtl, run_vm  # noqa: E402
 import nor_adder_v1 as na  # noqa: E402
 
@@ -65,3 +66,38 @@ def test_the_test_bites():
     vs = [(1, 1), (3, 5)]
     got = run_vm(na.records(g), {"A": [a for a, _ in vs], "B": [b for _, b in vs]}, {"S": "E"}, {}, ticks=300)["S"]
     assert got != [(a + b) & M for a, b in vs]
+
+
+# ---- the carrier line (addendum 49): the same adder in the standard-mode VM, and folded into a near-square block -------------------------------------------------------------------------
+def test_folded_layout_adds_in_std_vm_flexgrid_and_rtl(tmp):
+    import card_fit_v1 as cf
+    from unicell_super_automaton_v1 import SuperGrid
+    g, _ = na.build_folded()
+    assert g.problems() == []
+    recs = na.records(g)
+    assert cf.array_cells(recs) < 200 < cf.array_cells(na.records(na.build_tight()[0]))        # the fold is what makes it fit the dense array
+    vs = vectors()
+    pos = {r.cell_id: (r.row, r.col) for r in recs}
+    for a, b in vs[:24]:                                                                       # standard-mode VM: the carrier line's reference
+        G = SuperGrid(recs)
+        G.inject(*pos["A"], a)
+        G.inject(*pos["B"], b)
+        for _ in range(400):
+            G.tick()
+        assert G.cells[pos["E"]].ram_data_reg == (a + b) & M, (hex(a), hex(b))
+    for mode in ("plain", "stall"):
+        got = run_rtl(tmp, "noradfold", recs, {"A": [a for a, _ in vs], "B": [b for _, b in vs]}, {"S": "E"}, mode, settle=40000, cycles=12000)["S"]
+        assert got == [(a + b) & M for a, b in vs]
+
+
+def test_std_vm_long_layout_too():
+    from unicell_super_automaton_v1 import SuperGrid
+    recs = na.records(na.build_tight()[0])
+    pos = {r.cell_id: (r.row, r.col) for r in recs}
+    for a, b in vectors()[:12]:
+        G = SuperGrid(recs)
+        G.inject(*pos["A"], a)
+        G.inject(*pos["B"], b)
+        for _ in range(300):
+            G.tick()
+        assert G.cells[pos["E"]].ram_data_reg == (a + b) & M

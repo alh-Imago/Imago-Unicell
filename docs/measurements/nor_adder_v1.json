@@ -21,6 +21,31 @@
    "VCC": 1
   }
  },
+ "carrier": {
+  "alm_per_position": 1030.52,
+  "alm_total": 251680,
+  "dedicated_adder": {
+   "alm": 7214,
+   "cells_used": 5,
+   "percent_of_card": 2.9,
+   "positions": 7,
+   "ticks_std_vm": 4
+  },
+  "nor_built_folded": {
+   "alm": 137059,
+   "cells_used": 103,
+   "percent_of_card": 54.5,
+   "positions": 133,
+   "ticks_std_vm": 56
+  },
+  "nor_built_long_and_thin": {
+   "alm": 353468,
+   "cells_used": 80,
+   "percent_of_card": 140.4,
+   "positions": 343,
+   "ticks_std_vm": 32
+  }
+ },
  "nor_adder": {
   "ALU": 0,
   "DFF": 3139,

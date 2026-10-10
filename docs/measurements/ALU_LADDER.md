@@ -1,6 +1,6 @@
 # The ALU ladder: what the project has built at each level, and what it cost
 
-*Ledger #1036 addenda 47 and 48, 10 Oct 2026. Working material for the papers: one place where every size and every claim has its source and its status. Three tables are generated from the repo's own measurement files (`python3 tools/alu_ladder_v1.py --write`; `--check` says whether they are current). Everything else was written by hand from the ledger entry named beside it.*
+*Ledger #1036 addenda 47 to 49, 10 Oct 2026. Working material for the papers: one place where every size and every claim has its source and its status. Four tables are generated from the repo's own measurement files (`python3 tools/alu_ladder_v1.py --write`; `--check` says whether they are current). Everything else was written by hand from the ledger entry named beside it.*
 
 ## The idea in one paragraph
 
@@ -73,6 +73,22 @@ A word-level Kogge-Stone carry network: `G = A & B`, `P = A ^ B`, then five stag
 <!-- END GENERATED: nor -->
 
 How to read it. The NOR-built adder costs about 56 times the LUTs, 19 times the flip-flops and 8 times the latency of the dedicated cell, and uses no carry chain at all. Most of the flip-flops are not in the gates: 62 of the 80 cells are relay or shift cells, each a registered 32-bit word with handshake. This is the price of one level down, in this particular fabric, with a word-wide cell as the unit. It is not a statement about what a gate-level (bit-wide) design could do, and it fits a Tang Nano 20K easily (838 of 20,736 LUT4). The tile was drawn by hand; the layout is the main lever left (an automatic grid layout gave 647 cells, 499 at best, and an annealed placement could not be routed).
+
+## Table D: the same adder on the carrier line (rung 1c)
+
+The carrier line is the original design: every position holds every core and a runtime write picks which one works. The same 17 gate cells and the relay and shift cells run unchanged in the **standard-mode VM** (the carrier line's reference): 79 sums, all correct, 56 ticks when folded (32 when long and thin; the extra ticks are the relays that carry the two bands together). The generated RTL of the folded layout also matches (plain and stalls).
+
+Cost is a **calculation, not a build**: the number of positions the toolchain would instantiate (it always builds a dense near-square array, so empty squares are paid for; `nano/card_fit_v1.py`) times the measured Quartus cost of one `super_v3` position on the Arria 10 (1,030.52 ALM, ledger #579, real build at N = 10), against the card's 251,680 ALM. Nothing here was compiled with Quartus. The `super_v3` shell has eight cores and no crossing tile; the design uses one crossing tile, which exists in the VIX carrier (no Quartus data), so the figure is the nearest measured one, not an exact one.
+
+<!-- BEGIN GENERATED: carrier -->
+| 32-bit adder on the carrier line (Arria 10 reference) | cells used | positions the toolchain builds | ALM at 1,030.52 per position | share of the card (251,680 ALM) | standard-mode VM ticks |
+|---|---:|---:|---:|---:|---:|
+| dedicated adder cell | 5 | 7 | 7,214 | 2.9% | 4 |
+| from nano gates and shift cells, folded into a near-square block | 103 | 133 | 137,059 | 54.5% | 56 |
+| the same, laid out long and thin (as in Table C) | 80 | 343 | 353,468 | 140.4% | 32 |
+<!-- END GENERATED: carrier -->
+
+What the table shows. On the carrier line the cost of a function is almost entirely the **number of positions**, because every position costs the same whatever it does: the NOR-built adder needs 133 positions where the dedicated cell needs 7 (19 times), and layout decides whether it fits at all: laid out long and thin it would need 343 positions and not fit the card (the project's own ceiling for this shell is about 244 positions). Table C is the other side of the same story: the flex line strips each cell to the one core it needs, so the same design is 838 LUT4 on the Tang Nano 20K instead of a block that would fill most of an Arria 10. That is the substrate effect described in the project notes: the extra cores and the stripped cells add function while lowering the cost of a position. The cell counts in the original line's own design note (a 45-cell packed shift-adder, verified only in Python; its Verilog top is marked stale and never computed a sum) describe the same algorithm; this build has 36 logic and fan-out cells before placement and 103 after, so the two agree within the difference in what is counted.
 
 ## Floating point from cells (rung 3)
 

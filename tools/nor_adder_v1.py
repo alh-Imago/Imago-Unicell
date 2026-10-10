@@ -78,23 +78,22 @@ def records(g):
     return out
 
 
-def build_tight(ks=(1, 2, 4, 8, 16), rows=20, cols=50, entry=((0, 0), (3, 0), (3, 1))):
+def build_tight(ks=(1, 2, 4, 8, 16), rows=20, cols=50, entry=((0, 0), (3, 0), (3, 1)), X0=6, fold_at=None, roff=5, cross=True):
     """Hand-drawn tile: each stage is an 8-cell block whose neighbours are LINKED directly (no relay), only the long lanes (the operands in, P0 to the sum) are routed. Stage i, base column b:
         row 0:  gf(b)  Gn(b+1)          G lane, flows east:   Gn -> next gf
         row 1:  Gs(b)  T(b+1)
         row 2:         pf(b+1) Pn(b+2)  P lane, flows east:   Pn -> next pf
         row 3:         Ps(b+1) q(b+2)"""
     cells, nets = netlist(ks)
-    X0 = 6
     pos = {"G0": (0, X0 - 3), "r": (0, X0 - 2), "P0": (2, X0 - 1), "P0f": (2, X0), "P0b": (4, X0), "A": entry[0], "B": entry[1], "Bd": entry[2]}
     # (0,X0-1) stays free: gf0 sits at (0, X0)
     pos["r"] = (0, X0 - 1)
     pos["G0"] = (0, X0 - 2)
     for i, k in enumerate(ks):
-        s, b = f"s{k}", X0 + 2 * i
-        pos.update({f"gf{s}": (0, b), f"Gs{s}": (1, b), f"Gn{s}": (0, b + 1), f"T{s}": (1, b + 1), f"pf{s}": (2, b + 1), f"Ps{s}": (3, b + 1), f"q{s}": (3, b + 2), f"Pn{s}": (2, b + 2)})
-    bl = X0 + 2 * len(ks)
-    pos.update({"C": (0, bl - 1 + 1), "S": (0, bl + 1), "E": (0, bl + 2)})
+        s = f"s{k}"
+        r0, b = (roff, X0 + 2 * (i - fold_at)) if fold_at is not None and i >= fold_at else (0, X0 + 2 * i)
+        pos.update({f"gf{s}": (r0, b), f"Gs{s}": (r0 + 1, b), f"Gn{s}": (r0, b + 1), f"T{s}": (r0 + 1, b + 1), f"pf{s}": (r0 + 2, b + 1), f"Ps{s}": (r0 + 3, b + 1), f"q{s}": (r0 + 3, b + 2), f"Pn{s}": (r0 + 2, b + 2)})
+    pos.update({"C": (r0, b + 2), "S": (r0, b + 3), "E": (r0, b + 4)})
     g = fl.Grid(rows=rows, cols=cols)
     for name, (core, cfg, addon) in cells.items():
         g.add(name, pos[name][0], pos[name][1], core, cfg, addon)
@@ -104,16 +103,19 @@ def build_tight(ks=(1, 2, 4, 8, 16), rows=20, cols=50, entry=((0, 0), (3, 0), (3
             g.link(a, b)
         else:
             long_nets.append((a, b))
-    g.route_nets(long_nets, rounds=300)
-    fix_ties(g)
+    g.route_nets(long_nets, rounds=300, use_cross=cross)
+    fix_ties(g, extra_keys=tuple(k for k in long_nets if k not in ENTRY_KEYS and k[1] not in ("P0b", "S")))
     return g, long_nets
 
 
-def fix_ties(g, depth=4):
+ENTRY_KEYS = (("Bd", "G0"), ("A", "G0"), ("Bd", "P0"), ("A", "P0"))
+
+
+def fix_ties(g, depth=4, extra_keys=()):
     """Break the same-hop ties of the layout by lengthening the four routed operand paths into G0 / P0 (two relays each time). A search over short sequences; the first one that leaves no tie is kept."""
     import copy
     import itertools
-    keys = (("Bd", "G0"), ("A", "G0"), ("Bd", "P0"), ("A", "P0"))
+    keys = ENTRY_KEYS + tuple(extra_keys)
     if not g.problems():
         return []
     for n_ in range(1, depth + 1):
@@ -146,11 +148,12 @@ def plain_adder_grid():
     return p
 
 
-def ticks_to_result(recs):
-    """FlexGrid ticks from injecting A and B to a valid, correct sum at E."""
+def ticks_to_result(recs, std=False):
+    """Ticks from injecting A and B to a valid, correct sum at E: in FlexGrid, or (std=True) in the standard-mode VM, the carrier line's reference."""
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "nano"))
     import flex_grid_v1 as fg
-    G = fg.FlexGrid(recs, width=32)
+    from unicell_super_automaton_v1 import SuperGrid
+    G = SuperGrid(recs) if std else fg.FlexGrid(recs, width=32)
     pos = {r.cell_id: (r.row, r.col) for r in recs}
     a, b = 123456789, 987654321
     G.inject(*pos["A"], a)
@@ -191,6 +194,37 @@ def synth_counts(recs, name):
             "yosys_cells": c}
 
 
+def carrier_plain_grid():
+    """The dedicated adder cell laid out as tightly as the carrier's dense array allows: 2 x 3 positions."""
+    p = fl.Grid(rows=2, cols=3)
+    p.add("B", 0, 0)
+    p.add("Bd", 0, 1)
+    p.add("A", 1, 0)
+    p.add("ADD", 1, 1, "adder")
+    p.add("E", 1, 2)
+    p.link("B", "Bd")
+    p.link("Bd", "ADD")
+    p.link("A", "ADD")
+    p.link("ADD", "E")
+    assert p.problems() == []
+    return p
+
+
+def carrier_numbers(recs, plain_recs, long_recs):
+    """The carrier line (Arria 10 reference): cost = INSTANTIATED positions (the toolchain builds a dense near-square array, card_fit_v1.array_cells) x the measured per-position ALM of the
+    super_v3 shell (card_fit_v1.ALM_PER_POSITION, ledger #579, real Quartus at N = 10), against the card's ALM total (docs/man/mustang-f100-a10.man.json). Ticks are from the standard-mode VM."""
+    import json
+    import card_fit_v1 as cf
+    man = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "man", "mustang-f100-a10.man.json")))
+    alm_total = man["alm_total"] if "alm_total" in man else man["device"]["alm_total"]
+    per = cf.ALM_PER_POSITION["super_v3"]
+
+    def row(rs):
+        pos = cf.array_cells(rs)
+        return {"cells_used": len(rs), "positions": pos, "alm": round(pos * per), "percent_of_card": round(100.0 * pos * per / alm_total, 1), "ticks_std_vm": ticks_to_result(rs, std=True)}
+    return {"alm_per_position": per, "alm_total": alm_total, "nor_built_folded": row(recs), "nor_built_long_and_thin": row(long_recs), "dedicated_adder": row(plain_recs)}
+
+
 def measure():
     g, _ = build_tight()
     recs = records(g)
@@ -200,7 +234,15 @@ def measure():
     p = plain_adder_grid()
     return {"what": "32-bit add, mod 2^32, flex line, whole design incl. entry/exit rams; yosys synth_gowin -nowidelut via project_assemble_v1 -s flex --icm --man tang-nano-20k; SYNTHESIS ONLY",
             "nor_adder": dict(placed_cells=len(recs), by_core=cores, logic_cells=sum(1 for r in recs if r.core == "nano"), ticks_flexgrid=ticks_to_result(recs), **synth_counts(recs, "nor_adder")),
-            "adder_cell": dict(placed_cells=len(p.nodes), ticks_flexgrid=ticks_to_result(p.records()), **synth_counts(p.records(), "plain_adder"))}
+            "adder_cell": dict(placed_cells=len(p.nodes), ticks_flexgrid=ticks_to_result(p.records()), **synth_counts(p.records(), "plain_adder")),
+            "carrier": carrier_numbers(records(build_folded()[0]), carrier_plain_grid().records(), records(build_tight()[0]))}
+
+
+FOLD = dict(X0=3, fold_at=3, roff=5)       # the stage tile folded into two bands (stages 1-3 above, 4-5 below): the carrier toolchain instantiates a dense NEAR-SQUARE array, so a long thin layout pays for the empty squares
+
+
+def build_folded():
+    return build_tight(**FOLD)
 
 
 JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "measurements", "nor_adder_v1.json")
