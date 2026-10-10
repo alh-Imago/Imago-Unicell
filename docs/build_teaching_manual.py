@@ -35,7 +35,15 @@ OUT  = os.path.join(HERE, "teaching_manual.html")
 # Each section: short tab label, number, title, source doc, framing intro, and
 # run/access links (relative paths -- they resolve on a local clone AND on Pages).
 SECTIONS = [
-    {"id":"start","num":"01","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"tour","num":"01","tab":"Tour","title":"Tour: What Is Where, and How to Run It",
+     "intro":"The parts you will use, each a link, with a live picture of what is inside one "
+             "cell and a measured picture of how long a sum takes. Start here: it shows what "
+             "everything is, where it lives in the repository, and the three commands that get "
+             "you to a working screen.",
+     "html":open(os.path.join(HERE, "teaching", "tour_fragment.html"), encoding="utf-8").read(),
+     "links":[("Continue → Start","#sec-start","section")]},
+
+    {"id":"start","num":"02","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -46,7 +54,7 @@ SECTIONS = [
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
      "links":[("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"02","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"03","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "
