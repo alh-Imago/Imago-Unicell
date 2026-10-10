@@ -1,0 +1,164 @@
+{
+ "what": "the hand-written CORDIC with and without a freeze input and a 132-bit scan chain (cordic_z_*_frz_v1.v). Counts: system yosys synth_gowin -nowidelut; Fmax: nextpnr-himbaechel-gowin, GW2AR-LV18QN88C8/I7, target 400 MHz, three seeds, inside the same small wrapper (freeze and scan pins driven from the wrapper's shift register so nothing is optimised away). SYNTHESIS AND PLACE-AND-ROUTE ONLY.",
+ "designs": {
+  "pipe": {
+   "synth": {
+    "LUT": 48,
+    "ALU": 123,
+    "DFF": 132,
+    "cells": {
+     ":": 373,
+     "ALU": 123,
+     "DFF": 128,
+     "DFFR": 4,
+     "GND": 1,
+     "IBUF": 35,
+     "LUT2": 4,
+     "LUT4": 44,
+     "OBUF": 33,
+     "VCC": 1
+    }
+   },
+   "pnr_in_wrapper": [
+    {
+     "seed": 1,
+     "fmax_mhz": 180.3,
+     "LUT4": 172,
+     "DFF": 173
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 175.4,
+     "LUT4": 179,
+     "DFF": 173
+    },
+    {
+     "seed": 3,
+     "fmax_mhz": 169.1,
+     "LUT4": 202,
+     "DFF": 173
+    }
+   ]
+  },
+  "pipe_frz": {
+   "synth": {
+    "LUT": 179,
+    "ALU": 123,
+    "DFF": 132,
+    "cells": {
+     ":": 508,
+     "ALU": 123,
+     "DFFE": 128,
+     "DFFRE": 4,
+     "GND": 1,
+     "IBUF": 38,
+     "LUT2": 6,
+     "LUT3": 129,
+     "LUT4": 44,
+     "OBUF": 34,
+     "VCC": 1
+    }
+   },
+   "pnr_in_wrapper": [
+    {
+     "seed": 1,
+     "fmax_mhz": 323.4,
+     "LUT4": 273,
+     "DFF": 169
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 323.4,
+     "LUT4": 271,
+     "DFF": 169
+    },
+    {
+     "seed": 3,
+     "fmax_mhz": 339.0,
+     "LUT4": 271,
+     "DFF": 169
+    }
+   ]
+  },
+  "hs": {
+   "synth": {
+    "LUT": 56,
+    "ALU": 123,
+    "DFF": 132,
+    "cells": {
+     ":": 383,
+     "ALU": 123,
+     "DFFE": 128,
+     "DFFRE": 4,
+     "GND": 1,
+     "IBUF": 36,
+     "LUT2": 7,
+     "LUT3": 4,
+     "LUT4": 45,
+     "OBUF": 34,
+     "VCC": 1
+    }
+   },
+   "pnr_in_wrapper": [
+    {
+     "seed": 1,
+     "fmax_mhz": 182.7,
+     "LUT4": 158,
+     "DFF": 173
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 165.8,
+     "LUT4": 175,
+     "DFF": 173
+    },
+    {
+     "seed": 3,
+     "fmax_mhz": 170.3,
+     "LUT4": 168,
+     "DFF": 173
+    }
+   ]
+  },
+  "hs_frz": {
+   "synth": {
+    "LUT": 192,
+    "ALU": 123,
+    "DFF": 132,
+    "cells": {
+     ":": 523,
+     "ALU": 123,
+     "DFFE": 128,
+     "DFFRE": 4,
+     "GND": 1,
+     "IBUF": 39,
+     "LUT2": 8,
+     "LUT3": 136,
+     "LUT4": 48,
+     "OBUF": 35,
+     "VCC": 1
+    }
+   },
+   "pnr_in_wrapper": [
+    {
+     "seed": 1,
+     "fmax_mhz": 327.1,
+     "LUT4": 260,
+     "DFF": 173
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 320.8,
+     "LUT4": 257,
+     "DFF": 173
+    },
+    {
+     "seed": 3,
+     "fmax_mhz": 327.1,
+     "LUT4": 257,
+     "DFF": 173
+    }
+   ]
+  }
+ }
+}

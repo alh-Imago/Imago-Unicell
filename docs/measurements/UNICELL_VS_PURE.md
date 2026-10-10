@@ -62,3 +62,5 @@ On one 4-stage design, what survives the test is: exact VM-to-RTL agreement, and
 
 
 **Update (addendum 60):** the checkpoint gap in point 4 is closed in the VM by `nano/mixed_grid_checkpoint_v2.py`, which also stores the words in flight; the cut-at-every-tick test passes (`tests/vm/test_mixed_grid_checkpoint_v2.py`). Still not shown on hardware.
+
+**Correction (addendum 65):** the statement above that a pure design has no equivalent of freeze-and-reload is too strong. A hand-written CORDIC with a freeze input and a scan chain does it (`docs/freeze/PURE_VERILOG_FREEZE.md`) for about one LUT per state bit. What UniCell may add is uniformity and automatic insertion; that is not measured.
