@@ -16,8 +16,8 @@ under GitHub's render limit. No entry content changed.
 - `points/INDEX.md` — the full real map of which file holds which entries, the naming
   convention, and how to append a new one.
 - `points/points_active.md` — the currently-open file; holds the real, most recent work
-  (currently #946 onward; #572-#945 are sealed in parts 7-11). This is what a fresh session should read first for catch-up,
-  same role this single file used to play.
+  (currently #1037 onward; #572-#1036 are sealed in parts 7-12). This is what a fresh session should read first for catch-up,
+  together with the end of part 12 (`points/points_12_946-1036.md`), which holds the recent work. Same role this single file used to play.
 
 ```bash
 cat points/points_active.md          # most recent real work

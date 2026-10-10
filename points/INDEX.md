@@ -16,9 +16,11 @@ TWICE (two different entries, both in part 10); and #893 and #902 were never
 used (skipped numbers, in part 11).** **A sixth, from 2026-10-06:** in
 `points_active.md`, #990 physically follows #991-#998. Two sessions were
 appending in parallel; #990 was claimed by a WIP commit and written after
-the documentation branch's #991-#998 had merged. All are left exactly as they are in the
+the documentation branch's #991-#998 had merged. **A seventh, found when part 12 was sealed (10 Oct 2026):** #1002 was never
+used (recorded in #1003 and #1006); part 12 is where both it and #990 sit. All are left exactly as they are in the
 real historical record. (The older sealed parts' headers say "of 7" because
-they predate parts 7-11; sealed parts are never edited, so they still do.)
+they predate parts 7-11; sealed parts are never edited, so they still do. Part 11 says "of 12" and
+part 12 says "of 13", each counting the open file.)
 
 ## Naming convention
 
@@ -44,7 +46,8 @@ final range and a fresh, empty `points_active.md` starts.
 | 9 | [`points_09_736-810.md`](points_09_736-810.md) | 75 | #736-#810 |
 | 10 | [`points_10_811-874.md`](points_10_811-874.md) | 65 | #811-#874 |
 | 11 | [`points_11_875-945.md`](points_11_875-945.md) | 69 | #875-#945 |
-| active | [`points_active.md`](points_active.md) | 1+ (growing) | #946 onward |
+| 12 | [`points_12_946-1036.md`](points_12_946-1036.md) | 90 | #946-#1036 (with addenda 1-69 under #1036) |
+| active | [`points_active.md`](points_active.md) | 1+ (growing) | #1037 onward |
 
 ## Finding a specific entry
 
@@ -59,8 +62,8 @@ adjacent part first if a grep misses, given the real anomalies above.
 ## Session catch-up
 
 Start with `current/latest.md`, then `points/points_active.md` (the open tail, fresh
-since #946) AND the end of the most recent sealed part (part 11, `points_11_875-945.md`,
-which holds the real recent work up to #945, e.g. `tail -c 70000 points/points_11_875-945.md`).
+since #1037) AND the end of the most recent sealed part (part 12, `points_12_946-1036.md`,
+which holds the real recent work up to #1036, e.g. `tail -c 70000 points/points_12_946-1036.md`).
 Older parts are historical background, read as needed.
 
 ## Status: what's done, pending, or just a thought direction
