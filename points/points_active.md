@@ -63,4 +63,18 @@ Alan: the next part introduces the other members of the flex family, a brief ove
 
 **Checked.** The page script was run in a simulated browser (jsdom): no script errors; 14 cards; the filters show 5, 6, 3 and 14; in 30 steps exactly 15 items enter (one every two steps) and they stay in order; Freeze moves nothing in 6 steps and shows its text and style; with the sink blocked every cell ends up holding a distinct item, valid is up and ack is down on every link into a full cell, and the pile-up text shows; after unblocking, new items enter again; autoplay advances by itself. All 16 links point at files that exist. The Tour tab's test still passes. The test files are in the session scratch area, not the repository. NOT checked: how it looks in a real browser or on a phone, and no cell was run to confirm its one-line description (they come from the headers and README). Main manual and its builder unchanged.
 
-Next entry: #1041.
+---
+
+## #1041 -- TEACHING MANUAL PART 3: CHAINING CELLS (Alan's direction), AND THE FIRST LOOK AT PARTS 1-2 IN A REAL BROWSER
+
+Alan asked for the concept of chaining cells: a simple grid of blocks, the flex cells' dedicated in and out ports shown on them, cell types dragged into the grid, an input box, and the chain's result. Tab 03 "Chaining" of `docs/teaching_manual.html` (source `docs/teaching/chaining_fragment.html`; the builder now has five tabs: Tour, Family, Chaining, Start, Backdrop).
+
+**What it does.** A 6-column board: INPUT, four chain slots, OUTPUT, with a row of constant slots above. Palette: adder (A+B), adder (A-B), multiplier, compare, shift stage, nano gate, fixed ram (a constant). Drag a cell in (or click a cell, then a slot, for touch); drag a placed block to move it; x removes. Input ports are drawn as triangles on the left and top of each block, output ports on the right and bottom, labelled. Each wire shows the value on it. Empty chain slots act as relays. A two-input cell with no constant above it is flagged and nothing reaches the output (the two-arrival rule from the Tour). "Send it through" lights the blocks in turn. Three examples are built in. Numbers are 18 bits signed and wrap.
+
+**Simplified, and the page says so.** Each cell passes to its right-hand neighbour and constants feed down from above; the real composer places cells anywhere and routes relays between them. The values come from the cell rules in the Verilog, computed by the page, not by running the VM.
+
+**Checked.** In real Chromium (Playwright): real drag and drop into the chain row and the constant row, refusal of a constant in the chain row and of an operating cell in the constant row, click-to-place, moving and removing blocks, Clear, Send it through, empty/decimal/huge inputs (huge wraps and says so; a decimal is refused), no console errors at 1200 and 390 px. Twelve random three-cell chains of add/sub/mul with constants matched an independent Python calculation. The library add, sub and mul designs run on the step simulator at width 18 (25 random pairs each) matched the same arithmetic (0 mismatches), so the page and the VM agree for those three. NOT cross-checked against the VM: compare, shift stage and nano gate (the nano's gate table was checked against the page in #1039). Fixes made on looking: the output number was clipped under OUTPUT, the grid was too wide for the column (cut to four chain slots), a decimal input was silently truncated.
+
+**Parts 1 and 2 looked at in a real browser too** (screenshots at desktop and 390 px; no console errors). One defect found and fixed: in the Tour's first route card the inline command `python3 quickstart.py --composer` ran out of the card and over its neighbour; it now wraps inside the card. This replaces the "not looked at in a real browser" notes in #1039 and #1040. Phone layout of the Chaining board scrolls sideways (hint shown). Main manual and its builder unchanged.
+
+Next entry: #1042.

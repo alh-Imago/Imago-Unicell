@@ -1,0 +1,282 @@
+<!-- Chaining fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). -->
+<div class="chaining" id="chain-root">
+<style>
+  .chaining h2{margin-top:1.6em}
+  .chaining .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .chaining button,.chaining select,.chaining input{font:inherit;font-size:.95em}
+  .chaining .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .chaining .bar button{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .chaining .bar button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .chaining .bar button.go{background:var(--accent);color:#fff}
+  .chaining .palette .item{cursor:grab;text-align:left;line-height:1.2}
+  .chaining .palette .item small{display:block;font-family:var(--mono);font-size:.72em;opacity:.8}
+  .chaining .inbox{display:flex;align-items:center;gap:8px;margin:.5em 0}
+  .chaining .inbox input{width:8.5em;padding:6px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff}
+  .chaining .boardwrap{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:14px 16px 44px}
+  .chaining .board{display:grid;grid-template-columns:repeat(6,84px);column-gap:18px;row-gap:34px;width:max-content;position:relative}
+  .chaining .slot{position:relative;width:84px;height:108px}
+  .chaining .slot.off{visibility:hidden}
+  .chaining .slot .empty{position:absolute;inset:0;border:2px dashed var(--rule);border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:.72em;color:var(--ink-soft);padding:4px}
+  .chaining .slot.over .empty,.chaining .slot.over .blk{border-color:var(--accent);background:rgba(21,117,109,.12)}
+  .chaining .slot.target .empty{border-color:var(--accent-bright)}
+  .chaining .blk{position:absolute;inset:0;border:2px solid var(--ink-soft);border-radius:10px;background:var(--paper-edge);padding:4px 5px;font-size:.7em;line-height:1.2;cursor:grab}
+  .chaining .blk.fixed{cursor:default;background:rgba(21,117,109,.12)}
+  .chaining .blk.const{background:#efe6c8}
+  .chaining .blk.now{border-color:var(--accent);box-shadow:0 0 0 4px rgba(21,117,109,.25)}
+  .chaining .blk b{display:block;font-size:1.05em}
+  .chaining .blk small{display:block;font-family:var(--mono);font-size:.82em;color:var(--ink-soft)}
+  .chaining .blk .x{position:absolute;top:1px;right:3px;border:0;background:none;color:var(--ink-soft);cursor:pointer;font-size:1.1em;line-height:1;padding:0 3px}
+  .chaining .blk .set{display:flex;gap:3px;margin-top:3px}
+  .chaining .blk .set input,.chaining .blk .set select{width:100%;min-width:0;font-size:.95em;padding:1px 2px;border:1px solid var(--rule);border-radius:4px;background:#fff}
+  .chaining .blk.noinput{border-color:#b5533a}
+  /* ports: dedicated, marked on the block edge */
+  .chaining .port{position:absolute;font-family:var(--mono);font-size:.62em;color:var(--ink);pointer-events:none;white-space:nowrap}
+  .chaining .port i{position:absolute;width:0;height:0;border:6px solid transparent}
+  .chaining .pl{left:-6px;top:50%;transform:translateY(-50%)} .chaining .pl i{left:-9px;top:-6px;border-left:9px solid var(--accent);border-right:0}
+  .chaining .pl em{position:absolute;left:12px;top:-6px;font-style:normal;color:var(--ink-soft)}
+  .chaining .pt{top:-6px;left:50%;transform:translateX(-50%)} .chaining .pt i{left:-6px;top:-9px;border-top:9px solid var(--accent);border-bottom:0}
+  .chaining .pt em{position:absolute;left:10px;top:-14px;font-style:normal;color:var(--ink-soft)}
+  .chaining .pr{right:-6px;top:50%;transform:translateY(-50%)} .chaining .pr i{left:-3px;top:-6px;border-left:9px solid var(--ink);border-right:0}
+  .chaining .pr em{position:absolute;right:10px;top:-6px;font-style:normal;color:var(--ink-soft)}
+  .chaining .pb{bottom:-6px;left:50%;transform:translateX(-50%)} .chaining .pb i{left:-6px;top:-3px;border-top:9px solid var(--ink);border-bottom:0}
+  .chaining .pb em{position:absolute;left:-8px;top:-17px;font-style:normal;color:var(--ink-soft)}
+  .chaining .chip{position:absolute;font-family:var(--mono);font-size:.7em;padding:0 5px;border-radius:9px;background:#fff;border:1px solid var(--rule);color:var(--ink-soft);white-space:nowrap;z-index:2}
+  .chaining .chip.has{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chaining .chip.r{right:-9px;top:calc(50% - 24px);transform:translateX(50%)}
+  .chaining .chip.b{left:calc(50% + 10px);bottom:-30px}
+  /* wires between slots */
+  .chaining .wr{position:absolute;left:100%;top:50%;width:18px;height:3px;margin-top:-1px;background:var(--rule)}
+  .chaining .wd{position:absolute;left:50%;top:100%;width:3px;height:34px;margin-left:-1px;background:var(--rule)}
+  .chaining .wr.lit,.chaining .wd.lit{background:var(--accent-bright)}
+  .chaining .outv{font-size:1.6em;font-weight:bold;font-family:var(--mono)}
+  .chaining .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .chaining .trace{font-family:var(--mono);font-size:.88em;margin:.3em 0;word-break:break-word}
+  .chaining .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .chaining .hint{display:none;font-size:.8em;color:var(--ink-soft);margin:.2em 0}
+  @media (max-width:640px){.chaining .hint{display:block}}
+  .chaining .legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.85em;color:var(--ink-soft);margin:.4em 0}
+  .chaining .legend span::before{content:"";display:inline-block;width:0;height:0;border:6px solid transparent;vertical-align:middle;margin-right:4px}
+  .chaining .legend .li::before{border-left:9px solid var(--accent);border-right:0}
+  .chaining .legend .lo::before{border-left:9px solid var(--ink);border-right:0}
+</style>
+
+<p class="lead">One cell on its own is not much. The power is in chaining: the output of one cell goes to the input of the next. In the flex family every connection is a dedicated point-to-point link between one output port and one input port, with no shared bus. Build a chain below and watch a number go through it.</p>
+
+<h2>1. Build a chain</h2>
+<p>Drag a cell from the palette into the grid, or click a cell and then click a slot (this works on a touch screen too). Operating cells go in the lower row, the <strong>chain</strong>. Constants (fixed ram cells) go in the upper row and feed down into the cell below them. Drag a placed block to move it.</p>
+
+<div class="bar palette" id="chain-palette" role="group" aria-label="Cell palette"></div>
+<div class="legend"><span class="li">input port (data goes in)</span><span class="lo">output port (data comes out)</span></div>
+
+<div class="inbox">
+  <label for="chain-in"><strong>Input:</strong></label>
+  <input type="number" id="chain-in" value="5" step="1" aria-describedby="chain-range">
+  <span id="chain-range" style="font-size:.8em;color:var(--ink-soft)">whole numbers, &minus;131072 to 131071 (18 bits, like the Tang board)</span>
+</div>
+
+<div class="hint">Scroll the grid sideways to see all of it. The result is also written under the grid.</div>
+<div class="boardwrap"><div class="board" id="chain-board"></div></div>
+
+<div class="bar">
+  <button type="button" class="go" id="chain-send">Send it through</button>
+  <button type="button" id="chain-clear">Clear the grid</button>
+  <span style="font-size:.9em;color:var(--ink-soft)">Examples:</span>
+  <button type="button" data-ex="1">(x + 3) &times; 2</button>
+  <button type="button" data-ex="2">x &minus; 4, then &ge; 0?</button>
+  <button type="button" data-ex="3">x AND 12</button>
+</div>
+<div class="trace" id="chain-trace" aria-live="polite"></div>
+<div class="says" id="chain-says" aria-live="polite"></div>
+
+<h2>2. What to notice</h2>
+<ul>
+  <li><strong>An empty slot in the chain just carries the value along.</strong> The real composer fills the gaps between cells with relay cells in the same way, and they take time too.</li>
+  <li><strong>A two-input cell waits for both.</strong> Remove the constant above an adder and the adder never fires, so nothing reaches the output. This is the two-arrival rule from the Tour.</li>
+  <li><strong>The ports are fixed.</strong> An adder has two input ports (A from the left, B from above) and one output. Nothing decides at run time where a value goes; it was fixed when the chain was built.</li>
+</ul>
+<p class="fine">A simplified picture. Here each cell's output goes to its right-hand neighbour and a constant feeds down from above; the real composer can place cells anywhere and lays a route of relay cells between any two of them. Numbers are 18 bits wide and shown as signed, so they wrap around: the page computes each cell from the rules in its Verilog (<a href="../sub/verilog/adder_cell_v4sa.v">adder</a> A &minus; B in two's complement, <a href="../sub/verilog/mul_cell_v4sa.v">multiplier</a> keeps the low half of the product, <a href="../sub/verilog/compare_cell_v4sa.v">compare</a> is a signed &ge;, <a href="../sub/verilog/shift_stage_v4sa.v">shift stage</a> is a logical shift by a fixed amount, <a href="../sub/verilog/nano_cell_v4sa.v">nano</a> as in the Tour), not by running the VM.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('chain-root'); if(!root) return;
+  var RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var BITS=18, MOD=Math.pow(2,BITS), HALF=MOD/2, MASK=MOD-1, COLS=6, LAST=COLS-2;   /* column 0 = input, 1..LAST = the chain, COLS-1 = output */
+  function wrap(v){var u=Number(BigInt.asUintN(BITS,BigInt(Math.trunc(v))));return u>=HALF?u-MOD:u;}
+  function U(v){return ((v%MOD)+MOD)%MOD;}
+  function nor(x,y){return (~(x|y))&MASK;}
+  var GATES=[['NOR','g4'],['AND','g2'],['OR','g5'],['NAND','g3'],['XOR','g9'],['XNOR','g8'],['not A','g0'],['not B','g1'],['pass A','A'],['pass B','B'],['zero','0'],['one','1']];
+  function gateOut(idx,A,B){ /* A = held (top port), B = flowing (left port), as unsigned 18-bit */
+    var g={};g.g0=nor(A,A);g.g1=nor(B,B);g.g4=nor(A,B);g.g2=nor(g.g0,g.g1);g.g5=nor(g.g4,g.g4);g.g6=nor(A,g.g4);g.g7=nor(B,g.g4);g.g3=nor(g.g2,g.g2);g.g8=nor(g.g6,g.g7);g.g9=nor(g.g8,g.g8);
+    var w=GATES[idx][1]; return wrap(w==='A'?A:w==='B'?B:w==='0'?0:w==='1'?MASK:g[w]);
+  }
+  /* the cell types: name, caption, input ports (left first, then top), settings */
+  var T={
+    add:  {name:'adder',     cap:'A + B',          ins:['A','B'], kind:'chain'},
+    sub:  {name:'adder',     cap:'A − B',     ins:['A','B'], kind:'chain'},
+    mul:  {name:'multiplier',cap:'A × B',     ins:['A','B'], kind:'chain'},
+    cmp:  {name:'compare',   cap:'in ≥ T ? 1 : 0', ins:['in'], kind:'chain'},
+    shift:{name:'shift stage',cap:'slide the bits', ins:['in'],   kind:'chain'},
+    gate: {name:'nano gate', cap:'ten NOR gates',  ins:['flow','hold'], kind:'chain'},
+    cst:  {name:'ram (fixed)',cap:'a constant',    ins:[],        kind:'const'}
+  };
+  var ORDER=['add','sub','mul','cmp','shift','gate','cst'];
+  var board=document.getElementById('chain-board'), pal=document.getElementById('chain-palette'), inEl=document.getElementById('chain-in');
+  var says=document.getElementById('chain-says'), trace=document.getElementById('chain-trace'), sendBtn=document.getElementById('chain-send');
+
+  /* state */
+  var chain={},cst={};   /* column -> {type, ...settings} */
+  var selected=null,dragFrom=null,anim=null;
+  function fresh(type){var o={type:type};if(type==='cst')o.v=3;if(type==='cmp')o.t=0;if(type==='shift'){o.n=1;o.dir='left';}if(type==='gate')o.g=1;return o;}
+
+  /* palette */
+  ORDER.forEach(function(k){var b=document.createElement('button');b.type='button';b.className='item';b.draggable=true;b.setAttribute('data-type',k);b.setAttribute('aria-pressed','false');
+    b.innerHTML=T[k].name+'<small>'+T[k].cap+'</small>';
+    b.addEventListener('click',function(){selected=(selected===k)?null:k;[].forEach.call(pal.children,function(o){o.setAttribute('aria-pressed',o.getAttribute('data-type')===selected?'true':'false');});markTargets();
+      say(selected?'Selected '+T[k].name+' ('+T[k].cap+'). Now click a slot'+(T[k].kind==='const'?' in the upper row.':' in the lower row.'):'Nothing selected.');});
+    b.addEventListener('dragstart',function(e){dragFrom='new:'+k;try{e.dataTransfer.setData('text/plain','new:'+k);e.dataTransfer.effectAllowed='copy';}catch(x){}});
+    pal.appendChild(b);});
+
+  /* board: row 0 = constants, row 1 = chain (IN at column 0, OUT at column 6) */
+  var slots={};
+  for(var r=0;r<2;r++){for(var c=0;c<COLS;c++){var s=document.createElement('div');s.className='slot';s.setAttribute('data-r',r);s.setAttribute('data-c',c);
+    if(r===0&&(c===0||c===COLS-1))s.className+=' off';
+    board.appendChild(s);slots[r+','+c]=s;wireSlot(s,r,c);}}
+  function wireSlot(s,r,c){
+    s.addEventListener('dragover',function(e){if(accepts(r,c,dragFrom)){e.preventDefault();s.classList.add('over');}});
+    s.addEventListener('dragleave',function(){s.classList.remove('over');});
+    s.addEventListener('drop',function(e){e.preventDefault();s.classList.remove('over');var d=dragFrom;try{var t=e.dataTransfer&&e.dataTransfer.getData('text/plain');if(t)d=t;}catch(x){}place(r,c,d);dragFrom=null;});
+    s.addEventListener('click',function(e){if(e.target.closest&&(e.target.closest('input')||e.target.closest('select')||e.target.closest('.x')))return;if(selected){place(r,c,'new:'+selected);}});
+  }
+  function accepts(r,c,d){
+    if(!d)return false; if(r===0&&(c===0||c===COLS-1))return false; if(r===1&&(c===0||c===COLS-1))return false;
+    var type; if(d.indexOf('new:')===0)type=d.slice(4); else if(d.indexOf('move:')===0){var p=d.slice(5).split(',');var src=+p[0]===0?cst[+p[1]]:chain[+p[1]];type=src&&src.type;} else return false;
+    if(!T[type])return false; return (r===0)===(T[type].kind==='const');
+  }
+  function place(r,c,d){
+    if(!accepts(r,c,d)){var type=d&&d.indexOf('new:')===0?d.slice(4):null;
+      say(r===0?'The upper row is for constants (fixed ram cells). Operating cells go in the lower row, the chain.':(r===1&&(c===0||c===COLS-1)?'That end slot is the input or the output; cells go in the four slots between.':'A constant goes in the upper row; operating cells go in the lower row.'));return false;}
+    var dst=(r===0)?cst:chain, obj;
+    if(d.indexOf('new:')===0)obj=fresh(d.slice(4)); else{var p=d.slice(5).split(','),from=(+p[0]===0)?cst:chain;obj=from[+p[1]];delete from[+p[1]];}
+    dst[c]=obj;build();update();return true;
+  }
+  function remove(r,c){delete (r===0?cst:chain)[c];build();update();}
+  function markTargets(){for(var k in slots){var s=slots[k],r=+s.getAttribute('data-r'),c=+s.getAttribute('data-c');s.classList.toggle('target',!!selected&&accepts(r,c,'new:'+selected));}}
+  function say(t){says.textContent=t;}
+
+  /* build the blocks (only when the layout changes, so typing in a setting box keeps its focus) */
+  function port(cls,label,extra){var p=document.createElement('div');p.className='port '+cls;p.innerHTML='<i></i>'+(label?'<em>'+label+'</em>':'');if(extra)p.setAttribute('data-p',extra);return p;}
+  function chip(cls){var e=document.createElement('div');e.className='chip '+cls;e.textContent='–';return e;}
+  function numInput(val,min,max,fn,label){var i=document.createElement('input');i.type='number';i.step='1';if(min!=null)i.min=min;if(max!=null)i.max=max;i.value=val;i.setAttribute('aria-label',label);i.addEventListener('input',function(){var v=parseInt(i.value,10);fn(isNaN(v)?0:v);update();});i.addEventListener('click',function(e){e.stopPropagation();});return i;}
+  function block(r,c,o){
+    var t=T[o.type],b=document.createElement('div');b.className='blk '+(t.kind==='const'?'const':'');b.draggable=true;b.setAttribute('data-type',o.type);
+    b.addEventListener('dragstart',function(e){dragFrom='move:'+r+','+c;try{e.dataTransfer.setData('text/plain','move:'+r+','+c);e.dataTransfer.effectAllowed='move';}catch(x){}});
+    b.innerHTML='<b>'+t.name+'</b><small>'+t.cap+'</small>';
+    var x=document.createElement('button');x.type='button';x.className='x';x.textContent='×';x.setAttribute('aria-label','Remove this '+t.name);x.addEventListener('click',function(e){e.stopPropagation();remove(r,c);});b.appendChild(x);
+    var set=document.createElement('div');set.className='set';
+    if(o.type==='cst')set.appendChild(numInput(o.v,-HALF,HALF-1,function(v){o.v=v;},'constant value'));
+    if(o.type==='cmp')set.appendChild(numInput(o.t,-HALF,HALF-1,function(v){o.t=v;},'threshold'));
+    if(o.type==='shift'){set.appendChild(numInput(o.n,0,BITS-1,function(v){o.n=Math.max(0,Math.min(BITS-1,v));},'shift amount'));
+      var s=document.createElement('select');s.setAttribute('aria-label','shift direction');['left','right'].forEach(function(d){var op=document.createElement('option');op.value=d;op.textContent=d;if(o.dir===d)op.selected=true;s.appendChild(op);});
+      s.addEventListener('change',function(){o.dir=s.value;update();});s.addEventListener('click',function(e){e.stopPropagation();});set.appendChild(s);}
+    if(o.type==='gate'){var g=document.createElement('select');g.setAttribute('aria-label','gate setting');GATES.forEach(function(gt,i){var op=document.createElement('option');op.value=i;op.textContent=gt[0];if(o.g===i)op.selected=true;g.appendChild(op);});
+      g.addEventListener('change',function(){o.g=+g.value;update();});g.addEventListener('click',function(e){e.stopPropagation();});set.appendChild(g);}
+    if(set.children.length)b.appendChild(set);
+    /* the dedicated ports, marked on the block */
+    if(t.kind==='const'){b.appendChild(port('pb','out'));}
+    else{ b.appendChild(port('pl',t.ins[0],'in0')); if(t.ins[1])b.appendChild(port('pt',t.ins[1],'in1')); b.appendChild(port('pr','out')); }
+    return b;
+  }
+  function fixedBlock(title,sub,isIn){
+    var b=document.createElement('div');b.className='blk fixed';b.innerHTML='<b>'+title+'</b><small>'+sub+'</small>';
+    if(isIn){b.appendChild(port('pr','out'));}else{b.appendChild(port('pl','in','in0'));}
+    return b;
+  }
+  var chips={};   /* key -> chip element: 'r,c:out' */
+  function build(){
+    chips={};
+    for(var k in slots){var s=slots[k];s.innerHTML='';}
+    for(var c=0;c<COLS;c++){
+      var s1=slots['1,'+c];
+      if(c===0){s1.appendChild(fixedBlock('INPUT','your number',true));}
+      else if(c===COLS-1){s1.appendChild(fixedBlock('OUTPUT','the result',false));var ov=document.createElement('div');ov.className='outv';ov.id='chain-out';ov.style.cssText='position:absolute;left:0;right:0;bottom:-34px;text-align:center';ov.textContent='–';s1.appendChild(ov);}
+      else if(chain[c]){s1.appendChild(block(1,c,chain[c]));}
+      else{var em=document.createElement('div');em.className='empty';em.innerHTML='<span>relay<br>(carries the value)</span>';s1.appendChild(em);}
+      if(c<COLS-1){var w=document.createElement('div');w.className='wr';w.setAttribute('data-w','r'+c);s1.appendChild(w);}
+      if(c>0&&c<COLS-1){var ch=chip('r');ch.setAttribute('data-chip',c);s1.appendChild(ch);chips[c]=ch;}
+      else if(c===0){var ch0=chip('r');ch0.setAttribute('data-chip','0');s1.appendChild(ch0);chips[0]=ch0;}
+      if(c>0&&c<COLS-1){var s0=slots['0,'+c];
+        if(cst[c]){s0.appendChild(block(0,c,cst[c]));var wd=document.createElement('div');wd.className='wd';wd.setAttribute('data-w','d'+c);s0.appendChild(wd);var cb=chip('b');cb.setAttribute('data-chip','k'+c);s0.appendChild(cb);chips['k'+c]=cb;}
+        else{var em0=document.createElement('div');em0.className='empty';em0.innerHTML='<span>constant<br>goes here</span>';s0.appendChild(em0);}
+      }
+    }
+    markTargets();
+  }
+
+  /* evaluate: returns {vals:{0..5,6}, steps:[...], problems:[...]} */
+  function readInput(){var t=String(inEl.value).trim(),v=Number(t);return(t===''||!isFinite(v)||Math.floor(v)!==v||Math.abs(v)>9e15)?null:v;}
+  function evaluate(){
+    var iv=readInput(),res={out:{},steps:[],problems:[],inWrapped:false,final:null,consts:{}};
+    if(iv===null){res.problems.push('Type a whole number in the input box (no decimals).');return res;}
+    var cur=wrap(iv);res.inWrapped=(cur!==iv);res.out[0]=cur;
+    for(var c=1;c<=LAST;c++){
+      if(cst[c])res.consts[c]=wrap(cst[c].v);
+      var o=chain[c];
+      if(cur===null){res.out[c]=null;continue;}
+      if(!o){res.out[c]=cur;continue;}                                   /* a relay: carries the value along */
+      var t=T[o.type],a=cur,b=null;
+      if(t.ins.length===2){ if(cst[c]===undefined){res.problems.push('Column '+c+': the '+t.name+' ('+t.cap+') has nothing feeding its '+t.ins[1]+' port, so it waits for it and never fires. Nothing reaches the output. Put a constant above it.');cur=null;res.out[c]=null;continue;} b=res.consts[c]; }
+      var v;
+      if(o.type==='add')v=wrap(a+b);
+      else if(o.type==='sub')v=wrap(a-b);
+      else if(o.type==='mul')v=wrap(Number(BigInt.asUintN(BITS,BigInt(a)*BigInt(b))));
+      else if(o.type==='cmp')v=(a>=wrap(o.t))?1:0;
+      else if(o.type==='shift'){var n=Math.max(0,Math.min(BITS-1,o.n|0));v=(o.dir==='left')?wrap((U(a)*Math.pow(2,n))%MOD):wrap(Math.floor(U(a)/Math.pow(2,n)));}
+      else if(o.type==='gate')v=gateOut(o.g,U(b),U(a));                  /* A = held (top, from the constant), B = flowing (left) */
+      res.steps.push({col:c,type:o.type,from:a,other:b,to:v,o:o});
+      cur=v;res.out[c]=v;
+    }
+    res.final=cur;res.out[COLS-1]=cur;return res;
+  }
+  function stepText(s){var t=T[s.type],o=s.o;
+    var what=s.type==='add'?'+ '+s.other:s.type==='sub'?'− '+s.other:s.type==='mul'?'× '+s.other:s.type==='cmp'?'≥ '+wrap(o.t)+'?':s.type==='shift'?'shift '+o.dir+' '+o.n:('gate '+GATES[o.g][0]+' with '+s.other);
+    return what+' → '+s.to;}
+  function update(){
+    var r=evaluate(),i;
+    var outEl=document.getElementById('chain-out');
+    function setChip(key,val){var e=chips[key];if(!e)return;e.textContent=(val===null||val===undefined)?'–':val;e.classList.toggle('has',val!==null&&val!==undefined);}
+    setChip(0,r.out[0]);for(i=1;i<=LAST;i++){setChip(i,r.out[i]);if(cst[i])setChip('k'+i,r.consts[i]);}
+    if(outEl)outEl.textContent=(r.final===null||r.final===undefined)?'–':r.final;
+    for(i=0;i<COLS-1;i++){var w=board.querySelector('[data-w="r'+i+'"]');if(w)w.classList.toggle('lit',r.out[i]!==null&&r.out[i]!==undefined);}
+    for(i=1;i<=LAST;i++){var d=board.querySelector('[data-w="d'+i+'"]');if(d)d.classList.toggle('lit',!!cst[i]);}
+    /* flag blocks whose second port is unfed */
+    [].forEach.call(board.querySelectorAll('.slot[data-r="1"] .blk'),function(b){var c=+b.parentNode.getAttribute('data-c'),o=chain[c];b.classList.toggle('noinput',!!(o&&T[o.type].ins.length===2&&cst[c]===undefined));});
+    var tr=(r.out[0]===undefined)?'':String(r.out[0]);r.steps.forEach(function(s){tr+='  '+stepText(s);});
+    trace.textContent=r.problems.length&&r.out[0]===undefined?'':(r.final===null?tr+'  … stuck':tr);
+    if(r.problems.length)say(r.problems[0]);
+    else if(!r.steps.length)say('The chain is empty, so the output is just your input carried along by relays: '+r.final+'. Drag a cell into the chain.');
+    else say('Result: '+r.final+(r.inWrapped?' (your input was too big for 18 bits, so it wrapped around to '+r.out[0]+')':'')+'. Every step is shown above.');
+    return r;
+  }
+  inEl.addEventListener('input',update);
+
+  /* send it through: highlight each block in turn */
+  function clearNow(){[].forEach.call(board.querySelectorAll('.blk.now'),function(b){b.classList.remove('now');});}
+  sendBtn.addEventListener('click',function(){
+    if(anim){clearTimeout(anim);anim=null;} var r=update();clearNow();
+    if(RM||r.problems.length){return;}
+    var seq=[slots['1,0'].querySelector('.blk')];for(var c=1;c<=LAST;c++){var b=slots['1,'+c].querySelector('.blk');if(b)seq.push(b);}seq.push(slots['1,'+(COLS-1)].querySelector('.blk'));
+    var k=0;(function next(){clearNow();if(k>=seq.length){anim=null;return;}seq[k].classList.add('now');k++;anim=setTimeout(next,520);})();
+  });
+  document.getElementById('chain-clear').addEventListener('click',function(){chain={};cst={};build();update();say('Cleared. Drag cells in to start again.');});
+  var EX={
+    1:function(){inEl.value=5;chain={1:fresh('add'),2:fresh('mul')};cst={1:{type:'cst',v:3},2:{type:'cst',v:2}};},
+    2:function(){inEl.value=3;var c=fresh('cmp');c.t=0;chain={1:fresh('sub'),2:c};cst={1:{type:'cst',v:4}};},
+    3:function(){inEl.value=13;var g=fresh('gate');g.g=1;chain={1:g};cst={1:{type:'cst',v:12}};}
+  };
+  [].forEach.call(document.querySelectorAll('#chain-root [data-ex]'),function(b){b.addEventListener('click',function(){EX[b.getAttribute('data-ex')]();build();update();});});
+  build();update();
+  say('Pick an example below, or drag a cell into the grid.');
+})();
+</script>
+</div>
