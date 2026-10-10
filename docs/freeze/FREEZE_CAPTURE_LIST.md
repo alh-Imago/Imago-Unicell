@@ -43,3 +43,13 @@ Not examined: the `adder_v1` arithmetic block and any pipeline registers inside 
 - Synthesis check: list every flip-flop of the generated CORDIC and sum the dynamic bits against this table.
 - RTL test: freeze the flex CORDIC at each cycle, read every dynamic register, then start a second copy of the design with those values forced in (in simulation, via `$deposit` or a test-only load) and show the same result at the same time. This repeats the VM test (addendum 60) in the RTL.
 - Decide the hardware design for the load path and the readout (a scan chain through the cells is the classic way; the cost in LUTs is unknown).
+
+## Results of the two checks (addendum 64, simulation and synthesis only)
+
+Tool: `tools/freeze_rtl_v1.py`; tests: `tests/vm/test_freeze_rtl_v1.py` (5 tests).
+
+1. **Flip-flop coverage (yosys, flattened, before optimisation).** The generated flex CORDIC has 1,728 flip-flop bits in 40 cells (8 adder, 4 branch, 4 merge, 24 RAM-cell constants). 1,600 are registers in the capture list above and 128 are configuration registers; **none is outside the two lists**. The generated top itself holds no registers (only wires), so the cells hold all the state. Caveat: 768 of the 1,600 bits are the `data_reg` of the 24 constant cells, which look as if they never change after configuration (not verified); the optimised design measured earlier has 933 flip-flops, so the real number to move is smaller than 1,600.
+2. **Freeze, capture, force into a second copy, resume (iverilog).** A copy of the generated top with the freeze line brought out as a port (the generated file is untouched). Design A runs two items (50000 and -123456); at each cut from 1 to 30 cycles its freeze is raised and held for 3 cycles, every dynamic register is copied by hierarchical name into design B (reset and configured, never fed; the host-side feed position is copied too), and both are released together. At the 22 cuts that still had an output to come, **B gave the same values on the same cycles as A every time** (and A matched the Python model: -404 and -30730). The remaining cuts are after the last output and say nothing.
+3. **Negative controls.** Not copying the valid bits, or not copying the data registers, or neither, **breaks all 22 cuts**, so the check is not vacuous and both groups of registers are needed.
+
+Limits: simulation only. The copy uses a hierarchical assignment that has no hardware equivalent (finding 1 above). One design, two items, a freeze held for 3 cycles. The freeze point is a clock edge in a testbench that also freezes the host feed. Whether a Tang readout and load path can be built, and what it costs in LUTs, is untested.
