@@ -109,4 +109,18 @@ Tab 06 "Memory" of `docs/teaching_manual.html` (source `docs/teaching/memory_fra
 
 **Checked.** Real Chromium: set, toggle, toggle, clear; clear beats set; set beats toggle; with a stuck receiver the stored bit keeps changing while the report stays; the sequencer gives 20 30 40 10 20 for 10 20 30 40 length 4, 20 10 20 for length 2, 10 10 for length 1, and ignores advance while stuck. No console errors, no overflow at 390 px. NOT checked: not run against the Verilog benches or a live VM cell (no `iverilog` here); handshakes, freeze and configuration are simplified away and the page says so. I did not verify against the VM that its sequencer also starts on value 0 and first offers value 1 (read from the Verilog only). The accumulator, the one flex cell kind not on any page yet besides mask and shift, is not covered here. Main manual unchanged.
 
-Next entry: #1045.
+---
+
+## #1045 -- TEACHING MANUAL PART 7: RESHAPING WORDS, SHIFT AND MASK (Alan's direction)
+
+Tab 07 "Bits" of `docs/teaching_manual.html` (source `docs/teaching/bits_fragment.html`); Start and Backdrop move to 08 and 09. This finishes the list Alan gave on 11 Oct (merge and router, latch and sequencer, shift and mask).
+
+**What it does.** One pipeline: an 18-bit input number, a shift stage (left or right, amount 0-17), then a mask cell. Three rows of bits are drawn (what comes in, after the shift, after the mask) with bit numbers, bits pushed off the end outlined, zero fill dashed, and groups switched off by the mask tinted. Mask: six clickable groups of 3 bits plus a "mask switched on" box. Examples: shift left 3 (times 8), shift left off the end, shift a negative number right, pull a field out (shift right 6, keep group 0 of 2989 gives 6). The sentence under the picture says in words what happened (multiply while nothing is lost, a logical right shift turns a negative number into a large positive one, whether the mask changed the value).
+
+**Rules from the Verilog.** `shift_stage_v4sa.v`: fixed amount and direction, logical shift within WIDTH, zeros fill. `mask_cell_v4sa.v` (#968): the mask word stays 8 bits at every width and each mask bit covers GROUP = ceil(WIDTH/8) data bits, so at 18 bits GROUP = 3 and there are 6 groups; a set mask bit zeroes its group (when mask_en is on). The page's text says "groups of 3" for the 18-bit build only.
+
+**Checked.** Real Chromium: 60 random input/direction/amount/mask combinations matched an independent Python calculation (shift then clear the blocked groups) at both the shifted and masked stages; the field example gives 6; a negative right shift is logical; out-of-range and decimal inputs give a message; no console errors; no sideways overflow at 390 px (the board scrolls sideways inside its box, hint shown). A layout bug found by looking (bit-number labels drifting out of line with the bits, caused by sizing in em on a smaller font) was fixed. NOT checked: not run against the Verilog benches or a live VM cell (no `iverilog` here), and the independent calculation is my own reading of the same rules, not the RTL. Handshake, freeze and configuration are left out and the page says so. Main manual unchanged.
+
+**Pages so far:** 01 Tour (nano), 02 Family, 03 Chaining (adder, multiplier, compare, shift, nano gate, fixed ram), 04 Branching (branch, priority), 05 Join & Split (merge, router), 06 Memory (latch, sequencer), 07 Bits (shift, mask), 08 Start, 09 Backdrop. Not yet on any hands-on page: the accumulator, the adder's carry output and the multiplier's high half, ram's flowing mode.
+
+Next entry: #1046.

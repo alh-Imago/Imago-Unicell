@@ -1,0 +1,139 @@
+<!-- Bits fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). -->
+<div class="bits" id="bits-root">
+<style>
+  .bits h2{margin-top:1.6em}
+  .bits .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .bits button,.bits select,.bits input{font:inherit;font-size:.95em}
+  .bits .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .bits .bar button{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .bits input[type=number],.bits select{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+  .bits label.ck{display:flex;gap:6px;align-items:center;font-size:.92em}
+  .bits .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px;margin:.6em 0}
+  .bits label.f{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--ink-soft)}
+  .bits label.f input,.bits label.f select{width:100%}
+  .bits .board{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:10px 12px;overflow-x:auto}
+  .bits .rowlab{font-size:.78em;color:var(--ink-soft);margin:.5em 0 2px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .bits .rowlab b{font-family:var(--mono);color:var(--ink)}
+  .bits .word{display:flex;gap:7px;width:max-content}
+  .bits .grp{display:flex;gap:2px}
+  .bits .bit{box-sizing:border-box;width:22px;height:28px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);border:1.5px solid var(--rule);border-radius:4px;background:#fff;font-size:.9em}
+  .bits .bit.one{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .bits .bit.lost{outline:2px solid #b5533a;outline-offset:1px}
+  .bits .bit.fill{border-style:dashed;border-color:var(--accent)}
+  .bits .bit.cut{background:#e8d5cf;color:#8a3b25;border-color:#b5533a}
+  .bits .idx{display:flex;gap:7px;width:max-content;font-family:var(--mono);font-size:.62em;color:var(--ink-soft)}
+  .bits .idx .grp span{width:22px;text-align:center;display:inline-block}
+  .bits .gbtn{display:flex;gap:7px;width:max-content;margin:.2em 0}
+  .bits .gbtn button{width:70px;box-sizing:border-box;padding:2px 0;border:2px solid var(--accent);border-radius:6px;background:var(--paper-edge);cursor:pointer;font-family:var(--mono);font-size:.7em;color:var(--ink)}
+  .bits .gbtn button[aria-pressed="true"]{background:#b5533a;border-color:#b5533a;color:#fff}
+  .bits .hint{display:none;font-size:.8em;color:var(--ink-soft);margin:.2em 0}
+  @media (max-width:640px){.bits .hint{display:block}}
+  .bits .arrow{font-family:var(--mono);color:var(--ink-soft);font-size:.8em;margin:.3em 0}
+  .bits .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .bits .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .bits .key{display:flex;flex-wrap:wrap;gap:14px;font-size:.8em;color:var(--ink-soft);margin:.4em 0}
+  .bits .key i{display:inline-block;width:1.1em;height:1.1em;border-radius:3px;vertical-align:middle;margin-right:4px;border:1.5px solid var(--rule)}
+</style>
+
+<p class="lead">Computers work on whole words of bits at a time, and two small cells show how a word can be reshaped. The <strong>shift stage</strong> slides every bit left or right by a fixed amount. The <strong>mask cell</strong> switches whole groups of bits off. Together they can pull a piece out of a word, which is most of what unpacking data means.</p>
+
+<h2>1. Build a word, shift it, mask it</h2>
+<p>The word is 18 bits wide, like the Tang Nano 20K build. Type a number, choose a shift, and click groups of the mask to switch them off. Each stage's bits are drawn so you can see exactly what happened.</p>
+
+<div class="bar"><span>Examples:</span>
+  <button type="button" data-p="times8">Shift left 3 (times 8)</button>
+  <button type="button" data-p="lost">Shift left off the end</button>
+  <button type="button" data-p="neg">Shift a negative number right</button>
+  <button type="button" data-p="field">Pull a field out</button></div>
+<div class="grid2">
+  <label class="f">Input number (whole, &minus;131072 to 131071)<input type="number" id="bt-in" value="5" step="1"></label>
+  <label class="f">Shift direction<select id="bt-dir"><option value="l">left</option><option value="r">right</option></select></label>
+  <label class="f">Shift amount (0 to 17)<input type="number" id="bt-n" value="0" min="0" max="17" step="1"></label>
+  <label class="ck" style="align-self:end"><input type="checkbox" id="bt-en" checked> mask switched on</label>
+</div>
+
+<div class="hint">Scroll the grey box sideways to see all 18 bits.</div>
+<div class="board">
+  <div class="rowlab"><span>1. the word that comes in</span><b id="bt-v0"></b></div>
+  <div id="bt-w0"></div>
+  <div class="arrow">&darr; shift stage</div>
+  <div class="rowlab"><span>2. after the shift stage</span><b id="bt-v1"></b></div>
+  <div id="bt-w1"></div>
+  <div class="arrow">&darr; mask cell: click a group to switch it off (set its mask bit)</div>
+  <div class="gbtn" id="bt-g"></div>
+  <div class="rowlab"><span>3. after the mask</span><b id="bt-v2"></b></div>
+  <div id="bt-w2"></div>
+  <div class="key"><span><i style="background:var(--accent)"></i>1</span><span><i></i>0</span><span><i style="outline:2px solid #b5533a"></i>pushed off the end</span><span><i style="border-style:dashed;border-color:var(--accent)"></i>zero filled in</span><span><i style="background:#e8d5cf;border-color:#b5533a"></i>switched off by the mask</span></div>
+</div>
+<div class="says" id="bt-says" aria-live="polite"></div>
+
+<h2>2. What to notice</h2>
+<ul>
+  <li><strong>A left shift is a multiply, until bits fall off.</strong> Sliding left by 3 multiplies by 8, as long as nothing that matters is pushed past the top. This is the cheap multiply by a power of two: no multiplier cell is needed, only wiring.</li>
+  <li><strong>A right shift is a divide, with the remainder thrown away.</strong> The bits that fall off the right are gone for good.</li>
+  <li><strong>This shift does not know about signs.</strong> It fills with zeros, so a negative number shifted right comes out large and positive. Keeping the sign needs a different shift.</li>
+  <li><strong>The shift amount is fixed when the design is built.</strong> That is why the cell is so small: there is nothing to choose at run time. To shift by more, chain several stages.</li>
+  <li><strong>The mask works on groups, not single bits.</strong> The mask word has 8 bits; at 18 bits wide each mask bit covers a group of 3 data bits, which gives six groups. Setting a mask bit sets its whole group to zero.</li>
+  <li><strong>Shift then mask pulls a field out.</strong> Slide the field you want down to the bottom, then switch off the groups above it. Try the last example.</li>
+</ul>
+<p class="fine">A simplified picture, drawn by this page's script from the cells' Verilog (<a href="../sub/verilog/shift_stage_v4sa.v">shift stage</a>, <a href="../sub/verilog/mask_cell_v4sa.v">mask</a>). The real cells also have a valid/ack handshake, freeze and a configuration step; they are not shown. The mask is shown as the cell works at an 18-bit width (groups of 3 bits, six groups used out of the mask word's 8 bits). The VM is not running here.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('bits-root'); if(!root) return;
+  var W=18,MOD=Math.pow(2,W),HALF=MOD/2,GS=3,NG=6;
+  function $(id){return document.getElementById(id);}
+  function toU(v){return ((v%MOD)+MOD)%MOD;}
+  function toS(u){return u>=HALF?u-MOD:u;}
+  var blocked=[0,0,0,0,0,0];  /* group g covers bits 3g..3g+2 */
+  function bitsOf(u){var a=[];for(var i=0;i<W;i++)a.push(Math.floor(u/Math.pow(2,i))%2);return a;} /* a[i] = bit i */
+  function draw(id,u,cls){ /* cls: function(i) -> class string */
+    var a=bitsOf(u),h='<div class="word">';
+    for(var g=NG-1;g>=0;g--){h+='<div class="grp">';for(var k=GS-1;k>=0;k--){var i=g*GS+k;h+='<div class="bit'+(a[i]?' one':'')+(cls?cls(i):'')+'" title="bit '+i+'">'+a[i]+'</div>';}h+='</div>';}
+    h+='</div><div class="idx">';
+    for(g=NG-1;g>=0;g--){h+='<div class="grp">';for(k=GS-1;k>=0;k--){h+='<span>'+(g*GS+k)+'</span>';}h+='</div>';}
+    $(id).innerHTML=h+'</div>';
+  }
+  var gb=$('bt-g');
+  for(var g=NG-1;g>=0;g--){(function(g){var b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed','false');b.setAttribute('data-g',g);b.textContent='group '+g;b.title='bits '+(g*GS+GS-1)+' to '+(g*GS);
+    b.addEventListener('click',function(){blocked[g]=blocked[g]?0:1;update();});gb.appendChild(b);})(g);}
+  var P={
+    times8:{v:5,d:'l',n:3,b:[0,0,0,0,0,0]},
+    lost:{v:100000,d:'l',n:3,b:[0,0,0,0,0,0]},
+    neg:{v:-8,d:'r',n:1,b:[0,0,0,0,0,0]},
+    field:{v:2989,d:'r',n:6,b:[0,1,1,1,1,1]}   /* 2989: bits 6-8 are 110; shift right 6 then keep group 0 */
+  };
+  [].forEach.call(root.querySelectorAll('[data-p]'),function(b){b.addEventListener('click',function(){var p=P[b.getAttribute('data-p')];
+    $('bt-in').value=p.v;$('bt-dir').value=p.d;$('bt-n').value=p.n;$('bt-en').checked=true;blocked=p.b.slice();update();});});
+  ['bt-in','bt-dir','bt-n','bt-en'].forEach(function(id){$(id).addEventListener('input',update);$(id).addEventListener('change',update);});
+
+  function update(){
+    var rawIn=$('bt-in').value,rawN=$('bt-n').value,v=Number(rawIn),n=Number(rawN);
+    [].forEach.call(gb.children,function(b){b.setAttribute('aria-pressed',blocked[+b.getAttribute('data-g')]?'true':'false');});
+    if(rawIn===''||!isFinite(v)||Math.floor(v)!==v||Math.abs(v)>9e15||rawN===''||!isFinite(n)||Math.floor(n)!==n||n<0||n>W-1){
+      ['bt-w0','bt-w1','bt-w2'].forEach(function(i){$(i).innerHTML='';});['bt-v0','bt-v1','bt-v2'].forEach(function(i){$(i).textContent='';});
+      $('bt-says').textContent='Type a whole number for the input, and a shift amount from 0 to '+(W-1)+'.';return;}
+    var wrapped=toS(toU(v)),u=toU(v),dirL=$('bt-dir').value==='l',lost=0,p2=Math.pow(2,n),s;
+    if(dirL){s=(u*p2)%MOD;lost=Math.floor(u/Math.pow(2,W-n));}else{s=Math.floor(u/p2);lost=u%p2;}
+    var mu=s,en=$('bt-en').checked,cutAny=false,i;
+    if(en){var a=bitsOf(s),o=0;for(i=0;i<W;i++){var gg=Math.floor(i/GS);if(blocked[gg]){if(a[i])cutAny=true;}else if(a[i])o+=Math.pow(2,i);}mu=o;}
+    var anyBlocked=blocked.some(Boolean);
+    draw('bt-w0',u,function(i){return n>0&&((dirL&&i>=W-n)||(!dirL&&i<n))?' lost':'';});
+    draw('bt-w1',s,function(i){return n>0&&((dirL&&i<n)||(!dirL&&i>=W-n))?' fill':'';});
+    draw('bt-w2',mu,function(i){return en&&blocked[Math.floor(i/GS)]?' cut':'';});
+    $('bt-v0').textContent='unsigned '+u+'  |  signed '+toS(u);$('bt-v1').textContent='unsigned '+s+'  |  signed '+toS(s);$('bt-v2').textContent='unsigned '+mu+'  |  signed '+toS(mu);
+    var msg=[];
+    if(wrapped!==v)msg.push('Your input does not fit in 18 bits, so it wrapped to '+wrapped+'.');
+    if(n===0)msg.push('Shift of 0: the word passes unchanged.');
+    else if(dirL){msg.push('Slid left by '+n+'. '+(lost?'The top '+n+' bit'+(n>1?'s':'')+' held something ('+lost+' as a number), and it fell off the end, so this is no longer a multiply by '+p2+'.':'Nothing but zeros fell off the end, so this is the same as multiplying by '+p2+' ('+toS(u)+' × '+p2+' = '+toS(s)+').'));}
+    else{msg.push('Slid right by '+n+'. '+(toS(u)<0?'This shift fills the top with zeros, not copies of the sign bit, so the negative number '+toS(u)+' became the large positive number '+s+'.':'It is the same as dividing by '+p2+' and dropping the remainder'+(lost?' ('+lost+' was lost off the right)':'')+'.'));}
+    if(en&&anyBlocked)msg.push(cutAny?'The mask switched off '+blocked.map(function(b,g){return b?g:null;}).filter(function(x){return x!==null;}).length+' group(s), and some of the bits in them were 1, so the value changed.':'The mask switched off groups that were already all zero, so the value did not change.');
+    else if(!en)msg.push('The mask is switched off, so the word passes unchanged.');
+    else msg.push('No mask group is switched off, so the word passes unchanged.');
+    $('bt-says').textContent=msg.join(' ');
+  }
+  update();
+})();
+</script>
+</div>
