@@ -72,9 +72,9 @@ python_classes  = ["Test*"]
 python_functions = ["test_*"]
 
 markers = [
-    "fpga: requires live iCEBreaker or Arria 10 hardware (skip with -m 'not fpga')",
+    "fpga: requires live FPGA hardware (Tang Nano 20K, Arria 10, ...): skip with -m 'not fpga'",
     "vm:   pure Python VM tests — no hardware needed (default)",
-    "slow: tests that take more than a few seconds",
+    "slow: tests that take about 5 s or more in total (listed in tests/slow_tests.txt; quick run: -m 'not slow')",
 ]
 
 # Run VM tests by default. Use 'pytest tests/fpga/' for hardware tests.

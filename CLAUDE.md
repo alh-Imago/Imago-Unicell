@@ -4,13 +4,15 @@ Alan (the author) is not a programmer. Focus on concepts, architecture decisions
 
 ## Start of every session
 
-1. Read `current/START.md` (its "Current line" section first), then the top of `current/latest.md` (`head -c 12000`; the file is about 1 MB and newest first), the tail of the ledger (`tail -c 15000 points/points_active.md`; the whole file is about 300 KB), and the newest update blocks at the top of `current/PLAN.md` (about 100 KB).
+1. Read `current/START.md` (its "Current line" section first), then the top of `current/latest.md` (`head -c 12000`; about 170 KB, newest first; older state is in `current/latest_history.md`), the tail of the ledger (`tail -c 15000 points/points_active.md`; the whole file is about 300 KB), and the newest update blocks at the top of `current/PLAN.md` (about 100 KB).
 2. Check the toolchain before trusting any test run. Without `iverilog` the flex/sub suites print SKIP and exit 0, which looks like a pass (#965):
    `which iverilog yosys && python3 -c "import pytest, llvmlite"`
    Install steps are in `current/START.md`.
-3. Baseline the tests before changing anything and record the counts:
-   `python3 -m pytest tests/vm -q` and `for t in tests/test_*.py; do python3 "$t" >/dev/null || echo "FAILED: $t"; done`
-   (`tests/vm` is slow; run it in the background.)
+3. Tests: `tests/vm` has over 2,000 tests and a full run takes hours, so Alan runs them on demand or for what was touched.
+   - Everyday: `python3 tools/quick_check_v1.py --changed` runs only the tests that name a file you changed (it also refuses to run without `iverilog`/`yosys` and fails any suite that prints SKIP).
+   - Everything except the slow ones: `python3 tools/quick_check_v1.py`. Everything: add `--full` (run it in the background).
+   - Refresh the slow-test list after a long run: `python3 -m pytest tests/vm -q -n 2 --log-durations=d.log`, then `python3 tools/update_slow_tests_v1.py d.log`.
+   - `tests/test_status_files_v1.py` fails if `current/latest.md` does not mention the newest ledger entry: after adding a ledger entry, add its summary to `latest.md` and update its header line.
 
 ## Where things stand
 

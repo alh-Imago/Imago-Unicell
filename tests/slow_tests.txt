@@ -1,0 +1,11 @@
+# Test functions that take 5 s or more in total (measured). Marked `slow` by tests/conftest.py.
+# Built from a log covering 556 timed test functions: a run stopped early lists only what it timed, so refresh after a longer run.
+# Regenerate: tools/update_slow_tests_v1.py (see its docstring). Run the quick set with: pytest tests/vm -m 'not slow'
+tests/vm/test_board_tests_v1.py::test_the_checker_fails_on_a_wrong_missing_or_extra_word
+tests/vm/test_dag_frontend_loops_v1.py::test_a_data_dependent_select_inside_the_loop_running_maximum
+tests/vm/test_dag_frontend_loops_v1.py::test_auto_placer_keeps_the_smaller_layout
+tests/vm/test_flex_grid_cascade_v1.py::test_one_stage_cannot_count_that_far
+tests/vm/test_flex_second_port_v1.py::test_accumulator_cascade_gear_ratio
+tests/vm/test_fp_round_modes_v1.py::test_adder_in_each_mode_rtl_fp16
+tests/vm/test_fp_round_modes_v1.py::test_adder_in_each_mode_rtl_fp32
+tests/vm/test_fp_special_v1.py::test_specials_in_rtl

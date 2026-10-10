@@ -1,0 +1,46 @@
+# Imago UniCell tests (ledger #1036 addendum 45).
+# Nothing runs on a schedule: the full suite has over 2,000 tests and is run on demand.
+#   push / pull request : only the tests that name a file the change touched (tools/quick_check_v1.py --changed),
+#                         plus the instant status check that keeps current/latest.md up to date.
+#   run by hand         : choose  changed (default), quick (everything except the slow tests) or full.
+# The guard in quick_check_v1.py fails the run if iverilog or yosys is missing or a suite prints SKIP,
+# so a skipped suite cannot look like a pass (#965).
+name: tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Which tests"
+        type: choice
+        options: [changed, quick, full]
+        default: changed
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog yosys
+          pip install -r requirements.txt pytest pytest-xdist
+      - name: Run the tests
+        env:
+          MODE: ${{ inputs.mode || 'changed' }}
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: |
+          case "$MODE" in
+            full)  python3 tools/quick_check_v1.py --full ;;
+            quick) python3 tools/quick_check_v1.py ;;
+            *)     python3 tools/quick_check_v1.py --changed --base "${BASE:-HEAD~1}" ;;
+          esac

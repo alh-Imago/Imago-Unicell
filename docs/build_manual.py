@@ -137,9 +137,10 @@ SECTIONS = [
              "embedded inline, the same real reason the Session Logs section (next) "
              "links out instead of reprinting.",
      "parts":[{"sub":"The active plan","md":"current/PLAN.md"}],
-     # current/latest.md is ~940 KB (one summary per ledger entry); embedding it would more than
-     # double this page, so it is linked like points.md (ledger #993).
+     # current/latest.md (current state, ~170 KB; older state in current/latest_history.md, ~840 KB) is far too big to embed
+     # in this page, so it is linked like points.md (ledger #993, #1036 addendum 45).
      "links":[("Open current/latest.md — newest state first","../current/latest.md","run"),
+              ("Open current/latest_history.md — older state","../current/latest_history.md","run"),
               ("Open points.md — the full decision log","../points.md","run"),
               ("Continue → Sessions","#sec-sessions","section")]},
 
