@@ -6761,10 +6761,14 @@ specifically).
 - <code>esp32/unicell_unit_bridge/</code> -- Arduino sketch: ESP32 as SPI master to the small unit (docs/unit_bringup_guide.md).
 - <code>esp32/unicell_unit_web/</code> -- Arduino sketch: WiFi web control of the small unit (run, SD load/save, status; docs/unit_bringup_guide.md, WiFi section).
 - <code>sd_unit_top_v1.py</code> -- ledger #1036: wrap any flex design (an ICM) in the SD-card + ESP32-SPI small unit; writes a Tang Nano <code>unit_top.v</code>, pin file, lane map and README (docs/playout_capture_v1.md).</p>
+<h2><code>alu_ladder_v1.py</code> -- the measured tables of <code>docs/measurements/ALU_LADDER.md</code></h2>
+<p><code>python3 tools/alu_ladder_v1.py [--write|--check]</code> builds the cell-cost and board-unit tables from <code>docs/measurements/flex_width_sweep_975/costs.json</code> and the committed <code>fpga/build/unit_*_v1/unit_top_report.json</code>; <code>--write</code> puts them in the page, <code>--check</code> fails if the page is out of date (run it after rebuilding a bitstream).</p>
 <h2><code>make_package_v1.py</code> -- the one-stop download (zip and .onion)</h2>
 <p><code>python3 tools/make_package_v1.py [--onion]</code> builds <code>dist/unicell-kit-&lt;date&gt;-&lt;commit&gt;.zip</code> (every tracked file + the Onion tool + START_HERE.txt) and, with <code>--onion</code> and the <code>onion</code> command available, the same tree as a <code>.onion</code> packed by the tool inside it, round-trip checked. Unzip, then <code>python3 quickstart.py --install</code>. The <code>.onion</code> is packed with <code>--no-audit</code> because Onion's audit block overflows its 16-bit length field on a tree this large (about 1,650 files); a bug in Onion, not in the package.</p>
 <h2><code>verilog_versions_v1.py</code> -- index of older core versions</h2>
 <p>Writes <code>fpga/verilog/VERSIONS.md</code>: for every versioned core family, what still names each older version (so it is clear which can be archived safely).</p>
+<h2><code>nor_adder_v1.py</code> -- a 32-bit adder from NOR-built gates only</h2>
+<p><code>python3 tools/nor_adder_v1.py --measure</code> rebuilds the hand-drawn Kogge-Stone tile (17 <code>nano</code> gates + relay/shift cells), assembles it and the dedicated adder cell against the Tang Nano 20K MAN, runs yosys and FlexGrid, and writes <code>docs/measurements/nor_adder_v1.json</code>; <code>--check</code> fails if that file is out of date. Proof of correctness: <code>tests/vm/test_nor_adder_v1.py</code>.</p>
 <div class="partsub">Arria 10 programming procedure<span class="partsrc">hardware/Arria10_Programming_Procedure.md</span></div>
 <h1>Imago UniCell — Arria 10 GX660 Programming Procedure</h1>
 <h2>Repeatable guide for IEI Mustang-F100 cards (2-card and 8-card builds)</h2>

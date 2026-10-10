@@ -244,3 +244,6 @@ specifically).
 
 ## `verilog_versions_v1.py` -- index of older core versions
 Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still names each older version (so it is clear which can be archived safely).
+
+## `nor_adder_v1.py` -- a 32-bit adder from NOR-built gates only
+`python3 tools/nor_adder_v1.py --measure` rebuilds the hand-drawn Kogge-Stone tile (17 `nano` gates + relay/shift cells), assembles it and the dedicated adder cell against the Tang Nano 20K MAN, runs yosys and FlexGrid, and writes `docs/measurements/nor_adder_v1.json`; `--check` fails if that file is out of date. Proof of correctness: `tests/vm/test_nor_adder_v1.py`.

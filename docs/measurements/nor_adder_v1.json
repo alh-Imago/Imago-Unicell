@@ -1,0 +1,50 @@
+{
+ "adder_cell": {
+  "ALU": 32,
+  "DFF": 166,
+  "LUT4": 15,
+  "assembled_cells": 5,
+  "placed_cells": 5,
+  "ticks_flexgrid": 4,
+  "yosys_cells": {
+   ":": 320,
+   "ALU": 32,
+   "DFFR": 4,
+   "DFFRE": 162,
+   "GND": 1,
+   "IBUF": 70,
+   "LUT1": 1,
+   "LUT2": 8,
+   "LUT3": 3,
+   "LUT4": 3,
+   "OBUF": 35,
+   "VCC": 1
+  }
+ },
+ "nor_adder": {
+  "ALU": 0,
+  "DFF": 3139,
+  "LUT4": 838,
+  "assembled_cells": 81,
+  "by_core": {
+   "cross": 1,
+   "nano": 17,
+   "ram": 62
+  },
+  "logic_cells": 17,
+  "placed_cells": 80,
+  "ticks_flexgrid": 32,
+  "yosys_cells": {
+   ":": 4083,
+   "DFFR": 109,
+   "DFFRE": 3030,
+   "IBUF": 70,
+   "LUT2": 186,
+   "LUT3": 558,
+   "LUT4": 94,
+   "OBUF": 35,
+   "VCC": 1
+  }
+ },
+ "what": "32-bit add, mod 2^32, flex line, whole design incl. entry/exit rams; yosys synth_gowin -nowidelut via project_assemble_v1 -s flex --icm --man tang-nano-20k; SYNTHESIS ONLY"
+}

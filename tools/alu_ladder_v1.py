@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tools/alu_ladder_v1.py -- the measured tables of docs/measurements/ALU_LADDER.md, generated from the source files (ledger #1036 addendum 47).
+"""tools/alu_ladder_v1.py -- the measured tables of docs/measurements/ALU_LADDER.md, generated from the source files (ledger #1036 addendum 47; the NOR-adder table added in addendum 48).
 
     python3 tools/alu_ladder_v1.py            print the two tables
     python3 tools/alu_ladder_v1.py --write    put them into docs/measurements/ALU_LADDER.md (between the BEGIN/END markers)
@@ -8,6 +8,7 @@
 Sources (nothing is typed in by hand here):
   1. docs/measurements/flex_width_sweep_975/costs.json     per-cell yosys synth_gowin cost at 32 bits (SYNTHESIS ONLY: no place-and-route, no timing)
   2. fpga/build/unit_{relay,tree,cordic}_v1/unit_top_report.json   place-and-route reports of the bitstreams that ran on the board
+  3. docs/measurements/nor_adder_v1.json                   written by tools/nor_adder_v1.py --measure (synthesis only; VM ticks)
 Everything else in the document (cell counts of the floating-point units, which come from ledger entries) is written by hand there
 with its ledger number, and is NOT touched by this tool."""
 import json
@@ -62,6 +63,17 @@ def unit_table():
     return "\n".join(out)
 
 
+def nor_table():
+    m = json.load(open(os.path.join(ROOT, "docs", "measurements", "nor_adder_v1.json")))
+    n, a = m["nor_adder"], m["adder_cell"]
+    out = ["| 32-bit adder (mod 2^32), flex line, whole design | placed cells | of which NOR gates (nano) | LUT4 | carry-chain (ALU) | flip-flops | FlexGrid ticks, A and B in to sum out |",
+           "|---|---:|---:|---:|---:|---:|---:|",
+           f"| dedicated adder cell | {a['placed_cells']} | 0 | {a['LUT4']:,} | {a['ALU']} | {a['DFF']:,} | {a['ticks_flexgrid']} |",
+           f"| built from nano gates and shift cells only | {n['placed_cells']} | {n['logic_cells']} | {n['LUT4']:,} | {n['ALU']} | {n['DFF']:,} | {n['ticks_flexgrid']} |",
+           f"| ratio (NOR-built / dedicated) | {n['placed_cells'] / a['placed_cells']:.0f}x | | {n['LUT4'] / a['LUT4']:.0f}x | | {n['DFF'] / a['DFF']:.0f}x | {n['ticks_flexgrid'] / a['ticks_flexgrid']:.0f}x |"]
+    return "\n".join(out)
+
+
 def block(name, text):
     return BEGIN.format(name) + "\n" + text + "\n" + END.format(name)
 
@@ -73,9 +85,9 @@ def splice(doc, name, text):
 
 
 def main():
-    tables = {"cells": cell_table(), "units": unit_table()}
+    tables = {"cells": cell_table(), "units": unit_table(), "nor": nor_table()}
     if len(sys.argv) < 2:
-        print(tables["cells"]); print(); print(tables["units"]); return 0
+        print(tables["cells"]); print(); print(tables["units"]); print(); print(tables["nor"]); return 0
     doc = open(DOC, encoding="utf-8").read()
     new = doc
     for k, t in tables.items():
