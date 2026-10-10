@@ -1,0 +1,126 @@
+<!-- Composer fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     The screenshot is embedded by the builder (@@COMPOSER_IMG@@). Links are relative to docs/. -->
+<div class="composer" id="comp-root">
+<style>
+  .composer h2{margin-top:1.6em}
+  .composer .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .composer .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .composer .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .composer .linkrow a.go{background:var(--accent);color:#fff}
+  .composer .fig{position:relative;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:#0d130f;line-height:0;padding-left:34px}
+  .composer .fig .inner{position:relative}
+  .composer .fig img{width:100%;height:auto;display:block}
+  .composer .box{position:absolute;border:3px solid #f2c24b;border-radius:4px;box-shadow:0 0 0 2px rgba(0,0,0,.35);background:rgba(242,194,75,.12);opacity:0;pointer-events:none;transition:opacity .15s}
+  .composer .box.on{opacity:1}
+  .composer .num{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:#f2c24b;color:#1a1a1a;border:2px solid #fff;font:bold 13px/20px var(--mono);text-align:center;cursor:pointer;padding:0;z-index:2;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .composer .num.on{background:#fff;border-color:#f2c24b}
+  .composer ol.keys{list-style:none;margin:.8em 0 0;padding:0;display:grid;gap:6px}
+  .composer ol.keys li{display:grid;grid-template-columns:2.2em 1fr;gap:8px;align-items:start;padding:7px 9px;border:1px solid var(--rule);border-radius:8px;background:rgba(255,255,255,.35);cursor:pointer}
+  .composer ol.keys li.on{border-color:var(--accent);background:rgba(21,117,109,.12)}
+  .composer ol.keys .n{display:inline-block;width:1.7em;height:1.7em;border-radius:50%;background:#f2c24b;color:#1a1a1a;font:bold .85em/1.7em var(--mono);text-align:center}
+  .composer ol.keys b{display:block}
+  .composer ol.keys p{margin:.15em 0 0;font-size:.92em;line-height:1.4}
+  .composer pre.icm{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.78em;line-height:1.45;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0}
+  .composer table.f{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .composer table.f th,.composer table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .composer table.f td:first-child{font-family:var(--mono);white-space:nowrap}
+  .composer .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .composer .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+</style>
+
+<p class="lead">The composer is the drawing board for cell designs. You place cells on a grid, join them with wires, set what each one does, run the result a step at a time and save it. The pages so far showed single cells and tiny chains drawn by this manual. This page shows the real tool those pictures stand for, with every part labelled, and the file it saves.</p>
+
+<div class="linkrow">
+  <a class="go" href="http://localhost:7421/composer" target="_blank" rel="noopener">Open the composer (once it is running)</a>
+  <a href="../nano/composer_page_v1.py">Composer source</a>
+  <a href="../docs/stripped-cell/design-notes/composer_layout_viewer_scope.md">Design note</a>
+  <a href="../docs/stripped-cell/ICM_V3_FORMAT.md">ICM file format</a>
+</div>
+<p style="font-size:.9em;color:var(--ink-soft)">The first link works only after you start the composer on your own computer: run <code>python3 quickstart.py --composer</code> in the repository folder (it checks what is installed and opens the page at <code>localhost:7421/composer</code>). On the Tour page, "How to run it" explains the installing.</p>
+
+<h2>1. The composer, part by part</h2>
+<p>This is a real screenshot of the composer with one of the ready-made designs loaded, the library adder (27 cells), and its adder cell selected. Click a number on the picture, or a line in the list, to see where it is. <a href="teaching/composer_screenshot.png" target="_blank" rel="noopener">Open the screenshot full size</a> if the small version is hard to read.</p>
+
+<div class="fig" id="comp-fig"><div class="inner" id="comp-inner"><img src="@@COMPOSER_IMG@@" alt="Screenshot of the composer with the adder design loaded" width="1146" height="1697"></div></div>
+<ol class="keys" id="comp-keys"></ol>
+
+<h2>2. The save file: ICM</h2>
+<p>Everything you build is saved as an <strong>ICM</strong> file. It is an ordinary text file (JSON) with one <em>record</em> per cell: where the cell sits, what kind it is, and which of its four faces it listens on and sends out of. Nothing else is stored: no wires as such and no program. A wire is just two cells whose faces point at each other, with relay cells between them. The same file is what the VM and simulator run and what the assembler turns into Verilog for the board. Here are the real first lines of the library adder you see above, with two of its 27 records:</p>
+<pre class="icm">{ "format_version": "icm-v3",
+  "name": "add",
+  "description": "r = a + b (integer adder)",
+  "records": [
+    { "cell_id": "A",  "row": 2, "col": 1,  "core": "ram",
+      "core_config": { "downstream_mask": ["s"] },
+      "io_name": "a",  "super_latch_hex": "0x00000000000000000041" },
+    { "cell_id": "OP", "row": 4, "col": 8,  "core": "adder",
+      "core_config": { "downstream_mask": ["e"], "upstream_mask": ["w", "s"] },
+      "io_name": null, "super_latch_hex": "0x00000000000000001482" },
+    ... 25 more (the relay cells that make up the wires) ...
+  ],
+  "record_hash": "0712d99e1b35..." }</pre>
+<table class="f"><thead><tr><th>field</th><th>what it says</th></tr></thead><tbody>
+  <tr><td>cell_id</td><td>The cell's name. A and B are the inputs, OP the adder, R the output.</td></tr>
+  <tr><td>row, col</td><td>Which square of the grid the cell sits on.</td></tr>
+  <tr><td>core</td><td>The kind of cell: nano, ram, adder, accumulator, comparator, latch, sequencer, branch, mul, priority, cross, corner or merge.</td></tr>
+  <tr><td>core_config</td><td>The cell's settings. For OP: it sends its result <strong>east</strong> (downstream_mask) and takes its two operands from the <strong>south</strong> and <strong>west</strong> (upstream_mask). This is the whole of "what is wired to what".</td></tr>
+  <tr><td>io_name</td><td>A name for a cell that is a port of the design (a, b, r). A design with named ports can be saved to the library and reused as one block.</td></tr>
+  <tr><td>super_latch_hex</td><td>The same settings packed into one 80-bit word, the actual value that would be loaded into the hardware cell. For OP, 0x1482 ends in 2, which is the number for adder, and the bits above it hold the faces. The composer shows this word live as you change a cell's fields.</td></tr>
+  <tr><td>record_hash</td><td>A fingerprint of all the records, so a changed file can be told from an unchanged one.</td></tr>
+</tbody></table>
+<p>The composer's three save buttons write slightly different things:</p>
+<ul>
+  <li><strong>Save ICM</strong> downloads the design. A plain design becomes an ICM v3 file (<code>.icm.json</code>; the adder above downloads as <code>add.composed.icm.json</code>, 27 records). A design that contains inserted blocks is saved in the ICM-VIX form (<code>.icm-hier.json</code>), which keeps the blocks.</li>
+  <li><strong>Save flat v3</strong> always writes plain ICM v3, with any blocks unpacked into ordinary cells.</li>
+  <li><strong>Save to library</strong> keeps the design in the composer's library so you can <em>Insert block</em> it into another design later; its io-named cells become the block's ports.</li>
+</ul>
+<div class="says">Because the file holds only cells and their faces, anything the composer can draw can also be written by a program. The tools folder has Python that builds designs directly (the "built by Python" list in the composer, such as the floating-point adder) and the composer simply opens them.</div>
+
+<h2>3. Try it</h2>
+<ol>
+  <li>Start the composer: <code>python3 quickstart.py --composer</code>.</li>
+  <li>In the box labelled "or a path on this machine" type <code>nano/library_std/add.icm.json</code> and press <strong>Open path</strong> (or pick one of the examples from the list).</li>
+  <li>Click the OP cell. The Selected panel shows its fields. Change nothing yet and press Apply only if you want to see it hold.</li>
+  <li>In Run / Step press <strong>Start</strong>, type <code>7</code> into a and <code>5</code> into b, then press <strong>Inject next</strong> and <strong>Run to settle</strong>. In our own run the result, 12, appeared at tick 18 and the design settled by tick 21: the same measurement shown on the Tour page.</li>
+  <li>Press <strong>Save ICM</strong>, open the downloaded file (<code>add.composed.icm.json</code>) in any text editor and find the OP record.</li>
+</ol>
+<p class="fine">The screenshot was taken on 11 October 2026 from the composer running in a cloud session, in a desktop-width browser; your layout may differ slightly. The ICM text shown is the first part of <code>nano/library_std/add.icm.json</code> with the other 25 records left out. What each panel does is taken from the composer's own page text and from trying it; the field table follows <code>docs/stripped-cell/ICM_V3_FORMAT.md</code> and the file itself. The composer's cells here are the flex cells' picture in the VM, the same cells the earlier pages described.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('comp-root'); if(!root) return;
+  var PCT={"ways": [0.7, 0.41, 98.25, 5.22], "modes": [0.7, 6.7, 79.73, 1.94], "palette": [0.7, 12.98, 76.78, 1.3], "board": [0.79, 16.95, 68.59, 61.76], "tools": [1.48, 17.78, 43.09, 1.47], "save": [45.62, 17.78, 18.19, 1.47], "selected": [70.68, 16.89, 28.62, 37.18], "run": [70.68, 55.61, 28.62, 9.24], "layout": [70.68, 66.38, 28.62, 8.89], "help": [70.68, 76.8, 28.62, 23.2]};
+  var K=[
+    ['ways','Ways in','New design starts a blank board. Import ICM and Open path load a saved design from a file. "Open an example" and "built by Python" load ready-made designs, such as the CORDIC and the floating-point adder.'],
+    ['modes','Tools','Select / move: click a cell to see and edit it, drag to move it. Place: put a new cell on a free square. Join: draw a connection from one cell to another and let the layout engine lay the route. Delete. Insert block: drop in a saved design from the library as one unit.'],
+    ['palette','The cells you can place','One button per kind of cell. Pick one, then click a free square. (Shift, mask and invert are not cells here: they are "add-on" fields on a cell. A cross tile is added by the layout engine when two routes must cross.)'],
+    ['board','The board','The grid. One square holds one cell. A and B are the input ports, OP is the adder and R is the output port. The lines are the joins, laid as chains of plain relay cells. Cells are coloured by kind (see the legend).'],
+    ['tools','View and layout tools','Fit and + / − change the zoom. Undo takes back your last edit. Balance adds small detours so that two operands reach a cell on the right ticks. Hop heat colours cells by how far data has travelled. Blocks: auto controls how saved designs are drawn.'],
+    ['save','Save','Save ICM and Save flat v3 write the design to a file (the next section explains the file). Save to library, on the line below, keeps it for reuse as a block.'],
+    ['selected','Selected','The chosen cell’s name, kind, square and "hop" (how many steps from the inputs). Below it each setting is a field with its bit range: here the faces OP sends out of (east) and takes in from (south, west), and subtract_mode. At the bottom, the 80-bit word the settings encode to, and the joins that touch this cell, each with an Unjoin button.'],
+    ['run','Run / Step','Run the design in the VM: type values for each input, inject them, and step one tick at a time or run until settled. Type what you expect at an output and it checks. This is the "pause a circuit and watch every value" tool the lessons are built on.'],
+    ['layout','Layout summary','A short account of the design: how many cells and of what kind (27 cells here: 26 ram, mostly relays and the ports, plus the adder), how many joins and relays, and the deepest hop, which is how long the longest path takes.'],
+    ['help','Find, Problems and Legend','Find locates a cell by name. Problems lists anything the layout engine is unhappy about (here: none, every operand pair is ordered). The legend gives the colour of each kind of cell.']
+  ];
+  var fig=$('comp-inner'),keys=$('comp-keys'),els={};
+  var ANC={ways:'L',modes:'L',palette:'L',tools:'L',board:'BR',save:'R',selected:'TR',run:'TR',layout:'TR',help:'TR'};
+  function $(id){return document.getElementById(id);}
+  K.forEach(function(k,i){
+    var p=PCT[k[0]];
+    var bx=document.createElement('div');bx.className='box';bx.style.cssText='left:'+p[0]+'%;top:'+p[1]+'%;width:'+p[2]+'%;height:'+p[3]+'%';fig.appendChild(bx);
+    var nb=document.createElement('button');nb.type='button';nb.className='num';nb.textContent=String(i+1);nb.setAttribute('aria-label','Show part '+(i+1)+': '+k[1]);
+    var a=ANC[k[0]];
+    if(a==='L'){nb.style.left='-17px';nb.style.top=(p[1]+Math.min(p[3]/2,1.4))+'%';}
+    else if(a==='BR'){nb.style.left='calc('+(p[0]+p[2])+'% - 17px)';nb.style.top='calc('+(p[1]+p[3])+'% - 17px)';}
+    else if(a==='R'){nb.style.left='calc('+(p[0]+p[2])+'% + 17px)';nb.style.top=(p[1]+p[3]/2)+'%';}
+    else{nb.style.left='calc('+(p[0]+p[2])+'% - 17px)';nb.style.top='calc('+p[1]+'% + 17px)';}
+    fig.appendChild(nb);
+    var li=document.createElement('li');li.innerHTML='<span class="n">'+(i+1)+'</span><div><b></b><p></p></div>';li.querySelector('b').textContent=k[1];li.querySelector('p').textContent=k[2];keys.appendChild(li);
+    els[k[0]]={box:bx,num:nb,li:li};
+    function on(){Object.keys(els).forEach(function(n){var o=els[n],a=(n===k[0]);o.box.className='box'+(a?' on':'');o.num.className='num'+(a?' on':'');o.li.className=a?'on':'';});}
+    nb.addEventListener('click',function(){on();li.scrollIntoView({block:'nearest',behavior:'smooth'});});
+    li.addEventListener('click',on);li.addEventListener('mouseenter',on);
+  });
+})();
+</script>
+</div>

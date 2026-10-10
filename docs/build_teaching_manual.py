@@ -34,6 +34,13 @@ OUT  = os.path.join(HERE, "teaching_manual.html")
 
 # Each section: short tab label, number, title, source doc, framing intro, and
 # run/access links (relative paths -- they resolve on a local clone AND on Pages).
+def _data_uri(rel):
+    """Embed a PNG as a data: URI so the built manual stays one self-contained file."""
+    import base64
+    with open(os.path.join(HERE, rel), "rb") as f:
+        return "data:image/png;base64," + base64.b64encode(f.read()).decode("ascii")
+
+
 SECTIONS = [
     {"id":"tour","num":"01","tab":"Tour","title":"Tour: What Is Where, and How to Run It",
      "intro":"The parts you will use, each a link, with a live picture of what is inside one "
@@ -96,9 +103,16 @@ SECTIONS = [
              "whole groups of them off. See each stage's bits, what fell off the end, and how the two "
              "together can pull a field out of a word.",
      "html":open(os.path.join(HERE, "teaching", "bits_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to Memory","#sec-memory","section"),("Continue → Start","#sec-start","section")]},
+     "links":[("← Back to Memory","#sec-memory","section"),("Continue → The Composer","#sec-composer","section")]},
 
-    {"id":"start","num":"10","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"composer","num":"10","tab":"Composer","title":"The Composer: A Tour With Labels",
+     "intro":"The composer is the real drawing board behind every picture in this manual. A "
+             "screenshot with numbered labels shows what each part does, and the second half "
+             "explains the file it saves, the ICM.",
+     "html":open(os.path.join(HERE, "teaching", "composer_fragment.html"), encoding="utf-8").read().replace("@@COMPOSER_IMG@@", _data_uri("teaching/composer_screenshot.png")),
+     "links":[("← Back to Bits","#sec-bits","section"),("Continue → Start","#sec-start","section")]},
+
+    {"id":"start","num":"11","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -109,7 +123,7 @@ SECTIONS = [
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
      "links":[("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"11","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"12","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "
