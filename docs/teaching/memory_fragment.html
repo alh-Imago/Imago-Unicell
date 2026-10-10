@@ -1,0 +1,159 @@
+<!-- Memory fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). -->
+<div class="memory" id="mem-root">
+<style>
+  .memory h2{margin-top:1.6em}
+  .memory .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .memory button,.memory select,.memory input{font:inherit;font-size:.95em}
+  .memory .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .memory .bar button{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .memory .bar button.go{background:var(--accent);color:#fff}
+  .memory input[type=text],.memory select{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+  .memory .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;margin:.6em 0}
+  .memory label.f{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--ink-soft)}
+  .memory label.f input,.memory label.f select{width:100%}
+  .memory label.ck{display:flex;gap:6px;align-items:center;font-size:.92em;cursor:pointer}
+  .memory .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .memory .lane{display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:2em;margin:.2em 0}
+  .memory .tag{font-family:var(--mono);font-weight:bold;min-width:3.6em;font-size:.9em}
+  .memory .tok{font-family:var(--mono);font-size:.82em;padding:1px 8px;border-radius:9px;border:1px solid var(--rule);background:#fff}
+  .memory .tok.front{border-color:var(--accent);border-width:2px}
+  .memory .tok.won{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .memory .tok.held{background:#efe6c8;border-color:var(--ink-soft)}
+  .memory .cellbox{display:inline-block;border:2px solid var(--ink-soft);border-radius:10px;background:var(--paper-edge);padding:6px 14px;font-family:var(--mono);font-size:.9em;margin:.4em 0}
+  .memory .board{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:10px 12px}
+  .memory .mono{font-family:var(--mono);font-size:.88em}
+  .memory .sinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:.6em 0}
+  .memory .sink{border:1px solid var(--rule);border-radius:8px;padding:6px 10px;background:rgba(255,255,255,.4)}
+  .memory .sink.pend{border-color:var(--accent);box-shadow:0 0 0 3px rgba(21,117,109,.18)}
+  .memory ol.log{font-family:var(--mono);font-size:.82em;margin:.4em 0;padding-left:2em}
+  .memory .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+</style><style>
+  .memory .lamp{display:inline-flex;align-items:center;justify-content:center;width:3.4em;height:3.4em;border-radius:50%;border:3px solid var(--ink-soft);font-family:var(--mono);font-size:1.5em;font-weight:bold;background:#fff}
+  .memory .lamp.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .memory .row{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin:.4em 0}
+  .memory .col{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.85em;color:var(--ink-soft)}
+  .memory .offer{font-family:var(--mono);border:2px dashed var(--rule);border-radius:8px;padding:6px 12px;min-width:9em;text-align:center}
+  .memory .offer.pend{border-style:solid;border-color:var(--accent)}
+  .memory .vals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:.5em 0}
+  .memory .vals label{font-size:.82em;color:var(--ink-soft);display:flex;flex-direction:column;gap:3px}
+  .memory .vals input{width:100%}
+  .memory .slots{display:flex;gap:8px;margin:.5em 0}
+  .memory .slotv{flex:1;min-width:0;text-align:center;border:2px solid var(--rule);border-radius:8px;padding:6px 2px;font-family:var(--mono);background:#fff}
+  .memory .slotv.cur{border-color:var(--accent);background:rgba(21,117,109,.14);font-weight:bold}
+  .memory .slotv small{display:block;font-size:.7em;color:var(--ink-soft)}
+  .memory input[type=number]{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink)}
+</style>
+
+
+<p class="lead">Everything so far forgot its value as soon as it passed it on. Two small cells <em>keep</em> something. The <strong>latch</strong> remembers a single bit until it is told to change; the <strong>sequencer</strong> remembers a short list and steps through it one value at a time.</p>
+
+<h2>1. The latch: one bit that stays</h2>
+<p>A latch has three one-bit event inputs: <strong>set</strong> (make it 1), <strong>clear</strong> (make it 0) and <strong>toggle</strong> (flip it). Nothing else changes it. If events arrive together the order is fixed: <strong>clear beats set, and set beats toggle</strong>. After each event the cell reports its new value on its output and holds that report until the receiver takes it.</p>
+<p>Try pressing events one at a time. Then try switching the receiver to <em>stuck</em> and pressing more: the stored bit keeps changing, but the cell cannot report it, because the last report has not been taken.</p>
+
+<div class="bar"><button type="button" data-ev="set">Set</button><button type="button" data-ev="clear">Clear</button><button type="button" data-ev="toggle">Toggle</button>
+  <button type="button" id="lt-wait">Wait a tick</button><button type="button" id="lt-reset">Reset</button>
+  <label class="ck"><input type="checkbox" id="lt-rx" checked> receiver accepting</label></div>
+<div class="bar"><span>Several at once in one tick:</span>
+  <label class="ck"><input type="checkbox" id="lt-s"> set</label><label class="ck"><input type="checkbox" id="lt-c"> clear</label><label class="ck"><input type="checkbox" id="lt-t"> toggle</label>
+  <button type="button" id="lt-pulse">Send these together</button></div>
+<div class="board"><div class="row">
+  <div class="col"><div class="lamp" id="lt-lamp">0</div>the stored bit</div>
+  <div class="col"><div class="offer" id="lt-offer">nothing offered</div>what the cell is reporting</div>
+  <div class="col"><div class="offer" id="lt-got">nothing yet</div>what the receiver has taken</div>
+</div></div>
+<div class="says" id="lt-says" aria-live="polite"></div>
+
+<h2>2. The sequencer: a short list, one step at a time</h2>
+<p>A sequencer is configured with up to four 8-bit values (0 to 255) and a length. It starts standing on the first value. Each <strong>advance</strong> pulse moves it on to the next value and offers that one; after the last it goes back to the start. The values come out in a fixed order, from nothing but a counter: no program, no addresses. One more rule: an advance that arrives while the last value is still waiting to be taken is ignored.</p>
+
+<div class="vals">
+  <label>value 0<input type="number" id="sq-0" min="0" max="255" value="10"></label>
+  <label>value 1<input type="number" id="sq-1" min="0" max="255" value="20"></label>
+  <label>value 2<input type="number" id="sq-2" min="0" max="255" value="30"></label>
+  <label>value 3<input type="number" id="sq-3" min="0" max="255" value="40"></label>
+</div>
+<div class="bar"><label class="ck">length <select id="sq-len"><option>1</option><option>2</option><option>3</option><option selected>4</option></select></label>
+  <button type="button" class="go" id="sq-adv">Advance</button><button type="button" id="sq-wait">Wait a tick</button><button type="button" id="sq-reset">Reset</button>
+  <label class="ck"><input type="checkbox" id="sq-rx" checked> receiver accepting</label></div>
+<div class="board">
+  <div class="slots" id="sq-slots"></div>
+  <div class="lane"><span class="tag">taken</span><span id="sq-got" class="lane"></span></div>
+</div>
+<div class="says" id="sq-says" aria-live="polite"></div>
+
+<h2>3. What to notice</h2>
+<ul>
+  <li><strong>Memory is just a value that is not thrown away.</strong> The latch keeps its bit through any number of ticks in which nothing happens. Every other cell on the earlier pages passed its value on and let go.</li>
+  <li><strong>Remembering and reporting are separate.</strong> The latch updates its bit on every event, but it can only <em>tell</em> the next cell when its last report has been taken. Under pressure the memory is right and the report is late.</li>
+  <li><strong>A fixed order needs no program.</strong> The sequencer's whole behaviour is a counter that wraps and four stored values. That is how a repeating pattern, such as the steps of a motor or a lamp, can come from a cell and not from instructions.</li>
+  <li><strong>The first advance does not repeat the starting value.</strong> The cell starts standing on value 0 and the first advance steps on to value 1, which is the first one offered. Value 0 comes out last in the first lap.</li>
+</ul>
+<p class="fine">A simplified picture, one tick at a time, drawn by this page's script from the cells' Verilog (<a href="../sub/verilog/latch_cell_v4sa.v">latch</a>, <a href="../sub/verilog/sequencer_cell_v4sa.v">sequencer</a>). The real cells carry a valid/ack handshake on every port, a freeze input and a configuration step; the page shows the stored value, the offer and the receiver's acceptance only. Each press of Advance here waits one tick for the receiver, if needed, so you can see a full cycle without counting ticks. The VM is not running. The latch holds one bit and the sequencer's values are 8 bits wide.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('mem-root'); if(!root) return;
+  function $(id){return document.getElementById(id);}
+  /* ---------- latch ---------- */
+  var L=null;
+  function lReset(){L={bit:0,pend:false,off:null,got:null,msg:'Press Set, Clear or Toggle.',n:0};lPaint();}
+  function lTick(ev){ /* ev: {s,c,t}; one clock edge, as in latch_cell_v4sa.v */
+    var rx=$('lt-rx').checked,any=ev.s||ev.c||ev.t,next=ev.c?0:ev.s?1:ev.t?(L.bit?0:1):L.bit,notes=[];
+    var wasPend=L.pend,old=L.bit;
+    if(any){L.bit=next;}
+    if(wasPend){
+      if(rx){L.pend=false;L.got=L.off;notes.push('the receiver took the report ('+L.off+')');}
+      else notes.push('the receiver is stuck: the report '+L.off+' is still waiting');
+      if(any)notes.push('the stored bit '+(old===L.bit?'stayed at '+L.bit:'changed '+old+' → '+L.bit)+', but it could not be reported yet');
+    }else if(any){L.pend=true;L.off=next;notes.push('the stored bit '+(old===next?'stayed at '+next:'changed '+old+' → '+next)+' and is now being reported');}
+    else notes.push('nothing happened');
+    if(any&&(ev.s+ev.c+ev.t)>1)notes.unshift('events together ('+['set','clear','toggle'].filter(function(n,i){return [ev.s,ev.c,ev.t][i];}).join(' + ')+'): '+(ev.c?'clear wins':ev.s?'set wins over toggle':''));
+    L.msg=notes.join('; ')+'.';
+    if(!L.pend)L.off=L.off; /* the buffer keeps the last reported value, valid low */
+  }
+  function lPaint(){
+    $('lt-lamp').textContent=L.bit;$('lt-lamp').className='lamp'+(L.bit?' on':'');
+    $('lt-offer').textContent=L.pend?'reporting '+L.off+' (waiting)':'nothing offered';$('lt-offer').className='offer'+(L.pend?' pend':'');
+    $('lt-got').textContent=L.got===null?'nothing yet':'last taken: '+L.got;$('lt-says').textContent=L.msg;
+  }
+  [].forEach.call(root.querySelectorAll('[data-ev]'),function(b){b.addEventListener('click',function(){var e=b.getAttribute('data-ev');lTick({s:e==='set'?1:0,c:e==='clear'?1:0,t:e==='toggle'?1:0});lPaint();});});
+  $('lt-wait').addEventListener('click',function(){lTick({s:0,c:0,t:0});lPaint();});
+  $('lt-pulse').addEventListener('click',function(){lTick({s:$('lt-s').checked?1:0,c:$('lt-c').checked?1:0,t:$('lt-t').checked?1:0});lPaint();});
+  $('lt-reset').addEventListener('click',lReset);
+
+  /* ---------- sequencer ---------- */
+  var S=null;
+  function vals(){return [0,1,2,3].map(function(i){var n=parseInt($('sq-'+i).value,10);return isNaN(n)?0:Math.max(0,Math.min(255,n));});}
+  function sReset(){S={idx:0,pend:false,off:null,got:[],msg:'Standing on value 0. Press Advance.',bad:false};sPaint();}
+  function sTick(adv){ /* one clock edge as in sequencer_cell_v4sa.v; returns what happened */
+    var v=vals(),len=+$('sq-len').value,rx=$('sq-rx').checked;
+    if(S.pend){if(rx){S.pend=false;S.got.push(S.off);return adv?'ignored':'taken';}return adv?'ignored-stuck':'stuck';}
+    if(adv){S.idx=(S.idx===len-1)?0:S.idx+1;S.off=v[S.idx];S.pend=true;return 'advanced';}
+    return 'idle';
+  }
+  $('sq-adv').addEventListener('click',function(){
+    var rx=$('sq-rx').checked,pre='';
+    if(S.pend){
+      if(!rx){S.msg='Advance ignored: the last value ('+S.off+') has not been taken and the receiver is stuck.';sPaint();return;}
+      sTick(false);pre='The receiver took '+S.got[S.got.length-1]+' first. ';
+    }
+    sTick(true);
+    S.msg=pre+'Advanced to value '+S.idx+': offering '+S.off+'.'+(S.idx===0&&+$('sq-len').value>1?' (That was the end of the list, so it wrapped round to the start.)':'');
+    sPaint();});
+  $('sq-wait').addEventListener('click',function(){var r=sTick(false);S.msg=r==='taken'?'The receiver took '+S.got[S.got.length-1]+'.':r==='stuck'?'The receiver is stuck: '+S.off+' is still waiting.':'Nothing waiting, nothing to do.';sPaint();});
+  $('sq-reset').addEventListener('click',sReset);
+  ['sq-0','sq-1','sq-2','sq-3','sq-len'].forEach(function(id){$(id).addEventListener('input',sReset);$(id).addEventListener('change',sReset);});
+  $('sq-rx').addEventListener('change',function(){sPaint();});
+  function sPaint(){
+    var v=vals(),len=+$('sq-len').value,h='';
+    for(var i=0;i<4;i++){h+='<div class="slotv'+(i===S.idx&&i<len?' cur':'')+'" style="'+(i>=len?'opacity:.35':'')+'">'+v[i]+'<small>'+(i>=len?'unused':'value '+i)+'</small></div>';}
+    $('sq-slots').innerHTML=h;
+    $('sq-got').innerHTML=(S.got.length?S.got.map(function(g){return '<span class="tok won">'+g+'</span>';}).join(''):'<span class="mono" style="color:var(--ink-soft)">nothing yet</span>')+(S.pend?' <span class="tok held" title="waiting to be taken">'+S.off+'</span>':'');
+    $('sq-says').textContent=S.msg;
+  }
+  lReset();sReset();
+})();
+</script>
+</div>

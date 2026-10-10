@@ -99,4 +99,14 @@ Alan's order for the remaining pages: merge and router next, then latch and sequ
 
 **Checked.** Real Chromium: arbitrate gives 1,10,2,20,3,30; A only and B only give their own lists and leave the other side untouched; join gives 5 OR 3 = 7 and 12 OR 1 = 13 and holds a lone value; router with both receivers accepting delivers 5,6,7,8 to both; with B stuck, A gets only the first value and the router holds the rest (the other output is held back too); unstuck, both finish; output B disabled, A finishes alone. No console errors, no sideways overflow at 390 px. NOT checked: not run against the Verilog benches or a live VM cell (no `iverilog` here); the real cells' one-cycle output buffer, valid/ack on every port and freeze are left out and the page says so. Main manual unchanged.
 
-Next entry: #1044.
+---
+
+## #1044 -- TEACHING MANUAL PART 6: REMEMBERING, LATCH AND SEQUENCER (Alan's direction)
+
+Tab 06 "Memory" of `docs/teaching_manual.html` (source `docs/teaching/memory_fragment.html`); Start and Backdrop move to 07 and 08.
+
+**Latch.** Buttons Set, Clear, Toggle, Wait a tick, a "several at once" row, a receiver accepting/stuck switch. Shows the stored bit, what the cell is reporting, and what the receiver has taken. Rules from `latch_cell_v4sa.v`: clear beats set beats toggle; the stored bit changes on EVERY event, but a new report is offered only if the last one has been taken, so with a stuck receiver the stored bit and the report can disagree (the page says so in words). **Sequencer.** Four 8-bit values (0-255), length 1-4, Advance, Wait a tick, receiver accepting/stuck. Rules from `sequencer_cell_v4sa.v`: the cell starts standing on value 0 with nothing offered; each advance steps to the next index (wrapping at the length) and offers that value, so the first value out is value 1 and value 0 comes last in the first lap (length 1 repeats value 0); an advance while the last value is still untaken is ignored. The page's Advance button spends one extra tick letting an accepting receiver take the previous value first, and says so in the fine print.
+
+**Checked.** Real Chromium: set, toggle, toggle, clear; clear beats set; set beats toggle; with a stuck receiver the stored bit keeps changing while the report stays; the sequencer gives 20 30 40 10 20 for 10 20 30 40 length 4, 20 10 20 for length 2, 10 10 for length 1, and ignores advance while stuck. No console errors, no overflow at 390 px. NOT checked: not run against the Verilog benches or a live VM cell (no `iverilog` here); handshakes, freeze and configuration are simplified away and the page says so. I did not verify against the VM that its sequencer also starts on value 0 and first offers value 1 (read from the Verilog only). The accumulator, the one flex cell kind not on any page yet besides mask and shift, is not covered here. Main manual unchanged.
+
+Next entry: #1045.
