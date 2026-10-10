@@ -7,6 +7,8 @@
 > - **What is NOT shown:** freeze, save and restore of a running design has only been run in simulation (VM and RTL), never on a physical card. A hand-written Verilog design gets the same behaviour from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`). The statements about freeze and state capture below are design intent, not hardware results.
 > - **Prior art:** every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in `docs/prior_art/PRIOR_ART_REPORT.md`; it is not a proof of novelty either way.
 > - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (latest entries: addenda 58 to 69).
+>
+> **A possible new use (10 October 2026): teaching.** The design is finished and is not being extended, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md). It is a plan only, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
 
 A spatial compute architecture built on one principle: **topology is
 computation**. There's no CPU, no instruction set, no shared bus.
