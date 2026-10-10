@@ -1,0 +1,152 @@
+{
+ "stream": {
+  "sub_assembler_says": "Latency to output s3.gather: 16 cycles",
+  "pipe": {
+   "items_in": 64,
+   "results_out": 64,
+   "correct_in_order": 64,
+   "cycles_first_in_to_last_out": 67,
+   "latency_first_result_after_first_in": 4,
+   "steady_cycles_per_item": 1.0
+  },
+  "hs": {
+   "items_in": 64,
+   "results_out": 64,
+   "correct_in_order": 64,
+   "cycles_first_in_to_last_out": 67,
+   "latency_first_result_after_first_in": 4,
+   "steady_cycles_per_item": 1.0
+  },
+  "flex": {
+   "items_in": 64,
+   "results_out": 64,
+   "correct_in_order": 64,
+   "cycles_first_in_to_last_out": 146,
+   "latency_first_result_after_first_in": 20,
+   "steady_cycles_per_item": 2.0
+  },
+  "sub": {
+   "items_in": 64,
+   "results_out": 64,
+   "correct_in_order": 64,
+   "cycles_first_in_to_last_out": 79,
+   "latency_first_result_after_first_in": 16,
+   "steady_cycles_per_item": 1.0
+  },
+  "sub_synth": {
+   "LUT": 716,
+   "ALU": 374,
+   "DFF": 792,
+   "cells": {
+    ":": 1953,
+    "ALU": 374,
+    "DFFR": 28,
+    "DFFRE": 764,
+    "GND": 1,
+    "IBUF": 36,
+    "LUT1": 379,
+    "LUT2": 157,
+    "LUT3": 4,
+    "LUT4": 176,
+    "OBUF": 33,
+    "VCC": 1
+   }
+  },
+  "sub_pnr_in_wrapper": [
+   {
+    "seed": 1,
+    "fmax_mhz": 276.7,
+    "LUT4": 740,
+    "DFF": 833
+   },
+   {
+    "seed": 2,
+    "fmax_mhz": 289.1,
+    "LUT4": 715,
+    "DFF": 833
+   },
+   {
+    "seed": 3,
+    "fmax_mhz": 259.5,
+    "LUT4": 825,
+    "DFF": 833
+   }
+  ]
+ },
+ "agree": {
+  "inputs": 67,
+  "standard_vm_SuperGrid": {
+   "wrong": 0,
+   "ticks_to_result_values_seen": [
+    20
+   ]
+  },
+  "FlexGrid": {
+   "wrong": 0,
+   "ticks_to_result_values_seen": [
+    20
+   ]
+  }
+ },
+ "freeze": {
+  "standard_vm_SuperGrid": {
+   "cuts_tested": 80,
+   "wrong_value": 0,
+   "wrong_finish_tick": 0,
+   "cuts_with_words_in_flight_between_cells": 80,
+   "same_cuts_but_cells_only_no_pending_words": {
+    "tested": 80,
+    "wrong": 80
+   }
+  },
+  "FlexGrid": {
+   "cuts_tested": 80,
+   "wrong_value": 0,
+   "wrong_finish_tick": 0,
+   "cuts_with_words_in_flight_between_cells": 80,
+   "same_cuts_but_cells_only_no_pending_words": {
+    "tested": 80,
+    "wrong": 80
+   }
+  }
+ },
+ "effort": {
+  "hand_written_verilog_lines": {
+   "cordic_z_hs_v1.v": 42,
+   "cordic_z_iter_v1.v": 27,
+   "cordic_z_pipe_naive_v1.v": 31,
+   "cordic_z_pipe_v1.v": 36
+  },
+  "unicell_program_file_lines": 749,
+  "unicell_program_distinct_cell_kinds": 3,
+  "generated_top_verilog_lines_flex": 348,
+  "note": "line counts only; the UniCell program is a hierarchical JSON that a tool (composer) can draw, so lines are not what a person types; no timing of a person was made"
+ },
+ "change": {
+  "change": "K1 26565 -> 26566 (a different angle table entry)",
+  "machine_note": "one run each on the build machine; PnR is one seed, without the final bitstream-pack step (seconds)",
+  "pure_verilog_edit_to_placed_seconds": 3.5,
+  "pure_verilog_pnr": [
+   {
+    "seed": 1,
+    "fmax_mhz": 166.6,
+    "LUT4": 175,
+    "DFF": 173
+   }
+  ],
+  "pure_verilog_iverilog_compile_seconds": 0.01,
+  "unicell_flex_generate_seconds": 0.09,
+  "unicell_flex_pnr": [
+   {
+    "seed": 1,
+    "fmax_mhz": 274.0,
+    "LUT4": 1019,
+    "DFF": 974
+   }
+  ],
+  "unicell_flex_edit_to_placed_seconds": 25.2,
+  "unicell_vm_edit_to_first_result_seconds": 0.002,
+  "unicell_vm_result_for_z0_50000": -405,
+  "expected_for_edited_table": -405
+ }
+}
