@@ -9,6 +9,7 @@
 #pragma once
 #include <Arduino.h>
 #include <math.h>
+#include "scan.h"
 
 typedef uint16_t (*SensorFn)();
 
@@ -91,5 +92,27 @@ static uint16_t sensor_amount(const Sensor& s) {
   uint32_t sum = 0;
   for (int i = 0; i < 8; i++) sum += analogRead(s.pin);        // 12-bit reads, averaged over 8 to calm the noise
   return (uint16_t)((sum / 8) << 4);                           // 0..4095 -> 0..65520 (12-bit scaled up to the 16-bit amount field)
+}
+// Serial command  scan [pin] [raw]  (addendum 51): 500 fast reads of one analog pin, then say whether the wobble is room-light flicker, noise, or a pin stuck on the ADC floor/ceiling.
+// Default pin = the "light sensor" line of the table. With  raw  it also prints every reading, so the numbers can be kept and re-analysed on a PC.
+static void adc_scan_run(int pin, bool raw) {
+  static uint16_t buf[SCAN_N];
+  g_scanBusy = true; vTaskDelay(pdMS_TO_TICKS(40));             // let the sampler task finish the sweep it is in
+  (void)analogRead(pin); delayMicroseconds(100);
+  uint32_t t0 = micros();
+  for (int i = 0; i < SCAN_N; i++) {
+    buf[i] = analogRead(pin);
+    uint32_t due = t0 + (uint32_t)(i + 1) * SCAN_US;
+    while ((int32_t)(micros() - due) < 0) { }
+  }
+  float secs = (micros() - t0) / 1e6f;
+  g_scanBusy = false;
+  ScanResult r; scan_analyze(buf, SCAN_N, SCAN_N / secs, r);
+  Serial.printf("scan pin %d: %d reads in %.1f ms (%.0f reads/s)\n", pin, SCAN_N, secs * 1000.0f, SCAN_N / secs);
+  Serial.printf("  reading: min %u  max %u  mean %.1f  wobble (rms) %.1f counts of 4095\n", r.mn, r.mx, r.mean, r.acrms);
+  for (int k = 0; k < SCAN_LINES; k++) Serial.printf("  %3.0f Hz: peak %.1f counts, %.0f%% of the wobble\n", SCAN_HZ[k], r.amp[k], r.frac[k] * 100.0f);
+  Serial.printf("  100+200+300 Hz together: %.0f%% of the wobble\n", r.flicker * 100.0f);
+  Serial.printf("  VERDICT: %s\n", r.verdict);
+  if (raw) { Serial.println("  raw readings:"); for (int i = 0; i < SCAN_N; i++) { Serial.print(buf[i]); Serial.print(i % 25 == 24 ? '\n' : ' '); } }
 }
 static uint32_t sensor_word(const Sensor& s, uint16_t amount) { return ((uint32_t)amount << 16) | s.loc; }

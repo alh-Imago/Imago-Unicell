@@ -252,8 +252,13 @@ static void serialCmd(char* s) {
   else if (!strcmp(cmd, "id")) { uint32_t v = rd_reg(R_ID); Serial.printf("ID = 0x%08X %s\n", (unsigned)v, v == UNIT_ID ? "OK" : "WRONG"); if (v == UNIT_ID) { uint32_t d = rd_reg(R_DESIGN_ID); int k = design_by_id(d); Serial.printf("design on the Tang = 0x%08X (%s); Setup says %s\n", (unsigned)d, k >= 0 ? DESIGNS[k].name : (d ? "unknown" : "older bitstream, no ID"), dsg().name); } }
   else if (!strcmp(cmd, "design") && a && design_index(a) >= 0) { g_design = design_index(a); saveConfig(); Serial.printf("design: %s (it must match the bitstream on the FPGA)\n", dsg().name); }
   else if (!strcmp(cmd, "design")) Serial.printf("design now: %s.  usage: design cordic | relay | tree\n", dsg().name);
+  else if (!strcmp(cmd, "scan")) {           // scan [pin] [raw]: is the wobble on an analog pin room-light flicker, noise, or a wiring problem? (addendum 51)
+    int pin = SENSORS[1].pin; bool raw = false; char* t[2] = {a, b};
+    for (int i = 0; i < 2; i++) if (t[i]) { if (!strcmp(t[i], "raw")) raw = true; else if (atoi(t[i]) >= 32 && atoi(t[i]) <= 39) pin = atoi(t[i]); }
+    adc_scan_run(pin, raw);
+  }
   else if (!strcmp(cmd, "reboot")) ESP.restart();
-  else Serial.println("commands: wifi <ssid> <password> | wificlear | webpass <pw> | ip | id | design <cordic|relay|tree> | reboot");
+  else Serial.println("commands: wifi <ssid> <password> | wificlear | webpass <pw> | ip | id | design <cordic|relay|tree> | scan [pin] [raw] | reboot");
 }
 
 void setup() {

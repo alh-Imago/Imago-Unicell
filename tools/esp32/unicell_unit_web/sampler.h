@@ -10,6 +10,7 @@ static volatile uint32_t g_sampleSeq = 0;         // counts finished sweeps, so 
 
 static void sampler_task(void*) {
   for (;;) {
+    if (g_scanBusy) { vTaskDelay(pdMS_TO_TICKS(5)); continue; }      // a  scan  is using the ADC
     const int L = dsg().lanes;
     for (int i = 0; i < L; i++) {
       int k = g_laneSensor[i]; if (k < 0 || k >= SENSOR_COUNT) k = 0;
