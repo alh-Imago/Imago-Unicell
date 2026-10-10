@@ -97,6 +97,8 @@ Symptom seen earlier: the light trace swings between 0 and about 1200. Likely ca
 
 How to read it: FLICKER means the wiring is fine and the reader should average over 10 ms or more (not yet changed: decided after you run it). FLOOR or CEILING means look at the wiring. NOISE means look at the supply, the wiring and WiFi.
 
+Averaging: the Live sensors card has an **Averaging window** slider (0 to 200 ms, default 20, remembered by the ESP32). It sets how long each analog reading (potentiometer, light, thermistor) is averaged over; one setting for all of them. 20 ms covers two cycles of mains-light flicker; raise it if the trace still wobbles, lower it if it follows a real change too slowly. Digital sensors and the ultrasonic one are not averaged. (Added from the board run on 10 Oct 2026, where an untouched potentiometer wobbled by about 90 counts; not yet measured with the slider.)
+
 Wiring checklist: the module has three pins, A0 (signal), GND and VCC. Signal goes to ESP32 GPIO 36 (the table in `sensors.h`; SunFounder's own example reads GPIO 35, so either move the wire or change the table). Supply the module from 3.3 V, never 5 V (the ADC pins tolerate 3.3 V only). Use an ADC1 pin (32 to 39) because ADC2 stops working when WiFi is on. SunFounder's text does not say whether the reading rises or falls with light, so check it with the torch. The ESP32 ADC is flat near 0 and near 4095 and not linear; readings below about 100 are not trustworthy.
 
 ## Other ready-made bitstreams (built 9 Oct 2026, timing met at 27 MHz, NOT yet run on a board)

@@ -131,7 +131,13 @@ static void handleConfig() {
   for (int i = 0; i < SENSOR_COUNT; i++) { if (i) j += ","; j += String("\"") + SENSORS[i].name + "\""; }
   j += "],\"laneSensor\":[";
   for (int i = 0; i < MAX_LANES; i++) { if (i) j += ","; j += String(g_laneSensor[i]); }
-  sendJson(200, j + "]}");
+  sendJson(200, j + "],\"avgMs\":" + String((unsigned)g_avgMs) + ",\"avgMax\":" + String((unsigned)AVG_MS_MAX) + "}");
+}
+static void handleAvgSet() {
+  if (!authed()) return;
+  long v = server.arg("ms").toInt(); if (v < 0 || v > AVG_MS_MAX) { sendErr(400, "averaging window must be 0 to 200 ms"); return; }
+  g_avgMs = (uint16_t)v; prefs.putUInt("avgms", (uint32_t)v);
+  sendJson(200, "{\"ok\":true}");
 }
 static void saveConfig() {
   prefs.putString("design", dsg().key);
@@ -274,6 +280,7 @@ void setup() {
   if (webPass.length() < 8) { webPass = randomPass(); prefs.putString("webpass", webPass); Serial.printf("\nFirst boot: web password generated: %s   (change with: webpass <new>)\n", webPass.c_str()); }
   g_design = design_index(prefs.getString("design", "cordic").c_str()); if (g_design < 0) g_design = 0;
   design_parse_lanes(prefs.getString("lsens", "").c_str());
+  { uint32_t a = prefs.getUInt("avgms", 20); g_avgMs = a > AVG_MS_MAX ? 20 : (uint16_t)a; }
   Serial.printf("\nUniCell unit web control. Design: %s  (change it on the page's Setup card, or: design cordic|relay|tree)\n", dsg().name);
   startNetwork();
   server.on("/", HTTP_GET, handleRoot);
@@ -284,6 +291,7 @@ void setup() {
   server.on("/api/direct", HTTP_POST, handleDirectSet);
   server.on("/api/config", HTTP_GET, handleConfig);
   server.on("/api/config", HTTP_POST, handleConfigSet);
+  server.on("/api/avg", HTTP_POST, handleAvgSet);
   server.on("/api/sd", HTTP_POST, handleSd);
   server.on("/api/sdinit", HTTP_POST, handleSdInit);
   server.on("/api/files", HTTP_GET, handleFiles);

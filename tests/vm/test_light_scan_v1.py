@@ -49,3 +49,12 @@ def test_scan_verdicts():
 
 if __name__ == "__main__":
     test_scan_verdicts(); print("ok")
+
+
+def test_averaging_slider_wired_in():
+    """Static check (nothing runs on a board): the page has the slider, the sketch has the /api/avg route and saves it, readers use the shared mean."""
+    d = HDR
+    page = open(os.path.join(d, "page.h")).read(); ino = open(os.path.join(d, "unicell_unit_web.ino")).read(); sen = open(os.path.join(d, "sensors.h")).read()
+    assert 'id="avg"' in page and "/api/avg" in page
+    assert '"/api/avg"' in ino and 'putUInt("avgms"' in ino and 'getUInt("avgms"' in ino
+    assert sen.count("adc_mean(") >= 3 and "g_avgMs" in sen

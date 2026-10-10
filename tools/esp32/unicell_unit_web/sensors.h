@@ -13,6 +13,12 @@
 
 typedef uint16_t (*SensorFn)();
 
+// Averaging window (addendum 52): every ANALOG reading is the mean of as many fast reads as fit in this many milliseconds (at least 8 reads). It is one setting for all analog
+// sensors (pot, light, thermistor); digital sensors and the ultrasonic one are not averaged. 0 = just 8 quick reads (the old behaviour). 20 ms = two whole cycles of 100 Hz room-light
+// flicker, so lamp flicker averages out; longer calms ADC/WiFi noise further but makes the reading slower to follow a real change. Set from the web page's Live sensors card; saved.
+static volatile uint16_t g_avgMs = 20;
+static const uint16_t AVG_MS_MAX = 200;
+
 struct Sensor {
   const char* name;
   uint16_t    loc;      // location number carried in the low 16 bits of the word
@@ -29,12 +35,20 @@ struct Sensor {
 static uint16_t rd_digital(int pin) { return digitalRead(pin) ? 65535 : 0; }
 #define DIGITAL_SENSOR(fname, PIN) static uint16_t fname() { return rd_digital(PIN); }
 
+// Mean of the pin over the averaging window, in raw counts (0..4095). The first read is thrown away: the ESP32 ADC's sample capacitor still holds the PREVIOUS channel's voltage,
+// which leaks into a high-impedance sensor (a pot or thermistor divider) as crosstalk.
+static float adc_mean(int pin) {
+  (void)analogRead(pin); delayMicroseconds(100);
+  const uint32_t span = (uint32_t)g_avgMs * 1000UL, t0 = micros();
+  uint32_t sum = 0, n = 0;
+  do { sum += analogRead(pin); n++; } while (n < 8 || (micros() - t0) < span);
+  return (float)sum / (float)n;
+}
+
 // Thermistor on an analog pin: ASSUMED a 10 k NTC (B = 3950) in a divider with a 10 k resistor, thermistor on the GND side. If your kit wires it the other way round, swap
 // the two resistances in the formula. Result = (degC + 40) * 100, so -40 C -> 0 and 25 C -> 6500 (clamped to 16 bits). The ESP32 ADC is not linear; treat it as indicative.
 static uint16_t rd_thermistor(int pin) {
-  (void)analogRead(pin); delayMicroseconds(100);                       // discard the first read (crosstalk from the previously read channel)
-  uint32_t sum = 0; for (int i = 0; i < 8; i++) sum += analogRead(pin);
-  float v = sum / 8.0f; if (v < 1) v = 1; if (v > 4094) v = 4094;
+  float v = adc_mean(pin); if (v < 1) v = 1; if (v > 4094) v = 4094;
   float r = 10000.0f * v / (4095.0f - v);                              // thermistor resistance
   float t = 1.0f / (1.0f / 298.15f + logf(r / 10000.0f) / 3950.0f) - 273.15f;
   float a = (t + 40.0f) * 100.0f; if (a < 0) a = 0; if (a > 65535) a = 65535;
@@ -88,10 +102,7 @@ static void sensors_begin() {
 
 static uint16_t sensor_amount(const Sensor& s) {
   if (s.pin < 0) return s.custom ? s.custom() : 0;
-  (void)analogRead(s.pin); delayMicroseconds(100);              // throw one read away: the ESP32 ADC's sample capacitor still holds the PREVIOUS channel's voltage, which leaks into a high-impedance sensor (a pot or thermistor divider) as crosstalk
-  uint32_t sum = 0;
-  for (int i = 0; i < 8; i++) sum += analogRead(s.pin);        // 12-bit reads, averaged over 8 to calm the noise
-  return (uint16_t)((sum / 8) << 4);                           // 0..4095 -> 0..65520 (12-bit scaled up to the 16-bit amount field)
+  return (uint16_t)((uint32_t)(adc_mean(s.pin) * 16.0f + 0.5f));   // mean 12-bit reading over the averaging window, 0..4095 -> 0..65520 (scaled up to the 16-bit amount field)
 }
 // Serial command  scan [pin] [raw]  (addendum 51): 500 fast reads of one analog pin, then say whether the wobble is room-light flicker, noise, or a pin stuck on the ADC floor/ceiling.
 // Default pin = the "light sensor" line of the table. With  raw  it also prints every reading, so the numbers can be kept and re-analysed on a PC.
