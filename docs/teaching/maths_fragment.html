@@ -1,0 +1,246 @@
+<!-- Maths fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Links are relative to docs/ (where the built manual lives). -->
+<div class="maths" id="maths-root">
+<style>
+
+  .maths h2{margin-top:1.6em}
+  .maths .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .maths button,.maths select,.maths input{font:inherit;font-size:.95em}
+  .maths .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .maths .bar button{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .maths input[type=number],.maths select{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+  .maths label.ck{display:flex;gap:6px;align-items:center;font-size:.92em}
+  .maths .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px;margin:.6em 0}
+  .maths label.f{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--ink-soft)}
+  .maths label.f input,.maths label.f select{width:100%}
+  .maths .board{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:10px 12px;overflow-x:auto}
+  .maths .rowlab{font-size:.78em;color:var(--ink-soft);margin:.5em 0 2px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .maths .rowlab b{font-family:var(--mono);color:var(--ink)}
+  .maths .word{display:flex;gap:7px;width:max-content}
+  .maths .grp{display:flex;gap:2px}
+  .maths .bit{box-sizing:border-box;width:22px;height:28px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);border:1.5px solid var(--rule);border-radius:4px;background:#fff;font-size:.9em}
+  .maths .bit.one{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .maths .bit.lost{outline:2px solid #b5533a;outline-offset:1px}
+  .maths .bit.fill{border-style:dashed;border-color:var(--accent)}
+  .maths .bit.cut{background:#e8d5cf;color:#8a3b25;border-color:#b5533a}
+  .maths .idx{display:flex;gap:7px;width:max-content;font-family:var(--mono);font-size:.62em;color:var(--ink-soft)}
+  .maths .idx .grp span{width:22px;text-align:center;display:inline-block}
+  .maths .gbtn{display:flex;gap:7px;width:max-content;margin:.2em 0}
+  .maths .gbtn button{width:70px;box-sizing:border-box;padding:2px 0;border:2px solid var(--accent);border-radius:6px;background:var(--paper-edge);cursor:pointer;font-family:var(--mono);font-size:.7em;color:var(--ink)}
+  .maths .gbtn button[aria-pressed="true"]{background:#b5533a;border-color:#b5533a;color:#fff}
+  .maths .hint{display:none;font-size:.8em;color:var(--ink-soft);margin:.2em 0}
+  @media (max-width:640px){.maths .hint{display:block}}
+  .maths .arrow{font-family:var(--mono);color:var(--ink-soft);font-size:.8em;margin:.3em 0}
+  .maths .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .maths .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .maths .key{display:flex;flex-wrap:wrap;gap:14px;font-size:.8em;color:var(--ink-soft);margin:.4em 0}
+  .maths .key i{display:inline-block;width:1.1em;height:1.1em;border-radius:3px;vertical-align:middle;margin-right:4px;border:1.5px solid var(--rule)}
+
+  .maths h2{margin-top:1.6em}
+  .maths .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .maths button,.maths select,.maths input{font:inherit;font-size:.95em}
+  .maths .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .maths .bar button{padding:6px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .maths .bar button.go{background:var(--accent);color:#fff}
+  .maths input[type=text],.maths select{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+  .maths .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;margin:.6em 0}
+  .maths label.f{display:flex;flex-direction:column;gap:3px;font-size:.88em;color:var(--ink-soft)}
+  .maths label.f input,.maths label.f select{width:100%}
+  .maths label.ck{display:flex;gap:6px;align-items:center;font-size:.92em;cursor:pointer}
+  .maths .says{min-height:3em;margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .maths .lane{display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:2em;margin:.2em 0}
+  .maths .tag{font-family:var(--mono);font-weight:bold;min-width:3.6em;font-size:.9em}
+  .maths .tok{font-family:var(--mono);font-size:.82em;padding:1px 8px;border-radius:9px;border:1px solid var(--rule);background:#fff}
+  .maths .tok.front{border-color:var(--accent);border-width:2px}
+  .maths .tok.won{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .maths .tok.held{background:#efe6c8;border-color:var(--ink-soft)}
+  .maths .cellbox{display:inline-block;border:2px solid var(--ink-soft);border-radius:10px;background:var(--paper-edge);padding:6px 14px;font-family:var(--mono);font-size:.9em;margin:.4em 0}
+  .maths .board{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:10px 12px}
+  .maths .mono{font-family:var(--mono);font-size:.88em}
+  .maths .sinks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:.6em 0}
+  .maths .sink{border:1px solid var(--rule);border-radius:8px;padding:6px 10px;background:rgba(255,255,255,.4)}
+  .maths .sink.pend{border-color:var(--accent);box-shadow:0 0 0 3px rgba(21,117,109,.18)}
+  .maths ol.log{font-family:var(--mono);font-size:.82em;margin:.4em 0;padding-left:2em}
+  .maths .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+
+  .maths .lamp{display:inline-flex;align-items:center;justify-content:center;width:3.4em;height:3.4em;border-radius:50%;border:3px solid var(--ink-soft);font-family:var(--mono);font-size:1.5em;font-weight:bold;background:#fff}
+  .maths .lamp.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .maths .row{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin:.4em 0}
+  .maths .col{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.85em;color:var(--ink-soft)}
+  .maths .offer{font-family:var(--mono);border:2px dashed var(--rule);border-radius:8px;padding:6px 12px;min-width:9em;text-align:center}
+  .maths .offer.pend{border-style:solid;border-color:var(--accent)}
+  .maths .vals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:.5em 0}
+  .maths .vals label{font-size:.82em;color:var(--ink-soft);display:flex;flex-direction:column;gap:3px}
+  .maths .vals input{width:100%}
+  .maths .slots{display:flex;gap:8px;margin:.5em 0}
+  .maths .slotv{flex:1;min-width:0;text-align:center;border:2px solid var(--rule);border-radius:8px;padding:6px 2px;font-family:var(--mono);background:#fff}
+  .maths .slotv.cur{border-color:var(--accent);background:rgba(21,117,109,.14);font-weight:bold}
+  .maths .slotv small{display:block;font-size:.7em;color:var(--ink-soft)}
+  .maths input[type=number]{padding:5px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink)}
+
+  .maths .cy .bit{background:#f3ecd6;border-style:dotted;color:var(--ink-soft)}
+  .maths .cy .bit.one{background:#d9a441;border-color:#d9a441;color:#fff}
+  .maths .chipout{display:inline-block;font-family:var(--mono);border:2px solid var(--ink-soft);border-radius:8px;padding:2px 10px;margin:.3em 0}
+  .maths .chipout.one{background:#d9a441;border-color:#d9a441;color:#fff}
+  .maths .hint{display:none;font-size:.8em;color:var(--ink-soft);margin:.2em 0}
+  @media (max-width:640px){.maths .hint{display:block}}
+</style>
+
+<p class="lead">Three cells do arithmetic: the <strong>adder</strong>, the <strong>multiplier</strong> and the <strong>accumulator</strong>. On the Chaining page they were blocks that just gave an answer. Here you can see what is inside the answer: the carry that travels along an add, the half of a product that does not fit, and a total that keeps counting.</p>
+
+<h2>1. The adder: bit by bit, with a carry</h2>
+<p>The adder adds two 18-bit words. Each column adds its two bits and the carry from the column to its right, writes the answer bit, and passes a carry on to the left. In subtract mode the cell adds A to the flipped bits of B and starts with a carry of 1, which is how two's complement subtraction works (A &minus; B = A + NOT B + 1). Whatever carries out of the top column can come out on a second port, if the design was built with that port.</p>
+<div class="grid2">
+  <label class="f">A (whole number)<input type="number" id="ad-a" value="100" step="1"></label>
+  <label class="f">B (whole number)<input type="number" id="ad-b" value="55" step="1"></label>
+  <label class="f">Mode<select id="ad-m"><option value="add">add: A + B</option><option value="sub">subtract: A &minus; B</option></select></label>
+</div>
+<div class="bar"><span>Examples:</span><button type="button" data-ad="carry">Watch a carry travel</button><button type="button" data-ad="over">Two big positives</button><button type="button" data-ad="sub">Subtract</button></div>
+<div class="hint">Scroll the grey box sideways to see all 18 columns.</div>
+<div class="board">
+  <div class="rowlab"><span>carry into each column</span></div><div id="ad-c" class="cy"></div>
+  <div class="rowlab"><span>A</span><b id="ad-va"></b></div><div id="ad-wa"></div>
+  <div class="rowlab"><span id="ad-lb">B</span><b id="ad-vb"></b></div><div id="ad-wb"></div>
+  <div class="rowlab"><span>result (the cell's main output)</span><b id="ad-vs"></b></div><div id="ad-ws"></div>
+  <div class="rowlab"><span>carry out of the top column (the second port)</span></div><div><span class="chipout" id="ad-co">0</span></div>
+</div>
+<div class="says" id="ad-says" aria-live="polite"></div>
+
+<h2>2. The multiplier: the half that does not fit</h2>
+<p>Multiplying two 18-bit numbers gives a product up to 36 bits long. The cell's main output is the <strong>low half</strong>, the bottom 18 bits. The <strong>high half</strong>, the top 18 bits, is available on an optional second port. The cell treats its two inputs as plain unsigned numbers (0 to 262143). If you only use the low half, you are assuming the answer fits.</p>
+<div class="grid2">
+  <label class="f">A (0 to 262143)<input type="number" id="mu-a" value="1000" min="0" max="262143" step="1"></label>
+  <label class="f">B (0 to 262143)<input type="number" id="mu-b" value="1000" min="0" max="262143" step="1"></label>
+</div>
+<div class="bar"><span>Examples:</span><button type="button" data-mu="small">7 &times; 6</button><button type="button" data-mu="big">1000 &times; 1000</button><button type="button" data-mu="neg">&minus;1 &times; &minus;1 (as 262143 &times; 262143)</button></div>
+<div class="board">
+  <div class="rowlab"><span>high half (second port, if built)</span><b id="mu-vh"></b></div><div id="mu-wh"></div>
+  <div class="rowlab"><span>low half (main output)</span><b id="mu-vl"></b></div><div id="mu-wl"></div>
+</div>
+<div class="says" id="mu-says" aria-live="polite"></div>
+
+<h2>3. The accumulator: a total that keeps counting</h2>
+<p>An accumulator is a running total. It has two pulse inputs, <strong>count up</strong> and <strong>count down</strong>, and each pulse changes the total by a fixed <strong>step</strong> set when it was built. In <strong>continuous</strong> mode every pulse is reported. In <strong>pulse</strong> mode nothing is reported until the total's size (ignoring sign) reaches a <strong>threshold</strong>: then the cell reports the value that crossed it and starts again from zero. As with the latch, the total always updates, but a new report can only be made once the last one has been taken.</p>
+<div class="grid2">
+  <label class="f">Step per pulse (0 to 255)<input type="number" id="ac-s" value="5" min="0" max="255" step="1"></label>
+  <label class="f">Mode<select id="ac-m"><option value="c">continuous: report every pulse</option><option value="p">pulse: report when the size reaches the threshold</option></select></label>
+  <label class="f">Threshold (pulse mode, 1 to 65535)<input type="number" id="ac-t" value="20" min="1" max="65535" step="1"></label>
+</div>
+<div class="bar"><button type="button" class="go" id="ac-up">Count up</button><button type="button" class="go" id="ac-dn">Count down</button><button type="button" id="ac-wait">Wait a tick</button><button type="button" id="ac-reset">Reset</button>
+  <label class="ck"><input type="checkbox" id="ac-rx" checked> receiver accepting</label>
+  <span>Try:</span><button type="button" data-ac="pulse">pulse mode, step 3, threshold 10</button></div>
+<div class="board"><div class="row">
+  <div class="col"><div class="lamp" id="ac-lamp" style="width:auto;border-radius:12px;padding:0 .5em;min-width:3.4em">0</div>the running total</div>
+  <div class="col"><div class="offer" id="ac-offer">nothing offered</div>what the cell is reporting</div>
+  <div class="col"><div class="offer" id="ac-got">nothing yet</div>what the receiver has taken</div>
+</div></div>
+<div class="says" id="ac-says" aria-live="polite"></div>
+
+<h2>4. What to notice</h2>
+<ul>
+  <li><strong>A carry is how a big number is built from small steps.</strong> Each column only knows two bits and a carry. A carry that ripples across all columns is why long adds take longer than short ones, and why wide adders chain carry outputs into carry inputs.</li>
+  <li><strong>Subtract is add in disguise.</strong> Flip B's bits, start the carry at 1, and the same adder subtracts. When subtracting, a carry out of 1 means there was no borrow: A was at least B (read as unsigned).</li>
+  <li><strong>Overflow is not an error signal.</strong> The cell gives the 18 low bits whatever happens. Two large positive numbers can give a negative result; the page flags this, but the cell itself does not.</li>
+  <li><strong>Low half and high half are the same product.</strong> Throw the high half away and the answer is only right when the high half is zero. The low half is the same whether you read the numbers as signed or unsigned, which is why a signed multiply works on the Chaining page. The high half is not: it belongs to the unsigned product.</li>
+  <li><strong>The accumulator is memory with arithmetic.</strong> It keeps a total, like the latch keeps a bit. In pulse mode it turns many small events into one report, which is how a counter becomes a "something has happened enough times" signal.</li>
+</ul>
+<p class="fine">A simplified picture, drawn by this page's script from the cells' Verilog (<a href="../sub/verilog/adder_cell_v4sa.v">adder</a>, <a href="../sub/verilog/mul_cell_v4sa.v">multiplier</a>, <a href="../sub/verilog/accumulator_cell_v4sa.v">accumulator</a>). The carry output exists only where a design asks for it, and so does the multiplier's high half; both have their own handshake. The multiplier comes in two builds, one from ordinary logic and one using the chip's multiplier blocks, which give the same numbers. The signed-overflow flag on the adder is worked out by this page, not by a port of the cell. The real cells also carry valid/ack handshakes, freeze and a configuration step, which are left out. The VM is not running here.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('maths-root'); if(!root) return;
+  var W=18,MOD=Math.pow(2,W),HALF=MOD/2,MASK=MOD-1;
+  function $(id){return document.getElementById(id);}
+  function U(v){return ((v%MOD)+MOD)%MOD;}
+  function S(u){return u>=HALF?u-MOD:u;}
+  function whole(raw,lo,hi){var n=Number(raw);return(raw===''||!isFinite(n)||Math.floor(n)!==n||Math.abs(n)>9e15||n<lo||n>hi)?null:n;}
+  function bitsOf(u){var a=[];for(var i=0;i<W;i++)a.push(Math.floor(u/Math.pow(2,i))%2);return a;}
+  function draw(id,bits,cls){ /* bits[i] = bit i, columns drawn high to low in groups of 3 */
+    var h='<div class="word">';
+    for(var g=5;g>=0;g--){h+='<div class="grp">';for(var k=2;k>=0;k--){var i=g*3+k;h+='<div class="bit'+(bits[i]?' one':'')+(cls?cls(i):'')+'" title="column '+i+'">'+bits[i]+'</div>';}h+='</div>';}
+    h+='</div><div class="idx">';
+    for(g=5;g>=0;g--){h+='<div class="grp">';for(k=2;k>=0;k--)h+='<span>'+(g*3+k)+'</span>';h+='</div>';}
+    $(id).innerHTML=h+'</div>';
+  }
+  function clear(ids){ids.forEach(function(i){$(i).innerHTML='';});}
+
+  /* ---------- adder ---------- */
+  var ADP={carry:{a:255,b:1,m:'add'},over:{a:100000,b:100000,m:'add'},sub:{a:100,b:55,m:'sub'}};
+  [].forEach.call(root.querySelectorAll('[data-ad]'),function(b){b.addEventListener('click',function(){var p=ADP[b.getAttribute('data-ad')];$('ad-a').value=p.a;$('ad-b').value=p.b;$('ad-m').value=p.m;adder();});});
+  ['ad-a','ad-b','ad-m'].forEach(function(id){$(id).addEventListener('input',adder);$(id).addEventListener('change',adder);});
+  function adder(){
+    var a=whole($('ad-a').value,-1e15,1e15),b=whole($('ad-b').value,-1e15,1e15),sub=$('ad-m').value==='sub';
+    if(a===null||b===null){clear(['ad-c','ad-wa','ad-wb','ad-ws']);['ad-va','ad-vb','ad-vs'].forEach(function(i){$(i).textContent='';});$('ad-co').textContent='';$('ad-says').textContent='Type whole numbers for A and B.';return;}
+    var au=U(a),bu=U(b),bb=sub?(MASK-bu):bu,A=bitsOf(au),B=bitsOf(bb),c=[],s=[],cy=sub?1:0,i;
+    for(i=0;i<W;i++){c.push(cy);var t=A[i]+B[i]+cy;s.push(t%2);cy=t>=2?1:0;}
+    var cout=cy,su=0;for(i=0;i<W;i++)su+=s[i]*Math.pow(2,i);
+    draw('ad-c',c,null);draw('ad-wa',A,null);draw('ad-wb',B,null);draw('ad-ws',s,null);
+    $('ad-lb').textContent=sub?'NOT B (B with every bit flipped; the carry starts at 1)':'B';
+    $('ad-va').textContent='unsigned '+au+'  |  signed '+S(au);$('ad-vb').textContent=sub?'(B itself: unsigned '+bu+' | signed '+S(bu)+')':'unsigned '+bu+'  |  signed '+S(bu);
+    $('ad-vs').textContent='unsigned '+su+'  |  signed '+S(su);
+    $('ad-co').textContent='carry out = '+cout;$('ad-co').className='chipout'+(cout?' one':'');
+    var cin17=c[W-1],sov=(cin17!==cout),msg=[];
+    if(S(au)!==a||S(bu)!==b)msg.push('A or B did not fit in 18 bits and wrapped.');
+    var maxc=0,run=0;for(i=0;i<W;i++){if(c[i]){run++;if(run>maxc)maxc=run;}else run=0;}
+    msg.push((sub?'A − B':'A + B')+' = '+S(su)+' (as signed), '+su+' (as unsigned).');
+    if(maxc>=2)msg.push('The carry travelled across '+maxc+' columns in a row'+(maxc>=8?', which is the slow case for a ripple adder':'')+'.');
+    if(sub)msg.push(cout?'Carry out is 1: no borrow, so A is at least B when both are read as unsigned.':'Carry out is 0: a borrow was needed, so A is smaller than B when both are read as unsigned.');
+    else msg.push(cout?'Carry out is 1: the unsigned sum was too big for 18 bits and the top bit went out the carry port.':'Carry out is 0: the unsigned sum fits in 18 bits.');
+    if(sov)msg.push('Signed overflow (worked out by this page; the cell has no port for it): the true answer '+(S(au)+(sub?-S(bu):S(bu)))+' is outside the signed range, so the result above is wrong as a signed number.');
+    $('ad-says').textContent=msg.join(' ');
+  }
+
+  /* ---------- multiplier ---------- */
+  var MUP={small:[7,6],big:[1000,1000],neg:[262143,262143]};
+  [].forEach.call(root.querySelectorAll('[data-mu]'),function(b){b.addEventListener('click',function(){var p=MUP[b.getAttribute('data-mu')];$('mu-a').value=p[0];$('mu-b').value=p[1];mult();});});
+  ['mu-a','mu-b'].forEach(function(id){$(id).addEventListener('input',mult);});
+  function mult(){
+    var a=whole($('mu-a').value,0,MASK),b=whole($('mu-b').value,0,MASK);
+    if(a===null||b===null){clear(['mu-wh','mu-wl']);$('mu-vh').textContent='';$('mu-vl').textContent='';$('mu-says').textContent='Type whole numbers from 0 to '+MASK+'.';return;}
+    var p=BigInt(a)*BigInt(b),lo=Number(p%BigInt(MOD)),hi=Number(p/BigInt(MOD));
+    draw('mu-wh',bitsOf(hi),null);draw('mu-wl',bitsOf(lo),null);
+    $('mu-vh').textContent='= '+hi;$('mu-vl').textContent='unsigned '+lo+'  |  signed '+S(lo);
+    var m='Full product: '+a+' × '+b+' = '+p.toString()+'. ';
+    if(hi===0)m+='The high half is 0, so the whole product fits in the low half and the main output is exactly right.';
+    else m+='The high half is '+hi+', not 0, so the main output alone ('+lo+') is wrong: the product is '+hi+' × '+MOD+' + '+lo+'. Anything that uses only the low half has lost the top of the answer.';
+    if(a>=HALF||b>=HALF)m+=' (Read as signed numbers, an input of 262143 is −1; the low half, '+S(lo)+' signed, is still right as a signed product, but the high half belongs to the unsigned product.)';
+    $('mu-says').textContent=m;
+  }
+
+  /* ---------- accumulator ---------- */
+  var AC=null;
+  function acCfg(){return {step:whole($('ac-s').value,0,255),pulse:$('ac-m').value==='p',thr:whole($('ac-t').value,1,65535)};}
+  function acReset(){
+    var c=acCfg();AC={tot:0,pend:false,off:null,got:null,msg:(c.step===null||c.thr===null)?'Use whole numbers: step 0 to 255, threshold 1 to 65535.':'Press Count up or Count down.'};
+    $('ac-t').disabled=!c.pulse;acPaint();
+  }
+  function acTick(up,dn){
+    var c=acCfg(),rx=$('ac-rx').checked,notes=[];
+    if(c.step===null||c.thr===null)return;
+    var ev=up||dn,delta=(up&&!dn)?c.step:(dn&&!up)?-c.step:0,next=S(U(AC.tot+delta));
+    var hit=c.pulse&&ev&&Math.abs(next)>=c.thr,real=c.pulse?hit:ev,wasPend=AC.pend,old=AC.tot;
+    if(ev){AC.tot=(c.pulse&&hit)?0:next;}
+    if(wasPend){
+      if(rx){AC.pend=false;AC.got=AC.off;notes.push('the receiver took the report ('+AC.off+')');}else notes.push('the receiver is stuck: the report '+AC.off+' is still waiting');
+      if(ev)notes.push(c.pulse&&!hit?'the total went '+old+' → '+AC.tot+', still below the threshold of '+c.thr:'the total '+(c.pulse&&hit?'reached the threshold and reset to 0':'went '+old+' → '+AC.tot)+', but it could not be reported yet');
+    }else if(real){AC.pend=true;AC.off=next;notes.push(c.pulse?'the size reached '+c.thr+' ('+next+'): reported, and the total reset to 0':'the total went '+old+' → '+AC.tot+' and is being reported');}
+    else if(ev&&c.pulse)notes.push('the total went '+old+' → '+AC.tot+', still below the threshold of '+c.thr+', so nothing is reported');
+    else notes.push('nothing happened');
+    AC.msg=notes.join('; ')+'.';
+  }
+  function acPaint(){
+    $('ac-lamp').textContent=AC.tot;$('ac-lamp').className='lamp'+(AC.tot?' on':'');
+    $('ac-offer').textContent=AC.pend?'reporting '+AC.off+' (waiting)':'nothing offered';$('ac-offer').className='offer'+(AC.pend?' pend':'');
+    $('ac-got').textContent=AC.got===null?'nothing yet':'last taken: '+AC.got;$('ac-says').textContent=AC.msg;
+  }
+  $('ac-up').addEventListener('click',function(){acTick(1,0);acPaint();});
+  $('ac-dn').addEventListener('click',function(){acTick(0,1);acPaint();});
+  $('ac-wait').addEventListener('click',function(){acTick(0,0);acPaint();});
+  $('ac-reset').addEventListener('click',acReset);
+  ['ac-s','ac-m','ac-t'].forEach(function(id){$(id).addEventListener('input',acReset);$(id).addEventListener('change',acReset);});
+  root.querySelector('[data-ac="pulse"]').addEventListener('click',function(){$('ac-s').value=3;$('ac-m').value='p';$('ac-t').value=10;acReset();});
+
+  adder();mult();acReset();
+})();
+</script>
+</div>

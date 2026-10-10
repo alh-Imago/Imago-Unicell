@@ -123,4 +123,16 @@ Tab 07 "Bits" of `docs/teaching_manual.html` (source `docs/teaching/bits_fragmen
 
 **Pages so far:** 01 Tour (nano), 02 Family, 03 Chaining (adder, multiplier, compare, shift, nano gate, fixed ram), 04 Branching (branch, priority), 05 Join & Split (merge, router), 06 Memory (latch, sequencer), 07 Bits (shift, mask), 08 Start, 09 Backdrop. Not yet on any hands-on page: the accumulator, the adder's carry output and the multiplier's high half, ram's flowing mode.
 
-Next entry: #1046.
+---
+
+## #1046 -- TEACHING MANUAL: A MATHS PAGE (adder, multiplier, accumulator) (Alan's direction)
+
+Alan asked whether the add and multiply units had been done; they were only blocks on the Chaining page (answers, no insides), and the accumulator was on no page. New tab 04 "Maths" of `docs/teaching_manual.html` (source `docs/teaching/maths_fragment.html`), after Chaining. The tabs are now: 01 Tour, 02 Family, 03 Chaining, 04 Maths, 05 Branching, 06 Join & Split, 07 Memory, 08 Bits, 09 Start, 10 Backdrop.
+
+**Adder.** A and B (whole numbers, wrapped to 18 bits), add or subtract. Four rows drawn bit by bit: the carry into each column, A, B (or NOT B with the carry starting at 1 for subtract), and the result, plus the carry out of the top column (the second port, `carry_out` in `adder_cell_v4sa.v`; for subtract it is the raw carry, i.e. NOT borrow). A sentence says how far the carry travelled, what the carry out means, and flags SIGNED OVERFLOW, which is worked out by the page: the cell has no port for it (the page says so). **Multiplier.** A and B as unsigned 0-262143 (the Verilog multiplies unsigned wires, `mul_cell_v4sa.v`: low 18 bits on the main output, high 18 bits on the optional second port); shows both halves in bits and says when the low half alone is wrong. It notes that the low half is the same for signed and unsigned reading (which is why the Chaining page's signed multiply is right) but the high half belongs to the unsigned product. **Accumulator.** Step 0-255, continuous or pulse mode with a threshold, count up, count down, wait a tick, a receiver accepting/stuck switch. Rules from `accumulator_cell_v4sa.v`: the total updates on every pulse regardless of the pending report; a report is offered only when none is pending (the offered value is the NEXT total); in pulse mode a report happens only when |next total| reaches the threshold (threshold 0 never fires) and the total then resets to 0.
+
+**Checked.** Real Chromium (Playwright): 80 random adds/subtracts matched Python for the result, the carry out and the signed-overflow flag; 60 random multiplies matched for both halves; 25 random accumulator event sequences (up, down, wait, receiver on and off, continuous and pulse mode) tracked a model I wrote from the RTL, on total and pending state. No console errors, no sideways overflow at 390 px. The adder at 18 bits was also matched to the VM's library adder and subtractor earlier (#1041). NOT checked: nothing was run against the Verilog benches or a live VM cell (no `iverilog` here); the accumulator's model is my own reading of the RTL, not the RTL; simultaneous up and down pulses (the Verilog counts them as no change) are not offered by the page; the adder's SECOND_PORT and the multiplier's high half exist only when a design asks for them, as the page says. Main manual unchanged.
+
+**Still not on any hands-on page:** ram's flowing mode (the Chaining page has only the fixed constant).
+
+Next entry: #1047.

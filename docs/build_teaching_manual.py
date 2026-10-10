@@ -55,37 +55,43 @@ SECTIONS = [
              "input of the next, through dedicated ports with no shared bus. Drag cells into a "
              "simple grid, type a number in, and see what comes out of the end of the chain.",
      "html":open(os.path.join(HERE, "teaching", "chaining_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to the Family","#sec-family","section"),("Continue → Branching","#sec-branching","section")]},
+     "links":[("← Back to the Family","#sec-family","section"),("Continue → Maths","#sec-maths","section")]},
 
-    {"id":"branching","num":"04","tab":"Branching","title":"Branching and Decisions",
+    {"id":"maths","num":"04","tab":"Maths","title":"Arithmetic: Adder, Multiplier, Accumulator",
+     "intro":"The arithmetic cells, opened up: the carry that travels along an add, the half of a "
+             "product that does not fit, and a running total that keeps counting.",
+     "html":open(os.path.join(HERE, "teaching", "maths_fragment.html"), encoding="utf-8").read(),
+     "links":[("← Back to Chaining","#sec-chaining","section"),("Continue → Branching","#sec-branching","section")]},
+
+    {"id":"branching","num":"05","tab":"Branching","title":"Branching and Decisions",
      "intro":"Chained cells run straight on. Two flex cells make choices: the branch cell decides "
              "where one value goes, and the priority cell decides which of several waiting values "
              "goes next. Try both with your own numbers.",
      "html":open(os.path.join(HERE, "teaching", "branching_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to Chaining","#sec-chaining","section"),("Continue → Joining and Splitting","#sec-joinsplit","section")]},
+     "links":[("← Back to Maths","#sec-maths","section"),("Continue → Joining and Splitting","#sec-joinsplit","section")]},
 
-    {"id":"joinsplit","num":"05","tab":"Join & Split","title":"Joining and Splitting Paths",
+    {"id":"joinsplit","num":"06","tab":"Join & Split","title":"Joining and Splitting Paths",
      "intro":"Two small cells show how data meets and parts. The merge cell brings two paths into "
              "one; the router cell sends one path to up to two places. Both teach what has to "
              "wait for what.",
      "html":open(os.path.join(HERE, "teaching", "joinsplit_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Branching","#sec-branching","section"),("Continue → Memory","#sec-memory","section")]},
 
-    {"id":"memory","num":"06","tab":"Memory","title":"Remembering: Latch and Sequencer",
+    {"id":"memory","num":"07","tab":"Memory","title":"Remembering: Latch and Sequencer",
      "intro":"Everything so far let go of its value as soon as it passed it on. The latch keeps one "
              "bit until it is told to change; the sequencer keeps a short list and steps through it. "
              "Press the buttons and watch what is stored and what is reported.",
      "html":open(os.path.join(HERE, "teaching", "memory_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Joining and Splitting","#sec-joinsplit","section"),("Continue → Bits","#sec-bits","section")]},
 
-    {"id":"bits","num":"07","tab":"Bits","title":"Reshaping Words: Shift and Mask",
+    {"id":"bits","num":"08","tab":"Bits","title":"Reshaping Words: Shift and Mask",
      "intro":"A word is a row of bits. The shift stage slides the bits along; the mask cell switches "
              "whole groups of them off. See each stage's bits, what fell off the end, and how the two "
              "together can pull a field out of a word.",
      "html":open(os.path.join(HERE, "teaching", "bits_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Memory","#sec-memory","section"),("Continue → Start","#sec-start","section")]},
 
-    {"id":"start","num":"08","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"start","num":"09","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -96,7 +102,7 @@ SECTIONS = [
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
      "links":[("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"09","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"10","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "
