@@ -46,16 +46,20 @@
 <p class="lead">Chained cells run straight on. Two flex cells make choices: the <strong>branch</strong> cell decides where one value goes, and the <strong>priority</strong> cell decides which of several waiting values goes next. Neither one needs a program. The choice is made by the cell, with its settings fixed beforehand.</p>
 
 <h2>1. The branch cell: where does this value go?</h2>
-<p>A branch cell compares its two inputs as signed numbers and gets one of three answers: <strong>low</strong> (in1 is below in2), <strong>equal</strong> or <strong>high</strong>. For each answer you have chosen in advance which of its two output ports gets the result: out1, out2, both, or neither (the value is dropped). What goes out is also chosen in advance: a constant, in1, in2, or the difference in1 &minus; in2.</p>
+<p>Each of the two inputs is set up, in advance, as either <strong>flowing</strong> (a fresh value is expected every round) or <strong>fixed</strong> (loaded once and then reused every round, like a limit). The usual use is one flowing stream against one fixed limit; two flowing inputs compare two live streams against each other. A branch cell compares its two inputs as signed numbers and gets one of three answers: <strong>low</strong> (in1 is below in2), <strong>equal</strong> or <strong>high</strong>. For each answer you have chosen in advance which of its two output ports gets the result: out1, out2, both, or neither (the value is dropped). What goes out is also chosen in advance: a constant, in1, in2, or the difference in1 &minus; in2.</p>
 
 <div class="bar" id="br-presets"><span>Examples:</span>
   <button type="button" data-p="lanes">Two lanes</button>
   <button type="button" data-p="alarm">Alarm on too big</button>
-  <button type="button" data-p="diff">Report only differences</button></div>
+  <button type="button" data-p="diff">Report only differences</button>
+  <button type="button" data-p="live">Two live streams</button>
+  <button type="button" data-p="both">Both fixed</button></div>
 
 <div class="grid2">
-  <label class="f">in1 (the stream: separate values with commas)<input type="text" id="br-in1" value="3, 9, 5, 12, 5"></label>
-  <label class="f">in2 (the limit it is compared with)<input type="number" id="br-in2" value="5" step="1"></label>
+  <label class="f">in1 is<select id="br-m1"><option value="flow">flowing: a fresh value each time</option><option value="fixed">fixed: loaded once, then reused</option></select></label>
+  <label class="f">in1 values (separate with commas)<input type="text" id="br-in1" value="3, 9, 5, 12, 5"></label>
+  <label class="f">in2 is<select id="br-m2"><option value="flow">flowing: a fresh value each time</option><option value="fixed" selected>fixed: loaded once, then reused</option></select></label>
+  <label class="f">in2 values (a fixed input takes just one number)<input type="text" id="br-in2" value="5"></label>
   <label class="f">What goes out<select id="br-emit"><option value="in1">in1 itself</option><option value="in2">in2</option><option value="diff">the difference, in1 &minus; in2</option><option value="fixed">a fixed constant</option></select></label>
   <label class="f">The constant (used only if "fixed")<input type="number" id="br-fixed" value="1" step="1"></label>
 </div>
@@ -96,11 +100,12 @@
 <h2>3. What to notice</h2>
 <ul>
   <li><strong>A branch does not run code.</strong> Its three answers and where each one goes are settings, fixed when the design is built. What varies is only the data.</li>
+  <li><strong>Fixed or flowing is a setting too.</strong> A fixed input is the limit you compare against; a flowing pair needs a fresh value on each side at the same moment, so two live streams advance together or not at all.</li>
   <li><strong>Dropping a value is a choice.</strong> Setting "neither" for an answer makes the cell swallow the value silently, which is how a branch filters a stream.</li>
   <li><strong>Waiting is part of the design.</strong> In the priority cell the losers keep their values and wait; nothing is lost. Under strict priority they may wait a long time, and that is the trade you made.</li>
   <li><strong>Sequenced mode blocks on purpose.</strong> If it is E's turn and E has nothing, the cell waits for E while N and W hold their values. That makes the order certain, at the price of speed.</li>
 </ul>
-<p class="fine">A simplified picture. It shows the decision each cell makes, taken from its Verilog (<a href="../sub/verilog/branch_cell_v4sa.v">branch</a>, <a href="../sub/verilog/priority_cell_v4sa.v">priority</a>), one round at a time. The real cells also handle the valid/ack handshake, a fixed or flowing mode for each branch input, and two outputs that can each be blocked separately; those are left out here. Numbers are 18 bits wide and signed, like the Tang Nano 20K build. The picture is drawn by this page's script, not by running the VM.</p>
+<p class="fine">A simplified picture. It shows the decision each cell makes, taken from its Verilog (<a href="../sub/verilog/branch_cell_v4sa.v">branch</a>, <a href="../sub/verilog/priority_cell_v4sa.v">priority</a>), one round at a time. The real cells also handle the valid/ack handshake and two outputs that can each be blocked separately; those are left out here. The fixed and flowing choice is shown, but not the timing of loading a fixed input: in the Verilog a fixed input must be loaded before a round can fire, and a flowing value that arrives before that is not kept, so a real design loads its fixed limit first. A fixed input is loaded again by sending it a new value, which this page does not show. Numbers are 18 bits wide and signed, like the Tang Nano 20K build. The picture is drawn by this page's script, not by running the VM.</p>
 
 <script>
 (function(){
@@ -126,14 +131,16 @@
   });
   function syncRoutes(){[].forEach.call(rt.querySelectorAll('input'),function(c){c.checked=!!routes[c.getAttribute('data-o')][+c.getAttribute('data-k')];});}
   var BP={
-    lanes:{in1:'3, 9, 5, 12, 5',in2:5,emit:'in1',fixed:1,r:{low:[1,0],equal:[1,0],high:[0,1]}},
-    alarm:{in1:'3, 9, 5, 12, 5',in2:8,emit:'fixed',fixed:1,r:{low:[0,0],equal:[0,0],high:[0,1]}},
-    diff:{in1:'3, 9, 5, 12, 5',in2:5,emit:'diff',fixed:1,r:{low:[1,0],equal:[0,0],high:[1,0]}}
+    lanes:{m1:'flow',m2:'fixed',in1:'3, 9, 5, 12, 5',in2:'5',emit:'in1',fixed:1,r:{low:[1,0],equal:[1,0],high:[0,1]}},
+    alarm:{m1:'flow',m2:'fixed',in1:'3, 9, 5, 12, 5',in2:'8',emit:'fixed',fixed:1,r:{low:[0,0],equal:[0,0],high:[0,1]}},
+    diff:{m1:'flow',m2:'fixed',in1:'3, 9, 5, 12, 5',in2:'5',emit:'diff',fixed:1,r:{low:[1,0],equal:[0,0],high:[1,0]}},
+    live:{m1:'flow',m2:'flow',in1:'3, 9, 5, 12, 5',in2:'4, 9, 2, 12, 8',emit:'diff',fixed:1,r:{low:[1,0],equal:[0,1],high:[1,1]}},
+    both:{m1:'fixed',m2:'fixed',in1:'7',in2:'5',emit:'in1',fixed:1,r:{low:[1,0],equal:[1,0],high:[0,1]}}
   };
   [].forEach.call(root.querySelectorAll('#br-presets [data-p]'),function(b){b.addEventListener('click',function(){
-    var p=BP[b.getAttribute('data-p')];$('br-in1').value=p.in1;$('br-in2').value=p.in2;$('br-emit').value=p.emit;$('br-fixed').value=p.fixed;
+    var p=BP[b.getAttribute('data-p')];$('br-m1').value=p.m1;$('br-m2').value=p.m2;$('br-in1').value=p.in1;$('br-in2').value=p.in2;$('br-emit').value=p.emit;$('br-fixed').value=p.fixed;
     routes={low:p.r.low.slice(),equal:p.r.equal.slice(),high:p.r.high.slice()};selRow=0;syncRoutes();branchUpdate();});});
-  ['br-in1','br-in2','br-emit','br-fixed'].forEach(function(id){$(id).addEventListener('input',function(){branchUpdate();});$(id).addEventListener('change',function(){branchUpdate();});});
+  ['br-m1','br-m2','br-in1','br-in2','br-emit','br-fixed'].forEach(function(id){$(id).addEventListener('input',function(){branchUpdate();});$(id).addEventListener('change',function(){branchUpdate();});});
 
   function branchRound(a,b,emit,fx){
     var an=a<b?'low':(a===b?'equal':'high'),v;
@@ -142,7 +149,7 @@
     return {a:a,b:b,answer:an,val:v,o1:r[0]?v:null,o2:r[1]?v:null};
   }
   var emitName={in1:'in1',in2:'in2',diff:'in1 − in2',fixed:'the fixed constant'};
-  function draw(row,emit){
+  function draw(row,emit,m1,m2){
     var s='',A=row?row.answer:'';
     function wire(x1,y1,x2,y2,on){return '<path d="M'+x1+','+y1+' L'+x2+','+y2+'" stroke="'+(on?'var(--accent-bright)':'var(--rule)')+'" stroke-width="'+(on?4:3)+'" fill="none"/>';}
     function arrow(x,y,c){return '<path d="M'+(x-9)+','+(y-6)+' L'+x+','+y+' L'+(x-9)+','+(y+6)+' Z" fill="'+c+'"/>';}
@@ -150,7 +157,7 @@
     /* inputs */
     s+=wire(60,80,190,80,!!row)+arrow(190,80,'var(--accent)')+'<text x="8" y="76" font-size="13">in1</text><text x="8" y="94" font-size="13" fill="var(--ink-soft)">'+(row?row.a:'')+'</text>';
     s+=wire(60,180,190,180,!!row)+arrow(190,180,'var(--accent)')+'<text x="8" y="176" font-size="13">in2</text><text x="8" y="194" font-size="13">'+(row?row.b:'')+'</text>';
-    s+='<text x="196" y="72" font-size="11" fill="var(--ink-soft)">in1</text><text x="196" y="172" font-size="11" fill="var(--ink-soft)">in2</text>';
+    s+='<text x="196" y="72" font-size="11" fill="var(--ink-soft)">in1 '+(m1==='fixed'?'(fixed)':'(flowing)')+'</text><text x="196" y="172" font-size="11" fill="var(--ink-soft)">in2 '+(m2==='fixed'?'(fixed)':'(flowing)')+'</text>';
     /* three answers */
     OUTC.forEach(function(o,i){var x=240+i*0,y=62+i*50,on=(A===o);
       s+='<rect x="'+(250)+'" y="'+y+'" width="140" height="38" rx="8" fill="'+(on?'var(--accent)':'#fff')+'" stroke="'+(on?'var(--accent)':'var(--rule)')+'" stroke-width="2"/>'
@@ -166,24 +173,34 @@
     s+='<text x="315" y="222" text-anchor="middle" font-size="11" fill="var(--ink-soft)">sends: '+emitName[emit]+'</text>';
     $('br-svg').innerHTML=s;
   }
+  function whole(t){var l=parseList(t);return l;}
   function branchUpdate(){
-    var l=parseList($('br-in1').value),b2=Number($('br-in2').value),fx=Number($('br-fixed').value),emit=$('br-emit').value;
-    var tb=$('br-table').querySelector('tbody');tb.innerHTML='';
-    if(l.bad||!isFinite(b2)||Math.floor(b2)!==b2||!isFinite(fx)||Math.floor(fx)!==fx||$('br-in2').value===''||(emit==='fixed'&&$('br-fixed').value==='')){
-      draw(null,emit);$('br-says').textContent='Use whole numbers only: in1 as a comma-separated list, in2 and the constant as single numbers.';return;}
-    if(!l.vals.length){draw(null,emit);$('br-says').textContent='Type at least one number for in1.';return;}
-    var b=wrap(b2),rows=l.vals.map(function(a){return branchRound(a,b,emit,fx);});
+    var m1=$('br-m1').value,m2=$('br-m2').value,emit=$('br-emit').value,fx=Number($('br-fixed').value);
+    var A=whole($('br-in1').value),B=whole($('br-in2').value),tb=$('br-table').querySelector('tbody');tb.innerHTML='';
+    function fail(t){draw(null,emit,m1,m2);$('br-says').textContent=t;}
+    if(A.bad||B.bad||!isFinite(fx)||Math.floor(fx)!==fx||(emit==='fixed'&&$('br-fixed').value===''))return fail('Use whole numbers only, separated by commas.');
+    if(!A.vals.length)return fail('Type at least one number for in1.');
+    if(!B.vals.length)return fail('Type at least one number for in2.');
+    if(m1==='fixed'&&A.vals.length!==1)return fail('A fixed input holds one number. Give in1 exactly one value, or make it flowing.');
+    if(m2==='fixed'&&B.vals.length!==1)return fail('A fixed input holds one number. Give in2 exactly one value, or make it flowing.');
+    var pairs=[],note='';
+    if(m1==='fixed'&&m2==='fixed'){pairs=[[A.vals[0],B.vals[0]]];note=' Both inputs are fixed, so the cell has everything it needs already: in the Verilog it fires again every time its outputs are free, repeating this same answer. One firing is shown.';}
+    else if(m1==='flow'&&m2==='fixed'){pairs=A.vals.map(function(a){return [a,B.vals[0]];});}
+    else if(m1==='fixed'&&m2==='flow'){pairs=B.vals.map(function(b){return [A.vals[0],b];});}
+    else{var n=Math.min(A.vals.length,B.vals.length);for(var k=0;k<n;k++)pairs.push([A.vals[k],B.vals[k]]);
+      if(A.vals.length!==B.vals.length)note=' The cell only fires when both inputs have a fresh value together, so the '+Math.abs(A.vals.length-B.vals.length)+' extra value(s) on the longer stream are never paired.';}
+    var rows=pairs.map(function(p){return branchRound(p[0],p[1],emit,fx);});
     if(selRow>=rows.length)selRow=0;
     rows.forEach(function(r,i){var tr=document.createElement('tr');if(i===selRow)tr.className='sel';
       tr.innerHTML='<td>'+r.a+'</td><td>'+r.b+'</td><td>'+r.answer+'</td><td>'+(r.o1===null?'–':r.o1)+'</td><td>'+(r.o2===null?'–':r.o2)+'</td>';
       tr.tabIndex=0;tr.setAttribute('role','button');
       function pick(){selRow=i;branchUpdate();}
       tr.addEventListener('click',pick);tr.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick();}});tb.appendChild(tr);});
-    var r=rows[selRow];draw(r,emit);
+    var r=rows[selRow];draw(r,emit,m1,m2);
     var cmp=r.answer==='low'?r.a+' is below '+r.b:r.answer==='equal'?r.a+' equals '+r.b:r.a+' is above '+r.b;
     var dest=(r.o1!==null&&r.o2!==null)?'both out1 and out2':r.o1!==null?'out1':r.o2!==null?'out2':'nowhere';
     $('br-says').textContent=(dest==='nowhere'?cmp+', so the answer is "'+r.answer+'". For that answer neither port is switched on, so the value is dropped.'
-      :cmp+', so the answer is "'+r.answer+'". That answer is set to go to '+dest+', carrying '+emitName[emit]+' = '+r.val+'.');
+      :cmp+', so the answer is "'+r.answer+'". That answer is set to go to '+dest+', carrying '+emitName[emit]+' = '+r.val+'.')+note;
   }
 
   /* ---------- priority ---------- */

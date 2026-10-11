@@ -48,49 +48,56 @@ SECTIONS = [
              "everything is, where it lives in the repository, and the three commands that get "
              "you to a working screen.",
      "html":open(os.path.join(HERE, "teaching", "tour_fragment.html"), encoding="utf-8").read(),
-     "links":[("Continue → The Family","#sec-family","section")]},
+     "links":[("Continue → the Composer","#sec-composer","section")]},
 
-    {"id":"family","num":"02","tab":"Family","title":"The Rest of the Flex Family",
+    {"id":"composer","num":"02","tab":"Composer","title":"The Composer: A Tour With Labels",
+     "intro":"The composer is the real drawing board behind every picture in this manual. A "
+             "screenshot with numbered labels shows what each part does, and the second half "
+             "explains the file it saves, the ICM.",
+     "html":open(os.path.join(HERE, "teaching", "composer_fragment.html"), encoding="utf-8").read().replace("@@COMPOSER_IMG@@", _data_uri("teaching/composer_screenshot.png")),
+     "links":[("← Back to the Tour","#sec-tour","section"),("Continue → the Family","#sec-family","section")]},
+
+    {"id":"family","num":"03","tab":"Family","title":"The Rest of the Flex Family",
      "intro":"The nano cell is one of fourteen kinds of flex cell. Here is a sentence and a link "
              "for each, grouped by what they do, plus the one thing they all share: how they hand "
              "data on. Each cell will get its own page later. This is the brief overview.",
      "html":open(os.path.join(HERE, "teaching", "family_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to the Tour","#sec-tour","section"),("Continue → Chaining","#sec-chaining","section")]},
+     "links":[("← Back to the Composer","#sec-composer","section"),("Continue → Chaining","#sec-chaining","section")]},
 
-    {"id":"chaining","num":"03","tab":"Chaining","title":"Chaining Cells",
+    {"id":"chaining","num":"04","tab":"Chaining","title":"Chaining Cells",
      "intro":"One cell on its own does one small thing. Chained, the output of one becomes the "
              "input of the next, through dedicated ports with no shared bus. Drag cells into a "
              "simple grid, type a number in, and see what comes out of the end of the chain.",
      "html":open(os.path.join(HERE, "teaching", "chaining_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to the Family","#sec-family","section"),("Continue → Maths","#sec-maths","section")]},
 
-    {"id":"maths","num":"04","tab":"Maths","title":"Arithmetic: Adder, Multiplier, Accumulator",
+    {"id":"maths","num":"05","tab":"Maths","title":"Arithmetic: Adder, Multiplier, Accumulator",
      "intro":"The arithmetic cells, opened up: the carry that travels along an add, the half of a "
              "product that does not fit, and a running total that keeps counting.",
      "html":open(os.path.join(HERE, "teaching", "maths_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Chaining","#sec-chaining","section"),("Continue → Branching","#sec-branching","section")]},
 
-    {"id":"branching","num":"05","tab":"Branching","title":"Branching and Decisions",
+    {"id":"branching","num":"06","tab":"Branching","title":"Branching and Decisions",
      "intro":"Chained cells run straight on. Two flex cells make choices: the branch cell decides "
              "where one value goes, and the priority cell decides which of several waiting values "
              "goes next. Try both with your own numbers.",
      "html":open(os.path.join(HERE, "teaching", "branching_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Maths","#sec-maths","section"),("Continue → Joining and Splitting","#sec-joinsplit","section")]},
 
-    {"id":"joinsplit","num":"06","tab":"Join & Split","title":"Joining and Splitting Paths",
+    {"id":"joinsplit","num":"07","tab":"Join & Split","title":"Joining and Splitting Paths",
      "intro":"Two small cells show how data meets and parts. The merge cell brings two paths into "
              "one; the router cell sends one path to up to two places. Both teach what has to "
              "wait for what.",
      "html":open(os.path.join(HERE, "teaching", "joinsplit_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Branching","#sec-branching","section"),("Continue → Routing","#sec-routing","section")]},
 
-    {"id":"routing","num":"07","tab":"Routing","title":"Crossing and Turning: Cross and Corner Tiles",
+    {"id":"routing","num":"08","tab":"Routing","title":"Crossing and Turning: Cross and Corner Tiles",
      "intro":"Two wiring tiles let paths cross and turn on a flat grid. They change nothing about a "
              "word; they only decide which way it leaves. Send words in and watch them cross.",
      "html":open(os.path.join(HERE, "teaching", "routing_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Joining and Splitting","#sec-joinsplit","section"),("Continue → Memory","#sec-memory","section")]},
 
-    {"id":"memory","num":"08","tab":"Memory","title":"Remembering: Latch, Sequencer and Ram",
+    {"id":"memory","num":"09","tab":"Memory","title":"Remembering: Latch, Sequencer and Ram",
      "intro":"Everything so far let go of its value as soon as it passed it on. The latch keeps one "
              "bit until it is told to change; the sequencer keeps a short list and steps through it; "
              "the ram cell holds a word in one of three ways. "
@@ -98,26 +105,19 @@ SECTIONS = [
      "html":open(os.path.join(HERE, "teaching", "memory_fragment.html"), encoding="utf-8").read(),
      "links":[("← Back to Routing","#sec-routing","section"),("Continue → Bits","#sec-bits","section")]},
 
-    {"id":"bits","num":"09","tab":"Bits","title":"Reshaping Words: Shift and Mask",
+    {"id":"bits","num":"10","tab":"Bits","title":"Reshaping Words: Shift and Mask",
      "intro":"A word is a row of bits. The shift stage slides the bits along; the mask cell switches "
              "whole groups of them off. See each stage's bits, what fell off the end, and how the two "
              "together can pull a field out of a word.",
      "html":open(os.path.join(HERE, "teaching", "bits_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to Memory","#sec-memory","section"),("Continue → The Composer","#sec-composer","section")]},
-
-    {"id":"composer","num":"10","tab":"Composer","title":"The Composer: A Tour With Labels",
-     "intro":"The composer is the real drawing board behind every picture in this manual. A "
-             "screenshot with numbered labels shows what each part does, and the second half "
-             "explains the file it saves, the ICM.",
-     "html":open(os.path.join(HERE, "teaching", "composer_fragment.html"), encoding="utf-8").read().replace("@@COMPOSER_IMG@@", _data_uri("teaching/composer_screenshot.png")),
-     "links":[("← Back to Bits","#sec-bits","section"),("Continue → The VM","#sec-vm","section")]},
+     "links":[("← Back to Memory","#sec-memory","section"),("Continue → The VM","#sec-vm","section")]},
 
     {"id":"vm","num":"11","tab":"The VM","title":"The VM: What It Is and How It Fits",
      "intro":"Every picture so far was drawn by the page itself. The VM is the real program they "
              "imitate. A map of its parts, how the two modes differ, a short Python run you can "
              "repeat, and a plain account of how far each part has been trusted.",
      "html":open(os.path.join(HERE, "teaching", "vm_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to the Composer","#sec-composer","section"),("Continue → Start","#sec-start","section")]},
+     "links":[("← Back to Bits","#sec-bits","section"),("Continue → Start","#sec-start","section")]},
 
     {"id":"start","num":"12","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
@@ -128,7 +128,7 @@ SECTIONS = [
              "course yet.</strong> Each proposed lesson says whether it has actually been "
              "run.",
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
-     "links":[("Continue → The Backdrop","#sec-backdrop","section")]},
+     "links":[("← Back to The VM","#sec-vm","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
 
     {"id":"backdrop","num":"13","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "

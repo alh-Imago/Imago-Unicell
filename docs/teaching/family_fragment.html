@@ -34,7 +34,7 @@
   @media (prefers-reduced-motion:reduce){.family .cell,.family .slot{transition:none}.family .cell:hover,.family .cell:focus-within{transform:none}}
 </style>
 
-<p class="lead">The nano cell from the Tour is one member of a family. There are fourteen kinds of flex cell in the repository; this page gives each one a sentence and a link. Every cell will get its own page later, with a live picture like the nano's.</p>
+<p class="lead">The nano cell from the Tour is one member of a family. There are fourteen kinds of flex cell in the repository; this page gives each one a sentence and a link. Most cells now have an explainer page with live builders; where one exists, the cell's card links to it.</p>
 
 <h2>1. What every flex cell shares</h2>
 <p>Whatever a cell computes, they all hand data on the same way. A cell that has a result holds it, raising a <em>valid</em> signal, until the next cell takes it and answers with an <em>ack</em>. A global <em>freeze</em> stops everything where it stands. Each cell also has a width setting (18 bits on the Tang Nano 20K board). Try the freeze below, or block the sink to see an item wait.</p>
@@ -60,32 +60,32 @@
   <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>nano</h3>
     <p>Ten NOR gates and a setting that picks which gate's answer comes out. The cell from the Tour.</p>
     <p class="io">held A + flowing B &rarr; one result</p>
-    <p class="src"><a href="../sub/verilog/nano_cell_v4sa.v">nano_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/nano_cell_v4sa.v">nano_cell_v4sa.v</a><br><a class="ref" href="#sec-tour">Explainer: The Tour &rarr;</a></p></div>
   <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>branch</h3>
     <p>Compares two values and decides lower, equal or higher. What it emits for that outcome is chosen when it is set up. Either input can be a fixed value or a live stream.</p>
     <p class="io">two inputs &rarr; a three-way decision</p>
-    <p class="src"><a href="../sub/verilog/branch_cell_v4sa.v">branch_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/branch_cell_v4sa.v">branch_cell_v4sa.v</a><br><a class="ref" href="#sec-branching">Explainer: Branching &rarr;</a></p></div>
   <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>merge</h3>
     <p>Where two paths join. Pass only A, pass only B, take whichever arrives (taking turns), or wait for both and combine them with OR.</p>
     <p class="io">two paths &rarr; one</p>
-    <p class="src"><a href="../sub/verilog/merge_cell_v4sa.v">merge_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/merge_cell_v4sa.v">merge_cell_v4sa.v</a><br><a class="ref" href="#sec-joinsplit">Explainer: Join &amp; Split &rarr;</a></p></div>
   <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>priority</h3>
     <p>Up to four inputs compete for one output. Strict ranking, weighted turns, or a fixed repeating order. A loser keeps its item and waits.</p>
     <p class="io">up to four inputs &rarr; one</p>
-    <p class="src"><a href="../sub/verilog/priority_cell_v4sa.v">priority_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/priority_cell_v4sa.v">priority_cell_v4sa.v</a><br><a class="ref" href="#sec-branching">Explainer: Branching &rarr;</a></p></div>
   <div class="cell" data-g="logic"><div class="grp">Logic and flow</div><h3>router</h3>
     <p>One input out to up to two places. Which outputs are switched on is set in advance, never decided while it runs.</p>
     <p class="io">one input &rarr; up to two outputs</p>
-    <p class="src"><a href="../sub/verilog/router_cell_v4sa.v">router_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/router_cell_v4sa.v">router_cell_v4sa.v</a><br><a class="ref" href="#sec-joinsplit">Explainer: Join &amp; Split &rarr;</a></p></div>
 
   <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>adder</h3>
     <p>Adds two values, or subtracts. The carry can come out on a second port.</p>
     <p class="io">A, B &rarr; sum</p>
-    <p class="src"><a href="../sub/verilog/adder_cell_v4sa.v">adder_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/adder_cell_v4sa.v">adder_cell_v4sa.v</a><br><a class="ref" href="#sec-maths">Explainer: Maths &rarr;</a></p></div>
   <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>mul</h3>
     <p>Multiplies two values. One version is built from ordinary logic, another uses the chip's multiplier blocks. The top half of the product can come out on a second port.</p>
     <p class="io">A, B &rarr; product</p>
-    <p class="src"><a href="../sub/verilog/mul_cell_v4sa.v">mul_cell_v4sa.v</a><br><a href="../sub/verilog/mul_cell_v4sa_dsp.v">mul_cell_v4sa_dsp.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/mul_cell_v4sa.v">mul_cell_v4sa.v</a><br><a href="../sub/verilog/mul_cell_v4sa_dsp.v">mul_cell_v4sa_dsp.v</a><br><a class="ref" href="#sec-maths">Explainer: Maths &rarr;</a></p></div>
   <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>compare</h3>
     <p>Says whether a value is at least a threshold (signed), answering 1 or 0.</p>
     <p class="io">value &rarr; 1 or 0</p>
@@ -93,28 +93,28 @@
   <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>accumulator</h3>
     <p>A running count that goes up or down when it receives an up pulse or a down pulse.</p>
     <p class="io">up / down pulses &rarr; count</p>
-    <p class="src"><a href="../sub/verilog/accumulator_cell_v4sa.v">accumulator_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/accumulator_cell_v4sa.v">accumulator_cell_v4sa.v</a><br><a class="ref" href="#sec-maths">Explainer: Maths &rarr;</a></p></div>
   <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>shift stage</h3>
     <p>Slides all the bits left or right by an amount fixed when the design is built. Chain several for a bigger shift.</p>
     <p class="io">value &rarr; shifted value</p>
-    <p class="src"><a href="../sub/verilog/shift_stage_v4sa.v">shift_stage_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/shift_stage_v4sa.v">shift_stage_v4sa.v</a><br><a class="ref" href="#sec-bits">Explainer: Bits &rarr;</a></p></div>
   <div class="cell" data-g="math"><div class="grp">Arithmetic</div><h3>mask</h3>
     <p>Cuts out chosen groups of bits by setting them to zero. An 8-bit mask says which groups.</p>
     <p class="io">value &rarr; value with groups cleared</p>
-    <p class="src"><a href="../sub/verilog/mask_cell_v4sa.v">mask_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/mask_cell_v4sa.v">mask_cell_v4sa.v</a><br><a class="ref" href="#sec-bits">Explainer: Bits &rarr;</a></p></div>
 
   <div class="cell" data-g="mem"><div class="grp">Memory and sequence</div><h3>ram</h3>
     <p>Holds a word. In fixed mode it is a constant that is always there. In flowing mode it holds a value until the next cell takes it.</p>
     <p class="io">word in &rarr; word out</p>
-    <p class="src"><a href="../sub/verilog/ram_cell_v4sa.v">ram_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/ram_cell_v4sa.v">ram_cell_v4sa.v</a><br><a class="ref" href="#sec-memory">Explainer: Memory &rarr;</a></p></div>
   <div class="cell" data-g="mem"><div class="grp">Memory and sequence</div><h3>latch</h3>
     <p>Remembers one bit. Set it, clear it, or toggle it.</p>
     <p class="io">set / clear / toggle &rarr; one bit</p>
-    <p class="src"><a href="../sub/verilog/latch_cell_v4sa.v">latch_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/latch_cell_v4sa.v">latch_cell_v4sa.v</a><br><a class="ref" href="#sec-memory">Explainer: Memory &rarr;</a></p></div>
   <div class="cell" data-g="mem"><div class="grp">Memory and sequence</div><h3>sequencer</h3>
     <p>Holds up to four small stored values (8 bits each) and moves on to the next one each time it gets an advance pulse.</p>
     <p class="io">advance pulse &rarr; next stored value</p>
-    <p class="src"><a href="../sub/verilog/sequencer_cell_v4sa.v">sequencer_cell_v4sa.v</a></p></div>
+    <p class="src"><a href="../sub/verilog/sequencer_cell_v4sa.v">sequencer_cell_v4sa.v</a><br><a class="ref" href="#sec-memory">Explainer: Memory &rarr;</a></p></div>
 </div>
 <p class="fine" style="margin-top:.6em">The full story of how each cell was designed, with the measured costs, is in <a href="../sub/README.md">sub/README.md</a>. There is also an <code>adder_chain_v4sa.v</code> in the same folder, which strings adders together; it is a helper, not a separate kind of cell.</p>
 
