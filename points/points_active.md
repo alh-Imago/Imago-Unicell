@@ -275,4 +275,8 @@ Not verified: Python VM only; Workbench unit tests not re-run; the live served p
 
 Date: 2026-10-11. `README.md`: the teaching note in the status banner now points to `docs/teaching_manual.html` (24 tabs, interactive, figures captured from real runs, not tried with learners, status unchanged); the stale "latest entries: addenda 58 to 69" now reads "as of 11 October 2026 the ledger is at #1060"; a Documentation bullet lists the manual, how it is built and where its captures live. `docs/teaching/README.md` gains an update note: the manual exists, the lesson ladder is still a plan. `README.md` is one of the docs `docs/build_manual.py` renders, so `docs/manual.html` is now one step behind it; Alan reserved rebuilding that manual for himself, so it was not regenerated (run `python3 docs/build_manual.py` and commit both). Alan will update the GitHub topics/tags himself.
 
-Next entry: #1062.
+## #1062 -- MAIN MANUAL REBUILT, SESSION CLOSE-OUT
+
+Date: 2026-10-11. At Alan's request `python3 docs/build_manual.py` was run (9 sections) and `docs/manual.html` regenerated from the updated README (#1061); only that file changed. Close-out check for unlogged decisions: none outstanding. This session's work is #1054-#1062: Verilog/RTL and MAN File tabs, the Assembler tab, one page per cell kind, the Two Grids, Mirror VM and Workbench tabs (24 rail tabs, 42 sections), README updated. Findings reported and not fixed (Alan's call): `--logiclock`/`-P` silently ignored on the assembler's `--icm` route; that route ignores the MAN native_width; `_ALLOWS_CARRY_MODE` read by nothing; the standard grid silently ignores a non-tap shift_amt; the mirror reads only the card id from the MAN file and native_width never reaches the VM; the Workbench and `from_man` always build a SuperGrid. Left to Alan: GitHub topics/tags, archive setting, gh-pages site.
+
+Next entry: #1063.
