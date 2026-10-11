@@ -1,0 +1,191 @@
+<!-- One cell kind's page for docs/teaching_manual.html (built by docs/build_teaching_manual.py, one copy per kind).
+     @@K@@ is the kind; @@CELL_DATA@@ is that kind's parsed Verilog (docs/teaching/capture_cells_v1.py) plus its written text and sizes. -->
+<div class="cellp" id="cell-@@K@@">
+<style>
+  .cellp h2{margin-top:1.5em}
+  .cellp .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .cellp table.f{border-collapse:collapse;width:100%;font-size:.86em;margin:.6em 0}
+  .cellp table.f th,.cellp table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+  .cellp table.f tr.sel td{background:rgba(21,117,109,.16)}
+  .cellp table.f tr.fam{cursor:pointer}
+  .cellp table.f tr.fam:hover td{background:rgba(21,117,109,.08)}
+  .cellp table.f td.m{font-family:var(--mono);font-size:.92em}
+  .cellp .gone{color:var(--ink-soft)}
+  .cellp .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .cellp .says.warn{border-left-color:#b8860b;background:rgba(184,134,11,.12)}
+  .cellp .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .cellp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .cellp .bar button{padding:5px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer;font:inherit;font-size:.92em}
+  .cellp .bar button.on{background:var(--accent);color:#fff}
+  .cellp .chips{display:flex;flex-wrap:wrap;gap:6px;margin:.4em 0}
+  .cellp .chips span{font-family:var(--mono);font-size:.8em;padding:2px 9px;border:1px solid var(--rule);border-radius:12px;background:var(--paper-edge)}
+  .cellp .chips span.y{border-color:var(--accent);background:rgba(21,117,109,.14)}
+  .cellp .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:.6em 0}
+  .cellp .flow .st{flex:1 1 120px;max-width:200px;border:2px solid var(--accent);border-radius:8px;padding:6px 8px;background:rgba(255,255,255,.4);font-size:.85em;text-align:center}
+  .cellp .flow .ar{align-self:center;color:var(--accent);font-weight:bold}
+  .cellp .picture{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:6px;overflow-x:auto}
+  .cellp svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  .cellp svg text{font-family:var(--mono);fill:var(--ink)}
+  .cellp pre.src{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.76em;line-height:1.45;border-radius:8px;padding:10px 12px;overflow:auto;max-height:34em;margin:.5em 0;white-space:pre}
+  .cellp pre.src .c{color:#8fa8a3}
+  .cellp pre.src .n{color:#6d7f7b;user-select:none}
+  .cellp pre.notes{white-space:pre-wrap;font-family:var(--mono);font-size:.78em;background:rgba(0,0,0,.04);border-radius:8px;padding:10px 12px;overflow-x:auto}
+  .cellp details{margin:.5em 0}
+  .cellp summary{cursor:pointer;font-weight:600}
+  .cellp .kv{font-size:.9em;margin:.3em 0}
+  .cellp .szrow{display:flex;flex-wrap:wrap;gap:14px;margin:.4em 0}
+  .cellp .szrow div{border:1px solid var(--rule);border-radius:8px;padding:6px 12px;background:rgba(255,255,255,.35);font-size:.88em}
+  .cellp .szrow b{font-family:var(--mono);font-size:1.15em;display:block}
+  .cellp .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .cellp .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+</style>
+
+<p class="lead cp-does"></p>
+
+<h2>What it can do</h2>
+<ul class="cp-caps"></ul>
+<div class="linkrow cp-links"></div>
+
+<h2>How the data moves through it</h2>
+<div class="flow cp-flow"></div>
+<p class="fine" style="border:none;margin:0">The chain above is a plain-words summary written from the cell's own notes. The diagram further down is drawn from the real Verilog.</p>
+
+<h2>The family</h2>
+<p>The same kind of cell exists in different families, each with different abilities (the <a class="ref" href="#sec-assembler">Assembler</a> page compares them). Click a row to look at that family's version below.</p>
+<div style="overflow-x:auto"><table class="f cp-fam"></table></div>
+<div class="says cp-famsay"></div>
+
+<h2 class="cp-h-diag">Inside the Verilog</h2>
+<div class="bar cp-files"></div>
+<div class="chips cp-feat"></div>
+<div class="picture cp-svg"></div>
+<p class="kv cp-svgsay"></p>
+
+<h2>Its ports</h2>
+<div style="overflow-x:auto"><table class="f cp-ports"></table></div>
+
+<div class="cp-fields"></div>
+
+<h2>The size</h2>
+<div class="szrow cp-size"></div>
+<p class="kv cp-sizesay"></p>
+
+<h2>The Verilog</h2>
+<details class="cp-notes"><summary>Design notes from the top of the file</summary><pre class="notes"></pre></details>
+<div class="kv cp-srcname"></div>
+<pre class="src cp-src"></pre>
+
+<p class="fine">Scope. Ports, parameters, registers, sub-module instances, setup fields and the source are read from the Verilog files by <code>docs/teaching/capture_cells_v1.py</code>: the register list and field table come from simple text matching and can miss or wrongly include a line, so check against the source below. The capability text and the plain-words chain are written from the file headers. Sizes are quoted from <code>nano/card_fit_v1.py</code>, the Tang Nano MAN file and the ledger; nothing was synthesised or simulated for this page.</p>
+
+<script type="application/json" class="cp-data">@@CELL_DATA@@</script>
+<script>
+(function(){
+  var root=document.getElementById('cell-@@K@@'),D=JSON.parse(root.querySelector('.cp-data').textContent);
+  function q(c){return root.querySelector('.'+c);}
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  var FAMS=['v4','v4c','v4s','v4sa'],NAME={v4:'Standalone',v4c:'Carrier',v4s:'Sub',v4sa:'Flex'};
+  var T=D.text,S=D.sizes,K=D.kind;
+  q('cp-does').textContent=T.does;
+  q('cp-caps').innerHTML=T.caps.map(function(c){return '<li>'+esc(c)+'</li>';}).join('');
+  q('cp-flow').innerHTML=T.stages.map(function(s,i){return (i?'<span class="ar">→</span>':'')+'<div class="st">'+esc(s)+'</div>';}).join('');
+  var lk='';
+  if(T.explainer)lk+='<a class="ref" href="#sec-'+T.explainer[0]+'">Explainer: '+esc(T.explainer[1])+' →</a>';
+  lk+='<a class="ref" href="#sec-cells">← All the cells</a>';
+  q('cp-links').innerHTML=lk;
+  var present=FAMS.filter(function(f){return D.files[f]&&D.files[f].length;});
+  var fam=present[present.length-1],fi=0;
+  /* family table */
+  function sizeFor(f){
+    var a=[];
+    if(f==='v4'&&S.standalone_full)a.push(S.standalone_full.toLocaleString()+' LUT4');
+    if(f==='v4c'&&S.standalone_lean)a.push('core ≥ '+S.standalone_lean.toLocaleString()+' (in a '+S.carrier_whole.toLocaleString()+' carrier)');
+    if(f==='v4s'&&K==='adder')a.push('66 LUT4');
+    if(f==='v4s'&&K==='shift')a.push('3,261 (ledger #899)');
+    if(f==='v4s'&&K==='shift_stage')a.push('26 (ledger #899)');
+    if(f==='v4sa'&&S.flex_measured){var m=S.flex_measured['32'];a.push(m[0]+' LUT4 at 32 bits'+(m[3]?', '+m[3]+' MULT':''));}
+    return a.join('; ')||'<span class="gone">not in the tables</span>';
+  }
+  function showFam(){
+    var h='<tr><th>Family</th><th>File</th><th>Lines</th><th>Ports</th><th>Registers</th><th>Size</th></tr>';
+    FAMS.forEach(function(f){
+      var fl=D.files[f];
+      if(!fl||!fl.length){h+='<tr><td>'+NAME[f]+' <code>'+f+'</code></td><td colspan="5" class="gone">no '+esc(K)+' cell in this family</td></tr>';return;}
+      var x=fl[0];
+      h+='<tr class="fam'+(f===fam?' sel':'')+'" data-f="'+f+'"><td>'+NAME[f]+' <code>'+f+'</code></td><td class="m">'+esc(x.file.split('/').pop())+(fl.length>1?' <span class="gone">+'+(fl.length-1)+' more</span>':'')+'</td><td>'+x.lines+'</td><td>'+x.ports.length+'</td><td>'+x.regs.length+'</td><td>'+sizeFor(f)+'</td></tr>';
+    });
+    q('cp-fam').innerHTML=h;
+    [].forEach.call(q('cp-fam').querySelectorAll('tr.fam'),function(r){r.addEventListener('click',function(){fam=r.getAttribute('data-f');fi=0;draw();});});
+  }
+  /* diagram */
+  function bits(w){if(!w)return 1;var m=/^(\d+):0$/.exec(w);return m?+m[1]+1:null;}
+  var INC=[['data','data and events in'],['valid','valid / arrived in'],['cfg','setup'],['prog','live programming'],['hsin','handshake from next'],['clk','clock, reset, freeze']];
+  var OUTC=[['dout','data out'],['vout','valid / fire out'],['hsout','handshake to previous'],['other','status']];
+  function clsIn(n){if(/^(clk|rst|active|freeze_in)$/.test(n))return 'clk';if(/^cfg_/.test(n))return 'cfg';if(/^(program_in|prog_)/.test(n))return 'prog';if(/^(ack_in|ready_in)/.test(n))return 'hsin';if(/^(arrived_|valid_in)/.test(n))return 'valid';return 'data';}
+  function clsOut(n){if(/^(ack_out|ready_out)/.test(n))return 'hsout';if(/^(valid_out|fire_)/.test(n))return 'vout';if(/^(data_out|carry_out|out_|dout)/.test(n))return 'dout';return 'other';}
+  function group(ports,dir,cl,list){
+    var g={};list.forEach(function(l){g[l[0]]={n:0,b:0,sym:false,names:[]};});
+    ports.filter(function(p){return p.dir===dir;}).forEach(function(p){var c=cl(p.name),x=g[c];x.n++;x.names.push(p.name);var b=bits(p.width);if(b===null)x.sym=true;else x.b+=b;});
+    return list.map(function(l){return {key:l[0],label:l[1],g:g[l[0]]};}).filter(function(o){return o.g.n>0;});
+  }
+  function svg(x){
+    var gi=group(x.ports,'input',clsIn,INC),go=group(x.ports,'output',clsOut,OUTC);
+    var regs=x.regs.slice(0,14),more=x.regs.length-regs.length,ins=x.instances;
+    var rows=Math.max(gi.length,go.length),H=Math.max(40+rows*52,60+regs.length*15+ins.length*34+30);
+    var o='<rect x="215" y="10" width="330" height="'+(H-20)+'" rx="10" fill="rgba(0,0,0,.05)" stroke="#555" stroke-width="2"/>';
+    o+='<text x="380" y="32" text-anchor="middle" font-size="12" font-weight="bold">'+esc(x.module)+'</text>';
+    var y=48;
+    if(!x.regs.length)o+='<text x="380" y="'+y+'" text-anchor="middle" font-size="10" style="fill:#777">no registers of its own</text>',y+=16;
+    regs.forEach(function(r){o+='<rect x="235" y="'+(y-10)+'" width="290" height="14" rx="3" fill="rgba(21,117,109,.16)"/><text x="242" y="'+y+'" font-size="9.5">'+esc(r.name)+(r.width?' '+esc(r.width):'')+'</text>';y+=15;});
+    if(more>0){o+='<text x="242" y="'+y+'" font-size="9.5" style="fill:#777">+ '+more+' more registers</text>';y+=15;}
+    y+=6;
+    ins.forEach(function(s){o+='<rect x="235" y="'+(y-12)+'" width="290" height="28" rx="6" fill="#fff" stroke="#b8860b" stroke-width="2"/><text x="380" y="'+(y+2)+'" text-anchor="middle" font-size="10">'+esc(s.module)+'</text><text x="380" y="'+(y+13)+'" text-anchor="middle" font-size="8.5" style="fill:#777">instance '+esc(s.name)+'</text>';y+=34;});
+    o+='<text x="380" y="'+(H-16)+'" text-anchor="middle" font-size="9.5" style="fill:#666">'+x.always+' always block'+(x.always===1?'':'s')+' · '+x.assigns+' assign'+(x.assigns===1?'':'s')+'</text>';
+    function box(side,i,n,item){
+      var by=20+i*((H-40)/Math.max(n,1)),bh=Math.min(44,(H-40)/Math.max(n,1)-6),bx=side==='l'?8:575,w=177;
+      var lab=item.g.n+' port'+(item.g.n>1?'s':'')+(item.g.sym?'':', '+item.g.b+' bit'+(item.g.b===1?'':'s'));
+      var e='<rect x="'+bx+'" y="'+by+'" width="'+w+'" height="'+bh+'" rx="6" fill="#fff" stroke="#15756d" stroke-width="2"/><text x="'+(bx+w/2)+'" y="'+(by+bh/2-2)+'" text-anchor="middle" font-size="10" font-weight="bold">'+esc(item.label)+'</text><text x="'+(bx+w/2)+'" y="'+(by+bh/2+11)+'" text-anchor="middle" font-size="9" style="fill:#666">'+esc(lab)+'</text>';
+      var cy=by+bh/2;e+=side==='l'?'<path d="M'+(bx+w)+' '+cy+' L215 '+cy+'" stroke="#555" stroke-width="1.5" fill="none"/>':'<path d="M545 '+cy+' L'+bx+' '+cy+'" stroke="#555" stroke-width="1.5" fill="none"/>';
+      return e;
+    }
+    gi.forEach(function(it,i){o+=box('l',i,gi.length,it);});go.forEach(function(it,i){o+=box('r',i,go.length,it);});
+    return '<svg viewBox="0 0 760 '+H+'" role="img" aria-label="inputs, the body of the cell and outputs">'+o+'</svg>';
+  }
+  var FNOTE={v4:'four-sided ports, handshake in both directions, live reprogramming and a freeze wire',v4c:'the same four-sided ports as the standalone cell, with the shift chain taken out',v4s:'fixed wires only, no handshake',v4sa:'fixed wires with a point-to-point handshake and a build-time width'};
+  function draw(){
+    showFam();
+    var fl=D.files[fam],x=fl[fi];
+    q('cp-files').innerHTML='';
+    fl.forEach(function(f,i){var b=document.createElement('button');b.type='button';b.className=i===fi?'on':'';b.textContent=f.file.split('/').pop();b.addEventListener('click',function(){fi=i;draw();});q('cp-files').appendChild(b);});
+    var names=x.ports.map(function(p){return p.name;}).join(' ');
+    var feat=[['four sides',/data_in_n/.test(names)],['handshake',/(^| )(ack_|ready_)/.test(names)||/(^| )ack_in/.test(names)],['freeze wire',/freeze_in/.test(names)],['live programming',/program_in/.test(names)],['width parameter',x.params.some(function(p){return p.name==='WIDTH';})],['setup word',/cfg_data/.test(names)]];
+    q('cp-feat').innerHTML=feat.map(function(f){return '<span class="'+(f[1]?'y':'')+'" title="'+(f[1]?'present':'absent')+'">'+(f[1]?'● ':'○ ')+f[0]+'</span>';}).join('');
+    q('cp-svg').innerHTML=svg(x);
+    q('cp-svgsay').innerHTML='<strong>'+esc(NAME[fam])+':</strong> '+esc(FNOTE[fam])+'. '+esc(x.role==='cell'?'':'This file is '+x.role+'. ')+'The grouping of ports is by name; registers are the <code>reg</code> declarations in the file; boxes with a yellow outline are other modules the cell is built from.';
+    var ph='<tr><th>Direction</th><th>Port</th><th>Width</th></tr>';
+    x.params.forEach(function(p){ph+='<tr><td>parameter</td><td class="m">'+esc(p.name)+'</td><td class="m">default '+esc(p.default)+'</td></tr>';});
+    x.ports.forEach(function(p){ph+='<tr><td>'+(p.dir==='input'?'in':'out')+'</td><td class="m">'+esc(p.name)+'</td><td class="m">'+(p.width?'['+esc(p.width)+']':'1 bit')+'</td></tr>';});
+    q('cp-ports').innerHTML=ph;
+    var fh='';
+    if(x.fields&&x.fields.length){fh='<h2>Its setup word</h2><p>The fields the file describes in its header (read from the comments, so approximate):</p><div style="overflow-x:auto"><table class="f"><tr><th>Bits</th><th>Field</th><th>Meaning</th></tr>'+x.fields.map(function(f){return '<tr><td class="m">['+esc(f.bits)+']</td><td class="m">'+esc(f.name)+'</td><td>'+esc(f.what)+'</td></tr>';}).join('')+'</table></div>';}
+    q('cp-fields').innerHTML=fh;
+    /* sizes */
+    var sz='';
+    if(S.standalone_full)sz+='<div>Standalone cell<b>'+S.standalone_full.toLocaleString()+'</b>LUT4, with its own shift chain</div><div>Core only (lower bound)<b>'+S.standalone_lean.toLocaleString()+'</b>LUT4, shift chain stubbed out</div>';
+    if(S.flex_measured){var m=S.flex_measured;[ '18','32'].forEach(function(w){if(m[w])sz+='<div>Flex cell at '+w+' bits<b>'+m[w][0]+'</b>LUT4, '+m[w][2]+' flip-flops'+(m[w][3]?', '+m[w][3]+' MULT':'')+'</div>';});}
+    if(K==='adder')sz+='<div>Stripped cell<b>66</b>LUT4 (ledger #898)</div>';
+    if(K==='shift'||K==='shift_stage')sz+='<div>Runtime shift cell<b>3,261</b>LUT4</div><div>Fixed shift stage<b>26</b>LUT4</div><div style="flex-basis:100%;border:0;background:none;padding:0;font-size:.8em;color:var(--ink-soft)">Both quoted from ledger #899.</div>';
+    q('cp-size').innerHTML=sz||'<div>No size in the project\'s tables for this cell.</div>';
+    q('cp-sizesay').innerHTML=(S.flex_measured?'Flex sizes are from the Tang Nano card file: the cell built alone at six widths and counted by the open synthesis tool. ':'')+(S.standalone_full?'Standalone sizes are from the project\'s own table, measured the same way on the older cells. ':'')+'None re-measured here. One Tang Nano 20K has '+S.tang_lut4.toLocaleString()+' LUT4.';
+    /* source */
+    q('cp-notes').querySelector('pre').textContent=x.header||'(no header comment)';
+    q('cp-srcname').innerHTML='<code>'+esc(x.file)+'</code> — '+x.lines+' lines';
+    var lines=x.source.split('\n'),h='';
+    lines.forEach(function(l,i){var n=('    '+(i+1)).slice(-4);h+='<span class="n">'+n+'  </span>'+(/^\s*\/\//.test(l)?'<span class="c">'+esc(l)+'</span>':esc(l))+'\n';});
+    q('cp-src').innerHTML=h;
+    var fm=q('cp-famsay');
+    fm.innerHTML='<strong>'+NAME[fam]+' family.</strong> '+esc(D.famtext[fam]);
+  }
+  draw();
+})();
+</script>
+</div>

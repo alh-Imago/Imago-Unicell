@@ -81,6 +81,59 @@ def _asm_html(name):
     return t.replace("@@ASM_DATA@@", data)
 
 
+def _cell_pages():
+    """One hidden page per cell kind, built from docs/teaching/cells_data.json (parsed Verilog) and cells_text.py."""
+    import json as _json, sys as _sys
+    _sys.path.insert(0, os.path.join(HERE, "teaching"))
+    import cells_text as ct
+    with open(os.path.join(HERE, "teaching", "cells_data.json"), encoding="utf-8") as f:
+        D = _json.load(f)
+    with open(os.path.join(HERE, "teaching", "cell_fragment.html"), encoding="utf-8") as f:
+        TPL = f.read()
+    sizes = D["sizes"]
+    order = ct.ORDER
+    pages = []
+    for i, k in enumerate(order):
+        txt = ct.CELLS[k]
+        sz = {"standalone_full": sizes["standalone_full"].get(k), "standalone_lean": sizes["standalone_lean"].get(k),
+              "carrier_whole": sizes["carrier_whole"], "tang_lut4": sizes["tang_lut4"],
+              "flex_measured": (sizes["flex"].get(k) or {}).get("measured")}
+        payload = {"kind": k, "text": txt, "files": D["kinds"][k], "sizes": sz,
+                   "famtext": {fk: v[1] for fk, v in ct.FAMILIES.items()}}
+        data = _json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
+        prev_ = order[i - 1] if i else None
+        next_ = order[i + 1] if i < len(order) - 1 else None
+        links = [("← Back to " + (prev_ if prev_ else "All the Cells"), "#sec-cell-" + prev_ if prev_ else "#sec-cells", "section"),
+                 ("Continue → " + (next_ if next_ else "All the Cells"), "#sec-cell-" + next_ if next_ else "#sec-cells", "section")]
+        pages.append({"id": "cell-" + k, "num": "20." + str(i + 1).zfill(2), "tab": k, "sub": True, "parent": "cells",
+                      "title": "The " + k.replace("_", " ").title() + " Cell: " + txt["short"].rstrip("."),
+                      "intro": txt["short"] + " Its capabilities, how data moves through it, what is inside the Verilog in each family, and the source.",
+                      "html": TPL.replace("@@K@@", k).replace("@@CELL_DATA@@", data), "links": links})
+    groups = [("Remembering", ["ram", "latch", "sequencer"]), ("Arithmetic", ["adder", "accumulator", "mul"]),
+              ("Deciding", ["compare", "branch"]), ("Joining and splitting", ["merge", "priority", "router"]),
+              ("Wiring", ["corner", "cross"]), ("Reshaping words", ["shift", "shift_stage", "mask"]),
+              ("The gate, and control", ["nano", "command"])]
+    h = ['<style>.cellidx .grp{margin:1.2em 0 .3em;font-weight:700}.cellidx .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}'
+         '.cellidx a.cc{display:block;border:2px solid var(--accent);border-radius:10px;padding:8px 12px;text-decoration:none;color:var(--ink);background:var(--paper-edge)}'
+         '.cellidx a.cc:hover{background:#D7D2C1}.cellidx a.cc b{font-family:var(--mono);display:block}'
+         '.cellidx a.cc span.s{display:block;font-size:.88em;color:var(--ink-soft);margin:.15em 0 .35em}'
+         '.cellidx a.cc span.f{font-family:var(--mono);font-size:.76em}.cellidx a.cc span.f i{font-style:normal;padding:0 5px;margin-right:3px;border:1px solid var(--accent);border-radius:8px;background:rgba(21,117,109,.14)}</style>',
+         '<div class="cellidx"><p>Each cell kind has a page of its own: what it can do, how data moves through it, a diagram drawn from the real Verilog, the parts it is made of, the size, and the full source, for each family that has it. '
+         'The family tags show where it exists: <code>v4</code> standalone, <code>v4c</code> carrier, <code>v4s</code> sub, <code>v4sa</code> flex. '
+         'The <a class="ref" href="#sec-assembler">Assembler</a> page compares the families themselves.</p>']
+    for gname, ks in groups:
+        h.append('<div class="grp">' + html.escape(gname) + '</div><div class="cards">')
+        for k in ks:
+            fams = "".join("<i>" + fk + "</i>" for fk in ("v4", "v4c", "v4s", "v4sa") if D["kinds"][k].get(fk))
+            h.append('<a class="ref cc" href="#sec-cell-' + k + '"><b>' + html.escape(k) + '</b><span class="s">' + html.escape(ct.CELLS[k]["short"]) + '</span><span class="f">' + fams + '</span></a>')
+        h.append("</div>")
+    h.append('<p class="fine" style="font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em">Scope. 18 kinds across four families, 55 Verilog files embedded in full. The kinds are counted from file names: shift and mask exist in the older families as add-on blocks inside every cell rather than as cells, and the page for each says so.</p></div>')
+    index = {"id": "cells", "num": "20", "tab": "Cells", "title": "The Cells, One Page Each",
+             "intro": "Eighteen kinds of cell, each with a page: capability, a diagram of what is inside, the Verilog, and which families have it.",
+             "html": "\n".join(h), "links": [("← Back to The Assembler", "#sec-assembler", "section"), ("Continue → Start", "#sec-start", "section")]}
+    return [index] + pages
+
+
 SECTIONS = [
     {"id":"tour","num":"01","tab":"Tour","title":"Tour: What Is Where, and How to Run It",
      "intro":"The parts you will use, each a link, with a live picture of what is inside one "
@@ -213,9 +266,11 @@ SECTIONS = [
              "cell to build from. The four families (standalone, carrier, sub, flex) side by side, "
              "by what each can and cannot do, and the flags that steer the assembler.",
      "html":_asm_html("assembler_fragment.html"),
-     "links":[("← Back to The MAN File","#sec-man","section"),("Continue → Start","#sec-start","section")]},
+     "links":[("← Back to The MAN File","#sec-man","section"),("Continue → The Cells","#sec-cells","section")]},
 
-    {"id":"start","num":"20","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"__CELLS__"},
+
+    {"id":"start","num":"21","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -224,9 +279,9 @@ SECTIONS = [
              "course yet.</strong> Each proposed lesson says whether it has actually been "
              "run.",
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
-     "links":[("← Back to The Assembler","#sec-assembler","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
+     "links":[("← Back to The Cells","#sec-cells","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"21","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"22","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "
@@ -238,7 +293,9 @@ SECTIONS = [
      "links":[("← Back to Start","#sec-start","section")]},
 ]
 
-TOTAL = str(len(SECTIONS)).zfill(2)
+_i = next(i for i, s in enumerate(SECTIONS) if s["id"] == "__CELLS__")
+SECTIONS[_i:_i + 1] = _cell_pages()
+TOTAL = str(len([s for s in SECTIONS if not s.get("sub")])).zfill(2)
 
 
 # ── Markdown rendering ────────────────────────────────────────────────────────
@@ -402,17 +459,23 @@ def render_body(s):
 
 def build():
     tabs, panels = [], []
+    top = [s for s in SECTIONS if not s.get("sub")]
+    subs = [s for s in SECTIONS if s.get("sub")]
     for idx, s in enumerate(SECTIONS):
         body = render_body(s)
+        is_sub = bool(s.get("sub"))
         active = " active" if idx == 0 else ""
-        tabs.append(
-            f'<button class="tab{active}" data-target="sec-{s["id"]}" '
-            f'role="tab" aria-selected="{"true" if idx==0 else "false"}">'
-            f'<span class="tab-num">{s["num"]}</span>'
-            f'<span class="tab-label">{html.escape(s["tab"])}</span></button>'
-        )
-        prev_s = SECTIONS[idx-1] if idx > 0 else None
-        next_s = SECTIONS[idx+1] if idx < len(SECTIONS)-1 else None
+        if not is_sub:
+            tabs.append(
+                f'<button class="tab{active}" data-target="sec-{s["id"]}" '
+                f'role="tab" aria-selected="{"true" if idx==0 else "false"}">'
+                f'<span class="tab-num">{s["num"]}</span>'
+                f'<span class="tab-label">{html.escape(s["tab"])}</span></button>'
+            )
+        group = subs if is_sub else top
+        gi = group.index(s)
+        prev_s = group[gi-1] if gi > 0 else (next(x for x in SECTIONS if x["id"] == s["parent"]) if is_sub else None)
+        next_s = group[gi+1] if gi < len(group)-1 else (next(x for x in SECTIONS if x["id"] == s["parent"]) if is_sub else None)
         nav = ['<nav class="pagenav">']
         nav.append(
             f'<button class="pn pn-prev" data-target="sec-{prev_s["id"]}">‹ {html.escape(prev_s["tab"])}</button>'
@@ -421,10 +484,12 @@ def build():
             f'<button class="pn pn-next" data-target="sec-{next_s["id"]}">{html.escape(next_s["tab"])} ›</button>'
             if next_s else '<span class="pn pn-empty"></span>')
         nav.append("</nav>")
+        parent_attr = f' data-parent="sec-{s["parent"]}"' if is_sub else ""
+        sect = (f'§{s["num"]} / {TOTAL} · cell' if is_sub else f'§{s["num"]} / {TOTAL}')
         panels.append(
-            f'<section class="panel{active}" id="sec-{s["id"]}" role="tabpanel">'
+            f'<section class="panel{active}" id="sec-{s["id"]}" role="tabpanel"{parent_attr}>'
             f'<div class="eyebrow">Imago UniCell · Teaching Manual'
-            f'<span class="sectno">§{s["num"]} / {TOTAL}</span></div>'
+            f'<span class="sectno">{sect}</span></div>'
             f'<h1 class="ptitle">{html.escape(s["title"])}</h1>'
             f'<p class="intro">{s["intro"]}</p>'
             f'<hr class="rule">'
@@ -619,7 +684,7 @@ PAGE = r"""<!DOCTYPE html>
   function show(id){
     panels.forEach(p=>p.classList.toggle('active', p.id===id));
     tabs.forEach(t=>{
-      const on = t.dataset.target===id;
+      const pp = (document.getElementById(id)||{}).dataset; const on = t.dataset.target===((pp&&pp.parent)||id);
       t.classList.toggle('active', on);
       t.setAttribute('aria-selected', on?'true':'false');
     });

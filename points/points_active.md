@@ -221,4 +221,16 @@ Not verified: generated Verilog not simulated or synthesised; sizes quoted; cell
 
 TO DO: the mirror VM (FlexGrid) tab is next and must link back to the MAN File tab and the Assembler tab.
 
-Next entry: #1056.
+## #1056 -- TEACHING MANUAL: ONE PAGE PER CELL KIND, WITH FAMILY, DIAGRAM AND VERILOG
+
+Date: 2026-10-11. The Cells tab (20) of `docs/teaching_manual.html` is now an index of 18 cell kinds, each with its own page (20.01-20.18, hidden from the rail, highlighted under Cells, prev/next within the set). Start and Backdrop are now tabs 21 and 22 (22 rail tabs, 40 sections).
+
+What each page holds: what the cell can do, the data-flow chain, a family table (v4, v4c, v4s, v4sa: click a row to switch), an RTL structure diagram drawn from the parsed Verilog (port groups, registers, sub-module instances), the ports table, setup-word fields, quoted sizes, and the full Verilog source with line numbers (55 files embedded). Data from `docs/teaching/capture_cells_v1.py` into `cells_data.json`; wording in `cells_text.py`; template `cell_fragment.html`.
+
+Parsed vs written: ports, parameters, registers, instances, line counts, header comments and setup fields are parsed from the Verilog; the plain-language "what it does" and stages are written by hand from reading the files. Kind-to-file mapping for mask and shift uses the add-on blocks (standalone/carrier) and the dedicated cells (sub/flex); corner, cross and command exist only in v4/v4c; router only in v4s/v4sa.
+
+Not verified: generated Verilog not simulated or synthesised (no iverilog/yosys here); sizes quoted from card_fit_v1 and the Tang Nano MAN, not re-measured; the parser is regex-based and may miss unusual port or instance forms; unit tests not re-run. Tested in real headless Chromium (family switching, ports/source, links both ways, prev/next, rail highlight, no console errors, no overflow at 390 px); all earlier tab tests re-run and pass. Main manual unchanged.
+
+TO DO (Alan, 11 Oct): revisit the VM, Mirror VM and Workbench tabs for both SuperGrid and FlexGrid variants, including their flags (e.g. `FlexGrid(records, width=32, merge_mode="arbitrate")`). The mirror VM page must link back to the MAN File and Assembler tabs.
+
+Next entry: #1057.
