@@ -1,0 +1,1814 @@
+{
+ "dsl": {
+  "seven_source": "program seven_plus_five {\n    place x as ram_flowing at (0, 0) {\n        in: w\n        out: e\n    }\n    place y as ram_flowing at (1, 1) {\n        in: s\n        out: n\n    }\n    place add as adder at (0, 1) {\n        in_a: w\n        in_b: s\n        out: e\n    }\n    place sink as ram_flowing at (0, 2) {\n        in: w\n        out: e\n    }\n}\n",
+  "seven_cells": [
+   {
+    "id": "x@0,0",
+    "row": 0,
+    "col": 0,
+    "core": "ram",
+    "up": [
+     "w"
+    ],
+    "down": [
+     "e"
+    ],
+    "preload": null
+   },
+   {
+    "id": "y@1,1",
+    "row": 1,
+    "col": 1,
+    "core": "ram",
+    "up": [
+     "s"
+    ],
+    "down": [
+     "n"
+    ],
+    "preload": null
+   },
+   {
+    "id": "add@0,1",
+    "row": 0,
+    "col": 1,
+    "core": "adder",
+    "up": [
+     "s",
+     "w"
+    ],
+    "down": [
+     "e"
+    ],
+    "preload": null
+   },
+   {
+    "id": "sink@0,2",
+    "row": 0,
+    "col": 2,
+    "core": "ram",
+    "up": [
+     "w"
+    ],
+    "down": [
+     "e"
+    ],
+    "preload": null
+   }
+  ],
+  "trace_staggered": [
+   {
+    "tick": 0,
+    "note": "inject 7 into x",
+    "a_reg": 0,
+    "a_arrived": false,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 1,
+    "note": "",
+    "a_reg": 0,
+    "a_arrived": false,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 2,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 3,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 3,
+    "note": "inject 5 into y",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 4,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 5,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": false,
+    "out_buffer": 12,
+    "adder_valid": true,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 6,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": false,
+    "out_buffer": 12,
+    "adder_valid": false,
+    "sink": 12,
+    "sink_valid": true
+   },
+   {
+    "tick": 7,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": false,
+    "out_buffer": 12,
+    "adder_valid": false,
+    "sink": 12,
+    "sink_valid": true
+   },
+   {
+    "tick": 8,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": false,
+    "out_buffer": 12,
+    "adder_valid": false,
+    "sink": 12,
+    "sink_valid": true
+   },
+   {
+    "tick": 9,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": false,
+    "out_buffer": 12,
+    "adder_valid": false,
+    "sink": 12,
+    "sink_valid": true
+   }
+  ],
+  "trace_together": [
+   {
+    "tick": 0,
+    "note": "inject 7 into x",
+    "a_reg": 0,
+    "a_arrived": false,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 0,
+    "note": "inject 5 into y",
+    "a_reg": 0,
+    "a_arrived": false,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 1,
+    "note": "",
+    "a_reg": 0,
+    "a_arrived": false,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 2,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 3,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 4,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 5,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   },
+   {
+    "tick": 6,
+    "note": "",
+    "a_reg": 7,
+    "a_arrived": true,
+    "out_buffer": 0,
+    "adder_valid": false,
+    "sink": 0,
+    "sink_valid": false
+   }
+  ],
+  "errors": [
+   {
+    "title": "A misspelt tile name",
+    "source": "program p { place a1 as addr at (0, 0) { out: e } }\n",
+    "output": "ERROR [resolve] at 1:13: placing 'a1' as tile 'addr'\n  problem: no tile named 'addr' exists in any registered library\n  why: a place statement's tile name has to match something real, registered in the Tier-1 composed library or one of the Tier-0-shaped tile libraries hooked into the compiler\n  try: known tiles: accumulator, adder, branch, comparator, dsp_add, dsp_add_and_hold, dsp_ge, dsp_le, dsp_mul, dsp_neq, dsp_sub, dual_threshold_monitor, icmp_eq, icmp_ne, latch, nano_gate, nano_hold_trigger, nano_loop_ctrl, nano_loop_ctrl_desc, nano_loop_var, ram_constant, ram_flowing, select, sentinel, sequencer, subtractor, twin_sentinel\n  > program p { place a1 as addr at (0, 0) { out: e } }\n  >             ^\n\ncompile failed: 1 error(s)",
+    "exit": 1
+   },
+   {
+    "title": "A misspelt field name",
+    "source": "program p {\n    place a1 as adder at (0, 0) {\n        in_a: n\n        inn_b: w\n        out: e\n    }\n}\n",
+    "output": "ERROR [resolve] at 4:9: field 'inn_b' on placement 'a1'\n  problem: 'inn_b' is neither a port nor a param of tile 'adder'\n  why: tile 'adder' only has ports ['in_a', 'in_b', 'out'] and params [] (or a real 'addon.<name>' field)\n  >         inn_b: w\n  >         ^\n\ncompile failed: 1 error(s)",
+    "exit": 1
+   },
+   {
+    "title": "A direction that does not exist",
+    "source": "program p { place a1 as adder at (0, 0) { in_a: n in_b: w out: x } }\n",
+    "output": "ERROR [place] at 1:13: placing 'a1' (tile 'adder') at (0,0)\n  problem: port 'out': direction must be n/s/e/w, got 'x'\n  why: the tile's own port/param contract wasn't fully satisfied by this placement's fields -- see the problem above for exactly which requirement failed (this message is carried straight through from the tile's own place()/place_composed() validation)\n  > program p { place a1 as adder at (0, 0) { in_a: n in_b: w out: x } }\n  >             ^\n\ncompile failed: 1 error(s)",
+    "exit": 1
+   },
+   {
+    "title": "Two cells on one square",
+    "source": "program p {\n    place a1 as ram_constant at (0, 0) { out: e init_data: 1 }\n    place a2 as ram_constant at (0, 0) { out: s init_data: 2 }\n}\n",
+    "output": "ERROR [place] at 3:5: placing 'a2' (tile 'ram_constant')\n  problem: cell (0,0) is already occupied by 'a1.a1@0,0'\n  why: two different placements can't share one physical cell -- each cell in a real grid can only run one core/wrapper at a time\n  try: choose a different 'at' position for this placement, or check whether an earlier placement's own footprint already reaches this cell\n  >     place a2 as ram_constant at (0, 0) { out: s init_data: 2 }\n  >     ^\n\ncompile failed: 1 error(s)",
+    "exit": 1
+   },
+   {
+    "title": "A missing closing brace",
+    "source": "program p {\n    place a1 as ram_constant at (0, 0) {\n        out: e\n        init_data: 1\n",
+    "output": "ERROR [parse] at 5:1: expecting '}' to close the placement's fields\n  problem: expected RBRACE, found EOF ''\n  why: the grammar at this point requires a rbrace\n\nERROR [parse] at 5:1: parsing the program body\n  problem: reached end of file without a closing '}'\n  why: every 'program NAME { ... }' body must be closed\n\ncompile failed: 2 error(s)",
+    "exit": 1
+   }
+  ],
+  "tiles": [
+   {
+    "name": "accumulator",
+    "core": "accumulator",
+    "ports": [
+     [
+      "inc",
+      "in"
+     ],
+     [
+      "dec",
+      "in"
+     ],
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [
+     "step_amount"
+    ],
+    "description": "A continuously-live running total. inc/dec are genuinely separate fields (unlike the adder's shared field) -- arrivals on each direction always mean +step_amount/-step_amount respectively (#515), regardless of arrival order. pulse_mode/threshold (#515's own reset-after-fire pulse generator) are NOT yet exposed via this tile -- direct core_config construction only, for now."
+   },
+   {
+    "name": "adder",
+    "core": "adder",
+    "ports": [
+     [
+      "in_a",
+      "in"
+     ],
+     [
+      "in_b",
+      "in"
+     ],
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [],
+    "description": "A two-operand 32-bit adder. in_a and in_b share the SAME underlying upstream_mask field (the real RTL has no per-operand field at all) -- whichever configured direction's arrival lands FIRST becomes A, the second B."
+   },
+   {
+    "name": "branch",
+    "core": "branch",
+    "ports": [
+     [
+      "in",
+      "in"
+     ],
+     [
+      "route_low",
+      "out"
+     ],
+     [
+      "route_equal",
+      "out"
+     ],
+     [
+      "route_high",
+      "out"
+     ]
+    ],
+    "params": [
+     "rolling_mode"
+    ],
+    "description": "A real, three-way held-reference router (points.md #608): captures the FIRST arrived value as a real reference (or continuously updates it if rolling_mode is set), then routes each subsequent arrival's own value out route_low/route_equal/route_high depending on how it compares against that reference. Real, necessary default, found while testing this tile, not assumed: the real RTL only ever offers a result downstream when emit_low/emit_equal/emit_high are set -- WITHOUT them, a branch cell classifies but never emits anything at all, silently. Fixed here to always emit on every real outcome (a genuine, useful always-route default), passing the real arrived value through rather than a fixed override (the value_source_*/fixed_value_* override isn't yet exposed via this tile, same real precedent as the accumulator tile's own deferred pulse_mode/threshold)."
+   },
+   {
+    "name": "comparator",
+    "core": "comparator",
+    "ports": [
+     [
+      "in",
+      "in"
+     ],
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [
+     "threshold"
+    ],
+    "description": "A stateless signed comparison against a configured threshold: result = 1 if input >= threshold else 0."
+   },
+   {
+    "name": "latch",
+    "core": "latch",
+    "ports": [
+     [
+      "set",
+      "in"
+     ],
+     [
+      "clear",
+      "in"
+     ],
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [],
+    "description": "A continuously-live sticky SET/CLEAR bit. CLEAR takes priority if both arrive the same tick."
+   },
+   {
+    "name": "nano_gate",
+    "core": "nano",
+    "ports": [
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [
+     "topology"
+    ],
+    "description": "A single two-arrival NOR-tree gate cell. Accepts input from ANY physically wired neighbor (no upstream_mask on this core at all -- see module docstring); only the OUTPUT side is a real named port."
+   },
+   {
+    "name": "nano_hold_trigger",
+    "core": "nano",
+    "ports": [
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [],
+    "description": "Real DAG-relay drop cell (#700/#701): holds its first real arrival, delivers it (unchanged) only on a separate, later, explicit trigger arrival -- decoupling relay path length from delivery timing."
+   },
+   {
+    "name": "nano_loop_ctrl",
+    "core": "nano",
+    "ports": [
+     [
+      "continue_out",
+      "out"
+     ],
+     [
+      "exit_out",
+      "out"
+     ]
+    ],
+    "params": [
+     "pattern_low"
+    ],
+    "description": "A real loop-exit decision cell -- PASS_A topology (fixed) so the routed value is always the loop variable itself regardless of outcome, dynamic_route_en=1 (fixed, #140/#650) so the SAME real comparator that decides the route also determines which of `continue_out`/`exit_out` actually fires. Points.md #652's own real, necessary TilePort generalization in action: `continue_out` sets its own dedicated `pattern_high` field AND contributes its chosen direction into the shared `routing_mask` every real offer is gated through; `exit_out` does the same for `pattern_equal` -- `routing_mask` ends up as the real, correct OR of both, DERIVED from two different ports' own independent choices, with no separate field or special-casing needed. `pattern_low` (the degenerate N<i safety case) is deliberately tied to the SAME direction as `exit_out` via `params`, not a fourth port -- matching #638's own real, stated safety reasoning (route it out rather than let it silently hang) without inventing a redundant port for a case that should always resolve the same way `exit_out` does."
+   },
+   {
+    "name": "nano_loop_ctrl_desc",
+    "core": "nano",
+    "ports": [
+     [
+      "continue_out",
+      "out"
+     ],
+     [
+      "exit_out",
+      "out"
+     ]
+    ],
+    "params": [
+     "pattern_high"
+    ],
+    "description": "The real descending-loop counterpart to `nano_loop_ctrl` -- same real PASS_A + dynamic_route_en=1 mechanism, but `continue_out` sets `pattern_low` (fires when the loop variable, arriving first, is GREATER than the bound, arriving second) and `exit_out` sets `pattern_equal`, the exact mirror of the ascending tile's own real field mapping -- matching a real `for (i=N; i>bound; i-=step)` shape."
+   },
+   {
+    "name": "nano_loop_var",
+    "core": "nano",
+    "ports": [
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [],
+    "description": "A real loop-carried variable's own storage cell -- PASS_A topology (fixed), hold_in=1 (fixed, #522) so its own held value survives indefinitely across real a_update_in/a_reemit_in events instead of resetting after the first two-arrival fire, matching #638's own real LOOPVAR exactly. Only the forward offer is a named port -- a_update_in/a_reemit_in stay real,  testbench/control-plane-driven control signals, not tile parameters (matching #636's own established honest scope: no real command-core/control source exists yet to drive them from within the fabric)."
+   },
+   {
+    "name": "ram_constant",
+    "core": "ram",
+    "ports": [
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [
+     "init_data"
+    ],
+    "description": "A fixed-value RAM cell -- offers a permanent, never-recaptured constant (ROM-style). Has NO 'in' port at all; the value is a parameter, not a wired input."
+   },
+   {
+    "name": "ram_flowing",
+    "core": "ram",
+    "ports": [
+     [
+      "in",
+      "in"
+     ],
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [],
+    "description": "A single-slot, consume-and-refill RAM cell -- captures one value, offers it, then re-opens once drained."
+   },
+   {
+    "name": "sequencer",
+    "core": "sequencer",
+    "ports": [
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [
+     "VALUE_0",
+     "VALUE_1",
+     "VALUE_2",
+     "VALUE_3",
+     "SEQUENCE_LEN"
+    ],
+    "description": "A real, config-fixed cyclic sequence of up to 4 8-bit values (points.md #609), offered in order, advancing to the next value only once the current offer is genuinely acked -- wrapping after SEQUENCE_LEN+1 values. Genuinely no 'in' port at all (confirmed directly against the real RTL: this core never captures anything, ack_out is tied low on every direction). Real, deliberate choice, matching every other tile's own direct-field-value convention (no smoothing layer): param names and casing match the real, mechanically-extracted RTL field names exactly (VALUE_0.../SEQUENCE_LEN, uppercase -- this one core's own real RTL comment style, confirmed not an inconsistency to silently 'fix'). SEQUENCE_LEN is stored as the real sequence length MINUS ONE (0 means a length-1 sequence), matching the real hardware encoding directly, same as the RTL's own comment."
+   },
+   {
+    "name": "subtractor",
+    "core": "adder",
+    "ports": [
+     [
+      "in_a",
+      "in"
+     ],
+     [
+      "in_b",
+      "in"
+     ],
+     [
+      "out",
+      "out"
+     ]
+    ],
+    "params": [],
+    "description": "points.md #611: the SAME real adder core, with the real RTL's own subtract_mode bit fixed on -- computes A-B via the same real carry chain (invert B, cin=1), confirmed directly against adder_cell_v1.v's own real comment (\"subtraction is nearly free on top of the existing carry chain\"). A separate tile, not an optional param on \"adder\" -- this tile system's own params are always required, so a genuinely optional toggle needs its own tile, same real pattern \"ram_constant\"/\"ram_flowing\" already established."
+   }
+  ],
+  "all_tile_names": [
+   "accumulator",
+   "adder",
+   "branch",
+   "comparator",
+   "dsp_add",
+   "dsp_add_and_hold",
+   "dsp_ge",
+   "dsp_le",
+   "dsp_mul",
+   "dsp_neq",
+   "dsp_sub",
+   "dual_threshold_monitor",
+   "icmp_eq",
+   "icmp_ne",
+   "latch",
+   "nano_gate",
+   "nano_hold_trigger",
+   "nano_loop_ctrl",
+   "nano_loop_ctrl_desc",
+   "nano_loop_var",
+   "ram_constant",
+   "ram_flowing",
+   "select",
+   "sentinel",
+   "sequencer",
+   "subtractor",
+   "twin_sentinel"
+  ],
+  "sentinel_source": "program s {\n    place s1 as sentinel at (0, 0) {\n        inc: n\n        dec: s\n        clear: s\n        out: e\n        cmp.threshold: 8\n    }\n}\n",
+  "sentinel_cells": [
+   {
+    "id": "sentinel.acc@0,0",
+    "row": 0,
+    "col": 0,
+    "core": "accumulator",
+    "up": [],
+    "down": [
+     "e"
+    ],
+    "preload": null
+   },
+   {
+    "id": "sentinel.cmp@0,1",
+    "row": 0,
+    "col": 1,
+    "core": "comparator",
+    "up": [
+     "w"
+    ],
+    "down": [
+     "e"
+    ],
+    "preload": null
+   },
+   {
+    "id": "sentinel.lat@0,2",
+    "row": 0,
+    "col": 2,
+    "core": "latch",
+    "up": [],
+    "down": [
+     "e"
+    ],
+    "preload": null
+   }
+  ],
+  "python": {
+   "python_source": "def adder_pair():\n    place(\"a1\", \"adder\", (0, 0), in_a=\"n\", in_b=\"w\", out=\"e\")\n",
+   "dsl_source": "program adder_pair {\n    place a1 as adder at (0, 0) {\n        in_a: n\n        in_b: w\n        out: e\n    }\n}\n",
+   "same_records": true,
+   "hash_python": "532bc698473be0434beccae5a33478ee1108608c23cfddaa80fb0a6893e1b54c",
+   "hash_dsl": "532bc698473be0434beccae5a33478ee1108608c23cfddaa80fb0a6893e1b54c"
+  }
+ },
+ "llvm": {
+  "cases": [
+   {
+    "key": "arith",
+    "title": "A sum, a product and a subtraction",
+    "ir": "define i32 @f(i32 %a, i32 %b, i32 %c) {\nentry:\n  %s = add i32 %a, %b\n  %p = mul i32 %s, %c\n  %r = sub i32 %p, 3\n  ret i32 %r\n}\n",
+    "cells": [
+     {
+      "id": "main.dynq_s_a",
+      "row": 0,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.dynq_s_b",
+      "row": 6,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_s",
+      "row": 3,
+      "col": 4,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.s",
+      "row": 3,
+      "col": 5,
+      "core": "adder",
+      "role": "op"
+     },
+     {
+      "id": "main.dynq_p_b",
+      "row": 0,
+      "col": 7,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_p",
+      "row": 3,
+      "col": 7,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.p",
+      "row": 3,
+      "col": 8,
+      "core": "mul",
+      "role": "op"
+     },
+     {
+      "id": "main.const_r_1",
+      "row": 0,
+      "col": 10,
+      "core": "ram",
+      "role": "const"
+     },
+     {
+      "id": "main.pri_r",
+      "row": 3,
+      "col": 10,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.r",
+      "row": 3,
+      "col": 11,
+      "core": "adder",
+      "role": "op"
+     },
+     {
+      "id": "main.rt0_dynq_s_a__s_0_0",
+      "row": 1,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt0_dynq_s_a__s_0_1",
+      "row": 2,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt1_dynq_s_b__s_1_0",
+      "row": 5,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt1_dynq_s_b__s_1_1",
+      "row": 4,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt2_s__p_0_0",
+      "row": 3,
+      "col": 6,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt3_dynq_p_b__p_1_0",
+      "row": 1,
+      "col": 7,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt3_dynq_p_b__p_1_1",
+      "row": 2,
+      "col": 7,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt4_p__r_0_0",
+      "row": 3,
+      "col": 9,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt5_const_r_1__r_1_0",
+      "row": 1,
+      "col": 10,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt5_const_r_1__r_1_1",
+      "row": 2,
+      "col": 10,
+      "core": "ram",
+      "role": "relay"
+     }
+    ],
+    "rewrites": [
+     "%r: sub <value>, 3  ->  add <value>, 0xfffffffd"
+    ],
+    "caveats": [],
+    "args": [
+     "a",
+     "b",
+     "c"
+    ],
+    "runs": [
+     {
+      "in": [
+       2,
+       3,
+       4
+      ],
+      "vm": 17,
+      "expected": 17,
+      "ok": true
+     },
+     {
+      "in": [
+       10,
+       5,
+       2
+      ],
+      "vm": 27,
+      "expected": 27,
+      "ok": true
+     },
+     {
+      "in": [
+       0,
+       0,
+       9
+      ],
+      "vm": 4294967293,
+      "expected": 4294967293,
+      "ok": true
+     },
+     {
+      "in": [
+       100,
+       -1,
+       7
+      ],
+      "vm": 690,
+      "expected": 690,
+      "ok": true
+     },
+     {
+      "in": [
+       -1,
+       1,
+       100
+      ],
+      "vm": 4294967293,
+      "expected": 4294967293,
+      "ok": true
+     },
+     {
+      "in": [
+       123456,
+       654321,
+       3
+      ],
+      "vm": 2333328,
+      "expected": 2333328,
+      "ok": true
+     }
+    ],
+    "result_name": "r"
+   },
+   {
+    "key": "bits",
+    "title": "Bits: and, shift, xor",
+    "ir": "define i32 @g(i32 %a, i32 %b) {\nentry:\n  %x = and i32 %a, %b\n  %y = shl i32 %x, 2\n  %z = xor i32 %y, %a\n  ret i32 %z\n}\n",
+    "cells": [
+     {
+      "id": "main.dynq_x_a",
+      "row": 0,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.dynq_x_b",
+      "row": 6,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_x",
+      "row": 3,
+      "col": 4,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.x",
+      "row": 3,
+      "col": 5,
+      "core": "nano",
+      "role": "op"
+     },
+     {
+      "id": "main.y_op",
+      "row": 3,
+      "col": 7,
+      "core": "ram",
+      "role": "op"
+     },
+     {
+      "id": "main.y",
+      "row": 3,
+      "col": 8,
+      "core": "ram",
+      "role": "op"
+     },
+     {
+      "id": "main.dynq_z_b",
+      "row": 0,
+      "col": 10,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_z",
+      "row": 3,
+      "col": 10,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.z",
+      "row": 3,
+      "col": 11,
+      "core": "nano",
+      "role": "op"
+     },
+     {
+      "id": "main.rt0_dynq_x_a__x_0_0",
+      "row": 1,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt0_dynq_x_a__x_0_1",
+      "row": 2,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt1_dynq_x_b__x_1_0",
+      "row": 5,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt1_dynq_x_b__x_1_1",
+      "row": 4,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt2_x__y_0_0",
+      "row": 3,
+      "col": 6,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt3_y__z_0_0",
+      "row": 3,
+      "col": 9,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt4_dynq_z_b__z_1_0",
+      "row": 1,
+      "col": 10,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt4_dynq_z_b__z_1_1",
+      "row": 2,
+      "col": 10,
+      "core": "ram",
+      "role": "arg"
+     }
+    ],
+    "rewrites": [
+     "%y: shl <value>, 2  ->  one-operand shl with amount 2 in addon config"
+    ],
+    "caveats": [],
+    "args": [
+     "a",
+     "b"
+    ],
+    "runs": [
+     {
+      "in": [
+       3,
+       9
+      ],
+      "vm": 7,
+      "expected": 7,
+      "ok": true
+     },
+     {
+      "in": [
+       9,
+       3
+      ],
+      "vm": 13,
+      "expected": 13,
+      "ok": true
+     },
+     {
+      "in": [
+       -4,
+       2
+      ],
+      "vm": 4294967292,
+      "expected": 4294967292,
+      "ok": true
+     },
+     {
+      "in": [
+       12,
+       10
+      ],
+      "vm": 44,
+      "expected": 44,
+      "ok": true
+     },
+     {
+      "in": [
+       255,
+       15
+      ],
+      "vm": 195,
+      "expected": 195,
+      "ok": true
+     }
+    ],
+    "result_name": "z"
+   },
+   {
+    "key": "max",
+    "title": "A choice: the larger of two numbers",
+    "ir": "define i32 @max(i32 %a, i32 %b) {\nentry:\n  %c = icmp sgt i32 %a, %b\n  br i1 %c, label %yes, label %no\nyes:\n  br label %done\nno:\n  br label %done\ndone:\n  %r = phi i32 [ %a, %yes ], [ %b, %no ]\n  ret i32 %r\n}\n",
+    "cells": [
+     {
+      "id": "main.dynq_c__d_a",
+      "row": 0,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.dynq_c__d_b",
+      "row": 6,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_c__d",
+      "row": 3,
+      "col": 4,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.c__d",
+      "row": 3,
+      "col": 5,
+      "core": "adder",
+      "role": "op"
+     },
+     {
+      "id": "main.c",
+      "row": 3,
+      "col": 7,
+      "core": "comparator",
+      "role": "op"
+     },
+     {
+      "id": "main.const_done__not1_1",
+      "row": 0,
+      "col": 10,
+      "core": "ram",
+      "role": "const"
+     },
+     {
+      "id": "main.pri_done__not1",
+      "row": 3,
+      "col": 10,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.done__not1",
+      "row": 3,
+      "col": 11,
+      "core": "nano",
+      "role": "op"
+     },
+     {
+      "id": "main.const_r__mask_0",
+      "row": 0,
+      "col": 13,
+      "core": "ram",
+      "role": "const"
+     },
+     {
+      "id": "main.pri_r__mask",
+      "row": 3,
+      "col": 13,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.r__mask",
+      "row": 3,
+      "col": 14,
+      "core": "adder",
+      "role": "op"
+     },
+     {
+      "id": "main.const_r__nmask_1",
+      "row": 0,
+      "col": 16,
+      "core": "ram",
+      "role": "const"
+     },
+     {
+      "id": "main.pri_r__nmask",
+      "row": 3,
+      "col": 16,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.r__nmask",
+      "row": 3,
+      "col": 17,
+      "core": "nano",
+      "role": "op"
+     },
+     {
+      "id": "main.dynq_r__t_a",
+      "row": 9,
+      "col": 16,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_r__t",
+      "row": 12,
+      "col": 16,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.r__t",
+      "row": 12,
+      "col": 17,
+      "core": "nano",
+      "role": "op"
+     },
+     {
+      "id": "main.dynq_r__f_a",
+      "row": 0,
+      "col": 19,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_r__f",
+      "row": 3,
+      "col": 19,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.r__f",
+      "row": 3,
+      "col": 20,
+      "core": "nano",
+      "role": "op"
+     },
+     {
+      "id": "main.pri_r",
+      "row": 3,
+      "col": 22,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.r",
+      "row": 3,
+      "col": 23,
+      "core": "nano",
+      "role": "op"
+     },
+     {
+      "id": "main.rt0_dynq_c__d_a__c__d_0_0",
+      "row": 1,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt0_dynq_c__d_a__c__d_0_1",
+      "row": 2,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt1_dynq_c__d_b__c__d_1_0",
+      "row": 5,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt1_dynq_c__d_b__c__d_1_1",
+      "row": 4,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt2_c__d__c_0_0",
+      "row": 3,
+      "col": 6,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt3_c__done__not1_0_0",
+      "row": 3,
+      "col": 8,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt3_c__done__not1_0_1",
+      "row": 3,
+      "col": 9,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt4_const_done__not1_1__done__not1_1_0",
+      "row": 1,
+      "col": 10,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt4_const_done__not1_1__done__not1_1_1",
+      "row": 2,
+      "col": 10,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt5_const_r__mask_0__r__mask_0_0",
+      "row": 1,
+      "col": 13,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt5_const_r__mask_0__r__mask_0_1",
+      "row": 2,
+      "col": 13,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt6_done__not1__r__mask_1_0",
+      "row": 3,
+      "col": 12,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt7_r__mask__r__nmask_0_0",
+      "row": 3,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt8_const_r__nmask_1__r__nmask_1_0",
+      "row": 1,
+      "col": 16,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt8_const_r__nmask_1__r__nmask_1_1",
+      "row": 2,
+      "col": 16,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt9_dynq_r__t_a__r__t_0_0",
+      "row": 10,
+      "col": 16,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt9_dynq_r__t_a__r__t_0_1",
+      "row": 11,
+      "col": 16,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_0",
+      "row": 4,
+      "col": 14,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_1",
+      "row": 4,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_2",
+      "row": 5,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_3",
+      "row": 6,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_4",
+      "row": 7,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_5",
+      "row": 8,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_6",
+      "row": 9,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_7",
+      "row": 10,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_8",
+      "row": 11,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt10_r__mask__r__t_1_9",
+      "row": 12,
+      "col": 15,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt11_dynq_r__f_a__r__f_0_0",
+      "row": 1,
+      "col": 19,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt11_dynq_r__f_a__r__f_0_1",
+      "row": 2,
+      "col": 19,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt12_r__nmask__r__f_1_0",
+      "row": 3,
+      "col": 18,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_0",
+      "row": 11,
+      "col": 17,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_1",
+      "row": 11,
+      "col": 18,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_2",
+      "row": 11,
+      "col": 19,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_3",
+      "row": 11,
+      "col": 20,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_4",
+      "row": 11,
+      "col": 21,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_5",
+      "row": 11,
+      "col": 22,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_6",
+      "row": 10,
+      "col": 22,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_7",
+      "row": 9,
+      "col": 22,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_8",
+      "row": 8,
+      "col": 22,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_9",
+      "row": 7,
+      "col": 22,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_10",
+      "row": 6,
+      "col": 22,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_11",
+      "row": 5,
+      "col": 22,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt13_r__t__r_0_12",
+      "row": 4,
+      "col": 22,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt14_r__f__r_1_0",
+      "row": 3,
+      "col": 21,
+      "core": "ram",
+      "role": "relay"
+     }
+    ],
+    "rewrites": [
+     "%c: icmp expanded into 2 library ops: %c__d=sub, %c=cmp_ge",
+     "%r: select expanded into 5 library ops: %r__mask=sub, %r__nmask=xor, %r__t=and, %r__f=and, %r=or"
+    ],
+    "caveats": [
+     "%c: `icmp sgt` is exact only while the signed difference it computes does not overflow 32 bits (opposite-sign operands whose magnitudes sum past 2^31-1 give the WRONG answer, not an error) -- inherited from the old frontend (#711), bounded exactly (#798). `eq`/`ne` are exact for every input."
+    ],
+    "args": [
+     "a",
+     "b"
+    ],
+    "runs": [
+     {
+      "in": [
+       3,
+       9
+      ],
+      "vm": 9,
+      "expected": 9,
+      "ok": true
+     },
+     {
+      "in": [
+       9,
+       3
+      ],
+      "vm": 9,
+      "expected": 9,
+      "ok": true
+     },
+     {
+      "in": [
+       -4,
+       2
+      ],
+      "vm": 2,
+      "expected": 2,
+      "ok": true
+     },
+     {
+      "in": [
+       12,
+       10
+      ],
+      "vm": 12,
+      "expected": 12,
+      "ok": true
+     },
+     {
+      "in": [
+       7,
+       7
+      ],
+      "vm": 7,
+      "expected": 7,
+      "ok": true
+     }
+    ],
+    "result_name": "r"
+   },
+   {
+    "key": "loop",
+    "title": "A loop that runs four times",
+    "ir": "define i32 @f(i32 %x) {\nentry:\n  br label %loop\nloop:\n  %i = phi i32 [ 0, %entry ], [ %i2, %loop ]\n  %s = phi i32 [ 0, %entry ], [ %s2, %loop ]\n  %s2 = add i32 %s, %x\n  %i2 = add i32 %i, 1\n  %c = icmp slt i32 %i2, 4\n  br i1 %c, label %loop, label %exit\nexit:\n  ret i32 %s2\n}\n",
+    "cells": [
+     {
+      "id": "main.const_s2__it0_0",
+      "row": 0,
+      "col": 4,
+      "core": "ram",
+      "role": "const"
+     },
+     {
+      "id": "main.dynq_s2__it0_x",
+      "row": 6,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_s2__it0",
+      "row": 3,
+      "col": 4,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.s2__it0",
+      "row": 3,
+      "col": 5,
+      "core": "adder",
+      "role": "op"
+     },
+     {
+      "id": "main.dynq_s2__it1_b",
+      "row": 0,
+      "col": 7,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_s2__it1",
+      "row": 3,
+      "col": 7,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.s2__it1",
+      "row": 3,
+      "col": 8,
+      "core": "adder",
+      "role": "op"
+     },
+     {
+      "id": "main.dynq_s2__it2_b",
+      "row": 0,
+      "col": 10,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_s2__it2",
+      "row": 3,
+      "col": 10,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.s2__it2",
+      "row": 3,
+      "col": 11,
+      "core": "adder",
+      "role": "op"
+     },
+     {
+      "id": "main.dynq_s2__it3_b",
+      "row": 0,
+      "col": 13,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.pri_s2__it3",
+      "row": 3,
+      "col": 13,
+      "core": "priority",
+      "role": "order"
+     },
+     {
+      "id": "main.s2__it3",
+      "row": 3,
+      "col": 14,
+      "core": "adder",
+      "role": "op"
+     },
+     {
+      "id": "main.rt0_const_s2__it0_0__s2__it0_0_0",
+      "row": 1,
+      "col": 4,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt0_const_s2__it0_0__s2__it0_0_1",
+      "row": 2,
+      "col": 4,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt1_dynq_s2__it0_x__s2__it0_1_0",
+      "row": 5,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt1_dynq_s2__it0_x__s2__it0_1_1",
+      "row": 4,
+      "col": 4,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt2_s2__it0__s2__it1_0_0",
+      "row": 3,
+      "col": 6,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt3_dynq_s2__it1_b__s2__it1_1_0",
+      "row": 1,
+      "col": 7,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt3_dynq_s2__it1_b__s2__it1_1_1",
+      "row": 2,
+      "col": 7,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt4_s2__it1__s2__it2_0_0",
+      "row": 3,
+      "col": 9,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt5_dynq_s2__it2_b__s2__it2_1_0",
+      "row": 1,
+      "col": 10,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt5_dynq_s2__it2_b__s2__it2_1_1",
+      "row": 2,
+      "col": 10,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt6_s2__it2__s2__it3_0_0",
+      "row": 3,
+      "col": 12,
+      "core": "ram",
+      "role": "relay"
+     },
+     {
+      "id": "main.rt7_dynq_s2__it3_b__s2__it3_1_0",
+      "row": 1,
+      "col": 13,
+      "core": "ram",
+      "role": "arg"
+     },
+     {
+      "id": "main.rt7_dynq_s2__it3_b__s2__it3_1_1",
+      "row": 2,
+      "col": 13,
+      "core": "ram",
+      "role": "arg"
+     }
+    ],
+    "rewrites": [],
+    "caveats": [],
+    "args": [
+     "x"
+    ],
+    "runs": [
+     {
+      "in": [
+       3
+      ],
+      "vm": 12,
+      "expected": 12,
+      "ok": true
+     },
+     {
+      "in": [
+       10
+      ],
+      "vm": 40,
+      "expected": 40,
+      "ok": true
+     },
+     {
+      "in": [
+       -2
+      ],
+      "vm": 4294967288,
+      "expected": 4294967288,
+      "ok": true
+     },
+     {
+      "in": [
+       0
+      ],
+      "vm": 0,
+      "expected": 0,
+      "ok": true
+     }
+    ],
+    "result_name": "s2__it3"
+   }
+  ],
+  "refused": [
+   {
+    "key": "sdiv",
+    "title": "A division",
+    "ir": "define i32 @f(i32 %a, i32 %b) {\nentry:\n  %r = sdiv i32 %a, %b\n  ret i32 %r\n}\n",
+    "refused": [
+     {
+      "what": "checking `%r = sdiv`",
+      "problem": "no library entry for opcode `sdiv`",
+      "why": "the dispatcher only places opcodes the opcode library knows",
+      "suggestion": "this is where `#752`'s escalation ladder would apply (shared library, then AI research, then the Composer) -- not built yet"
+     }
+    ]
+   },
+   {
+    "key": "runtime_loop",
+    "title": "A loop whose length depends on an input",
+    "ir": "define i32 @f(i32 %x, i32 %n) {\nentry:\n  br label %loop\nloop:\n  %i = phi i32 [ 0, %entry ], [ %i2, %loop ]\n  %s = phi i32 [ 0, %entry ], [ %s2, %loop ]\n  %s2 = add i32 %s, %x\n  %i2 = add i32 %i, 1\n  %c = icmp slt i32 %i2, %n\n  br i1 %c, label %loop, label %exit\nexit:\n  ret i32 %s2\n}\n",
+    "refused": [
+     {
+      "what": "unrolling a loop",
+      "problem": "the loop's exit condition is not a compile-time constant (the trip count depends on runtime data)",
+      "why": "unrolling needs the trip count at compile time",
+      "suggestion": "make the bound and the induction variable literals"
+     }
+    ]
+   }
+  ]
+ },
+ "pipeline": {
+  "llvm_cli": "compiled 'f' -> /tmp/tmpjht79ldn/f.icm (20 cell(s))",
+  "flexsub": "compiled 'f' for sub/flex -> /tmp/tmpjht79ldn/f_flex.icm (20 cells; 0 of 3 priority cells moved from sequenced mode 2 to strict mode 0 + ranks)",
+  "assemble": "Family: flex   Source: f_flex.icm   Cells: 17   Forks: 0   Joins: 3\nOutput: /tmp/tmpjht79ldn/build  (6 files, top icm_f_flex_flex)   (handshake design: no alignment, no padding)",
+  "files": [
+   "ASSEMBLY.json",
+   "adder_cell_v4sa.v",
+   "adder_v1.v",
+   "icm_f_flex_flex.v",
+   "icm_f_flex_flex.ys",
+   "mul_cell_v4sa.v",
+   "ram_cell_v4sa.v"
+  ]
+ }
+}

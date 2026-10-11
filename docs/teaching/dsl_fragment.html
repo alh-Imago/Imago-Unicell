@@ -1,0 +1,251 @@
+<!-- DSL fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data from docs/teaching/capture_programming_v1.py is embedded in place of @@PROG_DATA@@. Links are relative to docs/. -->
+<div class="dslp" id="dsl-root">
+<style>
+  .dslp h2{margin-top:1.6em}
+  .dslp .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .dslp .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .dslp .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .dslp .linkrow a.go{background:var(--accent);color:#fff}
+  .dslp table.f{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .dslp table.f th,.dslp table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .dslp table.f td:first-child{font-family:var(--mono);white-space:nowrap}
+  .dslp .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .dslp .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .dslp pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.82em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0;white-space:pre}
+  .dslp pre.out{background:#101a16;color:#cfe8dc}
+  .dslp .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start}
+  .dslp textarea{width:100%;min-height:15em;font-family:var(--mono);font-size:.82em;line-height:1.45;padding:8px 10px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);box-sizing:border-box;resize:vertical}
+  .dslp button,.dslp select{font:inherit;font-size:.92em}
+  .dslp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .dslp .bar button{padding:5px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .dslp .bar button.on{background:var(--accent);color:#fff}
+  .dslp .picture{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:6px;overflow-x:auto;min-height:8em}
+  .dslp svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  .dslp svg text{font-family:var(--mono);fill:var(--ink)}
+  .dslp .msg{margin:.6em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.92em}
+  .dslp .msg.bad{border-left-color:#b3402a;background:rgba(179,64,42,.09)}
+  .dslp .msg.warn{border-left-color:#b8860b;background:rgba(184,134,11,.12)}
+  .dslp .msg ul{margin:.3em 0 0;padding-left:1.2em}
+  .dslp table.t{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:.78em;margin:.5em 0}
+  .dslp table.t th,.dslp table.t td{border-bottom:1px solid var(--rule);padding:3px 7px;text-align:left}
+  .dslp table.t tr.mark td{background:rgba(21,117,109,.14)}
+  .dslp table.t td.hi{color:#b3402a;font-weight:bold}
+  .dslp .scroll{overflow-x:auto}
+  .dslp .tilerow td:nth-child(2),.dslp .tilerow td:nth-child(3){font-family:var(--mono);font-size:.85em}
+</style>
+
+<p class="lead">The DSL is the small text language for placing cells on the grid and wiring them to their neighbours. A program says <em>which kind of cell goes on which square, and which faces it listens on and sends out of</em>. The compiler checks that and writes an ICM file, the same kind of file the Composer saves. This page lets you sketch placements and see them drawn, shows what a real run of a DSL program looks like (including a mistake that is easy to make), and shows what the real compiler says when you slip.</p>
+
+<div class="linkrow">
+  <a class="go" href="../docs/stripped-cell/UNICELL_S_DSL_MANUAL.md">The DSL manual</a>
+  <a href="../nano/dsl_compiler_v1.py">Compiler source</a>
+  <a href="../nano/dsl_cli_v1.py">Command line tool</a>
+  <a href="../nano/super_tile_library_v1.py">The tile library</a>
+</div>
+
+<h2>1. A program is a list of placements</h2>
+<p>This program adds two numbers using four cells. Read it line by line:</p>
+<pre class="code"><span id="dsl-seven"></span></pre>
+<ul>
+  <li><code>program seven_plus_five { ... }</code> is the wrapper: a file holds exactly one program, and its name becomes the name inside the saved file.</li>
+  <li><code>place x as ram_flowing at (0, 0) { ... }</code> means: put a cell called <code>x</code> (a name for you and for error messages) that behaves as the <code>ram_flowing</code> tile, on row 0, column 0. A <em>tile</em> is a ready-made behaviour for a cell.</li>
+  <li><code>in: w</code> and <code>out: e</code> are <strong>ports</strong>: this cell takes a value in from its <strong>w</strong>est face and offers it out of its <strong>e</strong>ast face. Faces are the four compass points <code>n s e w</code>. Row numbers grow going south and column numbers going east, so square (0, 1) is just east of (0, 0).</li>
+  <li>The adder at (0, 1) listens on west (where <code>x</code> offers its value) and south (where <code>y</code>, one row below it, offers its value upward). It sends its answer east to <code>sink</code>.</li>
+  <li>Some fields are <strong>parameters</strong>, not ports: a number the tile needs, like <code>init_data: 7</code> on a constant.</li>
+</ul>
+<p>Cells are joined only by <em>facing each other</em>: one sends out of its east face and the neighbour to its east listens on its west face. There are no wires to draw.</p>
+
+<h2>2. Sketch your own</h2>
+<p>Edit the program and the picture follows. This is a <strong>sketch</strong> drawn by this page's own script: it knows the fourteen basic tiles (below), draws their ports, and tells you when two neighbours do not face each other. It does not compile anything. The real compiler's wording is in section 4.</p>
+<div class="bar" id="dsl-presets"><span>Start from:</span>
+  <button type="button" data-p="seven">7 + 5</button>
+  <button type="button" data-p="ram">One constant</button>
+  <button type="button" data-p="chain">A chain of two adders</button>
+  <button type="button" data-p="deaf">A neighbour that cannot hear</button></div>
+<textarea id="dsl-src" spellcheck="false" aria-label="DSL program" style="min-height:12em"></textarea>
+<div class="picture" style="margin-top:8px"><svg id="dsl-svg" role="img" aria-label="The placed cells and their links"></svg></div>
+<div id="dsl-msg" aria-live="polite"></div>
+
+<h2>3. Timing is your job</h2>
+<p>Here is that 7 + 5 program running in the VM. We put a 7 into <code>x</code> and a 5 into <code>y</code>, and let the clock tick. The table shows the adder and the sink after each tick. The numbers are copied from a real run.</p>
+<div class="bar" id="dsl-trbar"><span>Inject the 5:</span>
+  <button type="button" data-k="trace_staggered" class="on">three ticks after the 7</button>
+  <button type="button" data-k="trace_together">on the same tick as the 7</button></div>
+<div class="scroll"><table class="t" id="dsl-trace"><thead><tr><th>tick</th><th>what we did</th><th>adder a_reg</th><th>a_arrived</th><th>adder out_buffer</th><th>sink value</th></tr></thead><tbody></tbody></table></div>
+<div class="msg" id="dsl-trsays"></div>
+<p>So the DSL does exactly what you wrote, and nothing more: it does not arrange for the two operands to reach the adder at different moments. In the same-tick run the adder holds one operand and waits for a second, and the second never counted. (The manual says the adder's two inputs share one field and whichever arrives first becomes A; that run fits it.) Making the arrival order certain is the programmer's job in the DSL. When programs are compiled from LLVM IR (next page) the compiler adds the ordering cells for you.</p>
+
+<h2>4. What the compiler says when you slip</h2>
+<p>These are five real mistakes, run through the real command line tool. Each message says where, what the problem is, and why. Pick one:</p>
+<div class="bar" id="dsl-errbar"></div>
+<div class="two"><div><div class="fine" style="border:0;margin:0;padding:0">The program</div><pre class="code" id="dsl-errsrc"></pre></div>
+<div><div class="fine" style="border:0;margin:0;padding:0">What the compiler printed</div><pre class="code out" id="dsl-errout"></pre></div></div>
+
+<h2>5. The tiles</h2>
+<p>A tile is a behaviour you can put on a cell. These fourteen are the basic ones, read from the library itself. Every port is a face you wire; every parameter is a number you set.</p>
+<div class="scroll"><table class="f" id="dsl-tiles"><thead><tr><th>tile</th><th>ports</th><th>parameters</th><th>what it does</th></tr></thead><tbody></tbody></table></div>
+<p>The compiler also knows tiles built out of several cells. <code>sentinel</code> is one: it watches a running count and raises a flag at a threshold. Placing it takes <em>one</em> statement:</p>
+<pre class="code"><span id="dsl-sent"></span></pre>
+<p id="dsl-sentsays"></p>
+<p>Besides the basic fourteen, the compiler accepts these names: <span id="dsl-allnames"></span>. You can also make your own multi-cell tile inside a program with <code>define</code> and <code>expose</code>; the manual covers that.</p>
+
+<h2>6. The same program in Python syntax</h2>
+<p>The DSL is a text format of its own. There is a second front end that reads a declarative piece of ordinary Python syntax and produces the same thing:</p>
+<div class="two"><div><div class="fine" style="border:0;margin:0;padding:0">DSL</div><pre class="code" id="dsl-pyd"></pre></div><div><div class="fine" style="border:0;margin:0;padding:0">Python syntax</div><pre class="code" id="dsl-pyp"></pre></div></div>
+<p id="dsl-pysays"></p>
+<p>The Python is only <em>read</em>, never run: there are no loops, variables or arithmetic, just <code>place(...)</code> calls with literal values.</p>
+
+<h2>7. What the DSL is not</h2>
+<ul>
+  <li><strong>It does not do the placing.</strong> The row and column numbers you write are used as they are. It is a way to write a shape down, not a tool that finds good squares.</li>
+  <li><strong>It targets the standard-mode cells.</strong> Its tiles are the standard ones (ram, adder, accumulator and so on), the ones the Workbench shows. The flex family is reached by saving an ICM file and giving that to the assembler; the next page shows the route for a program that came from LLVM IR.</li>
+  <li><strong>It does not draw.</strong> The Composer is the picture-based way to make the same kind of file.</li>
+  <li><strong>One program per file.</strong> And a program with two placements on one square is refused (section 4).</li>
+</ul>
+<p class="fine">The tile table, the five error messages, the 7 + 5 run, the sentinel's three cells and the DSL/Python comparison were all produced by <code>docs/teaching/capture_programming_v1.py</code> running the real compiler and VM on 11 October 2026, and are embedded in this page; re-run that script to refresh them. The sketch in section 2 is this page's own JavaScript and is deliberately simpler than the compiler. The compiler's unit tests (<code>tests/vm/test_dsl_compiler_v1.py</code>) were not re-run for this page.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('dsl-root'); if(!root) return;
+  var DATA=@@PROG_DATA@@;
+  var D=DATA.dsl;
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  /* static real text */
+  $('dsl-seven').textContent=D.seven_source; $('dsl-sent').textContent=D.sentinel_source;
+  $('dsl-pyd').textContent=D.python.dsl_source; $('dsl-pyp').textContent=D.python.python_source;
+  $('dsl-pysays').textContent=D.python.same_records?
+    'Compiled both ways, the two give identical records and the same file fingerprint ('+D.python.hash_dsl.slice(0,12)+'…).':
+    'These two did NOT compile to identical records in the capture run.';
+  $('dsl-allnames').innerHTML=D.all_tile_names.filter(function(n){return !D.tiles.some(function(t){return t.name===n;});}).map(function(n){return '<code>'+esc(n)+'</code>';}).join(', ');
+  var sc=D.sentinel_cells;
+  $('dsl-sentsays').textContent='The compiler turned that one statement into '+sc.length+' cells: '+sc.map(function(r){return r.core+' at ('+r.row+','+r.col+')';}).join(', ')+'.';
+
+  /* tiles table */
+  var tb=$('dsl-tiles').querySelector('tbody');
+  D.tiles.forEach(function(t){
+    var tr=document.createElement('tr');tr.className='tilerow';
+    tr.innerHTML='<td>'+esc(t.name)+'</td><td>'+(t.ports.map(function(p){return esc(p[0])+' ('+p[1]+')';}).join(', ')||'–')+'</td><td>'+(t.params.join(', ')||'–')+'</td><td></td>';
+    var d=t.description.split(/\. /)[0]; tr.lastChild.textContent=d.length>170?d.slice(0,167)+'…':d.replace(/\.$/,'')+'.';
+    tb.appendChild(tr);});
+
+  /* error gallery */
+  var eb=$('dsl-errbar'),ei=0;
+  D.errors.forEach(function(e,i){var b=document.createElement('button');b.type='button';b.textContent=e.title;b.addEventListener('click',function(){ei=i;showErr();});eb.appendChild(b);});
+  function showErr(){var e=D.errors[ei];$('dsl-errsrc').textContent=e.source;$('dsl-errout').textContent=e.output+'\n\n(exit code '+e.exit+')';
+    [].forEach.call(eb.children,function(b,i){b.className=i===ei?'on':'';});}
+  showErr();
+
+  /* trace */
+  var tk='trace_staggered';
+  function showTrace(){
+    var rows=D[tk],tbd=$('dsl-trace').querySelector('tbody');tbd.innerHTML='';
+    rows.forEach(function(r){var tr=document.createElement('tr');if(r.note)tr.className='mark';
+      tr.innerHTML='<td>'+r.tick+'</td><td>'+esc(r.note)+'</td><td>'+r.a_reg+'</td><td>'+r.a_arrived+'</td><td>'+r.out_buffer+'</td><td'+(r.sink_valid?' class="hi"':'')+'>'+(r.sink_valid?r.sink:'–')+'</td>';tbd.appendChild(tr);});
+    var last=rows[rows.length-1];
+    $('dsl-trsays').textContent=last.sink_valid?
+      'After the 5 is injected three ticks after the 7, the adder produces '+last.out_buffer+' and the sink holds '+last.sink+'. That is 7 + 5.':
+      'Both numbers were injected on the same tick. The adder ends holding a_reg '+last.a_reg+' with a_arrived '+last.a_arrived+': it is still waiting for a second operand. The sink never receives a value.';
+    [].forEach.call($('dsl-trbar').querySelectorAll('button'),function(b){b.className=b.getAttribute('data-k')===tk?'on':'';});
+  }
+  [].forEach.call($('dsl-trbar').querySelectorAll('button'),function(b){b.addEventListener('click',function(){tk=b.getAttribute('data-k');showTrace();});});
+  showTrace();
+
+  /* ---------- the sketch ---------- */
+  var TILE={};D.tiles.forEach(function(t){TILE[t.name]=t;});
+  var DIRS={n:[-1,0],s:[1,0],e:[0,1],w:[0,-1]},OPP={n:'s',s:'n',e:'w',w:'e'};
+  var PRE={
+    seven:D.seven_source,
+    ram:'program one_constant {\n    place k as ram_constant at (0, 0) {\n        out: e\n        init_data: 42\n    }\n}\n',
+    chain:'program two_adders {\n    place p as ram_flowing at (0, 0) {\n        in: w\n        out: e\n    }\n    place q as ram_flowing at (1, 1) {\n        in: s\n        out: n\n    }\n    place add1 as adder at (0, 1) {\n        in_a: w\n        in_b: s\n        out: e\n    }\n    place r as ram_flowing at (1, 2) {\n        in: s\n        out: n\n    }\n    place add2 as adder at (0, 2) {\n        in_a: w\n        in_b: s\n        out: e\n    }\n}\n',
+    deaf:'program deaf {\n    place k as ram_constant at (0, 0) {\n        out: e\n        init_data: 9\n    }\n    place a as ram_flowing at (0, 1) {\n        in: n\n        out: e\n    }\n}\n'
+  };
+  var src=$('dsl-src');
+  function parse(text){
+    var errs=[],warns=[],cells=[],t=text.replace(/#[^\n]*/g,'');
+    if(/\bdefine\b/.test(t)){errs.push('This sketch does not draw <code>define</code> blocks. The real compiler accepts them.');}
+    if(!/program\s+\w+\s*\{/.test(t)){errs.push('A file starts with <code>program NAME {</code>.');return {errs:errs,warns:warns,cells:cells};}
+    var re=/place\s+(\w+)\s+as\s+(\w+)\s+at\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*\{([^}]*)\}/g,m,seen={},n=0;
+    while((m=re.exec(t))){n++;
+      var c={name:m[1],tile:m[2],row:+m[3],col:+m[4],ports:[],params:[]};
+      var tl=TILE[c.tile];
+      if(!tl){errs.push('<code>'+esc(c.name)+'</code>: no basic tile named <code>'+esc(c.tile)+'</code>.'+(D.all_tile_names.indexOf(c.tile)>=0?' The real compiler does accept it (it is a composed or DSP tile) but this sketch only draws the fourteen basic ones.':' Basic tiles: '+Object.keys(TILE).join(', ')+'.'));continue;}
+      var fr=/([\w.]+)\s*:\s*(\[[^\]]*\]|[\w.]+)/g,f;
+      while((f=fr.exec(m[5]))){
+        var pn=f[1],val=f[2],port=null;
+        tl.ports.forEach(function(p){if(p[0]===pn)port=p;});
+        if(port){
+          var ds=val.replace(/[\[\]\s]/g,'').split(',').filter(Boolean),bad=ds.filter(function(d){return !DIRS[d];});
+          if(bad.length){errs.push('<code>'+esc(c.name)+'</code>, port <code>'+esc(pn)+'</code>: direction must be n, s, e or w, got <code>'+esc(bad[0])+'</code>.');continue;}
+          ds.forEach(function(d){c.ports.push({name:pn,kind:port[1],dir:d});});
+        }else if(tl.params.indexOf(pn)>=0){c.params.push([pn,val]);}
+        else{errs.push('<code>'+esc(c.name)+'</code>: <code>'+esc(pn)+'</code> is neither a port nor a parameter of <code>'+esc(c.tile)+'</code>. It has ports '+(tl.ports.map(function(p){return p[0];}).join(', ')||'none')+' and parameters '+(tl.params.join(', ')||'none')+'.');}
+      }
+      var key=c.row+','+c.col;
+      if(seen[key]){errs.push('<code>'+esc(c.name)+'</code>: square ('+c.row+', '+c.col+') is already taken by <code>'+esc(seen[key])+'</code>.');continue;}
+      seen[key]=c.name;cells.push(c);
+    }
+    if(!n&&!errs.length)warns.push('No <code>place</code> statements yet.');
+    return {errs:errs,warns:warns,cells:cells};
+  }
+  function draw(){
+    var P=parse(src.value),cells=P.cells,svg=$('dsl-svg'),msg=$('dsl-msg'),out='',notes=[];
+    var at={};cells.forEach(function(c){at[c.row+','+c.col]=c;});
+    function faces(c,kind,d){return c.ports.filter(function(p){return p.kind===kind&&p.dir===d;});}
+    if(cells.length){
+      var r0=Math.min.apply(null,cells.map(function(c){return c.row;}))-1,r1=Math.max.apply(null,cells.map(function(c){return c.row;}))+1,
+          c0=Math.min.apply(null,cells.map(function(c){return c.col;}))-1,c1=Math.max.apply(null,cells.map(function(c){return c.col;}))+1;
+      var PX=150,PY=104,W=(c1-c0+1)*PX,H=(r1-r0+1)*PY,bw=104,bh=54;
+      function cx(c){return (c-c0)*PX+PX/2;} function cy(r){return (r-r0)*PY+PY/2;}
+      var ok=[],dead=[];
+      cells.forEach(function(c){
+        var x=cx(c.col),y=cy(c.row);
+        c.ports.forEach(function(p){
+          var d=DIRS[p.dir],nb=at[(c.row+d[0])+','+(c.col+d[1])];
+          var sx=x+d[1]*bw/2,sy=y+d[0]*bh/2,ex=x+d[1]*(PX/2+(d[1]?0:0)),ey=y+d[0]*(PY/2);
+          if(d[1]){ex=x+d[1]*(PX/2);ey=y;}else{ex=x;ey=y+d[0]*(PY/2);}
+          var isOut=p.kind==='out',good=false,col='#8a8a7a',dash='';
+          if(nb){
+            var back=isOut?faces(nb,'in',OPP[p.dir]).length>0:faces(nb,'out',OPP[p.dir]).length>0;
+            if(back){good=true;col='#15756d';}else{col='#b8860b';dash=' stroke-dasharray="5 4"';
+              (isOut?dead:dead).push(isOut?'<code>'+esc(c.name)+'</code> sends '+({n:'north',s:'south',e:'east',w:'west'})[p.dir]+' to <code>'+esc(nb.name)+'</code>, but <code>'+esc(nb.name)+'</code> is not set to listen on its '+({n:'north',s:'south',e:'east',w:'west'})[OPP[p.dir]]+' face, so nothing arrives.':'<code>'+esc(c.name)+'</code> listens '+({n:'north',s:'south',e:'east',w:'west'})[p.dir]+', but <code>'+esc(nb.name)+'</code> does not send out of its '+({n:'north',s:'south',e:'east',w:'west'})[OPP[p.dir]]+' face.');}
+            if(good&&isOut)ok.push(c.name+' → '+nb.name);
+          }
+          var x1=isOut?sx:ex,y1=isOut?sy:ey,x2=isOut?ex:sx,y2=isOut?ey:sy;
+          if(nb&&isOut===false)return; /* drawn from the sender's side */
+          out+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+col+'" stroke-width="3"'+dash+'/>';
+          var ax=isOut?x2:x2,ay=isOut?y2:y2;
+          /* arrow head at x2,y2 */
+          var ux=Math.sign(x2-x1),uy=Math.sign(y2-y1);
+          if(nb&&isOut){ax=sx+d[1]*(PX-bw);ay=sy+d[0]*(PY-bh);out+='<line x1="'+sx+'" y1="'+sy+'" x2="'+ax+'" y2="'+ay+'" stroke="'+col+'" stroke-width="3"'+dash+'/>';x2=ax;y2=ay;ux=d[1];uy=d[0];}
+          out+='<path d="M'+x2+','+y2+' l'+(-ux*9-uy*6)+','+(-uy*9+ux*6)+' l'+(uy*12)+','+(-ux*12)+' z" fill="'+col+'"/>';
+          if(!nb)out+='<text x="'+(x1+x2)/2+'" y="'+((y1+y2)/2+(d[0]?0:-6))+'" font-size="10" text-anchor="'+(d[1]?'middle':'start')+'" fill="#6b6b5c" style="fill:#6b6b5c">'+(isOut?'out':'in')+(p.name!=='in'&&p.name!=='out'?' '+esc(p.name):'')+'</text>';
+        });
+      });
+      cells.forEach(function(c){
+        var x=cx(c.col),y=cy(c.row);
+        out+='<rect x="'+(x-bw/2)+'" y="'+(y-bh/2)+'" width="'+bw+'" height="'+bh+'" rx="9" fill="var(--paper-edge)" stroke="var(--ink-soft)" stroke-width="2"/>'
+           +'<text x="'+x+'" y="'+(y-4)+'" text-anchor="middle" font-size="12" font-weight="bold">'+esc(c.tile)+'</text>'
+           +'<text x="'+x+'" y="'+(y+12)+'" text-anchor="middle" font-size="11" style="fill:#6b6b5c">'+esc(c.name)+' ('+c.row+','+c.col+')'+'</text>'
+           +(c.params.length?'<text x="'+x+'" y="'+(y+25)+'" text-anchor="middle" font-size="9" style="fill:#6b6b5c">'+esc(c.params.map(function(p){return p[0]+'='+p[1];}).join(' '))+'</text>':'');
+      });
+      svg.setAttribute('viewBox','0 0 '+W+' '+H);svg.style.width=Math.min(W,720)+'px';
+      svg.innerHTML=out;
+      if(ok.length)notes.push('Joined: '+ok.map(esc).join(', ')+'.');
+      var html='';
+      if(P.errs.length)html+='<div class="msg bad"><strong>Problems</strong><ul>'+P.errs.map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul></div>';
+      if(dead.length||P.warns.length)html+='<div class="msg warn"><strong>Worth a look</strong><ul>'+dead.concat(P.warns).map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul></div>';
+      if(notes.length)html+='<div class="msg">'+notes.join(' ')+' Arrows that end at an empty square are the edges of the design: a face you would feed from outside, or where a result leaves.</div>';
+      msg.innerHTML=html;
+    }else{
+      svg.innerHTML='';svg.setAttribute('viewBox','0 0 10 10');svg.style.width='10px';
+      msg.innerHTML=(P.errs.length?'<div class="msg bad"><strong>Problems</strong><ul>'+P.errs.map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul></div>':'<div class="msg">Nothing to draw yet.</div>');
+    }
+  }
+  src.addEventListener('input',draw);
+  [].forEach.call($('dsl-presets').querySelectorAll('button'),function(b){b.addEventListener('click',function(){src.value=PRE[b.getAttribute('data-p')];draw();});});
+  src.value=PRE.seven;draw();
+})();
+</script>
+</div>

@@ -1,0 +1,176 @@
+<!-- LLVM IR fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data from docs/teaching/capture_programming_v1.py is embedded in place of @@PROG_DATA@@. Links are relative to docs/. -->
+<div class="llvmp" id="ll-root">
+<style>
+  .llvmp h2{margin-top:1.6em}
+  .llvmp .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .llvmp .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .llvmp .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .llvmp .linkrow a.go{background:var(--accent);color:#fff}
+  .llvmp table.f{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .llvmp table.f th,.llvmp table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .llvmp table.f td:first-child{font-family:var(--mono);white-space:nowrap}
+  .llvmp .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .llvmp .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .llvmp pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.82em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0;white-space:pre}
+  .llvmp pre.out{background:#101a16;color:#cfe8dc}
+  .llvmp .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start}
+  .llvmp textarea{width:100%;min-height:15em;font-family:var(--mono);font-size:.82em;line-height:1.45;padding:8px 10px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);box-sizing:border-box;resize:vertical}
+  .llvmp button,.llvmp select{font:inherit;font-size:.92em}
+  .llvmp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .llvmp .bar button{padding:5px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .llvmp .bar button.on{background:var(--accent);color:#fff}
+  .llvmp .picture{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:6px;overflow-x:auto;min-height:8em}
+  .llvmp svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  .llvmp svg text{font-family:var(--mono);fill:var(--ink)}
+  .llvmp .msg{margin:.6em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.92em}
+  .llvmp .msg.bad{border-left-color:#b3402a;background:rgba(179,64,42,.09)}
+  .llvmp .msg.warn{border-left-color:#b8860b;background:rgba(184,134,11,.12)}
+  .llvmp .msg ul{margin:.3em 0 0;padding-left:1.2em}
+  .llvmp table.t{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:.78em;margin:.5em 0}
+  .llvmp table.t th,.llvmp table.t td{border-bottom:1px solid var(--rule);padding:3px 7px;text-align:left}
+  .llvmp table.t tr.mark td{background:rgba(21,117,109,.14)}
+  .llvmp table.t td.hi{color:#b3402a;font-weight:bold}
+  .llvmp .scroll{overflow-x:auto}
+  .llvmp .tilerow td:nth-child(2),.llvmp .tilerow td:nth-child(3){font-family:var(--mono);font-size:.85em}
+
+  .llvmp .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82em;margin:.4em 0}
+  .llvmp .legend span.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.35)}
+  .llvmp .counts{display:flex;flex-wrap:wrap;gap:6px;margin:.5em 0}
+  .llvmp .counts span{padding:2px 9px;border:1px solid var(--rule);border-radius:9px;background:#fff;font-size:.82em;font-family:var(--mono)}
+  .llvmp table.t td.ok{color:#15756d;font-weight:bold}
+  .llvmp table.t td.no{color:#b3402a;font-weight:bold}
+  .llvmp .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:.8em 0}
+  .llvmp .flow .st{flex:1 1 150px;border:2px solid var(--accent);border-radius:10px;padding:8px 10px;background:var(--paper-edge);font-size:.88em}
+  .llvmp .flow .st b{display:block;font-family:var(--mono);font-size:.9em}
+  .llvmp .flow .st small{color:var(--ink-soft)}
+  .llvmp .flow .ar{align-self:center;font-size:1.3em;color:var(--ink-soft)}
+</style>
+
+<p class="lead">LLVM IR is the plain-text form that many compilers (the one behind C, C++ and Rust among them) write out just before they produce machine code. It looks like assembly for an imaginary tidy processor: every step is one small named operation. UniCell can take that text and turn it into a design of cells, so a function written in an ordinary language can, in principle, become something this machine runs. This page takes real functions through the real compiler, shows what comes out, and is honest about what it refuses.</p>
+
+<div class="linkrow">
+  <a class="go" href="../nano/llvm_dag_frontend_v1.py">The compiler (source)</a>
+  <a href="../nano/llvm_cli_v1.py">Command line tool</a>
+  <a href="../tools/flexsub_compile_v1.py">Route to the flex family</a>
+  <a href="../nano/llvm_ir_frontend_v1.py">The earlier front end</a>
+</div>
+<p style="font-size:.9em;color:var(--ink-soft)">To try it yourself, save a function as <code>f.ll</code> and run <code>python3 nano/llvm_cli_v1.py f.ll -o f.icm</code>. It needs the <code>llvmlite</code> package (<code>pip install llvmlite</code>). We have no C compiler in this session, so the functions below are written directly as LLVM IR; the result for a C function is the same kind of file.</p>
+
+<h2>1. A function becomes cells</h2>
+<p>Pick an example. On the left is the IR text. On the right is the grid of cells the compiler produced, one square per cell, coloured by the job the cell does. Hover a square to see its name. Everything shown here is the real compiler's output.</p>
+<div class="bar" id="ll-pick"></div>
+<div class="two">
+  <div><div class="fine" style="border:0;margin:0;padding:0">LLVM IR</div><pre class="code" id="ll-ir"></pre></div>
+  <div><div class="fine" style="border:0;margin:0;padding:0" id="ll-cap">The cells</div>
+    <div class="picture"><svg id="ll-svg" role="img" aria-label="The cells the compiler placed"></svg></div>
+    <div class="legend" id="ll-legend"></div></div>
+</div>
+<div class="counts" id="ll-counts"></div>
+<div class="msg" id="ll-says"></div>
+
+<h2>2. Does it give the right answer?</h2>
+<p>Each row below is a real run: the compiled cells were loaded into the VM, the inputs were put in, the clock ran, and the answer was read from the result cell. The last columns compare it with plain arithmetic done in Python. Results are 32-bit numbers, so a negative answer shows as a large positive one (for example -3 is 4294967293).</p>
+<div class="scroll"><table class="t" id="ll-runs"><thead></thead><tbody></tbody></table></div>
+<div class="msg" id="ll-runsays"></div>
+
+<h2>3. What the cell roles are</h2>
+<p>A function with three operations did not become three cells. Using the first example, the compiler's job was to turn each line into a working cell <em>and</em> to make sure the right numbers reach it in the right order:</p>
+<ul>
+  <li><span class="legendsw" style="color:#d9822b"><b>Compute</b></span> cells are the arithmetic: one adder or multiplier for each <code>add</code> or <code>mul</code> line. The <code>sub %p, 3</code> line became an adder that adds 0xFFFFFFFD (that is, -3), which is cheaper: the compiler's own note says so.</li>
+  <li><span class="legendsw" style="color:#2a7fb8"><b>Argument</b></span> and <span class="legendsw" style="color:#7d5fb0"><b>constant</b></span> cells hold the inputs and the literal numbers until they are used.</li>
+  <li><span class="legendsw" style="color:#b3402a"><b>Ordering</b></span> cells (priority cells) sit in front of an arithmetic cell and make sure its two operands arrive in a fixed order. As the DSL page showed, an adder cares which arrives first, and for subtraction and the like the order is the answer.</li>
+  <li><span class="legendsw" style="color:#6b8a6b"><b>Relay</b></span> cells carry a number along a path across the grid, one square per tick, because cells only talk to their immediate neighbours.</li>
+</ul>
+<p>So the clever part of the compiler is not the arithmetic. It is the plumbing: placing cells, routing relays between them, and fixing the order of arrivals so that nothing is lost the way it was in the DSL page's second run.</p>
+
+<h2>4. Choices and loops</h2>
+<p>There are no jumps on this machine: every cell that exists works whenever data reaches it. So the compiler turns the usual control-flow ideas into dataflow:</p>
+<ul>
+  <li><strong>An <code>if</code> becomes a select.</strong> Choose "A choice" above: the larger of two numbers. Both branches are always computed and a <em>select</em> picks one, built out of smaller operations (a subtract and compare, then masks with and, xor and or). The compiler listed exactly that for it. That is why a tiny function came to 66 cells.</li>
+  <li><strong>A loop is unrolled.</strong> Choose "A loop that runs four times": the body is copied four times, one after another, and the loop counter disappears. That needs the number of times round the loop to be known when compiling. The limits in the source are 64 repeats and 600 instructions after unrolling.</li>
+</ul>
+<p>And these are real refusals, the compiler's own words:</p>
+<div class="bar" id="ll-refbar"></div>
+<pre class="code out" id="ll-ref"></pre>
+<p>The compiler's own caveat on the comparison used above is worth reading too: <em id="ll-cav"></em></p>
+
+<h2>5. Which operations it knows</h2>
+<div class="scroll"><table class="f"><thead><tr><th>LLVM operation</th><th>What it becomes</th></tr></thead><tbody>
+  <tr><td>add, sub, mul</td><td>An adder, a subtractor (as an add of the negated constant where it can), a multiplier.</td></tr>
+  <tr><td>and, or, xor</td><td>A bitwise gate cell.</td></tr>
+  <tr><td>shl, lshr</td><td>A shift, with the amount a literal number written in the code (shown above as "one-operand shl with amount 2").</td></tr>
+  <tr><td>icmp, select, br, phi</td><td>Smaller operations put together, as in the max example: both sides are computed, then one is picked.</td></tr>
+  <tr><td>ashr, zext, sext, trunc</td><td>The source lists these as expandable into the operations above. We did not run them for this page.</td></tr>
+  <tr><td>anything else, such as sdiv</td><td>Refused, with a message (section 4). The source says an escalation scheme for new operations (look in a shared library, then research, then build it in the Composer) is planned and not built.</td></tr>
+</tbody></table></div>
+<p>All of it works on 32-bit integers (<code>i32</code>).</p>
+
+<h2>6. On to the flex family</h2>
+<p>The compiler writes an ICM file for the standard-mode cells. The flex family (the Tang Nano 20K's cells) is reached by two more steps, and we ran them on the first example:</p>
+<div class="flow" id="ll-flow"></div>
+<p id="ll-flowsays"></p>
+<p>The assembler's report says it made 17 cells with 3 joins from a 20-cell file: the three ordering cells are not cells any more in the flex version. There the cells hand data on with a ready and acknowledge handshake, so the order can be arranged by the wiring itself. The files written are the Verilog for the three kinds of cell used (adder, multiplier, ram) and a top file that connects them.</p>
+<div class="msg warn">We generated this Verilog but did not simulate it here: the Verilog simulator is not installed in this session. The project's README says the 41 test programs compiled this way were each run as generated Verilog and matched the VM and plain arithmetic; that is quoted, not re-checked now.</div>
+
+<h2>7. What this is not</h2>
+<ul>
+  <li><strong>It is not a general compiler.</strong> One function, whole numbers only, a fixed list of operations, loops only when the count is known when compiling. Anything else is refused with a reason, never silently wrong, with the one exception the compiler itself warns about: the signed comparison can give a wrong answer when the two numbers are very large and of opposite sign.</li>
+  <li><strong>Arguments are runtime inputs.</strong> The same compiled cells give the right answer for any inputs, as the runs above show, because each argument is a cell you load with a value.</li>
+  <li><strong>An earlier front end still exists.</strong> <code>llvm_ir_frontend_v1.py</code> compiles a restricted counting loop onto a small ring of four cells instead of unrolling it. The command line tool used here is the newer one.</li>
+  <li><strong>The VM runs it; the chip has run only smaller things.</strong> The README lists designs run live on the Tang board (a CORDIC, a relay, a reduction tree). We have not run these examples on the board.</li>
+</ul>
+<p class="fine">Every cell position, count, run result, rewrite note, caveat and refusal on this page was produced by <code>docs/teaching/capture_programming_v1.py</code> running the real compiler (<code>llvm_dag_frontend_v1.py</code>) and the VM on 11 October 2026 and is embedded here. The route-to-flex numbers come from the same script running <code>llvm_cli_v1.py</code>, <code>flexsub_compile_v1.py</code> and <code>project_assemble_v1.py</code>. The compiler's unit tests were not re-run for this page.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('ll-root'); if(!root) return;
+  var DATA=@@PROG_DATA@@;
+  var C=DATA.llvm.cases,R=DATA.llvm.refused,P=DATA.pipeline;
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var ROLE={op:['Compute','#d9822b'],arg:['Argument','#2a7fb8'],const:['Constant','#7d5fb0'],order:['Ordering','#b3402a'],relay:['Relay','#6b8a6b']};
+  var cur=0;
+  var pk=$('ll-pick');
+  C.forEach(function(c,i){var b=document.createElement('button');b.type='button';b.textContent=c.title;b.addEventListener('click',function(){cur=i;show();});pk.appendChild(b);});
+  $('ll-legend').innerHTML=Object.keys(ROLE).map(function(k){return '<span><span class="sw" style="background:'+ROLE[k][1]+'"></span>'+ROLE[k][0]+'</span>';}).join('');
+  [].forEach.call(root.querySelectorAll('.legendsw'),function(){});
+  function show(){
+    var c=C[cur];
+    [].forEach.call(pk.children,function(b,i){b.className=i===cur?'on':'';});
+    $('ll-ir').textContent=c.ir;
+    var rs=c.cells.map(function(x){return x.row;}),cs=c.cells.map(function(x){return x.col;});
+    var r0=Math.min.apply(null,rs),r1=Math.max.apply(null,rs),c0=Math.min.apply(null,cs),c1=Math.max.apply(null,cs);
+    var S=22,G=3,W=(c1-c0+1)*(S+G)+G,H=(r1-r0+1)*(S+G)+G,o='';
+    c.cells.forEach(function(x){
+      var X=G+(x.col-c0)*(S+G),Y=G+(x.row-r0)*(S+G),col=ROLE[x.role][1];
+      o+='<g><title>'+esc(x.id.replace(/^main\./,''))+' ('+x.core+', row '+x.row+', col '+x.col+')</title><rect x="'+X+'" y="'+Y+'" width="'+S+'" height="'+S+'" rx="4" fill="'+col+'" stroke="rgba(0,0,0,.35)"/>'
+        +'<text x="'+(X+S/2)+'" y="'+(Y+S/2+3.5)+'" text-anchor="middle" font-size="9" style="fill:#fff">'+({adder:'+',mul:'×',priority:'P',ram:(x.role==='relay'?'·':'R'),nano:'g',accumulator:'Σ',comparator:'≥',latch:'L',branch:'B',sequencer:'Q'}[x.core]||'?')+'</text></g>';
+    });
+    var sc=Math.min(1,560/W);
+    $('ll-svg').setAttribute('viewBox','0 0 '+W+' '+H);$('ll-svg').style.width=Math.max(220,Math.min(W*1.4,640))+'px';$('ll-svg').innerHTML=o;
+    $('ll-cap').textContent='The cells ('+c.cells.length+' in all)';
+    var cnt={};c.cells.forEach(function(x){cnt[x.role]=(cnt[x.role]||0)+1;});
+    $('ll-counts').innerHTML=Object.keys(ROLE).filter(function(k){return cnt[k];}).map(function(k){return '<span>'+ROLE[k][0]+': '+cnt[k]+'</span>';}).join('');
+    var sm=c.rewrites.length?'The compiler\'s notes on what it rewrote: '+c.rewrites.map(esc).join('; ')+'.':'The compiler made no rewrites for this one.';
+    $('ll-says').innerHTML=esc(sm);
+    var th=$('ll-runs').querySelector('thead'),tb=$('ll-runs').querySelector('tbody');
+    th.innerHTML='<tr>'+c.args.map(function(a){return '<th>%'+esc(a)+'</th>';}).join('')+'<th>VM result</th><th>plain arithmetic</th><th></th></tr>';
+    tb.innerHTML=c.runs.map(function(r){return '<tr>'+r.in.map(function(v){return '<td>'+v+'</td>';}).join('')+'<td>'+r.vm+'</td><td>'+r.expected+'</td><td class="'+(r.ok?'ok':'no')+'">'+(r.ok?'match':'DIFFERENT')+'</td></tr>';}).join('');
+    var all=c.runs.every(function(r){return r.ok;});
+    $('ll-runsays').textContent=c.runs.length+' runs; '+(all?'every one matches plain arithmetic.':'some differ.')+' ('+c.cells.length+' cells, result read from cell '+c.result_name+'.)';
+  }
+  show();
+  var rb=$('ll-refbar'),ri=0;
+  R.forEach(function(r,i){var b=document.createElement('button');b.type='button';b.textContent=r.title;b.addEventListener('click',function(){ri=i;showRef();});rb.appendChild(b);});
+  function showRef(){var r=R[ri];[].forEach.call(rb.children,function(b,i){b.className=i===ri?'on':'';});
+    $('ll-ref').textContent=r.ir+'\n--- the compiler says ---\n'+r.refused.map(function(d){return 'while '+d.what+':\n  problem: '+d.problem+'\n  why: '+d.why+'\n  suggestion: '+d.suggestion;}).join('\n');}
+  showRef();
+  var cav=(C[2].caveats||[])[0]||'';$('ll-cav').textContent=cav.replace(/`/g,'');
+  /* route to flex */
+  var steps=[['LLVM IR','f.ll','the function'],['llvm_cli_v1.py','20 cells','standard ICM file'],['flexsub_compile_v1.py','20 cells','fixes operand order for flex'],['project_assemble_v1.py','17 cells','Verilog for the Tang Nano 20K']];
+  $('ll-flow').innerHTML=steps.map(function(s,i){return (i?'<span class="ar">→</span>':'')+'<div class="st"><b>'+esc(s[0])+'</b>'+esc(s[1])+'<br><small>'+esc(s[2])+'</small></div>';}).join('');
+  $('ll-flowsays').innerHTML='Real output of the three tools: <code>'+esc(P.llvm_cli.replace(/\/tmp\/\S+\//g,''))+'</code>; <code>'+esc(P.flexsub.replace(/\/tmp\/\S+\//g,''))+'</code>; <code>'+esc(P.assemble.split('\n')[0].replace(/\s+/g,' '))+'</code>. Files written: '+P.files.map(function(f){return '<code>'+esc(f)+'</code>';}).join(', ')+'.';
+})();
+</script>
+</div>

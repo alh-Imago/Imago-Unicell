@@ -41,6 +41,16 @@ def _data_uri(rel):
         return "data:image/png;base64," + base64.b64encode(f.read()).decode("ascii")
 
 
+def _prog_html(name):
+    """Fragment with the captured compiler/VM data (docs/teaching/programming_data.json) embedded."""
+    import json as _json
+    with open(os.path.join(HERE, "teaching", name), encoding="utf-8") as f:
+        t = f.read()
+    with open(os.path.join(HERE, "teaching", "programming_data.json"), encoding="utf-8") as f:
+        data = _json.dumps(_json.load(f), separators=(",", ":")).replace("</", "<\\/")
+    return t.replace("@@PROG_DATA@@", data)
+
+
 SECTIONS = [
     {"id":"tour","num":"01","tab":"Tour","title":"Tour: What Is Where, and How to Run It",
      "intro":"The parts you will use, each a link, with a live picture of what is inside one "
@@ -124,9 +134,23 @@ SECTIONS = [
              "into cells, step the clock and watch every register. A labelled screenshot, a "
              "worked 7 + 5, and what it can and cannot show.",
      "html":open(os.path.join(HERE, "teaching", "workbench_fragment.html"), encoding="utf-8").read().replace("@@WB_IMG@@", _data_uri("teaching/workbench_screenshot.png")),
-     "links":[("← Back to The VM","#sec-vm","section"),("Continue → Start","#sec-start","section")]},
+     "links":[("← Back to The VM","#sec-vm","section"),("Continue → The DSL","#sec-dsl","section")]},
 
-    {"id":"start","num":"13","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"dsl","num":"13","tab":"DSL","title":"Programming: The DSL",
+     "intro":"The small text language for placing cells and wiring their faces. Sketch a "
+             "program and see it drawn, watch a real run (including a timing mistake that loses "
+             "a number), see the compiler's own error messages, and meet the tiles.",
+     "html":_prog_html("dsl_fragment.html"),
+     "links":[("← Back to The Workbench","#sec-workbench","section"),("Continue → LLVM IR","#sec-llvm","section")]},
+
+    {"id":"llvm","num":"14","tab":"LLVM IR","title":"Programming: From LLVM IR",
+     "intro":"Take a real function as LLVM IR through the real compiler: see the cells it "
+             "becomes, run them in the VM, see what it refuses, and follow the route on to "
+             "the flex family's Verilog.",
+     "html":_prog_html("llvm_fragment.html"),
+     "links":[("← Back to the DSL","#sec-dsl","section"),("Continue → Start","#sec-start","section")]},
+
+    {"id":"start","num":"15","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -135,9 +159,9 @@ SECTIONS = [
              "course yet.</strong> Each proposed lesson says whether it has actually been "
              "run.",
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
-     "links":[("← Back to The Workbench","#sec-workbench","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
+     "links":[("← Back to LLVM IR","#sec-llvm","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"14","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"16","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "
