@@ -1,0 +1,123 @@
+<!-- Workbench fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     The screenshot is embedded by the builder (@@WB_IMG@@). Links are relative to docs/. -->
+<div class="wbench" id="wb-root">
+<style>
+  .wbench h2{margin-top:1.6em}
+  .wbench .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .wbench .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .wbench .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .wbench .linkrow a.go{background:var(--accent);color:#fff}
+  .wbench .fig{position:relative;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:#0d130f;line-height:0;padding-left:34px}
+  .wbench .fig .inner{position:relative}
+  .wbench .fig img{width:100%;height:auto;display:block}
+  .wbench .box{position:absolute;border:3px solid #f2c24b;border-radius:4px;box-shadow:0 0 0 2px rgba(0,0,0,.35);background:rgba(242,194,75,.12);opacity:0;pointer-events:none;transition:opacity .15s}
+  .wbench .box.on{opacity:1}
+  .wbench .num{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:#f2c24b;color:#1a1a1a;border:2px solid #fff;font:bold 13px/20px var(--mono);text-align:center;cursor:pointer;padding:0;z-index:2;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .wbench .num.on{background:#fff;border-color:#f2c24b}
+  .wbench ol.keys{list-style:none;margin:.8em 0 0;padding:0;display:grid;gap:6px}
+  .wbench ol.keys li{display:grid;grid-template-columns:2.2em 1fr;gap:8px;align-items:start;padding:7px 9px;border:1px solid var(--rule);border-radius:8px;background:rgba(255,255,255,.35);cursor:pointer}
+  .wbench ol.keys li.on{border-color:var(--accent);background:rgba(21,117,109,.12)}
+  .wbench ol.keys .n{display:inline-block;width:1.7em;height:1.7em;border-radius:50%;background:#f2c24b;color:#1a1a1a;font:bold .85em/1.7em var(--mono);text-align:center}
+  .wbench ol.keys b{display:block}
+  .wbench ol.keys p{margin:.15em 0 0;font-size:.92em;line-height:1.4}
+  .wbench pre.icm{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.78em;line-height:1.45;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0}
+  .wbench table.f{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .wbench table.f th,.wbench table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .wbench table.f td:first-child{font-family:var(--mono);white-space:nowrap}
+  .wbench .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .wbench .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+</style>
+
+<p class="lead">The workbench is the part of the VM you can sit at. You give it a small program, press a button, and watch every cell's registers change as the clock ticks. You can also push a value into any cell yourself. It is the quickest way to see the VM, the thing the previous page described, doing something.</p>
+
+<div class="linkrow">
+  <a class="go" href="http://localhost:7420" target="_blank" rel="noopener">Open the workbench (once it is running)</a>
+  <a href="../nano/workbench_v1.py">Workbench source</a>
+  <a href="../nano/vm_ai_port_v1.py">The session behind it</a>
+  <a href="../docs/stripped-cell/design-notes/workbench_scope.md">Design note</a>
+</div>
+<p style="font-size:.9em;color:var(--ink-soft)">The first link works only after you start the workbench on your own computer: run <code>python3 nano/workbench_v1.py</code> in the repository folder. It serves on port 7420 and opens your browser by itself (add a number after it for another port). Leave that terminal window open; closing it stops the workbench.</p>
+
+<h2>1. The workbench, part by part</h2>
+<p>This is a real screenshot, taken after loading the adder demo, delivering a 7 and a 5, adding a second small program as its own region, and pressing Step twice. Click a number on the picture, or a line in the list, to see where it is.</p>
+
+<div class="fig" id="wb-fig"><div class="inner" id="wb-inner"><img src="@@WB_IMG@@" alt="Screenshot of the workbench with an adder and a ram cell on its grid" width="1180" height="1900"></div></div>
+<ol class="keys" id="wb-keys"></ol>
+
+<h2>2. A worked example: 7 + 5</h2>
+<p>This is exactly what we did to get the screenshot, and what the cell showed at each point. The numbers are copied from the screen, not typed from memory.</p>
+<ol>
+  <li>In <strong>Demos</strong> choose <code>adder_pair</code> and press <strong>Load as single program</strong>. The grid shows one cell, an <strong>adder</strong> at row 0, column 0. It sends its result <strong>east</strong> and takes its two inputs from the <strong>north</strong> and the <strong>west</strong>. Everything is zero or false and <code>data_valid</code> is false: nothing to offer yet.</li>
+  <li>In <strong>Execution</strong> set row 0, col 0, dir <code>n</code>, value <code>7</code> and press <strong>Deliver</strong>. The cell now shows <code>a_reg: 7</code> and <code>a_arrived: true</code>. It has the first number and is waiting for the second.</li>
+  <li>Set dir <code>w</code>, value <code>5</code> and press <strong>Deliver</strong> again. The cell shows <code>out_buffer: 12</code> and <code>data_valid: true</code>, and <code>a_arrived</code> has gone back to false. That is the answer, already waiting to be taken.</li>
+  <li>Press <strong>Step</strong> a few times. Nothing changes: <code>out_buffer</code> stays 12 and <code>data_valid</code> stays true. The adder points east, there is no cell to the east to take the 12, so it simply holds it. A value is never thrown away just because nobody has asked for it.</li>
+  <li>Now add a neighbour. Type <code>program p2 { place r1 as ram_constant at (0,0) { out: e init_data: 42 } }</code> into <strong>Program source</strong>, give it the region name <code>answer_ram</code>, clear both offset boxes and press <strong>Load as region</strong>. The workbench finds a free square by itself, (0, 1), right beside the adder, and the grid now shows a ram cell holding 42.</li>
+  <li>Under the button an amber hint appears: the adder sends east toward that ram cell, but the ram cell is not set up to listen from the west, so the 12 would never arrive. The workbench tells you, but it does not stop you, because in the VM a connection with nobody listening is not an error, only data that goes nowhere.</li>
+</ol>
+<div class="says">That hint is the useful lesson. Two cells being next to each other does not join them. Each cell has to be set to send on a face and the neighbour has to be set to listen on the opposite face. The workbench checks this for you; on the real chip nothing does.</div>
+
+<h2>3. Everything is also a request</h2>
+<p>Each button on the page just sends a request to the workbench's small web server, and the server passes it to the VM. So a script can do exactly what you did by hand. These are the calls behind the buttons you used above:</p>
+<table class="f"><thead><tr><th>request</th><th>what it does</th></tr></thead><tbody>
+  <tr><td>GET /state</td><td>Every cell and its registers, as text a program can read.</td></tr>
+  <tr><td>GET /demos, POST /load_demo</td><td>List the ready-made programs; load one.</td></tr>
+  <tr><td>POST /compile</td><td>Replace everything with a new program (DSL or Python).</td></tr>
+  <tr><td>POST /load_region, /clear_region</td><td>Add a program as a named region, or remove just that region.</td></tr>
+  <tr><td>POST /deliver</td><td>Push a value into one cell from one side.</td></tr>
+  <tr><td>POST /step</td><td>Advance the clock by n ticks.</td></tr>
+  <tr><td>POST /start_run, /pause_run, GET /run_status</td><td>Auto-play at a chosen rate, pause it, ask how far it got.</td></tr>
+  <tr><td>POST /save_icm, /load_icm, /load_icm_region</td><td>Write the grid to an ICM file, or read one back (as the whole grid or as a region).</td></tr>
+  <tr><td>POST /set_target, /clear_target, GET /target, /shells</td><td>Make the grid a checked copy of a real card (below).</td></tr>
+</tbody></table>
+<p>For example <code>curl -s -X POST localhost:7420/load_demo -d '{"name":"adder_pair"}'</code>, then two <code>/deliver</code> calls with value 7 from <code>n</code> and 5 from <code>w</code>, gave back the same cell state as the screen: <code>out_buffer</code> 12, <code>data_valid</code> true. The <strong>Save current grid to file</strong> button writes an ICM file, the same kind of file the Composer saves (see its page). For the single adder it holds one record: <code>"core": "adder"</code> at row 0, column 0, with <code>upstream_mask ["n","w"]</code> and <code>downstream_mask ["e"]</code>, and it says <code>"cell_type": "unicell_super_v1"</code>, the standard-mode cell, not a flex cell.</p>
+
+<h2>4. The real target</h2>
+<p>Normally the grid is free: any shape you like. The <strong>Real target</strong> box makes it a checked copy of a real card instead. You give it a card description (a MAN file; the box starts with <code>docs/man/mustang-f100-a10.man.json</code>), a number of cells and a "shell", which is the set of cell kinds that card's chip can actually contain. Pressing <strong>Set target</strong> with the box as it comes (4 cells, shell v3) gave a 2-by-2 grid for the card <code>mustang-f100-a10-01</code> and the allowed kinds accumulator, adder, branch, comparator, latch, nano, ram and sequencer. After that, a program that asks for a cell the card cannot hold is refused. <strong>Clear target</strong> goes back to free mode.</p>
+
+<h2>5. What it is, and what it is not</h2>
+<ul>
+  <li><strong>It runs the standard-mode VM.</strong> The cells on its grid are the standard ones, with fields such as <code>downstream_mask</code> and <code>upstream_mask</code>. They are not the flex cells from the earlier pages (branch with fixed and flowing inputs, priority, shift and so on). Designs for those are drawn and run in the Composer.</li>
+  <li><strong>You give it programs written as text</strong> (the small DSL language, or Python through the Python front end), or ICM files. It has no drawing board. That is the Composer's job; the two are different tools that share the ICM file.</li>
+  <li><strong>It shows registers, not a diagram.</strong> Each cell is a box of its fields. There are no wires drawn and no picture of data moving.</li>
+  <li><strong>Seeing a value is not the same as it having moved.</strong> A cell like the adder holds its answer until a neighbour takes it, so an unchanging screen can mean "finished" or "stuck". The tick counter and the hint line help tell which.</li>
+  <li><strong>Auto-play stops by itself</strong> when a tick produces no activity at all. An empty grid, for instance, ran for one tick and stopped.</li>
+  <li><strong>Machine note:</strong> the workbench script keeps the terminal busy in a tight loop while it waits, so it will use one core of your computer fully until you stop it with Ctrl+C.</li>
+</ul>
+
+<p class="fine">The screenshot, the 7 + 5 values, the hint text, the saved ICM record, the target result and the auto-play stop were all taken from the workbench running in a cloud session on 11 October 2026, in a desktop-width browser. Your screen may lay out differently. The saved-file wording and the list of requests come from the source file's header and from running them; the unit tests for the workbench (<code>tests/vm/test_workbench_v1.py</code>) were not re-run for this page.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('wb-root'); if(!root) return;
+  var PCT={"target": [2.03, 4.37, 47.29, 18.58], "demos": [2.03, 23.68, 47.29, 6.68], "source": [2.03, 31.16, 47.29, 15.26], "region": [2.03, 46.95, 47.29, 11.26], "icm": [2.03, 58.95, 47.29, 18.16], "regions": [2.03, 77.79, 47.29, 6.11], "step": [2.03, 84.63, 47.29, 5.26], "auto": [2.03, 89.89, 47.29, 3.68], "deliver": [2.03, 93.58, 47.29, 5.84], "grid": [50.68, 4.37, 47.29, 12.58]};
+  var K=[
+    ['target','Real target','Optional. Gives the grid the shape of a real card: a card file (MAN), a number of cells and a shell, which lists the cell kinds that chip can hold. Set target resets the grid to that shape; Clear target returns to free mode.'],
+    ['demos','Demos','Ready-made programs: a constant ram cell, an adder, the sentinel monitor, a dual threshold monitor, two independent sentinels, and a Python-written sentinel. Pick one and Load as single program, which replaces whatever was on the grid.'],
+    ['source','Program source','Write your own program here, as DSL text or as Python (choose the language above the box). Compile (replaces everything) loads it as the whole grid.'],
+    ['region','Load as a region','Adds the program in the box to the grid beside what is already there, under a name you choose. Give a row and column offset to place it yourself, or clear both and the workbench finds a free square. Under the button, amber hints warn about connections that would never deliver.'],
+    ['icm','Save and load ICM','Save current grid to file writes every cell on the grid (all regions) to an ICM file, the same format the Composer uses. Load file replaces the grid from a file; the second button adds a file as a region.'],
+    ['regions','Regions loaded','The programs you have added alongside the main one, each with its cell count and a Clear button that removes only that region and leaves the others running.'],
+    ['step','Step and tick','Step advances the clock one tick, Step 10 ten ticks, Refresh re-reads the state without ticking. The green tick counter shows how many ticks have run.'],
+    ['auto','Auto-play','Runs the clock for you at the ticks per second you set, until you press Pause or until a tick does nothing at all (the design has settled).'],
+    ['deliver','Deliver','Push one value into one cell: its row and column, the side it comes in from (n, s, e or w) and the value. This is how you feed numbers to a design by hand, as the 7 and 5 were above.'],
+    ['grid','The grid','One box per cell with its position, the faces it sends on (out) and listens on (in), and its registers. The cell in the second region is outlined. Values update after every action.']
+  ];
+  var ANC={target:'L',demos:'L',source:'L',region:'L',icm:'L',regions:'L',step:'L',auto:'L',deliver:'L',grid:'TR'};
+  var fig=$('wb-inner'),keys=$('wb-keys'),els={};
+  function $(id){return document.getElementById(id);}
+  K.forEach(function(k,i){
+    var p=PCT[k[0]];
+    var bx=document.createElement('div');bx.className='box';bx.style.cssText='left:'+p[0]+'%;top:'+p[1]+'%;width:'+p[2]+'%;height:'+p[3]+'%';fig.appendChild(bx);
+    var nb=document.createElement('button');nb.type='button';nb.className='num';nb.textContent=String(i+1);nb.setAttribute('aria-label','Show part '+(i+1)+': '+k[1]);
+    if(ANC[k[0]]==='L'){nb.style.left='-17px';nb.style.top='calc('+p[1]+'% + 16px)';}
+    else{nb.style.left='calc('+(p[0]+p[2])+'% - 17px)';nb.style.top='calc('+p[1]+'% + 17px)';}
+    fig.appendChild(nb);
+    var li=document.createElement('li');li.innerHTML='<span class="n">'+(i+1)+'</span><div><b></b><p></p></div>';li.querySelector('b').textContent=k[1];li.querySelector('p').textContent=k[2];keys.appendChild(li);
+    els[k[0]]={box:bx,num:nb,li:li};
+    function on(){Object.keys(els).forEach(function(n){var o=els[n],a=(n===k[0]);o.box.className='box'+(a?' on':'');o.num.className='num'+(a?' on':'');o.li.className=a?'on':'';});}
+    nb.addEventListener('click',function(){on();li.scrollIntoView({block:'nearest',behavior:'smooth'});});
+    li.addEventListener('click',on);li.addEventListener('mouseenter',on);
+  });
+})();
+</script>
+</div>

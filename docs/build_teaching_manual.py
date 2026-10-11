@@ -117,9 +117,16 @@ SECTIONS = [
              "imitate. A map of its parts, how the two modes differ, a short Python run you can "
              "repeat, and a plain account of how far each part has been trusted.",
      "html":open(os.path.join(HERE, "teaching", "vm_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to Bits","#sec-bits","section"),("Continue → Start","#sec-start","section")]},
+     "links":[("← Back to Bits","#sec-bits","section"),("Continue → The Workbench","#sec-workbench","section")]},
 
-    {"id":"start","num":"12","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"workbench","num":"12","tab":"Workbench","title":"The Workbench: See and Use the VM",
+     "intro":"The workbench is where you sit at the VM: load a small program, deliver values "
+             "into cells, step the clock and watch every register. A labelled screenshot, a "
+             "worked 7 + 5, and what it can and cannot show.",
+     "html":open(os.path.join(HERE, "teaching", "workbench_fragment.html"), encoding="utf-8").read().replace("@@WB_IMG@@", _data_uri("teaching/workbench_screenshot.png")),
+     "links":[("← Back to The VM","#sec-vm","section"),("Continue → Start","#sec-start","section")]},
+
+    {"id":"start","num":"13","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -128,9 +135,9 @@ SECTIONS = [
              "course yet.</strong> Each proposed lesson says whether it has actually been "
              "run.",
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
-     "links":[("← Back to The VM","#sec-vm","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
+     "links":[("← Back to The Workbench","#sec-workbench","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"13","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"14","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "
