@@ -1,0 +1,2428 @@
+{
+ "experiments": [
+  {
+   "id": "merge",
+   "title": "Two words reach one relay on the same tick",
+   "what": "X sends 1 and Y sends 2 at the same moment into a relay M that listens on two faces. The standard grid ORs what arrives in the same tick into one word. FlexGrid mirrors the flex merge core, whose mode you choose.",
+   "note": "arbitrate is for ALTERNATIVE paths (take one, then the other); join-or is for HALVES of one item (wait for all, then OR). The standard grid has only the second behaviour, and without waiting.",
+   "outs": [
+    [
+     1,
+     2
+    ]
+   ],
+   "records": [
+    {
+     "id": "X",
+     "row": 0,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": "x"
+    },
+    {
+     "id": "Y",
+     "row": 2,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": "y"
+    },
+    {
+     "id": "M",
+     "row": 1,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "n",
+       "s"
+      ],
+      "downstream_mask": [
+       "e"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "R",
+     "row": 1,
+     "col": 2,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": "r"
+    }
+   ],
+   "runs": [
+    {
+     "label": "SuperGrid",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       1
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       2
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 3,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 3
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, merge_mode arbitrate",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       1
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       2
+      ]
+     ],
+     "width": 32,
+     "kw": {
+      "merge_mode": "arbitrate"
+     },
+     "result": {
+      "got": [
+       {
+        "tick": 3,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 1
+       },
+       {
+        "tick": 5,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 2
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, merge_mode join-or",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       1
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       2
+      ]
+     ],
+     "width": 32,
+     "kw": {
+      "merge_mode": "join-or"
+     },
+     "result": {
+      "got": [
+       {
+        "tick": 3,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 3
+       }
+      ],
+      "warn": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "addsame",
+   "title": "Adder, both operands on the same tick",
+   "what": "A sends 7 and B sends 5 so that both reach the adder in one tick. The real flex cell takes one operand, then the other.",
+   "note": "In the standard grid the two arrivals are ORed into one operand (7 OR 5 = 7) and the adder waits for a second that never comes: nothing leaves. That is the 'same-tick operand loss' on the DSL page. FlexGrid takes the lower face first, then the other, so it adds.",
+   "outs": [
+    [
+     1,
+     2
+    ]
+   ],
+   "records": [
+    {
+     "id": "A",
+     "row": 0,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": "a"
+    },
+    {
+     "id": "B",
+     "row": 2,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": "b"
+    },
+    {
+     "id": "ADD",
+     "row": 1,
+     "col": 1,
+     "core": "adder",
+     "cfg": {
+      "upstream_mask": [
+       "n",
+       "s"
+      ],
+      "downstream_mask": [
+       "e"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "R",
+     "row": 1,
+     "col": 2,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": "r"
+    }
+   ],
+   "runs": [
+    {
+     "label": "SuperGrid",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       7
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       5
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       7
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       5
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 4,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 12
+       }
+      ],
+      "warn": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "sub",
+   "title": "Subtract: order matters",
+   "what": "The same subtractor, with 7 and 5. Same tick: no order. One tick apart: first arrival minus second.",
+   "note": "When the arrival order is set by the design, both grids agree (5 then 7 gives 5 - 7 = 4294967294, the 32-bit wrap). When it is not, the real cell has no rule, so FlexGrid refuses instead of guessing. The standard grid silently produces nothing.",
+   "outs": [
+    [
+     1,
+     2
+    ]
+   ],
+   "records": [
+    {
+     "id": "A",
+     "row": 0,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": "a"
+    },
+    {
+     "id": "B",
+     "row": 2,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": "b"
+    },
+    {
+     "id": "ADD",
+     "row": 1,
+     "col": 1,
+     "core": "adder",
+     "cfg": {
+      "upstream_mask": [
+       "n",
+       "s"
+      ],
+      "downstream_mask": [
+       "e"
+      ],
+      "subtract_mode": 1
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "R",
+     "row": 1,
+     "col": 2,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": "r"
+    }
+   ],
+   "runs": [
+    {
+     "label": "SuperGrid, same tick",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       7
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       5
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, same tick",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       7
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       5
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "refused": "flex VM: both operands of a subtract arrive in the same tick -- there is no operand order (the real cell orders them by arrival); separate their path lengths",
+      "got": []
+     }
+    },
+    {
+     "label": "SuperGrid, A first (7 then 5)",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       7
+      ],
+      [
+       3,
+       [
+        2,
+        1
+       ],
+       5
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 6,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 2
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, A first (7 then 5)",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       7
+      ],
+      [
+       3,
+       [
+        2,
+        1
+       ],
+       5
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 6,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 2
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "SuperGrid, B first (5 then 7)",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       5
+      ],
+      [
+       3,
+       [
+        0,
+        1
+       ],
+       7
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 6,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 4294967294
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, B first (5 then 7)",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       5
+      ],
+      [
+       3,
+       [
+        0,
+        1
+       ],
+       7
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 6,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 4294967294
+       }
+      ],
+      "warn": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "carry",
+   "title": "The adder's carry word",
+   "what": "0xFFFFFFFF + 2 overflows 32 bits. With second_output on, the adder sends the sum (1) to the east and the carry (1) to the west. Operands are one tick apart so both grids can run it.",
+   "note": "Both agree. Since ledger #1036 the second output is part of the standard cells too; the FlexGrid class still carries an old flag, _ALLOWS_CARRY_MODE, that nothing reads any more (text search of nano/ and tools/).",
+   "outs": [
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "records": [
+    {
+     "id": "A",
+     "row": 0,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": "a"
+    },
+    {
+     "id": "B",
+     "row": 2,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": "b"
+    },
+    {
+     "id": "ADD",
+     "row": 1,
+     "col": 1,
+     "core": "adder",
+     "cfg": {
+      "upstream_mask": [
+       "n",
+       "s"
+      ],
+      "downstream_mask": [
+       "e"
+      ],
+      "second_output": 1,
+      "second_downstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "R",
+     "row": 1,
+     "col": 2,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": "r"
+    },
+    {
+     "id": "C",
+     "row": 1,
+     "col": 0,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "e"
+      ]
+     },
+     "ad": {},
+     "io": "c"
+    }
+   ],
+   "runs": [
+    {
+     "label": "SuperGrid",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       4294967295
+      ],
+      [
+       3,
+       [
+        2,
+        1
+       ],
+       2
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 6,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 1
+       },
+       {
+        "tick": 7,
+        "cell": [
+         1,
+         0
+        ],
+        "value": 1
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       4294967295
+      ],
+      [
+       3,
+       [
+        2,
+        1
+       ],
+       2
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 6,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 1
+       },
+       {
+        "tick": 7,
+        "cell": [
+         1,
+         0
+        ],
+        "value": 1
+       }
+      ],
+      "warn": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "shift",
+   "title": "A shift the standard chain has no tap for",
+   "what": "A relay with a left shift of 3 on its output, fed 0x2ABCD. The standard add-on chain has coarse taps at 1, 2, 4, 8, 12, 16, 20, 24 and 28 plus a fine 0-3 stage. In flex the shift is pure wiring, so any amount works.",
+   "note": "Observed: at 32 bits the standard grid passed the word through unshifted for shift_amt 3 (no error), FlexGrid shifted it. At 18 bits the standard grid refuses every enabled add-on; FlexGrid runs it on 18 bits (and wraps at bit 17).",
+   "outs": [
+    [
+     0,
+     1
+    ]
+   ],
+   "records": [
+    {
+     "id": "S",
+     "row": 0,
+     "col": 0,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ]
+     },
+     "ad": {
+      "shift_en": 1,
+      "shift_amt": 3,
+      "direction": 0
+     },
+     "io": "s"
+    },
+    {
+     "id": "O",
+     "row": 0,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": "o"
+    }
+   ],
+   "runs": [
+    {
+     "label": "SuperGrid, width 32",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        0
+       ],
+       175053
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 2,
+        "cell": [
+         0,
+         1
+        ],
+        "value": 175053
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, width 32",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        0
+       ],
+       175053
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 2,
+        "cell": [
+         0,
+         1
+        ],
+        "value": 1400424
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "SuperGrid, width 18",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        0
+       ],
+       175053
+      ]
+     ],
+     "width": 18,
+     "kw": {},
+     "result": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 18",
+      "got": []
+     }
+    },
+    {
+     "label": "FlexGrid, width 18",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        0
+       ],
+       175053
+      ]
+     ],
+     "width": 18,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 2,
+        "cell": [
+         0,
+         1
+        ],
+        "value": 89704
+       }
+      ],
+      "warn": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "width",
+   "title": "Word width: the library adder at 32 and 18 bits",
+   "what": "The 27-cell adder from the Composer's library, 200000 + 100000. At 32 bits the answer is 300000. At 18 bits the grid is 2^18 = 262144 wide, so it wraps to 300000 - 262144 = 37856.",
+   "note": "Plain relays, adders and multipliers behave the same in both. The difference is in what each will accept at other widths (the matrix below).",
+   "outs": [
+    [
+     4,
+     14
+    ]
+   ],
+   "records": [
+    {
+     "id": "A",
+     "row": 2,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": "a"
+    },
+    {
+     "id": "B",
+     "row": 6,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": "b"
+    },
+    {
+     "id": "OP",
+     "row": 4,
+     "col": 8,
+     "core": "adder",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w",
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "R",
+     "row": 4,
+     "col": 14,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": "r"
+    },
+    {
+     "id": "A_OP.1",
+     "row": 3,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "s"
+      ],
+      "upstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "A_OP.2",
+     "row": 4,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "A_OP.3",
+     "row": 4,
+     "col": 2,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "A_OP.4",
+     "row": 4,
+     "col": 3,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "A_OP.5",
+     "row": 4,
+     "col": 4,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "A_OP.6",
+     "row": 4,
+     "col": 5,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "A_OP.7",
+     "row": 4,
+     "col": 6,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "A_OP.8",
+     "row": 4,
+     "col": 7,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "OP_R.17",
+     "row": 4,
+     "col": 9,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "OP_R.18",
+     "row": 4,
+     "col": 10,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "OP_R.19",
+     "row": 4,
+     "col": 11,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "OP_R.20",
+     "row": 4,
+     "col": 12,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "OP_R.21",
+     "row": 4,
+     "col": 13,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.22",
+     "row": 5,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.23",
+     "row": 5,
+     "col": 2,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.24",
+     "row": 5,
+     "col": 3,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.25",
+     "row": 5,
+     "col": 4,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.26",
+     "row": 5,
+     "col": 5,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.27",
+     "row": 5,
+     "col": 6,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.28",
+     "row": 5,
+     "col": 7,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "s"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.29",
+     "row": 6,
+     "col": 7,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ],
+      "upstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.30",
+     "row": 6,
+     "col": 8,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "n"
+      ],
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "B_OP.31",
+     "row": 5,
+     "col": 8,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "n"
+      ],
+      "upstream_mask": [
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": null
+    }
+   ],
+   "runs": [
+    {
+     "label": "SuperGrid, width 32",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       200000
+      ],
+      [
+       0,
+       [
+        6,
+        1
+       ],
+       100000
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 18,
+        "cell": [
+         4,
+         14
+        ],
+        "value": 300000
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, width 32",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       200000
+      ],
+      [
+       0,
+       [
+        6,
+        1
+       ],
+       100000
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 18,
+        "cell": [
+         4,
+         14
+        ],
+        "value": 300000
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "SuperGrid, width 18",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       200000
+      ],
+      [
+       0,
+       [
+        6,
+        1
+       ],
+       100000
+      ]
+     ],
+     "width": 18,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 18,
+        "cell": [
+         4,
+         14
+        ],
+        "value": 37856
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, width 18",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       200000
+      ],
+      [
+       0,
+       [
+        6,
+        1
+       ],
+       100000
+      ]
+     ],
+     "width": 18,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 18,
+        "cell": [
+         4,
+         14
+        ],
+        "value": 37856
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, width 8",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       200
+      ],
+      [
+       0,
+       [
+        6,
+        1
+       ],
+       100
+      ]
+     ],
+     "width": 8,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 18,
+        "cell": [
+         4,
+         14
+        ],
+        "value": 44
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, width 36",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       200000
+      ],
+      [
+       0,
+       [
+        6,
+        1
+       ],
+       100000
+      ]
+     ],
+     "width": 36,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 18,
+        "cell": [
+         4,
+         14
+        ],
+        "value": 300000
+       }
+      ],
+      "warn": []
+     }
+    }
+   ],
+   "note2": "27 cells; drawn without the diagram"
+  },
+  {
+   "id": "merge3",
+   "title": "Three sources into one relay",
+   "what": "X, Y and Z send 1, 2 and 4 together into one relay.",
+   "note": "Three-way arbitrate would be a tree of round-robin cores whose grant order FlexGrid does not mirror, so it is refused. join-or of any number of sources is mirrored.",
+   "outs": [
+    [
+     1,
+     2
+    ]
+   ],
+   "records": [
+    {
+     "id": "X",
+     "row": 0,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "s"
+      ]
+     },
+     "ad": {},
+     "io": "x"
+    },
+    {
+     "id": "Y",
+     "row": 2,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "n"
+      ]
+     },
+     "ad": {},
+     "io": "y"
+    },
+    {
+     "id": "Z",
+     "row": 1,
+     "col": 0,
+     "core": "ram",
+     "cfg": {
+      "downstream_mask": [
+       "e"
+      ]
+     },
+     "ad": {},
+     "io": "z"
+    },
+    {
+     "id": "M",
+     "row": 1,
+     "col": 1,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "n",
+       "s",
+       "w"
+      ],
+      "downstream_mask": [
+       "e"
+      ]
+     },
+     "ad": {},
+     "io": null
+    },
+    {
+     "id": "R",
+     "row": 1,
+     "col": 2,
+     "core": "ram",
+     "cfg": {
+      "upstream_mask": [
+       "w"
+      ]
+     },
+     "ad": {},
+     "io": "r"
+    }
+   ],
+   "runs": [
+    {
+     "label": "SuperGrid",
+     "grid": "std",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       1
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       2
+      ],
+      [
+       0,
+       [
+        1,
+        0
+       ],
+       4
+      ]
+     ],
+     "width": 32,
+     "kw": {},
+     "result": {
+      "got": [
+       {
+        "tick": 3,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 7
+       }
+      ],
+      "warn": []
+     }
+    },
+    {
+     "label": "FlexGrid, arbitrate",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       1
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       2
+      ],
+      [
+       0,
+       [
+        1,
+        0
+       ],
+       4
+      ]
+     ],
+     "width": 32,
+     "kw": {
+      "merge_mode": "arbitrate"
+     },
+     "result": {
+      "refused": "flex merge of 3 sources into M in arbitrate mode is a tree of round-robin cores whose grant order is not mirrored; join-or of any number of sources is"
+     }
+    },
+    {
+     "label": "FlexGrid, join-or",
+     "grid": "flex",
+     "sched": [
+      [
+       0,
+       [
+        0,
+        1
+       ],
+       1
+      ],
+      [
+       0,
+       [
+        2,
+        1
+       ],
+       2
+      ],
+      [
+       0,
+       [
+        1,
+        0
+       ],
+       4
+      ]
+     ],
+     "width": 32,
+     "kw": {
+      "merge_mode": "join-or"
+     },
+     "result": {
+      "got": [
+       {
+        "tick": 3,
+        "cell": [
+         1,
+         2
+        ],
+        "value": 7
+       }
+      ],
+      "warn": []
+     }
+    }
+   ]
+  }
+ ],
+ "matrix": {
+  "widths": [
+   32,
+   36,
+   18,
+   8,
+   4
+  ],
+  "feats": [
+   {
+    "key": "relay",
+    "label": "A plain relay (ram)",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "ok": 1
+     },
+     "std/18": {
+      "ok": 1
+     },
+     "std/8": {
+      "ok": 1
+     },
+     "std/4": {
+      "ok": 1
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "adder",
+    "label": "An adder",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "ok": 1
+     },
+     "std/18": {
+      "ok": 1
+     },
+     "std/8": {
+      "ok": 1
+     },
+     "std/4": {
+      "ok": 1
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "nano7",
+    "label": "Nano gate, topology 0x7 (plain two-arrival gate)",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "refused": "the nano core is not available at width 36: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/18": {
+      "refused": "the nano core is not available at width 18: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/8": {
+      "refused": "the nano core is not available at width 8: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/4": {
+      "refused": "the nano core is not available at width 4: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "nano5",
+    "label": "Nano gate, topology 0x5 (no flex gate for it)",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "refused": "the nano core is not available at width 36: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/18": {
+      "refused": "the nano core is not available at width 18: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/8": {
+      "refused": "the nano core is not available at width 8: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/4": {
+      "refused": "the nano core is not available at width 4: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "refused": "flex nano at width 36: topology 0x5 is not implemented by the flex nano (its default would silently pass the held value)"
+     },
+     "flex/18": {
+      "refused": "flex nano at width 18: topology 0x5 is not implemented by the flex nano (its default would silently pass the held value)"
+     },
+     "flex/8": {
+      "refused": "flex nano at width 8: topology 0x5 is not implemented by the flex nano (its default would silently pass the held value)"
+     },
+     "flex/4": {
+      "refused": "flex nano at width 4: topology 0x5 is not implemented by the flex nano (its default would silently pass the held value)"
+     }
+    }
+   },
+   {
+    "key": "nanordy",
+    "label": "Nano gate, topology 0x7 with ready=1",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "refused": "the nano core is not available at width 36: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/18": {
+      "refused": "the nano core is not available at width 18: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/8": {
+      "refused": "the nano core is not available at width 8: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "std/4": {
+      "refused": "the nano core is not available at width 4: its arithmetic lives in CACell, which is not yet width-aware (32 only)"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "shift",
+    "label": "Left shift add-on (shift_amt 3)",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 36"
+     },
+     "std/18": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 18"
+     },
+     "std/8": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 8"
+     },
+     "std/4": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 4"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "mask",
+    "label": "Nibble mask add-on",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "refused": "add-ons ['mask_en'] are defined on 32-bit lanes only and are not available at width 36"
+     },
+     "std/18": {
+      "refused": "add-ons ['mask_en'] are defined on 32-bit lanes only and are not available at width 18"
+     },
+     "std/8": {
+      "refused": "add-ons ['mask_en'] are defined on 32-bit lanes only and are not available at width 8"
+     },
+     "std/4": {
+      "refused": "add-ons ['mask_en'] are defined on 32-bit lanes only and are not available at width 4"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "invert",
+    "label": "Invert add-on",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "refused": "add-ons ['invert_en'] are defined on 32-bit lanes only and are not available at width 36"
+     },
+     "std/18": {
+      "refused": "add-ons ['invert_en'] are defined on 32-bit lanes only and are not available at width 18"
+     },
+     "std/8": {
+      "refused": "add-ons ['invert_en'] are defined on 32-bit lanes only and are not available at width 8"
+     },
+     "std/4": {
+      "refused": "add-ons ['invert_en'] are defined on 32-bit lanes only and are not available at width 4"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "lanecut",
+    "label": "Right shift with lane_cut",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 36"
+     },
+     "std/18": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 18"
+     },
+     "std/8": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 8"
+     },
+     "std/4": {
+      "refused": "add-ons ['shift_en'] are defined on 32-bit lanes only and are not available at width 4"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "refused": "flex add-ons at width 36: lane_cut (a byte-lane cut on right shifts) has no 36-bit definition and no flex cell; cell X at (0, 0) is refused"
+     },
+     "flex/18": {
+      "refused": "flex add-ons at width 18: lane_cut (a byte-lane cut on right shifts) has no 18-bit definition and no flex cell; cell X at (0, 0) is refused"
+     },
+     "flex/8": {
+      "refused": "flex add-ons at width 8: lane_cut (a byte-lane cut on right shifts) has no 8-bit definition and no flex cell; cell X at (0, 0) is refused"
+     },
+     "flex/4": {
+      "refused": "flex add-ons at width 4: lane_cut (a byte-lane cut on right shifts) has no 4-bit definition and no flex cell; cell X at (0, 0) is refused"
+     }
+    }
+   },
+   {
+    "key": "seq",
+    "label": "Sequencer",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "ok": 1
+     },
+     "std/18": {
+      "ok": 1
+     },
+     "std/8": {
+      "ok": 1
+     },
+     "std/4": {
+      "ok": 1
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "refused": "flex sequencer at width 4: the real sequencer_cell_v4sa stores 8-bit values and zero-extends them to the data width, and does not elaborate below 8 bits"
+     }
+    }
+   },
+   {
+    "key": "acc",
+    "label": "Accumulator",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "warn": "VM width 36: the ['accumulator'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/18": {
+      "warn": "VM width 18: the ['accumulator'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/8": {
+      "warn": "VM width 8: the ['accumulator'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/4": {
+      "warn": "VM width 4: the ['accumulator'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "branch",
+    "label": "Branch",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "warn": "VM width 36: the ['branch'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/18": {
+      "warn": "VM width 18: the ['branch'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/8": {
+      "warn": "VM width 8: the ['branch'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/4": {
+      "warn": "VM width 4: the ['branch'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "pri",
+    "label": "Priority",
+    "cells": {
+     "std/32": {
+      "ok": 1
+     },
+     "std/36": {
+      "warn": "VM width 36: the ['priority'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/18": {
+      "warn": "VM width 18: the ['priority'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/8": {
+      "warn": "VM width 8: the ['priority'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "std/4": {
+      "warn": "VM width 4: the ['priority'] core(s) are width-threaded but NOT yet verified individually at this width (the rest of the suite exercises them at 32)"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "merge3a",
+    "label": "3-way merge, merge_mode arbitrate",
+    "cells": {
+     "std/32": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/36": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/18": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/8": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/4": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "flex/32": {
+      "refused": "flex merge of 3 sources into M in arbitrate mode is a tree of round-robin cores whose grant order is not mirrored; join-or of any number of sources is"
+     },
+     "flex/36": {
+      "refused": "flex merge of 3 sources into M in arbitrate mode is a tree of round-robin cores whose grant order is not mirrored; join-or of any number of sources is"
+     },
+     "flex/18": {
+      "refused": "flex merge of 3 sources into M in arbitrate mode is a tree of round-robin cores whose grant order is not mirrored; join-or of any number of sources is"
+     },
+     "flex/8": {
+      "refused": "flex merge of 3 sources into M in arbitrate mode is a tree of round-robin cores whose grant order is not mirrored; join-or of any number of sources is"
+     },
+     "flex/4": {
+      "refused": "flex merge of 3 sources into M in arbitrate mode is a tree of round-robin cores whose grant order is not mirrored; join-or of any number of sources is"
+     }
+    }
+   },
+   {
+    "key": "merge3j",
+    "label": "3-way merge, merge_mode join-or",
+    "cells": {
+     "std/32": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/36": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/18": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/8": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/4": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "flex/32": {
+      "ok": 1
+     },
+     "flex/36": {
+      "ok": 1
+     },
+     "flex/18": {
+      "ok": 1
+     },
+     "flex/8": {
+      "ok": 1
+     },
+     "flex/4": {
+      "ok": 1
+     }
+    }
+   },
+   {
+    "key": "badmode",
+    "label": "Merge with merge_mode 'roundrobin'",
+    "cells": {
+     "std/32": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/36": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/18": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/8": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "std/4": {
+      "na": "merge_mode is a FlexGrid option; SuperGrid has none"
+     },
+     "flex/32": {
+      "refused": "unknown merge mode 'roundrobin' for '*': use one of ['arbitrate', 'join-or']"
+     },
+     "flex/36": {
+      "refused": "unknown merge mode 'roundrobin' for '*': use one of ['arbitrate', 'join-or']"
+     },
+     "flex/18": {
+      "refused": "unknown merge mode 'roundrobin' for '*': use one of ['arbitrate', 'join-or']"
+     },
+     "flex/8": {
+      "refused": "unknown merge mode 'roundrobin' for '*': use one of ['arbitrate', 'join-or']"
+     },
+     "flex/4": {
+      "refused": "unknown merge mode 'roundrobin' for '*': use one of ['arbitrate', 'join-or']"
+     }
+    }
+   }
+  ]
+ },
+ "session": {
+  "grid": "FlexGrid",
+  "width": 18,
+  "settled_ticks": 18,
+  "r": 12
+ },
+ "constructors": {
+  "std_sig": "SuperGrid(records, width=32)",
+  "flex_sig": "FlexGrid(records, width=32, merge_mode=\"arbitrate\")",
+  "width_range": [
+   1,
+   64
+  ]
+ }
+}

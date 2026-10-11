@@ -1,0 +1,257 @@
+<!-- SuperGrid and FlexGrid fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data captured by docs/teaching/capture_grids_v1.py is embedded at @@GRIDS_DATA@@. -->
+<div class="grids" id="gr-root">
+<style>
+  .grids h2{margin-top:1.6em}
+  .grids .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .grids button,.grids select,.grids input{font:inherit;font-size:.9em}
+  .grids .btn{border:2px solid var(--rule);border-radius:8px;background:#fff;padding:5px 11px;cursor:pointer;color:var(--ink);line-height:1.25;text-align:left}
+  .grids .btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .grids .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin:.5em 0}
+  .grids .panel{margin:.8em 0;padding:10px 14px;border:1px solid var(--rule);border-left:5px solid var(--accent);border-radius:8px;background:rgba(21,117,109,.07)}
+  .grids .panel h3{margin:0 0 .3em;font-size:1.05em}
+  .grids .panel p{margin:.35em 0;font-size:.95em;line-height:1.45}
+  .grids table{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .grids th,.grids td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .grids pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.8em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0}
+  .grids pre.out{background:#1b2420;color:#bfe3d6;font-family:var(--mono);font-size:.78em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.2em 0 .8em}
+  .grids .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .grids .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .grids .ctl{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:.5em 0}
+  .grids .ctl label{font-size:.9em;color:var(--ink-soft)}
+  .grids .ctl select,.grids .ctl input[type=text]{margin-left:6px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:#fff}
+  .grids .svgbox{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.4);padding:8px;overflow-x:auto}
+  .grids .runs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin:.8em 0}
+  .grids .run{border:2px solid var(--rule);border-radius:9px;background:#fff;padding:8px 10px}
+  .grids .run.std{border-left:6px solid #8a6d1d}
+  .grids .run.flex{border-left:6px solid var(--accent)}
+  .grids .run h4{margin:0 0 .3em;font-size:.92em}
+  .grids .run .chip{display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border-radius:12px;background:var(--paper-edge);font-family:var(--mono);font-size:.8em}
+  .grids .run .none{color:#8a3b25;font-size:.88em}
+  .grids .run .ref{color:#8a3b25;font-size:.84em;line-height:1.4}
+  .grids .run .hex{color:var(--ink-soft);font-size:.78em}
+  .grids td.m{cursor:pointer;text-align:center;font-family:var(--mono);font-size:.8em;min-width:3.2em}
+  .grids td.ok{background:rgba(21,117,109,.18)}
+  .grids td.warn{background:rgba(200,160,40,.28)}
+  .grids td.ref{background:rgba(170,60,40,.22)}
+  .grids td.na{background:rgba(0,0,0,.05);color:var(--ink-soft)}
+  .grids td.m.sel{outline:3px solid var(--ink)}
+  .grids .leg span{display:inline-block;padding:1px 8px;margin-right:6px;border-radius:5px;font-size:.8em}
+  .grids .wrapx{overflow-x:auto}
+</style>
+
+<p class="lead">The <a class="ref" href="#sec-vm">VM page</a> showed the map. This page is about the two grids inside it. <strong>SuperGrid</strong> is the standard one, the long-standing reference. <strong>FlexGrid</strong> is a subclass of it that behaves like the flex cells on the Tang Nano 20K. Everything below was run on the real Python, on small designs built for the page, and the answers are what came back. The Verilog was not run for this page.</p>
+
+<h2>1. Which tool uses which grid</h2>
+<table>
+  <thead><tr><th>Tool</th><th>Grid it builds</th><th>Where you can see it</th></tr></thead>
+  <tbody>
+    <tr><td>The Composer's Start / Step / Run panel</td><td><strong>FlexGrid</strong>, through <code>StepSim</code></td><td><code>tools/flex_layout_sim_v1.py</code> line 29: <code>FlexGrid(recs, width=self.width)</code></td></tr>
+    <tr><td>The Workbench</td><td><strong>SuperGrid</strong>, always</td><td><code>nano/workbench_v1.py</code>: every reset and load builds <code>VMSession(SuperGrid(...))</code></td></tr>
+    <tr><td><code>VMSession.from_dsl / from_python / from_llvm / from_icm_file</code></td><td><strong>SuperGrid</strong></td><td><code>nano/vm_ai_port_v1.py</code></td></tr>
+    <tr><td><code>VMSession.from_man</code> (the mirror check against a card)</td><td><strong>SuperGrid</strong></td><td>same file; it checks the shape of the layout against the MAN file and then builds a SuperGrid</td></tr>
+    <tr><td><code>VMSession(grid)</code> by hand</td><td>whichever grid you hand it</td><td>run for this page: <code>VMSession(FlexGrid(records, width=18))</code> worked (section 5)</td></tr>
+  </tbody>
+</table>
+<div class="says">So today the Composer is flex-only, and the Workbench and the mirror check are standard-only. Making the Workbench and the mirror VM able to build either grid is not done; the next pages cover both of those tools and say what that means for each.</div>
+
+<h2>2. Starting a grid: the options</h2>
+<p>Both grids are made from a list of cell records (an ICM file loaded into memory). The options are few. Pick a grid, a width and a feature below and the page shows the Python line you would write and what the grid really did with that feature when it was built and run for this page.</p>
+<div class="ctl">
+  <span class="btnrow" id="gr-gsel"></span>
+  <span class="btnrow" id="gr-wsel"></span>
+</div>
+<div class="ctl">
+  <label>Feature <select id="gr-feat"></select></label>
+  <label id="gr-mmwrap">merge_mode <select id="gr-mm"><option>arbitrate</option><option>join-or</option><option>cellname=join-or,arbitrate</option></select></label>
+</div>
+<pre class="code" id="gr-line"></pre>
+<div class="panel" id="gr-feres" aria-live="polite"></div>
+<table>
+  <thead><tr><th>Option</th><th>On</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>width</code></td><td>both</td><td>Bits per word, 1 to 64 (0, 65 and above are refused with &ldquo;min_bit_width must be between 1 and 64&rdquo;). Default 32. Every word in transit is cut to this many bits.</td></tr>
+    <tr><td><code>merge_mode</code></td><td>FlexGrid only</td><td>What a relay that listens on several faces does with simultaneous words: <code>"arbitrate"</code> (default), <code>"join-or"</code>, or a list such as <code>"cell=join-or,arbitrate"</code> (a mode per consuming cell, the last bare word is the default), or a dict. Anything else is refused: &ldquo;unknown merge mode&hellip; use one of ['arbitrate', 'join-or']&rdquo;.</td></tr>
+    <tr><td><code>min_bit_width</code> in the ICM file header</td><td>the design</td><td>The width a design asks for. <code>StepSim</code> (and so the Composer) uses it when no width is given; with no flag the width is 32. Files wider than 64 or below 1 are refused on load.</td></tr>
+    <tr><td><code>width</code> in the Composer's sim request</td><td>Composer server</td><td>The server accepts a width in the &ldquo;start&rdquo; request (<code>nano/composer_page_v1.py</code> line 129), but the Start button on the page does not send one, so in practice the design's own flag decides.</td></tr>
+    <tr><td><code>--width</code> / <code>-w</code> on the assembler</td><td>the build, not the VM</td><td>That is the width of the Verilog the assembler writes. It is separate from the VM's width; see the <a class="ref" href="#sec-assembler">Assembler</a> tab for its flags and rules, and the <a class="ref" href="#sec-man">MAN File</a> tab for how a card's native width comes into it.</td></tr>
+  </tbody>
+</table>
+
+<h2>3. The same design on both grids</h2>
+<p>Each experiment is a few cells with the same words injected on the same ticks into each grid. Click one, then read the cards. Gold-edged cards are SuperGrid, green-edged cards are FlexGrid. A chip such as <code>tick 3 → 1</code> means the output cell held the value 1 after tick 3.</p>
+<div class="btnrow" id="gr-exps"></div>
+<div class="panel" id="gr-expinfo" aria-live="polite"></div>
+<div class="svgbox"><svg id="gr-svg" role="img" aria-label="The cells of this experiment" width="100%" height="120"></svg></div>
+<div class="runs" id="gr-runs"></div>
+<div class="says" id="gr-note"></div>
+
+<h2>4. What each grid will accept</h2>
+<p>Each row is a feature built on its own at each width, on each grid. Rows that need a running word (the add-ons) were fed a word and ticked a few times, because the standard grid only objects when the add-on is used. Click any square to read the message the grid gave.</p>
+<p class="leg"><span style="background:rgba(21,117,109,.18)">accepted</span><span style="background:rgba(200,160,40,.28)">accepted with a warning</span><span style="background:rgba(170,60,40,.22)">refused</span><span style="background:rgba(0,0,0,.05)">not an option there</span></p>
+<div class="wrapx"><table id="gr-matrix"></table></div>
+<div class="panel" id="gr-mres" aria-live="polite"><p>Click a square.</p></div>
+<div class="says">Reading it: the standard grid's honest range is <strong>32 bits</strong>. At any other width it still moves words and adds, but refuses add-ons and the nano gate, and warns for the accumulator, branch and priority cores because no one has checked those against hardware at other widths. FlexGrid exists to be right at other widths: the flex cells are built with a width, so it accepts the add-ons (as wiring), the nano gates the flex generator knows (12 topologies), and the cores that were checked against the real flex Verilog at widths 4 to 36.</div>
+
+<h2>5. Handing either grid to a session</h2>
+<p><code>VMSession</code> is the driver port the Workbench and scripts use. It does not care which grid it is given. This was run for this page, with the library adder at 18 bits:</p>
+<pre class="code">import sys
+sys.path.insert(0, "nano"); sys.path.insert(0, "tools")
+import icm_v3
+from flex_grid_v1 import FlexGrid
+from vm_ai_port_v1 import VMSession
+
+icm = icm_v3.IcmV3File.load("nano/library_std/add.icm.json")
+s = VMSession(FlexGrid(icm.records, width=18))
+s.inject(2, 1, 7); s.inject(6, 1, 5)       # the a and b input cells
+print(s.run_to_quiescence())               # ticks until nothing moves
+print(s.describe_cell(4, 14)["ram"]["data_reg"])   # the r output cell</pre>
+<pre class="out" id="gr-sess"></pre>
+<p>That is the route a later Workbench or mirror page would take to offer a flex variant: the session already accepts it; what is missing is the choice in those tools.</p>
+
+<h2>6. How far to trust this page</h2>
+<ul>
+  <li><strong>Python only.</strong> These runs are the Python VM. Whether FlexGrid matches the Verilog is claimed in <code>nano/flex_grid_v1.py</code> and in the ledger (cell by cell, at widths 4 to 36, plus ten designs on the board); this page did not repeat it, and no Verilog simulator was available when it was built.</li>
+  <li><strong>Small designs.</strong> Each experiment has three to five cells so the difference is visible. They are not library designs, except the width experiment, which is the 27-cell library adder.</li>
+  <li><strong>Found while writing it.</strong> (1) At 32 bits the standard grid gave an unshifted word, with no error, for a coarse shift amount of 3 that is not one of its taps; the add-on chain defines taps at 1, 2, 4, 8, 12, 16, 20, 24 and 28 only. (2) <code>_ALLOWS_CARRY_MODE</code> is set on both classes and read by nothing; the carry word works on both grids, so that flag is leftover. Both are reported, not fixed.</li>
+  <li><strong>Not covered.</strong> The cross and corner tiles (FlexGrid replaces each with hidden register slices, one tick per tile; a one-tile test gave the same tick count on both), the ram hold mode, the sequencer, the priority arbiter and the GPU backend were not compared here.</li>
+</ul>
+<p class="fine">Data: <code>docs/teaching/capture_grids_v1.py</code> &rarr; <code>grids_data.json</code>. Code read: <code>nano/unicell_super_automaton_v1.py</code> (SuperGrid), <code>nano/flex_grid_v1.py</code> (FlexGrid), <code>nano/vm_ai_port_v1.py</code>, <code>tools/flex_layout_sim_v1.py</code>, <code>nano/icm_width_v1.py</code>.</p>
+
+<script>
+(function(){
+  var D=@@GRIDS_DATA@@;
+  var root=document.getElementById('gr-root'); if(!root) return;
+  function $(id){return document.getElementById(id);}
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;return e;}
+  var GN={std:'SuperGrid',flex:'FlexGrid'};
+  var M=D.matrix, W=M.widths;
+
+  // ---- section 2: constructor builder
+  var g='flex', w=32;
+  var gsel=$('gr-gsel'), wsel=$('gr-wsel'), feat=$('gr-feat'), mm=$('gr-mm');
+  ['std','flex'].forEach(function(k){var b=el('button','btn',GN[k]);b.type='button';b.setAttribute('data-g',k);b.addEventListener('click',function(){g=k;ctor();});gsel.appendChild(b);});
+  W.forEach(function(x){var b=el('button','btn',x+' bits');b.type='button';b.setAttribute('data-w',x);b.addEventListener('click',function(){w=x;ctor();});wsel.appendChild(b);});
+  M.feats.forEach(function(f,i){var o=el('option',null,f.label);o.value=i;feat.appendChild(o);});
+  feat.value=2; feat.addEventListener('change',ctor); mm.addEventListener('change',ctor);
+  function ctor(){
+    [].forEach.call(gsel.children,function(b){b.className='btn'+(b.getAttribute('data-g')===g?' on':'');});
+    [].forEach.call(wsel.children,function(b){b.className='btn'+(+b.getAttribute('data-w')===w?' on':'');});
+    $('gr-mmwrap').style.display=(g==='flex')?'':'none';
+    var f=M.feats[+feat.value], key=g+'/'+w, c=f.cells[key];
+    var line=(g==='flex')?'FlexGrid(records, width='+w+', merge_mode="'+mm.value+'")':'SuperGrid(records, width='+w+')';
+    $('gr-line').textContent=line;
+    var p=$('gr-feres'); p.innerHTML='';
+    var h=el('h3',null,f.label+' on '+GN[g]+' at '+w+' bits'); p.appendChild(h);
+    if(c.na){p.appendChild(el('p',null,c.na+'.'));}
+    else if(c.refused){p.appendChild(el('p',null,'Refused. The grid said:'));var q=el('p');q.style.cssText='font-family:var(--mono);font-size:.82em;color:#8a3b25';q.textContent=c.refused;p.appendChild(q);}
+    else if(c.warn){p.appendChild(el('p',null,'Built, with a warning:'));var q2=el('p');q2.style.cssText='font-family:var(--mono);font-size:.82em;color:#7a5a0a';q2.textContent=c.warn;p.appendChild(q2);}
+    else p.appendChild(el('p',null,'Built and (where the feature needs a word to be used) run without complaint.'));
+    if(f.key.indexOf('merge')===0||f.key==='badmode'){
+      p.appendChild(el('p',null,'This row was run with the merge mode named in its label; the merge_mode box above only changes the line shown here.'));
+    }
+  }
+  ctor();
+
+  // ---- section 3: experiments
+  var cur=null;
+  var exps=$('gr-exps');
+  D.experiments.forEach(function(e){var b=el('button','btn',e.title);b.type='button';b.setAttribute('data-id',e.id);b.addEventListener('click',function(){showExp(e.id);});exps.appendChild(b);});
+  function hex(v){return v>9?' (0x'+v.toString(16).toUpperCase()+')':'';}
+  function drawSvg(e){
+    var svg=$('gr-svg'); while(svg.firstChild)svg.removeChild(svg.firstChild);
+    var NS='http://www.w3.org/2000/svg', cw=64, ch=44, gx=26, gy=22;
+    var minr=1e9,minc=1e9,maxr=-1e9,maxc=-1e9;
+    e.records.forEach(function(r){minr=Math.min(minr,r.row);maxr=Math.max(maxr,r.row);minc=Math.min(minc,r.col);maxc=Math.max(maxc,r.col);});
+    var cols=maxc-minc+1, rows=maxr-minr+1, scale=1;
+    var stepx=cw+gx, stepy=ch+gy;
+    if(cols>8){scale=8/cols; }
+    var Wd=cols*stepx+20, Hd=rows*stepy+20;
+    svg.setAttribute('viewBox','0 0 '+Wd+' '+Hd);
+    svg.setAttribute('height',Math.max(110,Math.min(Hd*Math.max(scale,.45)*1.0,420)));
+    var outs=e.outs.map(function(o){return o[0]+','+o[1];});
+    function pos(r){return {x:10+(r.col-minc)*stepx, y:10+(r.row-minr)*stepy};}
+    function mk(t,a){var n=document.createElementNS(NS,t);for(var k in a)n.setAttribute(k,a[k]);return n;}
+    var defs=mk('defs',{});var mkr=mk('marker',{id:'gr-ar',viewBox:'0 0 8 8',refX:'7',refY:'4',markerWidth:'7',markerHeight:'7',orient:'auto'});
+    mkr.appendChild(mk('path',{d:'M0,0 L8,4 L0,8 z',fill:'#15756d'}));defs.appendChild(mkr);svg.appendChild(defs);
+    var D4={n:[0,-1],s:[0,1],e:[1,0],w:[-1,0]};
+    e.records.forEach(function(r){
+      var p=pos(r), dm=(r.cfg.downstream_mask||[]).slice();
+      if((r.cfg.second_downstream_mask||[]).length) dm=dm.concat(r.cfg.second_downstream_mask);
+      dm.forEach(function(d){
+        var v=D4[String(d).toLowerCase()]; if(!v) return;
+        var cx=p.x+cw/2, cy=p.y+ch/2, x1=cx+v[0]*cw/2, y1=cy+v[1]*ch/2, x2=cx+v[0]*(cw/2+gx-3), y2=cy+v[1]*(ch/2+gy-3);
+        svg.appendChild(mk('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:'#15756d','stroke-width':2,'marker-end':'url(#gr-ar)'}));
+      });
+    });
+    e.records.forEach(function(r){
+      var p=pos(r), isOut=outs.indexOf(r.row+','+r.col)>=0;
+      var core=r.core;
+      var rect=mk('rect',{x:p.x,y:p.y,width:cw,height:ch,rx:7,fill:isOut?'#e6f3f0':'#fff',stroke:isOut?'#15756d':'#6b6b6b','stroke-width':isOut?2.5:1.5});
+      svg.appendChild(rect);
+      var t1=mk('text',{x:p.x+cw/2,y:p.y+17,'text-anchor':'middle','font-size':12,'font-family':'monospace',fill:'#222'});t1.textContent=core;svg.appendChild(t1);
+      var lab=r.io||r.id; if(lab.length>9)lab=lab.slice(0,8)+'…';
+      var t2=mk('text',{x:p.x+cw/2,y:p.y+33,'text-anchor':'middle','font-size':11,'font-family':'monospace',fill:'#555'});t2.textContent=lab;svg.appendChild(t2);
+      if(Object.keys(r.ad||{}).length){var t3=mk('text',{x:p.x+cw-3,y:p.y+10,'text-anchor':'end','font-size':9,fill:'#8a3b25'});t3.textContent='add-on';svg.appendChild(t3);}
+    });
+  }
+  function nameOf(e,cell){
+    for(var i=0;i<e.records.length;i++){var r=e.records[i];if(r.row===cell[0]&&r.col===cell[1])return r.io||r.id;}
+    return '('+cell[0]+','+cell[1]+')';
+  }
+  function showExp(id){
+    var e=D.experiments.filter(function(x){return x.id===id;})[0]; cur=e;
+    [].forEach.call(exps.children,function(b){b.className='btn'+(b.getAttribute('data-id')===id?' on':'');});
+    var info=$('gr-expinfo'); info.innerHTML=''; info.appendChild(el('h3',null,e.title)); info.appendChild(el('p',null,e.what));
+    drawSvg(e);
+    var box=$('gr-runs'); box.innerHTML='';
+    e.runs.forEach(function(r){
+      var c=el('div','run '+r.grid); c.appendChild(el('h4',null,r.label+(r.width!==32?' (width '+r.width+')':'')));
+      var s=el('div','hex','injected: '+r.sched.map(function(x){var n=nameOf(e,x[1]);return n+'='+x[2]+' at tick '+x[0];}).join(', ')); c.appendChild(s);
+      var res=r.result;
+      if(res.refused){c.appendChild(el('div','ref','Refused: '+res.refused));}
+      else if(!res.got.length){c.appendChild(el('div','none','Nothing came out in 60 ticks.'));}
+      else{
+        var d=el('div'); res.got.forEach(function(x){var ch=el('span','chip','tick '+x.tick+' → '+x.value+(e.outs.length>1?' at '+nameOf(e,x.cell):'')); d.appendChild(ch);var hx=hex(x.value);if(hx&&x.value>65535){d.appendChild(el('span','hex',hx));}});
+        c.appendChild(d);
+      }
+      box.appendChild(c);
+    });
+    $('gr-note').textContent=e.note||'';
+    $('gr-note').style.display=e.note?'':'none';
+  }
+  showExp('merge');
+
+  // ---- section 4: matrix
+  var tb=$('gr-matrix');
+  var thead=el('thead'), tr1=el('tr'), tr2=el('tr');
+  tr1.appendChild(el('th')); var a=el('th','', GN.std+' (width in bits)'); a.colSpan=W.length; tr1.appendChild(a); var b2=el('th','', GN.flex+' (width in bits)'); b2.colSpan=W.length; tr1.appendChild(b2);
+  tr2.appendChild(el('th',null,'Feature'));
+  ['std','flex'].forEach(function(){W.forEach(function(x){tr2.appendChild(el('th',null,String(x)));});});
+  thead.appendChild(tr1); thead.appendChild(tr2); tb.appendChild(thead);
+  var tbody=el('tbody'); tb.appendChild(tbody);
+  var sel=null;
+  M.feats.forEach(function(f){
+    var tr=el('tr'); tr.appendChild(el('td',null,f.label));
+    ['std','flex'].forEach(function(gk){W.forEach(function(x){
+      var c=f.cells[gk+'/'+x], td=el('td','m '+(c.na?'na':c.refused?'ref':c.warn?'warn':'ok'), c.na?'–':c.refused?'no':c.warn?'warn':'ok');
+      td.setAttribute('tabindex','0');
+      function pick(){
+        if(sel)sel.className=sel.className.replace(' sel','');sel=td;td.className+=' sel';
+        var p=$('gr-mres'); p.innerHTML=''; p.appendChild(el('h3',null,f.label+' · '+GN[gk]+' · '+x+' bits'));
+        if(c.na)p.appendChild(el('p',null,c.na+'.')); else if(c.refused){p.appendChild(el('p',null,'Refused:'));var q=el('p');q.style.cssText='font-family:var(--mono);font-size:.82em;color:#8a3b25';q.textContent=c.refused;p.appendChild(q);}
+        else if(c.warn){p.appendChild(el('p',null,'Accepted with a warning:'));var q2=el('p');q2.style.cssText='font-family:var(--mono);font-size:.82em;color:#7a5a0a';q2.textContent=c.warn;p.appendChild(q2);}
+        else p.appendChild(el('p',null,'Accepted.'));
+      }
+      td.addEventListener('click',pick); td.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();pick();}});
+      tr.appendChild(td);
+    });});
+    tbody.appendChild(tr);
+  });
+
+  // ---- section 5
+  var S=D.session;
+  $('gr-sess').textContent=S.settled_ticks+'\n'+S.r+'\n(grid: '+S.grid+', width '+S.width+')';
+})();
+</script>
+</div>

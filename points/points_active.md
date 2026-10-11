@@ -233,4 +233,18 @@ Not verified: generated Verilog not simulated or synthesised (no iverilog/yosys 
 
 TO DO (Alan, 11 Oct): revisit the VM, Mirror VM and Workbench tabs for both SuperGrid and FlexGrid variants, including their flags (e.g. `FlexGrid(records, width=32, merge_mode="arbitrate")`). The mirror VM page must link back to the MAN File and Assembler tabs.
 
-Next entry: #1057.
+## #1057 -- TEACHING MANUAL: THE TWO GRIDS, SUPERGRID AND FLEXGRID
+
+Date: 2026-10-11. New tab 12 "Two Grids" of `docs/teaching_manual.html` straight after The VM (`docs/teaching/grids_fragment.html`; data from `docs/teaching/capture_grids_v1.py` into `grids_data.json`). Tabs are now numbered automatically from the list order (23 rail tabs, 41 sections; Workbench is 13, Start 22, Backdrop 23).
+
+Content: which tool builds which grid (Composer step panel = FlexGrid via StepSim; Workbench, VMSession.from_dsl/python/llvm/icm_file and from_man = SuperGrid; VMSession(grid) takes either, run with FlexGrid at width 18: 7+5=12, 18 ticks); the start-up options (SuperGrid(records, width), FlexGrid(records, width, merge_mode "arbitrate"|"join-or"|per-cell list), width 1-64, ICM header min_bit_width, composer sim request width exists but the Start button sends none, assembler -w is a separate thing, links to the Assembler and MAN tabs); a constructor builder driven by a captured feature x grid x width matrix (16 features, widths 32/36/18/8/4); seven same-design experiments on both grids with a cell diagram.
+
+Real differences found (Python runs): same-tick merge (std ORs to 3; flex arbitrate 1 then 2, join-or 3); adder with both operands the same tick (std: nothing leaves, operands OR to one; flex 12); subtract same tick (std nothing; flex refuses); a shift_amt of 3 (std passed the word unshifted without error, flex shifted); std refuses add-ons and nano at any width but 32, warns for accumulator/branch/priority; flex accepts add-ons as wiring, 12 nano topologies, refuses lane_cut right shifts and sequencer below 8 bits, 3-way arbitrate. Agreeing: library adder, staggered subtract, carry/second-output word, width wrap.
+
+Findings, not fixed: `_ALLOWS_CARRY_MODE` is set on both classes and read by nothing (carry works on both since #1036); std ignores a non-tap shift_amt silently. Workbench and mirror VM (from_man) can only build SuperGrid; a flex variant of each is not built.
+
+Not verified: Python VM only, generated Verilog not simulated (no iverilog/yosys), flex-vs-Verilog agreement quoted from code headers, cross/corner, ram hold, sequencer, priority and GPU not compared, unit tests not re-run. Tested in real Chromium (builder, 7 experiments, matrix, links, no console errors, no overflow at 390 px); all earlier tab tests re-run and pass. Main manual unchanged.
+
+TO DO (Alan): revisit the Workbench tab and the mirror VM for both grid variants and their flags; the mirror page links back to the MAN File and Assembler tabs.
+
+Next entry: #1058.
