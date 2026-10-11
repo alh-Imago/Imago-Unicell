@@ -53,8 +53,8 @@ def run_level(folder, streams, mode="plain", seed=1, settle=60, cycles=3000, ser
     rec = json.load(open(os.path.join(folder, "ASSEMBLY.json")))
     top = rec["top"]
     text = open(os.path.join(folder, top + ".v")).read()
-    ins = sorted(set(re.findall(r"in_(\w+)_data", text)))
-    outs = sorted(set(re.findall(r"out_(\w+)_data", text)))
+    ins = sorted(set(re.findall(r"\bin_(\w+)_data", text)))
+    outs = sorted(set(re.findall(r"\bout_(\w+)_data", text)))
     assert sorted(ins) == sorted(streams), (ins, list(streams))
     decl, drv, conn, dones = [], [], [], []
     for k, name in enumerate(ins):

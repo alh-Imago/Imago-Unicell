@@ -76,6 +76,7 @@ from dsl_diagnostics_v1 import CompileDiagnostic  # noqa: E402
 from icm_vix_v1 import IcmVixFormatError  # noqa: E402
 from vix_dag_dispatcher_v1 import compile_dag, ingestion_path, DagInstr, DagOperand  # noqa: E402
 from vix_virtual_layout_v1 import compile_dag_routed  # noqa: E402
+from vix_virtual_layout_v2 import compile_dag_routed as compile_dag_routed_x  # noqa: E402  (ledger #1064: v1 plus crossing tiles)
 from card_fit_v1 import CardTarget, FitFailure, FitReport, fit_to_card, bind_resources  # noqa: E402
 from vix_opcode_library_v1 import lookup as library_lookup  # noqa: E402
 
@@ -1224,6 +1225,9 @@ def _place(final: List[DagInstr], placer: str, fold_width: Optional[int] = None,
     layout (a placer that cannot place the shape simply drops out)."""
     if placer == "growth":
         return compile_dag(final), "growth"
+    if placer == "routed_x":
+        # ledger #1064: the routed placer with CROSSING TILES -- accepts non-planar programs (opt-in; `auto` is unchanged)
+        return compile_dag_routed_x(final, spacing=spacing, fold_width=fold_width), "routed_x"
     if placer == "routed" or (placer == "auto" and (fold_width or spacing)):
         # a fold or an explicit spacing is a request only the virtual-space placer can honour
         return compile_dag_routed(final, spacing=spacing, fold_width=fold_width), "routed"
