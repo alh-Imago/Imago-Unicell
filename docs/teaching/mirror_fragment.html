@@ -1,0 +1,265 @@
+<!-- Mirror VM fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data captured by docs/teaching/capture_mirror_v1.py is embedded at @@MIRROR_DATA@@. -->
+<div class="mirr" id="mi-root">
+<style>
+  .mirr h2{margin-top:1.6em}
+  .mirr .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .mirr button,.mirr select,.mirr input{font:inherit;font-size:.9em}
+  .mirr .btn{border:2px solid var(--rule);border-radius:8px;background:#fff;padding:5px 11px;cursor:pointer;color:var(--ink);line-height:1.25;text-align:left}
+  .mirr .btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .mirr .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin:.5em 0;align-items:center}
+  .mirr .panel{margin:.8em 0;padding:10px 14px;border:1px solid var(--rule);border-left:5px solid var(--accent);border-radius:8px;background:rgba(21,117,109,.07)}
+  .mirr .panel h3{margin:0 0 .3em;font-size:1.05em}
+  .mirr .panel p{margin:.35em 0;font-size:.95em;line-height:1.45}
+  .mirr table{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .mirr th,.mirr td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .mirr pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.8em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0}
+  .mirr pre.out{background:#1b2420;color:#bfe3d6;font-family:var(--mono);font-size:.78em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.2em 0 .8em}
+  .mirr .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .mirr .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .mirr .ctl{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:.5em 0}
+  .mirr .ctl label{font-size:.9em;color:var(--ink-soft)}
+  .mirr .ctl select,.mirr .ctl input{margin-left:6px;padding:4px 6px;border:1px solid var(--rule);border-radius:6px;background:#fff}
+  .mirr .svgbox{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.4);padding:8px;overflow-x:auto}
+  .mirr .big{font-family:var(--mono);font-size:.9em}
+  .mirr .bad{color:#8a3b25}
+  .mirr .good{color:#15756d}
+  .mirr details{margin:.4em 0}
+  .mirr summary{cursor:pointer;color:var(--ink-soft);font-size:.9em}
+  .mirr .wrapx{overflow-x:auto}
+</style>
+
+<p class="lead">&ldquo;Mirror&rdquo; is the <a class="ref" href="#sec-vm">VM</a> pretending to be one particular card. The <a class="ref" href="#sec-man">MAN File</a> tab described the card; the <a class="ref" href="#sec-assembler">Assembler</a> tab builds for it; the <a class="ref" href="#sec-grids">Two Grids</a> tab showed the two versions of the VM's grid. This page is where those meet, and where they do not meet yet. Everything here was run on the real Python, on the two MAN files in the repository.</p>
+
+<h2>1. Three things called mirror</h2>
+<table>
+  <thead><tr><th></th><th>Free mode</th><th>Shape mirror</th><th>Flex mirror</th></tr></thead>
+  <tbody>
+    <tr><td><strong>You make it with</strong></td><td><code>SuperGrid(records)</code></td><td><code>VMSession.from_man(man, cells, ...)</code></td><td><code>FlexGrid(records, width=18)</code></td></tr>
+    <tr><td><strong>Grid</strong></td><td>SuperGrid</td><td>SuperGrid, width 32</td><td>FlexGrid, any width</td></tr>
+    <tr><td><strong>What it copies from the card</strong></td><td>nothing</td><td>the <em>layout</em>: which squares exist</td><td>the <em>behaviour</em>: word width, handshake</td></tr>
+    <tr><td><strong>What it checks</strong></td><td>nothing</td><td>every cell sits on a square a real build would have; no two share a square</td><td>refuses what the flex hardware cannot do (Two Grids tab)</td></tr>
+    <tr><td><strong>What it reads from the MAN file</strong></td><td>&ndash;</td><td>only the card's id (and the cell count you give it)</td><td>nothing: you give the width by hand</td></tr>
+  </tbody>
+</table>
+<div class="says">Today these are separate. <code>from_man</code> builds a standard grid at 32 bits and checks the layout; the flex mirror is a width you type. Nothing reads the Tang's native width of 18 from its MAN file to start a FlexGrid. Section 5 runs both, by hand, together.</div>
+
+<h2>2. The layout rule, and what it does to a design</h2>
+<p>A card with <em>n</em> cells is laid out as a near-square block, filled row by row: rows = &lceil;&radic;n&rceil;, columns = &lceil;n / rows&rceil;, the last row possibly short. It is the same pair of functions (<code>grid_dims</code>, <code>cell_positions</code> in the assembler) that the build uses, so the mirror cannot drift from it. Choose a card, a cell count and a design from the Composer's library. Green cells are where the design sits inside the layout; red are cells that sit on squares a real build of that size would not have.</p>
+<div class="ctl">
+  <label>Card <select id="mi-card"><option value="tang">Tang Nano 20K</option><option value="mustang">Mustang F100 (Arria 10)</option></select></label>
+  <label>Cells <input type="number" id="mi-n" min="1" max="400" value="16" style="width:5.5em"></label>
+  <label>Design <select id="mi-design"></select></label>
+</div>
+<div class="btnrow" id="mi-presets"></div>
+<div class="svgbox"><svg id="mi-svg" role="img" aria-label="The layout for this cell count with the design drawn on it" width="100%" height="200"></svg></div>
+<div class="panel" id="mi-res" aria-live="polite"></div>
+<div class="says" id="mi-cmp"></div>
+
+<h2>3. Fitting the shape is not fitting the chip</h2>
+<p>The mirror asks &ldquo;is each cell on a square the build would make&rdquo;. It does not ask &ldquo;would the chip hold that many squares&rdquo;. The card-fit budgets answer the second question (quoted from the MAN tab, at the measured cost of one position):</p>
+<table id="mi-cap"></table>
+<p id="mi-cap-say"></p>
+
+<h2>4. The Walker: finding out what is on the card</h2>
+<p>A real card does not hand over its map. The plan (<code>#501</code> in the ledger) is that a host program walks it: ask a cell &ldquo;who are you&rdquo;, or ask it to pass a question one step north, south, east or west, and note who answers. The Walker below is the simulated version, run against the mirrored VM of the library adder (27 cells) on the Tang's layout of 400 cells. It starts from one cell it is told about (the <code>a</code> input) and may only learn what a ping reveals. Press Step, or Play.</p>
+<div class="btnrow"><button type="button" class="btn" id="mi-wstep">Step</button><button type="button" class="btn" id="mi-wplay">Play</button><button type="button" class="btn" id="mi-w10">+10</button><button type="button" class="btn" id="mi-wreset">Reset</button><span class="big" id="mi-wcount"></span></div>
+<div class="svgbox"><svg id="mi-wsvg" role="img" aria-label="Cells the Walker has found so far" width="100%" height="220"></svg></div>
+<div class="panel" id="mi-wlast" aria-live="polite"></div>
+<p id="mi-wsum"></p>
+<details><summary>What the Walker hands back (a SHAPE record)</summary><pre class="out" id="mi-shape"></pre></details>
+
+<h2>5. Both mirrors together, by hand</h2>
+<p>The same adder, 200000 + 100000, run two ways. <code>from_man</code> gives the shape check and a 32-bit standard grid. Starting a FlexGrid at the width the Tang's MAN file declares gives the behaviour the chip would have. Doing both is a few lines; no tool does it for you yet. Real output:</p>
+<pre class="code">import sys
+sys.path.insert(0, "nano"); sys.path.insert(0, "tools")
+import icm_v3, vm_mirror_v1
+from vm_ai_port_v1 import VMSession
+from flex_grid_v1 import FlexGrid
+
+man = "docs/man/tang-nano-20k.man.json"
+icm = icm_v3.IcmV3File.load("nano/library_std/add.icm.json")
+
+a = VMSession.from_man(man, 400, icm_path="nano/library_std/add.icm.json")   # shape check, SuperGrid at 32
+
+bounds = vm_mirror_v1.load_mirror_bounds(man, 400)
+assert not vm_mirror_v1.check_records_fit(icm.records, bounds)               # shape check, by hand
+f = VMSession(FlexGrid(icm.records, width=18))                                # behaviour at the MAN's native width
+f.mirror_bounds = bounds</pre>
+<table id="mi-recipe"></table>
+<div class="says" id="mi-recsay"></div>
+
+<h2>6. Starting a mirror: the options and what is refused</h2>
+<table>
+  <thead><tr><th>Where</th><th>How</th><th>What it takes</th></tr></thead>
+  <tbody>
+    <tr><td>Python</td><td><code>VMSession.from_man(man_path, cells, *, dsl= | python= | icm_path= | llvm=)</code></td><td>A MAN file, a cell count, and exactly one program source. Builds the layout, checks every cell of the program against it, then builds a SuperGrid. On success <code>session.mirror_bounds</code> holds the card id, rows and columns.</td></tr>
+    <tr><td>Workbench</td><td><code>POST /set_target</code> with <code>man_path</code>, <code>cells</code>, optional <code>shell</code> (and <code>clear_target</code> to go back to free mode)</td><td>Starts a fresh empty session bound to that layout. Every program loaded afterwards is checked. With a <code>shell</code> (an assembler shell version, v1 to v9) its core kinds are checked too.</td></tr>
+    <tr><td>LLVM command line</td><td><code>nano/llvm_cli_v1.py prog.ll --man FILE --cells N</code></td><td>Compiles, then runs the same fit check before writing the ICM file. Both flags or neither.</td></tr>
+    <tr><td>Walker</td><td><code>walker_sim_v1.walk(session, start=(row, col))</code></td><td>A session and a starting cell that exists; the origin defaults to (0, 0).</td></tr>
+  </tbody>
+</table>
+<p>What each refusal said, captured by running it:</p>
+<table id="mi-err"></table>
+<p>The shell check uses the list of core kinds each assembler shell really instantiates (read from the Verilog file of that shell):</p>
+<table id="mi-shells"></table>
+
+<h2>7. How far to trust this page</h2>
+<ul>
+  <li><strong>Shape only.</strong> The mirror checks positions, not chip capacity, speed or routing. Its own file header says so, and section 3 shows how far apart the two questions can be.</li>
+  <li><strong>The MAN file barely matters.</strong> The mirror reads only the card id from it. Running every library design at ten cell counts on both cards gave identical fit results; only the card id in the message differed. The Tang and Mustang files differ in what the other tools read (the <a class="ref" href="#sec-man">MAN File</a> tab), not here.</li>
+  <li><strong>The Walker is a simulation.</strong> It asks the VM, hop by hop, the questions the real protocol would ask a card, and never looks at the grid directly. The real mechanism it stands for (a discovery mode in the cell) is not built in hardware, and no real card has been walked.</li>
+  <li><strong>Placement has to match the generator.</strong> A design placed as a long thin strip (the 32 by 184 fp16 adder) is refused at every cell count up to 400, even though it might be small in cells; the check follows the generator's near-square array, not the design's own bounding box.</li>
+  <li><strong>Not built.</strong> A FlexGrid version of <code>from_man</code> and of the Workbench target, and anything that carries the MAN's native width into the VM. The Workbench builds a SuperGrid whatever target is set.</li>
+  <li><strong>Python only.</strong> No Verilog was simulated for this page; unit tests not re-run.</li>
+</ul>
+<p class="fine">Data: <code>docs/teaching/capture_mirror_v1.py</code> &rarr; <code>mirror_data.json</code>. Code read: <code>nano/vm_mirror_v1.py</code>, <code>nano/walker_sim_v1.py</code>, <code>nano/vm_ai_port_v1.py</code> (<code>from_man</code>), <code>nano/workbench_v1.py</code> (<code>set_target</code>), <code>nano/llvm_cli_v1.py</code>, <code>nano/shell_compat_v1.py</code>, <code>tools/project_assemble_v1.py</code> (<code>grid_dims</code>, <code>cell_positions</code>).</p>
+
+<script>
+(function(){
+  var D=@@MIRROR_DATA@@;
+  var root=document.getElementById('mi-root'); if(!root) return;
+  function $(id){return document.getElementById(id);}
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;return e;}
+  var NS='http://www.w3.org/2000/svg';
+  function mk(t,a){var n=document.createElementNS(NS,t);for(var k in a)n.setAttribute(k,a[k]);return n;}
+  function dims(n){var r=Math.ceil(Math.sqrt(n));return [r,Math.ceil(n/r)];}
+  function inside(n,row,col){var d=dims(n),r=d[0],c=d[1];return row<r&&col<c&&(row*c+col)<n;}
+  window.__mirrorDims=dims;
+
+  // ---- section 2
+  var dsel=$('mi-design'), nin=$('mi-n'), csel=$('mi-card');
+  Object.keys(D.designs).forEach(function(k){var o=el('option',null,k+'  ('+D.designs[k].cells.length+' cells, '+D.designs[k].extent[0]+' by '+D.designs[k].extent[1]+')');o.value=k;dsel.appendChild(o);});
+  var pre=$('mi-presets');
+  [4,9,16,25,49,100,211,225,400].forEach(function(n){var b=el('button','btn',n+' cells');b.type='button';b.setAttribute('data-n',n);b.addEventListener('click',function(){nin.value=n;draw();});pre.appendChild(b);});
+  function draw(){
+    var n=Math.max(1,Math.min(400,parseInt(nin.value,10)||1)); nin.value=n;
+    var key=dsel.value, des=D.designs[key], card=csel.value, d=dims(n), R=d[0], C=d[1];
+    var maxR=Math.max(R,des.extent[0]), maxC=Math.max(C,des.extent[1]);
+    var u=Math.max(5,Math.min(26,Math.floor(900/maxC))), pad=8;
+    var svg=$('mi-svg'); while(svg.firstChild)svg.removeChild(svg.firstChild);
+    var Wd=maxC*u+2*pad, Hd=maxR*u+2*pad; svg.setAttribute('viewBox','0 0 '+Wd+' '+Hd);
+    svg.setAttribute('height',Math.max(120,Math.min(Hd*Math.min(1,900/Wd)*1.0+10,460)));
+    for(var r=0;r<maxR;r++)for(var c=0;c<maxC;c++){
+      if(inside(n,r,c)) svg.appendChild(mk('rect',{x:pad+c*u,y:pad+r*u,width:u-1,height:u-1,fill:'#dfe9e7',stroke:'#b9cfcb','stroke-width':.5}));
+    }
+    var bad=0, first=null;
+    des.cells.forEach(function(cl){
+      var ok=inside(n,cl.row,cl.col); if(!ok){bad++; if(!first)first=cl;}
+      svg.appendChild(mk('rect',{x:pad+cl.col*u+1,y:pad+cl.row*u+1,width:Math.max(2,u-3),height:Math.max(2,u-3),fill:ok?'#15756d':'#c0392b'}));
+    });
+    var seen={}, coll=0; des.cells.forEach(function(cl){var k=cl.row+','+cl.col;if(seen[k])coll++;seen[k]=1;});
+    var p=$('mi-res'); p.innerHTML='';
+    p.appendChild(el('h3',null,n+' cells on '+(card==='tang'?'the Tang Nano 20K':'the Mustang F100')+': '+R+' rows by '+C+' columns'+((R*C!==n)?' (last row has '+(n-(R-1)*C)+' of '+C+')':'')));
+    var real=D.fit[key][String(n)];
+    if(bad===0&&coll===0) p.appendChild(el('p','good','All '+des.cells.length+' cells of '+key+' sit on squares this layout has. The mirror accepts it.'));
+    else{
+      p.appendChild(el('p','bad',bad+' of '+des.cells.length+' cells are outside the layout'+(coll?(' and '+coll+' collide'):'')+'. The mirror refuses it.'));
+      if(first)p.appendChild(el('p','big','First: cell '+first.id+' at ('+first.row+','+first.col+').'));
+    }
+    if(real){var rr=real[card];p.appendChild(el('p',null,'The real check, run when this page was built, found '+rr.problems+' problem(s) at '+n+' cells.'));}
+    else p.appendChild(el('p',null,'This cell count was not among the real runs captured (4, 9, 16, 25, 36, 49, 64, 100, 225, 400); the figure above is the same rule worked out in the page.'));
+    var mn=des.min_cells;
+    $('mi-cmp').textContent=(mn?('Smallest cell count whose layout holds all of '+key+': '+mn+' (found by trying every count from 1 to 400).'):(key+' does not fit any layout up to 400 cells: it is '+des.extent[0]+' rows by '+des.extent[1]+' columns, and a near-square block of 400 is only 20 by 20.'))+' The two cards give the same answer here: the mirror reads only the card id from the MAN file.';
+  }
+  [dsel,nin,csel].forEach(function(e){e.addEventListener('input',draw);e.addEventListener('change',draw);});
+  draw();
+
+  // ---- section 3
+  var cap=$('mi-cap'); cap.innerHTML='<thead><tr><th>Card, shell</th><th>Cost of one position</th><th>Positions the chip holds (80% ceiling)</th></tr></thead>';
+  var tb=el('tbody'); cap.appendChild(tb);
+  var costs={'tang/nano_lean':'1,750 LUT4','tang/adder_lean':'248 LUT4','tang/adder_full':'2,348 LUT4','mustang/super_v3':'1,030.52 ALM'};
+  Object.keys(D.budgets).forEach(function(k){var tr=el('tr');tr.appendChild(el('td',null,k.replace('/',', ')));tr.appendChild(el('td',null,costs[k]||''));tr.appendChild(el('td',null,String(D.budgets[k].max_cells)));tb.appendChild(tr);});
+  var addmin=D.designs.add.min_cells;
+  $('mi-cap-say').textContent='The library adder needs a layout of at least '+addmin+' squares to pass the shape check. By these budgets the Tang holds at most '+D.budgets['tang/adder_lean'].max_cells+' positions even with the lean adder, and the Mustang '+D.budgets['mustang/super_v3'].max_cells+'. So the shape check and the 400-cell example in section 2 show how the layout rule works, not that the chip could be built that large. Costs are the measured figures quoted in the card-fit code, not re-measured here.';
+
+  // ---- section 4: Walker replay
+  var W=D.walker, idx=0, timer=null, log=[];
+  (function(){   // an answered cardinal ping is recorded as the neighbour's own self-ping followed by the ping itself; show them as one step, as the Walker counts them
+    var raw=W.pings, DXY={n:[-1,0],s:[1,0],e:[0,1],w:[0,-1]};
+    for(var i=0;i<raw.length;i++){
+      var g=raw[i], nx=raw[i+1];
+      if(g.dir==='self'&&nx&&nx.dir!=='self'&&nx.answer){var v=DXY[nx.dir];if(g.at[0]===nx.at[0]+v[0]&&g.at[1]===nx.at[1]+v[1])continue;}
+      log.push(g);
+    }
+  })();
+  var disc={}, edges=[], seenE={};
+  var DX={n:[-1,0],s:[1,0],e:[0,1],w:[0,-1]}, OPP={n:'s',s:'n',e:'w',w:'e'};
+  function key(r,c){return r+','+c;}
+  function resetW(){idx=0;disc={};edges=[];seenE={};var o=W.origin;disc[key(o[0],o[1])]={cell_id:null,type:'origin (told, not yet asked)',row:o[0],col:o[1]};stopPlay();drawW();}
+  function stopPlay(){if(timer){clearInterval(timer);timer=null;$('mi-wplay').textContent='Play';}}
+  // each step is one ping the Walker made; a cardinal answer reveals the neighbour
+  function stepW2(){
+    if(idx>=log.length){stopPlay();return;}
+    var g=log[idx++], r=g.at[0], c=g.at[1];
+    if(g.dir==='self'){
+      // inner self-pings (neighbours) are logged just before their outer ping, handled there
+      var s=disc[key(r,c)]; if(s){s.cell_id=g.answer&&g.answer.cell_id;s.type=g.answer&&g.answer.type;}
+      else if(g.answer){disc[key(r,c)]={row:r,col:c,cell_id:g.answer.cell_id,type:g.answer.type};}
+    }else if(g.answer){
+      var v=DX[g.dir], nr=r+v[0], nc=c+v[1];
+      if(!disc[key(nr,nc)])disc[key(nr,nc)]={row:nr,col:nc,cell_id:g.answer.cell_id,type:g.answer.type};
+      var ek=[r+','+c,nr+','+nc].sort().join('|'); if(!seenE[ek]){seenE[ek]=1;edges.push([r,c,nr,nc]);}
+    }
+    drawW(g);
+  }
+  function drawW(g){
+    var svg=$('mi-wsvg'); while(svg.firstChild)svg.removeChild(svg.firstChild);
+    var ks=Object.keys(disc), u=34, pad=10;
+    var cells=W.design_cells; var all=D.designs[W.design].cells; var minr=1e9,minc=1e9,maxr=-1e9,maxc=-1e9;
+    all.forEach(function(x){minr=Math.min(minr,x.row);maxr=Math.max(maxr,x.row);minc=Math.min(minc,x.col);maxc=Math.max(maxc,x.col);});
+    var cols=maxc-minc+1, rows=maxr-minr+1, Wd=cols*u+2*pad, Hd=rows*u+2*pad;
+    svg.setAttribute('viewBox','0 0 '+Wd+' '+Hd); svg.setAttribute('height',Math.min(300,Hd*Math.min(1,900/Wd)+6));
+    function X(c){return pad+(c-minc)*u;} function Y(r){return pad+(r-minr)*u;}
+    edges.forEach(function(e){svg.appendChild(mk('line',{x1:X(e[1])+u/2-2,y1:Y(e[0])+u/2-2,x2:X(e[3])+u/2-2,y2:Y(e[2])+u/2-2,stroke:'#15756d','stroke-width':2.5}));});
+    ks.forEach(function(k){var d=disc[k];svg.appendChild(mk('rect',{x:X(d.col),y:Y(d.row),width:u-4,height:u-4,rx:5,fill:d.cell_id?'#e6f3f0':'#fff7e0',stroke:'#15756d','stroke-width':1.5}));
+      var t=mk('text',{x:X(d.col)+(u-4)/2,y:Y(d.row)+(u-4)/2+4,'text-anchor':'middle','font-size':9,'font-family':'monospace',fill:'#222'});t.textContent=d.type&&d.cell_id?String(d.type).slice(0,4):'?';svg.appendChild(t);});
+    if(g&&g.dir!=='self'){var fx=X(g.at[1]),fy=Y(g.at[0]);svg.appendChild(mk('rect',{x:fx-2,y:fy-2,width:u,height:u,rx:7,fill:'none',stroke:'#c0392b','stroke-width':2.5}));}
+    $('mi-wcount').textContent='ping '+idx+' of '+log.length+'  ·  cells found: '+Object.keys(disc).filter(function(k){return disc[k].cell_id;}).length+' of '+W.found;
+    var p=$('mi-wlast'); p.innerHTML='';
+    if(!g){p.appendChild(el('p',null,'Start: the Walker knows one cell, the input a at ('+W.origin[0]+','+W.origin[1]+'). It has asked nothing yet.'));}
+    else{
+      var d2=g.dir==='self'?'asks the cell at ('+g.at[0]+','+g.at[1]+') who it is':'asks the cell at ('+g.at[0]+','+g.at[1]+') to pass a ping out of its '+({n:'north',s:'south',e:'east',w:'west'}[g.dir])+' face';
+      p.appendChild(el('p',null,'The Walker '+d2+'.'));
+      p.appendChild(el('p',g.answer?'good':'bad',g.answer?('Answer: cell '+g.answer.cell_id+', a '+g.answer.type+'.'):'No answer: nothing is wired there.'));
+    }
+  }
+  function nextPing(){stepW2();}
+  $('mi-wstep').addEventListener('click',nextPing);
+  $('mi-w10').addEventListener('click',function(){for(var i=0;i<10;i++)stepW2();});
+  $('mi-wreset').addEventListener('click',resetW);
+  $('mi-wplay').addEventListener('click',function(){
+    if(timer){stopPlay();return;}
+    if(idx>=log.length)resetW();
+    $('mi-wplay').textContent='Pause'; timer=setInterval(function(){stepW2();if(idx>=log.length)stopPlay();},180);
+  });
+  resetW();
+  var nt=W.no_target;
+  $('mi-wsum').textContent='The whole walk took '+W.ping_count+' pings to find '+W.found+' cells and '+W.edges+' links (the design has '+W.design_cells+' cells). Started from a square with no cell, it refuses: '+(nt?nt.type+': '+nt.msg:'');
+  $('mi-shape').textContent=JSON.stringify({shape_version:W.shape_sample.shape_version,card_id:W.shape_sample.card_id,discovery_method:W.shape_sample.discovery_method,origin:W.shape_sample.origin,ping_count:W.shape_sample.ping_count,cells:['… '+W.found+' of these:',W.shape_cell0],edges:['… '+W.edges+' of these:',W.shape_edge0]},null,2);
+
+  // ---- section 5
+  var rc=D.recipe, t=$('mi-recipe');
+  t.innerHTML='<thead><tr><th></th><th>from_man (shape)</th><th>FlexGrid by hand (behaviour)</th></tr></thead>';
+  var tb2=el('tbody'); t.appendChild(tb2);
+  function row(a,b,c){var tr=el('tr');tr.appendChild(el('td',null,a));tr.appendChild(el('td',null,b));tr.appendChild(el('td',null,c));tb2.appendChild(tr);}
+  row('Grid built',rc.from_man.grid+', width '+rc.from_man.width,rc.flex_by_hand.grid+', width '+rc.flex_by_hand.width);
+  row('Layout check','passed (it refuses otherwise)','passed ('+rc.flex_by_hand.problems+' problems, checked by hand)');
+  row('200000 + 100000 gives',String(rc.from_man.r),String(rc.flex_by_hand.r));
+  row('Ticks to settle',String(rc.from_man.ticks),String(rc.flex_by_hand.ticks));
+  $('mi-recsay').textContent='The Tang Nano 20K’s MAN file declares a native width of '+rc.native_width+' bits, so the chip would give '+rc.expected_wrap+' (300000 minus 2^'+rc.native_width+'). The shape mirror alone says 300000, because it is a 32-bit grid. The tick count is the same: the layout checked is not the layout the program is timed on.';
+
+  // ---- section 6
+  var et=$('mi-err'); et.innerHTML='<thead><tr><th>What you did</th><th>What it said</th></tr></thead>'; var eb=el('tbody'); et.appendChild(eb);
+  var E=D.errors;
+  function er(a,b){var tr=el('tr');tr.appendChild(el('td',null,a));var td=el('td');td.style.cssText='font-family:var(--mono);font-size:.82em;word-break:break-word';td.textContent=b;tr.appendChild(td);eb.appendChild(tr);}
+  er('from_man with no program',E.none_given); er('from_man with two programs',E.two_given); er('from_man with 0 cells',E.zero_cells); er('from_man with a missing MAN file',E.missing_man);
+  er('library adder into 4 cells',E.too_small+' …');
+  er('Workbench set_target, unknown shell',E.workbench.unknown_shell);
+  er('llvm_cli with --man but no --cells',E.llvm_cli_man_only.stderr+' (exit '+E.llvm_cli_man_only.rc+')');
+  er('Workbench set_target ok, 400 cells',E.workbench.ok.rows+' rows by '+E.workbench.ok.cols+' columns, card '+E.workbench.ok.card_id+'; the session it builds is a '+E.workbench.grid_class);
+  var st=$('mi-shells'); st.innerHTML='<thead><tr><th>Shell</th><th>Core kinds</th></tr></thead>'; var sb=el('tbody'); st.appendChild(sb);
+  Object.keys(D.shells).forEach(function(k){var tr=el('tr');tr.appendChild(el('td',null,k));tr.appendChild(el('td',null,D.shells[k].join(', ')));sb.appendChild(tr);});
+})();
+</script>
+</div>

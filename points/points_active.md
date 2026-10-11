@@ -247,4 +247,16 @@ Not verified: Python VM only, generated Verilog not simulated (no iverilog/yosys
 
 TO DO (Alan): revisit the Workbench tab and the mirror VM for both grid variants and their flags; the mirror page links back to the MAN File and Assembler tabs.
 
-Next entry: #1058.
+## #1058 -- TEACHING MANUAL: THE MIRROR VM
+
+Date: 2026-10-11. New tab 13 "Mirror VM" of `docs/teaching_manual.html` after The Two Grids (`docs/teaching/mirror_fragment.html`; data from `docs/teaching/capture_mirror_v1.py` into `mirror_data.json`). 24 rail tabs, 42 sections; Workbench is now 14. Links back to the MAN File, Assembler, Two Grids and VM tabs; the Two Grids tab now continues to it.
+
+Content: three things called mirror (free mode, shape mirror = `VMSession.from_man` SuperGrid width 32 + layout check, flex mirror = FlexGrid at a width given by hand); the layout rule (rows = ceil(sqrt n), cols = ceil(n/rows), row-major, from `project_assemble_v1.grid_dims/cell_positions`) drawn live over five library designs, tested equal to the real functions for 53 cell counts and to the real `check_records_fit` for 50 design/count cases; the library adder passes the shape check from 211 cells, the fp16 adder (32 x 184) at no count up to 400; shape vs capacity (Tang holds at most 66 positions at the lean adder cost, Mustang 195, quoted from card_fit); a recorded Walker run (109 pings, 27 cells, 34 links on the adder at 400 cells) replayable step by step, NoTargetError from an empty origin, the SHAPE record; the two mirrors run together by hand (from_man: 300000; FlexGrid at the MAN native width 18: 37856, both 18 ticks); options (from_man, Workbench set_target/clear_target with optional shell, llvm_cli --man/--cells, walk start) with every refusal message captured, and the cores each shell v1..v9 instantiates.
+
+Findings, not fixed: the mirror reads only the card id from the MAN file (identical fit results on both cards for all designs and counts); nothing carries the MAN native_width (18) into the VM, the assembler reads it but `from_man` and the Workbench do not; Workbench set_target builds a SuperGrid whatever the target; a long thin placement is refused at every count up to 400 because the check follows the generator's near-square array, not the design's own bounding box.
+
+Not verified: Python VM only, Verilog not simulated; the real Walker discovery mode in hardware is unbuilt, no card walked; sizes quoted from card_fit; unit tests not re-run. Tested in real Chromium (live layout vs real captures, Walker step/+10/play/reset, edges 34 drawn once, links both ways, no console errors, no overflow at 390 px); all earlier tab tests re-run and pass. Main manual unchanged.
+
+TO DO (Alan): the Workbench tab last, covering both grids and its flags.
+
+Next entry: #1059.

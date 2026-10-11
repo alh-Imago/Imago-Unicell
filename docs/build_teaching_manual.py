@@ -91,6 +91,16 @@ def _grids_html(name):
     return t.replace("@@GRIDS_DATA@@", data)
 
 
+def _mirror_html(name):
+    """Fragment with the captured mirror / Walker data (docs/teaching/mirror_data.json) embedded."""
+    import json as _json
+    with open(os.path.join(HERE, "teaching", name), encoding="utf-8") as f:
+        t = f.read()
+    with open(os.path.join(HERE, "teaching", "mirror_data.json"), encoding="utf-8") as f:
+        data = _json.dumps(_json.load(f), separators=(",", ":")).replace("</", "<\\/")
+    return t.replace("@@MIRROR_DATA@@", data)
+
+
 def _cell_pages():
     """One hidden page per cell kind, built from docs/teaching/cells_data.json (parsed Verilog) and cells_text.py."""
     import json as _json, sys as _sys
@@ -227,14 +237,22 @@ SECTIONS = [
              "How to start each, what each accepts at other word widths, and the same small "
              "designs run on both so you can see where they agree and where they differ.",
      "html":_grids_html("grids_fragment.html"),
-     "links":[("← Back to The VM","#sec-vm","section"),("Continue → The Workbench","#sec-workbench","section")]},
+     "links":[("← Back to The VM","#sec-vm","section"),("Continue → The Mirror VM","#sec-mirror","section")]},
+
+    {"id":"mirror","num":"13","tab":"Mirror VM","title":"The Mirror VM: Pretending to Be One Card",
+     "intro":"The VM can be made to reflect a particular card: its layout, and (separately) its word "
+             "width. The layout rule drawn live over real library designs, a simulated Walker you can "
+             "step through, the two mirrors run together by hand, the options and every refusal, and "
+             "what is not joined up yet.",
+     "html":_mirror_html("mirror_fragment.html"),
+     "links":[("← Back to The Two Grids","#sec-grids","section"),("Continue → The Workbench","#sec-workbench","section")]},
 
     {"id":"workbench","num":"12","tab":"Workbench","title":"The Workbench: See and Use the VM",
      "intro":"The workbench is where you sit at the VM: load a small program, deliver values "
              "into cells, step the clock and watch every register. A labelled screenshot, a "
              "worked 7 + 5, and what it can and cannot show.",
      "html":open(os.path.join(HERE, "teaching", "workbench_fragment.html"), encoding="utf-8").read().replace("@@WB_IMG@@", _data_uri("teaching/workbench_screenshot.png")),
-     "links":[("← Back to The Two Grids","#sec-grids","section"),("Continue → The DSL","#sec-dsl","section")]},
+     "links":[("← Back to The Mirror VM","#sec-mirror","section"),("Continue → The DSL","#sec-dsl","section")]},
 
     {"id":"dsl","num":"13","tab":"DSL","title":"Programming: The DSL",
      "intro":"The small text language for placing cells and wiring their faces. Sketch a "
