@@ -271,4 +271,8 @@ Findings (all run): every route that builds a grid in `nano/workbench_v1.py` bui
 
 Not verified: Python VM only; Workbench unit tests not re-run; the live served page was not re-checked for this section; the "what it would take" paragraph is a reading of the code, not an attempt. Tested in real Chromium (five choices, links, old callouts intact, no console errors, no overflow at 390 px); all earlier tab tests re-run and pass. Main manual unchanged.
 
-Next entry: #1061.
+## #1061 -- README AND TEACHING README UPDATED FOR THE TEACHING MANUAL
+
+Date: 2026-10-11. `README.md`: the teaching note in the status banner now points to `docs/teaching_manual.html` (24 tabs, interactive, figures captured from real runs, not tried with learners, status unchanged); the stale "latest entries: addenda 58 to 69" now reads "as of 11 October 2026 the ledger is at #1060"; a Documentation bullet lists the manual, how it is built and where its captures live. `docs/teaching/README.md` gains an update note: the manual exists, the lesson ladder is still a plan. `README.md` is one of the docs `docs/build_manual.py` renders, so `docs/manual.html` is now one step behind it; Alan reserved rebuilding that manual for himself, so it was not regenerated (run `python3 docs/build_manual.py` and commit both). Alan will update the GitHub topics/tags himself.
+
+Next entry: #1062.

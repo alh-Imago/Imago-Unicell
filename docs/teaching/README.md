@@ -1,5 +1,7 @@
 # Learning how computers work, using UniCell as the backdrop
 
+> **Update (11 October 2026): a teaching manual now exists** as `docs/teaching_manual.html` (24 interactive tabs; built by `python3 docs/build_teaching_manual.py` from the `*_fragment.html` files here, with the data each page shows captured from real runs by the `capture_*_v1.py` scripts and stored as `*_data.json`). It is a reference to the tools and the architecture, not the lesson ladder below, which is still a plan. Nothing in it has been tried with real learners.
+>
 > **Status (10 October 2026): a plan, not a course yet.** Nothing here is finished or tested with real learners. The design of UniCell is frozen and is not being extended for this. The main manual (`docs/manual.html`) stays the manual for UniCell itself; this folder is the separate teaching side.
 
 ## The idea

@@ -6,9 +6,9 @@
 > - **What was tested and did not favour it:** on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See `docs/measurements/UNICELL_VS_PURE.md`.
 > - **What is NOT shown:** freeze, save and restore of a running design has only been run in simulation (VM and RTL), never on a physical card. A hand-written Verilog design gets the same behaviour from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`). The statements about freeze and state capture below are design intent, not hardware results.
 > - **Prior art:** every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in `docs/prior_art/PRIOR_ART_REPORT.md`; it is not a proof of novelty either way.
-> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (latest entries: addenda 58 to 69).
+> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 11 October 2026 the ledger is at #1060).
 >
-> **A possible new use (10 October 2026): teaching.** The design is finished and is not being extended, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md). It is a plan only, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
+> **A possible new use (10 October 2026): teaching.** The design is finished and is not being extended, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md), and a first teaching manual built from it (11 October 2026) is [`docs/teaching_manual.html`](docs/teaching_manual.html): 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
 
 A spatial compute architecture built on one principle: **topology is
 computation**. There's no CPU, no instruction set, no shared bus.
@@ -541,6 +541,7 @@ python3 nano/workbench_v1.py
   — the DSL language reference.
 - [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/stripped-cell/SUPER_CELL_INTERNALS.md)
   — the Arria 10 line's shell/RTL reference.
+- [`docs/teaching_manual.html`](docs/teaching_manual.html) — the teaching manual: how the cells, the VM, the compiler, the assembler and the MAN files work, one interactive tab each (built by `python3 docs/build_teaching_manual.py` from the fragments and captured data in [`docs/teaching/`](docs/teaching/README.md); the captures are re-made by the `capture_*_v1.py` scripts there). Separate from `docs/manual.html`.
 - `points/` — the project's append-only, numbered decision log (split
   across files since it outgrew GitHub's render limit; start at
   [`points/INDEX.md`](points/INDEX.md)). Every design decision, bug
