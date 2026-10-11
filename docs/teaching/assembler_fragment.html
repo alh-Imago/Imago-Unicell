@@ -1,0 +1,298 @@
+<!-- Assembler / cell families fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data from docs/teaching/capture_asm_v1.py embedded in place of @@ASM_DATA@@. Links are relative to docs/. -->
+<div class="asmp" id="asm-root">
+<style>
+  .asmp h2{margin-top:1.6em}
+  .asmp .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .asmp .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .asmp .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .asmp table.f{border-collapse:collapse;width:100%;font-size:.86em;margin:.6em 0}
+  .asmp table.f th,.asmp table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+  .asmp table.f td:first-child{font-weight:600}
+  .asmp table.f td.d{background:rgba(184,134,11,.13)}
+  .asmp .yes{color:#15756d;font-weight:bold}.asmp .no{color:#b3402a;font-weight:bold}.asmp .mid{color:#8a6a0b;font-weight:bold}
+  .asmp .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .asmp .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .asmp .says.warn{border-left-color:#b8860b;background:rgba(184,134,11,.12)}
+  .asmp .says.bad{border-left-color:#b3402a;background:rgba(179,64,42,.09)}
+  .asmp pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.8em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.5em 0;white-space:pre-wrap;word-break:break-word}
+  .asmp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .asmp .bar button{padding:5px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer;font:inherit;font-size:.92em}
+  .asmp .bar button.on{background:var(--accent);color:#fff}
+  .asmp .chips{display:flex;flex-wrap:wrap;gap:6px;margin:.4em 0}
+  .asmp .chips span{font-family:var(--mono);font-size:.8em;padding:2px 9px;border:1px solid var(--rule);border-radius:12px;background:var(--paper-edge)}
+  .asmp .chips span.x{border-color:var(--accent);background:rgba(21,117,109,.14)}
+  .asmp .card{border:2px solid var(--accent);border-radius:10px;padding:8px 14px;background:rgba(255,255,255,.35)}
+  .asmp .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
+  .asmp ul.fl{list-style:none;margin:.3em 0;padding:0;font-family:var(--mono);font-size:.8em}
+  .asmp ul.fl li{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted var(--rule);padding:1px 0}
+  .asmp ul.fl li span:last-child{color:var(--ink-soft);white-space:nowrap}
+  .asmp .szbar{height:12px;background:rgba(0,0,0,.07);border-radius:6px;overflow:hidden;margin:2px 0 6px}
+  .asmp .szbar i{display:block;height:100%;background:var(--accent);min-width:2px}
+  .asmp .big{font-size:1.25em;font-family:var(--mono);margin:.3em 0}
+  .asmp label.need{display:flex;gap:8px;align-items:flex-start;margin:.25em 0;font-size:.95em}
+  .asmp label.need input{margin-top:.3em}
+  .asmp .res{display:flex;flex-wrap:wrap;gap:8px;margin:.5em 0}
+  .asmp .res span{font-family:var(--mono);padding:4px 12px;border-radius:8px;border:2px solid var(--accent);background:rgba(21,117,109,.14)}
+  .asmp .res span.out{border-color:var(--rule);background:transparent;color:var(--ink-soft);text-decoration:line-through}
+  .asmp .scroll{overflow-x:auto}
+</style>
+
+<p class="lead">The assembler is the tool that turns a program and a card into hardware files. Before it can do that it has to choose <em>what kind of cell</em> to build from, and the design has four kinds, grown one from another. They are not four lists of the same cells. Each family makes a different trade, so each can do things the others cannot. This page sets them side by side, then shows the assembler building from each.</p>
+
+<h2>The four families</h2>
+<p>Names run in the order they were made: the <strong>standalone</strong> cell (<code>v4</code>), the <strong>carrier</strong> (<code>v4c</code>), the <strong>sub</strong> or stripped cell (<code>v4s</code>) and the <strong>flex</strong> cell (<code>v4sa</code>). Pick one to see what it is, which cell kinds it has, what the assembler builds from it, and what it costs.</p>
+<div class="bar" id="asm-pick"></div>
+<div class="card" id="asm-card"></div>
+
+<h2>What each family can and cannot do</h2>
+<p>This table is the point of the page. Every yes and no in the first block is read from the adder's Verilog file in each family (its real ports and parameters); the rest come from the file headers and the measured sizes. Shaded cells are where a family differs from the one before it.</p>
+<div class="scroll"><table class="f" id="asm-cap"></table></div>
+<div class="says warn" id="asm-capnote"></div>
+
+<h2>Which cell kinds each family has</h2>
+<div class="scroll"><table class="f" id="asm-kinds"></table></div>
+<p id="asm-kindsays"></p>
+
+<h2>Try it: what do you need?</h2>
+<p>Tick what you need from the cell. The page keeps the families that can do <em>all</em> of it. When nothing is left, that is the design's trade showing: no family has every ability, because the abilities cost area or fix timing.</p>
+<div id="asm-needs"></div>
+<div class="res" id="asm-res"></div>
+<div class="says" id="asm-ressay"></div>
+
+<h2>How the assembler builds from each</h2>
+<p>These are four real runs of <code>tools/project_assemble_v1.py</code>. Notice that the family is chosen by flags, and that the routes are not equally capable.</p>
+<div class="scroll"><table class="f" id="asm-routes"></table></div>
+<div class="two">
+  <div class="says" id="asm-r1"></div>
+  <div class="says warn" id="asm-r2"></div>
+</div>
+<div class="linkrow"><a class="ref" href="#sec-man">← The MAN file, which the assembler reads for the card</a><a class="ref" href="#sec-rtl">← The same program on two cards, with the sub and flex runs</a></div>
+
+<h2>The assembler's flags</h2>
+<p>Most programs are run by pressing a button. The assembler is run by a command line, and the flags on that line are how you steer it: which card, which family, which program, how wide, which synthesis options. <span id="asm-nflags"></span> of them are listed below, with the text the tool prints for each. Type to filter, or open a group.</p>
+<div class="bar"><label>Filter <input type="text" id="asm-ff" placeholder="e.g. width, dsp, probe" style="font:inherit;padding:3px 6px"></label></div>
+<div id="asm-flags"></div>
+
+<h3>Build a command</h3>
+<p>Choose a route, a card and some flags. The page writes the command and checks it against the tool's rules. Each complaint below is the tool's own message, captured from a real run of that combination, not written for this page.</p>
+<div class="two">
+  <div>
+    <div class="bar"><label>Route <select id="asm-rt"><option value="prog">Program to flex or sub (--icm)</option><option value="chain">Chain of one cell type (-s with -S)</option><option value="solo">Array of one standalone core (-S)</option><option value="carrier">Array of carriers (--shell vix)</option></select></label></div>
+    <div class="bar"><label>Family <select id="asm-fam"><option value="flex">flex</option><option value="sub">sub</option></select></label>
+    <label>Card <select id="asm-card2"><option value="tang">Tang Nano 20K (Gowin)</option><option value="mustang">Mustang F100 (Intel)</option></select></label></div>
+    <div class="bar"><label>Width <input type="text" id="asm-fw" size="3" placeholder="-w"></label>
+      <label>Multiplier <select id="asm-fmul"><option value="">(auto)</option><option value="lut">--mul lut</option><option value="dsp">--mul dsp</option></select></label></div>
+    <div id="asm-fl"></div>
+  </div>
+  <div>
+    <pre class="code" id="asm-cmd"></pre>
+    <div id="asm-msgs"></div>
+  </div>
+</div>
+
+<h2>Gaps, plainly</h2>
+<ul>
+  <li><strong>Only the sub and flex routes build a program.</strong> A program file (<code>--icm</code>) is accepted only with <code>-s sub</code> or <code>-s flex</code>. The standalone and carrier routes write arrays of cells for the Intel Quartus tool; the program is loaded into them afterwards by the host tools, not by the assembler.</li>
+  <li><strong>Sizes are quoted, not measured here.</strong> No synthesis tool is installed in this workspace. The numbers come from the project's own tables and ledger.</li>
+  <li><strong>The carrier numbers are the whole carrier,</strong> with all fourteen cores present and one switched on. The "lean" figures in the standalone table replace the shift chain with empty stubs, so they are lower bounds for a core, not working cells.</li>
+  <li><strong>Some flags are accepted and do nothing.</strong> On the program route, <code>--logiclock</code> and <code>-P</code> are not refused the way they are on the chain route, and a real run with <code>--logiclock</code> wrote files identical to the run without it. The tool's own error text says those options belong to the carrier lineage; on the program route nothing says so.</li>
+  <li><strong>Older shells exist.</strong> The default route can still array the earlier <code>unicell_super</code> shells (<code>--shell v3</code>, <code>--shell v4</code>); they are older lineage, not a fifth family, and this page does not cover them.</li>
+</ul>
+<p class="fine">Scope. Port counts, parameters, yes/no flags, cell-kind lists and the carrier's selectable cores are parsed from the Verilog files by <code>docs/teaching/capture_asm_v1.py</code>; the four routes are real runs of the assembler. The one-line descriptions are written from each family's own file headers and <code>sub/README.md</code>. Sizes are LUT4 counts from <code>synth_gowin</code> read from <code>nano/card_fit_v1.py</code>, the Tang Nano MAN and ledger #898, not re-measured, and counts of how many fit are plain division ignoring wiring. Nothing here was simulated or synthesised.</p>
+
+<script type="application/json" id="asm-data">@@ASM_DATA@@</script>
+<script>
+(function(){
+  var D=JSON.parse(document.getElementById('asm-data').textContent);
+  function $(i){return document.getElementById(i);}
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  var F={};D.families.forEach(function(f){F[f.key]=f;});
+  var KEYS=['v4','v4c','v4s','v4sa'];
+  var S=D.sizes,TANG=S.tang_lut4_total;
+  var IDEA={
+    v4:{one:'A complete cell on its own.',
+        body:'Four sides (north, south, east, west) with masks that choose, while it runs, which side data comes from and goes to. A ready/taken handshake in both directions, live reprogramming of its own masks, a freeze wire, and a 64-bit setup word. Its own shift, nibble-mask and invert chain is built into every cell.',
+        cmd:'-S adder_cell (an array of copies of one core)'},
+    v4c:{one:'The same cores, with the shared parts moved out into a carrier.',
+        body:'The shift chain is taken out of every core (the files are literally the standalone ones minus that chain). One carrier cell holds the common functions once: the four-sided control, the setup latch, and a single shift / nibble-mask / invert chain. All the cores sit inside the carrier at once and only the selected one sees any data. A select value in the carrier\'s setup word (set by configuration, not by rebuilding) chooses which core the cell is. One cell can be an adder now and a comparer later.',
+        cmd:'--shell vix (an array of carriers)'},
+    v4s:{one:'Each cell cut back to its bare function.',
+        body:'No sides, no masks, no handshake, no freeze, no live reprogramming. Every operand has its own fixed wire in and the result its own wire out, plus one forward "valid" bit. Shift and nibble-mask are separate little cells instead of a chain every cell pays for. The price: every cell takes a known, fixed number of ticks, so the assembler must pad paths that meet so values arrive together.',
+        cmd:'-s sub --icm FILE'},
+    v4sa:{one:'The stripped cell, with a handshake and a width you choose.',
+        body:'Still fixed wires and no sides, but now a point-to-point ready/taken pair, so a cell waits when the next one is busy and nothing needs padding. A global freeze holds everything while setup loads. The data width is a build-time setting, and a cell can build an optional second output (the carry). It is also, measured, smaller than the stripped adder.',
+        cmd:'-s flex --icm FILE'}
+  };
+  var KEEP={};
+  /* ---------- family card ---------- */
+  var cur='v4';
+  KEYS.forEach(function(k){var b=document.createElement('button');b.type='button';b.setAttribute('data-k',k);b.textContent=F[k].name+' ('+k+')';b.addEventListener('click',function(){cur=k;showCard();});$('asm-pick').appendChild(b);});
+  var wsel=18;
+  function fitsHtml(k){
+    var a=S.adder,sz,label;
+    if(k==='v4'){sz=a.v4;label='adder, with its own shift chain built in';}
+    else if(k==='v4c'){sz=S.carrier_whole;label='whole carrier cell, all 14 cores present';}
+    else if(k==='v4s'){sz=a.v4s;label='adder';}
+    else{var c=S.adder.v4sa_fit;sz=Math.round(c[0]*wsel+c[1]);label='adder at '+wsel+' bits';}
+    var mx=S.carrier_whole;
+    var h='<div class="kv"><strong>Size:</strong> '+sz.toLocaleString()+' LUT4: '+esc(label)+'</div><div class="szbar"><i style="width:'+Math.max(0.4,100*sz/mx).toFixed(1)+'%"></i></div>';
+    if(k==='v4c')h+='<div class="kv" style="color:var(--ink-soft)">The adder core alone, without the shift chain, is at least '+a.v4c_core_lower_bound+' LUT4 (a lower bound). The carrier is big because every core is physically there.</div>';
+    h+='<div class="big">≈ '+Math.floor(TANG/sz).toLocaleString()+' per Tang Nano 20K</div><div class="kv" style="color:var(--ink-soft)">'+TANG.toLocaleString()+' LUT4 divided by the size. Arithmetic only: wiring is not counted.</div>';
+    if(k==='v4s')h+='<div class="kv" style="color:var(--ink-soft)">Size quoted from ledger #898, not re-measured.</div>';
+    if(k==='v4sa')h+='<div class="bar"><label>Width <input type="range" id="asm-w" min="4" max="32" value="'+wsel+'"> <span id="asm-wv">'+wsel+' bits</span></label></div>';
+    return h;
+  }
+  function showCard(){
+    [].forEach.call($('asm-pick').children,function(b){b.className=b.getAttribute('data-k')===cur?'on':'';});
+    var f=F[cur],ID=IDEA[cur],pi=f.adder_ports;
+    var others=KEYS.filter(function(k){return k!==cur;}),inO={};others.forEach(function(k){F[k].kinds.forEach(function(n){inO[n.replace('nano_gate','nano')]=1;});});
+    var chips=f.kinds.map(function(n){var nn=n.replace('nano_gate','nano');return '<span'+(inO[nn]?'':' class="x"')+'>'+esc(n)+'</span>';}).join('');
+    var r=D.routes[cur];
+    var h='<h3 style="margin:.2em 0">'+esc(f.name)+' &mdash; '+esc(ID.one)+'</h3><p>'+esc(ID.body)+'</p>'
+      +'<div class="two"><div><div class="kv"><strong>Cell kinds ('+f.kinds.length+'):</strong> shaded ones exist in no other family.</div><div class="chips">'+chips+'</div>'
+      +'<div class="kv"><strong>The adder\'s ports:</strong> '+pi.inputs+' inputs and '+pi.outputs+' outputs'+(pi.symbolic_width?' (some as wide as you choose)':'')+', about '+pi.in_bits+' input bits'+(pi.symbolic_width?' plus the chosen-width ones':'')+'. Module <code>'+esc(f.adder_module)+'</code>, '+f.testbenches+' testbenches for the family.</div>'
+      +'<div class="kv"><strong>The assembler picks it with:</strong> <code>'+esc(ID.cmd)+'</code></div></div>'
+      +'<div>'+fitsHtml(cur)+'</div></div>'
+      +'<div class="kv"><strong>One real run</strong> (<code>'+esc(r.cmd.replace(/ --output DIR$/,'').replace('python3 tools/','').replace('docs/man/','').replace('nano/library_std/',''))+'</code>) wrote '+Object.keys(r.files).length+' files:</div>'
+      +'<ul class="fl">'+Object.keys(r.files).slice(0,8).map(function(n){return '<li><span>'+esc(n)+'</span><span>'+r.files[n]+' lines</span></li>';}).join('')+(Object.keys(r.files).length>8?'<li><span>… '+(Object.keys(r.files).length-8)+' more, one pair per core kind</span><span></span></li>':'')+'</ul>';
+    $('asm-card').innerHTML=h;
+    var w=$('asm-w');if(w)w.addEventListener('input',function(){wsel=+w.value;showCard();var w2=$('asm-w');if(w2)w2.focus();});
+  }
+  showCard();
+
+  /* ---------- capability table ---------- */
+  function yn(v,t){return '<span class="'+(v?'yes':'no')+'">'+(v?'yes':'no')+'</span>'+(t?' <span style="color:var(--ink-soft)">'+esc(t)+'</span>':'');}
+  var ROWS=[
+    ['Four sides, with runtime masks choosing direction',function(f){return yn(f.features.cardinal_ports,f.features.cardinal_ports?'north / south / east / west':'fixed wires, chosen when built');}],
+    ['A cell can be told to wait (ready / taken handshake)',function(f){return f.key==='v4sa'?yn(true,'point to point, fixed at build'):yn(f.features.ack&&f.features.ready,f.features.ack?'in all four directions':'timing must be known');}],
+    ['Reprogram its routing while running',function(f){return yn(f.features.live_reprogram);}],
+    ['Freeze wire',function(f){return yn(f.features.freeze,f.key==='v4sa'?'one global wire for every cell':(f.features.freeze?'per cell':''));}],
+    ['Setup word',function(f){return '<span>'+f.features.cfg_bits+' bits</span>';}],
+    ['Shift, nibble-mask and invert',function(f){return f.key==='v4'?'<span class="yes">built into every cell</span>':f.key==='v4c'?'<span class="mid">one shared chain in the carrier</span>':'<span class="no">not in the cell</span> <span style="color:var(--ink-soft)">separate '+(f.key==='v4s'?'shift and mask cells':'mask and shift-stage cells')+'</span>';}],
+    ['Which job the cell does, changed by configuration',function(f){return f.key==='v4c'?'<span class="yes">yes</span> <span style="color:var(--ink-soft)">'+D.carrier.selectable.length+' cores to choose from</span>':'<span class="no">no</span> <span style="color:var(--ink-soft)">one kind per cell</span>';}],
+    ['Data width',function(f){return f.features.width_param?'<span class="yes">chosen when built</span> <span style="color:var(--ink-soft)">WIDTH parameter</span>':'<span class="no">fixed</span> <span style="color:var(--ink-soft)">32 bits</span>';}],
+    ['Second output (carry)',function(f){return f.key==='v4sa'?yn(true,'a build parameter'):f.features.second_output?yn(true,'a setup-word option'):yn(false);}],
+    ['Timing',function(f){return f.key==='v4s'?'<span class="mid">fixed and known</span> <span style="color:var(--ink-soft)">builder pads paths that meet</span>':'<span class="yes">cells wait</span> <span style="color:var(--ink-soft)">no padding</span>';}],
+    ['A program (ICM file) can be assembled to it',function(f){return (f.key==='v4s'||f.key==='v4sa')?'<span class="yes">yes</span>':'<span class="no">not by the assembler</span>';}],
+    ['Adder size (LUT4)',function(f){var a=S.adder;return f.key==='v4'?a.v4.toLocaleString():f.key==='v4c'?'carrier '+S.carrier_whole.toLocaleString()+' (core ≥ '+a.v4c_core_lower_bound+')':f.key==='v4s'?String(a.v4s):a.v4sa_w32+' at 32 bits, '+a.v4sa_w18+' at 18';}]
+  ];
+  var th='<tr><th></th>'+KEYS.map(function(k){return '<th>'+esc(F[k].name)+'<br><code>'+k+'</code></th>';}).join('')+'</tr>';
+  var body=ROWS.map(function(r){var cells=KEYS.map(function(k){return r[1](F[k]);});
+    return '<tr><td>'+esc(r[0])+'</td>'+cells.map(function(c,i){return '<td'+(i>0&&c!==cells[i-1]?' class="d"':'')+'>'+c+'</td>';}).join('')+'</tr>';}).join('');
+  $('asm-cap').innerHTML=th+body;
+  $('asm-capnote').innerHTML='<strong>How to read it.</strong> Going down the families, each step gives something up to gain something. The carrier removes the per-cell shift chain and gains a cell that can change job, but carries every core at once. The stripped cell removes sides, handshake and reprogramming and shrinks to a few dozen LUTs, but fixes timing. The flex cell buys the handshake back for almost nothing and gains a width you choose, but it has no sides and no live reprogramming: its wiring is fixed when it is built.';
+
+  /* ---------- kinds matrix ---------- */
+  var norm=function(n){return n.replace('nano_gate','nano');};
+  var all={};KEYS.forEach(function(k){F[k].kinds.forEach(function(n){all[norm(n)]=1;});});
+  var kh='<tr><th>Cell kind</th>'+KEYS.map(function(k){return '<th><code>'+k+'</code></th>';}).join('')+'</tr>';
+  Object.keys(all).sort().forEach(function(n){kh+='<tr><td>'+esc(n)+'</td>'+KEYS.map(function(k){var has=F[k].kinds.some(function(m){return norm(m)===n;});return '<td>'+(has?'<span class="yes">●</span>':'<span style="color:var(--ink-soft)">–</span>')+'</td>';}).join('')+'</tr>';});
+  $('asm-kinds').innerHTML=kh;
+  var onlyc=Object.keys(all).filter(function(n){return KEYS.filter(function(k){return F[k].kinds.some(function(m){return norm(m)===n;});}).length===1;});
+  $('asm-kindsays').textContent='Names are matched loosely: nano_gate counts as nano. '+F.v4.kinds.length+' kinds in the standalone and carrier families (the carrier can select among '+D.carrier.selectable.length+' of them, all of the same kinds), '+F.v4s.kinds.length+' in the stripped family and '+F.v4sa.kinds.length+' in the flex family. Kinds that appear in one family only: '+(onlyc.length?onlyc.join(', '):'none')+'. The wiring tiles (corner, cross) and the command cell exist only where cells have sides; the stripped families have no sides to wire, so they have router cells instead.';
+
+  /* ---------- needs ---------- */
+  var NEEDS=[
+    ['Choose the data width when building',['v4sa']],
+    ['Reprogram a cell\'s routing while it runs',['v4','v4c']],
+    ['Change what job a cell does without rebuilding',['v4c']],
+    ['Shift and nibble-mask available on every cell, with no extra cells',['v4','v4c']],
+    ['Cells wait for each other, so no padding is needed',['v4','v4c','v4sa']],
+    ['Smallest possible cells (under 100 LUT4 for an adder)',['v4s','v4sa']],
+    ['The assembler can build my program (an ICM file) from it',['v4s','v4sa']],
+    ['More than 100 adders on a Tang Nano 20K',['v4s','v4sa']]
+  ];
+  NEEDS.forEach(function(n,i){var l=document.createElement('label');l.className='need';l.innerHTML='<input type="checkbox" data-i="'+i+'"><span>'+esc(n[0])+'</span>';$('asm-needs').appendChild(l);});
+  function showNeeds(){
+    var on=[].map.call($('asm-needs').querySelectorAll('input:checked'),function(c){return +c.getAttribute('data-i');});
+    var ok=KEYS.filter(function(k){return on.every(function(i){return NEEDS[i][1].indexOf(k)>=0;});});
+    $('asm-res').innerHTML=KEYS.map(function(k){return '<span class="'+(ok.indexOf(k)>=0?'':'out')+'">'+k+' '+esc(F[k].name)+'</span>';}).join('');
+    var t;
+    if(!on.length)t='Tick one or more needs.';
+    else if(!ok.length)t='No family does all of that. The needs you ticked pull in different directions: '+on.map(function(i){return '"'+NEEDS[i][0].toLowerCase()+'" ('+NEEDS[i][1].join(', ')+')';}).join(' against ')+'. Untick one to see which family each need belongs to.';
+    else t=ok.length+' of 4: '+ok.join(', ')+'.';
+    $('asm-ressay').textContent=t;
+  }
+  $('asm-needs').addEventListener('change',showNeeds);showNeeds();
+
+  /* ---------- routes ---------- */
+  var rh='<tr><th>Family</th><th>Command</th><th>What it writes</th><th>Files</th></tr>';
+  var what={v4:'an array of N copies of one core, with a Quartus project (.qsf, .sdc)',v4c:'an array of N carrier cells, every core file and shell, and a Quartus project',v4s:'the program as Verilog: a top file wired from the cells, a build script, padding relays',v4sa:'the program as Verilog: a top file with forks and joins, a build script, no padding'};
+  KEYS.forEach(function(k){var r=D.routes[k];rh+='<tr><td>'+esc(F[k].name)+' <code>'+k+'</code></td><td><code>'+esc(r.cmd.replace(/ --output DIR$/,'').replace('python3 tools/project_assemble_v1.py ','').replace(/docs\/man\//g,'').replace(/nano\/library_std\//g,''))+'</code></td><td>'+esc(what[k])+'</td><td>'+Object.keys(r.files).length+'</td></tr>';});
+  $('asm-routes').innerHTML=rh;
+  $('asm-r1').innerHTML='<strong>Two kinds of route.</strong> The standalone and carrier routes tile a grid with the cell and write a project for the Intel Quartus tool; they need an Intel card file. The sub and flex routes read a program and write the hardware for exactly that program, using the open-source Gowin flow.';
+  /* ---------- flags ---------- */
+  var FL={};D.flags.forEach(function(f){f.names.forEach(function(n){FL[n]=f;});});
+  var GROUPS=[
+    ['Which card, and where the files go',['--man','--output','--cells','--top']],
+    ['Which family or shell',['-s','-S','--shell','-x']],
+    ['The program (program route only)',['--icm','--merge-mode','--mul','--no-align']],
+    ['Width and synthesis choices',['-w','--nowidelut','--wide-lut','--target']],
+    ['Quartus project extras (carrier and standalone)',['-P','--logiclock','--ll-fixed-alm','--ll-headroom']],
+    ['Custom shells',['--shell-file','--shell-module','--file-list','--files']]
+  ];
+  var grouped={};GROUPS.forEach(function(g){g[1].forEach(function(n){grouped[n]=1;});});
+  var others=D.flags.filter(function(f){return !f.names.some(function(n){return grouped[n]||n==='-h'||n==='--help';});});
+  if(others.length)GROUPS.push(['Other',others.map(function(f){return f.names[f.names.length-1];})]);
+  $('asm-nflags').textContent=D.flags.filter(function(f){return f.names.indexOf('-h')<0;}).length;
+  function clean(t){return t.replace(/points\.md #\d+[:,]?\s*/g,'').replace(/\s+/g,' ').replace(/^(real|Real),?\s*/,'');}
+  function drawFlags(){
+    var q=($('asm-ff').value||'').toLowerCase(),h='';
+    GROUPS.forEach(function(g){
+      var rows=g[1].map(function(n){var f=FL[n];if(!f)return '';var txt=clean(f.help);
+        if(q&&(f.head+' '+txt).toLowerCase().indexOf(q)<0)return '';
+        return '<tr><td><code>'+esc(f.head)+'</code></td><td>'+esc(txt.length>330?txt.slice(0,330)+'…':txt)+'</td></tr>';}).join('');
+      if(rows)h+='<details'+(q?' open':'')+'><summary><strong>'+esc(g[0])+'</strong></summary><div class="scroll"><table class="f"><tr><th>Flag</th><th>What the tool says</th></tr>'+rows+'</table></div></details>';});
+    $('asm-flags').innerHTML=h||'<p>No flag matches.</p>';
+  }
+  $('asm-ff').addEventListener('input',drawFlags);drawFlags();
+  /* ---------- command builder ---------- */
+  var PR={};D.probes.forEach(function(p){PR[p.id]=p;});
+  var CHK=[['nowidelut','--nowidelut'],['widelut','--wide-lut'],['noalign','--no-align'],['logiclock','--logiclock'],['probe','-P'],['yosys','--target yosys']];
+  CHK.forEach(function(c){var l=document.createElement('label');l.className='need';l.innerHTML='<input type="checkbox" data-f="'+c[0]+'"><span><code>'+c[1]+'</code></span>';$('asm-fl').appendChild(l);});
+  function build(){
+    var rt=$('asm-rt').value,fam=$('asm-fam').value,card=$('asm-card2').value,w=$('asm-fw').value.trim(),mul=$('asm-fmul').value;
+    var on={};[].forEach.call($('asm-fl').querySelectorAll('input'),function(i){on[i.getAttribute('data-f')]=i.checked;});
+    var man=card==='tang'?'tang-nano-20k.man.json':'mustang-f100-a10.man.json';
+    var c=['python3 tools/project_assemble_v1.py'];
+    if(rt==='prog'){c.push('-s '+fam,'--icm add.icm.json');}
+    else if(rt==='chain'){c.push('-s '+fam,'-S adder','--cells 4');}
+    else if(rt==='solo'){c.push('-S adder_cell','--cells 4');}
+    else{c.push('--shell vix','--cells 4');}
+    c.push('--man '+man);
+    if(w)c.push('-w '+w);
+    if(mul)c.push('--mul '+mul);
+    if(on.nowidelut)c.push('--nowidelut');if(on.widelut)c.push('--wide-lut');if(on.noalign)c.push('--no-align');
+    if(on.logiclock)c.push('--logiclock');if(on.probe)c.push('-P');if(on.yosys)c.push('--target yosys');
+    c.push('--output DIR');
+    $('asm-cmd').textContent=c.join(' \\\n  ');
+    var m=[],stub=(rt==='prog'||rt==='chain'),famok=(rt==='prog'||rt==='chain');
+    function bad(id,extra){m.push(['bad',PR[id].message+(extra||'')]);}
+    $('asm-fam').disabled=!famok;
+    if(!famok&&card==='tang')bad('quartus_tang');
+    if(w&&((famok&&fam==='sub'&&rt==='prog')))bad('w_with_sub');
+    if(w&&!famok)bad('w_default_route');
+    if(mul==='dsp'&&card==='mustang'&&rt==='prog'&&fam==='sub')bad('mul_dsp_mustang');
+    if(mul&&rt!=='prog')m.push(['warn','--mul is described by the tool as applying with --icm only; this page did not run it on this route.']);
+    if(on.noalign&&rt!=='prog')m.push(['warn','--no-align is described by the tool as applying with --icm only; this page did not run it on this route.']);
+    if(on.nowidelut&&card==='mustang'&&famok)bad('nowidelut_mustang');
+    if(on.nowidelut&&on.widelut)m.push(['warn','--nowidelut and --wide-lut say opposite things; this combination was not run.']);
+    if(famok&&rt==='chain'&&(on.logiclock||on.probe))bad('chain_logiclock');
+    if(famok&&rt==='prog'&&(on.logiclock||on.probe))m.push(['warn','Accepted without complaint on the program route. A real run with --logiclock wrote files identical to the run without it: the flag did nothing. (-P was not compared.)']);
+    if(on.yosys&&on.probe&&!famok)bad('yosys_probe');
+    if(on.yosys&&famok)m.push(['warn','--target yosys is a carrier-lineage option; on the flex and sub routes the build script is already a yosys script. Not run on these routes.']);
+    if(famok&&card==='mustang'&&!on.nowidelut&&!on.widelut)m.push(['ok','Built the same way as on the Tang Nano, but without the no-wide-LUT flag, because the Mustang file says its tools lack it.']);
+    if(rt==='prog'&&fam==='flex'&&w&&/^\d+$/.test(w)&&!m.some(function(x){return x[0]==='bad';}))m.push(['ok','A real run with -w 8 built an 8-bit design; without -w this route builds 32 bits whichever card is named.']);
+    if(rt==='prog'&&on.noalign)m.push(['warn','A negative control: it skips the padding relays, so the sub design is expected to compute the wrong answer.']);
+    var bads=m.filter(function(x){return x[0]==='bad';}).length;
+    var h=m.map(function(x){return '<div class="says '+(x[0]==='bad'?'bad':x[0]==='warn'?'warn':'')+'"><strong>'+(x[0]==='bad'?'Refused by the tool.':x[0]==='warn'?'Note.':'Fine.')+'</strong> '+esc(x[1])+'</div>';}).join('');
+    if(!m.length)h='<div class="says"><strong>No complaint.</strong> Nothing in this combination is known to be refused.</div>';
+    $('asm-msgs').innerHTML=h;
+  }
+  ['asm-rt','asm-fam','asm-card2','asm-fmul'].forEach(function(i){$(i).addEventListener('change',build);});
+  $('asm-fw').addEventListener('input',build);$('asm-fl').addEventListener('change',build);build();
+  $('asm-r2').innerHTML='<strong>The carrier is the largest build</strong> ('+Object.keys(D.routes.v4c.files).length+' files for a four-cell array) because every core and every shell is included, so any cell can become any core. The stripped and flex builds of the same adder program are six files each.';
+})();
+</script>
+</div>

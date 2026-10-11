@@ -1,0 +1,1149 @@
+{
+ "families": [
+  {
+   "key": "v4",
+   "name": "Standalone",
+   "tag": "v4",
+   "kinds": [
+    "accumulator",
+    "adder",
+    "branch",
+    "command",
+    "compare",
+    "corner",
+    "cross",
+    "latch",
+    "merge",
+    "mul",
+    "nano_gate",
+    "priority",
+    "ram",
+    "sequencer"
+   ],
+   "testbenches": 18,
+   "adder_module": "adder_cell_v4",
+   "adder_params": [
+    [
+     "CELL_ID",
+     "16'h0000"
+    ]
+   ],
+   "adder_ports": {
+    "inputs": 31,
+    "outputs": 20,
+    "in_bits": 342,
+    "out_bits": 144,
+    "symbolic_width": false,
+    "names": [
+     "clk",
+     "rst",
+     "active",
+     "cfg_valid",
+     "cfg_data",
+     "data_in_n",
+     "data_in_s",
+     "data_in_e",
+     "data_in_w",
+     "arrived_n",
+     "arrived_s",
+     "arrived_e",
+     "arrived_w",
+     "data_out_n",
+     "data_out_s",
+     "data_out_e",
+     "data_out_w",
+     "fire_n",
+     "fire_s",
+     "fire_e",
+     "fire_w",
+     "ready_out",
+     "ready_in_n",
+     "ready_in_s",
+     "ready_in_e",
+     "ready_in_w",
+     "ack_out_n",
+     "ack_out_s",
+     "ack_out_e",
+     "ack_out_w",
+     "ack_in_n",
+     "ack_in_s",
+     "ack_in_e",
+     "ack_in_w",
+     "program_in",
+     "program_done",
+     "prog_data_in_n",
+     "prog_data_in_s",
+     "prog_data_in_e",
+     "prog_data_in_w",
+     "prog_arrived_in_n",
+     "prog_arrived_in_s",
+     "prog_arrived_in_e",
+     "prog_arrived_in_w",
+     "prog_ack_out_n",
+     "prog_ack_out_s",
+     "prog_ack_out_e",
+     "prog_ack_out_w",
+     "freeze_in",
+     "status_data_valid",
+     "status_a_arrived"
+    ]
+   },
+   "features": {
+    "cardinal_ports": true,
+    "ack": true,
+    "ready": true,
+    "freeze": true,
+    "live_reprogram": true,
+    "cfg_bits": 64,
+    "width_param": false,
+    "second_port_param": false,
+    "second_output": true,
+    "builds_in_addon_chain": true
+   }
+  },
+  {
+   "key": "v4c",
+   "name": "Carrier",
+   "tag": "v4c",
+   "kinds": [
+    "accumulator",
+    "adder",
+    "branch",
+    "command",
+    "compare",
+    "corner",
+    "cross",
+    "latch",
+    "merge",
+    "mul",
+    "nano_gate",
+    "priority",
+    "ram",
+    "sequencer"
+   ],
+   "testbenches": 11,
+   "adder_module": "adder_cell_v4c",
+   "adder_params": [
+    [
+     "CELL_ID",
+     "16'h0000"
+    ]
+   ],
+   "adder_ports": {
+    "inputs": 31,
+    "outputs": 20,
+    "in_bits": 342,
+    "out_bits": 144,
+    "symbolic_width": false,
+    "names": [
+     "clk",
+     "rst",
+     "active",
+     "cfg_valid",
+     "cfg_data",
+     "data_in_n",
+     "data_in_s",
+     "data_in_e",
+     "data_in_w",
+     "arrived_n",
+     "arrived_s",
+     "arrived_e",
+     "arrived_w",
+     "data_out_n",
+     "data_out_s",
+     "data_out_e",
+     "data_out_w",
+     "fire_n",
+     "fire_s",
+     "fire_e",
+     "fire_w",
+     "ready_out",
+     "ready_in_n",
+     "ready_in_s",
+     "ready_in_e",
+     "ready_in_w",
+     "ack_out_n",
+     "ack_out_s",
+     "ack_out_e",
+     "ack_out_w",
+     "ack_in_n",
+     "ack_in_s",
+     "ack_in_e",
+     "ack_in_w",
+     "program_in",
+     "program_done",
+     "prog_data_in_n",
+     "prog_data_in_s",
+     "prog_data_in_e",
+     "prog_data_in_w",
+     "prog_arrived_in_n",
+     "prog_arrived_in_s",
+     "prog_arrived_in_e",
+     "prog_arrived_in_w",
+     "prog_ack_out_n",
+     "prog_ack_out_s",
+     "prog_ack_out_e",
+     "prog_ack_out_w",
+     "freeze_in",
+     "status_data_valid",
+     "status_a_arrived"
+    ]
+   },
+   "features": {
+    "cardinal_ports": true,
+    "ack": true,
+    "ready": true,
+    "freeze": true,
+    "live_reprogram": true,
+    "cfg_bits": 64,
+    "width_param": false,
+    "second_port_param": false,
+    "second_output": true,
+    "builds_in_addon_chain": false
+   }
+  },
+  {
+   "key": "v4s",
+   "name": "Sub (stripped)",
+   "tag": "v4s",
+   "kinds": [
+    "accumulator",
+    "adder",
+    "branch",
+    "compare",
+    "latch",
+    "mask",
+    "mul",
+    "nano",
+    "ram",
+    "router",
+    "sequencer",
+    "shift",
+    "shift_stage"
+   ],
+   "testbenches": 16,
+   "adder_module": "adder_cell_v4s",
+   "adder_params": [
+    [
+     "CELL_ID",
+     "16'h0000"
+    ]
+   ],
+   "adder_ports": {
+    "inputs": 7,
+    "outputs": 2,
+    "in_bits": 100,
+    "out_bits": 33,
+    "symbolic_width": false,
+    "names": [
+     "clk",
+     "rst",
+     "cfg_valid",
+     "cfg_data",
+     "in_a",
+     "in_b",
+     "valid_in",
+     "data_out",
+     "valid_out"
+    ]
+   },
+   "features": {
+    "cardinal_ports": false,
+    "ack": false,
+    "ready": false,
+    "freeze": false,
+    "live_reprogram": false,
+    "cfg_bits": 32,
+    "width_param": false,
+    "second_port_param": false,
+    "second_output": false,
+    "builds_in_addon_chain": false
+   }
+  },
+  {
+   "key": "v4sa",
+   "name": "Flex",
+   "tag": "v4sa",
+   "kinds": [
+    "accumulator",
+    "adder",
+    "branch",
+    "compare",
+    "latch",
+    "mask",
+    "merge",
+    "mul",
+    "nano",
+    "priority",
+    "ram",
+    "router",
+    "sequencer",
+    "shift_stage"
+   ],
+   "testbenches": 23,
+   "adder_module": "adder_cell_v4sa",
+   "adder_params": [
+    [
+     "CELL_ID",
+     "16'h0000"
+    ],
+    [
+     "SECOND_PORT",
+     "0"
+    ],
+    [
+     "WIDTH",
+     "32   "
+    ]
+   ],
+   "adder_ports": {
+    "inputs": 10,
+    "outputs": 5,
+    "in_bits": 39,
+    "out_bits": 3,
+    "symbolic_width": true,
+    "names": [
+     "clk",
+     "rst",
+     "freeze_in",
+     "cfg_valid",
+     "cfg_data",
+     "in_a",
+     "in_b",
+     "valid_in",
+     "ack_out",
+     "data_out",
+     "valid_out",
+     "ack_in",
+     "carry_out",
+     "valid_out_c",
+     "ack_in_c"
+    ]
+   },
+   "features": {
+    "cardinal_ports": false,
+    "ack": true,
+    "ready": false,
+    "freeze": true,
+    "live_reprogram": false,
+    "cfg_bits": 32,
+    "width_param": true,
+    "second_port_param": true,
+    "second_output": true,
+    "builds_in_addon_chain": false
+   }
+  }
+ ],
+ "carrier": {
+  "module": "unicell_vix_carrier_v1",
+  "selectable": [
+   [
+    0,
+    "nano"
+   ],
+   [
+    1,
+    "adder"
+   ],
+   [
+    2,
+    "ram"
+   ],
+   [
+    3,
+    "compare"
+   ],
+   [
+    4,
+    "branch"
+   ],
+   [
+    5,
+    "accum"
+   ],
+   [
+    6,
+    "latch"
+   ],
+   [
+    7,
+    "seq"
+   ],
+   [
+    8,
+    "command"
+   ],
+   [
+    9,
+    "mul"
+   ],
+   [
+    10,
+    "priority"
+   ],
+   [
+    12,
+    "corner"
+   ],
+   [
+    13,
+    "cross"
+   ],
+   [
+    14,
+    "merge"
+   ]
+  ],
+  "latch_bits": 160,
+  "core_config_bits": 128,
+  "shells": [
+   "accumulator",
+   "adder",
+   "branch",
+   "command",
+   "compare",
+   "corner",
+   "cross",
+   "latch",
+   "merge",
+   "mul",
+   "nano",
+   "priority",
+   "ram",
+   "sequencer"
+  ],
+  "addon_blocks": [
+   "invert_addon",
+   "nibble_mask_addon",
+   "shift_fine_addon",
+   "shift_lane_addon"
+  ],
+  "instantiates_addon_chain": true,
+  "extra_features": {
+   "freeze_in": true,
+   "program_in": true
+  }
+ },
+ "sizes": {
+  "unit": "LUT4 (yosys synth_gowin, synthesis only), quoted",
+  "adder": {
+   "v4": 2348,
+   "v4c_core_lower_bound": 248,
+   "v4s": 66,
+   "v4s_source": "points ledger #898, not re-measured here",
+   "v4sa_w32": 37,
+   "v4sa_w18": 23,
+   "v4sa_w4": 9,
+   "v4sa_fit": [
+    1.0,
+    5.0
+   ]
+  },
+  "carrier_whole": 16574,
+  "standalone_full": {
+   "nano": 3898,
+   "ram": 2416,
+   "adder": 2348,
+   "branch": 3036,
+   "accumulator": 2398,
+   "compare": 575,
+   "sequencer": 686,
+   "latch": 243,
+   "mul": 7015
+  },
+  "standalone_lean": {
+   "nano": 1750,
+   "ram": 397,
+   "adder": 248,
+   "branch": 718,
+   "accumulator": 378,
+   "compare": 484,
+   "sequencer": 173,
+   "latch": 186,
+   "mul": 5723
+  },
+  "tang_lut4_total": 20736
+ },
+ "routes": {
+  "v4": {
+   "cmd": "python3 tools/project_assemble_v1.py --man docs/man/mustang-f100-a10.man.json --cells 4 -S adder_cell --output DIR",
+   "ok": true,
+   "err": "",
+   "files": {
+    "adder_cell_v4.v": 350,
+    "adder_v1.v": 40,
+    "top_adder_cell_4cells_v1.qsf": 19,
+    "top_adder_cell_4cells_v1.sdc": 13,
+    "top_adder_cell_4cells_v1.v": 119
+   },
+   "stdout": [
+    "Card:   mustang-f100-a10-01 (Arria 10, 10AX066H2F34E2SG)",
+    "Cells:  4 (grid 2x2, real ALM budget 251,680)",
+    "Core:   adder_cell (resolved to real file: adder_cell_v4.v)",
+    "Output: /tmp/tmp5mryt47h/r_v4"
+   ]
+  },
+  "v4c": {
+   "cmd": "python3 tools/project_assemble_v1.py --man docs/man/mustang-f100-a10.man.json --cells 4 --shell vix --output DIR",
+   "ok": true,
+   "err": "",
+   "files": {
+    "accumulator_cell_v4c.v": 268,
+    "accumulator_shell_v1c.v": 68,
+    "adder_cell_v4c.v": 282,
+    "adder_shell_v1c.v": 73,
+    "adder_v1.v": 40,
+    "bitwise_multiplier_32bit.v": 68,
+    "branch_cell_v4c.v": 339,
+    "branch_shell_v1c.v": 67,
+    "command_cell_v4c.v": 361,
+    "command_shell_v1c.v": 75,
+    "compare_cell_v4c.v": 218,
+    "compare_shell_v1c.v": 67,
+    "corner_cell_v4.v": 130,
+    "corner_cell_v4c.v": 24,
+    "corner_shell_v1c.v": 72,
+    "cross_cell_v4c.v": 25,
+    "cross_shell_v1c.v": 72,
+    "invert_addon_v1.v": 27,
+    "latch_cell_v4c.v": 245,
+    "latch_shell_v1c.v": 66,
+    "merge_cell_v4c.v": 171,
+    "merge_shell_v1c.v": 72,
+    "mul_cell_v5c.v": 305,
+    "mul_shell_v1c.v": 68,
+    "nano_gate_v4c.v": 375,
+    "nano_shell_v1c.v": 86,
+    "nibble_mask_addon_v1.v": 41,
+    "priority_cell_v4c.v": 322,
+    "priority_shell_v1c.v": 67,
+    "ram_cell_v4c.v": 264,
+    "ram_shell_v1c.v": 72,
+    "sequencer_cell_v4c.v": 229,
+    "sequencer_shell_v1c.v": 67,
+    "shift_fine_addon_v1.v": 78,
+    "shift_lane_addon_v2.v": 105,
+    "top_array_vix_4cells_v1.qsf": 53,
+    "top_array_vix_4cells_v1.sdc": 13,
+    "top_array_vix_4cells_v1.v": 221,
+    "unicell_vix_carrier_v1.v": 867
+   },
+   "stdout": [
+    "Card:   mustang-f100-a10-01 (Arria 10, 10AX066H2F34E2SG)",
+    "Cells:  4 (grid 2x2, real ALM budget 251,680)",
+    "Shell:  vix",
+    "Output: /tmp/tmp5mryt47h/r_v4c"
+   ]
+  },
+  "v4s": {
+   "cmd": "python3 tools/project_assemble_v1.py -s sub --icm nano/library_std/add.icm.json --man docs/man/tang-nano-20k.man.json --output DIR",
+   "ok": true,
+   "err": "",
+   "files": {
+    "ASSEMBLY.json": 57,
+    "adder_cell_v4s.v": 120,
+    "adder_v1.v": 40,
+    "icm_add_sub.v": 79,
+    "icm_add_sub.ys": 4,
+    "ram_cell_v4s.v": 72
+   },
+   "stdout": [
+    "Family: sub   Source: add.icm.json   Cells: 27   Pad relay cells: 2",
+    "Output: /tmp/tmp5mryt47h/r_v4s  (5 files, top icm_add_sub)",
+    "Latency to output R: 18 cycles"
+   ]
+  },
+  "v4sa": {
+   "cmd": "python3 tools/project_assemble_v1.py -s flex --icm nano/library_std/add.icm.json --man docs/man/tang-nano-20k.man.json --output DIR",
+   "ok": true,
+   "err": "",
+   "files": {
+    "ASSEMBLY.json": 51,
+    "adder_cell_v4sa.v": 172,
+    "adder_v1.v": 40,
+    "icm_add_flex.v": 240,
+    "icm_add_flex.ys": 4,
+    "ram_cell_v4sa.v": 95
+   },
+   "stdout": [
+    "Family: flex   Source: add.icm.json   Cells: 27   Forks: 0   Joins: 1",
+    "Output: /tmp/tmp5mryt47h/r_v4sa  (5 files, top icm_add_flex)   (handshake design: no alignment, no padding)"
+   ]
+  }
+ },
+ "older_shells": {
+  "v3": {
+   "accumulator_cell_v1.v": 292,
+   "adder_cell_v1.v": 215,
+   "adder_v1.v": 40,
+   "branch_cell_v1.v": 343,
+   "compare_cell_v1.v": 155,
+   "invert_addon_v1.v": 27,
+   "latch_cell_v1.v": 202,
+   "nibble_mask_addon_v1.v": 41,
+   "ram_cell_v1.v": 202,
+   "sequencer_cell_v1.v": 168,
+   "shift_fine_addon_v1.v": 78,
+   "shift_lane_addon_v2.v": 105,
+   "top_array_v3_4cells_v1.qsf": 31,
+   "top_array_v3_4cells_v1.sdc": 13,
+   "top_array_v3_4cells_v1.v": 158,
+   "unicell_stripped_v1.v": 773,
+   "unicell_super_v3.v": 522
+  },
+  "v4": {
+   "accumulator_cell_v2.v": 192,
+   "adder_cell_v2.v": 173,
+   "adder_v1.v": 40,
+   "branch_cell_v2.v": 266,
+   "compare_cell_v2.v": 138,
+   "invert_addon_v1.v": 27,
+   "latch_cell_v2.v": 192,
+   "nibble_mask_addon_v1.v": 41,
+   "ram_cell_v2.v": 142,
+   "sequencer_cell_v2.v": 154,
+   "shift_fine_addon_v1.v": 78,
+   "shift_lane_addon_v2.v": 105,
+   "top_array_v4_4cells_v1.qsf": 31,
+   "top_array_v4_4cells_v1.sdc": 13,
+   "top_array_v4_4cells_v1.v": 158,
+   "unicell_stripped_v3.v": 380,
+   "unicell_super_v4.v": 523
+  }
+ },
+ "flags": [
+  {
+   "names": [
+    "-h",
+    "--help"
+   ],
+   "head": "-h, --help",
+   "help": "show this help message and exit"
+  },
+  {
+   "names": [
+    "--man"
+   ],
+   "head": "--man MAN",
+   "help": "Path to a MAN file (real card capabilities). Required for every mode except `-s flex` given -w (see -s/-w)."
+  },
+  {
+   "names": [
+    "--cells"
+   ],
+   "head": "--cells CELLS",
+   "help": "Number of cells to generate (not used with --icm: the ICM file defines the cells)"
+  },
+  {
+   "names": [
+    "--output"
+   ],
+   "head": "--output OUTPUT",
+   "help": "Output folder for the generated project (required -- prevents build artifacts landing inside the tracked repo by accident)"
+  },
+  {
+   "names": [
+    "--top"
+   ],
+   "head": "--top TOP",
+   "help": "Top-level module name (default: auto-generated)"
+  },
+  {
+   "names": [
+    "-S",
+    "--single-core"
+   ],
+   "head": "-S, --single-core SINGLE_CORE",
+   "help": "Generate an array of ONE real core type instead of the full 8-core shell. Real options: ram_cell, adder_cell, accumulator_cell, compare_cell, latch_cell, sequencer_cell, branch_cell, unicell_stripped"
+  },
+  {
+   "names": [
+    "-x",
+    "--core-path"
+   ],
+   "head": "-x, --core-path CORE_PATH",
+   "help": "Real path to search for core source files (default: fpga/verilog). Files are matched by base name only, ignoring version suffixes -- the highest real version found wins."
+  },
+  {
+   "names": [
+    "-P",
+    "--probe"
+   ],
+   "head": "-P, --probe [NAME]",
+   "help": "points.md #569: include a real ISSP debug probe, optionally naming the instance (default name if -P given with no value: DEBUG_PROBE). Omitted by default -- the LED-based anti-pruning check works independently of the probe, so it's a real, optional extra for JTAG confirmation, not required for a pure resource/timing build."
+  },
+  {
+   "names": [
+    "--shell"
+   ],
+   "head": "--shell {v3,v4,vix}",
+   "help": "points.md #578: which real 8-core shell to array (ignored with -S). 'v3' = each core's own separate storage (the original default). 'v4' = the shared external-storage shell (#573)."
+  },
+  {
+   "names": [
+    "--logiclock"
+   ],
+   "head": "--logiclock",
+   "help": "points.md #582: add a real per-cell LogicLock region (fixed-membership) forcing each cell's own logic to place as one contiguous block, instead of the fitter's unconstrained global optimization. Ignored with -S. Real, direct fix for the cross-die scattering Alan found in the Chip Planner on the unconstrained N=10 builds (#579-#581)."
+  },
+  {
+   "names": [
+    "--ll-fixed-alm"
+   ],
+   "head": "--ll-fixed-alm LL_FIXED_ALM",
+   "help": "points.md #583: real, measured per-cell ALM figure (e.g. 1030.52 for v3 N=10, #579; 1307.42 for v4 N=10, #580) to size FIXED LogicLock regions from, instead of AUTO_SIZE -- found to reserve ~3.1x more physical area than needed (#583). Only meaningful with --logiclock."
+  },
+  {
+   "names": [
+    "--ll-headroom"
+   ],
+   "head": "--ll-headroom LL_HEADROOM",
+   "help": "points.md #583: real slack multiplier over --ll-fixed- alm (default 1.25 = 25%) -- per-cell ALM cost genuinely varies cell-to-cell, so some real headroom is needed, deliberately far less than AUTO_SIZE's own real ~3.1x."
+  },
+  {
+   "names": [
+    "--shell-file"
+   ],
+   "head": "--shell-file SHELL_FILE",
+   "help": "points.md #590: real path to a custom shell .v file (e.g. fpga/verilog/unicell_super_v7.v, #587) to array instead of a SHELL_REGISTRY entry -- must share v3/v4's own real port list. Requires --shell-module. Automatically added to the dependency list, and triggers a real, advisory compatibility check (see check_dependency_compatibility())."
+  },
+  {
+   "names": [
+    "--shell-module"
+   ],
+   "head": "--shell-module SHELL_MODULE",
+   "help": "points.md #590: the real module name inside --shell- file (e.g. unicell_super_v7). Required when --shell- file is given."
+  },
+  {
+   "names": [
+    "--file-list"
+   ],
+   "head": "--file-list FILE_LIST",
+   "help": "points.md #590: real path to a plain text file listing dependency filenames, one real filename per line (blank lines and #-comments ignored) -- overrides SHELL_REGISTRY's own registered list entirely. Per Alan's own real request, for mixing and matching core versions without hand-writing a QSF file list each time."
+  },
+  {
+   "names": [
+    "--files"
+   ],
+   "head": "--files FILES",
+   "help": "points.md #590: real, inline comma-separated dependency list (e.g. \"compare_cell_v3.v,latch_cell_v3.v,ram_cell_v1.v,...\") -- an alternative to --file-list for a short real override. Takes precedence over --file-list if both are given."
+  },
+  {
+   "names": [
+    "--target"
+   ],
+   "head": "--target {quartus,yosys}",
+   "help": "points.md #663: 'quartus' (default) generates the real .qsf/.sdc pair this tool always has. 'yosys' generates a real .ys synthesis script instead (synth_intel_alm -family cyclone10gx -- the closest real family Yosys supports; Arria 10 has NO real model in this open- source techlib, so this gives a genuine same- generation ALM ballpark, not a real Arria 10 number). Cannot combine with --probe."
+  },
+  {
+   "names": [
+    "-s",
+    "--family"
+   ],
+   "head": "-s, --family {flex,sub,nano}",
+   "help": "Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s. For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1)."
+  },
+  {
+   "names": [
+    "--icm"
+   ],
+   "head": "--icm FILE",
+   "help": "STEP 2 of the Flex-Sub plan: read this ICM-VIX file (*.icm-hier.json) as a map and generate the design it describes as Verilog into --output. Requires -s sub (fixed-latency design: tools/flexsub_icm_generate_v1.py) or -s flex (handshake design: tools/flexsub_icm_flex_v1.py, ledger #944 onward); --cells is not used."
+  },
+  {
+   "names": [
+    "--nowidelut"
+   ],
+   "head": "--nowidelut",
+   "help": "Gowin synthesis (-s flex / -s sub, step-1 chains and --icm): FORCE `synth_gowin -nowidelut`. This is already the DEFAULT for the Gowin generators (ledger #951 / Alan's ruling after #950: smaller in every cell measured, ~3x smaller and ~3x faster for the LUT multiplier); the card's MAN (synthesis.nowidelut) decides the default, and forcing it where the MAN says the toolchain does not support it (the Arria 10 / synth_intel_alm path) is refused."
+  },
+  {
+   "names": [
+    "--wide-lut"
+   ],
+   "head": "--wide-lut",
+   "help": "Opt OUT of the -nowidelut default: write the historical `synth_gowin` line (wide-LUT / MUX2_LUT mapping). Same Gowin-only scope as --nowidelut."
+  },
+  {
+   "names": [
+    "--merge-mode"
+   ],
+   "head": "--merge-mode SPEC",
+   "help": "With -s flex --icm: the mode of the MERGE core (merge_cell_v4sa) placed at each ICM merge, chosen PER MERGE. SPEC is a default mode, or 'consumer=mode,...,default': e.g. 'arbitrate', 'join- or', or 's0.gather=join-or,arbitrate'. arbitrate (default) = take one source at a time, round-robin: right when the paths are ALTERNATIVES (a branch's outcomes rejoining, e.g. the cordic's gather). join-or = WAIT for all sources, then OR: right when the paths are HALVES of one item (the VM's 'free OR' used as a feature). Merges of 3-4 sources become a tree of two- input cores. A core is placed only where an ICM merge exists."
+  },
+  {
+   "names": [
+    "--mul"
+   ],
+   "head": "--mul {auto,lut,dsp}",
+   "help": "With --icm: how `mul` cells are realised. auto (default) = the DSP cell (mul_cell_v4s_dsp2, one MULT36X36, a few dozen LUTs) while the MAN's card has DSP blocks left, the exact LUT multiplier (~4,277 LUT4 each) as the fall back, and a refusal if even that cannot fit the card; lut = always the LUT multiplier; dsp = always DSP (refused if the card has too few). Needs --man for resource information; without one auto uses the LUT multiplier."
+  },
+  {
+   "names": [
+    "--no-align"
+   ],
+   "head": "--no-align",
+   "help": "With --icm: do NOT pad early adder operands with relay cells. A negative control -- the generated design is then expected to compute the wrong answer."
+  },
+  {
+   "names": [
+    "-w",
+    "--width"
+   ],
+   "head": "-w, --width WIDTH",
+   "help": "Cell data width for `-s flex` (e.g. -w 18). Overrides the MAN file's device.logic.native_width; required when no --man is given. Rejected with `-s sub` (fixed 32) and with the default/nano path."
+  }
+ ],
+ "probes": [
+  {
+   "id": "icm_no_family",
+   "label": "a program file with no family",
+   "args": [
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/tang-nano-20k.man.json"
+   ],
+   "ok": false,
+   "message": "--icm needs -s sub or -s flex"
+  },
+  {
+   "id": "w_with_sub",
+   "label": "-w with the sub family",
+   "args": [
+    "-s",
+    "sub",
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "-w",
+    "18"
+   ],
+   "ok": false,
+   "message": "-w with --icm applies to -s flex only (the sub family is fixed 32 bits)"
+  },
+  {
+   "id": "w_default_route",
+   "label": "-w on the carrier or standalone route",
+   "args": [
+    "--man",
+    "docs/man/mustang-f100-a10.man.json",
+    "--cells",
+    "4",
+    "-w",
+    "18"
+   ],
+   "ok": false,
+   "message": "-w/--width only applies with -s flex"
+  },
+  {
+   "id": "merge_mode_sub",
+   "label": "--merge-mode with the sub family",
+   "args": [
+    "-s",
+    "sub",
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "--merge-mode",
+    "arbitrate=x"
+   ],
+   "ok": false,
+   "message": "--merge-mode applies only to -s flex --icm (the merge core exists in the flex family)"
+  },
+  {
+   "id": "chain_no_cells",
+   "label": "a chain with no --cells",
+   "args": [
+    "-s",
+    "flex",
+    "-S",
+    "adder",
+    "--man",
+    "docs/man/tang-nano-20k.man.json"
+   ],
+   "ok": false,
+   "message": "the following arguments are required: --cells"
+  },
+  {
+   "id": "chain_logiclock",
+   "label": "--logiclock on the flex chain route",
+   "args": [
+    "-s",
+    "flex",
+    "-S",
+    "adder",
+    "--cells",
+    "4",
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "--logiclock"
+   ],
+   "ok": false,
+   "message": "--logiclock do not apply with -s flex (carrier/shell-lineage options)"
+  },
+  {
+   "id": "icm_logiclock",
+   "label": "--logiclock on the flex program route",
+   "args": [
+    "-s",
+    "flex",
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "--logiclock"
+   ],
+   "ok": true,
+   "message": "",
+   "files": 6,
+   "sha": {
+    "icm_add_flex.ys": "de2104915c",
+    "adder_v1.v": "f39443ce51",
+    "ram_cell_v4sa.v": "c582ff52e9",
+    "adder_cell_v4sa.v": "b52b0f7993",
+    "icm_add_flex.v": "0f6fc14e81"
+   },
+   "built_width": 32,
+   "synth_flags": "-nowidelut",
+   "pad_relay_cells": null,
+   "align": null,
+   "ys_synth": [
+    "synth_gowin -top icm_add_flex -nowidelut -json icm_add_flex.json"
+   ]
+  },
+  {
+   "id": "nowidelut_mustang",
+   "label": "--nowidelut on the Mustang card",
+   "args": [
+    "-s",
+    "flex",
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/mustang-f100-a10.man.json",
+    "--nowidelut"
+   ],
+   "ok": false,
+   "message": "--nowidelut: this card's MAN says its synthesis toolchain does not support the option (synthesis.nowidelut.supported = false) -- it would be silently ignored, so it is refused"
+  },
+  {
+   "id": "nowidelut_tang",
+   "label": "--nowidelut on the Tang Nano card",
+   "args": [
+    "-s",
+    "flex",
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "--nowidelut"
+   ],
+   "ok": true,
+   "message": "",
+   "files": 6,
+   "sha": {
+    "icm_add_flex.ys": "de2104915c",
+    "adder_v1.v": "f39443ce51",
+    "ram_cell_v4sa.v": "c582ff52e9",
+    "adder_cell_v4sa.v": "b52b0f7993",
+    "icm_add_flex.v": "0f6fc14e81"
+   },
+   "built_width": 32,
+   "synth_flags": "-nowidelut",
+   "pad_relay_cells": null,
+   "align": null,
+   "ys_synth": [
+    "synth_gowin -top icm_add_flex -nowidelut -json icm_add_flex.json"
+   ]
+  },
+  {
+   "id": "widelut_tang",
+   "label": "--wide-lut on the Tang Nano card",
+   "args": [
+    "-s",
+    "flex",
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "--wide-lut"
+   ],
+   "ok": true,
+   "message": "",
+   "files": 6,
+   "sha": {
+    "icm_add_flex.ys": "8c0b523d99",
+    "adder_v1.v": "f39443ce51",
+    "ram_cell_v4sa.v": "c582ff52e9",
+    "adder_cell_v4sa.v": "b52b0f7993",
+    "icm_add_flex.v": "0f6fc14e81"
+   },
+   "built_width": 32,
+   "synth_flags": "(wide-LUT mapping)",
+   "pad_relay_cells": null,
+   "align": null,
+   "ys_synth": [
+    "synth_gowin -top icm_add_flex -json icm_add_flex.json"
+   ]
+  },
+  {
+   "id": "noalign_sub",
+   "label": "--no-align on the sub family",
+   "args": [
+    "-s",
+    "sub",
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "--no-align"
+   ],
+   "ok": true,
+   "message": "",
+   "files": 6,
+   "sha": {
+    "adder_cell_v4s.v": "07646a4392",
+    "adder_v1.v": "f39443ce51",
+    "icm_add_sub.v": "e1b7e8bc84",
+    "ram_cell_v4s.v": "c522aa3a46",
+    "icm_add_sub.ys": "917ce2a227"
+   },
+   "built_width": 32,
+   "synth_flags": "-nowidelut",
+   "pad_relay_cells": 0,
+   "align": false,
+   "ys_synth": [
+    "synth_gowin -top icm_add_sub -nowidelut -json icm_add_sub.json"
+   ]
+  },
+  {
+   "id": "w8_flex",
+   "label": "-w 8 on the flex family",
+   "args": [
+    "-s",
+    "flex",
+    "--icm",
+    "nano/library_std/add.icm.json",
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "-w",
+    "8"
+   ],
+   "ok": true,
+   "message": "",
+   "files": 6,
+   "sha": {
+    "icm_add_flex.ys": "de2104915c",
+    "adder_v1.v": "f39443ce51",
+    "ram_cell_v4sa.v": "c582ff52e9",
+    "adder_cell_v4sa.v": "b52b0f7993",
+    "icm_add_flex.v": "519a3448af"
+   },
+   "built_width": 8,
+   "synth_flags": "-nowidelut",
+   "pad_relay_cells": null,
+   "align": null,
+   "ys_synth": [
+    "synth_gowin -top icm_add_flex -nowidelut -json icm_add_flex.json"
+   ]
+  },
+  {
+   "id": "mul_dsp_mustang",
+   "label": "--mul dsp on the Mustang card",
+   "args": [
+    "-s",
+    "sub",
+    "--icm",
+    "nano/library_std/mul.icm.json",
+    "--man",
+    "docs/man/mustang-f100-a10.man.json",
+    "--mul",
+    "dsp"
+   ],
+   "ok": false,
+   "message": "--mul dsp needs the MAN to list the MULT36X36 primitive under device.dsp.primitives (with the card's DSP block count and its blocks_per_instance); this MAN does not"
+  },
+  {
+   "id": "shellfile_no_module",
+   "label": "--shell-file without --shell-module",
+   "args": [
+    "--man",
+    "docs/man/mustang-f100-a10.man.json",
+    "--cells",
+    "4",
+    "--shell-file",
+    "fpga/verilog/unicell_super_v7.v"
+   ],
+   "ok": false,
+   "message": "--shell-file requires --shell-module (the real module name inside that file)"
+  },
+  {
+   "id": "yosys_probe",
+   "label": "--target yosys with -P",
+   "args": [
+    "--man",
+    "docs/man/mustang-f100-a10.man.json",
+    "--cells",
+    "4",
+    "--target",
+    "yosys",
+    "-P"
+   ],
+   "ok": false,
+   "message": "target='yosys' cannot include a real debug probe -- the ISSP IP (debug_issp_probe_v1.v's own `issp` instance) is a real, Quartus-only blackbox with no synthesizable definition anywhere in this repo; Yosys's own read_verilog would fail on it. Drop --probe for a"
+  },
+  {
+   "id": "quartus_tang",
+   "label": "the Quartus array route with the Tang Nano card",
+   "args": [
+    "--man",
+    "docs/man/tang-nano-20k.man.json",
+    "--cells",
+    "4",
+    "-S",
+    "adder_cell"
+   ],
+   "ok": false,
+   "message": "docs/man/tang-nano-20k.man.json: MAN file 'sipeed-tang-nano-20k-01' describes a non-Intel device (vendor='gowin'; logic is counted in LUT4, not ALM). The Quartus project generator supports Intel MAN files only; use load_man_identity() for vendor-neutral facts "
+  },
+  {
+   "id": "yosys_ok",
+   "label": "--target yosys alone",
+   "args": [
+    "--man",
+    "docs/man/mustang-f100-a10.man.json",
+    "--cells",
+    "4",
+    "--target",
+    "yosys"
+   ],
+   "ok": true,
+   "message": "",
+   "files": 16,
+   "sha": {
+    "branch_cell_v1.v": "a6c7cd9af4",
+    "latch_cell_v1.v": "458e7a1186",
+    "unicell_stripped_v1.v": "5f587886e2",
+    "adder_v1.v": "f39443ce51",
+    "accumulator_cell_v1.v": "b7d4c84c9f",
+    "ram_cell_v1.v": "bff1314b7d",
+    "compare_cell_v1.v": "889d78e1af",
+    "invert_addon_v1.v": "5c326e7fd6",
+    "top_array_v3_4cells_v1.ys": "d1a07364fc",
+    "shift_fine_addon_v1.v": "d349df875a",
+    "top_array_v3_4cells_v1.v": "6cf9f113b9",
+    "unicell_super_v3.v": "80657d0478",
+    "shift_lane_addon_v2.v": "f8aa640da5",
+    "nibble_mask_addon_v1.v": "6ca825f3d4",
+    "adder_cell_v1.v": "37e0f177f6",
+    "sequencer_cell_v1.v": "466b735c4a"
+   },
+   "ys_synth": [
+    "# synth_intel_alm -family cyclone10gx (the closest real family Yosys"
+   ]
+  }
+ ]
+}

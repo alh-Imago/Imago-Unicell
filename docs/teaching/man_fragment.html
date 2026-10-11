@@ -51,11 +51,11 @@
 <p>Three things read a card file today, and they read very different amounts of it.</p>
 <table class="f">
   <tr><th>User</th><th>What it takes from the file</th><th>What it does with it</th></tr>
-  <tr><td>The assembler</td><td>card name; <code>device.part</code> and family; <code>vendor</code>; <code>device.logic.native_width</code>; <code>synthesis.nowidelut</code>; DSP block count and multiplier list; the <code>board</code> pin table</td><td>writes the Verilog top, the build script and the pin file for that card (the previous page; its own page comes next)</td></tr>
+  <tr><td>The assembler</td><td>card name; <code>device.part</code> and family; <code>vendor</code>; <code>device.logic.native_width</code>; <code>synthesis.nowidelut</code>; DSP block count and multiplier list; the <code>board</code> pin table</td><td>writes the Verilog top, the build script and the pin file for that card (the previous page shows its runs; <a class="ref" href="#sec-assembler">the Assembler page</a> sets out the families and flags)</td></tr>
   <tr><td>The mirror VM</td><td>the card name only, plus a cell count you give it</td><td>makes the VM grid the same shape a real build of that many cells would have, so a program that could never be built is refused in the VM too</td></tr>
   <tr><td>The card-fit check (the compiler and placer pages)</td><td>whether the chip counts LUT4s or ALMs; the totals; where the DSP and block-memory columns are</td><td>works out how many cell positions the card holds and whether a compiled design fits</td></tr>
 </table>
-<div class="linkrow"><a class="ref" href="#sec-rtl">← The Verilog and the card split, with the assembler's runs</a><a class="ref" href="#sec-placer">The placer, which uses the card-fit check →</a></div>
+<div class="linkrow"><a class="ref" href="#sec-rtl">← The Verilog and the card split, with the assembler's runs</a><a class="ref" href="#sec-assembler">The assembler, which reads the MAN file →</a><a class="ref" href="#sec-placer">The placer, which uses the card-fit check →</a></div>
 
 <h3>The mirror VM, live</h3>
 <p>This demo uses the Mustang file (the mirror needs only a card name, so either file would give the same grid). The mirror takes the name and a cell count, and lays out the grid the same way the assembler would: near-square, filled row by row. The <code>add</code> program (27 cells, spread over rows 2 to 6 and columns 1 to 14) is then checked against it. Pick a cell count. Dark squares are positions a real build would have; orange squares are the program's cells; a red outline is a program cell sitting where no real cell would exist.</p>

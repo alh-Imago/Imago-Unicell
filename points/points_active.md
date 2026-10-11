@@ -203,4 +203,22 @@ TO DO (Alan's request): the assembler tab is next; the mirror VM (FlexGrid mirro
 
 Not verified: generated Verilog was not simulated (no iverilog) or synthesised; cell library and testbenches counted, not re-run; unit tests not re-run. Tested in real Chromium (both tabs: family toggle, six scenarios, mirror buttons, cost slider, tables, links both ways, no console errors, no overflow at 390 px); earlier tabs' tests pass. Main manual unchanged.
 
-Next entry: #1055.
+## #1055 -- TEACHING MANUAL: THE ASSEMBLER, ITS FOUR CELL FAMILIES AND ITS FLAGS
+
+Alan (11 Oct, 01:40 and 01:42): the next tab is the assembler; list the families (standalone v4, carrier v4c, sub v4s, flex v4sa) by what each CAN DO, not only which cells it has (flex changes width; the carrier is programmed to a selected core and carries the common functions; the sub has no ack; the standalone has shift and nibble built in); and the assembler has a set of flags, unusual for a program.
+
+Tab 19 (Assembler) added to `docs/teaching_manual.html` (Start and Backdrop are now 20 and 21), from `docs/teaching/assembler_fragment.html` and real data captured by `docs/teaching/capture_asm_v1.py` into `asm_data.json` (builder helper `_asm_html`). The MAN tab now links to it and it links back to the MAN tab (and the RTL tab).
+
+Facts parsed from the Verilog (adder module of each family): standalone v4 and carrier v4c have 31 inputs / 20 outputs, four-sided ports, ack, freeze, live reprogramming, 64-bit setup word; v4 instantiates the nibble-mask/shift-lane/invert add-on chain, v4c does not; the carrier `unicell_vix_carrier_v1` instantiates one shared chain and selects among 14 cores by a 5-bit core_select in a 160-bit latch. v4s: 7 inputs / 2 outputs, no ack, no freeze, no reprogramming, 32-bit setup. v4sa: ack (point-to-point), global freeze, WIDTH and SECOND_PORT parameters. Cell kinds: 14 / 14 / 13 / 14 (shift_stage included; counted from file names).
+
+Sizes (quoted, not re-measured; no yosys here): adder 2,348 LUT4 standalone, carrier whole 16,574 (core lower bound 248), v4s 66 (ledger #898), v4sa 37 at W32, 23 at W18 (Tang Nano MAN fit W+5). Arithmetic per Tang Nano (20,736 LUT4): 8, 1, 314, 560 adders; wiring ignored.
+
+Real assembler runs per family: standalone `-S adder_cell` 5 files; carrier `--shell vix` 39 files; sub and flex `--icm` 6 files each. Flags: 24 read from `--help`, grouped; a command builder checks combinations against real probe runs (16 probes) -- e.g. -w with sub refused, --nowidelut refused for the Mustang MAN, Tang Nano MAN refused on the Quartus routes, --logiclock refused on the flex chain route.
+
+FINDING (not fixed): on the `--icm` route `--logiclock` (and -P) are accepted silently and have no effect (run files identical with and without --logiclock; -P not compared); on the chain route the same flags are refused as carrier-lineage options. Also confirmed: the `--icm` route builds 32 bits regardless of card unless -w is given (see #1054).
+
+Not verified: generated Verilog not simulated or synthesised; sizes quoted; cell-kind and testbench counts from file names; unit tests not re-run. Tested in real Chromium (family picker, capability table, needs checker, flag filter, command builder rules, links both ways, no console errors, no overflow at 390 px); earlier tabs' tests pass. Main manual unchanged.
+
+TO DO: the mirror VM (FlexGrid) tab is next and must link back to the MAN File tab and the Assembler tab.
+
+Next entry: #1056.
