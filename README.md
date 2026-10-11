@@ -595,3 +595,14 @@ modify, make, and distribute every part of this project, including
 commercially, provided you retain the relevant notices. See
 [NOTICE](NOTICE) for the full explanation of which licence covers which
 files and why.
+
+**Copyright (c) 2026 Imago UniCell Project.** All rights reserved except as granted by the two licences above.
+
+| Covers | Licence | SPDX identifier | File |
+|---|---|---|---|
+| Software: the Python VM, compiler, tooling | MIT License | `MIT` | [`LICENSE`](LICENSE) |
+| Hardware: Verilog RTL, cell architecture, FPGA gateware | CERN Open Hardware Licence v2 - Permissive | `CERN-OHL-P-2.0` | [`LICENSE-HARDWARE`](LICENSE-HARDWARE) |
+
+The licence texts and the copyright notice must be kept with any copy or
+substantial portion of the project. The licences carry no warranty. See
+[`NOTICE`](NOTICE) for which files fall under which licence.

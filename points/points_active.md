@@ -279,4 +279,8 @@ Date: 2026-10-11. `README.md`: the teaching note in the status banner now points
 
 Date: 2026-10-11. At Alan's request `python3 docs/build_manual.py` was run (9 sections) and `docs/manual.html` regenerated from the updated README (#1061); only that file changed. Close-out check for unlogged decisions: none outstanding. This session's work is #1054-#1062: Verilog/RTL and MAN File tabs, the Assembler tab, one page per cell kind, the Two Grids, Mirror VM and Workbench tabs (24 rail tabs, 42 sections), README updated. Findings reported and not fixed (Alan's call): `--logiclock`/`-P` silently ignored on the assembler's `--icm` route; that route ignores the MAN native_width; `_ALLOWS_CARRY_MODE` read by nothing; the standard grid silently ignores a non-tap shift_amt; the mirror reads only the card id from the MAN file and native_width never reaches the VM; the Workbench and `from_man` always build a SuperGrid. Left to Alan: GitHub topics/tags, archive setting, gh-pages site.
 
-Next entry: #1063.
+## #1063 -- README: COPYRIGHT NOTICE AND BOTH LICENCES AT THE BOTTOM
+
+Date: 2026-10-11. At Alan's request the README's closing Licence section now also carries `Copyright (c) 2026 Imago UniCell Project` (the holder name exactly as in `LICENSE` and `NOTICE`; no other name was added), a small table naming both licences with their files and SPDX identifiers (`MIT`; `CERN-OHL-P-2.0`, the identifier the Verilog headers already use), and a line that the licence texts and notice must be kept with copies. The two licences were already listed there; no licence file was changed. `docs/manual.html` rebuilt from the README (`python3 docs/build_manual.py`). Not legal advice: wording follows the existing LICENSE, LICENSE-HARDWARE and NOTICE files.
+
+Next entry: #1064.
