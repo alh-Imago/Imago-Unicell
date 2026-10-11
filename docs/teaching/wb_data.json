@@ -1,0 +1,127 @@
+{
+ "grid_sites": [
+  {
+   "line": 352,
+   "text": "self.session = VMSession(SuperGrid([]))"
+  },
+  {
+   "line": 371,
+   "text": "self.session = VMSession(SuperGrid([]))"
+  },
+  {
+   "line": 496,
+   "text": "self.session = VMSession(SuperGrid([]))"
+  },
+  {
+   "line": 632,
+   "text": "self.session = VMSession(SuperGrid([]))"
+  },
+  {
+   "line": 705,
+   "text": "self.session = VMSession(SuperGrid(records))"
+  },
+  {
+   "line": 755,
+   "text": "session = VMSession(SuperGrid(records))"
+  }
+ ],
+ "flex_mentions": 0,
+ "std_route": {
+  "grid": "SuperGrid",
+  "width": 32,
+  "r": 300000,
+  "valid": true,
+  "tick": 18
+ },
+ "declared_18": {
+  "declared": 18,
+  "ok": true,
+  "grid": "SuperGrid",
+  "width": 32,
+  "r": 300000,
+  "valid": true,
+  "tick": 18
+ },
+ "flex_by_hand": {
+  "grid": "FlexGrid",
+  "width": 18,
+  "r": 37856,
+  "valid": true,
+  "tick": 18
+ },
+ "state_keys": [
+  "cell_count",
+  "cells",
+  "tick_count"
+ ],
+ "flex_then_demo": {
+  "ok": true,
+  "grid": "SuperGrid",
+  "width": 32
+ },
+ "flex_save": {
+  "ok": true,
+  "cells": 27,
+  "min_bit_width_in_file": null
+ },
+ "target_400": {
+  "ok": true,
+  "grid": "SuperGrid"
+ },
+ "target_then_load_400": {
+  "ok": true
+ },
+ "target_then_load_100": {
+  "ok": false,
+  "error": "loaded ICM doesn't fit the real target (sipeed-tang-nano-20k-01, 100 cells): cell_id R at (4,14) is outside the real 10x10 row-major layout for 100 cells on card 'sipeed-tang-nano-20k-01' -- not a position a real Quartus build of "
+ },
+ "target_shell_v3_load": {
+  "ok": true,
+  "error": ""
+ },
+ "http": {
+  "state_keys": [
+   "error",
+   "ok"
+  ],
+  "target": {
+   "ok": true,
+   "target": null
+  },
+  "shells": [
+   "ok",
+   "shells"
+  ],
+  "set_target": {
+   "card_id": "sipeed-tang-nano-20k-01",
+   "man_path": "docs/man/tang-nano-20k.man.json",
+   "cells": 400,
+   "rows": 20,
+   "cols": 20,
+   "shell": null,
+   "shell_cores": null
+  },
+  "run_status": {
+   "ok": true,
+   "running": false,
+   "ticks_per_sec": 0.0,
+   "ticks_executed": 0
+  },
+  "demos": [
+   "adder_pair",
+   "dual_threshold_monitor",
+   "python_ast_example",
+   "sentinel",
+   "simple_ram",
+   "twin_sentinel"
+  ],
+  "page_mentions_width": false,
+  "page_bytes": 28270
+ },
+ "cli": {
+  "usage": "python3 nano/workbench_v1.py [port]",
+  "default_port": 7420,
+  "host": "localhost",
+  "opens_browser": true
+ }
+}

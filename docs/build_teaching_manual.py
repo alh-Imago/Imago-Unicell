@@ -101,6 +101,13 @@ def _mirror_html(name):
     return t.replace("@@MIRROR_DATA@@", data)
 
 
+def _wb_data():
+    """The Workbench tab's captured grid/option runs (docs/teaching/wb_data.json) as a JS literal."""
+    import json as _json
+    with open(os.path.join(HERE, "teaching", "wb_data.json"), encoding="utf-8") as f:
+        return _json.dumps(_json.load(f), separators=(",", ":")).replace("</", "<\\/")
+
+
 def _cell_pages():
     """One hidden page per cell kind, built from docs/teaching/cells_data.json (parsed Verilog) and cells_text.py."""
     import json as _json, sys as _sys
@@ -250,8 +257,9 @@ SECTIONS = [
     {"id":"workbench","num":"12","tab":"Workbench","title":"The Workbench: See and Use the VM",
      "intro":"The workbench is where you sit at the VM: load a small program, deliver values "
              "into cells, step the clock and watch every register. A labelled screenshot, a "
-             "worked 7 + 5, and what it can and cannot show.",
-     "html":open(os.path.join(HERE, "teaching", "workbench_fragment.html"), encoding="utf-8").read().replace("@@WB_IMG@@", _data_uri("teaching/workbench_screenshot.png")),
+             "worked 7 + 5, what it can and cannot show, and which grid it builds and what "
+             "you can set.",
+     "html":open(os.path.join(HERE, "teaching", "workbench_fragment.html"), encoding="utf-8").read().replace("@@WB_IMG@@", _data_uri("teaching/workbench_screenshot.png")).replace("@@WB_DATA@@", _wb_data()),
      "links":[("← Back to The Mirror VM","#sec-mirror","section"),("Continue → The DSL","#sec-dsl","section")]},
 
     {"id":"dsl","num":"13","tab":"DSL","title":"Programming: The DSL",

@@ -263,4 +263,12 @@ TO DO (Alan): the Workbench tab last, covering both grids and its flags.
 
 Date: 2026-10-11. Addendum to #1058 after Alan said there is an early version of the walker. The Mirror VM tab's options table now lists `tools/walker_sim_cli_v1.py` (flags --man, --cells, --icm | --dsl-file, --start-row, --start-col, -o) and the `run_walker` action in `nano/frontend_v1.py`. The CLI was run on the library adder with `--start-row 2 --start-col 1`: 27 cells, 34 edges, 109 pings, matching the replay; with the default start (0, 0) it exited 1 with the no-answer error. The front-panel action was read, not run. Nothing else changed.
 
-Next entry: #1060.
+## #1060 -- TEACHING MANUAL: THE WORKBENCH, WHICH GRID IT BUILDS AND WHAT YOU CAN SET
+
+Date: 2026-10-11. New section 6 on the Workbench tab (now tab 14) of `docs/teaching_manual.html` (`docs/teaching/workbench_fragment.html`; data from `docs/teaching/capture_wb_v1.py` into `wb_data.json`, from the real WorkbenchController and a real local HTTP server on a free port). The tab order is now The VM, Two Grids, Mirror VM, Workbench; this closes the VM revisit Alan asked for.
+
+Findings (all run): every route that builds a grid in `nano/workbench_v1.py` builds `SuperGrid` at 32 bits (six sites; the word FlexGrid does not occur in the file); a file declaring `min_bit_width` 18 loads without error and gives 300000, not the 18-bit 37856; a FlexGrid placed into the controller's session by hand works through inject/step/state (37856 at tick 18) but the next ordinary action (load_demo) replaces it with a SuperGrid, `save_icm` of it writes no width, and `/state` returns only cell_count, cells, tick_count so nothing says which grid it is; set_target then load_icm: fits at 400 cells, refused at 100 ("outside the real 10x10 layout"); shell v3 accepted the adder. Options: port is the only command-line option (default 7420, localhost, opens the browser); target (MAN, cells, shell) and auto-play rate are requests; no width or merge-mode setting; the served page never mentions FlexGrid, merge_mode or bit width. A flex Workbench (and a flex `from_man`) is not built; the page lists what it would take, from reading the code.
+
+Not verified: Python VM only; Workbench unit tests not re-run; the live served page was not re-checked for this section; the "what it would take" paragraph is a reading of the code, not an attempt. Tested in real Chromium (five choices, links, old callouts intact, no console errors, no overflow at 390 px); all earlier tab tests re-run and pass. Main manual unchanged.
+
+Next entry: #1061.

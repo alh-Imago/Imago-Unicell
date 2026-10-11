@@ -76,13 +76,72 @@
 
 <h2>5. What it is, and what it is not</h2>
 <ul>
-  <li><strong>It runs the standard-mode VM.</strong> The cells on its grid are the standard ones, with fields such as <code>downstream_mask</code> and <code>upstream_mask</code>. They are not the flex cells from the earlier pages (branch with fixed and flowing inputs, priority, shift and so on). Designs for those are drawn and run in the Composer.</li>
+  <li><strong>It runs the standard-mode VM</strong> (<code>SuperGrid</code>; section 6 below and the <a class="ref" href="#sec-grids">Two Grids</a> tab). The cells on its grid are the standard ones, with fields such as <code>downstream_mask</code> and <code>upstream_mask</code>. They are not the flex cells from the earlier pages (branch with fixed and flowing inputs, priority, shift and so on). Designs for those are drawn and run in the Composer.</li>
   <li><strong>You give it programs written as text</strong> (the small DSL language, or Python through the Python front end), or ICM files. It has no drawing board. That is the Composer's job; the two are different tools that share the ICM file.</li>
   <li><strong>It shows registers, not a diagram.</strong> Each cell is a box of its fields. There are no wires drawn and no picture of data moving.</li>
   <li><strong>Seeing a value is not the same as it having moved.</strong> A cell like the adder holds its answer until a neighbour takes it, so an unchanging screen can mean "finished" or "stuck". The tick counter and the hint line help tell which.</li>
   <li><strong>Auto-play stops by itself</strong> when a tick produces no activity at all. An empty grid, for instance, ran for one tick and stopped.</li>
   <li><strong>Machine note:</strong> the workbench script keeps the terminal busy in a tight loop while it waits, so it will use one core of your computer fully until you stop it with Ctrl+C.</li>
 </ul>
+
+<h2>6. Which grid it builds, and what you can set</h2>
+<p>The Two Grids tab described the standard grid (SuperGrid) and the flex mirror (FlexGrid). The Workbench has no choice between them: every route that builds a grid (compile, load a demo, load an ICM file, load a region, set or clear a target, restore a saved state) makes a <code>SuperGrid</code> at 32 bits. The word <code>FlexGrid</code> does not appear anywhere in <code>nano/workbench_v1.py</code>. Pick a thing to do below; the result is what the Workbench really gave when each was run for this page, with the library adder and 200000 + 100000 (a sum that shows the word width: 300000 at 32 bits, 37856 at 18).</p>
+<div class="wb2btns" id="wb2-btns"></div>
+<div class="wb2panel" id="wb2-res" aria-live="polite"></div>
+<h3>What you can set when you start it</h3>
+<table class="wb2t"><thead><tr><th>Setting</th><th>How</th><th>Note</th></tr></thead><tbody>
+  <tr><td>Port</td><td><code>python3 nano/workbench_v1.py 7420</code></td><td>The only command-line option. Default 7420, served on localhost only, and it opens your browser itself.</td></tr>
+  <tr><td>Card and cell count</td><td><code>POST /set_target</code> (the Real target box)</td><td>Checks layout against the card, as the <a class="ref" href="#sec-mirror">Mirror VM</a> tab shows. The grid it makes is still a SuperGrid. Details of the MAN file are on the <a class="ref" href="#sec-man">MAN File</a> tab.</td></tr>
+  <tr><td>Shell</td><td><code>shell</code> in <code>/set_target</code></td><td>Which cell kinds the card's chip contains (shells v1 to v9, from the Mirror tab); programs using other kinds are refused.</td></tr>
+  <tr><td>Auto-play speed</td><td><code>ticks_per_sec</code> in <code>/start_run</code></td><td>Default 1 tick a second.</td></tr>
+  <tr><td>Word width</td><td>&ndash;</td><td>No setting. 32 bits. An ICM file that declares <code>min_bit_width</code> is loaded without error and the declaration is not used.</td></tr>
+  <tr><td>Merge mode</td><td>&ndash;</td><td>No setting; that is a FlexGrid option.</td></tr>
+</tbody></table>
+<div class="says2" id="wb2-says"></div>
+<h3>What it would take to offer a flex Workbench</h3>
+<p>Not built. Reading the code and the runs above: the controller is a thin layer over <code>VMSession</code>, which accepts either grid; the six places that build a <code>SuperGrid</code> would need a choice (and a width, and a merge mode); <code>/state</code> shows cells and the tick count but not which grid or width it is, so the page could not tell you; and the page has no control for either. The same gap is in <code>from_man</code>, which the Workbench uses for targets (Mirror VM tab). Alan's plan is for both to come in the two variants; this page records where it stands.</p>
+<p class="fine">Data: <code>docs/teaching/capture_wb_v1.py</code> &rarr; <code>wb_data.json</code>, from the real controller and a real local HTTP server on a free port. Python VM only; Workbench unit tests not re-run; the live page was not re-checked for this section.</p>
+<style>
+  .wbench .wb2btns{display:flex;flex-wrap:wrap;gap:8px;margin:.5em 0}
+  .wbench .wb2btns button{font:inherit;font-size:.9em;border:2px solid var(--rule);border-radius:8px;background:#fff;padding:5px 11px;cursor:pointer;color:var(--ink);text-align:left}
+  .wbench .wb2btns button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .wbench .wb2panel{margin:.8em 0;padding:10px 14px;border:1px solid var(--rule);border-left:5px solid var(--accent);border-radius:8px;background:rgba(21,117,109,.07)}
+  .wbench .wb2panel p{margin:.35em 0;font-size:.95em;line-height:1.45}
+  .wbench .wb2panel .mono{font-family:var(--mono);font-size:.84em;word-break:break-word}
+  .wbench table.wb2t{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .wbench table.wb2t th,.wbench table.wb2t td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .wbench .says2{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+</style>
+<script>
+(function(){
+  var D=@@WB_DATA@@;
+  function $(id){return document.getElementById(id);}
+  function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;}
+  var items=[
+    {k:'std',t:'Load the library adder from a file',f:function(p){var r=D.std_route;
+      p.appendChild(el('p',null,'Grid built: '+r.grid+', width '+r.width+'. After 18 ticks the output cell held '+r.r+'.'));
+      p.appendChild(el('p',null,'This is the ordinary path, and it matches the standard grid on the Two Grids tab.'));}},
+    {k:'d18',t:'Load a file that declares 18 bits',f:function(p){var r=D.declared_18;
+      p.appendChild(el('p',null,'The same adder saved with min_bit_width '+r.declared+'. The Workbench accepted it (ok: '+r.ok+') and built a '+r.grid+' at width '+r.width+'. The output was '+r.r+', not 37856.'));
+      p.appendChild(el('p',null,'The declaration travels in the file; the Workbench does not read it. A tool that does is the Composer\u2019s step panel (FlexGrid, through StepSim).'));}},
+    {k:'hand',t:'Put a FlexGrid in by hand',f:function(p){var r=D.flex_by_hand;
+      p.appendChild(el('p',null,'Setting the controller\u2019s session to a FlexGrid at width 18 and then using its ordinary inject, step and state calls worked: '+r.r+' at tick '+r.tick+'.'));
+      p.appendChild(el('p',null,'That is a script poking at the controller, not a feature: no button or request does it, and the state it returns has only these keys: '+D.state_keys.join(', ')+'. Nothing in it says which grid you have.'));}},
+    {k:'lost',t:'Then load anything ordinary',f:function(p){var r=D.flex_then_demo;
+      p.appendChild(el('p',null,'After the hand-placed FlexGrid, loading the adder_pair demo gave back a '+r.grid+' at width '+r.width+'. Every ordinary action builds a fresh SuperGrid, so the swap is lost.'));
+      var s=D.flex_save; p.appendChild(el('p',null,'Saving a hand-placed FlexGrid to a file wrote '+s.cells+' cells and no width ('+(s.min_bit_width_in_file===null?'min_bit_width absent':s.min_bit_width_in_file)+'), so the width does not survive a round trip.'));}},
+    {k:'tgt',t:'Set a target, then load the adder',f:function(p){
+      p.appendChild(el('p',null,'Set target (Tang Nano 20K, 400 cells) made a '+D.target_400.grid+'. Loading the adder then: ok '+D.target_then_load_400.ok+'.'));
+      var q=el('p','mono','At 100 cells instead: '+D.target_then_load_100.error+' \u2026');p.appendChild(q);
+      p.appendChild(el('p',null,'With shell v3 as well the adder loaded (ok '+D.target_shell_v3_load.ok+'): the cells it uses are among v3\u2019s.'));}}
+  ];
+  var box=$('wb2-btns'), res=$('wb2-res');
+  function show(k){[].forEach.call(box.children,function(b){b.className=(b.getAttribute('data-k')===k)?'on':'';});res.innerHTML='';items.filter(function(i){return i.k===k;})[0].f(res);}
+  items.forEach(function(i){var b=el('button',null,i.t);b.type='button';b.setAttribute('data-k',i.k);b.addEventListener('click',function(){show(i.k);});box.appendChild(b);});
+  show('std');
+  $('wb2-says').textContent='Server facts: before anything is loaded /state answers {'+D.http.state_keys.join(', ')+'} (an error, no session). /target returns '+JSON.stringify(D.http.target)+' with no target set; /set_target gave '+D.http.set_target.rows+' rows by '+D.http.set_target.cols+' columns. Demos on offer: '+D.http.demos.join(', ')+'. The served page (about '+Math.round(D.http.page_bytes/1000)+' KB) has no mention of FlexGrid, merge_mode or bit width.';
+})();
+</script>
 
 <p class="fine">The screenshot, the 7 + 5 values, the hint text, the saved ICM record, the target result and the auto-play stop were all taken from the workbench running in a cloud session on 11 October 2026, in a desktop-width browser. Your screen may lay out differently. The saved-file wording and the list of requests come from the source file's header and from running them; the unit tests for the workbench (<code>tests/vm/test_workbench_v1.py</code>) were not re-run for this page.</p>
 
