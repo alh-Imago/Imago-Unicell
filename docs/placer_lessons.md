@@ -2,9 +2,14 @@
 
 What each design taught the placer / layout engine (`tools/flex_layout_v1.py`, `tightplace_v1.py`, `netplace_v1.py`, `fp_mul_tight_v1.place_net_tight`). Newest first. Each lesson says what went wrong, what fixed it, and what the tools could do about it.
 
+## From the compiler front end (#1065)
+D1. **A result held in a logic cell is invisible to a simulator that only knows how to read outputs of adders, multipliers and rams.** `and`/`or`/`xor` looked broken for a whole session; the cell was right and the observer blind. Check what a missing output means before blaming the design: dump the cell's own state first.
+D2. **Fold constants and drop identities BEFORE lowering.** Formulas written by people (and by a LaTeX front end) are full of `x*1`, `x+0`, `3+4` and unused names; each costs a cell or a refusal.
+D3. **Say what to change.** A placer refusal now carries a plain reading and the fix (`routed_x`, fewer reads, split the formula).
+
 ## From the CORDIC through the crossing router (#1064)
 C1. **A router that refuses every crossing refuses every design where two values feed each other.** CORDIC's x and y do, from the second iteration. Fix: accept a cell shared by exactly two routes when both pass straight through it, one west-east and one north-south, and lower it to a `cross` tile (`nano/vix_virtual_layout_v2.py`, placer `routed_x`). A turn, a route end, or two routes in the same direction is still a conflict.
-C2. **A value feeding more than three consumers is refused.** Four faces, one is the input. *Tool idea:* insert a relay tree automatically (the same fix as lesson 6 above, done by the compiler instead of by hand). Until then, rewrite the maths to use each value fewer times (the biased logical shift in place of `ashr`).
+C2. **A value feeding more than three consumers is refused.** Four faces, one is the input. DONE in `routed_x` (#1065): `fanout_relay_tree` inserts `copy` cells so every cell drives three or fewer. Each level adds a tick, absorbed by the priority/sequencer cell in front of every two-operand op.
 C3. **The corner tile is still unused by the router.** A route that must change direction at a congested cell could bend at a corner instead of spending two relays. *Tool idea:* let `_lower` emit a corner where a route turns on a cell nobody else wants.
 C4. **Throughput is limited by input cells, not the line.** Items closer than the input cell's free time overwrite each other and the result is silently wrong, not rejected. The safe minimum for the 10-iteration line is not measured (30 and 50 ticks wrong, 500 right). *Tool idea:* have the assembler print the minimum safe spacing for a placed design.
 

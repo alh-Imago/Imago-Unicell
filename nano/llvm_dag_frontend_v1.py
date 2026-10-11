@@ -909,12 +909,12 @@ def _shift_problem(ins: DagInstr) -> Optional[str]:
     if len(kinds) != 2:
         return f"{len(kinds)} operands, expected 2"
     if kinds == ["const", "const"]:
-        return "both operands are literals (constant folding is not built into this frontend)"
+        return "both operands are literals (the default placers do not fold constants; compile with placer=routed_x, or write the answer in)"
     if kinds[1] != "const":
         return ("the shift amount is not a compile-time literal -- a variable shift amount would need a "
                 "barrel shifter, which the shift addon (fixed coarse+fine taps) is not")
     if kinds[0] == "const":
-        return "the shifted value is a literal (constant folding is not built into this frontend)"
+        return "the shifted value is a literal (the default placers do not fold constants; compile with placer=routed_x, or write the answer in)"
     if not 0 <= ins.operands[1].value <= 31:
         return f"the shift amount {ins.operands[1].value} is outside 0-31 (poison in LLVM; the addon covers 0-31)"
     return None
@@ -958,7 +958,7 @@ def _check_source(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[Compil
                                    "use i32 (and i1 for comparison results)"))
             elif len(ins.operands) != 1 or kinds[0] == "const":
                 diags.append(_diag("dag-lowering", what, "the converted value is a literal",
-                                   "constant folding is not built into this frontend"))
+                                   "the default placers do not fold constants; compile with placer=\"routed_x\", or write the answer in"))
             elif op != "trunc" and (kinds[0] != "ref" or types.get(ins.operands[0].ref_name) != "i1"):
                 diags.append(_diag("dag-lowering", what, f"`{op}` needs an i1 value that a comparison or i1 logic produced",
                                    "an i1 argument is not accepted (its value would not be guaranteed 0/1)"))
@@ -985,7 +985,7 @@ def _check_source(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[Compil
                                    f"set the old frontend has (unsigned predicates are separate, unbuilt work)"))
             elif kinds == ["const", "const"]:
                 diags.append(_diag("dag-lowering", what, "both operands are literals",
-                                   "constant folding is not built into this frontend"))
+                                   "the default placers do not fold constants; compile with placer=\"routed_x\", or write the answer in"))
             continue
         if op == "ashr" or (entry is not None and entry.arity == 1):
             problem = _shift_problem(ins)
@@ -1001,7 +1001,7 @@ def _check_source(instrs: List[SourceInstr], dag: List[DagInstr]) -> List[Compil
             diags.append(_diag("dag-lowering", what, "both operands are literals",
                                "the dispatcher places one constant per instruction; it would drop "
                                "one and silently compute the wrong value",
-                               "constant-fold it first (constant folding is not built into this frontend)"))
+                               "constant-fold it first (the default placers do not fold constants; compile with placer=routed_x, or write the answer in)"))
     return diags
 
 
@@ -1218,6 +1218,149 @@ def _arg_labels(dag: List[DagInstr], arg_uses: Dict[str, List[Tuple[str, int]]])
 DEFAULT_PLACER = os.environ.get("IMAGO_PLACER", "auto")
 
 
+_SIMPLIFY_OPS = {"add", "sub", "mul", "and", "or", "xor", "shl", "lshr", "ashr"}
+_SHIFT_OPS = {"shl", "lshr", "ashr"}
+
+
+def _const_op(v: int) -> DagOperand:
+    return DagOperand(kind="const", value=v & _MASK32)
+
+
+def _fold_binary(op: str, a: int, b: int) -> Optional[int]:
+    a &= _MASK32
+    b &= _MASK32
+    if op == "add":
+        return (a + b) & _MASK32
+    if op == "sub":
+        return (a - b) & _MASK32
+    if op == "mul":
+        return (a * b) & _MASK32
+    if op == "and":
+        return a & b
+    if op == "or":
+        return a | b
+    if op == "xor":
+        return a ^ b
+    if op in _SHIFT_OPS:
+        if not 0 <= b <= 31:
+            return None
+        return (a << b) & _MASK32 if op == "shl" else (a >> b if op == "lshr" else (_s32(a) >> b) & _MASK32)
+    return None
+
+
+def simplify_dag(dag: List[DagInstr], result_name: str) -> Tuple[List[DagInstr], List[str]]:
+    """ledger #1065: constant folding, identity removal and dead-value removal, on the DAG as it comes out of symbol resolution (before lowering). Used by placer `routed_x`.
+      * an instruction whose operands are all literals becomes a literal (add, sub, mul, and, or, xor, shl, lshr, ashr; the shift amount must be 0..31);
+      * x+0, 0+x, x-0, x*1, 1*x, x|0, x^0, x&0xFFFFFFFF, x<<0, x>>0 are just x; x*0 and x&0 are the literal 0;
+      * a value nothing reads (and that is not the returned value) is dropped, along with whatever only it used.
+    The returned value itself is never replaced (the design needs a computed cell to read), and only plain arithmetic/logic/shift readers are re-pointed; any other reader
+    (icmp, select, zext, ...) keeps reading the original value, which then stays. The caller's list is not edited. Returns (new DAG, notes)."""
+    dag = [DagInstr(i.name, i.opcode, [DagOperand(kind=o.kind, value=o.value, ref_name=o.ref_name) for o in i.operands], dict(i.params)) for i in dag]
+    alias: Dict[str, DagOperand] = {}
+    notes: List[str] = []
+    for ins in dag:
+        if ins.opcode in _SIMPLIFY_OPS:
+            for k, o in enumerate(ins.operands):
+                if o.kind == "ref" and o.ref_name in alias and not (ins.opcode in _SHIFT_OPS and k == 1):
+                    a = alias[o.ref_name]
+                    ins.operands[k] = DagOperand(kind=a.kind, value=a.value, ref_name=a.ref_name)
+        if ins.name == result_name or ins.opcode not in _SIMPLIFY_OPS or len(ins.operands) != 2:
+            continue
+        x, y = ins.operands
+        if x.kind == "const" and y.kind == "const":
+            v = _fold_binary(ins.opcode, x.value, y.value)
+            if v is not None:
+                alias[ins.name] = _const_op(v)
+                notes.append(f"%{ins.name}: {ins.opcode} of two literals folded to {v}")
+            continue
+        same = None
+        if ins.opcode in ("add", "or", "xor") and y.kind == "const" and (y.value & _MASK32) == 0:
+            same = x
+        elif ins.opcode in ("add", "or", "xor") and x.kind == "const" and (x.value & _MASK32) == 0:
+            same = y
+        elif ins.opcode == "sub" and y.kind == "const" and (y.value & _MASK32) == 0:
+            same = x
+        elif ins.opcode == "mul" and y.kind == "const" and (y.value & _MASK32) == 1:
+            same = x
+        elif ins.opcode == "mul" and x.kind == "const" and (x.value & _MASK32) == 1:
+            same = y
+        elif ins.opcode == "and" and y.kind == "const" and (y.value & _MASK32) == _MASK32:
+            same = x
+        elif ins.opcode == "and" and x.kind == "const" and (x.value & _MASK32) == _MASK32:
+            same = y
+        elif ins.opcode in _SHIFT_OPS and y.kind == "const" and (y.value & _MASK32) == 0:
+            same = x
+        if same is not None:
+            alias[ins.name] = DagOperand(kind=same.kind, value=same.value, ref_name=same.ref_name)
+            notes.append(f"%{ins.name}: {ins.opcode} with an identity operand is just its other operand")
+            continue
+        zero = ((ins.opcode == "mul" and any(o.kind == "const" and (o.value & _MASK32) == 0 for o in (x, y)))
+                or (ins.opcode == "and" and any(o.kind == "const" and (o.value & _MASK32) == 0 for o in (x, y))))
+        if zero:
+            alias[ins.name] = _const_op(0)
+            notes.append(f"%{ins.name}: {ins.opcode} by 0 folded to 0")
+    live = {result_name}
+    for ins in reversed(dag):
+        if ins.name in live:
+            for o in ins.operands:
+                if o.kind == "ref":
+                    live.add(o.ref_name)
+    out = []
+    for ins in dag:
+        if ins.name in live:
+            out.append(ins)
+        else:
+            notes.append(f"%{ins.name}: {ins.opcode} dropped (its value is never used)")
+    return out, notes
+
+
+def fanout_relay_tree(final: List[DagInstr]) -> Tuple[List[DagInstr], int]:
+    """ledger #1065: a value can feed at most THREE consumers (four faces, one is the input). When a computed value is read more than three times, insert `copy` cells
+    (one-cell pass-throughs, as `zext i1` already uses) so that every cell, producer or copy, drives at most three. Consumers are grouped three at a time, each group
+    reads one copy, and that repeats until the producer itself drives three or fewer. A group of one is left reading its source directly. Returns (new DAG, copies added).
+    Operand order and names are unchanged; each copy adds one tick of delay, which the priority/sequencer cells in front of every two-operand op already absorb."""
+    final = [DagInstr(i.name, i.opcode, [DagOperand(kind=o.kind, value=o.value, ref_name=o.ref_name) for o in i.operands], dict(i.params)) for i in final]   # never edit the caller's DAG
+    names = {i.name for i in final}
+    uses: Dict[str, List[Tuple[DagInstr, int]]] = {}
+    for ins in final:
+        for k, o in enumerate(ins.operands):
+            if o.kind == "ref":
+                uses.setdefault(o.ref_name, []).append((ins, k))
+    after: Dict[str, List[DagInstr]] = {}
+    added = 0
+    for prod, ulist in uses.items():
+        if len(ulist) <= 3:
+            continue
+        wants = list(ulist)                     # each want = (instr, operand index) that must be re-pointed at its source
+        made: List[DagInstr] = []
+        n = 0
+        while len(wants) > 3:
+            nxt = []
+            for g in range(0, len(wants), 3):
+                grp = wants[g:g + 3]
+                if len(grp) == 1:
+                    nxt.append(grp[0])
+                    continue
+                n += 1
+                nm = f"fo_{prod}_{n}"
+                while nm in names:
+                    nm += "_"
+                names.add(nm)
+                c = DagInstr(nm, "copy", [DagOperand(kind="ref", ref_name=prod)])
+                for (ins, k) in grp:
+                    ins.operands[k] = DagOperand(kind="ref", ref_name=nm)
+                made.append(c)
+                nxt.append((c, 0))
+            wants = nxt
+        added += len(made)
+        after[prod] = list(reversed(made))      # later copies feed earlier ones' sources: parents first
+    out: List[DagInstr] = []
+    for ins in final:
+        out.append(ins)
+        out.extend(after.get(ins.name, []))
+    return out, added
+
+
 def _place(final: List[DagInstr], placer: str, fold_width: Optional[int] = None,
            spacing: Optional[int] = None):
     """`growth` = the growing-frontier dispatcher (#780); `routed` = the virtual-space
@@ -1227,6 +1370,7 @@ def _place(final: List[DagInstr], placer: str, fold_width: Optional[int] = None,
         return compile_dag(final), "growth"
     if placer == "routed_x":
         # ledger #1064: the routed placer with CROSSING TILES -- accepts non-planar programs (opt-in; `auto` is unchanged)
+        final, _ = fanout_relay_tree(final)               # ledger #1065: values read more than three times get a relay tree
         return compile_dag_routed_x(final, spacing=spacing, fold_width=fold_width), "routed_x"
     if placer == "routed" or (placer == "auto" and (fold_width or spacing)):
         # a fold or an explicit spacing is a request only the virtual-space placer can honour
@@ -1252,6 +1396,26 @@ def _place(final: List[DagInstr], placer: str, fold_width: Optional[int] = None,
     return result, name
 
 
+def plain_place_advice(placer: str, problem: str) -> Tuple[str, str]:
+    """ledger #1065: turn a placer refusal into (why, what to change) in plain words. The technical message stays in `problem`; this only adds the reading of it."""
+    pr = problem.lower()
+    other = "" if placer == "routed_x" else ' Try `placer="routed_x"` first: it lets two wires cross, inserts relay cells when a value is read more than three times, and folds constants.'
+    if "every operand is a constant" in pr or "both operands are literals" in pr:
+        return ("an operation uses only fixed numbers, and a cell needs at least one value that arrives at run time",
+                "work the sum out yourself and write the answer in, or use `placer=\"routed_x\"`, which folds constants for you")
+    if "no free output or input face" in pr:
+        return ("a cell has four sides and one is its input, so a value can be read by at most three other cells, and every side here is already used"
+                + ("" if placer == "routed_x" else "; the default placer does not add relay cells for you"),
+                "read the value fewer times (reuse the result of an earlier step), or" + (" simplify the formula near the named cells" if placer == "routed_x" else ' use `placer="routed_x"`, which adds the relay cells itself'))
+    if "negotiated congestion" in pr or "no free path" in pr or "no path exists" in pr:
+        return ("there are more wires than the squares between the cells can carry, even after letting wires cross where they can" if placer == "routed_x"
+                else "the wires of this formula cannot all be drawn on a flat grid without crossing, and the default placers cannot cross wires",
+                "make the formula smaller (split it into two functions and join them), or give the layout more room with a larger `spacing`." + other)
+    if "does not fit" in pr or "site" in pr and "target has none" in pr:
+        return ("the design is bigger than the card or grid it was given", "use a larger target, or a smaller design")
+    return (f"placer {placer!r} could not lay this design out.{other}", "restructure the program, or fold/space it differently")
+
+
 def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: Optional[int] = None,
                          spacing: Optional[int] = None, target: Optional[CardTarget] = None
                          ) -> Tuple[Optional[DagFrontendResult], List[CompileDiagnostic]]:
@@ -1263,6 +1427,11 @@ def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: 
     resolved, diags = resolve_symbols(fn.arguments, fn.instrs)
     if resolved is None:
         return None, diags
+    simplify_notes: List[str] = []
+    if placer == "routed_x":
+        # ledger #1065: constant folding, identity removal and dead-value removal (opt-in, with the crossing router; `auto` and `routed` are unchanged)
+        if fn.result_name in {d.name for d in resolved.dag}:
+            resolved.dag, simplify_notes = simplify_dag(resolved.dag, fn.result_name)
 
     if fn.result_name not in {d.name for d in resolved.dag}:
         return None, [_diag("resolve", "resolving the returned value",
@@ -1275,6 +1444,7 @@ def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: 
 
     used: Set[str] = set(fn.arguments) | {d.name for d in resolved.dag}
     final, rewrites, lineage = _lower_and_expand(resolved.dag, used)
+    rewrites = simplify_notes + rewrites
     ordering = scan_ordering(final, lineage)
     caveats = [f"%{i.name}: `icmp {i.params['predicate']}` is exact only while the signed difference it computes "
                f"does not overflow 32 bits (opposite-sign operands whose magnitudes sum past 2^31-1 give the "
@@ -1302,12 +1472,8 @@ def compile_llvm_via_dag(source: str, placer: Optional[str] = None, fold_width: 
         # growing-frontier placement (#780) has no global occupancy planning: two
         # independently-computed chains that must merge are routed straight-then-turn and can
         # cross other structure; `flatten()` rejects that collision (points.md #798).
-        return None, [_diag("place", "placing the compiled DAG", str(e),
-                            f"placer {placer!r} could not lay this design out. The growth placer has no "
-                            "global occupancy planning; the routed placer needs a crossing-free embedding "
-                            "(a non-planar program cannot be routed on a plane with no crossover cell) and "
-                            "at most 3 consumers per value",
-                            "restructure the program, or fold/space it differently")]
+        why, fix = plain_place_advice(placer, str(e))
+        return None, [_diag("place", "placing the compiled DAG", str(e), why, fix)]
     if problems:
         return None, [_diag("emit", "checking compiled connections", str(p),
                             "the dispatcher produced an inconsistent layout") for p in problems]
