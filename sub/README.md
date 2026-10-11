@@ -971,6 +971,24 @@ Notes from compiling a CORDIC (rotate-by-angle) as plain LLVM IR, 2 to 10 iterat
 
 **Tool messages that mislead.** "275 port bits but only 266 free pins" from the place-and-route tool just means the test wrapper has more pins than the package; it says nothing about the design. Wrap it in registers for real runs. Also, `--logiclock` and `-P` are silently ignored on the `--icm` route.
 
+## Writing a formula in LaTeX (`#1066`)
+
+`nano/latex_frontend_v1.py` (command line: `nano/latex_cli_v1.py`) turns an integer formula written in LaTeX into a design and **checks it against a plain Python evaluation of the same formula before it hands the design back**. It builds on `placer="routed_x"`, so it uses the crossing tile, the relay tree, constant folding and the plain refusal messages above. It adds no hardware.
+
+```
+python3 nano/latex_cli_v1.py "y = (a + b)^2 - 3c" --set a=2 --set b=3 --set c=4 -o poly.icm
+```
+
+**What it understands:** whole numbers; one letter = one variable (`x`), and two letters side by side are a **product** as in maths (`xy` is x times y; write a longer name as `\mathrm{rate}`); subscripts `x_1`, `x_{12}`; Greek letters; `+ - * \cdot \times`, unary minus, side-by-side multiplication (`2x`, `3(a+b)`); brackets `( ) [ ] { } \left( \right)`; whole-number powers 0 to 64 (`x^2`, `(a+b)^{3}`); an optional `name =` in front.
+
+**What it does with numbers:** 32-bit whole numbers that wrap around, exactly like the cells (`2^31 + 2^31` is 0). No fractions.
+
+**What it refuses, with a message that points at the character:** division and `\frac`, roots, functions (sin, log, ...), sums and integrals, decimals, negative or variable exponents, absolute value, comparisons, anything it does not recognise. It never guesses. LaTeX takes only one digit after `^` unless braced, so `x^23` is refused and `x^{23}` is the power.
+
+**How it is checked:** a fixed set of corner values (0, 1, the sign boundary, all ones) plus random ones are run through the compiled design in the standard VM and compared with the Python answer; one mismatch raises an error and no design is returned. The tests also compare random formulas against Python's own big integers, and stream designs through the flex step simulator and generated flex RTL. The streaming helper feeds items at a deliberately generous spacing (a rule of thumb, not a measured limit).
+
+**Not supported yet (by choice, first version):** division, fractions and fixed-point scaling, comparisons and choices (`select`), loops and sums, several outputs, shifts. Each needs a decision about meaning before it is added.
+
 ## `priority_cell_v4sa`: the last flex core, with all three of the VM's modes (`#1017`/`#1018`)
 
 The priority core is the VM's N-way arbiter: up to four faces (N, S, E, W) compete for one output. On flex it is a core with its own bench, like every other cell.
