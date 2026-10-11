@@ -1,0 +1,188 @@
+<!-- Tightener and Placer fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data from docs/teaching/capture_compiler_v1.py embedded in place of @@COMP_DATA@@. Links are relative to docs/. -->
+<div class="plcp" id="plc-root">
+<style>
+  .plcp h2{margin-top:1.6em}
+  .plcp .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .plcp .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .plcp .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .plcp .linkrow a.go{background:var(--accent);color:#fff}
+  .plcp table.f{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .plcp table.f th,.plcp table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .plcp table.f td:first-child{font-family:var(--mono);white-space:nowrap}
+  .plcp .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .plcp .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .plcp pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.82em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0;white-space:pre}
+  .plcp pre.out{background:#101a16;color:#cfe8dc}
+  .plcp .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start}
+  .plcp textarea{width:100%;min-height:15em;font-family:var(--mono);font-size:.82em;line-height:1.45;padding:8px 10px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);box-sizing:border-box;resize:vertical}
+  .plcp button,.plcp select{font:inherit;font-size:.92em}
+  .plcp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .plcp .bar button{padding:5px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .plcp .bar button.on{background:var(--accent);color:#fff}
+  .plcp .picture{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:6px;overflow-x:auto;min-height:8em}
+  .plcp svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  .plcp svg text{font-family:var(--mono);fill:var(--ink)}
+  .plcp .msg{margin:.6em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.92em}
+  .plcp .msg.bad{border-left-color:#b3402a;background:rgba(179,64,42,.09)}
+  .plcp .msg.warn{border-left-color:#b8860b;background:rgba(184,134,11,.12)}
+  .plcp .msg ul{margin:.3em 0 0;padding-left:1.2em}
+  .plcp table.t{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:.78em;margin:.5em 0}
+  .plcp table.t th,.plcp table.t td{border-bottom:1px solid var(--rule);padding:3px 7px;text-align:left}
+  .plcp table.t tr.mark td{background:rgba(21,117,109,.14)}
+  .plcp table.t td.hi{color:#b3402a;font-weight:bold}
+  .plcp .scroll{overflow-x:auto}
+  .plcp .tilerow td:nth-child(2),.plcp .tilerow td:nth-child(3){font-family:var(--mono);font-size:.85em}
+
+  .plcp .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82em;margin:.4em 0}
+  .plcp .legend span.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.35)}
+  .plcp .counts{display:flex;flex-wrap:wrap;gap:6px;margin:.5em 0}
+  .plcp .counts span{padding:2px 9px;border:1px solid var(--rule);border-radius:9px;background:#fff;font-size:.82em;font-family:var(--mono)}
+  .plcp table.t td.ok{color:#15756d;font-weight:bold}
+  .plcp table.t td.no{color:#b3402a;font-weight:bold}
+  .plcp .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:.8em 0}
+  .plcp .flow .st{flex:1 1 150px;border:2px solid var(--accent);border-radius:10px;padding:8px 10px;background:var(--paper-edge);font-size:.88em}
+  .plcp .flow .st b{display:block;font-family:var(--mono);font-size:.9em}
+  .plcp .flow .st small{color:var(--ink-soft)}
+  .plcp .flow .ar{align-self:center;font-size:1.3em;color:var(--ink-soft)}
+
+  .plcp .stages{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:.6em 0}
+  .plcp .stages button{flex:1 1 120px;text-align:left;padding:8px 10px;border:2px solid var(--accent);border-radius:10px;background:var(--paper-edge);color:var(--ink);cursor:pointer;font-size:.88em}
+  .plcp .stages button b{display:block;font-family:var(--mono)}
+  .plcp .stages button.on{background:var(--accent);color:#fff}
+  .plcp .tog{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin:.6em 0}
+  .plcp .tog label{display:flex;flex-direction:column;gap:3px;font-size:.88em}
+  .plcp .shape{font-family:var(--mono);font-weight:bold;font-size:1.05em}
+
+  .plcp input[type=range]{width:min(420px,100%)}
+  .plcp .pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;align-items:start}
+  .plcp .pair h4{margin:.2em 0;font-size:.95em}
+  .plcp .big{font-family:var(--mono);font-weight:bold}
+</style>
+
+<p class="lead">Cells only talk to their immediate neighbours, so a design is not finished when every operation has a cell: the cells must also be <em>put on squares</em> and <em>joined by relay cells</em> so that values travel from where they are made to where they are used. That job is the <strong>placer</strong>. Making the result small and still correct is the <strong>tightener</strong>. This page shows both on real compiles: two placers side by side, tightening by spacing, folding into bands, and the "rat's nest" way of shrinking one connection step by step.</p>
+
+<div class="linkrow">
+  <a class="go" href="../nano/vix_virtual_layout_v1.py">Routed placer</a>
+  <a href="../nano/vix_dag_dispatcher_v1.py">Growth placer</a>
+  <a href="../nano/rats_nest_router_v1.py">Rat's-nest router</a>
+  <a href="../nano/rats_nest_tighten_v1.py">Tightener</a>
+  <a href="../docs/placer_lessons.md">Placer lessons</a>
+</div>
+
+<h2>1. Why placing is hard</h2>
+<ul>
+  <li><strong>A value moves one square per tick, and only to a neighbour.</strong> Two cells far apart need a chain of relay cells between them, and each relay is a cell you pay for.</li>
+  <li><strong>No diagonals, and a relay can only go straight</strong> (the router's own notes record this). A route can turn only where a cell is set to turn it.</li>
+  <li><strong>Routes must not cross.</strong> Two chains that meet on one square would be one chain. There is a cross tile (see the Routing page) but the placers described here do not use it, so a design that cannot be drawn without crossing is refused loudly rather than miscompiled.</li>
+  <li><strong>A cell has four faces.</strong> A producer has three output faces, so one value can feed at most three consumers.</li>
+</ul>
+
+<h2>2. Two placers, side by side</h2>
+<p>The compiler has two placers. The <strong>growth</strong> placer builds the design outward from where the previous operation ended, adding a few padding cells before the next shape. The <strong>routed</strong> placer first arranges the operations in columns on a virtual canvas, then routes every connection across the whole canvas at once, and only then turns it into cells. The default, <code>auto</code>, compiles with both and keeps the smaller. Pick a function:</p>
+<div class="bar" id="plc-pick"></div>
+<div class="pair">
+  <div><h4>Growth placer</h4><div class="picture" id="plc-g"></div><div class="msg" id="plc-gs"></div></div>
+  <div><h4>Routed placer</h4><div class="picture" id="plc-r"></div><div class="msg" id="plc-rs"></div></div>
+</div>
+<div class="legend" id="plc-legend"></div>
+<div class="msg" id="plc-says"></div>
+<p>Both give the right answer in the VM for the inputs we tried; they differ in size. The source comments give one more data point we did not re-measure: a five-times unrolled loop was 739 cells under growth and 140 routed, which matters because simulation time grows with the cell count.</p>
+
+<h2>3. Tightening by spacing</h2>
+<p>The routed placer spaces its operations apart on the canvas by a number, the <strong>spacing</strong>. Wide spacing makes routing easy and the design large; narrow spacing makes it small and may make routing fail. So it <strong>tightens</strong>: it tries the smallest spacing that works. Drag the slider to see the sum, product and subtract function from the first example laid out at each spacing, from our runs:</p>
+<div class="bar"><label>Spacing <input type="range" id="plc-sp" min="1" max="8" step="1" value="3"> <span class="big" id="plc-spv"></span></label></div>
+<div class="picture" id="plc-spp"></div>
+<div class="msg" id="plc-sps"></div>
+<p id="plc-spnote"></p>
+
+<h2>4. Folding to fit a bounded card</h2>
+<p>A long design is wide. A card is a fixed square. <strong>Folding</strong> wraps the columns into stacked bands, like a snake, so the design is tall and narrow instead. It costs extra cells (the turns need relays). The same function, folded to a given number of columns per band:</p>
+<div class="bar" id="plc-fobar"></div>
+<div class="picture" id="plc-fop"></div>
+<div class="msg" id="plc-fos"></div>
+<p>Folding to 4 or more columns changed nothing here because the design was already narrow enough. The Compiler page showed which grid sizes the whole fit check accepted for this function.</p>
+
+<h2>5. The rat's nest: loose first, then shrink</h2>
+<p>An older and simpler idea, from Alan: place things <em>loosely</em> with plenty of room so it is easy to get right, see where routes meet (the <strong>nexus points</strong>, such as a priority cell where two values converge), then pull each connection in toward its nexus one step at a time, <strong>checking after every step</strong> that nothing broke, and stop the moment a step would. Here is one real connection. A value starts far away at the top left and has to reach a combine unit (a priority cell feeding an adder):</p>
+<div class="bar"><label>Tightening step <input type="range" id="plc-rn" min="0" max="23" step="1" value="0"> <span class="big" id="plc-rnv"></span></label></div>
+<div class="picture" id="plc-rnp"></div>
+<div class="legend"><span><span class="sw" style="background:#7d5fb0"></span>the value (a ram cell holding 10)</span><span><span class="sw" style="background:#6b8a6b"></span>relay cells</span><span><span class="sw" style="background:#b3402a"></span>priority cell (the nexus)</span><span><span class="sw" style="background:#d9822b"></span>adder</span></div>
+<div class="msg" id="plc-rns"></div>
+
+<h2>6. What the placers have taught us</h2>
+<p>The flex side has its own layout engine and the project keeps a file of what each design taught it. A few of those lessons, in plain words (the file has all of them):</p>
+<ul>
+  <li><strong>Make a subtract order-free.</strong> A subtract is the common two-operand operation where operand order matters, and when the minuend's route is the long one the balancer cannot fix it. Rewriting <code>a - b</code> as <code>a + (-1) * b</code> removes the problem at the cost of a multiplier. The file marks this rule as done by hand in one engine and <em>not yet automatic</em> in the placer.</li>
+  <li><strong>Route the shortest, most constrained lane first</strong>, while both ends are still open.</li>
+  <li><strong>Leave room at the doors.</strong> Pin entries and exits to the edge of a tile and put a one-relay stub on each open face before routing, or earlier lanes wall the pin in.</li>
+  <li><strong>A cell that makes two words is two lanes.</strong> A carry or high word leaving by its own faces has to be laid like a second output.</li>
+  <li><strong>Retry with seeds.</strong> A placement that cannot route is undone and tried again in a different order.</li>
+</ul>
+
+<h2>7. Limits, stated by the code itself</h2>
+<ul>
+  <li><strong>Routing is a sequence of heuristics, not an optimum.</strong> Shortest-first, then seeded reorderings, then more spacing. The source notes that routing under non-crossing constraints is a hard problem in general, which is why the Composer exists as a human fallback.</li>
+  <li><strong>A design that cannot be laid out without crossings fails loudly.</strong> It does not produce a wrong answer.</li>
+  <li><strong>The default tightener does not try every spacing.</strong> It tries 3, 4, 5, 6, 8 and 12 in that order and keeps the first that routes. In our run, asking for spacing 2 directly gave a smaller layout (18 cells in 5 by 6, against 20 in 7 by 8) that also gave the right answer for the inputs we tried. We did not run it further, so we cannot say 2 is always safe.</li>
+  <li><strong>The rat's-nest tightener is narrow.</strong> It shrinks a free-moving value toward a fixed target. Its source says shrinking a connection between two fixed meeting points, where moving one end means re-routing everything on it, was a harder problem addressed later (there is a separate routine for a combine unit), and we have not shown that one here.</li>
+  <li><strong>It is tested on small designs.</strong> The test for the rat's nest says a four-input reduction tree went from 186 loose cells to 90 and still computed correctly; that is quoted from the test file's description and was not re-run.</li>
+</ul>
+<p class="fine">All layouts, counts, answers and the tightening steps on this page were produced by <code>docs/teaching/capture_compiler_v1.py</code> running the real placers and tightener on 11 October 2026 and embedded here. The lessons in section 6 are paraphrased from <code>docs/placer_lessons.md</code>. The placers' unit tests were not re-run for this page.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('plc-root'); if(!root) return;
+  var DATA=@@COMP_DATA@@;
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var ROLE={op:['Compute','#d9822b'],arg:['Argument','#2a7fb8'],const:['Constant','#7d5fb0'],order:['Ordering','#b3402a'],relay:['Relay','#6b8a6b']};
+  $('plc-legend').innerHTML=Object.keys(ROLE).map(function(k){return '<span><span class="sw" style="background:'+ROLE[k][1]+'"></span>'+ROLE[k][0]+'</span>';}).join('');
+  function grid(cells,scale){
+    var rs=cells.map(function(x){return x.row;}),cs=cells.map(function(x){return x.col;});
+    var r0=Math.min.apply(null,rs),r1=Math.max.apply(null,rs),c0=Math.min.apply(null,cs),c1=Math.max.apply(null,cs);
+    var Z=16,G=2,W=(c1-c0+1)*(Z+G)+G,H=(r1-r0+1)*(Z+G)+G,o='';
+    cells.forEach(function(x){var X=G+(x.col-c0)*(Z+G),Y=G+(x.row-r0)*(Z+G);
+      o+='<g><title>'+esc(x.id.replace(/^main\./,''))+' ('+x.core+', row '+x.row+', col '+x.col+')</title><rect x="'+X+'" y="'+Y+'" width="'+Z+'" height="'+Z+'" rx="3" fill="'+ROLE[x.role][1]+'" stroke="rgba(0,0,0,.3)"/></g>';});
+    return '<svg viewBox="0 0 '+W+' '+H+'" style="width:'+Math.min(W*(scale||1.6),620)+'px" role="img" aria-label="placed cells">'+o+'</svg>';
+  }
+  /* 2. placers */
+  var P=DATA.placers,pi=0,pb=$('plc-pick');
+  P.forEach(function(p,i){var b=document.createElement('button');b.type='button';b.textContent=p.title;b.addEventListener('click',function(){pi=i;showP();});pb.appendChild(b);});
+  function showP(){var p=P[pi];[].forEach.call(pb.children,function(b,i){b.className=i===pi?'on':'';});
+    ['growth','routed'].forEach(function(k,j){var e=p[k],id=['plc-g','plc-r'][j],sd=['plc-gs','plc-rs'][j];
+      if(e.ok){$(id).innerHTML=grid(e.cells,1.5);$(sd).textContent=e.cells.length+' cells, '+e.extent[0]+' rows × '+e.extent[1]+' columns; VM answer '+e.answer+'.';}
+      else{$(id).innerHTML='';$(sd).textContent='Could not place: '+e.problem;}});
+    var g=p.growth,r=p.routed;
+    $('plc-says').textContent=(g.ok&&r.ok)?('Smaller: '+(r.cells.length<g.cells.length?'routed':r.cells.length>g.cells.length?'growth':'equal')+' ('+Math.min(g.cells.length,r.cells.length)+' cells against '+Math.max(g.cells.length,r.cells.length)+'). The default keeps the smaller; it used the '+p.auto.used+' placer for this function.'):'One placer could not place this function.';}
+  showP();
+  /* 3. spacing */
+  var SP=DATA.spacing_sweep;
+  function showSp(){var v=+$('plc-sp').value,e=SP[v-1];$('plc-spv').textContent=v;
+    if(e.ok){$('plc-spp').innerHTML=grid(e.cells,2);$('plc-sps').textContent='Spacing '+v+': '+e.cells.length+' cells, '+e.extent[0]+' rows × '+e.extent[1]+' columns; the VM gives '+e.answer+' for inputs 2, 3, 4 (the right answer is 17).';}
+    else{$('plc-spp').innerHTML='';$('plc-sps').textContent='Spacing '+v+': no layout found. '+e.problem;}}
+  $('plc-sp').addEventListener('input',showSp);showSp();
+  $('plc-spnote').textContent='The default tries these spacings in order and keeps the first that routes: '+DATA.default_spacings.join(', ')+'.';
+  /* 4. fold */
+  var FO=DATA.fold_sweep,fi=0,fb=$('plc-fobar');
+  FO.forEach(function(f,i){var b=document.createElement('button');b.type='button';b.textContent='fold to '+f.fold+' columns';b.addEventListener('click',function(){fi=i;showF();});fb.appendChild(b);});
+  function showF(){var e=FO[fi];[].forEach.call(fb.children,function(b,i){b.className=i===fi?'on':'';});
+    if(e.ok){$('plc-fop').innerHTML=grid(e.cells,1.6);$('plc-fos').textContent='Folded to '+e.fold+': '+e.cells.length+' cells, '+e.extent[0]+' rows × '+e.extent[1]+' columns; VM answer '+e.answer+'.';}
+    else{$('plc-fop').innerHTML='';$('plc-fos').textContent='No layout: '+e.problem;}}
+  showF();
+  /* 5. rat's nest */
+  var RN=DATA.rats_nest;
+  function showRN(){
+    var k=+$('plc-rn').value,st=RN.steps[k];$('plc-rnv').textContent=(k)+' of '+(RN.steps.length-1);
+    var R=8,C=23,Z=18,G=2,W=C*(Z+G)+G,H=R*(Z+G)+G,o='';
+    for(var r=0;r<R;r++)for(var c=0;c<C;c++)o+='<rect x="'+(G+c*(Z+G))+'" y="'+(G+r*(Z+G))+'" width="'+Z+'" height="'+Z+'" rx="3" fill="rgba(0,0,0,.05)"/>';
+    function cell(r,c,col,t){return '<rect x="'+(G+c*(Z+G))+'" y="'+(G+r*(Z+G))+'" width="'+Z+'" height="'+Z+'" rx="3" fill="'+col+'" stroke="rgba(0,0,0,.35)"/><text x="'+(G+c*(Z+G)+Z/2)+'" y="'+(G+r*(Z+G)+Z/2+4)+'" text-anchor="middle" font-size="10" style="fill:#fff">'+t+'</text>';}
+    RN.fixed_positions.forEach(function(p){o+=cell(p[0],p[1],p[2]==='priority'?'#b3402a':'#d9822b',p[2]==='priority'?'P':'+');});
+    st.route.forEach(function(p){o+=cell(p[0],p[1],'#6b8a6b','·');});
+    o+=cell(st.leaf[0],st.leaf[1],'#7d5fb0','10');
+    $('plc-rnp').innerHTML='<div style="overflow-x:auto"><svg viewBox="0 0 '+W+' '+H+'" style="width:'+W+'px;max-width:none" role="img" aria-label="the value, its relay chain and the combine unit">'+o+'</svg></div>';
+    $('plc-rns').textContent='The value sits at ('+st.leaf[0]+', '+st.leaf[1]+') and the connection to the combine unit uses '+st.cells+' cells in all ('+(st.cells-1)+' relays plus the value). '+(k===RN.steps.length-1?'This is where it stopped: the value is directly beside the last relay, and one more step would put it on the target. Run in the VM, the adder received '+RN.delivered+', the right value. The tightener that checks every step with the VM and the faster one that uses only structural checks gave the identical result: '+(RN.fast_same?'yes':'no')+'.':(k===0?'This is the loose starting point: '+RN.loose_cells+' cells for one connection.':''));}
+  $('plc-rn').addEventListener('input',showRN);showRN();
+})();
+</script>
+</div>

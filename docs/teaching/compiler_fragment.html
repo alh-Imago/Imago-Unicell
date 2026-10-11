@@ -1,0 +1,180 @@
+<!-- Compiler fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data from docs/teaching/capture_compiler_v1.py (and programming_data.json) embedded in place of @@COMP_DATA@@. -->
+<div class="compp" id="cmp-root">
+<style>
+  .compp h2{margin-top:1.6em}
+  .compp .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .compp .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .compp .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .compp .linkrow a.go{background:var(--accent);color:#fff}
+  .compp table.f{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .compp table.f th,.compp table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .compp table.f td:first-child{font-family:var(--mono);white-space:nowrap}
+  .compp .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .compp .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .compp pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.82em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.6em 0;white-space:pre}
+  .compp pre.out{background:#101a16;color:#cfe8dc}
+  .compp .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start}
+  .compp textarea{width:100%;min-height:15em;font-family:var(--mono);font-size:.82em;line-height:1.45;padding:8px 10px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink);box-sizing:border-box;resize:vertical}
+  .compp button,.compp select{font:inherit;font-size:.92em}
+  .compp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .compp .bar button{padding:5px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer}
+  .compp .bar button.on{background:var(--accent);color:#fff}
+  .compp .picture{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:6px;overflow-x:auto;min-height:8em}
+  .compp svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  .compp svg text{font-family:var(--mono);fill:var(--ink)}
+  .compp .msg{margin:.6em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.92em}
+  .compp .msg.bad{border-left-color:#b3402a;background:rgba(179,64,42,.09)}
+  .compp .msg.warn{border-left-color:#b8860b;background:rgba(184,134,11,.12)}
+  .compp .msg ul{margin:.3em 0 0;padding-left:1.2em}
+  .compp table.t{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:.78em;margin:.5em 0}
+  .compp table.t th,.compp table.t td{border-bottom:1px solid var(--rule);padding:3px 7px;text-align:left}
+  .compp table.t tr.mark td{background:rgba(21,117,109,.14)}
+  .compp table.t td.hi{color:#b3402a;font-weight:bold}
+  .compp .scroll{overflow-x:auto}
+  .compp .tilerow td:nth-child(2),.compp .tilerow td:nth-child(3){font-family:var(--mono);font-size:.85em}
+
+  .compp .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82em;margin:.4em 0}
+  .compp .legend span.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.35)}
+  .compp .counts{display:flex;flex-wrap:wrap;gap:6px;margin:.5em 0}
+  .compp .counts span{padding:2px 9px;border:1px solid var(--rule);border-radius:9px;background:#fff;font-size:.82em;font-family:var(--mono)}
+  .compp table.t td.ok{color:#15756d;font-weight:bold}
+  .compp table.t td.no{color:#b3402a;font-weight:bold}
+  .compp .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:.8em 0}
+  .compp .flow .st{flex:1 1 150px;border:2px solid var(--accent);border-radius:10px;padding:8px 10px;background:var(--paper-edge);font-size:.88em}
+  .compp .flow .st b{display:block;font-family:var(--mono);font-size:.9em}
+  .compp .flow .st small{color:var(--ink-soft)}
+  .compp .flow .ar{align-self:center;font-size:1.3em;color:var(--ink-soft)}
+
+  .compp .stages{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin:.6em 0}
+  .compp .stages button{flex:1 1 120px;text-align:left;padding:8px 10px;border:2px solid var(--accent);border-radius:10px;background:var(--paper-edge);color:var(--ink);cursor:pointer;font-size:.88em}
+  .compp .stages button b{display:block;font-family:var(--mono)}
+  .compp .stages button.on{background:var(--accent);color:#fff}
+  .compp .tog{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin:.6em 0}
+  .compp .tog label{display:flex;flex-direction:column;gap:3px;font-size:.88em}
+  .compp .shape{font-family:var(--mono);font-weight:bold;font-size:1.05em}
+</style>
+
+<p class="lead">The compiler is the part that turns <em>a description of what you want</em> into <em>cells placed on a grid, with their faces set so they join up</em>, saved as an ICM file. This page follows one real function through it stage by stage, shows how the two ways in (the DSL and LLVM IR) differ, how it reports problems, how it decides what goes in front of an adder, which operations it has, and whether the result fits a real card. The next page covers the placing and tightening in more depth.</p>
+
+<div class="linkrow">
+  <a class="go" href="../nano/llvm_dag_frontend_v1.py">LLVM front end</a>
+  <a href="../nano/dsl_compiler_v1.py">DSL back end</a>
+  <a href="../nano/vix_dag_dispatcher_v1.py">Growth placer</a>
+  <a href="../nano/vix_virtual_layout_v1.py">Routed placer</a>
+  <a href="../nano/vix_convergence_shapes_v1.py">Decision rule</a>
+  <a href="../nano/card_fit_v1.py">Card fit</a>
+</div>
+
+<h2>1. One function, five stages</h2>
+<p>This is the function from the LLVM IR page. Click a stage to see what went in and what came out. Every box of text is the compiler's own output.</p>
+<pre class="code" id="cmp-ir"></pre>
+<div class="stages" id="cmp-stages"></div>
+<div id="cmp-stage"></div>
+
+<h2>2. Two ways in, and what they share</h2>
+<p>There are two front doors and they do not share all their insides. What they share is the result: a list of cells in an ICM file.</p>
+<ul>
+  <li><strong>The DSL (and the Python-syntax reader) go through a small description called ProgramIR</strong>: a program name and a list of placements, each with a tile, a square and some fields. Then one shared back end checks each placement against the tile's own rules, places it and writes the records. Here is the 7 + 5 program from the DSL page as the compiler sees it:</li>
+</ul>
+<div class="two"><div><div class="fine" style="border:0;margin:0;padding:0">After reading the text: <span id="cmp-toks"></span></div><pre class="code" id="cmp-tokhead"></pre></div>
+<div><div class="fine" style="border:0;margin:0;padding:0">The placements (ProgramIR)</div><div class="scroll"><table class="t" id="cmp-places"><thead><tr><th>name</th><th>tile</th><th>row</th><th>col</th><th>fields</th></tr></thead><tbody></tbody></table></div></div></div>
+<ul>
+  <li><strong>LLVM IR goes a different way.</strong> The front end keeps the real dataflow (which value feeds which operation), because a ProgramIR already contains squares, and recovering the dataflow from squares would mean working backwards from geometry. So it builds a list of operations, hands that to a placer, and the placer decides every square itself. The comments in the source say exactly this.</li>
+</ul>
+<p>So a DSL program puts the squares in your hands, and an LLVM program leaves them to the compiler.</p>
+
+<h2>3. It tells you everything wrong at once</h2>
+<p>A compiler that stops at the first mistake makes you fix and re-run again and again. This one collects every independent problem. Here is a DSL file with three separate mistakes and what the real tool printed:</p>
+<div class="two"><div><pre class="code" id="cmp-msrc"></pre></div><div><pre class="code out" id="cmp-mout"></pre></div></div>
+<p>The LLVM front end is different at its first step, because the real LLVM parser it uses (llvmlite) stops at the first thing it rejects. Here is a function with two undefined names and what came back:</p>
+<div class="two"><div><pre class="code" id="cmp-lsrc"></pre></div><div><pre class="code out" id="cmp-lout"></pre></div></div>
+<p>Only the first undefined name, <code>%q</code>, is reported. The later stages (resolve, check) do collect all their own problems; this parser step does not.</p>
+
+<h2>4. How two values are let in: the decision rule</h2>
+<p>The DSL page showed an adder losing a number when both arrived together. When the compiler builds a design, it has to put something in front of every cell that takes two values, and which thing depends on three questions. Answer them and the real rule gives its choice:</p>
+<div class="tog">
+  <label>Do two separate values meet here?<select id="cmp-q1"><option value="1">Yes, two producers meet</option><option value="0">No, one already-ordered chain</option></select></label>
+  <label>Does swapping the two values change the answer?<select id="cmp-q2"><option value="1">No (add, multiply)</option><option value="0">Yes (subtract)</option></select></label>
+  <label>Can the arrival times be worked out while compiling?<select id="cmp-q3"><option value="1">Yes, all are known</option><option value="0">No, an input arrives at run time</option></select></label>
+</div>
+<div class="msg"><span class="shape" id="cmp-shape"></span><div id="cmp-shapesays"></div></div>
+<p>These answers come straight from the compiler's own function, run for all eight combinations. In practice the routed placer, which is the usual one, always puts a priority cell in front of a commutative operation and a sequencer in front of a non-commutative one, whatever it could have worked out, so that correctness never depends on how long a route happened to come out. The price is one extra cell per two-operand operation. A subtract of a constant avoids even that: <code>x - 3</code> becomes <code>x + (-3)</code>, which is commutative.</p>
+
+<h2>5. The operations it knows</h2>
+<div class="scroll"><table class="t" id="cmp-lib"><thead><tr><th>operation</th><th>tile</th><th>core</th><th>swap-safe?</th><th>operands</th></tr></thead><tbody></tbody></table></div>
+<p>That is the whole library: eleven entries, read from the code. The LLVM names <code>icmp</code> and <code>select</code> are not in it; the compiler builds them from these (a compare is a subtract and a compare-against-threshold, a select is a subtract, an xor, two ands and an or), as the LLVM page showed. A shift is a "ram_flowing" cell with an amount set in its add-on field.</p>
+
+<h2>6. Does it fit the card?</h2>
+<p>All of the above produces a layout of some size. A real card has a fixed grid and a budget of cells. The compiler can be given a card description and refuses a design that does not fit. We asked it to fit the same function onto square grids of several sizes on the Mustang F100 card's description (budget <span id="cmp-budget"></span> positions):</p>
+<div class="scroll"><table class="t" id="cmp-fit"><thead><tr><th>grid</th><th>result</th><th>the compiler's report</th></tr></thead><tbody></tbody></table></div>
+<div class="msg warn">One thing we did not get to the bottom of: the layout is 7 rows by 8 columns, yet an 8 by 8 grid was refused and a 9 by 9 accepted. The refusal says no layout fits at any fold width. We did not investigate whether the grid needs a margin or something else is going on. Also, the report says the multiply "fell back to logic" because no free DSP block was found, which means this build uses the slower logic multiplier rather than a hard one. And these are limits the compiler states itself: the card's die coordinates are mapped onto the logical grid by an assumed mapping, because no post-fit data exists yet to fix it.</div>
+
+<h2>7. What this is not</h2>
+<ul>
+  <li><strong>It is not an optimiser.</strong> The placing and routing are step-by-step heuristics, not a search for the best answer; the next page shows a case where a hand-chosen setting beat the default.</li>
+  <li><strong>It does not verify itself.</strong> The runs on these pages compare the compiled cells against plain arithmetic for a handful of inputs. That is a check, not a proof.</li>
+  <li><strong>It stops at the ICM file.</strong> Turning an ICM file into something a particular chip runs is the assembler's job (see the LLVM page's last section).</li>
+</ul>
+<p class="fine">Every stage artifact, message, table and fit report on this page was produced by <code>docs/teaching/capture_compiler_v1.py</code> running the real compiler on 11 October 2026 and embedded here; re-run it to refresh. The decision-rule explanations paraphrase the comments in <code>vix_convergence_shapes_v1.py</code>. The compiler's unit tests were not re-run for this page.</p>
+
+<script>
+(function(){
+  var root=document.getElementById('cmp-root'); if(!root) return;
+  var DATA=@@COMP_DATA@@;
+  var S=DATA.stages;
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var ROLE={op:['Compute','#d9822b'],arg:['Argument','#2a7fb8'],const:['Constant','#7d5fb0'],order:['Ordering','#b3402a'],relay:['Relay','#6b8a6b']};
+  function grid(cells,maxw){
+    var rs=cells.map(function(x){return x.row;}),cs=cells.map(function(x){return x.col;});
+    var r0=Math.min.apply(null,rs),r1=Math.max.apply(null,rs),c0=Math.min.apply(null,cs),c1=Math.max.apply(null,cs);
+    var Z=22,G=3,W=(c1-c0+1)*(Z+G)+G,H=(r1-r0+1)*(Z+G)+G,o='';
+    cells.forEach(function(x){var X=G+(x.col-c0)*(Z+G),Y=G+(x.row-r0)*(Z+G);
+      o+='<g><title>'+esc(x.id.replace(/^main\./,''))+' ('+x.core+', row '+x.row+', col '+x.col+')</title><rect x="'+X+'" y="'+Y+'" width="'+Z+'" height="'+Z+'" rx="4" fill="'+ROLE[x.role][1]+'" stroke="rgba(0,0,0,.35)"/>'
+       +'<text x="'+(X+Z/2)+'" y="'+(Y+Z/2+3.5)+'" text-anchor="middle" font-size="9" style="fill:#fff">'+({adder:'+',mul:'×',priority:'P',ram:(x.role==='relay'?'·':'R'),nano:'g'}[x.core]||'?')+'</text></g>';});
+    return '<svg viewBox="0 0 '+W+' '+H+'" style="width:'+Math.max(220,Math.min(W*1.4,maxw||640))+'px" role="img" aria-label="cells placed on the grid">'+o+'</svg>';
+  }
+  $('cmp-ir').textContent=S.ir;
+  var STG=[
+   ['1. Read','Parse the text','The text is parsed by the real LLVM parser, then the function is picked out: its name, its inputs and its list of operations.',
+    function(){var p=S.parse;return '<div class="msg">function <code>'+esc(p.function)+'</code>, inputs '+p.arguments.map(function(a){return '<code>%'+esc(a)+'</code>';}).join(', ')+', result <code>%'+esc(p.result)+'</code></div><div class="scroll"><table class="t"><thead><tr><th>result name</th><th>operation</th><th>operands</th></tr></thead><tbody>'+p.instrs.map(function(i){return '<tr><td>%'+esc(i.name)+'</td><td>'+esc(i.opcode)+'</td><td>'+i.operands.map(esc).join(', ')+'</td></tr>';}).join('')+'</tbody></table></div>';}],
+   ['2. Name the data','Resolve every name','Each operand is classified: an input to the function (which will be loaded when it runs), the result of an earlier operation, or a plain number. Every name must be defined before it is used, and all problems here are collected together.',
+    function(){return '<div class="scroll"><table class="t"><thead><tr><th>operation</th><th>what</th><th>operand 1</th><th>operand 2</th></tr></thead><tbody>'+S.resolve.map(function(i){return '<tr><td>%'+esc(i.name)+'</td><td>'+esc(i.opcode)+'</td><td>'+esc(i.operands[0])+'</td><td>'+esc(i.operands[1])+'</td></tr>';}).join('')+'</tbody></table></div><div class="msg">Notice each input is marked as arriving at run time, not as a fixed number. That is why the same compiled cells work for any inputs.</div>';}],
+   ['3. Check and rewrite','Rewrite what can be cheaper','Operations the library cannot do directly are rewritten or expanded, and for every operation the compiler records whether operand order matters and how that is guaranteed.',
+    function(){var R=S.rewrite;return '<div class="msg">Rewrites: '+(R.rewrites.length?R.rewrites.map(esc).join('; '):'none')+'</div><div class="scroll"><table class="t"><thead><tr><th>operation</th><th>order matters?</th><th>how it is let in</th><th>why</th></tr></thead><tbody>'+R.ordering.map(function(o){return '<tr><td>%'+esc(o.name)+' ('+esc(o.opcode)+')</td><td>'+(o.order_sensitive?'yes':'no')+'</td><td>'+esc(o.ingestion)+'</td><td>'+esc(o.reason.replace(/`/g,''))+'</td></tr>';}).join('')+'</tbody></table></div>';}],
+   ['4. Place and route','Choose squares and relays','The placer gives every operation a square, adds the cells that hold inputs and constants, and lays a chain of relay cells wherever two cells are not neighbours. The next page is about this stage.',
+    function(){var P=S.place,cnt={};P.cells.forEach(function(x){cnt[x.role]=(cnt[x.role]||0)+1;});return '<div class="msg">Placer used: <b>'+esc(P.placer)+'</b>. Result: '+P.cells.length+' cells in '+P.extent[0]+' rows by '+P.extent[1]+' columns. The operations landed on '+Object.keys(P.positions).map(function(k){return '<code>%'+esc(k)+'</code> at ('+P.positions[k].join(', ')+')';}).join(', ')+'.</div><div class="picture">'+grid(P.cells)+'</div><div class="legend">'+Object.keys(ROLE).map(function(k){return '<span><span class="sw" style="background:'+ROLE[k][1]+'"></span>'+ROLE[k][0]+(cnt[k]?' '+cnt[k]:'')+'</span>';}).join('')+'</div>';}],
+   ['5. Write the file','Emit the records','Each placed cell becomes one record in an ICM file: where it is, what core it is, which faces it sends on and listens on. The compiler also notes which cell holds the answer and where each input must be loaded.',
+    function(){var E=S.emit;return '<div class="msg">'+E.cells+' cells; the answer is read from cell <code>'+esc(E.result_cell)+'</code> (a '+esc(E.result_core)+'). Inputs are loaded at: '+Object.keys(E.arg_injections).map(function(k){return '<code>%'+esc(k)+'</code> at ('+E.arg_injections[k][0].join(', ')+')';}).join(', ')+'.</div><p>From here the ICM file can be run in the VM, opened in the Composer, or handed to the assembler.</p>';}]
+  ];
+  var sb=$('cmp-stages'),cur=0;
+  STG.forEach(function(s,i){var b=document.createElement('button');b.type='button';b.innerHTML='<b>'+esc(s[0])+'</b>'+esc(s[1]);b.addEventListener('click',function(){cur=i;showS();});sb.appendChild(b);});
+  function showS(){[].forEach.call(sb.children,function(b,i){b.className=i===cur?'on':'';});var s=STG[cur];$('cmp-stage').innerHTML='<p>'+esc(s[2])+'</p>'+s[3]();}
+  showS();
+  /* DSL path */
+  var D=DATA.dsl_path;
+  $('cmp-toks').textContent=D.token_count+' tokens, first few:';
+  $('cmp-tokhead').textContent=D.tokens_head.join('\n')+'\n…';
+  $('cmp-places').querySelector('tbody').innerHTML=D.places.map(function(p){return '<tr><td>'+esc(p.name)+'</td><td>'+esc(p.tile)+'</td><td>'+p.row+'</td><td>'+p.col+'</td><td>'+p.fields.map(function(f){return esc(f[0]+': '+f[1]);}).join('; ')+'</td></tr>';}).join('');
+  /* errors */
+  $('cmp-msrc').textContent=DATA.multi_error.source;$('cmp-mout').textContent=DATA.multi_error.output;
+  $('cmp-lsrc').textContent=DATA.multi_error_llvm.ir;$('cmp-lout').textContent=DATA.multi_error_llvm.diagnostics.map(function(d){return d.what+':\n'+d.problem.trim();}).join('\n');
+  /* decision rule */
+  var NOTE={plain_chain:'No two values meet here, so nothing needs to be arbitrated: the value just follows the chain.',
+            priority:'Two values meet and swapping them changes nothing, so a priority cell lets them in one at a time and the order does not matter.',
+            stagger:'Two values meet, order matters, and all the arrival times can be worked out in advance, so relay cells pad the early one until each arrives on its own tick.',
+            sequencer:'Two values meet, order matters, and at least one arrives at run time, so a sequencer cell takes them in a fixed turn order whenever they arrive.'};
+  var RULE=DATA.shape_rule;
+  function rule(){var a=$('cmp-q1').value==='1',b=$('cmp-q2').value==='1',c=$('cmp-q3').value==='1',sh='';
+    RULE.forEach(function(r){if(r.convergence===a&&r.commutative===b&&r.knowable===c)sh=r.shape;});
+    $('cmp-shape').textContent=sh.replace('_',' ').toUpperCase();$('cmp-shapesays').textContent=NOTE[sh]||'';}
+  ['cmp-q1','cmp-q2','cmp-q3'].forEach(function(id){$(id).addEventListener('change',rule);});rule();
+  /* library */
+  $('cmp-lib').querySelector('tbody').innerHTML=DATA.opcode_library.map(function(o){return '<tr><td>'+esc(o.target)+'</td><td>'+esc(o.tile)+'</td><td>'+esc(o.core)+'</td><td>'+(o.commutative?'yes':'no')+'</td><td>'+o.arity+'</td></tr>';}).join('');
+  /* fit */
+  $('cmp-budget').textContent=DATA.fit.budget;
+  $('cmp-fit').querySelector('tbody').innerHTML=DATA.fit.rows.map(function(r){return '<tr><td>'+r.grid+' × '+r.grid+'</td><td class="'+(r.fits?'ok':'no')+'">'+(r.fits?'fits':'refused')+'</td><td style="white-space:pre-wrap">'+esc(r.report)+(r.fits?'\nanswer for inputs 2, 3, 4: '+r.answer+' ('+r.cells+' cells)':'')+'</td></tr>';}).join('');
+})();
+</script>
+</div>

@@ -79,10 +79,10 @@
 <ul>
   <li><span class="legendsw" style="color:#d9822b"><b>Compute</b></span> cells are the arithmetic: one adder or multiplier for each <code>add</code> or <code>mul</code> line. The <code>sub %p, 3</code> line became an adder that adds 0xFFFFFFFD (that is, -3), which is cheaper: the compiler's own note says so.</li>
   <li><span class="legendsw" style="color:#2a7fb8"><b>Argument</b></span> and <span class="legendsw" style="color:#7d5fb0"><b>constant</b></span> cells hold the inputs and the literal numbers until they are used.</li>
-  <li><span class="legendsw" style="color:#b3402a"><b>Ordering</b></span> cells (priority cells) sit in front of an arithmetic cell and make sure its two operands arrive in a fixed order. As the DSL page showed, an adder cares which arrives first, and for subtraction and the like the order is the answer.</li>
+  <li><span class="legendsw" style="color:#b3402a"><b>Ordering</b></span> cells (priority cells) sit in front of an arithmetic cell and let its two operands in one at a time instead of racing. As the DSL page showed, two operands arriving on the same tick can lose one. The compiler puts one in front of every two-operand operation, so the answer does not depend on how long each route turned out to be.</li>
   <li><span class="legendsw" style="color:#6b8a6b"><b>Relay</b></span> cells carry a number along a path across the grid, one square per tick, because cells only talk to their immediate neighbours.</li>
 </ul>
-<p>So the clever part of the compiler is not the arithmetic. It is the plumbing: placing cells, routing relays between them, and fixing the order of arrivals so that nothing is lost the way it was in the DSL page's second run.</p>
+<p>So the clever part of the compiler is not the arithmetic. It is the plumbing: placing cells, routing relays between them, and controlling how arrivals are let in so that nothing is lost the way it was in the DSL page's second run.</p>
 
 <h2>4. Choices and loops</h2>
 <p>There are no jumps on this machine: every cell that exists works whenever data reaches it. So the compiler turns the usual control-flow ideas into dataflow:</p>
