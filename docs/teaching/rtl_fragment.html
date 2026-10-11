@@ -1,0 +1,228 @@
+<!-- Verilog / RTL overview fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data from docs/teaching/capture_rtl_v1.py embedded in place of @@RTL_DATA@@. Links are relative to docs/. -->
+<div class="rtlp" id="rtl-root">
+<style>
+  .rtlp h2{margin-top:1.6em}
+  .rtlp .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .rtlp .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .rtlp .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .rtlp .linkrow a.go{background:var(--accent);color:#fff}
+  .rtlp table.f{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .rtlp table.f th,.rtlp table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .rtlp table.f td:first-child{font-family:var(--mono);white-space:nowrap}
+  .rtlp table.f tr.only td{background:rgba(21,117,109,.12)}
+  .rtlp table.f td,.rtlp table.f th{overflow-wrap:anywhere}
+  .rtlp .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .rtlp .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .rtlp .says.bad{border-left-color:#b3402a;background:rgba(179,64,42,.09)}
+  .rtlp .says.warn{border-left-color:#b8860b;background:rgba(184,134,11,.12)}
+  .rtlp pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.8em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.5em 0;white-space:pre}
+  .rtlp .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
+  .rtlp .card{border:2px solid var(--rule);border-radius:10px;padding:8px 12px;background:rgba(255,255,255,.35)}
+  .rtlp .card h4{margin:.1em 0 .3em}
+  .rtlp .card.fail{border-color:#b3402a}
+  .rtlp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .rtlp .bar button{padding:5px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer;font:inherit;font-size:.92em}
+  .rtlp .bar button.on{background:var(--accent);color:#fff}
+  .rtlp .bar select{font:inherit;font-size:.92em;padding:4px 6px;max-width:100%}
+  .rtlp .chips{display:flex;flex-wrap:wrap;gap:6px;margin:.4em 0}
+  .rtlp .chips span{font-family:var(--mono);font-size:.8em;padding:2px 9px;border:1px solid var(--rule);border-radius:12px;background:var(--paper-edge)}
+  .rtlp .chips span.x{border-color:var(--accent);background:rgba(21,117,109,.14)}
+  .rtlp .picture{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:6px;overflow-x:auto}
+  .rtlp svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  .rtlp svg text{font-family:var(--mono);fill:var(--ink)}
+  .rtlp ul.fl{list-style:none;margin:.3em 0;padding:0;font-family:var(--mono);font-size:.82em}
+  .rtlp ul.fl li{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted var(--rule);padding:1px 0}
+  .rtlp ul.fl li.chg{background:rgba(184,134,11,.18)}
+  .rtlp ul.fl li.gone{background:rgba(179,64,42,.12)}
+  .rtlp ul.fl li span:last-child{color:var(--ink-soft)}
+  .rtlp .kv{font-size:.88em;margin:.3em 0}
+  .rtlp .kv b{font-family:var(--mono);font-weight:600}
+</style>
+
+<p class="lead">Verilog is the language the hardware is written in. Everything on earlier pages ran in the VM, a Python model of the cells. This page is about the other form of the same design: a small text file per kind of cell, which a chip tool turns into real wiring inside an FPGA (a chip you can rewire). It also shows where the design keeps <em>what the program does</em> apart from <em>which card it runs on</em>.</p>
+
+<h2>What is in the Verilog folder</h2>
+<p>Everything lives in <code>sub/verilog/</code>. Each kind of cell is one short file, and each has a matching test file (a "testbench") that feeds it numbers and checks what comes out. The counts below are read from the folder when this page was built.</p>
+<div class="kv" id="rtl-counts"></div>
+<p><strong>Two families</strong> exist side by side. The <em>stripped</em> family (<code>v4s</code>) has no way for a cell to say "wait": every cell takes a fixed number of clock ticks, so the builder must pad early paths with spare relay cells so values meet on the same tick. The <em>flex</em> family (<code>v4sa</code>) adds a "ready / taken" handshake and a word width you choose, so cells wait for each other and nothing needs padding. Pick a family to see the cells it has and the real ports of its adder.</p>
+<div class="bar" id="rtl-fam"></div>
+<div class="chips" id="rtl-cells"></div>
+<div class="scroll" style="overflow-x:auto"><table class="f" id="rtl-ports"></table></div>
+<div class="says" id="rtl-portsays"></div>
+
+<h2>Where the design keeps the logic apart from the card</h2>
+<p>A program is written once, as a map of cells (an <strong>ICM</strong> file). It says nothing about any card: no pins, no chip sizes, no clock. What the card offers is held in a second file, the <strong>MAN</strong> file (the next page). A tool called the <em>assembler</em> reads both and writes the Verilog and the build script for that pairing. Change the card file and the same program is built differently; change the program and the same card is used differently.</p>
+<div class="picture"><svg viewBox="0 0 760 250" role="img" aria-label="ICM and MAN feed the assembler, which writes Verilog, a synthesis script and a pin file for the chip tool">
+  <rect x="10" y="20" width="190" height="70" rx="8" fill="rgba(21,117,109,.16)" stroke="#15756d" stroke-width="2"/>
+  <text x="105" y="48" text-anchor="middle" font-size="14" font-weight="bold">ICM</text>
+  <text x="105" y="68" text-anchor="middle" font-size="11">the map of logic</text>
+  <text x="105" y="83" text-anchor="middle" font-size="10">no card in it</text>
+  <rect x="10" y="150" width="190" height="70" rx="8" fill="rgba(184,134,11,.16)" stroke="#b8860b" stroke-width="2"/>
+  <text x="105" y="178" text-anchor="middle" font-size="14" font-weight="bold">MAN</text>
+  <text x="105" y="198" text-anchor="middle" font-size="11">the physical card</text>
+  <text x="105" y="213" text-anchor="middle" font-size="10">no program in it</text>
+  <path d="M200 55 L270 105 M200 185 L270 135" stroke="#555" stroke-width="2" fill="none"/>
+  <rect x="270" y="85" width="170" height="70" rx="8" fill="rgba(0,0,0,.06)" stroke="#555" stroke-width="2"/>
+  <text x="355" y="113" text-anchor="middle" font-size="13" font-weight="bold">assembler</text>
+  <text x="355" y="131" text-anchor="middle" font-size="10">project_assemble_v1.py</text>
+  <text x="355" y="145" text-anchor="middle" font-size="10">picks, sizes, writes</text>
+  <path d="M440 105 L510 45 M440 120 L510 120 M440 135 L510 195" stroke="#555" stroke-width="2" fill="none"/>
+  <rect x="510" y="20" width="240" height="50" rx="6" fill="#fff" stroke="#555"/>
+  <text x="630" y="40" text-anchor="middle" font-size="12">Verilog: top file + cell files</text>
+  <text x="630" y="57" text-anchor="middle" font-size="10">which cells, how wide, how wired</text>
+  <rect x="510" y="95" width="240" height="50" rx="6" fill="#fff" stroke="#555"/>
+  <text x="630" y="115" text-anchor="middle" font-size="12">build script (.ys or .qsf)</text>
+  <text x="630" y="132" text-anchor="middle" font-size="10">the flags this card's tools accept</text>
+  <rect x="510" y="170" width="240" height="50" rx="6" fill="#fff" stroke="#555"/>
+  <text x="630" y="190" text-anchor="middle" font-size="12">pin file (.cst or in the .qsf)</text>
+  <text x="630" y="207" text-anchor="middle" font-size="10">which chip legs carry the clock and lights</text>
+</svg></div>
+<p>In the docs these are four named things (<code>docs/man/README.md</code>):</p>
+<table class="f">
+  <tr><th>Artifact</th><th>What it holds</th><th>Changes when</th><th>Used on this page</th></tr>
+  <tr><td>ICM</td><td>the user's program as cells and wiring; the same file for every card</td><td>the program changes</td><td>yes, <code>add</code> and <code>mul</code></td></tr>
+  <tr><td>MAN</td><td>one card's identity and abilities: chip size, multipliers, pins, which options its tools accept</td><td>a different card, rarely</td><td>yes, two cards</td></tr>
+  <tr><td>SHAPE</td><td>one compiled design's own layout</td><td>every build</td><td>no</td></tr>
+  <tr><td>BITSTREAM</td><td>SHAPE and MAN together, turned into what is loaded on the chip</td><td>every build</td><td>no</td></tr>
+</table>
+<div class="linkrow"><a class="go ref" href="#sec-man">The MAN file in detail →</a></div>
+
+<h2>Try it: the same program, two cards</h2>
+<p>Each button below is a real run of the assembler, with the same program file and only the card file changed. The left card is the Sipeed Tang Nano 20K (a small Gowin FPGA, the project's active line). The right card is the IEI Mustang-F100-A10 (an Intel Arria 10 card, the older reference line). Anything that differs between the two columns is marked.</p>
+<div class="bar" id="rtl-scn"></div>
+<div class="says" id="rtl-scnsays"></div>
+<div class="two" id="rtl-cols"></div>
+<div class="says" id="rtl-diff"></div>
+
+<h2>What this shows, and what it does not</h2>
+<div id="rtl-lessons"></div>
+
+<p class="fine">Scope. Every column above is the real output of <code>tools/project_assemble_v1.py</code>, captured by <code>docs/teaching/capture_rtl_v1.py</code> against the files in the repository; file lines, flags, widths and messages are read from the run, not typed. The generated Verilog was <strong>not</strong> simulated or synthesised for this page: no Verilog simulator is installed here, and the synthesis tools were not run. The cell libraries and their testbenches are counted, not re-run. The Mustang card is the older line; its MAN file was assembled by hand, the Tang Nano one by a script.</p>
+
+<script type="application/json" id="rtl-data">@@RTL_DATA@@</script>
+<script>
+(function(){
+  var D=JSON.parse(document.getElementById('rtl-data').textContent);
+  function $(i){return document.getElementById(i);}
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  /* counts */
+  var V=D.verilog;
+  $('rtl-counts').innerHTML='<b>'+V.files_total+'</b> files: <b>'+V.testbenches+'</b> testbenches, <b>'+V.v4s.length+'</b> cell kinds in the stripped family, <b>'+V.v4sa.length+'</b> in the flex family.';
+  /* families + ports */
+  var MEAN={
+    "parameter [15:0] CELL_ID = 16'h0000":"a number that names this cell, so a test can tell cells apart",
+    "parameter SECOND_PORT = 0":"1 builds a second result (the carry); 0 leaves that logic out",
+    "parameter WIDTH = 32":"how many bits the data is; you choose it when the cell is built",
+    "input wire clk":"the clock: everything moves one step per tick",
+    "input wire rst":"reset: forget everything",
+    "input wire freeze_in":"one wire shared by every cell: hold still while the setup is being loaded",
+    "input wire cfg_valid":"'the setup word is on cfg_data now'",
+    "input wire [31:0] cfg_data":"the setup word (which mode this cell is in)",
+    "input wire [31:0] in_a":"first operand",
+    "input wire [WIDTH-1:0] in_a":"first operand, WIDTH bits",
+    "input wire [31:0] in_b":"second operand",
+    "input wire [WIDTH-1:0] in_b":"second operand, WIDTH bits",
+    "input wire valid_in":"'the operands on in_a and in_b are real'",
+    "output wire ack_out":"'I am empty and can take new operands'",
+    "output wire [31:0] data_out":"the result",
+    "output wire [WIDTH-1:0] data_out":"the result, WIDTH bits; held until the next cell takes it",
+    "output wire valid_out":"'the result is real'",
+    "input wire ack_in":"the next cell says 'I took it'",
+    "output wire [WIDTH-1:0] carry_out":"the carry, the second result (only if SECOND_PORT is 1)",
+    "output wire valid_out_c":"'the carry is real'",
+    "input wire ack_in_c":"the next cell took the carry"
+  };
+  var fam='v4s';
+  function norm(p){return p.replace(/\[WIDTH-1:0\]/,'[W]').replace(/\[31:0\]/,'[W]');}
+  function showFam(){
+    [].forEach.call($('rtl-fam').children,function(b){b.className=b.getAttribute('data-f')===fam?'on':'';});
+    var other=fam==='v4s'?'v4sa':'v4s', mine=V[fam], theirs=V[other];
+    $('rtl-cells').innerHTML=mine.map(function(n){return '<span'+(theirs.indexOf(n)<0?' class="x"':'')+'>'+esc(n)+'</span>';}).join('');
+    var ports=D.adder_ports[fam], oset={};D.adder_ports[other].forEach(function(p){oset[norm(p).replace(/\bWIDTH\b/,'')]=1;});
+    var h='<tr><th>Port of the adder ('+(fam==='v4s'?'adder_cell_v4s':'adder_cell_v4sa')+')</th><th>Meaning</th></tr>';
+    var only=0;
+    ports.forEach(function(p){var isOnly=!oset[norm(p).replace(/\bWIDTH\b/,'')];if(isOnly)only++;
+      h+='<tr'+(isOnly?' class="only"':'')+'><td>'+esc(p.replace(/^input wire /,'in  ').replace(/^output wire /,'out ').replace(/^parameter /,'param '))+'</td><td>'+esc(MEAN[p]||'')+'</td></tr>';});
+    $('rtl-ports').innerHTML=h;
+    var nx=mine.filter(function(n){return theirs.indexOf(n)<0;});
+    $('rtl-portsays').textContent=(fam==='v4s'
+      ?'The stripped adder has '+ports.length+' ports: no wait signal at all, and a fixed 32-bit word. Shaded rows exist only here, and nothing in this family has a way to say "not yet". '
+      :'The flex adder has '+ports.length+' ports. The shaded ones are what the stripped family lacks: the freeze wire, the ready / taken pair, a chosen width and an optional carry. ')
+      +(nx.length?'Cell kinds only in this family: '+nx.join(', ')+' (shaded chips above).':'Every cell kind here also exists in the other family.');
+  }
+  ['v4s','v4sa'].forEach(function(f){var b=document.createElement('button');b.type='button';b.setAttribute('data-f',f);b.textContent=f==='v4s'?'Stripped (v4s)':'Flex (v4sa)';b.addEventListener('click',function(){fam=f;showFam();});$('rtl-fam').appendChild(b);});
+  showFam();
+
+  /* scenarios */
+  var SC=[
+    {id:'af',name:'add, flex family',t:'add_flex_tang',m:'add_flex_mustang',
+     note:'The same 27-cell adder program built from the flex cells. Look at the file lists: they are the same. Only the build script differs, because the Tang Nano\'s tools accept a flag the Mustang\'s do not.'},
+    {id:'as',name:'add, stripped family',t:'add_sub_tang',m:'add_sub_mustang',
+     note:'The same adder in the stripped cells. Again the Verilog is identical for both cards and the padding relays are the same; the card changes only the build script.'},
+    {id:'ma',name:'multiply, card chooses',t:'mul_sub_auto_tang',m:'mul_sub_auto_mustang',
+     note:'The multiply program lets the assembler choose how to multiply. The Tang Nano\'s file lists a hardware multiplier block, so the assembler picks the small DSP cell. The Mustang file lists none, so it falls back to the big multiplier built from ordinary logic.'},
+    {id:'md',name:'multiply, force the DSP',t:'mul_sub_dsp_tang',m:'mul_sub_dsp_mustang',
+     note:'Asking for the DSP multiplier on a card whose file does not list one is refused, with the reason, instead of quietly building something else.'},
+    {id:'ch',name:'4 adders in a row, flex',t:'chain_flex_tang',m:'chain_flex_mustang',
+     note:'A plain row of four adders, with no program file. Here the card sets the word width (the Tang Nano file says 18 bits; the Mustang file says nothing, so 32 is used) and the Tang Nano build also gets a pin file written from its table of chip legs.'},
+    {id:'q',name:'Quartus project (Intel only)',t:'quartus_tang',m:'quartus_mustang',
+     note:'The older Intel route writes a project for the Quartus tool, with the chip type and clock pin taken from the card file. It refuses a Gowin card file, by design.'}
+  ];
+  var sc=0;
+  SC.forEach(function(s,i){var b=document.createElement('button');b.type='button';b.textContent=s.name;b.addEventListener('click',function(){sc=i;showSc();});$('rtl-scn').appendChild(b);});
+  function col(title,r,other){
+    if(!r.ok){return '<div class="card fail"><h4>'+esc(title)+'</h4><div class="says bad"><strong>Refused.</strong> '+esc(r.stderr.replace(/^error:\s*/,''))+'</div><pre class="code">'+esc(r.cmd)+'</pre></div>';}
+    var h='<div class="card"><h4>'+esc(title)+'</h4><pre class="code">'+esc(r.cmd.replace(/ --output DIR$/,''))+'</pre><ul class="fl">';
+    var fs=Object.keys(r.files).filter(function(f){return f!=='ASSEMBLY.json';});
+    fs.forEach(function(f){var cls='';
+      if(other&&other.ok){ if(!(f in other.files))cls='gone'; else if(r.sha&&other.sha&&r.sha[f]&&other.sha[f]&&r.sha[f]!==other.sha[f])cls='chg'; else if(r.files[f]!==other.files[f])cls='chg';}
+      else if(other&&!other.ok)cls='';
+      h+='<li class="'+cls+'"><span>'+esc(f)+'</span><span>'+r.files[f]+' lines</span></li>';});
+    h+='</ul>';
+    var a=r.assembly||{};
+    var kv=[];
+    if(a.built_width!=null)kv.push('word width <b>'+a.built_width+'</b> bits');
+    var w=/Width:\s*(\d+)\s*\(([^)]*\)?[^)]*)\)/.exec(r.stdout);
+    if(a.built_width==null&&w)kv.push('word width <b>'+w[1]+'</b> bits <span style="color:var(--ink-soft)">('+esc(w[2].replace(/\s*#\d+\s*$/,''))+')</span>');
+    if(a.synth_flags)kv.push('synthesis flags <b>'+esc(a.synth_flags)+'</b>');
+    if(a.synth_flags_reason)kv.push(esc(a.synth_flags_reason));
+    if(a.output_latency_cycles)kv.push('result arrives after <b>'+esc(Object.values(a.output_latency_cycles)[0])+'</b> ticks');
+    if(r.qsf_key)kv.push('<code>'+r.qsf_key.map(esc).join('</code><br><code>')+'</code>');
+    if(r.cst_head)kv.push('pin file of '+r.cst_lines+' lines, starting <code>'+esc(r.cst_head[0])+'</code>');
+    h+=kv.map(function(x){return '<div class="kv">'+x+'</div>';}).join('');
+    if(r.ys){h+='<pre class="code">'+esc(r.ys.filter(function(l){return /synth_/.test(l);}).join('\n'))+'</pre>';}
+    return h+'</div>';
+  }
+  function showSc(){
+    [].forEach.call($('rtl-scn').children,function(b,i){b.className=i===sc?'on':'';});
+    var s=SC[sc],T=D.runs[s.t],M=D.runs[s.m];
+    $('rtl-scnsays').textContent=s.note;
+    $('rtl-cols').innerHTML=col('Tang Nano 20K (Gowin)',T,M)+col('Mustang F100 (Intel Arria 10)',M,T);
+    var d=[];
+    if(T.ok&&M.ok){
+      var all=Object.keys(T.files).filter(function(f){return f!=='ASSEMBLY.json';});
+      var same=[],diff=[],onlyT=[],onlyM=[];
+      all.forEach(function(f){ if(!(f in M.files))onlyT.push(f); else if(T.sha[f]===M.sha[f]||(!T.sha[f]&&T.files[f]===M.files[f]))same.push(f); else diff.push(f);});
+      Object.keys(M.files).forEach(function(f){if(f!=='ASSEMBLY.json'&&!(f in T.files))onlyM.push(f);});
+      d.push('Files identical on both cards: '+(same.length?same.join(', '):'none')+'.');
+      if(diff.length)d.push('Same name, different content: '+diff.join(', ')+'.');
+      if(onlyT.length)d.push('Only for the Tang Nano: '+onlyT.join(', ')+'.');
+      if(onlyM.length)d.push('Only for the Mustang: '+onlyM.join(', ')+'.');
+      var ta=(T.assembly||{}).synth_flags,ma=(M.assembly||{}).synth_flags;
+      if(ta!==undefined&&ma!==undefined&&ta!==ma)d.push('Synthesis flags differ: '+ta+' against '+ma+'.');
+    }else{ d.push('One card builds and the other is refused, so there is nothing to compare line for line: the card file decided whether the design could be built at all.'); }
+    $('rtl-diff').innerHTML='<strong>What the card changed.</strong> '+d.map(esc).join(' ');
+  }
+  showSc();
+
+  /* lessons */
+  $('rtl-lessons').innerHTML='<ul>'
+   +'<li><strong>The program file never mentions a card.</strong> The same <code>add.icm.json</code> went into both columns. The card file decided the build flags, the multiplier choice, the word width on the chain run, and whether a pin file or a Quartus project could be written.</li>'
+   +'<li><strong>For a program file, the card does not yet set the word width.</strong> The chain run takes the Tang Nano\'s 18 bits from its card file, but the program-file runs built 32 bits for both cards. They only change width if you pass <code>-w</code> yourself (a run with <code>-w 18</code> and no card file built 18 bits). That gap is real and unfixed.</li>'
+   +'<li><strong>The Mustang card file has no word width, no multiplier list and no pin table in the form the Gowin route reads.</strong> It was written earlier and by hand, for the Quartus route. Run through the flex and stripped routes it gets the fallbacks.</li>'
+   +'<li><strong>The build script of the program-file route always names the open-source Gowin synthesis (<code>synth_gowin</code>), even for the Mustang card file.</strong> Only the flags change. So the Mustang columns here show how the card file steers the assembler; they are not an Arria 10 build. The real Arria 10 build is the separate Quartus route in the last button.</li>'
+   +'<li><strong>Nothing here was synthesised, placed or loaded on a chip.</strong> That is what the build scripts are for, and it is a separate step.</li></ul>';
+})();
+</script>
+</div>

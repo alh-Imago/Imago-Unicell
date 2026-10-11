@@ -1,0 +1,202 @@
+<!-- MAN file design fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py).
+     Data from docs/teaching/capture_rtl_v1.py embedded in place of @@RTL_DATA@@. Links are relative to docs/. -->
+<div class="manp" id="man-root">
+<style>
+  .manp h2{margin-top:1.6em}
+  .manp .lead{color:var(--ink-soft);margin:.2em 0 1em}
+  .manp .linkrow{display:flex;flex-wrap:wrap;gap:10px;margin:.6em 0}
+  .manp .linkrow a{display:inline-block;padding:7px 14px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);text-decoration:none;color:var(--ink)}
+  .manp table.f{border-collapse:collapse;width:100%;font-size:.88em;margin:.6em 0}
+  .manp table.f th,.manp table.f td{border-bottom:1px solid var(--rule);padding:5px 8px;text-align:left;vertical-align:top}
+  .manp table.f td:first-child{font-family:var(--mono);white-space:nowrap}
+  .manp table.f td,.manp table.f th{word-break:break-word;overflow-wrap:anywhere}
+  .manp table.f td:first-child{white-space:normal}
+  .manp .fine{font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em}
+  .manp .says{margin:.7em 0;padding:8px 12px;border-left:4px solid var(--accent);background:rgba(21,117,109,.08);font-size:.95em}
+  .manp .says.warn{border-left-color:#b8860b;background:rgba(184,134,11,.12)}
+  .manp .says.bad{border-left-color:#b3402a;background:rgba(179,64,42,.09)}
+  .manp pre.code{background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:.8em;line-height:1.5;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:.5em 0;white-space:pre-wrap;word-break:break-word}
+  .manp .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5em 0}
+  .manp .bar button{padding:5px 12px;border:2px solid var(--accent);border-radius:8px;background:var(--paper-edge);color:var(--ink);cursor:pointer;font:inherit;font-size:.92em}
+  .manp .bar button.on{background:var(--accent);color:#fff}
+  .manp .bar select,.manp .bar input{font:inherit;font-size:.92em;max-width:100%}
+  .manp .secs{display:grid;gap:4px;margin:.5em 0}
+  .manp .secs button{display:grid;grid-template-columns:minmax(7em,11em) 1fr 5.5em;gap:8px;align-items:center;text-align:left;border:1px solid var(--rule);border-radius:6px;background:rgba(255,255,255,.35);padding:3px 8px;cursor:pointer;font:inherit;font-size:.85em;color:var(--ink)}
+  .manp .secs button.on{border-color:var(--accent);background:rgba(21,117,109,.14)}
+  .manp .secs .nm{font-family:var(--mono)}
+  .manp .secs .tr{height:10px;background:rgba(0,0,0,.06);border-radius:5px;overflow:hidden}
+  .manp .secs .tr i{display:block;height:100%;background:var(--accent)}
+  .manp .secs .sz{text-align:right;color:var(--ink-soft);font-family:var(--mono)}
+  .manp .picture{border:1px solid var(--rule);border-radius:10px;background:rgba(255,255,255,.3);padding:6px;overflow-x:auto}
+  .manp svg{display:block;max-width:100%;height:auto;margin:0 auto}
+  .manp svg text{font-family:var(--mono);fill:var(--ink)}
+  .manp .big{font-size:1.5em;font-family:var(--mono);margin:.2em 0}
+  .manp .yes{color:#15756d;font-weight:bold}.manp .no{color:#b3402a;font-weight:bold}
+  .manp .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
+</style>
+
+<p class="lead">The MAN file is one card, written down. It holds what the card <em>is</em> (the chip, how big it is, what built-in blocks it has, which legs carry the clock and the lights) and what its tools accept. It holds nothing about any program. The previous page showed the assembler reading it; this page opens the files themselves.</p>
+
+<h2>Two real files</h2>
+<table class="f" id="man-cards"></table>
+<p>Both live in <code>docs/man/</code>. They differ in age and in how they were made, and that shows in what they contain. Which fields a card file has decides what the tools can do for that card; where a field is missing, the tools fall back or refuse.</p>
+
+<h2>Open a file</h2>
+<div class="bar" id="man-pick"></div>
+<p>Each row is a top-level section of the file; the bar is its size in the file. Click one for what it is for and what in the repository reads it.</p>
+<div class="secs" id="man-secs"></div>
+<div class="says" id="man-secsays"></div>
+
+<h2>Who uses the MAN file</h2>
+<p>Three things read a card file today, and they read very different amounts of it.</p>
+<table class="f">
+  <tr><th>User</th><th>What it takes from the file</th><th>What it does with it</th></tr>
+  <tr><td>The assembler</td><td>card name; <code>device.part</code> and family; <code>vendor</code>; <code>device.logic.native_width</code>; <code>synthesis.nowidelut</code>; DSP block count and multiplier list; the <code>board</code> pin table</td><td>writes the Verilog top, the build script and the pin file for that card (the previous page; its own page comes next)</td></tr>
+  <tr><td>The mirror VM</td><td>the card name only, plus a cell count you give it</td><td>makes the VM grid the same shape a real build of that many cells would have, so a program that could never be built is refused in the VM too</td></tr>
+  <tr><td>The card-fit check (the compiler and placer pages)</td><td>whether the chip counts LUT4s or ALMs; the totals; where the DSP and block-memory columns are</td><td>works out how many cell positions the card holds and whether a compiled design fits</td></tr>
+</table>
+<div class="linkrow"><a class="ref" href="#sec-rtl">← The Verilog and the card split, with the assembler's runs</a><a class="ref" href="#sec-placer">The placer, which uses the card-fit check →</a></div>
+
+<h3>The mirror VM, live</h3>
+<p>This demo uses the Mustang file (the mirror needs only a card name, so either file would give the same grid). The mirror takes the name and a cell count, and lays out the grid the same way the assembler would: near-square, filled row by row. The <code>add</code> program (27 cells, spread over rows 2 to 6 and columns 1 to 14) is then checked against it. Pick a cell count. Dark squares are positions a real build would have; orange squares are the program's cells; a red outline is a program cell sitting where no real cell would exist.</p>
+<div class="bar" id="man-mirpick"></div>
+<div class="picture" id="man-mirpic"></div>
+<div class="says" id="man-mirsays"></div>
+<p>The same check runs when the Workbench's "set target" is used and when the LLVM command-line tool is given <code>--man</code> with <code>--cells</code>. The mirror VM gets its own page later, and that page will link back here.</p>
+<div class="says warn">The mirror checks <strong>shape only</strong>: does every cell sit on a position a real build of that size would have, and do none share one. It does not check that the chip has room. That second question belongs to the card-fit check and the cost table below.</div>
+
+<h2>What a cell costs on this card</h2>
+<p>The Tang Nano file carries a table of measured costs: each flex-family cell was built at six widths and counted by the open synthesis tool, and a straight line (or a curve for the multiplier) was fitted through the points. Pick a cell and a width. The page reads the table at measured widths and uses the fit between them.</p>
+<div class="bar"><label>Cell <select id="man-kind"></select></label><label>Width <input type="range" id="man-w" min="4" max="32" value="18"></label><span id="man-wv"></span></div>
+<div class="says" id="man-costsays"></div>
+<div class="big" id="man-fits"></div>
+<p class="fine" style="border:none;margin:0">The count above is plain division of the chip's 20,736 LUT4s by the cell's cost. It ignores wiring, the shared connections between cells and the clock, so it is a ceiling for the arithmetic and not a promise that this many will place.</p>
+
+<h3>Positions the card holds</h3>
+<p>The card-fit check costs a design in <em>positions</em>, one per cell instantiated, at a measured cost per position, and keeps a margin (80% of the chip). The costs below were measured on the older cardinal cell shells, not on the flex cells above, so the two tables answer different questions. Notice how few positions even the cheapest shell gets on the Tang Nano against how many there are LUT4s.</p>
+<table class="f" id="man-bud"></table>
+
+<h2>What the card says it can do</h2>
+<p>The <code>capabilities</code> block is a list of yes/no facts about the card, each with a second flag for whether this project has actually used it yet.</p>
+<table class="f" id="man-caps"></table>
+<div class="says warn" id="man-capsays"></div>
+
+<h2>How the files are made, and how far to trust them</h2>
+<div class="two">
+  <div><h4>Tang Nano 20K: generated</h4><p id="man-gen-t"></p><div id="man-ver-t"></div></div>
+  <div><h4>Mustang F100: assembled by hand</h4><p id="man-gen-m"></p><div id="man-ver-m"></div></div>
+</div>
+<p>Where the generator can read a fact from a source (the chip database, the synthesis tool's own cell library) it does, and the file records where each fact came from. Where a fact is a decision (the no-wide-LUT default), the file says whose decision and which measurements back it.</p>
+
+<h2>Gaps, plainly</h2>
+<ul>
+  <li><strong>Nothing reads the <code>capabilities</code> block yet.</strong> The README describes it as the way a loader or generator refuses features a card lacks. A search of the Python in <code>nano/</code> and <code>tools/</code> finds it written by the two file generators and read by no tool; the real refusals above come from the <code>synthesis</code> and <code>device.dsp</code> fields.</li>
+  <li><strong>Nothing reads the cost table in the file</strong> except its own generator and a test. The assembler does not use it to refuse a design that is too big.</li>
+  <li><strong>The Mustang file is thin</strong> for the newer routes: no word width, no multiplier list, no cost table.</li>
+  <li><strong>The Tang Nano file was never tested on the board.</strong> Its own <code>verification</code> block says the schematic is not checked and no bitstream has been loaded on the board by this project.</li>
+  <li><strong>SHAPE and BITSTREAM</strong>, the other two of the four artifacts, were not run for this page.</li>
+</ul>
+
+<p class="fine">Scope. Section sizes, field values, cost tables, fits, budgets and the mirror results are read from the two files and from <code>nano/card_fit_v1.py</code> and <code>nano/vm_mirror_v1.py</code> by <code>docs/teaching/capture_rtl_v1.py</code>. The descriptions of what each section is for are written from the files' own notes and from reading the code that uses them; the "nothing reads it" statements come from a text search and could miss indirect use. No hardware, synthesis or placement was run for this page.</p>
+
+<script type="application/json" id="man-data">@@RTL_DATA@@</script>
+<script>
+(function(){
+  var D=JSON.parse(document.getElementById('man-data').textContent);
+  function $(i){return document.getElementById(i);}
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  var T=D.mans.tang,M=D.mans.mustang;
+  /* cards table */
+  function row(l,a,b){return '<tr><td>'+l+'</td><td>'+a+'</td><td>'+b+'</td></tr>';}
+  $('man-cards').innerHTML='<tr><th></th><th>Tang Nano 20K</th><th>Mustang F100</th></tr>'
+   +row('file',esc(T.path),esc(M.path))
+   +row('size',T.bytes.toLocaleString()+' bytes',M.bytes.toLocaleString()+' bytes')
+   +row('MAN version',esc(T.man_version),esc(M.man_version))
+   +row('made',esc(T.generated)+', by a script',esc(M.generated)+', by hand')
+   +row('chip',esc(T.part)+' ('+esc(T.family)+')',esc(M.part)+' ('+esc(M.family)+')')
+   +row('size of chip',T.logic.lut4_total.toLocaleString()+' LUT4s, '+T.logic.ff_total.toLocaleString()+' flip-flops',M.alm_total.toLocaleString()+' ALMs')
+   +row('built-in multipliers',T.dsp_total_blocks+' blocks, listing '+T.dsp_primitives.join(', '),M.dsp_total_blocks+' blocks, listing none')
+   +row('word width','native '+T.native_width+' bits','not stated')
+   +row('cost table',T.has_cell_costs?'yes, '+T.cell_kinds.length+' cell kinds':'no',M.has_cell_costs?'yes':'no');
+  /* section explorer */
+  var DESC={
+    man_version:["The version of the file layout.","Nothing in the tools checks it today."],
+    card_id:["The card's name. It names the output and is the one thing the mirror VM takes.","Assembler (written into the output record), mirror VM."],
+    generated:["The date it was made.","Nobody; for people."],
+    generated_by:["How it was made and where each kind of fact came from.","Nobody; for people checking trust."],
+    vendor:["The chip maker. 'gowin' selects the open Gowin route and a pin file; the Quartus route accepts Intel only and refuses anything else.","Assembler (both routes)."],
+    synthesis:["Which synthesis tool the card uses and whether its option for avoiding wide multiplexers exists and is on by default.","Assembler: decides the -nowidelut flag, and refuses it when the card says it is unsupported."],
+    cell_costs:["Measured size of every flex cell at six widths, with fitted lines. Only the Tang Nano file has it.","Only its generator and a test. The assembler does not use it."],
+    device:["The chip itself: part number, logic size, built-in memory and multiplier blocks and where they sit, clocks, input/output banks.","Assembler (part, family, native width, multiplier list); card-fit check (logic unit, totals, block columns)."],
+    board:["The board around the chip: clock leg, buttons, lights, serial port, memory, programming link.","Assembler: writes the pin file (Gowin) or the clock and pin lines (Quartus)."],
+    capabilities:["Yes/no list of what the card can do, with a second flag for whether this project uses it yet.","Written by the generators; no tool found reading it."],
+    verification:["What was checked against what, and what was not.","Nobody; for people."],
+    provenance:["Ledger entries this file's content comes from.","Nobody; for people."]
+  };
+  var cur='tang',sec=null;
+  ['tang','mustang'].forEach(function(k){var b=document.createElement('button');b.type='button';b.setAttribute('data-k',k);b.textContent=k==='tang'?'Tang Nano 20K':'Mustang F100';b.addEventListener('click',function(){cur=k;sec=null;showSecs();});$('man-pick').appendChild(b);});
+  function showSecs(){
+    [].forEach.call($('man-pick').children,function(b){b.className=b.getAttribute('data-k')===cur?'on':'';});
+    var m=D.mans[cur],keys=m.top_keys.slice().sort(function(a,b){return (m.top_sizes[b]||0)-(m.top_sizes[a]||0);});
+    var mx=Math.max.apply(null,keys.map(function(k){return m.top_sizes[k]||0;}));
+    $('man-secs').innerHTML='';
+    keys.forEach(function(k){var b=document.createElement('button');b.type='button';b.className=(sec===k?'on':'');
+      var s=m.top_sizes[k]||0;b.innerHTML='<span class="nm">'+esc(k)+'</span><span class="tr"><i style="width:'+Math.max(1,Math.round(100*s/mx))+'%"></i></span><span class="sz">'+(s>=1000?(s/1000).toFixed(1)+' KB':s+' B')+'</span>';
+      b.addEventListener('click',function(){sec=k;showSecs();});$('man-secs').appendChild(b);});
+    var absent=Object.keys(DESC).filter(function(k){return m.top_keys.indexOf(k)<0;});
+    if(sec&&DESC[sec]){$('man-secsays').innerHTML='<strong>'+esc(sec)+'</strong>: '+esc(DESC[sec][0])+'<br><strong>Read by:</strong> '+esc(DESC[sec][1]);}
+    else $('man-secsays').textContent='Click a section.'+(absent.length?' This file has no: '+absent.join(', ')+'.':'');
+  }
+  showSecs();
+  /* mirror */
+  var MI=D.mirror,mi=1;
+  MI.runs.forEach(function(r,i){var b=document.createElement('button');b.type='button';b.textContent=r.cells+' cells';b.addEventListener('click',function(){mi=i;showMir();});$('man-mirpick').appendChild(b);});
+  function showMir(){
+    [].forEach.call($('man-mirpick').children,function(b,i){b.className=i===mi?'on':'';});
+    var r=MI.runs[mi],valid={};r.valid.forEach(function(p){valid[p[0]+','+p[1]]=1;});
+    var maxr=Math.max(r.rows-1,MI.rows_span[1]),maxc=Math.max(r.cols-1,MI.cols_span[1]);
+    var Z=16,G=2,W=(maxc+1)*(Z+G)+G,H=(maxr+1)*(Z+G)+G,o='';
+    for(var y=0;y<=maxr;y++)for(var x=0;x<=maxc;x++)if(valid[y+','+x])o+='<rect x="'+(G+x*(Z+G))+'" y="'+(G+y*(Z+G))+'" width="'+Z+'" height="'+Z+'" rx="3" fill="#444"/>';
+    MI.cells.forEach(function(c){var ok=valid[c[0]+','+c[1]];
+      o+='<rect x="'+(G+c[1]*(Z+G))+'" y="'+(G+c[0]*(Z+G))+'" width="'+Z+'" height="'+Z+'" rx="3" fill="#d9822b"'+(ok?'':' stroke="#d03b2a" stroke-width="3"')+'/>';});
+    $('man-mirpic').innerHTML='<svg viewBox="0 0 '+W+' '+H+'" style="width:'+Math.min(W,560)+'px" role="img" aria-label="grid of real cell positions with the program\'s cells on it">'+o+'</svg>';
+    $('man-mirsays').innerHTML=r.problems===0
+      ?'<strong>'+r.cells+' cells make a layout of '+r.rows+' × '+r.cols+', and all '+MI.records+' cells of the program fit.</strong> The VM would accept it.'
+      :'<strong>'+r.cells+' cells make a layout of '+r.rows+' × '+r.cols+', and the program does not fit: '+r.problems+' problems.</strong> The first: '+esc(r.first);
+  }
+  showMir();
+  /* cost explorer */
+  var C=D.costs,ks=Object.keys(C.kinds);
+  ks.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=k;$('man-kind').appendChild(o);});
+  $('man-kind').value='adder';
+  function ev(co,w){var v=0;co.forEach(function(c){v=v*w+c;});return v;}
+  function showCost(){
+    var k=$('man-kind').value,w=+$('man-w').value,K=C.kinds[k];$('man-wv').textContent=w+' bits';
+    var meas=K.measured[String(w)],fit=ev(K.lut4_fit.coeffs_high_to_low,w);
+    var est=meas?meas[0]:Math.max(0,Math.round(fit));
+    var dff=meas?meas[2]:(K.dff_fit?Math.round(ev(K.dff_fit.coeffs_high_to_low,w)):null);
+    var q=K.lut4_fit.coeffs_high_to_low,eq=q.length===2?q[0]+' × W + '+q[1]:q.length===3?q[0]+' × W² + ('+q[1]+') × W + '+q[2]:q.join(', ');
+    $('man-costsays').innerHTML='<strong>'+esc(k)+'</strong> at '+w+' bits: '+(meas?'<b>measured</b>':'<b>from the fit</b>')+' '+est+' LUT4'+(dff!==null?', about '+dff+' flip-flops':'')
+      +(meas&&meas[3]?', '+meas[3]+' multiplier block':'')+'. Fit: LUT4 ≈ '+esc(eq)+' (largest miss at a measured width: '+K.lut4_fit.max_abs_residual+' LUT4). Measured widths: '+C.widths.join(', ')+'.';
+    $('man-fits').textContent=est>0?'≈ '+Math.floor(C.lut4_total/est).toLocaleString()+' of them in '+C.lut4_total.toLocaleString()+' LUT4s':'—';
+  }
+  $('man-kind').addEventListener('change',showCost);$('man-w').addEventListener('input',showCost);showCost();
+  /* budgets */
+  var bh='<tr><th>Card</th><th>Shell measured on</th><th>Cost per position</th><th>Chip total</th><th>Budget</th><th>Allowed (80%)</th></tr>';
+  D.budgets.forEach(function(b){bh+='<tr><td>'+(b.card==='tang'?'Tang Nano':'Mustang')+'</td><td>'+esc(b.shell)+'</td><td>'+b.per_position.toLocaleString()+' '+b.unit+'</td><td>'+b.total.toLocaleString()+' '+b.unit+'</td><td>'+b.budget+' positions</td><td>'+b.max_cells+'</td></tr>';});
+  $('man-bud').innerHTML=bh;
+  /* capabilities */
+  var names={},kk;[T.capabilities,M.capabilities].forEach(function(c){for(kk in c)names[kk]=1;});
+  var ch='<tr><th>Capability</th><th>Tang Nano</th><th>Mustang</th></tr>';
+  function cv(c,k){if(!(k in c))return '<span style="color:var(--ink-soft)">absent</span>';var v=c[k];if(v===true)return '<span class="yes">yes</span>';if(v===false)return '<span class="no">no</span>';return esc(v);}
+  Object.keys(names).filter(function(k){return !/_note$/.test(k);}).forEach(function(k){ch+='<tr><td>'+esc(k)+'</td><td>'+cv(T.capabilities,k)+'</td><td>'+cv(M.capabilities,k)+'</td></tr>';});
+  $('man-caps').innerHTML=ch;
+  $('man-capsays').innerHTML='<strong>Read the pairs.</strong> The Tang Nano file says <code>dsp: yes</code> (it has 48 multipliers) but <code>dsp_integrated: no</code> in the capability block; yet the assembler\'s <code>--mul auto</code> did pick the DSP cell for it, because that decision reads the multiplier list under <code>device</code>, not this block. The block\'s note about multipliers looks older than the code, so treat the block as a record of intent, not of what the tools now do.';
+  /* provenance */
+  $('man-gen-t').textContent=T.generated_by+'…';
+  $('man-gen-m').textContent=M.generated_by+'…';
+  function ver(v){if(!v)return '<div class="says warn">This file has no verification block.</div>';var h='<table class="f">';for(var k in v){var bad=/NOT /.test(v[k]);h+='<tr><td>'+esc(k)+'</td><td'+(bad?' class="no"':'')+'>'+esc(v[k])+'</td></tr>';}return h+'</table>';}
+  $('man-ver-t').innerHTML=ver(T.verification);$('man-ver-m').innerHTML=ver(M.verification);
+})();
+</script>
+</div>

@@ -61,6 +61,16 @@ def _comp_html(name):
     return t.replace("@@COMP_DATA@@", data)
 
 
+def _rtl_html(name):
+    """Fragment with the captured assembler/MAN data (docs/teaching/rtl_data.json) embedded."""
+    import json as _json
+    with open(os.path.join(HERE, "teaching", name), encoding="utf-8") as f:
+        t = f.read()
+    with open(os.path.join(HERE, "teaching", "rtl_data.json"), encoding="utf-8") as f:
+        data = _json.dumps(_json.load(f), separators=(",", ":")).replace("</", "<\\/")
+    return t.replace("@@RTL_DATA@@", data)
+
+
 SECTIONS = [
     {"id":"tour","num":"01","tab":"Tour","title":"Tour: What Is Where, and How to Run It",
      "intro":"The parts you will use, each a link, with a live picture of what is inside one "
@@ -172,9 +182,23 @@ SECTIONS = [
              "small and still correct: two placers side by side, tightening by spacing, "
              "folding, and the rat's-nest way of shrinking one connection a step at a time.",
      "html":_comp_html("placer_fragment.html"),
-     "links":[("← Back to the Compiler","#sec-compiler","section"),("Continue → Start","#sec-start","section")]},
+     "links":[("← Back to the Compiler","#sec-compiler","section"),("Continue → Verilog / RTL","#sec-rtl","section")]},
 
-    {"id":"start","num":"17","tab":"Start","title":"How Computers Work, Seen Step by Step",
+    {"id":"rtl","num":"17","tab":"Verilog / RTL","title":"The Verilog, and Keeping the Program Apart from the Card",
+     "intro":"The hardware form of the design: one short file per kind of cell, in two families, "
+             "and how the program (a card-neutral map) is kept separate from the card (the MAN "
+             "file) until a tool combines them. Try the same program against two real cards.",
+     "html":_rtl_html("rtl_fragment.html"),
+     "links":[("← Back to the Placer","#sec-placer","section"),("Continue → The MAN File","#sec-man","section")]},
+
+    {"id":"man","num":"18","tab":"MAN File","title":"The MAN File: One Card, Written Down",
+     "intro":"What is inside a card file, who reads each part (the assembler, the mirror VM and the "
+             "card-fit check), what a cell costs on the card, what the card claims it can do, and "
+             "how far each of the two real files can be trusted.",
+     "html":_rtl_html("man_fragment.html"),
+     "links":[("← Back to Verilog / RTL","#sec-rtl","section"),("Continue → Start","#sec-start","section")]},
+
+    {"id":"start","num":"19","tab":"Start","title":"How Computers Work, Seen Step by Step",
      "intro":"A plan for teaching how computers work from the very bottom: one kind of "
              "logic gate, then the other gates made from it, then why timing matters and "
              "why moving data costs something. The UniCell design is finished and is not "
@@ -183,9 +207,9 @@ SECTIONS = [
              "course yet.</strong> Each proposed lesson says whether it has actually been "
              "run.",
      "parts":[{"sub":"The teaching plan","md":"docs/teaching/README.md"}],
-     "links":[("← Back to The Placer","#sec-placer","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
+     "links":[("← Back to The MAN File","#sec-man","section"),("Continue → The Backdrop","#sec-backdrop","section")]},
 
-    {"id":"backdrop","num":"18","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
+    {"id":"backdrop","num":"20","tab":"Backdrop","title":"The Backdrop: What UniCell Is",
      "intro":"UniCell is the thing the lessons are drawn on, not the thing being taught. "
              "Read the status notice at the top of this page first: UniCell is an "
              "unconfirmed idea, it did not come out ahead of hand-written hardware when "
