@@ -2,6 +2,12 @@
 
 What each design taught the placer / layout engine (`tools/flex_layout_v1.py`, `tightplace_v1.py`, `netplace_v1.py`, `fp_mul_tight_v1.place_net_tight`). Newest first. Each lesson says what went wrong, what fixed it, and what the tools could do about it.
 
+## From the CORDIC through the crossing router (#1064)
+C1. **A router that refuses every crossing refuses every design where two values feed each other.** CORDIC's x and y do, from the second iteration. Fix: accept a cell shared by exactly two routes when both pass straight through it, one west-east and one north-south, and lower it to a `cross` tile (`nano/vix_virtual_layout_v2.py`, placer `routed_x`). A turn, a route end, or two routes in the same direction is still a conflict.
+C2. **A value feeding more than three consumers is refused.** Four faces, one is the input. *Tool idea:* insert a relay tree automatically (the same fix as lesson 6 above, done by the compiler instead of by hand). Until then, rewrite the maths to use each value fewer times (the biased logical shift in place of `ashr`).
+C3. **The corner tile is still unused by the router.** A route that must change direction at a congested cell could bend at a corner instead of spending two relays. *Tool idea:* let `_lower` emit a corner where a route turns on a cell nobody else wants.
+C4. **Throughput is limited by input cells, not the line.** Items closer than the input cell's free time overwrite each other and the result is silently wrong, not rejected. The safe minimum for the 10-iteration line is not measured (30 and 50 ticks wrong, 500 right). *Tool idea:* have the assembler print the minimum safe spacing for a placed design.
+
 ## PLACER RULE: make a subtract order-free (Alan, 8 Oct 2026; found in the 1-D Wasserstein engine, #1034)
 R1. **Rewrite `a - b` as `a + (-1)*b`.** A subtract is the one common two-operand op where operand ORDER matters (minuend must be A, and the VM pairs operands by arrival order, not by face). An add and a multiply are commutative, so after the rewrite the pair needs no order, only that the two operands do not arrive on the same tick (no tie). The multiply is by a 32-bit all-ones constant (-1), one extra cell.
 - **When to apply:** the minuend's lane is the LONG one (it would arrive second) and the balancer cannot shorten the other lane or delay it; or the placer would otherwise need a delay cell per sub.

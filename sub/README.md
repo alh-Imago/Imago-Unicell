@@ -949,6 +949,28 @@ core `cross`, core_select 10 (confirmed by Alan). In RTL the netlist extractor g
 relay slice. FlexGrid models the slices as hidden relay cells. The layout engine lets a route cross another at right angles and
 adds one hop to both routes. **Open:** native cores per family (built from ram slices today), and cost rows for the router and MAN.
 
+## Writing a program for the compiler: what places, what does not, and how fast you can feed it (`#1064`)
+
+Notes from compiling a CORDIC (rotate-by-angle) as plain LLVM IR, 2 to 10 iterations, and running it in the step simulator and in generated flex RTL. All of it was measured; where something was not measured it says so.
+
+**Use the `routed_x` placer when the program's wires must cross.** `compile_llvm_via_dag(src, placer="routed_x")`. The default (`auto`) and `routed` still refuse any program whose routes must cross ("non-planar"). `routed_x` lets two routes pass straight through one cell at right angles and lowers that cell to one `cross` tile. A CORDIC needs this from its second iteration, because x and y feed each other every step. A program that needs no crossing places identically under both. Not yet used by the router: the `corner` tile (a bend inside a square); corners are still placed by hand.
+
+**A value can feed at most three consumers.** A cell has four faces and one is the input. The shift form `ashr` reuses x and y in several places, so from the second iteration a value has four consumers and the compiler refuses it. Workaround until a fan-out relay tree exists: write the arithmetic shift as a biased logical shift (add 0x80000000, `lshr`, subtract `1 << (31 - i)`), which uses each value fewer times.
+
+**Logical versus arithmetic shift.** `lshr` fills with zeros, `ashr` copies the sign bit. A signed value shifted with `lshr` goes wrong when it is negative. The biased form above gives the arithmetic result from `lshr`.
+
+**Feed items slowly.** Each input cell takes a new value only when it is free. In the 10-iteration CORDIC, items 30 or 50 ticks apart gave wrong results; 500 ticks apart gave right ones. The safe minimum was **not** measured, only these points. Until it is, start generous and shorten it while checking the output against a model.
+
+**`or` in the step simulator.** A design using the `or` operation compiled to a nano cell that produced no output in the step simulator. Use `add`/`xor`/`and` forms or check `or` in generated RTL first. Cause not yet found.
+
+**Things the compiler does not do for you yet.** It does not remove values nobody uses, and it does not fold constants (`x * 1`, `x + 0` still become cells). Do these in the IR by hand.
+
+**Widths.** Simulate at the width the design really uses (32). A narrower simulation (18) gave false mismatches.
+
+**On the Tang Nano 20K.** A 10-iteration 32-bit CORDIC built this way overflows the flip-flops (15,552). How many iterations fit was not measured here. The large designs belong on the carrier family and a large card.
+
+**Tool messages that mislead.** "275 port bits but only 266 free pins" from the place-and-route tool just means the test wrapper has more pins than the package; it says nothing about the design. Wrap it in registers for real runs. Also, `--logiclock` and `-P` are silently ignored on the `--icm` route.
+
 ## `priority_cell_v4sa`: the last flex core, with all three of the VM's modes (`#1017`/`#1018`)
 
 The priority core is the VM's N-way arbiter: up to four faces (N, S, E, W) compete for one output. On flex it is a core with its own bench, like every other cell.
