@@ -259,4 +259,8 @@ Not verified: Python VM only, Verilog not simulated; the real Walker discovery m
 
 TO DO (Alan): the Workbench tab last, covering both grids and its flags.
 
-Next entry: #1059.
+## #1059 -- TEACHING MANUAL: MIRROR TAB ADDENDUM, THE WALKER'S COMMAND LINE AND FRONT PANEL
+
+Date: 2026-10-11. Addendum to #1058 after Alan said there is an early version of the walker. The Mirror VM tab's options table now lists `tools/walker_sim_cli_v1.py` (flags --man, --cells, --icm | --dsl-file, --start-row, --start-col, -o) and the `run_walker` action in `nano/frontend_v1.py`. The CLI was run on the library adder with `--start-row 2 --start-col 1`: 27 cells, 34 edges, 109 pings, matching the replay; with the default start (0, 0) it exited 1 with the no-answer error. The front-panel action was read, not run. Nothing else changed.
+
+Next entry: #1060.
