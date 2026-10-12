@@ -1,0 +1,66 @@
+_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT_CIN_ALU_COUT_CIN_ALU_COUT_CIN_ALU_COUT.COUT
+Info:    routing  0.00  6.51 Net core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT_CIN_ALU_COUT_CIN_ALU_COUT_CIN (10,3) -> (10,3)
+Info:                          Sink core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT_CIN_ALU_COUT_CIN_ALU_COUT.CIN
+Info:                          Defined in:
+Info:                               grid/accumulator_cell_v4sa.v:82.36-82.65
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  6.54 Source core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT_CIN_ALU_COUT_CIN_ALU_COUT.COUT
+Info:    routing  0.00  6.54 Net core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT_CIN_ALU_COUT_CIN (10,3) -> (11,3)
+Info:                          Sink core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT_CIN_ALU_COUT.CIN
+Info:                          Defined in:
+Info:                               grid/accumulator_cell_v4sa.v:82.36-82.65
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  6.58 Source core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT_CIN_ALU_COUT.COUT
+Info:    routing  0.00  6.58 Net core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT_CIN (11,3) -> (11,3)
+Info:                          Sink core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT.CIN
+Info:                          Defined in:
+Info:                               grid/accumulator_cell_v4sa.v:82.36-82.65
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  6.61 Source core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN_ALU_COUT.COUT
+Info:    routing  0.00  6.61 Net core.u_cnt.pending_LUT3_I0_F_ALU_SUM_CIN (11,3) -> (11,3)
+Info:                          Sink core.u_cnt.pending_LUT3_I0_F_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               grid/accumulator_cell_v4sa.v:82.36-82.65
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.47  7.08 Source core.u_cnt.pending_LUT3_I0_F_ALU_SUM.SUM
+Info:    routing  0.17  7.25 Net core.u_cnt.pending_LUT3_I0_F[2] (11,3) -> (11,4)
+Info:                          Sink core.u_cnt.pending_DFFR_Q_D_LUT4_F.I2
+Info:                          Defined in:
+Info:                               /share/gowin/cells_map.v:130.20-130.21
+Info:      logic  0.46  7.71 Source core.u_cnt.pending_DFFR_Q_D_LUT4_F.F
+Info:    routing  0.00  7.71 Net core.u_cnt.pending_DFFR_Q_D (11,4) -> (11,4)
+Info:                          Sink core.u_cnt.pending_DFFR_Q.D
+Info:      setup  0.04  7.74 Source core.u_cnt.pending_DFFR_Q.D
+Info: 6.03 ns logic, 1.72 ns routing
+
+Info: Max frequency for clock 'clk': 129.13 MHz (PASS at 27.00 MHz)
+
+Info: Slack histogram:
+Info:  legend: * represents 1 endpoint(s)
+Info:          + represents [1,1) endpoint(s)
+Info: [ 29293,  29634) |+
+Info: [ 29634,  29975) | 
+Info: [ 29975,  30316) | 
+Info: [ 30316,  30657) | 
+Info: [ 30657,  30998) | 
+Info: [ 30998,  31339) | 
+Info: [ 31339,  31680) | 
+Info: [ 31680,  32021) | 
+Info: [ 32021,  32362) | 
+Info: [ 32362,  32703) | 
+Info: [ 32703,  33044) |+
+Info: [ 33044,  33385) |*+
+Info: [ 33385,  33726) |****+
+Info: [ 33726,  34067) |**************************************+
+Info: [ 34067,  34408) |*************************************************+
+Info: [ 34408,  34749) |************************************************************ 
+Info: [ 34749,  35090) |***********************************************+
+Info: [ 35090,  35431) |****************************************+
+Info: [ 35431,  35772) |*****************************************+
+Info: [ 35772,  36113) |******************************+
+
+Info: Program finished normally.

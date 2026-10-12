@@ -1,0 +1,11 @@
+{
+ "format": "tang-state-v1",
+ "step": 300,
+ "word": 8138,
+ "word_signed": 8138,
+ "cell": "lp.fb19",
+ "tick": 12010,
+ "design_hash": "dcc6e289ff17dfc15f37fcc1bbe4cd1275bdd8e78f1a5986bbdfb688256c8cda",
+ "model_check": 8138,
+ "matches_independent_model": true
+}

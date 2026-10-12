@@ -1,0 +1,71 @@
+{
+ "name": "saveload",
+ "sim": [
+  "-- S1 back pressure",
+  "  ok   stopped=1 busy=0 held_valid=1 steps=3 held=-5491 run_clocks=137",
+  "  ok   stopped=1 busy=0 held_valid=1 steps=6 held=-4506 run_clocks=132",
+  "-- S2 freeze",
+  "  ok   stopped=1 busy=0 held_valid=1 steps=3 held=-5491 run_clocks=137",
+  "  ok   stopped=1 busy=0 held_valid=1 steps=6 held=-4506 run_clocks=132",
+  "-- S3 freeze with the word inside the grid, then resume",
+  "  ok   stopped=1 busy=1 held_valid=0 steps=3 held=-5491 run_clocks=137",
+  "  ok   stopped=1 busy=1 held_valid=0 steps=6 held=-4506 run_clocks=123",
+  "  ok   stopped=1 busy=0 held_valid=1 steps=7 held=8255 run_clocks=29",
+  "-- S4 save, fresh card, load, run on",
+  "  ok   stopped=1 busy=0 held_valid=1 steps=3 held=-5491 run_clocks=137",
+  "  ok   stopped=1 busy=0 held_valid=1 steps=3 held=-4506 run_clocks=137",
+  "SAVELOAD PASS"
+ ],
+ "z0": 50000,
+ "drift": 1237,
+ "model_first": [
+  833,
+  4796,
+  -5491,
+  7270,
+  -3017,
+  -4506,
+  8255,
+  -2032
+ ],
+ "build": {
+  "target_mhz": 27.0,
+  "fmax_mhz": 129.1,
+  "met": true,
+  "utilization": {
+   "ALU": {
+    "used": 584,
+    "available": 15552
+   },
+   "BUFG": {
+    "used": 1,
+    "available": 24
+   },
+   "DFF": {
+    "used": 2098,
+    "available": 15552
+   },
+   "GND": {
+    "used": 1,
+    "available": 1
+   },
+   "GSR": {
+    "used": 1,
+    "available": 1
+   },
+   "IOB": {
+    "used": 7,
+    "available": 384
+   },
+   "LUT4": {
+    "used": 2076,
+    "available": 20736
+   },
+   "VCC": {
+    "used": 1,
+    "available": 1
+   }
+  },
+  "seed": 1
+ }
+}
