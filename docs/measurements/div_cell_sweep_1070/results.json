@@ -1,0 +1,257 @@
+{
+ "what": "div_cell_v4sa: yosys synth_gowin -nowidelut + nextpnr-himbaechel-gowin, GW2AR-LV18QN88C8/I7, wrapper with LFSR operands and XOR-observed outputs; target 400 MHz, seeds [1, 2], minimum Fmax over seeds. Synthesis and place-and-route only; not run on a board.",
+ "rows": [
+  {
+   "width": 18,
+   "steps": 1,
+   "cell": false,
+   "synth": {
+    "LUT": 44,
+    "ALU": 18,
+    "DFF": 88
+   },
+   "fmax_mhz": 440.9,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 445.8
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 440.9
+    }
+   ]
+  },
+  {
+   "width": 18,
+   "steps": 1,
+   "cell": true,
+   "synth": {
+    "LUT": 125,
+    "ALU": 45,
+    "DFF": 166
+   },
+   "fmax_mhz": 289.0,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 289.0
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 316.8
+    }
+   ]
+  },
+  {
+   "width": 18,
+   "steps": 2,
+   "cell": true,
+   "synth": {
+    "LUT": 159,
+    "ALU": 62,
+    "DFF": 165
+   },
+   "fmax_mhz": 298.5,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 298.5
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 322.5
+    }
+   ]
+  },
+  {
+   "width": 18,
+   "steps": 4,
+   "cell": true,
+   "synth": {
+    "LUT": 247,
+    "ALU": 102,
+    "DFF": 165
+   },
+   "fmax_mhz": 278.9,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 278.9
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 307.3
+    }
+   ]
+  },
+  {
+   "width": 18,
+   "steps": 8,
+   "cell": true,
+   "synth": {
+    "LUT": 404,
+    "ALU": 177,
+    "DFF": 164
+   },
+   "fmax_mhz": 294.6,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 295.0
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 294.6
+    }
+   ]
+  },
+  {
+   "width": 18,
+   "steps": 18,
+   "cell": true,
+   "synth": {
+    "LUT": 909,
+    "ALU": 392,
+    "DFF": 165
+   },
+   "fmax_mhz": 233.8,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 233.9
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 233.8
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 1,
+   "cell": false,
+   "synth": {
+    "LUT": 78,
+    "ALU": 32,
+    "DFF": 158
+   },
+   "fmax_mhz": 370.6,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 396.4
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 370.6
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 1,
+   "cell": true,
+   "synth": {
+    "LUT": 200,
+    "ALU": 61,
+    "DFF": 279
+   },
+   "fmax_mhz": 247.8,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 261.6
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 247.8
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 2,
+   "cell": true,
+   "synth": {
+    "LUT": 262,
+    "ALU": 92,
+    "DFF": 278
+   },
+   "fmax_mhz": 221.8,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 251.1
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 221.8
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 4,
+   "cell": true,
+   "synth": {
+    "LUT": 388,
+    "ALU": 156,
+    "DFF": 277
+   },
+   "fmax_mhz": 235.0,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 252.0
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 235.0
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 8,
+   "cell": true,
+   "synth": {
+    "LUT": 637,
+    "ALU": 286,
+    "DFF": 276
+   },
+   "fmax_mhz": 302.4,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 302.4
+    },
+    {
+     "seed": 2,
+     "fmax_mhz": 333.1
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 32,
+   "cell": true,
+   "synth": {
+    "LUT": 2148,
+    "ALU": 1072,
+    "DFF": 274
+   },
+   "fmax_mhz": 225.8,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 225.8
+    },
+    {
+     "seed": 2,
+     "error": "|\nInfo:       4000 |       21       3633 |    1   911 |      8694|       1.32       4.52|\nInfo:       5000 |       23       4566 |    2   933 |      7696|       1.49       6.00|\nWarning: Failed to find a route for arc 1 of net dut.r_reg_DFFRE_Q_23_D.\nERROR: Routing design failed.\n1 warning, 1 error\n"
+    }
+   ]
+  }
+ ]
+}
