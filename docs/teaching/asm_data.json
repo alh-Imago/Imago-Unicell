@@ -12,6 +12,7 @@
     "compare",
     "corner",
     "cross",
+    "div",
     "latch",
     "merge",
     "mul",
@@ -20,7 +21,8 @@
     "ram",
     "sequencer"
    ],
-   "testbenches": 18,
+   "generated_kinds": [],
+   "testbenches": 19,
    "adder_module": "adder_cell_v4",
    "adder_params": [
     [
@@ -113,6 +115,7 @@
     "compare",
     "corner",
     "cross",
+    "div",
     "latch",
     "merge",
     "mul",
@@ -121,6 +124,7 @@
     "ram",
     "sequencer"
    ],
+   "generated_kinds": [],
    "testbenches": 11,
    "adder_module": "adder_cell_v4c",
    "adder_params": [
@@ -211,6 +215,7 @@
     "adder",
     "branch",
     "compare",
+    "div",
     "latch",
     "mask",
     "mul",
@@ -221,7 +226,11 @@
     "shift",
     "shift_stage"
    ],
-   "testbenches": 16,
+   "generated_kinds": [
+    "corner",
+    "cross"
+   ],
+   "testbenches": 17,
    "adder_module": "adder_cell_v4s",
    "adder_params": [
     [
@@ -269,6 +278,7 @@
     "adder",
     "branch",
     "compare",
+    "div",
     "latch",
     "mask",
     "merge",
@@ -280,7 +290,11 @@
     "sequencer",
     "shift_stage"
    ],
-   "testbenches": 23,
+   "generated_kinds": [
+    "corner",
+    "cross"
+   ],
+   "testbenches": 24,
    "adder_module": "adder_cell_v4sa",
    "adder_params": [
     [
@@ -392,6 +406,10 @@
    [
     14,
     "merge"
+   ],
+   [
+    15,
+    "div"
    ]
   ],
   "latch_bits": 160,
@@ -404,6 +422,7 @@
    "compare",
    "corner",
    "cross",
+   "div",
    "latch",
    "merge",
    "mul",
@@ -480,7 +499,7 @@
     "Card:   mustang-f100-a10-01 (Arria 10, 10AX066H2F34E2SG)",
     "Cells:  4 (grid 2x2, real ALM budget 251,680)",
     "Core:   adder_cell (resolved to real file: adder_cell_v4.v)",
-    "Output: /tmp/tmp5mryt47h/r_v4"
+    "Output: /tmp/tmp4263ytyr/r_v4"
    ]
   },
   "v4c": {
@@ -505,6 +524,8 @@
     "corner_shell_v1c.v": 72,
     "cross_cell_v4c.v": 25,
     "cross_shell_v1c.v": 72,
+    "div_cell_v4c.v": 302,
+    "div_shell_v1c.v": 69,
     "invert_addon_v1.v": 27,
     "latch_cell_v4c.v": 245,
     "latch_shell_v1c.v": 66,
@@ -523,16 +544,16 @@
     "sequencer_shell_v1c.v": 67,
     "shift_fine_addon_v1.v": 78,
     "shift_lane_addon_v2.v": 105,
-    "top_array_vix_4cells_v1.qsf": 53,
+    "top_array_vix_4cells_v1.qsf": 55,
     "top_array_vix_4cells_v1.sdc": 13,
     "top_array_vix_4cells_v1.v": 221,
-    "unicell_vix_carrier_v1.v": 867
+    "unicell_vix_carrier_v1.v": 898
    },
    "stdout": [
     "Card:   mustang-f100-a10-01 (Arria 10, 10AX066H2F34E2SG)",
     "Cells:  4 (grid 2x2, real ALM budget 251,680)",
     "Shell:  vix",
-    "Output: /tmp/tmp5mryt47h/r_v4c"
+    "Output: /tmp/tmp4263ytyr/r_v4c"
    ]
   },
   "v4s": {
@@ -549,7 +570,7 @@
    },
    "stdout": [
     "Family: sub   Source: add.icm.json   Cells: 27   Pad relay cells: 2",
-    "Output: /tmp/tmp5mryt47h/r_v4s  (5 files, top icm_add_sub)",
+    "Output: /tmp/tmp4263ytyr/r_v4s  (5 files, top icm_add_sub)",
     "Latency to output R: 18 cycles"
    ]
   },
@@ -567,7 +588,7 @@
    },
    "stdout": [
     "Family: flex   Source: add.icm.json   Cells: 27   Forks: 0   Joins: 1",
-    "Output: /tmp/tmp5mryt47h/r_v4sa  (5 files, top icm_add_flex)   (handshake design: no alignment, no padding)"
+    "Output: /tmp/tmp4263ytyr/r_v4sa  (5 files, top icm_add_flex)   (handshake design: no alignment, no padding)"
    ]
   }
  },

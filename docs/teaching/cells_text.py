@@ -4,7 +4,7 @@ registers and sizes on the pages are parsed or quoted by capture_cells_v1.py.
 Fields: short (one line), does, caps (list of capabilities), stages (datapath chain), explainer (tab id, label) or None,
         notes (per-family one-liners, optional)."""
 
-ORDER = ["ram", "latch", "sequencer", "adder", "accumulator", "mul", "compare", "branch", "merge", "priority",
+ORDER = ["ram", "latch", "sequencer", "adder", "accumulator", "mul", "div", "compare", "branch", "merge", "priority",
          "router", "corner", "cross", "shift", "shift_stage", "mask", "nano", "command"]
 
 CELLS = {
@@ -60,6 +60,17 @@ CELLS = {
            "Big in logic: 7,015 LUT4 for the standalone cell. As a DSP build it is a handful."],
   "stages": ["operand A", "operand B", "multiply (logic or DSP block)", "product register", "offer to the next cell"],
   "explainer": ("maths", "Arithmetic")},
+ "div": {
+  "short": "Divides one word by another.",
+  "does": "Unsigned whole-number division. The dividend and the divisor go in, and the quotient (rounded down) and the remainder come out. Inside it works like long division on paper, a few quotient bits at a time, in a loop, so one small cell does the job that the written-out form needed about 23,000 cells for.",
+  "caps": ["Dividend and divisor are told apart by port in the sub and flex families, and by which arrives first in the standalone and carrier families (so the compiler makes the dividend arrive first).",
+           "STEPS is how many quotient bits it makes per clock, set when the design is built because it changes the size of the cell: more steps is a bigger cell and fewer clocks (ceil(32 / STEPS)). Flex builds any 1 to 32 (default 1); the sub generator accepts 32 only (one clock).",
+           "Dividing by zero is not an error: the quotient is all ones and the remainder is the dividend.",
+           "The remainder: on flex it has its own output with its own valid and ack when the cell is built with the second port; on sub there is one output and a setting at boot chooses quotient or remainder; on the standalone and carrier cells it is offered as a second word after the first has been taken.",
+           "Sub is fixed latency, with no handshake: a design that gives it STEPS below 32 must space its operands by the latency. Flex and the cardinal cells simply take longer and make what waits on them wait.",
+           "No size row yet: the Tang Nano card file has no cost measurement for this cell."],
+  "stages": ["dividend and divisor arrive", "one trial subtraction per quotient bit", "quotient bits shift in, remainder updated", "quotient (and optionally remainder) offered"],
+  "explainer": None},
  "compare": {
   "short": "Is the input at least the threshold?",
   "does": "Compares a signed input with a threshold and offers 1 if the input is greater than or equal, otherwise 0, as a full-width word.",
@@ -107,6 +118,7 @@ CELLS = {
   "short": "Turns a lane.",
   "does": "A wiring tile. It lets two lanes meet at one cell by turning, with no arithmetic: a word that comes in on one side leaves on its partner side.",
   "caps": ["Turn 0 pairs east with north and west with south; turn 1 pairs east with south and west with north.",
+           "Sub and flex: the corner is an ordinary core in the program but has no Verilog file of its own. The generator replaces each used direction of the tile with one ram relay cell, so it costs what a ram cell costs, one per direction used, and a word takes one tick to pass.",
            "Each pairing works both ways, so there are four independent one-word slices, one per side a word can enter by.",
            "One tick per tile. The carrier's corner is the standalone corner under another name."],
   "stages": ["word enters on one side", "held in that side's slice", "offered on the partner side", "slice empties when taken"],
@@ -115,6 +127,7 @@ CELLS = {
   "short": "Lets two lanes cross.",
   "does": "A wiring tile that passes words straight through: north to south and west to east, in both directions, so two lanes cross at one cell without meeting.",
   "caps": ["The same module as the corner with its CROSS parameter set to 1; the turn bit is ignored.",
+           "Sub and flex: no Verilog file of its own either. The generator replaces each used direction of the tile with one ram relay cell (a native cell per family is still open, ledger #999), and the VM models the same slices.",
            "No arithmetic and one tick per tile."],
   "stages": ["word enters on one side", "held in that side's slice", "offered on the opposite side", "slice empties when taken"],
   "explainer": ("routing", "Routing")},

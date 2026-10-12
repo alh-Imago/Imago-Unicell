@@ -58,3 +58,19 @@ def test_guide_is_a_tab_of_the_teaching_manual():
     b = open(os.path.join(_HERE, "..", "..", "docs", "build_teaching_manual.py"), encoding="utf-8").read()
     assert "docs/teaching/latex_writing_guide.md" in b and 'id":"formula"' in b
     assert re.search(r"sec-formula", open(os.path.join(_HERE, "..", "..", "docs", "teaching_manual.html"), encoding="utf-8").read())
+
+
+def test_teaching_manual_family_tables_include_div_and_the_wiring_tiles():
+    """Ledger #1085: the div core is a cell page in all four families; cross/corner are listed for sub and flex as generator-made (from ram cells)."""
+    import json
+    base = os.path.join(_HERE, "..", "..", "docs", "teaching")
+    cd = json.load(open(os.path.join(base, "cells_data.json")))
+    assert all(cd["kinds"]["div"][f] for f in ("v4", "v4c", "v4s", "v4sa"))
+    for k in ("cross", "corner"):
+        assert cd["kinds"][k]["v4sa"][0]["file"].endswith("ram_cell_v4sa.v") and "no file of its own" in cd["kinds"][k]["v4sa"][0]["role"]
+    ad = {f["key"]: f for f in json.load(open(os.path.join(base, "asm_data.json")))["families"]}
+    assert all("div" in ad[f]["kinds"] for f in ad)
+    assert ad["v4s"]["generated_kinds"] == ad["v4sa"]["generated_kinds"] == ["corner", "cross"] and not ad["v4"]["generated_kinds"]
+    assert (15, "div") in [tuple(x) for x in json.load(open(os.path.join(base, "asm_data.json")))["carrier"]["selectable"]]
+    html = open(os.path.join(_HERE, "..", "..", "docs", "teaching_manual.html"), encoding="utf-8").read()
+    assert "sec-cell-div" in html and "data-g=\"wire\"" in html

@@ -72,7 +72,14 @@ for f in FAMS:
       "builds_in_addon_chain": bool(re.search(r"\b(nibble_mask_addon|shift_lane_addon|invert_addon)\w*\s+\w+\s*\(", text)),
     }
     tb = sum(1 for n in os.listdir(f["dir"]) if n.startswith("tb_") and re.search(r"_" + f["tag"] + r"(_|\.v)", n))
-    out["families"].append({**{k: f[k] for k in ("key", "name", "tag")}, "kinds": kinds, "testbenches": tb,
+    # cross / corner on sub and flex have no Verilog file of their own: the generator (tools/flexsub_icm_netlist_v1.py,
+    # splice_crosses, ledger #999/#1035) replaces each used direction of the tile with one ordinary ram relay cell.
+    gen = []
+    if f["key"] in ("v4s", "v4sa"):
+        nsrc = open(os.path.join(os.path.dirname(FV), "..", "tools", "flexsub_icm_netlist_v1.py")).read()
+        if "def splice_crosses" in nsrc and re.search(r'core in \("cross", "corner"\)', nsrc) and os.path.exists(os.path.join(f["dir"], "ram_cell_" + f["tag"] + ".v")):
+            gen = ["corner", "cross"]
+    out["families"].append({**{k: f[k] for k in ("key", "name", "tag")}, "kinds": kinds, "generated_kinds": gen, "testbenches": tb,
         "adder_module": f["adder"], "adder_params": [list(p) for p in params],
         "adder_ports": {"inputs": len(ins), "outputs": len(outs), "in_bits": ti, "out_bits": to, "symbolic_width": si or so,
                         "names": names}, "features": feat})

@@ -136,7 +136,7 @@ def _cell_pages():
                       "title": "The " + k.replace("_", " ").title() + " Cell: " + txt["short"].rstrip("."),
                       "intro": txt["short"] + " Its capabilities, how data moves through it, what is inside the Verilog in each family, and the source.",
                       "html": TPL.replace("@@K@@", k).replace("@@CELL_DATA@@", data), "links": links})
-    groups = [("Remembering", ["ram", "latch", "sequencer"]), ("Arithmetic", ["adder", "accumulator", "mul"]),
+    groups = [("Remembering", ["ram", "latch", "sequencer"]), ("Arithmetic", ["adder", "accumulator", "mul", "div"]),
               ("Deciding", ["compare", "branch"]), ("Joining and splitting", ["merge", "priority", "router"]),
               ("Wiring", ["corner", "cross"]), ("Reshaping words", ["shift", "shift_stage", "mask"]),
               ("The gate, and control", ["nano", "command"])]
@@ -154,9 +154,9 @@ def _cell_pages():
             fams = "".join("<i>" + fk + "</i>" for fk in ("v4", "v4c", "v4s", "v4sa") if D["kinds"][k].get(fk))
             h.append('<a class="ref cc" href="#sec-cell-' + k + '"><b>' + html.escape(k) + '</b><span class="s">' + html.escape(ct.CELLS[k]["short"]) + '</span><span class="f">' + fams + '</span></a>')
         h.append("</div>")
-    h.append('<p class="fine" style="font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em">Scope. 18 kinds across four families, 55 Verilog files embedded in full. The kinds are counted from file names: shift and mask exist in the older families as add-on blocks inside every cell rather than as cells, and the page for each says so.</p></div>')
+    h.append('<p class="fine" style="font-size:.85em;color:var(--ink-soft);border-top:1px solid var(--rule);margin-top:1.4em;padding-top:.6em">Scope. ' + str(len(order)) + ' kinds across four families, ' + str(sum(len(fl) for k in D['kinds'].values() for fl in k.values())) + ' Verilog file entries embedded in full (the corner and cross tiles in the sub and flex families show the ram cell the generator builds them from). The kinds are counted from file names: shift and mask exist in the older families as add-on blocks inside every cell rather than as cells, and the page for each says so.</p></div>')
     index = {"id": "cells", "num": "20", "tab": "Cells", "title": "The Cells, One Page Each",
-             "intro": "Eighteen kinds of cell, each with a page: capability, a diagram of what is inside, the Verilog, and which families have it.",
+             "intro": str(len(order)) + " kinds of cell, each with a page: capability, a diagram of what is inside, the Verilog, and which families have it.",
              "html": "\n".join(h), "links": [("← Back to The Assembler", "#sec-assembler", "section"), ("Continue → Start", "#sec-start", "section")]}
     return [index] + pages
 

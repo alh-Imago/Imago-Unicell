@@ -561,4 +561,15 @@ Alan asked for the manual update he had said would come at the end of the LaTeX/
 
 **Honest limits:** the guide was written from measured runs and the earlier ledger entries; I did not look at the new tab in a browser (read the generated HTML only, as in #1038). The cause of the tree-of-adds being worse than a chain is still unknown. The main manual (`docs/manual.html`) was rebuilt because two of its pages (the README files) changed.
 
-Next entry: #1085.
+## 1085. Teaching manual: the division core and the cross and corner tiles added to every family table and cell page (Alan/Claude, 2026-10-12)
+
+Alan: the teaching manual's family tables needed the new division core, and the flex family needed the cross and corner tiles; each family also has its own inserts, so check all of it. Done by re-running the capture scripts, so the figures are read from the files and not typed:
+
+- **Division core ("div")**: a new cell page (`#sec-cell-div`, group Arithmetic) with all four families (`div_cell_v4`, `_v4c`, `_v4s`, `_v4sa`), text written from the Verilog headers (dividend/divisor by port or by arrival, STEPS build-time and what each family allows, divide by zero, how the remainder leaves in each family, sub's fixed latency). The Assembler page's kinds matrix, chips and counts now include it (re-captured: v4 15, v4c 15, v4s 14 with a file, v4sa 15); the carrier table shows slot 15 and the text says fifteen cores, not fourteen. A card was added to the Family (flex) page.
+- **Cross and corner in sub and flex**: they have no Verilog file in either family. `tools/flexsub_icm_netlist_v1.py: splice_crosses` replaces each used direction of a tile with one ram relay cell (ledger #999/#1035; the VM models the same slices). So the pages say exactly that: the cell pages for cross and corner show the ram cell with the role "no file of its own", the assembler matrix marks them with a half-filled circle (works, no file) rather than a full one or a dash, and the Family page gets two Wiring cards and a Wiring filter. The old sentence on the Assembler page ("the stripped families have no sides to wire, so they have router cells instead") was wrong since #999 and is replaced.
+- Counts that were typed are now computed (the cell index scope line: 19 kinds). The Family page's "fourteen kinds" now reads fourteen with a file, plus the division core and the two tiles.
+- Checked in headless Chromium: all seven touched tabs render, no page errors, 17 cards on the Family page, Wiring filter shows cross and corner, the matrix reads as above. Test `test_teaching_manual_family_tables_include_div_and_the_wiring_tiles` added to `tests/vm/test_latex_guide_v1.py` (10 tests).
+
+**Honest limits / left as it was:** no size row for div (the Tang card file has no measurement for it; the page says so), and the carrier's "whole carrier" LUT figure is the old quoted number, not re-measured with slot 15 (no synthesis was run). The Composer page's core list was not changed because the composer does not offer a div core. The DSL page's tile list is read from the DSL compiler, which does not know the div tile (it lives in the VIX library), so it was left alone. A native cross/corner cell per family is still open (#999).
+
+Next entry: #1086.

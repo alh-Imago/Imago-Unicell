@@ -24,9 +24,13 @@ K["mul"] = {"v4": f4("mul"), "v4c": f4c("mul"), "v4s": s("mul") + [(f"{SV}/mul_c
             "v4sa": sa("mul") + [(f"{SV}/mul_cell_v4sa_dsp.v", "DSP variant")]}
 K["merge"] = {"v4": f4("merge"), "v4c": f4c("merge"), "v4sa": sa("merge")}
 K["priority"] = {"v4": f4("priority"), "v4c": f4c("priority"), "v4sa": sa("priority")}
+K["div"] = {"v4": f4("div"), "v4c": f4c("div"), "v4s": s("div"), "v4sa": sa("div")}
 K["command"] = {"v4": f4("command"), "v4c": f4c("command")}
-K["corner"] = {"v4": f4("corner"), "v4c": f4c("corner")}
-K["cross"] = {"v4": f4("cross"), "v4c": f4c("cross")}
+# corner / cross in sub and flex: no file of their own. tools/flexsub_icm_netlist_v1.py (splice_crosses, ledger #999/#1035) replaces each
+# used direction of travel through a tile with one ordinary ram relay cell, so the page shows that ram cell with this role.
+_WT = "no file of its own: the generator builds each used direction of the tile as one of these ram cells (one tick per tile)"
+K["corner"] = {"v4": f4("corner"), "v4c": f4c("corner"), "v4s": [(f"{SV}/ram_cell_v4s.v", _WT)], "v4sa": [(f"{SV}/ram_cell_v4sa.v", _WT)]}
+K["cross"] = {"v4": f4("cross"), "v4c": f4c("cross"), "v4s": [(f"{SV}/ram_cell_v4s.v", _WT)], "v4sa": [(f"{SV}/ram_cell_v4sa.v", _WT)]}
 K["router"] = {"v4s": s("router"), "v4sa": sa("router")}
 K["mask"] = {"v4": [(f"{FV}/nibble_mask_addon_v1.v", "the add-on block inside every standalone cell"), (f"{FV}/invert_addon_v1.v", "the invert add-on beside it")],
              "v4c": [(f"{FV}/nibble_mask_addon_v1.v", "the one shared add-on in the carrier")],

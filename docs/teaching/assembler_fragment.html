@@ -21,6 +21,7 @@
   .asmp .bar button.on{background:var(--accent);color:#fff}
   .asmp .chips{display:flex;flex-wrap:wrap;gap:6px;margin:.4em 0}
   .asmp .chips span{font-family:var(--mono);font-size:.8em;padding:2px 9px;border:1px solid var(--rule);border-radius:12px;background:var(--paper-edge)}
+  .asmp .chips span.g{border-style:dashed;border-color:var(--accent)}
   .asmp .chips span.x{border-color:var(--accent);background:rgba(21,117,109,.14)}
   .asmp .card{border:2px solid var(--accent);border-radius:10px;padding:8px 14px;background:rgba(255,255,255,.35)}
   .asmp .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
@@ -95,7 +96,7 @@
 <ul>
   <li><strong>Only the sub and flex routes build a program.</strong> A program file (<code>--icm</code>) is accepted only with <code>-s sub</code> or <code>-s flex</code>. The standalone and carrier routes write arrays of cells for the Intel Quartus tool; the program is loaded into them afterwards by the host tools, not by the assembler.</li>
   <li><strong>Sizes are quoted, not measured here.</strong> No synthesis tool is installed in this workspace. The numbers come from the project's own tables and ledger.</li>
-  <li><strong>The carrier numbers are the whole carrier,</strong> with all fourteen cores present and one switched on. The "lean" figures in the standalone table replace the shift chain with empty stubs, so they are lower bounds for a core, not working cells.</li>
+  <li><strong>The carrier numbers are the whole carrier,</strong> with all fifteen cores present (fourteen at first; the division core took slot 15) and one switched on. The "lean" figures in the standalone table replace the shift chain with empty stubs, so they are lower bounds for a core, not working cells.</li>
   <li><strong>Some flags are accepted and do nothing.</strong> On the program route, <code>--logiclock</code> and <code>-P</code> are not refused the way they are on the chain route, and a real run with <code>--logiclock</code> wrote files identical to the run without it. The tool's own error text says those options belong to the carrier lineage; on the program route nothing says so.</li>
   <li><strong>Older shells exist.</strong> The default route can still array the earlier <code>unicell_super</code> shells (<code>--shell v3</code>, <code>--shell v4</code>); they are older lineage, not a fifth family, and this page does not cover them.</li>
 </ul>
@@ -132,7 +133,7 @@
   function fitsHtml(k){
     var a=S.adder,sz,label;
     if(k==='v4'){sz=a.v4;label='adder, with its own shift chain built in';}
-    else if(k==='v4c'){sz=S.carrier_whole;label='whole carrier cell, all 14 cores present';}
+    else if(k==='v4c'){sz=S.carrier_whole;label='whole carrier cell, all 15 cores present';}
     else if(k==='v4s'){sz=a.v4s;label='adder';}
     else{var c=S.adder.v4sa_fit;sz=Math.round(c[0]*wsel+c[1]);label='adder at '+wsel+' bits';}
     var mx=S.carrier_whole;
@@ -147,10 +148,10 @@
     [].forEach.call($('asm-pick').children,function(b){b.className=b.getAttribute('data-k')===cur?'on':'';});
     var f=F[cur],ID=IDEA[cur],pi=f.adder_ports;
     var others=KEYS.filter(function(k){return k!==cur;}),inO={};others.forEach(function(k){F[k].kinds.forEach(function(n){inO[n.replace('nano_gate','nano')]=1;});});
-    var chips=f.kinds.map(function(n){var nn=n.replace('nano_gate','nano');return '<span'+(inO[nn]?'':' class="x"')+'>'+esc(n)+'</span>';}).join('');
+    var chips=f.kinds.map(function(n){var nn=n.replace('nano_gate','nano');return '<span'+(inO[nn]?'':' class="x"')+'>'+esc(n)+'</span>';}).join('')+(f.generated_kinds||[]).map(function(n){return '<span class="g" title="no Verilog file of its own: the generator builds it from ram cells">'+esc(n)+' (from ram cells)</span>';}).join('');
     var r=D.routes[cur];
     var h='<h3 style="margin:.2em 0">'+esc(f.name)+' &mdash; '+esc(ID.one)+'</h3><p>'+esc(ID.body)+'</p>'
-      +'<div class="two"><div><div class="kv"><strong>Cell kinds ('+f.kinds.length+'):</strong> shaded ones exist in no other family.</div><div class="chips">'+chips+'</div>'
+      +'<div class="two"><div><div class="kv"><strong>Cell kinds ('+f.kinds.length+(f.generated_kinds&&f.generated_kinds.length?' with a file, plus '+f.generated_kinds.length+' wiring tiles the generator makes':'')+'):</strong> shaded ones exist in no other family.</div><div class="chips">'+chips+'</div>'
       +'<div class="kv"><strong>The adder\'s ports:</strong> '+pi.inputs+' inputs and '+pi.outputs+' outputs'+(pi.symbolic_width?' (some as wide as you choose)':'')+', about '+pi.in_bits+' input bits'+(pi.symbolic_width?' plus the chosen-width ones':'')+'. Module <code>'+esc(f.adder_module)+'</code>, '+f.testbenches+' testbenches for the family.</div>'
       +'<div class="kv"><strong>The assembler picks it with:</strong> <code>'+esc(ID.cmd)+'</code></div></div>'
       +'<div>'+fitsHtml(cur)+'</div></div>'
@@ -187,10 +188,10 @@
   var norm=function(n){return n.replace('nano_gate','nano');};
   var all={};KEYS.forEach(function(k){F[k].kinds.forEach(function(n){all[norm(n)]=1;});});
   var kh='<tr><th>Cell kind</th>'+KEYS.map(function(k){return '<th><code>'+k+'</code></th>';}).join('')+'</tr>';
-  Object.keys(all).sort().forEach(function(n){kh+='<tr><td>'+esc(n)+'</td>'+KEYS.map(function(k){var has=F[k].kinds.some(function(m){return norm(m)===n;});return '<td>'+(has?'<span class="yes">●</span>':'<span style="color:var(--ink-soft)">–</span>')+'</td>';}).join('')+'</tr>';});
+  KEYS.forEach(function(k){(F[k].generated_kinds||[]).forEach(function(n){all[n]=1;});});Object.keys(all).sort().forEach(function(n){kh+='<tr><td>'+esc(n)+'</td>'+KEYS.map(function(k){var has=F[k].kinds.some(function(m){return norm(m)===n;}),gen=(F[k].generated_kinds||[]).indexOf(n)>=0;return '<td>'+(gen?'<span class="yes" title="made by the generator from ram cells; no Verilog file of its own">◐</span>':has?'<span class="yes">●</span>':'<span style="color:var(--ink-soft)">–</span>')+'</td>';}).join('')+'</tr>';});
   $('asm-kinds').innerHTML=kh;
   var onlyc=Object.keys(all).filter(function(n){return KEYS.filter(function(k){return F[k].kinds.some(function(m){return norm(m)===n;});}).length===1;});
-  $('asm-kindsays').textContent='Names are matched loosely: nano_gate counts as nano. '+F.v4.kinds.length+' kinds in the standalone and carrier families (the carrier can select among '+D.carrier.selectable.length+' of them, all of the same kinds), '+F.v4s.kinds.length+' in the stripped family and '+F.v4sa.kinds.length+' in the flex family. Kinds that appear in one family only: '+(onlyc.length?onlyc.join(', '):'none')+'. The wiring tiles (corner, cross) and the command cell exist only where cells have sides; the stripped families have no sides to wire, so they have router cells instead.';
+  $('asm-kindsays').textContent='Names are matched loosely: nano_gate counts as nano. '+F.v4.kinds.length+' kinds in the standalone and carrier families (the carrier can select among '+D.carrier.selectable.length+' of them, all of the same kinds), '+F.v4s.kinds.length+' in the stripped family and '+F.v4sa.kinds.length+' in the flex family. Kinds that appear in one family only: '+(onlyc.length?onlyc.join(', '):'none')+'. ● means the family has a Verilog file for the kind; ◐ means the kind works there but has no file of its own: in sub and flex the corner and cross tiles are ordinary cores in the program, and the generator replaces each used direction of a tile with one ram relay cell (one tick per tile). The command cell exists only in the standalone and carrier families (a sub or flex cell is one function fixed at build time, by Alan\'s ruling in #1020). The stripped families also have router cells, which the older families do not.';
 
   /* ---------- needs ---------- */
   var NEEDS=[
