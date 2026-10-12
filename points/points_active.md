@@ -684,4 +684,24 @@ Alan chose option 1 (cut the ring; if it works, revisit the tools and methods fo
 
 **Next:** read the remaining flex cells' registers and map them to the VM attributes; scan path / state read-and-load for the Tang build; then the mirror-VM save at 300, Tang run to ~600, comparison.
 
-Next entry: #1095.
+### #1095 (12 Oct 2026) -- Step (b) measured: VM and generated RTL run clock for tick; where their states are the same, and what the VM keeps that the RTL does not
+
+Alan asked for the results to be on the main branch (they had been going to the side branch `claude/cross-tile-router`, 34 commits ahead of main); main was fast-forwarded to 3476f47 first, no merge, nothing lost.
+
+**RTL registers read** (files: `sub/verilog/{adder,ram,branch,merge,compare,accumulator,mul}_cell_v4sa.v`; this design uses ram, adder, branch and merge): ram `pending/have/data_reg/fixed_mode`; adder `pending/out_buffer/pending_c/carry_buffer`; branch `pending_1/pending_2/out_buffer/held1_reg/held2_reg/has_loaded_1/has_loaded_2`; merge `pending/rr/out_buffer`. Compare, accumulator and mul read for their register lists only (not used by this loop, mapping not done).
+
+**Tool: `tools/flex_vm_rtl_lockstep_v1.py`** (new): assembles `looped_cordic_v1_open.icm-hier.json` with the flex assembler, simulates it in iverilog with a testbench that prints every cell's registers each clock, runs the FlexGrid VM from the same inject, and compares per tick. Test: `tests/vm/test_flex_vm_rtl_lockstep_v1.py` (fails, not skips, without iverilog).
+
+**Measured (ticks 2-158, 44 non-constant cells compared on the output register: valid and data):**
+- Offset 0 (tick k = clock k after the inject) is the best alignment of offsets -3..+3.
+- **94 of 157 ticks are identical in every compared cell** (e.g. ticks 5, 10, 15, 20-40, 45, 50, 55, 60-80, ...): whenever the loop value sits in the 20-relay way back or in a stage's gather relay. **No relay cell (`fb*`, `gather`) ever differs at any tick.**
+- The other 63 ticks differ, only in the stage work cells (`branch`, `add_neg`, `add_pos`, `turn_neg`, `turn_pos` of the four stages), for 2-6 ticks at a time while a value passes through them: the RTL shows the result valid at a tick where the VM has not yet (e.g. s0.branch at tick 41: RTL valid, VM not). That is a skew inside the handoff; I have NOT characterised it beyond this observation.
+- The merge arbiter flag matches: RTL `gather.merge.rr` equals the VM relay's `_merge_rr` at 620 of 628 samples, and at every tick where all cells agree.
+- **State the VM keeps and the RTL has no register for:** (1) each adder's first operand (`adder_a_reg/_a_arrived/_a_face`): in this design it is always a constant (checked each tick: zero cases of a non-constant waiting first operand, 0 of 157 ticks), and in the RTL the constant source simply offers it again; (2) the branch reference (`br_ref_valid` True in the VM at every sampled tick; the RTL `has_loaded_2` is 0 at every tick, the reference being read live from the constant source); (3) `_shell_pending_ack` (a constant fan-out mask, set on the first tick, not running state).
+- **Semantic difference found:** `zero_source` (VM: one-shot ram, used up after one word) is generated as a **constant** (always valid) in the RTL; they behave the same here only because the branch uses it as a reference.
+
+**What this means for the save:** at any of those 94 ticks the whole running state of the loop is just (valid, data) of the relay cells plus the merge `rr` flags; the constants, the adders' constant operands and the branch reference need nothing loaded. So a VM save taken when the value sits in a relay can be translated one-to-one into RTL register values. A cut inside a stage (the 63 other ticks) has no one-to-one RTL state at the same tick. NOT done: actually loading such values into the RTL (needs the scan path, step c) and running it on to compare.
+
+**Next:** (c) a way to read and load the relay registers and `rr` on the card (scan path or the carrier's programming channel) and the board kit; run on the Tang to ~600 from the VM's step-300 save, compare, etc.
+
+Next entry: #1096.
