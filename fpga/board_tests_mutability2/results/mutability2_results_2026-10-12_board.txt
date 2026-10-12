@@ -1,0 +1,11 @@
+mutability test 2 -- same bitstream; carrier configured ONLY by the command cell; clock 27.0 MHz (37.04 ns/clock)
+phase 0  adder add                reprogram 40 clk (1481 ns)  got 12345678 want 12345678  latency 3 clk (111 ns)  ok
+phase 1  adder subtract           reprogram 40 clk (1481 ns)  got 12345588 want 12345588  latency 3 clk (111 ns)  ok
+phase 2  add + invert             reprogram 40 clk (1481 ns)  got EDCBA987 want EDCBA987  latency 3 clk (111 ns)  ok
+phase 3  add + shift right 8      reprogram 40 clk (1481 ns)  got 00123456 want 00123456  latency 3 clk (111 ns)  ok
+phase 4  add + nibble mask 03     reprogram 40 clk (1481 ns)  got 12345600 want 12345600  latency 3 clk (111 ns)  ok
+phase 5  core changed to mul      reprogram 40 clk (1481 ns)  got 88885000 want 88885000  latency 3 clk (111 ns)  ok
+phase 6  back to adder add        reprogram 40 clk (1481 ns)  got 12345678 want 12345678  latency 3 clk (111 ns)  ok
+stream 7 stream adder   reprogram 40 clk; n=64  first result at clk 6, n-th at clk 258  -> 4.00 clk/result (148.1 ns, 6.75 M results/s)  first 00000046 (want 00000046) last 000000CE (want 000000CE)  ok
+stream 8 stream mul     reprogram 40 clk; n=64  first result at clk 6, n-th at clk 258  -> 4.00 clk/result (148.1 ns, 6.75 M results/s)  first 000003A8 (want 000003A8) last 00002850 (want 00002850)  ok
+RESULT: PASS: every reconfiguration came from the command cell and the results followed it

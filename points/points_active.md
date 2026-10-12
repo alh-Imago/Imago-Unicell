@@ -612,7 +612,7 @@ phase 0 adder add 12345678 ok | 1 adder subtract 12345588 ok | 2 add + invert ED
 
 ## 1089. Mutability test 2 RUN ON THE REAL BOARD: PASS, nine of nine (Alan/Claude, 2026-10-12)
 
-Alan ran `fpga/board_tests_mutability2` (kit from #1088) on the Tang Nano 20K and sent back `mutability2_results.json` (run stamped 2026-10-12T17:24:54, 27 MHz); a copy is kept in `fpga/board_tests_mutability2/results/mutability2_results_2026-10-12_board.json`. Only the JSON was sent: no `.txt` and no console paste, so the verdict line is the JSON's `"pass": true` plus the per-item `ok` flags, which I re-checked by hand against the expected words.
+Alan ran `fpga/board_tests_mutability2` (kit from #1088) on the Tang Nano 20K and sent back `mutability2_results.json` (run stamped 2026-10-12T17:24:54, 27 MHz); a copy is kept in `fpga/board_tests_mutability2/results/mutability2_results_2026-10-12_board.json`. The `.txt` followed a minute later (kept beside it, `results/mutability2_results_2026-10-12_board.txt`): its verdict line is `RESULT: PASS: every reconfiguration came from the command cell and the results followed it`, and its numbers agree with the JSON; I also re-checked every word by hand against the expected values. (Added as a note: past entries are not edited, this one was written a minute before the .txt arrived.)
 
 **Result:** all 7 reconfiguration phases correct (12345678, 12345588, EDCBA987, 00123456, 12345600, 88885000, 12345678), each delivered ONLY by the standalone command_cell_v4 through the carrier's live programming channel (the carrier's direct configuration word was tied off); both 64-result streams from the standalone sequencer_cell_v4 correct (adder first 0x46 last 0xCE; mul first 0x3A8 last 0x2850).
 

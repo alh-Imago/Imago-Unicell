@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp /root/.claude/uploads/0ab86c82-a7a6-5871-91f1-f04d17a86fed/d7e3e14f-mutability2_results.txt fpga/board_tests_mutability2/results/mutability2_results_2026-10-12_board.txt)",
+      "Bash(python3 -)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m '#1089 note: the results .txt arrived; kept beside the JSON *)",
+      "Bash(git push *)"
+    ]
+  }
+}
