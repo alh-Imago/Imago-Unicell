@@ -993,4 +993,16 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Also still open.* Fmax is static (nextpnr); the cards ran at 27 MHz only; 20 + 20 results checked, not hundreds; the std-line CARRIER version has no bitstream.
 
-Next entry: #1121.
+## #1121 (13 Oct 2026) -- CORRECTION TO #1120: "ALL FOUR PASS ON THE CARD" IS NOT ESTABLISHED; WHAT THE BOARD EVIDENCE ACTUALLY SHOWS
+
+*Cross-reference.* #1120 (and the chat statement after it) said the four loop bitstreams pass on the real Tang Nano 20K, from LED0 blinking + LED1 on + LED3 on. That claim is withdrawn as proof. Reason found at 23:53-00:04:
+1. `relay_chain.fs` (the proven #1023 control) gives the SAME LED pattern when it passes, so the LEDs cannot tell a loop bitstream from a leftover control.
+2. After a clean replug the control printed on /dev/ttyUSB1 (`UCT relay_chain res=P ...`), then loading `sub_ring.fs` straight after still showed relay_chain lines (newest 500 bytes): the new design was not what was talking.
+3. After a second clean replug, loading `sub_ring.fs` FIRST (nothing loaded before it) gave an empty serial read (6 s).
+4. The loader reported Done / 100 % every time (return code 0), so the bitstreams reach the chip. The first full run (23:35) showed `flex_ring` 41621 bytes then 0-1 bytes for the rest; the packaged parsers had rejected the loop lines until #1119.
+
+*What is and is not known.* Known: all four bitstreams simulate, pass a gate-level simulation (mixed_pipe checked), close timing, and are on GitHub. NOT known: that any loop bitstream ran on silicon. Open possibilities, none tested: (a) the loop bitstreams configure but their UART line never reaches the PC (a difference from the proven wrapper only visible on the board); (b) they do not configure or run correctly after the board has been loaded many times that evening; (c) the card/USB bridge is unreliable after a long day (the every-fifth-load fault of #1024). The LED observations are real but ambiguous.
+
+*Plan for next session (proposed, nothing built).* (1) Fresh replug, then ONLY relay_chain: confirm the control prints. (2) Fresh replug, then ONLY one loop bitstream, read 10 s. (3) If silent: build a variant of the same wrapper that prints a fixed "boot" line at power-up before any test result and uses a LED pattern unlike relay_chain's, so that "the bitstream is running and the UART works" is settled separately from "the loop passed". (4) Only then compare the loop lines (words, checksums, cycle counts) with the simulated ones.
+
+Next entry: #1122.
