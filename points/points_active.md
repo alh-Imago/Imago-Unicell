@@ -805,4 +805,14 @@ Alan loaded `saveload.fs` (v2) and ran `saveload_host_v2.py --sanity` on the phy
 
 **Not done:** anything on a physical card for the carrier; the value load into the carrier grid; the run to step 1000; the retarget. Docs and manual not touched.
 
-Next entry: #1103.
+**#1103 (12 Oct) -- CARRIER VS FLEX: THREE BEHAVIOURS THE CARRIER CORES LACK (read from the RTL, not simulated; Alan's ruling: all families must be on equal footing, the command core on the sub side being the only exception).** Following #1102 Alan proposed ways to supply the CORDIC's constants once per pass using cores the carrier already has. Checked against the carrier files:
+
+1. **Nano with a held constant (the `hold`)** - does not work on the carrier as wired. `unicell_vix_carrier_v1d.v` ties `hold_in_*`, `a_reemit_in_*` (and the related live wires) to 0 (line 545-547), so the nano's hold, feedback and re-emit paths are unreachable. Without them the nano is itself a two-arrival cell (first arrival kept, second triggers the gate), and its "pass second" code (`10'h02C`) passes the SECOND ARRIVAL, not a stored constant. The constant field in its config (`cmd_latch[127:96]`) is only read when `hold_in && fb_internal_in`. (Reading only; no nano-fed adder was simulated.)
+2. **Priority in sequenced-channel mode** (Alan's idea, #772: a fixed turn order that accepts only the due face) would make K, z, K, z reach the adder with no K+K. It exists in the standard VM (#772) and in the flex RTL (#1022) but NOT in `priority_cell_v4c.v`, whose `scheduling_mode` is strict or weighted round-robin; both fall back to whichever face has a word waiting, so they would give K, K, K.
+3. **Adder that waits for both operands** (flex: join; carrier `adder_cell_v4c`: pairs any two successive arrivals) - #1102.
+
+The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is the one existing-core route left; it was not built or tested.
+
+**Standing ruling recorded:** the carrier cores should be brought to parity with the flex cores (finer control, same behaviours); the command core on the sub side is the only exception. Parity list so far: adder join, priority sequenced mode, nano hold/re-emit wiring. A full parity audit of every core pair has NOT been done; it is the natural next step and would also say whether the CORDIC can move to the carrier by a small set of carrier-core versions.
+
+Next entry: #1104.
