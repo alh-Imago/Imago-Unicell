@@ -52,6 +52,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 MASK = 0xFFFFFFFF
 MAX_POWER = 64
+MAX_RANGE_TERMS = 64                     # ledger #1079: terms in one \\sum or \\prod (the range is written out, so every term is built)
 GREEK = {"alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "eta", "theta", "vartheta", "iota", "kappa", "lambda", "mu", "nu", "xi", "rho", "varrho",
          "sigma", "varsigma", "tau", "upsilon", "phi", "varphi", "chi", "psi", "omega", "Gamma", "Delta", "Theta", "Lambda", "Xi", "Sigma", "Upsilon", "Phi", "Psi", "Omega"}
 SPACING_CMDS = {",", ";", ":", "!", " ", "quad", "qquad"}
@@ -60,8 +61,6 @@ NOT_YET = {
     "pmod": "\\pmod is not supported; write the remainder as a \\bmod b",
     "pod": "\\pod is not supported; write the remainder as a \\bmod b",
     "sqrt": "square roots are not supported (no fractions or irrational results; only whole numbers)",
-    "sum": "sums over a range (\\sum) are not supported yet; write the terms out",
-    "prod": "products over a range (\\prod) are not supported yet; write the factors out",
     "int": "integrals are not supported",
     "pi": "pi is not a whole number; only whole-number maths is supported",
     "infty": "infinity is not a number the cells can hold",
@@ -184,6 +183,8 @@ def _tokenise(src: str) -> List[Tok]:
                 i += len(m2.group(0))
             elif cmd in GREEK:
                 toks.append(Tok("name", cmd, pos))
+            elif cmd in ("sum", "prod"):
+                toks.append(Tok("sum", cmd, pos))
             elif cmd in NOT_YET:
                 raise LatexError(NOT_YET[cmd], src, pos)
             elif cmd in FUNCTIONS:
@@ -251,11 +252,40 @@ class Pow:
 Expr = object
 
 
+def _subst(e: Expr, idx: str, k: int) -> Expr:
+    """ledger #1079: the body of a sum with the index replaced by the number k: the name `i` becomes k, a subscript `a_i` becomes the variable `a_k`, an exponent `x^i` becomes x^k."""
+    if isinstance(e, Num):
+        return e
+    if isinstance(e, Var):
+        if e.name == idx:
+            return Num(k)
+        if e.name.endswith("_" + idx) and len(e.name) > len(idx) + 1:
+            return Var(e.name[:-len(idx)] + str(k))
+        return e
+    if isinstance(e, Neg):
+        return Neg(_subst(e.arg, idx, k))
+    if isinstance(e, Bin):
+        return Bin(e.op, _subst(e.left, idx, k), _subst(e.right, idx, k))
+    if isinstance(e, (Div, Mod)):
+        return type(e)(_subst(e.left, idx, k), _subst(e.right, idx, k))
+    if isinstance(e, Pow):
+        ex = e.exp
+        if isinstance(ex, str):
+            if ex != idx:
+                raise LatexError(f"the exponent {ex} is not the index of this sum or product")
+            if k > MAX_POWER:
+                raise LatexError(f"the power {k} is larger than the limit of {MAX_POWER}")
+            ex = k
+        return Pow(_subst(e.base, idx, k), ex)
+    raise TypeError(e)
+
+
 class _Parser:
     def __init__(self, src: str):
         self.src = src
         self.toks = _tokenise(src)
         self.i = 0
+        self.bound: List[str] = []                       # ledger #1079: index names of the \\sum / \\prod being parsed
 
     def peek(self) -> Tok:
         return self.toks[self.i]
@@ -311,7 +341,7 @@ class _Parser:
                 right = self.unary()
                 left = Div(left, right) if t.text == "/" else Mod(left, right)
                 divided = True
-            elif t.kind in ("num", "name", "lparen", "frac") and not (t.kind == "lparen" and t.text in ")]}"):
+            elif t.kind in ("num", "name", "lparen", "frac", "sum") and not (t.kind == "lparen" and t.text in ")]}"):
                 if divided:
                     raise self.err("a number or name straight after a division or remainder is ambiguous (is it multiplied before or after?): add brackets")
                 right = self.unary_implicit()
@@ -352,6 +382,14 @@ class _Parser:
         if t.kind == "op" and t.text == "-":
             raise self.err("negative powers mean division, which is not supported", t)
         if t.kind != "num":
+            if t.kind == "name" and t.text in self.bound:
+                self.take()
+                if braced:
+                    if self.peek().kind == "rparen" and self.peek().text == "}":
+                        self.take()
+                    else:
+                        raise self.err("the exponent must be a single whole number inside the braces")
+                return t.text                                # the index of a \\sum / \\prod: replaced by a number when the range is written out
             if t.kind == "name":
                 raise self.err("the exponent must be a whole number written out (x^n with a variable n is not supported)", t)
             raise self.err("the exponent must be a whole number (0 to %d)" % MAX_POWER, t)
@@ -413,8 +451,70 @@ class _Parser:
         self.take()
         return e
 
+    def _range_int(self, what: str) -> int:
+        t = self.peek()
+        braced = t.kind == "lparen" and t.text == "{"
+        if braced:
+            self.take()
+            t = self.peek()
+        if t.kind != "num":
+            raise self.err(f"the {what} of a sum or product must be a whole number written out (a run-time range needs a loop, which is not built)", t)
+        self.take()
+        if not braced and len(t.text) > 1:
+            raise self.err(f"write ^{{{t.text}}} with braces: in LaTeX ^{t.text} means ^{t.text[0]} followed by {t.text[1:]}", t)
+        if braced:
+            if self.peek().kind == "rparen" and self.peek().text == "}":
+                self.take()
+            else:
+                raise self.err(f"the {what} must be a single whole number inside the braces")
+        return int(t.text)
+
+    def _reduce(self) -> Expr:
+        """ledger #1079: \\sum_{i=a}^{b} body  or  \\prod_{i=a}^{b} body, with whole-number bounds. The body is the multiplicative term that follows (use brackets for a sum of terms).
+        The range is written out: the body once per value of the index, joined into a chain (`sum_chain` / `product_chain` in arith_plan_library_v1)."""
+        kw = self.take()
+        op = "+" if kw.text == "sum" else "*"
+        if self.peek().kind != "sub":
+            raise self.err(f"\\{kw.text} needs its range, \\{kw.text}_{{i=1}}^{{4}}", kw)
+        self.take()
+        if not (self.peek().kind == "lparen" and self.peek().text == "{"):
+            raise self.err(f"the range of \\{kw.text} must be written {{i=1}}", self.peek())
+        self.take()
+        it = self.peek()
+        if it.kind != "name":
+            raise self.err("the index of a sum or product must be a letter (as in i=1)", it)
+        self.take()
+        idx = it.text
+        if self.peek().kind != "eq":
+            raise self.err("the range must read i=1 (index, equals, first value)", self.peek())
+        self.take()
+        lo = self._range_int("first value")
+        if not (self.peek().kind == "rparen" and self.peek().text == "}"):
+            raise self.err("the lower part of the range is not closed with }", self.peek())
+        self.take()
+        if self.peek().kind != "caret":
+            raise self.err(f"\\{kw.text} needs its last value, as in \\{kw.text}_{{i=1}}^{{4}}", self.peek())
+        self.take()
+        hi = self._range_int("last value")
+        if hi < lo:
+            raise self.err(f"the range {lo} to {hi} is empty", it)
+        if hi - lo + 1 > MAX_RANGE_TERMS:
+            raise self.err(f"the range has {hi - lo + 1} terms; the limit is {MAX_RANGE_TERMS} (each term is built)", it)
+        self.bound.append(idx)
+        try:
+            body = self.term()
+        finally:
+            self.bound.pop()
+        terms = [_subst(body, idx, k) for k in range(lo, hi + 1)]
+        acc = terms[0]
+        for t_ in terms[1:]:
+            acc = Bin(op, acc, t_)
+        return acc
+
     def atom(self) -> Expr:
         t = self.peek()
+        if t.kind == "sum":
+            return self._reduce()
         if t.kind == "frac":
             self.take()
             top = self._group("top")
