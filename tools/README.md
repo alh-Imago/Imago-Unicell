@@ -14,6 +14,7 @@ Standalone utilities and offshoots built alongside the Imago UniCell project.
 - `carrier_grid_v2.py --icm FILE --out DIR --top NAME [--carrier vixen|v1d]` turns an ICM design into a GRID of carriers in Verilog (ram / adder / branch), each configured by its 160-bit VIX_LATCH word, for simulation; `records_from_latch()` decodes those words back into ICM records (card -> VM). `make_carrier_subset_v3.py [--vixen]` cuts a carrier to the cores a design uses.
 - `carrier_grid_v3.py` (ledger #1116): carrier_grid_v2 with the accumulator added (`keep=("ram","adder","branch","accum")`); used by the std-line ring-control proof (`tests/vm/test_std_ring_v1.py`).
 - `standalone_grid_v1.py` / `standalone_pnr_v1.py` (ledger #1117): the same grid from standalone v4 shells, and its yosys (-nowidelut) + nextpnr report for the Tang Nano 20K.
+- `board_loops_v1.py` (ledger #1118): builds the self-checking board bitstreams for the ring-controlled loops into `fpga/board_tests_loops/` (flex_ring, sub_ring, std_ring, mixed_pipe).
 - `nano/join_pass_v1.py` (used by the `vixen` compile target) sets `join_mode` where a fixed constant feeds a two-face adder/mul/div.
 
 ## `project_assemble_v1.py` — real N-cell Quartus project generator

@@ -1,0 +1,18 @@
+{
+ "name": "mixed_pipe",
+ "what": "flex -> bridge -> SUB -> bridge -> flex pipeline, x + 1239 (random exit stalls)",
+ "expected": [
+  1244,
+  1339,
+  1232,
+  13584,
+  1239,
+  1316,
+  2239,
+  1270
+ ],
+ "sim_line": "UCT mixed_pipe res=P n=0008 e=0008 bad=0000 to=0 last=00000040 sig=0000CC60 w=000004DC,0000053B,000004D0,00003510,000004D7,00000524,000008BF,000004F6",
+ "fmax_mhz": 119.9,
+ "lut4": 1770,
+ "dff": 1018
+}

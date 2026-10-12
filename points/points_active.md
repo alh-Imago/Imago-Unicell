@@ -959,4 +959,16 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Tests.* tests/vm/test_std_ring_v1.py: 14 pass (VM 6, carrier RTL 4, standalone RTL 4).
 
-Next entry: #1118.
+## #1118 (12 Oct 2026) -- BOARD BITSTREAMS FOR THE LOOPS (flex, sub, std standalone, mixed pipeline) AND A CORRECTION TO THE #1117-ERA FIT FIGURES
+
+*Alan (23:03, 23:05).* "Create the streams for each and I will test them directly."
+
+*Built.* `tools/board_loops_v1.py` -> `fpga/board_tests_loops/` (same package shape and tooling as #1023: `.fs` per test, `run_all.sh` / `run_all.bat` / `board_run.py`, README, LEDs and one UART line at 115200). Self-checking wrapper: z0 injected once; the ring must give exactly N = 20 results, each equal to the model, stay quiet (and show `ring_stopped` for flex and sub); one release is then given; flex and sub run another 20 (a release opens a new window of N; measured here for sub as well) and stop again, std gives exactly one more; every word on the model. `mixed_pipe` is the flex -> bridge -> SUB -> bridge -> flex pipeline (8 words, x + 1239, random exit stalls), not a loop. Each wrapper was simulated first with the UART text decoded; a bitstream is written only if timing closes at 27 MHz.
+
+*Measured (flat place and route, wrapper included, seed 1).* flex_ring 3153 LUT4 / 139.2 MHz; sub_ring 2887 / 134.6; std_ring 4986 / 119.2; mixed_pipe 1770 / 119.9 (static nextpnr Fmax; target 27). All four fit the card (20736 LUT4) and pass in simulation. NOT run on the board yet: Alan runs them.
+
+*CORRECTION (cross-reference: the fit table given to Alan in the chat after #1117, and the spreadsheet loop_fit_v1.xlsx).* The LUT4 counts quoted there for the flex ring (85), sub ring (198) and mixed (1) were read from yosys `stat` of the TOP MODULE only (hierarchical, not flattened) and are far too low; the ALU and flip-flop counts beside them were also top-level. The flat figures above are the right ones. The std-line figure (3377 LUT4, 165.6 MHz) was flat and stands; the 4986 here is the same loop plus the self-check wrapper. The conclusion (all fit with room to spare) is unchanged; the numbers in the spreadsheet should not be used.
+
+*Honest scope.* Fmax is static (nextpnr). 27 MHz, no PLL: a correctness test on silicon, not speed. Only 20 + 20 (or 21) results are checked on the card. The UART pin has been used before (#1023) and is unverified only in the sense that no earlier board result is in this ledger for these designs. Not done: the standard line on carriers as a bitstream; automatic trimming of the carrier to the ICM's cores (Alan 23:09 noted the carrier-subset tool already does this by hand-passed `keep=`; making the ICM drive it is an open item).
+
+Next entry: #1119.
