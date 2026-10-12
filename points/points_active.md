@@ -917,5 +917,17 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Tests.* tests/vm/test_mixed_blocks_v1.py: 11 pass (tag round trip, planner, auto insertion, values with and without stalls, negative control, two refusals, Composer, Workbench).
 
-Next entry: #1115.
+**#1115 (12 Oct) -- THE DSL CAN NAME A BLOCK'S CELL FAMILY: `family: sub` ON A PLACE.** Alan (22:30): "add it to the dsl, the compiler and assembler are already aware, so that should cover most points of entry into the icm design system, the composer is mixed aware too". Alan (22:32): "perfect ... that leaves the nano standalone and the carrier side to get loops, then the icm should be able to target all families equally". Cross-reference #1114.
+
+*What was built.* In `nano/vix_compiler_v1.py` (the VIX backend; additive): a `place` field `family: flex|sub` (anything else is refused with its reason) and a field `io_name: NAME` (a host port; the DSL had no way to name one for this backend). Cells of one family become one placement of the ICM-VIX file (`flex_part`, `sub_part`; untagged cells stay in `main`), so the assembler (#1114), the Composer and the Workbench read it as they read a hand-written file. A program with no `family:` compiles exactly as before (a test pins the single `main` placement). The compile-time capability check now looks at each block against ITS family (a `sub` block asking for `second_output` is refused; the same line in a `flex` block passes under any target). `nano/dsl_cli_v1.py`: `--target std|vixen|flex|sub` selects the VIX backend explicitly; a program that parses with a `family:` field is routed to it by itself (decided from the parsed program, so a comment that mentions `family:` does not switch anything); the default path for every other program is unchanged. Example `nano/examples/mixed_flex_sub_flex_v1.uc`; DSL manual section 13.
+
+*Measured.* The DSL example (12 cells: flex +1000, SUB +234, flex +5) compiles to ICM-VIX with families flex and sub; the assembler reports 2 bridges; the generated RTL simulated with a stalling output returns x + 1239 for 30 words in order. The same file is read by the Workbench (families flex, sub). The DSL has no negative coordinates, so the example keeps its main line on row 1.
+
+*Honest scope.* The VIX backend has Tier-0 tiles only (no `define`), so a mixed program cannot use composed tiles yet. A one-line `place` cannot make a block of its own: places of the same family that touch form the block. The LLVM frontend and the old flat DSL backend do not take `family:` (the LLVM frontend produces ICM through the same VIX backend, so a family tag could be added to it later; not done). The Composer was not clicked in a browser.
+
+*Where this leaves the programme (Alan 22:32).* Loops (rings with a control) exist for the flex family (#1110) and the sub family (#1111). Still to do: the nano standalone and the carrier side (the standard line: the VM and the VIXeN carrier), whose closed rings free-run today and have no stop of their own. After that the ICM can target every family equally. The std line needs its own design (where the counter and the stop latch sit; the carrier has cardinal faces, config words and `freeze`); to be proposed to Alan before building.
+
+*Tests.* tests/vm/test_dsl_family_v1.py: 7 pass.
+
+Next entry: #1116.
 

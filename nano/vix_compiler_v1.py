@@ -65,8 +65,13 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", t
 
     cells: List[vix.HierCell] = []
     occupied: Dict[Tuple[int, int], str] = {}
+    family_of: Dict[str, str] = {}                  # ledger #1115: cell_id -> "flex" / "sub" for a place that carries `family: ...` (absent = the design's default)
 
     for stmt in place_stmts:
+        fam, stmt, fam_diags = _take_family(stmt)
+        diagnostics.extend(fam_diags)
+        if fam_diags:
+            continue
         cell, stmt_diags = _resolve_and_place_vix(stmt)
         diagnostics.extend(stmt_diags)
         if cell is None:
@@ -85,6 +90,8 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", t
             continue
         occupied[key] = f"{stmt.name}.{cell.cell_id}"
         cells.append(cell)
+        if fam:
+            family_of[cell.cell_id] = fam
 
     if any(d.severity == "error" for d in diagnostics):
         return None, diagnostics
@@ -92,16 +99,31 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", t
     if target == "vixen":                        # ledger #1105: a fixed constant feeding a two-face adder/mul/div needs the join (else it pairs with itself, #1102)
         import join_pass_v1 as _jp
         _jp.apply(cells)
+    if family_of:                                # ledger #1115: one placement per family, so the assembler can split the design and bridge the crossings (flexsub_mixed_v1)
+        groups = {None: [c for c in cells if c.cell_id not in family_of]}
+        for fam_ in ("flex", "sub"):
+            groups[fam_] = [c for c in cells if family_of.get(c.cell_id) == fam_]
+        patterns = {("main" if f is None else f"main_{f}"): vix.HierPattern(cells=cs) for f, cs in groups.items() if cs}
+        placements = [vix.HierPlacement(instance=("main" if f is None else f"{f}_part"), pattern=("main" if f is None else f"main_{f}"), at=(0, 0), family=f)
+                      for f, cs in groups.items() if cs]
+    else:
+        patterns = {"main": vix.HierPattern(cells=cells)}
+        placements = [vix.HierPlacement(instance="main", pattern="main", at=(0, 0))]
     icm = vix.IcmVixFile(
-        patterns={"main": vix.HierPattern(cells=cells)},
-        placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
+        patterns=patterns,
+        placements=placements,
         name=program_name_hint or program_ir.name,
         description=f"compiled from a Unicell-S program named '{program_ir.name}' "
                     f"(real, VIX Carrier target, #756)",
     )
     if target is not None:                       # ledger #981: refuse at compile time what the named target cannot do (None = no check; the ICM stays target-agnostic)
         import target_capabilities_v1 as _tc
-        for issue in _tc.check_records(icm.flatten()[0], target):
+        recs_ = icm.flatten()[0]
+        fam_by_cell = {f"{pl.instance}.{c.cell_id}": pl.family for pl in placements for c in patterns[pl.pattern].cells}
+        issues = []
+        for tgt_, grp in ((t_, [r for r in recs_ if (fam_by_cell.get(r.cell_id) or None) == f_]) for f_, t_ in ((None, target), ("flex", "flex"), ("sub", "sub"))):
+            issues += _tc.check_records(grp, tgt_)            # a block that names its family is checked against THAT family's abilities
+        for issue in issues:
             diagnostics.append(CompileDiagnostic(
                 severity="error", stage="place", what=f"checking the design against target {target!r}", problem=issue,
                 why="the ICM states the need (second_output / second_downstream_mask); each target decides whether it can deliver it (target_capabilities_v1)",
@@ -109,6 +131,24 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", t
         if any(d.severity == "error" for d in diagnostics):
             return None, diagnostics
     return icm, diagnostics
+
+
+def _take_family(stmt: PlaceIR):
+    """Ledger #1115: `family: sub` (or `flex`) on a place names the cell family its block is built from. Returns (family or None, the statement without that field, diagnostics)."""
+    fam, rest, diags = None, [], []
+    for f in stmt.fields:
+        if f.key != "family":
+            rest.append(f)
+            continue
+        v = f.value[0] if isinstance(f.value, list) and len(f.value) == 1 else f.value
+        if v not in ("flex", "sub"):
+            diags.append(CompileDiagnostic(
+                severity="error", stage="resolve", what=f"field 'family' on placement '{stmt.name}'", problem=f"family {v!r} is not 'flex' or 'sub'",
+                why="a block is built from the flex (handshake) cells or the sub (fixed-latency) cells; where two families meet the assembler inserts the sub bridge by itself",
+                suggestion="write `family: sub` or `family: flex`, or leave the field out (flex)", span=f.span))
+        else:
+            fam = v
+    return fam, (type(stmt)(name=stmt.name, tile_name=stmt.tile_name, row=stmt.row, col=stmt.col, fields=rest, span=stmt.span) if fam or diags else stmt), diags
 
 
 def _resolve_and_place_vix(stmt: PlaceIR) -> Tuple[Optional[vix.HierCell], List[CompileDiagnostic]]:
@@ -141,6 +181,7 @@ def _resolve_and_place_vix(stmt: PlaceIR) -> Tuple[Optional[vix.HierCell], List[
     params: Dict[str, object] = {}
     addon_config: Dict[str, object] = {}
     preload_value: Optional[int] = None
+    io_name: Optional[str] = None
     for f in stmt.fields:
         if tile.core in ("adder", "mul") and f.key in vtl._SECOND_ALIAS:    # ledger #980: carry_mode / wide_mode are aliases of the one flag second_output
             f = type(f)(key=vtl._SECOND_ALIAS[f.key], value=f.value, span=f.span)
@@ -159,6 +200,8 @@ def _resolve_and_place_vix(stmt: PlaceIR) -> Tuple[Optional[vix.HierCell], List[
             # recognized generically, not part of the tile's own
             # declared contract.
             preload_value = int(f.value)  # type: ignore[arg-type]
+        elif f.key == "io_name":                     # ledger #1115: the name of a HOST port (the design's own entry / exit); the Flex-Sub assembler turns it into in_<name> / out_<name>
+            io_name = str(f.value[0] if isinstance(f.value, list) else f.value)
         elif f.key in port_names:
             port_directions[f.key] = f.value
         elif f.key in param_names:
@@ -181,7 +224,7 @@ def _resolve_and_place_vix(stmt: PlaceIR) -> Tuple[Optional[vix.HierCell], List[
                           cell_id=f"{stmt.name}@{stmt.row},{stmt.col}",
                           rel_row=stmt.row, rel_col=stmt.col,
                           addon_config=addon_config or None,
-                          preload_value=preload_value)
+                          preload_value=preload_value, io_name=io_name)
         return cell, diagnostics
     except ValueError as e:
         diagnostics.append(CompileDiagnostic(

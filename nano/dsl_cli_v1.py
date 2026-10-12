@@ -38,6 +38,45 @@ from composed_tile_library_v1 import composed_tile_library, ComposedTileLibrary
 from user_tile_loader_v1 import load_composed_tile
 
 
+def _uses_family(source_text):
+    """True when a `place` carries a `family:` field (read from the parsed program, so a comment that mentions it does not count)."""
+    from dsl_lexer_v1 import tokenize
+    from dsl_parser_v1 import parse_source
+    tokens, diags = tokenize(source_text)
+    if diags:
+        return False
+    prog, _ = parse_source(tokens)
+    return prog is not None and any(f.key == "family" for st in prog.statements for f in getattr(st, "fields", []))
+
+
+def _compile_vix(args, source_text, program_name):
+    """ledger #1115: the VIX backend. Writes ICM-VIX (placements carry the family tags)."""
+    from dsl_lexer_v1 import tokenize
+    from dsl_parser_v1 import parse_source
+    from vix_compiler_v1 import compile_program_ir_vix
+    lines = source_text.splitlines()
+    tokens, diags = tokenize(source_text)
+    prog = None
+    if not diags:
+        prog, diags = parse_source(tokens)
+    if prog is not None and not any(d.severity == "error" for d in diags):
+        icm, d2 = compile_program_ir_vix(prog, program_name_hint=program_name, target=args.target)
+        diags = list(diags) + list(d2)
+    else:
+        icm = None
+    for d in diags:
+        print(d.format(lines), file=sys.stderr)
+        print(file=sys.stderr)
+    if icm is None:
+        print(f"compile failed: {sum(1 for d in diags if d.severity == 'error')} error(s)", file=sys.stderr)
+        return 1
+    out = args.output or (os.path.splitext(args.source)[0] + ".icm-hier.json")
+    icm.save(out)
+    fams = sorted({p.family for p in icm.placements if p.family})
+    print(f"compiled '{program_name}' -> {out} ({len(icm.flatten()[0])} cell(s); VIX backend" + (f"; families: {', '.join(fams)}" if fams else "") + ")")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="dsl_cli_v1.py",
@@ -50,6 +89,10 @@ def main(argv=None) -> int:
     parser.add_argument("-o", "--output", metavar="FILE",
                          help="where to write the compiled .icm file "
                               "(default: <source>.icm)")
+    parser.add_argument("--target", choices=["std", "vixen", "flex", "sub"], default=None,
+                         help="ledger #1115: compile with the VIX backend and write an ICM-VIX file (.icm-hier.json), the form that can carry `family: flex|sub` on a place "
+                              "(a block built from the sub or flex cells; the assembler inserts the sub bridge where two families meet). The named target decides which optional "
+                              "features are refused at compile time. A program that uses `family:` is compiled this way even without --target.")
     args = parser.parse_args(argv)
 
     try:
@@ -76,6 +119,8 @@ def main(argv=None) -> int:
             print(f"loaded user model '{tile.name}' from {model_path}", file=sys.stderr)
 
     program_name = os.path.splitext(os.path.basename(args.source))[0]
+    if args.target or _uses_family(source_text):
+        return _compile_vix(args, source_text, program_name)
     icm, diagnostics = compile_source(source_text, program_name_hint=program_name,
                                        composed_library=library)
 

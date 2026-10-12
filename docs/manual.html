@@ -5841,7 +5841,24 @@ genuine Python <code>RecursionError</code> (<code>points.md #350</code>). Now ca
 instead, at whichever layer first sees the cycle:</p>
 <pre><code>ValueError: circular composed-tile reference: a -&gt; b -&gt; a -- a tile can
 never (directly or indirectly) contain itself
-</code></pre></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-workbench"><span class="ref-kind">§</span><span class="ref-text">Continue → The Workbench</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-icm">‹ ICM &amp; Cores</button><button class="pn pn-next" data-target="sec-workbench">Workbench ›</button></nav></section>
+</code></pre>
+<h2>13. Choosing the cell family of a block — <code>family:</code> and <code>io_name:</code> (ledger #1115)</h2>
+<p>A <code>place</code> may say which cell family it is built from, and may name a host port:</p>
+<pre><code>place b_add as adder at (1, 4) {
+    in_a: w
+    in_b: n
+    out: e
+    family: sub          # flex (the default) or sub
+}
+place a_in as ram_flowing at (1, 0) {
+    in: w
+    out: e
+    io_name: x_in        # the design's own entry (or exit): becomes in_x_in_* / out_x_in_*
+}
+</code></pre>
+<p>Places with the same <code>family:</code> that touch each other become one block of that family. Where two families meet, the Flex-Sub assembler (<code>project_assemble_v1.py --icm</code>) puts the <strong>sub bridge</strong> in by itself (<code>sub/verilog/flex_sub_bridge_v1.v</code>, ledger #1112-#1114): you do not write it.</p>
+<p>A program that uses <code>family:</code> is compiled with the VIX backend and written as ICM-VIX (<code>.icm-hier.json</code>), the form that can carry the tag (one placement per family). <code>dsl_cli_v1.py --target std|vixen|flex|sub</code> chooses that backend explicitly and names the target whose abilities are checked at compile time; a block that names its family is checked against that family's abilities instead (a <code>sub</code> block asking for <code>second_output</code> is refused). The VIX backend has the Tier-0 tiles only (no <code>define</code>), as before. A program that does not use <code>family:</code> and gives no <code>--target</code> compiles exactly as it always did.</p>
+<p>The DSL has no negative coordinates: put the constants above the main line by moving the main line down. Worked example: <code>nano/examples/mixed_flex_sub_flex_v1.uc</code> (flex +1000, SUB +234, flex +5, so out = x + 1239); it compiles, assembles and simulates end to end (<code>tests/vm/test_dsl_family_v1.py</code>).</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-workbench"><span class="ref-kind">§</span><span class="ref-text">Continue → The Workbench</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-icm">‹ ICM &amp; Cores</button><button class="pn pn-next" data-target="sec-workbench">Workbench ›</button></nav></section>
 <section class="panel" id="sec-workbench" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§06 / 09</span></div><h1 class="ptitle">The Browser Workbench</h1><p class="intro">Compile a program, watch it run, drive individual cells, and load multiple independent programs onto one shared grid as named regions &mdash; either at a manual offset or via a real auto-placement search. Run it with:<br><br><code>python3 nano/workbench_v1.py</code><br>→ opens at <code>http://localhost:7420</code></p><hr class="rule"><div class="doc"><h1>The Unicell-S workbench — design scope</h1>
 <p><em>Captured 2026-08-16 (day 2), based on a real, line-level audit of the
 old <code>workbench.py</code> (2711 lines) -- not a fresh design from nothing.
