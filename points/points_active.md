@@ -465,4 +465,10 @@ Alan (busy today): continue into the LaTeX side and see how far it gets before a
 
 **Not done / limits:** the DEFAULT stays `"unrolled"`: switching it is a choice for Alan (the core is far smaller and checkable, but needs a target that has it; the unrolled form needs only add/sub/mul cells). A LaTeX-compiled design has NOT been run on the sub or cardinal (v4/v4c) cells, only on the VM and flex RTL; the sub family's looped forms are still not usable (planner has no latency model, #1072). A quotient and remainder of the same pair use two cells, not one cell with `second_output` (a possible saving). No tick-exact comparison of VM against RTL. `docs/` pages for the LaTeX front end and the manual were not regenerated (no doc listed in `docs/build_manual.py` was edited).
 
-Next entry: #1075.
+## 1075. LaTeX-compiled division designs also run as generated SUB-family RTL (Alan/Claude, 2026-10-12)
+
+Follow-up to #1074, which said a LaTeX design had not been run on the sub family. It has now: `-s sub --icm` accepts the compiled design (the priority cell is absorbed; 7 cells for `a / b`), and the generated RTL, run in iverilog with the sub test's simulator, matches the formula on `a / b`, `a mod b`, `(a+b)/c + a mod c` and `a/b + b/a` over eight value sets including x/0 and the reversed pair. One result per clock, consecutive, after a fixed latency (4 cycles for `a / b` and `a mod b`, 18 for the two-division formula). `tests/vm/test_latex_division_core_v1.py` now has 30 tests (the 4 sub ones added); the file's header no longer says sub is untested. Mutation checks on the new test: the v4s cell's output choice swapped (caught, 4 fail), the planner dropping the remainder flag (caught).
+
+**Still not run:** a LaTeX design on the cardinal (v4 / v4c) cells; there is no assembler from the standard ICM to a grid of carriers that I know of, so that would need either one or a hand-built grid (not attempted). Sub runs the default form (STEPS = 32, one clock); looped sub dividers remain unusable (#1072).
+
+Next entry: #1076.

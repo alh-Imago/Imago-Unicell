@@ -120,3 +120,40 @@ def test_the_compiled_design_as_generated_flex_rtl_agrees_with_the_formula(src):
         assert out == [r.reference(v) for v in vecs], (src, out, [r.reference(v) for v in vecs])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ---- and as generated SUB-family RTL (fixed latency, no ack): one item per clock, results in order ----
+import test_sub_div_v1 as _sub  # noqa: E402
+from icm_v3 import IcmV3File as _IcmFile  # noqa: E402
+
+
+@pytest.mark.parametrize("src", ["a / b", "a \\bmod b", "(a + b) / c + a \\bmod c", "a / b + b / a"])
+def test_the_compiled_design_as_generated_sub_rtl_agrees_with_the_formula(src):
+    assert shutil.which("iverilog") and shutil.which("vvp"), "iverilog is REQUIRED (this test must not skip silently)"
+    r = L.compile_latex(src, division="core")
+    vecs = [{k: v for k, v in vec.items() if k in r.args} for vec in _VECS]
+    tmp = tempfile.mkdtemp(prefix="latexdivsub_")
+    try:
+        icm = os.path.join(tmp, "x.icm")
+        _IcmFile(name="x", records=r.result.records).save(icm)
+        out = os.path.join(tmp, "g")
+        p = _h.cli("-s", "sub", "--icm", icm, "--output", out)
+        assert p.returncode == 0, (p.stderr or p.stdout)[:500]
+        top = json.load(open(os.path.join(out, "ASSEMBLY.json")))["top"]
+        text = open(os.path.join(out, top + ".v")).read()
+        assert "div_cell_v4s" in text
+        cmap = L._input_cells(r)
+        ins = re.findall(r"input\s+wire\s+\[31:0\]\s+in_(\w+)_data", text)
+        items = []
+        for v in vecs:
+            it = {}
+            for n in ins:
+                cid = [c for c in cmap if c.replace(".", "_") == n]
+                assert len(cid) == 1, (n, list(cmap))
+                it[n] = v[cmap[cid[0]]] & M32
+            items.append(it)
+        got, _ = _sub.simulate(out, items)
+        assert [g[1] for g in got] == [r.reference(v) for v in vecs], (src, got)
+        assert [g[0] for g in got] == list(range(got[0][0], got[0][0] + len(vecs))), "one result per clock, consecutive"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)

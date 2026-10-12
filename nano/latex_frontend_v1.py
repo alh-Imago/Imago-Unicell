@@ -23,8 +23,8 @@ SUPPORTED (and nothing else):
                A power-of-two divisor is a shift or a mask (tiny). ANY OTHER divisor builds a 32-step long-division loop unrolled in cells: about 23,000 cells for one division.
                With division="core" (command line: --division core; ledger #1074) a general division or remainder is instead ONE cell of the division core
                (`udiv` / `urem`): 8 cells for `a / b`, 38 for a formula with two divisions, any number of divisions, and the design is small enough for the VM check. It needs a
-               target that has the division core. Checked so far: the VM, and the flex family (the compiled design built as real RTL by the assembler and run in iverilog, ledger #1074).
-               NOT yet run: a LaTeX-compiled design on the sub or the cardinal (v4/v4c) cells, though those cells exist. The default stays "unrolled", which needs only the basic cells.
+               target that has the division core. Checked so far: the VM, and the flex and sub families (the compiled design built as real RTL by the assembler and run in iverilog,
+               ledger #1074 and #1075; on sub one result per clock). NOT yet run: a LaTeX-compiled design on the cardinal (v4/v4c) cells, though those cells exist. The default stays "unrolled", which needs only the basic cells.
   grouping     ( )   \\left( \\right)   { }   (square brackets [ ] too)
   powers       x^2, x^{3}, (a+b)^2: the exponent must be a whole number written out (0..64). Not x^n, not x^{-1}, not x^{1/2}.
   naming       an optional `name =` in front is just a label; it must not appear on the right-hand side.
