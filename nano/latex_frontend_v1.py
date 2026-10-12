@@ -20,11 +20,11 @@ SUPPORTED (and nothing else):
   division     `a / b`, `a \\div b`, `\\frac{a}{b}` (quotient, rounded down) and `a \\bmod b` (remainder). UNSIGNED whole numbers: a negative value is its big two's-complement word,
                so `-x / 2` is NOT minus half of x. Dividing by zero gives all ones (0xFFFFFFFF) and the remainder by zero is the dividend (the restoring-division convention, also RISC-V's).
                Same level as `*`, left to right; a number or name straight after a division (`a / b c`) is refused as ambiguous.
-               A power-of-two divisor is a shift or a mask (tiny). ANY OTHER divisor builds a 32-step long-division loop unrolled in cells: about 23,000 cells for one division.
-               With division="core" (command line: --division core; ledger #1074) a general division or remainder is instead ONE cell of the division core
+               A power-of-two divisor is a shift or a mask (tiny). Any other divisor is one cell of the division core (below); with division="unrolled" it is instead a 32-step long-division loop unrolled in cells: about 23,000 cells for one division.
+               By default (division="core"; ledger #1074, made the default in #1076) a general division or remainder is ONE cell of the division core
                (`udiv` / `urem`): 8 cells for `a / b`, 38 for a formula with two divisions, any number of divisions, and the design is small enough for the VM check. It needs a
                target that has the division core. Checked so far: the VM, and the flex and sub families (the compiled design built as real RTL by the assembler and run in iverilog,
-               ledger #1074 and #1075; on sub one result per clock). NOT yet run: a LaTeX-compiled design on the cardinal (v4/v4c) cells, though those cells exist. The default stays "unrolled", which needs only the basic cells.
+               ledger #1074 and #1075; on sub one result per clock). NOT yet run: a LaTeX-compiled design on the cardinal (v4/v4c) cells, though those cells exist. "core" is the default (Alan, ledger #1076); division="unrolled" keeps the old form for a target without the core.
   grouping     ( )   \\left( \\right)   { }   (square brackets [ ] too)
   powers       x^2, x^{3}, (a+b)^2: the exponent must be a whole number written out (0..64). Not x^n, not x^{-1}, not x^{1/2}.
   naming       an optional `name =` in front is just a label; it must not appear on the right-hand side.
@@ -669,10 +669,11 @@ MAX_GENERAL_DIVISIONS = 1                           # distinct long divisions pe
 DIV_STEPS = 32                                      # quotient bits produced; only tests lower it (a smaller instance divides the TOP `steps` bits of the dividend)
 
 
-def to_llvm(e: Expr, args: Optional[List[str]] = None, division: str = "unrolled") -> Tuple[str, List[str]]:
+def to_llvm(e: Expr, args: Optional[List[str]] = None, division: str = "core") -> Tuple[str, List[str]]:
     """(LLVM IR text, argument names). The returned value is always named %r. Raises LatexError if the formula has no variable or reduces to one.
-    division="unrolled" (the default): a general division is built from add/sub/mul/shifts, about 23,000 cells, at most one per formula. Needs nothing but the basic cells.
-    division="core": a general division is the `udiv` / `urem` operation, ONE cell of the division core (any number per formula). Needs a target that has the division core."""
+    division="core" (the DEFAULT since ledger #1076, Alan's decision): a general division is the `udiv` / `urem` operation, ONE cell of the division core (any number per formula).
+    Needs a target that has the division core.
+    division="unrolled": a general division is built from add/sub/mul/shifts, about 23,000 cells, at most one per formula. Needs nothing but the basic cells (for a target without the core)."""
     if division not in ("unrolled", "core"):
         raise LatexError(f"division must be \"unrolled\" or \"core\", not {division!r}")
     seen = variables(e)
@@ -861,13 +862,13 @@ def _input_cells(res: LatexResult) -> Dict[str, str]:
 HW_CHECK_MAX_CELLS = 1500          # the standard VM ticks about 3 x cells times, each tick over every cell: beyond this a vector takes minutes
 
 
-def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "unrolled") -> LatexResult:
+def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "core") -> LatexResult:
     """Parse, compile and CHECK a formula. Raises LatexError for text outside the subset (or a compiler refusal) and LatexCheckError if anything disagrees with the Python oracle.
     check=True   the generated IR is compared with the oracle on corner and random vectors (always, fast); the compiled design is ALSO run in the VM and compared, unless it has
                  more than `hw_max_cells` cells (then `hw_skipped` says so and the CLI prints it: the VM would take minutes per vector).
     check="full" the VM comparison is run whatever the size (slow for big designs).
     check=False  no comparison (not recommended).
-    division     "unrolled" (default) or "core": see to_llvm. With "core" a formula may contain any number of divisions and the design is small enough for the VM check."""
+    division     "core" (default) or "unrolled": see to_llvm. With "core" a formula may contain any number of divisions and the design is small enough for the VM check."""
     import llvm_dag_frontend_v1 as F
     label, tree = parse_latex(source)
     ir, args = to_llvm(tree, division=division)

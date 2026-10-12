@@ -55,14 +55,18 @@ def test_a_power_of_two_is_still_a_shift_not_a_division_cell():
 
 def test_two_divisions_are_refused_unrolled_but_fine_as_core():
     with pytest.raises(L.LatexError):
-        L.to_llvm(L.parse_latex("a / b + c / d")[1])                    # the default is unchanged
-    ir, _ = L.to_llvm(L.parse_latex("a / b + c / d")[1], division="core")
+        L.to_llvm(L.parse_latex("a / b + c / d")[1], division="unrolled")
+    ir, _ = L.to_llvm(L.parse_latex("a / b + c / d")[1])             # the default is the core
     assert ir.count("udiv") == 2
 
 
-def test_the_default_is_still_unrolled():
+def test_the_default_is_the_division_core_and_unrolled_is_still_available():
+    """Alan, ledger #1076: use the division core by default. The unrolled form stays available for a target without the core."""
     ir, _ = L.to_llvm(L.parse_latex("a / b")[1])
-    assert "udiv" not in ir and len(ir.splitlines()) > 300
+    assert "udiv" in ir and len(ir.splitlines()) < 10
+    ir2, _ = L.to_llvm(L.parse_latex("a / b")[1], division="unrolled")
+    assert "udiv" not in ir2 and len(ir2.splitlines()) > 300
+    assert L.compile_latex("a / b").cells <= 10
 
 
 def test_division_option_is_validated():

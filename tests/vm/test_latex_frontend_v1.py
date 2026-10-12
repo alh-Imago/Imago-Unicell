@@ -287,7 +287,7 @@ def test_other_division_shapes_are_exact_at_full_width(src, vals):
 
 
 def test_a_big_design_says_out_loud_that_the_vm_comparison_was_skipped():
-    r = L.compile_latex("x / y")
+    r = L.compile_latex("x / y", division="unrolled")
     assert r.cells > L.HW_CHECK_MAX_CELLS and r.checked == 0 and r.ir_checked > 10
     assert "skipped" in r.hw_skipped and str(r.cells) in r.hw_skipped
 
@@ -319,7 +319,7 @@ def narrow(request, monkeypatch):
 
 @pytest.mark.parametrize("src,fn", [("x / y", lambda a, b: a // b), (r"x \bmod y", lambda a, b: a % b)])
 def test_narrow_division_runs_correctly_in_the_vm(narrow, src, fn):
-    r = L.compile_latex(src, check=False)
+    r = L.compile_latex(src, check=False, division="unrolled")
     n = narrow
     for A, B in ((0, 1), ((1 << n) - 1, 1), ((1 << n) - 1, (1 << n) - 1), (5 % (1 << n), 2)):
         assert r.run({"x": A << (32 - n), "y": B}) == fn(A, B), (n, A, B)
@@ -327,7 +327,7 @@ def test_narrow_division_runs_correctly_in_the_vm(narrow, src, fn):
 
 def test_narrow_division_streams_through_the_flex_step_simulator(monkeypatch):
     monkeypatch.setattr(L, "DIV_STEPS", 3)
-    r = L.compile_latex("x / y", check=False)
+    r = L.compile_latex("x / y", check=False, division="unrolled")
     cases = [(7, 2), (6, 3), (5, 7)]
     got = r.stream_step([{"x": A << 29, "y": B} for A, B in cases])
     assert got == [A // B for A, B in cases]
@@ -337,7 +337,7 @@ def test_narrow_division_matches_in_generated_flex_rtl(monkeypatch):
     assert shutil.which("iverilog") and shutil.which("vvp"), "iverilog is REQUIRED (this test must not skip silently)"
     from fp_block_runner_v1 import run_rtl
     monkeypatch.setattr(L, "DIV_STEPS", 3)
-    r = L.compile_latex(r"x \bmod y", check=False)
+    r = L.compile_latex(r"x \bmod y", check=False, division="unrolled")
     cases = [(7, 2), (6, 4), (5, 7), (1, 1)]
     cmap = L._input_cells(r)
     entries = {c: [((A << 29) if a == "x" else B) & M for A, B in cases] for c, a in cmap.items()}
@@ -351,12 +351,12 @@ def test_narrow_division_matches_in_generated_flex_rtl(monkeypatch):
 
 def test_a_second_distinct_long_division_is_refused_but_a_quotient_and_remainder_of_the_same_pair_share_one():
     with pytest.raises(L.LatexError) as ei:
-        L.compile_latex(r"\frac{a + b}{c} + a \bmod c")
+        L.compile_latex(r"\frac{a + b}{c} + a \bmod c", division="unrolled")
     assert "2 separate long divisions" in str(ei.value)
     with pytest.raises(L.LatexError):
-        L.compile_latex("a / b + c / d")
-    r = L.compile_latex(r"(x / y) * y + x \bmod y")                      # same pair: one divider
+        L.compile_latex("a / b + c / d", division="unrolled")
+    r = L.compile_latex(r"(x / y) * y + x \bmod y", division="unrolled")                      # same pair: one divider
     assert r.ir_checked > 5
-    r2 = L.compile_latex("x / y + x / y")                                 # the same division twice is built once
+    r2 = L.compile_latex("x / y + x / y", division="unrolled")                                 # the same division twice is built once
     assert r2.ir_checked > 5
-    assert L.compile_latex("a / b + c / 4").ir_checked > 5               # a power of two is not a long division
+    assert L.compile_latex("a / b + c / 4", division="unrolled").ir_checked > 5               # a power of two is not a long division

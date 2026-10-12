@@ -471,4 +471,10 @@ Follow-up to #1074, which said a LaTeX design had not been run on the sub family
 
 **Still not run:** a LaTeX design on the cardinal (v4 / v4c) cells; there is no assembler from the standard ICM to a grid of carriers that I know of, so that would need either one or a hand-built grid (not attempted). Sub runs the default form (STEPS = 32, one clock); looped sub dividers remain unusable (#1072).
 
-Next entry: #1076.
+## 1076. The LaTeX front end now defaults to the division core (Alan's decision, Alan/Claude, 2026-10-12)
+
+Alan decided: "use the div core". `compile_latex` / `to_llvm` default to `division="core"`, the command line to `--division core`; `--division unrolled` keeps the old form (about 23,000 cells per division, no division cell needed). Ten existing LaTeX tests had assumed the unrolled default and now ask for it explicitly (`tests/vm/test_latex_frontend_v1.py`, `test_latex_division_core_v1.py`); a new test pins the default. All 110 LaTeX tests pass. `sub/README.md` (LaTeX section) no longer says division is always unrolled or that a VM run is always skipped; manual rebuilt.
+
+**Not changed / limits:** unchanged from #1074/#1075: the core form is checked on the VM, flex RTL and sub RTL, not on the v4/v4c carrier grid (Alan will test the carrier-grid / ICM-overlay design himself). Alan's second point (W and K as compile-side speed-versus-size settings, with the bits in the core's programming word at the same position in every family) is taken up in the next entry.
+
+Next entry: #1077.
