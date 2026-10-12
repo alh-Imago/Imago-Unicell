@@ -1,0 +1,94 @@
+{
+ "phases": [
+  {
+   "i": 0,
+   "label": "adder add",
+   "reprogram_clk": 40,
+   "got": 305419896,
+   "want": 305419896,
+   "latency_clk": 3,
+   "ok": true
+  },
+  {
+   "i": 1,
+   "label": "adder subtract",
+   "reprogram_clk": 40,
+   "got": 305419656,
+   "want": 305419656,
+   "latency_clk": 3,
+   "ok": true
+  },
+  {
+   "i": 2,
+   "label": "add + invert",
+   "reprogram_clk": 40,
+   "got": 3989547399,
+   "want": 3989547399,
+   "latency_clk": 3,
+   "ok": true
+  },
+  {
+   "i": 3,
+   "label": "add + shift right 8",
+   "reprogram_clk": 40,
+   "got": 1193046,
+   "want": 1193046,
+   "latency_clk": 3,
+   "ok": true
+  },
+  {
+   "i": 4,
+   "label": "add + nibble mask 03",
+   "reprogram_clk": 40,
+   "got": 305419776,
+   "want": 305419776,
+   "latency_clk": 3,
+   "ok": true
+  },
+  {
+   "i": 5,
+   "label": "core changed to mul",
+   "reprogram_clk": 40,
+   "got": 2290634752,
+   "want": 2290634752,
+   "latency_clk": 3,
+   "ok": true
+  },
+  {
+   "i": 6,
+   "label": "back to adder add",
+   "reprogram_clk": 40,
+   "got": 305419896,
+   "want": 305419896,
+   "latency_clk": 3,
+   "ok": true
+  }
+ ],
+ "streams": [
+  {
+   "i": 7,
+   "label": "stream adder",
+   "n": 64,
+   "first_clk": 6,
+   "total_clk": 258,
+   "clk_per_result": 4.0,
+   "first": 70,
+   "last": 206,
+   "ok": true
+  },
+  {
+   "i": 8,
+   "label": "stream mul",
+   "n": 64,
+   "first_clk": 6,
+   "total_clk": 258,
+   "clk_per_result": 4.0,
+   "first": 936,
+   "last": 10320,
+   "ok": true
+  }
+ ],
+ "mhz": 27.0,
+ "when": "2026-10-12T17:24:54",
+ "pass": true
+}

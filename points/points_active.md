@@ -610,4 +610,14 @@ phase 0 adder add 12345678 ok | 1 adder subtract 12345588 ok | 2 add + invert ED
 
 **Alan's next items, recorded here so they are not lost (not started):** a test 3 around the accumulator, designed on Alan's side in the flex; and a save/load/retarget proof: a looped CORDIC run on the mirror VM to step 300, saved, loaded into the Tang (same layout, no values), run to about 600 by Alan and passed back, compared with the VM run to the same step, then the same design rebuilt non-mirrored on the carrier, loaded with those values and run to 1000, then retargeted into a full VM by loading only latch states. Alan's rule for the save: two parts, the design model (target-neutral, loaded first) and a diff of running state keyed by logical names (cell, register), not programming states. Before promising it: check what state each target exposes, and whether a looped CORDIC exists in the tile library.
 
-Next entry: #1089.
+## 1089. Mutability test 2 RUN ON THE REAL BOARD: PASS, nine of nine (Alan/Claude, 2026-10-12)
+
+Alan ran `fpga/board_tests_mutability2` (kit from #1088) on the Tang Nano 20K and sent back `mutability2_results.json` (run stamped 2026-10-12T17:24:54, 27 MHz); a copy is kept in `fpga/board_tests_mutability2/results/mutability2_results_2026-10-12_board.json`. Only the JSON was sent: no `.txt` and no console paste, so the verdict line is the JSON's `"pass": true` plus the per-item `ok` flags, which I re-checked by hand against the expected words.
+
+**Result:** all 7 reconfiguration phases correct (12345678, 12345588, EDCBA987, 00123456, 12345600, 88885000, 12345678), each delivered ONLY by the standalone command_cell_v4 through the carrier's live programming channel (the carrier's direct configuration word was tied off); both 64-result streams from the standalone sequencer_cell_v4 correct (adder first 0x46 last 0xCE; mul first 0x3A8 last 0x2850).
+
+**Counted on the card:** reprogram 40 clocks (every phase), operand-to-result latency 3 clocks (every phase), stream first result at clock 6 and 64th at clock 258 = exactly 4.00 clocks per result, for both adder and mul. These are the same counts the simulation gave (#1088). At 27 MHz that is 1.48 us per reprogram, 111 ns latency, 148 ns per streamed result (6.75 M results/s), computed from the clock period, not measured separately.
+
+**What this shows on silicon:** a standalone v4 command cell reconfigures a running carrier (core setting, shared add-on chain, choice of core, reversible) with no re-synthesis and with the direct configuration word never used; a standalone sequencer streams operands through it; the mixed-family card, the live programming channel and the carrier-session workaround (#1088) work on the real board. **Still not shown:** speed above 27 MHz (static Fmax 112.3 MHz is a tool estimate), the accumulator exercised, 32-bit streaming (sequencer is 8-bit; RAM-cell stack is the next step), the full 15-core carrier on the board, a grid. The 4 clocks per result is set by the sequencer and wrapper, not a limit of the cores. Single run, single seed.
+
+Next entry: #1090.
