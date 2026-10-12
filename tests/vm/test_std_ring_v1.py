@@ -71,3 +71,26 @@ def test_carrier_rtl_stops_after_exactly_n_laps(n):
 def test_carrier_rtl_release_gives_one_lap_each_time():
     got = _rtl(6, 4000, extra=(2200, 3200))
     assert got == L.model(8)[:8]
+
+
+# ---- the same ring on the STANDALONE v4 shells (no carrier) ----
+def _sa(n, clocks, extra=()):
+    import standalone_grid_v1 as S
+    recs = L.build_records(join=True, ring_laps=n)
+    inp = next(r for r in recs if r.io_name == "z_input")
+    rel = next(r for r in recs if r.io_name == "ring_release")
+    tap = next(r.cell_id for r in recs if r.cell_id.endswith("fb19"))
+    loads = [(40, inp.cell_id, L.Z0)] + [(t, rel.cell_id, 0) for t in extra]
+    return [v for _, v in S.simulate(recs, tap, clocks, loads=loads, workdir=tempfile.mkdtemp())]
+
+
+@needs_iverilog
+@pytest.mark.parametrize("n", [5, 6, 9])
+def test_standalone_rtl_stops_after_exactly_n_laps(n):
+    assert _sa(n, 2500) == L.model(n)[:n]
+
+
+@needs_iverilog
+def test_standalone_rtl_release_gives_one_lap_each_time_and_equals_the_carrier():
+    got = _sa(6, 4000, extra=(2200, 3200))
+    assert got == L.model(8)[:8] == _rtl(6, 4000, extra=(2200, 3200))

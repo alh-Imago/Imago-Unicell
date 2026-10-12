@@ -945,4 +945,18 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Tests.* tests/vm/test_std_ring_v1.py: 11 pass (VM 6, carrier RTL 4 + refusal); looped CORDIC, carrier grid and VIXeN system suites still pass (25 together).
 
-Next entry: #1117.
+## #1117 (12 Oct 2026) -- RING CONTROL ON THE STANDALONE NANO (v4 shells) AND THE FIRST PLACE-AND-ROUTE OF THE STD-LINE LOOP
+
+*Alan (22:52, 22:55).* "Run the stand alone side, then see if you can import the required files for the place and route"; synthesise with `-nowidelut`.
+
+*Built.* `tools/standalone_grid_v1.py`: the standalone counterpart of `carrier_grid_v3.py` (#1116): the same ICM records, face-to-face wiring, ports and `simulate()`, but each cell is its own v4 shell (`ram_shell_v1`, `adder_shell_v1e` for join mode, `branch_shell_v1`, `accumulator_shell_v1`), configured at boot by the same core words (the v4 and v4c field maps are the same). `tools/standalone_pnr_v1.py`: wraps the grid to the five card pins (BOARD_CLK, LED0-3; a power-up counter does the z0 load, the tap word is XOR-reduced so nothing is pruned), then yosys `synth_gowin -nowidelut` and nextpnr (GW2AR-LV18QN88C8/I7). The P&R tools were installed here (`yowasp-nextpnr-himbaechel-gowin`, `apycula`; the repo's START.md names them).
+
+*Measured (RTL, iverilog).* Standalone grid, N = 5, 6, 9: exactly N laps with model values; two releases give laps 7 and 8; the result equals the carrier grid's clock for clock in count and value (the test compares both).
+
+*Measured (place and route, N = 6, 69 cells, seed 1, target 27 MHz).* LUT4 3377/20736 (16%), ALU 598/15552, DFF 2646/15552, 1 BUFG, 5 IOB; nextpnr static Fmax 165.56 MHz (timing met at 27). The ring-control cells add 8 of the 69. Static figure from nextpnr, not run on the card.
+
+*Honest scope.* The whole standalone std-line loop (CORDIC + ring control) fits the card with room to spare; the full carrier system was not P&R'd (Alan expects it to exceed the card; not measured here). Not yet run on the real board. N >= 5; the offset is calibrated. The nano's own `nano_gate` core is not in this loop (the loop uses ram/adder/branch/accumulator). Save/load tests that were blocked for lack of target cells are the next job (Alan 22:57); not started.
+
+*Tests.* tests/vm/test_std_ring_v1.py: 14 pass (VM 6, carrier RTL 4, standalone RTL 4).
+
+Next entry: #1118.
