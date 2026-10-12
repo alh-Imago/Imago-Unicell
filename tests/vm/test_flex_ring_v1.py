@@ -118,9 +118,10 @@ def test_without_the_flag_a_cycle_is_still_refused_with_its_reason():
     assert r.returncode != 0 and "has a cycle" in r.stderr
 
 
-def test_sub_does_not_accept_rings_yet():
+def test_sub_rings_need_their_own_control_too():
+    # ledger #1111: the sub family now accepts rings (lap-by-lap hold and refire, tests/vm/test_sub_ring_v1.py) -- and refuses one without a control exactly like flex
     r = subprocess.run(ASM + ["-s", "sub", "--allow-rings", "--icm", ICM, "--output", tempfile.mkdtemp()], capture_output=True, text=True)
-    assert r.returncode != 0 and "flex only" in r.stderr
+    assert r.returncode != 0 and "no control mechanism" in r.stderr
 
 
 def test_the_flag_changes_nothing_for_an_acyclic_design():

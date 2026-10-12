@@ -308,6 +308,7 @@ def lower_branches(cells, inputs, outputs):
 MUL_REALISATIONS = {"lut": {"module": "mul_cell_v4s", "cost": {"LUT4": {"default": 4277, "nowidelut": 1398}}},
                     "dsp2": {"module": "mul_cell_v4s_dsp2", "primitive": "MULT36X36"}}
 MUL_MODULES = {k: v["module"] for k, v in MUL_REALISATIONS.items()}
+RING_LAG = 1      # ledger #1111: clocks the refire waits after the word reaches the measure point (counter -> stop latch settling); measured, see tests/vm/test_sub_ring_v1.py
 BUILT_WIDTH = 32     # the width every --icm generator builds today (ledger #958: a declared min_bit_width above this is refused)
 FLEX_STAGE1_CORES = {"ram", "adder", "mul", "div", "nano", "comparator", "accumulator", "latch", "branch", "sequencer", "priority"}
 LUT_BUDGET_FRACTION = 0.9
@@ -597,8 +598,8 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
         bad = sorted(d for s_, d in ring_back if CORES[cells[d].core]["kind"] == "pair")
         if bad:
             raise IcmGenError(f"{bad}: the edge that closes a ring enters a two-operand cell -- only a ring that closes into a relay / merge (its entry) is translated")
-        if family != "flex":
-            raise IcmGenError("a closed ring is translated on the flex family only (the handshake makes it self-timing); sub needs a known ring period and is not built")
+        if family != "flex" and len({s_ for s_, d in ring_back}) != 1:
+            raise IcmGenError("a sub ring is built with ONE measure point (lap-by-lap hold and refire, ledger #1111); this design has %d closing edges" % len(ring_back))
     srcs_fwd = {c: [q for q in srcs_of[c] if (q, c) not in ring_back] for c in srcs_of}
     order = []
     remaining = set(cells)
@@ -712,6 +713,10 @@ def emit_top(top, p, width=32):
     a("    input  wire rst,")
     a("    input  wire cfg_valid,")
     ports = []
+    ring_n = p.get("ring_steps")
+    ring_back = p.get("ring_back") or set()
+    if ring_back:                                                   # ledger #1111: the sub ring's control ports
+        ports += ["    input  wire        ring_release", "    output wire        ring_held", "    output wire        ring_stopped"]
     for c in entries:
         n = pname(cells[c].io_name, c)
         if cells[c].core == "sequencer":                          # a tick, not a datum: the pulse that advances the sequence
@@ -723,6 +728,8 @@ def emit_top(top, p, width=32):
         ports += [f"    output wire [31:0] out_{n}_data", f"    output wire        out_{n}_valid"]
     a(",\n".join(ports))
     a(");")
+    if ring_back:
+        a("wire ring_fire;   // the refire: the ONLY thing that carries the held word from the measure point back to the entry (ledger #1111)")
     for c in p["order"]:
         i = _ident(c)
         a(f"wire [31:0] {i}_d; wire {i}_v;")
@@ -757,7 +764,7 @@ def emit_top(top, p, width=32):
         if len(srcs) == 1:
             return net(cid, srcs[0])
         i = _ident(cid)
-        nets = [net(cid, q) for q in srcs]
+        nets = [((net(cid, q)[0], "ring_fire") if (q, cid) in ring_back else net(cid, q)) for q in srcs]   # a ring's closing edge is offered ONLY when refired
         terms = " | ".join(f"({v} ? {d} : 32'h0)" for d, v in nets)
         a(f"wire [31:0] {i}_mrg_d = {terms};   // gated-OR merge of {len(srcs)} sources")
         a(f"wire {i}_mrg_v = " + " | ".join(v for _, v in nets) + ";")
@@ -883,6 +890,19 @@ def emit_top(top, p, width=32):
                   f".data_in({dd}), .valid_in({vv}), .data_out({out_d}), .valid_out({out_v}));")
         if c in addons and CORES[r.core]["kind"] != "branch":
             a(f"assign {i}_d = {addon_expr(addons[c], out_d)};   // addon chain (mask/shift/lane-cut/invert) as pure wiring, no latency")
+    if ring_back:
+        xc = sorted({s_ for s_, d in ring_back})[0]
+        xi = _ident(xc)
+        a("// ---- ring control (ledger #1111; Alan: the ring completes ONE lap, halts at the measure point, is refired; no timing of the ring is needed) ----")
+        a(f"localparam RING_LAG = {RING_LAG};")
+        a("reg [3:0] ring_age = 4'd0;")
+        a("wire ring_held_w, ring_stop_w, ring_cnt_v, ring_held_v, ring_stop_v; wire [31:0] ring_cnt_d, ring_held_d, ring_stop_d;")
+        a(f"latch_cell_v4s #(.CELL_ID(16'd60002)) u_ring_held ({cfg_args()}, .set_in({xi}_v), .clear_in(ring_fire), .toggle_in(1'b0), .data_out(ring_held_d), .valid_out(ring_held_v));   // the measure point has a word")
+        a(f"accumulator_cell_v4s #(.CELL_ID(16'd60000)) u_ring_count ({cfg_args('{7\'b0, 16\'d' + str(ring_n) + ', 1\'b1, 8\'d1}')}, .inc_pulse({xi}_v), .dec_pulse(1'b0), .data_out(ring_cnt_d), .valid_out(ring_cnt_v));")
+        a(f"latch_cell_v4s #(.CELL_ID(16'd60001)) u_ring_stop ({cfg_args()}, .set_in(ring_cnt_v), .clear_in(ring_release), .toggle_in(1'b0), .data_out(ring_stop_d), .valid_out(ring_stop_v));")
+        a("assign ring_held = ring_held_d[0]; assign ring_stopped = ring_stop_d[0];")
+        a("always @(posedge clk) begin if (rst || !ring_held) ring_age <= 4'd0; else if (ring_age != 4'hF) ring_age <= ring_age + 4'd1; end")
+        a("assign ring_fire = ring_held & ~ring_stopped & (ring_age >= RING_LAG);   // refire while allowed; the stop is set by the counter RING_LAG clocks after the Nth arrival")
     for c in exits:
         n, i = pname(cells[c].io_name, c), _ident(c)
         a(f"assign out_{n}_data = {i}_d;")
@@ -895,15 +915,16 @@ def _refuse_div_steps(icm_path):
     """ledger #1077: the sub divider is built at 32 quotient bits per clock only. A record asking for another K is refused with the reason (a looped divider needs a latency and throughput model in the planner)."""
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "nano"))
     import icm_v3, target_capabilities_v1 as tc
-    recs = icm_v3.IcmV3File.load(icm_path).records
+    try:
+        recs = icm_v3.IcmV3File.load(icm_path).records
+    except ValueError:                                           # a hierarchical file (ledger #1111): the netlist reader flattens it
+        recs = nl.extract(icm_path)[1]
     bad = [m for m in tc.check_records([r for r in recs if r.core == "div"], "sub") if "steps" in m]
     if bad:
         raise ValueError("; ".join(bad))
 
 
 def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate", width=None, rings=False, ring_steps=None):
-    if rings and family != "flex":
-        raise ValueError("--allow-rings applies to -s flex only (the handshake makes a closed ring self-timing; the sub family needs a known ring period and has no ring support yet)")
     if width not in (None, BUILT_WIDTH) and family != "flex":
         raise ValueError("-w with --icm applies to -s flex only (the sub family is fixed 32 bits)")
     if family == "flex":
@@ -912,7 +933,15 @@ def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=Non
     _refuse_div_steps(icm_path)
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
-    p = plan(icm_path, align, man=man, mul_mode=mul_mode, nowidelut=nowidelut)
+    p = plan(icm_path, align, man=man, mul_mode=mul_mode, nowidelut=nowidelut, rings=rings)
+    if p["ring_back"]:
+        if not ring_steps:
+            raise ValueError("the design has a ring and no control mechanism: a ring with nothing to stop it runs away (Alan, ledger #1110). Give --ring-steps N: the ring completes one lap, halts at the measure point and is refired, N laps, then it stops and raises ring_stopped.")
+        if not 1 <= int(ring_steps) <= 65535:
+            raise ValueError("--ring-steps must be 1..65535")
+        p["ring_steps"] = int(ring_steps)
+    elif ring_steps:
+        raise ValueError("--ring-steps given but the design has no ring")
     stem = re.sub(r"[^A-Za-z0-9_]", "_", os.path.basename(icm_path).split(".")[0])
     top = top or f"icm_{stem}_sub"
     cell_dir = cell_dir or fsa.DEFAULT_CELL_DIR
