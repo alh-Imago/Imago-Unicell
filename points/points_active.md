@@ -712,4 +712,25 @@ Alan asked for the results to be on the main branch (they had been going to the 
 
 **Next:** the wrapper (step counter, programmable halt count, state read-out and load of the exit word and `rr` flags over serial), then the board kit; the VM save/halt at the same event.
 
-Next entry: #1097.
+### #1097 (12 Oct 2026) -- Both stops built and simulated: back pressure and a true freeze, tripped by an accumulator -> latch chain, released by the host
+
+**Alan's design (12 Oct, 17:58-18:00):** freeze by back pressure and by a real freeze line, both; the freeze trigger made from the family's own cells (an accumulator counting steps, its fire setting a latch whose level is the freeze line); the latch state is readable by the host as the "stopped, safe to read" indication; the host then flips the latch to release. Back pressure is the same idea as freeze done through the handshake: the stall travels back along the acknowledge path and the design runs itself down to a quiet state (the clock freeze, `freeze_in`, holds every register where it is instead).
+
+**Built (new files only):**
+- `tools/flex_freeze_net_v1.py`: post-processes an assembler output into `<top>_fz.v`, joining every cell's `freeze_in` (the assembler ties them all to 1'b0; left untouched) to a new input `freeze_all`. Refuses if any instance lacks the tied form. 61 cells joined here.
+- `sub/verilog/looped_cordic_stop_wrapper_v1.v`: closes the open-ring loop with a one-word register (also the point where the host can load a word); step counter = `accumulator_cell_v4sa` in pulse mode (step 1, threshold N) driven by each result taken; stop level = `latch_cell_v4sa` (set by the counter's fire, cleared by `release_pulse`; `stopped` = its data_out[0]); `mode[0]` = back pressure (the closing register stops feeding the grid), `mode[1]` = freeze (the latch level drives `freeze_all`); `feed_delay` and `trig_lag` (test knobs) move where the stop lands. The counter and latch are not frozen, so release always works. A hardware step counter `steps_done` is also kept.
+- `tools/flex_stop_run_v1.py`: builds (assembler + freeze net + wrapper + a generated testbench that lists every grid cell still holding a word) and runs it in iverilog.
+
+**Measured (simulation; no board):** every case below stops at the programmed step, is released, re-armed for 3 more steps, and the results (6 or 8 of them) equal the Python model exactly. 
+- Back pressure only: stops at step 3; the grid is completely quiet (0 cells hold a word); the word is in the closing register.
+- Freeze only, word still in the closing register when the freeze lands: same (0 cells busy, word in the register).
+- Freeze landing with the word already inside the grid (trigger lag 0, 12, 25 clocks): **exactly one grid cell holds the word, and which cell depends on when the freeze lands** (`s0.branch`, `s2.turn_neg`, `lp.fb5` in these three runs). With one item circulating, a frozen state is still one word, but its cell has to be named in the save; with several items in flight it would be several cells.
+- Back pressure alone with the stop landing late (lag 25): the stall reaches the closing register one step later, so it stopped at step 4 instead of 3 (event-defined, but the count it stops on depends on the lag). Pure back pressure is exact only when the stop signal is early enough; the freeze acts at the clock it rises.
+- Synthesis only (yosys `synth_gowin -nowidelut`, grid + wrapper): 582 LUT1-4 (11/152/317/102), 403 ALU, 1,730 flip-flops (64 IBUF, 83 OBUF are the unused simulation ports); no place-and-route, no timing.
+- Tests: `tests/vm/test_flex_vm_rtl_lockstep_v1.py` now has 3 tests (they fail, not skip, without iverilog).
+
+**NOT done:** nothing on a board; the host side (serial frames to set N, read `stopped`/`steps_done`/held word, release, load a word) and the read of the frozen cell and the merge `rr` flags are not built; the VM stop on the same event is not written; the freeze has not run on a card (prior ledger: freeze never run on a card). The wrapper's `mode`/`N` etc. are ports for the testbench only.
+
+**Next:** the serial front end and board kit (set N and mode, read stopped/steps/held word/`rr`, release, load), then the VM save at the same event; the freeze-vs-usual-FPGA-route comparison (#1091) gets its freeze numbers from this.
+
+Next entry: #1098.

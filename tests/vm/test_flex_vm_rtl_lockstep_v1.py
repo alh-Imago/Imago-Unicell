@@ -44,3 +44,40 @@ def test_a_self_halted_loop_settles_to_one_word_in_the_exit_relay():
     subprocess.run(["iverilog", "-g2012", "-o", vvp] + srcs, check=True, capture_output=True)
     lines = [l for l in subprocess.run(["vvp", vvp], check=True, capture_output=True, text=True).stdout.splitlines() if l.startswith(("HALT", "BUSY"))]
     assert lines == ["HALT n=2 od=%d ov=1" % L.model(3)[2], "BUSY c_lp_fb19"]
+
+
+def test_self_stop_by_back_pressure_and_by_freeze_then_release_resumes_exactly():
+    """Ledger #1097: the loop closed by a one-word register, stopped by an accumulator (counting steps) feeding a latch (the stop level), the host releasing the latch. Every case: stop at the
+    programmed step, release, run on, and every result equals the Python model."""
+    if not (shutil.which("iverilog") and shutil.which("vvp")):
+        pytest.fail("iverilog missing: this test must not pass by skipping")
+    sys.path.insert(0, os.path.join(ROOT, "nano"))
+    import tempfile
+    import looped_cordic_v1 as L
+    import flex_stop_run_v1 as S
+    w = tempfile.mkdtemp()
+    S.build(w)
+    model = L.model(10)
+
+    def go(**kw):
+        lines = S.run(w, **kw).splitlines()
+        res = [int(l.split()[2]) for l in lines if l.startswith("R ")]
+        assert res == model[:len(res)] and len(res) >= 6
+        assert not [l for l in lines if l.startswith("TIMEOUT")]
+        return [l for l in lines if l.startswith("STOP ")][0], [l.split()[1] for l in lines if l.startswith("BUSY")]
+    # back pressure only: the grid runs down to nothing, the word sits in the loop-closing register
+    stop, busy = go(mode=1, dly=4, n=3, m=3)
+    assert stop == "STOP steps=3 held=%d valid=1 busy=0" % model[2] and busy == []
+    # freeze only, the word still in the closing register when the freeze lands
+    stop, busy = go(mode=2, dly=4, n=3, m=3)
+    assert stop == "STOP steps=3 held=%d valid=1 busy=0" % model[2] and busy == []
+    # freeze caught with the word inside the grid: exactly one cell holds it, and which cell depends on when the freeze lands
+    seen = set()
+    for lag in (0, 12, 25):
+        stop, busy = go(mode=2, dly=0, n=3, m=3, lag=lag)
+        assert stop == "STOP steps=3 held=%d valid=0 busy=1" % model[2] and len(busy) == 1
+        seen.add(busy[0])
+    assert len(seen) == 3
+    # back pressure alone, stop landing late: the stall reaches the closing register one step later (stop at count 4, not 3), still event-defined and still exact
+    stop, busy = go(mode=1, dly=0, n=3, m=3, lag=25)
+    assert stop.startswith("STOP steps=4 ")
