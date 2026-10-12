@@ -272,6 +272,9 @@ Run `which iverilog yosys` before trusting a green run.
 
 ## Wiring/structural gotchas — real, enforced by a composed tile, not just described here
 
+### VIXeN fixes the constant-pairs-with-itself problem with `join_mode` (`#1102`, `#1105`)
+The two gotchas below (arrival-order pairing, and a live constant pairing with itself) are properties of the STANDARD capture: the VM's `SuperGrid`, and the carrier cells up to `v1d`. VIXeN (`unicell_vixen_v1`, the final carrier) adds `join_mode` to the adder, multiplier and divider: A is the lowest upstream face, B the next, and the cell fires only when BOTH are present, as the flex cells do. Measured: the looped CORDIC (fixed constants into 9 adders) gave only the K+K junk on the standard capture and equals its independent model, word for word to step 1000, with `join_mode` on in a full carrier grid. It is off by default and needs two faces in `upstream_mask`; the older carriers ignore the bit, so the compile target `vixen` is what switches it on (`nano/join_pass_v1.py` marks every two-face adder/mul/div that a fixed-mode ram feeds). A flex cell always joins, so the key does nothing there.
+
 ### A continuously-live constant source double-counts at a two-arrival (matched-pair) core (`#742`)
 **Real, confirmed directly, matters for ANY code generator feeding a
 compile-time-known constant into `adder` (or any future core with the

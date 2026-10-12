@@ -265,6 +265,10 @@ def _place_for_opcode(opcode: str, cell_id: str, row: int, col: int,
         raise ValueError(f"no real library entry for opcode {opcode!r} -- #752's own escalation "
                           f"ladder applies: check the shared library, then AI research, then Composer")
     second = _second_output_params(opcode, instr_params)   # refuses a flag on an opcode that has no second output (before any branch below)
+    if (instr_params or {}).get("join_mode"):               # ledger #1105 (VIXeN): ask for a true join on a two-operand cell; refused on any other core, absent / 0 = nothing written
+        if entry.tile.core not in ("adder", "mul", "div"):
+            raise ValueError(f"opcode {opcode!r} has no join_mode: only add/sub/mul/div cells take two operands")
+        second = {**second, "join_mode": 1}
     if entry.port_style == "unconditional":
         # nano_gate has no real, named "in" port at all (#718/#781's
         # own confirmed finding) -- only "out" is real and named;

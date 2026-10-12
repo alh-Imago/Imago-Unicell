@@ -145,6 +145,7 @@ Flex-only generators record hold/one-shot as build parameters, not new `cfg_data
 | `subtract_mode` | `[8]` | |
 | `second_output` | `[12]` | also deliver the carry (0/1 word; subtract = NOT-borrow) as a second word. Alias `carry_mode`. #976/#980 |
 | `second_downstream_mask` | `[16:13]` | faces the second word leaves by; empty = same as `downstream_mask`. #981 |
+| `join_mode` | `[24]` | VIXeN (#1105): 1 = true join: A from the lowest upstream face, B from the next, taken only when both are present (needs two faces). Default 0 = the standard capture. Carrier RTL bit: `cfg_data[40]` of the `e` cores |
 
 **accumulator** (3):
 
@@ -210,6 +211,7 @@ comment uses them (#609). It has no upstream field (nothing to capture):
 | `upstream_mask` | `[7:4]` | |
 | `second_output` | `[12]` | also deliver the high half of the 2W product. Alias `wide_mode` (#853/#854, #980) |
 | `second_downstream_mask` | `[16:13]` | faces the high word leaves by; empty = same as `downstream_mask`. #981 |
+| `join_mode` | `[24]` | VIXeN (#1105): as on the adder |
 
 **priority** (9). The ranks are 2 bits each (#814). The width of
 `scheduling_mode` is a generous 2 bits, not a hardware-confirmed width.
@@ -373,6 +375,8 @@ each target either meets it or refuses:
 | `second_output` | mul only (sequential, same faces) | adder, mul | — |
 | `second_downstream_mask` | — | adder, mul | — |
 | shift amount | coarse + fine | any 0-31 | coarse only |
+
+`join_mode` (#1105): adder, mul and div on target `vixen` (the standard line on the VIXeN carrier); `flex` accepts it and ignores it (flex cells always join); `std` and `sub` refuse it. The compile target `vixen` runs `nano/join_pass_v1.py`, which sets it wherever a fixed-mode ram feeds a two-face adder/mul/div.
 
 The std VM (`SuperGrid`) refuses `second_output` on an adder and any
 `second_downstream_mask`. `FlexGrid` accepts and mirrors both.

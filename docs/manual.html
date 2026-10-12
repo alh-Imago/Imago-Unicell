@@ -3316,6 +3316,11 @@ extension.</p>
 <td><code>[16:13]</code></td>
 <td>faces the second word leaves by; empty = same as <code>downstream_mask</code>. #981</td>
 </tr>
+<tr>
+<td><code>join_mode</code></td>
+<td><code>[24]</code></td>
+<td>VIXeN (#1105): 1 = true join: A from the lowest upstream face, B from the next, taken only when both are present (needs two faces). Default 0 = the standard capture. Carrier RTL bit: <code>cfg_data[40]</code> of the <code>e</code> cores</td>
+</tr>
 </tbody>
 </table>
 <p><strong>accumulator</strong> (3):</p>
@@ -3498,6 +3503,11 @@ comment uses them (#609). It has no upstream field (nothing to capture):</p>
 <td><code>second_downstream_mask</code></td>
 <td><code>[16:13]</code></td>
 <td>faces the high word leaves by; empty = same as <code>downstream_mask</code>. #981</td>
+</tr>
+<tr>
+<td><code>join_mode</code></td>
+<td><code>[24]</code></td>
+<td>VIXeN (#1105): as on the adder</td>
 </tr>
 </tbody>
 </table>
@@ -3790,6 +3800,7 @@ each target either meets it or refuses:</p>
 </tr>
 </tbody>
 </table>
+<p><code>join_mode</code> (#1105): adder, mul and div on target <code>vixen</code> (the standard line on the VIXeN carrier); <code>flex</code> accepts it and ignores it (flex cells always join); <code>std</code> and <code>sub</code> refuse it. The compile target <code>vixen</code> runs <code>nano/join_pass_v1.py</code>, which sets it wherever a fixed-mode ram feeds a two-face adder/mul/div.</p>
 <p>The std VM (<code>SuperGrid</code>) refuses <code>second_output</code> on an adder and any
 <code>second_downstream_mask</code>. <code>FlexGrid</code> accepts and mirrors both.</p>
 <h2>Scope</h2>
@@ -4816,6 +4827,8 @@ config-time selectable, not synthesis-time fixed.</p>
 <li><strong>Sim-only, no Quartus attempt yet:</strong> <code>shift_lane_addon_v1.v</code>, <code>nibble_mask_addon_v1.v</code>, <code>invert_addon_v1.v</code> — the first real ADDON instances (<code>#311</code>), faithfully ported and testbench-verified, not yet wired into any cell or built in Quartus.</li>
 <li><strong>A genuinely different SHELL (see its own section above), real at the RTL level, sim-only above it:</strong> the super carrier shell itself is Quartus-confirmed real silicon (<code>#320</code>-<code>#323</code>); everything built on top of it this session (ICM v3, the VM, the tile library, the compiler) is real and tested in software/simulation, not yet independently Quartus/silicon-confirmed as those specific multi-cell layouts.</li>
 </ul>
+<h2>VIXeN — the final VIX carrier (<code>unicell_vixen_v1.v</code>, ledger #1105, Oct 2026)</h2>
+<p>A clone of the <code>v1d</code> carrier (which is untouched) with five cores swapped for <code>e</code> versions, so the carrier cores reach the flex family's behaviours (the command core on the sub side is the one exception). New in the <code>e</code> cores: <strong>join mode</strong> on <code>adder_cell_v4e</code>, <code>mul_cell_v5e</code>, <code>div_cell_v4e</code> (<code>cfg_data[40]</code>, PROG_ID 6; A from the lowest upstream face, B from the next, fires on both; off = the old behaviour); the <strong>sequenced channel</strong> on <code>priority_cell_v4e</code> (a fixed turn order, accepts only the due face; cfg <code>[21]</code> on, <code>[24:22]</code> length, <code>[32:25]</code> the four 2-bit turns, PROG_ID 3); <strong>hold / feedback / re-emit / update / self-update from config</strong> on <code>nano_gate_v4e</code> (<code>cmd_latch[18:14]</code>, ORed with the live wires, PROG_ID 7). Shells <code>*_shell_v1e</code>. Benches: <code>tb_vixen_join_v1.v</code>, <code>tb_vixen_priority_seq_v1.v</code>, <code>tb_vixen_nano_cfg_v1.v</code>, with mutation checks in <code>tests/vm/test_vixen_v1.py</code>. Measured cost on the ram/adder/branch cut (yosys, <code>synth_gowin -nowidelut</code>): +113 LUT4 (about +10%) over <code>v1d</code>. Proof: the full 61-cell looped CORDIC in a VIXeN carrier grid equals the independent model to step 1000 from two different saved states. Not done: a board run; branch parity between the flex and carrier shapes.</p>
 <h2>The VIX Carrier — a real, third, newest generation, distinct from both tables above (<code>points.md</code> #628-#666, #719-#731, 2026-09-04 through 2026-09-15)</h2>
 <p><strong>Real, important naming warning, stated up front:</strong> this is a
 GENUINELY separate lineage from the super carrier shell above, not an
@@ -5264,6 +5277,8 @@ XOR-reduce every output and drive inputs from an LFSR. A cell that
 <h3>Measuring: the flex/sub suites SKIP without <code>iverilog</code> and exit 0 (<code>#965</code>)</h3>
 <p>Run <code>which iverilog yosys</code> before trusting a green run.</p>
 <h2>Wiring/structural gotchas — real, enforced by a composed tile, not just described here</h2>
+<h3>VIXeN fixes the constant-pairs-with-itself problem with <code>join_mode</code> (<code>#1102</code>, <code>#1105</code>)</h3>
+<p>The two gotchas below (arrival-order pairing, and a live constant pairing with itself) are properties of the STANDARD capture: the VM's <code>SuperGrid</code>, and the carrier cells up to <code>v1d</code>. VIXeN (<code>unicell_vixen_v1</code>, the final carrier) adds <code>join_mode</code> to the adder, multiplier and divider: A is the lowest upstream face, B the next, and the cell fires only when BOTH are present, as the flex cells do. Measured: the looped CORDIC (fixed constants into 9 adders) gave only the K+K junk on the standard capture and equals its independent model, word for word to step 1000, with <code>join_mode</code> on in a full carrier grid. It is off by default and needs two faces in <code>upstream_mask</code>; the older carriers ignore the bit, so the compile target <code>vixen</code> is what switches it on (<code>nano/join_pass_v1.py</code> marks every two-face adder/mul/div that a fixed-mode ram feeds). A flex cell always joins, so the key does nothing there.</p>
 <h3>A continuously-live constant source double-counts at a two-arrival (matched-pair) core (<code>#742</code>)</h3>
 <p><strong>Real, confirmed directly, matters for ANY code generator feeding a
 compile-time-known constant into <code>adder</code> (or any future core with the
@@ -5368,6 +5383,7 @@ offer a way to override it independent of that.</p>
   compiler tells you exactly which ports and params that tile actually
   has.</li>
 </ul>
+<p><strong>Optional flags on a two-operand tile (VIXeN, <code>points.md</code> #1105).</strong> <code>adder</code>, <code>subtractor</code>, <code>mul</code>, <code>div</code> and <code>rem</code> accept <code>join_mode: 1</code> as an ordinary field. It makes the cell wait for BOTH of its operand faces (A from the lowest configured face, B from the next) instead of taking any two successive arrivals, which is what a fixed constant needs (otherwise it pairs with itself). It is off when absent, needs two faces in the upstream mask, and only compiles for the targets that have it (<code>vixen</code>, and <code>flex</code> where it changes nothing); the older <code>std</code> and <code>sub</code> targets refuse it with a message.</p>
 <h3>3.4 Field values</h3>
 <pre><code>field := IDENT &quot;:&quot; value
 value := IDENT | NUMBER | &quot;[&quot; IDENT (&quot;,&quot; IDENT)* &quot;]&quot;
@@ -6545,6 +6561,12 @@ before comparing (<code>#965</code>).</p>
 <p>Nine one-off, demo and measurement scripts now live in <a href="../experimental/README.md"><code>experimental/</code></a> (moved 9 Oct 2026). Mentions of them below use the old paths.</p>
 </blockquote>
 <p>Standalone utilities and offshoots built alongside the Imago UniCell project.</p>
+<h2>VIXeN tools (ledger #1105/#1106)</h2>
+<ul>
+<li><code>project_assemble_v1.py --shell vixen</code> builds an array of the VIXeN carrier (dependencies derived from <code>unicell_vixen_v1.v</code>); <code>--shell vix</code> is the older carrier array, unchanged.</li>
+<li><code>carrier_grid_v2.py --icm FILE --out DIR --top NAME [--carrier vixen|v1d]</code> turns an ICM design into a GRID of carriers in Verilog (ram / adder / branch), each configured by its 160-bit VIX_LATCH word, for simulation; <code>records_from_latch()</code> decodes those words back into ICM records (card -&gt; VM). <code>make_carrier_subset_v3.py [--vixen]</code> cuts a carrier to the cores a design uses.</li>
+<li><code>nano/join_pass_v1.py</code> (used by the <code>vixen</code> compile target) sets <code>join_mode</code> where a fixed constant feeds a two-face adder/mul/div.</li>
+</ul>
 <h2><code>project_assemble_v1.py</code> — real N-cell Quartus project generator</h2>
 <p>Given a MAN file (a card's own real capabilities, see <code>docs/man/</code>)
 and a cell count, generates one complete, self-contained folder ready

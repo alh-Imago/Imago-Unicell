@@ -77,3 +77,57 @@ def test_assembler_shell_vixen_builds_an_array_of_the_vixen_carrier(shell, modul
     srcs = [os.path.join(d, f) for f in os.listdir(d) if f.endswith(".v") and not f.startswith("tb_")]
     r = subprocess.run(["iverilog", "-g2012", "-o", os.path.join(out, "t.vvp")] + srcs, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-500:]
+
+
+# ---- tiles, dispatcher parameter, composer panel (ledger #1105, the rest of the tool chain) ----
+
+@pytest.mark.parametrize("tile", ["adder", "subtractor", "mul", "div", "rem"])
+def test_vix_tiles_take_join_mode_as_an_optional_flag(tile):
+    import vix_tile_library_v1 as vtl
+    t = vtl.vix_tile_library[tile]
+    base = {"second_output": 0} if tile == "mul" else {}                      # the mul tile requires second_output as a param
+    c = vtl.place(t, {"in_a": "w", "in_b": "n", "out": "e"}, params={**base, "join_mode": 1})
+    assert c.core_config["join_mode"] == 1
+    assert "join_mode" not in vtl.place(t, {"in_a": "w", "in_b": "n", "out": "e"}, params=base).core_config      # default: absent
+
+
+def test_dispatcher_instruction_param_join_mode():
+    import vix_dag_dispatcher_v1 as D
+    def cfg(op, params):
+        icm, *_ = D.compile_dag([D.DagInstr("a", op, [D.DagOperand("dynamic"), D.DagOperand("dynamic")], params)])
+        return [r for r in icm.flatten()[0] if r.cell_id == "main.a"][0].core_config
+    assert cfg("add", {"join_mode": 1})["join_mode"] == 1 and cfg("mul", {"join_mode": 1})["join_mode"] == 1
+    assert "join_mode" not in cfg("add", {}) and "join_mode" not in cfg("add", {"join_mode": 0})
+    with pytest.raises(ValueError, match="join_mode"):
+        cfg("xor", {"join_mode": 1})
+
+
+def test_dsl_place_statement_with_join_mode_compiles_for_the_vixen_target():
+    from program_ir_v1 import ProgramIR, PlaceIR, FieldIR
+    from vix_compiler_v1 import compile_program_ir_vix
+    prog = ProgramIR(name="p", statements=[PlaceIR(name="c", tile_name="adder", row=0, col=0, fields=[FieldIR(k, v) for k, v in dict(in_a="w", in_b="n", out="e", join_mode=1).items()])])
+    icm, d = compile_program_ir_vix(prog, target="vixen")
+    assert icm is not None, d
+    assert icm.flatten()[0][0].core_config["join_mode"] == 1
+    icm2, d2 = compile_program_ir_vix(prog, target="std")           # the older line refuses it, with a reason
+    assert icm2 is None and any("join_mode" in x.problem for x in d2)
+
+
+def test_composer_panel_lists_join_mode_for_adder_mul_div():
+    import flex_layout_view_v1 as flv
+    cores = flv.core_meta()["cores"]
+    for core in ("adder", "mul", "div"):
+        fields = {f["name"]: f for f in cores[core]["fields"]}
+        assert fields["join_mode"]["kind"] == "toggle" and fields["join_mode"]["lo"] == 24
+
+
+def test_dsl_source_text_with_join_mode_compiles():
+    import dsl_lexer_v1 as lx, dsl_parser_v1 as ps
+    from vix_compiler_v1 import compile_program_ir_vix
+    src = "program j {\n    place a as adder at (0, 0) {\n        in_a: w\n        in_b: n\n        out: e\n        join_mode: 1\n    }\n}\n"
+    toks, d0 = lx.tokenize(src) if isinstance(lx.tokenize(src), tuple) else (lx.tokenize(src), [])
+    prog, d1 = ps.parse_source(toks)
+    assert prog is not None, (d0, d1)
+    icm, d2 = compile_program_ir_vix(prog, target="vixen")
+    assert icm is not None, d2
+    assert icm.flatten()[0][0].core_config["join_mode"] == 1

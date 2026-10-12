@@ -293,7 +293,7 @@ TILE_ADDER = register(VixTileSpec(
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
     arrivals_needed=2,
-    optional_params=["second_output", "second_downstream_mask"],  # ledger #976/#980/#981 (FLEX family only; `carry_mode` is an accepted alias): the ONE flag the compiler sets to ask for the carry-out as a second output word, delivered after the sum to the same downstream
+    optional_params=["second_output", "second_downstream_mask", "join_mode"],  # ledger #1105: join_mode (VIXeN) | ledger #976/#980/#981 (FLEX family only; `carry_mode` is an accepted alias): the ONE flag the compiler sets to ask for the carry-out as a second output word, delivered after the sum to the same downstream
 ))
 
 TILE_SUBTRACTOR = register(VixTileSpec(
@@ -304,7 +304,7 @@ TILE_SUBTRACTOR = register(VixTileSpec(
            TilePort("out", "out", "downstream_mask")],
     fixed_core_config={"subtract_mode": 1},
     arrivals_needed=2,
-    optional_params=["second_output", "second_downstream_mask"],  # ledger #976/#980/#981 (flex only; `carry_mode` is an alias): the raw carry of a + ~b + 1, i.e. NOT-borrow
+    optional_params=["second_output", "second_downstream_mask", "join_mode"],  # ledger #1105: join_mode (VIXeN) | ledger #976/#980/#981 (flex only; `carry_mode` is an alias): the raw carry of a + ~b + 1, i.e. NOT-borrow
 ))
 
 TILE_MUL = register(VixTileSpec(
@@ -325,7 +325,7 @@ TILE_MUL = register(VixTileSpec(
                  "a second port to wire up.",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
-    optional_params=["second_downstream_mask"],   # ledger #981 (flex only): faces the second word leaves by; absent = same faces as the first
+    optional_params=["second_downstream_mask", "join_mode"],   # ledger #981 (flex only): faces the second word leaves by; absent = same faces as the first. ledger #1105: join_mode (VIXeN)
     param_names=["second_output"],   # ledger #980: canonical name; `wide_mode` is an accepted alias (place() renames it)
     arrivals_needed=2,
 ))
@@ -340,7 +340,7 @@ TILE_DIV = register(VixTileSpec(
                  "div_cell_v4 / div_cell_v4c, carrier slot 15).",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
-    optional_params=["second_output", "second_downstream_mask", "remainder_primary", "steps"],
+    optional_params=["second_output", "second_downstream_mask", "remainder_primary", "steps", "join_mode"],   # ledger #1105: join_mode (VIXeN)
     arrivals_needed=2,
 ))
 
@@ -351,7 +351,7 @@ TILE_REM = register(VixTileSpec(
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
     fixed_core_config={"remainder_primary": 1},
-    optional_params=["second_output", "second_downstream_mask"],
+    optional_params=["second_output", "second_downstream_mask", "join_mode"],   # ledger #1105
     arrivals_needed=2,
 ))
 
