@@ -564,7 +564,8 @@ def _argname(v: str) -> str:
 
 
 class _Emit:
-    def __init__(self, core_division: bool = False):
+    def __init__(self, core_division: bool = False, polynomial: str = "direct"):
+        self.polynomial = polynomial                      # ledger #1078: "direct" | "auto" | "horner" (see to_llvm)
         self.core_division = core_division                # ledger #1074: True = division and remainder are the `udiv` / `urem` operations of the division core (one cell each)
         self.lines: List[str] = []
         self.n = 0
@@ -613,8 +614,72 @@ def _udivmod(em: _Emit, a: str, b: str, want: str, steps: int = 32) -> str:
     return Q if want == "q" else R
 
 
+def _poly_of(e: Expr, limit: int = 64):
+    """ledger #1078: (variable, {degree: coefficient mod 2^32}) if `e` is a polynomial in ONE variable (sums, differences, products, whole powers, negation, numbers), else None.
+    The variable is None for a constant. Degrees above `limit` give None. Arithmetic is mod 2^32, exactly like the cells, so the expanded polynomial equals the formula on every word."""
+    if isinstance(e, Num):
+        return (None, {0: e.value & MASK} if e.value & MASK else {})
+    if isinstance(e, Var):
+        return (e.name, {1: 1})
+    if isinstance(e, Neg):
+        r = _poly_of(e.arg, limit)
+        return None if r is None else (r[0], {d: (-c) & MASK for d, c in r[1].items() if (-c) & MASK})
+    if isinstance(e, Pow):
+        r = _poly_of(e.base, limit)
+        if r is None:
+            return None
+        out = (None, {0: 1})
+        for _ in range(e.exp):
+            out = _poly_mul(out, r, limit)
+            if out is None:
+                return None
+        return out
+    if isinstance(e, Bin):
+        a, b = _poly_of(e.left, limit), _poly_of(e.right, limit)
+        if a is None or b is None:
+            return None
+        if a[0] and b[0] and a[0] != b[0]:
+            return None
+        if e.op == "*":
+            return _poly_mul(a, b, limit)
+        sign = 1 if e.op == "+" else -1
+        out = dict(a[1])
+        for d, c in b[1].items():
+            out[d] = (out.get(d, 0) + sign * c) & MASK
+        return (a[0] or b[0], {d: c for d, c in out.items() if c})
+    return None
+
+
+def _poly_mul(a, b, limit):
+    if a[0] and b[0] and a[0] != b[0]:
+        return None
+    out: Dict[int, int] = {}
+    for d1, c1 in a[1].items():
+        for d2, c2 in b[1].items():
+            if d1 + d2 > limit:
+                return None
+            out[d1 + d2] = (out.get(d1 + d2, 0) + c1 * c2) & MASK
+    return (a[0] or b[0], {d: c for d, c in out.items() if c})
+
+
+def _try_plan(e: Expr, em: "_Emit"):
+    """ledger #1078: place the Horner plan for `e` if it is a one-variable polynomial of degree >= 2 and the mode is "horner"; else None. (Which mode wins is decided by
+    compile_latex, by compiling both ways and counting cells: operation counts mislead, see its docstring.)"""
+    if em.polynomial == "direct" or not isinstance(e, (Bin, Pow, Neg)):
+        return None
+    r = _poly_of(e)
+    if r is None or r[0] is None or not r[1] or max(r[1]) < 2:
+        return None
+    import arith_plan_library_v1 as AP
+    coeffs = [r[1].get(d, 0) for d in range(max(r[1]) + 1)]
+    return AP.lookup("horner").emit(em, "%" + _argname(r[0]), coeffs)
+
+
 def _gen(e: Expr, em: _Emit) -> str:
     """Operand string (a %name or a literal). Literals go second wherever the operation allows it."""
+    planned = _try_plan(e, em)
+    if planned is not None:
+        return planned
     if isinstance(e, Num):
         return str(e.value if e.value < (1 << 31) else e.value - (1 << 32))
     if isinstance(e, Var):
@@ -669,11 +734,15 @@ MAX_GENERAL_DIVISIONS = 1                           # distinct long divisions pe
 DIV_STEPS = 32                                      # quotient bits produced; only tests lower it (a smaller instance divides the TOP `steps` bits of the dividend)
 
 
-def to_llvm(e: Expr, args: Optional[List[str]] = None, division: str = "core") -> Tuple[str, List[str]]:
+def to_llvm(e: Expr, args: Optional[List[str]] = None, division: str = "core", polynomial: str = "direct") -> Tuple[str, List[str]]:
     """(LLVM IR text, argument names). The returned value is always named %r. Raises LatexError if the formula has no variable or reduces to one.
     division="core" (the DEFAULT since ledger #1076, Alan's decision): a general division is the `udiv` / `urem` operation, ONE cell of the division core (any number per formula).
     Needs a target that has the division core.
-    division="unrolled": a general division is built from add/sub/mul/shifts, about 23,000 cells, at most one per formula. Needs nothing but the basic cells (for a target without the core)."""
+    division="unrolled": a general division is built from add/sub/mul/shifts, about 23,000 cells, at most one per formula. Needs nothing but the basic cells (for a target without the core).
+    polynomial="direct" (default here): the formula is built as written. "horner" (ledger #1078): every one-variable polynomial of degree 2 or more in the formula is placed as the
+    Horner PLAN (`arith_plan_library_v1`). compile_latex's own default, "auto", tries both and keeps the one that compiles to fewer cells."""
+    if polynomial not in ("horner", "direct"):
+        raise LatexError(f"polynomial must be \"horner\" or \"direct\" here, not {polynomial!r}")
     if division not in ("unrolled", "core"):
         raise LatexError(f"division must be \"unrolled\" or \"core\", not {division!r}")
     seen = variables(e)
@@ -683,7 +752,7 @@ def to_llvm(e: Expr, args: Optional[List[str]] = None, division: str = "core") -
         if seen:
             raise LatexError("whatever the inputs are, this formula always gives %d, so there is nothing to compute at run time" % e.value)
         raise LatexError("the formula contains no variable, so there is nothing to compute at run time (it is just the number %d)" % e.value)
-    em = _Emit(core_division=(division == "core"))
+    em = _Emit(core_division=(division == "core"), polynomial=polynomial)
     top = _gen(e, em)
     if len(em.divisions) > MAX_GENERAL_DIVISIONS:
         raise LatexError(f"this formula needs {len(em.divisions)} separate long divisions. Each is about 23,000 cells, and the placer takes impractically long for more than one "
@@ -862,18 +931,28 @@ def _input_cells(res: LatexResult) -> Dict[str, str]:
 HW_CHECK_MAX_CELLS = 1500          # the standard VM ticks about 3 x cells times, each tick over every cell: beyond this a vector takes minutes
 
 
-def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "core", div_steps: int = 0) -> LatexResult:
+def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "core", div_steps: int = 0, polynomial: str = "auto") -> LatexResult:
     """Parse, compile and CHECK a formula. Raises LatexError for text outside the subset (or a compiler refusal) and LatexCheckError if anything disagrees with the Python oracle.
     check=True   the generated IR is compared with the oracle on corner and random vectors (always, fast); the compiled design is ALSO run in the VM and compared, unless it has
                  more than `hw_max_cells` cells (then `hw_skipped` says so and the CLI prints it: the VM would take minutes per vector).
     check="full" the VM comparison is run whatever the size (slow for big designs).
     check=False  no comparison (not recommended).
     div_steps    0 (default: each family's own) or K = 1..32 quotient bits per clock for every division cell: a speed-versus-size choice (latency ceil(32/K) clocks; more bits per clock = more logic). Written into the design's div records as `steps`; flex builds it, sub accepts only 32, the VM ignores it (ledger #1077).
+    polynomial   "auto" (default, ledger #1078): a one-variable polynomial of degree 2 or more is built both as written and as the Horner plan (arith_plan_library_v1), and the design
+                 with fewer cells is kept; "horner" always uses the plan; "direct" never does. The design is checked against the formula either way.
     division     "core" (default) or "unrolled": see to_llvm. With "core" a formula may contain any number of divisions and the design is small enough for the VM check."""
     import llvm_dag_frontend_v1 as F
     label, tree = parse_latex(source)
-    ir, args = to_llvm(tree, division=division)
+    if polynomial not in ("auto", "horner", "direct"):
+        raise LatexError(f"polynomial must be \"auto\", \"horner\" or \"direct\", not {polynomial!r}")
+    ir, args = to_llvm(tree, division=division, polynomial="direct" if polynomial == "auto" else polynomial)
     res, diags = F.compile_llvm_via_dag(ir, placer=placer)
+    if polynomial == "auto" and res is not None:
+        ir_h, _ = to_llvm(tree, division=division, polynomial="horner")
+        if ir_h != ir:                                                  # the formula holds a polynomial the plan can place: keep whichever compiles to fewer cells (a tie keeps the direct form)
+            res_h, _d = F.compile_llvm_via_dag(ir_h, placer=placer)
+            if res_h is not None and len(res_h.records) < len(res.records):
+                ir, res = ir_h, res_h
     if res is None:
         text = "; ".join(f"{d.problem} -- {d.why}. Try: {d.suggestion}" if d.suggestion else f"{d.problem} -- {d.why}" for d in diags)
         raise LatexError("the compiler could not build this formula: " + text)
