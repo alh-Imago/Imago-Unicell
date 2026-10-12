@@ -646,7 +646,7 @@
  },
  "div": {
   "source_file": "/home/claude/Imago-Unicell/sub/verilog/div_cell_v4sa.v",
-  "_provenance_note": "ledger #1070: the division core. Field positions are icm_v3.py's own _DIV_FIELDS (the ICM super-latch layout), the mul's layout plus remainder_primary at bit 17. NOT extracted from an RTL field-map comment: the only RTL so far is the flex cell div_cell_v4sa.v (cfg_data[0] rem_enable, [1] rem_primary, a different layout); the v4/v4c cells and the carrier slot do not exist yet.",
+  "_provenance_note": "ledger #1070: the division core. Field positions are icm_v3.py's own _DIV_FIELDS (the ICM super-latch layout), the mul's layout plus remainder_primary at bit 17. NOT extracted from an RTL field-map comment: the only RTL so far is the flex cell div_cell_v4sa.v (cfg_data[0] rem_enable, [1] rem_primary, a different layout); the cardinal cells div_cell_v4 / div_cell_v4c and the carrier slot 15 were added in ledger #1073 and use the adder's cfg_data layout instead (rem_primary [12], second_output [33], second_downstream_mask [39:34]).",
   "fields": [
    {
     "name": "downstream_mask",

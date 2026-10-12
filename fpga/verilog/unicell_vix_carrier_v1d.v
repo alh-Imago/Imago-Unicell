@@ -377,7 +377,8 @@ module unicell_vix_carrier_v1d #(
                       SEL_PRIORITY = 5'd10,   // points.md #731: the 11th real core
                       SEL_CORNER = 5'd12,   // ledger #1035 (12, not 11: v1d reserves 11 for SEL_ADDON_CONFIG): the 12th core -- the corner wiring tile (E<->N,W<->S or E<->S,W<->N)
                       SEL_CROSS = 5'd13,   // ledger #1036: the 13th core -- the cross wiring tile (W<->E, N<->S)
-                      SEL_MERGE = 5'd14;   // ledger #1036: the 14th core -- the merge core (A only / B only / arbitrate / join-or)
+                      SEL_MERGE = 5'd14,
+                      SEL_DIV = 5'd15;   // ledger #1073: the 15th core -- the division core (quotient / remainder, one or two words)   // ledger #1036: the 14th core -- the merge core (A only / B only / arbitrate / join-or)
 
     // ── Per-core gated cfg_valid -- only the SELECTED core ever
     // genuinely loads config; the other 8 stay at their reset default
@@ -396,6 +397,7 @@ module unicell_vix_carrier_v1d #(
     wire cfgv_corner   = effective_cfg_valid && (incoming_select == SEL_CORNER);
     wire cfgv_cross    = effective_cfg_valid && (incoming_select == SEL_CROSS);
     wire cfgv_merge    = effective_cfg_valid && (incoming_select == SEL_MERGE);
+    wire cfgv_div      = effective_cfg_valid && (incoming_select == SEL_DIV);
 
     // ── Per-core gated arrivals -- only the selected core ever sees a
     // genuine arrival; every other core stays completely idle. ──
@@ -413,6 +415,7 @@ module unicell_vix_carrier_v1d #(
     wire sel_corner   = (core_select == SEL_CORNER);
     wire sel_cross    = (core_select == SEL_CROSS);
     wire sel_merge    = (core_select == SEL_MERGE);
+    wire sel_div      = (core_select == SEL_DIV);
 
     wire arr_n_g = arrived_n, arr_s_g = arrived_s, arr_e_g = arrived_e, arr_w_g = arrived_w;
 
@@ -470,6 +473,7 @@ module unicell_vix_carrier_v1d #(
     wire [79:0]  corner_cfg   = incoming_config[79:0];
     wire [79:0]  cross_cfg    = incoming_config[79:0];
     wire [79:0]  merge_cfg    = incoming_config[79:0];
+    wire [63:0]  div_cfg      = incoming_config[63:0];
 
     // ── Per-core outputs, wired from each instance below. ──
     wire [31:0] nano_dn, nano_ds, nano_de, nano_dw;
@@ -522,6 +526,9 @@ module unicell_vix_carrier_v1d #(
     wire [31:0] merge_dn, merge_ds, merge_de, merge_dw;
     wire merge_fn, merge_fs, merge_fe, merge_fw, merge_ready, merge_an, merge_as_, merge_ae, merge_aw, merge_pd;
     wire merge_pan, merge_pas, merge_pae, merge_paw;
+    wire [31:0] div_dn, div_ds, div_de, div_dw;
+    wire div_fn, div_fs, div_fe, div_fw, div_ready, div_an, div_as_, div_ae, div_aw, div_pd;
+    wire div_pan, div_pas, div_pae, div_paw;
     wire [1:0] priority_wd_unused;
 
     wire command_an, command_as_, command_ae, command_aw, command_ready;
@@ -822,6 +829,29 @@ module unicell_vix_carrier_v1d #(
         .status_data_valid()
     );
 
+    // ledger #1036: the 15th core, the division core (ledger #1073).
+    div_shell_v1c #(.CELL_ID(CELL_ID)) CORE_DIV (
+        .clk(clk), .rst(rst),
+        .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
+        .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),
+        .cfg_valid(cfgv_div), .cfg_data(div_cfg),
+        .data_in_n(data_in_n), .data_in_s(data_in_s), .data_in_e(data_in_e), .data_in_w(data_in_w),
+        .arrived_n(sel_div && arr_n_g), .arrived_s(sel_div && arr_s_g),
+        .arrived_e(sel_div && arr_e_g), .arrived_w(sel_div && arr_w_g),
+        .data_out_n(div_dn), .data_out_s(div_ds), .data_out_e(div_de), .data_out_w(div_dw),
+        .fire_n(div_fn), .fire_s(div_fs), .fire_e(div_fe), .fire_w(div_fw),
+        .ready_out(div_ready),
+        .ready_in_n(ready_in_n), .ready_in_s(ready_in_s), .ready_in_e(ready_in_e), .ready_in_w(ready_in_w),
+        .ack_out_n(div_an), .ack_out_s(div_as_), .ack_out_e(div_ae), .ack_out_w(div_aw),
+        .ack_in_n(ack_in_n), .ack_in_s(ack_in_s), .ack_in_e(ack_in_e), .ack_in_w(ack_in_w),
+        .program_in(sel_div && program_in_ordinary), .program_done(div_pd),
+        .prog_data_in_n(prog_data_in_n), .prog_data_in_s(prog_data_in_s), .prog_data_in_e(prog_data_in_e), .prog_data_in_w(prog_data_in_w),
+        .prog_arrived_in_n(sel_div && prog_arr_n_g), .prog_arrived_in_s(sel_div && prog_arr_s_g),
+        .prog_arrived_in_e(sel_div && prog_arr_e_g), .prog_arrived_in_w(sel_div && prog_arr_w_g),
+        .prog_ack_out_n(div_pan), .prog_ack_out_s(div_pas), .prog_ack_out_e(div_pae), .prog_ack_out_w(div_paw),
+        .status_data_valid()
+    );
+
     command_shell_v1c #(.CELL_ID(CELL_ID)) CORE_COMMAND (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
@@ -863,7 +893,7 @@ module unicell_vix_carrier_v1d #(
     // unicell_super_v9.v's own real, efficient shape exactly.
     wire [31:0] mux_dout = sel_nano ? nano_dn : sel_adder ? adder_dn : sel_ram ? ram_dn :
                            sel_compare ? compare_dn : sel_branch ? branch_dn : sel_accum ? accum_dn :
-                           sel_latch ? latch_dn : sel_seq ? seq_dn : sel_mul ? mul_dn : sel_priority ? priority_dn : sel_corner ? corner_dn : sel_cross ? cross_dn : sel_merge ? merge_dn : 32'h0;
+                           sel_latch ? latch_dn : sel_seq ? seq_dn : sel_mul ? mul_dn : sel_priority ? priority_dn : sel_corner ? corner_dn : sel_cross ? cross_dn : sel_merge ? merge_dn : sel_div ? div_dn : 32'h0;
 
     wire [31:0] after_mask, after_fineshift, after_shiftlane, addon_out;
     wire [1:0]  shift_fine_applied;
@@ -897,38 +927,38 @@ module unicell_vix_carrier_v1d #(
 
     assign fire_n = sel_nano ? nano_fn : sel_adder ? adder_fn : sel_ram ? ram_fn :
                     sel_compare ? compare_fn : sel_branch ? branch_fn : sel_accum ? accum_fn :
-                    sel_latch ? latch_fn : sel_seq ? seq_fn : sel_mul ? mul_fn : sel_priority ? priority_fn : sel_corner ? corner_fn : sel_cross ? cross_fn : sel_merge ? merge_fn : 1'b0;
+                    sel_latch ? latch_fn : sel_seq ? seq_fn : sel_mul ? mul_fn : sel_priority ? priority_fn : sel_corner ? corner_fn : sel_cross ? cross_fn : sel_merge ? merge_fn : sel_div ? div_fn : 1'b0;
     assign fire_s = sel_nano ? nano_fs : sel_adder ? adder_fs : sel_ram ? ram_fs :
                     sel_compare ? compare_fs : sel_branch ? branch_fs : sel_accum ? accum_fs :
-                    sel_latch ? latch_fs : sel_seq ? seq_fs : sel_mul ? mul_fs : sel_priority ? priority_fs : sel_corner ? corner_fs : sel_cross ? cross_fs : sel_merge ? merge_fs : 1'b0;
+                    sel_latch ? latch_fs : sel_seq ? seq_fs : sel_mul ? mul_fs : sel_priority ? priority_fs : sel_corner ? corner_fs : sel_cross ? cross_fs : sel_merge ? merge_fs : sel_div ? div_fs : 1'b0;
     assign fire_e = sel_nano ? nano_fe : sel_adder ? adder_fe : sel_ram ? ram_fe :
                     sel_compare ? compare_fe : sel_branch ? branch_fe : sel_accum ? accum_fe :
-                    sel_latch ? latch_fe : sel_seq ? seq_fe : sel_mul ? mul_fe : sel_priority ? priority_fe : sel_corner ? corner_fe : sel_cross ? cross_fe : sel_merge ? merge_fe : 1'b0;
+                    sel_latch ? latch_fe : sel_seq ? seq_fe : sel_mul ? mul_fe : sel_priority ? priority_fe : sel_corner ? corner_fe : sel_cross ? cross_fe : sel_merge ? merge_fe : sel_div ? div_fe : 1'b0;
     assign fire_w = sel_nano ? nano_fw : sel_adder ? adder_fw : sel_ram ? ram_fw :
                     sel_compare ? compare_fw : sel_branch ? branch_fw : sel_accum ? accum_fw :
-                    sel_latch ? latch_fw : sel_seq ? seq_fw : sel_mul ? mul_fw : sel_priority ? priority_fw : sel_corner ? corner_fw : sel_cross ? cross_fw : sel_merge ? merge_fw : 1'b0;
+                    sel_latch ? latch_fw : sel_seq ? seq_fw : sel_mul ? mul_fw : sel_priority ? priority_fw : sel_corner ? corner_fw : sel_cross ? cross_fw : sel_merge ? merge_fw : sel_div ? div_fw : 1'b0;
 
     assign ack_out_n = sel_nano ? nano_an : sel_adder ? adder_an : sel_ram ? ram_an :
                        sel_compare ? compare_an : sel_branch ? branch_an : sel_accum ? accum_an :
-                       sel_latch ? latch_an : sel_seq ? seq_an : sel_mul ? mul_an : sel_priority ? priority_an : sel_corner ? corner_an : sel_cross ? cross_an : sel_merge ? merge_an : sel_command ? command_an : 1'b0;
+                       sel_latch ? latch_an : sel_seq ? seq_an : sel_mul ? mul_an : sel_priority ? priority_an : sel_corner ? corner_an : sel_cross ? cross_an : sel_merge ? merge_an : sel_div ? div_an : sel_command ? command_an : 1'b0;
     assign ack_out_s = sel_nano ? nano_as_ : sel_adder ? adder_as_ : sel_ram ? ram_as_ :
                        sel_compare ? compare_as_ : sel_branch ? branch_as_ : sel_accum ? accum_as_ :
-                       sel_latch ? latch_as_ : sel_seq ? seq_as_ : sel_mul ? mul_as_ : sel_priority ? priority_as_ : sel_corner ? corner_as_ : sel_cross ? cross_as_ : sel_merge ? merge_as_ : sel_command ? command_as_ : 1'b0;
+                       sel_latch ? latch_as_ : sel_seq ? seq_as_ : sel_mul ? mul_as_ : sel_priority ? priority_as_ : sel_corner ? corner_as_ : sel_cross ? cross_as_ : sel_merge ? merge_as_ : sel_div ? div_as_ : sel_command ? command_as_ : 1'b0;
     assign ack_out_e = sel_nano ? nano_ae : sel_adder ? adder_ae : sel_ram ? ram_ae :
                        sel_compare ? compare_ae : sel_branch ? branch_ae : sel_accum ? accum_ae :
-                       sel_latch ? latch_ae : sel_seq ? seq_ae : sel_mul ? mul_ae : sel_priority ? priority_ae : sel_corner ? corner_ae : sel_cross ? cross_ae : sel_merge ? merge_ae : sel_command ? command_ae : 1'b0;
+                       sel_latch ? latch_ae : sel_seq ? seq_ae : sel_mul ? mul_ae : sel_priority ? priority_ae : sel_corner ? corner_ae : sel_cross ? cross_ae : sel_merge ? merge_ae : sel_div ? div_ae : sel_command ? command_ae : 1'b0;
     assign ack_out_w = sel_nano ? nano_aw : sel_adder ? adder_aw : sel_ram ? ram_aw :
                        sel_compare ? compare_aw : sel_branch ? branch_aw : sel_accum ? accum_aw :
-                       sel_latch ? latch_aw : sel_seq ? seq_aw : sel_mul ? mul_aw : sel_priority ? priority_aw : sel_corner ? corner_aw : sel_cross ? cross_aw : sel_merge ? merge_aw : sel_command ? command_aw : 1'b0;
+                       sel_latch ? latch_aw : sel_seq ? seq_aw : sel_mul ? mul_aw : sel_priority ? priority_aw : sel_corner ? corner_aw : sel_cross ? cross_aw : sel_merge ? merge_aw : sel_div ? div_aw : sel_command ? command_aw : 1'b0;
 
     assign ready_out = sel_nano ? nano_ready : sel_adder ? adder_ready : sel_ram ? ram_ready :
                         sel_compare ? compare_ready : sel_branch ? branch_ready : sel_accum ? accum_ready :
-                        sel_latch ? latch_ready : sel_seq ? seq_ready : sel_mul ? mul_ready : sel_priority ? priority_ready : sel_corner ? corner_ready : sel_cross ? cross_ready : sel_merge ? merge_ready : sel_command ? command_ready : 1'b0;
+                        sel_latch ? latch_ready : sel_seq ? seq_ready : sel_mul ? mul_ready : sel_priority ? priority_ready : sel_corner ? corner_ready : sel_cross ? cross_ready : sel_merge ? merge_ready : sel_div ? div_ready : sel_command ? command_ready : 1'b0;
 
     assign program_done = addon_addressed ? addon_program_done :
                            sel_nano ? nano_pd : sel_adder ? adder_pd : sel_ram ? ram_pd :
                            sel_compare ? compare_pd : sel_branch ? branch_pd : sel_accum ? accum_pd :
-                           sel_latch ? latch_pd : sel_seq ? seq_pd : sel_mul ? mul_pd : sel_priority ? priority_pd : sel_corner ? corner_pd : sel_cross ? cross_pd : sel_merge ? merge_pd : 1'b0;   // command has no receive-side program_done wired
+                           sel_latch ? latch_pd : sel_seq ? seq_pd : sel_mul ? mul_pd : sel_priority ? priority_pd : sel_corner ? corner_pd : sel_cross ? cross_pd : sel_merge ? merge_pd : sel_div ? div_pd : 1'b0;   // command has no receive-side program_done wired
 
     // ── Points.md #666: real, necessary synthetic ack -- when the
     // carrier itself consumes a word as a core-select value, NO
@@ -958,16 +988,16 @@ module unicell_vix_carrier_v1d #(
 
     assign prog_ack_out_n = select_ack_n || addon_ack_n || (sel_nano ? nano_pan : sel_adder ? adder_pan : sel_ram ? ram_pan :
                              sel_compare ? compare_pan : sel_branch ? branch_pan : sel_accum ? accum_pan :
-                             sel_latch ? latch_pan : sel_seq ? seq_pan : sel_mul ? mul_pan : sel_priority ? priority_pan : sel_corner ? corner_pan : sel_cross ? cross_pan : sel_merge ? merge_pan : 1'b0);
+                             sel_latch ? latch_pan : sel_seq ? seq_pan : sel_mul ? mul_pan : sel_priority ? priority_pan : sel_corner ? corner_pan : sel_cross ? cross_pan : sel_merge ? merge_pan : sel_div ? div_pan : 1'b0);
     assign prog_ack_out_s = select_ack_s || addon_ack_s || (sel_nano ? nano_pas : sel_adder ? adder_pas : sel_ram ? ram_pas :
                              sel_compare ? compare_pas : sel_branch ? branch_pas : sel_accum ? accum_pas :
-                             sel_latch ? latch_pas : sel_seq ? seq_pas : sel_mul ? mul_pas : sel_priority ? priority_pas : sel_corner ? corner_pas : sel_cross ? cross_pas : sel_merge ? merge_pas : 1'b0);
+                             sel_latch ? latch_pas : sel_seq ? seq_pas : sel_mul ? mul_pas : sel_priority ? priority_pas : sel_corner ? corner_pas : sel_cross ? cross_pas : sel_merge ? merge_pas : sel_div ? div_pas : 1'b0);
     assign prog_ack_out_e = select_ack_e || addon_ack_e || (sel_nano ? nano_pae : sel_adder ? adder_pae : sel_ram ? ram_pae :
                              sel_compare ? compare_pae : sel_branch ? branch_pae : sel_accum ? accum_pae :
-                             sel_latch ? latch_pae : sel_seq ? seq_pae : sel_mul ? mul_pae : sel_priority ? priority_pae : sel_corner ? corner_pae : sel_cross ? cross_pae : sel_merge ? merge_pae : 1'b0);
+                             sel_latch ? latch_pae : sel_seq ? seq_pae : sel_mul ? mul_pae : sel_priority ? priority_pae : sel_corner ? corner_pae : sel_cross ? cross_pae : sel_merge ? merge_pae : sel_div ? div_pae : 1'b0);
     assign prog_ack_out_w = select_ack_w || addon_ack_w || (sel_nano ? nano_paw : sel_adder ? adder_paw : sel_ram ? ram_paw :
                              sel_compare ? compare_paw : sel_branch ? branch_paw : sel_accum ? accum_paw :
-                             sel_latch ? latch_paw : sel_seq ? seq_paw : sel_mul ? mul_paw : sel_priority ? priority_paw : sel_corner ? corner_paw : sel_cross ? cross_paw : sel_merge ? merge_paw : 1'b0);
+                             sel_latch ? latch_paw : sel_seq ? seq_paw : sel_mul ? mul_paw : sel_priority ? priority_paw : sel_corner ? corner_paw : sel_cross ? cross_paw : sel_merge ? merge_paw : sel_div ? div_paw : 1'b0);
 
     // ── Command's own genuinely new ports -- meaningful only when
     // core_select=SEL_COMMAND, safe defaults otherwise. ──

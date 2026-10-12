@@ -135,7 +135,7 @@ SEL_CORNER = 11
 #: `mode` 0 = A only, 1 = B only, 2 = ARBITRATE (one at a time, round-robin), 3 = JOIN-OR (wait for both, output A|B). Core number 12 (the carrier numbers it 14).
 SEL_MERGE = 12
 #: ledger #1069/#1070 (Alan, 12 Oct 2026): `div` -- unsigned division, dividend first and divisor second (arrival order, like `sub`); the quotient, and with `second_output` the remainder as a second word.
-#: `remainder_primary` swaps them (the remainder first). x/0 = all ones, remainder = dividend. Core number 13; the carrier slot and the v4/v4c RTL are still to be built (the flex cell exists, ledger #1070).
+#: `remainder_primary` swaps them (the remainder first). x/0 = all ones, remainder = dividend. Core number 13 (the carrier numbers it 15). RTL: flex v4sa (#1070), sub v4s (#1072), cardinal v4 / v4c and the carrier slot 15 (#1073).
 SEL_DIV = 13
 
 def merge_cores_as_relays(records):

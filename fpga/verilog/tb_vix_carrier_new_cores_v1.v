@@ -1,4 +1,4 @@
-// tb_vix_carrier_new_cores_v1.v -- ledger #1036: the carrier's new cores driven through core_select, end to end: corner (12), cross (13), merge (14), and the adder's optional second output (carry).
+// tb_vix_carrier_new_cores_v1.v -- ledger #1036: the carrier's new cores driven through core_select, end to end: corner (12), cross (13), merge (14), the adder's optional second output (carry), and the division core (15).
 // Config convention (as tb_vix_carrier_mul_v1): cfg_d[4:0] = core_select, cfg_d[132:5] = core_config. Run with -DCARRIER=unicell_vix_carrier_v1 or unicell_vix_carrier_v1d.
 `timescale 1ns / 1ps
 `ifndef CARRIER
@@ -7,7 +7,7 @@
 module tb_vix_carrier_new_cores_v1;
     reg clk = 0; always #5 clk = ~clk;
     reg rst = 1;
-    localparam [4:0] SEL_ADDER = 5'd1, SEL_CORNER = 5'd12, SEL_CROSS = 5'd13, SEL_MERGE = 5'd14;
+    localparam [4:0] SEL_ADDER = 5'd1, SEL_CORNER = 5'd12, SEL_CROSS = 5'd13, SEL_MERGE = 5'd14, SEL_DIV = 5'd15;
     integer errors = 0;
     task check(input cond, input [511:0] label); begin if (!cond) begin $display("FAIL: %0s", label); errors = errors + 1; end else $display("ok: %0s", label); end endtask
 
@@ -81,7 +81,19 @@ module tb_vix_carrier_new_cores_v1;
         conf(SEL_ADDER, (128'h4) | (128'h1 << 6) | (128'h1 << 33) | (128'h2 << 34));       // down E, up N, second_output, second_downstream S
         send_n(32'hFFFFFFFF); send_n(32'h1); repeat (30) @(posedge clk);
         check(ne == 1 && ev[0] == 32'h0 && ns == 1 && sv[0] == 32'h1, "adder (1) second output: sum 0 east, carry 1 south");
-        if (errors == 0) $display("PASS: carrier new cores (corner 12, cross 13, merge 14, adder second output) end to end");
+        // division (15), ledger #1073: quotient east, remainder south; dividend first, then divisor, both from N. The divider loops (STEPS=1 default: 32 clocks).
+        conf(SEL_DIV, (128'h4) | (128'h1 << 6) | (128'h1 << 33) | (128'h2 << 34));
+        send_n(32'd100); send_n(32'd7); repeat (80) @(posedge clk);
+        check(ne == 1 && ev[0] == 32'd14 && ns == 1 && sv[0] == 32'd2, "div (15) second output: 100 / 7 = 14 east, remainder 2 south");
+        send_n(32'd5); send_n(32'd0); repeat (80) @(posedge clk);
+        check(ne == 2 && ev[1] == 32'hFFFFFFFF && ns == 2 && sv[1] == 32'd5, "div (15): 5 / 0 = all ones, remainder 5");
+        conf(SEL_DIV, (128'h4) | (128'h1 << 6) | (128'h1 << 12));        // rem_primary, one word: x mod y
+        send_n(32'd100); send_n(32'd7); repeat (80) @(posedge clk);
+        check(ne == 1 && ev[0] == 32'd2 && ns == 0, "div (15) rem_primary alone: 100 mod 7 = 2 east, nothing south");
+        conf(SEL_DIV, (128'h4) | (128'h8 << 6));                           // operands from W this time: the west ack path
+        send_w(32'd90); send_w(32'd4); repeat (80) @(posedge clk);
+        check(ne == 1 && ev[0] == 32'd22 && ns == 0, "div (15) operands from W: 90 / 4 = 22");
+        if (errors == 0) $display("PASS: carrier new cores (corner 12, cross 13, merge 14, adder second output, div 15) end to end");
         else $display("FAIL: %0d", errors);
         $finish;
     end
