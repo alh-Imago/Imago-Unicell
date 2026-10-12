@@ -14,6 +14,12 @@ Why: the general placer (routed_x) spends most of its cells on wire. Cells only 
 
 Stage 0 has no add: its product runs down column 4 through three wire cells into stage 1. The last add has no downstream and is the result cell `main.r`.
 The priority cell in front of every two-operand cell is the compiler's own protocol (it serialises the two arrivals): the same cell types and masks the compiler writes.
+
+`ramp_pipe` (ledger #1080, Alan's design): a feed pipe that runs north to south and carries a value past n "calc points". At the head of each point is a split (a ram cell with two
+outputs: one east to the tap, one south down the pipe); between splits the pipe passes through an adder that adds the step. A start value in at the top therefore gives
+start, start + step, start + 2 step, ... at taps 0, 1, 2, ...; the pipe's delay makes them arrive in order. Stage = split, tap, step constant, priority cell, adder (5 cells;
+the last stage has only split and tap), so n taps are 5n - 3 cells. This is the LARGE form; the small form (one adder looped, the calc point reloading each new number) needs the
+loop ring and is not built.
 """
 from __future__ import annotations
 
@@ -82,3 +88,32 @@ def as_result(template, records, arg_injections, result_cell):
     """A compile result (the front end's own dataclass) carrying this block instead of the placer's layout, so run_in_vm and the rest of the tooling work unchanged."""
     return dataclasses.replace(template, records=records, arg_injections=arg_injections, result_cell=result_cell, result_core="adder", seq_orders={},
                                positions={r.cell_id: (r.row, r.col) for r in records}, placer="stored_block:mac_chain", caveats=list(template.caveats))
+
+
+def ramp_pipe_cell_count(n: int) -> int:
+    """Cells of an n-tap ramp pipe: five per stage, two in the last."""
+    return 5 * (n - 1) + 2
+
+
+def ramp_pipe(n: int, step: int, start_name: str = "start", tap_prefix: str = "main.tap") -> Tuple[List[IcmV3Record], Dict[str, List[Tuple[int, int]]], List[Tuple[int, int]]]:
+    """Build the ramp pipe. Returns (records, arg_injections, tap squares). `start_name` is the argument injected at the top split; tap k is the ram cell `<tap_prefix><k>` and
+    holds start + k * step (mod 2^32). Column 4 is the pipe, column 5 the taps, column 3 the step constants."""
+    if n < 2:
+        raise ValueError("a ramp pipe needs at least two taps")
+    recs: List[IcmV3Record] = []
+    c = 4
+
+    def add(cell_id, r, col, core, cfg, pre=None):
+        recs.append(IcmV3Record(cell_id=cell_id, row=r, col=col, core=core, core_config=cfg, preload_value=pre))
+
+    taps = []
+    for k in range(n):
+        r = PITCH * k
+        add(f"main.ramp_s{k}", r, c, "ram", {"fixed_mode": 0, "upstream_mask": [] if k == 0 else ["n"], "downstream_mask": ["e"] + (["s"] if k < n - 1 else [])})
+        add(f"{tap_prefix}{k}", r, c + 1, "ram", {"fixed_mode": 0, "upstream_mask": ["w"], "downstream_mask": []})
+        taps.append((r, c + 1))
+        if k < n - 1:
+            add(f"main.ramp_k{k}", r + 1, c - 1, "ram", {"fixed_mode": 0, "downstream_mask": ["e"]}, step & 0xFFFFFFFF)
+            add(f"main.ramp_p{k}", r + 1, c, "priority", _pri(["n", "w"], "s"))
+            add(f"main.ramp_a{k}", r + 2, c, "adder", {"upstream_mask": ["n"], "downstream_mask": ["s"]})
+    return recs, {start_name: [(0, c)]}, taps
