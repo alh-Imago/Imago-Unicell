@@ -13,7 +13,7 @@ KIT = os.path.join(ROOT, "fpga", "board_tests_saveload")
 
 
 def test_host_selftest_and_committed_state_files():
-    r = subprocess.run([sys.executable, os.path.join(KIT, "saveload_host.py"), "--selftest"], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, os.path.join(KIT, "saveload_host_v2.py"), "--selftest"], capture_output=True, text=True)
     assert r.returncode == 0 and "selftest ok" in r.stdout, r.stdout + r.stderr
     sys.path.insert(0, os.path.join(ROOT, "tools"))
     sys.path.insert(0, os.path.join(ROOT, "nano"))
@@ -36,7 +36,7 @@ def test_simulated_pc_passes_all_four_scenarios_and_catches_a_break():
         pytest.fail("iverilog missing: this test must not pass by skipping")
     env = dict(os.environ, SL_TMO_NS="400000000")
     out = tempfile.mkdtemp()
-    ok = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "board_saveload_v1.py"), "--no-pnr", "--out", out], capture_output=True, text=True, env=env, timeout=900)
+    ok = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "board_saveload_v2.py"), "--no-pnr", "--out", out], capture_output=True, text=True, env=env, timeout=900)
     assert ok.returncode == 0 and "SAVELOAD PASS" in ok.stdout and "WRONG" not in ok.stdout, ok.stdout[-1500:] + ok.stderr[-500:]
-    bad = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "board_saveload_v1.py"), "--no-pnr", "--mutant", "wrongload", "--out", out], capture_output=True, text=True, env=env, timeout=900)
+    bad = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "board_saveload_v2.py"), "--no-pnr", "--mutant", "wrongload", "--out", out], capture_output=True, text=True, env=env, timeout=900)
     assert bad.returncode == 0 and "MUTANT wrongload -> caught" in bad.stdout

@@ -751,4 +751,16 @@ Alan asked for the results to be on the main branch (they had been going to the 
 
 **Next:** Alan runs `sanity`, then `state` (VM step-300 word, 300 steps) on the card and passes back `tang_result_A.json`; then `compare`; then the step-600 VM run is already part of `compare`; then the carrier version to step 1000.
 
-Next entry: #1099.
+### #1099 (12 Oct 2026) -- First board run of the save/load kit (sanity check): the first reply byte was damaged; v2 adds a reply pause, a host retry and a probe mode (v2 not yet run on the board)
+
+**What Alan saw (12 Oct, 18:37):** he ran only the sanity check (`run_saveload.sh`, bitstream from #1098). The bitstream loaded; the host stopped at the very first frame: the reply to `X` was the single byte `0xFA`, not `K` (0x4B). Nothing else in the kit had run; this is the first time this bitstream was on a card.
+
+**Checked:** (1) the design in simulation at the REAL serial speed (234 clocks per bit, not the shortened bit time used for the scenarios): `X`, `C`, `L`, `Q` all answer correctly (`4b 4b 4b`, and a query after 3 steps reads `51 05 00 03 ff ff ea 8d 00 00 00 89`: stopped, 3 steps, -5491, 137 clocks), so the logic and the framing are right at that speed. (2) Decoding `0xFA` against the byte `K` as a 8N1 stream: a receiver that starts its start-bit hunt five bit-times late, in the middle of the frame (at the second zero of the `0 1 1 0 1 0 0 1 0 1` pattern), reads exactly `0xFA`. So the reply was probably sent, and its first five bits were not seen by the receiving end.
+
+**Cause: NOT established.** The one thing that differs from the earlier kits that worked on this board (mutability 1 and 2) is that this card answers `X` at once: its reply starts right at the end of the host's byte, whereas the earlier kits answered after a processing delay. My hypothesis is that the USB-serial path loses the start of a reply that begins while the host's own byte is still finishing. That is a guess; nothing measured on the board supports it yet.
+
+**v2 (new files; v1 kept as it was):** `tools/board_saveload_v2.py` (every reply waits GAP = 12 bit-times, 96 clocks in simulation, 2,808 on the card, before its first byte), `fpga/board_tests_saveload/saveload_host_v2.py` (a reply that is not the expected byte is retried up to 3 times after a flush, and every retry is printed at the end, never hidden; `--probe` sends X, Q, X, Q and prints the raw bytes of each reply), README and run script updated, the test renamed `tests/vm/test_board_saveload_v2.py`. The simulated PC passes all four scenarios again with the pause; fit: LUT4 2,143, ALU 602, flip-flops 2,114, static Fmax 114.7 MHz (seed 1, nextpnr's figure). `saveload_host.py` (v1) stays in the repo and is left out of the kit.
+
+**Not shown:** that v2 cures it. If `--probe` still shows a damaged first byte, the raw bytes will tell where the loss is.
+
+Next entry: #1100.

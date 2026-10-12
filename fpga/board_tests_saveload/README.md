@@ -7,8 +7,8 @@
 | File | What it is |
 |---|---|
 | `saveload.fs` | The bitstream (git-ignored; `*.fs`). |
-| `saveload_host.py` | `--sanity` (4 short checks), `--state FILE --steps 300 --label A` (load the VM's state and run on), `--from-zero`, `--selftest` (no board). |
-| `run_saveload.sh` | Linux: load the bitstream and run the host (`sudo ./run_saveload.sh [PORT] [sanity\|state\|zero]`). Windows: `openFPGALoader -b tangnano20k saveload.fs`, then `python saveload_host.py COM7 --sanity` (needs `pip install pyserial`). |
+| `saveload_host_v2.py` | `--probe` (raw bytes of a few frames, for diagnosis), `--sanity` (4 short checks), `--state FILE --steps 300 --label A` (load the VM's state and run on), `--from-zero`, `--selftest` (no board). |
+| `run_saveload.sh` | Linux: load the bitstream and run the host (`sudo ./run_saveload.sh [PORT] [sanity\|state\|zero]`). Windows: `openFPGALoader -b tangnano20k saveload.fs`, then `python saveload_host_v2.py COM7 --sanity` (needs `pip install pyserial`). |
 | `vm_save_step300.json` | The VM's save at step 300 (design model + running state by cell name + words in flight + tick), made by `tools/flex_tang_bridge_v1.py vm-save 300`. |
 | `tang_state_step300.json` | What the card is loaded with: the loop word (8138) and its step (300), made by `... make-state`. |
 | `saveload.v`, `saveload.cst`, `saveload.json` | What is inside, the pin file, and the simulated results and build numbers. |

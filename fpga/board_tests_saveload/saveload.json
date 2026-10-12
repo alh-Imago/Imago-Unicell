@@ -30,11 +30,11 @@
  ],
  "build": {
   "target_mhz": 27.0,
-  "fmax_mhz": 129.1,
+  "fmax_mhz": 114.7,
   "met": true,
   "utilization": {
    "ALU": {
-    "used": 584,
+    "used": 602,
     "available": 15552
    },
    "BUFG": {
@@ -42,7 +42,7 @@
     "available": 24
    },
    "DFF": {
-    "used": 2098,
+    "used": 2114,
     "available": 15552
    },
    "GND": {
@@ -58,7 +58,7 @@
     "available": 384
    },
    "LUT4": {
-    "used": 2076,
+    "used": 2143,
     "available": 20736
    },
    "VCC": {
