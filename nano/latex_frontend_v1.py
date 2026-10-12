@@ -45,6 +45,7 @@ import os
 import random
 import re
 import sys
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -1031,13 +1032,35 @@ def _input_cells(res: LatexResult) -> Dict[str, str]:
 HW_CHECK_MAX_CELLS = 1500          # the standard VM ticks about 3 x cells times, each tick over every cell: beyond this a vector takes minutes
 
 
-def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "core", div_steps: int = 0, polynomial: str = "auto") -> LatexResult:
+def _dot_product_pairs(tree) -> Optional[List[Tuple[str, str]]]:
+    """ledger #1080: [(a_k, b_k)] if `tree` is exactly a sum of two or more products of two variables with every variable used once (a dot product), else None."""
+    terms: List = []
+    t = tree
+    while isinstance(t, Bin) and t.op == "+":
+        terms.append(t.right)
+        t = t.left
+    terms.append(t)
+    terms.reverse()
+    pairs, seen = [], set()
+    for x in terms:
+        if not (isinstance(x, Bin) and x.op == "*" and isinstance(x.left, Var) and isinstance(x.right, Var)):
+            return None
+        if x.left.name == x.right.name or x.left.name in seen or x.right.name in seen:
+            return None
+        seen.update((x.left.name, x.right.name))
+        pairs.append((x.left.name, x.right.name))
+    return pairs if len(pairs) >= 2 else None
+
+
+def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "core", div_steps: int = 0, polynomial: str = "auto", blocks: str = "auto") -> LatexResult:
     """Parse, compile and CHECK a formula. Raises LatexError for text outside the subset (or a compiler refusal) and LatexCheckError if anything disagrees with the Python oracle.
     check=True   the generated IR is compared with the oracle on corner and random vectors (always, fast); the compiled design is ALSO run in the VM and compared, unless it has
                  more than `hw_max_cells` cells (then `hw_skipped` says so and the CLI prints it: the VM would take minutes per vector).
     check="full" the VM comparison is run whatever the size (slow for big designs).
     check=False  no comparison (not recommended).
     div_steps    0 (default: each family's own) or K = 1..32 quotient bits per clock for every division cell: a speed-versus-size choice (latency ceil(32/K) clocks; more bits per clock = more logic). Written into the design's div records as `steps`; flex builds it, sub accepts only 32, the VM ignores it (ledger #1077).
+    blocks       "auto" (default, ledger #1080): a formula that is exactly a dot product (a sum of products of distinct variable pairs, two or more terms) is written down directly as the
+                 stored multiply-accumulate block (arith_blocks_v1) when that has fewer cells than the general placer's layout; "off" never does. Checked on the VM like any design.
     polynomial   "auto" (default, ledger #1078): a one-variable polynomial of degree 2 or more is built both as written and as the Horner plan (arith_plan_library_v1), and the design
                  with fewer cells is kept; "horner" always uses the plan; "direct" never does. The design is checked against the formula either way.
     division     "core" (default) or "unrolled": see to_llvm. With "core" a formula may contain any number of divisions and the design is small enough for the VM check."""
@@ -1046,8 +1069,14 @@ def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "rou
     if polynomial not in ("auto", "horner", "direct"):
         raise LatexError(f"polynomial must be \"auto\", \"horner\" or \"direct\", not {polynomial!r}")
     ir, args = to_llvm(tree, division=division, polynomial="direct" if polynomial == "auto" else polynomial)
-    res, diags = F.compile_llvm_via_dag(ir, placer=placer)
-    if polynomial == "auto" and res is not None:
+    dot_pairs = _dot_product_pairs(tree) if blocks == "auto" else None
+    if dot_pairs is not None:
+        # ledger #1080: a dot product goes straight to the stored block; the general placer is NOT run (it is slow for many terms and the block is smaller from 2 terms up).
+        # The compile result's other fields (dag, icm, rewrites) come from the two-term sibling, so they describe that, not this design; only records, injections and result cell are used.
+        res, diags = F.compile_llvm_via_dag("define i32 @formula(i32 %v_p, i32 %v_q, i32 %v_s, i32 %v_t) {\nentry:\n  %_t1 = mul i32 %v_p, %v_q\n  %_t2 = mul i32 %v_s, %v_t\n  %r = add i32 %_t1, %_t2\n  ret i32 %r\n}\n", placer=placer)
+    else:
+        res, diags = F.compile_llvm_via_dag(ir, placer=placer)
+    if polynomial == "auto" and res is not None and dot_pairs is None:
         ir_h, _ = to_llvm(tree, division=division, polynomial="horner")
         if ir_h != ir:                                                  # the formula holds a polynomial the plan can place: keep whichever compiles to fewer cells (a tie keeps the direct form)
             res_h, _d = F.compile_llvm_via_dag(ir_h, placer=placer)
@@ -1058,11 +1087,27 @@ def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "rou
         raise LatexError("the compiler could not build this formula: " + text)
     if not isinstance(div_steps, int) or isinstance(div_steps, bool) or not 0 <= div_steps <= 32:
         raise LatexError(f"div_steps must be 0 (unset) or 1 to 32, not {div_steps!r}")
+    if blocks not in ("auto", "off"):
+        raise LatexError(f"blocks must be \"auto\" or \"off\", not {blocks!r}")
+    block_note = ""
+    if dot_pairs is not None and res is not None:
+        import arith_blocks_v1 as AB
+        names = []
+        for a_, b_ in dot_pairs:
+            ea, eb = re.escape("%" + _argname(a_)), re.escape("%" + _argname(b_))
+            m_ = re.search(r"%(\w+) = mul i32 (?:" + ea + ", " + eb + "|" + eb + ", " + ea + r")\s*$", ir, re.M)
+            names.append(m_.group(1) if m_ else None)
+        if not all(names):
+            raise LatexError("internal: a dot-product term was not found in the generated operations")
+        recs, inj, rc = AB.mac_chain([(_argname(a_), _argname(b_), nm) for (a_, b_), nm in zip(dot_pairs, names)])
+        block_note = f"placed as the stored multiply-accumulate block: {len(recs)} cells"
+        res = AB.as_result(res, recs, inj, rc)
+        res = dataclasses.replace(res, rewrites=[])
     if div_steps:
         for r in res.records:
             if r.core == "div":
                 r.core_config = dict(r.core_config or {}, steps=div_steps)
-    out = LatexResult(source=source, label=label, tree=tree, ir=ir, args=args, result=res, notes=list(res.rewrites))
+    out = LatexResult(source=source, label=label, tree=tree, ir=ir, args=args, result=res, notes=list(res.rewrites) + ([block_note] if block_note else []))
     if check:
         vecs = check_vectors(args, n_random=n_random)
         for v in vecs:

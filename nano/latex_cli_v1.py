@@ -27,6 +27,8 @@ def main(argv=None) -> int:
     ap.add_argument("--show-ir", action="store_true", help="print the LLVM IR the formula became")
     ap.add_argument("--polynomial", choices=["auto", "horner", "direct"], default="auto",
                     help="a one-variable polynomial of degree 2 or more: 'auto' (default) builds it as written and as the Horner plan and keeps the design with fewer cells; 'horner' / 'direct' force one")
+    ap.add_argument("--blocks", choices=["auto", "off"], default="auto",
+                    help="a formula that is exactly a dot product is written down as the stored multiply-accumulate block when that is smaller (default auto); off = always the general placer")
     ap.add_argument("--div-steps", type=int, default=0, metavar="K",
                     help="speed versus size of each division cell: K quotient bits per clock, 1..32 (latency ceil(32/K) clocks; bigger K = more logic). Default: each family's own (flex 1, sub 32). Written into the .icm; the flex generator builds it, sub accepts only 32")
     ap.add_argument("--division", choices=["unrolled", "core"], default="core",
@@ -36,7 +38,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     try:
-        r = L.compile_latex(args.formula, check=False if args.no_check else ("full" if args.full_check else True), division=args.division, div_steps=args.div_steps, polynomial=args.polynomial)
+        r = L.compile_latex(args.formula, check=False if args.no_check else ("full" if args.full_check else True), division=args.division, div_steps=args.div_steps, polynomial=args.polynomial, blocks=args.blocks)
     except L.LatexError as e:
         print(e.format(), file=sys.stderr)
         return 1
