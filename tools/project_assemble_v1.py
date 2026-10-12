@@ -1497,6 +1497,9 @@ def main():
     ap.add_argument("--allow-rings", action="store_true",
                      help="ledger #1109 (-s flex --icm only): accept a design with a genuine feedback ring. The ring is cut where the host enters (that edge is left out of the timing / operand-order analysis and kept in the wiring), "
                           "the entry cell gets a host port and a merge, the cell named io_name `result` becomes the observation point (a fork: the ring AND the host port; a host that does not ack stalls the ring). Off by default: a cycle is refused with its reason.")
+    ap.add_argument("--ring-steps", type=int, default=None, metavar="N",
+                     help="ledger #1110 (with --allow-rings): the ring's CONTROL, required for any design with a ring (Alan: a ring without one runs away). The generated design counts the results the host takes, stops after N (the Nth result is held, nothing is fed back) "
+                          "and raises `ring_stopped`; a pulse on `ring_release` lets it run N more. N = 1..65535.")
     ap.add_argument("--nowidelut", action="store_true",
                      help="Gowin synthesis (-s flex / -s sub, step-1 chains and --icm): FORCE `synth_gowin -nowidelut`. This is already the DEFAULT for the Gowin generators (ledger #951 / Alan's "
                           "ruling after #950: smaller in every cell measured, ~3x smaller and ~3x faster for the LUT multiplier); the card's MAN (synthesis.nowidelut) decides the default, and "
@@ -1532,7 +1535,7 @@ def main():
         import flexsub_icm_generate_v1 as fig
         try:
             r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
-                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode, width=args.width, rings=args.allow_rings)
+                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode, width=args.width, rings=args.allow_rings, ring_steps=args.ring_steps)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1

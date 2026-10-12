@@ -901,14 +901,14 @@ def _refuse_div_steps(icm_path):
         raise ValueError("; ".join(bad))
 
 
-def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate", width=None, rings=False):
+def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate", width=None, rings=False, ring_steps=None):
     if rings and family != "flex":
         raise ValueError("--allow-rings applies to -s flex only (the handshake makes a closed ring self-timing; the sub family needs a known ring period and has no ring support yet)")
     if width not in (None, BUILT_WIDTH) and family != "flex":
         raise ValueError("-w with --icm applies to -s flex only (the sub family is fixed 32 bits)")
     if family == "flex":
         import flexsub_icm_flex_v1 as ff
-        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut, merge_mode=merge_mode, width=width, rings=rings)
+        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut, merge_mode=merge_mode, width=width, rings=rings, ring_steps=ring_steps)
     _refuse_div_steps(icm_path)
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)

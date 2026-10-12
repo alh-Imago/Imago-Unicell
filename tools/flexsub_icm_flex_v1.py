@@ -80,6 +80,9 @@ import flexsub_icm_generate_v1 as g  # noqa: E402
 FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "div": "div_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa", "merge": "merge_cell_v4sa", "sequencer": "sequencer_cell_v4sa", "priority": "priority_cell_v4sa"}
 
 
+RING_LAG = 1      # ledger #1110: clocks the ring-side offer waits after the host takes a result (counter -> latch settling). Measured: 0 overruns by one result, 1 is the smallest that lands exactly (N=1..20); tests/vm/test_flex_ring_v1.py
+
+
 MERGE_MODES = {"arbitrate": 2, "join-or": 3}
 
 
@@ -207,6 +210,9 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
     for c in exits_l:
         n = _pname(cells[c].io_name, c)
         ports += [f"    output wire [{W-1}:0] out_{n}_data", f"    output wire        out_{n}_valid", f"    input  wire        out_{n}_ack"]
+    ring_n = p.get("ring_steps")
+    if ring_n:                                                      # ledger #1110: every ring has a control; the host sees the stop and releases it
+        ports += ["    input  wire        ring_release", "    output wire        ring_stopped"]
     a(",\n".join(ports))
     a(");")
 
@@ -305,9 +311,27 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
             # has taken it AND the host has acked it (so a host that never acks stalls the ring -- the stop/back-pressure contract of #1093-#1101 applies).
             n = _pname(cells[src].io_name, src)
             forks.append({"source": i, "consumers": len(es) + 1, "host_port": f"out_{n}"})
+            gate = ""
+            if ring_n:
+                # ledger #1110: THE RING CONTROL, from the family's own cells (as the wrapper of #1097, now inside the generated design): an accumulator in pulse mode counts the results the
+                # host port has taken and fires after N; a latch is set by that fire (ring_stopped) and cleared by ring_release. While stopped, the ring-side consumer is not offered the held
+                # item (back pressure: the ring runs itself down to quiet, the last result sits in the observation cell and at the host port). The offer is also held back RING_LAG clocks after
+                # the host takes it, so the counter -> latch path has settled and the stop lands on exactly the Nth result, never one late.
+                a(f"localparam RING_LAG = {RING_LAG};")
+                a(f"reg [3:0] {i}_age = 4'd0;")
+                a(f"always @(posedge clk) begin if (rst || {i}_done) {i}_age <= 4'd0; else if ({i}_xt && {i}_age != 4'hF) {i}_age <= {i}_age + 4'd1; end")
+                a(f"wire ring_acc_v, ring_lat_ack, ring_acc_ack_in; wire [{W-1}:0] ring_acc_d, ring_lat_d; wire ring_lat_v;")
+                a(f"assign ring_acc_ack_in = ring_lat_ack;")
+                a(f"wire ring_set_ev = ring_acc_v & ring_lat_ack;")
+                a(f"accumulator_cell_v4sa #(.CELL_ID(16'd60000)) u_ring_count (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data({{7'b0, 16'd{ring_n}, 1'b1, 8'd1}}), "
+                  f".inc_pulse({i}_xacc), .dec_pulse(1'b0), .ack_out(), .data_out(ring_acc_d), .valid_out(ring_acc_v), .ack_in(ring_acc_ack_in));")
+                a(f"latch_cell_v4sa #(.CELL_ID(16'd60001)) u_ring_stop (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .cfg_data(32'b0), "
+                  f".set_in(ring_set_ev), .clear_in(ring_release), .toggle_in(1'b0), .ack_out(ring_lat_ack), .data_out(ring_lat_d), .valid_out(ring_lat_v), .ack_in(1'b1));")
+                a(f"assign ring_stopped = ring_lat_d[0];")
+                gate = f" & {i}_xt & ({i}_age >= RING_LAG) & ~ring_stopped"
             for e in es:
                 a(f"reg {e}_t = 1'b0;                       // `taken`: this consumer has accepted the current item")
-                a(f"assign {e}_v = {i}_v & ~{e}_t;")
+                a(f"assign {e}_v = {i}_v & ~{e}_t{gate};")
                 a(f"wire {e}_acc = {e}_v & {e}_a;")
             a(f"reg {i}_xt = 1'b0;                          // `taken` by the host port")
             a(f"wire {i}_xv = {i}_v & ~{i}_xt;")
@@ -546,10 +570,19 @@ def div_steps_param(r, W):
     return f", .STEPS({k})"
 
 
-def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None, merge_mode="arbitrate", width=None, rings=False):
+def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None, merge_mode="arbitrate", width=None, rings=False, ring_steps=None):
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
     p = g.plan(icm_path, True, family="flex", nowidelut=nowidelut, width=width, rings=rings)
+    if p.get("ring_back"):                                          # ledger #1110 (Alan): every ring must have a control mechanism, or it runs away
+        if not ring_steps:
+            raise g.IcmGenError(f"cannot generate flex Verilog from {os.path.basename(icm_path)}:\n  - the design has a ring and no control mechanism. A ring runs for ever unless something stops it: "
+                                f"give --ring-steps N (1..65535) and the generated design counts the results, stops after N and waits for ring_release")
+        if not 1 <= int(ring_steps) <= 65535:
+            raise g.IcmGenError("--ring-steps must be 1..65535")
+        p["ring_steps"] = int(ring_steps)
+    elif ring_steps:
+        raise g.IcmGenError("--ring-steps given but the design has no ring")
     levels = {c for c in p["cells"] if g.is_level(p["cells"][c])}
     only_const = sorted(c for c in p["exits"] if c in p["const"] and c not in levels)
     if only_const:

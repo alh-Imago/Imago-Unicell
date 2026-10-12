@@ -3,18 +3,29 @@
 `ifndef ACK
 `define ACK 1'b1
 `endif
+// ledger #1110: ring control. ring_stopped goes high after the Nth result (N = --ring-steps); with RELEASE defined the tb pulses ring_release after HOLD cycles of stop.
+// "S cyc n=.." is printed when ring_stopped rises. NSTEPS results are counted in total.
+`ifndef HOLD
+`define HOLD 20
+`endif
 `timescale 1ns/1ps
 module tb;
   reg clk=0, rst=1, cfg=0; always #5 clk=~clk;
   reg inj=0; reg [31:0] z0=`Z0; reg done_inj=0;
-  wire [31:0] od; wire ov; wire iack;
+  wire [31:0] od; wire ov; wire iack; wire stopped; reg rel=0;
   `TOP d(.clk(clk),.rst(rst),.cfg_valid(cfg),.in_z_input_data(z0),.in_z_input_valid(inj),.in_z_input_ack(iack),
-         .out_result_data(od),.out_result_valid(ov),.out_result_ack(`ACK));
-  integer n=0, cyc=0, last=0;
+         .out_result_data(od),.out_result_valid(ov),.out_result_ack(`ACK),.ring_release(rel),.ring_stopped(stopped));
+  integer n=0, cyc=0, last=0, hold=0; reg sprev=0;
   always @(posedge clk) begin
     cyc <= cyc+1;
+    if (stopped && !sprev) $display("S %0d n=%0d", cyc, n);
+    sprev <= stopped;
+    if (stopped) hold <= hold+1; else hold <= 0;
+`ifdef RELEASE
+    rel <= (stopped && hold == `HOLD);
+`endif
     if (inj && iack) begin inj <= 0; done_inj <= 1; last <= cyc; end
-    if (ov && `ACK) begin n <= n+1; $display("R %0d %0d %0d", n+1, $signed(od), cyc-last); last <= cyc; if (n+1 >= `NSTEPS) $finish; end
+    if (ov && `ACK) begin n <= n+1; $display("R %0d %0d %0d", n+1, $signed(od), cyc-last); last <= cyc; if (n+1 >= `NSTEPS) begin #1; $display("END stopped=%0d", stopped); $finish; end end
   end
   initial begin
     repeat(4) @(posedge clk); rst<=0; @(posedge clk); cfg<=1; @(posedge clk); cfg<=0;
