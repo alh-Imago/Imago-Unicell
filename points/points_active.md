@@ -779,4 +779,18 @@ Alan loaded `saveload.fs` (v2) and ran `saveload_host_v2.py --sanity` on the phy
 
 **Next:** Alan runs `./run_saveload.sh <PORT> state` and passes back `tang_result_A.json`; then `flex_tang_bridge_v1.py compare`.
 
-Next entry: #1101.
+### #1101 (12 Oct 2026) -- SAVE / LOAD PROVEN VM -> TANG: the VM's step-300 save, loaded into the physical card, ran 300 steps by itself and arrived at the same word as the VM and the Python model at step 600
+
+**Run (Alan, 12 Oct 2026 18:57, port /dev/ttyUSB1; his first attempt on /dev/ttyUSB0 got no answer, which is the programming port, nothing was loaded):** `run_saveload.sh <PORT> state`: soft reset, mode 3 (back pressure + freeze), N = 300, `L` word 8138 (the VM's step-300 value from `tang_state_step300.json`, made from `vm_save_step300.json`), the card ran by itself, stopped, the host read it twice. Files passed back by Alan: `tang_result_A.json` (sent twice, byte-identical), `tang_state_step300.json` and `vm_save_step300.json` (both byte-identical to the repo copies). Kept as `fpga/board_tests_saveload/results/tang_result_A_2026-10-12_board.json` and the comparison `...board.compare.json`.
+
+**Board result:** word 4294961548 = -5748 at step 600; steps counter 300; busy 0; held_valid 1; stable on the second read; **13,502 clocks counted on the card** for the 300 steps (45.0 per step; 500 us at 27 MHz); raw reply `51 05 012c ffffe98c 000034be`.
+
+**Comparison (`tools/flex_tang_bridge_v1.py compare`, exit 0):** the VM was restored from the SAME step-300 save, run 300 steps (to step 600): word 4294961548. The independent Python model's step 600: 4294961548. **Tang = VM = model.** (The board host had itself checked against its own copy of the model: `matches_model` true.)
+
+**What this shows:** the save/load mechanism works from the VM into the physical card for this design: a VM save (design model + state diff by cell name + words in flight, #1093) taken at a result-arrival event reduces to one word and a step number for the flex hardware (the card can hold nothing else at that event, #1095/#1096), the word was loaded into the real card, and 300 steps of hardware computation from it end at exactly the VM's and the model's value at step 600. The card stopped itself at the programmed count (Alan's rule) and was read afterwards.
+
+**What it does NOT show:** (1) one word and one step is all that this loop's cut state contains; a design with several items in flight, or a cut inside a pass, needs the scan path (not built) - the freeze mid-flight state was held and released on the card in the sanity check (#1100) but not read out or loaded; (2) the card was loaded with the VM's design only implicitly (the same design was built into the bitstream by the assembler from the same ICM; the save's design hash was not compared on the card, there being nowhere to compare it); (3) the other direction, card state -> VM, has the card's word at steps 3/6/7 (sanity) and 600 here compared with the VM/model, but a state saved FROM the card and loaded INTO the VM was not done as a separate step; (4) the carrier (non-mirrored) version to step 1000 and the retarget into a full VM by latch states are not done; (5) the merge `rr` flags are not on the card's interface.
+
+**Next (Alan's programme):** the same loop rebuilt non-mirrored on the carrier, loaded with these values, run to 1000, saved, passed back and compared; then retarget into a full VM from latch states only; test 3 (accumulator, Alan's design); the comparison with the usual FPGA save route (#1091), with this kit's numbers as the UniCell side.
+
+Next entry: #1102.

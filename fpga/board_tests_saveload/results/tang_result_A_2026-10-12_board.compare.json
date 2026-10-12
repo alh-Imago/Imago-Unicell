@@ -1,0 +1,12 @@
+{
+ "from_step": 300,
+ "ran": 300,
+ "final_step": 600,
+ "tang_word": 4294961548,
+ "vm_word": 4294961548,
+ "model_word": 4294961548,
+ "tang_equals_vm": true,
+ "vm_equals_model": true,
+ "tang_equals_model": true,
+ "match": true
+}

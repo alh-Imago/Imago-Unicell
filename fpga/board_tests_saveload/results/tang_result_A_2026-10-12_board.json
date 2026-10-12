@@ -1,0 +1,19 @@
+{
+ "label": "A",
+ "source": "state file tang_state_step300.json (dcc6e289ff17)",
+ "from_step": 300,
+ "ran": 300,
+ "final_step": 600,
+ "mode": 3,
+ "word": 4294961548,
+ "word_signed": -5748,
+ "steps_counter": 300,
+ "run_clocks": 13502,
+ "busy": 0,
+ "held_valid": 1,
+ "stable_on_second_read": true,
+ "model_word": 4294961548,
+ "raw": "5105012cffffe98c000034be",
+ "when": "2026-10-12T18:57:07",
+ "matches_model": true
+}
