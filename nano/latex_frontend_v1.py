@@ -21,6 +21,10 @@ SUPPORTED (and nothing else):
                so `-x / 2` is NOT minus half of x. Dividing by zero gives all ones (0xFFFFFFFF) and the remainder by zero is the dividend (the restoring-division convention, also RISC-V's).
                Same level as `*`, left to right; a number or name straight after a division (`a / b c`) is refused as ambiguous.
                A power-of-two divisor is a shift or a mask (tiny). ANY OTHER divisor builds a 32-step long-division loop unrolled in cells: about 23,000 cells for one division.
+               With division="core" (command line: --division core; ledger #1074) a general division or remainder is instead ONE cell of the division core
+               (`udiv` / `urem`): 8 cells for `a / b`, 38 for a formula with two divisions, any number of divisions, and the design is small enough for the VM check. It needs a
+               target that has the division core. Checked so far: the VM, and the flex family (the compiled design built as real RTL by the assembler and run in iverilog, ledger #1074).
+               NOT yet run: a LaTeX-compiled design on the sub or the cardinal (v4/v4c) cells, though those cells exist. The default stays "unrolled", which needs only the basic cells.
   grouping     ( )   \\left( \\right)   { }   (square brackets [ ] too)
   powers       x^2, x^{3}, (a+b)^2: the exponent must be a whole number written out (0..64). Not x^n, not x^{-1}, not x^{1/2}.
   naming       an optional `name =` in front is just a label; it must not appear on the right-hand side.
@@ -560,14 +564,15 @@ def _argname(v: str) -> str:
 
 
 class _Emit:
-    def __init__(self):
+    def __init__(self, core_division: bool = False):
+        self.core_division = core_division                # ledger #1074: True = division and remainder are the `udiv` / `urem` operations of the division core (one cell each)
         self.lines: List[str] = []
         self.n = 0
         self.memo: Dict[Tuple, str] = {}
         self.divisions: set = set()                       # distinct (dividend, divisor) pairs that need a full long division
 
     def op(self, opcode: str, a: str, b: str) -> str:
-        key = (opcode, a, b) if opcode in ("sub", "shl", "lshr") else (opcode,) + tuple(sorted((a, b)))     # the same sum or product is built once
+        key = (opcode, a, b) if opcode in ("sub", "shl", "lshr", "udiv", "urem") else (opcode,) + tuple(sorted((a, b)))     # the same sum or product is built once
         if key in self.memo:
             return self.memo[key]
         self.n += 1
@@ -627,6 +632,8 @@ def _gen(e: Expr, em: _Emit) -> str:
                 if isdiv:
                     return a if k == 0 else em.op("lshr", a, str(k))
                 return em.op("and", a, str(bv - 1))
+        if em.core_division:                                     # the division core: ONE cell, dividend first (the compiler orders the arrivals, as for sub)
+            return em.op("udiv" if isdiv else "urem", a, b)
         em.divisions.add((a, b))
         return _udivmod(em, a, b, "q" if isdiv else "r", DIV_STEPS)
     if isinstance(e, Pow):
@@ -662,8 +669,12 @@ MAX_GENERAL_DIVISIONS = 1                           # distinct long divisions pe
 DIV_STEPS = 32                                      # quotient bits produced; only tests lower it (a smaller instance divides the TOP `steps` bits of the dividend)
 
 
-def to_llvm(e: Expr, args: Optional[List[str]] = None) -> Tuple[str, List[str]]:
-    """(LLVM IR text, argument names). The returned value is always named %r. Raises LatexError if the formula has no variable or reduces to one."""
+def to_llvm(e: Expr, args: Optional[List[str]] = None, division: str = "unrolled") -> Tuple[str, List[str]]:
+    """(LLVM IR text, argument names). The returned value is always named %r. Raises LatexError if the formula has no variable or reduces to one.
+    division="unrolled" (the default): a general division is built from add/sub/mul/shifts, about 23,000 cells, at most one per formula. Needs nothing but the basic cells.
+    division="core": a general division is the `udiv` / `urem` operation, ONE cell of the division core (any number per formula). Needs a target that has the division core."""
+    if division not in ("unrolled", "core"):
+        raise LatexError(f"division must be \"unrolled\" or \"core\", not {division!r}")
     seen = variables(e)
     e = fold(e)
     args = args if args is not None else seen
@@ -671,7 +682,7 @@ def to_llvm(e: Expr, args: Optional[List[str]] = None) -> Tuple[str, List[str]]:
         if seen:
             raise LatexError("whatever the inputs are, this formula always gives %d, so there is nothing to compute at run time" % e.value)
         raise LatexError("the formula contains no variable, so there is nothing to compute at run time (it is just the number %d)" % e.value)
-    em = _Emit()
+    em = _Emit(core_division=(division == "core"))
     top = _gen(e, em)
     if len(em.divisions) > MAX_GENERAL_DIVISIONS:
         raise LatexError(f"this formula needs {len(em.divisions)} separate long divisions. Each is about 23,000 cells, and the placer takes impractically long for more than one "
@@ -688,7 +699,7 @@ def to_llvm(e: Expr, args: Optional[List[str]] = None) -> Tuple[str, List[str]]:
 
 
 def eval_ir(ir: str, values: Dict[str, int]) -> int:
-    """A tiny interpreter for the IR this module writes (add sub mul and or xor shl lshr ashr on 32-bit words). It checks the GENERATOR (the formula became the right operations)
+    """A tiny interpreter for the IR this module writes (add sub mul and or xor shl lshr ashr udiv urem on 32-bit words). It checks the GENERATOR (the formula became the right operations)
     without the hardware model, so it is fast enough to run on every compile, including designs too large for the VM. `values` maps formula variable -> word."""
     head = ir.splitlines()[0]
     env: Dict[str, int] = {}
@@ -722,6 +733,10 @@ def eval_ir(ir: str, values: Dict[str, int]) -> int:
             r = x >> y
         elif op == "ashr":
             r = as_signed(x) >> y
+        elif op == "udiv":
+            r = udiv(x, y)
+        elif op == "urem":
+            r = umod(x, y)
         else:
             raise ValueError(f"eval_ir: unknown operation {op!r}")
         env[nm] = r & MASK
@@ -846,15 +861,16 @@ def _input_cells(res: LatexResult) -> Dict[str, str]:
 HW_CHECK_MAX_CELLS = 1500          # the standard VM ticks about 3 x cells times, each tick over every cell: beyond this a vector takes minutes
 
 
-def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS) -> LatexResult:
+def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "unrolled") -> LatexResult:
     """Parse, compile and CHECK a formula. Raises LatexError for text outside the subset (or a compiler refusal) and LatexCheckError if anything disagrees with the Python oracle.
     check=True   the generated IR is compared with the oracle on corner and random vectors (always, fast); the compiled design is ALSO run in the VM and compared, unless it has
                  more than `hw_max_cells` cells (then `hw_skipped` says so and the CLI prints it: the VM would take minutes per vector).
     check="full" the VM comparison is run whatever the size (slow for big designs).
-    check=False  no comparison (not recommended)."""
+    check=False  no comparison (not recommended).
+    division     "unrolled" (default) or "core": see to_llvm. With "core" a formula may contain any number of divisions and the design is small enough for the VM check."""
     import llvm_dag_frontend_v1 as F
     label, tree = parse_latex(source)
-    ir, args = to_llvm(tree)
+    ir, args = to_llvm(tree, division=division)
     res, diags = F.compile_llvm_via_dag(ir, placer=placer)
     if res is None:
         text = "; ".join(f"{d.problem} -- {d.why}. Try: {d.suggestion}" if d.suggestion else f"{d.problem} -- {d.why}" for d in diags)

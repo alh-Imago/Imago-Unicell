@@ -330,6 +330,31 @@ TILE_MUL = register(VixTileSpec(
     arrivals_needed=2,
 ))
 
+TILE_DIV = register(VixTileSpec(
+    name="div", core="div",
+    description="Ledger #1073: unsigned division (the quotient). NOT commutative: whichever arrival lands FIRST is the DIVIDEND, the second the DIVISOR, "
+                 "so the placer must make the dividend arrive first, as for the subtractor. x / 0 = all ones; the remainder by zero is the dividend. "
+                 "The cell is busy for a number of ticks after the divisor arrives (the VM: `width`; the RTL: ceil(32/STEPS) clocks), "
+                 "which delays only what waits on it. `remainder_primary` swaps the two words; `second_output` also delivers the other one as a second word "
+                 "(after the first is acknowledged), by `second_downstream_mask` or else the same faces. Needs the standard core `div` (the VM has it; RTL: "
+                 "div_cell_v4 / div_cell_v4c, carrier slot 15).",
+    ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
+           TilePort("out", "out", "downstream_mask")],
+    optional_params=["second_output", "second_downstream_mask", "remainder_primary"],
+    arrivals_needed=2,
+))
+
+TILE_REM = register(VixTileSpec(
+    name="rem", core="div",
+    description="Ledger #1073: the unsigned REMAINDER (a mod b) from the same division core, `remainder_primary` fixed on: one word out. "
+                 "Dividend first, divisor second, as for `div`. x mod 0 = x.",
+    ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
+           TilePort("out", "out", "downstream_mask")],
+    fixed_core_config={"remainder_primary": 1},
+    optional_params=["second_output", "second_downstream_mask"],
+    arrivals_needed=2,
+))
+
 TILE_COMPARATOR = register(VixTileSpec(
     name="comparator", core="comparator",
     description="Single-arrival, stateless: captures a value, compares "

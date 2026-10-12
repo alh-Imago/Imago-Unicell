@@ -250,8 +250,9 @@ def test_non_i32_instruction_refused():
 
 
 def test_opcode_without_library_entry_names_the_escalation_ladder():
-    text, diags = _problems(_ir("  %a = udiv i32 %x, 2\n  ret i32 %a"))
-    assert "no library entry for opcode `udiv`" in text
+    # ledger #1074: this used `udiv`, which now HAS a library entry (the division core); signed division still has none
+    text, diags = _problems(_ir("  %a = sdiv i32 %x, 2\n  ret i32 %a"))
+    assert "no library entry for opcode `sdiv`" in text
     assert any("#752" in (d.why + (d.suggestion or "")) for d in diags)
 
 

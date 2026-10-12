@@ -23,7 +23,7 @@ def test_library_has_all_ten_real_data_flow_core_types_represented():
     core, not a data-flow computation core."""
     cores = {t.core for t in vtl.vix_tile_library.values()}
     assert cores == {"nano", "ram", "adder", "mul", "comparator", "branch",
-                      "accumulator", "latch", "sequencer", "priority"}
+                      "accumulator", "latch", "sequencer", "priority", "div"}     # ledger #1074: "div" (the division core) added
 
 
 def test_place_rejects_missing_port_direction():
@@ -109,7 +109,7 @@ def test_arrivals_needed_matches_the_actual_vm_delivery_logic():
     for the real 'capture A, then B' cores and the real hold-then-
     trigger relay; zero for sequencer (continuously live from config,
     never arrival-triggered); one for everything else."""
-    two_arrival_tiles = {"adder", "subtractor", "mul", "branch", "nano_hold_trigger"}
+    two_arrival_tiles = {"adder", "subtractor", "mul", "branch", "nano_hold_trigger", "div", "rem"}     # ledger #1074: div / rem take a dividend, then a divisor
     for name, tile in vtl.vix_tile_library.items():
         if name in two_arrival_tiles:
             assert tile.arrivals_needed == 2, name

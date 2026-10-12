@@ -25,12 +25,14 @@ def main(argv=None) -> int:
     ap.add_argument("-o", "--output", metavar="FILE", help="write the compiled .icm file here")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE", help="also run the design on these values and print the answer (repeatable)")
     ap.add_argument("--show-ir", action="store_true", help="print the LLVM IR the formula became")
+    ap.add_argument("--division", choices=["unrolled", "core"], default="unrolled",
+                    help="how a general division is built: 'unrolled' from add/sub/mul cells (about 23,000 cells, one per formula) or 'core' with the division core (one cell each; needs a target that has it)")
     ap.add_argument("--no-check", action="store_true", help="skip the built-in comparison with the Python evaluation (not recommended)")
     ap.add_argument("--full-check", action="store_true", help="run the compiled design in the VM even when it is large (can take many minutes per value)")
     args = ap.parse_args(argv)
 
     try:
-        r = L.compile_latex(args.formula, check=False if args.no_check else ("full" if args.full_check else True))
+        r = L.compile_latex(args.formula, check=False if args.no_check else ("full" if args.full_check else True), division=args.division)
     except L.LatexError as e:
         print(e.format(), file=sys.stderr)
         return 1

@@ -102,10 +102,16 @@ def test_a_same_tick_pair_has_no_dividend_order_and_is_refused():
             g.tick()
 
 
-def test_the_sub_family_refuses_division_with_the_reason(tmp):
+def test_the_sub_family_now_builds_division(tmp):
+    """Ledger #1071 asserted here that the sub family REFUSES division; ledger #1072 enabled it (div_cell_v4s, instantiated at STEPS = 32), which made that assertion stale.
+    The RTL-vs-VM proof for sub is tests/vm/test_sub_div_v1.py; this only pins that the build now succeeds and uses the sub cell."""
     recs = design()
-    icm = os.path.join(tmp, "subrefuse.icm")
+    icm = os.path.join(tmp, "subbuild.icm")
     from icm_v3 import IcmV3File
-    IcmV3File(name="subrefuse", records=recs).save(icm)
-    r = h.cli("-s", "sub", "--icm", icm, "--output", os.path.join(tmp, "g_subrefuse"))
-    assert r.returncode != 0 and "division core is built for the flex family only" in (r.stderr + r.stdout)
+    IcmV3File(name="subbuild", records=recs).save(icm)
+    out = os.path.join(tmp, "g_subbuild")
+    r = h.cli("-s", "sub", "--icm", icm, "--output", out)
+    assert r.returncode == 0, (r.stderr or r.stdout)[:500]
+    rec = h.json.load(open(os.path.join(out, "ASSEMBLY.json")))
+    text = open(os.path.join(out, rec["top"] + ".v")).read()
+    assert "div_cell_v4s" in text

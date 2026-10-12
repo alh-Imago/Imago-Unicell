@@ -118,6 +118,11 @@ register(LibraryEntry(target="sub", tile=vtl.TILE_SUBTRACTOR, is_commutative=Fal
                        port_style="named", extra_params={}))
 register(LibraryEntry(target="mul", tile=vtl.TILE_MUL, is_commutative=True,
                        port_style="named", extra_params={"second_output": 0}))
+# ledger #1073: unsigned division and remainder from the one `div` core. Non-commutative (the dividend must arrive first, like `sub`).
+register(LibraryEntry(target="udiv", tile=vtl.TILE_DIV, is_commutative=False,
+                       port_style="named", extra_params={}))
+register(LibraryEntry(target="urem", tile=vtl.TILE_REM, is_commutative=False,
+                       port_style="named", extra_params={}))
 register(LibraryEntry(target="and", tile=vtl.TILE_NANO_GATE, is_commutative=True,
                        port_style="unconditional", extra_params={"topology": 0x007}))
 register(LibraryEntry(target="or", tile=vtl.TILE_NANO_GATE, is_commutative=True,

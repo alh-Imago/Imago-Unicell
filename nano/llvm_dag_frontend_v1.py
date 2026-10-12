@@ -1513,6 +1513,8 @@ def _read_result(cell, core: str) -> int:
         return cell.adder_out_buffer
     if core == "mul":
         return cell.mul_out_buffer
+    if core == "div":
+        return cell.div_out_buffer        # ledger #1073: the first word (the quotient, or the remainder with remainder_primary)
     if core == "nano":
         return cell._nano.out_buffer
     if core == "ram":
