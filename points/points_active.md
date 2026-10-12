@@ -672,4 +672,16 @@ Alan ran `fpga/board_tests_mutability2` (kit from #1088) on the Tang Nano 20K an
 
 **Next:** decide (1) or (2); read the remaining flex cells' registers against the VM attributes; write the translation of a saved waiting operand into RTL state; then the scan-chain build and board kit (c) and the carrier/full-VM retarget (d). Nothing in this entry has run on a board.
 
-Next entry: #1094.
+### #1094 (12 Oct 2026) -- Option 1 taken: the ring is cut in the ICM, the flex assembler accepts it, and the generated RTL runs the loop (simulation)
+
+Alan chose option 1 (cut the ring; if it works, revisit the tools and methods for the rest of the system).
+
+**Built:** `looped_cordic_v1.build_doc(open_ring=True)` / `save_icm(..., open_ring=True)` (new keyword, default off, so the #1092 closed design and its file are unchanged): the last relay of the way back (`lp.fb19`) sends west out of the grid and is marked `result`; the first stage keeps `z_input`; the gather cell's old `z_output` name is dropped. File: `nano/examples/looped_cordic_v1_open.icm-hier.json` (test asserts the committed file equals the regenerated one).
+
+**Measured:** `project_assemble_v1.py -s flex --icm ... --top icm_open_flex` accepts it (57 cells after merges/branches are absorbed, 17 joins, 4 merge cores arbitrate, exit rule "marked io_name='result'", 7 files). Testbench `sub/verilog/tb_looped_cordic_open_flex_v1.v` (iverilog) closes the loop outside the grid: the first value is injected once (z0 = 50000), afterwards `out_result` is wired to `in_z_input` and the ack back. Result: **the first 40 values equal `model(40)` exactly, one value every 40 clocks, the same 40 per step as the VM.** `test_open_ring_assembles_to_flex_rtl_and_the_closed_loop_matches_the_model` (fails, not skips, without iverilog); the file now has 6 tests passing. Synthesis only, no place-and-route: yosys `synth_gowin -nowidelut` gives 431 LUT1-4 (9/181/164/77), 278 ALU, 1,593 flip-flops; no timing figure, nothing on a board.
+
+**What this does and does not show:** the ICM side of the loop (design -> assembler -> flex Verilog -> same numbers as the VM and the model) is shown for the open-ring form. NOT shown: the closed ring built in hardware (the loop is closed in the testbench, one value circulating); anything about saved state in the RTL (the translation of a waiting operand, read in #1093, is still to do); the board.
+
+**Next:** read the remaining flex cells' registers and map them to the VM attributes; scan path / state read-and-load for the Tang build; then the mirror-VM save at 300, Tang run to ~600, comparison.
+
+Next entry: #1095.

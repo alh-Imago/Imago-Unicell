@@ -1,0 +1,1077 @@
+{
+ "format_version": "icm-vix-v1",
+ "description": "ledger #1092: the 4-stage z-convergence CORDIC fed back to its input through a drift adder (DRIFT=1237); one step = one pass round the loop. Built by nano/looped_cordic_v1.py from nano/examples/cordic_z_convergence.icm-hier.json.",
+ "header": {
+  "cores_used": [
+   "adder",
+   "branch",
+   "ram"
+  ],
+  "cell_count": 61
+ },
+ "patterns": {
+  "stage_0": {
+   "cells": [
+    {
+     "cell_id": "merge",
+     "rel_row": 0,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "zero_source",
+     "rel_row": -1,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     },
+     "preload_value": 0
+    },
+    {
+     "cell_id": "branch",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "branch",
+     "core_config": {
+      "upstream_dir": [
+       "W"
+      ],
+      "value_source_low": 0,
+      "value_source_equal": 0,
+      "value_source_high": 0,
+      "emit_low": 1,
+      "emit_equal": 1,
+      "emit_high": 1,
+      "route_low": [
+       "S"
+      ],
+      "route_equal": [
+       "S"
+      ],
+      "route_high": [
+       "N"
+      ],
+      "rolling_mode": 0
+     }
+    },
+    {
+     "cell_id": "add_pos",
+     "rel_row": 1,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "S"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    },
+    {
+     "cell_id": "const_pos",
+     "rel_row": 2,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 45000
+    },
+    {
+     "cell_id": "turn_pos",
+     "rel_row": 1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "add_neg",
+     "rel_row": -1,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "S",
+       "N"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    },
+    {
+     "cell_id": "const_neg",
+     "rel_row": -2,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 4294922296
+    },
+    {
+     "cell_id": "turn_neg",
+     "rel_row": -1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "gather",
+     "rel_row": 0,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "S"
+      ],
+      "fixed_mode": 0,
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    }
+   ]
+  },
+  "stage_1": {
+   "cells": [
+    {
+     "cell_id": "merge",
+     "rel_row": 0,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "zero_source",
+     "rel_row": -1,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     },
+     "preload_value": 0
+    },
+    {
+     "cell_id": "branch",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "branch",
+     "core_config": {
+      "upstream_dir": [
+       "W"
+      ],
+      "value_source_low": 0,
+      "value_source_equal": 0,
+      "value_source_high": 0,
+      "emit_low": 1,
+      "emit_equal": 1,
+      "emit_high": 1,
+      "route_low": [
+       "S"
+      ],
+      "route_equal": [
+       "S"
+      ],
+      "route_high": [
+       "N"
+      ],
+      "rolling_mode": 0
+     }
+    },
+    {
+     "cell_id": "add_pos",
+     "rel_row": 1,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "S"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    },
+    {
+     "cell_id": "const_pos",
+     "rel_row": 2,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 26565
+    },
+    {
+     "cell_id": "turn_pos",
+     "rel_row": 1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "add_neg",
+     "rel_row": -1,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "S",
+       "N"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    },
+    {
+     "cell_id": "const_neg",
+     "rel_row": -2,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 4294940731
+    },
+    {
+     "cell_id": "turn_neg",
+     "rel_row": -1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "gather",
+     "rel_row": 0,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "S"
+      ],
+      "fixed_mode": 0,
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    }
+   ]
+  },
+  "stage_2": {
+   "cells": [
+    {
+     "cell_id": "merge",
+     "rel_row": 0,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "zero_source",
+     "rel_row": -1,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     },
+     "preload_value": 0
+    },
+    {
+     "cell_id": "branch",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "branch",
+     "core_config": {
+      "upstream_dir": [
+       "W"
+      ],
+      "value_source_low": 0,
+      "value_source_equal": 0,
+      "value_source_high": 0,
+      "emit_low": 1,
+      "emit_equal": 1,
+      "emit_high": 1,
+      "route_low": [
+       "S"
+      ],
+      "route_equal": [
+       "S"
+      ],
+      "route_high": [
+       "N"
+      ],
+      "rolling_mode": 0
+     }
+    },
+    {
+     "cell_id": "add_pos",
+     "rel_row": 1,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "S"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    },
+    {
+     "cell_id": "const_pos",
+     "rel_row": 2,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 14036
+    },
+    {
+     "cell_id": "turn_pos",
+     "rel_row": 1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "add_neg",
+     "rel_row": -1,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "S",
+       "N"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    },
+    {
+     "cell_id": "const_neg",
+     "rel_row": -2,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 4294953260
+    },
+    {
+     "cell_id": "turn_neg",
+     "rel_row": -1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "gather",
+     "rel_row": 0,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "S"
+      ],
+      "fixed_mode": 0,
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    }
+   ]
+  },
+  "stage_3": {
+   "cells": [
+    {
+     "cell_id": "merge",
+     "rel_row": 0,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "zero_source",
+     "rel_row": -1,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     },
+     "preload_value": 0
+    },
+    {
+     "cell_id": "branch",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "branch",
+     "core_config": {
+      "upstream_dir": [
+       "W"
+      ],
+      "value_source_low": 0,
+      "value_source_equal": 0,
+      "value_source_high": 0,
+      "emit_low": 1,
+      "emit_equal": 1,
+      "emit_high": 1,
+      "route_low": [
+       "S"
+      ],
+      "route_equal": [
+       "S"
+      ],
+      "route_high": [
+       "N"
+      ],
+      "rolling_mode": 0
+     }
+    },
+    {
+     "cell_id": "add_pos",
+     "rel_row": 1,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "S"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    },
+    {
+     "cell_id": "const_pos",
+     "rel_row": 2,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 7125
+    },
+    {
+     "cell_id": "turn_pos",
+     "rel_row": 1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "add_neg",
+     "rel_row": -1,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "S",
+       "N"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    },
+    {
+     "cell_id": "const_neg",
+     "rel_row": -2,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 4294960171
+    },
+    {
+     "cell_id": "turn_neg",
+     "rel_row": -1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "gather",
+     "rel_row": 0,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "S"
+      ],
+      "fixed_mode": 0,
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    }
+   ]
+  },
+  "loop": {
+   "cells": [
+    {
+     "cell_id": "fb0",
+     "rel_row": 0,
+     "rel_col": 11,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb1",
+     "rel_row": 1,
+     "rel_col": 11,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N"
+      ],
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb2",
+     "rel_row": 2,
+     "rel_col": 11,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N"
+      ],
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb3",
+     "rel_row": 3,
+     "rel_col": 11,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "N"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb4",
+     "rel_row": 3,
+     "rel_col": 10,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb5",
+     "rel_row": 3,
+     "rel_col": 9,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb6",
+     "rel_row": 3,
+     "rel_col": 8,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb7",
+     "rel_row": 3,
+     "rel_col": 7,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb8",
+     "rel_row": 3,
+     "rel_col": 6,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "drift_add",
+     "rel_row": 3,
+     "rel_col": 5,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "E",
+       "S"
+      ],
+      "downstream_mask": [
+       "W"
+      ]
+     }
+    },
+    {
+     "cell_id": "fb10",
+     "rel_row": 3,
+     "rel_col": 4,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb11",
+     "rel_row": 3,
+     "rel_col": 3,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb12",
+     "rel_row": 3,
+     "rel_col": 2,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb13",
+     "rel_row": 3,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb14",
+     "rel_row": 3,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb15",
+     "rel_row": 3,
+     "rel_col": -1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb16",
+     "rel_row": 3,
+     "rel_col": -2,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "E"
+      ],
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb17",
+     "rel_row": 2,
+     "rel_col": -2,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "S"
+      ],
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb18",
+     "rel_row": 1,
+     "rel_col": -2,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "S"
+      ],
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "fb19",
+     "rel_row": 0,
+     "rel_col": -2,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "S"
+      ],
+      "downstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "drift_const",
+     "rel_row": 4,
+     "rel_col": 5,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "N"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 1237
+    }
+   ]
+  }
+ },
+ "design_map": {
+  "placements": [
+   {
+    "instance": "s0",
+    "pattern": "stage_0",
+    "at": [
+     0,
+     0
+    ],
+    "overrides": {
+     "merge": {
+      "io_name": "z_input"
+     }
+    }
+   },
+   {
+    "instance": "s1",
+    "pattern": "stage_1",
+    "at": [
+     0,
+     3
+    ]
+   },
+   {
+    "instance": "s2",
+    "pattern": "stage_2",
+    "at": [
+     0,
+     6
+    ]
+   },
+   {
+    "instance": "s3",
+    "pattern": "stage_3",
+    "at": [
+     0,
+     9
+    ]
+   },
+   {
+    "instance": "lp",
+    "pattern": "loop",
+    "at": [
+     0,
+     0
+    ],
+    "overrides": {
+     "fb19": {
+      "io_name": "result"
+     }
+    }
+   }
+  ],
+  "connections": [
+   {
+    "from": [
+     "s0",
+     0,
+     1,
+     "E"
+    ],
+    "to": [
+     "s1",
+     0,
+     -1,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "s1",
+     0,
+     1,
+     "E"
+    ],
+    "to": [
+     "s2",
+     0,
+     -1,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "s2",
+     0,
+     1,
+     "E"
+    ],
+    "to": [
+     "s3",
+     0,
+     -1,
+     "W"
+    ]
+   }
+  ]
+ }
+}

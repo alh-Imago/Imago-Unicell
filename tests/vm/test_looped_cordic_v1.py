@@ -75,3 +75,26 @@ def test_save_v1_refuses_a_changed_file():
         assert "state hash" in str(e)
     else:
         raise AssertionError("a changed save was accepted")
+
+
+def test_open_ring_assembles_to_flex_rtl_and_the_closed_loop_matches_the_model():
+    """Ledger #1094: the flex generator refuses a cycle, so the ring is cut (the last relay is the `result`, the first stage the `z_input`) and the loop is closed OUTSIDE the grid by a
+    testbench. The generated flex Verilog, simulated with iverilog, gives the Python model's first 40 values, one per 40 clocks."""
+    import shutil
+    import subprocess
+    if not (shutil.which("iverilog") and shutil.which("vvp")):
+        import pytest
+        pytest.fail("iverilog missing: this test must not pass by skipping")
+    d = tempfile.mkdtemp()
+    icm = os.path.join(ROOT, "nano", "examples", "looped_cordic_v1_open.icm-hier.json")
+    p = os.path.join(d, "o.json"); L.save_icm(p, open_ring=True)
+    assert open(p).read() == open(icm).read()
+    out = os.path.join(d, "rtl")
+    shutil.copy(icm, os.path.join(d, "open.icm-hier.json"))           # the top module is named after the file: icm_open_flex, which the testbench instantiates
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "project_assemble_v1.py"), "-s", "flex", "--icm", os.path.join(d, "open.icm-hier.json"), "--output", out, "--top", "icm_open_flex"], check=True, capture_output=True)
+    vvp = os.path.join(d, "o.vvp")
+    srcs = [os.path.join(out, f) for f in os.listdir(out) if f.endswith(".v")] + [os.path.join(ROOT, "sub", "verilog", "tb_looped_cordic_open_flex_v1.v")]
+    subprocess.run(["iverilog", "-g2012", "-o", vvp] + srcs, check=True, capture_output=True)
+    lines = [l.split() for l in subprocess.run(["vvp", vvp], check=True, capture_output=True, text=True).stdout.splitlines() if l.startswith("R ")]
+    assert [int(l[2]) for l in lines] == L.model(40)
+    assert {int(l[3]) for l in lines} == {40}

@@ -48,7 +48,7 @@ def model(n, z0=Z0, drift=DRIFT):
     return out
 
 
-def build_doc(drift=DRIFT):
+def build_doc(drift=DRIFT, open_ring=False):
     """The design as an icm-vix HIERARCHICAL document (the same format as the example, so the Flex-Sub assembler / project_assemble takes it as it is): the example's four stage
     patterns with their constants made `fixed_mode=1`, the last stage's output cell given an east output, and one new pattern `loop` holding the way back and the drift adder."""
     import json
@@ -75,15 +75,27 @@ def build_doc(drift=DRIFT):
     cells.append({"cell_id": "drift_const", "rel_row": 4, "rel_col": 5, "core": "ram", "core_config": {"downstream_mask": ["N"], "fixed_mode": 1}, "preload_value": drift & M32})
     doc["patterns"]["loop"] = {"cells": cells}
     doc["design_map"]["placements"].append({"instance": "lp", "pattern": "loop", "at": [0, 0]})
+    if open_ring:
+        # ledger #1094: the ring is CUT after its last relay: that cell sends west out of the grid and is the `result`; the first stage keeps its `z_input`. The loop is closed OUTSIDE the grid
+        # (the board wrapper / testbench feeds `result` back into `z_input`), because the flex generator refuses a cycle. The gather cell's z_output name is dropped (it feeds the loop).
+        last = cells[[c["cell_id"] for c in cells].index("fb%d" % (len(path) - 1))]
+        last["core_config"]["downstream_mask"] = ["W"]
+        for pl in doc["design_map"]["placements"]:
+            if pl["instance"] == "s3":
+                pl.get("overrides", {}).pop("gather", None)
+                if not pl.get("overrides"):
+                    pl.pop("overrides", None)
+            if pl["instance"] == "lp":
+                pl["overrides"] = {last["cell_id"]: {"io_name": "result"}}
     doc["header"]["cell_count"] = 40 + len(cells)
     doc["header"]["cores_used"] = sorted(set(doc["header"]["cores_used"]))
     return doc
 
 
-def save_icm(path, drift=DRIFT):
+def save_icm(path, drift=DRIFT, open_ring=False):
     import json
     with open(path, "w") as fh:
-        json.dump(build_doc(drift), fh, indent=1)
+        json.dump(build_doc(drift, open_ring), fh, indent=1)
 
 
 def build_records(drift=DRIFT):
