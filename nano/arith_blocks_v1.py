@@ -129,14 +129,18 @@ def matvec_cell_count(m: int, n: int) -> int:
     return 8 * n * (m - 1) + 7 * n - 1
 
 
-def matvec(coeffs: Sequence[Sequence[int]], x_names: Sequence[str]) -> Tuple[List[IcmV3Record], Dict[str, List[Tuple[int, int]]], List[Tuple[int, int]]]:
-    """Build the block for the constant matrix `coeffs` (m rows of n entries, taken mod 2^32) and the vector arguments `x_names` (n names). Returns (records, arg_injections,
-    result squares, one per row in order). x_j is injected at chain 0's split on row 3j."""
-    m, n = len(coeffs), len(x_names)
-    if m < 1 or n < 2 or any(len(row) != n for row in coeffs):
+def matvec(coeffs: Sequence[Sequence[int]], x_names: Sequence[str], entry_names: Sequence[Sequence[str]] = None, prefix: str = "main.mv",
+           fed: bool = False, feeds_next: bool = False, exit_prefix: str = "main.y") -> Tuple[List[IcmV3Record], Dict[str, List[Tuple[int, int]]], List[Tuple[int, int]]]:
+    """Build the block for an m-by-n matrix and the vector arguments `x_names` (n names). Returns (records, arg_injections, result squares, one per row in order).
+    Entries: constants from `coeffs` (taken mod 2^32), or, if `entry_names` (m rows of n names) is given, RUN-TIME inputs: one input cell per entry, named so (ledger #1083).
+    x_j is injected at chain 0's split on row 3j, unless `fed` (the vector arrives from another block: chain 0's splits then listen on the west face and nothing is injected).
+    `feeds_next`: the result adders send south (to the next block) instead of being plain exits. `prefix`/`exit_prefix` name the cells (chained blocks need distinct names)."""
+    m, n = (len(entry_names), len(x_names)) if entry_names is not None else (len(coeffs), len(x_names))
+    runtime = entry_names is not None
+    if m < 1 or n < 2 or (runtime and any(len(row) != n for row in entry_names)) or (not runtime and any(len(row) != n for row in coeffs)):
         raise ValueError("matvec needs at least one row, at least two columns, and a rectangular matrix")
     recs: List[IcmV3Record] = []
-    inj: Dict[str, List[Tuple[int, int]]] = {x: [] for x in x_names}
+    inj: Dict[str, List[Tuple[int, int]]] = {x: [] for x in x_names} if not fed else {}
     exits: List[Tuple[int, int]] = []
 
     def add(cell_id, r, c, core, cfg, pre=None):
@@ -147,9 +151,9 @@ def matvec(coeffs: Sequence[Sequence[int]], x_names: Sequence[str]) -> Tuple[Lis
         first, last = (i == 0), (i == m - 1)
         for j in range(n):
             R = PITCH * j
-            tag = f"main.mv{i}_{j}"
-            add(f"{tag}_a", R, b, "ram", {"fixed_mode": 0, "upstream_mask": [] if first else ["w"], "downstream_mask": ["s"] + ([] if last else ["e"])})
-            if first:
+            tag = f"{prefix}{i}_{j}"
+            add(f"{tag}_a", R, b, "ram", {"fixed_mode": 0, "upstream_mask": (["w"] if fed else []) if first else ["w"], "downstream_mask": ["s"] + ([] if last else ["e"])})
+            if first and not fed:
                 inj[x_names[j]].append((R, b))
             if not last:
                 add(f"{tag}_lw", R, b + 1, "ram", _wire("w", "e"))
@@ -158,7 +162,11 @@ def matvec(coeffs: Sequence[Sequence[int]], x_names: Sequence[str]) -> Tuple[Lis
             if j >= 1:
                 add(f"{tag}_x", R, b + 2, "cross", {"upstream_mask": ["n"] if last else ["n", "w"], "downstream_mask": ["s"] if last else ["s", "e"]})     # lanes: n->s (running total), w->e (feed line)
             add(f"{tag}_p1", R + 1, b, "priority", _pri(["n", "s"], "e"))
-            add(f"{tag}_k", R + 2, b, "ram", {"fixed_mode": 0, "downstream_mask": ["n"]}, coeffs[i][j] & 0xFFFFFFFF)
+            if runtime:
+                add(f"{tag}_k", R + 2, b, "ram", {"fixed_mode": 0, "upstream_mask": [], "downstream_mask": ["n"]})
+                inj.setdefault(entry_names[i][j], []).append((R + 2, b))
+            else:
+                add(f"{tag}_k", R + 2, b, "ram", {"fixed_mode": 0, "downstream_mask": ["n"]}, coeffs[i][j] & 0xFFFFFFFF)
             add(f"{tag}_mul", R + 1, b + 1, "mul", {"upstream_mask": ["w"], "downstream_mask": ["e"], "second_output": 0})
             if j == 0:
                 add(f"{tag}_w1", 1, b + 2, "ram", _wire("w", "s"))
@@ -166,7 +174,62 @@ def matvec(coeffs: Sequence[Sequence[int]], x_names: Sequence[str]) -> Tuple[Lis
             else:
                 add(f"{tag}_p2", R + 1, b + 2, "priority", _pri(["n", "w"], "s"))
                 lastj = (j == n - 1)
-                add(f"main.y{i + 1}" if lastj else f"{tag}_add", R + 2, b + 2, "adder", {"upstream_mask": ["n"], "downstream_mask": [] if lastj else ["s"]})
+                add(f"{exit_prefix}{i + 1}" if lastj else f"{tag}_add", R + 2, b + 2, "adder", {"upstream_mask": ["n"], "downstream_mask": (["s"] if feeds_next else []) if lastj else ["s"]})
                 if lastj:
                     exits.append((R + 2, b + 2))
     return recs, inj, exits
+
+
+_FLIP = {"n": "w", "w": "n", "s": "e", "e": "s"}
+
+
+def _transposed(recs: List[IcmV3Record], dr: int, dc: int) -> List[IcmV3Record]:
+    """The same cells reflected about the main diagonal (row <-> column; faces n<->w, s<->e), then moved by (dr, dc). Lanes of crossings and every mask flip with the faces."""
+    out = []
+    for r in recs:
+        cfg = dict(r.core_config)
+        for k in ("upstream_mask", "downstream_mask"):
+            if k in cfg:
+                cfg[k] = [_FLIP[f] for f in cfg[k]]
+        out.append(IcmV3Record(cell_id=r.cell_id, row=r.col + dr, col=r.row + dc, core=r.core, core_config=cfg, preload_value=r.preload_value))
+    return out
+
+
+def matvec_chain(layers: Sequence[dict], x_names: Sequence[str]):
+    """y = M_k ( ... (M_2 (M_1 x)) ...): each layer is {"coeffs": [[..]]} (constants) or {"entry_names": [[..]]} (run-time entries). The first block takes x; every later block takes the
+    previous block's results DIRECTLY: it is stacked so its input squares sit next to the previous block's result cells, reflected about the diagonal each time so the pitch lines up
+    (no wire cells between blocks). Layer k+1 must have as many columns as layer k has rows. Returns (records, arg_injections, result squares of the last block)."""
+    recs: List[IcmV3Record] = []
+    inj: Dict[str, List[Tuple[int, int]]] = {}
+    prev_exits = None
+    prev_flipped = False
+    names = list(x_names)
+    for k, lay in enumerate(layers):
+        shape_m = len(lay["entry_names"]) if "entry_names" in lay else len(lay["coeffs"])
+        last = (k == len(layers) - 1)
+        if k > 0 and len(prev_exits) != len(names):
+            raise ValueError("layer %d has %d columns but the previous layer gives %d results" % (k + 1, len(names), len(prev_exits)))
+        pfx, xpfx = ("main.mv", "main.y") if k == 0 else (f"main.b{k}_mv", f"main.b{k}_y")
+        r_, i_, e_ = matvec(lay.get("coeffs"), names, entry_names=lay.get("entry_names"), prefix=pfx, fed=(k > 0), feeds_next=not last, exit_prefix=xpfx)
+        if k == 0:
+            flipped, off = False, (0, 0)
+        else:
+            flipped = not prev_flipped
+            er, ec = prev_exits[0]
+            # the next block's first input square must sit one step after the first result cell, in the direction the results send
+            off = (er + 1, ec) if flipped else (er, ec + 1)         # flipped block: inputs run along its top edge (row), results sent south; plain block: inputs down its west edge, results sent east
+        if flipped:
+            r_ = _transposed(r_, off[0], off[1])
+            e_ = [(c + off[0], r + off[1]) for (r, c) in e_]
+        elif k > 0:
+            r_ = [IcmV3Record(cell_id=r.cell_id, row=r.row + off[0], col=r.col + off[1], core=r.core, core_config=r.core_config, preload_value=r.preload_value) for r in r_]
+            e_ = [(r + off[0], c + off[1]) for (r, c) in e_]
+            i_ = {a: [(r + off[0], c + off[1]) for (r, c) in v] for a, v in i_.items()}
+        if flipped:
+            i_ = {a: [(c + off[0], r + off[1]) for (r, c) in v] for a, v in i_.items()}
+        recs += r_
+        for a, v in i_.items():
+            inj.setdefault(a, []).extend(v)
+        prev_exits, prev_flipped = e_, flipped
+        names = [f"_y{k}_{i}" for i in range(shape_m)]
+    return recs, inj, prev_exits

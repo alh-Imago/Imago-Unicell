@@ -37,6 +37,7 @@ def main(argv=None) -> int:
     ap.add_argument("--no-check", action="store_true", help="skip the built-in comparison with the Python evaluation (not recommended)")
     ap.add_argument("--full-check", action="store_true", help="run the compiled design in the VM even when it is large (can take many minutes per value)")
     ap.add_argument("--matrix", metavar="ROWSxCOLS", help="treat the formula as a matrix RULE, e.g. \"A_{ij} = i j\" with --matrix 4x4: builds y = A x (A from the rule, x_1 .. x_n the run-time inputs, y_1 .. y_m the results)")
+    ap.add_argument("--then", action="append", default=[], metavar='"RULE @ RxC"', help="with --matrix: apply a further matrix to the results, e.g. --then \"B_{ij} = i + j @ 3x2\" (repeatable; just \"B_{ij} @ 3x2\" makes its entries run-time inputs B_1_1 ...)")
     ap.add_argument("--vector", default="x", help="with --matrix: the one-letter name of the input vector (default x)")
     args = ap.parse_args(argv)
 
@@ -46,7 +47,15 @@ def main(argv=None) -> int:
             print("--matrix must look like 4x4 (rows x columns)", file=sys.stderr)
             return 1
         try:
-            mr = L.compile_matrix_latex(args.formula, int(m_.group(1)), int(m_.group(2)), vector=args.vector, check=not args.no_check)
+            then = []
+            for t in args.then:
+                rule_, _, size_ = t.rpartition("@")
+                ms = re.fullmatch(r"\s*(\d+)[xX](\d+)\s*", size_)
+                if not rule_ or not ms:
+                    print('--then must look like "B_{ij} = i + j @ 3x2"', file=sys.stderr)
+                    return 1
+                then.append((rule_.strip(), int(ms.group(1)), int(ms.group(2))))
+            mr = L.compile_matrix_latex(args.formula, int(m_.group(1)), int(m_.group(2)), vector=args.vector, check=not args.no_check, then=then)
         except L.LatexError as e:
             print(e.format(), file=sys.stderr)
             return 1
@@ -54,7 +63,8 @@ def main(argv=None) -> int:
             print(f"CHECK FAILED: {e}", file=sys.stderr)
             return 3
         print(f"compiled: {mr.cells} cells; inputs, in order: {', '.join(mr.args)}; outputs: " + ", ".join(f"y_{i + 1}" for i in range(mr.rows)))
-        print("matrix: " + "; ".join(" ".join(str(v) for v in row) for row in mr.matrix))
+        for lay in mr.layers:
+            print(f"matrix {lay['name']} ({lay['rows']}x{lay['cols']}): " + ("; ".join(" ".join(str(v) for v in row) for row in lay["matrix"]) if lay["matrix"] is not None else "run-time inputs " + lay["entry_names"][0][0] + " ... " + lay["entry_names"][-1][-1]))
         if mr.checked:
             print(f"the compiled design, run in the VM, agrees with the product on {mr.checked} test vectors")
         if args.output:
