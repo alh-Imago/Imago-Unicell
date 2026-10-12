@@ -584,4 +584,14 @@ Alan: the full carrier "sat at around 80%" of the Tang, so for the mutability te
 
 **NOT checked: anything on the physical board.** The serial RECEIVE line (pin 70) has never been used by any earlier test (only transmit), so if the host script gets no reply at all the first thing to try is `mutability1.fs`. What a pass will show: the carrier's configuration word (`cfg_valid` + 160 bits) can be rewritten at run time and the next data through the same hardware follows it, for a core setting, the shared add-on chain, and the choice of core. What it will not show: the live programming channel (`program_in`) or the command core, several cells on a grid, speed, or the full carrier. Fmax figures are nextpnr's, not measured. The accumulator is in the carrier but not exercised by test 1.
 
-Next entry: #1087.
+## 1087. Mutability test 1 RUN ON THE REAL BOARD: PASS, seven of seven phases (Alan/Claude, 2026-10-12)
+
+Alan loaded `fpga/board_tests_mutability/mutability1h.fs` onto the Tang Nano 20K (Linux, `sudo ./run_mutability.sh host`, openFPGALoader to SRAM, serial port /dev/ttyUSB1, board_tests_mutability folder from the kit sent in #1086) and pasted the output. One bitstream, loaded once, same operands A=12345600, B=00000078 every phase; the PC sent a new carrier configuration before each:
+
+phase 0 adder add 12345678 ok | 1 adder subtract 12345588 ok | 2 add + invert EDCBA987 ok | 3 add + shift right 8 00123456 ok | 4 add + nibble mask 03 12345600 ok | 5 core changed to mul 88885000 ok | 6 back to adder add 12345678 ok. The script's verdict: `RESULT: PASS: the result followed the configuration every time, and phase 6 matches phase 0`.
+
+**What this shows (on silicon, not only in simulation):** the carrier's configuration word (`cfg_valid` + 160 bits) can be rewritten while the board is running, with no re-synthesis and no reload, and the next data through the same hardware follows the new setting: a core setting (add to subtract), the shared add-on chain (invert, shift, mask), and the choice of core itself (adder to multiplier, and back). Phase 6 equal to phase 0 shows it is reversible. The expected words were worked out in Python from the operands, not read from the board. Also shown for the first time: the serial RECEIVE line (pin 70) works on this board (the open doubt in #1086), and the host-driven bitstream (4,553 LUT4 + 474 ALU, placed at 81.5 MHz in nextpnr) loads and runs.
+
+**What it does not show (unchanged from #1086):** the live programming channel (`program_in`) and the command core; several cells working together on a grid; speed or throughput; the full 15-core carrier; the accumulator (in the carrier, not exercised); behaviour over many repeated reconfigurations or at other seeds. The run was a single pass; no result line from `mutability1.fs` (the smoke test) was reported. Alan's paste is the only evidence recorded here: no log file was saved by this session.
+
+Next entry: #1088.
