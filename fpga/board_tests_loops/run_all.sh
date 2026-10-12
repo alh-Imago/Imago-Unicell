@@ -45,10 +45,14 @@ for f in *.fs; do
     P=${1:-$(ls /dev/ttyUSB* 2>/dev/null | sort -V | tail -1)}
     echo "ports now: $(ls /dev/ttyUSB* 2>&1 | tr '\n' ' ') -> reading $P (try $try)" >> "raw/$n.ports"
     : > "raw/$n.bin"
-    if [ -n "$P" ]; then
-      stty -F "$P" 115200 raw -echo -hupcl clocal -crtscts 2>>"raw/$n.ports"
-      timeout 7 cat "$P" > "raw/$n.bin" 2>>"raw/$n.ports"
-    fi
+    # ledger #1121: after a load the serial line can come back on EITHER ttyUSB port (the FTDI re-attaches): read the named port first, then every other ttyUSB, keep the one that talks
+    for Q in $P $(ls /dev/ttyUSB* 2>/dev/null | sort -V); do
+      [ -e "$Q" ] || continue
+      stty -F "$Q" 115200 raw -echo -hupcl clocal -crtscts 2>>"raw/$n.ports"
+      timeout ${SECS:-5} cat "$Q" > "raw/$n.try" 2>>"raw/$n.ports"
+      echo "  tried $Q: $(wc -c < "raw/$n.try") bytes" >> "raw/$n.ports"
+      if [ -s "raw/$n.try" ]; then cp "raw/$n.try" "raw/$n.bin"; P=$Q; break; fi
+    done
     echo "  ${P:-none}: $(wc -c < "raw/$n.bin") bytes" >> "raw/$n.ports"
     [ -s "raw/$n.bin" ] && break
     # silent. Recovery, one step per retry:  after try 1 -> load the SAME bitstream again;  after try 2 -> (only with USBRESET=1) a proper

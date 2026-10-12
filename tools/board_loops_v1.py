@@ -18,6 +18,8 @@ import looped_cordic_v1 as L
 import standalone_grid_v1 as SG
 import verilog_deps_v1 as vd
 
+SH_OLD = '    if [ -n "$P" ]; then\n      stty -F "$P" 115200 raw -echo -hupcl clocal -crtscts 2>>"raw/$n.ports"\n      timeout 7 cat "$P" > "raw/$n.bin" 2>>"raw/$n.ports"\n    fi\n'
+SH_NEW = '    # ledger #1121: after a load the serial line can come back on EITHER ttyUSB port (the FTDI re-attaches): read the named port first, then every other ttyUSB, keep the one that talks\n    for Q in $P $(ls /dev/ttyUSB* 2>/dev/null | sort -V); do\n      [ -e "$Q" ] || continue\n      stty -F "$Q" 115200 raw -echo -hupcl clocal -crtscts 2>>"raw/$n.ports"\n      timeout ${SECS:-5} cat "$Q" > "raw/$n.try" 2>>"raw/$n.ports"\n      echo "  tried $Q: $(wc -c < "raw/$n.try") bytes" >> "raw/$n.ports"\n      if [ -s "raw/$n.try" ]; then cp "raw/$n.try" "raw/$n.bin"; P=$Q; break; fi\n    done\n'
 N = 20
 RF = 20   # a flex release restarts a window of N more results (measured, tests/vm/test_flex_ring_v1.py)
 RS = 20   # the sub ring: checked in simulation by this tool before anything is written
@@ -236,6 +238,7 @@ def main():
         results.append(r)
     for fn, txt in (("run_all.bat", bt.BAT), ("board_run.py", bt.RUNPY), ("board_collect.py", bt.COLLECT), ("run_one.sh", bt.ONE), ("run_all.sh", bt.SH)):
         txt = txt.replace("to=[01] last=", "to=[01](?: n0=[0-9A-F]{4} st=[0-9A-F])? last=").replace("to=\\d last=", "to=\\d(?: n0=[0-9A-F]{4} st=[0-9A-F])? last=")    # ledger #1119: the loop tests' line has n0= and st= before last=; the #1023 parser rejected it
+        txt = txt.replace(SH_OLD, SH_NEW)
         p = os.path.join(a.out, fn)
         open(p, "w", newline="\r\n" if fn.endswith(".bat") else "\n").write(txt)
         if fn.endswith(".sh"):
