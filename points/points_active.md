@@ -887,4 +887,14 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Tests.* tests/vm/test_sub_ring_v1.py: 15 pass; tests/vm/test_flex_ring_v1.py: 17 pass (the old "sub refused" test became "sub rings need their own control too").
 
-Next entry: #1112.
+**#1112 (12 Oct) -- THE HELD WORD AS THE INTERFACE BETWEEN SUB MATH AND THE FLEX (HANDSHAKE) CELLS.** Alan (22:01 and 22:10): the captured point "is effectively the phase needed to i/f with the stepped flex and nano cell types"; "as the value is held this becomes the data to be compared, checked or whatever is needed, while the check introduces delay, that is inevitable; the only other way is to say count-1 every time it's introduced, but that then requires further calculation for the injected data". Cross-reference #1111.
+
+*What was built.* `sub/verilog/flex_sub_bridge_v1.v` (two registered modules, new files, nothing proven edited): `flex_to_sub_v1` takes a flex word (valid/ack) only when the sub section is idle, acks it that clock and presents it to the sub entry as a one-clock valid with its data (+1 clock); `sub_to_flex_v1` catches the sub block's output pulse and HOLDS it (data plus a level `held` = the flex valid); the flex ack releases it and pulses `done`, which re-opens the input. The holding register is the measure point of #1111. Rule of the pair: ONE word in flight, because a sub block cannot refuse or queue a word (no ack), so no second word may be admitted while one is still held. Alan's alternative (compensating the count by one at every check) is not needed here: the check happens on a held word, and the delay it adds is a fixed, measured number, not a correction to the injected data.
+
+*Measured (iverilog, `sub/verilog/tb_flex_sub_bridge_v1.v`).* Flex ram -> bridge -> three sub cells (add 1000, relay, add 234) -> bridge -> flex ram. 40 words: every word arrives exactly once, in order, each equal to x + 1234. With a sink that acks only at random (stalls): same 40 words, same values, later. Period with no stall: 6 clocks per word (bridge 1 + 3 sub cells + hold 1 + sink 1); latency from taking the word to the sink holding it: 6 clocks. The crossing pair costs 2 clocks over the sub block's own latency. Negative control: without the one-in-flight gate (a word admitted while one is held and the sink stalls) words are lost, so the gate is real.
+
+*Honest scope.* One word in flight, so a long sub block runs at 1 word per (its latency + 3): the bridge gives up the sub family's one-result-per-clock pipelining (a credit/queue version could restore it; not built). Tested against flex cells only; the nano (stepped) side is not done. Synthesis cost and clock speed of the bridge not measured (two registers and a flag per side; it adds no cells). No compare/check cell is wired in yet: the held word is available at the flex side for any flex cell (comparator, branch) to use.
+
+*Tests.* tests/vm/test_flex_sub_bridge_v1.py: 4 pass.
+
+Next entry: #1113.
