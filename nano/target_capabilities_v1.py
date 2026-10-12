@@ -5,7 +5,7 @@ target) instead of at load time. The ICM itself never names a target: it states 
 Targets: "std" (the standard VM / fixed-address cells), "flex" (the valid/ack handshake family) and "sub" (the fixed-latency flex-sub family).
   second_output           which cores can deliver a second result word (the adder/subtractor's carry, the multiplier's high word)
   second_downstream_mask  which cores can send that second word to its OWN faces
-std: the multiplier's high word exists (sequential, on the same faces as the low word); nothing else. flex: both, on adder and mul. sub: neither.
+std: the multiplier's high word and the divider's remainder exist (sequential, on the same faces as the first word); nothing else. remainder_primary (ledger #1070): only the divider has it; every target that has a divider can swap which word is first. flex: both, on adder and mul. sub: neither.
 shift amount (add-on): ONE number in the ICM (`shift_amt`, direction beside it). flex/nano: ANY amount 0..31 (a wired shift; coarse + fine are just how it is programmed). std: coarse taps (+ fine 0-3).
 sub: coarse taps only, no fine. A number the target cannot make would be a silent no-op in the VM/RTL, so the compiler refuses it when the target is named (ledger #986).
 No target given = no check (the ICM is produced unchanged).
@@ -13,9 +13,9 @@ No target given = no check (the ICM is produced unchanged).
 from typing import Dict, Iterable, List, Optional, Set
 
 CAPABILITIES: Dict[str, Dict[str, Set[str]]] = {
-    "std": {"second_output": {"mul"}, "second_downstream_mask": set()},
-    "flex": {"second_output": {"adder", "mul"}, "second_downstream_mask": {"adder", "mul"}},
-    "sub": {"second_output": set(), "second_downstream_mask": set()},
+    "std": {"second_output": {"mul", "div"}, "second_downstream_mask": set(), "remainder_primary": {"div"}},
+    "flex": {"second_output": {"adder", "mul", "div"}, "second_downstream_mask": {"adder", "mul", "div"}, "remainder_primary": {"div"}},
+    "sub": {"second_output": set(), "second_downstream_mask": set(), "remainder_primary": {"div"}},
 }
 COARSE_TAPS = (1, 2, 4, 8, 12, 16, 20, 24, 28)
 FINE_OK = {"std": True, "flex": True, "sub": False}      # may shift_fine be used
@@ -31,7 +31,7 @@ def check_records(records: Iterable, target: Optional[str]) -> List[str]:
     caps, out = CAPABILITIES[target], []
     for r in records:
         cfg = r.core_config or {}
-        for feature in ("second_output", "second_downstream_mask"):
+        for feature in ("second_output", "second_downstream_mask", "remainder_primary"):
             if cfg.get(feature) and r.core not in caps[feature]:
                 have = sorted(caps[feature])
                 out.append(f"{r.cell_id}: {feature} on a {r.core} -- target {target!r} cannot do that ("

@@ -643,5 +643,47 @@
     "description": "0 A only, 1 B only, 2 arbitrate (round-robin), 3 join-or"
    }
   ]
+ },
+ "div": {
+  "source_file": "/home/claude/Imago-Unicell/sub/verilog/div_cell_v4sa.v",
+  "_provenance_note": "ledger #1070: the division core. Field positions are icm_v3.py's own _DIV_FIELDS (the ICM super-latch layout), the mul's layout plus remainder_primary at bit 17. NOT extracted from an RTL field-map comment: the only RTL so far is the flex cell div_cell_v4sa.v (cfg_data[0] rem_enable, [1] rem_primary, a different layout); the v4/v4c cells and the carrier slot do not exist yet.",
+  "fields": [
+   {
+    "name": "downstream_mask",
+    "hi": 3,
+    "lo": 0,
+    "description": "one-hot(s), N/S/E/W, routing_mask convention"
+   },
+   {
+    "name": "upstream_mask",
+    "hi": 7,
+    "lo": 4,
+    "description": "the TWO operand faces; the first arrival is the DIVIDEND, the second the DIVISOR"
+   },
+   {
+    "name": "reserved",
+    "hi": 11,
+    "lo": 8,
+    "description": "unused"
+   },
+   {
+    "name": "second_output",
+    "hi": 12,
+    "lo": 12,
+    "description": "0 = the quotient only; 1 = the remainder follows as a second word (same faces unless second_downstream_mask is set)"
+   },
+   {
+    "name": "second_downstream_mask",
+    "hi": 16,
+    "lo": 13,
+    "description": "faces the second word leaves by (empty = the same faces as downstream_mask)"
+   },
+   {
+    "name": "remainder_primary",
+    "hi": 17,
+    "lo": 17,
+    "description": "1 = the remainder is the first word and the quotient the second"
+   }
+  ]
  }
 }

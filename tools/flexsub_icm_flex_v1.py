@@ -77,7 +77,7 @@ sys.path.insert(0, TOOLS_DIR)
 import flexsub_assemble_v1 as fsa  # noqa: E402
 import flexsub_icm_generate_v1 as g  # noqa: E402
 
-FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa", "merge": "merge_cell_v4sa", "sequencer": "sequencer_cell_v4sa", "priority": "priority_cell_v4sa"}
+FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "div": "div_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa", "merge": "merge_cell_v4sa", "sequencer": "sequencer_cell_v4sa", "priority": "priority_cell_v4sa"}
 
 
 MERGE_MODES = {"arbitrate": 2, "join-or": 3}
@@ -227,7 +227,7 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
     for dst in order:
         r = cells[dst]
         rl = []
-        if r.core in ("adder", "mul", "nano", "merge"):
+        if r.core in ("adder", "mul", "div", "nano", "merge"):
             srcs = [roles[dst]["A"], roles[dst]["B"]]
         elif r.core in ("accumulator", "latch"):
             srcs = [q for role in sorted(inputs.get(dst, {})) for q, _ in inputs[dst][role]]
@@ -416,7 +416,7 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
                     continue
                 terms = [(f"({e}_v & {srcdata[e]}[0])" if (r.core == "latch" and role == "set") else f"{e}_v") for e in byrole.get(role, [])]
                 a(f"wire {i}_p_{role} = ({' | '.join(terms) if terms else chr(49) + chr(39) + 'b0'}) & {i}_rdy;")
-        elif r.core in ("adder", "mul"):
+        elif r.core in ("adder", "mul", "div"):
             eA, eB = es
             joins.append({"cell": dst})
             a(f"assign {i}_vin = {eA}_v & {eB}_v;      // join: both operands must be present")
@@ -500,14 +500,16 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
             # ledger #976: the cell is built WITH its second port (SECOND_PORT=1) and the enable bit is set: adder cfg_data[1] / mul cfg_data[0]. Port 1 and port 2 each have their own valid/ack.
             if r.core == "adder":
                 word, p2 = (1 if cfg.get("subtract_mode", 0) else 0) | 2, ".carry_out({i}_d2u), .valid_out_c({i}_p2_v), .ack_in_c({i}_p2_ai)"
+            elif r.core == "div":      # ledger #1070: cfg_data[0] = rem_enable (the second port), [1] = rem_primary (the remainder is the first word)
+                word, p2 = 1 | (2 if cfg.get("remainder_primary", 0) else 0), ".rem_out({i}_d2u), .valid_out_r({i}_p2_v), .ack_in_r({i}_p2_ai)"
             else:
                 word, p2 = 1, ".data_out_hi({i}_d2u), .valid_out_hi({i}_p2_v), .ack_in_hi({i}_p2_ai)"
             c2 = common.replace(f".valid_out({i}_v)", f".valid_out({i}_p1_v)").replace(f".ack_in({i}_ai)", f".ack_in({i}_p1_ai)")
             a(f"{mod} #(.CELL_ID(16'd{idx[c]}), .SECOND_PORT(1){WP}) {i} ({c2}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {p2.format(i=i)});   // second output port ON")
         else:
-            word = 1 if (r.core == "adder" and cfg.get("subtract_mode", 0)) else 0
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), "
-              f"{'.ack_in_c(1' + chr(39) + 'b1)' if r.core == 'adder' else '.ack_in_hi(1' + chr(39) + 'b1)'});")   # #974: the second output port is not enabled here -- tied high so it can never stall the cell
+            word = 1 if (r.core == "adder" and cfg.get("subtract_mode", 0)) else (2 if (r.core == "div" and cfg.get("remainder_primary", 0)) else 0)
+            tie = {"adder": ".ack_in_c(1'b1)", "div": ".ack_in_r(1'b1)"}.get(r.core, ".ack_in_hi(1'b1)")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {tie});")   # #974: the second output port is not enabled here -- tied high so it can never stall the cell
         if c in addons:
             a(f"assign {i}_d = {g.addon_expr(addons[c], dout)};   // addon chain as pure wiring: data only; valid and the handshake are untouched")
     a("endmodule")

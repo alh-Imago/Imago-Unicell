@@ -78,12 +78,12 @@ def test_run_to_quiescence_waits_for_a_busy_divider():
     assert sink.ram_data_valid and sink.ram_data_reg == 14
 
 
-def test_flexgrid_refuses_the_division_core_until_a_flex_version_exists():
-    """The flex family is a separate grid with its own port shape; the std handler must not run there silently."""
-    import pytest
+def test_flexgrid_has_its_own_division_handler():
+    """The flex family is a separate grid with its own port shape. #1069 had it refuse the core; #1070 gave it a handler of its own (checked against the generated RTL in test_flex_grid_div_v1.py)."""
     import flex_grid_v1 as FG
+    assert "div" in FG._FLEX_HANDLERS and FG._FLEX_HANDLERS["div"].deliver is not None
     cells = [vix.HierCell(cell_id="D", rel_row=1, rel_col=1, core="div", core_config={"upstream_mask": ["w", "n"], "downstream_mask": ["e"]})]
     icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=cells)},
                          placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))], name="d")
-    with pytest.raises(ValueError, match="not built for the flex family"):
-        FG.FlexGrid(icm.flatten()[0])
+    g = FG.FlexGrid(icm.flatten()[0])
+    assert g.cells[(1, 1)].core == "div"

@@ -42,11 +42,11 @@ INPUT_FIELDS = {
 # ICM core -> Flex-Sub shape key (tools/flexsub_assemble_v1.SHAPES). None => no Flex-Sub equivalent.
 CORE_TO_SHAPE = {
     "ram": "ram", "adder": "adder", "comparator": "compare", "accumulator": "accumulator",
-    "sequencer": "sequencer", "latch": "latch", "mul": "mul", "nano": "nano", "branch": "branch",
+    "sequencer": "sequencer", "latch": "latch", "mul": "mul", "div": "div", "nano": "nano", "branch": "branch",
     "priority": "priority", "command": None,
 }
 # Two-operand cores: operand roles are by ARRIVAL ORDER in the VM.
-TWO_OPERAND = {"adder", "mul", "nano"}   # nano: first arrival = held operand A, second = flowing operand B (VM CACell)
+TWO_OPERAND = {"adder", "mul", "div", "nano"}   # nano: first arrival = held operand A, second = flowing operand B (VM CACell)
 # How each core's config words translate (read from the root_definition fields vs each v4sa cell's header).
 CONFIG_NOTES = {
     "ram": "direct: fixed_mode -> cfg_fixed_mode port, init_data -> cfg_data. THREE behaviours (ledger #1021): fixed + no source = a CONSTANT; flowing (default) = one-shot, offer then empty, and with load_data_valid the init word is offered ONCE at start (flex: OFFER_PRELOAD); fixed + a source = HOLD, the arriving words replace the stored value, offered continuously, never drained (flex: HOLD; starts empty unless load_data_valid / preload_value gives it a value). One-shot-with-preload and hold are flex only",
@@ -55,6 +55,7 @@ CONFIG_NOTES = {
     "accumulator": "direct: step_amount/pulse_mode/threshold -> cfg_data[7:0]/[8]/[24:9]",
     "sequencer": "direct: VALUE_0..3 -> cfg_data bytes, SEQUENCE_LEN -> cfg_seq_len_m1",
     "latch": "no config word (v4sa latch ignores cfg_data); set/clear/toggle come from the wiring",
+    "div": "second_output (remainder; flex only, ledger #1070) -> cfg_data[0] and the SECOND_PORT build parameter; remainder_primary -> cfg_data[1]; the width and bits-per-clock are build parameters",
     "mul": "second_output (high word): v4s (sub) has no equivalent -- refused; on flex it is the mul's second output port (data_out_hi, cfg_data[0], ledger #976)",
     "nano": "topology[9:0] -> cfg_data[9:0] direct; routing_mask/cardinal_edge/out_buffer are carrier fields, no equivalent",
     "branch": "LOSSY: v4sa branch has two flowing inputs, ONE shared emit_source, and 2-bit out1/out2 routing; "
@@ -130,7 +131,7 @@ def extract(path):
         if r.core == "nano":                                                  # nano's OUTPUT faces live in routing_mask
             for d in _dirs(cfg, "routing_mask"):
                 faces.setdefault(d, [])
-        if r.core in ("adder", "mul") and cfg.get("second_output") and _dirs(cfg, "second_downstream_mask"):
+        if r.core in ("adder", "mul", "div") and cfg.get("second_output") and _dirs(cfg, "second_downstream_mask"):
             # ledger #981: the SECOND word (adder carry / mul high word) has its own faces. Like a branch's outcomes, each face is tagged with the words it carries:
             # "first" (downstream_mask only), "second" (second_downstream_mask only) or both. Without second_downstream_mask the tags stay empty = both words, as before.
             for d in _dirs(cfg, "downstream_mask"):
@@ -342,6 +343,8 @@ def analyse(path, family="flex"):
                                "into separate cells (#905)")
         if r.core == "mul" and cfg.get("second_output") and family != "flex":
             v["issues"].append("mul second_output=1 has no v4s equivalent (the flex mul has it as a second output port, ledger #976)")
+        if r.core == "div" and cfg.get("second_output") and family != "flex":
+            v["issues"].append("div second_output=1 has no v4s equivalent (the flex divider has it as a second output port, ledger #1070)")
         if r.core == "adder" and cfg.get("second_output") and family != "flex":
             v["issues"].append("adder second_output=1 has no v4s equivalent (the flex adder has it as a second output port, ledger #976)")
         if r.core == "branch":

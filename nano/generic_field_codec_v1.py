@@ -82,6 +82,7 @@ CORE_SELECT_TO_ROOT_KEY = {
     9: "priority",   # points.md #823: added alongside icm_v3.py's own
                       # SEL_PRIORITY -- same VM-provisional status, #751.
     12: "merge",      # ledger #1036: the merge core (10 `cross` and 11 `corner` are wiring tiles with no entry)
+    13: "div",        # ledger #1070: the division core (field positions are icm_v3.py's _DIV_FIELDS; see the provenance note in root_definition.json)
 }
 
 

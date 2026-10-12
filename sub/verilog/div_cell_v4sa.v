@@ -24,7 +24,8 @@
 // the dividend (it is a remainder of a prefix), which is below 2^(WIDTH-1), so 2R+bit always fits.
 // The subtract is still done in WIDTH+1 bits so the "does it fit" decision is the borrow bit.
 //
-// cfg_data[0] = rem_enable.  Reconfiguring discards an operation in flight, as adder_cell_v4sa does.
+// cfg_data[0] = rem_enable.  cfg_data[1] = rem_primary: the REMAINDER leaves on data_out and the QUOTIENT on rem_out (so a design that wants only x mod y
+// takes data_out and leaves rem_enable clear).  Reconfiguring discards an operation in flight, as adder_cell_v4sa does.
 `default_nettype none
 `timescale 1ns / 1ps
 
@@ -58,6 +59,7 @@ module div_cell_v4sa #(
     localparam CW = $clog2(WIDTH + 1);
 
     reg             rem_enable = 1'b0;
+    reg             rem_primary = 1'b0;
     reg             armed      = 1'b0;
     reg             busy       = 1'b0;
     reg             pending    = 1'b0;
@@ -100,6 +102,7 @@ module div_cell_v4sa #(
     always @(posedge clk) begin
         if (rst) begin
             rem_enable <= 1'b0;
+            rem_primary <= 1'b0;
             armed      <= 1'b0;
             busy       <= 1'b0;
             pending    <= 1'b0;
@@ -109,6 +112,7 @@ module div_cell_v4sa #(
             rem_buffer <= {WIDTH{1'b0}};
         end else if (cfg_valid) begin
             rem_enable <= (SECOND_PORT != 0) && cfg_data[0];
+            rem_primary <= cfg_data[1];
             armed      <= 1'b1;
             busy       <= 1'b0;
             pending    <= 1'b0;
@@ -123,8 +127,8 @@ module div_cell_v4sa #(
                     busy       <= 1'b0;
                     pending    <= 1'b1;
                     pending_r  <= rem_enable;
-                    out_buffer <= nQ;
-                    rem_buffer <= (SECOND_PORT != 0) ? nR : {WIDTH{1'b0}};
+                    out_buffer <= rem_primary ? nR : nQ;
+                    rem_buffer <= (SECOND_PORT != 0) ? (rem_primary ? nQ : nR) : {WIDTH{1'b0}};
                     remaining  <= {CW{1'b0}};
                 end else begin
                     remaining  <= remaining - STEPS;

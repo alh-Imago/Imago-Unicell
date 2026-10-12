@@ -134,6 +134,9 @@ SEL_CORNER = 11
 #: Alan, 8 Oct 2026: `merge` -- the flex family's MERGE core, brought into the main theme. Two input faces (the two set bits of `upstream_mask`, in N,S,E,W order: the first is A, the second B) and one output;
 #: `mode` 0 = A only, 1 = B only, 2 = ARBITRATE (one at a time, round-robin), 3 = JOIN-OR (wait for both, output A|B). Core number 12 (the carrier numbers it 14).
 SEL_MERGE = 12
+#: ledger #1069/#1070 (Alan, 12 Oct 2026): `div` -- unsigned division, dividend first and divisor second (arrival order, like `sub`); the quotient, and with `second_output` the remainder as a second word.
+#: `remainder_primary` swaps them (the remainder first). x/0 = all ones, remainder = dividend. Core number 13; the carrier slot and the v4/v4c RTL are still to be built (the flex cell exists, ledger #1070).
+SEL_DIV = 13
 
 def merge_cores_as_relays(records):
     """ledger #1036: the flex family builds a merge as a relay (ram) fed by two sources with a merge core in front (the mode is per consumer cell). An ICM `merge` core therefore becomes a
@@ -169,6 +172,7 @@ CORE_NAMES = {
     SEL_CROSS: "cross",
     SEL_CORNER: "corner",
     SEL_MERGE: "merge",
+    SEL_DIV: "div",
 }
 CORE_IDS = {name: sel for sel, name in CORE_NAMES.items()}
 
@@ -344,6 +348,15 @@ _MUL_FIELDS = {
     "second_downstream_mask": (13, 16),   # ledger #981: faces the second word leaves by (empty = same as downstream_mask); flex family and the standard cells (#1036)
 }
 
+# ledger #1070: `div` -- the mul's field layout plus `remainder_primary` (bit 17): the remainder is the first word, the quotient the second.
+_DIV_FIELDS = {
+    "downstream_mask": (0, 3),
+    "upstream_mask": (4, 7),
+    "second_output": (12, 12),
+    "second_downstream_mask": (13, 16),
+    "remainder_primary": (17, 17),
+}
+
 # points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==
 # "priority":` field list. Each `priority_rank_*` is masked `& 0x3` there (2 bits, matching #814's own real,
 # separately-confirmed finding that the priority cell's weight field is 2 bits and silently masks anything wider);
@@ -430,6 +443,7 @@ CORE_FIELD_TABLES = {
     SEL_CROSS: _CROSS_FIELDS,
     SEL_CORNER: _CORNER_FIELDS,
     SEL_MERGE: _MERGE_FIELDS,
+    SEL_DIV: _DIV_FIELDS,
 }
 
 # Direction-valued fields per core -- these accept either a raw int or a
@@ -465,6 +479,7 @@ _DIR_FIELDS = {
     # constraint), not a one-hot mask -- left as a raw int.
     SEL_BRANCH: ("route_low", "route_equal", "route_high"),
     SEL_MUL: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
+    SEL_DIV: ("downstream_mask", "upstream_mask", "second_downstream_mask"),
     SEL_PRIORITY: ("upstream_mask", "downstream_mask"),
 }
 

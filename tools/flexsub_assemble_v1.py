@@ -100,6 +100,10 @@ SHAPES = {
                 out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
                 stim_data=["in_b"], cfg="zero",
                 opt_open=[("ack_in_hi", ["data_out_hi", "valid_out_hi"])]),   # flex only: the high word's own port (#974), left unused here
+    "div": dict(file=("div_cell", ""), families=("flex",), in_data="in_a", in_valid="valid_in",      # ledger #1070: flex only until div_cell_v4s exists
+                out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
+                stim_data=["in_b"], cfg="zero",
+                opt_open=[("ack_in_r", ["rem_out", "valid_out_r"])]),     # the remainder's own port, left unused here
     "mul_dsp": dict(file=("mul_cell", "_dsp"), in_data="in_a", in_valid="valid_in",
                     out=("data_out", "valid_out"), ack_out="ack_out", ack_in="ack_in",
                     stim_data=["in_b"], cfg="zero", max_width=36,

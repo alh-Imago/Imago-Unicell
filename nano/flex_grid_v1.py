@@ -151,7 +151,7 @@ def _one_operand_at_a_time(cell, arrivals, injected, mask, deliver, what):
     """ledger #989: a two-operand flex cell never ORs two operands that arrive in the SAME tick (the std VM does; the real handshake cell takes both and waits for both). The VM takes ONE (the lower face) and
     acknowledges only that one -- the other stays pending and is taken next. For add and multiply that gives the same result as the RTL (commutative). For a SUBTRACT the order would be a guess, so it is refused."""
     present = sorted((d for d in arrivals if (mask >> _DIR_BIT[d]) & 1), key=lambda d: _DIR_BIT[d])
-    a_attr = "adder_a_arrived" if cell.core == "adder" else "mul_a_arrived"
+    a_attr = {"adder": "adder_a_arrived", "div": "div_a_arrived"}.get(cell.core, "mul_a_arrived")
     a_in = bool(getattr(cell, a_attr, False))
     two_faces = bin(mask & 0xF).count("1") >= 2
     if injected is None and a_in and two_faces:
@@ -170,8 +170,8 @@ def _one_operand_at_a_time(cell, arrivals, injected, mask, deliver, what):
                 return ({win}, None)
             return got
         return deliver(cell, arrivals, injected)
-    if what == "subtract" and not a_in:
-        raise ValueError("flex VM: both operands of a subtract arrive in the same tick -- there is no operand order (the real cell orders them by arrival); separate their path lengths")
+    if what in ("subtract", "div") and not a_in:
+        raise ValueError(f"flex VM: both operands of a {what} arrive in the same tick -- there is no operand order (the real cell orders them by arrival); separate their path lengths")
     win = present[0]
     got = deliver(cell, {win: arrivals[win]}, None)
     if got[0] is True:
@@ -244,6 +244,12 @@ def _flex_offer_mul(self):
     return (v, valid, mask)
 
 
+def _flex_deliver_div(self, arrivals, injected):
+    """ledger #1070: the divider takes its operands one at a time, in arrival order (dividend first), and refuses a same-tick pair for want of an order -- exactly like a subtract."""
+    return _one_operand_at_a_time(self, arrivals, injected, self.div_upstream_mask, _CORE_HANDLERS["div"].deliver, "div")
+
+
+register_flex_handler("div", _dc_replace(_CORE_HANDLERS["div"], deliver=_flex_deliver_div))
 register_flex_handler("mul", _dc_replace(_CORE_HANDLERS["mul"], deliver=_flex_deliver_mul, offer_state=_flex_offer_mul))
 register_flex_handler("adder", CoreHandler(deliver=_flex_deliver_adder, offer_state=_flex_offer_adder, continuously_live=False, clear_valid=_flex_clear_valid_adder))
 register_flex_handler("ram", CoreHandler(deliver=_flex_deliver_ram, offer_state=SuperCell._offer_state_ram, continuously_live=False, clear_valid=SuperCell._clear_valid_ram))
@@ -257,10 +263,6 @@ class FlexGrid(SuperGrid):
     _UNVERIFIED_AT_OTHER_WIDTHS = frozenset()      # accumulator and branch are checked against the real v4sa cells at W = 16..36 / 4..36 (#970); the priority arbiter at W = 32 and 18, all three modes (#1022)
 
     def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
-        # ledger #1069: the division core exists on the standard grid (v4/v4c style: one output, the remainder as a second word). The flex family (v4s/v4sa) has dedicated operand and result ports and its
-        # own version is not built; without this check the std handler would run here silently with the wrong behaviour.
-        if any(r.core == "div" for r in records):
-            raise ValueError("flex VM: the division core is not built for the flex family yet (v4s/v4sa need dedicated operand ports and a separate remainder port); it exists on the standard grid only")
         # CROSSING tiles (core "cross", Alan 6 Oct 2026): two independent straight-through axes, no control, ONE TICK PER TILE like every other core ("add the tick as 1 per tile").
         # Each used direction of travel is its OWN one-word register slice: a hidden relay cell (core ram) at a virtual position, reached by neighbor_pos when a neighbour sends
         # into the tile and sending on beyond it. Two words crossing in the same tile therefore never share a register, and each takes exactly one tick through the tile.
@@ -302,7 +304,7 @@ class FlexGrid(SuperGrid):
         for r in records:                                   # ledger #976: the adder's carry flag (ICM second_output); the cell attribute is read by the flex adder handler
             if r.core == "adder":
                 self.cells[(r.row, r.col)].adder_carry_mode = bool((r.core_config or {}).get("second_output", 0))
-            if r.core in ("adder", "mul"):                  # ledger #981: where the second word goes (0 = with the first)
+            if r.core in ("adder", "mul", "div"):           # ledger #981: where the second word goes (0 = with the first)
                 cfg_ = r.core_config or {}
                 sm_ = cfg_.get("second_downstream_mask", 0)
                 sm_ = _pack_dirmask(sm_) if isinstance(sm_, (list, tuple, set)) else int(sm_)

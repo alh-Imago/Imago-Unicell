@@ -36,9 +36,10 @@ module tb_div_cell_v4sa;
         begin checks = checks + 1; if (!cond) fail(what); end
     endtask
 
+    reg rp = 0;                                   // rem_primary: the remainder on data_out, the quotient on rem_out
     task configure(input rem_en);
         begin
-            @(negedge clk); cfg_data = {31'd0, rem_en}; cfg_valid = 1;
+            @(negedge clk); cfg_data = {30'd0, rp, rem_en}; cfg_valid = 1;
             @(negedge clk); cfg_valid = 0;
         end
     endtask
@@ -61,14 +62,14 @@ module tb_div_cell_v4sa;
             end
             clocks = c + 1;                       // the edge that captured counts as the first
             check(valid_out, "result must appear");
-            check(data_out === eq, "quotient");
-            if (rem_en) begin check(valid_out_r, "remainder valid"); check(rem_out === er, "remainder"); end
+            check(data_out === (rp ? er : eq), rp ? "remainder on the first port" : "quotient");
+            if (rem_en) begin check(valid_out_r, "second port valid"); check(rem_out === (rp ? eq : er), rp ? "quotient on the second port" : "remainder"); end
             else check(!valid_out_r, "remainder port silent when rem_enable clear");
             check(!ack_out, "ack_out must be low while a result is held");
             // hold: stall the receiver for hold_cycles; the value must stay put
             for (n = 0; n < hold_cycles; n = n + 1) begin
                 @(negedge clk);
-                check(valid_out && data_out === eq, "result held while receiver stalls");
+                check(valid_out && data_out === (rp ? er : eq), "result held while receiver stalls");
             end
             ack_in = 1; ack_in_r = rem_en;
             @(negedge clk); ack_in = 0; ack_in_r = 0;
@@ -110,6 +111,13 @@ module tb_div_cell_v4sa;
         configure(0);
         divide(100 & ONES, 9, 0, 0, cl);
         divide(ONES, 3, 0, 2, cl);
+
+        // rem_primary: the remainder first, the quotient on the second port (and the remainder alone with the second port off)
+        rp = 1; configure(1);
+        divide(23 & ONES, 7, 1, 0, cl);  divide(ONES, 12345 & ONES, 1, 1, cl);  divide(5, 0, 1, 0, cl);
+        for (t = 0; t < 40; t = t + 1) begin ra = {$urandom, $urandom}; rb = {$urandom, $urandom} >> (t % WIDTH); divide(ra, rb, 1, 0, cl); end
+        configure(0); divide(100 & ONES, 9, 0, 0, cl);
+        rp = 0;
 
         // freeze in the middle of an operation: held, then finishes correctly
         configure(1);
