@@ -983,4 +983,14 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Lesson (mine).* I changed the line format without checking the existing parsers; I tested the wrapper in simulation but never fed its line to the packaged parser. The new test closes that.
 
-Next entry: #1120.
+## #1120 (12 Oct 2026) -- ALL FOUR LOOP BITSTREAMS PASS ON THE REAL TANG NANO 20K (read from the LEDs); THE SERIAL LINE IS STILL SILENT
+
+*Alan, 23:49-23:51.* Loaded by hand with `openFPGALoader -b tangnano20k <name>.fs`: `flex_ring`, `sub_ring`, `std_ring` and `mixed_pipe` each showed LED0 blinking (heartbeat), LED1 on (PASS), LED3 on (finished), all loaded to 100%; "all the same, every one". LED2 (FAIL) was not reported lit.
+
+*What a lit LED1 means (from the wrapper, `tools/board_loops_v1.py`).* `pass = done && !timed_out && cnt == want && bad == 0 && n0 == 20 && st0 && st1`: the right number of results arrived, every one equal to the model's word, nothing extra, exactly 20 results before the release (n0), the stop flag seen at the release and at the end (flex and sub: the real `ring_stopped`; std: quiet after exactly 20). For `flex_ring` and `sub_ring` that is 20 results, stop, one release, 20 more, stop; for `std_ring` 20, stop, one release, one more; for `mixed_pipe` 8 words x + 1239 through two bridges with random exit stalls. So the ring control (#1110, #1111, #1116/#1117), the bridge (#1112/#1113) and the mixed assembly (#1114) all run correctly on silicon.
+
+*Not proven by this run.* The result lines were NOT captured: the serial port gave 41621 bytes once (first run, before the parser fix) and 0-1 bytes in the second run. So the evidence is the LEDs only (not the word values, checksums or cycle counts). The board's every-fifth-load fault (#1024) did not explain the second run (the first load after a fresh replug also gave 1 byte); the cause of the silent serial line is unknown. A possible clue: the LEDs show the design runs and the UART wrapper is the one proven in #1024, so the fault is likely in the host-side read after a load (the FTDI re-attaches; the read starts too soon or on the wrong half) rather than in the bitstreams. Not tested.
+
+*Also still open.* Fmax is static (nextpnr); the cards ran at 27 MHz only; 20 + 20 results checked, not hundreds; the std-line CARRIER version has no bitstream.
+
+Next entry: #1121.
