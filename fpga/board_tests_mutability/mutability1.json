@@ -1,0 +1,160 @@
+{
+ "name": "mutability1",
+ "cores_in_carrier": [
+  "accum",
+  "adder",
+  "mul"
+ ],
+ "cores_removed": [
+  "nano",
+  "ram",
+  "compare",
+  "branch",
+  "latch",
+  "seq",
+  "priority",
+  "corner",
+  "cross",
+  "merge",
+  "div",
+  "command"
+ ],
+ "operands": [
+  305419776,
+  120
+ ],
+ "phases": [
+  {
+   "label": "adder add",
+   "core_select": 1,
+   "core_cfg": 68,
+   "addon_cfg": 0,
+   "expected": 305419896,
+   "cfg_word_hex": "0000000000000000000000000000000000000881"
+  },
+  {
+   "label": "adder subtract",
+   "core_select": 1,
+   "core_cfg": 4164,
+   "addon_cfg": 0,
+   "expected": 305419656,
+   "cfg_word_hex": "0000000000000000000000000000000000020881"
+  },
+  {
+   "label": "add + invert",
+   "core_select": 1,
+   "core_cfg": 68,
+   "addon_cfg": 524288,
+   "expected": 3989547399,
+   "cfg_word_hex": "0400000000000000000000000000000000000881"
+  },
+  {
+   "label": "add + shift right 8",
+   "core_select": 1,
+   "core_cfg": 68,
+   "addon_cfg": 53248,
+   "expected": 1193046,
+   "cfg_word_hex": "0068000000000000000000000000000000000881"
+  },
+  {
+   "label": "add + nibble mask 03",
+   "core_select": 1,
+   "core_cfg": 68,
+   "addon_cfg": 259,
+   "expected": 305419776,
+   "cfg_word_hex": "0000818000000000000000000000000000000881"
+  },
+  {
+   "label": "core changed to mul",
+   "core_select": 9,
+   "core_cfg": 68,
+   "addon_cfg": 0,
+   "expected": 2290634752,
+   "cfg_word_hex": "0000000000000000000000000000000000000889"
+  },
+  {
+   "label": "back to adder add",
+   "core_select": 1,
+   "core_cfg": 68,
+   "addon_cfg": 0,
+   "expected": 305419896,
+   "cfg_word_hex": "0000000000000000000000000000000000000881"
+  }
+ ],
+ "self_sim_line": "UCM mutability1 res=P ok=7F to=00 r=12345678,12345588,EDCBA987,00123456,12345600,88885000,12345678",
+ "self_build": {
+  "fmax_mhz": 143.1,
+  "utilization": {
+   "ALU": {
+    "used": 856,
+    "available": 15552
+   },
+   "BUFG": {
+    "used": 1,
+    "available": 24
+   },
+   "DFF": {
+    "used": 538,
+    "available": 15552
+   },
+   "GND": {
+    "used": 1,
+    "available": 1
+   },
+   "GSR": {
+    "used": 1,
+    "available": 1
+   },
+   "IOB": {
+    "used": 6,
+    "available": 384
+   },
+   "LUT4": {
+    "used": 1296,
+    "available": 20736
+   },
+   "VCC": {
+    "used": 1,
+    "available": 1
+   }
+  }
+ },
+ "host_sim": "UCMH PASS",
+ "host_build": {
+  "fmax_mhz": 81.5,
+  "utilization": {
+   "ALU": {
+    "used": 474,
+    "available": 15552
+   },
+   "BUFG": {
+    "used": 1,
+    "available": 24
+   },
+   "DFF": {
+    "used": 916,
+    "available": 15552
+   },
+   "GND": {
+    "used": 1,
+    "available": 1
+   },
+   "GSR": {
+    "used": 1,
+    "available": 1
+   },
+   "IOB": {
+    "used": 7,
+    "available": 384
+   },
+   "LUT4": {
+    "used": 4553,
+    "available": 20736
+   },
+   "VCC": {
+    "used": 1,
+    "available": 1
+   }
+  }
+ }
+}

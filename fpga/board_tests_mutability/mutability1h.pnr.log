@@ -1,0 +1,92 @@
+0.00  11.45 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_10_D_ALU_SUM_COUT (20,10) -> (20,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_9_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.49 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_9_D_ALU_SUM.COUT
+Info:    routing  0.00  11.49 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_9_D_ALU_SUM_COUT (20,10) -> (20,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_8_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.52 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_8_D_ALU_SUM.COUT
+Info:    routing  0.00  11.52 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_8_D_ALU_SUM_COUT (20,10) -> (20,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_7_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.56 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_7_D_ALU_SUM.COUT
+Info:    routing  0.00  11.56 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_7_D_ALU_SUM_COUT (20,10) -> (20,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_6_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.59 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_6_D_ALU_SUM.COUT
+Info:    routing  0.00  11.59 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_6_D_ALU_SUM_COUT (20,10) -> (20,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_5_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.63 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_5_D_ALU_SUM.COUT
+Info:    routing  0.00  11.63 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_5_D_ALU_SUM_COUT (20,10) -> (21,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_4_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.66 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_4_D_ALU_SUM.COUT
+Info:    routing  0.00  11.66 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_4_D_ALU_SUM_COUT (21,10) -> (21,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_3_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.70 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_3_D_ALU_SUM.COUT
+Info:    routing  0.00  11.70 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_3_D_ALU_SUM_COUT (21,10) -> (21,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_2_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.73 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_2_D_ALU_SUM.COUT
+Info:    routing  0.00  11.73 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_2_D_ALU_SUM_COUT (21,10) -> (21,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_1_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  11.77 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_1_D_ALU_SUM.COUT
+Info:    routing  0.00  11.77 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_1_D_ALU_SUM_COUT (21,10) -> (21,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_D_ALU_SUM.CIN
+Info:                          Defined in:
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.47  12.24 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_D_ALU_SUM.SUM
+Info:    routing  0.00  12.24 Net VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q_D (21,10) -> (21,10)
+Info:                          Sink VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q.D
+Info:      setup  0.04  12.27 Source VIX.CORE_MUL.CORE.captured_hi_DFFRE_Q.D
+Info: 8.51 ns logic, 3.76 ns routing
+
+Info: Max frequency for clock 'clk': 81.49 MHz (PASS at 27.00 MHz)
+
+Info: Slack histogram:
+Info:  legend: * represents 1 endpoint(s)
+Info:          + represents [1,1) endpoint(s)
+Info: [ 24766,  25347) |*********+
+Info: [ 25347,  25928) |********+
+Info: [ 25928,  26509) |+
+Info: [ 26509,  27090) | 
+Info: [ 27090,  27671) |+
+Info: [ 27671,  28252) |+
+Info: [ 28252,  28833) |**+
+Info: [ 28833,  29414) |*+
+Info: [ 29414,  29995) | 
+Info: [ 29995,  30576) |**+
+Info: [ 30576,  31157) | 
+Info: [ 31157,  31738) |**+
+Info: [ 31738,  32319) |**********+
+Info: [ 32319,  32900) |********+
+Info: [ 32900,  33481) |*****+
+Info: [ 33481,  34062) |***********+
+Info: [ 34062,  34643) |****************************************+
+Info: [ 34643,  35224) |************************************************************ 
+Info: [ 35224,  35805) |****************************** 
+Info: [ 35805,  36386) |*******+
+
+Info: Program finished normally.
