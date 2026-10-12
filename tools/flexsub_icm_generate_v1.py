@@ -371,7 +371,7 @@ def choose_multipliers(mul_cells, man, mode, nowidelut=False):
                   "logic_unit": unit, "synth_flow": flow, "lut_multiplier_cost_estimate": (n_lut * cost) if cost else None, "lut_budget": budget, "reason": why}
 
 
-def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelut=False, width=None):
+def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelut=False, width=None, rings=False):
     """Everything the emitter needs, with every refusal raised here. Returns a plain dict."""
     doc, recs, cells, edges, inputs, outputs, ext_out, warnings = nl.extract(icm_path)
     # ledger #981: which WORD(S) each (consumer, second-output cell) edge carries: "first", "second" or "both" (the default: no second_downstream_mask = the second word follows the first)
@@ -390,6 +390,9 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
         if "output dropped" in w_:
             problems.append(f"{w_}. In the VM that offer is never accepted and the sender stalls for ever; fixed-latency wiring would silently drop it, "
                             f"which is a different behaviour -- fix the wiring (the neighbour must listen on the opposite face).")
+    if rings:                                                    # ledger #1109: a ring entry's host side (the VM's inject point) becomes a real port
+        import flexsub_ring_v1 as ring
+        cells, edges, inputs, outputs, _ring_added = ring.add_host_entries(cells, edges, inputs, outputs, ext_out)
     # priority arbiters that only serialised two operands onto one input are eliminated (dedicated ports replace them)
     cells, inputs, outputs, tiekeys, eliminated, pri_problems = nl.eliminate_priority(cells, inputs, outputs)
     if family == "flex":
@@ -408,7 +411,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                  "therefore the output's arrival time -- is variable. Fixed-latency wiring cannot align a variable latency, and a second item entering "
                  "while one is circulating would collide; that needs the handshake (flex) or an explicit one-item-at-a-time host contract. Not translated on sub.")
     _, cyclic_pre = nl.hop_depths(cells, [(q, c_, None, None, ()) for c_, roles_ in inputs.items() for lst_ in roles_.values() for q, _ in lst_])
-    if cyclic_pre:
+    if cyclic_pre and not rings:
         problems.append(CYCLE_MSG)                                  # checked on the WHOLE graph, before any pruning can hide a ring
     marked = {c for c in cells if cells[c].io_name == "result"}
     if marked:
@@ -587,10 +590,20 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
                                   f"per DRAINED OFFER while this design does so once per CYCLE, so the result would depend on the rate -- not translated. "
                                   f"(set/clear from a level source is idempotent and is translated.)")
 
+    ring_back = set()                    # ledger #1109: edges that CLOSE a ring (only when rings are allowed): timing / operand order are worked out without them, the wiring keeps them
+    if cyclic and rings:
+        import flexsub_ring_v1 as ring
+        ring_back = ring.back_edges([c for c in cells if not srcs_of[c] and cells[c].io_name] + [c for c in cells if not srcs_of[c] and not cells[c].io_name], srcs_of)   # host entries first, so the ring is cut where the host enters
+        bad = sorted(d for s_, d in ring_back if CORES[cells[d].core]["kind"] == "pair")
+        if bad:
+            raise IcmGenError(f"{bad}: the edge that closes a ring enters a two-operand cell -- only a ring that closes into a relay / merge (its entry) is translated")
+        if family != "flex":
+            raise IcmGenError("a closed ring is translated on the flex family only (the handshake makes it self-timing); sub needs a known ring period and is not built")
+    srcs_fwd = {c: [q for q in srcs_of[c] if (q, c) not in ring_back] for c in srcs_of}
     order = []
     remaining = set(cells)
     while remaining:
-        ready = [c for c in sorted(remaining) if all(q not in remaining for q in srcs_of[c])]
+        ready = [c for c in sorted(remaining) if all(q not in remaining for q in srcs_fwd[c])]
         if not ready:
             raise IcmGenError("internal: dependency order could not be resolved")
         order += ready
@@ -602,7 +615,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
         return (t_vm[q], tiekeys.get((c, q), (0, 0)))
 
     for c in order:
-        r, srcs = cells[c], srcs_of[c]
+        r, srcs = cells[c], srcs_fwd[c]
         extra = 0                                           # addons are wiring: no latency
         # the VM's hop-count time -- operand IDENTITY only. A branch that absorbed its reference merge still pays that merge's hop in the VM.
         t_vm[c] = max((t_vm[q] for q in srcs), default=0) + 1 + (1 if "merge_removed" in branch_plans.get(c, {}) else 0)
@@ -651,15 +664,15 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
             live = [q for q in srcs if q not in const]
             if r.core == "priority" and any(q in const for q in srcs):
                 raise IcmGenError(f"{c}: a priority with a constant (always-valid) source -- it would win every round it is allowed to (strict) or take its share for ever, and the stream would be starved. Not translated.")
-            if len(srcs) > 1 and CORES[r.core]["kind"] != "level" and r.core != "priority":   # a MERGE (gated OR, Alan #924: "a free OR when needed"); a priority arbitrates its own sources
-                if len(live) != len(srcs):
+            if len(srcs_of[c]) > 1 and CORES[r.core]["kind"] != "level" and r.core != "priority":   # (ledger #1109: counted on ALL sources, a ring's closing edge included)   # a MERGE (gated OR, Alan #924: "a free OR when needed"); a priority arbitrates its own sources
+                if any(q in const for q in srcs_of[c]):
                     raise IcmGenError(f"{c}: a merge that includes a constant source -- the constant is always valid, so the OR "
                                       f"would swamp the stream; no definite behaviour. Not translated.")
                 if family == "sub" and len({t_rtl[q] for q in live}) > 1:
                     raise IcmGenError(f"{c}: merge of sources arriving at different latencies "
                                       f"{sorted((q, t_rtl[q]) for q in live)} -- the cell's output time would depend on WHICH source fired, "
                                       f"which a fixed-latency design cannot align; that needs flow control (flex). Not translated on sub.")
-                merges[c] = list(srcs)
+                merges[c] = list(srcs_of[c])
             t_in = max((t_rtl[q] for q in live), default=0)
         t_rtl[c] = None if c in const else t_in + 1 + extra
     mul_impl, mul_info = choose_multipliers([c for c in cells if cells[c].core == "mul"], man, mul_mode, nowidelut)
@@ -675,7 +688,7 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
             "holds": hold_set,
             "oneshots": oneshot_set, "addons": addons, "merges": merges,
             "branch_plans": branch_plans, "branch_port": branch_port, "second_ports": second_ports, "word_of": word_of, "merge_core_modes": getattr(doc, "_merge_core_modes", {}), "exits": [c for c in order if c in exits_set and c in cells], "pruned": pruned, "exit_rule": exit_rule, "min_bit_width": declared_width,
-            "mul_impl": mul_impl, "mul_info": mul_info}
+            "mul_impl": mul_impl, "mul_info": mul_info, "ring_back": ring_back}
 
 
 def emit_top(top, p, width=32):
@@ -888,12 +901,14 @@ def _refuse_div_steps(icm_path):
         raise ValueError("; ".join(bad))
 
 
-def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate", width=None):
+def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate", width=None, rings=False):
+    if rings and family != "flex":
+        raise ValueError("--allow-rings applies to -s flex only (the handshake makes a closed ring self-timing; the sub family needs a known ring period and has no ring support yet)")
     if width not in (None, BUILT_WIDTH) and family != "flex":
         raise ValueError("-w with --icm applies to -s flex only (the sub family is fixed 32 bits)")
     if family == "flex":
         import flexsub_icm_flex_v1 as ff
-        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut, merge_mode=merge_mode, width=width)
+        return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut, merge_mode=merge_mode, width=width, rings=rings)
     _refuse_div_steps(icm_path)
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)

@@ -1494,6 +1494,9 @@ def main():
                      help="Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s. For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1).")
     ap.add_argument("--icm", default=None, metavar="FILE",
                      help="STEP 2 of the Flex-Sub plan: read this ICM-VIX file (*.icm-hier.json) as a map and generate the design it describes as Verilog into --output. Requires -s sub (fixed-latency design: tools/flexsub_icm_generate_v1.py) or -s flex (handshake design: tools/flexsub_icm_flex_v1.py, ledger #944 onward); --cells is not used.")
+    ap.add_argument("--allow-rings", action="store_true",
+                     help="ledger #1109 (-s flex --icm only): accept a design with a genuine feedback ring. The ring is cut where the host enters (that edge is left out of the timing / operand-order analysis and kept in the wiring), "
+                          "the entry cell gets a host port and a merge, the cell named io_name `result` becomes the observation point (a fork: the ring AND the host port; a host that does not ack stalls the ring). Off by default: a cycle is refused with its reason.")
     ap.add_argument("--nowidelut", action="store_true",
                      help="Gowin synthesis (-s flex / -s sub, step-1 chains and --icm): FORCE `synth_gowin -nowidelut`. This is already the DEFAULT for the Gowin generators (ledger #951 / Alan's "
                           "ruling after #950: smaller in every cell measured, ~3x smaller and ~3x faster for the LUT multiplier); the card's MAN (synthesis.nowidelut) decides the default, and "
@@ -1529,7 +1532,7 @@ def main():
         import flexsub_icm_generate_v1 as fig
         try:
             r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
-                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode, width=args.width)
+                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode, width=args.width, rings=args.allow_rings)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1

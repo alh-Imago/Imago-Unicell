@@ -6561,6 +6561,8 @@ before comparing (<code>#965</code>).</p>
 <p>Nine one-off, demo and measurement scripts now live in <a href="../experimental/README.md"><code>experimental/</code></a> (moved 9 Oct 2026). Mentions of them below use the old paths.</p>
 </blockquote>
 <p>Standalone utilities and offshoots built alongside the Imago UniCell project.</p>
+<h2>Closed rings on flex (ledger #1109)</h2>
+<p><code>project_assemble_v1.py -s flex --allow-rings --icm FILE</code>: accept a design with genuine feedback. The edge that closes the ring (found by a walk from the host entries) is left out of the timing and operand-order analysis and kept in the wiring; a ring-entry ram that carries an io_name (the VM's inject point) gets a host port plus a merge in front of it; the cell named <code>result</code> is the observation point and becomes a fork (the ring AND the host port). The host must ack each result or the ring waits. Flex only (<code>-s sub --allow-rings</code> is refused: the sub ring needs a known period). Without the flag a cycle is refused as before. Example: <code>nano/examples/looped_cordic_v1_closed_flex.icm-hier.json</code>; bench <code>sub/verilog/tb_looped_cordic_closed_flex_v1.v</code>; tests <code>tests/vm/test_flex_ring_v1.py</code>.</p>
 <h2>VIXeN tools (ledger #1105/#1106)</h2>
 <ul>
 <li><code>project_assemble_v1.py --shell vixen</code> builds an array of the VIXeN carrier (dependencies derived from <code>unicell_vixen_v1.v</code>); <code>--shell vix</code> is the older carrier array, unchanged.</li>

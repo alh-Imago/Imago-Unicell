@@ -48,7 +48,7 @@ def model(n, z0=Z0, drift=DRIFT):
     return out
 
 
-def build_doc(drift=DRIFT, open_ring=False, join=False):
+def build_doc(drift=DRIFT, open_ring=False, join=False, observe=False):
     """The design as an icm-vix HIERARCHICAL document (the same format as the example, so the Flex-Sub assembler / project_assemble takes it as it is): the example's four stage
     patterns with their constants made `fixed_mode=1`, the last stage's output cell given an east output, and one new pattern `loop` holding the way back and the drift adder."""
     import json
@@ -87,6 +87,11 @@ def build_doc(drift=DRIFT, open_ring=False, join=False):
                     pl.pop("overrides", None)
             if pl["instance"] == "lp":
                 pl["overrides"] = {last["cell_id"]: {"io_name": "result"}}
+    if observe and not open_ring:
+        # ledger #1109: the closed ring with its observation point named `result` (the last relay), for the flex generator's --allow-rings
+        for pl in doc["design_map"]["placements"]:
+            if pl["instance"] == "lp":
+                pl["overrides"] = {"fb%d" % (len(path) - 1): {"io_name": "result"}}
     if join:
         # ledger #1105 (VIXeN): every adder becomes a true join (A from the lowest upstream face, B from the next, taken only when both are present), so the fixed constants no longer pair with themselves.
         for pat in doc["patterns"].values():
@@ -98,10 +103,10 @@ def build_doc(drift=DRIFT, open_ring=False, join=False):
     return doc
 
 
-def save_icm(path, drift=DRIFT, open_ring=False, join=False):
+def save_icm(path, drift=DRIFT, open_ring=False, join=False, observe=False):
     import json
     with open(path, "w") as fh:
-        json.dump(build_doc(drift, open_ring, join), fh, indent=1)
+        json.dump(build_doc(drift, open_ring, join, observe), fh, indent=1)
 
 
 def build_records(drift=DRIFT, join=False):

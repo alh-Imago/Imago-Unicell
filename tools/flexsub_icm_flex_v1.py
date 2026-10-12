@@ -300,6 +300,26 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
                 a(f"assign {e}_v = {i}_v;                  // a constant is always valid and is never 'used up': no fork, no ack")
             a(f"assign {i}_ai = 1'b1;")
             continue
+        if src in exits and es and not isinstance(key, tuple) and p.get("ring_back"):
+            # ledger #1109: a RING's observation point: the cell is an output AND feeds the ring. An eager fork whose extra consumer is the host port: the item is released when the ring cell
+            # has taken it AND the host has acked it (so a host that never acks stalls the ring -- the stop/back-pressure contract of #1093-#1101 applies).
+            n = _pname(cells[src].io_name, src)
+            forks.append({"source": i, "consumers": len(es) + 1, "host_port": f"out_{n}"})
+            for e in es:
+                a(f"reg {e}_t = 1'b0;                       // `taken`: this consumer has accepted the current item")
+                a(f"assign {e}_v = {i}_v & ~{e}_t;")
+                a(f"wire {e}_acc = {e}_v & {e}_a;")
+            a(f"reg {i}_xt = 1'b0;                          // `taken` by the host port")
+            a(f"wire {i}_xv = {i}_v & ~{i}_xt;")
+            a(f"wire {i}_xacc = {i}_xv & out_{n}_ack;")
+            a(f"assign out_{n}_data = {i}_d;")
+            a(f"assign out_{n}_valid = {i}_xv;")
+            a(f"wire {i}_done = {i}_v & " + " & ".join(f"({e}_t | {e}_acc)" for e in es) + f" & ({i}_xt | {i}_xacc);   // every consumer, and the host port, has taken it")
+            a(f"assign {i}_ai = {i}_done;")
+            clr = " ".join(f"{e}_t <= 1'b0;" for e in es) + f" {i}_xt <= 1'b0;"
+            upd = " ".join(f"{e}_t <= {e}_t | {e}_acc;" for e in es) + f" {i}_xt <= {i}_xt | {i}_xacc;"
+            a(f"always @(posedge clk) begin if (rst) begin {clr} end else if ({i}_done) begin {clr} end else begin {upd} end end   // eager fork of {src} (ring observation point)")
+            continue
         if src in exits:
             n = _pname(cells[src].io_name, src)
             if es:
@@ -526,10 +546,10 @@ def div_steps_param(r, W):
     return f", .STEPS({k})"
 
 
-def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None, merge_mode="arbitrate", width=None):
+def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None, merge_mode="arbitrate", width=None, rings=False):
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
-    p = g.plan(icm_path, True, family="flex", nowidelut=nowidelut, width=width)
+    p = g.plan(icm_path, True, family="flex", nowidelut=nowidelut, width=width, rings=rings)
     levels = {c for c in p["cells"] if g.is_level(p["cells"][c])}
     only_const = sorted(c for c in p["exits"] if c in p["const"] and c not in levels)
     if only_const:
