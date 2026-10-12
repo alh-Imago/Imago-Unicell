@@ -359,4 +359,20 @@ Date: 2026-10-12. Alan: "Start with division, the substrate does not do this dir
 
 **Not done / limits:** no signed division; no fractions or decimals (#506's decimal long division is the natural next step but needs the repeat-detection decision); one long division per formula; ~23,000 cells per division (a Tang Nano 20K has 20,736 LUTs); division by a constant that is not a power of two still pays the full price (a reciprocal multiply needs the high half of a product); the runtime loop is unbuilt; no hardware.
 
-Next entry: #1068.
+## 1068. Division as a runtime loop in the VM: repeated subtraction works and is tiny, but it is slow and narrow -- the 32-step unrolled design stays the general answer (Alan/Claude, 2026-10-12)
+
+Alan asked for the loop version of division ("or a multiply loop as a side trick"). Built and measured in the VM only; no RTL, no hardware.
+
+**Built:** #518's shape in the VM -- three cells: SUB (accumulator, step = divisor), BR (branch cell, held reference A-B, "continue" routed to SUB and to Q), Q (accumulator, step 1, the quotient). 3 cells instead of ~23,000. Quotient = Q, remainder = A - SUB. Test: `tests/vm/test_division_loop_v1.py` (5 tests pass).
+
+**Harness steps, stated plainly:** (1) A-B is worked out outside and set as BR's held reference on the cell directly (as #518 did with a host-precomputed constant); a formula would need a subtract cell and a sequenced first arrival to do this inside the design -- not built. (2) SUB's freeze input is driven each tick: unfrozen for the first tick, then frozen unless BR is holding a continue.
+
+**Measured:** 157 cases (150 random with A up to 3000, B 1..255, plus edge cases) all equal Python's quotient and remainder. Without the freeze gate the quotient is exactly one too many and the remainder is short by B -- the same race #518 found in RTL (a stale value is offered twice), now reproduced in the VM. The startup window matters: unfrozen for one tick works; two ticks fails every case with quotient 1 (found by testing, not predicted). Speed: 2 VM ticks per unit of quotient, so time grows with the answer (quotient 53 took 106 ticks).
+
+**Limits found (all real):** the accumulator step is 8 bits (`& 0xFF`) and its threshold 16 bits, so the divisor must be 1..255 here; the number of passes equals the quotient, which for a 32-bit dividend can be 2^32 passes; divide by zero NEVER halts (checked: the counter keeps climbing), so a loop version needs an explicit guard to match the front end's "x/0 = all ones". Bit-serial long division (32 passes always) needs three circulating words plus a counter (merge + branch cells per variable); that dataflow loop is still not built.
+
+**The multiply question:** not wrong, but it does not replace the loop. A multiply-based divide needs a reciprocal (Newton iteration, which is itself a loop) and the high half of a product, then a correction step; it is the right tool for a CONSTANT divisor (reciprocal worked out at compile time) and is NOT built or measured here. No multiply comparison was run.
+
+**Also:** the full 32-step unrolled VM run mentioned in #1067 is no longer running and left no result (the log only says "compiled 23580 cells"). It has not been checked in the VM, and that stays a stated gap.
+
+Next entry: #1069.
