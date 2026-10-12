@@ -704,4 +704,12 @@ Alan asked for the results to be on the main branch (they had been going to the 
 
 **Next:** (c) a way to read and load the relay registers and `rr` on the card (scan path or the carrier's programming channel) and the board kit; run on the Tang to ~600 from the VM's step-300 save, compare, etc.
 
-Next entry: #1096.
+### #1096 (12 Oct 2026) -- Alan's cut-point rule: the card stops itself at an event, never at a time; measured that the loop then settles to one word
+
+**Alan's rule (12 Oct, 17:55):** that is why the cut points are specified: there is no exact way to say where the Tang is or how many calculations it has done, and the host link (JTAG/serial) is slow, so the run could have finished before a command arrives. Consequence adopted for the proof: **the stop is an event inside the design (a step count), not a time and not a host command**. The wrapper counts steps in hardware, halts itself at the programmed count (stops acknowledging the loop value), and waits; the host reads the state afterwards at its own speed. The counter also answers "how many calculations has it done".
+
+**Measured (simulation of the generated flex RTL, `sub/verilog/tb_looped_cordic_open_flex_halt_v1.v`):** feedback stopped after the 2nd result was acknowledged (the 3rd result is left unacknowledged). After 400 clocks the design is quiet: the held word is -5491, the model's third value, and the **only non-constant cell still holding a word is `lp.fb19`, the exit relay** (every adder, branch, turn, gather and merge cell idle). So a self-halted cut state is one word plus the step count (plus the merge `rr` flags, which were not read at the halt; to be read in the board kit). Test: `test_a_self_halted_loop_settles_to_one_word_in_the_exit_relay` in `tests/vm/test_flex_vm_rtl_lockstep_v1.py`. The VM side of the same cut (stop on the same event) is not yet written. Not on a board.
+
+**Next:** the wrapper (step counter, programmable halt count, state read-out and load of the exit word and `rr` flags over serial), then the board kit; the VM save/halt at the same event.
+
+Next entry: #1097.
