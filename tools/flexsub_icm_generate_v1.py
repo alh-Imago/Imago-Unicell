@@ -63,7 +63,7 @@ CORES = {
     "comparator": {"kind": "single", "module": "compare_cell_v4s"},    # signed(data) >= threshold -> 0/1, same as the VM
     "adder": {"kind": "pair", "module": "adder_cell_v4s"},
     "mul": {"kind": "pair", "module": "mul_cell_v4s"},                  # low 32 bits of the product
-    "div": {"kind": "pair", "module": "div_cell_v4s"},                  # ledger #1070: unsigned division, dividend = operand A (arrival order). Flex only until div_cell_v4s exists (see the refusal in plan())
+    "div": {"kind": "pair", "module": "div_cell_v4s"},                  # ledger #1070/#1072: unsigned division, dividend = operand A (arrival order). The sub cell is instantiated at its default STEPS=32: the whole division in ONE clock, the same fixed one-cycle latency as every other sub cell (the looped forms have a longer latency and a throughput limit the planner does not model)
     # nano: first arrival = HELD operand A (registered, loaded by load_hold), second = FLOWING operand B. The held register
     # is loaded a cycle before the gate sees it, so A must arrive exactly ONE cycle before B (unlike adder/mul).
     "nano": {"kind": "pair", "module": "nano_cell_v4s", "hold_flow": True},
@@ -533,10 +533,6 @@ def plan(icm_path, align=True, man=None, mul_mode="auto", family="sub", nowidelu
             problems.append(f"{c}: {r.core} with no source is not a ram injection point or constant")
     if family != "flex" and getattr(doc, "_merge_core_modes", None):
         problems.append(f"{sorted(doc._merge_core_modes)}: a merge core (A only / B only / arbitrate / join-or) exists on the flex family only (merge_cell_v4sa); the sub family has no merge cell")
-    if family != "flex":
-        for r in cells.values():
-            if r.core == "div":      # ledger #1070: the flex cell exists; the sub (no-ack, fixed-latency) cell does not yet, and the sub generator pads by a known latency of ONE cycle per cell
-                problems.append(f"{r.cell_id}: the division core is built for the flex family only so far (div_cell_v4sa); the sub family needs div_cell_v4s and the planner's fixed-latency alignment taught its longer latency")
     if family == "flex":
         # STAGES 1-2 of the flex emitter (the handshake family): ram, adder, mul and constants only. Everything else is refused, with the reason, until it is built AND
         # verified -- never silently mistranslated. Timing/alignment refusals below that only make sense for FIXED latency do not apply to a handshake design.
@@ -791,7 +787,7 @@ def emit_top(top, p, width=32):
                   f".flow_in_data({bd}), .valid_in({vin}), .data_out({out_d}), .valid_out({out_v}));")
             else:
                 vin = bv if role["valid_from"] == "B" else av
-                word = hexw(int(bool(cfg.get("subtract_mode", 0)))) if r.core == "adder" else "32'h0"
+                word = hexw(int(bool(cfg.get("subtract_mode", 0)))) if r.core == "adder" else (hexw(2 if cfg.get("remainder_primary", 0) else 0) if r.core == "div" else "32'h0")
                 ca = cfg_args(word)
                 a(f"{mod} #(.CELL_ID(16'd{idx[c]})) {i} ({ca}, "
                   f".in_a({ad}), .in_b({bd}), .valid_in({vin}), .data_out({out_d}), .valid_out({out_v}));")

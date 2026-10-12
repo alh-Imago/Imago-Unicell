@@ -28,3 +28,10 @@ Reading it (what the numbers support, and what they do not):
 - All of these Fmax figures are far above the 27 MHz board clock, so at that clock none of them is the limit; what K buys is fewer clocks, what it costs is area.
 - The W=32, K=32 row has a single seed (the second seed failed to route, "Routing design failed", a placement-congestion result for a 2,100-LUT block, not a timing failure).
 - Cell DFF is nearly the same for every K (state is the same registers); the wrapper's own registers are subtracted.
+
+## Correction note (added by ledger #1072; the table above is left as measured)
+The sentence above about the K=32 critical path ("28 logic stages in 4.43 ns ... overlapping rather than adding") should not be relied on. In #1072 the
+same tool reported a FASTER clock for a 32-step divider than for a 1-step one, and a synthetic chain test showed nextpnr's Fmax does not follow the
+logic depth of long subtract-and-select chains. Independent gate depth (yosys `ltp -noff`) for the flex cell at W=32 is 24 / 69 / 503 for K = 1 / 4 / 32,
+so the fully chained form is about 20 times deeper than the looped one. The Fmax column of this table is therefore NOT a trustworthy speed result for
+the large-K rows; the LUT/ALU/DFF columns and the clock counts stand. See `../div_cell_sweep_1072/README.md`.

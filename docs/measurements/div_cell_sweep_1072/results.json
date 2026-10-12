@@ -1,0 +1,113 @@
+{
+ "what": "div_cell_v4s: yosys synth_gowin -nowidelut + nextpnr-himbaechel-gowin, GW2AR-LV18QN88C8/I7, wrapper with LFSR operands and XOR-observed outputs; target 400 MHz, seeds [1], minimum Fmax over seeds. Synthesis and place-and-route only; not run on a board.",
+ "rows": [
+  {
+   "width": 32,
+   "steps": 1,
+   "cell": false,
+   "gate_depth": 18,
+   "synth": {
+    "LUT": 78,
+    "ALU": 32,
+    "DFF": 158
+   },
+   "fmax_mhz": 396.4,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 396.4
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 1,
+   "cell": true,
+   "gate_depth": 25,
+   "synth": {
+    "LUT": 325,
+    "ALU": 55,
+    "DFF": 247
+   },
+   "fmax_mhz": 388.2,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 388.2
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 2,
+   "cell": true,
+   "gate_depth": 39,
+   "synth": {
+    "LUT": 421,
+    "ALU": 93,
+    "DFF": 247
+   },
+   "fmax_mhz": 401.1,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 401.1
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 4,
+   "cell": true,
+   "gate_depth": 70,
+   "synth": {
+    "LUT": 613,
+    "ALU": 169,
+    "DFF": 247
+   },
+   "fmax_mhz": 409.5,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 409.5
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 8,
+   "cell": true,
+   "gate_depth": 132,
+   "synth": {
+    "LUT": 996,
+    "ALU": 321,
+    "DFF": 247
+   },
+   "fmax_mhz": 427.5,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 427.5
+    }
+   ]
+  },
+  {
+   "width": 32,
+   "steps": 32,
+   "cell": true,
+   "gate_depth": 504,
+   "synth": {
+    "LUT": 3300,
+    "ALU": 1230,
+    "DFF": 247
+   },
+   "fmax_mhz": 433.1,
+   "seeds": [
+    {
+     "seed": 1,
+     "fmax_mhz": 433.1
+    }
+   ]
+  }
+ ]
+}
