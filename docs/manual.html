@@ -6599,6 +6599,7 @@ before comparing (<code>#965</code>).</p>
 <ul>
 <li><code>project_assemble_v1.py --shell vixen</code> builds an array of the VIXeN carrier (dependencies derived from <code>unicell_vixen_v1.v</code>); <code>--shell vix</code> is the older carrier array, unchanged.</li>
 <li><code>carrier_grid_v2.py --icm FILE --out DIR --top NAME [--carrier vixen|v1d]</code> turns an ICM design into a GRID of carriers in Verilog (ram / adder / branch), each configured by its 160-bit VIX_LATCH word, for simulation; <code>records_from_latch()</code> decodes those words back into ICM records (card -&gt; VM). <code>make_carrier_subset_v3.py [--vixen]</code> cuts a carrier to the cores a design uses.</li>
+<li><code>carrier_grid_v3.py</code> (ledger #1116): carrier_grid_v2 with the accumulator added (<code>keep=("ram","adder","branch","accum")</code>); used by the std-line ring-control proof (<code>tests/vm/test_std_ring_v1.py</code>).</li>
 <li><code>nano/join_pass_v1.py</code> (used by the <code>vixen</code> compile target) sets <code>join_mode</code> where a fixed constant feeds a two-face adder/mul/div.</li>
 </ul>
 <h2><code>project_assemble_v1.py</code> — real N-cell Quartus project generator</h2>

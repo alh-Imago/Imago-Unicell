@@ -929,5 +929,20 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Tests.* tests/vm/test_dsl_family_v1.py: 7 pass.
 
-Next entry: #1116.
+## #1116 (12 Oct 2026) -- RING CONTROL ON THE STANDARD LINE: a counter, a branch and a join-gate IN the ring (VM and VIXeN carrier RTL)
 
+*Alan (22:19, 22:44).* The standard line (carrier and standalone nano) needs "a simple counter ... along with a compare or branching system ... as long as it's part of the ring itself", because the next cell only takes its word if it acks the previous one. Then, on seeing the first layout: "the branch only sends data on values, it does not redirect the entire system".
+
+*His point is right and the design follows from it.* A branch decides per datum and stays in no mode: each value it compares is emitted and routed once. So the branch cannot steer the ring. What stops the ring is a JOIN adder (the gate, on the ring's return path): a word passes only together with a token, and a word with no token simply waits (ack discipline), which holds the whole ring. The branch only hands out the per-lap tokens.
+
+*Build* (`nano/looped_cordic_v1.py`, `build_doc(..., ring_laps=N)`; every cell an existing standard cell): the fork cell fb4 sends each word onward and to an accumulator (+1 per word); the count goes by two relays to the branch; a preloaded ram offers the reference once and so becomes the branch's held reference; LOW (count < ref) emits token 0 to a token relay and on to the gate; EQUAL emits 1 to the `ring_stopped` ram; HIGH emits nothing. `ring_release` is a host word into the token relay (a token beside the branch's own): the held word goes one lap, the count is then above the reference, so it stops again.
+
+*Findings on the way (all measured).* (1) The accumulator offers its running total again and again, and starts with two zero offers; a first layout let those become the branch's reference and the ring stopped at once (0 laps). (2) A flowing ram ORs simultaneous arrivals and acks both, so a host release sharing a ram with the count was swallowed (the count 6 OR 0 = 6); the release has its own token relay. (3) The stop comes RING_OFFSET = 4 words after the reference value (two start-up zeros + two relay hops of the count path), so the reference is N-4 and N must be at least 5 (`MIN_RING_LAPS`); a smaller N is refused with that reason.
+
+*Measured.* VM (SuperGrid, join adders): N = 5, 6, 9 -> exactly N entry arrivals, values equal the model, quiet afterwards, `ring_stopped` set; every release gives exactly one more lap, repeatedly, values still on the model. VIXeN carrier RTL (iverilog, `tools/carrier_grid_v3.py`, a clone of v2 that adds the accumulator to the cores the grid generator can configure): N = 5, 6, 9 stop at exactly N with model values; two releases (a re-commit of the release ram with word 0) give laps 7 and 8 (8255, -2032) and nothing else.
+
+*Honest scope.* Proven in the VM and on the carrier grid (VIXeN). NOT done: the standalone nano (the same cells exist as nano_gate cores, but no standalone shell was built or run); no Fmax or area figure (no nextpnr here); N >= 5 only; the count offset is calibrated, not designed away (a pulse-mode accumulator with a threshold might give a cleaner counter; not tried); the release is a host write of any word below the reference value. Only the looped CORDIC carries the control; the ICM/assembler flags for the std line are not added yet.
+
+*Tests.* tests/vm/test_std_ring_v1.py: 11 pass (VM 6, carrier RTL 4 + refusal); looped CORDIC, carrier grid and VIXeN system suites still pass (25 together).
+
+Next entry: #1117.

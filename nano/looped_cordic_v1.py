@@ -48,7 +48,7 @@ def model(n, z0=Z0, drift=DRIFT):
     return out
 
 
-def build_doc(drift=DRIFT, open_ring=False, join=False, observe=False):
+def build_doc(drift=DRIFT, open_ring=False, join=False, observe=False, ring_laps=None):
     """The design as an icm-vix HIERARCHICAL document (the same format as the example, so the Flex-Sub assembler / project_assemble takes it as it is): the example's four stage
     patterns with their constants made `fixed_mode=1`, the last stage's output cell given an east output, and one new pattern `loop` holding the way back and the drift adder."""
     import json
@@ -92,6 +92,8 @@ def build_doc(drift=DRIFT, open_ring=False, join=False, observe=False):
         for pl in doc["design_map"]["placements"]:
             if pl["instance"] == "lp":
                 pl["overrides"] = {"fb%d" % (len(path) - 1): {"io_name": "result"}}
+    if ring_laps is not None:
+        _add_ring_control(doc, cells, int(ring_laps))
     if join:
         # ledger #1105 (VIXeN): every adder becomes a true join (A from the lowest upstream face, B from the next, taken only when both are present), so the fixed constants no longer pair with themselves.
         for pat in doc["patterns"].values():
@@ -103,16 +105,54 @@ def build_doc(drift=DRIFT, open_ring=False, join=False, observe=False):
     return doc
 
 
-def save_icm(path, drift=DRIFT, open_ring=False, join=False, observe=False):
+RING_OFFSET = 4   # measured (ledger #1116): the stop comes RING_OFFSET words after the reference value (two start-up zero offers of the accumulator + the two relay hops of the count path)
+MIN_RING_LAPS = RING_OFFSET + 1
+
+
+def _add_ring_control(doc, cells, n):
+    """Ledger #1116 (Alan, 12 Oct 2026: the standard line's control is "a simple counter ... along with a compare or branching system ... as long as it's part of the ring itself": the next cell can
+    only take its word if it acks the previous one, so a word that is not passed on simply waits). Built from existing standard cells, IN the ring (the return path along row 3):
+        fb4 (3,10) forks each word: onward AND down to the counter ctl_acc (4,10), which counts +1 per word; the count goes by two relays (ctl_m2, ctl_m1) to the branch ctl_branch (5,8).
+        ctl_ref (6,9) offers the reference once; it is the branch's FIRST arrival and so is held as the reference. Every later count is compared with it:
+            LOW -> a token (fixed 0) to ctl_tok (4,8) -> the GATE;  EQUAL -> 1 to ctl_stop (`ring_stopped`);  HIGH -> nothing.
+        fb6 (3,8) is the GATE, a JOIN adder (word + token): a word passes only with a token, so when the tokens run out the word waits there (the ring is held, nothing runs away).
+        ctl_rel (4,7) is `ring_release`: a host token into ctl_tok, beside the branch's own (a ram ORs simultaneous arrivals, so it must not share a ram with the count: the count would swallow it).
+    The branch decides per word and stays in no mode; it is the gate that turns "no token" into "stop". Measured: the ring stops after N laps exactly (N >= MIN_RING_LAPS), values equal the model, and each
+    release gives exactly one more lap."""
+    if n < MIN_RING_LAPS:
+        raise ValueError("std-line ring control: N must be at least %d (the count path itself holds %d words); got %d" % (MIN_RING_LAPS, RING_OFFSET, n))
+    n -= RING_OFFSET   # the reference value that stops the ring after N laps
+    by = {c["cell_id"]: c for c in cells}
+    by["fb4"]["core_config"]["downstream_mask"] = ["W", "S"]
+    gate = by["fb6"]
+    gate["cell_id"], gate["core"] = "ring_gate", "adder"
+    gate["core_config"] = {"upstream_mask": ["E", "S"], "downstream_mask": ["W"], "join_mode": 1}
+
+    def add(cid, row, col, core, cfg, **kw):
+        d = {"cell_id": cid, "rel_row": row, "rel_col": col, "core": core, "core_config": cfg}
+        d.update(kw)
+        cells.append(d)
+    add("ctl_acc", 4, 10, "accumulator", {"inc_dir": ["N"], "downstream_mask": ["W"], "step_amount": 1, "pulse_mode": 0, "threshold": 0})
+    add("ctl_m2", 4, 9, "ram", {"upstream_mask": ["E"], "downstream_mask": ["S"], "fixed_mode": 0})
+    add("ctl_m1", 5, 9, "ram", {"upstream_mask": ["N", "S"], "downstream_mask": ["W"], "fixed_mode": 0})
+    add("ctl_ref", 6, 9, "ram", {"downstream_mask": ["N"], "fixed_mode": 0}, preload_value=n)
+    add("ctl_branch", 5, 8, "branch", {"upstream_dir": ["E"], "value_source_low": 1, "value_source_equal": 1, "value_source_high": 1, "fixed_value_low": 0, "fixed_value_equal": 1, "fixed_value_high": 0,
+                                        "emit_low": 1, "emit_equal": 1, "emit_high": 0, "route_low": ["N"], "route_equal": ["S"], "route_high": [], "rolling_mode": 0})
+    add("ctl_tok", 4, 8, "ram", {"upstream_mask": ["S", "W"], "downstream_mask": ["N"], "fixed_mode": 0})
+    add("ctl_rel", 4, 7, "ram", {"upstream_mask": [], "downstream_mask": ["E"], "fixed_mode": 0}, io_name="ring_release")
+    add("ctl_stop", 6, 8, "ram", {"upstream_mask": ["N"], "downstream_mask": [], "fixed_mode": 0}, io_name="ring_stopped")
+
+
+def save_icm(path, drift=DRIFT, open_ring=False, join=False, observe=False, ring_laps=None):
     import json
     with open(path, "w") as fh:
-        json.dump(build_doc(drift, open_ring, join, observe), fh, indent=1)
+        json.dump(build_doc(drift, open_ring, join, observe, ring_laps), fh, indent=1)
 
 
-def build_records(drift=DRIFT, join=False):
+def build_records(drift=DRIFT, join=False, ring_laps=None):
     import tempfile
     p = os.path.join(tempfile.mkdtemp(), "looped_cordic.icm-hier.json")
-    save_icm(p, drift, join=join)
+    save_icm(p, drift, join=join, ring_laps=ring_laps)
     recs, _ = flatten(load_hierarchical(p))
     return recs
 
@@ -139,8 +179,8 @@ def run_steps(grid, n_steps, max_ticks=None):
     return seen
 
 
-def new_grid(grid_cls, drift=DRIFT, z0=Z0, join=False, **kw):
-    recs = build_records(drift, join)
+def new_grid(grid_cls, drift=DRIFT, z0=Z0, join=False, ring_laps=None, **kw):
+    recs = build_records(drift, join, ring_laps)
     g = grid_cls(recs, **kw)
     for _ in range(SETTLE_TICKS):
         g.tick()
