@@ -12,7 +12,7 @@ for fs in sorted(glob.glob(os.path.join(HERE, "*.fs"))):
         continue          # not run this time (ONLY=...)
     raw = open(os.path.join(HERE, "raw", name + ".bin"), "rb").read() if os.path.exists(os.path.join(HERE, "raw", name + ".bin")) else b""
     text = raw.decode("ascii", "replace")
-    mine = [m.group(0) for m in re.finditer(r"UCT " + re.escape(name) + r" res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=\d last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]*", text)]
+    mine = [m.group(0) for m in re.finditer(r"UCT " + re.escape(name) + r" res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=\d(?: n0=[0-9A-F]{4} st=[0-9A-F])? last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]*", text)]
     others = sorted(set(re.findall(r"UCT (\w+) res=", text)) - {name})
     rc = open(os.path.join(HERE, "raw", name + ".rc")).read().strip() if os.path.exists(os.path.join(HERE, "raw", name + ".rc")) else "?"
     loader = open(os.path.join(HERE, "raw", name + ".loader.txt"), errors="replace").read() if os.path.exists(os.path.join(HERE, "raw", name + ".loader.txt")) else ""

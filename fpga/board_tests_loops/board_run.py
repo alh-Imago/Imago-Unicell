@@ -48,7 +48,7 @@ def read_lines(ser, seconds, name, sim_line=""):
     mine, other = [], 0
     strip = lambda t: re.sub(r"last=[0-9A-F]+", "", t)
     t0, buf = time.time(), b""
-    good = re.compile(r"UCT (\S+) res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=[01] last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]+$")
+    good = re.compile(r"UCT (\S+) res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=[01](?: n0=[0-9A-F]{4} st=[0-9A-F])? last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]+$")
     while time.time() - t0 < seconds:
         try:
             buf += ser.read(256)
@@ -77,7 +77,7 @@ def open_port(port):
     return s
 
 
-GOOD = re.compile(r"UCT (\S+) res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=[01] last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]+$")
+GOOD = re.compile(r"UCT (\S+) res=[PF] n=[0-9A-F]{4} e=[0-9A-F]{4} bad=[0-9A-F]{4} to=[01](?: n0=[0-9A-F]{4} st=[0-9A-F])? last=[0-9A-F]{8} sig=[0-9A-F]{8} w=[0-9A-F,]+$")
 
 
 def read_with_cat(port, name, sim_line, seconds=6):

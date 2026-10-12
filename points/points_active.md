@@ -971,4 +971,16 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Honest scope.* Fmax is static (nextpnr). 27 MHz, no PLL: a correctness test on silicon, not speed. Only 20 + 20 (or 21) results are checked on the card. The UART pin has been used before (#1023) and is unverified only in the sense that no earlier board result is in this ledger for these designs. Not done: the standard line on carriers as a bitstream; automatic trimming of the carrier to the ICM's cores (Alan 23:09 noted the carrier-subset tool already does this by hand-passed `keep=`; making the ICM drive it is an open item).
 
-Next entry: #1119.
+## #1119 (12 Oct 2026) -- CORRECTION TO #1118: THE FIRST BOARD RUN WAS PARTLY A PARSER FAULT OF MINE; THE PACKAGE'S PARSERS NOW ACCEPT THE LOOP TESTS' LINE
+
+*Alan's first board run (23:35, `sudo ./run_all.sh /dev/ttyUSB1`).* All four NOREPORT. `flex_ring` received 41621 bytes in the 7 s window; `mixed_pipe`, `std_ring`, `sub_ring` received 0 bytes after the loader reported Done and a second load.
+
+*Cause found for the flex bytes (mine).* The loop wrappers print `... to=<> n0=<> st=<> last=...`; the #1023 parsers (`board_run.py`, `board_collect.py`) require `to=<> last=` directly, so any loop line was rejected. The byte count agrees with the wrapper printing continuously (a ~190-byte line every ~36 ms at 115200 baud is ~5300 bytes/s, 7 s ~37-42 k): `flex_ring` was very probably transmitting valid lines that the parser threw away. Not proven: the raw bytes were not in the files sent. `sub_ring` and `std_ring` carry the same fields; `mixed_pipe` uses the old line and should have parsed, so its silence is a separate matter.
+
+*NOT explained.* The three silent tests (including `mixed_pipe`, the smallest design). Candidates, none verified: the board's known tendency to stop answering after consecutive loads (#1024) although only one load preceded; the FTDI re-enumerating at each load (the kernel log shows disconnect/attach each time) so the read starts before the serial half is back. I do not yet know whether these bitstreams run on silicon.
+
+*Fix.* Both parsers now accept the optional `n0=`/`st=` fields (tools/board_loops_v1.py patches the shared scripts; `fpga/board_tests_loops/` regenerated scripts; `tests/vm/test_board_loops_v1.py` checks that every simulated line is accepted by the packaged parsers). Package README: run one test at a time with a replug between, and keep `raw/` if still silent.
+
+*Lesson (mine).* I changed the line format without checking the existing parsers; I tested the wrapper in simulation but never fed its line to the packaged parser. The new test closes that.
+
+Next entry: #1120.

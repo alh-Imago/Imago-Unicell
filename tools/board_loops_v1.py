@@ -235,11 +235,12 @@ def main():
         print("   ok: %s   %s LUT4  Fmax %s" % (r["sim_line"], r.get("lut4", "-"), r.get("fmax_mhz", "-")), flush=True)
         results.append(r)
     for fn, txt in (("run_all.bat", bt.BAT), ("board_run.py", bt.RUNPY), ("board_collect.py", bt.COLLECT), ("run_one.sh", bt.ONE), ("run_all.sh", bt.SH)):
+        txt = txt.replace("to=[01] last=", "to=[01](?: n0=[0-9A-F]{4} st=[0-9A-F])? last=").replace("to=\\d last=", "to=\\d(?: n0=[0-9A-F]{4} st=[0-9A-F])? last=")    # ledger #1119: the loop tests' line has n0= and st= before last=; the #1023 parser rejected it
         p = os.path.join(a.out, fn)
         open(p, "w", newline="\r\n" if fn.endswith(".bat") else "\n").write(txt)
         if fn.endswith(".sh"):
             os.chmod(p, 0o755)
-    open(os.path.join(a.out, "README.md"), "w").write(readme(results))
+    open(os.path.join(a.out, "README.md"), "w").write(readme(results) + "\n## If a test prints nothing\nTry one at a time with a replug between: unplug the USB cable, plug it back in, wait 20 s, then `sudo env ONLY=\"mixed_pipe\" ./run_all.sh /dev/ttyUSB1`. If it is still silent, keep the `raw/` folder (`raw/<name>.bin`, `.loader.txt`, `.ports`) and send it.\n")
     print("wrote %d tests to %s" % (len(results), a.out))
 
 

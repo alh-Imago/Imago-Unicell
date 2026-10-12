@@ -25,3 +25,6 @@ z0 is injected once. The ring must give exactly **20** results, each equal to th
 - 27 MHz only (no PLL): a correctness test on silicon, not a speed test. Fmax is nextpnr's static figure.
 - The expected words are the model's (`looped_cordic_v1.model`); the generated RTL and the grids were proven equal to it in simulation (#1110, #1111, #1116, #1117).
 - Only 20 + 1 results are checked; the long-run behaviour (hundreds of steps) was checked in simulation, not here.
+
+## If a test prints nothing (ledger #1119)
+The first run (23:35) showed `flex_ring` with 41621 bytes received but no line accepted: the parsers of the first package rejected the loop tests' extra `n0=`/`st=` fields (fixed in this package). The other three received 0 bytes. Try one at a time with a replug between: unplug the USB cable, plug it back in, wait 20 s, then `sudo env ONLY="mixed_pipe" ./run_all.sh /dev/ttyUSB1`. If it is still silent, keep the `raw/` folder (`raw/<name>.bin`, `.loader.txt`, `.ports`) and send it.
