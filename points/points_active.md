@@ -375,4 +375,17 @@ Alan asked for the loop version of division ("or a multiply loop as a side trick
 
 **Also:** the full 32-step unrolled VM run mentioned in #1067 is no longer running and left no result (the log only says "compiled 23580 cells"). It has not been checked in the VM, and that stays a stated gap.
 
-Next entry: #1069.
+## 1069. The division core, step one: the standard-grid VM model, and FlexGrid made to refuse it (Alan/Claude, 2026-10-12)
+
+Alan asked what a division core would take (answer: a core in all four families, registered in the carrier and everywhere else), then to start. This entry is the first step only, **the standard grid (SuperGrid, v4/v4c style) and nothing else.**
+
+**Built (VM only):** core `div` in `nano/unicell_super_automaton_v1.py`. Two arrivals, first = dividend, second = divisor (the adder/mul order). It stays busy `width` ticks (32), then offers the quotient; with `second_output` the remainder follows as a second word through the same mechanism as mul's high half (optional `second_downstream_mask`); `remainder_primary` swaps the order. Unsigned; x/0 gives all ones, remainder = dividend (the LaTeX front end's rule). To model the busy time, `SuperGrid.tick()` counts a cell's `div_busy` down and `run_to_quiescence` also waits for it (a busy divider with nothing pending would otherwise look finished). Both changes are additive (cells without the attribute are untouched).
+
+**Two different grids:** the flex family (v4s/v4sa) runs on `FlexGrid`, which has dedicated operand ports and separate result ports; v4/v4c and the carrier use one output with a second phase. Alan pointed this out mid-work. Found by checking: `FlexGrid` falls back to the std handler when it has no flex one, and it ACCEPTED a `div` cell and would have run it with the wrong behaviour. It now refuses with a plain reason until the flex version is built (as the impact map's item 6 says for anything a family cannot honour).
+
+**Tests:** `tests/vm/test_div_core_vm_v1.py`, 7 pass: 70 quotient pairs against Python, divide by zero, remainder as second word and swapped, fixed latency (34 ticks from the second operand with the 32 busy ticks; mutation check with busy = 0 fails the test), quiescence waits for the divider, FlexGrid refuses. Targeted regression (std automaton, width, FlexGrid base/arith/second-port/second-route): 151 pass. A broader `quick_check --changed` run was stopped at about 97% (no failure shown, two skips; not a clean finish) because the full set takes hours; **it is not claimed as a pass.**
+
+**Not done:** any RTL (v4, v4c, v4s, v4sa) and its testbenches; the flex handler; carrier slot (15 is the next free one in `unicell_vix_carrier_v1d.v`, not checked against the other slot lists); `CORE_NAMES`, ICM fields, tile library, planner, capability table, cheatsheet; runtime reprogramming table; the cost figure. The 32-tick figure is a design number for the VM, to be re-checked against RTL. Per `docs/stripped-cell/core_creation_guide.md` Step 0 the RTL must be sequential (one subtract per clock): the old combinational `bitwise_divider_32bit.v` candidate has a syntax error and a 32-stage chain and is not the route. `CORE_CHANGE_IMPACT_MAP.md` got a note, since its "new core" section was a stub waiting for this case.
+
+Next entry: #1070.
+

@@ -257,6 +257,10 @@ class FlexGrid(SuperGrid):
     _UNVERIFIED_AT_OTHER_WIDTHS = frozenset()      # accumulator and branch are checked against the real v4sa cells at W = 16..36 / 4..36 (#970); the priority arbiter at W = 32 and 18, all three modes (#1022)
 
     def __init__(self, records, width=32, merge_mode="arbitrate", **kw):
+        # ledger #1069: the division core exists on the standard grid (v4/v4c style: one output, the remainder as a second word). The flex family (v4s/v4sa) has dedicated operand and result ports and its
+        # own version is not built; without this check the std handler would run here silently with the wrong behaviour.
+        if any(r.core == "div" for r in records):
+            raise ValueError("flex VM: the division core is not built for the flex family yet (v4s/v4sa need dedicated operand ports and a separate remainder port); it exists on the standard grid only")
         # CROSSING tiles (core "cross", Alan 6 Oct 2026): two independent straight-through axes, no control, ONE TICK PER TILE like every other core ("add the tick as 1 per tile").
         # Each used direction of travel is its OWN one-word register slice: a hidden relay cell (core ram) at a virtual position, reached by neighbor_pos when a neighbour sends
         # into the tile and sending on beyond it. Two words crossing in the same tile therefore never share a register, and each takes exactly one tick through the tile.

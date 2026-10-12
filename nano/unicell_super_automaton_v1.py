@@ -359,6 +359,22 @@ class SuperCell:
     mul_captured_hi: int = 0
     mul_delivering_hi: bool = False
 
+    # ── div (ledger #1069): unsigned division core. Two arrivals (first = dividend, second = divisor, the adder/mul order convention),
+    # a fixed `div_busy` ticks of work (one per bit of the word, the restoring long division the LaTeX front end unrolls), then the
+    # quotient is offered; with second_output the remainder follows through the same mechanism as mul's high half. x/0 gives all ones, remainder = dividend.
+    # VM model only: the tick count is a design figure (width), to be checked against RTL when the RTL exists.
+    div_downstream_mask: int = 0
+    div_upstream_mask: int = 0
+    div_a_reg: int = 0
+    div_a_arrived: bool = False
+    div_out_buffer: int = 0
+    div_data_valid: bool = False
+    div_second_output: bool = False
+    div_remainder_primary: bool = False
+    div_captured_second: int = 0
+    div_delivering_second: bool = False
+    div_busy: int = 0
+
     # ── accumulator ──
     acc_downstream_mask: int = 0
     acc_inc_dir: int = 0
@@ -722,6 +738,12 @@ class SuperCell:
             cell.mul_upstream_mask = dm(cfg.get("upstream_mask", 0))
             cell.mul_wide_mode = bool(cfg.get("second_output", cfg.get("wide_mode", 0)))   # ledger #980: canonical ICM name second_output; wide_mode is its alias (same bit)
             cls._second_mask(cell, rec, cfg, dm)
+        elif core == "div":
+            cell.div_downstream_mask = dm(cfg.get("downstream_mask", 0))
+            cell.div_upstream_mask = dm(cfg.get("upstream_mask", 0))
+            cell.div_second_output = bool(cfg.get("second_output", 0))
+            cell.div_remainder_primary = bool(cfg.get("remainder_primary", 0))
+            cls._second_mask(cell, rec, cfg, dm)
         elif core == "accumulator":
             cell.acc_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.acc_inc_dir = dm(cfg.get("inc_dir", 0))
@@ -955,6 +977,35 @@ class SuperCell:
         self.mul_delivering_hi = False
         self.mul_data_valid = True
         self.mul_a_arrived = False
+        return (True, None)
+
+    # ── div (ledger #1069): capture A (dividend), then B (divisor); compute; stay busy `width` ticks; then offer. ──
+    def _deliver_div(self, arrivals, injected):
+        if self.div_second_output and self.div_data_valid:
+            return (False, None)      # like mul's wide mode: nothing new until both words have left
+        matched = {d: v for d, v in arrivals.items() if (self.div_upstream_mask >> _DIR_BIT[d]) & 1}
+        if not matched and injected is None:
+            return (True, None)
+        val = 0
+        for v in matched.values():
+            val |= v & self.mask
+        if injected is not None:
+            val |= injected & self.mask
+        if not self.div_a_arrived:
+            self.div_a_reg = val
+            self.div_a_arrived = True
+            return (True, None)
+        if self.div_data_valid:
+            return (False, None)
+        a, b = self.div_a_reg & self.mask, val & self.mask
+        q, r = (self.mask, a) if b == 0 else (a // b, a % b)
+        first, second = (r, q) if self.div_remainder_primary else (q, r)
+        self.div_out_buffer = first
+        self.div_captured_second = second
+        self.div_delivering_second = False
+        self.div_data_valid = True
+        self.div_busy = self.width
+        self.div_a_arrived = False
         return (True, None)
 
     # ── accumulator: accumulator_cell_v1.v -- unconditional, never
@@ -1252,6 +1303,10 @@ class SuperCell:
         mask = self.second_mask if (self.mul_delivering_hi and self.second_mask) else self.mul_downstream_mask
         return (self.mul_out_buffer, self.mul_data_valid, mask)
 
+    def _offer_state_div(self) -> Tuple[int, bool, int]:
+        mask = self.second_mask if (self.div_delivering_second and self.second_mask) else self.div_downstream_mask
+        return (self.div_out_buffer, self.div_data_valid and self.div_busy == 0, mask)
+
     def _offer_state_comparator(self) -> Tuple[int, bool, int]:
         return (self.cmp_out_buffer, self.cmp_data_valid, self.cmp_downstream_mask)
 
@@ -1319,6 +1374,14 @@ class SuperCell:
             return
         self.mul_data_valid = False
         self.mul_delivering_hi = False
+
+    def _clear_valid_div(self) -> None:
+        if self.div_second_output and not self.div_delivering_second:
+            self.div_out_buffer = self.div_captured_second
+            self.div_delivering_second = True
+            return
+        self.div_data_valid = False
+        self.div_delivering_second = False
 
     def _clear_valid_priority(self) -> None:
         self.pri_data_valid = False
@@ -1391,6 +1454,9 @@ register_core_handler("adder", CoreHandler(
 register_core_handler("mul", CoreHandler(
     deliver=SuperCell._deliver_mul, offer_state=SuperCell._offer_state_mul,
     continuously_live=False, clear_valid=SuperCell._clear_valid_mul))
+register_core_handler("div", CoreHandler(
+    deliver=SuperCell._deliver_div, offer_state=SuperCell._offer_state_div,
+    continuously_live=False, clear_valid=SuperCell._clear_valid_div))
 register_core_handler("accumulator", CoreHandler(
     deliver=SuperCell._deliver_accumulator, offer_state=SuperCell._offer_state_accumulator,
     continuously_live=True, clear_valid=SuperCell._clear_valid_accumulator))
@@ -1546,6 +1612,10 @@ class SuperGrid:
         retry: Dict[Tuple[int, int], List[Tuple[Optional[Tuple[int, int]], Optional[int], int]]] = {}
 
         pre_tick_pending = {pos: c.pending_ack for pos, c in self.cells.items()}
+
+        for cell in self.cells.values():          # ledger #1069: a cell that is busy for several ticks (the divider) counts them down here
+            if getattr(cell, "div_busy", 0) > 0:
+                cell.div_busy -= 1
 
         current = self._pending
         self._pending = {}
@@ -1724,7 +1794,7 @@ class SuperGrid:
         while ticks < max_ticks:
             self.tick()
             ticks += 1
-            if not self._pending:
+            if not self._pending and not any(getattr(c, "div_busy", 0) for c in self.cells.values()):
                 return ticks
         if self._pending:
             raise TimeoutError(f"did not quiesce within {max_ticks} ticks")

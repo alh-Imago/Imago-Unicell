@@ -210,6 +210,14 @@ items 3-13 to all apply, PLUS real new entries in `CORE_NAMES`
 core-select table. Treat this section as a stub to fill in properly
 the next time it actually happens, not a complete list yet.
 
+**First real case in progress (ledger #1069, the division core, 12 Oct 2026):** the standard-grid VM handler is
+done (`nano/unicell_super_automaton_v1.py`: fields, `from_record` branch, deliver/offer/clear, registered handler, and a
+busy-tick countdown in `SuperGrid.tick()` that `run_to_quiescence` also waits for). **`FlexGrid` falls back to the std
+handler when it has no flex one, so a new std core would run on it silently and wrongly: `FlexGrid.__init__` now refuses
+`div` until a flex version exists.** Add the same refusal for any new core before its flex version is built. Not done yet:
+RTL in any family, `CORE_NAMES`, carrier `core_select` (15 is the next free slot in `unicell_vix_carrier_v1d.v`), the ICM
+fields, the tile library, the planner, the capability table, the cheatsheet.
+
 ---
 
 **Keep this map current.** The moment a real change finds a NEW file
