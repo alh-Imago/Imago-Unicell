@@ -763,4 +763,20 @@ Alan asked for the results to be on the main branch (they had been going to the 
 
 **Not shown:** that v2 cures it. If `--probe` still shows a damaged first byte, the raw bytes will tell where the loss is.
 
-Next entry: #1100.
+### #1100 (12 Oct 2026) -- SANITY CHECK PASSED ON THE TANG NANO 20K (saveload v2): stop, release, freeze, freeze mid-flight, save / fresh card / load all work on the card
+
+Alan loaded `saveload.fs` (v2) and ran `saveload_host_v2.py --sanity` on the physical board (port /dev/ttyUSB1). Raw output kept in `fpga/board_tests_saveload/results/saveload_sanity_2026-10-12_board.txt` (pasted by Alan; the host script writes no file for `--sanity`, so this is the terminal text, not a script-written result file).
+
+**Result: all 9 checks `ok`, `RESULT: PASS`, no retry note printed (so no frame needed a retry).** Each value equals the Python model's value for that step (-5491 at step 3, -4506 at step 6, 8255 at step 7). Observations:
+- **Back pressure and freeze both stop the card at the programmed step by themselves, and release resumes it exactly** (steps 3 -> 6 in both modes).
+- **Freeze with the word inside the grid:** `busy=1`, `held_valid=0` at both stops, and after release the next step gave the correct value (8255): the freeze held the state and released without damage.
+- **Save, whole-card reset, load, run on:** the word taken at step 3 (-5491) was loaded into the reset card and 3 more steps gave -4506, the same as running through.
+- **The clock counts counted on the card equal the simulation's exactly** in every row (137, 132, 123, 29, 137 clocks), i.e. the design on silicon takes the same clocks per step as the simulated one (about 46 per step with the 4-clock wait).
+- **The #1099 fault:** v2 changed two things (a 12-bit-time pause before every reply, and host retries); no retry was needed, so the first attempt of every frame was answered correctly. That fits the hypothesis that a reply starting at once was being damaged, but this is one run and the pause was not tested alone.
+
+**Shown:** on the physical card, the accumulator -> latch self-stop, back-pressure stop, freeze line, release, load of a word into the loop-closing register, soft reset. First time the freeze has ever run on a card.
+**NOT shown yet:** loading the VM's step-300 state and running 300 steps (`state`), the comparison with the VM at step 600, the zero-start run, the carrier version, the full-VM retarget.
+
+**Next:** Alan runs `./run_saveload.sh <PORT> state` and passes back `tang_result_A.json`; then `flex_tang_bridge_v1.py compare`.
+
+Next entry: #1101.

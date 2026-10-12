@@ -1,0 +1,16 @@
+Alan's terminal output, Tang Nano 20K, saveload.fs v2 (reply pause), saveload_host_v2.py --sanity, Mon 12 Oct 2026 ~18:50 (pasted into the session; no retry note was printed).
+sudo ./run_saveload.sh  -> loaded saveload.fs; serial port /dev/ttyUSB1
+S1 back pressure
+  ok   stop at 3                          stopped=1 busy=0 held_valid=1 steps=3    word=-5491       run_clocks=137 
+  ok   release, stop at 6                 stopped=1 busy=0 held_valid=1 steps=6    word=-4506       run_clocks=132 
+S2 freeze
+  ok   stop at 3                          stopped=1 busy=0 held_valid=1 steps=3    word=-5491       run_clocks=137 
+  ok   release, stop at 6                 stopped=1 busy=0 held_valid=1 steps=6    word=-4506       run_clocks=132 
+S3 freeze with the word inside the grid, then resume
+  ok   frozen mid-flight at 3             stopped=1 busy=1 held_valid=0 steps=3    word=-5491       run_clocks=137 
+  ok   released, frozen again at 6        stopped=1 busy=1 held_valid=0 steps=6    word=-4506       run_clocks=123 
+  ok   released, one more step            stopped=1 busy=0 held_valid=1 steps=7    word=8255        run_clocks=29 
+S4 save, fresh card, load, run on
+  ok   run to 3 (this is the save)        stopped=1 busy=0 held_valid=1 steps=3    word=-5491       run_clocks=137 
+  ok   fresh card, loaded, run 3 more     stopped=1 busy=0 held_valid=1 steps=3    word=-4506       run_clocks=137 
+RESULT: PASS: back pressure, freeze, freeze with the word inside the grid, and save / fresh card / load all behaved
