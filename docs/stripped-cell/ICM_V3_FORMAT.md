@@ -376,7 +376,7 @@ each target either meets it or refuses:
 | `second_downstream_mask` | — | adder, mul | — |
 | shift amount | coarse + fine | any 0-31 | coarse only |
 
-`join_mode` (#1105): adder, mul and div on target `vixen` (the standard line on the VIXeN carrier); `flex` accepts it and ignores it (flex cells always join); `std` and `sub` refuse it. The compile target `vixen` runs `nano/join_pass_v1.py`, which sets it wherever a fixed-mode ram feeds a two-face adder/mul/div.
+`join_mode` (#1105): adder, mul and div on target `vixen` (the standard line on the VIXeN carrier); `flex` and `sub` accept it and ignore it (flex cells always join; the sub cells have one valid for both operands and the generator pads the earlier path until they meet, #1108); `std` (the older carriers, which ignore the bit) refuses it. The compile target `vixen` runs `nano/join_pass_v1.py`, which sets it wherever a fixed-mode ram feeds a two-face adder/mul/div.
 
 The std VM (`SuperGrid`) refuses `second_output` on an adder and any
 `second_downstream_mask`. `FlexGrid` accepts and mirrors both.

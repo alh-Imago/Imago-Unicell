@@ -17,7 +17,7 @@ CAPABILITIES: Dict[str, Dict[str, Set[str]]] = {
     # ledger #1105: "vixen" = the standard line on the VIXeN carrier: everything "std" has, plus join_mode (adder / mul / div wait for both operand faces). The older carriers ignore the bit, so "std" refuses it.
     "vixen": {"second_output": {"mul", "div"}, "second_downstream_mask": set(), "remainder_primary": {"div"}, "join_mode": {"adder", "mul", "div"}},
     "flex": {"second_output": {"adder", "mul", "div"}, "second_downstream_mask": {"adder", "mul", "div"}, "remainder_primary": {"div"}, "join_mode": {"adder", "mul", "div"}},   # flex cells always join: the key is accepted and changes nothing
-    "sub": {"second_output": set(), "second_downstream_mask": set(), "remainder_primary": {"div"}, "join_mode": set()},   # not established for the sub family: refused until it is read from the RTL
+    "sub": {"second_output": set(), "second_downstream_mask": set(), "remainder_primary": {"div"}, "join_mode": {"adder", "mul", "div"}},   # ledger #1108: the sub adder/mul/div have ONE valid_in for both operands and the generator pads the earlier operand's path until they meet (alignment by construction), so the key is accepted and changes nothing, as on flex
 }
 COARSE_TAPS = (1, 2, 4, 8, 12, 16, 20, 24, 28)
 FINE_OK = {"std": True, "vixen": True, "flex": True, "sub": False}      # may shift_fine be used

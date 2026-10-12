@@ -51,8 +51,8 @@ def test_join_pass_leaves_other_cells_alone():
 
 def test_capabilities_vixen_has_join_and_the_older_targets_refuse_it():
     r = [Rec(cell_id="a", row=0, col=0, core="adder", core_config={"upstream_mask": ["W", "S"], "downstream_mask": ["E"], "join_mode": 1}, addon_config={}, io_name=None, preload_value=None)]
-    assert TC.check_records(r, "vixen") == [] and TC.check_records(r, "flex") == []
-    assert TC.check_records(r, "std") and TC.check_records(r, "sub")
+    assert TC.check_records(r, "vixen") == [] and TC.check_records(r, "flex") == [] and TC.check_records(r, "sub") == []      # sub: accepted, a no-op (#1108)
+    assert TC.check_records(r, "std")
     assert TC.check_records(r, None) == []
 
 

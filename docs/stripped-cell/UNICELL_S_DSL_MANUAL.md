@@ -77,7 +77,7 @@ place LOCAL_NAME as TILE_NAME at (ROW, COL) {
   compiler tells you exactly which ports and params that tile actually
   has.
 
-**Optional flags on a two-operand tile (VIXeN, `points.md` #1105).** `adder`, `subtractor`, `mul`, `div` and `rem` accept `join_mode: 1` as an ordinary field. It makes the cell wait for BOTH of its operand faces (A from the lowest configured face, B from the next) instead of taking any two successive arrivals, which is what a fixed constant needs (otherwise it pairs with itself). It is off when absent, needs two faces in the upstream mask, and only compiles for the targets that have it (`vixen`, and `flex` where it changes nothing); the older `std` and `sub` targets refuse it with a message.
+**Optional flags on a two-operand tile (VIXeN, `points.md` #1105).** `adder`, `subtractor`, `mul`, `div` and `rem` accept `join_mode: 1` as an ordinary field. It makes the cell wait for BOTH of its operand faces (A from the lowest configured face, B from the next) instead of taking any two successive arrivals, which is what a fixed constant needs (otherwise it pairs with itself). It is off when absent, needs two faces in the upstream mask, and only compiles for the targets that have it (`vixen`; `flex` and `sub` accept it and it changes nothing there); the older `std` target refuses it with a message.
 
 ### 3.4 Field values
 
