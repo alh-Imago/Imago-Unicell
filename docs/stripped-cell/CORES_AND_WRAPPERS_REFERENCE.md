@@ -94,6 +94,16 @@ the generators, checked against the VM. The flex cells are also checked
 against `FlexGrid` at W = 4…36. **None has run on the physical board
 yet.** The board has run a cell from the VIX `_v4c` generation (#896).
 
+## The sub bridge — a PERMANENT part of any mixed design (`sub/verilog/flex_sub_bridge_v1.v`, ledger #1112/#1113, Alan 12 Oct 2026)
+
+Wherever a sub block (fixed latency, no ack, nothing can refuse or queue a word) meets any cell family that has flow control, the crossing is this pair of registered stages. It is not specific to flex: the contract on the far side is only "a valid level, an ack, the transfer happens when both are high in the same clock".
+
+- `flex_to_sub_v1`: takes a word only when the sub section is idle (one word in flight), acks it that clock, presents it to the sub entry as a one-clock valid pulse with its data (+1 clock).
+- `sub_to_flex_v1`: catches the sub block's output pulse and HOLDS it. The held word is the **measure point**: its level is the far side's valid, its data is what a comparator / branch / check cell reads. The far side's ack releases it and pulses `done`, which re-opens the input.
+- Mapping, both proven against real cells with the unchanged module: **flex** (`valid_out`/`ack_in`; `ack_out` of the sink) and **standard v4c** (`fire_*` is the valid, `ack_in_*` the ack; the sink takes an `arrived_*` pulse when its `ready_out` is high). The nano and carrier shells are not yet done. Any other family needs only that adapter wiring, never a change to the bridge.
+- Cost: the pair adds 2 clocks over the sub block's own latency; one word in flight, so period = sub latency + 3. A queued version that keeps one result per clock through the sub block is not built.
+- The same holding register is the ring's measure point (ledger #1111): a sub ring halts there each lap and is refired.
+
 ## Real design principle: prefer a CORE over a specialist cell, stated explicitly (Alan, 2026-08-25)
 
 **The real, governing reason, not just a style preference:** a new

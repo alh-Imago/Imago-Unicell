@@ -322,3 +322,6 @@ recombiner at all.
 *(No composed tile exists for this yet — real, concrete follow-up
 once the branch cell itself is built: register a `recombiner_4way`
 composed tile so this structure never has to be hand-wired.)*
+
+## A sub block must never be handed a second word while one is still held (ledger #1112/#1113)
+A sub cell has no ack and no queue, so a word offered to it cannot be refused and a word it emits cannot be made to wait. Putting a sub block between cells that DO have flow control without the bridge (`sub/verilog/flex_sub_bridge_v1.v`) silently loses words as soon as the receiving side stalls (tested: a bridge with the one-in-flight gate removed loses words with a stalling sink). Use the bridge at every sub <-> other-family crossing; it admits one word at a time and holds the result until the far side acks.

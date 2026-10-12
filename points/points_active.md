@@ -897,4 +897,14 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Tests.* tests/vm/test_flex_sub_bridge_v1.py: 4 pass.
 
-Next entry: #1113.
+**#1113 (12 Oct) -- THE SUB BRIDGE IS A PERMANENT PART OF EVERY MIXED DESIGN, FOR SUB <-> ANY FAMILY.** Alan's ruling: "the bridge block has to be a permanent addition for mixed use when the sub is introduced, it will be useful not just for sub to flex but sub to any other family of cells". Cross-reference #1112 (the bridge), #1111 (the ring's measure point).
+
+*Standing decision.* `sub/verilog/flex_sub_bridge_v1.v` (`flex_to_sub_v1`, `sub_to_flex_v1`) is the one crossing between the sub family and any family with flow control. Its far-side contract is family-neutral (a valid level, an ack, transfer when both are high). The file keeps its name for the proven version; a family-neutral successor name would be a new version cloned from it, not an edit (a rename was not done). Documented in CORES_AND_WRAPPERS_REFERENCE.md ("The sub bridge") and CELL_GOTCHAS.md (never hand a sub block a second word while one is held).
+
+*Measured (new).* The UNCHANGED bridge against the STANDARD family (`ram_cell_v4c`, arrived/fire/ack) at both ends and three sub cells in between (`sub/verilog/tb_std_sub_bridge_v1.v`): 40 words exactly once, in order, equal to x + 1234, with and without a stalling sink. Adapter wiring only: std `fire_e` is the valid, `ack_in_e` the ack; the std sink gets an `arrived_w` pulse when `ready_out` is high. Period 6 clocks per word with no stall (same as flex). So the bridge is now proven against two families (flex, standard v4c).
+
+*Honest scope.* The nano and the carrier shells (VIXeN, with their own cardinal faces and config) are not yet connected through it; the adapters there are to be written and measured, not assumed. One word in flight (the queued version that restores one result per clock is not built). The ICM/assembler does not yet INSERT the bridge automatically when a design mixes sub with another family; today it is wired by hand in a testbench. That is the next real piece of work for "mixed use".
+
+*Tests.* tests/vm/test_flex_sub_bridge_v1.py: 5 pass. Docs: manual rebuilt.
+
+Next entry: #1114.

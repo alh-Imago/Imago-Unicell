@@ -53,3 +53,22 @@ def test_negative_control_without_the_one_in_flight_gate_words_are_lost():
     open(bad, "w").write(src.replace("in_valid & ~busy & ~rst", "in_valid & ~rst"))
     _, o, out = sim(40, 1, bridge=bad)
     assert [v for v, _ in o] != [100 + 7 * k + 1234 for k in range(40)] or "TIMEOUT" in out
+
+
+def sim_std(n, stall):
+    assert shutil.which("iverilog") and shutil.which("vvp"), "iverilog is required (see current/START.md)"
+    d = tempfile.mkdtemp()
+    files = [os.path.join(V, "tb_std_sub_bridge_v1.v"), os.path.join(V, "flex_sub_bridge_v1.v"), os.path.join(ROOT, "fpga", "verilog", "ram_cell_v4c.v"),
+             os.path.join(V, "ram_cell_v4s.v"), os.path.join(V, "adder_cell_v4s.v")] + EXTRA
+    c = subprocess.run(["iverilog", "-g2012", f"-DN={n}", f"-DSTALL={stall}", "-o", os.path.join(d, "t")] + files, capture_output=True, text=True)
+    assert c.returncode == 0, c.stderr[-500:]
+    out = subprocess.run(["vvp", os.path.join(d, "t")], capture_output=True, text=True, timeout=300).stdout
+    rows = [l.split() for l in out.splitlines() if l[:2] in ("I ", "O ")]
+    return [(int(r[2]), int(r[3])) for r in rows if r[0] == "O"], out
+
+
+def test_the_same_bridge_unchanged_works_between_standard_v4c_cells_and_sub_math():
+    # ledger #1113 (Alan: the bridge is for sub <-> ANY family): std arrived/fire/ack cells at both ends, adapter wiring only
+    for stall in (0, 1):
+        o, out = sim_std(40, stall)
+        assert [v for v, _ in o] == [100 + 7 * k + 1234 for k in range(40)] and "END" in out
