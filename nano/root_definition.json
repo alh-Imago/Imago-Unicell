@@ -683,6 +683,12 @@
     "hi": 17,
     "lo": 17,
     "description": "1 = the remainder is the first word and the quotient the second"
+   },
+   {
+    "name": "steps",
+    "hi": 23,
+    "lo": 18,
+    "description": "quotient bits produced per clock (K, 1..32; 0 = not set, the family default). Speed versus size: latency ceil(W/K) clocks, area grows with K. Flex builds the cell with it; sub is fixed at 32; the VM ignores it"
    }
   ]
  }

@@ -477,4 +477,16 @@ Alan decided: "use the div core". `compile_latex` / `to_llvm` default to `divisi
 
 **Not changed / limits:** unchanged from #1074/#1075: the core form is checked on the VM, flex RTL and sub RTL, not on the v4/v4c carrier grid (Alan will test the carrier-grid / ICM-overlay design himself). Alan's second point (W and K as compile-side speed-versus-size settings, with the bits in the core's programming word at the same position in every family) is taken up in the next entry.
 
-Next entry: #1077.
+## 1077. K (quotient bits per clock) becomes a design-time setting of the divider, at one fixed place in the record (Alan/Claude, 2026-10-12)
+
+Alan's point: W and K are values set from the compile side (speed versus size); the programming bits are reused per core type, so K belongs in the div record at the same position for every family; and (10:03) K is fixed when the design is built, because it changes how much logic the cell has, so it cannot be reconfigured live. The change follows that:
+- **ICM record:** new div field `steps` at bits 18-23 (0 = not set, the family's own default). `root_definition.json` and the tile's optional params list it. Read at generation time, not by a running cell.
+- **Flex:** the generator builds each div cell with `.STEPS(K)` (and refuses K above the built width, e.g. K=16 with `-w 8`). **Sub:** refuses K other than 32 with the reason (a looped divider needs a latency and throughput model in the planner, not built). **VM:** ignores it (timing is data-driven). **Capability check:** `steps` on a non-div core, or outside 1..32, is a problem on every target.
+- **v4/v4c carrier (both files) and the two shells:** new build-time parameter `DIV_STEPS` / `STEPS` (default 1), passed to the core. It is per build, so every carrier of a grid is alike; it is not an ICM-programmed value there.
+- **LaTeX:** `compile_latex(div_steps=K)` and `--div-steps K` set it on every division cell. W was already settable at assembly (flex `-w`); K was not until now.
+
+**Checks:** `tests/vm/test_div_steps_field_v1.py` (11 tests: bit position and round trip; LaTeX sets it and validates; VM unchanged; capability messages; flex RTL built at K = 1, 4, 13, 32 agrees with the formula; width refusal; sub refuses 4 and accepts 32; CLI) and 6 new carrier tests (v1 and v1d at K = 1, 4, 32: the testbench prints the core's own STEPS and the carrier divides correctly). Mutations checked: flex emitter always writing `.STEPS(1)` (caught, 3 fail), sub refusal removed (caught), carrier not passing `DIV_STEPS` (caught, 2 fail). The existing carrier and hold/corner tests pass (35).
+
+**Not done:** the full `quick_check --changed` run was not completed (interrupted); a K below the built maximum chosen live (skipping steps) is possible but not built; the sub looped forms; a LaTeX design on the carrier grid (Alan's own test later). No area or Fmax claim is made; see the #1072 sweep for measured sizes.
+
+Next entry: #1078.

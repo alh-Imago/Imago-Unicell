@@ -878,12 +878,23 @@ def emit_top(top, p, width=32):
     return "\n".join(L) + "\n", pad_count[0]
 
 
+def _refuse_div_steps(icm_path):
+    """ledger #1077: the sub divider is built at 32 quotient bits per clock only. A record asking for another K is refused with the reason (a looped divider needs a latency and throughput model in the planner)."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "nano"))
+    import icm_v3, target_capabilities_v1 as tc
+    recs = icm_v3.IcmV3File.load(icm_path).records
+    bad = [m for m in tc.check_records([r for r in recs if r.core == "div"], "sub") if "steps" in m]
+    if bad:
+        raise ValueError("; ".join(bad))
+
+
 def generate(icm_path, output, top=None, align=True, cell_dir=None, man_path=None, mul_mode="auto", family="sub", nowidelut=None, merge_mode="arbitrate", width=None):
     if width not in (None, BUILT_WIDTH) and family != "flex":
         raise ValueError("-w with --icm applies to -s flex only (the sub family is fixed 32 bits)")
     if family == "flex":
         import flexsub_icm_flex_v1 as ff
         return ff.generate_flex(icm_path, output, top=top, cell_dir=cell_dir, man_path=man_path, nowidelut=nowidelut, merge_mode=merge_mode, width=width)
+    _refuse_div_steps(icm_path)
     man = fsa.load_man_flexsub(man_path) if man_path else None
     nowidelut, nowidelut_why = fsa.resolve_nowidelut(nowidelut, man)
     p = plan(icm_path, align, man=man, mul_mode=mul_mode, nowidelut=nowidelut)

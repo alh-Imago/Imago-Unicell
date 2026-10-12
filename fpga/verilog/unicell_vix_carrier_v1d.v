@@ -115,7 +115,8 @@
 `timescale 1ns / 1ps
 
 module unicell_vix_carrier_v1d #(
-    parameter [15:0] CELL_ID = 16'h0000
+    parameter [15:0] CELL_ID = 16'h0000,
+    parameter        DIV_STEPS = 1   // ledger #1077: the division core's quotient bits per clock (build-time; every carrier of a grid is built alike)
 ) (
     input  wire        clk,
     input  wire         rst,
@@ -830,7 +831,7 @@ module unicell_vix_carrier_v1d #(
     );
 
     // ledger #1036: the 15th core, the division core (ledger #1073).
-    div_shell_v1c #(.CELL_ID(CELL_ID)) CORE_DIV (
+    div_shell_v1c #(.CELL_ID(CELL_ID), .STEPS(DIV_STEPS)) CORE_DIV (
         .clk(clk), .rst(rst),
         .active_in_n(active_in_n), .active_in_s(active_in_s), .active_in_e(active_in_e), .active_in_w(active_in_w),
         .freeze_in_n(freeze_in_n), .freeze_in_s(freeze_in_s), .freeze_in_e(freeze_in_e), .freeze_in_w(freeze_in_w),

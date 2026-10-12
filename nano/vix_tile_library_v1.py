@@ -340,7 +340,7 @@ TILE_DIV = register(VixTileSpec(
                  "div_cell_v4 / div_cell_v4c, carrier slot 15).",
     ports=[TilePort("in_a", "in", "upstream_mask"), TilePort("in_b", "in", "upstream_mask"),
            TilePort("out", "out", "downstream_mask")],
-    optional_params=["second_output", "second_downstream_mask", "remainder_primary"],
+    optional_params=["second_output", "second_downstream_mask", "remainder_primary", "steps"],
     arrivals_needed=2,
 ))
 

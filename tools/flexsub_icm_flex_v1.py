@@ -505,15 +505,25 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
             else:
                 word, p2 = 1, ".data_out_hi({i}_d2u), .valid_out_hi({i}_p2_v), .ack_in_hi({i}_p2_ai)"
             c2 = common.replace(f".valid_out({i}_v)", f".valid_out({i}_p1_v)").replace(f".ack_in({i}_ai)", f".ack_in({i}_p1_ai)")
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]}), .SECOND_PORT(1){WP}) {i} ({c2}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {p2.format(i=i)});   // second output port ON")
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}), .SECOND_PORT(1){WP}{div_steps_param(r, W)}) {i} ({c2}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {p2.format(i=i)});   // second output port ON")
         else:
             word = 1 if (r.core == "adder" and cfg.get("subtract_mode", 0)) else (2 if (r.core == "div" and cfg.get("remainder_primary", 0)) else 0)
             tie = {"adder": ".ack_in_c(1'b1)", "div": ".ack_in_r(1'b1)"}.get(r.core, ".ack_in_hi(1'b1)")
-            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {tie});")   # #974: the second output port is not enabled here -- tied high so it can never stall the cell
+            a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}{div_steps_param(r, W)}) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {tie});")   # #974: the second output port is not enabled here -- tied high so it can never stall the cell
         if c in addons:
             a(f"assign {i}_d = {g.addon_expr(addons[c], dout)};   // addon chain as pure wiring: data only; valid and the handshake are untouched")
     a("endmodule")
     return "\n".join(L) + "\n", forks, joins
+
+
+def div_steps_param(r, W):
+    """ledger #1077: ', .STEPS(K)' for a division cell whose ICM record sets `steps` (K quotient bits per clock), else ''. Refuses K outside 1..W (the flex cell's WIDTH)."""
+    k = int((r.core_config or {}).get("steps", 0) or 0)
+    if r.core != "div" or not k:
+        return ""
+    if not 1 <= k <= W:
+        raise ValueError(f"cell {r.cell_id}: steps {k} -- a width-{W} divider makes 1 to {W} quotient bits per clock")
+    return f", .STEPS({k})"
 
 
 def generate_flex(icm_path, output, top=None, cell_dir=None, man_path=None, nowidelut=None, merge_mode="arbitrate", width=None):

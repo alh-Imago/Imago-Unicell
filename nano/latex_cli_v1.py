@@ -25,6 +25,8 @@ def main(argv=None) -> int:
     ap.add_argument("-o", "--output", metavar="FILE", help="write the compiled .icm file here")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE", help="also run the design on these values and print the answer (repeatable)")
     ap.add_argument("--show-ir", action="store_true", help="print the LLVM IR the formula became")
+    ap.add_argument("--div-steps", type=int, default=0, metavar="K",
+                    help="speed versus size of each division cell: K quotient bits per clock, 1..32 (latency ceil(32/K) clocks; bigger K = more logic). Default: each family's own (flex 1, sub 32). Written into the .icm; the flex generator builds it, sub accepts only 32")
     ap.add_argument("--division", choices=["unrolled", "core"], default="core",
                     help="how a general division is built: 'core' (default) with the division core, one cell each; or 'unrolled' from add/sub/mul cells, about 23,000 cells, one per formula, for a target without the core")
     ap.add_argument("--no-check", action="store_true", help="skip the built-in comparison with the Python evaluation (not recommended)")
@@ -32,7 +34,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     try:
-        r = L.compile_latex(args.formula, check=False if args.no_check else ("full" if args.full_check else True), division=args.division)
+        r = L.compile_latex(args.formula, check=False if args.no_check else ("full" if args.full_check else True), division=args.division, div_steps=args.div_steps)
     except L.LatexError as e:
         print(e.format(), file=sys.stderr)
         return 1

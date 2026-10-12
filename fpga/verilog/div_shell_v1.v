@@ -3,7 +3,8 @@
 `timescale 1ns / 1ps
 
 module div_shell_v1 #(
-    parameter [15:0] CELL_ID = 16'h0000
+    parameter [15:0] CELL_ID = 16'h0000,
+    parameter        STEPS   = 1   // ledger #1077: quotient bits per clock, a BUILD-time choice (speed vs size), passed to the core
 ) (
     input  wire        clk,
     input  wire         rst,
@@ -39,7 +40,7 @@ module div_shell_v1 #(
     wire active_comb = active_in_n | active_in_s | active_in_e | active_in_w;
     wire freeze_comb = freeze_in_n | freeze_in_s | freeze_in_e | freeze_in_w;
 
-    div_cell_v4 #(.CELL_ID(CELL_ID)) CORE (
+    div_cell_v4 #(.CELL_ID(CELL_ID), .STEPS(STEPS)) CORE (
         .clk(clk), .rst(rst), .active(active_comb),
         .cfg_valid(cfg_valid), .cfg_data(cfg_data),
         .data_in_n(data_in_n), .data_in_s(data_in_s), .data_in_e(data_in_e), .data_in_w(data_in_w),

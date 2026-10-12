@@ -36,6 +36,14 @@ def check_records(records: Iterable, target: Optional[str]) -> List[str]:
                 have = sorted(caps[feature])
                 out.append(f"{r.cell_id}: {feature} on a {r.core} -- target {target!r} cannot do that ("
                            + (f"it supports {feature} on {have}" if have else f"it has no {feature} at all") + ")")
+        k = int(cfg.get("steps", 0) or 0)
+        if k:
+            if r.core != "div":
+                out.append(f"{r.cell_id}: steps on a {r.core} -- only the divider has a bits-per-clock setting")
+            elif not 1 <= k <= 32:
+                out.append(f"{r.cell_id}: steps {k} -- the divider makes 1 to 32 quotient bits per clock")
+            elif target == "sub" and k != 32:
+                out.append(f"{r.cell_id}: steps {k} -- target 'sub' builds the divider at 32 bits per clock (one clock) only; a looped divider needs a latency and throughput model in the planner, which is not built")
         ad = getattr(r, "addon_config", None) or {}
         if ad.get("shift_en"):
             amt, fine = ad.get("shift_amt", 0), ad.get("shift_fine", 0) & 3

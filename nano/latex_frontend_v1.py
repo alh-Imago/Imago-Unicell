@@ -862,12 +862,13 @@ def _input_cells(res: LatexResult) -> Dict[str, str]:
 HW_CHECK_MAX_CELLS = 1500          # the standard VM ticks about 3 x cells times, each tick over every cell: beyond this a vector takes minutes
 
 
-def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "core") -> LatexResult:
+def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS, division: str = "core", div_steps: int = 0) -> LatexResult:
     """Parse, compile and CHECK a formula. Raises LatexError for text outside the subset (or a compiler refusal) and LatexCheckError if anything disagrees with the Python oracle.
     check=True   the generated IR is compared with the oracle on corner and random vectors (always, fast); the compiled design is ALSO run in the VM and compared, unless it has
                  more than `hw_max_cells` cells (then `hw_skipped` says so and the CLI prints it: the VM would take minutes per vector).
     check="full" the VM comparison is run whatever the size (slow for big designs).
     check=False  no comparison (not recommended).
+    div_steps    0 (default: each family's own) or K = 1..32 quotient bits per clock for every division cell: a speed-versus-size choice (latency ceil(32/K) clocks; more bits per clock = more logic). Written into the design's div records as `steps`; flex builds it, sub accepts only 32, the VM ignores it (ledger #1077).
     division     "core" (default) or "unrolled": see to_llvm. With "core" a formula may contain any number of divisions and the design is small enough for the VM check."""
     import llvm_dag_frontend_v1 as F
     label, tree = parse_latex(source)
@@ -876,6 +877,12 @@ def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "rou
     if res is None:
         text = "; ".join(f"{d.problem} -- {d.why}. Try: {d.suggestion}" if d.suggestion else f"{d.problem} -- {d.why}" for d in diags)
         raise LatexError("the compiler could not build this formula: " + text)
+    if not isinstance(div_steps, int) or isinstance(div_steps, bool) or not 0 <= div_steps <= 32:
+        raise LatexError(f"div_steps must be 0 (unset) or 1 to 32, not {div_steps!r}")
+    if div_steps:
+        for r in res.records:
+            if r.core == "div":
+                r.core_config = dict(r.core_config or {}, steps=div_steps)
     out = LatexResult(source=source, label=label, tree=tree, ir=ir, args=args, result=res, notes=list(res.rewrites))
     if check:
         vecs = check_vectors(args, n_random=n_random)

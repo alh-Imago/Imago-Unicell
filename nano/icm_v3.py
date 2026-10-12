@@ -355,6 +355,8 @@ _DIV_FIELDS = {
     "second_output": (12, 12),
     "second_downstream_mask": (13, 16),
     "remainder_primary": (17, 17),
+    # ledger #1077: quotient bits per clock (K) -- a BUILD-time (design-time) choice, read when the design is generated; it is not changed on a running cell (more steps = more logic). 0 = not set (each family's own default). Same bit position in the ICM word for every family; flex builds the cell with .STEPS(K), sub refuses K other than 32, the VM ignores it (timing there is data-driven).
+    "steps": (18, 23),
 }
 
 # points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==

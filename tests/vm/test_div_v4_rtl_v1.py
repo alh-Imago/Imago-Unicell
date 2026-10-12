@@ -33,3 +33,13 @@ def test_carrier_runs_the_division_core(tmp_path, v):
     allv = sorted(f for f in os.listdir(V) if f.endswith(".v") and not f.startswith("tb_") and f != other)
     o = sim(tmp_path, "tb_vix_carrier_new_cores_v1", ["tb_vix_carrier_new_cores_v1.v"] + allv, [f"CARRIER=unicell_vix_carrier_{v}"])
     assert "div (15)" in o and "PASS: carrier new cores" in o and "FAIL" not in o, o[-600:]
+
+
+@pytest.mark.parametrize("v", ["v1", "v1d"])
+@pytest.mark.parametrize("k", [1, 4, 32])
+def test_carrier_passes_the_build_time_steps_to_the_division_core(tmp_path, v, k):
+    """ledger #1077: DIV_STEPS reaches the core (the testbench prints the core's own STEPS) and the carrier still divides correctly at that K."""
+    other = "unicell_vix_carrier_v1d.v" if v == "v1" else "unicell_vix_carrier_v1.v"
+    allv = sorted(f for f in os.listdir(V) if f.endswith(".v") and not f.startswith("tb_") and f != other)
+    o = sim(tmp_path, "tb_vix_carrier_new_cores_v1", ["tb_vix_carrier_new_cores_v1.v"] + allv, [f"CARRIER=unicell_vix_carrier_{v}", f"DIVK={k}"])
+    assert f"carrier div core built with STEPS={k}" in o and "PASS: carrier new cores" in o and "FAIL" not in o, o[-600:]

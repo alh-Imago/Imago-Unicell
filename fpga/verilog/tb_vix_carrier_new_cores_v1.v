@@ -1,11 +1,15 @@
 // tb_vix_carrier_new_cores_v1.v -- ledger #1036: the carrier's new cores driven through core_select, end to end: corner (12), cross (13), merge (14), the adder's optional second output (carry), and the division core (15).
 // Config convention (as tb_vix_carrier_mul_v1): cfg_d[4:0] = core_select, cfg_d[132:5] = core_config. Run with -DCARRIER=unicell_vix_carrier_v1 or unicell_vix_carrier_v1d.
 `timescale 1ns / 1ps
+`ifndef DIVK
+`define DIVK 1
+`endif
 `ifndef CARRIER
 `define CARRIER unicell_vix_carrier_v1
 `endif
 module tb_vix_carrier_new_cores_v1;
     reg clk = 0; always #5 clk = ~clk;
+    initial begin #1; $display("info: carrier div core built with STEPS=%0d", VIX.CORE_DIV.CORE.STEPS); end
     reg rst = 1;
     localparam [4:0] SEL_ADDER = 5'd1, SEL_CORNER = 5'd12, SEL_CROSS = 5'd13, SEL_MERGE = 5'd14, SEL_DIV = 5'd15;
     integer errors = 0;
@@ -17,7 +21,7 @@ module tb_vix_carrier_new_cores_v1;
     reg ak_e = 0, ak_s = 0, ak_n = 0, ak_w = 0;
     wire fz_n, fz_s, fz_e, fz_w, po_n, po_s, po_e, po_w; wire [31:0] pdo_n, pdo_s, pdo_e, pdo_w; wire pao_n, pao_s, pao_e, pao_w;
 
-    `CARRIER #(.CELL_ID(16'hC400)) VIX (
+    `CARRIER #(.CELL_ID(16'hC400), .DIV_STEPS(`DIVK)) VIX (
         .clk(clk), .rst(rst),
         .active_in_n(1'b1), .active_in_s(1'b0), .active_in_e(1'b0), .active_in_w(1'b0),
         .freeze_in_n(1'b0), .freeze_in_s(1'b0), .freeze_in_e(1'b0), .freeze_in_w(1'b0),
