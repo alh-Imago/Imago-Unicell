@@ -26,10 +26,11 @@ def main(argv=None) -> int:
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE", help="also run the design on these values and print the answer (repeatable)")
     ap.add_argument("--show-ir", action="store_true", help="print the LLVM IR the formula became")
     ap.add_argument("--no-check", action="store_true", help="skip the built-in comparison with the Python evaluation (not recommended)")
+    ap.add_argument("--full-check", action="store_true", help="run the compiled design in the VM even when it is large (can take many minutes per value)")
     args = ap.parse_args(argv)
 
     try:
-        r = L.compile_latex(args.formula, check=not args.no_check)
+        r = L.compile_latex(args.formula, check=False if args.no_check else ("full" if args.full_check else True))
     except L.LatexError as e:
         print(e.format(), file=sys.stderr)
         return 1
@@ -40,7 +41,14 @@ def main(argv=None) -> int:
     if args.show_ir:
         print(r.ir)
     print(f"compiled: {r.cells} cells; inputs, in order: {', '.join(r.args)}")
-    print(f"checked against the Python evaluation on {r.checked} test values: all agree" if r.checked else "NOT checked (--no-check)")
+    if r.ir_checked:
+        print(f"the generated operations agree with the Python evaluation on {r.ir_checked} test values")
+    if r.checked:
+        print(f"the compiled design, run in the VM, agrees on {r.checked} test values")
+    if r.hw_skipped:
+        print(f"NOTE: {r.hw_skipped}")
+    if not r.ir_checked and not r.checked:
+        print("NOT checked (--no-check)")
     if r.notes:
         print("simplified: " + "; ".join(r.notes))
     if args.set:

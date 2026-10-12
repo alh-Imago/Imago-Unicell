@@ -10,13 +10,17 @@ WHAT IT IS: a small, strict parser for integer maths. It turns the formula into 
 (crossing tiles, a relay tree for values read more than three times, constant folding, plain refusals). It adds no new hardware and no new cell kinds.
 
 WHAT IT COMPUTES: 32-bit whole numbers that wrap around (two's complement), exactly like the cells. `2^31 + 2^31` is 0, not 4294967296. Results come back as unsigned 0..2^32-1;
-`as_signed()` gives the signed reading. There are NO fractions: a decimal point, division, roots and functions (sin, log, ...) are refused with a message, never approximated.
+`as_signed()` gives the signed reading. There are NO fractions: a decimal point, roots and functions (sin, log, ...) are refused with a message, never approximated; division gives the whole-number quotient.
 
 SUPPORTED (and nothing else):
   numbers      whole numbers: 12, 0x1F is NOT supported (LaTeX has no hex)
   names        one letter is one variable: `x`; two letters side by side are a PRODUCT (`xy` means x times y, as in maths). A longer name: `\\mathrm{rate}` or `\\text{rate}`.
                Subscripts: `x_1`, `x_{12}`, `a_i`. Greek letters: `\\alpha` ... `\\omega` (no `\\pi`, `\\e`: those are not whole numbers).
   operators    +  -  (also unary minus)   *   \\cdot   \\times   and plain side-by-side multiplication (`2x`, `3(a+b)`, `(a)(b)`)
+  division     `a / b`, `a \\div b`, `\\frac{a}{b}` (quotient, rounded down) and `a \\bmod b` (remainder). UNSIGNED whole numbers: a negative value is its big two's-complement word,
+               so `-x / 2` is NOT minus half of x. Dividing by zero gives all ones (0xFFFFFFFF) and the remainder by zero is the dividend (the restoring-division convention, also RISC-V's).
+               Same level as `*`, left to right; a number or name straight after a division (`a / b c`) is refused as ambiguous.
+               A power-of-two divisor is a shift or a mask (tiny). ANY OTHER divisor builds a 32-step long-division loop unrolled in cells: about 23,000 cells for one division.
   grouping     ( )   \\left( \\right)   { }   (square brackets [ ] too)
   powers       x^2, x^{3}, (a+b)^2: the exponent must be a whole number written out (0..64). Not x^n, not x^{-1}, not x^{1/2}.
   naming       an optional `name =` in front is just a label; it must not appear on the right-hand side.
@@ -24,9 +28,12 @@ SUPPORTED (and nothing else):
 
 Anything else raises `LatexError` with the position and a plain reason. The first version refuses rather than guesses.
 
-HOW IT IS CHECKED (correctness first): `compile_latex(..., check=True)` (the default) runs the compiled design in the standard VM on a fixed set of corner values plus random ones
-and compares every answer with `reference()`. A mismatch raises `LatexCheckError`; it does not return a design. `run_stream_step()` does the same in the flex step simulator, feeding
-items at `safe_spacing()`, a CONSERVATIVE rule of thumb (not a measured limit): feeding items closer than the design can take gives silently wrong answers, so the default is generous.
+HOW IT IS CHECKED (correctness first): `compile_latex(..., check=True)` (the default) does two comparisons with the plain-Python `reference()`, on a fixed set of corner values plus random ones.
+  1. The generated operations are run by a tiny interpreter (`eval_ir`): this catches a wrong translation of the formula, is fast, and runs on every compile at full width.
+  2. The compiled design is run in the standard VM, unless it is too large for the VM (more than HW_CHECK_MAX_CELLS cells, as every general division is): then `hw_skipped` says so and
+     the command line prints a NOTE. `check="full"` forces it (minutes to hours for a division).
+A mismatch raises `LatexCheckError`; the design is not returned. `LatexResult.stream_step()` feeds items through the flex step simulator at `safe_spacing()`, a CONSERVATIVE rule of
+thumb (not a measured limit): feeding items closer than the design can take gives silently wrong answers, so the default is generous.
 """
 from __future__ import annotations
 
@@ -46,10 +53,8 @@ GREEK = {"alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "et
 SPACING_CMDS = {",", ";", ":", "!", " ", "quad", "qquad"}
 TIMES_CMDS = {"cdot", "times", "ast"}
 NOT_YET = {
-    "frac": "division is not supported: the cells add, subtract and multiply whole numbers. Multiply through by the denominator instead, or ask for a divider to be built",
-    "dfrac": "division is not supported: the cells add, subtract and multiply whole numbers",
-    "tfrac": "division is not supported: the cells add, subtract and multiply whole numbers",
-    "div": "division is not supported: the cells add, subtract and multiply whole numbers",
+    "pmod": "\\pmod is not supported; write the remainder as a \\bmod b",
+    "pod": "\\pod is not supported; write the remainder as a \\bmod b",
     "sqrt": "square roots are not supported (no fractions or irrational results; only whole numbers)",
     "sum": "sums over a range (\\sum) are not supported yet; write the terms out",
     "prod": "products over a range (\\prod) are not supported yet; write the factors out",
@@ -59,7 +64,7 @@ NOT_YET = {
     "pm": "plus-or-minus gives two answers; write the two formulas separately",
     "mp": "minus-or-plus gives two answers; write the two formulas separately",
 }
-FUNCTIONS = {"sin", "cos", "tan", "cot", "sec", "csc", "log", "ln", "exp", "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "min", "max", "gcd", "lcm", "det", "lim", "mod", "bmod", "pmod"}
+FUNCTIONS = {"sin", "cos", "tan", "cot", "sec", "csc", "log", "ln", "exp", "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "min", "max", "gcd", "lcm", "det", "lim"}
 
 
 class LatexError(ValueError):
@@ -117,6 +122,8 @@ def _tokenise(src: str) -> List[Tok]:
         elif c in "+-":
             toks.append(Tok("op", c, i))
             i += 1
+        elif c == "%":
+            raise LatexError("% starts a comment in LaTeX; write the remainder as a \\bmod b", src, i)
         elif c == "*":
             toks.append(Tok("op", "*", i))
             i += 1
@@ -136,7 +143,8 @@ def _tokenise(src: str) -> List[Tok]:
             toks.append(Tok("eq", c, i))
             i += 1
         elif c == "/":
-            raise LatexError(NOT_YET["div"], src, i)
+            toks.append(Tok("op", "/", i))
+            i += 1
         elif c == "\\":
             m = re.match(r"\\([A-Za-z]+|.)", src[i:])
             if not m:
@@ -148,6 +156,12 @@ def _tokenise(src: str) -> List[Tok]:
                 continue
             if cmd in TIMES_CMDS:
                 toks.append(Tok("op", "*", pos))
+            elif cmd == "div":
+                toks.append(Tok("op", "/", pos))
+            elif cmd in ("bmod", "mod"):
+                toks.append(Tok("op", "%", pos))
+            elif cmd in ("frac", "dfrac", "tfrac"):
+                toks.append(Tok("frac", cmd, pos))
             elif cmd in ("left", "right"):
                 if i < n and src[i] in "([{)]}.|":
                     ch = src[i]
@@ -213,6 +227,18 @@ class Bin:
 
 
 @dataclass(frozen=True)
+class Div:
+    left: "Expr"
+    right: "Expr"
+
+
+@dataclass(frozen=True)
+class Mod:
+    left: "Expr"
+    right: "Expr"
+
+
+@dataclass(frozen=True)
 class Pow:
     base: "Expr"
     exp: int
@@ -268,13 +294,22 @@ class _Parser:
 
     def term(self) -> Expr:
         left = self.unary()
+        divided = False                                         # the last operator was a division or remainder
         while True:
             t = self.peek()
             if t.kind == "op" and t.text == "*":
                 self.take()
                 right = self.unary()
                 left = Bin("*", left, right)
-            elif t.kind in ("num", "name", "lparen") and not (t.kind == "lparen" and t.text in ")]}"):
+                divided = False
+            elif t.kind == "op" and t.text in ("/", "%"):
+                self.take()
+                right = self.unary()
+                left = Div(left, right) if t.text == "/" else Mod(left, right)
+                divided = True
+            elif t.kind in ("num", "name", "lparen", "frac") and not (t.kind == "lparen" and t.text in ")]}"):
+                if divided:
+                    raise self.err("a number or name straight after a division or remainder is ambiguous (is it multiplied before or after?): add brackets")
                 right = self.unary_implicit()
                 left = Bin("*", left, right)
             else:
@@ -362,8 +397,25 @@ class _Parser:
             nm = f"{nm}_{sub}"
         return nm
 
+    def _group(self, what: str) -> Expr:
+        t = self.peek()
+        if not (t.kind == "lparen" and t.text == "{"):
+            raise self.err(f"\\frac needs two braced parts, \\frac{{top}}{{bottom}}; the {what} is missing its {{ }}", t)
+        self.take()
+        e = self.expr()
+        r = self.peek()
+        if not (r.kind == "rparen" and r.text == "}"):
+            raise self.err(f"the {what} of the fraction is not closed with }}", r)
+        self.take()
+        return e
+
     def atom(self) -> Expr:
         t = self.peek()
+        if t.kind == "frac":
+            self.take()
+            top = self._group("top")
+            bottom = self._group("bottom")
+            return Div(top, bottom)
         if t.kind == "num":
             self.take()
             v = int(t.text)
@@ -424,13 +476,25 @@ def variables(e: Expr) -> List[str]:
                 seen.append(x.name)
         elif isinstance(x, Neg):
             walk(x.arg)
-        elif isinstance(x, Bin):
+        elif isinstance(x, (Bin, Div, Mod)):
             walk(x.left)
             walk(x.right)
         elif isinstance(x, Pow):
             walk(x.base)
     walk(e)
     return seen
+
+
+def udiv(a: int, b: int) -> int:
+    """UNSIGNED whole-number quotient (rounded down). Dividing by zero gives all ones (0xFFFFFFFF), the convention of the restoring-division hardware and of RISC-V."""
+    a, b = a & MASK, b & MASK
+    return MASK if b == 0 else a // b
+
+
+def umod(a: int, b: int) -> int:
+    """UNSIGNED remainder, the partner of udiv: a - (a div b) * b. Taking the remainder by zero gives the dividend back (the same convention)."""
+    a, b = a & MASK, b & MASK
+    return a if b == 0 else a % b
 
 
 def evaluate(e: Expr, values: Dict[str, int]) -> int:
@@ -446,6 +510,10 @@ def evaluate(e: Expr, values: Dict[str, int]) -> int:
     if isinstance(e, Bin):
         a, b = evaluate(e.left, values), evaluate(e.right, values)
         return ((a + b) if e.op == "+" else (a - b) if e.op == "-" else (a * b)) & MASK
+    if isinstance(e, Div):
+        return udiv(evaluate(e.left, values), evaluate(e.right, values))
+    if isinstance(e, Mod):
+        return umod(evaluate(e.left, values), evaluate(e.right, values))
     if isinstance(e, Pow):
         b = evaluate(e.base, values)
         r = 1
@@ -467,6 +535,16 @@ def fold(e: Expr) -> Expr:
         if isinstance(a, Num) and isinstance(b, Num):
             return Num(evaluate(Bin(e.op, a, b), {}))
         return Bin(e.op, a, b)
+    if isinstance(e, (Div, Mod)):
+        a, b = fold(e.left), fold(e.right)
+        if isinstance(a, Num) and isinstance(b, Num):
+            return Num(evaluate(type(e)(a, b), {}))
+        if isinstance(b, Num):
+            if b.value == 0:                                      # x div 0 = all ones; x mod 0 = x
+                return Num(MASK) if isinstance(e, Div) else a
+            if b.value == 1:
+                return a if isinstance(e, Div) else Num(0)
+        return type(e)(a, b)
     if isinstance(e, Pow):
         b = fold(e.base)
         return Num(evaluate(Pow(b, e.exp), {})) if isinstance(b, Num) else Pow(b, e.exp)
@@ -486,9 +564,10 @@ class _Emit:
         self.lines: List[str] = []
         self.n = 0
         self.memo: Dict[Tuple, str] = {}
+        self.divisions: set = set()                       # distinct (dividend, divisor) pairs that need a full long division
 
     def op(self, opcode: str, a: str, b: str) -> str:
-        key = (opcode, a, b) if opcode == "sub" else (opcode,) + tuple(sorted((a, b)))     # the same sum or product is built once
+        key = (opcode, a, b) if opcode in ("sub", "shl", "lshr") else (opcode,) + tuple(sorted((a, b)))     # the same sum or product is built once
         if key in self.memo:
             return self.memo[key]
         self.n += 1
@@ -502,6 +581,33 @@ def _is_lit(x: str) -> bool:
     return re.fullmatch(r"-?\d+", x) is not None
 
 
+def _udivmod(em: _Emit, a: str, b: str, want: str, steps: int = 32) -> str:
+    """Unsigned long division, `steps` (32) steps unrolled in space (restoring division, one quotient bit per step), from add/sub/mul/and/or/xor/shifts only. `want` is "q" or "r".
+    Each step shifts the next dividend bit into the remainder R, and subtracts the divisor when R >= b, setting that quotient bit. No 33rd bit is ever needed: before the shift R is at
+    most the top (k-1) bits of the dividend, below 2^31 for every k <= 32, so 2R+bit fits in 32 bits (a mutation test that removed an extra carry guard I had first written found
+    it could never fire). R >= b is decided WITHOUT a signed comparison, by the borrow identity ((~r & b) | (~(r ^ b) & (r - b))) >> 31, which is exact over the whole 32-bit range
+    (a signed difference is not: mutation-tested). b = 0 falls out as q = all ones, r = the dividend (the convention of udiv/umod). A literal dividend is first made a computed value
+    (zero from `b xor b`, plus the literal) because the cells need a run-time operand. A divisor that is a plain variable is read directly: each read is its own input cell (the
+    compiler's rule for arguments), about 130 of them; copying it first so a relay tree carried it made the placer take over a minute without finishing, so that was not used."""
+    bb = b
+    A = a if not _is_lit(a) else em.op("add", em.op("xor", bb, bb), a)
+    R, Q = None, None
+    for _ in range(steps):
+        topa = em.op("lshr", A, "31")
+        A = em.op("shl", A, "1")
+        R2 = topa if R is None else em.op("or", em.op("shl", R, "1"), topa)
+        d = em.op("sub", R2, bb)
+        x = em.op("xor", R2, bb)
+        u1 = em.op("and", em.op("xor", R2, "-1"), bb)
+        u2 = em.op("and", em.op("xor", x, "-1"), d)
+        ult = em.op("lshr", em.op("or", u1, u2), "31")
+        take = em.op("xor", ult, "1")
+        m = em.op("mul", take, "-1")
+        R = em.op("sub", R2, em.op("and", m, bb))
+        Q = take if Q is None else em.op("or", em.op("shl", Q, "1"), take)
+    return Q if want == "q" else R
+
+
 def _gen(e: Expr, em: _Emit) -> str:
     """Operand string (a %name or a literal). Literals go second wherever the operation allows it."""
     if isinstance(e, Num):
@@ -511,6 +617,18 @@ def _gen(e: Expr, em: _Emit) -> str:
     if isinstance(e, Neg):
         a = _gen(e.arg, em)
         return em.op("mul", a, "-1")
+    if isinstance(e, (Div, Mod)):
+        a, b = _gen(e.left, em), _gen(e.right, em)
+        isdiv = isinstance(e, Div)
+        if _is_lit(b):
+            bv = int(b) & MASK
+            if bv & (bv - 1) == 0 and bv > 0:                    # a power of two: a shift, or a mask, exactly
+                k = bv.bit_length() - 1
+                if isdiv:
+                    return a if k == 0 else em.op("lshr", a, str(k))
+                return em.op("and", a, str(bv - 1))
+        em.divisions.add((a, b))
+        return _udivmod(em, a, b, "q" if isdiv else "r", DIV_STEPS)
     if isinstance(e, Pow):
         b = _gen(e.base, em)
         if e.exp == 0:
@@ -540,14 +658,25 @@ def _gen(e: Expr, em: _Emit) -> str:
     raise TypeError(e)
 
 
+MAX_GENERAL_DIVISIONS = 1                           # distinct long divisions per formula (a quotient and a remainder of the SAME two values share one). Two had not finished placing after 10 minutes
+DIV_STEPS = 32                                      # quotient bits produced; only tests lower it (a smaller instance divides the TOP `steps` bits of the dividend)
+
+
 def to_llvm(e: Expr, args: Optional[List[str]] = None) -> Tuple[str, List[str]]:
     """(LLVM IR text, argument names). The returned value is always named %r. Raises LatexError if the formula has no variable or reduces to one."""
+    seen = variables(e)
     e = fold(e)
-    args = args if args is not None else variables(e)
+    args = args if args is not None else seen
     if isinstance(e, Num):
+        if seen:
+            raise LatexError("whatever the inputs are, this formula always gives %d, so there is nothing to compute at run time" % e.value)
         raise LatexError("the formula contains no variable, so there is nothing to compute at run time (it is just the number %d)" % e.value)
     em = _Emit()
     top = _gen(e, em)
+    if len(em.divisions) > MAX_GENERAL_DIVISIONS:
+        raise LatexError(f"this formula needs {len(em.divisions)} separate long divisions. Each is about 23,000 cells, and the placer takes impractically long for more than one "
+                         f"(two had not finished after 10 minutes). For now: one general division per formula (a quotient and a remainder of the same two values share one), "
+                         f"divide by a power of two or a plain number you can avoid, or split the formula into two designs")
     if not em.lines or top != f"%_t{em.n}":
         # a bare variable (or something that reduced to one): give the design one computed cell to read
         em.n += 1
@@ -556,6 +685,47 @@ def to_llvm(e: Expr, args: Optional[List[str]] = None) -> Tuple[str, List[str]]:
     body = "\n".join(em.lines).replace(top, "%r")
     sig = ", ".join(f"i32 %{_argname(a)}" for a in args)
     return f"define i32 @formula({sig}) {{\nentry:\n{body}\n  ret i32 %r\n}}\n", args
+
+
+def eval_ir(ir: str, values: Dict[str, int]) -> int:
+    """A tiny interpreter for the IR this module writes (add sub mul and or xor shl lshr ashr on 32-bit words). It checks the GENERATOR (the formula became the right operations)
+    without the hardware model, so it is fast enough to run on every compile, including designs too large for the VM. `values` maps formula variable -> word."""
+    head = ir.splitlines()[0]
+    env: Dict[str, int] = {}
+    for name in re.findall(r"i32 %(\w+)", head):
+        env[name] = values[name[2:]] & MASK if name.startswith("v_") else 0
+
+    def val(t: str) -> int:
+        t = t.strip()
+        return env[t[1:]] if t.startswith("%") else int(t) & MASK
+    for line in ir.splitlines()[2:]:
+        m = re.match(r"\s*%(\w+) = (\w+) i32 ([^,]+), (.+)$", line)
+        if not m:
+            continue
+        nm, op, a, b = m.groups()
+        x, y = val(a), val(b)
+        if op == "add":
+            r = x + y
+        elif op == "sub":
+            r = x - y
+        elif op == "mul":
+            r = x * y
+        elif op == "and":
+            r = x & y
+        elif op == "or":
+            r = x | y
+        elif op == "xor":
+            r = x ^ y
+        elif op == "shl":
+            r = x << y
+        elif op == "lshr":
+            r = x >> y
+        elif op == "ashr":
+            r = as_signed(x) >> y
+        else:
+            raise ValueError(f"eval_ir: unknown operation {op!r}")
+        env[nm] = r & MASK
+    return env["r"]
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------
@@ -600,7 +770,9 @@ class LatexResult:
     ir: str
     args: List[str]
     result: object                     # DagFrontendResult
-    checked: int = 0                   # how many test vectors the compiled design was compared on
+    checked: int = 0                   # how many test vectors the compiled design was compared on in the VM (the hardware model)
+    ir_checked: int = 0                # how many test vectors the generated IR was compared on (the plain interpreter)
+    hw_skipped: str = ""               # why the VM comparison was skipped (a design too large for the VM), empty if it ran
     notes: List[str] = field(default_factory=list)
 
     def reference(self, values: Dict[str, int]) -> int:
@@ -653,6 +825,7 @@ def _input_cells(res: LatexResult) -> Dict[str, str]:
     next to anything else the cells are `_a` / `_b` by operand slot (the compiler's own naming rule)."""
     m: Dict[str, str] = {}
     argset = {_argname(a): a for a in res.args}
+    present = {r.cell_id for r in res.result.records}               # operations nothing reads (the unused half of a division) are dropped by the compiler
     for line in res.ir.splitlines():
         mm = re.match(r"\s*%(\w+) = (\w+) i32 ([^,]+), (.+)$", line)
         if not mm:
@@ -667,12 +840,18 @@ def _input_cells(res: LatexResult) -> Dict[str, str]:
                 m[f"main.dynq_{nm}_a"] = argset[a[1:]]
             if isarg(b):
                 m[f"main.dynq_{nm}_b"] = argset[b[1:]]
-    return m
+    return {k: v for k, v in m.items() if k in present}
 
 
-def compile_latex(source: str, check: bool = True, n_random: int = 6, placer: str = "routed_x") -> LatexResult:
-    """Parse, compile and (by default) CHECK a formula. Raises LatexError for text outside the subset, LatexCheckError if the compiled design disagrees with the Python oracle,
-    and LatexError (with the compiler's own words) if the compiler refuses the design."""
+HW_CHECK_MAX_CELLS = 1500          # the standard VM ticks about 3 x cells times, each tick over every cell: beyond this a vector takes minutes
+
+
+def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "routed_x", hw_max_cells: int = HW_CHECK_MAX_CELLS) -> LatexResult:
+    """Parse, compile and CHECK a formula. Raises LatexError for text outside the subset (or a compiler refusal) and LatexCheckError if anything disagrees with the Python oracle.
+    check=True   the generated IR is compared with the oracle on corner and random vectors (always, fast); the compiled design is ALSO run in the VM and compared, unless it has
+                 more than `hw_max_cells` cells (then `hw_skipped` says so and the CLI prints it: the VM would take minutes per vector).
+    check="full" the VM comparison is run whatever the size (slow for big designs).
+    check=False  no comparison (not recommended)."""
     import llvm_dag_frontend_v1 as F
     label, tree = parse_latex(source)
     ir, args = to_llvm(tree)
@@ -682,9 +861,19 @@ def compile_latex(source: str, check: bool = True, n_random: int = 6, placer: st
         raise LatexError("the compiler could not build this formula: " + text)
     out = LatexResult(source=source, label=label, tree=tree, ir=ir, args=args, result=res, notes=list(res.rewrites))
     if check:
-        for v in check_vectors(args, n_random=n_random):
-            got, want = out.run(v), out.reference(v)
+        vecs = check_vectors(args, n_random=n_random)
+        for v in vecs:
+            got, want = eval_ir(ir, v), out.reference(v)
             if got != want:
-                raise LatexCheckError(f"the compiled design gave {got} but the formula gives {want} for {v}; formula: {source!r}")
-            out.checked += 1
+                raise LatexCheckError(f"the generated operations gave {got} but the formula gives {want} for {v}; formula: {source!r}")
+            out.ir_checked += 1
+        if check == "full" or out.cells <= hw_max_cells:
+            for v in vecs:
+                got, want = out.run(v), out.reference(v)
+                if got != want:
+                    raise LatexCheckError(f"the compiled design gave {got} but the formula gives {want} for {v}; formula: {source!r}")
+                out.checked += 1
+        else:
+            out.hw_skipped = (f"the design has {out.cells} cells, more than {hw_max_cells}: the VM comparison was skipped (it would take minutes per value). "
+                              f"The generated operations WERE compared with the formula on {out.ir_checked} values; use check=\"full\" to run the VM anyway")
     return out
