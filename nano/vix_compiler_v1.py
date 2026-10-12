@@ -89,6 +89,9 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", t
     if any(d.severity == "error" for d in diagnostics):
         return None, diagnostics
 
+    if target == "vixen":                        # ledger #1105: a fixed constant feeding a two-face adder/mul/div needs the join (else it pairs with itself, #1102)
+        import join_pass_v1 as _jp
+        _jp.apply(cells)
     icm = vix.IcmVixFile(
         patterns={"main": vix.HierPattern(cells=cells)},
         placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],

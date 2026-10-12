@@ -2,7 +2,7 @@
 target_capabilities_v1.py -- ledger #981: what each TARGET can do with the target-agnostic ICM's optional features, so the compiler can refuse at COMPILE time (when it is told the
 target) instead of at load time. The ICM itself never names a target: it states the NEED (`second_output`, `second_downstream_mask`); this table says which targets can meet it.
 
-Targets: "std" (the standard VM / fixed-address cells), "flex" (the valid/ack handshake family) and "sub" (the fixed-latency flex-sub family).
+Targets: "std" (the standard VM / fixed-address cells), "vixen" (std on the VIXeN carrier, ledger #1105), "flex" (the valid/ack handshake family) and "sub" (the fixed-latency flex-sub family).
   second_output           which cores can deliver a second result word (the adder/subtractor's carry, the multiplier's high word)
   second_downstream_mask  which cores can send that second word to its OWN faces
 std: the multiplier's high word and the divider's remainder exist (sequential, on the same faces as the first word); nothing else. remainder_primary (ledger #1070): only the divider has it; every target that has a divider can swap which word is first. flex: both, on adder and mul. sub: neither.
@@ -13,13 +13,15 @@ No target given = no check (the ICM is produced unchanged).
 from typing import Dict, Iterable, List, Optional, Set
 
 CAPABILITIES: Dict[str, Dict[str, Set[str]]] = {
-    "std": {"second_output": {"mul", "div"}, "second_downstream_mask": set(), "remainder_primary": {"div"}},
-    "flex": {"second_output": {"adder", "mul", "div"}, "second_downstream_mask": {"adder", "mul", "div"}, "remainder_primary": {"div"}},
-    "sub": {"second_output": set(), "second_downstream_mask": set(), "remainder_primary": {"div"}},
+    "std": {"second_output": {"mul", "div"}, "second_downstream_mask": set(), "remainder_primary": {"div"}, "join_mode": set()},
+    # ledger #1105: "vixen" = the standard line on the VIXeN carrier: everything "std" has, plus join_mode (adder / mul / div wait for both operand faces). The older carriers ignore the bit, so "std" refuses it.
+    "vixen": {"second_output": {"mul", "div"}, "second_downstream_mask": set(), "remainder_primary": {"div"}, "join_mode": {"adder", "mul", "div"}},
+    "flex": {"second_output": {"adder", "mul", "div"}, "second_downstream_mask": {"adder", "mul", "div"}, "remainder_primary": {"div"}, "join_mode": {"adder", "mul", "div"}},   # flex cells always join: the key is accepted and changes nothing
+    "sub": {"second_output": set(), "second_downstream_mask": set(), "remainder_primary": {"div"}, "join_mode": set()},   # not established for the sub family: refused until it is read from the RTL
 }
 COARSE_TAPS = (1, 2, 4, 8, 12, 16, 20, 24, 28)
-FINE_OK = {"std": True, "flex": True, "sub": False}      # may shift_fine be used
-FREE_SHIFT = {"std": False, "flex": True, "sub": False}   # any shift_amt 0..31
+FINE_OK = {"std": True, "vixen": True, "flex": True, "sub": False}      # may shift_fine be used
+FREE_SHIFT = {"std": False, "vixen": False, "flex": True, "sub": False}   # any shift_amt 0..31
 
 
 def check_records(records: Iterable, target: Optional[str]) -> List[str]:
@@ -31,7 +33,7 @@ def check_records(records: Iterable, target: Optional[str]) -> List[str]:
     caps, out = CAPABILITIES[target], []
     for r in records:
         cfg = r.core_config or {}
-        for feature in ("second_output", "second_downstream_mask", "remainder_primary"):
+        for feature in ("second_output", "second_downstream_mask", "remainder_primary", "join_mode"):
             if cfg.get(feature) and r.core not in caps[feature]:
                 have = sorted(caps[feature])
                 out.append(f"{r.cell_id}: {feature} on a {r.core} -- target {target!r} cannot do that ("

@@ -216,7 +216,7 @@ def derive_dependencies_recursive(top_file, search_dir):
     return [top_basename] + sorted(visited_files - {top_basename})
 
 
-def derive_vix_dependencies(src_dir):
+def derive_vix_dependencies(src_dir, top_name="unicell_vix_carrier_v1.v"):
     """points.md #734: the real, current VIX Carrier dependency list,
     derived fresh from unicell_vix_carrier_v1.v's own actual real
     instantiations every time this is called -- replaces the old,
@@ -227,7 +227,7 @@ def derive_vix_dependencies(src_dir):
     is added explicitly -- a real, separate host-bridge dependency the
     carrier file itself never instantiates directly, so the recursive
     scan can't find it on its own."""
-    top_file = os.path.join(src_dir, "unicell_vix_carrier_v1.v")
+    top_file = os.path.join(src_dir, top_name)          # ledger #1105: top_name lets the VIXeN carrier (unicell_vixen_v1.v) reuse this
     deps = derive_dependencies_recursive(top_file, src_dir)
     if "debug_issp_probe_v1.v" not in deps:
         deps.append("debug_issp_probe_v1.v")
@@ -237,6 +237,7 @@ def derive_vix_dependencies(src_dir):
 SHELL_REGISTRY = {
     "v3": {"module": "unicell_super_v3", "dependencies": V3_DEPENDENCIES},
     "v4": {"module": "unicell_super_v4", "dependencies": V4_DEPENDENCIES},
+    "vixen": {"module": "unicell_vixen_v1", "dependencies": None},  # ledger #1105: VIXeN, the final carrier (join mode, sequenced priority, nano hold from config); same array wiring as "vix", dependencies derived from unicell_vixen_v1.v
     "vix": {"module": "unicell_vix_carrier_v1", "dependencies": None},  # points.md #734: derived, not hardcoded -- see resolve_shell_dependencies()
 }
 
@@ -859,7 +860,7 @@ def generate_top(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=None, 
     return "\n".join(lines) + "\n"
 
 
-def generate_top_vix(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=None):
+def generate_top_vix(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=None, shell_key="vix"):
     """points.md #647/#648: real, generated N-cell array of
     `unicell_vix_carrier_v1.v` -- the 9-core VIX Carrier, a genuinely
     different real port shape from every prior shell this tool
@@ -902,7 +903,7 @@ def generate_top_vix(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=No
     now needed, and used, only at real array boundaries where no such
     neighbor exists.
     """
-    module_name = SHELL_REGISTRY["vix"]["module"]
+    module_name = SHELL_REGISTRY[shell_key]["module"]
     positions = cell_positions(n, rows, cols)
     pos_set = set(positions)
 
@@ -1378,12 +1379,12 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
     # back to SHELL_REGISTRY's own registered default for `shell`.
     dependencies = resolve_dependency_list(file_list, files_string)
     if dependencies is None:
-        if shell == "vix" and shell_module is None:
+        if shell in ("vix", "vixen") and shell_module is None:
             # points.md #734: vix has no real static dependency list
             # anymore -- derive it fresh from the real, actual file,
             # every time, so it can never silently go stale again the
             # way VIX_DEPENDENCIES did across the whole #719-#731 arc.
-            dependencies = derive_vix_dependencies(src_dir)
+            dependencies = derive_vix_dependencies(src_dir, "unicell_vixen_v1.v" if shell == "vixen" else "unicell_vix_carrier_v1.v")
         else:
             dependencies = SHELL_REGISTRY[shell]["dependencies"]
 
@@ -1428,8 +1429,8 @@ def assemble(man_path, cells, output, top=None, single_core=None, core_path=None
         shutil.copy(src, os.path.join(output, dep))
         files_written += 1
 
-    if shell == "vix":
-        top_rtl = generate_top_vix(top_name, cells, rows, cols, probe_name=probe_name)
+    if shell in ("vix", "vixen"):
+        top_rtl = generate_top_vix(top_name, cells, rows, cols, probe_name=probe_name, shell_key=shell)
     else:
         top_rtl = generate_top(top_name, cells, rows, cols, probe_name=probe_name, shell=shell, shell_module=shell_module)
     with open(os.path.join(output, f"{top_name}.v"), "w") as f:

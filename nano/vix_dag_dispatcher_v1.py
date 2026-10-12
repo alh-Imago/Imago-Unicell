@@ -196,6 +196,9 @@ def compile_dag(instructions: List[DagInstr], target: Optional[str] = None
         if ref_count.get(instr.name, 0) > 1:
             taps[instr.name] = _TapPoint(pos=out_frontier.pos, cell=instr_cell, claimed_dirs=[])
 
+    if target == "vixen":                        # ledger #1105: a fixed constant feeding a two-face adder/mul/div needs the join (else it pairs with itself, #1102)
+        import join_pass_v1 as _jp
+        _jp.apply(all_cells)
     icm = vix.IcmVixFile(patterns={"main": vix.HierPattern(cells=all_cells)},
                           placements=[vix.HierPlacement(instance="main", pattern="main", at=(0, 0))],
                           name="dag_dispatch")
