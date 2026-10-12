@@ -20,6 +20,11 @@ outputs: one east to the tap, one south down the pipe); between splits the pipe 
 start, start + step, start + 2 step, ... at taps 0, 1, 2, ...; the pipe's delay makes them arrive in order. Stage = split, tap, step constant, priority cell, adder (5 cells;
 the last stage has only split and tap), so n taps are 5n - 3 cells. This is the LARGE form; the small form (one adder looped, the calc point reloading each new number) needs the
 loop ring and is not built.
+
+`matvec` (ledger #1082): y = A x for a constant m-by-n matrix A and a run-time vector x. m parallel multiply-accumulate chains side by side (3 columns each); the vector element x_j
+runs along ONE feed line (row 3j, west to east) that splits into every chain: in each chain a ram cell with two outputs sends it down to that chain's stage j and on east. The
+feed line crosses each chain's running total through a CROSS tile (core "cross": straight through both ways). The matrix entries are constant cells next to each multiplier.
+Cells: 8n per chain, 7n - 1 for the last chain: 8n(m - 1) + 7n - 1 in all. Outputs: the last adder of chain i is the cell main.y<i+1>.
 """
 from __future__ import annotations
 
@@ -117,3 +122,51 @@ def ramp_pipe(n: int, step: int, start_name: str = "start", tap_prefix: str = "m
             add(f"main.ramp_p{k}", r + 1, c, "priority", _pri(["n", "w"], "s"))
             add(f"main.ramp_a{k}", r + 2, c, "adder", {"upstream_mask": ["n"], "downstream_mask": ["s"]})
     return recs, {start_name: [(0, c)]}, taps
+
+
+def matvec_cell_count(m: int, n: int) -> int:
+    """Cells of an m-by-n matrix-vector block: eight per stage in all chains but the last, which has seven per stage less one."""
+    return 8 * n * (m - 1) + 7 * n - 1
+
+
+def matvec(coeffs: Sequence[Sequence[int]], x_names: Sequence[str]) -> Tuple[List[IcmV3Record], Dict[str, List[Tuple[int, int]]], List[Tuple[int, int]]]:
+    """Build the block for the constant matrix `coeffs` (m rows of n entries, taken mod 2^32) and the vector arguments `x_names` (n names). Returns (records, arg_injections,
+    result squares, one per row in order). x_j is injected at chain 0's split on row 3j."""
+    m, n = len(coeffs), len(x_names)
+    if m < 1 or n < 2 or any(len(row) != n for row in coeffs):
+        raise ValueError("matvec needs at least one row, at least two columns, and a rectangular matrix")
+    recs: List[IcmV3Record] = []
+    inj: Dict[str, List[Tuple[int, int]]] = {x: [] for x in x_names}
+    exits: List[Tuple[int, int]] = []
+
+    def add(cell_id, r, c, core, cfg, pre=None):
+        recs.append(IcmV3Record(cell_id=cell_id, row=r, col=c, core=core, core_config=cfg, preload_value=pre))
+
+    for i in range(m):
+        b = 3 * i
+        first, last = (i == 0), (i == m - 1)
+        for j in range(n):
+            R = PITCH * j
+            tag = f"main.mv{i}_{j}"
+            add(f"{tag}_a", R, b, "ram", {"fixed_mode": 0, "upstream_mask": [] if first else ["w"], "downstream_mask": ["s"] + ([] if last else ["e"])})
+            if first:
+                inj[x_names[j]].append((R, b))
+            if not last:
+                add(f"{tag}_lw", R, b + 1, "ram", _wire("w", "e"))
+                if j == 0:
+                    add(f"{tag}_lx", R, b + 2, "ram", _wire("w", "e"))
+            if j >= 1:
+                add(f"{tag}_x", R, b + 2, "cross", {"upstream_mask": ["n"] if last else ["n", "w"], "downstream_mask": ["s"] if last else ["s", "e"]})     # lanes: n->s (running total), w->e (feed line)
+            add(f"{tag}_p1", R + 1, b, "priority", _pri(["n", "s"], "e"))
+            add(f"{tag}_k", R + 2, b, "ram", {"fixed_mode": 0, "downstream_mask": ["n"]}, coeffs[i][j] & 0xFFFFFFFF)
+            add(f"{tag}_mul", R + 1, b + 1, "mul", {"upstream_mask": ["w"], "downstream_mask": ["e"], "second_output": 0})
+            if j == 0:
+                add(f"{tag}_w1", 1, b + 2, "ram", _wire("w", "s"))
+                add(f"{tag}_w2", 2, b + 2, "ram", _wire("n", "s"))
+            else:
+                add(f"{tag}_p2", R + 1, b + 2, "priority", _pri(["n", "w"], "s"))
+                lastj = (j == n - 1)
+                add(f"main.y{i + 1}" if lastj else f"{tag}_add", R + 2, b + 2, "adder", {"upstream_mask": ["n"], "downstream_mask": [] if lastj else ["s"]})
+                if lastj:
+                    exits.append((R + 2, b + 2))
+    return recs, inj, exits

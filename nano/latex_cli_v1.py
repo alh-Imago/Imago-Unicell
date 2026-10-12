@@ -10,6 +10,7 @@ Exit codes: 0 compiled and the built-in check passed; 1 the formula is outside t
 from __future__ import annotations
 
 import argparse
+import re
 import os
 import sys
 
@@ -35,7 +36,41 @@ def main(argv=None) -> int:
                     help="how a general division is built: 'core' (default) with the division core, one cell each; or 'unrolled' from add/sub/mul cells, about 23,000 cells, one per formula, for a target without the core")
     ap.add_argument("--no-check", action="store_true", help="skip the built-in comparison with the Python evaluation (not recommended)")
     ap.add_argument("--full-check", action="store_true", help="run the compiled design in the VM even when it is large (can take many minutes per value)")
+    ap.add_argument("--matrix", metavar="ROWSxCOLS", help="treat the formula as a matrix RULE, e.g. \"A_{ij} = i j\" with --matrix 4x4: builds y = A x (A from the rule, x_1 .. x_n the run-time inputs, y_1 .. y_m the results)")
+    ap.add_argument("--vector", default="x", help="with --matrix: the one-letter name of the input vector (default x)")
     args = ap.parse_args(argv)
+
+    if args.matrix:
+        m_ = re.fullmatch(r"(\d+)[xX](\d+)", args.matrix)
+        if not m_:
+            print("--matrix must look like 4x4 (rows x columns)", file=sys.stderr)
+            return 1
+        try:
+            mr = L.compile_matrix_latex(args.formula, int(m_.group(1)), int(m_.group(2)), vector=args.vector, check=not args.no_check)
+        except L.LatexError as e:
+            print(e.format(), file=sys.stderr)
+            return 1
+        except L.LatexCheckError as e:
+            print(f"CHECK FAILED: {e}", file=sys.stderr)
+            return 3
+        print(f"compiled: {mr.cells} cells; inputs, in order: {', '.join(mr.args)}; outputs: " + ", ".join(f"y_{i + 1}" for i in range(mr.rows)))
+        print("matrix: " + "; ".join(" ".join(str(v) for v in row) for row in mr.matrix))
+        if mr.checked:
+            print(f"the compiled design, run in the VM, agrees with the product on {mr.checked} test vectors")
+        if args.output:
+            mr.save(args.output)
+            print(f"wrote {args.output}")
+        if args.set:
+            vals = {}
+            for item in args.set:
+                k, _, v = item.partition("=")
+                vals[k.strip()] = int(v, 0)
+            missing = [a for a in mr.args if a not in vals]
+            if missing:
+                print(f"--set needs a value for {', '.join(missing)}", file=sys.stderr)
+                return 1
+            print("results: " + ", ".join(f"y_{i + 1} = {y}" for i, y in enumerate(mr.run(vals))) + "; Python says " + ", ".join(str(y) for y in mr.reference(vals)))
+        return 0
 
     try:
         r = L.compile_latex(args.formula, check=False if args.no_check else ("full" if args.full_check else True), division=args.division, div_steps=args.div_steps, polynomial=args.polynomial, blocks=args.blocks)

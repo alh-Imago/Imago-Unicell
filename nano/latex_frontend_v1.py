@@ -1125,3 +1125,91 @@ def compile_latex(source: str, check=True, n_random: int = 6, placer: str = "rou
             out.hw_skipped = (f"the design has {out.cells} cells, more than {hw_max_cells}: the VM comparison was skipped (it would take minutes per value). "
                               f"The generated operations WERE compared with the formula on {out.ir_checked} values; use check=\"full\" to run the VM anyway")
     return out
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------
+# 7. Matrices (ledger #1082): a rule for the entries, a size, and a vector
+# ---------------------------------------------------------------------------------------------------------------------------------
+
+MAX_MATRIX_SIDE = 16
+_RULE_RE = re.compile(r"^\s*([A-Za-z])_\{?\s*([A-Za-z])\s*,?\s*([A-Za-z])\s*\}?\s*=\s*(.+?)\s*$")
+
+
+@dataclass
+class MatrixResult:
+    """A compiled matrix-vector product y = A x: A is made from `rule` (constants), x is the run-time vector x_1 .. x_n, the m results are y_1 .. y_m."""
+    source: str
+    rows: int
+    cols: int
+    vector: str
+    matrix: List[List[int]]
+    args: List[str]
+    records: List[object]
+    arg_injections: Dict[str, List[Tuple[int, int]]]
+    exits: List[Tuple[int, int]]
+    checked: int = 0
+    notes: List[str] = field(default_factory=list)
+
+    @property
+    def cells(self) -> int:
+        return len(self.records)
+
+    def reference(self, values: Dict[str, int]) -> List[int]:
+        """The oracle: plain Python, modulo 2^32."""
+        return [sum(self.matrix[i][j] * (values[self.args[j]] & MASK) for j in range(self.cols)) & MASK for i in range(self.rows)]
+
+    def run(self, values: Dict[str, int]) -> List[int]:
+        """Run the design in the standard VM; returns [y_1 .. y_m]."""
+        import llvm_dag_frontend_v1 as F
+        from unicell_super_automaton_v1 import SuperGrid
+        grid = SuperGrid(self.records)
+        for nm, sites in self.arg_injections.items():
+            for (r, c) in sites:
+                grid.cells[(r, c)].ram_data_reg = values[nm] & MASK
+                grid.cells[(r, c)].ram_data_valid = True
+        for _ in range(max(400, 6 * len(self.records))):
+            grid.tick()
+        return [F._read_result(grid.cells[e], "adder") & MASK for e in self.exits]
+
+    def save(self, path: str) -> None:
+        from icm_v3 import IcmV3File
+        IcmV3File(name="matrix", records=self.records).save(path)
+
+
+def compile_matrix_latex(rule: str, rows: int, cols: int, vector: str = "x", check=True, n_random: int = 4) -> MatrixResult:
+    """y = A x, with A given by a RULE for its entries and a SIZE:
+        compile_matrix_latex("A_{ij} = i j", 4, 4)      a 4-by-4 matrix whose entry in row i, column j is i times j (counting from 1)
+    The rule is an ordinary formula in the two index letters (sums, products, powers, division and remainder all work; i^2 j^2 is a product of squares). Every entry is worked out
+    when the design is built and becomes a constant cell, so the rule may use ONLY the two index letters (an entry that depends on a run-time value is refused). The vector
+    elements are the run-time inputs x_1 .. x_n (name chosen by `vector`); the results are y_1 .. y_m. The design is the stored block `matvec` (arith_blocks_v1): m multiply-accumulate
+    chains side by side, one feed line per vector element branching into every chain. It is checked against plain Python on the VM before it is returned."""
+    mt = _RULE_RE.match(rule or "")
+    if not mt:
+        raise LatexError("the matrix rule must read like  A_{ij} = i j  (a name, two index letters in the subscript, an equals sign, then a formula in those letters)", rule or "", 0)
+    name, ci, cj, body = mt.group(1), mt.group(2), mt.group(3), mt.group(4)
+    if ci == cj:
+        raise LatexError(f"the two index letters must differ (both are {ci!r})", rule, 0)
+    if not (isinstance(rows, int) and isinstance(cols, int) and 1 <= rows <= MAX_MATRIX_SIDE and 2 <= cols <= MAX_MATRIX_SIDE):
+        raise LatexError(f"the size must be 1 to {MAX_MATRIX_SIDE} rows and 2 to {MAX_MATRIX_SIDE} columns, not {rows} by {cols}", rule, 0)
+    if not re.fullmatch(r"[A-Za-z]", vector or "") or vector in (ci, cj, name):
+        raise LatexError(f"the vector name must be one letter, different from the index letters {ci!r}, {cj!r} and the matrix name {name!r}", rule, 0)
+    _label, tree = parse_latex(body)
+    stray = [v for v in variables(tree) if v not in (ci, cj)]
+    if stray:
+        raise LatexError(f"the rule uses {', '.join(stray)}, which is not an index letter. Entries are worked out when the design is built, so they may depend only on {ci} and {cj} "
+                         f"(entries that depend on a run-time value are not supported yet)", rule, 0)
+    matrix = [[evaluate(tree, {ci: i, cj: j}) for j in range(1, cols + 1)] for i in range(1, rows + 1)]
+    args = [f"{vector}_{j}" for j in range(1, cols + 1)]
+    import arith_blocks_v1 as AB
+    recs, inj, exits = AB.matvec(matrix, args)
+    out = MatrixResult(source=rule, rows=rows, cols=cols, vector=vector, matrix=matrix, args=args, records=recs, arg_injections=inj, exits=exits,
+                       notes=[f"stored block matvec: {len(recs)} cells for {rows} by {cols}"])
+    if check:
+        rng = random.Random(1082)
+        vecs = [{a: v for a in args} for v in (0, 1, MASK)] + [{a: rng.randint(0, MASK) for a in args} for _ in range(n_random)]
+        for v in vecs:
+            got, want = out.run(v), out.reference(v)
+            if got != want:
+                raise LatexCheckError(f"the compiled matrix design gave {got} but the product gives {want} for {v}; rule: {rule!r}")
+            out.checked += 1
+    return out
