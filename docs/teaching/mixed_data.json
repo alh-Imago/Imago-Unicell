@@ -1,0 +1,225 @@
+{
+ "example": "ledger #1114 example: three blocks in a row, each adds its own constant. A (flex, +1000) -> B (SUB, +234) -> C (flex, +5): out = x + 1239. The assembler cuts the design at the family boundaries and puts the sub bridge on both crossings by itself (tools/flexsub_mixed_v1.py).",
+ "assembler_said": [
+  "Mixed families: flex0(flex), sub1(sub), flex2(flex)   Bridges inserted: 2",
+  "Output: /tmp/tmp92geqg3z  (10 files, top mix)"
+ ],
+ "assembly": {
+  "generator": "tools/flexsub_mixed_v1.py",
+  "top": "mix",
+  "source": "mixed_flex_sub_flex_v1.icm-hier.json",
+  "default_family": "flex",
+  "regions": [
+   {
+    "name": "flex0",
+    "family": "flex",
+    "cells": 4,
+    "module": "mix_flex0"
+   },
+   {
+    "name": "sub1",
+    "family": "sub",
+    "cells": 4,
+    "module": "mix_sub1"
+   },
+   {
+    "name": "flex2",
+    "family": "flex",
+    "cells": 4,
+    "module": "mix_flex2"
+   }
+  ],
+  "bridges": [
+   {
+    "k": 0,
+    "from": "flex0",
+    "to": "sub1",
+    "src_cell": "A.out",
+    "dst_cell": "B.in"
+   },
+   {
+    "k": 1,
+    "from": "sub1",
+    "to": "flex2",
+    "src_cell": "B.out",
+    "dst_cell": "C.in"
+   }
+  ],
+  "files": [
+   "adder_cell_v4s.v",
+   "adder_cell_v4sa.v",
+   "adder_v1.v",
+   "flex_sub_bridge_v1.v",
+   "mix_flex0.v",
+   "mix_flex2.v",
+   "mix_sub1.v",
+   "ram_cell_v4s.v",
+   "ram_cell_v4sa.v",
+   "mix.v"
+  ]
+ },
+ "stall0": {
+  "in": [
+   [
+    100,
+    102
+   ],
+   [
+    107,
+    104
+   ],
+   [
+    114,
+    106
+   ],
+   [
+    121,
+    108
+   ],
+   [
+    128,
+    115
+   ],
+   [
+    135,
+    122
+   ],
+   [
+    142,
+    129
+   ],
+   [
+    149,
+    136
+   ]
+  ],
+  "out": [
+   [
+    1339,
+    115
+   ],
+   [
+    1346,
+    122
+   ],
+   [
+    1353,
+    129
+   ],
+   [
+    1360,
+    136
+   ],
+   [
+    1367,
+    143
+   ],
+   [
+    1374,
+    150
+   ],
+   [
+    1381,
+    157
+   ],
+   [
+    1388,
+    164
+   ]
+  ]
+ },
+ "stall1": {
+  "in": [
+   [
+    100,
+    102
+   ],
+   [
+    107,
+    104
+   ],
+   [
+    114,
+    106
+   ],
+   [
+    121,
+    108
+   ],
+   [
+    128,
+    115
+   ],
+   [
+    135,
+    122
+   ],
+   [
+    142,
+    129
+   ],
+   [
+    149,
+    136
+   ]
+  ],
+  "out": [
+   [
+    1339,
+    117
+   ],
+   [
+    1346,
+    126
+   ],
+   [
+    1353,
+    135
+   ],
+   [
+    1360,
+    141
+   ],
+   [
+    1367,
+    143
+   ],
+   [
+    1374,
+    151
+   ],
+   [
+    1381,
+    162
+   ],
+   [
+    1388,
+    164
+   ]
+  ]
+ },
+ "ring_flex": {
+  "results": 5,
+  "values": [
+   833,
+   4796,
+   -5491,
+   7270,
+   -3017
+  ],
+  "clocks_per_step": 44,
+  "stopped_after": 5
+ },
+ "ring_sub": {
+  "results": 5,
+  "values": [
+   833,
+   4796,
+   -5491,
+   7270,
+   -3017
+  ],
+  "clocks_per_step": 39,
+  "stopped_after": 5
+ }
+}

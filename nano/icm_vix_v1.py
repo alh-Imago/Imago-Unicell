@@ -149,11 +149,16 @@ class HierPlacement:
     pattern: str
     at: Tuple[int, int]
     overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    #: ledger #1114: optional cell FAMILY this block is built from ("flex" or "sub"; absent = the design's default). Only the Flex-Sub assembler reads it: a block with a family
+    #: different from its neighbour's gets the sub bridge placed on every edge between them. The VM and every other tool ignore it.
+    family: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d: Dict[str, Any] = {"instance": self.instance, "pattern": self.pattern, "at": list(self.at)}
         if self.overrides:
             d["overrides"] = self.overrides
+        if self.family:
+            d["family"] = self.family
         return d
 
     @staticmethod
@@ -161,6 +166,7 @@ class HierPlacement:
         return HierPlacement(
             instance=d["instance"], pattern=d["pattern"], at=tuple(d["at"]),
             overrides=dict(d.get("overrides", {})),
+            family=d.get("family"),
         )
 
 

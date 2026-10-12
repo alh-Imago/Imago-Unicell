@@ -1533,6 +1533,16 @@ def main():
             return 1
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import flexsub_icm_generate_v1 as fig
+        import flexsub_mixed_v1 as mix
+        if mix.is_mixed(args.icm):                                   # ledger #1114: a block names its family -> split at the family boundaries, bridge every crossing
+            try:
+                r = mix.generate(args.icm, args.output, top=args.top or "mixed_top", default_family=args.family, man_path=args.man)
+            except (ValueError, FileNotFoundError, RuntimeError) as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 1
+            print(f"Mixed families: {', '.join(x['name'] + '(' + x['family'] + ')' for x in r['regions'])}   Bridges inserted: {len(r['bridges'])}")
+            print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
+            return 0
         try:
             r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
                              man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode, width=args.width, rings=args.allow_rings, ring_steps=args.ring_steps)

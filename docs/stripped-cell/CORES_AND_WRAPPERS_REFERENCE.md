@@ -103,6 +103,7 @@ Wherever a sub block (fixed latency, no ack, nothing can refuse or queue a word)
 - Mapping, both proven against real cells with the unchanged module: **flex** (`valid_out`/`ack_in`; `ack_out` of the sink) and **standard v4c** (`fire_*` is the valid, `ack_in_*` the ack; the sink takes an `arrived_*` pulse when its `ready_out` is high). The nano and carrier shells are not yet done. Any other family needs only that adapter wiring, never a change to the bridge.
 - Cost: the pair adds 2 clocks over the sub block's own latency; one word in flight, so period = sub latency + 3. A queued version that keeps one result per clock through the sub block is not built.
 - The same holding register is the ring's measure point (ledger #1111): a sub ring halts there each lap and is refired.
+- **Automatic insertion (ledger #1114):** a block tagged `"family": "sub"` in an ICM-VIX file gets the bridge wherever it meets another family, placed by `tools/flexsub_mixed_v1.py` (called by `project_assemble_v1.py --icm`). The Composer lists the bridges a design will get; the Workbench colours cells by family.
 
 ## Real design principle: prefer a CORE over a specialist cell, stated explicitly (Alan, 2026-08-25)
 

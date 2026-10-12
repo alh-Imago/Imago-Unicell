@@ -41,6 +41,16 @@ def _data_uri(rel):
         return "data:image/png;base64," + base64.b64encode(f.read()).decode("ascii")
 
 
+def _mixed_html(name):
+    """Fragment with the captured mixed-family data (docs/teaching/mixed_data.json) embedded."""
+    import json as _json
+    with open(os.path.join(HERE, "teaching", name), encoding="utf-8") as f:
+        t = f.read()
+    with open(os.path.join(HERE, "teaching", "mixed_data.json"), encoding="utf-8") as f:
+        data = _json.dumps(_json.load(f), separators=(",", ":")).replace("</", "<\\/")
+    return t.replace("@@MIXED_DATA@@", data)
+
+
 def _prog_html(name):
     """Fragment with the captured compiler/VM data (docs/teaching/programming_data.json) embedded."""
     import json as _json
@@ -318,7 +328,15 @@ SECTIONS = [
              "cell to build from. The four families (standalone, carrier, sub, flex) side by side, "
              "by what each can and cannot do, and the flags that steer the assembler.",
      "html":_asm_html("assembler_fragment.html"),
-     "links":[("← Back to The MAN File","#sec-man","section"),("Continue → The Cells","#sec-cells","section")]},
+     "links":[("← Back to The MAN File","#sec-man","section"),("Continue → Mixing Families","#sec-mixed","section")]},
+
+    {"id":"mixed","num":"19a","tab":"Mixed families","title":"Mixing Families: Sub Blocks, the Bridge and Rings",
+     "intro":"Some blocks can be built from the small, fast, fixed-time sub cells while the rest stays flex. "
+             "Where the two meet the assembler inserts a bridge by itself. What the bridge does, how the "
+             "Composer and Workbench show it, and how rings are stopped in each family, with numbers "
+             "measured on the generated hardware.",
+     "html":_mixed_html("mixed_fragment.html"),
+     "links":[("← Back to the Assembler","#sec-assembler","section"),("Continue → The Cells","#sec-cells","section")]},
 
     {"id":"__CELLS__"},
 

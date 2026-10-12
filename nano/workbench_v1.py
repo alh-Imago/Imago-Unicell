@@ -354,6 +354,7 @@ class WorkbenchController:
         self.shell_version = shell
         self.shell_path = shell_path
         self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
         self._records = {}
         self.registry = HostResourceRegistry()
         return {
@@ -372,6 +373,7 @@ class WorkbenchController:
         self.shell_version = None
         self.shell_path = None
         self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
         self._records = {}
         self.registry = HostResourceRegistry()
         return {"ok": True, "state": self.session.describe()}
@@ -462,6 +464,7 @@ class WorkbenchController:
 
         self.session = session
         self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
         self._records = {(r.row, r.col): r for r in icm.records}
         self.registry = HostResourceRegistry()
         return {
@@ -605,6 +608,7 @@ class WorkbenchController:
 
         self.session = session
         self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
         self._records = {(r.row, r.col): r for r in icm.records}
         self.registry = HostResourceRegistry()
         return {
@@ -704,11 +708,19 @@ class WorkbenchController:
 
         self.session = VMSession(SuperGrid(records))
         self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
         self._records = {(r.row, r.col): r for r in records}
         self.registry = HostResourceRegistry()
         self._vix_structure_path = path
+        # ledger #1114: a block may name the cell family it is built from (flex / sub). The VM runs every cell in its standard mode (it cannot express a fixed-latency sub block
+        # faithfully, Alan 12 Oct), so the family is only SHOWN: the page colours each cell by family, like the Composer does.
+        fam_of_inst = {p_.instance: p_.family for p_ in icm.placements if p_.family}
+        self._family = {(r.row, r.col): fam_of_inst[r.cell_id.split(".", 1)[0]] for r in records if r.cell_id.split(".", 1)[0] in fam_of_inst}
         return {
             "ok": True,
+            "families": sorted(set(self._family.values())),
+            "family_note": ("cells are coloured by the family their block is built from; the VM runs all of them in its standard mode, the assembler (tools/flexsub_mixed_v1.py) "
+                            "builds each block from its own family and inserts the sub bridge where two families meet") if self._family else None,
             "name": icm.name,
             "header": icm.header(),
             "connection_hints": connection_hints,
@@ -757,6 +769,7 @@ class WorkbenchController:
 
         self.session = session
         self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
         self._records = {(r.row, r.col): r for r in records}
         self.registry = HostResourceRegistry()
         self._vix_structure_path = None  # loaded via a saved state, not directly from a structure file
@@ -813,8 +826,10 @@ class WorkbenchController:
         for name, positions in self.regions.items():
             for pos in positions:
                 cell_to_region[f"{pos[0]},{pos[1]}"] = name
+        fam = getattr(self, "_family", None) or {}
         for key, cell in state["cells"].items():
             cell["region"] = cell_to_region.get(key)
+            cell["family"] = fam.get((cell.get("row"), cell.get("col")))        # ledger #1114: None unless the loaded ICM-VIX file tags the block
         return {"ok": True, "state": state}
 
     def step(self, n: int = 1) -> Dict[str, Any]:
@@ -1092,11 +1107,12 @@ function renderState(state) {
     div.style.borderColor = colorForRegion(c.region);
     div.style.gridColumn = c.col + 1;
     div.style.gridRow = c.row + 1;
+    if (c.family) { div.classList.add("fam-" + c.family); }          // ledger #1114: sub = cool blue-green, flex = warm, same colours as the Composer
     const dirs = cellDirections(c.core, c[c.core]);
     const dirLine = `<div class="dirs">` +
       `<span class="dir-out">out: ${dirs.out.length ? dirs.out.join(",") : "-"}</span> &nbsp; ` +
       `<span class="dir-in">in: ${dirs.in.length ? dirs.in.join(",") : (c.core === "nano" ? "any" : "-")}</span></div>`;
-    div.innerHTML = `<div class="core">${c.core}</div><div class="pos">(${c.row},${c.col}) ${c.region || ""}</div>` +
+    div.innerHTML = `<div class="core">${c.core}</div><div class="pos">(${c.row},${c.col}) ${c.region || ""}${c.family ? " [" + c.family + "]" : ""}</div>` +
       dirLine +
       Object.entries(c[c.core] || {}).map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join("<br>");
     grid.appendChild(div);
@@ -1355,6 +1371,8 @@ _WORKBENCH_CSS = """
 .cell { border: 2px solid var(--line); padding: 6px 8px; min-width: 104px; font-size: 11px; background: var(--bg-input);
         font-family: var(--font-mono); }
 .cell .core { color: var(--copper); font-weight: 600; }
+.cell.fam-sub { background: rgba(70,150,170,0.18); border-left: 5px solid #46a0b4; }
+.cell.fam-flex { background: rgba(193,127,69,0.14); border-left: 5px solid #c17f45; }
 .cell .pos { color: var(--fg-faint); font-size: 10px; }
 .cell .dirs { font-size: 10px; margin: 2px 0; }
 .dir-out { color: var(--ok); } .dir-in { color: var(--in); }

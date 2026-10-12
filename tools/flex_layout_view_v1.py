@@ -500,12 +500,12 @@ class Layout:
             if not sq:
                 continue
             blocks.append({"name": name, "file": v["file"], "source": v.get("source"), "r0": min(p[0] for p in sq), "c0": min(p[1] for p in sq), "r1": max(p[0] for p in sq),
-                           "c1": max(p[1] for p in sq), "cells": len(mem), "status": self.block_status(name),
+                           "c1": max(p[1] for p in sq), "cells": len(mem), "status": self.block_status(name), "family": v.get("family"),
                            "ports": [{"io": io, "cell": k, "r": g.pos(k)[0], "c": g.pos(k)[1]} for io, k in v["ports"].items() if k in g.nodes]})
         by_core = collections.Counter(n["core"] for n in g.nodes.values())
         return {
             "name": self.name, "rows": g.rows, "cols": g.cols, "offset": list(self.offset),
-            "cells": cells, "routes": routes, "links": loose, "blocks": blocks,
+            "cells": cells, "routes": routes, "links": loose, "blocks": blocks, "mixed": self.mixed_report(),
             "crossings": [{"name": x, "r": g.nodes[x]["r"], "c": g.nodes[x]["c"], "owner": list(o), "crossing": list(c)} for x, (o, c) in g.crossed.items()],
             "problems": [{"cell": c, "kind": k, "early": x, "late": y} for c, k, x, y in probs],
             "merges": merges,
@@ -896,6 +896,38 @@ class Layout:
             if c in self.grid.nodes and m in self.grid.nodes:
                 self.grid.minuend[c] = m
 
+    def set_block_family(self, name, family):
+        """Ledger #1114: choose the cell family a block is built from (`flex`, `sub`, or None = the design's default, flex). Only the Flex-Sub assembler reads it."""
+        if name not in self.blocks:
+            return {"ok": False, "error": f"no block {name}"}
+        if family not in (None, "", "flex", "sub"):
+            return {"ok": False, "error": f"family must be flex or sub, not {family!r}"}
+
+        def do():
+            self.blocks[name]["family"] = family or None
+            return {"block": name, "family": family or None}
+        return self._transaction(do)
+
+    def mixed_report(self):
+        """Ledger #1114: None when no block names a family; else what the Flex-Sub assembler will do with this design: its regions, the bridges it will insert (one per edge between two
+        families), and any reason it would refuse. Computed by the assembler's own planner on the design as ICM-VIX, so the picture and the hardware cannot disagree."""
+        if not any(v.get("family") for v in self.blocks.values()):
+            return None
+        import tempfile
+        import flexsub_mixed_v1 as mx
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "design.icm-hier.json")
+            try:
+                self.to_vix().save(path)
+                p = mx.plan(path)
+            except mx.MixedError as e:
+                return {"ok": False, "problem": str(e), "regions": [], "bridges": []}
+            except Exception as e:                          # a design the netlist reader cannot read yet is not the family picture's business
+                return {"ok": False, "problem": f"{e.__class__.__name__}: {e}", "regions": [], "bridges": []}
+        return {"ok": True, "problem": None,
+                "regions": [{"name": r["name"], "family": r["family"], "cells": len(r["cells"])} for r in p["regions"]],
+                "bridges": [{"k": x["k"], "from": x["from"], "to": x["to"], "src": x["src"], "dst": x["dst"], "kind": "flex_to_sub" if p["by_name"][x["from"]]["family"] == "flex" else "sub_to_flex"} for x in p["crossings"]]}
+
     def move_block(self, name, r, c, relative=False):
         """Move block `name` so its top-left is at (r, c) (or by (r, c) when relative): its inside is carried as it is, its joins to the outside are laid again."""
         if name not in self.blocks:
@@ -1025,7 +1057,7 @@ class Layout:
                     name = f"{base}~{n}"
                 patterns[name], seen[key] = pat, name
             over = {r.cell_id[len(b) + 1:]: {"io_name": None} for r in mine if r.cell_id in port_io}
-            placements.append(vix.HierPlacement(instance=b, pattern=seen[key], at=(r0, c0), overrides=over))
+            placements.append(vix.HierPlacement(instance=b, pattern=seen[key], at=(r0, c0), overrides=over, family=v.get("family")))
         return vix.IcmVixFile(patterns=patterns, placements=placements, name=self.name, description=self.description or "made in the Composer (tools/flex_layout_view_v1.py)",
                               min_bit_width=self.min_bit_width)
 
@@ -1120,6 +1152,8 @@ def read_design(path):
             pat = doc.patterns[p.pattern]
             blocks[p.instance] = {"file": p.pattern.split("~")[0] + ".icm.json", "cells": [f"{p.instance}.{c.cell_id}" for c in pat.cells],
                                   "ports": {c.io_name: f"{p.instance}.{c.cell_id}" for c in pat.cells if c.io_name}}
+            if getattr(p, "family", None):
+                blocks[p.instance]["family"] = p.family          # ledger #1114: the block's cell family survives a reload
     return doc, recs, blocks
 
 

@@ -153,7 +153,7 @@ class ComposerController:
         return self.edit("undo", {})
 
     def edit(self, action, req):
-        """One editing action on the current layout: move, add, config, join, unjoin, delete, minuend, balance, undo, block, move_block, unpack_block, delete_block."""
+        """One editing action on the current layout: move, add, config, join, unjoin, delete, minuend, balance, undo, block, move_block, unpack_block, delete_block, block_family."""
         with self.lock:
             lay = self.layout
             if not lay:
@@ -189,6 +189,8 @@ class ComposerController:
                     else:
                         src = req.get("source") or "library"
                         res = lay.place_block(_library_path(req.get("file"), src), int(req["r"]), int(req["c"]), as_components=bool(req.get("components")), source=src)
+                elif action == "block_family":
+                    res = lay.set_block_family(str(req["name"]), req.get("family") or None)
                 elif action == "move_block":
                     res = lay.move_block(str(req["name"]), int(req["r"]), int(req["c"]))
                 elif action == "unpack_block":
@@ -308,6 +310,9 @@ COMPOSER_CSS = """
 .blk rect.body { fill: var(--bg-panel-2); stroke: var(--copper); stroke-width: 1.2; }
 .blk.sel rect.body { stroke: var(--fg); stroke-width: 1.8; }
 .blk { cursor: move; }
+.blk.fam-sub rect.body { fill: rgba(70,160,180,0.16); stroke: #46a0b4; }
+.blk.fam-flex rect.body { fill: rgba(193,127,69,0.12); }
+.blk.fam-sub .bar { stroke: #46a0b4; }
 .blk.open rect.body { fill: none; stroke-dasharray: 4 2; }
 .blk.open { cursor: default; }
 .blk .bar { fill: var(--bg-panel-2); stroke: var(--copper); stroke-width: .6; cursor: move; }
@@ -542,7 +547,7 @@ function draw(keepView) {
   const bg = $('blocks'), ppu = W() / vb.w;      // screen pixels per board unit: tile text and port dots are sized to stay readable when zoomed out
   for (const b of L.blocks) {
     const open = isOpen(b), [cls, txt] = statusBadge(b.status);
-    const gr = el('g', {class: 'blk' + (open ? ' open' : '') + (selBlock === b.name ? ' sel' : ''), transform: `translate(${b.c0 * S},${b.r0 * S})`}, bg);
+    const gr = el('g', {class: 'blk' + (open ? ' open' : '') + (selBlock === b.name ? ' sel' : '') + (b.family ? ' fam-' + b.family : ''), transform: `translate(${b.c0 * S},${b.r0 * S})`}, bg);
     gr.dataset.block = b.name;
     const w = (b.c1 - b.c0 + 1) * S, h = (b.r1 - b.r0 + 1) * S;
     el('rect', {class: 'body', x: .6, y: .6, width: w - 1.2, height: h - 1.2, rx: 2}, gr);
@@ -550,14 +555,14 @@ function draw(keepView) {
       const bar = el('rect', {class: 'bar', x: .6, y: -6, width: Math.min(w - 1.2, 120), height: 5.4, rx: 1}, gr);
       bar.dataset.bar = b.name;
       const t = el('text', {x: 2.4, y: -2, 'font-size': 3}, gr);
-      t.textContent = `${b.name} · ${txt}`;
+      t.textContent = `${b.name}${b.family ? ' [' + b.family + ']' : ''} · ${txt}`;
       t.style.fill = BADGE_FILL[cls] || 'var(--fg)';
     } else {
       const fs = Math.max(2.4, Math.min(Math.max(5, 13 / ppu), h * .28, w / Math.max(4, b.name.length) * 1.4));
       const t = el('text', {x: w / 2, y: h / 2 - fs * .2, 'text-anchor': 'middle', 'font-size': fs}, gr);
       t.textContent = b.name;
       const t2 = el('text', {x: w / 2, y: h / 2 + fs * .8, 'text-anchor': 'middle', 'font-size': fs * .6}, gr);
-      t2.textContent = `${b.file} · ${b.cells} cells`;
+      t2.textContent = `${b.file} · ${b.cells} cells${b.family ? ' · ' + b.family : ''}`;
       t2.style.fill = 'var(--fg-dim)';
       const t3 = el('text', {class: 'badge', x: w / 2, y: h / 2 + fs * 1.7, 'text-anchor': 'middle', 'font-size': fs * .6}, gr);
       t3.textContent = txt;
@@ -645,6 +650,7 @@ function summary() {
   $('summary').innerHTML = `<b>${esc(L.name)}</b> · board ${L.rows} × ${L.cols}<br>${s.cells} cells (${esc(bc) || 'empty'})<br>${s.routes} joins, ${s.relays} relays, ${L.crossings.length} crossings, ${L.blocks.length} blocks<br>` +
     `deepest hop <b>${s.max_hop}</b>; ${mov} movable, ${s.pinned} pinned` + (s.undo ? `; ${s.undo} undo step(s)` : '') +
     (s.timing_error ? `<br><span style="color:var(--err)">no timing: ${esc(s.timing_error)}</span>` : '') +
+    (L.mixed ? `<br>mixed families: ${L.mixed.ok ? L.mixed.regions.map(r => r.family).join(' · ') + ` — <b>${L.mixed.bridges.length} bridge(s)</b> inserted automatically` : `<span style="color:var(--warn)">${esc(L.mixed.problem)}</span>`}` : '') +
     (L.warnings.length ? `<br><span style="color:var(--warn)">${L.warnings.length} warning(s): ${esc(L.warnings.slice(0, 3).join('; '))}</span>` : '');
 }
 function problems() {
@@ -686,6 +692,13 @@ function bitbar(c) {
   out += seg(20, 'addon' + (Object.values(c.addon || {}).some(v => v) ? ' set' : ''), 'add-on config [66:47]');
   return out + '</div>';
 }
+function mixedHtml(name) {      // ledger #1114: the bridges the assembler will insert at this block's edges (it asks its own planner, so this is what the hardware gets)
+  const m = L && L.mixed;
+  if (!m) return '';
+  if (!m.ok) return `<div style="margin-top:6px;color:var(--warn,#c9a227)"><b>mixed families:</b> ${esc(m.problem)}</div>`;
+  const mine = m.bridges.filter(x => (x.src + '.').startsWith(name + '.') || (x.dst + '.').startsWith(name + '.'));
+  return `<div style="margin-top:6px"><b>bridges here:</b> ${mine.length ? mine.map(x => `${x.kind.replace('_', ' → ').replace('_', ' ')} (${esc(x.src)} → ${esc(x.dst)})`).join('; ') : 'none'} <span style="color:var(--fg-faint)">· inserted automatically</span></div>`;
+}
 function showSelected() {
   const box = $('cfg');
   if (selBlock && blockBy[selBlock]) {
@@ -695,9 +708,12 @@ function showSelected() {
       (b.ports.map(p => `<b>${esc(p.io)}</b>`).join(', ') || 'none') +
       `<div class="${cls}" style="margin-top:6px"><b>${txt}</b></div><div>${esc(st.detail || '')}</div>` +
       (st.standard === false ? `<div style="margin-top:4px;color:var(--fg-faint)">non-standard: its cells or joins differ from ${esc(b.file)}</div>` : '') +
+      `<div style="margin-top:6px">cell family: <select id="bFam" title="flex = handshake cells (default); sub = fixed-latency cells. Where two families meet the assembler inserts the sub bridge by itself."><option value="">flex (default)</option><option value="flex"${b.family === 'flex' ? ' selected' : ''}>flex</option><option value="sub"${b.family === 'sub' ? ' selected' : ''}>sub</option></select></div>` +
+      mixedHtml(b.name) +
       `<div class="actions"><button id="bCheck" title="run the block on its own against its model's reference vectors">Check function</button>` +
       `<button id="bUnpack" title="turn the block's cells into ordinary cells">Unpack</button><button id="bDel">Delete block</button></div>` +
       `<div style="margin-top:6px">Zoom in to open the block and edit its cells; drag its header bar (or the tile) to move it. In Join mode, tap a port (gold dot).</div>`;
+    $('bFam').onchange = ev => edit('block_family', {name: b.name, family: ev.target.value}, r => `${b.name} is built from ${ev.target.value || 'flex (default)'} cells`);
     $('bCheck').onclick = () => { status(`checking ${b.name} against its reference vectors (a large block takes a while)…`); edit('check_block', {name: b.name}, r => `${b.name}: ${statusBadge(r)[1]}. ${r.detail || ''}`); };
     $('bUnpack').onclick = () => edit('unpack_block', {name: b.name}, `unpacked ${b.name}: its cells are ordinary cells now`);
     $('bDel').onclick = () => edit('delete_block', {name: b.name}, `deleted ${b.name}`);
