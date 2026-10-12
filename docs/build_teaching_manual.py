@@ -288,14 +288,23 @@ SECTIONS = [
              "small and still correct: two placers side by side, tightening by spacing, "
              "folding, and the rat's-nest way of shrinking one connection a step at a time.",
      "html":_comp_html("placer_fragment.html"),
-     "links":[("← Back to the Compiler","#sec-compiler","section"),("Continue → Verilog / RTL","#sec-rtl","section")]},
+     "links":[("← Back to the Compiler","#sec-compiler","section"),("Continue → Writing a Formula","#sec-formula","section")]},
+
+    {"id":"formula","num":"16a","tab":"Formulas","title":"Writing a Formula in LaTeX, and Writing It Small",
+     "intro":"The compiler accepts an integer formula written as in a maths book, checks the design it "
+             "builds against plain Python, and refuses what it cannot do with a message pointing at the "
+             "character. How to write each kind of input (formulas, powers, division, sums and products, "
+             "dot products, matrices), what is refused, and the reduction advisory: measured pairs showing "
+             "how writing the same formula smaller changes the cell count.",
+     "parts":[{"sub":"The writing guide and the reduction advisory","md":"docs/teaching/latex_writing_guide.md"}],
+     "links":[("← Back to the Placer","#sec-placer","section"),("Continue → Verilog / RTL","#sec-rtl","section")]},
 
     {"id":"rtl","num":"17","tab":"Verilog / RTL","title":"The Verilog, and Keeping the Program Apart from the Card",
      "intro":"The hardware form of the design: one short file per kind of cell, in two families, "
              "and how the program (a card-neutral map) is kept separate from the card (the MAN "
              "file) until a tool combines them. Try the same program against two real cards.",
      "html":_rtl_html("rtl_fragment.html"),
-     "links":[("← Back to the Placer","#sec-placer","section"),("Continue → The MAN File","#sec-man","section")]},
+     "links":[("← Back to Formulas","#sec-formula","section"),("Continue → The MAN File","#sec-man","section")]},
 
     {"id":"man","num":"18","tab":"MAN File","title":"The MAN File: One Card, Written Down",
      "intro":"What is inside a card file, who reads each part (the assembler, the mirror VM and the "

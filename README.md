@@ -1,14 +1,16 @@
 # Imago UniCell
 
-> **Status (10 October 2026): an unconfirmed idea. This project is not being developed, and nothing here is proven beyond what is listed below. Please do not spend time on it expecting a finished or validated system.**
+> **Status (12 October 2026): an unconfirmed idea, with work resumed on the software side. Nothing here is proven beyond what is listed below. Please do not expect a finished or validated system.**
+>
+> - **Update, 12 October 2026:** after the 10 October notice that development had stopped, work started again (the ledger was at #1060 then) on making the architecture easier to use rather than on new hardware claims: a hardware **division core** (one cell instead of about 23,000 for a written-out division), a **LaTeX front end** that turns an integer formula into a checked design, a **library of stored arithmetic plans and blocks** (Horner polynomials, sums, a multiply-accumulate block, matrices), and a LaTeX writing guide with a reduction advisory (see "Writing a formula" below). None of this changes the findings below: nothing has been run on a physical card beyond what is listed, and no clock-rate claim is made for these designs, only cell counts and simulation results.
 >
 > - **What exists and was measured:** a Python VM and a Verilog implementation (Tang Nano 20K) that agree cycle for cycle on small designs, a compiler path from LLVM IR and Python, and designs that ran live on the Tang board (CORDIC, relay, a 4-input reduction tree).
 > - **What was tested and did not favour it:** on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See `docs/measurements/UNICELL_VS_PURE.md`.
 > - **What is NOT shown:** freeze, save and restore of a running design has only been run in simulation (VM and RTL), never on a physical card. A hand-written Verilog design gets the same behaviour from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`). The statements about freeze and state capture below are design intent, not hardware results.
 > - **Prior art:** every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in `docs/prior_art/PRIOR_ART_REPORT.md`; it is not a proof of novelty either way.
-> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 11 October 2026 the ledger is at #1060).
+> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 12 October 2026 the ledger is at #1084).
 >
-> **A possible new use (10 October 2026): teaching.** The design is finished and is not being extended, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md), and a first teaching manual built from it (11 October 2026) is [`docs/teaching_manual.html`](docs/teaching_manual.html): 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
+> **A possible new use (10 October 2026): teaching.** The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md), and a first teaching manual built from it (11 October 2026) is [`docs/teaching_manual.html`](docs/teaching_manual.html): 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
 
 A spatial compute architecture built on one principle: **topology is
 computation**. There's no CPU, no instruction set, no shared bus.
@@ -135,6 +137,22 @@ arithmetic, under random stalls on flex. **Limits:** the `--icm`
 generators still build 32-bit designs; genuine cycles (rings with a
 data-dependent exit) are refused; on sub, a sequencer feeding a
 two-operand cell is refused.
+
+## Writing a formula: the LaTeX front end (12 October 2026, #1066-#1084)
+
+Instead of drawing cells, you can write an integer formula the way a maths book does and get a design back:
+
+```bash
+python3 nano/latex_cli_v1.py "y = (a + b)^2 - 3c" --set a=2 --set b=3 --set c=4 -o poly.icm
+python3 nano/latex_cli_v1.py "A_{ij} = i j" --matrix 3x3 --set x_1=1 --set x_2=2 --set x_3=3
+```
+
+Every compile checks the design against a plain Python evaluation of the same formula (corner values plus random ones, once on the generated operations and once in the VM); a mismatch raises an error and returns no design. It adds no new hardware, and it refuses what it cannot do (square roots, fractions, negative powers, a sum whose range is not written out) with a message pointing at the character.
+
+- **Division and remainder** (`a / b`, `a \bmod b`) are placed as one **division core** cell by default: 8 cells in all for `a / 7`, against about 23,000 for the written-out form (`--division unrolled`). The number of quotient bits per clock (`--div-steps K`) is a build-time setting because it changes the cell's size. Checked on the VM, generated flex RTL and generated sub RTL. Not yet run on the v4/v4c carrier designs.
+- **Plans and stored blocks** (`nano/arith_plan_library_v1.py`, `nano/arith_blocks_v1.py`): a base pattern plus a rule for joining copies. A one-variable polynomial is built both directly and by Horner and the smaller is kept (`3x^2+2x+1`: 26 cells against 44); a fixed-range `\sum` or `\prod` is a chain (6 cells per term); a dot product is the stored multiply-accumulate block (exactly 7n - 1 cells; 8 terms 55, against 326 from the general placer).
+- **Matrices**: a rule and a size give `y = A x` (3 by 3: 68 cells); leave the rule off for a run-time matrix; `--then` chains matrices; matrix times matrix streams the columns through one block. The looped small form, entries that depend on a run-time value, and explicit numeric matrices are not built.
+- **The writing guide and the reduction advisory** (how to write each input, what is refused, and measured pairs such as `\sum_{i=1}^{8} i x` at 284 cells against `36 x` at 8) are in [`docs/teaching/latex_writing_guide.md`](docs/teaching/latex_writing_guide.md), tab "Formulas" of [`docs/teaching_manual.html`](docs/teaching_manual.html). The full record is [`sub/README.md`](sub/README.md) ("Writing a formula in LaTeX").
 
 ## The ICM stays target-agnostic
 
