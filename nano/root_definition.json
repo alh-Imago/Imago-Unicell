@@ -115,6 +115,12 @@
     "description": "points.md #981 (FLEX FAMILY ONLY): the faces the SECOND word (adder carry / mul high word) leaves by, as a one-hot N/S/E/W mask; 0 (default) = the same faces as downstream_mask (the second word follows the first). A face in both masks gets both words (first, then second); a face only here gets only the second word. Needs second_output=1 and a non-empty downstream_mask."
    },
    {
+    "name": "join_mode",
+    "hi": 24,
+    "lo": 24,
+    "description": "ledger #1105 (VIXeN): 0 = the standard capture (the first arrival is A, ANY second arrival is B -- a constant that is offered again pairs with itself); 1 = a true JOIN: A is the lowest upstream face, B the next, and the cell takes them only when BOTH are present at once (as the flex family's two handshake inputs). Needs two faces in upstream_mask. Carrier RTL (the e cores): cfg_data[40]."
+   },
+   {
     "name": "reserved",
     "hi": 63,
     "lo": 13,
@@ -529,6 +535,12 @@
     "description": "points.md #981 (FLEX FAMILY ONLY): the faces the SECOND word (adder carry / mul high word) leaves by, as a one-hot N/S/E/W mask; 0 (default) = the same faces as downstream_mask (the second word follows the first). A face in both masks gets both words (first, then second); a face only here gets only the second word. Needs second_output=1 and a non-empty downstream_mask."
    },
    {
+    "name": "join_mode",
+    "hi": 24,
+    "lo": 24,
+    "description": "ledger #1105 (VIXeN): 0 = the standard capture (the first arrival is A, ANY second arrival is B -- a constant that is offered again pairs with itself); 1 = a true JOIN: A is the lowest upstream face, B the next, and the cell takes them only when BOTH are present at once (as the flex family's two handshake inputs). Needs two faces in upstream_mask. Carrier RTL (the e cores): cfg_data[40]."
+   },
+   {
     "name": "reserved",
     "hi": 63,
     "lo": 13,
@@ -689,6 +701,12 @@
     "hi": 23,
     "lo": 18,
     "description": "quotient bits produced per clock (K, 1..32; 0 = not set, the family default). Speed versus size: latency ceil(W/K) clocks, area grows with K. Flex builds the cell with it; sub is fixed at 32; the VM ignores it"
+   },
+   {
+    "name": "join_mode",
+    "hi": 24,
+    "lo": 24,
+    "description": "ledger #1105 (VIXeN): 0 = the standard capture (the first arrival is A, ANY second arrival is B -- a constant that is offered again pairs with itself); 1 = a true JOIN: A is the lowest upstream face, B the next, and the cell takes them only when BOTH are present at once (as the flex family's two handshake inputs). Needs two faces in upstream_mask. Carrier RTL (the e cores): cfg_data[40]."
    }
   ]
  }

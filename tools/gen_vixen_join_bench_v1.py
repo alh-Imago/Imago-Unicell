@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""tools/gen_vixen_join_bench_v1.py -- ledger #1105: writes fpga/verilog/tb_vixen_join_v1.v, one testbench module per two-operand carrier core (adder_cell_v4e, mul_cell_v5e,
+div_cell_v4e) from ONE template, so the three benches check the same things: join mode waits for both faces, a constant re-offered forever pairs with each new operand and NEVER with itself,
+both faces are acknowledged together, the operand order is fixed by face (A = N, B = S), live programming (PROG_ID 6) switches join off (the old pairing returns) and on again."""
+import os, sys
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+TEMPLATE = r'''
+module tb_vixen_join_%(NAME)s;
+    reg clk = 0; always #5 clk = ~clk;
+    reg rst = 1;
+    reg cfg_valid = 0; reg [63:0] cfg_data = 0;
+    reg [31:0] din_n = 0, din_s = 0; reg arr_n = 0, arr_s = 0;
+    wire [31:0] dout_e; wire fire_e; wire ack_n, ack_s, ack_e_unused;
+    reg program_in = 0; reg [31:0] pdata = 0; reg parr = 0;
+    wire rdy;
+    %(CELL)s %(PARAMS)s DUT (
+        .clk(clk), .rst(rst), .active(1'b1), .cfg_valid(cfg_valid), .cfg_data(cfg_data),
+        .data_in_n(din_n), .data_in_s(din_s), .data_in_e(32'h0), .data_in_w(32'h0),
+        .arrived_n(arr_n), .arrived_s(arr_s), .arrived_e(1'b0), .arrived_w(1'b0),
+        .data_out_n(), .data_out_s(), .data_out_e(dout_e), .data_out_w(),
+        .fire_n(), .fire_s(), .fire_e(fire_e), .fire_w(),
+        .ready_out(rdy), .ready_in_n(1'b1), .ready_in_s(1'b1), .ready_in_e(1'b1), .ready_in_w(1'b1),
+        .ack_out_n(ack_n), .ack_out_s(ack_s), .ack_out_e(), .ack_out_w(),
+        .ack_in_n(1'b0), .ack_in_s(1'b0), .ack_in_e(fire_e), .ack_in_w(1'b0),
+        .program_in(program_in), .program_done(),
+        .prog_data_in_n(pdata), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),
+        .prog_arrived_in_n(parr), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),
+        .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w(),
+        .freeze_in(1'b0), .status_data_valid(), .status_a_arrived()
+    );
+    integer errors = 0, checks = 0, nout = 0;
+    reg [31:0] outs [0:63];
+    integer both_acks = 0, lone_acks = 0;
+    always @(posedge clk) begin
+        if (fire_e) begin outs[nout] <= dout_e; nout <= nout + 1; end
+        if (ack_n && ack_s) both_acks <= both_acks + 1;
+        if (ack_n ^ ack_s)  lone_acks <= lone_acks + 1;
+    end
+    // a constant offered again and again, like a fixed ram: raised, dropped at the edge where it is acknowledged, raised again the next clock
+    reg const_on = 0; reg [31:0] const_val = 0;
+    always @(posedge clk) begin
+        if (const_on) begin
+            din_n <= const_val;
+            if (arr_n && ack_n) arr_n <= 0; else if (!arr_n) arr_n <= 1;
+        end
+    end
+    task chk(input cond, input [255:0] what);
+        begin checks = checks + 1; if (!cond) begin errors = errors + 1; $display("FAIL: %%0s (t=%%0t)", what, $time); end end
+    endtask
+    task offer_s(input [31:0] v);      // present B and hold it until the edge where it is acknowledged, then drop it
+        integer k; reg got;
+        begin
+            @(posedge clk); din_s <= v; arr_s <= 1;
+            got = 0; k = 0;
+            while (!got && k < 400) begin @(posedge clk); got = ack_s; if (got) arr_s <= 0; k = k + 1; end
+        end
+    endtask
+    task prog(input [2:0] id, input [19:0] word);
+        begin
+            @(negedge clk); program_in = 1; pdata = {9'h0, id, word}; parr = 1; @(negedge clk); parr = 0;
+            @(negedge clk); pdata = {9'h0, 3'd7, 19'h0, 1'b1}; parr = 1; @(negedge clk); parr = 0; program_in = 0; repeat (3) @(negedge clk);
+        end
+    endtask
+    task settle(input integer n); begin repeat (n) @(negedge clk); end endtask
+    function [31:0] op(input [31:0] a, input [31:0] b); begin op = %(OP)s; end endfunction
+    integer i; integer base;
+    initial begin
+        repeat (3) @(negedge clk); rst = 0; settle(2);
+        cfg_data = 64'h0; cfg_data[5:0] = 6'b000100; cfg_data[11:6] = 6'b000011; cfg_data[40] = 1'b1;
+        @(negedge clk); cfg_valid = 1; @(negedge clk); cfg_valid = 0; settle(3);
+        // T1: only A offered -> nothing, ever
+        din_n = 32'd1000; arr_n = 1; settle(40);
+        chk(nout == 0 && both_acks == 0 && lone_acks == 0, "join: A alone produces nothing and is not acknowledged");
+        // T2: B arrives -> exactly one result, both acknowledged in the same clock
+        offer_s(32'd5); settle(%(WAIT)d);
+        chk(nout == 1, "join: one result for one pair");
+        chk(outs[0] === op(32'd1000, 32'd5), "join: result is op(A=N, B=S)");
+        chk(both_acks >= 1 && lone_acks == 0, "join: both faces acknowledged together, never one alone");
+        arr_n = 0; settle(5);
+        // T3: a CONSTANT re-offered forever pairs with each new operand and never with itself
+        base = nout; const_val = 32'd1000; const_on = 1; settle(40);
+        chk(nout == base, "constant alone (re-offered 40 clocks) produces nothing");
+        for (i = 0; i < 3; i = i + 1) begin offer_s(32'd5 + i); settle(%(WAIT)d); end
+        chk(nout == base + 3, "constant + three operands -> exactly three results");
+        chk(outs[base] === op(32'd1000, 32'd5) && outs[base+1] === op(32'd1000, 32'd6) && outs[base+2] === op(32'd1000, 32'd7), "constant + operand values correct, in order");
+        settle(60);
+        chk(nout == base + 3, "no extra results (no constant-with-itself) afterwards");
+        // T4: live programming: join OFF -> the old pairing is back (two successive arrivals pair, even from one face); join ON again
+        const_on = 0; arr_n = 0; arr_s = 0; settle(5);
+        prog(3'd6, 20'd0);
+        base = nout; din_n = 32'd7; arr_n = 1; settle(60); arr_n = 0; settle(5);
+        chk(nout > base, "join off by PROG_ID 6: the old pairing returns (one face, two arrivals, a result)");
+        settle(%(DRAIN)d); prog(3'd6, 20'd1); settle(%(DRAIN)d);
+        base = nout; din_n = 32'd7; arr_n = 1; settle(60);
+        chk(nout == base, "join on again by PROG_ID 6: one face alone makes nothing");
+        arr_n = 0; settle(5);
+        %(EXTRA)s
+        if (errors == 0) $display("PASS: tb_vixen_join_%(NAME)s -- %%0d checks", checks);
+        else $display("FAIL: tb_vixen_join_%(NAME)s -- %%0d of %%0d checks failed", errors, checks);
+        $finish;
+    end
+endmodule
+'''
+
+ADDER_EXTRA = r'''
+        // T5 (adder): subtract in join mode is A - B with A = the N face whichever arrives first
+        @(negedge clk); cfg_data[12] = 1'b1; cfg_valid = 1; @(negedge clk); cfg_valid = 0; settle(3);
+        base = nout; din_n = 32'd1000; arr_n = 1; settle(5); offer_s(32'd5); settle(8); arr_n = 0; settle(5);
+        chk(nout == base + 1 && outs[base] === 32'd995, "adder join subtract: A(N) - B(S) = 995");
+        base = nout; din_s = 32'd5; arr_s = 1; settle(10); din_n = 32'd1000; arr_n = 1; begin : waitack integer kk; kk = 0; while (!(ack_n && ack_s) && kk < 50) begin @(posedge clk); kk = kk + 1; end end @(posedge clk); arr_s <= 0; arr_n <= 0; settle(8);
+        chk(nout == base + 1 && outs[base] === 32'd995, "adder join subtract: same result when B is offered first");
+'''
+CELLS = [
+    dict(NAME="adder", CELL="adder_cell_v4e", PARAMS="#(.CELL_ID(16'h0001))", OP="a + b", WAIT=8, DRAIN=8, EXTRA=ADDER_EXTRA),
+    dict(NAME="mul", CELL="mul_cell_v5e", PARAMS="#(.CELL_ID(16'h0002))", OP="a * b", WAIT=8, DRAIN=8, EXTRA=""),
+    dict(NAME="div", CELL="div_cell_v4e", PARAMS="#(.CELL_ID(16'h0003), .STEPS(1))", OP="(b == 0) ? 32'hFFFFFFFF : (a / b)", WAIT=60, DRAIN=150, EXTRA=""),
+]
+
+def text():
+    out = ["// GENERATED by tools/gen_vixen_join_bench_v1.py (ledger #1105) -- do not hand-edit.", "`timescale 1ns / 1ps", "`default_nettype wire"]
+    for c in CELLS:
+        out.append(TEMPLATE % c)
+    return "\n".join(out) + "\n"
+
+if __name__ == "__main__":
+    p = os.path.join(ROOT, "fpga", "verilog", "tb_vixen_join_v1.v")
+    open(p, "w").write(text())
+    print("wrote", p)

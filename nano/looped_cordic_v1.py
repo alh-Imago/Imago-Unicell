@@ -48,7 +48,7 @@ def model(n, z0=Z0, drift=DRIFT):
     return out
 
 
-def build_doc(drift=DRIFT, open_ring=False):
+def build_doc(drift=DRIFT, open_ring=False, join=False):
     """The design as an icm-vix HIERARCHICAL document (the same format as the example, so the Flex-Sub assembler / project_assemble takes it as it is): the example's four stage
     patterns with their constants made `fixed_mode=1`, the last stage's output cell given an east output, and one new pattern `loop` holding the way back and the drift adder."""
     import json
@@ -87,21 +87,27 @@ def build_doc(drift=DRIFT, open_ring=False):
                     pl.pop("overrides", None)
             if pl["instance"] == "lp":
                 pl["overrides"] = {last["cell_id"]: {"io_name": "result"}}
+    if join:
+        # ledger #1105 (VIXeN): every adder becomes a true join (A from the lowest upstream face, B from the next, taken only when both are present), so the fixed constants no longer pair with themselves.
+        for pat in doc["patterns"].values():
+            for c in pat["cells"]:
+                if c.get("core") == "adder":
+                    c["core_config"]["join_mode"] = 1
     doc["header"]["cell_count"] = 40 + len(cells)
     doc["header"]["cores_used"] = sorted(set(doc["header"]["cores_used"]))
     return doc
 
 
-def save_icm(path, drift=DRIFT, open_ring=False):
+def save_icm(path, drift=DRIFT, open_ring=False, join=False):
     import json
     with open(path, "w") as fh:
-        json.dump(build_doc(drift, open_ring), fh, indent=1)
+        json.dump(build_doc(drift, open_ring, join), fh, indent=1)
 
 
-def build_records(drift=DRIFT):
+def build_records(drift=DRIFT, join=False):
     import tempfile
     p = os.path.join(tempfile.mkdtemp(), "looped_cordic.icm-hier.json")
-    save_icm(p, drift)
+    save_icm(p, drift, join=join)
     recs, _ = flatten(load_hierarchical(p))
     return recs
 
@@ -128,8 +134,8 @@ def run_steps(grid, n_steps, max_ticks=None):
     return seen
 
 
-def new_grid(grid_cls, drift=DRIFT, z0=Z0, **kw):
-    recs = build_records(drift)
+def new_grid(grid_cls, drift=DRIFT, z0=Z0, join=False, **kw):
+    recs = build_records(drift, join)
     g = grid_cls(recs, **kw)
     for _ in range(SETTLE_TICKS):
         g.tick()

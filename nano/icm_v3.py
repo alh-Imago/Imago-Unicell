@@ -272,6 +272,8 @@ _ADDER_FIELDS = {
     "second_output": (12, 12),
     # ledger #981: where the SECOND word goes (adder carry / mul high word). Empty (0, the default) = the same faces as downstream_mask (the second word follows the first). Flex family only.
     "second_downstream_mask": (13, 16),
+    # ledger #1105 (VIXeN): true join -- A from the lowest upstream face, B from the next, taken only when both are present. Same bit (24) on adder / mul / div.
+    "join_mode": (24, 24),
 }
 
 # Accumulator: accumulator_cell_v1.v lines 87-98 (extended #515/#519 --
@@ -346,6 +348,7 @@ _MUL_FIELDS = {
     "upstream_mask": (4, 7),
     "second_output": (12, 12),   # ledger #980: canonical name; `wide_mode` is an accepted alias (see SECOND_OUTPUT_ALIASES)
     "second_downstream_mask": (13, 16),   # ledger #981: faces the second word leaves by (empty = same as downstream_mask); flex family and the standard cells (#1036)
+    "join_mode": (24, 24),                # ledger #1105 (VIXeN)
 }
 
 # ledger #1070: `div` -- the mul's field layout plus `remainder_primary` (bit 17): the remainder is the first word, the quotient the second.
@@ -357,6 +360,7 @@ _DIV_FIELDS = {
     "remainder_primary": (17, 17),
     # ledger #1077: quotient bits per clock (K) -- a BUILD-time (design-time) choice, read when the design is generated; it is not changed on a running cell (more steps = more logic). 0 = not set (each family's own default). Same bit position in the ICM word for every family; flex builds the cell with .STEPS(K), sub refuses K other than 32, the VM ignores it (timing there is data-driven).
     "steps": (18, 23),
+    "join_mode": (24, 24),                # ledger #1105 (VIXeN)
 }
 
 # points.md #823: `priority` -- confirmed directly against `unicell_super_automaton_v1.py`'s own `elif core ==

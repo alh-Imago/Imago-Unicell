@@ -371,6 +371,8 @@ class SuperCell:
     div_data_valid: bool = False
     div_second_output: bool = False
     div_remainder_primary: bool = False
+    join_mode: bool = False                  # VIXeN (#1105): adder / mul / div take A from the lowest upstream face and B from the next, only when BOTH are present (a true join, as the flex cells)
+    join_mode: bool = False                  # VIXeN (#1105): adder / mul / div take operand A from the lowest upstream face and B from the next, and only when BOTH are present (a true join, as the flex cells)
     div_captured_second: int = 0
     div_delivering_second: bool = False
     div_busy: int = 0
@@ -731,18 +733,21 @@ class SuperCell:
             cell.adder_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.adder_upstream_mask = dm(cfg.get("upstream_mask", 0))
             cell.adder_subtract_mode = bool(cfg.get("subtract_mode", 0))
+            cell.join_mode = bool(cfg.get("join_mode", 0))
             cell.adder_carry_mode = bool(cfg.get("second_output", cfg.get("carry_mode", 0)))   # ledger #1036: canonical ICM name second_output; carry_mode is its alias
             cls._second_mask(cell, rec, cfg, dm)
         elif core == "mul":
             cell.mul_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.mul_upstream_mask = dm(cfg.get("upstream_mask", 0))
             cell.mul_wide_mode = bool(cfg.get("second_output", cfg.get("wide_mode", 0)))   # ledger #980: canonical ICM name second_output; wide_mode is its alias (same bit)
+            cell.join_mode = bool(cfg.get("join_mode", 0))
             cls._second_mask(cell, rec, cfg, dm)
         elif core == "div":
             cell.div_downstream_mask = dm(cfg.get("downstream_mask", 0))
             cell.div_upstream_mask = dm(cfg.get("upstream_mask", 0))
             cell.div_second_output = bool(cfg.get("second_output", 0))
             cell.div_remainder_primary = bool(cfg.get("remainder_primary", 0))
+            cell.join_mode = bool(cfg.get("join_mode", 0))
             cls._second_mask(cell, rec, cfg, dm)
         elif core == "accumulator":
             cell.acc_downstream_mask = dm(cfg.get("downstream_mask", 0))
@@ -904,6 +909,25 @@ class SuperCell:
         self.ram_data_valid = True
         return (True, None)
 
+    def _join_finish(self, deliver, faces, b):
+        """Run the ordinary 'second operand arrived' step with B as the injected word (A is already in the cell's A register), join mode off for that one call."""
+        self.join_mode = False
+        try:
+            got = deliver({}, b)
+        finally:
+            self.join_mode = True
+        return (faces, None) if got[0] is True else (set(), None)
+
+    def _join_take(self, arrivals, mask, blocked):
+        """VIXeN join mode (#1105). A is the lowest upstream face, B the next (the RTL's j_a_oh / j_b_oh). Returns ('go', a, b, {faces}) when both are present and the cell can take them,
+        else ('wait', None) (an operand is present but not both, or the cell is full: nothing is acknowledged, the sender holds) or ('idle', None) when nothing for this cell has arrived."""
+        faces = sorted((d for d in _DIR_BIT if (mask >> _DIR_BIT[d]) & 1), key=lambda d: _DIR_BIT[d])
+        if not any(d in arrivals for d in faces):
+            return ("idle", None)
+        if len(faces) < 2 or blocked or faces[0] not in arrivals or faces[1] not in arrivals:
+            return ("wait", None)
+        return ("go", arrivals[faces[0]] & self.mask, arrivals[faces[1]] & self.mask, {faces[0], faces[1]})
+
     # ── adder: adder_cell_v1.v -- two-stage A-then-B capture. #521's
     # real extension: subtract_mode computes A-B via the same real
     # two's-complement approach the RTL uses (invert B, add 1) --
@@ -913,6 +937,15 @@ class SuperCell:
     def _deliver_adder(self, arrivals, injected):
         if self.adder_carry_mode and self.adder_data_valid:      # ledger #1036: with the second word pending, no operand is taken until the whole two-word delivery is done (as the multiplier's wide_mode)
             return (False, None)
+        if self.join_mode:
+            r = self._join_take(arrivals, self.adder_upstream_mask, self.adder_data_valid)
+            if r[0] == "idle":
+                return (True, None)
+            if r[0] == "wait":
+                return (set(), None)
+            _, a, b, faces = r
+            self.adder_a_reg, self.adder_a_arrived = a, True
+            return self._join_finish(self._deliver_adder, faces, b)
         matched = {d: v for d, v in arrivals.items() if (self.adder_upstream_mask >> _DIR_BIT[d]) & 1}
         if not matched and injected is None:
             return (True, None)
@@ -953,6 +986,14 @@ class SuperCell:
         # overlap, unchanged.
         if self.mul_wide_mode and self.mul_data_valid:
             return (False, None)
+        if self.join_mode:
+            r = self._join_take(arrivals, self.mul_upstream_mask, self.mul_data_valid)
+            if r[0] == "idle":
+                return (True, None)
+            if r[0] == "wait":
+                return (set(), None)
+            self.mul_a_reg, self.mul_a_arrived = r[1], True
+            return self._join_finish(self._deliver_mul, r[3], r[2])
         matched = {d: v for d, v in arrivals.items() if (self.mul_upstream_mask >> _DIR_BIT[d]) & 1}
         if not matched and injected is None:
             return (True, None)
@@ -983,6 +1024,14 @@ class SuperCell:
     def _deliver_div(self, arrivals, injected):
         if self.div_second_output and self.div_data_valid:
             return (False, None)      # like mul's wide mode: nothing new until both words have left
+        if self.join_mode:
+            r = self._join_take(arrivals, self.div_upstream_mask, self.div_data_valid or self.div_busy > 0)
+            if r[0] == "idle":
+                return (True, None)
+            if r[0] == "wait":
+                return (set(), None)
+            self.div_a_reg, self.div_a_arrived = r[1], True
+            return self._join_finish(self._deliver_div, r[3], r[2])
         matched = {d: v for d, v in arrivals.items() if (self.div_upstream_mask >> _DIR_BIT[d]) & 1}
         if not matched and injected is None:
             return (True, None)
