@@ -1,0 +1,295 @@
+{
+ "name": "mutability2",
+ "cores_in_carrier": [
+  "accum",
+  "adder",
+  "mul"
+ ],
+ "cores_removed": [
+  "nano",
+  "ram",
+  "compare",
+  "branch",
+  "latch",
+  "seq",
+  "priority",
+  "corner",
+  "cross",
+  "merge",
+  "div",
+  "command"
+ ],
+ "operands": [
+  305419776,
+  120
+ ],
+ "seq_cfg": 49263555602,
+ "seq_values": [
+  18,
+  52,
+  86,
+  120
+ ],
+ "stream_n": 64,
+ "cmd_cfg": 233,
+ "phases": [
+  {
+   "label": "adder add",
+   "kind": "d",
+   "words_hex": [
+    "00600000",
+    "00000001",
+    "00000004",
+    "00100001",
+    "00200000",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "00000000",
+    "00700001"
+   ],
+   "expected": 305419896
+  },
+  {
+   "label": "adder subtract",
+   "kind": "d",
+   "words_hex": [
+    "00600000",
+    "00000001",
+    "00000004",
+    "00100001",
+    "00200001",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "00000000",
+    "00700001"
+   ],
+   "expected": 305419656
+  },
+  {
+   "label": "add + invert",
+   "kind": "d",
+   "words_hex": [
+    "00600000",
+    "00000001",
+    "00000004",
+    "00100001",
+    "00200000",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "00080000",
+    "00700001"
+   ],
+   "expected": 3989547399
+  },
+  {
+   "label": "add + shift right 8",
+   "kind": "d",
+   "words_hex": [
+    "00600000",
+    "00000001",
+    "00000004",
+    "00100001",
+    "00200000",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "0000D000",
+    "00700001"
+   ],
+   "expected": 1193046
+  },
+  {
+   "label": "add + nibble mask 03",
+   "kind": "d",
+   "words_hex": [
+    "00600000",
+    "00000001",
+    "00000004",
+    "00100001",
+    "00200000",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "00000103",
+    "00700001"
+   ],
+   "expected": 305419776
+  },
+  {
+   "label": "core changed to mul",
+   "kind": "d",
+   "words_hex": [
+    "00600000",
+    "00000009",
+    "00000004",
+    "00100001",
+    "00200000",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "00000000",
+    "00700001"
+   ],
+   "expected": 2290634752
+  },
+  {
+   "label": "back to adder add",
+   "kind": "d",
+   "words_hex": [
+    "00600000",
+    "00000001",
+    "00000004",
+    "00100001",
+    "00200000",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "00000000",
+    "00700001"
+   ],
+   "expected": 305419896
+  },
+  {
+   "label": "stream adder",
+   "kind": "s",
+   "words_hex": [
+    "00600000",
+    "00000001",
+    "00000004",
+    "00100001",
+    "00200000",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "00000000",
+    "00700001"
+   ],
+   "n": 64,
+   "first": 70,
+   "last": 206
+  },
+  {
+   "label": "stream mul",
+   "kind": "s",
+   "words_hex": [
+    "00600000",
+    "00000009",
+    "00000004",
+    "00100001",
+    "00200000",
+    "00700001",
+    "00600000",
+    "0000000B",
+    "00000000",
+    "00700001"
+   ],
+   "n": 64,
+   "first": 936,
+   "last": 10320
+  }
+ ],
+ "sim": [
+  "phase 0 adder add: reprogram took 40 clocks",
+  "phase 0 adder add: got 12345678 want 12345678    ok  latency 3 clocks",
+  "phase 1 adder subtract: reprogram took 40 clocks",
+  "phase 1 adder subtract: got 12345588 want 12345588    ok  latency 3 clocks",
+  "phase 2 add + invert: reprogram took 40 clocks",
+  "phase 2 add + invert: got edcba987 want EDCBA987    ok  latency 3 clocks",
+  "phase 3 add + shift right 8: reprogram took 40 clocks",
+  "phase 3 add + shift right 8: got 00123456 want 00123456    ok  latency 3 clocks",
+  "phase 4 add + nibble mask 03: reprogram took 40 clocks",
+  "phase 4 add + nibble mask 03: got 12345600 want 12345600    ok  latency 3 clocks",
+  "phase 5 core changed to mul: reprogram took 40 clocks",
+  "phase 5 core changed to mul: got 88885000 want 88885000    ok  latency 3 clocks",
+  "phase 6 back to adder add: reprogram took 40 clocks",
+  "phase 6 back to adder add: got 12345678 want 12345678    ok  latency 3 clocks",
+  "phase 7 stream adder: reprogram took 40 clocks",
+  "stream 7 stream adder: n=64 first_clk 6 total_clk 258 first 00000046 want 00000046 last 000000ce want 000000CE    ok",
+  "phase 8 stream mul: reprogram took 40 clocks",
+  "stream 8 stream mul: n=64 first_clk 6 total_clk 258 first 000003a8 want 000003A8 last 00002850 want 00002850    ok",
+  "UCM2 PASS"
+ ],
+ "build": {
+  "target_mhz": 27.0,
+  "fmax_mhz": 112.3,
+  "met": true,
+  "utilization": {
+   "ALU": {
+    "used": 574,
+    "available": 15552
+   },
+   "BUFG": {
+    "used": 1,
+    "available": 24
+   },
+   "DFF": {
+    "used": 1632,
+    "available": 15552
+   },
+   "GND": {
+    "used": 1,
+    "available": 1
+   },
+   "GSR": {
+    "used": 1,
+    "available": 1
+   },
+   "IOB": {
+    "used": 7,
+    "available": 384
+   },
+   "LUT4": {
+    "used": 6345,
+    "available": 20736
+   },
+   "VCC": {
+    "used": 1,
+    "available": 1
+   }
+  },
+  "seed": 1
+ },
+ "fit": [
+  {
+   "keep": "adder,mul",
+   "lut4": 6128,
+   "alu": 464,
+   "ff": 1530,
+   "fmax_mhz": 125.9
+  },
+  {
+   "keep": "adder,accum,mul (earlier build of the same source)",
+   "lut4": 6276,
+   "alu": 574,
+   "ff": 1632,
+   "fmax_mhz": 109.5
+  },
+  {
+   "keep": "adder,accum,mul,compare,branch,latch,ram",
+   "lut4": 6792,
+   "alu": 642,
+   "ff": 1886,
+   "fmax_mhz": 106.0
+  },
+  {
+   "keep": "all 15 cores",
+   "lut4": 8144,
+   "alu": 692,
+   "ff": 2443,
+   "fmax_mhz": 66.3
+  },
+  {
+   "note": "asked for 150 MHz on adder,accum,mul: nextpnr reached 109.52 MHz and failed the target"
+  }
+ ],
+ "counted_in_simulation": {
+  "reprogram_clk": 40,
+  "latency_clk": 3,
+  "stream_clk_per_result": 4.0,
+  "first_result_clk": 6,
+  "nth_result_clk_n64": 258
+ }
+}
