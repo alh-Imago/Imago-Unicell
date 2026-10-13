@@ -336,7 +336,15 @@ SECTIONS = [
              "Composer and Workbench show it, and how rings are stopped in each family, with numbers "
              "measured on the generated hardware.",
      "html":_mixed_html("mixed_fragment.html"),
-     "links":[("← Back to the Assembler","#sec-assembler","section"),("Continue → The Cells","#sec-cells","section")]},
+     "links":[("← Back to the Assembler","#sec-assembler","section"),("Continue → Saved State","#sec-state","section")]},
+
+    {"id":"state","num":"19b","tab":"Saved state","title":"Saving a Running Design and Putting It Back",
+     "intro":"A running design keeps words waiting inside its cells. Write them all down at one instant and "
+             "you can stop, switch off, and later continue exactly where it was, even on a different "
+             "machine: the real card, the simulator or the VM. What is in the file, why it refuses a "
+             "wrong design, and the moves that were run.",
+     "html":open(os.path.join(HERE, "teaching", "state_fragment.html"), encoding="utf-8").read(),
+     "links":[("← Back to Mixing Families","#sec-mixed","section"),("Continue → The Cells","#sec-cells","section")]},
 
     {"id":"__CELLS__"},
 

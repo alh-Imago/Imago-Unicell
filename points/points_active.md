@@ -1356,5 +1356,9 @@ New `tools/grid_ext_ready_v1.py` (adds an `ext_ready` output vector to a generat
 *Failures, stated plainly.* (1) `tests/vm/test_dsl_family_std_v1.py::test_a_mix_with_flex_is_refused...` asserted the OLD refusal ("bridge not built"); a flex + std mix is now legal, so I changed its assertion (the file it hand-edits still fails the record-hash check, now for that reason; the old wording must not appear). This is a deliberate change of a proven test, made here and not silent. (2) test_freeze_pure, test_freeze_rtl, test_sd_unit_top fail identically with my changes stashed (clean tree), and the top-level test_flexsub_icm_generate / mul / synthflag / assemble report 0 LUT counts or a missing yosys gowin file: the yosys synth_gowin step does not work in this environment. Not caused by this entry; not fixed here.
 *Scope.* SIMULATION ONLY (iverilog); no mixed std / carrier design has been put on the card. The nano shell has no adapter. No card-side layout check yet. Not done: sub crossings, one carrier region only.
 
-Next entry: #1163.
+### #1163 (13 Oct) -- TEACHING MANUAL: NEW TAB "SAVED STATE" (cross-reference #1151-#1162)
+
+`docs/teaching/state_fragment.html` + a section entry in `docs/build_teaching_manual.py` (tab 19b, after Mixing Families); `docs/teaching_manual.html` rebuilt (46 sections). Content: what a saved state holds, the one-file format, the refusal on a wrong design, the four moves run (card<->simulator, card<->VM) and the four VM/card differences the bridge handles. Static text; every figure is from ledgers #1151-#1162. `docs/manual.html` was rebuilt in #1162. Not done: an interactive page for the state file (the tab is text only).
+
+Next entry: #1164.
 

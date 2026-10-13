@@ -1,0 +1,27 @@
+<!-- State fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py). Static page; every number is from ledger #1151-#1162. -->
+<div class="state">
+<p class="lead">A design that is running holds a little memory in every cell: which words are waiting, and what they are. If you could write all of that down at one instant, you could stop the machine, switch it off, and later put it back exactly as it was. That is a <strong>saved state</strong>. UniCell can do this on the real card, in the simulator and in the VM, and move a state between them.</p>
+
+<h2>What is saved, and what is not</h2>
+<p>The wiring of the design lives in the bitstream, and the cell settings arrive from a configuration pulse, so neither is saved. Only the <em>dynamic</em> registers are: each cell's "I am holding a word" flags and the words themselves. For the LaTeX example <code>y = (z² + 12345) mod 65521</code> that is 15 cells and 678 bits.</p>
+
+<h2>One file, that says what it is</h2>
+<p>The raw image from the card is just 256 bytes of bits; what each bit means lives in a second file (the scan map), and losing it would make the image useless. So the tool <code>tools/scan_image_v1.py</code> writes <strong>one</strong> JSON file (format <code>unicell-state-v1</code>) holding the design name, the formula, a fingerprint of the register layout, the point where the run was cut, the closing register, and for every cell and register its name, width and value. A plain-words flag <code>live</code> says which values matter (a data register counts as live when its own pending flag is set). The flag is advisory; the bits are exact.</p>
+<p>Loading rebuilds the bits <em>by name</em> against the target design, and <strong>refuses</strong>, saying what differs, if a cell, register, width or the layout fingerprint does not match. A state for the wrong design can not be pushed in by mistake.</p>
+
+<h2>The moves that were run</h2>
+<table>
+<tr><th>From</th><th>To</th><th>Result</th></tr>
+<tr><td>real card</td><td>simulator</td><td>continues to the model's answer</td></tr>
+<tr><td>simulator</td><td>real card</td><td>PASS (after power off and a fresh bitstream load)</td></tr>
+<tr><td>real card</td><td>VM</td><td>continues to the model's answer</td></tr>
+<tr><td>VM</td><td>real card</td><td>PASS, word 25408 = model 25408, 0 retries (ledger #1161)</td></tr>
+</table>
+<p>One design, one cut for the VM leg, one card. The state file, not the machine, is what carries the work.</p>
+
+<h2>Why the VM needs a translator</h2>
+<p>The VM is not a copy of the card, clock by clock, so <code>tools/vm_state_bridge_v1.py</code> bridges four differences. The VM divider works out its answer up front and counts down; the card's divider is stepped, so a half-finished card division is finished with the divider's own rule. A join fires on the card when both inputs wait, but the VM takes them one at a time. The assembler removes the priority cells that the VM keeps. And the card's constants are rams that offer their value forever, while the VM's are loaded once and ran dry in round 4 until they were marked as fixed. The bridge refuses VM states the card cannot hold, such as an operand that has only half arrived.</p>
+
+<h2>A lesson in it</h2>
+<p>Every "obvious" step here failed once before it worked: a constant served twice, a wrong answer above 32 bits (the hardware wraps before the remainder), a handshake that needs a one-clock pulse and not a level. The checks that caught them were all the same: run it, and compare with a plain model.</p>
+</div>
