@@ -1155,5 +1155,15 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Next, one change.* `READER=cat` (with `LATE=7`) in the same script reads with the old `stty`+`cat`. Same load, same delay, only the reader changes. If it stalls near the first ~54-90 frames, the old reader (and so every earlier board script that used it, including the NOREPORT runs) is the suspect.
 
-Next entry: #1137.
+### #1137 (13 Oct) -- THE OLD stty + cat READER STALLS; THE PYTHON READER DOES NOT
+
+*Alan, 10:21, `sudo LATE=7 READER=cat ./run_probe_watch.sh /dev/ttyUSB1` (#1136 tool), probe v2 fast, same cable, same PC port, cold card, same load, port opened 7 s after the load; only the reader differs from #1136.* Result: 6694 bytes, **54 valid frames, seq 1..54**, 16 foreign text items (LiteX demo lines), no gap inside, nothing after seq 54. LED1 was not reported for this run (it was still flashing in the earlier runs). No arrival log (cat has no timing).
+
+*Same load and delay, different reader:* Python reader (#1136) = live stream to the end of 30 s, no stall; stty+cat (this run, and the two old `run_probe.sh` runs of #1133/#1134) = exactly the first 54 frames and then silence. Three stalled runs with the old reader, none with the Python reader opened before the load (#1135) and one opened after (#1136). So the stall belongs to the stty+cat read path, not to the card, the cable, the design, or opening late. The mechanism is not known (candidates: the tty settings `stty` leaves, throttling when `cat` stops being woken, how the port is opened twice by `stty` then `cat`); not tested.
+
+*What else this touches.* Every board-test runner written so far reads with `stty` then `cat` (`tools/board_tests_v1.py` and its run_one/run_all scripts, `board_loops_v1.py`, `board_designs_v1.py` outputs, `run_mutability.sh`, the probe v1/v2 `run_probe.sh`). The silent NOREPORT results (std_tree4 seed 1, both carriers, the cell-free probes) may therefore be this reader, not the designs. This is a hypothesis: the earlier reports that did arrive could be the cases where the report was short enough to be inside the first buffered burst.
+
+*Rule.* From now on a serial capture on this card is made with the Python raw reader (`watch_serial.py`), port opened BEFORE the load and kept open, with the arrival log; sequence numbers and CRCs judge the capture. Not yet done: switching the board-test runners to it and re-running the silent designs.
+
+Next entry: #1138.
 
