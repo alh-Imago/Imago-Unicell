@@ -1137,5 +1137,15 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Next.* `sudo ./run_probe_watch.sh /dev/ttyUSB1` with the same cable and port; then, if the stream still dies, test whether re-opening the port after the stall (or toggling DTR/RTS) restarts delivery, and then the BL616 firmware serial.
 
-Next entry: #1135.
+### #1135 (13 Oct) -- PORT OPENED BEFORE THE LOAD: THE FULL STREAM ARRIVES, 2961 FRAMES, NONE LOST
+
+*Alan, 10:06, `run_probe_watch.sh` (#1133), probe v2 fast, hub out, 10 cm cable, cold card.* The watcher opened /dev/ttyUSB1 before the load and kept it open (opened once, never lost). 30 s: 302,514 bytes; **2961 valid CRC frames, seq 1..2961 contiguous, 0 missed, 0 differing bytes.** The 103 "corrupt" items are foreign text (the LiteX BIOS banner with colour codes and the demo lines; the first 1530 + 510 + 510 + 227 bytes arrive at once when the port opens, small 8/16-byte pieces follow, all before the load). Our frames start 4.055 s after the watcher started and then arrive every ~6 ms in 64/72-byte pieces until the end (~114 frames/s, about 11.5 KB/s: the 115200 baud line is full). The loader finished rc 0. LED1 still toggling. dmesg tail: ttyUSB1 attached, and a disconnect/re-attach of ttyUSB0 (the programming interface) near the end of the watch; the cause of that late event is not established, and it did not interrupt the stream on ttyUSB1.
+
+*What this settles.* (1) The card, the design, the 115200 line and the cable carry a full-rate CRC-framed stream with no loss and no corruption for 30 s. (2) The earlier stop after 54 frames (#1133, #1134) is not a card or cable fault: the same card, cable and bitstream deliver everything when the PC side has the port open before the load. (3) What differed between the two runs: old `run_probe.sh` loads first, then 3 s + wait later runs `stty` and `cat` on the port; the watcher opens the port first with its own raw settings and a Python reader. So the cause is on the PC side or in how the port is opened relative to the load, which fits Alan's question (a Linux driver issue). Not proven which of "opened after the load", "stty then cat" or the reader settings is responsible.
+
+*Rule for the save/load work from now on.* Open the serial port and keep it open BEFORE loading; read it with the watcher-style raw reader, not `stty`+`cat` after the load. Frames carry CRC and sequence numbers, so every capture is judged, not trusted.
+
+*One more change at a time.* `run_probe_watch.sh` now takes `LATE=N`: load first, open the port N seconds after the load, still with the same Python reader. Same cable and port. If that run again stops near 54 frames, opening after the load is the cause; if it delivers everything, the old `stty`+`cat` reader was.
+
+Next entry: #1136.
 
