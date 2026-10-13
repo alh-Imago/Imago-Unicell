@@ -1197,5 +1197,9 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 - **Correction.** #1135 and #1136 said the `ttyUSB0` disconnect/re-attach near the end of the watch was unexplained. It is the loader's own reset of the programming interface at the end of the load: in the #1135 dmesg the re-attach of ttyUSB0 is at 3825.7 s and the first frame arrives 4.055 s after the watcher started (watcher start about 3821.6 s), the same instant; `ttyUSB1` (1.1) never re-attached and kept streaming. The ttyUSB1 line in those logs (3795.6 s) is the card's power-up enumeration, about 25 s earlier.
 - Not shown by these files: LED states, a repeat of the run, the carriers.
 
-Next entry: #1142.
+### #1142 (13 Oct) -- SMALL CORRECTION TO #1141
+
+#1141 says the std_gen_ring capture starts with 2705 bytes "in four chunks". The arrival log shows FIVE chunks (1020, 510, 510, 510, 155 = 2705 bytes); the byte total is right, the chunk count was wrong. Nothing else in #1141 depends on it.
+
+Next entry: #1143.
 
