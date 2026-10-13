@@ -1279,5 +1279,13 @@ Alan asked for the proof to start from the LaTeX front end, so a designer needs 
 *Also:* image files carry design name + a register-layout fingerprint (`layout_id`); host and `tools/scan_swap_v1.py` refuse a mismatch. The card does NOT check it yet. Numbering: this entry took #1151 (the plan had said #1152; sources say #1151).
 *Scope / not shown:* nothing run on the real card; no real-card to simulator swap; no power-cycle; the VM (software) side and a card-to-VM converter are not built; the usual-Verilog route from LaTeX is not built. Next: Alan runs the kit (README in the folder), then the swaps, then the VM leg.
 
-Next entry: #1152.
+### #1152 (13 Oct) -- THE LATEX-COMPILED DESIGN RUNS ON THE REAL CARD: 4 CUTS ALL PASS (cross-reference #1151)
+
+Alan ran `sudo ./run_scan.sh /dev/ttyUSB1` with the #1151 kit (`scan_latex.fs`) on the Tang Nano 20K; output pasted in chat (result file stayed on his machine). Design: the one LaTeX line `y = (z^2 + 12345) \bmod 65521`, iterated; nobody wrote a cell or Verilog.
+Cuts 3:3:0, 4:12:0, 5:30:0, 3:0:0 -- every cut had the word inside the grid; A (uninterrupted) = B (captured, card reset, restored through CRC-checked chunks, read back) = model: 25408, 396, 38119, 25408; complete end state identical in all four; ALL PASS; dump/write/capture/simple retries all 0.
+*The corrected model mattered:* the 32-bit-wrap fix logged in #1151 is the model this run was checked against.
+*Scope.* Same card, same bitstream, reset not power-cycle; no `--damage` run on the card; the stage of the pipeline (multiply / divide) at each cut is not reported by the host, so "mid-multiply / mid-divide" is shown in simulation (#1151), not claimed from this card output. Four cuts; zero retries describes this cable and run only. Still open: power-off restore, real-card to simulator swap (`tools/scan_swap_v1.py`), the VM leg, the card-side layout check.
+This gives the comparison doc `UNICELL_VS_PURE.md` row 4 (freeze/save/reload) hardware evidence for a design a user wrote as LaTeX only; the doc itself is not yet edited.
+
+Next entry: #1153.
 
