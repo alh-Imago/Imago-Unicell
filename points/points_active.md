@@ -1187,5 +1187,15 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 *Which tree.* The std_tree4.fs in this folder is the default-seed (seed 1) build, byte-different from the seed-2 build that passed earlier (`cmp`: differ at byte 16313); the simulated signature is the same (7FEF5298). Seed 1 was NOREPORT with the stty+cat runner (#1126-#1127). So the same bitstream that was silent under the old reader reports and passes under the new one: the silence was the reader, not the placement or the design (one run: not a statistical result).
 *Not yet re-run:* carrier_tree4 and carrier_gen_ring (silent under the old reader), the loops folder, mutability self-test, the save/load path, and the probe's `gap` variant. LED states were not reported for this run.
 
-Next entry: #1141.
+### #1141 (13 Oct) -- READING THE run_all_v2 FILES: WHAT THE ARRIVAL LOGS SHOW (cross-references #1140; corrects "unexplained" in #1135/#1136)
+
+*Alan uploaded the raw folder of the #1140 run (pre.log, pre.summary, .ports, .rc, loader.txt, board_results.txt).* Read in full:
+- Both runs: rc 0, both ttyUSB ports present, read on `/dev/ttyUSB1`, try 1 (no retry, no replug). std_gen_ring: 47,325 bytes in 12.0 s, 265 lines of this test. std_tree4: 56,746 bytes in 12.0 s, 267 lines of this test; opened once, never lost.
+- **The `last=` field differs between the board and the simulation by exactly the known settle difference:** std_gen_ring board last=00020692, simulated 00000E62, difference 0x1F830 = 129072 = SETTLE 131072 (board) minus 2000 (sim) (#1129 notes). The collector strips `last=` before comparing, as designed; every other field (n, e, bad, to, n0, st, sig, w) is identical.
+- **The std_tree4 capture contains std_gen_ring lines** ("other tests seen: std_gen_ring"). The arrival log explains it: the first ~1 s of that capture (a burst of 17 chunks of 510 bytes the moment the port opened, then 72/64-byte pieces) is the PREVIOUS design still printing (and the bridge's held bytes); then no bytes while the loader programs the card (1.04 s to 3.07 s, about 2 s); then the new design starts at 3.07 s. The collector selects lines by design name, so the verdict is not affected. Lesson for the save/load readout: tag every line with the design name, a session or sequence number and a CRC, and ignore everything before the new design's first valid line.
+- The std_gen_ring capture starts with 2705 bytes in four chunks (1020 + 3x510 + 155 = 2705, too, bursts at open) then 8/16-byte pieces: the card's LiteX demo text (the card had just booted), then the design from 3.06 s.
+- **Correction.** #1135 and #1136 said the `ttyUSB0` disconnect/re-attach near the end of the watch was unexplained. It is the loader's own reset of the programming interface at the end of the load: in the #1135 dmesg the re-attach of ttyUSB0 is at 3825.7 s and the first frame arrives 4.055 s after the watcher started (watcher start about 3821.6 s), the same instant; `ttyUSB1` (1.1) never re-attached and kept streaming. The ttyUSB1 line in those logs (3795.6 s) is the card's power-up enumeration, about 25 s earlier.
+- Not shown by these files: LED states, a repeat of the run, the carriers.
+
+Next entry: #1142.
 
