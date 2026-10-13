@@ -1083,5 +1083,13 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Next.* One cold start; load the known-good `std_gen_ring` first (control), then ONE carrier test alone with a single load. Control passes and carrier silent = the carrier build is the cause; control silent = the card state.
 
-Next entry: #1129.
+### #1129 (13 Oct) -- THE SILENT CARRIER RUNS SHOW THE PASS LEDs: THE LOGIC RUNS, THE SERIAL READOUT FAILS
+
+*Alan, 05:50.* On the silent carrier runs the LEDs are: LED0 blinking, LED1 and LED3 steady on. In the wrapper (`board_loops_v1.loop_wrapper`) `LED1_N = ~pass`, `LED3_N = ~done`, `LED2_N = ~(done && !pass)`, `LED0_N = ~hb[23]`, and `pass = done && !timed_out && cnt == want && bad == 0 && (n0 == 20) && st0 && st1` (the tree: without the n0 term). So on the card the design finished and every captured word matched the expected word. The lights going off and on that Alan saw is the script's silent-retry reload (`openFPGALoader` again after try 1), not a double program by the design.
+
+*Corrected reading of #1124/#1125/#1128.* The silent runs are NOT shown to be failed designs: for the carrier runs the LEDs say PASS; for std_tree4 seed 1 no LED report was given then. What fails is the serial capture: 0 bytes on both ttyUSB ports after a complete load, while other builds (std_gen_ring twice, std_tree4 seed 2) deliver 149+ lines. Cause of the missing bytes is not known. The UART FSM is the same text in all builds; the simulated line decodes correctly for all of them; yosys `check` finds no logic loops in the standalone tree; place-and-route of the carrier tree has no warnings. Open: whether the UART transmitter really runs on silicon in these builds (the LEDs do not test it) or the bridge/PC side drops them.
+
+*Rule for reading results until this is understood:* pass LEDs (0 blink, 1 + 3 on, 2 off) after a load count as the logic PASS, recorded as 'LED pass, serial silent', never as a full PASS (no checksum compared).
+
+Next entry: #1130.
 
