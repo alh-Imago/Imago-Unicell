@@ -49,7 +49,7 @@ def test_a_bad_family_is_refused_with_its_reason():
     from vix_compiler_v1 import compile_program_ir_vix
     src = "program p {\n    place r as ram_constant at (0, 0) {\n        out: e\n        init_data: 7\n        family: nano\n    }\n}\n"
     icm, d = compile_program_ir_vix(parse(src))
-    assert icm is None and any("not 'flex' or 'sub'" in x.problem for x in d)
+    assert icm is None and any("is not one of flex, sub, std, carrier" in x.problem for x in d)
 
 
 def test_a_block_is_checked_against_its_own_familys_abilities():

@@ -1063,5 +1063,17 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *What this proves.* A design written as an ICM (13 cells, rams and adders), built with `-s std`, runs correctly on the real Tang Nano 20K, alongside the generated-ring design (#1125). Together: the ICM now drives the standard line on silicon for one open design and one looped design.
 
-Next entry: #1127.
+### #1127 (13 Oct) -- THE TRIMMED CARRIER AS A BOARD OPTION, AND `family: std|carrier` IN THE DSL
+
+*Alan, 05:07: "move to the trimmed carrier as an option, greater flexibility and testing scope in the mixed tests"; 05:08: "when you have some test files ready go back and complete the family entry in the DSL".*
+
+*Carrier on the card.* `tools/board_designs_v1.py --family carrier` builds the same two designs on the VIXeN carrier trimmed to the cores the ICM uses (`-s carrier`; ram+adder for the tree, accum+adder+branch+ram for the ring). Simulated board lines are identical to the standalone ones: `carrier_tree4` sig=7FEF5298 (2056 LUT4, Fmax est. 125.9), `carrier_gen_ring` sig=C72BDCFE (5165 LUT4, 114.2). Both closed 27 MHz timing. So a trimmed carrier costs about the same as the standalone shells here (2056 vs 2050-2109 and 5165 vs 5191 LUT4). Files: `fpga/board_tests_designs_carrier/`. NOT yet run on the card.
+
+*DSL.* `family:` on a `place` now takes `flex | sub | std | carrier` (`nano/vix_compiler_v1.py`; std/carrier are compile-checked against the 'vixen' abilities, which include the join bit the standalone shells also have). `project_assemble_v1.py --icm F` needs no `-s` when the places say std or carrier; a conflicting `-s` is refused; a mix of std/carrier with flex/sub is refused with the reason (no bridge between the standard line and flex/sub yet); std and carrier together are refused. The ICM generator now (a) upper-cases the DSL's face names, (b) turns the DSL's constant form (`init_data` + `load_data_valid`) into the `preload_value` the grids read, and (c) makes the observed cell a hold ram when it is a flowing ram with nothing downstream inside the design (the tap only watches, it never acknowledges: without this the exit holds its first word and the pipeline stalls; seen as only 2 of 4 words out). Test: `mixed_flex_sub_flex_v1.uc` re-tagged std or carrier computes x + 1239 on both RTLs (`tests/vm/test_dsl_family_std_v1.py`, 5 tests).
+
+*One existing test changed.* `tests/vm/test_dsl_family_v1.py` line 52 asserted the old refusal wording "not 'flex' or 'sub'"; the message now lists the four families, so the assertion reads "is not one of flex, sub, std, carrier". The behaviour tested (a bad family is refused) is unchanged.
+
+*Honest scope.* The carrier bitstreams are simulated and timing-closed only. The carrier is not trimmed per core *version* (still the cores' union), nor are unused carrier ports removed beyond the core selection. Mixing the standard line with flex/sub (the bridge adapter) is the next piece for the mixed tests.
+
+Next entry: #1128.
 

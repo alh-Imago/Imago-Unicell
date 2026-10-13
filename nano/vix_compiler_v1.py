@@ -101,7 +101,7 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", t
         _jp.apply(cells)
     if family_of:                                # ledger #1115: one placement per family, so the assembler can split the design and bridge the crossings (flexsub_mixed_v1)
         groups = {None: [c for c in cells if c.cell_id not in family_of]}
-        for fam_ in ("flex", "sub"):
+        for fam_ in FAMILIES:
             groups[fam_] = [c for c in cells if family_of.get(c.cell_id) == fam_]
         patterns = {("main" if f is None else f"main_{f}"): vix.HierPattern(cells=cs) for f, cs in groups.items() if cs}
         placements = [vix.HierPlacement(instance=("main" if f is None else f"{f}_part"), pattern=("main" if f is None else f"main_{f}"), at=(0, 0), family=f)
@@ -121,7 +121,7 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", t
         recs_ = icm.flatten()[0]
         fam_by_cell = {f"{pl.instance}.{c.cell_id}": pl.family for pl in placements for c in patterns[pl.pattern].cells}
         issues = []
-        for tgt_, grp in ((t_, [r for r in recs_ if (fam_by_cell.get(r.cell_id) or None) == f_]) for f_, t_ in ((None, target), ("flex", "flex"), ("sub", "sub"))):
+        for tgt_, grp in ((t_, [r for r in recs_ if (fam_by_cell.get(r.cell_id) or None) == f_]) for f_, t_ in [(None, target)] + [(k, FAMILY_TARGET[k]) for k in FAMILIES]):
             issues += _tc.check_records(grp, tgt_)            # a block that names its family is checked against THAT family's abilities
         for issue in issues:
             diagnostics.append(CompileDiagnostic(
@@ -133,19 +133,23 @@ def compile_program_ir_vix(program_ir: ProgramIR, program_name_hint: str = "", t
     return icm, diagnostics
 
 
+FAMILIES = ("flex", "sub", "std", "carrier")        # ledger #1126: std = the standard line on the v4 standalone shells, carrier = the standard line on the VIXeN carrier trimmed to the cores used
+FAMILY_TARGET = {"flex": "flex", "sub": "sub", "std": "vixen", "carrier": "vixen"}   # the abilities checked at compile time (the standalone shells have the join bit, as the VIXeN carrier does)
+
+
 def _take_family(stmt: PlaceIR):
-    """Ledger #1115: `family: sub` (or `flex`) on a place names the cell family its block is built from. Returns (family or None, the statement without that field, diagnostics)."""
+    """Ledger #1115: `family: sub` (or `flex`) on a place names the cell family its block is built from; #1126: also `std` and `carrier` (the standard line). Returns (family or None, the statement without that field, diagnostics)."""
     fam, rest, diags = None, [], []
     for f in stmt.fields:
         if f.key != "family":
             rest.append(f)
             continue
         v = f.value[0] if isinstance(f.value, list) and len(f.value) == 1 else f.value
-        if v not in ("flex", "sub"):
+        if v not in FAMILIES:
             diags.append(CompileDiagnostic(
-                severity="error", stage="resolve", what=f"field 'family' on placement '{stmt.name}'", problem=f"family {v!r} is not 'flex' or 'sub'",
-                why="a block is built from the flex (handshake) cells or the sub (fixed-latency) cells; where two families meet the assembler inserts the sub bridge by itself",
-                suggestion="write `family: sub` or `family: flex`, or leave the field out (flex)", span=f.span))
+                severity="error", stage="resolve", what=f"field 'family' on placement '{stmt.name}'", problem=f"family {v!r} is not one of {', '.join(FAMILIES)}",
+                why="a block is built from the flex (handshake) cells, the sub (fixed-latency) cells, or the standard line (std = standalone v4 shells, carrier = the VIXeN carrier); where flex and sub meet the assembler inserts the sub bridge by itself",
+                suggestion="write `family: sub`, `family: flex`, `family: std` or `family: carrier`, or leave the field out (flex)", span=f.span))
         else:
             fam = v
     return fam, (type(stmt)(name=stmt.name, tile_name=stmt.tile_name, row=stmt.row, col=stmt.col, fields=rest, span=stmt.span) if fam or diags else stmt), diags

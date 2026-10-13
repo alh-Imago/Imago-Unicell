@@ -1529,6 +1529,23 @@ def main():
     if args.merge_mode != "arbitrate" and not (args.icm and args.family == "flex"):
         ap.error("--merge-mode applies only to -s flex --icm (the merge core exists in the flex family)")
 
+    if args.icm and args.family in (None, "std", "carrier"):          # ledger #1126: an ICM whose places say `family: std|carrier` (DSL) builds on the standard line without -s
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import std_icm_generate_v1 as _sig0
+        _tags = _sig0.icm_families(args.icm)
+        _std = _tags & {"std", "carrier"}
+        if _std:
+            if _tags - _std:
+                print(f"error: the design mixes the standard line ({', '.join(sorted(_std))}) with {', '.join(sorted(_tags - _std))}: a bridge between them is not built yet (the sub bridge joins flex and sub only)", file=sys.stderr)
+                return 1
+            if len(_std) > 1:
+                print("error: the design names both std and carrier; one standard-line build per design", file=sys.stderr)
+                return 1
+            _fam = next(iter(_std))
+            if args.family in ("std", "carrier") and args.family != _fam:
+                print(f"error: -s {args.family} but the ICM's places say family: {_fam}", file=sys.stderr)
+                return 1
+            args.family = _fam
     if args.family in ("std", "carrier") and not args.icm:
         ap.error("-s %s works from an ICM map only (--icm FILE)" % args.family)
     if args.icm and args.family in ("std", "carrier"):                # ledger #1123: the ICM drives the standard line too

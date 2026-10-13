@@ -72,8 +72,14 @@ def gen(args, out):
     return json.load(open(os.path.join(out, "GRID.json")))
 
 
+FAMILY = "std"
+
+
 def deps_of(meta, g):
     d = set()
+    if FAMILY == "carrier":
+        import carrier_grid_v2 as c2
+        return sorted(vd.deps(c2.CARRIERS["vixen"][0], [g, os.path.join(ROOT, "fpga", "verilog")]))
     for m in meta["shells"]:
         d |= set(vd.deps(m, [g, os.path.join(ROOT, "fpga", "verilog")]))
     return sorted(d)
@@ -82,16 +88,16 @@ def deps_of(meta, g):
 def tests(work):
     out = []
     g = os.path.join(work, "gen_tree")
-    meta = gen(["-s", "std", "--icm", TREE, "--tap-io", "output", "--top", "std_tree4"], g)
+    meta = gen(["-s", FAMILY, "--icm", TREE, "--tap-io", "output", "--top", FAMILY + "_tree4"], g)
     ne = len(meta["ext"])
-    out.append(("std_tree4", "4-input sum tree built from the ICM (-s std): 6 vectors of 4 words (negatives, and one sum that wraps around 32 bits) give the 6 sums in order", "loop", "std_tree4",
-                [os.path.join(g, "std_tree4.v")] + deps_of(meta, g), ("tree", {"io": meta["io"], "ne": ne, "nb": 32 * ne}), sums()))
+    out.append((FAMILY + "_tree4", "4-input sum tree built from the ICM (-s " + FAMILY + "): 6 vectors of 4 words (negatives, and one sum that wraps around 32 bits) give the 6 sums in order", "loop", FAMILY + "_tree4",
+                [os.path.join(g, FAMILY + "_tree4.v")] + deps_of(meta, g), ("tree", {"io": meta["io"], "ne": ne, "nb": 32 * ne}), sums()))
     g = os.path.join(work, "gen_ring")
-    meta = gen(["-s", "std", "--icm", RING, "--allow-rings", "--ring-steps", str(BL.N), "--top", "std_gen_ring"], g)
+    meta = gen(["-s", FAMILY, "--icm", RING, "--allow-rings", "--ring-steps", str(BL.N), "--top", FAMILY + "_gen_ring"], g)
     ne = len(meta["ext"])
     io = meta["io"]
-    out.append(("std_gen_ring", "looped CORDIC ring on standalone shells with the ring control GENERATED from the ICM (offset %d, reference %d): exactly %d results, quiet, one release gives one more" % (meta["ring"]["offset"], meta["ring"]["reference"], BL.N),
-                "loop", "std_gen_ring", [os.path.join(g, "std_gen_ring.v")] + deps_of(meta, g),
+    out.append((FAMILY + "_gen_ring", "looped CORDIC ring on " + ("standalone shells" if FAMILY == "std" else "the trimmed VIXeN carrier (" + ",".join(meta["keep"]) + ")") + " with the ring control GENERATED from the ICM (offset %d, reference %d): exactly %d results, quiet, one release gives one more" % (meta["ring"]["offset"], meta["ring"]["reference"], BL.N),
+                "loop", FAMILY + "_gen_ring", [os.path.join(g, FAMILY + "_gen_ring.v")] + deps_of(meta, g),
                 ("std", {"z0": L.Z0 & 0xFFFFFFFF, "zi": io["z_input"], "rel": io["ring_release"], "ne": ne, "nb": 32 * ne}), L.model(BL.N + 1)))
     return out
 
@@ -102,7 +108,10 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--no-pnr", action="store_true")
     ap.add_argument("--only", default="")
+    ap.add_argument("--family", default="std", choices=["std", "carrier"])
     a = ap.parse_args()
+    global FAMILY
+    FAMILY = a.family
     only = [x for x in a.only.split(",") if x]
     a.out = os.path.abspath(a.out)
     os.makedirs(a.out, exist_ok=True)

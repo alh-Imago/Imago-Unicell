@@ -501,7 +501,7 @@ place b_add as adder at (1, 4) {
     in_a: w
     in_b: n
     out: e
-    family: sub          # flex (the default) or sub
+    family: sub          # flex (the default), sub, std or carrier
 }
 place a_in as ram_flowing at (1, 0) {
     in: w
@@ -513,6 +513,8 @@ place a_in as ram_flowing at (1, 0) {
 Places with the same `family:` that touch each other become one block of that family. Where two families meet, the Flex-Sub assembler (`project_assemble_v1.py --icm`) puts the **sub bridge** in by itself (`sub/verilog/flex_sub_bridge_v1.v`, ledger #1112-#1114): you do not write it.
 
 A program that uses `family:` is compiled with the VIX backend and written as ICM-VIX (`.icm-hier.json`), the form that can carry the tag (one placement per family). `dsl_cli_v1.py --target std|vixen|flex|sub` chooses that backend explicitly and names the target whose abilities are checked at compile time; a block that names its family is checked against that family's abilities instead (a `sub` block asking for `second_output` is refused). The VIX backend has the Tier-0 tiles only (no `define`), as before. A program that does not use `family:` and gives no `--target` compiles exactly as it always did.
+
+**The standard line (ledger #1126).** `family: std` builds the block on the v4 standalone shells and `family: carrier` on the VIXeN carrier trimmed to the cores the design uses. Every place of a design must name the same one of these two (or none, with `-s`), because a bridge between the standard line and flex/sub is not built; `project_assemble_v1.py --icm F --tap-io NAME` then needs no `-s` (the tag chooses it, and a conflicting `-s` is refused). `--tap-io` names the cell the grid's tap watches; a terminal flowing ram there is made a hold ram (the tap watches, it never acknowledges). The mixed example re-tagged `family: std` or `family: carrier` computes x + 1239 on both RTLs (`tests/vm/test_dsl_family_std_v1.py`).
 
 The DSL has no negative coordinates: put the constants above the main line by moving the main line down. Worked example: `nano/examples/mixed_flex_sub_flex_v1.uc` (flex +1000, SUB +234, flex +5, so out = x + 1239); it compiles, assembles and simulates end to end (`tests/vm/test_dsl_family_v1.py`).
 

@@ -1,0 +1,16 @@
+{
+ "name": "carrier_tree4",
+ "what": "4-input sum tree built from the ICM (-s carrier): 6 vectors of 4 words (negatives, and one sum that wraps around 32 bits) give the 6 sums in order",
+ "expected": [
+  10,
+  57,
+  4294967286,
+  10000,
+  4294436490,
+  2147483306
+ ],
+ "sim_line": "UCT carrier_tree4 res=P n=0006 e=0006 bad=0000 to=0 n0=0000 st=3 last=0000061A sig=7FEF5298 w=0000000A,00000039,FFFFFFF6,00002710,FFF7E68A,7FFFFEAA,00000000,00000000",
+ "fmax_mhz": 125.9,
+ "lut4": 2056,
+ "dff": 978
+}
