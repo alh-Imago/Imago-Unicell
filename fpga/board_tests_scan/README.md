@@ -13,7 +13,7 @@ Two bitstreams, same serial protocol, same host script:
     sudo ./run_scan.sh /dev/ttyUSB1 scan.fs --damage     # the host damages its own traffic on purpose (flipped bit in a written chunk, a lost byte, a flipped bit in a received line) and must still end PASS
     python3 scan_card_host.py PORT --capture-only --out img.json        # run to the cut and save the state to a file (power the card off after this if you want)
     python3 scan_card_host.py PORT --load scan.fs --restore-only --in img.json   # fresh load, state back in, run on, compare with the loop's own model
-Each demonstration cut = `steps:lag:delay`; the default `3:0:0,4:7:1,5:20:0`. A PASS line means: answer of the interrupted-and-restored run = answer of the uninterrupted run = the Python model, **and** the complete card state at the end is identical.
+Each demonstration cut = `steps:lag:delay`; the default `3:2:0,4:9:0,5:20:0,3:0:0` (the first two cut the plain-Verilog version with items still inside its pipeline; on a short loop a large lag lands after more results, so the cut step count is taken from the card). A PASS line means: answer of the interrupted-and-restored run = answer of the uninterrupted run = the Python model, **and** the complete card state at the end is identical.
 Results are written to `results/scan_<time>.json`; send that file back.
 
 ## How the serial side is protected

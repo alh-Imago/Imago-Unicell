@@ -9,7 +9,7 @@ import board_scan_v1 as bs  # noqa: E402
 m, s = pty.openpty()
 tty.setraw(m); tty.setraw(s)
 print(os.ttyname(s), flush=True)
-card = bs.SimCard(cpb=8, tmo=3000)
+card = bs.SimCard(cpb=8, tmo=3000, kind=(sys.argv[1] if len(sys.argv) > 1 else 'unicell'))
 pending, last = b"", time.time()
 try:
     while True:

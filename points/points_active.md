@@ -1254,5 +1254,10 @@ So the same ICM, built onto the standalone v4 shells and onto the trimmed carrie
 
 *Closes (in simulation) the programme item* "in-flight capture and restore, UniCell and usual FPGA, with the serial side checked". It is not closed on the card until Alan runs `sudo ./run_scan.sh` for both bitstreams and the results come back.
 
-Next entry: #1148.
+### #1148 (13 Oct) -- FIRST CARD RUN OF THE SCAN KIT (usual-FPGA bitstream): FIRST CUT PASSED ON THE CARD; A KIT BUG STOPPED THE SECOND, FIXED
+
+Alan ran `sudo ./run_scan.sh /dev/ttyUSB1 scan_pure.fs`. The port opened before the load, the load worked, and **cut 3:0:0 passed on the real card**: the run was interrupted at step 3, captured twice (agreeing), the card was reset, the state was written back through 8 checked chunks and read back, and the two runs ended with answer 8255 = model 8255 and an identical complete card state, with zero retries at 115200 baud. The second cut (4:7:1) then aborted with `ScanError: card did not stop in 30 s (last stopped=1, steps=5)`.
+*Cause: my kit bug, not the card.* `scan_card_host.py` waited for the stop at exactly the cut step count (4); on the short plain-Verilog loop a stop delayed by lag 7 lands after a further result, so the card stopped correctly at step 5 and the host never accepted it. The same defect had been fixed in `scan_flow_check_v1.py` (#1147) but not in the card-side script, which only ever ran against the unicell simulation where the lag never overshoots. Fix: the host takes the cut step count from the card's reply (the image carries it). Checked by running the fixed script against the simulated plain-Verilog card behind the pseudo serial port: all three old cuts pass (cut steps 3, 5, 9). The default cuts are now `3:2:0,4:9:0,5:20:0,3:0:0`. Not yet re-run on the card; the UniCell bitstream (`scan.fs`) has not been run on the card at all.
+
+Next entry: #1149.
 

@@ -103,7 +103,7 @@ def one_cut(card, k1, lag, dly, k2=4, dly2=3, lag2=0, log=print):
     r = dict(cut="%d:%d:%d" % (k1, lag, dly))
     card.reset(); time.sleep(0.2)
     card.configure(2, k1, dly, lag); card.load(Z0)
-    qa = card.wait_stopped(timeout=30, steps=k1)
+    qa = card.wait_stopped(timeout=30)
     ses, img = card.capture_verified()
     tr = H.parse_trailer(img)
     r.update(steps_at_cut=tr["steps"], word_inside_grid=bool(qa["busy"]), closing_register_holds_word=bool(tr["has"]))
@@ -123,7 +123,7 @@ def one_cut(card, k1, lag, dly, k2=4, dly2=3, lag2=0, log=print):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("port", nargs="?"); ap.add_argument("--load"); ap.add_argument("--damage", action="store_true")
-    ap.add_argument("--cuts", default="3:0:0,4:7:1,5:20:0"); ap.add_argument("--capture-only", action="store_true"); ap.add_argument("--restore-only", action="store_true")
+    ap.add_argument("--cuts", default="3:2:0,4:9:0,5:20:0,3:0:0"); ap.add_argument("--capture-only", action="store_true"); ap.add_argument("--restore-only", action="store_true")
     ap.add_argument("--out"); ap.add_argument("--in", dest="inp"); ap.add_argument("--k2", type=int, default=4)
     a = ap.parse_args()
     port = a.port or sorted(f for f in (os.path.join("/dev", x) for x in os.listdir("/dev")) if "ttyUSB" in f or "ttyACM" in f)[-1]
@@ -143,7 +143,7 @@ def main():
         if a.capture_only:
             k1, lag, dly = [int(x) for x in a.cuts.split(",")[0].split(":")]
             card.reset(); time.sleep(0.2); card.configure(2, k1, dly, lag); card.load(Z0)
-            card.wait_stopped(30, steps=k1)
+            card.wait_stopped(30)
             ses, img = card.capture_verified()
             json.dump(dict(ses=ses, image=img.hex(), cut=[k1, lag, dly], when=datetime.datetime.now().isoformat()), open(a.out, "w"), indent=1)
             print("captured and written to", a.out, H.parse_trailer(img), card.stats)
