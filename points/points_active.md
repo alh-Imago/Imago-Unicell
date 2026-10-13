@@ -1119,5 +1119,15 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Standing evidence.* The same hardware and script path delivered full reports at 04:21 (4 designs), 04:53 (std_gen_ring, twice) and 05:04 (std_tree4 seed 2) and nothing at 04:53 (std_tree4 seed 1), 05:39 (two carrier designs), 09:05 and 09:13 (cell-free probes, v1 and v2). The PC was restarted between 05:04 and 09:05 (kernel uptime 141 s at 09:05). Not tried: a motherboard USB port without the hub, another cable, a manual read with the port opened before the load, `dmesg` and `ls -l /dev/ttyUSB*` right after a load.
 
+### #1133 (13 Oct) -- DIRECT CABLE: THE LINE WORKS, BUT THE STREAM STOPS AFTER ABOUT HALF A SECOND
+
+*Alan, 09:17, hub removed (card straight into the PC), probe v2, `sudo ./run_probe.sh`.* Fast variant: 6256 bytes, 54 valid CRC frames, seq 1..54 contiguous, 0 missed, 0 differing bytes; plus 15 lines of text such as "Memtest OK" and "Memspeed at 0x40000000 ... Write speed: 12.9MiB/s", counted as "corrupt". Gap variant: 0 bytes. Loader complete (rc 0). Kernel log tail: device disconnected, then FTDI converter re-attached as ttyUSB0 (only the last three lines were saved, so ttyUSB1 is not confirmed either way).
+
+*Reading.* (1) The FPGA-to-PC line can carry our frames without any damage: 54 frames, every byte right. (2) The 15 "corrupt" lines are not damaged frames: they are the LiteX BIOS text from the demo in the card's flash, which prints on the same UART at power-up (the 20 s wait in the scripts is for it). They are foreign text, not corruption. (3) Only about 0.5 s of the fast stream arrived (about 2270 frames were expected in 20 s), starting at seq 1, then nothing. So the data that reached the PC was delivered early and then the path stopped delivering. Unproven hypotheses: the BL616 bridge stalls or drops after early data; the port opened after the load, so what arrived is what the bridge buffered; DTR/RTS state on open. The gap variant being silent is also not explained. Not yet known: LED1 state, whether the stream stopped at the card or at the bridge.
+
+*Tool added (not yet run by Alan).* `watch_serial.py` and `run_probe_watch.sh` in `fpga/board_serial_probe_v2/` (emitted by `tools/board_serial_probe_v2.py`): the port is opened BEFORE the load and every arriving chunk is logged with its time, so the log shows when the stream starts and when it dies. Tested against a pty feeding frames (4040 bytes, 39 valid frames, one trailing partial frame counted corrupt). Run on a cold card, one variant per run: `sudo ./run_probe_watch.sh /dev/ttyUSB1` (`ONLY=serial_probe2_gap`, `SECS=60` optional).
+
+*Asked of Alan after the run:* LED1 (toggling about once a second = the card is transmitting), `raw/*.watch.log`, `ls -l /dev/ttyUSB*` and `dmesg | tail -15` right after the load. Optional, later: read the BL616 firmware serial (`lsusb -v -d 0403:6010 | grep -i iSerial`) against 2025030317 before any update; no update without Alan's say.
+
 Next entry: #1133.
 
