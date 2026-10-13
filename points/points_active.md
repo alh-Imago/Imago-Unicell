@@ -1299,5 +1299,11 @@ Alan ran `--capture-only --out img.json` on the real card after the damage run (
 Prepared the reverse: `tools/scan_swap_v1.py from-sim` captured the simulated card at cut 4:12:0 (word 49981 at step 4) into `fpga/board_tests_scan_latex/images/sim_cut_4_12_0.json`; restoring that file back into the simulated card gives 396 = model (sim round trip). To be run on the real card: `python3 scan_card_host.py PORT --load scan_latex.fs --restore-only --in sim_cut_4_12_0.json`.
 *Scope.* One image, one direction shown (card to sim). The reverse (sim to card) is NOT yet shown on the card. Same RTL both sides, so this shows the image format and the scan chain behave the same in the simulator and in the silicon, not that different designs interchange. VM (software) side still not built.
 
-Next entry: #1155.
+### #1155 (13 Oct) -- SIMULATOR STATE RESTORED ON THE REAL CARD (LaTeX design): PASS -- BOTH DIRECTIONS NOW SHOWN (cross-reference #1154)
+
+Alan ran `python3 scan_card_host.py /dev/ttyUSB1 --load scan_latex.fs --restore-only --in sim_cut_4_12_0.json` (image captured in the simulated card at cut 4:12:0, word 49981 at step 4). The bitstream was freshly loaded into the card (SRAM reconfigured, so the card held no run of its own), the image written through the CRC-checked chunks and read back, the run continued to step 8: word 396 = model 396, PASS, 0 retries.
+Together with #1154 (real card image into the simulator, PASS) the same state file has gone real card -> simulator and simulator -> real card, each time continuing to the model's answer.
+*Scope.* Same RTL on both sides; one image per direction; the load was a fresh SRAM configuration of the same card, not a power-off with the card sitting unpowered, and not a second board. Layout fingerprint equal on both sides (the host checks it; the card itself does not). Still open: capture then true power-off restore, a second card, VM (software) side, `--damage` with the swapped image.
+
+Next entry: #1156.
 
