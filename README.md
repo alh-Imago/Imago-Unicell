@@ -1,14 +1,14 @@
 # Imago UniCell
 
-> **Status (12 October 2026): an unconfirmed idea, with work resumed on the software side. Nothing here is proven beyond what is listed below. Please do not expect a finished or validated system.**
+> **Status (13 October 2026): a working research system with a confirmed card path; still not a finished or validated product. Nothing is proven beyond what is listed below (see "Confirmed on the card, and what is still simulation only").**
 >
 > - **Update, 12 October 2026:** after the 10 October notice that development had stopped, work started again (the ledger was at #1060 then) on making the architecture easier to use rather than on new hardware claims: a hardware **division core** (one cell instead of about 23,000 for a written-out division), a **LaTeX front end** that turns an integer formula into a checked design, a **library of stored arithmetic plans and blocks** (Horner polynomials, sums, a multiply-accumulate block, matrices), and a LaTeX writing guide with a reduction advisory (see "Writing a formula" below). None of this changes the findings below: nothing has been run on a physical card beyond what is listed, and no clock-rate claim is made for these designs, only cell counts and simulation results.
 >
 > - **What exists and was measured:** a Python VM and a Verilog implementation (Tang Nano 20K) that agree cycle for cycle on small designs, a compiler path from LLVM IR and Python, and designs that ran live on the Tang board (CORDIC, relay, a 4-input reduction tree).
 > - **What was tested and did not favour it:** on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See `docs/measurements/UNICELL_VS_PURE.md`.
-> - **What is NOT shown:** freeze, save and restore of a running design has only been run in simulation (VM and RTL), never on a physical card. A hand-written Verilog design gets the same behaviour from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`). The statements about freeze and state capture below are design intent, not hardware results.
+> - **What is NOT shown:** running a design on a physical card **and** saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`).
 > - **Prior art:** every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in `docs/prior_art/PRIOR_ART_REPORT.md`; it is not a proof of novelty either way.
-> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 12 October 2026 the ledger is at #1084).
+> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 13 October 2026 the ledger is at #1166).
 >
 > **A possible new use (10 October 2026): teaching.** The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md), and a first teaching manual built from it (11 October 2026) is [`docs/teaching_manual.html`](docs/teaching_manual.html): 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
 
@@ -240,6 +240,24 @@ one lane pass straight over another. It has no control logic and costs
 one tick per tile per direction (a register slice), like every other
 core. Still open: an automatic placer (layouts are drawn or templated),
 and a delay-line cell for the remaining pure-delay lanes (#1015).
+
+## Confirmed on the card, and what is still simulation only (13 October 2026, #1143-#1165)
+
+Each line says where it was actually checked. "Card" means the real Tang Nano 20K (Sipeed, card_id `sipeed-tang-nano-20k-01`, GW2AR-LV18QN88C8/I7).
+
+| Item | Status | Ledger |
+|---|---|---|
+| LaTeX formula to ICM file to Verilog to bitstream, one-line design `y = (z^2+12345) \bmod 65521` | **Card**: 4 cuts pass, answers equal the model | #1151, #1152 |
+| ICM to Verilog for flex, sub, standard shells and the trimmed carrier | **Card**: same result lines as the VM (ring sig C72BDCFE, tree 7FEF5298) | #1125, #1126, #1140, #1143 |
+| In-flight state capture and restore (one self-describing state file) | **Card**: mid-calculation capture, reset or power-off, restore, same answer, 0 retries; injected serial faults caught and retried | #1150, #1153, #1156-#1158 |
+| State path **simulated card <-> real card <-> VM** (FlexGrid), every direction tried | **Confirmed**: a card or simulator state continues in the VM, a VM-made state restored on the real card | #1154, #1155, #1159, #1161 |
+| Native cross and corner wiring cells (flex and sub) | Simulation: equal to the relay version clock for clock; yosys sizes re-measured with the card named | #1165 |
+| Mixed designs (flex next to standard / carrier cells, adapters generated) | **Simulation only** (iverilog); not yet on the card | #1162 |
+| Several bitstreams in one load (group runs) | Card, 10 of 10 (#1025); the regenerated test bed is for the next run | #1166 |
+
+Open: a second card, the BL616 firmware check (needs the new card reader), and re-run statistics.
+
+---
 
 ## On the physical board
 
