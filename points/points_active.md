@@ -1047,5 +1047,13 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Honest scope.* Not yet on the card. The tree is small and mostly proves the multi-input path; the generated ring is the stronger test.
 
-Next entry: #1125.
+### #1125 (13 Oct) -- ON THE CARD: THE GENERATED RING PASSES; THE SUM TREE IS SILENT (cause not yet known)
+
+*Alan, 04:54, `sudo ./run_all.sh` twice on the #1124 package.* `std_gen_ring`: PASS both times: n=0015 e=0015 bad=0000 n0=0014 st=3, **sig=C72BDCFE**, first eight words identical to the simulation and to the hand-laid std_ring of #1122. So the ring control generated from the ICM (#1123: offset measured 8, reference 12) runs on silicon. `last=00020692` differs from the simulated 0x0E62 by 0x1F830 = 129072 = 131072 - 2000, the known SETTLE difference.
+
+*`std_tree4`: NOREPORT both times* (0 bytes on either port, three tries each; the loader reported a complete load, rc 0). Checked since: the synthesised netlist (yosys -nowidelut, gowin cell models) simulated at gate level prints the same passing line as the RTL, so synthesis did not change the behaviour. Timing met (124.8 MHz estimate, 1314 ALU, 978 DFF, no block RAM). Not known: whether the card ran it. The tree was the second load of each run and was reloaded three times per run, so the loads-in-a-row dropout (#1024) and heat are not excluded. Next, one cold start with the tree alone, the LED pattern (LED0 heartbeat free-runs without the design's logic; LED3 = done), and a second placement (seed 2) built for comparison.
+
+*Reading notes for Alan's questions.* The two capture sizes (24514 and 6673 bytes) are serial text caught in the listening window, not the bitstream (both .fs files are 4,618,782 bytes); the second window was cut by the USB serial device re-attaching. `[ 1983.7 ]` in the log lines is the kernel uptime in seconds. The only speeds: JTAG 6 MHz (loader), the 27 MHz board clock; Fmax is nextpnr's estimate.
+
+Next entry: #1126.
 

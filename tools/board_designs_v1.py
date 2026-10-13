@@ -101,12 +101,16 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "fpga", "board_tests_designs"))
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--no-pnr", action="store_true")
+    ap.add_argument("--only", default="")
     a = ap.parse_args()
+    only = [x for x in a.only.split(",") if x]
     a.out = os.path.abspath(a.out)
     os.makedirs(a.out, exist_ok=True)
     work = tempfile.mkdtemp(prefix="bdes_")
     results = []
     for name, what, kind, top, files, spec, exp in tests(work):
+        if only and name not in only:
+            continue
         print("== " + name, flush=True)
         r = BL.build(name, what, kind, top, files, spec, exp, [], a.out, not a.no_pnr, a.seed, work)
         print("   ok: %s   %s LUT4  Fmax %s" % (r["sim_line"], r.get("lut4", "-"), r.get("fmax_mhz", "-")), flush=True)
