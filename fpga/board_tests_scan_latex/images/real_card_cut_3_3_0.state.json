@@ -137,7 +137,7 @@
      "name": "data_reg",
      "bits": 32,
      "value": 12345,
-     "live": false
+     "live": true
     }
    ]
   },
@@ -161,7 +161,7 @@
      "name": "data_reg",
      "bits": 32,
      "value": 65521,
-     "live": false
+     "live": true
     }
    ]
   },
@@ -233,7 +233,7 @@
      "name": "data_reg",
      "bits": 32,
      "value": 12345,
-     "live": false
+     "live": true
     }
    ]
   },
@@ -257,7 +257,7 @@
      "name": "data_reg",
      "bits": 32,
      "value": 65521,
-     "live": false
+     "live": true
     }
    ]
   },
@@ -435,5 +435,5 @@
   "c_main_const_r_1"
  ],
  "note": "values are exact; 'live' is a reading of the RTL (data counts as live when its own pending/have flag is set) and does not change the bits",
- "packed": "2026-10-13T13:16:21"
+ "packed": "2026-10-13T13:35:35"
 }

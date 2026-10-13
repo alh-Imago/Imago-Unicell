@@ -17,5 +17,8 @@ Images carry the design name and a fingerprint of the register layout; a differe
 ## The state file
 `python3 scan_image.py show state.json` prints it in words. It carries the design name, formula, layout fingerprint, cut and every register by name; restoring rebuilds the bits by name and refuses, listing the differences, if the design does not match. One file is all that needs to travel (the card needs the matching bitstream, which names the same design).
 
+## From the VM
+`images/vm_after_3_results_10_ticks.state.json` is a state made by the VM (`tools/vm_state_bridge_v1.py from-vm`), not by a card: `python3 scan_card_host.py PORT --load scan_latex.fs --restore-only --in images/vm_after_3_results_10_ticks.state.json` should end at step 7, word 25408 = model.
+
 ## Scope
 Shown in simulation (real Verilog in iverilog, damage injected): cuts inside the multiply and the divide, round trips, swap sim to sim, foreign layout refused. Place and route: 2575 LUT4, 1601 flip-flops, Fmax estimate 110.8 MHz (not measured). NOT yet shown: any run on the real card, real-card to simulator swap, the VM (software) side.

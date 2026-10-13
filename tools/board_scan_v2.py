@@ -73,7 +73,9 @@ def build_files(work, cpb, tmo, mutant="none", formula=FORMULA, dname=NAME):
     top = "board_top_scan"
     open(os.path.join(work, top + ".v"), "w").write(top_text(cpb, tmo, mutant, nb, wname, dname))
     grid_files = sorted(os.path.join(g, f) for f in os.listdir(g) if f.endswith(".v") and f not in ("dsg_flex.v", "dsg_flex_fz.v"))
-    meta = dict(formula=formula, name=dname, scan_bits=nb, cells=info["cells_in_chain"], inputs=ins, output=outs[0], args=r.args)
+    meta = dict(formula=formula, name=dname, scan_bits=nb, cells=info["cells_in_chain"], inputs=ins, output=outs[0], args=r.args,
+                joins={("c_" + k.replace(".", "_")): {"A": "c_" + v["A"].replace(".", "_"), "B": "c_" + v["B"].replace(".", "_")} for k, v in json.load(open(os.path.join(g, "ASSEMBLY.json")))["adder_roles"].items()},
+                constants=["c_" + k.replace(".", "_") for k in json.load(open(os.path.join(g, "ASSEMBLY.json")))["constants"]])
     return top, [os.path.join(work, "board_uart_tx.v"), os.path.join(work, "board_uart_rx.v"), os.path.join(work, top + ".v")] + grid_files, g, meta
 
 
@@ -101,7 +103,7 @@ def main():
         shutil.copy(os.path.join(out, "scan_latex.cst"), os.path.join(work, "scan_latex.cst"))
         shutil.copy(os.path.join(g, "SCAN_MAP.json"), os.path.join(out, "SCAN_MAP.json"))
         meta["layout"] = layout_id(json.load(open(os.path.join(g, "SCAN_MAP.json"))))
-        json.dump(dict(name=a.name, formula=a.formula, z0=a.z0, step=a.step, layout=meta["layout"]), open(os.path.join(out, "design.json"), "w"), indent=1)
+        json.dump(dict(name=a.name, formula=a.formula, z0=a.z0, step=a.step, layout=meta["layout"], joins=meta["joins"], constants=meta["constants"]), open(os.path.join(out, "design.json"), "w"), indent=1)
         print("design: %s | %d cells in the chain, %d scan bits | inputs %s -> output %s" % (meta["formula"], meta["cells"], meta["scan_bits"], meta["inputs"], meta["output"]))
         if not a.no_pnr:
             r = m2.pnr_report(work, "scan_latex", top, files, a.seed, a.freq, pack_to=out, meta=meta.setdefault("build", {}))

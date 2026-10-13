@@ -3,5 +3,23 @@
  "formula": "y = (z^2 + 12345) \\bmod 65521",
  "z0": 50000,
  "step": "((z*z + 12345) & 0xFFFFFFFF) % 65521",
- "layout": "0c5bcecad2975ad5"
+ "layout": "0c5bcecad2975ad5",
+ "joins": {
+  "c_main__t1": {
+   "A": "c_main_rt0_dynq__t1_a___t1_0_1",
+   "B": "c_main_rt1_dynq__t1_b___t1_1_1"
+  },
+  "c_main__t2": {
+   "A": "c_main_rt3_const__t2_1___t2_1_1",
+   "B": "c_main_rt2__t1___t2_0_0"
+  },
+  "c_main_r": {
+   "A": "c_main_rt4__t2__r_0_0",
+   "B": "c_main_rt5_const_r_1__r_1_1"
+  }
+ },
+ "constants": [
+  "c_main_const__t2_1",
+  "c_main_const_r_1"
+ ]
 }

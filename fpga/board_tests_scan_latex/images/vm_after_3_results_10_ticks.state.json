@@ -1,0 +1,435 @@
+{
+ "format": "unicell-state-v1",
+ "design": "qcgmod1",
+ "formula": "y = (z^2 + 12345) \\bmod 65521",
+ "layout": "0c5bcecad2975ad5",
+ "session": 0,
+ "cut": null,
+ "made_by": "VM (FlexGrid)",
+ "made": null,
+ "total_bits": 678,
+ "stream_rule": "bit 0 = first bit shifted out = MSB of the last cell's vector; registers inside a cell come out in the listed order, each MSB first",
+ "closing": {
+  "word": 65327,
+  "has": 0,
+  "steps": 3,
+  "rest_hex": "000000000000000000",
+  "meaning": "the word waiting in the closing register after the grid; whether it is valid; steps taken when the run was stopped"
+ },
+ "cells": [
+  {
+   "cell": "c_main_dynq__t1_a",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_dynq__t1_b",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt0_dynq__t1_a___t1_0_0",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt1_dynq__t1_b___t1_1_0",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt3_const__t2_1___t2_1_0",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 1,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 12345,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt5_const_r_1__r_1_0",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 1,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 65521,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt0_dynq__t1_a___t1_0_1",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt1_dynq__t1_b___t1_1_1",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt3_const__t2_1___t2_1_1",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 1,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 12345,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt5_const_r_1__r_1_1",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 1,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 65521,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main__t1",
+   "type": "mul",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "pending_hi",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "out_buffer",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    },
+    {
+     "name": "hi_buffer",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt2__t1___t2_0_0",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main__t2",
+   "type": "adder",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 1,
+     "live": true
+    },
+    {
+     "name": "pending_c",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "carry_buffer",
+     "bits": 1,
+     "value": 0,
+     "live": false
+    },
+    {
+     "name": "out_buffer",
+     "bits": 32,
+     "value": 4267629274,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_rt4__t2__r_0_0",
+   "type": "ram",
+   "registers": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  },
+  {
+   "cell": "c_main_r",
+   "type": "div",
+   "registers": [
+    {
+     "name": "busy",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "pending",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "pending_r",
+     "bits": 1,
+     "value": 0,
+     "live": true
+    },
+    {
+     "name": "remaining",
+     "bits": 6,
+     "value": 0,
+     "live": false
+    },
+    {
+     "name": "d_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    },
+    {
+     "name": "r_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    },
+    {
+     "name": "q_reg",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    },
+    {
+     "name": "out_buffer",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    },
+    {
+     "name": "rem_buffer",
+     "bits": 32,
+     "value": 0,
+     "live": false
+    }
+   ]
+  }
+ ],
+ "constants_left_out": [
+  "c_main_const__t2_1",
+  "c_main_const_r_1"
+ ],
+ "note": "values are exact; 'live' is a reading of the RTL (data counts as live when its own pending/have flag is set) and does not change the bits",
+ "packed": "2026-10-13T13:41:35"
+}

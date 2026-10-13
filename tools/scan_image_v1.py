@@ -14,7 +14,7 @@ STREAM_BYTES = 240
 
 # data register -> the flag register that says it holds a word (None = not decided here). Only the cell types present in the LaTeX design are read; others stay null.
 LIVE_FLAG = {
-    "ram": {"data_reg": "have"},
+    "ram": {"data_reg": ("pending", "have")},      # flowing ram: valid_out = pending; HOLD ram: have (ram_cell_v4sa.v)
     "adder": {"out_buffer": "pending", "carry_buffer": "pending_c"},
     "mul": {"out_buffer": "pending", "hi_buffer": "pending_hi"},
     "div": {"out_buffer": "pending", "rem_buffer": "pending_r", "d_reg": "busy", "r_reg": "busy", "q_reg": "busy", "remaining": "busy"},
@@ -64,7 +64,8 @@ def pack(raw, scan_map, formula=None):
             live = None
             if c["type"] in LIVE_FLAG:
                 f = flags.get(r["name"])
-                live = (vals[f] != 0) if f in vals else (True if r["bits"] == 1 else None)
+                fl = f if isinstance(f, tuple) else (f,)
+                live = any(vals.get(x, 0) for x in fl) if any(x in vals for x in fl) else (True if r["bits"] == 1 else None)
             regs.append(dict(name=r["name"], bits=r["bits"], value=vals[r["name"]], live=live))
         cells.append(dict(cell=c["cell"], type=c["type"], registers=regs))
     tr = img[STREAM_BYTES:]
@@ -130,6 +131,12 @@ def load_any(path, scan_map):
     """Read either file kind; always return the raw image dict (a state file is unpacked by name against scan_map, and refused if it does not fit)."""
     d = json.load(open(path))
     return unpack(d, scan_map) if d.get("format") == FORMAT else d
+
+
+def load_state_or_raw(path, scan_map, design=None):
+    """Read either file kind and return a STATE dict (a raw image is packed against scan_map)."""
+    d = json.load(open(path))
+    return d if d.get("format") == FORMAT else pack(d, scan_map, (design or {}).get("formula"))
 
 
 def save_state(raw, scan_map, formula, path):
