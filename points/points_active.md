@@ -1216,5 +1216,9 @@ So the same ICM, built onto the standalone v4 shells and onto the trimmed carrie
 *What this closes:* the programme item "ICM targets std shells and the trimmed carrier equally, proven on the Tang Nano 20K" (flex/sub proven earlier, #1105-#1117; std shells #1126-#1127; carrier now), and the serial silence on these designs (#1129-#1137) was the reader, not the designs. Not done: a bridge between the std line/carrier and flex/sub; repeated runs for statistics (each design ran once with the Python reader); the save/load and mutability paths on the real card with the new reader; LED states (not reported).
 *Next.* The mid-flight save/load readout: a state frame with design name, session number, sequence, the saved words and a CRC-32, repeated so one lost frame does not matter; a PC-side checker that accepts only complete frames; first on a small design, then on the looped CORDIC captured part-way.
 
-Next entry: #1144.
+### #1144 (13 Oct) -- CORRECTION TO THE ENTRY REFERENCES IN #1143
+
+#1143 cited "flex/sub proven earlier, #1105-#1117; std shells #1126-#1127". The range #1105-#1117 was written without checking the ledger and is not verified, so do not rely on it. What the ledger shows: the std shells passed on the card in #1125 (generated ring) and #1126 (sum tree, seed 2), and again with the Python reader in #1140 (both, tree seed 1); the carriers passed in #1143; the save/load path ran on the card earlier in #1100 (sanity checks) and #1101 (the VM's step-300 save loaded into the card and run to the same word). The earlier flex/sub on-card proofs exist in the ledger, but I have not looked up their entry numbers here. The measured numbers in #1143 (LUT4 5191/5165/2109/2056, the 26 and 53 LUT4 differences, the matching lines and signatures) were checked against the result file and the folder JSON and stand.
+
+Next entry: #1145.
 
