@@ -6939,6 +6939,7 @@ specifically).
 <li>
 <p><code>board_serial_probe_v2.py</code> (ledger #1131): the probe with LED1 = card is transmitting, and a read of every other ttyUSB when silent -&gt; <code>fpga/board_serial_probe_v2/</code>.</p>
 </li>
+<li><code>serial_capture_v1.py</code> + <code>board_runner_v2.py</code> (ledger #1138): the Python raw serial reader (opened before the load) and a tool that gives a board-test folder a <code>run_all_v2.sh</code> using it, replacing the <code>stty</code>+<code>cat</code> reader that stalls on the Tang Nano 20K (#1137); see <code>hardware/tang_nano_20k/</code>.</li>
 </ul>
 <div class="partsub">Arria 10 programming procedure<span class="partsrc">hardware/Arria10_Programming_Procedure.md</span></div>
 <h1>Imago UniCell — Arria 10 GX660 Programming Procedure</h1>

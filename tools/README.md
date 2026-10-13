@@ -274,3 +274,4 @@ Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still n
 - `board_serial_probe_v1.py` (ledger #1130): cell-free bitstreams that stream CRC-32-framed lines, plus `check_probe.py`; measures the serial line to the PC by itself -> `fpga/board_serial_probe/`.
 
 - `board_serial_probe_v2.py` (ledger #1131): the probe with LED1 = card is transmitting, and a read of every other ttyUSB when silent -> `fpga/board_serial_probe_v2/`.
+- `serial_capture_v1.py` + `board_runner_v2.py` (ledger #1138): the Python raw serial reader (opened before the load) and a tool that gives a board-test folder a `run_all_v2.sh` using it, replacing the `stty`+`cat` reader that stalls on the Tang Nano 20K (#1137); see `hardware/tang_nano_20k/`.

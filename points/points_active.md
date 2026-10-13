@@ -1165,5 +1165,15 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Rule.* From now on a serial capture on this card is made with the Python raw reader (`watch_serial.py`), port opened BEFORE the load and kept open, with the arrival log; sequence numbers and CRCs judge the capture. Not yet done: switching the board-test runners to it and re-running the silent designs.
 
-Next entry: #1138.
+### #1138 (13 Oct) -- READER V2 FOR THE BOARD-TEST RUNNERS, AND A TANG NANO 20K FOLDER FOR OTHERS
+
+*Alan, 10:23: "yes" to switching the runners; and to save the tools and diagnosis in a specific Tang folder because others using the same card will find them useful; 10:24: the probe is open enough for any card on a serial link.* Done:
+- `tools/serial_capture_v1.py` (the #1133 watcher, shipped into run folders as `watch_serial.py`) and `tools/board_runner_v2.py`: for a folder with a `run_all.sh` it writes `run_all_v2.sh`, a clone with ONLY the reading changed: the port is opened by the Python reader before the load (watcher runs for `SECS`, default 12, while the loader runs), the capture becomes `raw/<name>.pre` and is used as `raw/<name>.bin`; if it is empty the existing retry steps run, now reading with the Python reader instead of `stty`+`cat`. `BOOTWAIT=` shortens the 20 s boot wait (for tests). Applied to `fpga/board_tests`, `board_tests_designs`, `board_tests_designs_carrier`, `board_tests_loops`; the old `run_all.sh` files are untouched. Test: `tests/vm/test_board_runner_v2_v1.py` (the converted script runs end to end against a fake loader and a pty that starts the design's own report line only after the "load"; the folder's `board_collect.py` returns PASS).
+- NOT converted yet (they use their own read path and were not touched): `run_mutability.sh` / `run_mutability2.sh` (`stty`+`cat`), `run_saveload.sh` (its host program `saveload_host_v2.py` opens the port after the load; whether it can stall like `cat` is not known), `board_groups_v1`, the Windows `run_all.bat`/`board_run.py` path (a different reader, not shown to stall).
+- New folder `hardware/tang_nano_20k/` (README with the finding, the table of measurements, the rules, the files, how another card can use the frame format; `serial_probe/` the bitstreams and scripts; `host_tools/` the watcher, the checker, the runner converter). The probe README in `fpga/board_serial_probe_v2/` now points to `run_probe_watch.sh` and says `run_probe.sh` stalls.
+- Claims in the README were checked against the logged runs: 3 direct-cable stty+cat runs stalled at 54 frames; the hub case gave 0 bytes and was not re-tested with the Python reader.
+
+*Next.* Alan re-runs the silent designs with `sudo ./run_all_v2.sh /dev/ttyUSB1` (std_tree4 seed 1 first, the two carriers), cold card, one design per power-up if the card drops out. Then convert the save/load path and build the mid-flight save/load readout on this reader.
+
+Next entry: #1139.
 
