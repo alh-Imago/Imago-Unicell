@@ -1201,5 +1201,20 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 #1141 says the std_gen_ring capture starts with 2705 bytes "in four chunks". The arrival log shows FIVE chunks (1020, 510, 510, 510, 155 = 2705 bytes); the byte total is right, the chunk count was wrong. Nothing else in #1141 depends on it.
 
-Next entry: #1143.
+### #1143 (13 Oct) -- BOTH CARRIER DESIGNS PASS ON THE CARD WITH THE PYTHON READER; THE FOUR ICM DESIGNS NOW AGREE LINE FOR LINE
+
+*Alan, 10:38 (board_results.txt time) / 10:49 (message), `sudo ./run_all_v2.sh /dev/ttyUSB1` in the unzipped board_tests_designs_carrier_v2 folder, cold card, two designs in one session, no replug.* carrier_gen_ring: PASS (47,204 bytes, 262 lines of this test). carrier_tree4: PASS (57,466 bytes, 265 lines of this test; the capture also holds the previous design's lines, filtered by name as in #1141). Both rc 0, both ports present, read on /dev/ttyUSB1, try 1, each opened once and never lost over 12 s.
+*Comparison with the simulation:* every field equal except `last=` (board 00020692 against simulated 00000E62, the known 129072 settle difference, #1141); signatures C72BDCFE (ring) and 7FEF5298 (tree).
+*The four designs side by side (all measured on this card):*
+| design | LUT4 | Fmax est. MHz | board line (ex `last=`) |
+|---|---|---|---|
+| std_gen_ring | 5191 | 120.7 | n=0015 n0=0014 st=3 sig=C72BDCFE |
+| carrier_gen_ring (trimmed carrier) | 5165 | 114.2 | the same line, character for character |
+| std_tree4 | 2109 | 124.8 | n=0006 sig=7FEF5298 (+ `last=0000061A`) |
+| carrier_tree4 (trimmed carrier) | 2056 | 125.9 | the same line, character for character |
+So the same ICM, built onto the standalone v4 shells and onto the trimmed carrier, gives the same results on the card, with a similar LUT count; the carrier ring uses 26 fewer LUT4 and the carrier tree 53 fewer (the LUT4 and Fmax numbers are from place and route reports in the result file; the Fmax values are nextpnr estimates, not measured on the card).
+*What this closes:* the programme item "ICM targets std shells and the trimmed carrier equally, proven on the Tang Nano 20K" (flex/sub proven earlier, #1105-#1117; std shells #1126-#1127; carrier now), and the serial silence on these designs (#1129-#1137) was the reader, not the designs. Not done: a bridge between the std line/carrier and flex/sub; repeated runs for statistics (each design ran once with the Python reader); the save/load and mutability paths on the real card with the new reader; LED states (not reported).
+*Next.* The mid-flight save/load readout: a state frame with design name, session number, sequence, the saved words and a CRC-32, repeated so one lost frame does not matter; a PC-side checker that accepts only complete frames; first on a small design, then on the looped CORDIC captured part-way.
+
+Next entry: #1144.
 
