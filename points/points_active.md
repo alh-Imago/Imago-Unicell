@@ -1342,5 +1342,11 @@ New `sub/verilog/flex_std_adapter_v1.v` (two stateless modules, no extra clock) 
 *Finding (mine, caught by the first run):* a std cell reads `ack_in` as an EVENT, not a level: a flex ack (high whenever the flex cell is empty) wired straight to it never lets the std cell fire. The adapter therefore sends `std_fire & flex_ack`, a one-clock pulse in the clock the flex cell takes the word. The other direction needs the receiving std cell's `ready_out` (arrived = flex valid & ready, flex ack = ready).
 *Scope.* Cells only, hand-wired in a testbench -- exactly as #1113 was for sub. NOT done (stage 2, next): the generated std / carrier grids (`standalone_grid_v1`, `carrier_grid_v3`) do not export `ready_out` or `ack_out` at their outer faces (they leave `ready_out()` unconnected and export only arrived / ack_in / data_in / fire / data_out), so the entry adapter cannot be attached to a generated grid yet; the mixed assembler (`flexsub_mixed_v1`) knows flex and sub only; the std line has four cores (ram, adder, branch, accumulator). The adapters are not on the card.
 
-Next entry: #1161.
+### #1161 (13 Oct) -- A STATE MADE BY THE VM, RESTORED ON THE REAL CARD: PASS (cross-reference #1159)
+
+Alan ran `scan_card_host.py /dev/ttyUSB1 --load scan_latex.fs --restore-only --in vm_after_3_results_10_ticks.state.json` (the file made by `vm_state_bridge_v1.py from-vm`: the VM after 3 results + 10 ticks, closing word 65327, multiplier mid-calculation). Fresh bitstream load, file written through the CRC-checked chunks and read back, run on to step 7: word 25408 = model 25408, PASS, 0 retries.
+So the same state file now goes real card -> simulator, simulator -> real card, real card -> VM, and VM -> real card (this entry), each time continuing to the model's answer.
+*Scope.* One VM-made file, one cut (3 results + 10 ticks); same RTL design on card and simulator; one card; the VM leg covers this one LaTeX design. Not run: VM files at other cuts on the card, a second board.
+
+Next entry: #1162.
 
