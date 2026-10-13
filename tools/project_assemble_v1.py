@@ -1500,6 +1500,8 @@ def main():
     ap.add_argument("--ring-steps", type=int, default=None, metavar="N",
                      help="ledger #1110 (with --allow-rings): the ring's CONTROL, required for any design with a ring (Alan: a ring without one runs away). The generated design counts the results the host takes, stops after N (the Nth result is held, nothing is fed back) "
                           "and raises `ring_stopped`; a pulse on `ring_release` lets it run N more. N = 1..65535.")
+    ap.add_argument("--tap-io", default="result", metavar="NAME",
+                     help="ledger #1124 (-s std / -s carrier): the io_name of the cell the grid's tap observes (default `result`).")
     ap.add_argument("--nowidelut", action="store_true",
                      help="Gowin synthesis (-s flex / -s sub, step-1 chains and --icm): FORCE `synth_gowin -nowidelut`. This is already the DEFAULT for the Gowin generators (ledger #951 / Alan's "
                           "ruling after #950: smaller in every cell measured, ~3x smaller and ~3x faster for the LUT multiplier); the card's MAN (synthesis.nowidelut) decides the default, and "
@@ -1533,7 +1535,7 @@ def main():
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import std_icm_generate_v1 as sig
         try:
-            r = sig.generate(args.icm, args.output, family=args.family, top=args.top, rings=args.allow_rings, ring_steps=args.ring_steps)
+            r = sig.generate(args.icm, args.output, family=args.family, top=args.top, rings=args.allow_rings, ring_steps=args.ring_steps, result_io=args.tap_io)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1

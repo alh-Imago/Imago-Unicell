@@ -1,0 +1,31 @@
+{
+ "name": "std_gen_ring",
+ "what": "looped CORDIC ring on standalone shells with the ring control GENERATED from the ICM (offset 8, reference 12): exactly 20 results, quiet, one release gives one more",
+ "expected": [
+  833,
+  4796,
+  4294961805,
+  7270,
+  4294964279,
+  4294962790,
+  8255,
+  4294965264,
+  4294963775,
+  4294962286,
+  7751,
+  4294964760,
+  4294963271,
+  4294961782,
+  7247,
+  4294964256,
+  4294962767,
+  8232,
+  4294965241,
+  4294963752,
+  4294962263
+ ],
+ "sim_line": "UCT std_gen_ring res=P n=0015 e=0015 bad=0000 to=0 n0=0014 st=3 last=00000E62 sig=C72BDCFE w=00000341,000012BC,FFFFEA8D,00001C66,FFFFF437,FFFFEE66,0000203F,FFFFF810",
+ "fmax_mhz": 120.7,
+ "lut4": 5191,
+ "dff": 3329
+}

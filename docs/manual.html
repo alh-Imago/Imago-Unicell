@@ -6923,7 +6923,12 @@ specifically).
 <h2><code>nor_adder_3d_v1.py</code> -- the NOR-built adder in a six-neighbour grid (VM only)</h2>
 <p><code>python3 tools/nor_adder_3d_v1.py --measure</code> searches layouts of the same adder in <code>nano/experimental_3d_nor_v2.py</code> (gate and shift cells on a six-face grid), checks the best against real addition and writes <code>docs/measurements/nor_adder_3d_v1.json</code>; <code>--check</code> fails if the file is out of date. Tests: <code>tests/vm/test_nor_adder_3d_v1.py</code>. Thought experiment: no RTL.</p>
 <ul>
-<li><code>std_icm_generate_v1.py</code> (ledger #1123): ICM -&gt; standard line. <code>project_assemble_v1.py -s std --icm F [--allow-rings --ring-steps N]</code> (standalone v4 shells) or <code>-s carrier</code> (VIXeN trimmed to the cores used). Ring control comes from <code>nano/std_ring_control_v1.py</code>; <code>GRID.json</code> carries the io map.</li>
+<li>
+<p><code>std_icm_generate_v1.py</code> (ledger #1123): ICM -&gt; standard line. <code>project_assemble_v1.py -s std --icm F [--allow-rings --ring-steps N]</code> (standalone v4 shells) or <code>-s carrier</code> (VIXeN trimmed to the cores used). Ring control comes from <code>nano/std_ring_control_v1.py</code>; <code>GRID.json</code> carries the io map.</p>
+</li>
+<li>
+<p><code>board_designs_v1.py</code> (ledger #1124): self-checking card bitstreams of designs built by <code>-s std</code> (4-input sum tree; looped CORDIC with generated ring control) -&gt; <code>fpga/board_tests_designs/</code>.</p>
+</li>
 </ul>
 <div class="partsub">Arria 10 programming procedure<span class="partsrc">hardware/Arria10_Programming_Procedure.md</span></div>
 <h1>Imago UniCell — Arria 10 GX660 Programming Procedure</h1>

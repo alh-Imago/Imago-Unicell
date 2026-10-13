@@ -1,0 +1,319 @@
+{
+ "format_version": "icm-vix-v1",
+ "description": "Ledger #1124: the 4-lane reduction (sum) tree of #741 with a real EXIT cell: the last adder passes its sum east into a flowing ram named `output`, so the sum can be observed on any family (the tree's own last adder had no outlet). Same lanes and spine.",
+ "header": {
+  "cores_used": [
+   "ram",
+   "adder"
+  ],
+  "cell_count": 13
+ },
+ "patterns": {
+  "lane": {
+   "cells": [
+    {
+     "cell_id": "in",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "out",
+     "rel_row": 0,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    }
+   ]
+  },
+  "spine_first": {
+   "cells": [
+    {
+     "cell_id": "relay",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 0
+     }
+    }
+   ]
+  },
+  "spine_middle": {
+   "cells": [
+    {
+     "cell_id": "add",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "W"
+      ],
+      "downstream_mask": [
+       "S"
+      ]
+     }
+    }
+   ]
+  },
+  "spine_last": {
+   "cells": [
+    {
+     "cell_id": "add",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "N",
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ]
+     }
+    }
+   ]
+  },
+  "exit": {
+   "cells": [
+    {
+     "cell_id": "exit_c0",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "fixed_mode": 1
+     }
+    }
+   ]
+  }
+ },
+ "design_map": {
+  "placements": [
+   {
+    "instance": "lane_0",
+    "pattern": "lane",
+    "at": [
+     0,
+     0
+    ],
+    "overrides": {
+     "in": {
+      "io_name": "input_0"
+     }
+    }
+   },
+   {
+    "instance": "lane_1",
+    "pattern": "lane",
+    "at": [
+     1,
+     0
+    ],
+    "overrides": {
+     "in": {
+      "io_name": "input_1"
+     }
+    }
+   },
+   {
+    "instance": "lane_2",
+    "pattern": "lane",
+    "at": [
+     2,
+     0
+    ],
+    "overrides": {
+     "in": {
+      "io_name": "input_2"
+     }
+    }
+   },
+   {
+    "instance": "lane_3",
+    "pattern": "lane",
+    "at": [
+     3,
+     0
+    ],
+    "overrides": {
+     "in": {
+      "io_name": "input_3"
+     }
+    }
+   },
+   {
+    "instance": "spine_0",
+    "pattern": "spine_first",
+    "at": [
+     0,
+     2
+    ]
+   },
+   {
+    "instance": "spine_1",
+    "pattern": "spine_middle",
+    "at": [
+     1,
+     2
+    ]
+   },
+   {
+    "instance": "spine_2",
+    "pattern": "spine_middle",
+    "at": [
+     2,
+     2
+    ]
+   },
+   {
+    "instance": "spine_3",
+    "pattern": "spine_last",
+    "at": [
+     3,
+     2
+    ],
+    "overrides": {}
+   },
+   {
+    "instance": "exit",
+    "pattern": "exit",
+    "at": [
+     3,
+     3
+    ],
+    "overrides": {
+     "exit_c0": {
+      "io_name": "output"
+     }
+    }
+   }
+  ],
+  "connections": [
+   {
+    "from": [
+     "lane_0",
+     0,
+     1,
+     "E"
+    ],
+    "to": [
+     "spine_0",
+     0,
+     0,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "lane_1",
+     0,
+     1,
+     "E"
+    ],
+    "to": [
+     "spine_1",
+     0,
+     0,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "lane_2",
+     0,
+     1,
+     "E"
+    ],
+    "to": [
+     "spine_2",
+     0,
+     0,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "lane_3",
+     0,
+     1,
+     "E"
+    ],
+    "to": [
+     "spine_3",
+     0,
+     0,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "spine_0",
+     0,
+     0,
+     "S"
+    ],
+    "to": [
+     "spine_1",
+     0,
+     0,
+     "N"
+    ]
+   },
+   {
+    "from": [
+     "spine_1",
+     0,
+     0,
+     "S"
+    ],
+    "to": [
+     "spine_2",
+     0,
+     0,
+     "N"
+    ]
+   },
+   {
+    "from": [
+     "spine_2",
+     0,
+     0,
+     "S"
+    ],
+    "to": [
+     "spine_3",
+     0,
+     0,
+     "N"
+    ]
+   }
+  ]
+ }
+}

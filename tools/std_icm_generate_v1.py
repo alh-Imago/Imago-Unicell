@@ -31,6 +31,9 @@ def generate(icm, out, family="std", top=None, rings=False, ring_steps=None, res
     bad = sorted({r.core for r in recs} - set(KEEP_NAME))
     if bad:
         raise ValueError("the standard line has no grid shell for core(s): %s (supported: %s)" % (", ".join(bad), ", ".join(sorted(KEEP_NAME))))
+    for r in recs:
+        if r.core == "adder":
+            r.core_config["join_mode"] = 1          # the ICM's adder is a true join (as in the flex family); the standard cell needs the bit
     info = None
     ring = has_ring(recs)
     if ring and not rings:
