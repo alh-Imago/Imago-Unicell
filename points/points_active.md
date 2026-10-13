@@ -1113,5 +1113,11 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Next, cheapest first.* (1) v2 with the LED1 observation: LED1 toggling + 0 bytes = the card sends and the USB/bridge/PC path drops it; LED1 steady = the card does not send. (2) Plug the card's USB straight into a motherboard port (the log shows it behind a hub, `3-8.1`) with a short, good cable, and repeat. (3) Only if both fail, treat the card's own USB bridge as suspect.
 
-Next entry: #1132.
+### #1132 (13 Oct) -- PROBE v2 ALSO SILENT ON BOTH PORTS (LED1 state not yet reported)
+
+*Alan, 09:13, `sudo ./run_probe.sh /dev/ttyUSB1`, the #1131 probe v2.* Both variants: 0 bytes on /dev/ttyUSB1 and 0 bytes on /dev/ttyUSB0 (read for 6 s after the 20 s on the named port); loader complete (rc 0); the kernel log shows the usual disconnect/re-attach about 1.7 s after the load (only the first interface, ttyUSB0, appears in the saved last three lines). The LED1 observation (card transmitting or not) was not part of the report, so the card-side question is still open.
+
+*Standing evidence.* The same hardware and script path delivered full reports at 04:21 (4 designs), 04:53 (std_gen_ring, twice) and 05:04 (std_tree4 seed 2) and nothing at 04:53 (std_tree4 seed 1), 05:39 (two carrier designs), 09:05 and 09:13 (cell-free probes, v1 and v2). The PC was restarted between 05:04 and 09:05 (kernel uptime 141 s at 09:05). Not tried: a motherboard USB port without the hub, another cable, a manual read with the port opened before the load, `dmesg` and `ls -l /dev/ttyUSB*` right after a load.
+
+Next entry: #1133.
 
