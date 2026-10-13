@@ -1175,5 +1175,11 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Next.* Alan re-runs the silent designs with `sudo ./run_all_v2.sh /dev/ttyUSB1` (std_tree4 seed 1 first, the two carriers), cold card, one design per power-up if the card drops out. Then convert the save/load path and build the mid-flight save/load readout on this reader.
 
-Next entry: #1139.
+### #1139 (13 Oct) -- THE REMAINING cat-BASED RUNNERS CONVERTED (cross-references #1138)
+
+*Alan, 10:27: convert the rest so further testing can continue.* `tools/board_runner_v2.py` now also writes `run_one_v2.sh` (fpga/board_tests, board_tests_designs, board_tests_designs_carrier, board_tests_loops), `run_groups_v2.sh` (fpga/board_tests) and `run_mutability_v2.sh` (fpga/board_tests_mutability; self mode only). Each is a clone with only the reading replaced: the Python reader (`watch_serial.py`) is started on the serial port before the load and read after it; originals untouched. Tests added to `tests/vm/test_board_runner_v2_v1.py` (5 pass): converted scripts contain no `cat` read and parse with `sh -n`; `run_one_v2.sh` and `run_mutability_v2.sh self` run end to end against a fake loader and a pty that prints only after the "load"; `run_groups_v2.sh` is checked for syntax and replaced lines only (needs the groups bitstreams, not built here), so it has NOT been run end to end.
+*Not converted, deliberately:* `saveload_host_v2.py`, `mutability_host.py`, `mutability2_host.py` and their run scripts. They do not use `cat`: they open the port after the load and use their own raw read loop (pyserial, or termios + select + os.read), and the cards answer only commands. That is the same kind of reader as the one that worked, but it has not been run against the stall case, so the save/load path is "not shown to stall", not "proven". `run_diag.sh` (old diagnostic) and the Windows scripts also unchanged.
+*Next.* Alan runs `run_all_v2.sh` for std_tree4 seed 1 and the carriers; then a save/load run with `run_saveload.sh` to see the host reader behave on the real card; then the mid-flight CRC-framed readout.
+
+Next entry: #1140.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""watch_serial.py -- ledger #1133: open the card's serial port BEFORE the bitstream is loaded, keep re-opening it when the USB device vanishes and returns (the load makes it do that), and log WHEN every chunk of bytes arrives.
+"""serial_capture_v1.py (shipped into run folders as watch_serial.py) -- ledger #1133/#1138: open the card's serial port BEFORE the bitstream is loaded, keep re-opening it when the USB device vanishes and returns (the load makes it do that), and log WHEN every chunk of bytes arrives.
   python3 watch_serial.py /dev/ttyUSB1 out.bin SECONDS      -> writes out.bin (all bytes) and out.bin.log (time since start, chunk size)"""
 import os, select, sys, termios, time
 port, out, secs = sys.argv[1], sys.argv[2], float(sys.argv[3])

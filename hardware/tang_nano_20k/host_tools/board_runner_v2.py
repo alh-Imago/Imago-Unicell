@@ -44,18 +44,79 @@ def convert(txt):
     return head + txt.split("\n", 1)[1]
 
 
+ONE_LOAD = 'openFPGALoader -b tangnano20k "$1.fs" || exit 1\n'
+ONE_READ = 'sleep 3\nstty -F "$PORT" 115200 raw -echo\ntimeout 6 cat "$PORT"\n'
+ONE_LOAD_NEW = ('# reader v2 (#1138): open the serial port BEFORE the load and keep it open\n'
+                'OUT=$(mktemp); python3 watch_serial.py "$PORT" "$OUT" ${SECS:-12} > /dev/null 2>&1 &\nWPID=$!\nsleep 1\n'
+                'openFPGALoader -b tangnano20k "$1.fs" || { kill $WPID 2>/dev/null; rm -f "$OUT" "$OUT.log"; exit 1; }\n')
+ONE_READ_NEW = 'wait $WPID\ncat "$OUT"; rm -f "$OUT" "$OUT.log"\n'
+
+
+def convert_one(txt):
+    if txt.count(ONE_LOAD) != 1 or txt.count(ONE_READ) != 1:
+        raise SystemExit("run_one.sh does not have the expected lines")
+    txt = txt.replace(ONE_LOAD, ONE_LOAD_NEW).replace(ONE_READ, ONE_READ_NEW)
+    return "#!/bin/sh\n# run_one_v2.sh -- ledger #1138: clone of run_one.sh, serial read by watch_serial.py opened BEFORE the load.\n" + txt.split("\n", 1)[1]
+
+
+G_LOAD = '    openFPGALoader -b tangnano20k "groups/group_$G.fs" > "raw/group_$G.loader.txt" 2>&1; rc=$?\n    sleep 3; wait_ports "$1"; sleep 1\n'
+G_LOAD_NEW = ('    PRE=${1:-/dev/ttyUSB1}; rm -f "raw/group_$G.pre" "raw/group_$G.pre.log"\n'
+              '    python3 watch_serial.py "$PRE" "raw/group_$G.pre" ${SECS:-26} > /dev/null 2>&1 &\n    WPID=$!\n    sleep 1\n'
+              '    openFPGALoader -b tangnano20k "groups/group_$G.fs" > "raw/group_$G.loader.txt" 2>&1; rc=$?\n'
+              '    wait $WPID; sleep 1\n')
+G_READ = ('    : > "raw/group_$G.bin"\n    if [ -n "$P" ]; then\n'
+          '      stty -F "$P" 115200 raw -echo -hupcl clocal -crtscts 2>/dev/null\n'
+          '      timeout 16 cat "$P" > "raw/group_$G.bin" 2>/dev/null\n    fi\n')
+G_READ_NEW = '    cp "raw/group_$G.pre" "raw/group_$G.bin" 2>/dev/null || : > "raw/group_$G.bin"\n'
+
+
+def convert_groups(txt):
+    if txt.count(G_LOAD) != 1 or txt.count(G_READ) != 1:
+        raise SystemExit("run_groups.sh does not have the expected lines")
+    txt = txt.replace(G_LOAD, G_LOAD_NEW).replace(G_READ, G_READ_NEW)
+    txt = txt.replace("sleep 20\n", "sleep ${BOOTWAIT:-20}\n")
+    return "#!/bin/sh\n# run_groups_v2.sh -- ledger #1138: clone of run_groups.sh, serial read by watch_serial.py opened BEFORE the load.\n" + txt.split("\n", 1)[1]
+
+
+M_LOAD = 'openFPGALoader -b tangnano20k "$f" || { echo "load failed"; exit 1; }\necho "loaded $f; waiting 4 s for the board and its serial port to settle"; sleep 4\n'
+M_LOAD_NEW = ('# reader v2 (#1138): in self mode the serial port is opened BEFORE the load (host mode talks through mutability_host.py, unchanged)\n'
+              'if [ "$mode" = self ]; then\n  PRE=${2:-/dev/ttyUSB1}; OUT=$(mktemp); python3 watch_serial.py "$PRE" "$OUT" 14 > /dev/null 2>&1 &\n  WPID=$!; sleep 1\nfi\n'
+              'openFPGALoader -b tangnano20k "$f" || { echo "load failed"; [ -n "$WPID" ] && kill $WPID 2>/dev/null; exit 1; }\n'
+              'echo "loaded $f; waiting 4 s for the board and its serial port to settle"; sleep 4\n')
+M_READ = '  stty -F "$P" 115200 raw -echo -hupcl clocal -crtscts\n  timeout 7 cat "$P" | tr -d \'\\r\' | head -3\n'
+M_READ_NEW = '  wait $WPID\n  tr -d \'\\r\' < "$OUT" | grep -a "^UCM" | head -3; rm -f "$OUT" "$OUT.log"\n'
+
+
+def convert_mutability(txt):
+    if txt.count(M_LOAD) != 1 or txt.count(M_READ) != 1:
+        raise SystemExit("run_mutability.sh does not have the expected lines")
+    txt = txt.replace(M_LOAD, M_LOAD_NEW).replace(M_READ, M_READ_NEW)
+    return "#!/bin/sh\n# run_mutability_v2.sh -- ledger #1138: clone of run_mutability.sh, self mode reads with watch_serial.py opened BEFORE the load.\n" + txt.split("\n", 1)[1]
+
+
+CONVERTERS = (("run_all.sh", "run_all_v2.sh", None), ("run_one.sh", "run_one_v2.sh", "convert_one"),
+              ("run_groups.sh", "run_groups_v2.sh", "convert_groups"), ("run_mutability.sh", "run_mutability_v2.sh", "convert_mutability"))
+
+
 def main():
     dirs = sys.argv[1:]
     if not dirs:
         raise SystemExit(__doc__)
     for d in dirs:
-        src = os.path.join(d, "run_all.sh")
-        if not os.path.exists(src):
-            print("skip (no run_all.sh):", d); continue
-        out = os.path.join(d, "run_all_v2.sh")
-        open(out, "w").write(convert(open(src).read())); os.chmod(out, 0o755)
-        shutil.copy(os.path.join(HERE, "serial_capture_v1.py"), os.path.join(d, "watch_serial.py"))
-        print("wrote", out, "+ watch_serial.py")
+        done = []
+        for src_name, out_name, fn in CONVERTERS:
+            src = os.path.join(d, src_name)
+            if not os.path.exists(src):
+                continue
+            conv = convert if fn is None else globals()[fn]
+            out = os.path.join(d, out_name)
+            open(out, "w").write(conv(open(src).read())); os.chmod(out, 0o755)
+            done.append(out_name)
+        if done:
+            shutil.copy(os.path.join(HERE, "serial_capture_v1.py"), os.path.join(d, "watch_serial.py"))
+            print("wrote", ", ".join(done), "+ watch_serial.py in", d)
+        else:
+            print("skip (no known run script):", d)
 
 
 if __name__ == "__main__":
