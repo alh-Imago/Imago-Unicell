@@ -270,3 +270,5 @@ Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still n
 - `board_designs_v1.py` (ledger #1124): self-checking card bitstreams of designs built by `-s std` (4-input sum tree; looped CORDIC with generated ring control) -> `fpga/board_tests_designs/`.
 
 - `board_designs_v1.py --family carrier` (ledger #1127): the same two designs on the trimmed VIXeN carrier -> `fpga/board_tests_designs_carrier/`. `std_icm_generate_v1.py` also normalises DSL output (`normalise`) and makes the observed cell a hold ram (`observe`).
+
+- `board_serial_probe_v1.py` (ledger #1130): cell-free bitstreams that stream CRC-32-framed lines, plus `check_probe.py`; measures the serial line to the PC by itself -> `fpga/board_serial_probe/`.

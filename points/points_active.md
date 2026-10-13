@@ -1091,5 +1091,17 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Rule for reading results until this is understood:* pass LEDs (0 blink, 1 + 3 on, 2 off) after a load count as the logic PASS, recorded as 'LED pass, serial silent', never as a full PASS (no checksum compared).
 
-Next entry: #1130.
+### #1130 (13 Oct) -- A SERIAL PROBE: MEASURE THE LINE TO THE PC BY ITSELF (CRC-32 FRAMES)
+
+*Alan, 08:48.* The serial line is the only contact with the card and is vital for confirming a save/load cycle on something more complex than the CORDIC, captured mid-flight; it must not be able to corrupt the data unnoticed.
+
+*What is wrong with the present readout.* The report line carries a rotate-and-XOR checksum (`sig=`), which is weak, and a silent line (0 bytes) cannot be told from a design failure except by the LEDs (#1129). The transmitter itself (`board_uart_tx`, 8N1, idle high, 234 clocks per bit at 27 MHz) reads correctly; I found no fault in it by inspection, and no explanation yet for the silent runs.
+
+*What was built.* `tools/board_serial_probe_v1.py` -> `fpga/board_serial_probe/`: two bitstreams with no cells (788 / 809 LUT4, timing met) that send for ever the framed line `UCP seq=XXXX d=W0..W7 crc=CCCCCCCC` (16-bit sequence, eight mixed 32-bit words, standard CRC-32 of the text). `serial_probe_fast` sends frames back to back (hardest for the PC side), `serial_probe_gap` leaves ~10 ms. `run_probe.sh` loads each ONCE (no reload on silence: a reload hides a dropout) and `check_probe.py` reports frames valid / corrupt, missed frames (sequence gaps) and, for corrupt frames, how many bytes differ from the frame that should have arrived; verdict CLEAN / DEGRADED / SILENT.
+
+*Measured here.* In simulation the first two frames the Verilog sends are byte-for-byte the frames the host computes (two independent implementations of the mix and the CRC). `tests/vm/test_serial_probe_v1.py` (4 tests): a clean capture is CLEAN; one flipped bit = one corrupt frame with one differing byte; two lost frames are counted as 2 missed; a dropped byte corrupts a frame. Not yet run on the card.
+
+*What it will and will not tell us.* It separates the serial path from any design: if the probe is CLEAN on a run where a design was silent, the line is fine and the design's own printing is suspect; if the probe itself drops or corrupts bytes, the line is the cause and its rate and kind (loss versus bit errors) are measured. For a save/load check the next step, once the line's quality is known, is to send the captured state in the same kind of CRC-framed form with a repeat, so corruption is detected and the frame is simply taken again.
+
+Next entry: #1131.
 
