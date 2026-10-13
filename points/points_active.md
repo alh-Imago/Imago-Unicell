@@ -1287,5 +1287,11 @@ Cuts 3:3:0, 4:12:0, 5:30:0, 3:0:0 -- every cut had the word inside the grid; A (
 *Scope.* Same card, same bitstream, reset not power-cycle; no `--damage` run on the card; the stage of the pipeline (multiply / divide) at each cut is not reported by the host, so "mid-multiply / mid-divide" is shown in simulation (#1151), not claimed from this card output. Four cuts; zero retries describes this cable and run only. Still open: power-off restore, real-card to simulator swap (`tools/scan_swap_v1.py`), the VM leg, the card-side layout check.
 This gives the comparison doc `UNICELL_VS_PURE.md` row 4 (freeze/save/reload) hardware evidence for a design a user wrote as LaTeX only; the doc itself is not yet edited.
 
-Next entry: #1153.
+### #1153 (13 Oct) -- DAMAGE RUN ON THE REAL CARD, LATEX DESIGN: ALL PASS (cross-reference #1152, #1146)
+
+Alan ran `sudo ./run_scan.sh --damage` (no port given, so the script printed "serial port: --damage" but the host used its default /dev/ttyUSB1 and the default bitstream scan_latex.fs; harmless here, but the run script treats a lone `--damage` as the port -- a wart, not fixed).
+The host damaged its own traffic 3 times (all in the first cut): a dump chunk lost a byte (no valid line, retried), a written chunk was corrupted (the card refused it with `E`, retried), a written chunk lost a byte (the card's byte timeout answered `T`, retried). Retries: dump 1, write 2, capture 0, simple 0 -- every damaged frame was caught and repeated; none got through. All four cuts PASS (25408, 396, 38119, 25408), A = B = model, identical end state. The retry counters printed on later cuts are running totals, not new damage.
+*Scope.* Wire damage injected by the host on the PC side of the cable: it exercises the card's CRC check, timeout and the host's retry, but a flipped bit in a received line is not injected on a real serial port (known since #1146; shown in simulation). Three damage events in one run is a small sample. Still open: power-off restore, real-card to simulator swap, VM leg, card-side layout check.
+
+Next entry: #1154.
 
