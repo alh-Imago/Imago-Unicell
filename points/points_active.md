@@ -1005,4 +1005,20 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Plan for next session (proposed, nothing built).* (1) Fresh replug, then ONLY relay_chain: confirm the control prints. (2) Fresh replug, then ONLY one loop bitstream, read 10 s. (3) If silent: build a variant of the same wrapper that prints a fixed "boot" line at power-up before any test result and uses a LED pattern unlike relay_chain's, so that "the bitstream is running and the UART works" is settled separately from "the loop passed". (4) Only then compare the loop lines (words, checksums, cycle counts) with the simulated ones.
 
-Next entry: #1122.
+## #1122 (13 Oct 2026) -- ALL FOUR LOOP BITSTREAMS PASS ON THE REAL TANG NANO 20K, WITH THE RESULT LINES CAPTURED (reverses the doubt of #1121)
+
+*Alan, 04:21, `sudo ./run_all.sh` (the v3 package, after the card had cooled).* SUMMARY: 4 of 4 passed. Each test printed its line over the serial port (hundreds of repeats, 208-265 lines each). Board lines against the simulated lines:
+- `flex_ring`: n=0028 e=0028 bad=0000 n0=0014 st=3, **sig=70632AAB**, first eight words 341, 12BC, FFFFEA8D, 1C66, FFFFF437, FFFFEE66, 203F, FFFFF810: identical to the simulation.
+- `sub_ring`: same words, **sig=70632AAB** (the same checksum as flex_ring: the two families give the same 40 results), n=0028.
+- `std_ring`: n=0015 (20 then one more), **sig=C72BDCFE**, same first words, identical to the simulation.
+- `mixed_pipe`: n=0008, **sig=0000CC60**, last=00000040, identical to the simulation in every field including the cycle count.
+
+*Cycle counts.* The `last=` field differs for the three loop tests only because the board's quiet period before the release is SETTLE = 131072 clocks and the simulation's is 2000: the differences are 0x206FF-0xECF, 0x2068A-0xE5A and 0x20655-0xE25, each exactly 129072 = 131072-2000. So the cycle counts agree with the simulation to the clock once that known difference is removed (the card runs at 27 MHz, so the whole run is 4.9 ms).
+
+*What this proves.* The ring control for flex (#1110), sub (#1111) and the standard line on standalone shells (#1116/#1117), the bridge (#1112/#1113) and the mixed assembly (#1114) all run correctly on silicon: exactly 20 results on the model, a stop with the flag set, a release, and the right number of further results, with checksums equal to the simulation's.
+
+*The earlier failures (#1119-#1121).* Alan's diagnosis: the card had been on and running all day and overheated; after it cooled everything printed. That fits the evidence (the proven control also went silent at the end, then printed again; no bitstream changed between the failing and the passing run) but I did not measure temperature, so it is his diagnosis, not a measurement. The parser fault (#1119) was real and mine and is fixed. The #1120 LED claim stays withdrawn as proof; this entry replaces it with the captured lines. Operating rule from Alan: keep the board powered off between test sessions.
+
+*Honest scope.* 27 MHz only; 20 + 20 or 21 results checked, not hundreds; the carrier version of the standard-line loop has no bitstream; whether run_all.sh's new try-every-port reading was needed is unknown (the port was /dev/ttyUSB1 in the control).
+
+Next entry: #1123.
