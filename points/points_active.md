@@ -1075,5 +1075,13 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Honest scope.* The carrier bitstreams are simulated and timing-closed only. The carrier is not trimmed per core *version* (still the cores' union), nor are unused carrier ports removed beyond the core selection. Mixing the standard line with flex/sub (the bridge adapter) is the next piece for the mixed tests.
 
-Next entry: #1128.
+### #1128 (13 Oct) -- CARRIER BITSTREAMS ON THE CARD: BOTH SILENT (cause not known; card state not separated from the designs)
+
+*Alan, 05:39, `sudo ./run_all.sh /dev/ttyUSB1`, the #1127 carrier package.* `carrier_gen_ring` and `carrier_tree4`: NOREPORT, 0 bytes on either port, three loads each (the script reloads up to three times when it hears nothing: that is the lights going off and on, not a double program). The loader reports a complete load (100%, rc 0) every time. The simulated lines and gate-level behaviour of the standalone versions are right; place-and-route of `carrier_tree4` reports no warnings or loops (log re-run, seed 1).
+
+*What the record shows so far.* Silent: std_tree4 seed 1 (twice, #1125), carrier_tree4, carrier_gen_ring. Passing: std_gen_ring (twice), std_tree4 seed 2 (cold, alone). The card had been on about 35 minutes with many loads before this run (heat and the loads-in-a-row dropout #1024 are both on the table). No bitstream has yet been run on the same card state as a known-good control, so I cannot say the carrier designs are at fault, nor that they are not.
+
+*Next.* One cold start; load the known-good `std_gen_ring` first (control), then ONE carrier test alone with a single load. Control passes and carrier silent = the carrier build is the cause; control silent = the card state.
+
+Next entry: #1129.
 
