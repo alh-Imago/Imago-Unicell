@@ -1318,5 +1318,11 @@ Built `tools/scan_image_v1.py`: `pack` (raw image + SCAN_MAP -> one JSON with de
 *Measured:* sim capture -> state file -> sim restore PASS (word 396 = model); the real-card state file restored in the simulator PASS (25408 = model); `tests/vm/test_scan_latex_v1.py` + `test_scan_image_v1.py` 10 pass (67 s).
 *Scope.* The new capture/restore file handling has NOT been run on the real card (only the pseudo-serial-port end-to-end and the simulator). Strict design match only. VM leg still not built.
 
-Next entry: #1158.
+### #1158 (13 Oct) -- POWER-OFF RESTORE ON THE REAL CARD THROUGH THE SINGLE STATE FILE: PASS (cross-reference #1155-#1157)
+
+Alan ran `scan_card_host.py /dev/ttyUSB1 --capture-only --out state.json` (state file written by the new default: closing word 65327, valid 0, 3 steps, 0 retries), then POWERED THE CARD OFF, powered it on again and ran `--load scan_latex.fs --restore-only --in state.json`: bitstream loaded, state file unpacked by name and written through the CRC-checked chunks, read back, run on to step 7: word 25408 = model 25408, PASS, 0 retries.
+So: (1) the new state-file capture and restore path works on the real card; (2) the state survived an unpowered card, carried only by the file (the earlier restores used a reset or a fresh SRAM load of a powered card).
+*Scope.* One capture and one restore, same card, same cut (the default first cut 3:3:0); the file was copied between the two runs on the same PC. The time unpowered was not measured. No second board. Not a `--damage` run. Still open: VM leg, card-side layout check, second card.
+
+Next entry: #1159.
 
