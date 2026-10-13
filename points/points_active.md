@@ -1021,4 +1021,17 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Honest scope.* 27 MHz only; 20 + 20 or 21 results checked, not hundreds; the carrier version of the standard-line loop has no bitstream; whether run_all.sh's new try-every-port reading was needed is unknown (the port was /dev/ttyUSB1 in the control).
 
-Next entry: #1123.
+### #1123 (13 Oct) -- THE ICM TARGETS THE STANDARD LINE: `-s std` (standalone shells) and `-s carrier` (VIXeN, trimmed), ring control generated into the map
+
+*Alan, 04:25: "start on the ICCM, its a core feature of the entire system".* Until now the ICM could be built for flex and sub only; the standard-line ring (#1116) was hand-laid. Now the same ICM goes to all four.
+
+*What was built.*
+- `nano/std_ring_control_v1.py`: given the flat records of any design with a ring and N, finds the ring, picks a fork cell and a gate cell three relays apart on it, makes the gate a join adder, and places the counter, the relay chain, the reference ram, the branch, the token relay, the release ram and the stopped ram on free cells next to the ring (searched, not hand-set). It then **measures** the stop offset in the VM (8 for this placement; the hand layout is 4), sets reference = N - offset, and re-checks N laps in the VM. N below offset+1 is refused with the reason.
+- `tools/std_icm_generate_v1.py` and `-s std` / `-s carrier` in `project_assemble_v1.py`: ICM in, Verilog and `GRID.json` (with an io map: z_input, result, ring_release, ring_stopped cell indices) out. `-s carrier` builds the carrier from only the cores the ICM uses (ram, adder, branch, accumulator for the ring). A ring without `--allow-rings --ring-steps N` is refused; so is `--ring-steps` on a design with no ring; cores with no grid shell are named.
+
+*Measured (closed-flex looped CORDIC, N=20, 73 cells).* On the standalone-shell RTL and on the carrier RTL: exactly 20 results equal to the model, then one more after a release; the two RTLs give identical output. `tests/vm/test_std_icm_v1.py` (9 tests, N=12 in the RTL tests) plus the 14 in test_std_ring_v1 pass.
+
+*Honest scope.* The generic insertion is proven in simulation only: no bitstream of the generated std design has been on the card (the hand-laid one has, #1122). The observation point must be a cell named `result`; designs using other names are refused. The offset depends on placement and is measured per design, not assumed. Mixed regions with the std family, the DSL `family:` field, the composer and a bridge adapter for std shells are not done.
+
+Next entry: #1124.
+

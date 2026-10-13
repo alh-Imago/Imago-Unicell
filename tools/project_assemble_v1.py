@@ -1490,8 +1490,8 @@ def main():
                      help="points.md #590: real, inline comma-separated dependency list (e.g. \"compare_cell_v3.v,latch_cell_v3.v,ram_cell_v1.v,...\") -- an alternative to --file-list for a short real override. Takes precedence over --file-list if both are given.")
     ap.add_argument("--target", default="quartus", choices=["quartus", "yosys"],
                      help="points.md #663: 'quartus' (default) generates the real .qsf/.sdc pair this tool always has. 'yosys' generates a real .ys synthesis script instead (synth_intel_alm -family cyclone10gx -- the closest real family Yosys supports; Arria 10 has NO real model in this open-source techlib, so this gives a genuine same-generation ALM ballpark, not a real Arria 10 number). Cannot combine with --probe.")
-    ap.add_argument("-s", "--family", default=None, choices=["flex", "sub", "nano"],
-                     help="Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s. For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1).")
+    ap.add_argument("-s", "--family", default=None, choices=["flex", "sub", "nano", "std", "carrier"],
+                     help="Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s; 'std' = the standard line on the v4 standalone shells and 'carrier' = the standard line on the VIXeN carrier trimmed to the ICM's cores (both ICM only: --icm, ledger #1123). For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1).")
     ap.add_argument("--icm", default=None, metavar="FILE",
                      help="STEP 2 of the Flex-Sub plan: read this ICM-VIX file (*.icm-hier.json) as a map and generate the design it describes as Verilog into --output. Requires -s sub (fixed-latency design: tools/flexsub_icm_generate_v1.py) or -s flex (handshake design: tools/flexsub_icm_flex_v1.py, ledger #944 onward); --cells is not used.")
     ap.add_argument("--allow-rings", action="store_true",
@@ -1527,9 +1527,22 @@ def main():
     if args.merge_mode != "arbitrate" and not (args.icm and args.family == "flex"):
         ap.error("--merge-mode applies only to -s flex --icm (the merge core exists in the flex family)")
 
+    if args.family in ("std", "carrier") and not args.icm:
+        ap.error("-s %s works from an ICM map only (--icm FILE)" % args.family)
+    if args.icm and args.family in ("std", "carrier"):                # ledger #1123: the ICM drives the standard line too
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import std_icm_generate_v1 as sig
+        try:
+            r = sig.generate(args.icm, args.output, family=args.family, top=args.top, rings=args.allow_rings, ring_steps=args.ring_steps)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        print(f"Family: {args.family}   Source: {args.icm}   Cells: {r['cells']}" + (f"   Ring control: offset {r['ring']['offset']}, reference {r['ring']['reference']}" if r["ring"] else ""))
+        print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})   io map in GRID.json")
+        return 0
     if args.icm:
         if args.family not in ("sub", "flex"):
-            print("error: --icm needs -s sub or -s flex", file=sys.stderr)
+            print("error: --icm needs -s sub, -s flex, -s std or -s carrier", file=sys.stderr)
             return 1
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import flexsub_icm_generate_v1 as fig
@@ -1560,6 +1573,8 @@ def main():
             print(f"Latency to output {c}: {t} cycles")
         return 0
 
+    if args.family in ("std", "carrier"):
+        ap.error("-s %s works from an ICM map only (--icm FILE)" % args.family)
     if args.family in ("flex", "sub"):
         # Step 1 of the Flex-Sub plan: a separate, additive path; nothing below this block runs.
         _ignored = [n for n, v in (("--logiclock", args.logiclock), ("--shell-file", args.shell_file),
