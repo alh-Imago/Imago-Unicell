@@ -1103,5 +1103,15 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *What it will and will not tell us.* It separates the serial path from any design: if the probe is CLEAN on a run where a design was silent, the line is fine and the design's own printing is suspect; if the probe itself drops or corrupts bytes, the line is the cause and its rate and kind (loss versus bit errors) are measured. For a save/load check the next step, once the line's quality is known, is to send the captured state in the same kind of CRC-framed form with a repeat, so corruption is detected and the frame is simply taken again.
 
-Next entry: #1131.
+### #1131 (13 Oct) -- THE SERIAL PROBE IS SILENT TOO, ON A FRESHLY POWERED CARD; v2 ADDS A "CARD IS TRANSMITTING" LED
+
+*Alan, 09:05, first run of the #1130 probe: the card had just been powered on (nothing but its own demo in it), `sudo ./run_probe.sh /dev/ttyUSB1`.* Both `serial_probe_fast` and `serial_probe_gap`: SILENT, 0 bytes; loader complete (100%, rc 0). The probe contains no cells, only a counter, a CRC and the UART transmitter, which already passed the same decode in simulation. So the silence is NOT a property of any design: with the simplest possible design the PC still received nothing.
+
+*What is known and not known.* The kernel log lines saved with each run show the USB serial device disconnecting and re-attaching (`ftdi_sio 3-8.1`, behind a hub) about 1.7 s after each load, as on every run, passing or not (that log shows only the first interface, ttyUSB0, not ttyUSB1, in its last three lines, so it does not prove the second port came back). The PC's uptime in the log was 141 s (it had been restarted since the earlier runs, so the PC side was not the same as at 04:53-05:04). Not known: whether the card was transmitting (LEDs for this run were not reported; the probe should show LED0 blinking and LED3 steady), whether the second USB port existed, and what changed between the passing runs (04:21, 04:53 ring, 05:04 tree seed 2) and the silent ones (04:53 tree seed 1, 05:39 carriers, 09:05 probes). The only pattern in the record is that it is the same hardware path in all of them, and that every design, including the cell-free one, has been silent at some time.
+
+*v2.* `tools/board_serial_probe_v2.py` (a clone; v1 kept) -> `fpga/board_serial_probe_v2/`: the same CRC-32 frames, plus LED1 toggling every 64 frames sent (about every 0.6 s fast, 1.2 s gap): it shows the card is transmitting whatever the PC receives. `run_probe.sh` now also reads every other ttyUSB for 6 s when the named port is silent. Simulated frames equal the host's; timing met (798 / 814 LUT4).
+
+*Next, cheapest first.* (1) v2 with the LED1 observation: LED1 toggling + 0 bytes = the card sends and the USB/bridge/PC path drops it; LED1 steady = the card does not send. (2) Plug the card's USB straight into a motherboard port (the log shows it behind a hub, `3-8.1`) with a short, good cable, and repeat. (3) Only if both fail, treat the card's own USB bridge as suspect.
+
+Next entry: #1132.
 

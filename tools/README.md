@@ -272,3 +272,5 @@ Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still n
 - `board_designs_v1.py --family carrier` (ledger #1127): the same two designs on the trimmed VIXeN carrier -> `fpga/board_tests_designs_carrier/`. `std_icm_generate_v1.py` also normalises DSL output (`normalise`) and makes the observed cell a hold ram (`observe`).
 
 - `board_serial_probe_v1.py` (ledger #1130): cell-free bitstreams that stream CRC-32-framed lines, plus `check_probe.py`; measures the serial line to the PC by itself -> `fpga/board_serial_probe/`.
+
+- `board_serial_probe_v2.py` (ledger #1131): the probe with LED1 = card is transmitting, and a read of every other ttyUSB when silent -> `fpga/board_serial_probe_v2/`.
