@@ -1129,5 +1129,13 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Asked of Alan after the run:* LED1 (toggling about once a second = the card is transmitting), `raw/*.watch.log`, `ls -l /dev/ttyUSB*` and `dmesg | tail -15` right after the load. Optional, later: read the BL616 firmware serial (`lsusb -v -d 0403:6010 | grep -i iSerial`) against 2025030317 before any update; no update without Alan's say.
 
-Next entry: #1133.
+### #1134 (13 Oct) -- 10 cm CABLE: THE SAME 54 FRAMES; LED1 KEEPS FLASHING AFTER THE RUN
+
+*Alan, 10:01, probe v2, hub out, new 10 cm cable (was 25 cm), same PC port, cold card, run with the old `run_probe.sh` (not the watcher).* Fast: 6281 bytes = 54 valid frames, seq 1..54, 0 missed, 0 differing, plus the same 15 lines of LiteX demo text (6256 bytes last time; the frames are identical in count, the text part differs by 25 bytes). Gap: 0 bytes on ttyUSB1 and ttyUSB0. Loader rc 0. Kernel log again: device disconnected, FTDI converter re-attached about 1.7 s later. **LED1 is still toggling after the test has finished: the card keeps transmitting.**
+
+*Reading.* (1) The cable is not the cause: 25 cm and 10 cm give the same 54 frames. (2) The count is the same in two runs while the card sends on, so the stop is repeatable, not random. (3) The card is not the cause: it keeps sending (LED1). The loss is between the card's UART pin and the PC: the BL616 bridge or the PC's driver. (4) Frames 1..54 are the first frames after configuration (about 0.5 s of sending), so they were most likely held by the bridge across the USB re-enumeration (disconnect, re-attach about 1.7 s after the load) and handed over once the port opened; what the card sent after that was not delivered. Unproven. (5) This run used the old script, so there is no arrival-time log yet; the watcher (#1133) is the next step and changes nothing on the card.
+
+*Next.* `sudo ./run_probe_watch.sh /dev/ttyUSB1` with the same cable and port; then, if the stream still dies, test whether re-opening the port after the stall (or toggling DTR/RTS) restarts delivery, and then the BL616 firmware serial.
+
+Next entry: #1135.
 
