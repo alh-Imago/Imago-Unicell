@@ -1293,5 +1293,11 @@ Alan ran `sudo ./run_scan.sh --damage` (no port given, so the script printed "se
 The host damaged its own traffic 3 times (all in the first cut): a dump chunk lost a byte (no valid line, retried), a written chunk was corrupted (the card refused it with `E`, retried), a written chunk lost a byte (the card's byte timeout answered `T`, retried). Retries: dump 1, write 2, capture 0, simple 0 -- every damaged frame was caught and repeated; none got through. All four cuts PASS (25408, 396, 38119, 25408), A = B = model, identical end state. The retry counters printed on later cuts are running totals, not new damage.
 *Scope.* Wire damage injected by the host on the PC side of the cable: it exercises the card's CRC check, timeout and the host's retry, but a flipped bit in a received line is not injected on a real serial port (known since #1146; shown in simulation). Three damage events in one run is a small sample. Still open: power-off restore, real-card to simulator swap, VM leg, card-side layout check.
 
-Next entry: #1154.
+### #1154 (13 Oct) -- REAL-CARD STATE RESTORED INTO THE SIMULATED CARD (LaTeX design): PASS; the other direction prepared (cross-reference #1151-#1153)
+
+Alan ran `--capture-only --out img.json` on the real card after the damage run (session 26, cut 3:3:0, design qcgmod1, layout 0c5bcecad2975ad5 -- equal to this design's fingerprint). I restored that file into the simulated card (the same Verilog in iverilog) with `tools/scan_swap_v1.py to-sim`: through the checked chunks, read back, ran 4 more steps to step 7: word 25408 = model 25408, PASS, 0 retries. So a state captured on the real Gowin silicon was accepted and continued correctly by a different "hardware" running the same RTL.
+Prepared the reverse: `tools/scan_swap_v1.py from-sim` captured the simulated card at cut 4:12:0 (word 49981 at step 4) into `fpga/board_tests_scan_latex/images/sim_cut_4_12_0.json`; restoring that file back into the simulated card gives 396 = model (sim round trip). To be run on the real card: `python3 scan_card_host.py PORT --load scan_latex.fs --restore-only --in sim_cut_4_12_0.json`.
+*Scope.* One image, one direction shown (card to sim). The reverse (sim to card) is NOT yet shown on the card. Same RTL both sides, so this shows the image format and the scan chain behave the same in the simulator and in the silicon, not that different designs interchange. VM (software) side still not built.
+
+Next entry: #1155.
 
