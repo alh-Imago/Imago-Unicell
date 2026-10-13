@@ -6,6 +6,7 @@
 cd "$(dirname "$0")" || exit 1
 P=${1:-$(ls /dev/ttyUSB* 2>/dev/null | sort -V | tail -1)}
 B=${2:-scan.fs}
-shift 2 2>/dev/null
+[ $# -ge 2 ] && shift 2 || shift $#
 echo "serial port: $P   bitstream: $B"
+echo "running scan_card_host.py (a PASS/FAIL line per cut follows)"
 python3 scan_card_host.py "$P" --load "$B" "$@"
