@@ -1,0 +1,74 @@
+UniCell on-board group run  2026-10-13 17:43:19
+====================================================================================================
+relay_chain            PASS
+   group    : A
+   board    : UCT relay_chain res=P n=0010 e=0010 bad=0000 to=0 last=00000024 sig=8F73AB53 w=00000001,FFFFFFFF,80000000,7FFFFFFF,12345678,DEADBEEF,A5A5A5A5,5A5A5A5A
+   simulated: UCT relay_chain res=P n=0010 e=0010 bad=0000 to=0 last=00000024 sig=8F73AB53 w=00000001,FFFFFFFF,80000000,7FFFFFFF,12345678,DEADBEEF,A5A5A5A5,5A5A5A5A
+   capture  : 111044 bytes, 152 complete lines of this test (152 equal to the simulation apart from 'last')
+   built    : group A 5461 LUT4, 2684 flip-flops, Fmax est. 121.1 MHz
+
+relay_chain_stalled    PASS
+   group    : A
+   board    : UCT relay_chain_stalled res=P n=0018 e=0018 bad=0000 to=0 last=0000004D sig=FF788960 w=00001000,00001011,00001022,00001033,00001044,00001055,00001066,00001077
+   simulated: UCT relay_chain_stalled res=P n=0018 e=0018 bad=0000 to=0 last=0000004D sig=FF788960 w=00001000,00001011,00001022,00001033,00001044,00001055,00001066,00001077
+   capture  : 111044 bytes, 149 complete lines of this test (149 equal to the simulation apart from 'last')
+   built    : group A 5461 LUT4, 2684 flip-flops, Fmax est. 121.1 MHz
+
+adder_stream           PASS
+   group    : A
+   board    : UCT adder_stream res=P n=000C e=000C bad=0000 to=0 last=0000001B sig=FFFF91FD w=0000000B,00000016,00000021,00000000,80000000,FFFFFF64,000000CD,00000132
+   simulated: UCT adder_stream res=P n=000C e=000C bad=0000 to=0 last=0000001B sig=FFFF91FD w=0000000B,00000016,00000021,00000000,80000000,FFFFFF64,000000CD,00000132
+   capture  : 111044 bytes, 152 complete lines of this test (152 equal to the simulation apart from 'last')
+   built    : group A 5461 LUT4, 2684 flip-flops, Fmax est. 121.1 MHz
+
+adder_stalled          PASS
+   group    : A
+   board    : UCT adder_stalled res=P n=0014 e=0014 bad=0000 to=0 last=00000043 sig=15170B1B w=000003E9,000003ED,000003F1,000003F5,000003F9,000003FD,00000401,00000405
+   simulated: UCT adder_stalled res=P n=0014 e=0014 bad=0000 to=0 last=00000043 sig=15170B1B w=000003E9,000003ED,000003F1,000003F5,000003F9,000003FD,00000401,00000405
+   capture  : 111044 bytes, 152 complete lines of this test (152 equal to the simulation apart from 'last')
+   built    : group A 5461 LUT4, 2684 flip-flops, Fmax est. 121.1 MHz
+
+adder_constant         PASS
+   group    : A
+   board    : UCT adder_constant res=P n=0008 e=0008 bad=0000 to=0 last=00000013 sig=00000339 w=00000006,00000007,00000008,00000009,0000000A,0000000B,0000000C,0000000D
+   simulated: UCT adder_constant res=P n=0008 e=0008 bad=0000 to=0 last=00000013 sig=00000339 w=00000006,00000007,00000008,00000009,0000000A,0000000B,0000000C,0000000D
+   capture  : 111044 bytes, 93 complete lines of this test (93 equal to the simulation apart from 'last')
+   built    : group A 5461 LUT4, 2684 flip-flops, Fmax est. 121.1 MHz
+
+priority_strict        PASS
+   group    : B
+   board    : UCT priority_strict res=P n=0012 e=0012 bad=0000 to=0 last=00000026 sig=00337F82 w=00000015,00000016,00000017,00000018,00000019,0000001A,0000000B,0000000C
+   simulated: UCT priority_strict res=P n=0012 e=0012 bad=0000 to=0 last=00000026 sig=00337F82 w=00000015,00000016,00000017,00000018,00000019,0000001A,0000000B,0000000C
+   capture  : 105612 bytes, 151 complete lines of this test (151 equal to the simulation apart from 'last')
+   built    : group B 3686 LUT4, 2116 flip-flops, Fmax est. 136.5 MHz
+
+priority_weighted      PASS
+   group    : B
+   board    : UCT priority_weighted res=P n=0012 e=0012 bad=0000 to=0 last=00000026 sig=0039D826 w=00000015,0000001F,00000016,0000000B,00000020,00000017,00000018,00000021
+   simulated: UCT priority_weighted res=P n=0012 e=0012 bad=0000 to=0 last=00000026 sig=0039D826 w=00000015,0000001F,00000016,0000000B,00000020,00000017,00000018,00000021
+   capture  : 105612 bytes, 150 complete lines of this test (150 equal to the simulation apart from 'last')
+   built    : group B 3686 LUT4, 2116 flip-flops, Fmax est. 136.5 MHz
+
+priority_sequenced     PASS
+   group    : B
+   board    : UCT priority_sequenced res=P n=000D e=000D bad=0000 to=0 last=0000001C sig=00013888 w=0000001F,00000015,00000016,0000000B,00000020,00000017,00000018,0000000C
+   simulated: UCT priority_sequenced res=P n=000D e=000D bad=0000 to=0 last=0000001C sig=00013888 w=0000001F,00000015,00000016,0000000B,00000020,00000017,00000018,0000000C
+   capture  : 105612 bytes, 149 complete lines of this test (149 equal to the simulation apart from 'last')
+   built    : group B 3686 LUT4, 2116 flip-flops, Fmax est. 136.5 MHz
+
+ram_hold               PASS
+   group    : B
+   board    : UCT ram_hold res=P n=0006 e=0006 bad=0000 to=0 last=0000000F sig=000001F9 w=00000008,00000009,0000000A,0000000B,0000000C,0000000D
+   simulated: UCT ram_hold res=P n=0006 e=0006 bad=0000 to=0 last=0000000F sig=000001F9 w=00000008,00000009,0000000A,0000000B,0000000C,0000000D
+   capture  : 105612 bytes, 161 complete lines of this test (161 equal to the simulation apart from 'last')
+   built    : group B 3686 LUT4, 2116 flip-flops, Fmax est. 136.5 MHz
+
+ram_oneshot            PASS
+   group    : B
+   board    : UCT ram_oneshot res=P n=0001 e=0001 bad=0000 to=0 last=00000005 sig=0000006E w=0000006E
+   simulated: UCT ram_oneshot res=P n=0001 e=0001 bad=0000 to=0 last=00000005 sig=0000006E w=0000006E
+   capture  : 105612 bytes, 113 complete lines of this test (113 equal to the simulation apart from 'last')
+   built    : group B 3686 LUT4, 2116 flip-flops, Fmax est. 136.5 MHz
+
+====================================================================================================
+SUMMARY: 10 of 10 passed

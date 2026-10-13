@@ -1393,5 +1393,11 @@ Still true: sub next to std / carrier is not built; one carrier region; the std 
 
 *Not done:* the audit of earlier "Next:/Open:" promises, the card statistics re-run, the older-yosys figure sets listed in #1165, the 331 vs 316 chain gap.
 
-Next entry: #1167.
+#1167 (13 Oct 2026) -- GROUP RUN ON THE REAL CARD: 10 OF 10 PASS (collector fault fixed, #1166 test bed)
+
+Alan ran `sudo ./run_groups_v2.sh /dev/ttyUSB1` with the #1166 bitstreams, each group loaded once after a switch-off/on of the board (loader exit 0 both times; 111,044 and 105,612 bytes read). The script's summary said "0 of 0 passed". Cause (found from his raw capture, my mistake in packaging): `board_collect.py` loops over `*.fs` and `<name>.json` next to itself, and the group layout keeps them in `groups/`, so it checked nothing. The card had answered. Measured from the raw bytes: group A 700 result lines, group B 725, every one `res=P` for its own test; for each of the ten tests every complete line equals the simulated line apart from `last=` (the cycle of the last word, which depends on when the capture began), same word count, same signature, same words. Three lines were not complete: two cut at the end of the capture (relay_chain, adder_constant) and one cut by the rotating selector switching tests (`res=U`). Corrected in clones, v1 kept: `fpga/board_tests/board_collect_v2.py` (reads `groups/group_*.json`) and `run_groups_v3.sh`. Re-judged with v2: SUMMARY 10 of 10 passed. Results, json and the raw bytes (gz) in `docs/measurements/board_groups_1167/`. Also measured: with the current yosys the two groups are smaller than the figures recorded in #1025 (A 5461 against 6982 LUT4, B 3686 against 4610), see #1165.
+
+*Scope:* this repeats the #1025 result with a rebuilt bitstream on the current toolchain: cell RTL and handshake on silicon at 27 MHz with small designs; not capacity, not speed, not mixed designs (#1162, still simulation only). One card, one PC, one run.
+
+Next entry: #1168.
 
