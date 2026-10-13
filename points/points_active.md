@@ -1147,5 +1147,13 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *One more change at a time.* `run_probe_watch.sh` now takes `LATE=N`: load first, open the port N seconds after the load, still with the same Python reader. Same cable and port. If that run again stops near 54 frames, opening after the load is the cause; if it delivers everything, the old `stty`+`cat` reader was.
 
-Next entry: #1136.
+### #1136 (13 Oct) -- PORT OPENED 7 s AFTER THE LOAD, PYTHON READER: NO STALL, BUT A HOLE OF ABOUT 747 FRAMES
+
+*Alan, 10:15, `LATE=7 ./run_probe_watch.sh` (#1135 tool), probe v2 fast, same cable and port, cold card.* The loader finished rc 0, the port was opened after the load (the watcher's own clock starts at the open). 30 s: 354,064 bytes; 3477 valid frames, first seq 1, last seq 4224, **747 frames missing between valid frames**, 0 differing bytes; 47 foreign text items (LiteX banner lines). Arrival log: at the open a burst of 18 chunks of 510 bytes (every ~6 ms) plus one of 244 (about 9.4 KB, including some of the foreign text), then the usual 64/72-byte pieces every 6 ms until the last line at 30.003 s. **No stall: the live stream ran at full rate to the end.**
+
+*Reading.* (1) Opening the port after the load is not what stopped the stream at 54 frames (#1133/#1134): this run opened after the load and did not stall. The difference left between those runs and this one is the reader: old `run_probe.sh` ran `stty` then `cat`; this is the Python reader. Not yet shown directly. (2) While no program had the port open, the bridge kept only the first ~9 KB (about 90 frames, from seq 1) and lost the rest: 747 frames at ~114 frames/s is about 6.5 s of sending, which matches 7 s of waiting plus the loader's tail. The location of the hole is inferred from the totals and the burst size; the raw `.watch` file was not uploaded, so it is not confirmed which sequence numbers are missing. (3) The checker caught the loss, as designed. For save/load: the receiver must be open before anything that matters is sent, because the bridge is not a reliable buffer.
+
+*Next, one change.* `READER=cat` (with `LATE=7`) in the same script reads with the old `stty`+`cat`. Same load, same delay, only the reader changes. If it stalls near the first ~54-90 frames, the old reader (and so every earlier board script that used it, including the NOREPORT runs) is the suspect.
+
+Next entry: #1137.
 
