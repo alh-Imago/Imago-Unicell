@@ -1181,5 +1181,11 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 *Not converted, deliberately:* `saveload_host_v2.py`, `mutability_host.py`, `mutability2_host.py` and their run scripts. They do not use `cat`: they open the port after the load and use their own raw read loop (pyserial, or termios + select + os.read), and the cards answer only commands. That is the same kind of reader as the one that worked, but it has not been run against the stall case, so the save/load path is "not shown to stall", not "proven". `run_diag.sh` (old diagnostic) and the Windows scripts also unchanged.
 *Next.* Alan runs `run_all_v2.sh` for std_tree4 seed 1 and the carriers; then a save/load run with `run_saveload.sh` to see the host reader behave on the real card; then the mid-flight CRC-framed readout.
 
-Next entry: #1140.
+### #1140 (13 Oct) -- FIRST RUN WITH THE PYTHON-READER RUNNER: BOTH STD DESIGNS PASS, INCLUDING THE SEED-1 TREE THAT WAS SILENT
+
+*Alan, 10:36, `sudo ./run_all_v2.sh /dev/ttyUSB1` in the unzipped board_tests_designs_v2 folder, cold card.* std_gen_ring: PASS, 47,325 bytes captured. std_tree4: PASS, 56,746 bytes captured. Summary 2 of 2. Both loads ran in one session without a replug. The collector compares the board's report line with the simulated one (it reports PASS(line differs) when they differ), so these are line-for-line matches, not "something printed".
+*Which tree.* The std_tree4.fs in this folder is the default-seed (seed 1) build, byte-different from the seed-2 build that passed earlier (`cmp`: differ at byte 16313); the simulated signature is the same (7FEF5298). Seed 1 was NOREPORT with the stty+cat runner (#1126-#1127). So the same bitstream that was silent under the old reader reports and passes under the new one: the silence was the reader, not the placement or the design (one run: not a statistical result).
+*Not yet re-run:* carrier_tree4 and carrier_gen_ring (silent under the old reader), the loops folder, mutability self-test, the save/load path, and the probe's `gap` variant. LED states were not reported for this run.
+
+Next entry: #1141.
 
