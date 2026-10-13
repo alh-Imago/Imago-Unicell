@@ -6,6 +6,7 @@ The load-bearing checks simulate the GENERATED RTL and compare it with the answe
 the same inputs, plus a negative control (--no-align) proving the latency padding is what makes it right.
 """
 import json
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), "../tools")); import yosys_stat_v1 as _ys
 import os
 import re
 import shutil
@@ -243,9 +244,8 @@ try:
     if shutil.which("yosys"):
         top = json.load(open(os.path.join(d, "ASSEMBLY.json")))["top"]
         files = [f for f in json.load(open(os.path.join(d, "ASSEMBLY.json")))["files"] if f.endswith(".v")]
-        out = subprocess.run(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; hierarchy -top {top}; synth_gowin -top {top} -json /dev/null; stat"],
-                             cwd=d, capture_output=True, text=True).stdout
-        alu = re.findall(r"^\s+ALU\s+(\d+)", out.split("Number of cells")[-1], re.M)
+        out = _ys.run_text(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; hierarchy -top {top}; synth_gowin -top {top} -json /dev/null; stat"], cwd=d)
+        alu = [str(_ys.cell_counts(out)["ALU"])] if "ALU" in _ys.cell_counts(out) else []
         check("generated tree synthesises under synth_gowin; 3 adders = 96 ALU", bool(alu) and int(alu[0]) == 96, str(alu))
 finally:
     shutil.rmtree(tmp, ignore_errors=True)

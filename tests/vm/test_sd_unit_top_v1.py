@@ -96,8 +96,8 @@ endmodule
 
 @pytest.mark.skipif(not shutil.which("yosys"), reason="yosys not installed")
 def test_the_generated_top_synthesises_for_gowin(built):
-    files = [os.path.join(built, f) for f in open(os.path.join(built, "FILES.txt")).read().split()]
-    r = subprocess.run(["yosys", "-q", "-p", f"read_verilog -sv {' '.join(files)}; hierarchy -top unit_top; synth_gowin -top unit_top -noiopads; tee -o {built}/stat.txt stat"], capture_output=True, text=True)
+    files = open(os.path.join(built, "FILES.txt")).read().split()      # relative to built: this yosys opens only names inside its working folder (#1164)
+    r = subprocess.run(["yosys", "-q", "-p", f"read_verilog -sv {' '.join(files)}; hierarchy -top unit_top; synth_gowin -top unit_top -noiopads; tee -o stat.txt stat"], cwd=built, capture_output=True, text=True)
     assert r.returncode == 0, (r.stderr or r.stdout)[-800:]
     stat = open(os.path.join(built, "stat.txt")).read()
     assert "DPX9" in stat                                          # the playout / capture RAMs became block RAM

@@ -9,6 +9,7 @@ The function (read from nano/examples/cordic_z_convergence.icm-hier.json, checke
 K = 45000, 26565, 14036, 7125, 32-bit signed.
 """
 import json
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), ".")); import yosys_stat_v1 as _ys
 import os
 import random
 import shutil
@@ -172,13 +173,12 @@ module wrap_top (input wire clk, input wire sin, output reg sout);
 def synth_counts(files, top, extra=""):
     d = tempfile.mkdtemp(prefix="cordicsyn_")
     try:
+        for _f in files:
+            shutil.copy(_f, d)                                    # ledger #1164: this yosys opens only relative names inside its working folder
+        files = [os.path.basename(_f) for _f in files]
         open(os.path.join(d, "s.ys"), "w").write(f"read_verilog -sv {' '.join(files)}\nhierarchy -top {top}\nsynth_gowin -top {top} -nowidelut {extra}\nstat\n")
-        y = subprocess.run(["yosys", "-s", os.path.join(d, "s.ys")], capture_output=True, text=True).stdout
-        c = {}
-        for line in y.split("Number of cells")[-1].splitlines():
-            p = line.split()
-            if len(p) == 2 and p[1].isdigit():
-                c[p[0]] = int(p[1])
+        y = _ys.run_text(["yosys", "-s", "s.ys"], cwd=d)   # ledger #1164: this yosys reads only inside its working folder
+        c = _ys.cell_counts(y)
         return {"LUT": sum(v for k, v in c.items() if k.startswith("LUT")), "ALU": c.get("ALU", 0), "DFF": sum(v for k, v in c.items() if k.startswith("DFF")), "cells": c}
     finally:
         shutil.rmtree(d, ignore_errors=True)

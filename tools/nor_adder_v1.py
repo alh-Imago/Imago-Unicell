@@ -13,6 +13,7 @@ Layout: the hand-drawn tile `build_tight` (80 cells). Automatic placement was tr
     python3 tools/nor_adder_v1.py --check     exit 1 if that file differs from a fresh measurement
 Test/design-support tooling: it only writes a Grid; the RTL generator and the VM stay the oracle."""
 import os
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), ".")); import yosys_stat_v1 as _ys
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -183,12 +184,8 @@ def synth_counts(recs, name):
                         os.path.join(root, "docs", "man", "tang-nano-20k.man.json"), "--output", out], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-500:]
     ys = next(f for f in os.listdir(out) if f.endswith(".ys"))
-    y = subprocess.run(["yosys", "-s", ys], cwd=out, capture_output=True, text=True).stdout
-    c = {}
-    for line in y.split("Number of cells")[-1].splitlines():
-        p = line.split()
-        if len(p) == 2 and p[1].isdigit():
-            c[p[0]] = int(p[1])
+    y = _ys.run_text(["yosys", "-s", ys], cwd=out)
+    c = _ys.cell_counts(y)
     asm = json.load(open(os.path.join(out, "ASSEMBLY.json")))
     return {"assembled_cells": asm["cells"], "LUT4": sum(v for k, v in c.items() if k.startswith("LUT")), "ALU": c.get("ALU", 0), "DFF": sum(v for k, v in c.items() if k.startswith("DFF")),
             "yosys_cells": c}

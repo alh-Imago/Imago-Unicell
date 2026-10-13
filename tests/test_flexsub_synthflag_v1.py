@@ -10,6 +10,7 @@ REFUSES the forced flag; (5) the two flags contradict; (6) the original Intel/Qu
 reason are recorded.
 """
 import json
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), "../tools")); import yosys_stat_v1 as _ys
 import os
 import re
 import subprocess
@@ -49,8 +50,8 @@ def rec(folder):
 
 def stat_of(folder):
     ys = [f for f in os.listdir(folder) if f.endswith(".ys")][0]
-    out = subprocess.run(["yosys", "-s", ys], cwd=folder, capture_output=True, text=True).stdout
-    c = {m.group(1): int(m.group(2)) for m in re.finditer(r"^\s+(\w+)\s+(\d+)\s*$", out.split("Number of cells")[-1], re.M)}
+    out = _ys.run_text(["yosys", "-s", ys], cwd=folder)
+    c = _ys.cell_counts(out)
     return sum(v for k, v in c.items() if re.fullmatch(r"LUT[1-4]", k)), sum(v for k, v in c.items() if k.startswith("MUX2_LUT"))
 
 

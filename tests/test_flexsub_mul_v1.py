@@ -10,6 +10,7 @@ Layers: (1) the cells are cycle-for-cycle identical; (2) the ladder arithmetic a
 right under each realisation; (4) real synthesis shows the DSP blocks actually used and the LUTs actually paid.
 """
 import json
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), "../tools")); import yosys_stat_v1 as _ys
 import os
 import random
 import re
@@ -115,13 +116,8 @@ endmodule
 def synth_counts(folder):
     rec = json.load(open(os.path.join(folder, "ASSEMBLY.json")))
     files = [f for f in rec["files"] if f.endswith(".v")]
-    out = subprocess.run(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; hierarchy -top {rec['top']}; synth_gowin -top {rec['top']} -json /dev/null; stat"],
-                         cwd=folder, capture_output=True, text=True, timeout=600).stdout
-    c = {}
-    for line in out.split("Number of cells")[-1].splitlines():
-        p = line.split()
-        if len(p) == 2 and p[1].isdigit():
-            c[p[0]] = int(p[1])
+    out = _ys.run_text(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; hierarchy -top {rec['top']}; synth_gowin -top {rec['top']} -json /dev/null; stat"], cwd=folder, timeout=600)
+    c = _ys.cell_counts(out)
     return sum(v for k, v in c.items() if k.startswith("LUT")), c.get("MULT36X36", 0)
 
 

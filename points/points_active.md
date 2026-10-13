@@ -1360,5 +1360,15 @@ New `tools/grid_ext_ready_v1.py` (adds an `ext_ready` output vector to a generat
 
 `docs/teaching/state_fragment.html` + a section entry in `docs/build_teaching_manual.py` (tab 19b, after Mixing Families); `docs/teaching_manual.html` rebuilt (46 sections). Content: what a saved state holds, the one-file format, the refusal on a wrong design, the four moves run (card<->simulator, card<->VM) and the four VM/card differences the bridge handles. Static text; every figure is from ledgers #1151-#1162. `docs/manual.html` was rebuilt in #1162. Not done: an interactive page for the state file (the tab is text only).
 
-Next entry: #1164.
+### #1164 (13 Oct) -- THE "9 OLD PARSER FAILURES" TRACED: THREE FAULTS IN HOW THIS ENVIRONMENT'S YOSYS WAS CALLED, NOW FIXED; WHAT IS LEFT IS VERSION DRIFT OF RECORDED NUMBERS (cross-reference #1071, #1162)
+
+Alan's go-ahead ("tackle each"). #1071 blamed a statistics parser that expects `name count` while the yosys prints `count name`. That is true but only one of three faults; the yosys here is YoWASP 0.69 (a WebAssembly build). Measured:
+1. *Layout.* 0.69 prints `6 cells` then `4   IBUF` (count first) and puts wires / ports in the same column. New `tools/yosys_stat_v1.py` (`cell_counts`) reads both layouts and ignores non-cell rows; eight callers (nor_adder, flex_width_sweep, cordic_baseline, the five flexsub tests, two experimental scripts) use it instead of their own loops.
+2. *Truncated output.* On a long run (anything reaching the ABC9 step, e.g. a design with an ALU) this yosys cuts its standard output at about 56 KB and exits 0, so `stat` never arrives. Measured: stdout 56537 bytes with no statistics; the same run with `-l logfile` has them. `run_text()` in the same module runs yosys with `-l` and returns the log; the callers use it.
+3. *Paths.* This yosys opens only names inside its working folder; an absolute path in /tmp (a script, a source, a `write_json` target) is "not found". `cordic_baseline.synth_counts` now copies its sources into its work folder and runs there; `freeze_rtl.ff_coverage` writes `flat.json` inside the folder; `test_sd_unit_top` passes relative names.
+*Measured after the fixes.* test_freeze_pure, test_freeze_rtl, test_sd_unit_top, test_flexsub_icm_generate (41/41) now pass; the 5 other vm tests that use the edited tools pass (48). Before: they failed for these reasons, not because designs were wrong.
+*Still failing, and why (not fixed, not hidden).* (a) test_flexsub_assemble 8 of 80 and test_flexsub_synthflag 2 of 20: the counts are now REAL but differ from the numbers recorded with the older yosys, e.g. flex/nano 475 LUT vs 627 recorded, sub/shift 860 vs 3261, flex/accumulator 58 vs 242, sub/adder 35 vs 66; some are close (flex/branch 196 vs 201). So the recorded LUT figures in those tests, and anywhere they were quoted, are version-dependent; they were NOT edited here. One failure is a within-run comparison and not a recorded number: generated 100-cell W=18 adder chain 331 LUT vs the hand-built reference 316 (reference is repeatable, 316 twice); cause not yet found. (b) test_flexsub_mul needs /usr/share/yosys/gowin/cells_xtra.v, which this install does not have.
+*Scope.* No design changed; only how yosys is called and read. Vendor/other-yosys numbers not re-measured.
+
+Next entry: #1165.
 

@@ -107,8 +107,8 @@ def ff_coverage(workdir):
     import json
     gen = os.path.join(workdir, "gen")
     srcs = " ".join(sorted(f for f in os.listdir(gen) if f.endswith(".v")))
-    out = os.path.join(workdir, "flat.json")
-    r = subprocess.run(["yosys", "-q", "-p", f"read_verilog -sv {srcs}; hierarchy -top {TOP}; proc; flatten; opt_clean; write_json {out}"], cwd=gen, capture_output=True, text=True)
+    out = os.path.join(gen, "flat.json")      # ledger #1164: inside the yosys working folder
+    r = subprocess.run(["yosys", "-q", "-p", f"read_verilog -sv {srcs}; hierarchy -top {TOP}; proc; flatten; opt_clean; write_json flat.json"], cwd=gen, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-400:]
     m = json.load(open(out))["modules"][TOP]
     dyn = {r for v, d in DYN.values() for r in v + d}

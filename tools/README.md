@@ -285,3 +285,4 @@ Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still n
 - #1159: tools/vm_state_bridge_v1.py -- card/simulator state file <-> VM (FlexGrid) for the LaTeX design (tests/vm/test_vm_state_bridge_v1.py).
 - #1160: sub/verilog/flex_std_adapter_v1.v (+ tb, tests/vm/test_flex_std_adapter_v1.py) -- flex <-> std/carrier handshake adapters.
 - #1162: tools/grid_ext_ready_v1.py -- adds the `ext_ready` output (each cell's ready_out at its outside face) to a generated std / carrier grid; used by flexsub_mixed_v2.
+- tools/yosys_stat_v1.py (ledger #1164): cell_counts() reads yosys stat in both layouts; run_text() runs yosys with -l and returns the full log (this yosys cuts stdout short).

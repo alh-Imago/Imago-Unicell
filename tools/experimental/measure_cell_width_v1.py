@@ -9,6 +9,7 @@ This version counts MUX2_LUT cells too and measures the default flow AND `-nowid
 tools/measure_synth_flow_v1.py for real place-and-route), no silicon.
 """
 import os
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), "..")); import yosys_stat_v1 as _ys
 import re
 import subprocess
 import sys
@@ -19,9 +20,8 @@ ADDER_DEP = os.path.join(ROOT, "fpga", "verilog", "adder_v1.v")
 
 
 def synth(files, top, width, flags=""):
-    out = subprocess.run(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; chparam -set WIDTH {width} {top}; hierarchy -top {top}; synth_gowin -top {top} {flags}; stat"],
-                         capture_output=True, text=True).stdout
-    c = {m.group(1): int(m.group(2)) for m in re.finditer(r"^\s+(\w+)\s+(\d+)\s*$", out.split("Number of cells")[-1], re.M)}
+    out = _ys.run_text(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; chparam -set WIDTH {width} {top}; hierarchy -top {top}; synth_gowin -top {top} {flags}; stat"])
+    c = _ys.cell_counts(out)
     return (sum(v for k, v in c.items() if re.fullmatch(r"LUT[1-4]", k)), sum(v for k, v in c.items() if k.startswith("MUX2_LUT")), c.get("ALU", 0),
             sum(v for k, v in c.items() if k.startswith("DFF")))
 

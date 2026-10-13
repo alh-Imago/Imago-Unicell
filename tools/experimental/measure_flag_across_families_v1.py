@@ -10,6 +10,7 @@ Three families, one cell of each type, default synth_gowin vs -nowidelut, SYNTHE
 Columns: LUT4 / MUX2_LUT (all) / ALU / DFF.  `--quick` skips the original-family `lean` mode and the slowest multiplier cells.
 """
 import os
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), "..")); import yosys_stat_v1 as _ys
 import re
 import subprocess
 import sys
@@ -24,7 +25,7 @@ V = os.path.join(ROOT, "fpga", "verilog")
 
 
 def parse(out):
-    c = {m.group(1): int(m.group(2)) for m in re.finditer(r"^\s+(\w+)\s+(\d+)\s*$", out.split("Number of cells")[-1], re.M)}
+    c = _ys.cell_counts(out)
     return (sum(v for k, v in c.items() if re.fullmatch(r"LUT[1-4]", k)), sum(v for k, v in c.items() if k.startswith("MUX2_LUT")), c.get("ALU", 0),
             sum(v for k, v in c.items() if k.startswith("DFF")))
 
@@ -52,7 +53,7 @@ def gen_family(fam):
                 print(f"  {cell:34s} (not generated: {str(e)[:70]})", flush=True)
                 break
             assert ("-nowidelut" in open(os.path.join(d, rec["top"] + ".ys")).read()) == flag, "the flag did not reach the .ys"
-            out = subprocess.run(["yosys", "-s", f"{rec['top']}.ys"], cwd=d, capture_output=True, text=True).stdout
+            out = _ys.run_text(["yosys", "-s", f"{rec['top']}.ys"], cwd=d)
             r.append(parse(out))
         if r:
             res[f"{fam}/{cell}"] = row(f"{fam}: {cell}", *r)
@@ -72,7 +73,7 @@ def original_family(mode):
             continue
         r = []
         for flags in ("-noiopads", "-noiopads -nowidelut"):
-            out = subprocess.run(["yosys", "-p", f"read_verilog -sv {files} {ADD}; hierarchy -top {top}; synth_gowin -top {top} {flags}; stat"], cwd=V, capture_output=True, text=True).stdout
+            out = _ys.run_text(["yosys", "-p", f"read_verilog -sv {files} {ADD}; hierarchy -top {top}; synth_gowin -top {top} {flags}; stat"], cwd=V,)
             r.append(parse(out))
         res[f"nano/{top}/{mode}"] = row(f"nano(v4) {mode}: {top}", *r)
     return res

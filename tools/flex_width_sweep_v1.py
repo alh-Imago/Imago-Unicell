@@ -9,6 +9,7 @@ port built (SECOND_PORT=1, `single_nowidelut_port2`): the port is a build parame
   python3 tools/flex_width_sweep_v1.py [--workdir DIR] [--widths 4,8,16,18,24,32] [--jobs 2] [--out costs.json]
 """
 import argparse
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), ".")); import yosys_stat_v1 as _ys
 import json
 import os
 import shutil
@@ -27,11 +28,7 @@ WORK = "/tmp/flex_sweep"
 
 
 def parse(out):
-    c = {}
-    for line in out.split("Number of cells")[-1].splitlines():
-        p = line.split()
-        if len(p) == 2 and p[1].isdigit():
-            c[p[0]] = int(p[1])
+    c = _ys.cell_counts(out)
     return [sum(v for k, v in c.items() if k.startswith("LUT")), c.get("ALU", 0), sum(v for k, v in c.items() if k.startswith("DFF")), sum(v for k, v in c.items() if k.startswith("MULT"))]
 
 
@@ -47,7 +44,7 @@ def run(job):
     deps = [f for f in os.listdir(d) if f.endswith(".v") and f != top + ".v"]
 
     def synth(srcs, topn, pre, extra):
-        o = subprocess.run(["yosys", "-p", f"read_verilog -sv {' '.join(srcs)}; {pre} hierarchy -top {topn}; synth_gowin -top {topn} {extra} -json /dev/null; stat"], cwd=d, capture_output=True, text=True, timeout=3000).stdout
+        o = _ys.run_text(["yosys", "-p", f"read_verilog -sv {' '.join(srcs)}; {pre} hierarchy -top {topn}; synth_gowin -top {topn} {extra} -json /dev/null; stat"], cwd=d, timeout=3000)
         return parse(o)
     res = dict(cell=cell, w=w, module=mod)
     try:

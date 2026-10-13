@@ -11,6 +11,7 @@ the real-port-list guard, a generated chain == the hand-built reference under sy
 generated folders' cell files reproducing the per-cell costs recorded in the ledger/README.
 """
 import copy
+import sys as _s, os as _o; _s.path.insert(0, _o.path.join(_o.path.dirname(_o.path.abspath(__file__)), "../tools")); import yosys_stat_v1 as _ys
 import filecmp
 import json
 import os
@@ -76,13 +77,9 @@ def mult_stubs(path):
 
 
 def synth_stat(files, top, cwd, chparam=""):
-    out = subprocess.run(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; {chparam} hierarchy -top {top}; "
-                          f"synth_gowin -top {top} -json /dev/null; stat"], cwd=cwd, capture_output=True, text=True).stdout
-    c = {}
-    for line in out.split("Number of cells")[-1].splitlines():
-        p = line.split()
-        if len(p) == 2 and p[1].isdigit():
-            c[p[0]] = int(p[1])
+    out = _ys.run_text(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; {chparam} hierarchy -top {top}; "
+                          f"synth_gowin -top {top} -json /dev/null; stat"], cwd=cwd)
+    c = _ys.cell_counts(out)
     return (sum(v for k, v in c.items() if k.startswith("LUT")), c.get("ALU", 0),
             sum(v for k, v in c.items() if k.startswith("DFF")), sum(v for k, v in c.items() if k.startswith("MULT")))
 
