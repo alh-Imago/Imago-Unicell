@@ -900,8 +900,8 @@ class Layout:
         """Ledger #1114: choose the cell family a block is built from (`flex`, `sub`, or None = the design's default, flex). Only the Flex-Sub assembler reads it."""
         if name not in self.blocks:
             return {"ok": False, "error": f"no block {name}"}
-        if family not in (None, "", "flex", "sub"):
-            return {"ok": False, "error": f"family must be flex or sub, not {family!r}"}
+        if family not in (None, "", "flex", "sub", "std", "carrier"):          # ledger #1162: std and carrier regions are built by flexsub_mixed_v2
+            return {"ok": False, "error": f"family must be flex, sub, std or carrier, not {family!r}"}
 
         def do():
             self.blocks[name]["family"] = family or None
@@ -914,7 +914,7 @@ class Layout:
         if not any(v.get("family") for v in self.blocks.values()):
             return None
         import tempfile
-        import flexsub_mixed_v1 as mx
+        import flexsub_mixed_v2 as mx          # ledger #1162: v2 = v1 plus standard / carrier regions
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "design.icm-hier.json")
             try:
@@ -926,7 +926,7 @@ class Layout:
                 return {"ok": False, "problem": f"{e.__class__.__name__}: {e}", "regions": [], "bridges": []}
         return {"ok": True, "problem": None,
                 "regions": [{"name": r["name"], "family": r["family"], "cells": len(r["cells"])} for r in p["regions"]],
-                "bridges": [{"k": x["k"], "from": x["from"], "to": x["to"], "src": x["src"], "dst": x["dst"], "kind": "flex_to_sub" if p["by_name"][x["from"]]["family"] == "flex" else "sub_to_flex"} for x in p["crossings"]]}
+                "bridges": [{"k": x["k"], "from": x["from"], "to": x["to"], "src": x["src"], "dst": x["dst"], "kind": p["by_name"][x["from"]]["family"] + "_to_" + p["by_name"][x["to"]]["family"]} for x in p["crossings"]]}
 
     def move_block(self, name, r, c, relative=False):
         """Move block `name` so its top-left is at (r, c) (or by (r, c) when relative): its inside is carried as it is, its joins to the outside are laid again."""

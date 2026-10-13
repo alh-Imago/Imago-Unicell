@@ -41,7 +41,8 @@ def test_a_mix_with_flex_is_refused_and_a_bad_family_named():
     p = os.path.join(d, "mix.icm-hier.json")
     json.dump(j, open(p, "w"))
     r = subprocess.run(ASM + ["--icm", p, "--tap-io", "y_out", "--output", os.path.join(d, "o")], capture_output=True, text=True)
-    assert r.returncode == 1 and "bridge" in r.stderr
+    # ledger #1162: a flex + std mix is no longer refused for 'no bridge' (adapters are built; see test_mixed_std_regions_v1.py). This hand-edited file has no valid record hash, so it is still refused, but not for that old reason.
+    assert r.returncode == 1 and "not built yet" not in r.stderr
     bad = os.path.join(d, "b.uc")
     open(bad, "w").write(open(UC).read().replace("family: sub", "family: nope", 1))
     r = subprocess.run(CLI + [bad, "--target", "vixen"], capture_output=True, text=True)

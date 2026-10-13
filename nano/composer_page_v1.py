@@ -312,6 +312,10 @@ COMPOSER_CSS = """
 .blk { cursor: move; }
 .blk.fam-sub rect.body { fill: rgba(70,160,180,0.16); stroke: #46a0b4; }
 .blk.fam-flex rect.body { fill: rgba(193,127,69,0.12); }
+.blk.fam-std rect.body { fill: rgba(120,160,90,0.16); stroke: #78a05a; }
+.blk.fam-carrier rect.body { fill: rgba(150,110,190,0.16); stroke: #966ebe; }
+.blk.fam-std .bar { stroke: #78a05a; }
+.blk.fam-carrier .bar { stroke: #966ebe; }
 .blk.fam-sub .bar { stroke: #46a0b4; }
 .blk.open rect.body { fill: none; stroke-dasharray: 4 2; }
 .blk.open { cursor: default; }
@@ -708,7 +712,7 @@ function showSelected() {
       (b.ports.map(p => `<b>${esc(p.io)}</b>`).join(', ') || 'none') +
       `<div class="${cls}" style="margin-top:6px"><b>${txt}</b></div><div>${esc(st.detail || '')}</div>` +
       (st.standard === false ? `<div style="margin-top:4px;color:var(--fg-faint)">non-standard: its cells or joins differ from ${esc(b.file)}</div>` : '') +
-      `<div style="margin-top:6px">cell family: <select id="bFam" title="flex = handshake cells (default); sub = fixed-latency cells. Where two families meet the assembler inserts the sub bridge by itself."><option value="">flex (default)</option><option value="flex"${b.family === 'flex' ? ' selected' : ''}>flex</option><option value="sub"${b.family === 'sub' ? ' selected' : ''}>sub</option></select></div>` +
+      `<div style="margin-top:6px">cell family: <select id="bFam" title="flex = handshake cells (default); sub = fixed-latency cells; std = the standard line on standalone shells; carrier = the standard line on the VIXeN carrier. Where two families meet the assembler inserts the bridge or adapter by itself."><option value="">flex (default)</option><option value="flex"${b.family === 'flex' ? ' selected' : ''}>flex</option><option value="sub"${b.family === 'sub' ? ' selected' : ''}>sub</option><option value="std"${b.family === 'std' ? ' selected' : ''}>std</option><option value="carrier"${b.family === 'carrier' ? ' selected' : ''}>carrier</option></select></div>` +
       mixedHtml(b.name) +
       `<div class="actions"><button id="bCheck" title="run the block on its own against its model's reference vectors">Check function</button>` +
       `<button id="bUnpack" title="turn the block's cells into ordinary cells">Unpack</button><button id="bDel">Delete block</button></div>` +

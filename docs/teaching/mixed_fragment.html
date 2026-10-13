@@ -56,6 +56,13 @@
 <pre class="code">python3 tools/project_assemble_v1.py -s flex --icm nano/examples/mixed_flex_sub_flex_v1.icm-hier.json --top mix --output out/
 # Mixed families: flex0(flex), sub1(sub), flex2(flex)   Bridges inserted: 2</pre>
 
+<h2>Standard and carrier blocks (ledger #1160, #1162)</h2>
+<p>A block can also be tagged <code>std</code> (the standard line, built on the standalone cell shells) or <code>carrier</code> (the standard line on the trimmed VIXeN carrier). These cells hand a word over differently: a cell <b>offers</b> a word (a level that stays up), the receiver is told one clock when it arrives, and "taken" is a one-clock <i>event</i>, not a level. The join to a flex block is two small pieces of wiring with <b>no memory of their own</b>: one turns the flex "valid and ack" into the standard "arrived" pulse (only when the standard cell says it is ready), the other turns the standard "offering" into a flex valid and sends back the one-clock "taken" pulse. The assembler puts them in on every crossing, and a standard block next to a carrier block gets one of each in series.</p>
+<div class="says">The first test of this found something worth knowing: a standard cell reads "taken" as an <b>event</b>. Wire a flex ack (which is high whenever the flex cell is empty) straight to it and the cell never fires at all. The adapter therefore sends "taken" only in the clock the word actually moves. A test shows the deadlock when it is wired the wrong way.</div>
+<pre class="code">python3 tools/project_assemble_v1.py -s flex --icm nano/examples/mixed_flex_std_flex_v1.icm-hier.json --top mix --output out/
+# Mixed families: flex0(flex), std1(std), flex2(flex)   Bridges inserted: 2</pre>
+<p>Checked in simulation with real cells, 30 words each, with the output ready all the time and stalling at random, every word equal to <code>x + the sum of the blocks' constants</code>, in order: flex-std-flex, flex-carrier-flex, flex-std-carrier-flex and flex-carrier-std-flex. Refused with a reason: standard or carrier next to a <code>sub</code> block (put a flex block between them), a core the standard line does not have (it has ram, adder, branch and accumulator), a host-named cell inside a standard or carrier block, and more than one carrier block.</p>
+
 <h2>Rings in each family</h2>
 <p>A ring feeds its own result back in, so it needs a way to stop. Both families get one, and both were measured on the same looped CORDIC (the first five results are identical in the two; they match the independent model).</p>
 <table class="t" id="mix-ring"></table>
@@ -65,10 +72,10 @@
 <ul>
 <li>One word in flight per sub block. A long sub block therefore runs at one word per (its length + about 3 clocks), not one per clock. A queued bridge could fix that; it is not built.</li>
 <li>A sub block must have exactly one entry and one exit crossing, and no host ports of its own. The assembler refuses anything else and says why.</li>
-<li>Only the flex family is crossed so far. The standard (v4c) cells were checked with the same bridge; the nano and carrier shells need adapters, not yet written.</li>
+<li>Flex, sub, standard and carrier blocks can be mixed (standard and carrier cannot touch a sub block directly). The nano shell still has no adapter. Standard and carrier blocks only have four cores: ram, adder, branch, accumulator.</li>
 <li>Simulated only; not yet run on the board. Clock speed of the mixed design is not measured.</li>
 </ul>
-<p class="fine">Where this comes from: ledger #1111 (sub ring), #1112/#1113 (the bridge), #1114 (mixed blocks). Code: <code>sub/verilog/flex_sub_bridge_v1.v</code>, <code>tools/flexsub_mixed_v1.py</code>. Tests: <code>tests/vm/test_flex_sub_bridge_v1.py</code>, <code>test_mixed_blocks_v1.py</code>, <code>test_sub_ring_v1.py</code>.</p>
+<p class="fine">Where this comes from: ledger #1111 (sub ring), #1112/#1113 (the bridge), #1114 (mixed blocks), #1160/#1162 (standard and carrier blocks). Code: <code>sub/verilog/flex_sub_bridge_v1.v</code>, <code>sub/verilog/flex_std_adapter_v1.v</code>, <code>tools/flexsub_mixed_v2.py</code>. Tests: <code>tests/vm/test_flex_std_adapter_v1.py</code>, <code>test_mixed_std_regions_v1.py</code>, <code>tests/vm/test_flex_sub_bridge_v1.py</code>, <code>test_mixed_blocks_v1.py</code>, <code>test_sub_ring_v1.py</code>.</p>
 
 <script>
 (function(){

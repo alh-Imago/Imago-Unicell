@@ -1,0 +1,158 @@
+{
+ "format_version": "icm-vix-v1",
+ "description": "ledger #1162 example: A (flex, +1000) -> B (STANDARD line, +234) -> C (flex, +5): out = x + 1239. The assembler cuts at the family boundaries and puts the flex <-> std adapters on both crossings by itself (tools/flexsub_mixed_v2.py).",
+ "header": {
+  "cores_used": [
+   "adder",
+   "ram"
+  ],
+  "cell_count": 12
+ },
+ "patterns": {
+  "plus": {
+   "cells": [
+    {
+     "cell_id": "in",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "k",
+     "rel_row": -1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 0
+    },
+    {
+     "cell_id": "add",
+     "rel_row": 0,
+     "rel_col": 1,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "W",
+       "N"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "join_mode": 1
+     }
+    },
+    {
+     "cell_id": "out",
+     "rel_row": 0,
+     "rel_col": 2,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    }
+   ]
+  }
+ },
+ "design_map": {
+  "placements": [
+   {
+    "instance": "A",
+    "pattern": "plus",
+    "at": [
+     0,
+     0
+    ],
+    "family": "flex",
+    "overrides": {
+     "in": {
+      "io_name": "x_in"
+     },
+     "k": {
+      "preload_value": 1000
+     }
+    }
+   },
+   {
+    "instance": "B",
+    "pattern": "plus",
+    "at": [
+     0,
+     3
+    ],
+    "family": "std",
+    "overrides": {
+     "k": {
+      "preload_value": 234
+     }
+    }
+   },
+   {
+    "instance": "C",
+    "pattern": "plus",
+    "at": [
+     0,
+     6
+    ],
+    "family": "flex",
+    "overrides": {
+     "out": {
+      "io_name": "y_out"
+     },
+     "k": {
+      "preload_value": 5
+     }
+    }
+   }
+  ],
+  "connections": [
+   {
+    "from": [
+     "A",
+     0,
+     2,
+     "E"
+    ],
+    "to": [
+     "B",
+     0,
+     0,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "B",
+     0,
+     2,
+     "E"
+    ],
+    "to": [
+     "C",
+     0,
+     0,
+     "W"
+    ]
+   }
+  ]
+ }
+}

@@ -1535,17 +1535,15 @@ def main():
         _tags = _sig0.icm_families(args.icm)
         _std = _tags & {"std", "carrier"}
         if _std:
-            if _tags - _std:
-                print(f"error: the design mixes the standard line ({', '.join(sorted(_std))}) with {', '.join(sorted(_tags - _std))}: a bridge between them is not built yet (the sub bridge joins flex and sub only)", file=sys.stderr)
-                return 1
-            if len(_std) > 1:
-                print("error: the design names both std and carrier; one standard-line build per design", file=sys.stderr)
-                return 1
-            _fam = next(iter(_std))
-            if args.family in ("std", "carrier") and args.family != _fam:
-                print(f"error: -s {args.family} but the ICM's places say family: {_fam}", file=sys.stderr)
-                return 1
-            args.family = _fam
+            if _tags - _std or len(_std) > 1:                            # ledger #1162: a design that mixes the standard line with flex / sub (or std with carrier) is built region by region by flexsub_mixed_v2, adapters inserted
+                if args.family in (None, "std", "carrier"):
+                    args.family = "flex"                                  # the default family of any untagged block
+            else:
+                _fam = next(iter(_std))
+                if args.family in ("std", "carrier") and args.family != _fam:
+                    print(f"error: -s {args.family} but the ICM's places say family: {_fam}", file=sys.stderr)
+                    return 1
+                args.family = _fam
     if args.family in ("std", "carrier") and not args.icm:
         ap.error("-s %s works from an ICM map only (--icm FILE)" % args.family)
     if args.icm and args.family in ("std", "carrier"):                # ledger #1123: the ICM drives the standard line too
@@ -1565,7 +1563,7 @@ def main():
             return 1
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import flexsub_icm_generate_v1 as fig
-        import flexsub_mixed_v1 as mix
+        import flexsub_mixed_v2 as mix       # ledger #1162: v2 = v1 plus standard / carrier regions
         if mix.is_mixed(args.icm):                                   # ledger #1114: a block names its family -> split at the family boundaries, bridge every crossing
             try:
                 r = mix.generate(args.icm, args.output, top=args.top or "mixed_top", default_family=args.family, man_path=args.man)
