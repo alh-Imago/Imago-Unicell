@@ -42,3 +42,26 @@ def test_persistent_damage_is_refused_not_hidden():
 def test_card_without_crc_check_is_caught_by_the_read_back():
     r = flow("--scenario", "write_flip", "--mutant", "nocrc")
     assert "READ-BACK DIFFERS" in r.stdout and "PASS" not in r.stdout, r.stdout[-800:]
+
+
+def test_usual_fpga_version_same_protocol_mid_pipeline_cuts_and_damage():
+    # plain Verilog core (no cells): lag 2 and 9 freeze with items inside the pipeline (busy = 1); same host, same protocol, damage included
+    for args in (("--lag", "2"), ("--lag", "9"), ("--scenario", "mixed", "--lag", "2")):
+        a = ["--kind", "pure", "--scenario", "clean"] + list(args) if "--scenario" not in args else ["--kind", "pure"] + list(args)
+        r = flow(*a)
+        assert r.returncode == 0 and "PASS" in r.stdout and "FAIL" not in r.stdout, r.stdout[-800:] + r.stderr[-500:]
+
+
+def test_card_side_host_script_end_to_end_over_a_pseudo_serial_port():
+    import time
+    if not (shutil.which("iverilog") and shutil.which("vvp")):
+        pytest.fail("iverilog missing: this test must not pass by skipping")
+    bridge = subprocess.Popen([sys.executable, os.path.join(ROOT, "tools", "scan_pty_bridge_v1.py")], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        port = bridge.stdout.readline().strip()
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "fpga", "board_tests_scan", "scan_card_host.py"), port, "--cuts", "3:0:0", "--damage"], capture_output=True, text=True, timeout=900)
+        assert r.returncode == 0 and "ALL PASS" in r.stdout and "damage injected: 3" in r.stdout, r.stdout[-800:] + r.stderr[-500:]
+    finally:
+        bridge.stdin.close(); bridge.wait(timeout=30)
+        for f in os.listdir(os.path.join(ROOT, "fpga", "board_tests_scan", "results")) if os.path.isdir(os.path.join(ROOT, "fpga", "board_tests_scan", "results")) else []:
+            os.remove(os.path.join(ROOT, "fpga", "board_tests_scan", "results", f))

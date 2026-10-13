@@ -233,14 +233,28 @@ class FaultLink:
         self.count[letter] = self.count.get(letter, 0) + 1
         for f in self._hit("tx", letter):
             data = self._apply(data, f[3], f[4]); self.injected += 1
-        before = len(self.inner.buf)
-        self.inner.send(data)
-        for f in self._hit("rx", letter):
-            new = self._apply(self.inner.buf[before:], f[3], f[4]); self.injected += 1
-            self.inner.buf = self.inner.buf[:before] + new
+        rxf = self._hit("rx", letter)
+        if hasattr(self.inner, "idle"):          # simulated card: the reply is already in the buffer after send(), damage it there (flip, drop, dup)
+            before = len(self.inner.buf)
+            self.inner.send(data)
+            for f in rxf:
+                new = self._apply(self.inner.buf[before:], f[3], f[4]); self.injected += 1
+                self.inner.buf = self.inner.buf[:before] + new
+        else:                                    # real serial link: replies arrive later, so only bit flips are applied, as the bytes are read
+            self.inner.send(data)
+            self.rx_pending, self.rx_off = [f for f in rxf if f[3] == "flip"], 0
+
+    rx_pending, rx_off = (), 0
 
     def read(self, n, timeout=None):
-        return self.inner.read(n, timeout)
+        b = self.inner.read(n, timeout)
+        if self.rx_pending and b:
+            b = bytearray(b)
+            for f in self.rx_pending:
+                if self.rx_off <= f[4] < self.rx_off + len(b):
+                    b[f[4] - self.rx_off] ^= 0x10; self.injected += 1
+            self.rx_off += len(b); b = bytes(b)
+        return b
 
     def drain(self):
         return self.inner.drain()

@@ -30,16 +30,16 @@ SCENARIOS = {
 PERSISTENT = {"persistent_write": [("tx", "W", 0, "flip", 22)], "persistent_dump": [("rx", "D", 0, "flip", 70)]}
 
 
-def run_flow(k1=3, k2=4, lag=0, dly=0, dly2=3, lag2=0, faults_a=(), faults_b=(), mutant="none", built=None, cpb=8, tmo=3000, retries=4, log=print):
-    ca = bs.SimCard(cpb=cpb, tmo=tmo, mutant=mutant, built=built)
-    cb = bs.SimCard(cpb=cpb, tmo=tmo, mutant=mutant, built=ca.files)
+def run_flow(k1=3, k2=4, lag=0, dly=0, dly2=3, lag2=0, faults_a=(), faults_b=(), mutant="none", built=None, cpb=8, tmo=3000, retries=4, log=print, kind="unicell"):
+    ca = bs.SimCard(cpb=cpb, tmo=tmo, mutant=mutant, built=built, kind=kind)
+    cb = bs.SimCard(cpb=cpb, tmo=tmo, mutant=mutant, built=ca.files, kind=kind)
     try:
         la = h.FaultLink(ca, faults_a) if faults_a else ca
         lb = h.FaultLink(cb, faults_b) if faults_b else cb
         A, B = h.Card(la, retries=retries, log=log), h.Card(lb, retries=retries, log=log)
         A.reset(); ca.idle(1500); B.reset(); cb.idle(1500)
         A.configure(2, k1, dly, lag); A.load(L.Z0)
-        qa = A.wait_stopped(steps=k1)
+        qa = A.wait_stopped()
         ses, img = A.capture_verified()
         tr = h.parse_trailer(img)
         # fresh card B: same configuration for the rest of the run, the image, release
@@ -64,17 +64,17 @@ def run_flow(k1=3, k2=4, lag=0, dly=0, dly2=3, lag2=0, faults_a=(), faults_b=(),
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("--scenario", default="clean"); ap.add_argument("--k1", type=int, default=3); ap.add_argument("--k2", type=int, default=4)
-    ap.add_argument("--lag", type=int, default=0); ap.add_argument("--dly", type=int, default=0); ap.add_argument("--mutant", default="none")
+    ap.add_argument("--lag", type=int, default=0); ap.add_argument("--dly", type=int, default=0); ap.add_argument("--mutant", default="none"); ap.add_argument("--kind", default="unicell", choices=["unicell", "pure"])
     a = ap.parse_args()
     names = list(SCENARIOS) if a.scenario == "all" else [a.scenario]
     bad = 0
     work = tempfile.mkdtemp(prefix="scan_flow_")
     try:
-        top, files, g = bs.build_files(work, 8, 3000, a.mutant)
+        top, files, g = bs.build_files(work, 8, 3000, a.mutant, kind=a.kind)
         for n in names:
             fa = SCENARIOS.get(n, PERSISTENT.get(n, []))
             try:
-                r = run_flow(a.k1, a.k2, a.lag, a.dly, 3, 0, fa, fa, a.mutant, built=(top, files, g), log=lambda *x: None)
+                r = run_flow(a.k1, a.k2, a.lag, a.dly, 3, 0, fa, fa, a.mutant, built=(top, files, g), log=lambda *x: None, kind=a.kind)
                 print(n, "->", "PASS" if r["ok"] else "FAIL", r)
                 bad += not r["ok"]
             except h.ScanError as e:

@@ -1,0 +1,64 @@
+_CIN (17,5) -> (17,5)
+Info:                          Sink tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_I1_ALU_I0.CIN
+Info:                          Defined in:
+Info:                               board_top_scan.v:31.53-31.62
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.04  4.10 Source tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_I1_ALU_I0.COUT
+Info:    routing  0.00  4.10 Net tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_I1_ALU_I0_TAIL_ALULC (17,5) -> (17,5)
+Info:                          Sink tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_I1_ALU_I0_TAIL_ALULC.CIN
+Info:      logic  0.47  4.57 Source tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_I1_ALU_I0_TAIL_ALULC.SUM
+Info:    routing  0.17  4.74 Net load_has_DFFSE_Q_CE_LUT4_F_I3_LUT4_F_I3_LUT4_I2_I3_LUT3_F_I2_LUT3_F_I2_LUT4_I0_F[1] (17,5) -> (16,5)
+Info:                          Sink tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0.I3
+Info:                          Defined in:
+Info:                               board_top_scan.v:31.53-31.62
+Info:                               /share/gowin/arith_map.v:57.7-63.5
+Info:                               /share/gowin/cells_sim.v:1033.25-1033.29
+Info:      logic  0.37  5.11 Source tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0.F
+Info:    routing  0.40  5.51 Net tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_F[3] (16,5) -> (14,4)
+Info:                          Sink tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_F_LUT4_I3.I3
+Info:                          Defined in:
+Info:                               /share/gowin/cells_map.v:130.20-130.21
+Info:      logic  0.37  5.88 Source tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_F_LUT4_I3.F
+Info:    routing  0.14  6.02 Net tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_F_LUT4_I3_F[3] (14,4) -> (14,4)
+Info:                          Sink tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_F_LUT4_I3_F_LUT2_F_1_I1_LUT2_F_I1_LUT4_I2_F_LUT4_I2_F_LUT4_F.I3
+Info:                          Defined in:
+Info:                               /share/gowin/cells_map.v:130.20-130.21
+Info:      logic  0.37  6.39 Source tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_F_LUT4_I3_F_LUT2_F_1_I1_LUT2_F_I1_LUT4_I2_F_LUT4_I2_F_LUT4_F.F
+Info:    routing  0.17  6.56 Net tx_data_DFFE_Q_1_D_LUT3_F_I2_LUT4_F_I3_LUT4_I0_F_LUT4_I3_F_LUT2_F_1_I1_LUT2_F_I1_LUT4_I2_F_LUT4_I2_F[3] (14,4) -> (14,4)
+Info:                          Sink tx_data_DFFE_Q_3_D_LUT4_F.I3
+Info:                          Defined in:
+Info:                               /share/gowin/cells_map.v:130.20-130.21
+Info:      logic  0.37  6.93 Source tx_data_DFFE_Q_3_D_LUT4_F.F
+Info:    routing  0.00  6.93 Net tx_data_DFFE_Q_3_D (14,4) -> (14,4)
+Info:                          Sink tx_data_DFFE_Q_3.D
+Info:      setup  0.04  6.96 Source tx_data_DFFE_Q_3.D
+Info: 4.68 ns logic, 2.28 ns routing
+
+Info: Max frequency for clock 'clk': 143.62 MHz (PASS at 27.00 MHz)
+
+Info: Slack histogram:
+Info:  legend: * represents 1 endpoint(s)
+Info:          + represents [1,1) endpoint(s)
+Info: [ 30074,  30401) |*+
+Info: [ 30401,  30728) | 
+Info: [ 30728,  31055) |*+
+Info: [ 31055,  31382) | 
+Info: [ 31382,  31709) | 
+Info: [ 31709,  32036) |**+
+Info: [ 32036,  32363) |*+
+Info: [ 32363,  32690) |+
+Info: [ 32690,  33017) |***********+
+Info: [ 33017,  33344) |**************+
+Info: [ 33344,  33671) |****************************+
+Info: [ 33671,  33998) |***********************+
+Info: [ 33998,  34325) |*************************+
+Info: [ 34325,  34652) |**************************************************+
+Info: [ 34652,  34979) |*********************************************************+
+Info: [ 34979,  35306) |************************************************************ 
+Info: [ 35306,  35633) |*********************************+
+Info: [ 35633,  35960) |***********+
+Info: [ 35960,  36287) |**************************+
+Info: [ 36287,  36614) |***+
+
+Info: Program finished normally.
