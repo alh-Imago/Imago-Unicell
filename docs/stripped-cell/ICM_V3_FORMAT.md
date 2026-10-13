@@ -70,7 +70,7 @@ than raising.
 | 7 | `branch` | v3 (#542) |
 | 8 | `mul` | VM core since #757; table added #823 |
 | 9 | `priority` | VM core since #751; table added #823 |
-| 10 | `cross` | the crossing tile (#999; number confirmed by Alan): no control logic, one tick per tile per direction; no native RTL core yet (the netlist extractor builds each used direction from a ram relay slice); flex VM only |
+| 10 | `cross` | the crossing tile (#999; number confirmed by Alan): no control logic, one tick per tile per direction; native RTL cells in every family since #1165 (`cross_cell_v4[c]`, `cross_cell_v4sa`, `cross_cell_v4s`; the generated netlist tags each used direction as a slice and the flex / sub emitters group a tile's slices into ONE cell instance); flex VM only |
 | 12 | `merge` | the merge core (#1036): two input faces, one result, four modes (A only / B only / arbitrate / join-or) — the flex `merge_cell_v4sa` brought into the main theme; native RTL `merge_cell_v4[c]`, carrier `core_select` 14; std VM, flex (as a relay behind a merge core) |
 | 11 | `corner` | the corner tile (#1035, Alan): a wiring tile that TURNS words instead of passing them straight (see below); one `turn` bit; native RTL core `corner_cell_v4[c]` and carrier `core_select` 12 (the carrier numbers its cores differently from the ICM; 11 is the `v1d` addon pseudo-target); flex VM, std (super-cell) VM and netlist splice |
 
@@ -261,11 +261,10 @@ How the generators treat it (`tools/flexsub_icm_generate_v1.py`,
 word keeps its direction, and there is no control logic. It costs **one
 tick per tile per direction of travel**, like every other core: each used
 direction is its own one-word register slice, so the two axes never
-share state (#999, Alan's change). There is no native RTL core in any
-family yet. The Flex-Sub netlist extractor (`splice_crosses`) gives every
-used (tile, direction) an ordinary ram relay slice. `FlexGrid` models
+share state (#999, Alan's change). The std line has native cores (`cross_cell_v4[c]`, #1036) and, since #1165, so do flex (`cross_cell_v4sa`, width-parameterised) and sub (`cross_cell_v4s`). The Flex-Sub netlist extractor (`splice_crosses`) still gives every
+used (tile, direction) a slice node (an ordinary ram relay in the netlist, tagged `wire_tile`); the emitters then instantiate ONE native cell per tile (`UNICELL_NATIVE_TILES=0` brings the relays back). `FlexGrid` models
 those slices as hidden relay cells; the std VM does not model the tile.
-Open: native per-family cores and cost rows.
+Cost rows: measured in `docs/measurements/flex_width_sweep_1165/` (#1165).
 
 | Field | Bits |
 |---|---|

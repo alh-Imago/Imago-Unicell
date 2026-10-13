@@ -67,12 +67,13 @@ def dsp_primitives(blocks_total, multipliers_18x18):
     multipliers (gowin/cells_xtra.v), not hand-typed. How they share the blocks is plain arithmetic and is marked DERIVED: a block holds
     multipliers_18x18 / blocks_total 18x18 multipliers (48 / 12 = 4), and a 36x36 needs (36/18)^2 = 4 of them, i.e. a whole block -- so
     blocks_per_instance is 1 for MULT36X36 and 1/4 for MULT18X18, and the two draw on the SAME blocks."""
-    path = "/usr/share/yosys/gowin/cells_xtra.v"
+    sys.path.insert(0, os.path.join(ROOT, "tools")); import yosys_stat_v1 as _ys
+    path = _ys.gowin_cells_xtra_path() or "/usr/share/yosys/gowin/cells_xtra.v"      # ledger #1165: yosys 0.69 keeps it per family inside the yowasp package
     text = open(path).read()
     per_block = multipliers_18x18 // blocks_total
     out = []
     for name in ("MULT18X18", "MULT36X36"):
-        m = re.search(rf"module {name} \(\.\.\.\);(.*?)endmodule", text, re.S)
+        m = re.search(rf"module {name}\s*\((?:\.\.\.|[^)]*)\);(.*?)endmodule", text, re.S)      # ledger #1165: older yosys wrote `(...)`, 0.69 writes the port names
         if not m:
             raise RuntimeError(f"{name} is not declared in {path}")
         body = m.group(1)
@@ -116,7 +117,8 @@ def native_ff_variants():
     conditions on the same register still needs real LUT logic for the second
     one.
     """
-    path = "/usr/share/yosys/gowin/cells_sim.v"
+    sys.path.insert(0, os.path.join(ROOT, "tools")); import yosys_stat_v1 as _ys
+    path = _ys.gowin_share_file("cells_sim.v") or "/usr/share/yosys/gowin/cells_sim.v"      # ledger #1165: a missing file used to drop this whole block silently
     if not os.path.exists(path):
         return None
     text = open(path).read()

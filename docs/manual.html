@@ -3116,7 +3116,7 @@ than raising.</p>
 <tr>
 <td>10</td>
 <td><code>cross</code></td>
-<td>the crossing tile (#999; number confirmed by Alan): no control logic, one tick per tile per direction; no native RTL core yet (the netlist extractor builds each used direction from a ram relay slice); flex VM only</td>
+<td>the crossing tile (#999; number confirmed by Alan): no control logic, one tick per tile per direction; native RTL cells in every family since #1165 (<code>cross_cell_v4[c]</code>, <code>cross_cell_v4sa</code>, <code>cross_cell_v4s</code>; the generated netlist tags each used direction as a slice and the flex / sub emitters group a tile's slices into ONE cell instance); flex VM only</td>
 </tr>
 <tr>
 <td>12</td>
@@ -3582,11 +3582,10 @@ the ordered operand pair, <code>A</code> first.</p>
 word keeps its direction, and there is no control logic. It costs <strong>one
 tick per tile per direction of travel</strong>, like every other core: each used
 direction is its own one-word register slice, so the two axes never
-share state (#999, Alan's change). There is no native RTL core in any
-family yet. The Flex-Sub netlist extractor (<code>splice_crosses</code>) gives every
-used (tile, direction) an ordinary ram relay slice. <code>FlexGrid</code> models
+share state (#999, Alan's change). The std line has native cores (<code>cross_cell_v4[c]</code>, #1036) and, since #1165, so do flex (<code>cross_cell_v4sa</code>, width-parameterised) and sub (<code>cross_cell_v4s</code>). The Flex-Sub netlist extractor (<code>splice_crosses</code>) still gives every
+used (tile, direction) a slice node (an ordinary ram relay in the netlist, tagged <code>wire_tile</code>); the emitters then instantiate ONE native cell per tile (<code>UNICELL_NATIVE_TILES=0</code> brings the relays back). <code>FlexGrid</code> models
 those slices as hidden relay cells; the std VM does not model the tile.
-Open: native per-family cores and cost rows.</p>
+Cost rows: measured in <code>docs/measurements/flex_width_sweep_1165/</code> (#1165).</p>
 <table>
 <thead>
 <tr>
@@ -4410,7 +4409,7 @@ fixed cells, generated from an ICM file by the Flex-Sub assembler
 <tr>
 <td>cross (no cell file; ICM core_select 10)</td>
 <td>none: passes W↔E and N↔S straight through</td>
-<td>the crossing tile (#999): no control logic; one tick per tile per direction (a one-word register slice per used direction). Today the netlist extractor builds each slice from a ram relay; native per-family cores are open</td>
+<td>the crossing tile (#999): no control logic; one tick per tile per direction (a one-word register slice per used direction). Flex and sub have native cells since #1165 (<code>cross_cell_v4sa</code> / <code>corner_cell_v4sa</code>, WIDTH-parameterised, and <code>cross_cell_v4s</code> / <code>corner_cell_v4s</code>): four independent slices per module, proven equal to the ram relays they replace clock for clock; the std line has <code>cross_cell_v4[c]</code></td>
 <td>one register slice per used direction, no logic</td>
 </tr>
 <tr>
@@ -6378,6 +6377,7 @@ multiplier, so the assembler's <code>mul</code> core does not use it.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>MAN 1.2 (ledger #1165, 13 Oct 2026): <code>cell_costs</code> re-measured.</strong> <code>man_version</code> 1.2; generator <code>tools/man_gen/gen_tang_nano_20k_man_v2.py</code> (the v1 generator is kept and reproduces the archived 1.1 file <code>docs/man/archive/tang-nano-20k.man.v1_1.json</code>, apart from machine paths). The figures come from <code>docs/measurements/flex_width_sweep_1165/costs.json</code> and say what measured them: <code>cell_costs.measured_with</code> = the yosys version, the card (Sipeed Tang Nano 20K, GW2AR-LV18QN88C8/I7) and the scope (synthesis only). What changed: the plain multiplier <code>mul</code> is mapped onto a DSP block by default (5 LUT4 + 1 MULT; the old LUT-array figure is the new <code>single_nowidelut_nodsp</code> row), <code>div</code>, <code>cross</code> and <code>corner</code> rows are new, and accumulator, compare, nano, branch and priority moved. Two extra flows are recorded for every cell: <code>single_nowidelut_nodsp</code> and <code>single_nowidelut_gw2a</code> (the card's own chip family; it changes no count).</p>
 <p>How to read <code>cell_costs</code> (<code>#975</code>/<code>#976</code>): use the <strong>single-cell <code>-nowidelut</code></strong> figure for fit checks. It is smooth in W:
 adder W + 5, nano 7W + 33, mask W + 5, ram W + 6, the LUT multiplier roughly 1.41W^2 - 3.94W + 10.2. Latch, router, shift
 stage and the DSP multiplier do not grow with W. Do not project from the wide-LUT flow, which is not smooth in W. The 3x3 array
@@ -6683,7 +6683,7 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 </tr>
 <tr>
 <td><code>flexsub_icm_netlist_v1.py</code></td>
-<td>Read-only (<code>splice_crosses</code> gives each used direction of a <code>cross</code> or <code>corner</code> tile a one-tick ram relay slice, #999/#1035; a corner pairs its faces by <code>turn</code>). It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the <code>connections</code> list is advisory) and says what each family can and cannot express (#923).</td>
+<td>Read-only (<code>splice_crosses</code> gives each used direction of a <code>cross</code> or <code>corner</code> tile a one-tick slice node tagged <code>wire_tile</code>, #999/#1035; the flex and sub emitters group a tile's slices into one native <code>cross_cell_v4sa</code> / <code>corner_cell_v4sa</code> / <code>_v4s</code> instance, #1165; a corner pairs its faces by <code>turn</code>). It derives the real netlist from an ICM-VIX or v3 file (cell masks plus grid position; the <code>connections</code> list is advisory) and says what each family can and cannot express (#923).</td>
 </tr>
 <tr>
 <td><code>flexsub_icm_generate_v1.py</code></td>
@@ -6966,6 +6966,7 @@ specifically).
 <li>
 <h1>1162: tools/grid_ext_ready_v1.py -- adds the <code>ext_ready</code> output (each cell's ready_out at its outside face) to a generated std / carrier grid; used by flexsub_mixed_v2.</h1>
 </li>
+<li>tools/yosys_stat_v1.py (ledger #1164): cell_counts() reads yosys stat in both layouts; run_text() runs yosys with -l and returns the full log (this yosys cuts stdout short).</li>
 </ul>
 <div class="partsub">Arria 10 programming procedure<span class="partsrc">hardware/Arria10_Programming_Procedure.md</span></div>
 <h1>Imago UniCell — Arria 10 GX660 Programming Procedure</h1>

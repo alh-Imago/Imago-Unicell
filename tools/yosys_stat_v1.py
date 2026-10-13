@@ -47,3 +47,29 @@ def run_text(cmd, cwd=None, timeout=None, **_ignored):
     except OSError:
         txt = ""
     return txt if len(txt) >= len(r.stdout) else r.stdout
+
+
+def gowin_cells_xtra_path():
+    """Where this machine's yosys keeps the Gowin primitive declarations. Older installs: /usr/share/yosys/gowin/cells_xtra.v. Yosys 0.69 (YoWASP) splits it by family: cells_xtra_gw1n.v / _gw2a.v / _gw5a.v inside the
+    yowasp_yosys package. The card (GW2AR-18) is family gw2a, so that file is preferred; the primitives the project reads (MULT*, DSP) are the same in gw1n and gw2a. Returns None when nothing is found."""
+    import os
+    cands = ["/usr/share/yosys/gowin/cells_xtra.v"]
+    try:
+        import yowasp_yosys
+        base = os.path.join(os.path.dirname(yowasp_yosys.__file__), "share", "gowin")
+        cands += [os.path.join(base, "cells_xtra_gw2a.v"), os.path.join(base, "cells_xtra_gw1n.v")]
+    except ImportError:
+        pass
+    return next((c for c in cands if os.path.exists(c)), None)
+
+
+def gowin_share_file(name):
+    """A file from yosys's own Gowin share folder (cells_sim.v, ...): the classic /usr/share/yosys/gowin/ first, then the yowasp_yosys package. None when absent."""
+    import os
+    cands = [os.path.join("/usr/share/yosys/gowin", name)]
+    try:
+        import yowasp_yosys
+        cands.append(os.path.join(os.path.dirname(yowasp_yosys.__file__), "share", "gowin", name))
+    except ImportError:
+        pass
+    return next((c for c in cands if os.path.exists(c)), None)

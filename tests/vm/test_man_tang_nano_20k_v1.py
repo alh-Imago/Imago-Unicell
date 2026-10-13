@@ -33,6 +33,8 @@ CST_PATH = os.path.join(ROOT, "docs", "man", "tang-nano-20k.cst")
 ARRIA_PATH = os.path.join(ROOT, "docs", "man", "mustang-f100-a10.man.json")
 GEN_PATH = os.path.join(ROOT, "tools", "man_gen", "gen_tang_nano_20k_man.py")
 
+import pytest as _pt
+_pt.skip("superseded by test_man_tang_nano_20k_v2.py: the committed MAN is v1.2 since ledger #1165; the v1.1 file is archived in docs/man/archive/", allow_module_level=True)
 MAN = json.load(open(MAN_PATH))
 
 

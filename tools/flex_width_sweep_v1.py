@@ -32,8 +32,29 @@ def parse(out):
     return [sum(v for k, v in c.items() if k.startswith("LUT")), c.get("ALU", 0), sum(v for k, v in c.items() if k.startswith("DFF")), sum(v for k, v in c.items() if k.startswith("MULT"))]
 
 
+WIRING = {"cross": ("cross_cell_v4sa", ["cross_cell_v4sa.v", "corner_cell_v4sa.v"]), "corner": ("corner_cell_v4sa", ["corner_cell_v4sa.v"])}   # ledger #1165: the native wiring tiles (no assembler -S cell, no 3x3 array)
+
+
+def run_wiring(job):
+    cell, w = job
+    mod, files = WIRING[cell]
+    d = os.path.join(WORK, f"{cell}_w{w}_n1")
+    shutil.rmtree(d, ignore_errors=True)
+    os.makedirs(d)
+    for f in files:
+        shutil.copy(os.path.join(ROOT, "sub", "verilog", f), d)
+    res = dict(cell=cell, w=w, module=mod)
+    pre = f"chparam -set WIDTH {w} {mod};"
+    for key, extra in (("single_widelut", ""), ("single_nowidelut", "-nowidelut"), ("single_nowidelut_nodsp", "-nowidelut -nodsp"), ("single_nowidelut_gw2a", "-nowidelut -family gw2a")):
+        o = _ys.run_text(["yosys", "-p", f"read_verilog -sv {' '.join(files)}; {pre} hierarchy -top {mod}; synth_gowin -top {mod} {extra} -json /dev/null; stat"], cwd=d, timeout=3000)
+        res[key] = parse(o)
+    return res
+
+
 def run(job):
     cell, w = job
+    if cell in WIRING:
+        return run_wiring(job)
     d = os.path.join(WORK, f"{cell}_w{w}_n9")
     shutil.rmtree(d, ignore_errors=True)
     r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "project_assemble_v1.py"), "-s", "flex", "-S", cell, "-w", str(w), "--cells", "9", "--output", d], capture_output=True, text=True, cwd=ROOT)
@@ -51,6 +72,8 @@ def run(job):
         pre = f"chparam -set WIDTH {w} {mod};"
         res["single_widelut"] = synth(deps, mod, pre, "")
         res["single_nowidelut"] = synth(deps, mod, pre, "-nowidelut")
+        res["single_nowidelut_nodsp"] = synth(deps, mod, pre, "-nowidelut -nodsp")           # ledger #1165: no DSP inference (yosys 0.69 maps a plain `*` onto a DSP block by default)
+        res["single_nowidelut_gw2a"] = synth(deps, mod, pre, "-nowidelut -family gw2a")      # ledger #1165: the card's own chip family (GW2AR-18); the generators' .ys files give none (default gw1n)
         res["array3x3_nowidelut"] = synth([top + ".v"] + deps, top, "", "-nowidelut")
         for vname, prm in VARIANTS.get(cell, {}).items():
             res[f"single_nowidelut_{vname}"] = synth(deps, mod, pre + "".join(f" chparam -set {k} {v} {mod};" for k, v in prm.items()), "-nowidelut")
@@ -98,12 +121,17 @@ def write_readme(costs_path):
             L.append(f"| {c} (port off -> on) | " + " | ".join(f"{v['single_nowidelut'][str(w)][0]}/{v['single_nowidelut'][str(w)][2]} -> {v['single_nowidelut_port2'][str(w)][0]}/{v['single_nowidelut_port2'][str(w)][2]}" for w in W) + " |")
     L += ["\n## Build-parameter variants (ledger #1021/#1022), LUT4 / DFF\n", "| cell variant | " + " | ".join(f"W{w}" for w in W) + " |", "|---|" + "---|" * len(W)]
     for c, v in d["cells"].items():
-        for vk in (k for k in v if k.startswith("single_nowidelut_") and not k.endswith("_port2")):
+        for vk in (k for k in v if k.startswith("single_nowidelut_") and not k.endswith("_port2") and k not in ("single_nowidelut_nodsp", "single_nowidelut_gw2a")):
             L.append(f"| {c} {vk[len('single_nowidelut_'):]} (default -> variant) | " + " | ".join(f"{v['single_nowidelut'][str(w)][0]}/{v['single_nowidelut'][str(w)][2]} -> {v[vk][str(w)][0]}/{v[vk][str(w)][2]}" for w in W) + " |")
     L += ["\nThe ram's one-shot preload (`OFFER_PRELOAD`) costs nothing measurable; HOLD adds about two LUT4 and one flip-flop at every width. The priority cell is a single measured cell (all three modes in one build): about 3W + 194 LUT4, 155 ALU, W + 62 flip-flops.\n",
           "## Single cell, flip-flops (DFF)\n", "| cell | " + " | ".join(f"W{w}" for w in W) + " |", "|---|" + "---|" * len(W)]
     for c, v in d["cells"].items():
         L.append(f"| {c} | " + " | ".join(str(v["single_nowidelut"][str(w)][2]) for w in W) + " |")
+    L += ["\n## Flow variants (ledger #1165), LUT4 / ALU / DFF / MULT at the widest and the card-typical width\n", "| cell | flow | " + " | ".join(f"W{w}" for w in (18, 32)) + " |", "|---|---|---|---|"]
+    for c, v in d["cells"].items():
+        for key, lab in (("single_nowidelut", "default (-nowidelut)"), ("single_nowidelut_nodsp", "-nodsp (no DSP inference)"), ("single_nowidelut_gw2a", "-family gw2a (the card's chip)")):
+            if key in v and "18" in v[key] and "32" in v[key]:
+                L.append(f"| {c} | {lab} | " + " | ".join("/".join(str(x) for x in v[key][str(w)]) for w in (18, 32)) + " |")
     L += ["\nALU (carry-chain) cells, `mul_dsp` DSP blocks and the wide-LUT and 3x3 numbers are in `costs.json`.\n", "## How to read this\n",
           "- **Use the single-cell nowidelut numbers to project.** They are smooth in W and the fits hold to a few LUTs.",
           "- **The wide-LUT flow is not smooth** (the mapper changes its mind between widths), so do not extrapolate from it; the nowidelut flow is the card's default (`synthesis.nowidelut.default`).",
@@ -134,7 +162,7 @@ def main():
     WORK = a.workdir
     os.makedirs(WORK, exist_ok=True)
     widths = [int(x) for x in a.widths.split(",")]
-    cells = fsa.cells_for("flex")
+    cells = fsa.cells_for("flex") + list(WIRING)             # ledger #1165: + the native cross / corner tiles
     only = [x for x in a.only.split(",") if x]
     if only:
         bad_ = [x for x in only if x not in cells]
@@ -160,10 +188,17 @@ def main():
             out["cells"].pop(c, None)
     for r in results:
         d = out["cells"].setdefault(r["cell"], {})
-        for k in ("single_nowidelut", "single_widelut", "array3x3_nowidelut", "single_nowidelut_port2", "single_nowidelut_oneshot", "single_nowidelut_hold"):
+        for k in ("single_nowidelut", "single_widelut", "array3x3_nowidelut", "single_nowidelut_port2", "single_nowidelut_oneshot", "single_nowidelut_hold", "single_nowidelut_nodsp", "single_nowidelut_gw2a"):
             if k in r:
                 d.setdefault(k, {})[str(r["w"])] = r[k]
     out["cells"] = dict(sorted(out["cells"].items()))
+    try:                                                    # ledger #1165: say what measured it, and for which card
+        yv = subprocess.run(["yosys", "-V"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        yv = "unknown"
+    out["measured_with"] = {"yosys": yv, "command": "synth_gowin -top <cell> [-nowidelut] (no -family: the generators' own .ys files do not give one either, so the default 'gw1n' applies; checked identical to -family gw2a on the cells listed in the ledger entry)",
+                            "card": "Sipeed Tang Nano 20K (card_id sipeed-tang-nano-20k-01, Gowin GW2AR-LV18QN88C8/I7, 20,736 LUT4 / 15,552 FF per docs/man/tang-nano-20k.man.json)",
+                            "scope": "synthesis only: no place-and-route, no timing, nothing run on the card"}
     out["fits"] = fits(out["cells"], out["widths"] if only else widths)
     json.dump(out, open(a.out, "w"), indent=1)
     write_readme(a.out)

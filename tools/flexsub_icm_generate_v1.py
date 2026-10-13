@@ -46,6 +46,9 @@ TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(TOOLS_DIR)
 sys.path.insert(0, TOOLS_DIR)
 import flexsub_icm_netlist_v1 as nl  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "nano"))
+from icm_v3 import wiring_tile_partner  # noqa: E402
+NATIVE_WIRING_TILES = os.environ.get("UNICELL_NATIVE_TILES", "1") != "0"     # ledger #1165: native cross / corner cells; =0 brings the ram-relay stand-ins back
 import flexsub_assemble_v1 as fsa  # noqa: E402
 
 class IcmGenError(ValueError):
@@ -781,10 +784,17 @@ def emit_top(top, p, width=32):
             d, v = f"{pi}_d", f"{pi}_v"
         return d, v
 
+    tile_lanes = {}                                              # ledger #1165: tile -> {entering face: (slice node, data net, valid net)}; one native cross_cell_v4s / corner_cell_v4s per tile
     for c in p["order"]:
         r, i = cells[c], _ident(c)
         cfg = r.core_config or {}
         out_d, out_v = f"{i}_d", f"{i}_v"
+        wt = cfg.get("wire_tile")
+        if wt and r.core == "ram" and NATIVE_WIRING_TILES:
+            srcs_ = [src for lst in inputs.get(c, {}).values() for src, _ in lst]
+            dd_, vv_ = feed(c, srcs_)
+            tile_lanes.setdefault(wt["tile"], {})[wt["enter"]] = (c, dd_, vv_, wt)
+            continue
         if c in addons and CORES[r.core]["kind"] != "branch":   # the cell drives a private raw net; the addon wiring drives {i}_d (valid is untouched)
             out_d = f"{i}_raw_d"
             a(f"wire [31:0] {out_d};")
@@ -890,6 +900,26 @@ def emit_top(top, p, width=32):
                   f".data_in({dd}), .valid_in({vv}), .data_out({out_d}), .valid_out({out_v}));")
         if c in addons and CORES[r.core]["kind"] != "branch":
             a(f"assign {i}_d = {addon_expr(addons[c], out_d)};   // addon chain (mask/shift/lane-cut/invert) as pure wiring, no latency")
+    for tname, lanes_ in sorted(tile_lanes.items()):
+        wt0 = next(iter(lanes_.values()))[3]
+        part = wiring_tile_partner(wt0["kind"], {"turn": wt0["turn"]})
+        pc = []
+        for f_ in "NSEW":
+            if f_ in lanes_:
+                c_, dd_, vv_, wt_ = lanes_[f_]
+                if part[f_] != wt_["leave"]:
+                    raise IcmGenError(f"{tname}: slice {c_} enters {f_} and leaves {wt_['leave']}, but a {wt_['kind']} tile pairs {f_} with {part[f_]}")
+                pc += [f".din_{f_.lower()}({dd_})", f".valid_in_{f_.lower()}({vv_})"]
+                o_ = part[f_].lower()
+                pc += [f".data_out_{o_}({_ident(c_)}_d)", f".valid_out_{o_}({_ident(c_)}_v)"]
+            else:
+                pc += [f".din_{f_.lower()}(32'h0)", f".valid_in_{f_.lower()}(1'b0)"]
+        for o_ in "NSEW":
+            if o_ not in {part[f_] for f_ in lanes_}:
+                pc += [f".data_out_{o_.lower()}()", f".valid_out_{o_.lower()}()"]
+        kind_ = "cross_cell_v4s" if wt0["kind"] == "cross" else "corner_cell_v4s"
+        prm_ = "" if wt0["kind"] == "cross" else f", .TURN({wt0['turn']})"
+        a(f"{kind_} #(.CELL_ID(16'd{idx[next(iter(lanes_.values()))[0]]}){prm_}) u_{_ident(tname)} (.clk(clk), .rst(rst), .cfg_valid(cfg_valid), " + ", ".join(pc) + f");   // {wt0['kind']} tile {tname}: {len(lanes_)} lane(s) in use")
     if ring_back:
         xc = sorted({s_ for s_, d in ring_back})[0]
         xi = _ident(xc)

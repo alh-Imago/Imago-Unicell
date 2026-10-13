@@ -205,7 +205,7 @@ def splice_crosses(cells, edges, inputs, outputs, external_out, warnings):
             continue                                   # an exit with nothing entering it
         f_out = part[x][OPP[k]]
         cells[V(x, k)] = type(base)(cell_id=V(x, k), row=base.row, col=base.col, core="ram",
-                                    core_config={"upstream_mask": [OPP[k]], "downstream_mask": [f_out]}, addon_config={}, io_name=None, preload_value=None)
+                                    core_config={"upstream_mask": [OPP[k]], "downstream_mask": [f_out], "wire_tile": {"tile": x, "kind": base.core, "turn": int((base.core_config or {}).get("turn", 0)) & 1, "enter": OPP[k], "leave": f_out}}, addon_config={}, io_name=None, preload_value=None)
         meta[V(x, k)] = (x, k, f_out)
         if not has_out:
             if f_out in external_out.get(x, []):

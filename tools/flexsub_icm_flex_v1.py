@@ -76,6 +76,8 @@ TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TOOLS_DIR)
 import flexsub_assemble_v1 as fsa  # noqa: E402
 import flexsub_icm_generate_v1 as g  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "nano"))
+from icm_v3 import wiring_tile_partner  # noqa: E402
 
 FLEX_MODULES = {"ram": "ram_cell_v4sa", "adder": "adder_cell_v4sa", "mul": "mul_cell_v4sa", "div": "div_cell_v4sa", "nano": "nano_cell_v4sa", "comparator": "compare_cell_v4sa", "accumulator": "accumulator_cell_v4sa", "latch": "latch_cell_v4sa", "branch": "branch_cell_v4sa", "merge": "merge_cell_v4sa", "sequencer": "sequencer_cell_v4sa", "priority": "priority_cell_v4sa"}
 
@@ -108,6 +110,9 @@ def parse_merge_modes(spec):
 
 def _pname(io, cid):
     return re.sub(r"[^A-Za-z0-9_]", "_", io or cid)
+
+
+NATIVE_WIRING_TILES = os.environ.get("UNICELL_NATIVE_TILES", "1") != "0"      # ledger #1165: set UNICELL_NATIVE_TILES=0 for the old ram-relay stand-ins (A/B checks)
 
 
 def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
@@ -475,9 +480,19 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
     a("")
 
     # ---- the cells ----
+    # ledger #1165: the slices of a crossing / corner tile (the netlist stands one ram relay in for each used direction of travel, tagged "wire_tile") are instantiated as ONE native
+    # cross_cell_v4sa / corner_cell_v4sa per tile. Same handshake as the relays they replace, no config, no init word. NATIVE_WIRING_TILES = False brings the relays back (A/B checks).
+    tile_nodes = {}
+    if NATIVE_WIRING_TILES:
+        for c in order:
+            wt = (cells[c].core_config or {}).get("wire_tile")
+            if wt and cells[c].core == "ram":
+                tile_nodes.setdefault(wt["tile"], []).append(c)
     for c in order:
         r, i = cells[c], ident(c)
         cfg = r.core_config or {}
+        if any(c in v for v in tile_nodes.values()):
+            continue
         mod = FLEX_MODULES[r.core]
         dout = f"{i}_rd" if c in addons else f"{i}_d"
         common = (f".clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), .ack_out({i}_rdy), .data_out({dout}), "
@@ -556,6 +571,31 @@ def emit_top_flex(top, p, merge_mode="arbitrate", width=32):
             a(f"{mod} #(.CELL_ID(16'd{idx[c]}){WP}{div_steps_param(r, W)}) {i} ({common}, .cfg_data(32'h{word}), .in_a({i}_ina), .in_b({i}_inb), .valid_in({i}_vin), {tie});")   # #974: the second output port is not enabled here -- tied high so it can never stall the cell
         if c in addons:
             a(f"assign {i}_d = {g.addon_expr(addons[c], dout)};   // addon chain as pure wiring: data only; valid and the handshake are untouched")
+    for tname, nodes in sorted(tile_nodes.items()):
+        wt0 = cells[nodes[0]].core_config["wire_tile"]
+        part = wiring_tile_partner(wt0["kind"], {"turn": wt0["turn"]})
+        lanes = {}
+        for n_ in nodes:
+            wt = cells[n_].core_config["wire_tile"]
+            if part[wt["enter"]] != wt["leave"]:
+                raise g.IcmGenError(f"{tname}: slice {n_} enters {wt['enter']} and leaves {wt['leave']}, but a {wt['kind']} tile pairs {wt['enter']} with {part[wt['enter']]}")
+            lanes[wt["enter"]] = n_
+        pc = []
+        for f in "NSEW":
+            if f in lanes:
+                li = ident(lanes[f])
+                pc += [f".din_{f.lower()}({li}_ind)", f".valid_in_{f.lower()}({li}_vin)", f".ack_out_{f.lower()}({li}_rdy)"]
+                o = part[f].lower()
+                pc += [f".data_out_{o}({li}_d)", f".valid_out_{o}({li}_v)", f".ack_in_{o}({li}_ai)"]
+            else:
+                pc += [f".din_{f.lower()}({W}'h0)", f".valid_in_{f.lower()}(1'b0)", f".ack_out_{f.lower()}()"]
+        used_out = {part[f] for f in lanes}
+        for o in "NSEW":
+            if o not in used_out:
+                pc += [f".data_out_{o.lower()}()", f".valid_out_{o.lower()}()", f".ack_in_{o.lower()}(1'b1)"]
+        kind = "cross_cell_v4sa" if wt0["kind"] == "cross" else "corner_cell_v4sa"
+        prm = f"#(.CELL_ID(16'd{idx[nodes[0]]}){WP}" + ("" if wt0["kind"] == "cross" else f", .TURN({wt0['turn']})") + ")"
+        a(f"{kind} {prm} u_{ident(tname)} (.clk(clk), .rst(rst), .freeze_in(1'b0), .cfg_valid(cfg_valid), " + ", ".join(pc) + f");   // {wt0['kind']} tile {tname}: {len(lanes)} lane(s) in use")
     a("endmodule")
     return "\n".join(L) + "\n", forks, joins
 

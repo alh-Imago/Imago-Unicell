@@ -56,12 +56,24 @@ def changed_files(base=None):
     return base, sorted({f for f in diff + new if f.strip()})
 
 
+# ledger #1165: tests whose figures are tied to an older yosys and were cloned to v2 (the v1 files are kept, unedited apart from the notes in the ledger, but are no longer run by default:
+# under the yosys installed now they report numbers from the older tool as failures). A superseded file is run when it is named explicitly on the command line of pytest / python.
+SUPERSEDED = {
+    "tests/test_flexsub_assemble_v1.py": "tests/test_flexsub_assemble_v2.py",
+    "tests/test_flexsub_synthflag_v1.py": "tests/test_flexsub_synthflag_v2.py",
+    "tests/test_flexsub_mul_v1.py": "tests/test_flexsub_mul_v2.py",
+}
+
+
 def all_test_files():
     out = []
     for d in ("tests", os.path.join("tests", "vm")):
         p = os.path.join(ROOT, d)
         out += [os.path.join(d, f) for f in sorted(os.listdir(p)) if f.startswith("test_") and f.endswith(".py")]
-    return out
+    skipped = [f for f in out if f in SUPERSEDED]
+    if skipped:
+        print("superseded (not run, see SUPERSEDED in tools/quick_check_v1.py): " + ", ".join(f"{f} -> {SUPERSEDED[f]}" for f in skipped))
+    return [f for f in out if f not in SUPERSEDED]
 
 
 def pick_tests(changed):

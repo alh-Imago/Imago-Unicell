@@ -216,8 +216,8 @@ endmodule
     print("   the MAN is the SINGLE source of the card's DSP facts")
     import flexsub_assemble_v1 as fsa
     man = fsa.load_man_flexsub(TANG)
-    decl = open("/usr/share/yosys/gowin/cells_xtra.v").read()
-    got = {n: (int(re.search(rf"module {n} \(\.\.\.\);.*?input\s+\[(\d+):0\]\s+A\b", decl, re.S).group(1)) + 1) for n in ("MULT18X18", "MULT36X36")}
+    decl = open(_ys.gowin_cells_xtra_path() or "/usr/share/yosys/gowin/cells_xtra.v").read()
+    got = {n: (int(re.search(rf"module {n}\s*\((?:\.\.\.|[^)]*)\);.*?input\s+\[(\d+):0\]\s+A\b", decl, re.S).group(1)) + 1) for n in ("MULT18X18", "MULT36X36")}
     check("the Tang MAN's DSP primitives equal what yosys itself declares (operand widths 18 and 36), so it cannot drift from the toolchain",
           {n: man["dsp_primitives"][n]["operands"] for n in got} == {n: [w, w] for n, w in got.items()}, str(man["dsp_primitives"]))
     check("the sharing is recorded as DERIVED, with its arithmetic (a 36x36 uses (36/18)^2 = 4 of a block's 4 multipliers = 1 block)",
