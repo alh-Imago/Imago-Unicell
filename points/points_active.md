@@ -1055,5 +1055,13 @@ The merge core in JOIN-OR (present in the carrier, ported from flex #1036) is th
 
 *Reading notes for Alan's questions.* The two capture sizes (24514 and 6673 bytes) are serial text caught in the listening window, not the bitstream (both .fs files are 4,618,782 bytes); the second window was cut by the USB serial device re-attaching. `[ 1983.7 ]` in the log lines is the kernel uptime in seconds. The only speeds: JTAG 6 MHz (loader), the 27 MHz board clock; Fmax is nextpnr's estimate.
 
-Next entry: #1126.
+### #1126 (13 Oct) -- THE SUM TREE PASSES ON THE CARD (seed-2 placement, cold, run alone)
+
+*Alan, 05:05, card powered on cold, `ONLY=std_tree4 ./run_all.sh /dev/ttyUSB1`, the seed-2 build.* PASS on the first load: n=0006 e=0006 bad=0000, **sig=7FEF5298**, first words 0A, 39, FFFFFFF6, 2710, FFF7E68A, 7FFFFEAA (10, 57, -10, 10000, -530806, and the sum that wraps 32 bits), `last=0000061A`: identical to the simulation in every field including the cycle count. 149 report lines captured (24287 bytes), which also explains the earlier capture sizes: a full listening window gives about 149 lines, the 6673-byte run was cut short.
+
+*What is NOT known.* The seed-1 build (#1124) was silent twice. This run changed three things at once: the placement seed, a cold start, and one load instead of a run of reloads. I did not separate them, so I cannot say which mattered. Gate-level simulation of the seed-1 netlist passed (#1125). Treat the seed-1 silence as unexplained; the seed-1 file stays in `fpga/board_tests_designs/` and is not shown to be bad. If it matters, the test is seed 1 alone on a cold card.
+
+*What this proves.* A design written as an ICM (13 cells, rams and adders), built with `-s std`, runs correctly on the real Tang Nano 20K, alongside the generated-ring design (#1125). Together: the ICM now drives the standard line on silicon for one open design and one looped design.
+
+Next entry: #1127.
 
