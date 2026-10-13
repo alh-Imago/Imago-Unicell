@@ -277,3 +277,4 @@ Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still n
 - `serial_capture_v1.py` + `board_runner_v2.py` (ledger #1138): the Python raw serial reader (opened before the load) and a tool that gives a board-test folder a `run_all_v2.sh` using it, replacing the `stty`+`cat` reader that stalls on the Tang Nano 20K (#1137); see `hardware/tang_nano_20k/`.
 
 - `flex_scan_net_v1.py` -- clones flex cells with a scan chain and joins them (ledger #1145); `flex_scan_check_v1.py` -- A/B simulation of capture and restore through it, with deliberate breaks.
+- `board_scan_v1.py` -- card top (scan controller, image memory, CRC, UART) and `SimCard`; `scan_host_v1.py` -- PC side of the CRC-framed capture/restore protocol (+ `FaultLink`); `scan_flow_check_v1.py` -- the whole flow with damage on the wire (ledger #1146).
