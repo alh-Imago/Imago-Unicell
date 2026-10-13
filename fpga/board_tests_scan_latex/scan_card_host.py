@@ -15,6 +15,7 @@ import argparse, datetime, json, os, select, subprocess, sys, time, termios
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import scan_host as H  # noqa: E402
+import scan_image as SI  # noqa: E402  (copy of tools/scan_image_v1.py)
 
 DESIGN = json.load(open(os.path.join(HERE, "design.json")))
 Z0 = DESIGN["z0"]
@@ -128,7 +129,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("port", nargs="?"); ap.add_argument("--load"); ap.add_argument("--damage", action="store_true")
     ap.add_argument("--cuts", default="3:3:0,4:12:0,5:30:0,3:0:0"); ap.add_argument("--capture-only", action="store_true"); ap.add_argument("--restore-only", action="store_true")
-    ap.add_argument("--out"); ap.add_argument("--in", dest="inp"); ap.add_argument("--k2", type=int, default=4)
+    ap.add_argument("--out"); ap.add_argument("--raw", action="store_true", help="write the old bare-bits image instead of the state file"); ap.add_argument("--in", dest="inp"); ap.add_argument("--k2", type=int, default=4)
     a = ap.parse_args()
     port = a.port or sorted(f for f in (os.path.join("/dev", x) for x in os.listdir("/dev")) if "ttyUSB" in f or "ttyACM" in f)[-1]
     link = SerialLink(port)
@@ -149,10 +150,14 @@ def main():
             card.reset(); time.sleep(0.2); card.configure(2, k1, dly, lag); card.load(Z0)
             card.wait_stopped(30)
             ses, img = card.capture_verified()
-            json.dump(dict(ses=ses, image=img.hex(), cut=[k1, lag, dly], design=DESIGN["name"], layout=DESIGN.get("layout"), when=datetime.datetime.now().isoformat()), open(a.out, "w"), indent=1)
+            raw = dict(ses=ses, image=img.hex(), cut=[k1, lag, dly], design=DESIGN["name"], layout=DESIGN.get("layout"), when=datetime.datetime.now().isoformat())
+            if a.raw:
+                json.dump(raw, open(a.out, "w"), indent=1)
+            else:      # default: ONE self-describing state file (names, widths, values of every register); --raw writes the old bare-bits file
+                SI.save_state(raw, json.load(open(os.path.join(HERE, "SCAN_MAP.json"))), DESIGN.get("formula"), a.out)
             print("captured and written to", a.out, H.parse_trailer(img), card.stats)
             return
-        d = json.load(open(a.inp)); img = bytes.fromhex(d["image"]); tr = H.parse_trailer(img)
+        d = SI.load_any(a.inp, json.load(open(os.path.join(HERE, "SCAN_MAP.json")))); img = bytes.fromhex(d["image"]); tr = H.parse_trailer(img)
         if d.get("design") != DESIGN["name"] or d.get("layout") != DESIGN.get("layout"):
             sys.exit("REFUSED: this image is from design %r layout %r, this kit is design %r layout %r" % (d.get("design"), d.get("layout"), DESIGN["name"], DESIGN.get("layout")))
         card.reset(); time.sleep(0.2); card.configure(2, a.k2, 3, 0)

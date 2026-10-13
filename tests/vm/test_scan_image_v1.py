@@ -30,3 +30,11 @@ def test_value_edit_by_name_reaches_the_right_bits():
     st["cells"][10]["registers"][1]["value"] ^= 1          # one bit of the multiplier's pending_hi/out_buffer area
     assert si.unpack(st, SM)["image"] != RAW["image"]
     assert bin(int(si.unpack(st, SM)["image"], 16) ^ int(RAW["image"], 16)).count("1") == 1
+
+
+def test_kit_copy_is_the_same_file_and_load_any_reads_both_kinds(tmp_path):
+    assert open(os.path.join(K, "scan_image.py")).read() == open(os.path.join(ROOT, "tools", "scan_image_v1.py")).read()
+    p = tmp_path / "s.json"; si.save_state(RAW, SM, "f", str(p))
+    assert si.load_any(str(p), SM)["image"] == RAW["image"]
+    q = tmp_path / "r.json"; q.write_text(json.dumps(RAW))
+    assert si.load_any(str(q), SM)["image"] == RAW["image"]

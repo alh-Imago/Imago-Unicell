@@ -7,7 +7,7 @@ Both refuse an image whose design name or register-layout fingerprint differs fr
 import argparse, datetime, json, os, shutil, sys, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools")); sys.path.insert(0, os.path.join(ROOT, "nano"))
-import board_scan_v1 as v1, board_scan_v2 as b2, scan_host_v2 as h  # noqa: E402
+import board_scan_v1 as v1, board_scan_v2 as b2, scan_host_v2 as h, scan_image_v1 as si  # noqa: E402
 from scan_flow_check_v2 import step_fn, model, Z0  # noqa: E402
 
 
@@ -25,10 +25,11 @@ def main():
             k1, lag, dly = [int(x) for x in a.cut.split(":")]
             card.configure(2, k1, dly, lag); card.load(Z0); card.wait_stopped()
             ses, img = card.capture_verified()
-            json.dump(dict(ses=ses, image=img.hex(), cut=[k1, lag, dly], design=meta["name"], layout=layout, when=datetime.datetime.now().isoformat(), made_by="simulated card"), open(a.file, "w"), indent=1)
+            raw = dict(ses=ses, image=img.hex(), cut=[k1, lag, dly], design=meta["name"], layout=layout, when=datetime.datetime.now().isoformat(), made_by="simulated card")
+            si.save_state(raw, json.load(open(os.path.join(g, "SCAN_MAP.json"))), meta["formula"], a.file)   # one self-describing state file
             print("captured from the simulated card:", h.parse_trailer(img), "-> written", a.file)
         else:
-            d = json.load(open(a.file)); img = bytes.fromhex(d["image"]); tr = h.parse_trailer(img)
+            d = si.load_any(a.file, json.load(open(os.path.join(g, "SCAN_MAP.json")))); img = bytes.fromhex(d["image"]); tr = h.parse_trailer(img)
             if d.get("design") != meta["name"] or d.get("layout") != layout:
                 sys.exit("REFUSED: image is from design %r layout %r; this design is %r layout %r" % (d.get("design"), d.get("layout"), meta["name"], layout))
             card.configure(2, a.k2, 3, 0); card.restore(d["ses"], img); card.go()

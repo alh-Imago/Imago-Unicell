@@ -1312,5 +1312,11 @@ Built `tools/scan_image_v1.py`: `pack` (raw image + SCAN_MAP -> one JSON with de
 *Measured:* run on the real card image from #1154 (cut 3:3:0): pack then unpack gives the identical 256 bytes. Independent check of the decode: the multiplier holds out_buffer 4267616929 = 65327^2, and 65327 is the iteration value at step 4 (50000 -> 58590 -> 24213 -> 65327) and equals the closing-register word; the two const-cell pairs show pending=1 as expected. `tests/vm/test_scan_image_v1.py`, 3 pass (byte-identical round trip; refusal on changed width / missing cell / wrong format; one edited value flips exactly one bit).
 *Scope.* The card host and swap tool still use the raw image file; they do not yet read the state file directly (unpack first). Strict match only: a changed design is refused, there is no partial or renamed-cell mapping yet. No state file has been restored on the card or in the VM yet; VM leg still not built (the file is the intended input for it). Files: `fpga/board_tests_scan_latex/images/real_card_cut_3_3_0.json` (+ `.state.json`).
 
-Next entry: #1157.
+### #1157 (13 Oct) -- CARD HOST AND SWAP TOOL NOW WRITE AND READ THE SINGLE STATE FILE (cross-reference #1156)
+
+`scan_card_host.py --capture-only --out F` now writes the one self-describing state file by default (`--raw` keeps the bare-bits file); `--restore-only --in F` and `scan_swap_v1.py to-sim` accept either kind (`scan_image_v1.load_any`). The kit carries a copy of the module as `scan_image.py` (a test checks it is byte-identical to `tools/scan_image_v1.py`). `unpack` now also compares the file's own layout fingerprint with the target's and refuses on mismatch (found by the existing foreign-layout swap test failing after the change; fixed the same session).
+*Measured:* sim capture -> state file -> sim restore PASS (word 396 = model); the real-card state file restored in the simulator PASS (25408 = model); `tests/vm/test_scan_latex_v1.py` + `test_scan_image_v1.py` 10 pass (67 s).
+*Scope.* The new capture/restore file handling has NOT been run on the real card (only the pseudo-serial-port end-to-end and the simulator). Strict design match only. VM leg still not built.
+
+Next entry: #1158.
 

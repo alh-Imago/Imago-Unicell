@@ -84,6 +84,8 @@ def unpack(st, scan_map):
         sys.exit("REFUSED: not a %s file" % FORMAT)
     lid = layout_id(scan_map)
     problems = []
+    if st.get("layout") not in (None, lid):
+        problems.append("the file's layout fingerprint is %s, the target design's is %s" % (st.get("layout"), lid))
     have = {c["cell"]: c for c in st["cells"]}
     want = {c["cell"]: c for c in scan_map["chain"]}
     for n in want:
@@ -122,6 +124,16 @@ def unpack(st, scan_map):
     img = bytes(stream) + tr
     assert len(img) == 256
     return dict(ses=st.get("session"), image=img.hex(), cut=st.get("cut"), design=st["design"], layout=lid, when=datetime.datetime.now().isoformat(), made_by="unpacked from state file (%s)" % st.get("made_by"))
+
+
+def load_any(path, scan_map):
+    """Read either file kind; always return the raw image dict (a state file is unpacked by name against scan_map, and refused if it does not fit)."""
+    d = json.load(open(path))
+    return unpack(d, scan_map) if d.get("format") == FORMAT else d
+
+
+def save_state(raw, scan_map, formula, path):
+    json.dump(pack(raw, scan_map, formula), open(path, "w"), indent=1)
 
 
 def show(st):
