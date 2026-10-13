@@ -279,3 +279,4 @@ Writes `fpga/verilog/VERSIONS.md`: for every versioned core family, what still n
 - `flex_scan_net_v1.py` -- clones flex cells with a scan chain and joins them (ledger #1145); `flex_scan_check_v1.py` -- A/B simulation of capture and restore through it, with deliberate breaks.
 - `board_scan_v1.py` -- card top (scan controller, image memory, CRC, UART) and `SimCard`; `scan_host_v1.py` -- PC side of the CRC-framed capture/restore protocol (+ `FaultLink`); `scan_flow_check_v1.py` -- the whole flow with damage on the wire (ledger #1146).
 - `scan_pty_bridge_v1.py` -- the simulated scan card behind a pseudo serial port (to run `fpga/board_tests_scan/scan_card_host.py` without the board); `fpga/baselines/looped_pure_v1/` -- the usual-FPGA looped CORDIC wrapper (ledger #1147).
+- #1151: tools/scan_swap_v1.py, board_scan_v2.py, flex_scan_net_v2.py, scan_host_v2.py, scan_flow_check_v2.py -- LaTeX-design scan kit (fpga/board_tests_scan_latex/).

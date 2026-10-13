@@ -1,0 +1,412 @@
+{
+ "top": "dsg_flex_fz_scan",
+ "cells_in_chain": 15,
+ "total_bits": 678,
+ "chain": [
+  {
+   "cell": "c_main_dynq__t1_a",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 644
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 645
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 646
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 644
+  },
+  {
+   "cell": "c_main_dynq__t1_b",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 610
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 611
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 612
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 610
+  },
+  {
+   "cell": "c_main_rt0_dynq__t1_a___t1_0_0",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 576
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 577
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 578
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 576
+  },
+  {
+   "cell": "c_main_rt1_dynq__t1_b___t1_1_0",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 542
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 543
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 544
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 542
+  },
+  {
+   "cell": "c_main_rt3_const__t2_1___t2_1_0",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 508
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 509
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 510
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 508
+  },
+  {
+   "cell": "c_main_rt5_const_r_1__r_1_0",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 474
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 475
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 476
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 474
+  },
+  {
+   "cell": "c_main_rt0_dynq__t1_a___t1_0_1",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 440
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 441
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 442
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 440
+  },
+  {
+   "cell": "c_main_rt1_dynq__t1_b___t1_1_1",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 406
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 407
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 408
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 406
+  },
+  {
+   "cell": "c_main_rt3_const__t2_1___t2_1_1",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 372
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 373
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 374
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 372
+  },
+  {
+   "cell": "c_main_rt5_const_r_1__r_1_1",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 338
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 339
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 340
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 338
+  },
+  {
+   "cell": "c_main__t1",
+   "type": "mul",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 272
+    },
+    {
+     "name": "pending_hi",
+     "bits": 1,
+     "stream_offset": 273
+    },
+    {
+     "name": "out_buffer",
+     "bits": 32,
+     "stream_offset": 274
+    },
+    {
+     "name": "hi_buffer",
+     "bits": 32,
+     "stream_offset": 306
+    }
+   ],
+   "bits": 66,
+   "stream_offset": 272
+  },
+  {
+   "cell": "c_main_rt2__t1___t2_0_0",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 238
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 239
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 240
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 238
+  },
+  {
+   "cell": "c_main__t2",
+   "type": "adder",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 203
+    },
+    {
+     "name": "pending_c",
+     "bits": 1,
+     "stream_offset": 204
+    },
+    {
+     "name": "carry_buffer",
+     "bits": 1,
+     "stream_offset": 205
+    },
+    {
+     "name": "out_buffer",
+     "bits": 32,
+     "stream_offset": 206
+    }
+   ],
+   "bits": 35,
+   "stream_offset": 203
+  },
+  {
+   "cell": "c_main_rt4__t2__r_0_0",
+   "type": "ram",
+   "width": 32,
+   "regs": [
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 169
+    },
+    {
+     "name": "have",
+     "bits": 1,
+     "stream_offset": 170
+    },
+    {
+     "name": "data_reg",
+     "bits": 32,
+     "stream_offset": 171
+    }
+   ],
+   "bits": 34,
+   "stream_offset": 169
+  },
+  {
+   "cell": "c_main_r",
+   "type": "div",
+   "width": 32,
+   "regs": [
+    {
+     "name": "busy",
+     "bits": 1,
+     "stream_offset": 0
+    },
+    {
+     "name": "pending",
+     "bits": 1,
+     "stream_offset": 1
+    },
+    {
+     "name": "pending_r",
+     "bits": 1,
+     "stream_offset": 2
+    },
+    {
+     "name": "remaining",
+     "bits": 6,
+     "stream_offset": 3
+    },
+    {
+     "name": "d_reg",
+     "bits": 32,
+     "stream_offset": 9
+    },
+    {
+     "name": "r_reg",
+     "bits": 32,
+     "stream_offset": 41
+    },
+    {
+     "name": "q_reg",
+     "bits": 32,
+     "stream_offset": 73
+    },
+    {
+     "name": "out_buffer",
+     "bits": 32,
+     "stream_offset": 105
+    },
+    {
+     "name": "rem_buffer",
+     "bits": 32,
+     "stream_offset": 137
+    }
+   ],
+   "bits": 169,
+   "stream_offset": 0
+  }
+ ],
+ "stream_order": "bit 0 = first bit shifted out = MSB of the last cell's vector; registers inside a cell come out in the listed order, each MSB first",
+ "constants_left_out": [
+  "c_main_const__t2_1",
+  "c_main_const_r_1"
+ ]
+}

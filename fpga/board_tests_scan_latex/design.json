@@ -1,0 +1,7 @@
+{
+ "name": "qcgmod1",
+ "formula": "y = (z^2 + 12345) \\bmod 65521",
+ "z0": 50000,
+ "step": "((z*z + 12345) & 0xFFFFFFFF) % 65521",
+ "layout": "0c5bcecad2975ad5"
+}

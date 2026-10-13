@@ -1,0 +1,71 @@
+{
+ "formula": "y = (z^2 + 12345) \\bmod 65521",
+ "name": "qcgmod1",
+ "scan_bits": 678,
+ "cells": 15,
+ "inputs": [
+  "main_dynq__t1_a",
+  "main_dynq__t1_b"
+ ],
+ "output": "main_r",
+ "args": [
+  "z"
+ ],
+ "layout": "0c5bcecad2975ad5",
+ "build": {
+  "target_mhz": 27.0,
+  "fmax_mhz": 110.8,
+  "met": true,
+  "utilization": {
+   "ALU": {
+    "used": 726,
+    "available": 15552
+   },
+   "BSRAM": {
+    "used": 1,
+    "available": 46
+   },
+   "BUFG": {
+    "used": 1,
+    "available": 24
+   },
+   "DFF": {
+    "used": 1601,
+    "available": 15552
+   },
+   "DUMMY_CELL": {
+    "used": 16,
+    "available": 0
+   },
+   "GND": {
+    "used": 1,
+    "available": 1
+   },
+   "GSR": {
+    "used": 1,
+    "available": 1
+   },
+   "IOB": {
+    "used": 7,
+    "available": 384
+   },
+   "LUT4": {
+    "used": 2575,
+    "available": 20736
+   },
+   "MULT36X36": {
+    "used": 1,
+    "available": 12
+   },
+   "RAM16SDP4": {
+    "used": 4,
+    "available": 648
+   },
+   "VCC": {
+    "used": 1,
+    "available": 1
+   }
+  },
+  "seed": 1
+ }
+}

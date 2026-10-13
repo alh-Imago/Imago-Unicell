@@ -9,7 +9,12 @@ import board_scan_v1 as bs  # noqa: E402
 m, s = pty.openpty()
 tty.setraw(m); tty.setraw(s)
 print(os.ttyname(s), flush=True)
-card = bs.SimCard(cpb=8, tmo=3000, kind=(sys.argv[1] if len(sys.argv) > 1 else 'unicell'))
+if len(sys.argv) > 1 and sys.argv[1] == "latex":      # the LaTeX-compiled design (ledger #1151)
+    import tempfile, board_scan_v2 as b2
+    _w = tempfile.mkdtemp(prefix="scan_pty_"); _t, _f, _g, _m = b2.build_files(_w, 8, 3000)
+    card = bs.SimCard(cpb=8, tmo=3000, built=(_t, _f, _g))
+else:
+    card = bs.SimCard(cpb=8, tmo=3000, kind=(sys.argv[1] if len(sys.argv) > 1 else 'unicell'))
 pending, last = b"", time.time()
 try:
     while True:
