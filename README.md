@@ -8,9 +8,36 @@
 > - **What was tested and did not favour it:** on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See `docs/measurements/UNICELL_VS_PURE.md`.
 > - **What is NOT shown:** running a design on a physical card **and** saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`).
 > - **Prior art:** every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in `docs/prior_art/PRIOR_ART_REPORT.md`; it is not a proof of novelty either way.
-> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 13 October 2026 the ledger is at #1167).
+> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 13 October 2026 the ledger is at #1168).
 >
 > **A possible new use (10 October 2026): teaching.** The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md), and a first teaching manual built from it (11 October 2026) is [`docs/teaching_manual.html`](docs/teaching_manual.html): 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
+
+## Confirmed on the card, and what is still simulation only (14 October 2026)
+
+Each row says where the check was actually made. "Card" means the real Tang Nano 20K (Sipeed, card_id `sipeed-tang-nano-20k-01`, GW2AR-LV18QN88C8/I7) unless the row says Arria 10. One card, one PC, small designs at 27 MHz: this shows the cells and the handshake work on silicon, not capacity or speed.
+
+| Item | Where checked | Ledger |
+|---|---|---|
+| Every core of the super carrier shell | **Card (Arria 10)**, over JTAG | Aug/Sep 2026 |
+| First UniCell core on the Tang (sequencer counting on the LEDs) | **Card** | #896 |
+| The ten flex-cell self-checking tests (relay, adders with stalls and constants, three priority modes, ram hold and one-shot), run as two grouped bitstreams | **Card**: 10 of 10, first in #1024, again with a rebuilt bitstream on the current toolchain in #1167 (lines equal the simulation) | #1024, #1167 |
+| **Mixed standard + carrier**: the carrier (adder, accumulator, mul) reprogrammed live by a standard command cell and fed by a standard sequencer cell (7 of 7 phases, two 64-result streams, reprogram 40 clocks) | **Card**: counts equal the simulation | #1087-#1089 |
+| Loops: flex ring, sub ring, standard-cell ring (counter, branch, join gate) | **Card**: lines captured, equal to the simulation | #1120, #1122 |
+| **Mixed families: flex -> bridge -> sub -> bridge -> flex** (8 words, x + 1239, random stalls) | **Card**: line captured, checksum 0000CC60, equal to the simulation | #1112, #1120, #1122 |
+| Designs built from an ICM file on the standard shells (sum tree, looped CORDIC ring control) and on the trimmed carrier | **Card**: same lines as the simulation | #1125, #1126, #1140, #1143 |
+| Back-pressure stop, freeze stop, freeze with a word inside the grid, save, reset, load | **Card**: 9 of 9, clock counts equal the simulation | #1100 |
+| A saved VM state loaded into the card, which then runs on and agrees with the VM | **Card** | #1101 |
+| In-flight capture and restore, UniCell and the usual-FPGA scan-chain version, four cuts each | **Card**: same answer as the model, identical end state | #1148-#1150 |
+| LaTeX formula -> ICM -> Verilog -> bitstream (`y = (z^2+12345) \bmod 65521`), 4 cuts | **Card**: answers equal the model | #1151, #1152 |
+| Injected serial faults during capture or restore (lost byte, corrupted chunk) | **Card**: all caught and retried | #1153 |
+| State moving between the real card, the simulated card and the VM, every direction tried; restore after a real power-off | **Card + simulation + VM**: all pass | #1154, #1155, #1158, #1159, #1161 |
+| Native cross and corner wiring cells (flex and sub) | Simulation only: equal to the relay version clock for clock | #1165 |
+| Flex <-> standard / carrier adapters, generated into mixed designs (flex, standard or carrier, flex) | Simulation only so far (stage 1 with real v4/v4c cells, stage 2 through the assembler); bitstreams built for the card in #1168, not yet run | #1160, #1162, #1168 |
+| The LaTeX division core on the v4/v4c carrier designs | Not run | #1075 |
+
+Open: a second card, the BL616 firmware check (needs the new card reader), re-run statistics, and the flex <-> standard adapter on the card.
+
+---
 
 A spatial compute architecture built on one principle: **topology is
 computation**. There's no CPU, no instruction set, no shared bus.
@@ -240,24 +267,6 @@ one lane pass straight over another. It has no control logic and costs
 one tick per tile per direction (a register slice), like every other
 core. Still open: an automatic placer (layouts are drawn or templated),
 and a delay-line cell for the remaining pure-delay lanes (#1015).
-
-## Confirmed on the card, and what is still simulation only (13 October 2026, #1143-#1165)
-
-Each line says where it was actually checked. "Card" means the real Tang Nano 20K (Sipeed, card_id `sipeed-tang-nano-20k-01`, GW2AR-LV18QN88C8/I7).
-
-| Item | Status | Ledger |
-|---|---|---|
-| LaTeX formula to ICM file to Verilog to bitstream, one-line design `y = (z^2+12345) \bmod 65521` | **Card**: 4 cuts pass, answers equal the model | #1151, #1152 |
-| ICM to Verilog for flex, sub, standard shells and the trimmed carrier | **Card**: same result lines as the VM (ring sig C72BDCFE, tree 7FEF5298) | #1125, #1126, #1140, #1143 |
-| In-flight state capture and restore (one self-describing state file) | **Card**: mid-calculation capture, reset or power-off, restore, same answer, 0 retries; injected serial faults caught and retried | #1150, #1153, #1156-#1158 |
-| State path **simulated card <-> real card <-> VM** (FlexGrid), every direction tried | **Confirmed**: a card or simulator state continues in the VM, a VM-made state restored on the real card | #1154, #1155, #1159, #1161 |
-| Native cross and corner wiring cells (flex and sub) | Simulation: equal to the relay version clock for clock; yosys sizes re-measured with the card named | #1165 |
-| Mixed designs (flex next to standard / carrier cells, adapters generated) | **Simulation only** (iverilog); not yet on the card | #1162 |
-| The ten flex-cell self-checking tests, as two grouped bitstreams, rebuilt with the current toolchain | **Card**: 10 of 10 pass, lines equal the simulation (13 Oct, one card, one PC) | #1025, #1166, #1167 |
-
-Open: a second card, the BL616 firmware check (needs the new card reader), and re-run statistics.
-
----
 
 ## On the physical board
 

@@ -1,0 +1,18 @@
+{
+ "name": "mixed_carrier_pipe",
+ "what": "flex -> adapter -> trimmed CARRIER cells -> adapter -> flex pipeline, x + 1239 (random exit stalls)",
+ "expected": [
+  1244,
+  1339,
+  1232,
+  13584,
+  1239,
+  1316,
+  2239,
+  1270
+ ],
+ "sim_line": "UCT mixed_carrier_pipe res=P n=0008 e=0008 bad=0000 to=0 last=00000029 sig=0000CC60 w=000004DC,0000053B,000004D0,00003510,000004D7,00000524,000008BF,000004F6",
+ "fmax_mhz": 123.1,
+ "lut4": 1890,
+ "dff": 975
+}
