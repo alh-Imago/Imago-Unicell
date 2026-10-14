@@ -183,7 +183,7 @@
 <li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
 <li><strong>What is NOT shown:</strong> running a design on a physical card <strong>and</strong> saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>).</li>
 <li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
-<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 13 October 2026 the ledger is at #1170).</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 13 October 2026 the ledger is at #1171).</li>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
@@ -274,9 +274,9 @@
 <td>#1160, #1162, #1168, #1169</td>
 </tr>
 <tr>
-<td>The LaTeX division core on the v4/v4c carrier designs</td>
-<td>Not run</td>
-<td>#1075</td>
+<td>Division core on the standard line and the trimmed carrier (flex -&gt; divider -&gt; flex, 9 words incl. divide by zero)</td>
+<td>Simulation only so far; bitstreams built for the card in #1171, not yet run. A LaTeX formula compiled for the standard line is not built</td>
+<td>#1073, #1075, #1171</td>
 </tr>
 </tbody>
 </table>
@@ -6775,6 +6775,10 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 <tr>
 <td><code>flexsub_mixed_v2.py</code></td>
 <td>(ledger #1162) v2 of the above = v1 plus <code>"family": "std"</code> / <code>"carrier"</code> regions (standard line on the standalone shells / the trimmed VIXeN carrier). A std-line region is built by its own grid generator and joined to its flex neighbour by the stateless adapters of <code>sub/verilog/flex_std_adapter_v1.v</code> (#1160) at its outside faces, with <code>ext_ready</code> exported by <code>grid_ext_ready_v1.py</code>. <code>project_assemble_v1.py --icm</code> now calls v2. Example <code>nano/examples/mixed_flex_std_flex_v1.icm-hier.json</code>; tests <code>tests/vm/test_mixed_std_regions_v1.py</code>.</td>
+</tr>
+<tr>
+<td><code>flexsub_mixed_v3.py</code></td>
+<td>(ledger #1171) v3 = v2 plus the DIVISION core in std / carrier regions (with <code>carrier_grid_v4.py</code> and <code>standalone_grid_v2.py</code>); <code>board_mixed_div_v1.py</code> builds the card bitstreams, <code>board_tiles_v1.py</code> (#1169) and <code>board_mixed_std_v1.py</code> (#1168) the others.</td>
 </tr>
 <tr>
 <td><code>flexsub_icm_netlist_v1.py</code></td>

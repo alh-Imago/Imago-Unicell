@@ -914,7 +914,7 @@ class Layout:
         if not any(v.get("family") for v in self.blocks.values()):
             return None
         import tempfile
-        import flexsub_mixed_v2 as mx          # ledger #1162: v2 = v1 plus standard / carrier regions
+        import flexsub_mixed_v3 as mx          # ledger #1171: v3 = v2 plus the division core (was v2, #1162)
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "design.icm-hier.json")
             try:

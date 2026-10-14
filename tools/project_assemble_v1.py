@@ -1563,7 +1563,7 @@ def main():
             return 1
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import flexsub_icm_generate_v1 as fig
-        import flexsub_mixed_v2 as mix       # ledger #1162: v2 = v1 plus standard / carrier regions
+        import flexsub_mixed_v3 as mix       # ledger #1171: v3 = v2 plus the division core in standard / carrier regions (was v2, #1162)
         if mix.is_mixed(args.icm):                                   # ledger #1114: a block names its family -> split at the family boundaries, bridge every crossing
             try:
                 r = mix.generate(args.icm, args.output, top=args.top or "mixed_top", default_family=args.family, man_path=args.man)
