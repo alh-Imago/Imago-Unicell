@@ -25,7 +25,7 @@ Each row says where the check was actually made. "Card" means the real Tang Nano
 | Loops: flex ring, sub ring, standard-cell ring (counter, branch, join gate) | **Card**: lines captured, equal to the simulation | #1120, #1122 |
 | **Mixed families: flex -> bridge -> sub -> bridge -> flex** (8 words, x + 1239, random stalls) | **Card**: line captured, checksum 0000CC60, equal to the simulation | #1112, #1120, #1122 |
 | Designs built from an ICM file on the standard shells (sum tree, looped CORDIC ring control) and on the trimmed carrier | **Card**: same lines as the simulation | #1125, #1126, #1140, #1143 |
-| Back-pressure stop, freeze stop, freeze with a word inside the grid, save, reset, load | **Card**: 9 of 9, clock counts equal the simulation | #1100 |
+| **The sanity check** (12 Oct, one run, nine checks): back-pressure stops the flow and it resumes; freeze stop (the first freeze ever run on a card); freeze with a word inside the grid, then resume; save, whole-card reset, load, run on | **Card**: 9 of 9 ok, values equal the model, no retries, and the clocks counted on the card equal the simulation exactly (137 / 132 / 123 / 29 / 137) | #1100 |
 | A saved VM state loaded into the card, which then runs on and agrees with the VM | **Card** | #1101 |
 | In-flight capture and restore, UniCell and the usual-FPGA scan-chain version, four cuts each | **Card**: same answer as the model, identical end state | #1148-#1150 |
 | LaTeX formula -> ICM -> Verilog -> bitstream (`y = (z^2+12345) \bmod 65521`), 4 cuts | **Card**: answers equal the model | #1151, #1152 |
