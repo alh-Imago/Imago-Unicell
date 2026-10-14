@@ -1415,5 +1415,11 @@ Alan ran `sudo ./run_groups_v2.sh /dev/ttyUSB1` with the #1166 bitstreams, each 
 
 *Alan's order of work (14 Oct):* cross/corner on the card now; then the LaTeX division core on the carrier if it fits and can be tested; Arria 10 freeze and load waits for a new PC; the ESP expansion parts are ordered, test next week; then sub next to the carrier and the carrier RTL gaps (priority sequenced mode, nano hold wiring), which are more involved.
 
-Next entry: #1170.
+#1170 (14 Oct 2026) -- THE NATIVE CROSS AND CORNER CELLS PASS ON THE REAL CARD (cross-reference #1165, #1169)
+
+Alan ran `tiles_flex` (`sudo env ONLY="tiles_flex" ./run_all_v2.sh /dev/ttyUSB1`, board power-cycled first): PASS, 45,130 bytes, 276 complete result lines, the board line equal to the simulated line in EVERY field including `last=0000006A` (n=0030, bad=0000, sig=8B9E23CD). Three native tiles in one flex design (cross; corner turn 0; corner turn 1), six streams x 8 words, round-robin in and out, random exit stalls (the wrapper's `ready` is the LFSR bit, about half the clocks), output equal to input. Results, csv and raw bytes (gz) in `docs/measurements/board_tiles_1170/`. This closes the card side of the "native per-family cores" item for the FLEX family (#999, #1165).
+*Scope, stated:* flex tiles only (the sub tiles are proven in simulation, #1165, not on the card); 27 MHz, one card, one PC; back-pressure is the wrapper's random exit stall only: no input gaps, no long hold, no freeze with a word inside a tile (offered to Alan as a second bitstream, not yet asked for); the bitstream used the tile design's six streams through one shim, so one stalled stream holds the others.
+*Open on Alan's list:* LaTeX division core on the carrier (fit and test), ESP expansion next week, Arria 10 freeze/load (new PC), sub next to the carrier, carrier RTL gaps.
+
+Next entry: #1171.
 
