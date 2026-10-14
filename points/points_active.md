@@ -1430,5 +1430,11 @@ Alan's list, last item: "the LaTeX division on the v4/v4c, if it fits and can be
 *Honest scope.* This is the divider CELL through the flex adapters, not a LaTeX formula compiled for the standard line: `latex_cli` builds division for flex and sub only, and the std-only path (`std_icm_generate_v1`) still refuses a div core. Constant divisors on the carrier still rely on the join-mode (VIXeN) cell, the v4c without join pairs successive arrivals (#1104). Unsigned only. NOT RUN ON THE CARD: a pass is `res=P n=0009 bad=0000 sig=0002F664` for each.
 *Not done:* LaTeX -> standard-line division end to end; a standalone (no flex) std/carrier division board test.
 
-Next entry: #1172.
+#1172 (14 Oct 2026) -- THE DIVISION CORE PASSES ON THE REAL CARD, ON THE STANDARD LINE AND ON THE TRIMMED CARRIER (cross-reference #1073, #1171)
+
+Alan ran both bitstreams of #1171 (`sudo env ONLY=<name> ./run_all_v2.sh /dev/ttyUSB1`, one load per power-up). `mixed_std_div_pipe` (standard join-mode divider, 1918 LUT4): PASS, 45,578 bytes, 270 lines. `mixed_carrier_div_pipe` (trimmed VIXeN carrier keeping ram + div, 1890 LUT4): PASS, 46,960 bytes, 267 lines. In both, every complete line is `res=P` and equals the simulated line in every field including `last=00000146` and sig=0002F664: 1000000 // (x + 1000) + 5 for 9 words with random exit stalls, the ninth dividing by zero (all ones, then +5). Results, csv and raw bytes (gz) in `docs/measurements/board_mixed_div_1172/`. So the flex <-> standard / carrier adapters (#1169) now also carry a core that is not in the original four (div, 33 clocks per word at one quotient bit per clock), and the division cell runs on silicon on both v4 lines (it had only benches before, #1073).
+*Scope, stated:* the cell through the flex adapters with a fixed dividend and a streamed divisor, unsigned, STEPS 1, one card, one PC, 27 MHz. NOT shown: a LaTeX formula compiled for the standard line (that path still refuses div), constant-divisor pairing in a carrier WITHOUT join mode (v4c), other STEPS values, remainder output.
+*Open on Alan's list:* ESP expansion (next week), Arria 10 freeze/load (new PC), sub next to the carrier, carrier RTL gaps (priority sequenced mode, nano hold wiring); sub-family native tiles on the card; the tiles back-pressure follow-up (offered, not asked for).
+
+Next entry: #1173.
 
