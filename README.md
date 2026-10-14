@@ -8,7 +8,7 @@
 > - **What was tested and did not favour it:** on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See `docs/measurements/UNICELL_VS_PURE.md`.
 > - **What is NOT shown:** running a design on a physical card **and** saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`).
 > - **Prior art:** every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in `docs/prior_art/PRIOR_ART_REPORT.md`; it is not a proof of novelty either way.
-> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 13 October 2026 the ledger is at #1168).
+> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 13 October 2026 the ledger is at #1169).
 >
 > **A possible new use (10 October 2026): teaching.** The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md), and a first teaching manual built from it (11 October 2026) is [`docs/teaching_manual.html`](docs/teaching_manual.html): 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
 
@@ -31,11 +31,11 @@ Each row says where the check was actually made. "Card" means the real Tang Nano
 | LaTeX formula -> ICM -> Verilog -> bitstream (`y = (z^2+12345) \bmod 65521`), 4 cuts | **Card**: answers equal the model | #1151, #1152 |
 | Injected serial faults during capture or restore (lost byte, corrupted chunk) | **Card**: all caught and retried | #1153 |
 | State moving between the real card, the simulated card and the VM, every direction tried; restore after a real power-off | **Card + simulation + VM**: all pass | #1154, #1155, #1158, #1159, #1161 |
-| Native cross and corner wiring cells (flex and sub) | Simulation only: equal to the relay version clock for clock | #1165 |
-| Flex <-> standard / carrier adapters, generated into mixed designs (flex, standard or carrier, flex) | Simulation only so far (stage 1 with real v4/v4c cells, stage 2 through the assembler); bitstreams built for the card in #1168, not yet run | #1160, #1162, #1168 |
+| Native cross and corner wiring cells (flex and sub) | Simulation only: equal to the relay version clock for clock; a flex card test (three tiles, 6 streams) is built, not yet run | #1165, #1169 |
+| **Flex <-> standard and flex <-> carrier adapters**: flex -> standard (or carrier) cells -> flex, 8 words, x + 1239, random stalls | **Card**: carrier 270 lines equal the simulation (sig 0000CC60); standard PASS per the run script | #1160, #1162, #1168, #1169 |
 | The LaTeX division core on the v4/v4c carrier designs | Not run | #1075 |
 
-Open: a second card, the BL616 firmware check (needs the new card reader), re-run statistics, and the flex <-> standard adapter on the card.
+Open: a second card, the BL616 firmware check (needs the new card reader), re-run statistics, the native tiles on the card, and sub next to the carrier.
 
 ---
 

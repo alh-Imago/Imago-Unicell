@@ -1,0 +1,2 @@
+test,status,board_line,simulated_line,lut4,dff,fmax_mhz
+mixed_carrier_pipe,PASS,"UCT mixed_carrier_pipe res=P n=0008 e=0008 bad=0000 to=0 last=00000029 sig=0000CC60 w=000004DC,0000053B,000004D0,00003510,000004D7,00000524,000008BF,000004F6","UCT mixed_carrier_pipe res=P n=0008 e=0008 bad=0000 to=0 last=00000029 sig=0000CC60 w=000004DC,0000053B,000004D0,00003510,000004D7,00000524,000008BF,000004F6",1890,975,123.1

@@ -1407,5 +1407,13 @@ Alan ran `sudo ./run_groups_v2.sh /dev/ttyUSB1` with the #1166 bitstreams, each 
 
 *Not done:* the card run; sub next to standard/carrier (still refused); the audit of old "Next:/Open:" lines; BL616 check; statistics re-run.
 
-Next entry: #1169.
+#1169 (14 Oct 2026) -- FLEX <-> STANDARD AND FLEX <-> CARRIER MIXED PIPELINES PASS ON THE REAL CARD; BOARD BITSTREAM FOR THE NATIVE CROSS / CORNER CELLS BUILT (not yet run)
+
+*Card results (cross-reference #1160, #1162, #1168).* Alan ran `mixed_std_pipe` and `mixed_carrier_pipe` (`sudo env ONLY=<name> ./run_all_v2.sh /dev/ttyUSB1`, power-cycled between, one load each). `mixed_carrier_pipe`: PASS, 46,453 bytes, 270 complete lines, every one equal to the simulated line (n=0008, sig=0000CC60, apart from nothing: `last=00000029` too); result files and raw bytes in `docs/measurements/board_mixed_std_1169/`. `mixed_std_pipe`: PASS as printed by the run script (42,232 bytes, "SUMMARY: 1 of 1 passed"); Alan pasted the terminal output and did not send that run's result file, so its line is not archived here (stated, not assumed). So the flex <-> standard v4 and flex <-> trimmed carrier adapters (#1160, #1162) now run on silicon, with the same checksum as the sub version (#1122). Scope: 8 words, one card, one PC, 27 MHz, adders only in the middle block; not the other cores through the adapter.
+
+*Native tile test built (not run).* `tools/board_tiles_v1.py` -> `fpga/board_tests_tiles/tiles_flex`: three native tiles (cross; corner turn 0; corner turn 1) in one generated flex design, 6 streams x 8 words handed in round-robin through a small shim (`tiles_shim`, only in this test) and read out in the same order, so the existing wrapper sees one stream in and the same stream out. Measured: passes in iverilog with random stalls (sig 8B9E23CD, 48 words); BITE: with every tile built as an ordinary ram relay the same wrapper reports FAIL (96 words, 93 bad); place and route seed 1: 3032 LUT4, Fmax estimate 117.1 MHz, timing met at 27 MHz. Zip `unicell_tiles_test_1169.zip` sent. A pass on the card is `res=P n=0030 bad=0000 sig=8B9E23CD`. Flex family only; the sub tiles are not in this bitstream.
+
+*Alan's order of work (14 Oct):* cross/corner on the card now; then the LaTeX division core on the carrier if it fits and can be tested; Arria 10 freeze and load waits for a new PC; the ESP expansion parts are ordered, test next week; then sub next to the carrier and the carrier RTL gaps (priority sequenced mode, nano hold wiring), which are more involved.
+
+Next entry: #1170.
 

@@ -1,0 +1,11 @@
+UniCell on-board test run  2026-10-14 22:08:52
+====================================================================================================
+mixed_carrier_pipe     PASS
+   what     : flex -> adapter -> trimmed CARRIER cells -> adapter -> flex pipeline, x + 1239 (random exit stalls)
+   board    : UCT mixed_carrier_pipe res=P n=0008 e=0008 bad=0000 to=0 last=00000029 sig=0000CC60 w=000004DC,0000053B,000004D0,00003510,000004D7,00000524,000008BF,000004F6
+   simulated: UCT mixed_carrier_pipe res=P n=0008 e=0008 bad=0000 to=0 last=00000029 sig=0000CC60 w=000004DC,0000053B,000004D0,00003510,000004D7,00000524,000008BF,000004F6
+   capture  : 46453 bytes, 270 lines of this test, other tests seen: none
+   built    : 1890 LUT4, 975 flip-flops, Fmax 123.1 MHz
+
+====================================================================================================
+SUMMARY: 1 of 1 passed
