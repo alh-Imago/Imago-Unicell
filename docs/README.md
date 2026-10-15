@@ -23,6 +23,7 @@ The documents that describe the current line:
   stripped and why, measured costs, the design rules (two roles = two
   ports), the merge core, the FlexGrid fixes and the second ports.
 - **`unit_bringup_guide.md`** and **`playout_capture_v1.md`** — the small unit (Tang Nano 20K + SD card + ESP32): bring-up on the real board, WiFi control, the register map, wiring sheet and measured results. `../quickstart.py` is the first command after a clone.
+- **`WIRING_REFERENCE_v1.md`** (ledger #1173) -- every ESP32 and Tang wiring arrangement used or planned (SPI link, SD slot, analog and digital sensors, direct mode with no ESP32, the HW-262 shield, the ESP32 SD card, the JTAG idea), with diagrams, pin tables and what was actually run on the board.
 - **`man/README.md`** and **`man/tang-nano-20k-getting-started.md`** —
   the card files (Arria 10 and Tang Nano 20K). They cover what the
   assembler reads (`native_width`, DSP primitives, `synthesis.nowidelut`,

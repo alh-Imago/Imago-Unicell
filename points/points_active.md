@@ -1436,5 +1436,10 @@ Alan ran both bitstreams of #1171 (`sudo env ONLY=<name> ./run_all_v2.sh /dev/tt
 *Scope, stated:* the cell through the flex adapters with a fixed dividend and a streamed divisor, unsigned, STEPS 1, one card, one PC, 27 MHz. NOT shown: a LaTeX formula compiled for the standard line (that path still refuses div), constant-divisor pairing in a carrier WITHOUT join mode (v4c), other STEPS values, remainder output.
 *Open on Alan's list:* ESP expansion (next week), Arria 10 freeze/load (new PC), sub next to the carrier, carrier RTL gaps (priority sequenced mode, nano hold wiring); sub-family native tiles on the card; the tiles back-pressure follow-up (offered, not asked for).
 
-Next entry: #1173.
+#1173 (15 Oct 2026) -- WIRING REFERENCE: EVERY ESP32 AND TANG WIRING ARRANGEMENT IN ONE PAGE (cross-reference #1036, #1172)
+
+Alan: pull out all the ESP32 and Tang wiring diagrams used, including the direct-to-Tang wiring, for further experiments that show the no-interrupt nature of the architecture. New `docs/WIRING_REFERENCE_v1.md`, gathered ONLY from existing files (`unit_bringup_guide.md`, `playout_capture_v1.md`, `tools/sd_unit_top_v1.py` pin tables, `tools/board_tests_v1.py`, the two ESP32 sketches, `sensors.h`); nothing measured or wired new. Nine arrangements, each with its status as the files record it: run on the card = tang-alone serial/LED lines, the ESP32 <-> Tang SPI link (CS 5->73, SCLK 18->74, MOSI 23->75, MISO 19<-76, READY 34<-77, GND; 8 Oct 2026) and the Tang's own SD slot; analog sensors read on 10 Oct (potentiometer 35, light 36, thermistor 39); NOT run or NOT checked on the board = digital sensors (PIR 16, tilt 17, ultrasonic 22/21 with a divider), direct mode on Tang pins 72/71 (pins "not checked on the board", no ESP32, ~1 ms sampling, LED4/LED5), the HW-262 shield (Tang pins 71/72 buttons, 25-28 display/buzzer; clock and latch pin numbers partly inferred), the ESP32's own SD card (IO32/33/25/26), and the ESP32-through-JTAG idea (research only). Two summary pin tables (Tang, ESP32). Indexed in `docs/README.md`. Not in the manual build list (no change to `docs/build_manual.py`); no kit rebuilt this entry.
+*Open (from the page):* check Tang pins 71/72 and 25-28 against the header before the direct-mode experiments; the clock and latch pins of the shield.
+
+Next entry: #1174.
 
