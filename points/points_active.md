@@ -1447,5 +1447,9 @@ Alan: the old Kintex-7 files in the git are the card whose PCIe side is dead; th
 *Open questions, none answered yet:* the card's JTAG header (pinout, voltage, which cable it takes); that the external adapter supplies the card's 12 V rail and idle current; whether anything on the card is left to drive (a clock, the LEDs, and a way to get a result out without PCIe or UART: LEDs only, or a pin header); the flow (the archive used openXC7 in WSL + Nix; neither it nor Vivado is installed in the Claude cloud container, checked 15 Oct); the Kintex MAN file does not exist (#928).
 *Not done:* everything above. Natural first steps when the adapter arrives: power-up with the card's own clock and LEDs, JTAG chain scan (IDCODE of the XC7K480T), then a blink bitstream, then a flex/sub test design with a result on LEDs or a header pin.
 
-Next entry: #1175.
+#1175 (15 Oct 2026) -- KINTEX-7: THE XILINX JTAG PROGRAMMER IS IN HAND; THE CARD IS THE 480T; THE PURPOSE IS TO MEASURE THE NEW FLEX AND SUB DESIGNS (Alan, 15 Oct; cross-reference #1174)
+
+Alan: he has the Xilinx JTAG programmer (model not yet stated), confirms the card is the XC7K480T, and says the old full-cell designs are well behind the project now; the card's use is to measure the NEW flex and sub designs at a scale the Tang cannot hold. Recorded; nothing built. Consequence for the work (my reading, not tested): the old Kintex tops (XDMA/PCIe, top_kintex7) are not reused; what is needed is a small new top for the Kintex (clock, reset, LEDs, a way to read a result) wrapped around generated flex/sub designs, a Kintex constraint generator (the generated .cst is Gowin-only, #928) and a flow that builds for xc7k480tffg1156-2 (the archive used openXC7; not installed in the cloud container). Open: the programmer model (decides the loader: openFPGALoader supports some Xilinx cables, not all), the JTAG header, the 12 V supply, how a result gets out.
+
+Next entry: #1176.
 
