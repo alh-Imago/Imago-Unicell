@@ -1,0 +1,18 @@
+{
+ "group": "P",
+ "tests": [
+  "iso_s0",
+  "iso_s4",
+  "iso_s8"
+ ],
+ "sim_lines": {
+  "iso_s0": "UCT iso_s0 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA",
+  "iso_s4": "UCT iso_s4 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA",
+  "iso_s8": "UCT iso_s8 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA"
+ },
+ "selbit": 24,
+ "n_words": 64,
+ "fmax_mhz": 113.2,
+ "lut4": 6429,
+ "dff": 2116
+}
