@@ -1580,5 +1580,13 @@ Alan ran all three v2 groups (he did not use the `ONLY=P` option, so P, Q and R 
 
 *Reading.* Our design toggles LED2 (pin N30) on counter bit 22 (fastest), LED1 (M30) on bit 23, LED0 (P30) on bit 24 (slowest). So N30 is yellow, M30 green, P30 red. That matches the colour reading from the demo in #1195/#1196 and now confirms the three pin-to-colour pairs by observation (Alan's description "slower in sequence" is qualitative; the speeds were not timed, and which of green or red is the faster of the two was not separately stated). It also shows our own Verilog and constraints file work on this card, and that the 50 MHz clock on AA28 is running. Still open: no way to read results back from the card (LEDs only).
 
-Next entry: #1198.
+#1198 (17 Oct 2026) -- ESP32 <-> TANG LINK RE-WIRED AND THE BRIDGE TEST LADDER PASSED (Alan, 17 Oct 22:25-23:02; cross-reference #1173 wiring reference)
+
+*Setting.* Alan re-wired the ESP32 (38-pin WROOM-32D dev board, pinout picture he supplied) to the Tang Nano 20K from the wiring reference section 2, after the earlier wiring had been tidied away; unit bitstream `fpga/build/unit_cordic_v1/unit_top.fs`, bridge sketch `tools/esp32/unicell_unit_bridge`. The ESP32's own SD reader (arrangement 8) has parts now but was NOT wired or tried in this session; direct-to-Tang sensor wiring (arrangement 6, pins 72/71) was not wired either.
+
+*What was seen, in order.* (1) `wires`: Tang LED0 flashing (design running), LED3 lit (SD card up), LED2 lit (SCLK arrives), LED1 off (CS not arriving); the sketch's `wires` readout gave MISO 0 and READY 1 (the READY line works). `id` returned 0x00000000. (2) Alan touched the Tang's left-header hole 1 (pin 73) to ground and LED1 lit: the Tang side and hole were right, so the CS path from ESP32 IO5 was at fault; he re-seated wiring (what exactly he changed was not reported). `id` then returned 0x57320001 OK. (3) `scratch` first failed on the second pattern only (wrote 0x12345678, read back the previous value 0xA5A55A5A: an ignored write, not garbled data); Alan found the common ground wire had come out; after re-seating it `scratch` read back OK. (4) `cordic`: all six results equal the simulator (-404, 404, -2726, 821, -821, -2726). (5) `status` 0x0061: sd_ready 1, sd_error 0, nothing busy, 6 results captured, err_code 0. (6) `sdtest` (block 64, six values): every value via the SD card equals the value via SPI; "SD ROUND TRIP OK".
+
+*Reading.* The fault list was a CS path problem (cause not identified; fixed by re-seating) and a loose common ground (found by the intermittent scratch failure; a likely cause of the ignored write, not proven). The ladder now matches the 8 Oct result on this rewiring. Not run yet: ESP32 SD reader, web sketch, sensors, direct mode, T2/T3/C1.
+
+Next entry: #1199.
 
