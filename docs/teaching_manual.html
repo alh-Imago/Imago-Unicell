@@ -8714,7 +8714,7 @@ f.mirror_bounds = bounds</pre>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
-<h2>Confirmed on the card, and what is still simulation only (14 October 2026)</h2>
+<h2>Confirmed on the card, and what is still simulation only (17 October 2026)</h2>
 <p>Each row says where the check was actually made. "Card" means the real Tang Nano 20K (Sipeed, card_id <code>sipeed-tang-nano-20k-01</code>, GW2AR-LV18QN88C8/I7) unless the row says Arria 10. One card, one PC, small designs at 27 MHz: this shows the cells and the handshake work on silicon, not capacity or speed.</p>
 <table>
 <thead>
@@ -8804,6 +8804,11 @@ f.mirror_bounds = bounds</pre>
 <td><strong>Division core on the standard line and on the trimmed carrier</strong> (flex -&gt; divider -&gt; flex, 9 words incl. divide by zero, random stalls)</td>
 <td><strong>Card</strong>: both boards lines equal the simulation in every field (sig 0002F664). A LaTeX formula compiled for the standard line is not built</td>
 <td>#1073, #1171, #1172</td>
+</tr>
+<tr>
+<td><strong>"No interrupts" and parallel work, Tang-only tests</strong> (64-word job, 131 clocks, stall-free): the job alone, beside 4 and beside 8 busy storm lanes; 4 independent copies at once; the same words through 1, 2, 4, 8 lanes behind one shared port</td>
+<td><strong>Card</strong>: all 10 runs equal the simulation exactly, 131 clocks each, words and signature equal. Means: other work in separate cells did not change this job's timing; copies did not slow each other; a shared port is the limit (no speed-up from more lanes). One small job, one workload, no random stalls; the shared exit port, serial line and SPI still queue. The first run of the isolation test did not count (synthesis had deleted the storm lanes, #1182); the corrected build is the result. T2, T3 and the microcontroller contrast need the ESP32 parts and are not run</td>
+<td>#1180, #1182, #1183</td>
 </tr>
 </tbody>
 </table>
