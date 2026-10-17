@@ -1600,5 +1600,9 @@ Alan ran all three v2 groups (he did not use the `ONLY=P` option, so P, Q and R 
 
 Alan reported, from his dictated message "exact same file", that the file downloaded from the ESP32's card through the web page is the same as the original `9-10-26 BRS.csv` (363 bytes). How he compared it (byte comparison, size, or by eye) was not stated, so this is his report of identity, not a checksum run by me. With #1199, the ESP32's own SD reader has now been shown to store a file across an ESP32 reset and return it unchanged. Delete not tried.
 
-Next entry: #1201.
+#1201 (17 Oct 2026) -- ESP32 DIGITAL SENSORS: TILT AND ULTRASONIC REPORTED WORKING (Alan, 17 Oct 23:20; cross-reference #1173 arrangement 5)
+
+Alan reported, in one line ("tilt, ultrasonic working"), that the tilt switch and the ultrasonic sensor work. Arrangement 5 of the wiring reference had them as "readers written, nothing wired or run". Not reported: where he read them (assumed the ESP32 web page, not stated), the pins he used (the reference gives tilt on IO17, ultrasonic trigger IO22 and echo IO21 through a divider), what values he saw, and whether the PIR was tried. So the entry records his statement only; no numbers were seen by me.
+
+Next entry: #1202.
 

@@ -8,7 +8,7 @@ Every wiring arrangement used or planned in this project, gathered from `docs/un
 | 2 | ESP32 <-> Tang SPI link (the "small unit") | **Run on the card**, 8 Oct 2026 (ledger #1036 add. 7) |
 | 3 | The Tang's own SD slot (inside the unit) | **Run on the card**, 8 Oct 2026 (SD round trip) |
 | 4 | Analog sensors on the ESP32 (potentiometer, light, thermistor) | Wired and read on 10 Oct 2026 (potentiometer, light); thermistor not recorded as run |
-| 5 | Digital sensors on the ESP32 (PIR, tilt, ultrasonic) | Readers written, **nothing wired or run** |
+| 5 | Digital sensors on the ESP32 (PIR, tilt, ultrasonic) | Tilt and ultrasonic reported working by Alan 17 Oct 2026 (ledger #1201, no values seen); PIR not reported |
 | 6 | Direct mode: a sensor wired straight to the Tang, no ESP32 | Pins 72/71 **not checked on the board** |
 | 7 | HW-262 shield on the Tang (buttons, 4-digit display, buzzer) | Build exists, **not wired** |
 | 8 | The ESP32's own SD card | **Not tried** |
