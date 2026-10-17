@@ -1,0 +1,18 @@
+UniCell on-board test run  2026-10-17 12:36:54
+====================================================================================================
+mixed_sub_carrier_pipe PASS
+   what     : flex(+1000) -> SUB(+234) -> flex(+5) -> trimmed CARRIER(+77) -> flex(+3): x + 1319, random exit stalls
+   board    : UCT mixed_sub_carrier_pipe res=P n=0008 e=0008 bad=0000 to=0 last=0000004A sig=00002D70 w=0000052C,0000058B,00000520,00003560,00000527,00000574,0000090F,00000546
+   simulated: UCT mixed_sub_carrier_pipe res=P n=0008 e=0008 bad=0000 to=0 last=0000004A sig=00002D70 w=0000052C,0000058B,00000520,00003560,00000527,00000574,0000090F,00000546
+   capture  : 43577 bytes, 267 lines of this test, other tests seen: none
+   built    : 2092 LUT4, 1306 flip-flops, Fmax 127.0 MHz
+
+tiles_sub              PASS
+   what     : NATIVE cross + corner (turn 0, turn 1) tiles in the SUB family: 6 streams x 8 words, six streams at the same time, output must equal input, random exit stalls
+   board    : UCT tiles_sub res=P n=0030 e=0030 bad=0000 to=0 last=000000FF sig=AF35B8F0 w=82FF1151,2B16A709,40E82E9D,0A8EE438,0B7642DB,4581C9F2,77004BA5,8544FCE3
+   simulated: UCT tiles_sub res=P n=0030 e=0030 bad=0000 to=0 last=000000FF sig=AF35B8F0 w=82FF1151,2B16A709,40E82E9D,0A8EE438,0B7642DB,4581C9F2,77004BA5,8544FCE3
+   capture  : 54621 bytes, 276 lines of this test, other tests seen: ['mixed_sub_carrier_pipe']
+   built    : 3418 LUT4, 1974 flip-flops, Fmax 116.6 MHz
+
+====================================================================================================
+SUMMARY: 2 of 2 passed
