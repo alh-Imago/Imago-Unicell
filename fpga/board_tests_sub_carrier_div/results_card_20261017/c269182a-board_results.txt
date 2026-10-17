@@ -1,0 +1,11 @@
+UniCell on-board test run  2026-10-17 12:58:16
+====================================================================================================
+mixed_sub_carrier_div_pipe PASS
+   what     : flex(+1000) -> SUB(+234) -> flex(+5) -> trimmed CARRIER DIVIDER (1000000 // d) -> flex(+3): 1000000 // (x + 1239) + 3, one word divides by zero, random exit stalls
+   board    : UCT mixed_sub_carrier_div_pipe res=P n=0008 e=0008 bad=0000 to=0 last=0000012E sig=0001422C w=00000326,000002ED,0000032E,0000004C,00000002,000002FA,000001C1,00000316
+   simulated: UCT mixed_sub_carrier_div_pipe res=P n=0008 e=0008 bad=0000 to=0 last=0000012E sig=0001422C w=00000326,000002ED,0000032E,0000004C,00000002,000002FA,000001C1,00000316
+   capture  : 47443 bytes, 264 lines of this test, other tests seen: none
+   built    : 2193 LUT4, 1410 flip-flops, Fmax 120.1 MHz
+
+====================================================================================================
+SUMMARY: 1 of 1 passed
