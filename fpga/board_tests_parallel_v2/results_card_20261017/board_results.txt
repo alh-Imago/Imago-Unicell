@@ -1,0 +1,47 @@
+UniCell on-board PARALLEL / NO-INTERRUPT run  2026-10-17 11:16:08
+====================================================================================================
+iso_s0   PASS                     clocks on card: 131   simulated: 131
+   board    : UCT iso_s0 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT iso_s0 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+iso_s4   PASS                     clocks on card: 131   simulated: 131
+   board    : UCT iso_s4 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT iso_s4 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+iso_s8   PASS                     clocks on card: 131   simulated: 131
+   board    : UCT iso_s8 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT iso_s8 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+sh_k2    PASS                     clocks on card: 131   simulated: 131
+   board    : UCT sh_k2 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT sh_k2 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+sh_k4    PASS                     clocks on card: 131   simulated: 131
+   board    : UCT sh_k4 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT sh_k4 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+sh_k8    PASS                     clocks on card: 131   simulated: 131
+   board    : UCT sh_k8 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT sh_k8 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+ind_0    PASS                     clocks on card: 131   simulated: 131
+   board    : UCT ind_0 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT ind_0 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+ind_1    PASS                     clocks on card: 131   simulated: 131
+   board    : UCT ind_1 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT ind_1 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+ind_2    PASS                     clocks on card: 131   simulated: 131
+   board    : UCT ind_2 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT ind_2 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+ind_3    PASS                     clocks on card: 131   simulated: 131
+   board    : UCT ind_3 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+   simulated: UCT ind_3 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA
+
+====================================================================================================
+T1 isolation (job alone / beside 4 / beside 8 storm lanes): {'iso_s0': 131, 'iso_s4': 131, 'iso_s8': 131} -> ALL EQUAL to iso_s0
+T4 independent copies (4 copies at once vs the single job): {'ind_0': 131, 'ind_1': 131, 'ind_2': 131, 'ind_3': 131} -> ALL EQUAL to iso_s0
+T5 shared port (1, 2, 4, 8 lanes behind one input/output; simulation says a single lane already fills the port): {'iso_s0': 131, 'sh_k2': 131, 'sh_k4': 131, 'sh_k8': 131} -> ALL EQUAL to iso_s0
+EXACT MATCH WITH SIMULATION: 10 of 10
