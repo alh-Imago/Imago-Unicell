@@ -1,0 +1,97 @@
+{
+  "format_version": "icm-v3",
+  "cell_type": "unicell_super_v1",
+  "name": "priority_weighted",
+  "description": "priority core, weighted round robin (weights north 1, west 3, south 2)",
+  "records": [
+    {
+      "cell_id": "P",
+      "row": 1,
+      "col": 1,
+      "core": "priority",
+      "core_config": {
+        "upstream_mask": [
+          "n",
+          "w",
+          "s"
+        ],
+        "downstream_mask": [
+          "e"
+        ],
+        "scheduling_mode": 1,
+        "priority_rank_n": 1,
+        "priority_rank_w": 3,
+        "priority_rank_s": 2
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000392969"
+    },
+    {
+      "cell_id": "O",
+      "row": 1,
+      "col": 2,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [
+          "w"
+        ],
+        "downstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001001"
+    },
+    {
+      "cell_id": "E1",
+      "row": 0,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [],
+        "downstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000041"
+    },
+    {
+      "cell_id": "E2",
+      "row": 1,
+      "col": 0,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [],
+        "downstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000081"
+    },
+    {
+      "cell_id": "E3",
+      "row": 2,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [],
+        "downstream_mask": [
+          "n"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000021"
+    }
+  ],
+  "record_hash": "039c860e950d982bfab749154161b6fb79f830ddefcbb4338b79c686c363398d"
+}

@@ -1,0 +1,97 @@
+{
+  "format_version": "icm-v3",
+  "cell_type": "unicell_super_v1",
+  "name": "ram_oneshot",
+  "description": "the ram's ONE-SHOT preload: the configured 100 is offered once; only the first item sees it, the rest wait (#1021)",
+  "records": [
+    {
+      "cell_id": "K",
+      "row": 0,
+      "col": 1,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [],
+        "downstream_mask": [
+          "s"
+        ],
+        "init_data": 100,
+        "load_data_valid": 1
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000324041"
+    },
+    {
+      "cell_id": "E",
+      "row": 0,
+      "col": 0,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [],
+        "downstream_mask": [
+          "s"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000041"
+    },
+    {
+      "cell_id": "R",
+      "row": 1,
+      "col": 0,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [
+          "n"
+        ],
+        "downstream_mask": [
+          "e"
+        ]
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000000281"
+    },
+    {
+      "cell_id": "A",
+      "row": 1,
+      "col": 1,
+      "core": "adder",
+      "core_config": {
+        "upstream_mask": [
+          "n",
+          "w"
+        ],
+        "downstream_mask": [
+          "e"
+        ],
+        "subtract_mode": 0
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001282"
+    },
+    {
+      "cell_id": "O",
+      "row": 1,
+      "col": 2,
+      "core": "ram",
+      "core_config": {
+        "upstream_mask": [
+          "w"
+        ],
+        "downstream_mask": []
+      },
+      "addon_config": {},
+      "io_name": null,
+      "preload_value": null,
+      "super_latch_hex": "0x00000000000000001001"
+    }
+  ],
+  "record_hash": "eab4238c79f3d7b62028dfc8f0a41455b6b18406639de7f9e2c5077b19bf6fb4"
+}

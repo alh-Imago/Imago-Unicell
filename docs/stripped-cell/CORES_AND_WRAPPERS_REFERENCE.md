@@ -33,6 +33,14 @@ in three of them). Check the file, not the version number.
 | VIX Carrier | `*_v4.v`, `*_v4c.v`, `unicell_vix_carrier_v1.v` | Arria 10 (not built), Tang (does not fit, #887) | simulation only | "The VIX Carrier" |
 | **sub / flex** | `sub/verilog/*_v4s.v`, `*_v4sa.v` | **Tang Nano 20K, the current line** | simulation + synthesis + place-and-route; not yet on the board | **next section** |
 
+## How the version names work (Alan, 16 Oct 2026; checked against the files and the assembler, 17 Oct, ledger #1177)
+
+- **The number after `_v` is the level of that file** (`adder_cell_v4`, `mul_cell_v5`). Higher is newer. Each core has its own number, so `mul_cell` is at v5 while most others are at v4. Shells have their own numbers too (`*_shell_v1`, `*_shell_v1c`, `*_shell_v1e`).
+- **The assembler picks by the number.** `resolve_core_file` in `tools/project_assemble_v1.py` (ledger #567) matches only names of the form `<core>_v<number>.v` and takes the highest number, so nobody has to track versions by hand.
+- **A letter after the number marks a variant branch, not a newer version.** `c` is the carrier version of a core (it drops the addon chain). `e` is the cores of the VIXeN carrier (the `c` cores plus the flex family's behaviours: join mode, the sequenced channel, hold / feedback set from config; see the VIXeN section). `s` and `sa` are the sub and flex families (`*_v4s`, `*_v4sa`). The files do not spell out what `e` stands for.
+- **Letter files are never picked automatically**, because the picking pattern allows digits only. They are chosen by name: the carrier generators list the shells they accept (`make_carrier_subset_v3` takes `v1c` and `v1e`). So a carrier or VIXeN core cannot be pulled in by accident when a plain core is asked for.
+- The generated index `fpga/verilog/VERSIONS.md` follows the same rule; it lists which older files anything still names, and re-run `python3 tools/verilog_versions_v1.py` after adding versions.
+
 ## The sub (v4s) and flex (v4sa) families — the current line (`points.md` #898-#986)
 
 Full design record: `sub/README.md`. In summary, each cell is

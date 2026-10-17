@@ -183,7 +183,7 @@
 <li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
 <li><strong>What is NOT shown:</strong> running a design on a physical card <strong>and</strong> saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>).</li>
 <li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
-<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 13 October 2026 the ledger is at #1172).</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 17 October 2026 the ledger is at #1178).</li>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
@@ -930,6 +930,10 @@ The documents that describe the current line:</p>
   stripped and why, measured costs, the design rules (two roles = two
   ports), the merge core, the FlexGrid fixes and the second ports.</li>
 <li><strong><code>unit_bringup_guide.md</code></strong> and <strong><code>playout_capture_v1.md</code></strong> — the small unit (Tang Nano 20K + SD card + ESP32): bring-up on the real board, WiFi control, the register map, wiring sheet and measured results. <code>../quickstart.py</code> is the first command after a clone.</li>
+<li><strong><code>WIRING_REFERENCE_v1.md</code></strong> (ledger #1173) -- every ESP32 and Tang wiring arrangement used or planned (SPI link, SD slot, analog and digital sensors, direct mode with no ESP32, the HW-262 shield, the ESP32 SD card, the JTAG idea), with diagrams, pin tables and what was actually run on the board.</li>
+<li><strong><code>ESP32_BITSTREAM_LOADER_v1.md</code></strong> (ledger #1177) -- loading a precompiled design into an FPGA from an ESP32: a separate, general method, kept apart from the UniCell architecture. A proposed route, NOT built.</li>
+<li><strong><code>PRIOR_ART_AND_CONTRIBUTION_v1.md</code></strong> and <strong><code>NO_INTERRUPT_PARALLEL_TEST_PLAN_v1.md</code></strong> (ledger #1177) -- what the project builds on and what it claims; and the planned tests for the no-interrupt and parallelism claims (a plan, no results yet).</li>
+<li><strong><code>../nano/examples/card_tested/</code></strong> (ledger #1177) -- the ten designs tested on the card as plain ICM files, with <code>python3 tools/replay_card_icm_vm_v1.py</code> to replay them in the VM.</li>
 <li><strong><code>man/README.md</code></strong> and <strong><code>man/tang-nano-20k-getting-started.md</code></strong> —
   the card files (Arria 10 and Tang Nano 20K). They cover what the
   assembler reads (<code>native_width</code>, DSP primitives, <code>synthesis.nowidelut</code>,
@@ -4393,6 +4397,14 @@ in three of them). Check the file, not the version number.</p>
 </tr>
 </tbody>
 </table>
+<h2>How the version names work (Alan, 16 Oct 2026; checked against the files and the assembler, 17 Oct, ledger #1177)</h2>
+<ul>
+<li><strong>The number after <code>_v</code> is the level of that file</strong> (<code>adder_cell_v4</code>, <code>mul_cell_v5</code>). Higher is newer. Each core has its own number, so <code>mul_cell</code> is at v5 while most others are at v4. Shells have their own numbers too (<code>*_shell_v1</code>, <code>*_shell_v1c</code>, <code>*_shell_v1e</code>).</li>
+<li><strong>The assembler picks by the number.</strong> <code>resolve_core_file</code> in <code>tools/project_assemble_v1.py</code> (ledger #567) matches only names of the form <code>&lt;core&gt;_v&lt;number&gt;.v</code> and takes the highest number, so nobody has to track versions by hand.</li>
+<li><strong>A letter after the number marks a variant branch, not a newer version.</strong> <code>c</code> is the carrier version of a core (it drops the addon chain). <code>e</code> is the cores of the VIXeN carrier (the <code>c</code> cores plus the flex family's behaviours: join mode, the sequenced channel, hold / feedback set from config; see the VIXeN section). <code>s</code> and <code>sa</code> are the sub and flex families (<code>*_v4s</code>, <code>*_v4sa</code>). The files do not spell out what <code>e</code> stands for.</li>
+<li><strong>Letter files are never picked automatically</strong>, because the picking pattern allows digits only. They are chosen by name: the carrier generators list the shells they accept (<code>make_carrier_subset_v3</code> takes <code>v1c</code> and <code>v1e</code>). So a carrier or VIXeN core cannot be pulled in by accident when a plain core is asked for.</li>
+<li>The generated index <code>fpga/verilog/VERSIONS.md</code> follows the same rule; it lists which older files anything still names, and re-run <code>python3 tools/verilog_versions_v1.py</code> after adding versions.</li>
+</ul>
 <h2>The sub (v4s) and flex (v4sa) families — the current line (<code>points.md</code> #898-#986)</h2>
 <p>Full design record: <code>sub/README.md</code>. In summary, each cell is
 stripped to its bare compute function. There is no add-on chain, no
@@ -6779,6 +6791,14 @@ to before (#921). The cells are in <code>sub/verilog/</code>; see <code>sub/READ
 <tr>
 <td><code>flexsub_mixed_v3.py</code></td>
 <td>(ledger #1171) v3 = v2 plus the DIVISION core in std / carrier regions (with <code>carrier_grid_v4.py</code> and <code>standalone_grid_v2.py</code>); <code>board_mixed_div_v1.py</code> builds the card bitstreams, <code>board_tiles_v1.py</code> (#1169) and <code>board_mixed_std_v1.py</code> (#1168) the others.</td>
+</tr>
+<tr>
+<td><code>export_card_icm_v1.py</code></td>
+<td>(ledger #1177) writes the ten group-test designs that ran on the card as plain ICM v3 files (<code>nano/examples/card_tested/</code>) with an index of inputs, VM words and the card's result line.</td>
+</tr>
+<tr>
+<td><code>replay_card_icm_vm_v1.py</code></td>
+<td>(ledger #1177) loads each of those ICM files into the VM's flex grid, feeds the streams and checks the words against the index and the card's count and first words.</td>
 </tr>
 <tr>
 <td><code>flexsub_icm_netlist_v1.py</code></td>

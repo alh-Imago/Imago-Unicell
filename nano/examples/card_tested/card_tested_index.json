@@ -1,0 +1,636 @@
+{
+ "about": "Designs tested on the real Tang Nano 20K. Load each icm with IcmV3File.load, run it in FlexGrid with the entry streams, compare the words at the exit cell O. Gaps/stalls only change timing on the card, never the words.",
+ "designs": [
+  {
+   "name": "relay_chain",
+   "description": "four ram cells in a row pass 16 distinct words through unchanged (the basic handshake)",
+   "icm": "relay_chain.icm.json",
+   "record_hash": "db98f1803a71afa99b97d5978c0595827aa8e6251884d05a8bda12f92808d6ba",
+   "entries": {
+    "E": [
+     1,
+     4294967295,
+     2147483648,
+     2147483647,
+     305419896,
+     3735928559,
+     2779096485,
+     1515870810,
+     0,
+     1,
+     2,
+     3,
+     3405705229,
+     252645135,
+     4042322160,
+     42
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": false,
+   "random_stalls_on_exit": false,
+   "vm_expected_words": [
+    1,
+    4294967295,
+    2147483648,
+    2147483647,
+    305419896,
+    3735928559,
+    2779096485,
+    1515870810,
+    0,
+    1,
+    2,
+    3,
+    3405705229,
+    252645135,
+    4042322160,
+    42
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT relay_chain res=P n=0010 e=0010 bad=0000 to=0 last=00000024 sig=8F73AB53 w=00000001,FFFFFFFF,80000000,7FFFFFFF,12345678,DEADBEEF,A5A5A5A5,5A5A5A5A",
+    "n_hex": "0010",
+    "sig": "8F73AB53",
+    "first_words_hex": [
+     "00000001",
+     "FFFFFFFF",
+     "80000000",
+     "7FFFFFFF",
+     "12345678",
+     "DEADBEEF",
+     "A5A5A5A5",
+     "5A5A5A5A"
+    ]
+   }
+  },
+  {
+   "name": "relay_chain_stalled",
+   "description": "the same chain with random gaps on the input and random stalls on the output (nothing lost, repeated or reordered)",
+   "icm": "relay_chain_stalled.icm.json",
+   "record_hash": "db98f1803a71afa99b97d5978c0595827aa8e6251884d05a8bda12f92808d6ba",
+   "entries": {
+    "E": [
+     4096,
+     4113,
+     4130,
+     4147,
+     4164,
+     4181,
+     4198,
+     4215,
+     4232,
+     4249,
+     4266,
+     4283,
+     4300,
+     4317,
+     4334,
+     4351,
+     4368,
+     4385,
+     4402,
+     4419,
+     4436,
+     4453,
+     4470,
+     4487
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": true,
+   "random_stalls_on_exit": true,
+   "vm_expected_words": [
+    4096,
+    4113,
+    4130,
+    4147,
+    4164,
+    4181,
+    4198,
+    4215,
+    4232,
+    4249,
+    4266,
+    4283,
+    4300,
+    4317,
+    4334,
+    4351,
+    4368,
+    4385,
+    4402,
+    4419,
+    4436,
+    4453,
+    4470,
+    4487
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT relay_chain_stalled res=P n=0018 e=0018 bad=0000 to=0 last=0000004D sig=FF788960 w=00001000,00001011,00001022,00001033,00001044,00001055,00001066,00001077",
+    "n_hex": "0018",
+    "sig": "FF788960",
+    "first_words_hex": [
+     "00001000",
+     "00001011",
+     "00001022",
+     "00001033",
+     "00001044",
+     "00001055",
+     "00001066",
+     "00001077"
+    ]
+   }
+  },
+  {
+   "name": "adder_stream",
+   "description": "an adder joins two streams, 12 sums (32-bit wraparound included)",
+   "icm": "adder_stream.icm.json",
+   "record_hash": "d0f46f1f58128d57c0e6f730bb00042fedf537bd5b35ebf7758897111e1ba5c9",
+   "entries": {
+    "X": [
+     1,
+     2,
+     3,
+     4294967295,
+     2147483647,
+     100,
+     200,
+     300,
+     2147483648,
+     5,
+     6,
+     7
+    ],
+    "Y": [
+     10,
+     20,
+     30,
+     1,
+     1,
+     4294967040,
+     5,
+     6,
+     2147483648,
+     1,
+     2,
+     3
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": false,
+   "random_stalls_on_exit": false,
+   "vm_expected_words": [
+    11,
+    22,
+    33,
+    0,
+    2147483648,
+    4294967140,
+    205,
+    306,
+    0,
+    6,
+    8,
+    10
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT adder_stream res=P n=000C e=000C bad=0000 to=0 last=0000001B sig=FFFF91FD w=0000000B,00000016,00000021,00000000,80000000,FFFFFF64,000000CD,00000132",
+    "n_hex": "000C",
+    "sig": "FFFF91FD",
+    "first_words_hex": [
+     "0000000B",
+     "00000016",
+     "00000021",
+     "00000000",
+     "80000000",
+     "FFFFFF64",
+     "000000CD",
+     "00000132"
+    ]
+   }
+  },
+  {
+   "name": "adder_stalled",
+   "description": "the adder with random gaps on both inputs and random output stalls",
+   "icm": "adder_stalled.icm.json",
+   "record_hash": "d0f46f1f58128d57c0e6f730bb00042fedf537bd5b35ebf7758897111e1ba5c9",
+   "entries": {
+    "X": [
+     1,
+     4,
+     7,
+     10,
+     13,
+     16,
+     19,
+     22,
+     25,
+     28,
+     31,
+     34,
+     37,
+     40,
+     43,
+     46,
+     49,
+     52,
+     55,
+     58
+    ],
+    "Y": [
+     1000,
+     1001,
+     1002,
+     1003,
+     1004,
+     1005,
+     1006,
+     1007,
+     1008,
+     1009,
+     1010,
+     1011,
+     1012,
+     1013,
+     1014,
+     1015,
+     1016,
+     1017,
+     1018,
+     1019
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": true,
+   "random_stalls_on_exit": true,
+   "vm_expected_words": [
+    1001,
+    1005,
+    1009,
+    1013,
+    1017,
+    1021,
+    1025,
+    1029,
+    1033,
+    1037,
+    1041,
+    1045,
+    1049,
+    1053,
+    1057,
+    1061,
+    1065,
+    1069,
+    1073,
+    1077
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT adder_stalled res=P n=0014 e=0014 bad=0000 to=0 last=00000043 sig=15170B1B w=000003E9,000003ED,000003F1,000003F5,000003F9,000003FD,00000401,00000405",
+    "n_hex": "0014",
+    "sig": "15170B1B",
+    "first_words_hex": [
+     "000003E9",
+     "000003ED",
+     "000003F1",
+     "000003F5",
+     "000003F9",
+     "000003FD",
+     "00000401",
+     "00000405"
+    ]
+   }
+  },
+  {
+   "name": "adder_constant",
+   "description": "a fixed-mode ram feeds the constant 5 to an adder (offered on every tick, never used up)",
+   "icm": "adder_constant.icm.json",
+   "record_hash": "bb089b3467c21f58f973d5aafdd579c12f9b4e368650939588570a3b3b753e26",
+   "entries": {
+    "X": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": false,
+   "random_stalls_on_exit": false,
+   "vm_expected_words": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT adder_constant res=P n=0008 e=0008 bad=0000 to=0 last=00000013 sig=00000339 w=00000006,00000007,00000008,00000009,0000000A,0000000B,0000000C,0000000D",
+    "n_hex": "0008",
+    "sig": "00000339",
+    "first_words_hex": [
+     "00000006",
+     "00000007",
+     "00000008",
+     "00000009",
+     "0000000A",
+     "0000000B",
+     "0000000C",
+     "0000000D"
+    ]
+   }
+  },
+  {
+   "name": "ram_hold",
+   "description": "the ram's HOLD behaviour: 7 is written once and added to six items; it is offered again each time (never used up) (#1021)",
+   "icm": "ram_hold.icm.json",
+   "record_hash": "cb6258e4f05d86ee72e53c02a4301bf28fabb8ddf8a89722b36ff61787d07d47",
+   "entries": {
+    "W": [
+     7
+    ],
+    "X": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": false,
+   "random_stalls_on_exit": false,
+   "vm_expected_words": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT ram_hold res=P n=0006 e=0006 bad=0000 to=0 last=0000000F sig=000001F9 w=00000008,00000009,0000000A,0000000B,0000000C,0000000D",
+    "n_hex": "0006",
+    "sig": "000001F9",
+    "first_words_hex": [
+     "00000008",
+     "00000009",
+     "0000000A",
+     "0000000B",
+     "0000000C",
+     "0000000D"
+    ]
+   }
+  },
+  {
+   "name": "ram_oneshot",
+   "description": "the ram's ONE-SHOT preload: the configured 100 is offered once; only the first item sees it, the rest wait (#1021)",
+   "icm": "ram_oneshot.icm.json",
+   "record_hash": "eab4238c79f3d7b62028dfc8f0a41455b6b18406639de7f9e2c5077b19bf6fb4",
+   "entries": {
+    "E": [
+     10,
+     20,
+     30
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": false,
+   "random_stalls_on_exit": false,
+   "vm_expected_words": [
+    110
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT ram_oneshot res=P n=0001 e=0001 bad=0000 to=0 last=00000005 sig=0000006E w=0000006E",
+    "n_hex": "0001",
+    "sig": "0000006E",
+    "first_words_hex": [
+     "0000006E"
+    ]
+   }
+  },
+  {
+   "name": "priority_strict",
+   "description": "priority core, strict ranks west > north > south, three sources of six items",
+   "icm": "priority_strict.icm.json",
+   "record_hash": "e6bed4c49d71fa828729923bc0cccd7eaf5f477a1fe3871a6427fb8f303b62eb",
+   "entries": {
+    "E1": [
+     11,
+     12,
+     13,
+     14,
+     15,
+     16
+    ],
+    "E2": [
+     21,
+     22,
+     23,
+     24,
+     25,
+     26
+    ],
+    "E3": [
+     31,
+     32,
+     33,
+     34,
+     35,
+     36
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": false,
+   "random_stalls_on_exit": false,
+   "vm_expected_words": [
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT priority_strict res=P n=0012 e=0012 bad=0000 to=0 last=00000026 sig=00337F82 w=00000015,00000016,00000017,00000018,00000019,0000001A,0000000B,0000000C",
+    "n_hex": "0012",
+    "sig": "00337F82",
+    "first_words_hex": [
+     "00000015",
+     "00000016",
+     "00000017",
+     "00000018",
+     "00000019",
+     "0000001A",
+     "0000000B",
+     "0000000C"
+    ]
+   }
+  },
+  {
+   "name": "priority_weighted",
+   "description": "priority core, weighted round robin (weights north 1, west 3, south 2)",
+   "icm": "priority_weighted.icm.json",
+   "record_hash": "039c860e950d982bfab749154161b6fb79f830ddefcbb4338b79c686c363398d",
+   "entries": {
+    "E1": [
+     11,
+     12,
+     13,
+     14,
+     15,
+     16
+    ],
+    "E2": [
+     21,
+     22,
+     23,
+     24,
+     25,
+     26
+    ],
+    "E3": [
+     31,
+     32,
+     33,
+     34,
+     35,
+     36
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": false,
+   "random_stalls_on_exit": false,
+   "vm_expected_words": [
+    21,
+    31,
+    22,
+    11,
+    32,
+    23,
+    24,
+    33,
+    25,
+    12,
+    34,
+    26,
+    35,
+    13,
+    36,
+    14,
+    15,
+    16
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT priority_weighted res=P n=0012 e=0012 bad=0000 to=0 last=00000026 sig=0039D826 w=00000015,0000001F,00000016,0000000B,00000020,00000017,00000018,00000021",
+    "n_hex": "0012",
+    "sig": "0039D826",
+    "first_words_hex": [
+     "00000015",
+     "0000001F",
+     "00000016",
+     "0000000B",
+     "00000020",
+     "00000017",
+     "00000018",
+     "00000021"
+    ]
+   }
+  },
+  {
+   "name": "priority_sequenced",
+   "description": "priority core, sequenced channel with the fixed turn order south, west, west, north",
+   "icm": "priority_sequenced.icm.json",
+   "record_hash": "412ab43140b0e240b15805d47bc33a658d80c7758a8f5201dbc74b9208c27307",
+   "entries": {
+    "E1": [
+     11,
+     12,
+     13,
+     14,
+     15,
+     16
+    ],
+    "E2": [
+     21,
+     22,
+     23,
+     24,
+     25,
+     26
+    ],
+    "E3": [
+     31,
+     32,
+     33,
+     34,
+     35,
+     36
+    ]
+   },
+   "exit": "O",
+   "random_gaps_on_inputs": false,
+   "random_stalls_on_exit": false,
+   "vm_expected_words": [
+    31,
+    21,
+    22,
+    11,
+    32,
+    23,
+    24,
+    12,
+    33,
+    25,
+    26,
+    13,
+    34
+   ],
+   "card": {
+    "ledger": "#1167",
+    "line": "UCT priority_sequenced res=P n=000D e=000D bad=0000 to=0 last=0000001C sig=00013888 w=0000001F,00000015,00000016,0000000B,00000020,00000017,00000018,0000000C",
+    "n_hex": "000D",
+    "sig": "00013888",
+    "first_words_hex": [
+     "0000001F",
+     "00000015",
+     "00000016",
+     "0000000B",
+     "00000020",
+     "00000017",
+     "00000018",
+     "0000000C"
+    ]
+   }
+  }
+ ]
+}
