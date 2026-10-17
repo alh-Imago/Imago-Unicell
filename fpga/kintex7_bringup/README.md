@@ -30,3 +30,6 @@ Known risks, stated plainly:
 
 ## Building the bitstream with Vivado (ledger #1192)
 `build_blink_vivado_v1.tcl` builds `blink_k7.bit` with Vivado (batch mode, stops if timing fails, never touches the card). Not run by Claude: no Vivado here. The pins and the config-voltage lines are unverified placeholders (see the file header).
+
+## Open-source route (ledger #1193)
+openXC7 has a demo for this exact board model (`demo-projects/blinky-ypcb003381p1`, same pins as `blink_k7_v1.xdc`). Run inside `nix develop github:openxc7/toolchain-nix`; load with `make program JTAG_LINK="-c ft232"` (SRAM only). Try the demo first; it proves the toolchain and the pins. Not run by Claude.
