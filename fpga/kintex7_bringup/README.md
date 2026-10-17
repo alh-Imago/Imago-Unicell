@@ -24,3 +24,6 @@ Known risks, stated plainly:
 - Whether the card's 50 MHz oscillator runs without the PCIe side is unknown.
 - Load into volatile memory only; never write the card's flash.
 - Never load a bitstream that failed timing (what damaged the card before).
+
+## 17 Oct 2026 first contact (ledger #1189)
+`sudo openFPGALoader -c ft232 --detect` read IDCODE 0x23751093 (Xilinx, manufacturer 0x049) at 6 MHz, then stopped with "Unknown device" because the loader has no entry for that ID. JTAG, power and wiring work. Nothing was loaded. Confirm the IDCODE (UG470 / BSDL) and how to name the part to the loader before loading `blink_k7_v1` (SRAM only, never flash).
