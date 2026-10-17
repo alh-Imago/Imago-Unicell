@@ -18,6 +18,7 @@ Standalone utilities and offshoots built alongside the Imago UniCell project.
 - `board_parallel_v1.py` (ledger #1180): builds the stall-free no-interrupt / parallel test bitstreams (T1 isolation, T4 independent copies, T5 shared port) into `fpga/board_tests_parallel/` (groups P, Q, R); `--groups`, `--only`, `--no-pnr`.
 - `board_parallel_v2.py` (ledger #1182): clone of v1 with the storm lanes kept through synthesis (v1 let synthesis delete them); writes `fpga/board_tests_parallel_v2/`.
 - `board_sub_tiles_v1.py` and `board_sub_carrier_v1.py` (ledger #1184): board bitstreams for the sub-family cross/corner tiles (own six-stream shim, `--bite` control) and for flex -> sub -> flex -> trimmed carrier -> flex; write `fpga/board_tests_sub_tiles/` and `fpga/board_tests_sub_carrier/`.
+- `board_sub_carrier_div_v1.py` (ledger #1186): clone of board_sub_carrier_v1.py with the carrier DIVISION core in the middle (`fpga/board_tests_sub_carrier_div/`).
 - `nano/join_pass_v1.py` (used by the `vixen` compile target) sets `join_mode` where a fixed constant feeds a two-face adder/mul/div.
 
 ## `project_assemble_v1.py` — real N-cell Quartus project generator

@@ -1,0 +1,30 @@
+
+94. Printing statistics.
+
+=== unicell_vix_carrier_v1d ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     7777 wires
+    36802 wire bits
+     7777 public wires
+    36802 public wire bits
+       76 ports
+      735 port bits
+    11411 cells
+       38   $scopeinfo
+      463   ALU
+        1   DFF
+       64   DFFE
+        8   DFFR
+     1442   DFFRE
+        2   DFFSE
+        1   GND
+      448   IBUF
+        4   LUT1
+     1632   LUT2
+     2620   LUT3
+     4400   LUT4
+      287   OBUF
+        1   VCC
+

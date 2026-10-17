@@ -1,0 +1,18 @@
+{
+ "name": "mixed_sub_carrier_div_pipe",
+ "what": "flex(+1000) -> SUB(+234) -> flex(+5) -> trimmed CARRIER DIVIDER (1000000 // d) -> flex(+3): 1000000 // (x + 1239) + 3, one word divides by zero, random exit stalls",
+ "expected": [
+  806,
+  749,
+  814,
+  76,
+  2,
+  762,
+  449,
+  790
+ ],
+ "sim_line": "UCT mixed_sub_carrier_div_pipe res=P n=0008 e=0008 bad=0000 to=0 last=0000012E sig=0001422C w=00000326,000002ED,0000032E,0000004C,00000002,000002FA,000001C1,00000316",
+ "fmax_mhz": 120.1,
+ "lut4": 2193,
+ "dff": 1410
+}
