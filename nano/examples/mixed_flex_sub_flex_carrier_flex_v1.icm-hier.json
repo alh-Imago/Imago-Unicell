@@ -1,0 +1,214 @@
+{
+ "format_version": "icm-vix-v1",
+ "description": "ledger #1184 board variant: A (flex,+1000) -> B (SUB,+234) -> C (flex,+5) -> D (trimmed CARRIER,+77) -> E (flex,+3): out = x + 1319. Sub and carrier never touch (the assembler refuses that, #1162); the flex block C between them carries the sub bridge on one side and the std adapter on the other.",
+ "header": {
+  "cores_used": [
+   "adder",
+   "ram"
+  ],
+  "cell_count": 20
+ },
+ "patterns": {
+  "plus": {
+   "cells": [
+    {
+     "cell_id": "in",
+     "rel_row": 0,
+     "rel_col": 0,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    },
+    {
+     "cell_id": "k",
+     "rel_row": -1,
+     "rel_col": 1,
+     "core": "ram",
+     "core_config": {
+      "downstream_mask": [
+       "S"
+      ],
+      "fixed_mode": 1
+     },
+     "preload_value": 0
+    },
+    {
+     "cell_id": "add",
+     "rel_row": 0,
+     "rel_col": 1,
+     "core": "adder",
+     "core_config": {
+      "upstream_mask": [
+       "W",
+       "N"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "join_mode": 1
+     }
+    },
+    {
+     "cell_id": "out",
+     "rel_row": 0,
+     "rel_col": 2,
+     "core": "ram",
+     "core_config": {
+      "upstream_mask": [
+       "W"
+      ],
+      "downstream_mask": [
+       "E"
+      ],
+      "fixed_mode": 0
+     }
+    }
+   ]
+  }
+ },
+ "design_map": {
+  "placements": [
+   {
+    "instance": "A",
+    "pattern": "plus",
+    "at": [
+     0,
+     0
+    ],
+    "family": "flex",
+    "overrides": {
+     "in": {
+      "io_name": "x_in"
+     },
+     "k": {
+      "preload_value": 1000
+     }
+    }
+   },
+   {
+    "instance": "B",
+    "pattern": "plus",
+    "at": [
+     0,
+     3
+    ],
+    "family": "sub",
+    "overrides": {
+     "k": {
+      "preload_value": 234
+     }
+    }
+   },
+   {
+    "instance": "C",
+    "pattern": "plus",
+    "at": [
+     0,
+     6
+    ],
+    "family": "flex",
+    "overrides": {
+     "k": {
+      "preload_value": 5
+     }
+    }
+   },
+   {
+    "instance": "D",
+    "pattern": "plus",
+    "at": [
+     0,
+     9
+    ],
+    "family": "carrier",
+    "overrides": {
+     "k": {
+      "preload_value": 77
+     }
+    }
+   },
+   {
+    "instance": "E",
+    "pattern": "plus",
+    "at": [
+     0,
+     12
+    ],
+    "family": "flex",
+    "overrides": {
+     "out": {
+      "io_name": "y_out"
+     },
+     "k": {
+      "preload_value": 3
+     }
+    }
+   }
+  ],
+  "connections": [
+   {
+    "from": [
+     "A",
+     0,
+     2,
+     "E"
+    ],
+    "to": [
+     "B",
+     0,
+     0,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "B",
+     0,
+     2,
+     "E"
+    ],
+    "to": [
+     "C",
+     0,
+     0,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "C",
+     0,
+     2,
+     "E"
+    ],
+    "to": [
+     "D",
+     0,
+     0,
+     "W"
+    ]
+   },
+   {
+    "from": [
+     "D",
+     0,
+     2,
+     "E"
+    ],
+    "to": [
+     "E",
+     0,
+     0,
+     "W"
+    ]
+   }
+  ]
+ }
+}
