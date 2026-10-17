@@ -1574,5 +1574,11 @@ Alan ran all three v2 groups (he did not use the `ONLY=P` option, so P, Q and R 
 
 *Prepared, not built.* `fpga/kintex7_bringup/blink_own/` holds our `blink_k7_v1.v`/`.xdc` (same pins and 50 MHz clock as the demo) plus a Makefile copied from the demo's (part xc7k480tffg1156-1, `TOP_MODULE = top`, our XDC), to be copied into `demo-projects/` and built with `make` / `make program JTAG_LINK="-c ft232"`. Our pattern differs from the demo's on purpose (three LEDs blinking at three binary-related rates, about 0.34 s / 0.17 s / 0.084 s per toggle), so seeing it proves it is our file. I did not synthesise it here (no yosys in this container) and have not run the openXC7 flow; the demo's Makefile and XDC were fetched from the openXC7 repository for comparison. The xdc has no trailing comments, so the parse error seen on the demo should not arise. No result readback exists yet: the card has only LEDs.
 
-Next entry: #1197.
+#1197 (17 Oct 2026) -- OUR OWN FILES RUN ON THE KINTEX-7 CARD: BLINK, AND THE LED COLOURS CONFIRMED (Alan, 17 Oct 20:21; cross-reference #1196)
+
+*Measured.* `blink_own` (our `blink_k7_v1.v` and `.xdc`, built by Alan with the demo-style Makefile through the openXC7 flow) built and loaded into the card's SRAM: place-and-route Fmax 416.32 MHz against the 50 MHz clock, loader `Load SRAM 100%`, `isc_done 1 init 1 done 1`, nothing written to flash. Alan watched the LEDs: yellow fast, green and red slower in sequence.
+
+*Reading.* Our design toggles LED2 (pin N30) on counter bit 22 (fastest), LED1 (M30) on bit 23, LED0 (P30) on bit 24 (slowest). So N30 is yellow, M30 green, P30 red. That matches the colour reading from the demo in #1195/#1196 and now confirms the three pin-to-colour pairs by observation (Alan's description "slower in sequence" is qualitative; the speeds were not timed, and which of green or red is the faster of the two was not separately stated). It also shows our own Verilog and constraints file work on this card, and that the 50 MHz clock on AA28 is running. Still open: no way to read results back from the card (LEDs only).
+
+Next entry: #1198.
 

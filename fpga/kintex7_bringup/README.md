@@ -39,3 +39,5 @@ The openXC7 demo `blinky-ypcb003381p1` was built on Alan's PC and loaded into th
 LED report (ledger #1195): a steady green LED (power?, not driven by the design); the driven LEDs cycle all three, red, green, yellow (Alan; "all off" also mentioned, not in the demo code). My reading: led[0]=red P30, led[1]=green M30, led[2]=yellow N30, active-high; not confirmed pin by pin.
 
 Own blink (ledger #1196): blink_own/ has our files plus a Makefile for demo-projects; not built yet.
+
+Own blink on the card (ledger #1197): built through openXC7 by Alan (Fmax 416.32 MHz), loaded to SRAM; yellow fast, green and red slower. Pins: P30 red, M30 green, N30 yellow.
