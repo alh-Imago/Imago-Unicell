@@ -209,6 +209,7 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "fpga", "board_tests_parallel"))
     ap.add_argument("--no-pnr", action="store_true")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--groups", default="", help="comma list of group letters to build (default all); other groups' files are kept")
     ap.add_argument("--only", default="", help="comma list of design names (simulate and size just these)")
     a = ap.parse_args()
     out = os.path.abspath(a.out)
@@ -232,6 +233,8 @@ def main():
     if only:
         return
     for g, names in GROUPS.items():
+        if a.groups and g not in a.groups.split(","):
+            continue
         r = build_group(g, names, designs, sims, gdir, work, not a.no_pnr, a.seed)
         print(f"group {g}: {names}  LUT4 {r.get('lut4', r.get('lut4_synth', '?'))}  Fmax {r.get('fmax_mhz', '-')}")
     json.dump(dict(n_words=N_WORDS, const=CONST, designs=[dict(name=n, k=k, s=s, uses=u, what=w) for n, k, s, u, w in DESIGNS], groups=GROUPS, sim_lines=sims),
