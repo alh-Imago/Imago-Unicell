@@ -1,0 +1,20 @@
+{
+ "group": "R",
+ "tests": [
+  "ind_0",
+  "ind_1",
+  "ind_2",
+  "ind_3"
+ ],
+ "sim_lines": {
+  "ind_0": "UCT ind_0 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA",
+  "ind_1": "UCT ind_1 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA",
+  "ind_2": "UCT ind_2 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA",
+  "ind_3": "UCT ind_3 res=P n=0040 e=0040 bad=0000 to=0 last=00000083 sig=87059A80 w=62992D03,AD5B5F3E,67EDF51D,67DAFC97,47D5B9B8,5ACEC0E6,708B562E,837E84CA"
+ },
+ "selbit": 24,
+ "n_words": 64,
+ "fmax_mhz": 102.1,
+ "lut4": 8638,
+ "dff": 2804
+}
