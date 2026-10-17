@@ -1,0 +1,18 @@
+{
+ "name": "mixed_sub_carrier_pipe",
+ "what": "flex(+1000) -> SUB(+234) -> flex(+5) -> trimmed CARRIER(+77) -> flex(+3): x + 1319, random exit stalls",
+ "expected": [
+  1324,
+  1419,
+  1312,
+  13664,
+  1319,
+  1396,
+  2319,
+  1350
+ ],
+ "sim_line": "UCT mixed_sub_carrier_pipe res=P n=0008 e=0008 bad=0000 to=0 last=0000004A sig=00002D70 w=0000052C,0000058B,00000520,00003560,00000527,00000574,0000090F,00000546",
+ "fmax_mhz": 127.0,
+ "lut4": 2092,
+ "dff": 1306
+}
