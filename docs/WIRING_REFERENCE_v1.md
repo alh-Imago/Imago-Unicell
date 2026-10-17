@@ -105,7 +105,7 @@ Bitstream `fpga/build/unit_tree_shield_v1/unit_top.fs` (the tree design in direc
 ```
 From the schematic (`docs/hardware/hw262_schematic.png`, a picture only): the display is two 74HC595 chips in a chain, common-anode (a 0 lights a segment); the buzzer is on a PNP transistor, so low = sound; the buttons pull low with 10k pull-ups to the 5V rail through jumper J2. The display shows the result amount as four hex digits (0000 nothing pressed, 2000 one button, 4000 two buttons); the buzzer sounds at two buttons. **Still to confirm on the board:** the clock (7) and latch (4) pin numbers (7 is visible on the schematic, 4 is inferred), that Tang pins 25-28 and 71/72 are on your header, and that the display is bright enough at 3.3 V.
 
-## 8. The ESP32's own SD card (optional)
+## 8. The ESP32's own SD card (optional)  [run on the card 17 Oct 2026, ledger #1199: card detected after reformat, a 363-byte file uploaded and survived a reset; download content check and delete not reported]
 
 A second card on the ESP32 for bitstreams, input files and results, on a separate SPI bus so the link to the unit is untouched.
 

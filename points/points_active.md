@@ -1588,5 +1588,13 @@ Alan ran all three v2 groups (he did not use the `ONLY=P` option, so P, Q and R 
 
 *Reading.* The fault list was a CS path problem (cause not identified; fixed by re-seating) and a loose common ground (found by the intermittent scratch failure; a likely cause of the ignored write, not proven). The ladder now matches the 8 Oct result on this rewiring. Not run yet: ESP32 SD reader, web sketch, sensors, direct mode, T2/T3/C1.
 
-Next entry: #1199.
+#1199 (17 Oct 2026) -- THE ESP32'S OWN SD CARD WORKS: ARRANGEMENT 8 OF THE WIRING REFERENCE (Alan, 17 Oct 23:06-23:17; cross-reference #1198)
+
+*Setting.* ESP32 (same 38-pin board) with the new microSD reader wired as in `docs/WIRING_REFERENCE_v1.md` section 8 (CS IO32, SCK IO33, MOSI IO25, MISO IO26, 3V3, GND); web sketch `tools/esp32/unicell_unit_web`. The reader's type and the card's capacity class were asked about but not reported beyond the page's own figure (15,558,144 kB total, a 16 GB class card).
+
+*Seen.* (1) First, the page's Files card said "No SD card in the ESP32" (the sketch looks for the card once at start-up). (2) After Alan reformatted the card, it read "0 of 15558144 kB used": the format was the fault in this case (the card's earlier format is not known to me; the sketch needs FAT32). (3) Uploading `9-10-26 BRS.csv` (363 bytes) through the page worked ("Uploaded 363 bytes"; the file is listed with its size; the used-kB figure stays 0 because it rounds down). (4) After pressing the ESP32's reset button and reloading, the file was still listed at 363 bytes, so it is stored on the card, not in the ESP32's memory. A browser screenshot showed the download link was clicked; Alan did not report comparing the downloaded file with the original, so the content round trip is NOT confirmed. Delete not tried.
+
+*Still open.* download content check and delete; the ESP32 sensors; direct-to-Tang sensors (Tang pins 72/71, unchecked on the board); T2, T3, C1.
+
+Next entry: #1200.
 
