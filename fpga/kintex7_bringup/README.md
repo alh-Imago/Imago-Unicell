@@ -27,3 +27,6 @@ Known risks, stated plainly:
 
 ## 17 Oct 2026 first contact (ledger #1189)
 `sudo openFPGALoader -c ft232 --detect` read IDCODE 0x23751093 (Xilinx, manufacturer 0x049) at 6 MHz, then stopped with "Unknown device" because the loader has no entry for that ID. JTAG, power and wiring work. Nothing was loaded. Confirm the IDCODE (UG470 / BSDL) and how to name the part to the loader before loading `blink_k7_v1` (SRAM only, never flash).
+
+## Building the bitstream with Vivado (ledger #1192)
+`build_blink_vivado_v1.tcl` builds `blink_k7.bit` with Vivado (batch mode, stops if timing fails, never touches the card). Not run by Claude: no Vivado here. The pins and the config-voltage lines are unverified placeholders (see the file header).
