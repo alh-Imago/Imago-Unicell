@@ -33,3 +33,6 @@ Known risks, stated plainly:
 
 ## Open-source route (ledger #1193)
 openXC7 has a demo for this exact board model (`demo-projects/blinky-ypcb003381p1`, same pins as `blink_k7_v1.xdc`). Run inside `nix develop github:openxc7/toolchain-nix`; load with `make program JTAG_LINK="-c ft232"` (SRAM only). Try the demo first; it proves the toolchain and the pins. Not run by Claude.
+
+## First light, 17 Oct 2026 (ledger #1194)
+The openXC7 demo `blinky-ypcb003381p1` was built on Alan's PC and loaded into the card's SRAM with `make program JTAG_LINK="-c ft232"`; the loader reported Load SRAM 100%, Done, `isc_done 1 init 1 done 1`, and Alan reported the LEDs running ("a christmas tree"). Recipe that worked: install Nix (daemon), enable flakes, `nix develop github:openxc7/toolchain-nix`, clone `openXC7/demo-projects`, in `blinky-ypcb003381p1` remove the trailing `;# 50 MHz` from line 3 of `ypcb003381p1.xdc` (nextpnr-xilinx cannot parse it), `make` (the first run builds the xc7k480t chip database, long and memory-hungry on a small PC; it is kept in `../chipdb/`), then `make program JTAG_LINK="-c ft232"`. Place-and-route: Fmax 387.15 MHz against 50 MHz. Bitstream 18,735,109 bytes. Nothing written to flash.
