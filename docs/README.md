@@ -26,7 +26,7 @@ The documents that describe the current line:
 - **`WIRING_REFERENCE_v1.md`** (ledger #1173) -- every ESP32 and Tang wiring arrangement used or planned (SPI link, SD slot, analog and digital sensors, direct mode with no ESP32, the HW-262 shield, the ESP32 SD card, the JTAG idea), with diagrams, pin tables and what was actually run on the board.
 - **`ESP32_BITSTREAM_LOADER_v1.md`** (ledger #1177) -- loading a precompiled design into an FPGA from an ESP32: a separate, general method, kept apart from the UniCell architecture. A proposed route, NOT built.
 - **`PRIOR_ART_AND_CONTRIBUTION_v1.md`** and **`NO_INTERRUPT_PARALLEL_TEST_PLAN_v1.md`** (ledger #1177) -- what the project builds on and what it claims; and the planned tests for the no-interrupt and parallelism claims (a plan, no results yet).
-- **`../nano/examples/card_tested/`** (ledger #1177) -- the ten designs tested on the card as plain ICM files, with `python3 tools/replay_card_icm_vm_v1.py` to replay them in the VM.
+- **`../nano/examples/card_tested/`** (ledger #1177) -- eleven designs tested on the card as plain ICM files (the ten group tests and the native cross/corner tiles), with `python3 tools/replay_card_icm_vm_v2.py` to replay them in the VM (#1179).
 - **`man/README.md`** and **`man/tang-nano-20k-getting-started.md`** —
   the card files (Arria 10 and Tang Nano 20K). They cover what the
   assembler reads (`native_width`, DSP primitives, `synthesis.nowidelut`,
