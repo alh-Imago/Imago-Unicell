@@ -1596,5 +1596,9 @@ Alan ran all three v2 groups (he did not use the `ONLY=P` option, so P, Q and R 
 
 *Still open.* download content check and delete; the ESP32 sensors; direct-to-Tang sensors (Tang pins 72/71, unchecked on the board); T2, T3, C1.
 
-Next entry: #1200.
+#1200 (17 Oct 2026) -- ESP32 SD: DOWNLOADED FILE IS THE SAME AS THE ORIGINAL (Alan, 17 Oct 23:18; completes a check left open in #1199)
+
+Alan reported, from his dictated message "exact same file", that the file downloaded from the ESP32's card through the web page is the same as the original `9-10-26 BRS.csv` (363 bytes). How he compared it (byte comparison, size, or by eye) was not stated, so this is his report of identity, not a checksum run by me. With #1199, the ESP32's own SD reader has now been shown to store a file across an ESP32 reset and return it unchanged. Delete not tried.
+
+Next entry: #1201.
 
