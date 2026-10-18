@@ -1767,4 +1767,15 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Also observed, no cause claimed:* under the storm the average answer time rose 2.09 -> 2.30 us (about 10%), the share of events over 5 us rose from 0.3% to 4.1%, the worst case 6.56 -> 7.78 us; the shortest answers got shorter (1.07 -> 0.67 us). One run each; no repeat yet, so the size of these differences against run-to-run variation is unknown.
 *Open:* the same two builds with the compute loop ON (`l1`) under v2; repeats of each.
 
-Next entry: #1220.
+## #1220 (18 Oct 2026) -- C1 v2 on the card, ESP32 compute loop ON (`loop=1`): all 4,096 answered in both builds, none missed; storm slows the ESP32's own job by about 14%
+
+*Run.* Same runner (`run_c1_v3.sh`, label `on`), same wiring, ESP32 sketch v2 with `l1`. The ESP32 lines in the raw files show `loop=1` throughout (199 compute jobs/s when quiet). Files: `fpga/board_tests_c1_v2/card_run_18oct_loop1/`. (The earlier folder `card_run_18oct_loopON` is the loop-OFF run of #1219; the names are confusing and I leave them as logged.)
+*Measured (Tang stopwatch):*
+- **c1_quiet:** 4,096 of 4,096 timed, 0 unanswered. Rising min/avg/max 1.11/1.90/4.07 us; falling 1.07/1.93/4.11 us. 97.8% under 2 us, 2.2% 2-5 us, nothing over 5 us.
+- **c1_storm:** 4,096 of 4,096 timed, 0 unanswered, 0 not-timeable. Rising 0.70/2.14/8.44 us; falling 0.78/2.13/7.74 us. 89.6% under 2 us, 6.7% 2-5 us, 3.6% 5-10 us, nothing over 10 us.
+- **ESP32 counters:** quiet evT 45,254 -> 49,367 = 4,113 (sent 4,112, +1). storm evT 49,368 -> 53,481 = 4,113 (+1, the same +1 as in every quiet run); stormT 596,741 -> 744,713 = 147,972 storm interrupts, peak 15,733 in one second.
+- **ESP32's own compute job:** quiet 199 jobs/s in all 49 one-second lines. Storm: 40 lines at 199, 8 at 172, one each at 173 and 186 (the others are windows around load/start). 172/199 is about 14% fewer jobs/s while the storm ran; I read the 172 lines as the storm window but have not matched them to timestamps.
+*Reading.* In this run the ESP32 counted every edge and the Tang saw none unanswered, with the storm on. In the loop-OFF storm run (#1219) the Tang saw 3 unanswered falling edges and the ESP32 counted 2 short. So across the two storm runs we have 3 missed in one and 0 in the other: the miss is intermittent or depends on a condition I have not identified (compute loop off vs on is one difference; run-to-run chance is another). Two runs cannot separate these. Under the storm the average answer time rose 1.90 -> 2.14 us (about 13%) and answers over 5 us rose from 0 to 3.6%; the worst case 4.11 -> 8.44 us.
+*Open:* repeats of each case (at least 2 more of loop-OFF storm and loop-ON storm) before any statement about why edges were missed.
+
+Next entry: #1221.
