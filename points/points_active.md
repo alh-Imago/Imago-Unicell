@@ -1650,4 +1650,11 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Not shown.* Nothing yet from the card; the pass rule to test is B min = max, equal in idle and busy. A missing jumper shows as time-outs and `res=F`. T3 (a second input toggling while the first is timed) needs a second jumper and is not built.
 *Fixed on the way.* Two mistakes of mine in the first draft, both found by the simulation before any build: the UART byte index ran one ahead (first character lost, an out-of-range byte at the end), and Verilog has no `\r` escape in strings (`"\015"` is used).
 
-Next entry: #1207.
+## #1207 (18 Oct 2026) -- T2 first card run FAILED (no valid numbers); v2 with a loop-back pre-check cloned
+
+*Card result of #1206 (both builds loaded, loader exit 0, 5,272 bytes read each).* `lat_idle` and `lat_busy` both printed `res=F`, `to=00000800`: all 2,048 rising edges timed out in both builds, i.e. the result never became non-zero after pin 86 went high. The rise numbers are empty (min FFFFFFFF, max 0). The fall numbers (fA = 1 clock, fB 14 to 26,996) are artefacts: with the result already zero the fall is recorded at once. The collector lines "rB NOT constant" and the idle/busy comparison are therefore meaningless. The busy build did run its load (checksum 856D6C77). No latency figure came from this run and none is claimed.
+*Cause: not yet established.* The measurement says only that the pin 86 -> pin 72 loop-back did not reach the sensor logic as a rising edge. Candidates, none tested: the jumper not in the right holes or loose; another connection on pin 72 (#1205 saw pin 72 read HIGH under the jumper earlier); a fault in the design that the simulation (which looped the output to the input internally) could not show.
+*New file (clone, v1 left unchanged):* `tools/board_direct_latency_v2.py`. Adds a pre-flight phase: pin 86 toggles slowly 16 times and the design counts how often pin 72 followed (`pre=`); if not 16 the result is `res=L` and no measurement runs. LED4 = level sent on pin 86, LED5 = level seen on pin 72. Simulation (iverilog, short run): res=P, pre=16, B = 8 clocks constant, no time-outs (simulation only, not the card). Card build in progress at the time of writing.
+*Next.* Alan checks the jumper holes against the underside labels, removes anything else from pin 72, and runs v2; its `pre=` count then separates a wiring fault from a design fault.
+
+Next entry: #1208.
