@@ -1667,4 +1667,13 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Scope, stated plainly.* This is one pair of builds on one card, one run. B is measured against a tick counter replicated in the test top (same reset and period as the unit's, checked in simulation), so B is the design's response from that tick, not an independent timing of the unit's internal tick. Input latency from the pin to the first flip-flop and the pin's own synchroniser are inside A, not B. Nothing here says anything about T3 (a second input toggling while the first is timed), about other loads, or about the Kintex. The checksum differs from the failed v1 run (856D6C77) because the lanes ran for a different number of clocks; it only proves the load ran.
 *Not done.* T3 needs a second jumper (e.g. pin 53 -> pin 71, not yet wired or built); C1 (ESP32 alone, Tang counter as timer) not built; PIR not reported.
 
-Next entry: #1209.
+## #1209 (18 Oct 2026) -- T3 BUILT (not yet run on the card): two inputs, one timed while the other changes at a random moment
+
+*New:* `tools/board_direct_latency_t3_v1.py` (clone of the T2 v2 builder, v2 untouched), kit `fpga/board_tests_latency3/` (bitstreams `lt3_idle`, `lt3_busy`, runner `run_groups_latency3_v1.sh`, collector, README), zip `unicell_board_tests_latency3.zip`.
+*Wiring (Alan reported "wired up" after being told the plan; the holes are not yet confirmed by a measurement):* pin 86 -> pin 72 (as T2) and pin 53 -> pin 71. Pin 53 is one of the HDMI EDID pins on the board (noted earlier); the HDMI socket is unused. The builder's pre-check reports each input separately (`pre=` pin 72, `p1=` pin 71), so a wrong hole shows as `res=L`.
+*What it measures.* Each event the chip picks a new state of the two inputs such that the number of active sensors changes (so the result must change). One input changing: series s. Both changing, a random 0 to 65,535 clocks apart (0 to 2.4 ms, either order): series d, timed from the first edge to the final correct value. B (last 1 ms sample tick to the result) is expected to be the constant 8 clocks of T2. `bad=` counts results that are wrong at the end of a hold of at least 30,000 clocks; `to=` counts events that never reach the right value.
+*Simulation (iverilog, 24 events, short gaps; not the card):* both builds `res=P`, pre 16/16 on both inputs, bad 0, two both-input events, B = 8 clocks constant in both series, load checksum non-zero in the busy build. Place and route: lt3_idle 1,057 flip-flops, lt3_busy 1,857 (+800 as designed); Fmax 113.9 and 117.7 MHz against 27 MHz.
+*Fixed on the way (found by the first simulation, before any build):* my wire names c0/c1 clashed with the storm lanes' generated names; the 9-character build name did not fit the 8-byte name field, so builds are called `lt3_idle`/`lt3_busy`.
+*Not shown.* Nothing from the card yet.
+
+Next entry: #1210.
