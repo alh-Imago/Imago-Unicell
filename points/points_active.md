@@ -1828,4 +1828,15 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *What it means at the edge.* In direct sensor mode the design's edge limit is the 1 ms sampling: a pulse shorter than 1 ms is caught only in proportion to its width (20 us: about 2%), and nothing shorter than 1 ms is guaranteed. An interrupt-driven input such as the ESP32's would be woken by a short pulse; the ESP32 pulse-width limit has NOT been measured, so I make no comparison number yet. T2/T3 showed the design's own part after sampling is a constant 8 clocks; T4 shows the price of sampling at the input. Whether the unit can sample faster than once per 1 ms was not examined.
 *Open:* the ESP32 pulse test (same Tang pulses into the ESP32 interrupt pin); the ESP32 v3 repeats (`dupT`); compute loop OFF at 20 us.
 
-Next entry: #1226.
+## #1226 (18 Oct 2026) -- ESP32 sketch v3 first run (6 us storm work, compute loop ON): the unanswered rising edge matches a handler that did not run, plus one extra handler run; evidence, not proof
+
+*Run.* `run_c1_v3.sh`, label `v3a`, ESP32 sketch v3 (`dupT`, `hiT`, `loT`), `storm_work_us=6`, `loop=1` (199 jobs/s quiet, 172 during the storm). Totals were NOT zeroed (no `z`), so only differences between the first and last line of each capture are used; dupT stood at 1032 before this run (what built up since boot, including Tang power-ups, when the line from pin 86 is not under control; not examined). Files: `fpga/board_tests_c1_v2/card_run_18oct_v3a/`.
+*Tang:* quiet 4,096/4,096, 0 unanswered, avg 1.91 us, max 4.07 us. Storm: 4,094 of 4,096 timed, **1 rising unanswered**, 1 not timeable after it; avg 2.15 us, max 7.89 us, 4.2% between 5 and 10 us, none over 10 us.
+*ESP32 differences over each capture:*
+- quiet: handler runs 4,113 (= 4,112 sent + the usual 1), **dup +0**, hi +2,056, lo +2,057.
+- storm: handler runs 4,113, **dup +2**, hi +2,055, lo +2,058; storm interrupts 149,787 (peak 15,905/s).
+*Reading.* The number of handler runs is the same in both captures (4,113), so the earlier rule of thumb "count short of what the Tang sent means missed edges" (#1219, #1221) did not apply here: the count was not short and the Tang still saw an unanswered edge. What does show it is the level check. Relative to the quiet capture the storm capture has one fewer run that saw high (-1), one more that saw low (+1) and two runs whose level equalled the previous run's (+2). That is exactly what one rising edge getting no handler run of its own, plus one extra run seeing low, would produce, and the Tang's unanswered edge was a rising one. This fits; it is one run and the cause of the extra run is not known (a repeat of the same edge's interrupt or a glitch on the line are both possible, neither checked). Nothing here shows why the edge was lost.
+*Consequence for the earlier runs:* #1219/#1221 (count short by 2) and #1223 (count exact, 1 unanswered) both fit "an edge lost, sometimes with an extra run making up the count"; with v3 the extra runs can now be seen. Three storm runs with v3 would be needed to say how common this is; this is the first.
+*Open:* more v3 runs (6 us and 20 us work; compute loop OFF at 20 us; use `z` before each run); the ESP32 pulse-width test.
+
+Next entry: #1227.

@@ -1,0 +1,20 @@
+ESP32 state label: v3a
+=== c1_quiet: P  timed events 4096 of 4096  unanswered: rising 0, falling 0  not timeable after an unanswered edge: 0  loop-back pre-check 16 of 16
+    line: UCC c1_quiet res=P n=00000800 tor=00000000 tof=00000000 inv=00000000 pre=00000010 r=00000033,0000006E,00019CA4 nr=00000800 f=00000033,0000006E,00019CFD nf=00000800 h=00000F90,00000070,00000000,00000000,00000000,00000000
+    rising edge -> answer     2048 timed   min     51 clk (    1.89 us)   max    110 clk (    4.07 us)   avg     51.6 clk (   1.91 us)   spread     59 clk (    2.19 us)
+    falling edge -> answer    2048 timed   min     51 clk (    1.89 us)   max    110 clk (    4.07 us)   avg     51.6 clk (   1.91 us)   spread     59 clk (    2.19 us)
+    all timed events by answer time:  < 2 us: 3984 (97.3%)   2-5 us: 112 (2.7%)   5-10 us: 0 (0.0%)   10-20 us: 0 (0.0%)   20-50 us: 0 (0.0%)   >= 50 us: 0 (0.0%)
+    ESP32 counted 4113 edge interrupts on IO16 during the log (50 lines); the Tang sent 4112 (= 4096 timed + 16 slow pre-check edges); difference +1 (a few extra edges are normal while the Tang loads)
+    ESP32 counted 1 storm interrupts on IO21 (peak 1 in one second; expected about 15,650 a second for the c1_storm build, 0 for c1_quiet)
+    (the 2-flip-flop input synchroniser in the Tang adds up to 2 clocks)
+
+=== c1_storm: F  timed events 4094 of 4096  unanswered: rising 1, falling 0  not timeable after an unanswered edge: 1  loop-back pre-check 16 of 16
+    line: UCC c1_storm res=F n=00000800 tor=00000001 tof=00000000 inv=00000001 pre=00000010 r=00000014,000000D5,0001CF29 nr=000007FF f=00000013,000000D1,0001D282 nf=000007FF h=00000E0D,00000144,000000AD,00000000,00000000,00000000
+    rising edge -> answer     2047 timed   min     20 clk (    0.74 us)   max    213 clk (    7.89 us)   avg     57.9 clk (   2.15 us)   spread    193 clk (    7.15 us)
+    falling edge -> answer    2047 timed   min     19 clk (    0.70 us)   max    209 clk (    7.74 us)   avg     58.3 clk (   2.16 us)   spread    190 clk (    7.04 us)
+    all timed events by answer time:  < 2 us: 3597 (87.9%)   2-5 us: 324 (7.9%)   5-10 us: 173 (4.2%)   10-20 us: 0 (0.0%)   20-50 us: 0 (0.0%)   >= 50 us: 0 (0.0%)
+    ESP32 counted 4113 edge interrupts on IO16 during the log (50 lines); the Tang sent 4112 (= 4096 timed + 16 slow pre-check edges); difference +1 (a few extra edges are normal while the Tang loads)
+    ESP32 counted 149787 storm interrupts on IO21 (peak 15905 in one second; expected about 15,650 a second for the c1_storm build, 0 for c1_quiet)
+    The Tang saw 1 unanswered edge(s). If the ESP32 count above is short of the Tang's by about that many, the interrupts were MISSED; if it matches, they ran but the answer was late or wrong.
+    (the 2-flip-flop input synchroniser in the Tang adds up to 2 clocks)
+
