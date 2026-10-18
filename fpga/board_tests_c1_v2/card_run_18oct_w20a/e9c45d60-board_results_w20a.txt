@@ -1,0 +1,17 @@
+ESP32 state label: w20a
+=== c1_quiet: P  timed events 4096 of 4096  unanswered: rising 0, falling 0  not timeable after an unanswered edge: 0  loop-back pre-check 16 of 16
+    line: UCC c1_quiet res=P n=00000800 tor=00000000 tof=00000000 inv=00000000 pre=00000010 r=00000021,0000006E,00019A0F nr=00000800 f=00000021,00000076,0001A3B0 nf=00000800 h=00000FA5,0000005B,00000000,00000000,00000000,00000000
+    rising edge -> answer     2048 timed   min     33 clk (    1.22 us)   max    110 clk (    4.07 us)   avg     51.3 clk (   1.90 us)   spread     77 clk (    2.85 us)
+    falling edge -> answer    2048 timed   min     33 clk (    1.22 us)   max    118 clk (    4.37 us)   avg     52.5 clk (   1.94 us)   spread     85 clk (    3.15 us)
+    all timed events by answer time:  < 2 us: 4005 (97.8%)   2-5 us: 91 (2.2%)   5-10 us: 0 (0.0%)   10-20 us: 0 (0.0%)   20-50 us: 0 (0.0%)   >= 50 us: 0 (0.0%)
+    (no ESP32 log for this build: run with ESPPORT=/dev/ttyUSBn to record the ESP32's interrupt counts)
+    (the 2-flip-flop input synchroniser in the Tang adds up to 2 clocks)
+
+=== c1_storm: F  timed events 4094 of 4096  unanswered: rising 0, falling 1  not timeable after an unanswered edge: 1  loop-back pre-check 16 of 16
+    line: UCC c1_storm res=F n=00000800 tor=00000000 tof=00000001 inv=00000001 pre=00000010 r=00000012,00000261,00044E8B nr=000007FF f=00000015,00000255,00044D80 nf=000007FF h=00000A7A,00000129,0000014C,00000290,0000007F,00000000
+    rising edge -> answer     2047 timed   min     18 clk (    0.67 us)   max    609 clk (   22.56 us)   avg    137.9 clk (   5.11 us)   spread    591 clk (   21.89 us)
+    falling edge -> answer    2047 timed   min     21 clk (    0.78 us)   max    597 clk (   22.11 us)   avg    137.8 clk (   5.10 us)   spread    576 clk (   21.33 us)
+    all timed events by answer time:  < 2 us: 2682 (65.5%)   2-5 us: 297 (7.3%)   5-10 us: 332 (8.1%)   10-20 us: 656 (16.0%)   20-50 us: 127 (3.1%)   >= 50 us: 0 (0.0%)
+    (no ESP32 log for this build: run with ESPPORT=/dev/ttyUSBn to record the ESP32's interrupt counts)
+    (the 2-flip-flop input synchroniser in the Tang adds up to 2 clocks)
+

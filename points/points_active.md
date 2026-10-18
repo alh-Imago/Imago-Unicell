@@ -1788,4 +1788,14 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Tally of the three storm runs so far (one build, same wiring):* #1219 loop OFF: 3 unanswered (0 rising, 3 falling), ESP32 count 4,110. #1220 loop ON: 0 unanswered, ESP32 4,113. #1221 loop ON: 3 unanswered (1 rising, 2 falling), ESP32 4,110. In both runs with misses the ESP32 counted 2 under what the Tang sent, which with the usual +1 stray equals the 3 unanswered; that is consistent with the interrupts not running at all, still not proof. The compute loop being on or off does not decide it (misses with loop OFF and with loop ON). Quiet runs so far (4 across #1219-#1221 plus #1220's): never a miss in the v2 builds. Rate of misses: 3 or 0 of 4,096 edges per storm run, i.e. up to about 0.07%.
 *Open:* the 20 us busy work per storm interrupt, i.e. more load, not tried; whether the ESP32 restarts when the runner opens its port (the quiet capture); more repeats.
 
-Next entry: #1222.
+## #1222 (18 Oct 2026) -- C1 v2 with 20 us of work per storm interrupt (`w20`): answers about 2.4 times slower on average and up to 22.6 us; 1 falling edge unanswered. No ESP32 log (my instruction left out `ESPPORT=auto`)
+
+*Run.* ESP32 sketch v2, told by Alan to use `w20` and `l1` in the Serial Monitor before the run (he did as instructed; the ESP32 lines are not recorded, so I cannot show from files that `storm_work_us=20` and `loop=1` were set). **My mistake:** the command I gave him was `sudo LABEL=w20a sh ./run_c1_v3.sh` without `ESPPORT=auto`, so the ESP32's counters were not captured, although I had said they would be. Files: `fpga/board_tests_c1_v2/card_run_18oct_w20a/`.
+*Measured (Tang):*
+- **c1_quiet:** 4,096 of 4,096, 0 unanswered; rising 1.22/1.90/4.07 us (min/avg/max), falling 1.22/1.94/4.37 us. Same as the earlier quiet runs (avg 1.89-1.94 us).
+- **c1_storm:** 4,094 of 4,096 timed, **0 rising and 1 falling unanswered** (1 not timeable after it). Rising 0.67/5.11/22.56 us; falling 0.78/5.10/22.11 us. By answer time: under 2 us 65.5%, 2-5 us 7.3%, 5-10 us 8.1%, 10-20 us 16.0%, **20-50 us 3.1%**, nothing at 50 us or more.
+*Comparison with the 6 us storm runs (#1219-#1221):* average answer 2.14-2.22 us -> 5.1 us; worst case 7.7-9.2 us -> 22.6 us; answers over 10 us: none in any 6 us run -> 19.1% here. The shortest answers did not change (0.67 us). The misses: 1 here against 3, 0, 3 before; four runs, so no rate can be stated, and without the ESP32 count I cannot say whether this one was a missed interrupt or a late/wrong answer.
+*Not claimed:* why the slow tail appears. The 20 us figure is the busy-wait in the storm handler (set by `w20`); that the slow answers are edges arriving while a storm handler was running is the obvious reading but was not checked against the edge times.
+*Open:* the same run with `ESPPORT=auto` to get the ESP32 counts; the compute-loop OFF case at w20; whether the ESP32 restarts when the runner opens its port.
+
+Next entry: #1223.
