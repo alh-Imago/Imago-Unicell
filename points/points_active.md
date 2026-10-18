@@ -1872,4 +1872,13 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Tally, 20 us work, compute loop ON, storm runs:* unanswered 1, 1, 1, 2 (#1222, #1223, #1229, this): every one of four. At 6 us: 3 of 6 (loop ON), plus 1 of 1 with loop OFF.
 *Open:* compute loop OFF at 20 us; P1 on the card. Label reuse: use a new label each run.
 
-Next entry: #1231.
+## #1231 (18 Oct 2026) -- ESP32 v3, 20 us storm work with the compute loop OFF (`v3e`): 0 unanswered; the idle ESP32 answers about 0.2 us slower than the busy one (second time seen)
+
+*Run.* Label `v3e`, `storm_work_us=20`, **`loop=0`** in every line (jobs 0). Files: `fpga/board_tests_c1_v2/card_run_18oct_v3e/`.
+*Tang:* quiet 4,096/4,096, 0 unanswered; rising 1.15/2.11/5.52 us (min/avg/max), falling 1.52/2.11/5.93 us; 99.5% between 2 and 5 us, 0.3% between 5 and 10 us. Storm: 4,096/4,096, **0 unanswered**; rising 0.70/5.20/23.44 us, falling 0.78/5.28/23.85 us; under 2 us 4.1%, 2-5 us 69.1%, 5-10 us 7.8%, 10-20 us 15.7%, 20-50 us 3.3%, nothing at 50 us or more.
+*ESP32 differences:* quiet runs 4,113, dup +0, hi +2,056, lo +2,057; storm runs 4,113, dup +0, hi +2,056, lo +2,057; storm interrupts 148,429, peak 15,730/s. Clean in both, consistent with the Tang's 0 unanswered.
+*Idle versus busy, quiet build (ESP32 compute loop):* loop OFF now: avg 2.11 us rising and falling, 1.15-5.93 us; loop ON in the quiet runs of #1220-#1230: avg 1.89-1.94 us, max about 4.1 us. The loop-OFF quiet run of #1219 also read 2.09/2.13 us. So twice with the loop off the answer is about 0.2 us (about 10%) slower than with the loop on, and in this run 99.5% of answers fell in 2-5 us against about 97% under 2 us with the loop on. Why is not tested; the reading offered earlier (the idle core being in a wait state when the edge arrives) is a guess, not a result.
+*Tally, 20 us work, storm runs:* compute loop ON 4 of 4 had unanswered edges (1, 1, 1, 2); loop OFF 0 of 1 (this). At 6 us: loop ON 3 of 6; loop OFF 1 of 1 (#1219, 3 unanswered). Loop on versus off does not separate the miss counts on this little data.
+*Open:* P1 on the card (kit already sent); repeats if wanted, one label per run.
+
+Next entry: #1232.
