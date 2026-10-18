@@ -12,3 +12,7 @@ Same three wires as C1 (see ../board_tests_c1/README.md): Tang 86 -> ESP32 IO16,
 3. Compute loop ON (default): `sudo ESPPORT=/dev/ttyUSB0 LABEL=on ./run_c1_v2.sh`   (use your ESP32 port)
 4. Compute loop OFF: open the Serial Monitor, type `l0`, close it, then `sudo ESPPORT=/dev/ttyUSB0 LABEL=off ./run_c1_v2.sh`
 Results: `board_results_<LABEL>.txt`. With ESPPORT set it also compares the ESP32's interrupt count with the edges the Tang sent: if an edge was unanswered and the counts differ by about that much, the interrupt was missed; if they match, it ran but the answer was late or wrong.
+
+## Runner v3 (ledger #1218)
+`run_c1_v2.sh` guessed port numbers, which shift when a board is replugged. `run_c1_v3.sh` finds the Tang's serial port (`usb-SIPEED*-if01-port0`) and the ESP32's (`usb-Silicon_Labs_CP210*-port0`) by their fixed names in `/dev/serial/by-id/`, waits up to 90 s for the Tang's port, and prints what it sees if something is silent:
+`sudo LABEL=on ESPPORT=auto ./run_c1_v3.sh`   (close the Arduino Serial Monitor first; leave `ESPPORT` out to skip recording the ESP32)
