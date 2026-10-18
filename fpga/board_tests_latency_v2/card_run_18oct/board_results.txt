@@ -1,0 +1,20 @@
+=== lat_busy: P  events 2048  time-outs 0  load checksum D32202DB  loop-back pre-check 16 of 16
+    line: UCT lat_busy res=P n=00000800 to=00000000 pre=00000010 rA=00000012,0000695D,01A94371 rB=00000008,00000008,00004000 fA=00000010,00006978,01B6069A fB=00000008,00000008,00004000 chk=D32202DB
+    rA  min     18 clk (   0.667 us)   max  26973 clk ( 999.000 us)   avg   13608.4 clk   spread  26955 clk   rising edge -> result (includes the wait for the next 1 ms sample)
+    rB  min      8 clk (   0.296 us)   max      8 clk (   0.296 us)   avg       8.0 clk   spread      0 clk   rising: last sample tick -> result (the design's own part)
+    fA  min     16 clk (   0.593 us)   max  27000 clk (1000.000 us)   avg   14016.8 clk   spread  26984 clk   falling edge -> result (includes the wait for the next 1 ms sample)
+    fB  min      8 clk (   0.296 us)   max      8 clk (   0.296 us)   avg       8.0 clk   spread      0 clk   falling: last sample tick -> result (the design's own part)
+    rB CONSTANT: min = max
+    fB CONSTANT: min = max
+
+=== lat_idle: P  events 2048  time-outs 0  load checksum 00000000  loop-back pre-check 16 of 16
+    line: UCT lat_idle res=P n=00000800 to=00000000 pre=00000010 rA=00000012,0000695D,01A94371 rB=00000008,00000008,00004000 fA=00000010,00006978,01B6069A fB=00000008,00000008,00004000 chk=00000000
+    rA  min     18 clk (   0.667 us)   max  26973 clk ( 999.000 us)   avg   13608.4 clk   spread  26955 clk   rising edge -> result (includes the wait for the next 1 ms sample)
+    rB  min      8 clk (   0.296 us)   max      8 clk (   0.296 us)   avg       8.0 clk   spread      0 clk   rising: last sample tick -> result (the design's own part)
+    fA  min     16 clk (   0.593 us)   max  27000 clk (1000.000 us)   avg   14016.8 clk   spread  26984 clk   falling edge -> result (includes the wait for the next 1 ms sample)
+    fB  min      8 clk (   0.296 us)   max      8 clk (   0.296 us)   avg       8.0 clk   spread      0 clk   falling: last sample tick -> result (the design's own part)
+    rB CONSTANT: min = max
+    fB CONSTANT: min = max
+
+idle against busy, the design's own part (B): min and max are the SAME in both
+load running in the busy build (checksum not zero): yes
