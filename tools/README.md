@@ -17,7 +17,7 @@ Standalone utilities and offshoots built alongside the Imago UniCell project.
 - `board_loops_v1.py` (ledger #1118): builds the self-checking board bitstreams for the ring-controlled loops into `fpga/board_tests_loops/` (flex_ring, sub_ring, std_ring, mixed_pipe).
 - `board_parallel_v1.py` (ledger #1180): builds the stall-free no-interrupt / parallel test bitstreams (T1 isolation, T4 independent copies, T5 shared port) into `fpga/board_tests_parallel/` (groups P, Q, R); `--groups`, `--only`, `--no-pnr`.
 - `board_parallel_v2.py` (ledger #1182): clone of v1 with the storm lanes kept through synthesis (v1 let synthesis delete them); writes `fpga/board_tests_parallel_v2/`.
-- `board_direct_latency_t3_v1.py` (ledger #1209): test T3, two input pins (jumpers 86 -> 72 and 53 -> 71); writes `fpga/board_tests_latency3/`. Built, not yet run on the card.
+- `board_direct_latency_t3_v1.py` (ledger #1209): test T3, two input pins (jumpers 86 -> 72 and 53 -> 71); writes `fpga/board_tests_latency3/`. Card run passed (#1210).
 - `board_direct_latency_v2.py` (ledger #1207): clone of v1 with a loop-back pre-check (`pre=`, `res=L`) and LED4/LED5 showing pins 86/72; card run passed (#1208).
 - `board_direct_latency_v1.py` (ledger #1206; first card run failed, #1207): test T2, edge on a real input pin to the design result, counted on the chip; writes `fpga/board_tests_latency/` (lat_idle, lat_busy). Needs one jumper Tang pin 86 to pin 72.
 - `board_sub_tiles_v1.py` and `board_sub_carrier_v1.py` (ledger #1184): board bitstreams for the sub-family cross/corner tiles (own six-stream shim, `--bite` control) and for flex -> sub -> flex -> trimmed carrier -> flex; write `fpga/board_tests_sub_tiles/` and `fpga/board_tests_sub_carrier/`.

@@ -1,0 +1,20 @@
+=== lt3_busy: P  events 2048  time-outs 0  load checksum 15823C6A  loop-back pre-check pin 72: 16 of 16, pin 71: 16 of 16  wrong-result-after-hold 0  both-input events 307 (one-input events 1741)
+    line: UCT lt3_busy res=P n=00000800 to=00000000 pre=00000010 p1=00000010 bad=00000000 nd=00000133 sA=0000000E,0000695A,016A5447 sB=00000008,00000008,00003668 dA=0000081B,00015635,00DB160B dB=00000008,00000008,00000998 chk=15823C6A
+    sA  min     14 clk (   0.519 us)   max  26970 clk ( 998.889 us)   avg   13639.1 clk   spread  26956 clk   ONE input changes: edge -> result (includes the wait for the next 1 ms sample)
+    sB  min      8 clk (   0.296 us)   max      8 clk (   0.296 us)   avg       8.0 clk   spread      0 clk   ONE input changes: last sample tick -> result (the design's own part)
+    dA  min   2075 clk (  76.852 us)   max  87605 clk (3244.630 us)   avg   46768.8 clk   spread  85530 clk   BOTH inputs change, 0..2.4 ms apart: FIRST edge -> final result (includes the gap between the edges)
+    dB  min      8 clk (   0.296 us)   max      8 clk (   0.296 us)   avg       8.0 clk   spread      0 clk   BOTH change: last sample tick -> final result (the design's own part)
+    sB CONSTANT: min = max
+    dB CONSTANT: min = max
+
+=== lt3_idle: P  events 2048  time-outs 0  load checksum 00000000  loop-back pre-check pin 72: 16 of 16, pin 71: 16 of 16  wrong-result-after-hold 0  both-input events 307 (one-input events 1741)
+    line: UCT lt3_idle res=P n=00000800 to=00000000 pre=00000010 p1=00000010 bad=00000000 nd=00000133 sA=0000000E,0000695A,016A5447 sB=00000008,00000008,00003668 dA=0000081B,00015635,00DB160B dB=00000008,00000008,00000998 chk=00000000
+    sA  min     14 clk (   0.519 us)   max  26970 clk ( 998.889 us)   avg   13639.1 clk   spread  26956 clk   ONE input changes: edge -> result (includes the wait for the next 1 ms sample)
+    sB  min      8 clk (   0.296 us)   max      8 clk (   0.296 us)   avg       8.0 clk   spread      0 clk   ONE input changes: last sample tick -> result (the design's own part)
+    dA  min   2075 clk (  76.852 us)   max  87605 clk (3244.630 us)   avg   46768.8 clk   spread  85530 clk   BOTH inputs change, 0..2.4 ms apart: FIRST edge -> final result (includes the gap between the edges)
+    dB  min      8 clk (   0.296 us)   max      8 clk (   0.296 us)   avg       8.0 clk   spread      0 clk   BOTH change: last sample tick -> final result (the design's own part)
+    sB CONSTANT: min = max
+    dB CONSTANT: min = max
+
+idle against busy, the design's own part (B): min and max are the SAME in both
+load running in the busy build (checksum not zero): yes

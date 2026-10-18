@@ -1676,4 +1676,13 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Fixed on the way (found by the first simulation, before any build):* my wire names c0/c1 clashed with the storm lanes' generated names; the 9-character build name did not fit the 8-byte name field, so builds are called `lt3_idle`/`lt3_busy`.
 *Not shown.* Nothing from the card yet.
 
-Next entry: #1210.
+## #1210 (18 Oct 2026) -- T3 MEASURED ON THE CARD: with a second input changing at random moments, the design's own part (B) is still 8 clocks on every event, idle and busy
+
+*Card result of #1209* (jumpers pin 86 -> 72 and pin 53 -> 71 as planned; files in `fpga/board_tests_latency3/card_run_18oct/`). Both builds `res=P`, 2,048 events, 0 time-outs, `bad=0` (the result was right at the end of every hold), pre-check 16 of 16 on both inputs. 1,741 events changed one input (series s) and 307 changed both, 0 to 2.4 ms apart (series d). The busy build ran its 24 load lanes (checksum 15823C6A, non-zero).
+- B, last 1 ms sample tick to the result: one input changing, min = max = 8 clocks (0.296 us); both changing, min = max = 8 clocks. Spread 0 in both series and in both builds. Check on the sums: 1,741 x 8 = 13,928 = 0x3668 and 307 x 8 = 2,456 = 0x998, as printed, so no event deviated.
+- A, first edge to the final result: one input, 14 to 26,970 clocks (0.52 us to 998.9 us), the 1 ms sampling window as in T2; both inputs, 2,075 to 87,605 clocks (76.9 us to 3.24 ms), which includes the random gap of up to 65,535 clocks between the two edges, so its spread is mostly the gap and the sampling window, not the design.
+- The idle and busy lines are identical digit for digit (same stimulus seed, clocked deterministic design), as in #1208: that shows the load added no delay on this run; it is not an independent second confirmation.
+*Scope.* One card, one run, 2,048 events. It shows that an edge on the second input at a random moment did not change B or the correctness of the final result on this build. It does not test more than two inputs, other designs, or other loads. B is measured against the replicated tick counter (see #1208). Pin 53 drove pin 71 without trouble on this run; it is an HDMI EDID pin on the board, the HDMI socket being unused.
+*Not done.* C1 (the ESP32 alone with an interrupt handler and compute loop, Tang counter as timer) and C2 (the ESP32 with 1, 2, 4, 8 threads of the same job, one core and two, compared with itself; the Tang side is T1/T4, already measured) are not built; PIR not reported. The test-plan document still needs a v4 that states only measured results.
+
+Next entry: #1211.
