@@ -1695,4 +1695,10 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Not verified.* The two sketches were only syntax-checked on the host with stand-in headers; they have NOT been compiled for the ESP32 or run. Nothing is known yet about the ESP32's answer time, its spread, or the thread timings, and none is claimed. The expectation that more threads on one core slow the watched job is an expectation, not a result.
 *Fixed on the way.* My `sed` removed a line of the builder's own source (a leftover marker) and broke it; found at once by the next run and repaired before anything was built from it.
 
-Next entry: #1212.
+## #1212 (18 Oct 2026) -- C2 sketch v1 looped on the task watchdog; v2 does not touch the watchdog
+
+*Report (Alan, 18 Oct, after uploading the C2 sketch):* it seems stuck in a loop printing `task_wdt: esp_task_wdt_reset(707): task not found`. This is a fault of mine in `tools/esp32/unicell_c2_threads/unicell_c2_threads.ino` (#1211): it called `disableCore0WDT()`, which on his core version leaves the watchdog bookkeeping inconsistent. I had not compiled or run the sketch for the ESP32 (said in #1211).
+*Fix (clone, v1 left in place):* `tools/esp32/unicell_c2_threads_v2/unicell_c2_threads_v2.ino` simply removes that call. Reason it should not be needed: each case keeps a core busy for well under a second (at most 4 tasks x 60 jobs of about 1-2 ms on one core), far below the 5 s default watchdog time-out, so the idle task is not starved long enough to trigger it. This reasoning is not yet confirmed on the board. Syntax-checked on the host only. The kit zip now carries v2; the README says not to use v1.
+*Not shown.* Whether v2 runs cleanly; no C2 numbers yet.
+
+Next entry: #1213.

@@ -23,5 +23,5 @@ Clocks of the Tang's 27 MHz clock (37.04 ns) from the Tang's edge to the answer,
 The handler is the ordinary Arduino `attachInterrupt()` kind, kept in IRAM. Simulation (a stand-in that answers after exactly 1.5 us) reads 43 clocks both ways; the real ESP32 is not simulated.
 
 ## C2 (separate sketch, no wiring)
-`esp32/unicell_c2_threads/unicell_c2_threads.ino`: the same job as 1, 2, 4, 8 threads on the ESP32 alone, one core and both cores; prints wall time and the watched job's time (min/avg/max). The ESP32 compared with itself.
+`esp32/unicell_c2_threads_v2/unicell_c2_threads_v2.ino` (v1 in the same folder is the first version: do not use it, it loops on the watchdog): the same job as 1, 2, 4, 8 threads on the ESP32 alone, one core and both cores; prints wall time and the watched job's time (min/avg/max). The ESP32 compared with itself.
 I could not compile the sketches for the ESP32 here (only a syntax check on a host with stand-in headers): if the Arduino IDE shows an error, paste it and I will fix it.
