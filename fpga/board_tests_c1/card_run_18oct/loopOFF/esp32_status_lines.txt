@@ -1,0 +1,5 @@
+# ESP32 Serial Monitor lines pasted by Alan, 18 Oct 2026, ESP32 compute loop OFF (loop=0)
+# Part 1 (quiet run; per-second ev= values, storm=0 throughout apart from one stray storm=1 while the Tang loaded):
+ev=1 (storm=1), 7, 15, 432, 441, 432, 425, 444, 430, 437, 424, 422, 200, 0
+# Part 2 (storm run; ev= and storm= per second):
+ev=1 storm=1 | ev=9 storm=0 | ev=131 storm=4479 | ev=426 storm=15565 | ev=430 storm=15637 | ev=426 storm=15693 | ev=436 storm=15566 | ev=421 storm=15636 | ev=424 storm=15666 | ev=440 storm=15653 | ev=434 storm=15701 | ev=423 storm=15728 | ev=109 storm=4121

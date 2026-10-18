@@ -1,0 +1,15 @@
+ESP32 state label: loopOFF
+=== c1_quiet: P  events 4096 (rising + falling)  time-outs 0  loop-back pre-check 16 of 16
+    line: UCC c1_quiet res=P n=00000800 to=00000000 pre=00000010 r=00000033,000000AC,0001C2E6 f=0000001E,000000AA,0001C790 h=0000000C,00000FEC,00000008,00000000,00000000,00000000
+    rising edge -> answer    min     51 clk (    1.89 us)   max    172 clk (    6.37 us)   avg     56.4 clk (   2.09 us)   spread    121 clk (    4.48 us)
+    falling edge -> answer   min     30 clk (    1.11 us)   max    170 clk (    6.30 us)   avg     56.9 clk (   2.11 us)   spread    140 clk (    5.19 us)
+    all events by answer time:  < 2 us: 12 (0.3%)   2-5 us: 4076 (99.5%)   5-10 us: 8 (0.2%)   10-20 us: 0 (0.0%)   20-50 us: 0 (0.0%)   >= 50 us: 0 (0.0%)
+    (the 2-flip-flop input synchroniser in the Tang adds up to 2 clocks; time-outs are not in the table above)
+
+=== c1_storm: F  events 4096 (rising + falling)  time-outs 2  loop-back pre-check 16 of 16
+    line: UCC c1_storm res=F n=00000800 to=00000002 pre=00000010 r=00000001,000000D8,0001F578 f=00000001,000000D1,0001FB86 h=000000C2,00000E7C,000000C0,00000000,00000000,00000000
+    rising edge -> answer    min      1 clk (    0.04 us)   max    216 clk (    8.00 us)   avg     62.7 clk (   2.32 us)   spread    215 clk (    7.96 us)
+    falling edge -> answer   min      1 clk (    0.04 us)   max    209 clk (    7.74 us)   avg     63.4 clk (   2.35 us)   spread    208 clk (    7.70 us)
+    all events by answer time:  < 2 us: 194 (4.7%)   2-5 us: 3708 (90.6%)   5-10 us: 192 (4.7%)   10-20 us: 0 (0.0%)   20-50 us: 0 (0.0%)   >= 50 us: 0 (0.0%)
+    (the 2-flip-flop input synchroniser in the Tang adds up to 2 clocks; time-outs are not in the table above)
+

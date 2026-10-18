@@ -25,3 +25,6 @@ The handler is the ordinary Arduino `attachInterrupt()` kind, kept in IRAM. Simu
 ## C2 (separate sketch, no wiring)
 `esp32/unicell_c2_threads_v2/unicell_c2_threads_v2.ino` (v1 in the same folder is the first version: do not use it, it loops on the watchdog): the same job as 1, 2, 4, 8 threads on the ESP32 alone, one core and both cores; prints wall time and the watched job's time (min/avg/max). The ESP32 compared with itself.
 I could not compile the sketches for the ESP32 here (only a syntax check on a host with stand-in headers): if the Arduino IDE shows an error, paste it and I will fix it.
+
+## Correction (ledger #1216)
+The storm period stated above (26-76 us) and in the sketch header is wrong: the Tang adds 0 to 2,047 clocks to a minimum of 700, so each storm edge comes 26 to 102 us after the last (average 64 us, about 15,670 edges a second). The ESP32 counted about 15,650 a second.
