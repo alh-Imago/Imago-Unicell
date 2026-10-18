@@ -1,0 +1,36 @@
+label: a
+=== pe_quiet: P  pulses per width 512  slow pre-check pulses answered 8 of 8
+    line: UCW pe_quiet res=P np=00000200 pre=00000008 w0=00000200 w1=00000200 w2=00000200 w3=00000200 w4=00000200 w5=00000200 w6=00000200 w7=00000200 w8=00000200 w9=00000200 w10=00000200 w11=00000200
+        width  clocks  caught    of  caught %
+     100000 ns    2700     512   512    100.0%
+      50000 ns    1350     512   512    100.0%
+      20000 ns     540     512   512    100.0%
+      10000 ns     270     512   512    100.0%
+       5000 ns     135     512   512    100.0%
+       2000 ns      54     512   512    100.0%
+       1000 ns      27     512   512    100.0%
+        593 ns      16     512   512    100.0%
+        296 ns       8     512   512    100.0%
+        148 ns       4     512   512    100.0%
+         74 ns       2     512   512    100.0%
+         37 ns       1     512   512    100.0%
+    ESP32 counted 6152 handler runs during the log (41 lines); the Tang sent 6152 pulses (8 pre-check + 12 x 512); difference +0
+    ESP32 counted 1 storm interrupts (loop=1, storm_work_us=6)
+
+=== pe_storm: P  pulses per width 512  slow pre-check pulses answered 8 of 8
+    line: UCW pe_storm res=P np=00000200 pre=00000008 w0=000001FF w1=00000200 w2=00000200 w3=00000200 w4=000001FF w5=00000200 w6=00000200 w7=00000200 w8=00000200 w9=000001FF w10=00000200 w11=00000200
+        width  clocks  caught    of  caught %
+     100000 ns    2700     511   512     99.8%
+      50000 ns    1350     512   512    100.0%
+      20000 ns     540     512   512    100.0%
+      10000 ns     270     512   512    100.0%
+       5000 ns     135     511   512     99.8%
+       2000 ns      54     512   512    100.0%
+       1000 ns      27     512   512    100.0%
+        593 ns      16     512   512    100.0%
+        296 ns       8     512   512    100.0%
+        148 ns       4     511   512     99.8%
+         74 ns       2     512   512    100.0%
+         37 ns       1     512   512    100.0%
+    ESP32 counted 6149 handler runs during the log (41 lines); the Tang sent 6152 pulses (8 pre-check + 12 x 512); difference -3
+    ESP32 counted 149167 storm interrupts (loop=1, storm_work_us=6)
