@@ -1862,4 +1862,14 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Tally (storm runs, unanswered edges):* 6 us, loop ON: 0, 3, 1, 0, 0 (#1220, #1221, #1226, #1227, #1228); 6 us, loop OFF: 3 (#1219); 20 us, loop ON: 1, 1, 1 (#1222, #1223, this). So at 20 us every one of three storm runs had one unanswered edge; at 6 us, 3 of 6 runs did.
 *Open:* compute loop OFF at 20 us; the ESP32 pulse-width test (P1, kit sent, not yet run); one more 20 us repeat if wanted.
 
-Next entry: #1230.
+## #1230 (18 Oct 2026) -- ESP32 v3, second 20 us run (label `v3d` used a second time): 2 unanswered edges (1 rising, 1 falling); the level check shows one rising and one falling edge without a handler run, plus one extra run
+
+*Run.* Alan reused the label `v3d`, so his folder file was overwritten; both runs are kept here: the first as `card_run_18oct_v3d` (#1229) and this one as `fpga/board_tests_c1_v2/card_run_18oct_v3d_b/`. `storm_work_us=20`, `loop=1` (199 jobs/s quiet, 129/128 in the storm window). The ESP32's totals had been zeroed (dupT started at 0).
+*Tang:* quiet 4,096/4,096, 0 unanswered, avg 1.91 us, max 4.19 us. Storm: 4,092 of 4,096 timed, **unanswered: 1 rising, 1 falling** (2 not timeable after them); rising 0.70/4.98/23.85 us (min/avg/max), falling 0.70/4.93/22.70 us; under 2 us 66.7%, 2-5 us 7.4%, 5-10 us 7.5%, 10-20 us 15.8%, 20-50 us 2.6%, nothing at 50 us or more.
+*ESP32 differences.* Quiet: runs 4,113, dup +0, hi +2,056, lo +2,057 (the usual). Storm: **runs 4,112, dup +3, hi +2,055, lo +2,057**; storm interrupts 149,637, peak 15,946/s.
+*Reading.* Against the usual 2,056 high / 2,057 low: one fewer run that saw high (a rising edge with no run), the low count normal although one falling edge was also unanswered, three runs whose level equalled the previous run's, and 4,112 runs in total. That is what a lost rising edge (dup +1) + a lost falling edge (dup +1) + one extra run seeing low (dup +1, and it brings the low count back to normal) would give; the Tang saw exactly one rising and one falling unanswered. It fits in every counter; it is an interpretation of counts, not an observation of the lost edges.
+*Pattern across the three v3 runs with an unanswered edge (#1226 6 us; #1229 and this one 20 us):* each time the number of lost edges the level check implies equals what the Tang saw, and each time the handler-run total is within one of what was sent, so the total alone would have hidden it. In the clean v3 runs (v3b, v3c, all quiet captures) the check showed no such pattern. The extra run seen in two of the three is not explained.
+*Tally, 20 us work, compute loop ON, storm runs:* unanswered 1, 1, 1, 2 (#1222, #1223, #1229, this): every one of four. At 6 us: 3 of 6 (loop ON), plus 1 of 1 with loop OFF.
+*Open:* compute loop OFF at 20 us; P1 on the card. Label reuse: use a new label each run.
+
+Next entry: #1231.
