@@ -1,0 +1,23 @@
+C2 setup: cpu=240 MHz  sdk=v5.5.5  tick_hz=1000  job=50000 steps  reps=60  runs=3  loop core=1
+C2 layout=core1 threads=1 run=1 wall_ms=263 total_jobs=60 jobs_per_s=227 watched_job_us min/avg/max=4387/4388/4392
+C2 layout=core1 threads=1 run=2 wall_ms=263 total_jobs=60 jobs_per_s=227 watched_job_us min/avg/max=4387/4388/4392
+C2 layout=core1 threads=1 run=3 wall_ms=263 total_jobs=60 jobs_per_s=227 watched_job_us min/avg/max=4387/4388/4392
+C2 layout=core1 threads=2 run=1 wall_ms=528 total_jobs=120 jobs_per_s=226 watched_job_us min/avg/max=8403/8806/9412
+C2 layout=core1 threads=2 run=2 wall_ms=528 total_jobs=120 jobs_per_s=226 watched_job_us min/avg/max=8403/8806/9412
+C2 layout=core1 threads=2 run=3 wall_ms=528 total_jobs=120 jobs_per_s=226 watched_job_us min/avg/max=8403/8806/9412
+C2 layout=core1 threads=4 run=1 wall_ms=1057 total_jobs=240 jobs_per_s=226 watched_job_us min/avg/max=16403/17606/19412
+C2 layout=core1 threads=4 run=2 wall_ms=1057 total_jobs=240 jobs_per_s=226 watched_job_us min/avg/max=16403/17606/19412
+C2 layout=core1 threads=4 run=3 wall_ms=1057 total_jobs=240 jobs_per_s=226 watched_job_us min/avg/max=16403/17606/19412
+C2 layout=core1 threads=8 run=1 wall_ms=2115 total_jobs=480 jobs_per_s=226 watched_job_us min/avg/max=32403/35206/39412
+C2 layout=core1 threads=8 run=2 wall_ms=2115 total_jobs=480 jobs_per_s=226 watched_job_us min/avg/max=32403/35206/39412
+C2 layout=core1 threads=8 run=3 wall_ms=2115 total_jobs=480 jobs_per_s=226 watched_job_us min/avg/max=32403/35206/39412
+C2 layout=both threads=2 run=1 wall_ms=264 total_jobs=120 jobs_per_s=453 watched_job_us min/avg/max=4408/4412/4419
+C2 layout=both threads=2 run=2 wall_ms=264 total_jobs=120 jobs_per_s=453 watched_job_us min/avg/max=4408/4412/4419
+C2 layout=both threads=2 run=3 wall_ms=264 total_jobs=120 jobs_per_s=453 watched_job_us min/avg/max=4408/4412/4419
+C2 layout=both threads=4 run=1 wall_ms=529 total_jobs=240 jobs_per_s=453 watched_job_us min/avg/max=8394/8812/9419
+C2 layout=both threads=4 run=2 wall_ms=529 total_jobs=240 jobs_per_s=453 watched_job_us min/avg/max=8394/8812/9419
+C2 layout=both threads=4 run=3 wall_ms=529 total_jobs=240 jobs_per_s=453 watched_job_us min/avg/max=8394/8812/9419
+C2 layout=both threads=8 run=1 wall_ms=1059 total_jobs=480 jobs_per_s=453 watched_job_us min/avg/max=16022/17606/19419
+C2 layout=both threads=8 run=2 wall_ms=1059 total_jobs=480 jobs_per_s=453 watched_job_us min/avg/max=16023/17606/19419
+C2 layout=both threads=8 run=3 wall_ms=1059 total_jobs=480 jobs_per_s=453 watched_job_us min/avg/max=16023/17606/19419
+C2 table done
