@@ -1798,4 +1798,15 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *Not claimed:* why the slow tail appears. The 20 us figure is the busy-wait in the storm handler (set by `w20`); that the slow answers are edges arriving while a storm handler was running is the obvious reading but was not checked against the edge times.
 *Open:* the same run with `ESPPORT=auto` to get the ESP32 counts; the compute-loop OFF case at w20; whether the ESP32 restarts when the runner opens its port.
 
-Next entry: #1223.
+## #1223 (18 Oct 2026) -- C1 v2, 20 us storm work, ESP32 recorded: slow tail reproduced; 1 rising edge unanswered while the ESP32 counted exactly the 4,112 sent; compute job down about 35%
+
+*Run.* Repeat of #1222 with `ESPPORT=auto` (label `w20b`). The ESP32 lines in raw/ show `storm_work_us=20` in every line and `loop=1`. Files: `fpga/board_tests_c1_v2/card_run_18oct_w20b/`.
+*Measured (Tang):*
+- **c1_quiet:** 4,096 of 4,096, 0 unanswered; avg 1.90 us (rising) / 1.94 us (falling), max 4.11 us; nothing over 5 us.
+- **c1_storm:** 4,094 of 4,096 timed, **1 rising, 0 falling unanswered** (1 not timeable after it). Rising 0.70/5.07/22.00 us (min/avg/max), falling 0.74/4.97/22.11 us. Under 2 us 66.9%, 2-5 us 6.4%, 5-10 us 8.2%, 10-20 us 15.9%, 20-50 us 2.7%, nothing at 50 us or more. Same shape as #1222 (avg 5.1 us, max 22.6 us, 19.1% over 10 us there; 18.6% here).
+*ESP32 side:* quiet evT 74,049 -> 78,161 = 4,113 (sent 4,112, +1, the usual extra edge). storm evT 78,162 -> 82,274 = **4,112 (+0)**; stormT 1,042,802 -> 1,191,578 = 148,776, peak 15,764/s. Compute job: 199 jobs/s when quiet; during the storm 129 (6 lines) and 128 (3 lines): about 35% fewer, against about 14% at 6 us work.
+*What the unanswered edge was: not settled.* The ESP32 counted exactly what the Tang sent while the Tang saw 1 unanswered edge. Two readings fit and the data cannot separate them: (a) the interrupt did not run (a miss) and the usual +1 extra edge made the total look complete; (b) the interrupt ran and the answer was late or wrong. In the quiet runs the extra edge appears every time (+1 in all of #1219-#1223), which supports (a), but it is not seen in every storm run (#1220 +1, #1219 and #1221 -2, here 0), so I do not claim it.
+*Tally, storm runs, unanswered edges:* 6 us work: 3, 0, 3. 20 us work: 1, 1. Quiet: 0 in all. With so few runs, 20 us work does not show more misses than 6 us; it shows much slower answers.
+*Open:* the missed-vs-late question needs the answer line itself logged by the ESP32 (e.g. a count of answer writes), not just the edge count: a small sketch change, not yet made. Not done: compute loop OFF at w20; many repeats.
+
+Next entry: #1224.
