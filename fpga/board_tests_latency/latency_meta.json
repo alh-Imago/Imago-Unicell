@@ -1,0 +1,26 @@
+{
+ "line_bytes": 176,
+ "ncyc": 2048,
+ "storm_lanes": 24,
+ "period_ns": 37.03703703703704,
+ "builds": {
+  "lat_idle": {
+   "sim_line": "UCT lat_idle res=P n=00000018 to=00000000 rA=00005491,0000615F,000896C8 rB=00000008,00000008,000000C0 fA=000055FB,00005D7A,00086CF2 fB=00000008,00000008,000000C0 chk=00000000",
+   "storm": 0,
+   "lut4_synth": 790,
+   "dff_synth": 2448,
+   "fmax_mhz": 116.8,
+   "lut4": 1691,
+   "dff": 816
+  },
+  "lat_busy": {
+   "sim_line": "UCT lat_busy res=P n=00000018 to=00000000 rA=00005491,0000615F,000896C8 rB=00000008,00000008,000000C0 fA=000055FB,00005D7A,00086CF2 fB=00000008,00000008,000000C0 chk=7F30FF78",
+   "storm": 1,
+   "lut4_synth": 1616,
+   "dff_synth": 4848,
+   "fmax_mhz": 124.6,
+   "lut4": 2910,
+   "dff": 1616
+  }
+ }
+}
