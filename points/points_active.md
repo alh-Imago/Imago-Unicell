@@ -1628,4 +1628,18 @@ Alan reported, in one line ("tilt, ultrasonic working"), that the tilt switch an
 
 *To settle it.* Black probe fixed on the Tang's GND pin beside 3V3; red probe on the Tang's header pins themselves; readings in three states (tilt at rest and jumper off; jumper on; tilt active): red on the Tang's 3V3 pin (expect +3.3 V), pin 72, pin 71, with the LED states noted for each.
 
-Next entry: #1205.
+#1205 (18 Oct 2026) -- DIRECT MODE READ BACK FROM THE TANG: BOTH SENSOR PINS COUNT CORRECTLY, 2 / 1 / 0 ACTIVE; SETTLES #1204 (Alan, 18 Oct 13:49)
+
+*Set-up.* `unit_tree_direct_v1` on the Tang (power-up in direct mode), ESP32 back on the SPI link running the web sketch, the Direct sensors card of the page read in three states. Tilt switch with 3V3 on pin 71 (input 2); a hand jumper on pin 72 (input 1). Alan sent three screenshots in the order "2 sensors active, then 1, then 0"; he did not label which action made which state, so the pairing below is my reading of the order.
+
+*Seen (the Tang's own register read-out through the page, not LEDs or a meter).*
+- State 1: "sensor pins: input 1 HIGH, input 2 HIGH"; design result 1073741834 = word amount 16384 (2 sensors active), location 10; 138,779 results since switching on.
+- State 2: "input 1 low, input 2 HIGH"; result 536870922 = amount 8192 (1 sensor active), location 10; 153,533 results.
+- State 3: "input 1 low, input 2 low"; result 10 = amount 0 (0 sensors active), location 10; 168,586 results.
+Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/vm/test_unit_live_feed_v1.py`). The results counter runs at about 15,000 per 15 s step between the shots, consistent with the design's roughly one-per-millisecond feed (not timed).
+
+*Settles #1204.* Pin 72 (input 1) read HIGH when Alan's jumper was applied. In this bitstream the pin has an internal pull-down, so a pin tied to GND could not read HIGH: the jumper was tied to a high level, which is 3V3 (the pin beside it), as the design expects. His spoken "ground" was wrong; no meter reading was needed. The meter table of #1203 remains unusable. Both inputs work active-high, the ESP32 link works alongside direct mode, and the counts 0, 1, 2 come out right. The earlier LED description (LED4 on from the 72 jumper) fits state 1 if the tilt was also active at that moment; not confirmed.
+
+*Still open.* T2, T3 and C1 timing tests; whether the all-lit LEDs seen earlier with the ESP32 on the cordic bitstream (#1202) have a cause beyond link activity; PIR; the Kintex readback.
+
+Next entry: #1206.
