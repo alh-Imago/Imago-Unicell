@@ -1604,5 +1604,11 @@ Alan reported, from his dictated message "exact same file", that the file downlo
 
 Alan reported, in one line ("tilt, ultrasonic working"), that the tilt switch and the ultrasonic sensor work. Arrangement 5 of the wiring reference had them as "readers written, nothing wired or run". Not reported: where he read them (assumed the ESP32 web page, not stated), the pins he used (the reference gives tilt on IO17, ultrasonic trigger IO22 and echo IO21 through a divider), what values he saw, and whether the PIR was tried. So the entry records his statement only; no numbers were seen by me.
 
-Next entry: #1202.
+#1202 (18 Oct 2026) -- CORRECTION TO #1173 AND THE WIRING REFERENCE: TANG PINS 72 AND 71 ARE ON THE RIGHT HEADER, NOT BESIDE THE LINK PINS (Alan, 18 Oct 10:06; first direct-mode tests 18 Oct 09:56-10:00)
+
+*Report.* With `fpga/build/unit_tree_direct_v1/unit_top.fs` loaded (after Alan first loaded `unit_cordic_v1` by mistake, where LED4/LED5 mean other things) and the ESP32 off the link, a tilt switch wired to 3V3 and to the hole Alan was calling pin 71 lit LED5; the same switch on the hole he was calling 72 did nothing. With the ESP32 on the link, all six LEDs were lit in the cordic bitstream (LED1/LED2 from the link activity; LED4 there is a MOSI-seen flag; not otherwise explained). LED0 flashing and LED3 on with the ESP32 off, as expected.
+
+*Correction.* The wiring reference (section 6, and `SENS` in `tools/sd_unit_top_v1.py`) says pins 72 and 71 are "the next two on the same header as the link pins 73-77", with a note that this was never checked. Alan then supplied the Sipeed Tang Nano 20K pinout diagram and a photo of the board's underside. Reading both (my reading of the pictures): the LEFT header, from the USB end, is 73, 74, 75, 85, 77, 15, 16, 27, 28, 25, 26, 29, 30, 31, 17, 20, 19, 18, 3V3, GND; the RIGHT header, from the USB end, is 5V, GND, 76, 80, 42, 41, 56, 54, 51, 48, 55, 49, 86, 79, GND, 3V3, **72, 71**, 53, 52. So 72 and 71 are on the right header, at the far end from the USB socket, 72 directly beside 3V3 and 71 next to it; the underside photo's silkscreen reads 52, 53, 71, 72, 3V3, GND at that end, consistent with the diagram. The pin numbers in the design were right; the earlier description of where they are was wrong. The link pins 73, 74, 75, 77 (left header) and 76 (right header, below GND) in section 2 agree with the diagram. This does not yet explain why the "72" hole showed nothing: Alan has not said which holes he used. To be re-tested at the correct holes.
+
+Next entry: #1203.
 

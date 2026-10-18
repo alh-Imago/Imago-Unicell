@@ -90,7 +90,7 @@ This is the arrangement for experiments that show the architecture needs no inte
 - The pins are pulled low inside the FPGA, so an unwired pin reads 0.
 - **LED5** lights when the result carries at least one active sensor, **LED4** at two or more.
 - Bitstream `fpga/build/unit_tree_direct_v1/unit_top.fs` powers up in direct mode: unplug the ESP32 completely and touch the sensor, the LEDs follow. With the tree design, one active sensor gives amount 8192 and two give 16384.
-- Pins 72 and 71 are the next two on the same header as the link pins 73-77, but **have not been checked on the board**: if your header differs, change `SENS` in `tools/sd_unit_top_v1.py`.
+- **CORRECTION (ledger #1202, 18 Oct 2026): pins 72 and 71 are on the RIGHT header at the far end from the USB socket (from that end: 52, 53, 71, 72, 3V3, GND), not beside the link pins.** The text below is the original and is wrong about the location. Pins 72 and 71 are the next two on the same header as the link pins 73-77, but **have not been checked on the board**: if your header differs, change `SENS` in `tools/sd_unit_top_v1.py`.
 
 ## 7. HW-262 multi-function shield (buttons, display, buzzer) on the Tang
 
