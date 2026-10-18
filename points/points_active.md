@@ -1847,4 +1847,9 @@ Location 10 is 1+2+3+4, the lane tags the reduction tree adds up (as in `tests/v
 *P1 built (not run).* `tools/board_esp32_pulse_v1.py` -> `fpga/board_tests_esp32_pulse/` (README, runner `run_pulse_esp32_v1.sh`, collector, sketch `esp32/unicell_pulse_v1/unicell_pulse_v1.ino`; the sketch got a host syntax check only). Tang sends 12 widths (2700, 1350, 540, 270, 135, 54, 27, 16, 8, 4, 2, 1 clocks = 100 us down to 37 ns), 512 each, with and without the storm; the ESP32's rising-edge handler toggles IO17; a pulse is caught if the Tang sees the answer pin changed 185 us later. Simulated with a stand-in ESP32: every pulse caught in both builds; pe_quiet 1,400 LUT4 / 131.1 MHz, pe_storm 1,509 LUT4 / 132.8 MHz. If the real handler ran twice for one pulse the toggles would cancel and the pulse would be counted as missed; the ESP32's own run count in the results file is the cross-check.
 *Open:* run P1 on the card (compute loop on and off, storm 6 us); more v3 runs at 20 us and with the compute loop OFF.
 
-Next entry: #1228.
+## #1228 (18 Oct 2026) -- ESP32 v3 third run (6 us, compute loop ON): clean again, 0 unanswered; storm level-check identical to quiet
+
+*v3c (label `v3c`; files `fpga/board_tests_c1_v2/card_run_18oct_v3c/`).* `storm_work_us=6`, `loop=1` (199 jobs/s, 172 in the storm window). Tang: quiet 4,096/4,096 (avg 1.91 us; max 4.07 us rising, 6.19 us falling; one answer in 5-10 us), storm 4,096/4,096, **0 unanswered**; storm avg 2.17/2.16 us, max 7.70/8.00 us, 4.6% between 5 and 10 us, none over 10 us. ESP32 differences: quiet runs 4,113, dup +0, hi +2,056, lo +2,057; storm runs 4,113, dup +0, hi +2,056, lo +2,057; storm interrupts 149,419, peak 15,913/s.
+*Tally, storm runs at 6 us work with the compute loop ON:* unanswered 0 (#1220), 3 (#1221), 1 (#1226), 0 (#1227), 0 (this); with it OFF: 3 (#1219). At 20 us work (loop ON): 1, 1. Where the Tang saw an unanswered edge, the v3 level-check (#1226, the only such run with v3) showed the lost-edge signature; in the three v3 runs without an unanswered edge the signature was absent. Still three v3 runs only; the lost-edge reading stays an inference.
+
+Next entry: #1229.
