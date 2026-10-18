@@ -18,6 +18,7 @@ Standalone utilities and offshoots built alongside the Imago UniCell project.
 - `board_parallel_v1.py` (ledger #1180): builds the stall-free no-interrupt / parallel test bitstreams (T1 isolation, T4 independent copies, T5 shared port) into `fpga/board_tests_parallel/` (groups P, Q, R); `--groups`, `--only`, `--no-pnr`.
 - `board_parallel_v2.py` (ledger #1182): clone of v1 with the storm lanes kept through synthesis (v1 let synthesis delete them); writes `fpga/board_tests_parallel_v2/`.
 - `board_esp32_c1_v2.py` (ledger #1217): C1 stopwatch v2 (no artifact after an unanswered edge; tor/tof/inv counts); writes `fpga/board_tests_c1_v2/`. Built, not yet run.
+| `board_direct_pulse_t4_v1.py` | T4 pulse width at the input pin (ledger #1224): Tang drives 12 pulse widths into the design's sensor input, counts how many are caught; builds `fpga/board_tests_pulse`. |
 - `board_esp32_c1_v1.py` (ledger #1211): test C1, the Tang as stopwatch and signal generator for an ESP32 interrupt handler; writes `fpga/board_tests_c1/` (c1_quiet, c1_storm). Built, not yet run.
 - `board_direct_latency_t3_v1.py` (ledger #1209): test T3, two input pins (jumpers 86 -> 72 and 53 -> 71); writes `fpga/board_tests_latency3/`. Card run passed (#1210).
 - `board_direct_latency_v2.py` (ledger #1207): clone of v1 with a loop-back pre-check (`pre=`, `res=L`) and LED4/LED5 showing pins 86/72; card run passed (#1208).
