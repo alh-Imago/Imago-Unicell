@@ -3,7 +3,7 @@
 A local page for building designs and running them on a card, without typing the same cd and make lines again. Runs on your own PC; standard Python only (3.8+); the terminal library is bundled (`vendor/`), no internet needed.
 
 ## Start it (plain terminal, Linux)
-    python3 unicell_frontend_v1.py --demo ~/openFPGALoader/build/demo-projects --repo <your Imago-Unicell clone>
+    python3 unicell_frontend_v2.py --demo ~/openFPGALoader/build/demo-projects --repo <your Imago-Unicell clone>
 `--repo` lets the page find the assembler and the example ICM files; without it the ICM panel asks for the folder.
 It prints an address like `http://127.0.0.1:8765/?t=...` and opens it in the browser. Keep that terminal open; Ctrl-C stops it. Only this PC can reach it (127.0.0.1, with a one-off key in the address).
 

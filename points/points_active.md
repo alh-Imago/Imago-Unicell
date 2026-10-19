@@ -388,4 +388,12 @@ Alan: "A, the origional super grid and origional designs will take precedent in 
 
 *Not done / not known.* The callers still use generator v1 (runner, `project_assemble_v1`, Bench path, mixed/compile tools, other tests), so the card path is unchanged until each is moved, one at a time. FlexGrid2's narrow held-constant rule is now only for old files; it should be retired once nothing relies on it (step 3). Step 4, running the v2-built CORDIC on the card, not done.
 
-Next entry: #1278.
+## #1278 (19 Oct) -- STEP 3 of #1275: the card path moved to the standard reading (v2 clones); FlexGrid v2 not spread; two test failures on Alan's PC explained (yosys 0.33 vs 0.69)
+
+*Decision recorded.* After the ruling (#1275) the correct VM for the ICM rule is the ORIGINAL grid (FlexGrid v1: a preloaded, unfed, non-fixed ram is a one-shot). FlexGrid v2's held-constant rule (#1271) only mimics the old flex hardware reading, so it is NOT spread to the other callers (composer, workbench, bridges, boards stay on v1 as they were). It stays in the repo only to reproduce older results.
+
+*Made (all clones; v1 files untouched).* `tools/kintex_icm_runner_v2.py` (expected answers from FlexGrid v1; flex emitter v2), `tools/project_assemble_v2.py` (`--icm` uses generator v2 and runner v2; the rest identical), `tools/frontend/unicell_frontend_v2.py` (Bench makes folders with `project_assemble_v2.py`; the repo check lists the v2 files), tests `tests/vm/test_kintex_icm_runner_v2.py` and `tests/vm/test_frontend_v2.py` (13 passed together). End to end here: `project_assemble_v2.py -s flex --icm ... --man kintex7-ypcb00338` then the folder's simulation against the VM: `cordic_z_convergence_v2` PASS and the old `cordic_z_convergence` PASS (both against the original grid). Simulation only, not a card run (step 4).
+
+*Alan's full run on his PC (2858 passed, 9 skipped in `tests/vm`, 0 failed; top-level: 3 failed).* (1) `family_equivalence_v1`: superseded by v2 in #1273; his clone was behind. (2) `test_flexsub_mul_v2`: his yosys is 0.33; the windows of v2 were measured with 0.69. His counts (4470 for 2 DSP left, 12982 for 0 DSP) lie inside the older v1 windows (4000..7500, 11000..16000). Cloned as `tests/test_flexsub_mul_v3.py` whose windows follow the yosys version (0.33 -> old, otherwise the 0.69 windows); here (0.69) 42 passed. Measured only for these two versions. `quick_check_v1.py` SUPERSEDED maps mul v1 and v2 to v3. (3) `test_flexsub_assemble_v2`: passes here (80); no output from his PC yet; likely the same cause (recorded LUT costs) but NOT confirmed.
+
+Next entry: #1279.
