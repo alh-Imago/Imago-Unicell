@@ -383,8 +383,8 @@ check(all(x[0] == 0x46525A33 for x in (S, D, L, F)), "magic FRZ3 in all four rea
 check(((S[2] >> 24) & 1) == 1 and ((D[2] >> 24) & 1) == 1, "S and D were taken frozen")
 check(S[34:] != D[34:], "the disturbance changed the cells' hidden state (D differs from S)")
 check(L[8:] == S[8:], "after the load, all 78 cell words (visible and hidden) equal the saved ones")
-check(L[1] == S[1] and L[2] == S[2] and L[3] == S[3] and L[4] == S[4] and L[6] == S[6],
-      "after the load, the driver state (count %d, k, results so far, signature, last word, last clock) equals the saved one" % S[1])
+check(L[1] == S[1] and (L[2] & 0xFFFF) == (S[2] & 0xFFFF) and L[3] == S[3] and L[4] == S[4] and L[6] == S[6],
+      "after the load, the driver state (count %d, k and results so far, signature, last word, last clock) equals the saved one" % S[1])
 check(((L[2] >> 24) & 1) == 1, "frozen after the load")
 check((F[2] & 0xFF) == 6 and F[3] == 0x7FEF5298 and F[4] == 0x7FFFFEAA,
       "after the release: 6 results, signature %08X (Tang 7FEF5298), last word %08X (Tang 7FFFFEAA)" % (F[3], F[4]))

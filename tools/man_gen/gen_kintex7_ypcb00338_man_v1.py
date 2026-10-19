@@ -44,6 +44,23 @@ def build():
                                 "named .sv. The top file is <PROJECT>.v and the rest go in ADDITIONAL_SOURCES."),
             "nowidelut": {"supported": None, "default": None,
                           "note": "synth_gowin's -nowidelut has no equivalent recorded for synth_xilinx; not tested."},
+            "build": {
+                "flow": "openxc7",
+                "note": ("How a design is built for this card, as data the assembler reads (ledger #1251). Every item is what the hand-built kits "
+                         "(k7_tree4, k7_freeze*) did and the card accepted; the assembler's own output for this flow has NOT yet been loaded on the card."),
+                "synth": "yosys synth_xilinx -flatten -abc9 -arch xc7 (run by openXC7.mk, not by the assembler)",
+                "constraint_format": "xdc",
+                "constraint_file": "docs/man/kintex7-ypcb00338.xdc",
+                "top_ports": {"clock": "CLK", "leds": ["LED0", "LED1", "LED2"], "led_polarity": "active-high (assumed, not measured)", "reset_button": None, "entry_button": None},
+                "reset_rule": "no button: the design makes its own power-up reset",
+                "source_extension": ".sv for every file except the top, which is <PROJECT>.v (openXC7.mk reads .sv as SystemVerilog)",
+                "makefile": {"FAMILY": "kintex7", "PART": "xc7k480tffg1156-1", "BOARD": "ypcb003381p1", "TOP_MODULE": "top", "CHIPDB": "${KINTEX7_CHIPDB}",
+                             "include": "../openXC7.mk", "placement": "the project folder sits next to the demo-projects blinky-ypcb003381p1 so ../openXC7.mk is found"},
+                "build_command": "make",
+                "load_command": "make program JTAG_LINK=\"-c ft232\"",
+                "load_target": "SRAM only (never the flash)",
+                "timing_check": "read the nextpnr Fmax lines of the build; do not load a design that failed timing",
+            },
             "timing_rule": "Never load a bitstream that failed timing (what damaged the card before, hardware/YPCB_00338_bringup_findings.md).",
         },
         "device": {

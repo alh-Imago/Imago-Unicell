@@ -138,5 +138,22 @@ Next entry: #1239.
 
 *Decision for Alan:* build and load `k7_freeze_load`, run `freeze_saveload_test.sh 346 1400` (also 60, 700, 1000). Then the front end; the walker after.
 
-Next entry: #1251.
+## #1251 -- WRITE HALF RUN ON THE KINTEX CARD: freeze at 346, save, run on, load the saved state, release -- the Tang results come out (card-measured)
 
+*Run (Alan, 19 Oct, k7_freeze_load kit built and loaded; `freeze_read.sh`, then `freeze_saveload_test.sh 346 1400`).* Read: magic 46525A33 (FRZ3), 6 results, signature 7FEF5298, last word 7FFFFEAA at count 1562 (0x61A); the cells' idle state is the same as in the earlier kits. Round trip (S = saved at 346, D = after running to 1400, L = after loading S, F = after release): the checker printed PASS for: all four reads are FRZ3; S and D taken frozen; D differs from S in the hidden state; **after the load all 78 cell words (visible and hidden) equal the saved ones**; frozen after the load; **after the release 6 results, signature 7FEF5298, last word 7FFFFEAA; last result at count 1562**. One line printed FAIL: "driver state equals the saved one".
+
+*Cause of that FAIL (my checker, not the card).* The checker compared the whole flags word. Its upper bits hold the run number (every `go` adds one, so L differs from S) and the armed bit (the load clears it by design). The simulation testbench had compared only count, k, result count, signature, last word and last clock (it passed), the card checker compared more. Fixed: the checker now compares the flags' low 16 bits (result count and k) and the other driver words (count, signature, last word, last-result clock). The card log of that run was not kept in SNAP form, so the corrected line has not been re-run on the card; the other seven statements stand as measured. The count, signature, last word and last-result clock are shown equal by the end result (the run finished with the right signature and clock), which they could not do if the restored driver state were wrong.
+
+*Scope.* One count (346) with one disturbance (1400); 60, 700 and 1000 not yet run on the card. The tree's add-ons were idle at 346.
+
+## #1252 -- THE MAN FILE NOW HOLDS THE BUILD FLOW, AND THE ASSEMBLER HAS A XILINX BRANCH (Alan: the hardware target belongs in the MAN file)
+
+*Finding before the change.* The Flex-Sub assembler knew only Gowin: Tang `.cst` pins, `synth_gowin`, `nextpnr-gowin`. Given the Kintex MAN it would quietly emit a Gowin top and synthesis script. The Kintex MAN had the part, pins and tool names, but not the steps.
+
+*Change.* `tools/man_gen/gen_kintex7_ypcb00338_man_v1.py` adds `synthesis.build` to the Kintex MAN: flow openxc7, constraint format xdc and file, top port names (CLK, LED0-2, no buttons, active-high assumed), the reset rule (own power-up reset), `.sv` for all but the top, the Makefile fields, `make` and `make program JTAG_LINK="-c ft232"` (SRAM only), the timing check. `tools/flexsub_assemble_v1.py` reads it: for a Xilinx MAN it writes the top with the card's ports and a power-up reset, the cells renamed `.sv`, an `.xdc` made from the MAN's board table, and an openXC7 `Makefile`; a Xilinx MAN without the build section is refused. Gowin and Intel output unchanged (the existing synth-flag test passes 20/20 and the new test checks a Tang build still writes build.sh and the BOARD_CLK ports; no byte-for-byte comparison was made). `tools/project_assemble_v1.py` prints the right build line. Test: `tests/vm/test_flexsub_assemble_xilinx_v1.py` (3).
+
+*Measured.* The assembler's output for `-s flex -S adder --cells 4` on the Kintex MAN synthesises with yosys `synth_xilinx` (186 FDRE, 36 CARRY4, no errors). **It has not been built with openXC7 or loaded on the card**, and the flex/sub cells have not run on this card; the MAN's `build.note` says so. The Kintex LED polarity is still assumed.
+
+*Not fixed.* `tests/test_flexsub_family_equivalence_v1.py` fails one check (div, valid mismatch) with and without this change (checked with the change stashed); it is older and unrelated. `nano/card_fit_v1.py` still has no Xilinx cost table. A Xilinx branch for `--icm` (step 2) is not written.
+
+Next entry: #1253.

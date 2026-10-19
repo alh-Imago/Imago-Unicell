@@ -1617,7 +1617,10 @@ def main():
         print(f"Cells:  {r['cells']}  Width: {r['width']}  (from {r['width_source']})")
         print(f"Card:   {r['man'] or 'none (no --man)'}")
         print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
-        print("Build:  " + os.path.join(args.output, "build.sh") + ("  (synthesis + place-and-route)" if r["pnr"] else "  (synthesis only)"))
+        if r.get("flow") == "openxc7":
+            print("Build:  openXC7 flow (ledger #1251): copy " + args.output + " next to the demo-projects, then  " + r["build"] + "  and  " + r["load"] + "  (SRAM only)")
+        else:
+            print("Build:  " + os.path.join(args.output, "build.sh") + ("  (synthesis + place-and-route)" if r["pnr"] else "  (synthesis only)"))
         return 0
 
     if args.family is None or args.family == "nano":
