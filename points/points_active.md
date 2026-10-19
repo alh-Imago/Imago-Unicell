@@ -240,5 +240,9 @@ Next entry: #1239.
 
 *Why.* Alan's second look: the "New design from an ICM file" block sat under the long Designs list and was hard to find; pressing Create a second time gave only a quiet "already exists" line while the first copy was far down the alphabetical list. *Change.* The ICM block is now the first thing in the left column. After Create the new design is selected and the list scrolls to it; if the name already exists, that design is opened instead of only refusing. `tests/vm/test_frontend_v1.py` (7) passes (headless check of the panel create path). Not retried on Alan's PC yet.
 
-Next entry: #1263.
+### #1263 (19 Oct 2026) -- Front end: the Designs list refreshes itself, and has a Refresh button
+
+*Why.* Alan made a folder by hand (a copy of a created design with a slightly different name, `a_small_relay_chain_kintex7-ypcb00338`) while the page was open and it did not appear: the list was read once at start and after Create. *Change.* The page re-reads the list every 10 s, when the browser window gets focus again, and on a new Refresh button next to "Designs". A folder shows if it has a Makefile or a kit.json. Test (7) passes. Cause stated as the most likely one from the code; not confirmed on Alan's PC.
+
+Next entry: #1264.
 

@@ -42,7 +42,7 @@ pre{margin:0;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-brea
 <main>
 <aside><h2>New design from an ICM file</h2>
 <div id="icmbox" style="padding:4px 8px 10px"><button class="act" id="icmopen">Make a design…</button></div>
-<h2 style="margin-top:14px">Designs</h2><div id="kits"></div></aside>
+<h2 style="margin-top:14px">Designs <button class="act" id="kitsref" style="font-size:11px;padding:1px 8px;margin-left:6px">Refresh</button></h2><div id="kits"></div></aside>
 <div class="work">
  <div class="terms">
   <section class="card"><div class="bar"><h2>Build</h2><span id="b-build" class="btns"></span></div><div class="term" id="t-build"></div></section>
@@ -139,6 +139,9 @@ async function icmPanel(){
     if(x.error||!x.ok){msg(x.error||"the assembler refused this ICM for this card","bad");return}
     S=await api("/api/state");sel=S.kits.find(k=>k.name===x.name)||null;scrollSel=true;drawKits();
     if(sel){await api("/api/select",{name:x.name});buttons();poll()}msg("created "+x.name+" in the demo folder")}}
+async function refreshKits(){try{const n=await api("/api/state");if(n&&n.kits&&JSON.stringify(n.kits.map(k=>k.name+k.title+(k.sim||"")))!==JSON.stringify(S.kits.map(k=>k.name+k.title+(k.sim||"")))){S=n;if(sel)sel=S.kits.find(k=>k.name===sel.name)||sel;drawKits()}}catch(e){}}
+$("kitsref").onclick=async()=>{await refreshKits();msg("design list refreshed: "+S.kits.length+" designs")};
+window.addEventListener("focus",refreshKits);
 $("icmopen").onclick=icmPanel;
-(async()=>{S=await api("/api/state");$("demo").textContent="demo folder: "+S.demo;mkTerm("build");mkTerm("card");drawKits();buttons();setInterval(poll,3000)})();
+(async()=>{S=await api("/api/state");$("demo").textContent="demo folder: "+S.demo;mkTerm("build");mkTerm("card");drawKits();buttons();setInterval(poll,3000);setInterval(refreshKits,10000)})();
 </script></body></html>
