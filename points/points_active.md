@@ -306,5 +306,15 @@ Next entry: #1239.
 
 *Not done.* No VM file was changed. The recorded baseline JSON files are in the session's scratch area, not yet in the repo.
 
-Next entry: #1270.
+### #1270 (19 Oct 2026) -- FlexGrid v2: the "before" record is complete (step 2 done)
+
+*Measured (code at commit 8730ec3, nothing changed).* The 84 `tests/vm` files that reach FlexGrid (directly or through the tools that import it; list in `tests/baselines/flexgrid_reaching_tests_v1.txt`), run with 4 workers in 42 min 13 s: **1208 passed, 1 failed**. The one failure, `tests/vm/test_sd_unit_top_v1.py::test_the_generated_top_synthesises_for_gowin` (`assert 0 < lut < 20736`, LUT count read as 0), is on unchanged code, so it is part of the "before" state; it is a yosys synthesis-count test (the older-yosys count problem already known for other suites, #1259 note), not a VM-behaviour test, and was not looked into further. Log: `tests/baselines/flexgrid_tests_before_v2.log`.
+
+*Output record.* `tests/baselines/vm_flexgrid_before_v2.json` and `vm_supergrid_before_v2.json`: the words each of the 25 example ICMs delivers on the current FlexGrid / SuperGrid (`python3 tools/vm_baseline_v1.py --check FILE` compares; `--grid super` for the second). 4 flex designs cannot run today (recorded as errors).
+
+*Limits of the record.* The tests that name FlexGrid only through a module that does not appear in the list I used (text match, one level) would not be in the 84; a full `quick_check --full` run before any switch of callers is still needed.
+
+*Next (not started).* Step 3: `nano/flex_grid_v2.py` as a clone with the held constant (a preloaded ram with nothing feeding it offers its word continuously, read as an operand, per the flex generator's rule); its own test (the CORDIC stream: card words 2736 2727 2728 / 2740 2826 2729); then step 4, compare against these records.
+
+Next entry: #1271.
 

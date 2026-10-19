@@ -1,0 +1,457 @@
+{
+ "designs": {
+  "nano/examples/card_tested/adder_constant.icm.json": {
+   "entries": [
+    "X"
+   ],
+   "exits": {
+    "O": [
+     12,
+     18,
+     106,
+     10
+    ]
+   }
+  },
+  "nano/examples/card_tested/adder_stalled.icm.json": {
+   "entries": [
+    "X",
+    "Y"
+   ],
+   "exits": {
+    "O": [
+     14,
+     6,
+     24,
+     200
+    ]
+   }
+  },
+  "nano/examples/card_tested/adder_stream.icm.json": {
+   "entries": [
+    "X",
+    "Y"
+   ],
+   "exits": {
+    "O": [
+     14,
+     6,
+     24,
+     200
+    ]
+   }
+  },
+  "nano/examples/card_tested/priority_sequenced.icm.json": {
+   "entries": [
+    "E1",
+    "E2",
+    "E3"
+   ],
+   "exits": {
+    "O": [
+     7,
+     3,
+     7,
+     3,
+     12,
+     100,
+     3,
+     12
+    ]
+   }
+  },
+  "nano/examples/card_tested/priority_strict.icm.json": {
+   "entries": [
+    "E1",
+    "E2",
+    "E3"
+   ],
+   "exits": {
+    "O": [
+     7,
+     3,
+     12,
+     100,
+     7,
+     3,
+     12,
+     100,
+     7,
+     3,
+     12,
+     100
+    ]
+   }
+  },
+  "nano/examples/card_tested/priority_weighted.icm.json": {
+   "entries": [
+    "E1",
+    "E2",
+    "E3"
+   ],
+   "exits": {
+    "O": [
+     7,
+     3,
+     7,
+     3,
+     12,
+     100,
+     12,
+     3,
+     100,
+     12,
+     100
+    ]
+   }
+  },
+  "nano/examples/card_tested/ram_hold.icm.json": {
+   "entries": [
+    "W",
+    "X"
+   ],
+   "exits": {
+    "O": [
+     14,
+     10,
+     27,
+     208,
+     200
+    ]
+   }
+  },
+  "nano/examples/card_tested/ram_oneshot.icm.json": {
+   "entries": [
+    "E"
+   ],
+   "exits": {
+    "O": [
+     107,
+     15
+    ]
+   }
+  },
+  "nano/examples/card_tested/relay_chain.icm.json": {
+   "entries": [
+    "E"
+   ],
+   "exits": {
+    "O": [
+     7,
+     3,
+     12,
+     100
+    ]
+   }
+  },
+  "nano/examples/card_tested/relay_chain_stalled.icm.json": {
+   "entries": [
+    "E"
+   ],
+   "exits": {
+    "O": [
+     7,
+     3,
+     12,
+     100
+    ]
+   }
+  },
+  "nano/examples/card_tested/tiles_flex.icm.json": {
+   "entries": [
+    "c0_E0",
+    "c0_W0",
+    "c1_E0",
+    "c1_W0",
+    "x_N0",
+    "x_W0"
+   ],
+   "exits": {
+    "c0_N0": [
+     7,
+     3,
+     12,
+     100
+    ],
+    "c0_S0": [
+     7,
+     3,
+     12,
+     100
+    ],
+    "c1_N0": [
+     7,
+     3,
+     12,
+     100
+    ],
+    "c1_S0": [
+     7,
+     3,
+     12,
+     100
+    ],
+    "x_E0": [
+     7,
+     3,
+     12,
+     100
+    ],
+    "x_S0": [
+     7,
+     3,
+     12,
+     100
+    ]
+   }
+  },
+  "nano/examples/cordic_z_convergence.icm-hier.json": {
+   "entries": [
+    "s0.branch"
+   ],
+   "exits": {
+    "s3.gather": []
+   }
+  },
+  "nano/examples/looped_cordic_v1.icm-hier.json": {
+   "error": "IcmGenError: cannot generate flex Verilog from looped_cordic_v1.icm-hier.json:\n  - no output cell: nothing is marked `result`, no cel"
+  },
+  "nano/examples/looped_cordic_v1_closed_flex.icm-hier.json": {
+   "entries": [
+    "s0.merge"
+   ],
+   "exits": {
+    "lp.fb19": [
+     4294965807,
+     4294965810,
+     3975,
+     4063,
+     4294964318,
+     4294964321,
+     7938,
+     8026,
+     4294962829,
+     4294962832,
+     4294964947,
+     4294965035,
+     8294,
+     8297,
+     4294963458,
+     4294963546,
+     4294965303,
+     4294965306,
+     4294961969,
+     4294962057,
+     4294963814,
+     4294963817,
+     7434,
+     7522,
+     4294962325,
+     4294962328,
+     4294964443,
+     4294964531,
+     7790,
+     7793,
+     4294962954,
+     4294963042,
+     4294964799,
+     4294964802,
+     4294961465,
+     4294961553,
+     4294963310,
+     4294963313,
+     6930,
+     7018,
+     4294961821,
+     4294961824,
+     4294963939,
+     4294964027,
+     7286,
+     7289,
+     4294962450,
+     4294962538,
+     4294964295,
+     4294964298,
+     7915,
+     8003,
+     4294962806,
+     4294962809,
+     4294964924,
+     4294965012,
+     8271,
+     8274,
+     4294963435,
+     4294963523,
+     4294965280,
+     4294965283,
+     4294961946,
+     4294962034
+    ]
+   }
+  },
+  "nano/examples/looped_cordic_v1_open.icm-hier.json": {
+   "entries": [
+    "s0.branch"
+   ],
+   "exits": {
+    "lp.fb19": [
+     2474,
+     1236,
+     4294960300,
+     4294960332
+    ]
+   }
+  },
+  "nano/examples/mixed_flex_carrier_div_flex_v1.icm-hier.json": {
+   "entries": [
+    "A.in"
+   ],
+   "exits": {
+    "C.out": [
+     998,
+     1002,
+     993,
+     914
+    ]
+   }
+  },
+  "nano/examples/mixed_flex_carrier_flex_v1.icm-hier.json": {
+   "entries": [
+    "A.in"
+   ],
+   "exits": {
+    "C.out": [
+     1246,
+     1242,
+     1251,
+     1339
+    ]
+   }
+  },
+  "nano/examples/mixed_flex_std_div_flex_v1.icm-hier.json": {
+   "entries": [
+    "A.in"
+   ],
+   "exits": {
+    "C.out": [
+     998,
+     1002,
+     993,
+     914
+    ]
+   }
+  },
+  "nano/examples/mixed_flex_std_flex_v1.icm-hier.json": {
+   "entries": [
+    "A.in"
+   ],
+   "exits": {
+    "C.out": [
+     1246,
+     1242,
+     1251,
+     1339
+    ]
+   }
+  },
+  "nano/examples/mixed_flex_sub_flex_carrier_div_flex_v1.icm-hier.json": {
+   "entries": [
+    "A.in"
+   ],
+   "exits": {
+    "E.out": [
+     805,
+     808,
+     802,
+     749
+    ]
+   }
+  },
+  "nano/examples/mixed_flex_sub_flex_carrier_flex_v1.icm-hier.json": {
+   "entries": [
+    "A.in"
+   ],
+   "exits": {
+    "E.out": [
+     1326,
+     1322,
+     1331,
+     1419
+    ]
+   }
+  },
+  "nano/examples/mixed_flex_sub_flex_v1.icm-hier.json": {
+   "entries": [
+    "A.in"
+   ],
+   "exits": {
+    "C.out": [
+     1246,
+     1242,
+     1251,
+     1339
+    ]
+   }
+  },
+  "nano/examples/parallel_reduction_tree.icm-hier.json": {
+   "entries": [
+    "lane_0.in",
+    "lane_1.in",
+    "lane_2.in",
+    "lane_3.in"
+   ],
+   "exits": {
+    "spine_3.add": [
+     10,
+     34,
+     238
+    ]
+   }
+  },
+  "nano/examples/reduction_tree4_exit_v1.icm-hier.json": {
+   "entries": [
+    "exit.exit_c0",
+    "lane_0.in",
+    "lane_1.in",
+    "lane_2.in",
+    "lane_3.in"
+   ],
+   "exits": {
+    "exit.exit_c0": [
+     7,
+     3,
+     12,
+     100,
+     10,
+     34,
+     238
+    ]
+   }
+  },
+  "nano/examples/small_relay_chain.icm-hier.json": {
+   "entries": [
+    "entry_1.entry_c0",
+    "exit_1.exit_c0"
+   ],
+   "exits": {
+    "exit_1.exit_c0": [
+     7,
+     3,
+     12,
+     100,
+     7,
+     3,
+     12,
+     100
+    ]
+   }
+  }
+ },
+ "grid": "super",
+ "words": [
+  7,
+  3,
+  12,
+  100
+ ]
+}

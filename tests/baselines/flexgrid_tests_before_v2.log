@@ -1,0 +1,42 @@
+bringing up nodes...
+bringing up nodes...
+
+........................................................................ [  5%]
+........................................................................ [ 11%]
+........................................................................ [ 17%]
+........................................................................ [ 23%]
+........................................................................ [ 29%]
+........................................................................ [ 35%]
+........................................................................ [ 41%]
+........................................................................ [ 47%]
+........................................................................ [ 53%]
+........................................................................ [ 59%]
+........................................................................ [ 65%]
+........................................................................ [ 71%]
+........................................................................ [ 77%]
+........................................................................ [ 83%]
+........................................................................ [ 89%]
+....................................................F................... [ 95%]
+.........................................................                [100%]
+=================================== FAILURES ===================================
+_________________ test_the_generated_top_synthesises_for_gowin _________________
+[gw0] linux -- Python 3.13.16 /usr/bin/python3
+tests/vm/test_sd_unit_top_v1.py:105: in test_the_generated_top_synthesises_for_gowin
+    assert 0 < lut < 20736
+E   assert 0 < 0
+=============================== warnings summary ===============================
+tests/vm/test_frontend_v1.py::test_select_cd_run_and_refusals
+tests/vm/test_frontend_v1.py::test_select_cd_run_and_refusals
+tests/vm/test_frontend_v1.py::test_build_summary_and_decode
+tests/vm/test_frontend_v1.py::test_build_summary_and_decode
+tests/vm/test_frontend_v1.py::test_startup_command_default_and_user_override
+tests/vm/test_frontend_v1.py::test_startup_command_default_and_user_override
+tests/vm/test_frontend_v1.py::test_icm_panel_lists_and_creates
+tests/vm/test_frontend_v1.py::test_icm_panel_lists_and_creates
+  /usr/lib/python3.13/pty.py:95: DeprecationWarning: This process (pid=533) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+    pid, fd = os.forkpty()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/vm/test_sd_unit_top_v1.py::test_the_generated_top_synthesises_for_gowin
+1 failed, 1208 passed, 8 warnings in 2533.81s (0:42:13)
