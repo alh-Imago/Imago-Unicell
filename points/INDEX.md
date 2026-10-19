@@ -20,7 +20,7 @@ the documentation branch's #991-#998 had merged. **A seventh, found when part 12
 used (recorded in #1003 and #1006); part 12 is where both it and #990 sit. All are left exactly as they are in the
 real historical record. (The older sealed parts' headers say "of 7" because
 they predate parts 7-11; sealed parts are never edited, so they still do. Part 11 says "of 12" and
-part 12 says "of 13", each counting the open file.)
+part 12 says "of 13", and part 13 says "of 14", each counting the open file.)
 
 ## Naming convention
 
@@ -47,7 +47,8 @@ final range and a fresh, empty `points_active.md` starts.
 | 10 | [`points_10_811-874.md`](points_10_811-874.md) | 65 | #811-#874 |
 | 11 | [`points_11_875-945.md`](points_11_875-945.md) | 69 | #875-#945 |
 | 12 | [`points_12_946-1036.md`](points_12_946-1036.md) | 90 | #946-#1036 (with addenda 1-69 under #1036) |
-| active | [`points_active.md`](points_active.md) | 1+ (growing) | #1037 onward |
+| 13 | [`points_13_1037-1235.md`](points_13_1037-1235.md) | see header | #1037-#1235 |
+| active | [`points_active.md`](points_active.md) | 1+ (growing) | #1236 onward |
 
 ## Finding a specific entry
 
