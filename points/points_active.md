@@ -546,4 +546,23 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Next, when Alan says go.* The mirror reading `card.shape.json` through the Workbench (its own web instance), then the instructions text above goes into the user instructions.
 
-Next entry: #1294.
+## #1294 (19 Oct) -- THE MIRROR READS THE CARD'S SHAPE: the Workbench can take card.shape.json as its target and checks a design against what the card has and has shown (simulation of the card read-back; not yet tried with the real card.shape.json)
+
+*Alan:* go for the mirror; it integrates into the main Workbench, which has its own web server.
+
+*Checked first.* The Workbench's mirror was a MAN file + cell count giving a list of allowed grid positions (`nano/vm_mirror_v1.py`); every program loaded is checked against it. The Workbench's page had no way to load a hierarchical (`.icm-hier.json`) design at all (the controller method `load_icm_vix` existed, with no route and no button).
+
+*Built (clones; v1 files untouched).*
+- `nano/vm_mirror_v2.py`: re-exports v1; adds `CardShapeBounds` (a MirrorBounds plus the card's sites, cell types, connections and which of them the card confirmed), `load_card_shape_bounds(path)` (uses `walker_card_v2.read_card_shape`, so only a whole card-witnessed SHAPE is accepted), `check_records_fit` (MAN target: v1's rule; card target: each design cell must be a card cell at the card's site and of the card's type, and a site holds no more design cells than the card has there), `records_not_on_card`, and `check_design_against_card(icm_path, bounds)` (the design's own connection map from `design_map_v2` against the SHAPE: same fingerprint or not, cells not on the card, connections the card does not have, connections the card has not yet shown).
+- `nano/workbench_v2.py` (clone of workbench_v1): `POST /set_target_shape` and a page field "or the card's own SHAPE" with a button; `POST /load_icm_vix` and a page button "Load hierarchical design (checked against a card SHAPE)"; `/target` reports `kind` (man / card_shape). With a card target, loading a design REFUSES (grid unchanged) if a design cell is not on the card at its site and type, or the design needs a connection the card does not have; it LOADS and reports, in `card_check`, when connections are present on the card but not yet shown by it. The session stays bound to the card. Flat DSL programs and flat ICMs are refused with a plain message under a card target (they carry no connection map to check; stated, not silent). MAN targets work as before.
+- README: `python3 nano/workbench_v2.py` (v2 is a superset of v1).
+
+*Found while testing.* The CORDIC ICM has 40 cells; the card has 36 of them plus 4 merge cores the generator inserts, and the 4 entry merges `s0..s3.merge` of the ICM are absorbed into their branches in the hardware (no separate card cell). The check therefore treats design cells missing from the card as the generator's absorbed cells only when the design is the card's own design (same fingerprint); the page and `card_check.absorbed_in_build` list them. For any other design a missing cell is an error.
+
+*Measured (tests/vm/test_workbench_card_shape_v1.py, 5 tests, all pass; test_workbench_v1 unchanged and passing).* A SHAPE made from the simulated read-back (same bytes the card returns): target accepted (40 cells, 39 connections, 39 confirmed, complete); the CORDIC design loads, `same_design` true, nothing missing, the VM grid holds the design's 40 cells and stays card-bound; a partial SHAPE (the small vector set) loads and reports exactly 16 connections the card has not shown; a different design (the reduction tree) is refused with "does not fit the card" and nothing is loaded; a flat program under a card target is refused; a non-SHAPE file is rejected; and the same sequence over real HTTP (page contains both controls, routes answer).
+
+*Scope.* The mirror still runs the design in the VM's own cell model (the VM does not become the card; a cell the card lacks still exists in the VM grid); what changed is that the grid and the allowed cells, sites, types and connections now come from the card's own wires, and a design that the card cannot host is refused. Not yet tried with the real `card.shape.json` from the Kintex card (Alan's file is on his machine); the file format is the one the card run wrote (#1292) and the test feeds the same format.
+
+*Not done.* Trying it with the real file in the Workbench page; mirroring the card's SHAPE into the Composer; applying card constraints to flat DSL programs; the instructions note (#1293) is still to be added to the user instructions now that the mirror step exists.
+
+Next entry: #1295.
