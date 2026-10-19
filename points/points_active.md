@@ -514,4 +514,18 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Still not done.* The full-coverage run (negative z); the mirror consuming the card SHAPE; the #501 ping in cells; z=0 inputs.
 
-Next entry: #1291.
+## #1291 (19 Oct) -- A "WALK THE CARD" BUTTON, and a wide vector set that makes every wire carry a word (simulation; not yet on the card)
+
+*Alan:* "yes and maybe add a button for these particular commands, I get lost" (after #1290: 23 of 39 connections confirmed, the idle branch sides unexercised).
+
+*Built (clones; earlier files untouched).*
+- `tools/kintex_icm_runner_v6.py`: a third vector set `vectors_wide.txt` (16 words per entry: plus and minus values from small to large, e.g. 3, -3, 12, -12 ... in the entry's width). Its expected answer is the VM's (in `expected.json`); it is not in the testbench, the card compares it with the VM through `decode_run.py`. Also writes `walk_card.sh` into every new folder: it runs `vectors.txt` and `vectors_wide.txt` on the card, then `walker_card_v2.py . run_vectors.log run_vectors_wide.log --shape card.shape.json`, and tees everything to `walk_report.txt`. The repo path of the machine that made the folder is written into the script; if the repo moves, the Walker line fails with a plain "no such file".
+- `tools/project_assemble_v6.py`, `tools/frontend/unicell_frontend_v6.py`: new folders use runner v6; the Bench has two new card buttons, **Run vectors_wide.txt** and **Walk the card (both sets + Walker)** (one click: both runs, the Walker, the SHAPE; read `walk_report.txt` in the results window). README pointers moved to frontend v6.
+
+*Measured (iverilog):* CORDIC with the wide set: runner agrees with the VM (PASS); the card-side witnesses show 39 of 39 connections and 40 of 40 cells carried a word (the small set gave 23/39, 32/40), so the SHAPE written from the wide run alone is complete (`read_card_shape(...)["complete"]` is true). Tests: `tests/vm/test_walk_wide_v1.py` (2), `tests/vm/test_frontend_v6.py` (9).
+
+*Scope.* This is the simulation of the same Verilog. The card result needs a fresh build with the v6 Bench (older folders do not have the script or the wide file). The wide set is generic (not tuned to CORDIC); for other designs it exercises whatever sign-dependent paths they have but full coverage is not guaranteed and the Walker will say which connections were not exercised.
+
+*Not done.* The card run; the mirror reading the card SHAPE; the #501 ping in cells.
+
+Next entry: #1292.
