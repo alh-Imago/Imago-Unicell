@@ -502,4 +502,16 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Not done.* Card run of the witnesses (needs a fresh build of a v5 folder); the #501 ping in cells; the mirror consuming the SHAPE.
 
-Next entry: #1290.
+## #1290 (19 Oct) -- WIRE WITNESSES ON THE KINTEX CARD: the card's own wire flags match the simulation exactly, and the card SHAPE was written
+
+*Card result (Alan, Kintex-7 XC7K480T, folder `cordic_wit`, v5 Bench build of `cordic_z_convergence_v2.icm-hier.json`).* `run_vectors.sh vectors.txt`: magic 52554E31 OK, run 2, fingerprint 4ca08914 = the folder's (SAME DESIGN), `z_output` 2736 2727 2728, PASS against the VM. `walker_card_v2.py . run_vectors.log --shape card.shape.json`: design IS this folder's; entries/exits 1/1 match; "23 of 39 connections carried a word; 32 of 40 cells offered an output"; the 16 connections not exercised are the idle branch sides (s0 positive side; s1, s2, s3 negative sides); neighbours listed with `*` on the confirmed connections; "SHAPE written to card.shape.json: 40 cells, 39 connections, 23 confirmed by the card, 16 not exercised". No INCONSISTENT line.
+
+*Compared with the simulation (#1289).* Same counts (23/39, 32/40) and the same list of 16 unexercised connections as the iverilog run of the same design and vectors. The hardware's wire flags agree with the simulation of the Verilog connection by connection.
+
+*Earlier attempts this evening (no result).* A first `run_vectors.sh` read magic 00000000 because the new bitstream was not loaded on the card; the Walker was first run from the home directory. Both were slips, not faults; corrected commands were given.
+
+*What is now shown on hardware.* 23 connections and 32 cells of the 40-cell CORDIC are confirmed from the card's own wires: which cell feeds which. The other 16 connections are neither confirmed nor refuted by this run (the idle side of each branch); they need inputs that exercise the other sign (a second vector file with negative z, read with both logs). The SHAPE file exists on the card machine (card.shape.json), partial by design.
+
+*Still not done.* The full-coverage run (negative z); the mirror consuming the card SHAPE; the #501 ping in cells; z=0 inputs.
+
+Next entry: #1291.
