@@ -286,5 +286,15 @@ Next entry: #1239.
 
 *Correction of earlier text.* #1259's "VM seems to ignore the input" and #1266's "VM replay path is the suspect" are right in kind (the replay tool, not the VM engine); #1266's "whether input + 2726 is the intended result was not checked" is now checked (it is).
 
-Next entry: #1268.
+### #1268 (19 Oct 2026) -- CORDIC multi-word streams: why the VM delivers only the first word (finding, not a fix)
+
+*Question (Alan, 19 Oct: "look at the VM ... may need to hold the initial values as it passes").* Why does the VM deliver only the first word of a stream through `cordic_z_convergence` while the card delivers all of them (#1267)?
+
+*Measured (VM, this session).* (1) Both `SuperGrid` and `FlexGrid`, after a 6-tick settle, give 2736 for the first word and nothing for later ones (80 ticks each, words 10, 1, 2, 50000 fed one after another on one grid). (2) Trace of stage 0 on the VM: the zero source (`s0.zero_source`, a ram with preload 0, `fixed_mode` 0 in the ICM) is valid at tick 0 and not valid after the settle: it sent its 0 ONCE to the branch as the reference and is then empty. Each stage's constants sit in the adders' A operand. The second word reaches `s0.merge` (register = 1, 40 ticks later) but goes no further: the branch has no fresh reference to compare with. So the answer to "does it need to hold the initial values as it passes" is yes, for the zero references: the VM spends them on the first word. (3) The hardware does not: the generated Verilog (`icm_cordic_z_convergence_flex.sv`) builds every preloaded, unfed ram (constants and the four zero sources, 12 cells) as `ram_cell_v4sa` with `.cfg_fixed_mode(1'b1)`, commented `// CONSTANT`: a fixed-mode ram offers its value continuously and is never drained (generator rule, `flexsub_icm_flex_v1.py` header: "a ram with preload_value or fixed_mode is a FIXED-MODE ram"). So the generator and the VM read the same ICM cell (preload, `fixed_mode` 0) differently: the generator as a constant that is always offered, the VM as a one-shot. This is the likely reason for the word-count difference; it is consistent with every number measured, but the multi-word VM answer was not made to match the card.
+
+*Tried and not working.* Marking those 12 rams `fixed_mode` 1 in the VM's copy of the records (so the VM treats them as continuous constants) makes the VM flood: the exit shows 7125, 6911, 5404 and 4294964570 over and over (hundreds of words, never the CORDIC answers), because the VM's continuous constant re-fires the adders every tick, where the hardware's handshake lets an adder take the held constant as one operand and wait for z. So a correct fix is a real FlexGrid change (a held constant that is read as an operand, not re-sent as a word), not a flag. NOT done: no VM file was changed (FlexGrid and SuperGrid are proven; a change would be a new version, `flex_grid_v2`, with its own tests and a full run of the VM suites).
+
+*Standing result.* Single words: VM = card = independent CORDIC (#1267). Streams: card gives the correct single-input answer for every word; VM gives only the first. Which model of a preloaded `fixed_mode`-0 ram is the intended one for the VM is a design decision for Alan.
+
+Next entry: #1269.
 
