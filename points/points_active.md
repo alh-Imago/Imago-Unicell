@@ -610,4 +610,12 @@ Alan, after seeing the v4 grid: the reset should put the tick back to 0; clickin
 
 *Still not done.* Animated flow along the arrows; card-only and absorbed cells on the grid; brightness for data present.
 
-Next entry: #1298.
+### #1298 -- Workbench v5 addendum: animated data flow (19 Oct 2026)
+
+Alan asked for an animated flow of data. Added to `nano/workbench_v5.py` (same file, same day as #1297; v5 had only just been created, so this is logged as an addendum rather than a v6).
+
+- A cell whose *data* changed on the last tick sends a small gold dot along each of its out arrows to the neighbour that accepts from that side, over 0.8 s. Nothing moves on the first draw after a load or reset (there is no previous state to compare). Pulses show change per tick, not a measured path of one particular value.
+- *Measured (real Chromium, CORDIC, 6 steps):* dots drawn for the cells that glowed gold; no script errors. Test: added to `tests/vm/test_workbench_v5_reset_ghost_v1.py`.
+- *Observation, unresolved.* Alan's screenshot after loading the generated card SHAPE showed every tile as Std (green), whereas a card SHAPE target should make tiles Flex (copper). The family colour follows the page's target state, so the SHAPE was probably not set as the target through the Target tab (e.g. only the ICM was loaded). Cause not confirmed.
+
+Next entry: #1299.

@@ -57,6 +57,7 @@ def test_reset_in_browser(tmp_path, monkeypatch):
               const prev = changeKind({}, c).fields; const a = Object.assign({}, prev, {data_reg: '6'}); const b = Object.assign({}, prev, {downstream_mask: '4'});
               return [changeKind(a, c), changeKind(b, c)].map(x => [x.data, x.logic]); }""")
             assert k == [[True, False], [False, True]]                                   # data change -> gold, mask change -> magenta
+            assert pg.eval_on_selector_all("#pulsesvg circle", "c => c.length") > 0      # data moved this tick: dots travel along the arrows
             pg.click(".tile >> nth=3")
             n_ghost = pg.eval_on_selector_all(".tile.ghost", "t => t.length")
             assert pg.eval_on_selector_all("#ghostsvg line", "l => l.length") == (pg.eval_on_selector_all("#ghostsvg line", "l => l.length"))

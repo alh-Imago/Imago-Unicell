@@ -1284,7 +1284,39 @@ function renderState(state) {
   }
   PREV_CELLS = now; PREV_FIELDS = nowFields;
   drawGhost(cells, ghost);
+  drawPulses(cells);
   showDetail(cells, ghost);
+}
+
+// ledger #1297: animated flow. A cell whose DATA changed this tick sends a small gold dot along each of its out arrows to the neighbour that accepts it. Needs the previous state, so nothing moves on the first draw after a load or reset.
+function drawPulses(cells) {
+  const grid = document.getElementById("grid");
+  const old = document.getElementById("pulsesvg");
+  if (old) old.remove();
+  const movers = [...grid.querySelectorAll(".tile.flash-data")];
+  if (!movers.length) return;
+  const by = {}, tiles = {};
+  for (const c of cells) by[c.row + "," + c.col] = c;
+  for (const t of grid.querySelectorAll(".tile")) tiles[t.dataset.key] = t;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.id = "pulsesvg";
+  svg.setAttribute("width", grid.scrollWidth); svg.setAttribute("height", grid.scrollHeight);
+  let n = 0;
+  for (const ta of movers) {
+    const c = by[ta.dataset.key];
+    for (const d of cellDirections(c.core, c[c.core]).out) {
+      const nk = (c.row + DELTA[d][0]) + "," + (c.col + DELTA[d][1]), nb = by[nk], tb = tiles[nk];
+      if (!nb || !tb) continue;
+      if (!(nb.core === "nano" || cellDirections(nb.core, nb[nb.core]).in.includes(OPPOSITE[d]))) continue;
+      const x1 = ta.offsetLeft + ta.offsetWidth / 2, y1 = ta.offsetTop + ta.offsetHeight / 2, x2 = tb.offsetLeft + tb.offsetWidth / 2, y2 = tb.offsetTop + tb.offsetHeight / 2;
+      const dot = document.createElementNS(ns, "circle");
+      dot.setAttribute("r", "3.5"); dot.setAttribute("fill", "#ffd966"); dot.setAttribute("cx", x1); dot.setAttribute("cy", y1);
+      dot.innerHTML = `<animate attributeName="cx" from="${x1}" to="${x2}" dur="0.8s" fill="freeze"/><animate attributeName="cy" from="${y1}" to="${y2}" dur="0.8s" fill="freeze"/><animate attributeName="opacity" values="1;1;0" dur="0.8s" fill="freeze"/>`;
+      svg.appendChild(dot); n++;
+    }
+  }
+  if (n) grid.appendChild(svg);
 }
 
 function drawGhost(cells, ghost) {
@@ -1330,7 +1362,7 @@ function showDetail(cells, ghost) {
 function renderLegend() {
   const fam = Object.keys(FAMILY_COLOURS).map(k => `<span class="lg"><i style="background:${FAMILY_COLOURS[k]}55;border-color:${FAMILY_COLOURS[k]}"></i>${FAMILY_NAMES[k]}</span>`).join("");
   const core = Object.keys(CORE_SHORT).map(k => `<span class="lg"><i class="r" style="background:${CORE_COLOURS[k]}"></i>${k}</span>`).join("");
-  document.getElementById("gridLegend").innerHTML = `<div>background = family: ${fam}</div><div>inner colour = core: ${core}</div><div class="muted"><span style="color:#ffd966">gold glow</span> = a data value changed &middot; <span style="color:#ff5fd2">magenta glow</span> = logic / configuration changed &middot; arrows: <span style="color:var(--copper)">out</span> / <span style="color:#7fa6d0">in</span> &middot; click a tile: dashed trail = where its output flows</div>`;
+  document.getElementById("gridLegend").innerHTML = `<div>background = family: ${fam}</div><div>inner colour = core: ${core}</div><div class="muted"><span style="color:#ffd966">gold glow</span> = a data value changed &middot; <span style="color:#ff5fd2">magenta glow</span> = logic / configuration changed &middot; arrows: <span style="color:var(--copper)">out</span> / <span style="color:#7fa6d0">in</span> &middot; gold dots travel along the arrows when a cell\'s data moves &middot; click a tile: dashed trail = where its output flows</div>`;
 }
 
 function renderDiagnostics(diags) {
@@ -1712,6 +1744,7 @@ _WORKBENCH_CSS = """
 @keyframes flashboth { 0% { filter: brightness(2.2); box-shadow: 0 0 8px 3px #ffd966cc, 0 0 14px 5px #ff5fd2aa; } 100% { filter: brightness(0.8); box-shadow: none; } }
 .tile.ghost { outline: 1.5px dashed #e8a05a; opacity: calc(0.55 + 0.45 * var(--gh, 1)); background-image: linear-gradient(#e8a05a22, #e8a05a22); }
 #grid { position: relative; }
+#pulsesvg { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 4; }
 #ghostsvg { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; }
 @keyframes flashit { 0% { filter: brightness(2.4) saturate(1.3); box-shadow: 0 0 9px 2px #ffffffaa; } 100% { filter: brightness(0.8); box-shadow: none; } }
 .tile .ar { position: absolute; font-size: 8px; line-height: 8px; pointer-events: none; }
