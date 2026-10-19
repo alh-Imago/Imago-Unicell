@@ -175,3 +175,14 @@ cluster, not of runtime-configurable cells. A built second port adds +4 LUT4 to 
 The merge cell is in the sweep since `#976` (about W + 17). **Not covered yet:** there are no place-and-route or timing figures in
 `cell_costs` (those are in `docs/measurements/nowidelut_sweeps_950/`); multi-cell routed clusters are not measured.
 
+
+## `kintex7-ypcb00338.man.json` -- the Kintex-7 card (ledger #1235)
+
+The XC7K480T card (board YZCA-00338-104, PCB 00338-P1), the third MAN and the first for Xilinx. **Hand-assembled, not read from a chip
+database** (there is none in the cloud workspace): written by `python3 tools/man_gen/gen_kintex7_ypcb00338_man_v1.py` (`--check` for drift),
+with every fact marked measured, quoted or assumed, and null where unknown. Measured on the card: JTAG IDCODE `0x23751093`; clock and
+three LEDs seen working (demo and our own blink, #1194, #1197). Quoted: 74,650 slices and 1,920 DSP (datasheet note). Assumed: LED polarity,
+50 MHz value. Not checked: schematic. The `.xdc` beside it holds the four proven pins. Readers: identity, Flex-Sub loader and VM mirror accept
+it; the Quartus loader refuses it clearly. **Gaps the assembler still has for this card (not fixed here):** `flexsub_assemble_v1` writes
+`synth_gowin` for any non-Intel card and no `.xdc`/nextpnr-xilinx steps; `card_fit_v1` has no LUT6 mode (it falls into the Intel ALM path and
+refuses with a misleading message). Test: `tests/vm/test_man_kintex7_ypcb00338_v1.py`.
