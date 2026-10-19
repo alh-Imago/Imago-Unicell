@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""tools/replay_card_icm_vm_v3.py -- v3 of tools/replay_card_icm_vm_v2.py (ledger #1272): the same replay, run on FlexGrid v2 (nano/flex_grid_v2.py, held constants, #1271) instead of FlexGrid v1. v2 of the tool is untouched. It was v2 of tools/replay_card_icm_vm_v1.py (ledger #1179): also replays the native cross/corner tiles design (several entries, several exits).
+Loads every card-tested ICM file (nano/examples/card_tested/) into the VM's flex grid, feeds its input streams, and compares (1) the output words with the index, (2) the count and first words with the line the REAL CARD printed.
+Prints one line per design and exits 1 if any differs.  Usage: python3 tools/replay_card_icm_vm_v3.py [--dir DIR]"""
+import argparse
+import json
+import os
+import sys
+import warnings
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+sys.path.insert(0, os.path.join(ROOT, "nano"))
+import board_tests_v1 as bt  # noqa: E402
+import warnings as _w  # noqa: E402
+from icm_v3 import IcmV3File  # noqa: E402
+
+
+def run_streams(recs, streams, exits, ticks=3000):
+    """Feed each entry its words (one at a time, as the board test does) and collect the words each exit cell delivers, in order. Returns {exit: [words]}."""
+    import flex_grid_v2 as fg
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        g = fg.FlexGrid2(recs)
+    pos = {r.cell_id: (r.row, r.col) for r in recs}
+    todo = {k: list(v) for k, v in streams.items()}
+    seen = {x: [] for x in exits}
+    for _ in range(ticks):
+        for k, vals in todo.items():
+            c = g.cells[pos[k]]
+            if vals and not c.ram_data_valid and not g._pending.get(pos[k]):
+                g.inject(*pos[k], vals.pop(0))
+        g.tick()
+        for x in exits:
+            e = g.cells[pos[x]]
+            if e.ram_data_valid:
+                seen[x].append(e.ram_data_reg)
+                e.ram_data_valid = False
+    return seen
+
+
+def expected(recs, streams, out="O", ticks=900):
+    """tools/board_tests_v1.expected, on FlexGrid v2 (the same feed rule, the same 900 ticks)."""
+    import flex_grid_v2 as fg
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        g = fg.FlexGrid2(recs)
+    pos = {r.cell_id: (r.row, r.col) for r in recs}
+    todo = {k: list(v) for k, v in streams.items()}
+    seen, e = [], g.cells[pos[out]]
+    for _ in range(ticks):
+        for k, vals in todo.items():
+            c = g.cells[pos[k]]
+            if vals and not c.ram_data_valid and not g._pending.get(pos[k]):
+                g.inject(*pos[k], vals.pop(0))
+        g.tick()
+        if e.ram_data_valid:
+            seen.append(e.ram_data_reg)
+            e.ram_data_valid = False
+    return seen
+
+
+def interleave(by_exit, n):
+    """Exit 0's first word, exit 1's first word ... exit n-1's first word, then the second words (the order the card's shim reads them)."""
+    keys = list(by_exit)
+    out = []
+    for i in range(max(len(v) for v in by_exit.values())):
+        for k in keys[:n]:
+            if i < len(by_exit[k]):
+                out.append(by_exit[k][i])
+    return out
+
+
+def vm_words(d, recs):
+    if d.get("kind") == "interleaved":
+        return interleave(run_streams(recs, d["entries"], d["exits"]), len(d["exits"]))
+    return expected(recs, d["entries"], d["exit"])
+
+
+def replay_one(d, folder):
+    f = IcmV3File.load(os.path.join(folder, d["icm"]))          # also checks the stored record hash
+    if f.record_hash() != d["record_hash"]:
+        return False, "record hash differs from the index"
+    words = vm_words(d, f.records)
+    if words != d["vm_expected_words"]:
+        return False, f"VM words differ from the index ({len(words)} vs {len(d['vm_expected_words'])})"
+    if d.get("input_words_in_order") is not None and words != d["input_words_in_order"]:
+        return False, "the output words are not the input words in order"
+    c = d["card"]
+    if c.get("n_hex") is None:
+        return False, "no card line in the index"
+    if int(c["n_hex"], 16) != len(words):
+        return False, f"card counted {int(c['n_hex'], 16)} words, VM produced {len(words)}"
+    first = ["%08X" % w for w in words[:len(c["first_words_hex"])]]
+    if first != c["first_words_hex"]:
+        return False, "first words differ from the card's"
+    return True, f"{len(words)} words, equal to the card's count and first {len(first)} words"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dir", default=os.path.join(ROOT, "nano", "examples", "card_tested"))
+    a = ap.parse_args()
+    idx = json.load(open(os.path.join(a.dir, "card_tested_index.json")))
+    every = idx["designs"] + idx.get("multi_stream_designs", [])
+    bad = 0
+    for d in every:
+        ok, msg = replay_one(d, a.dir)
+        bad += (not ok)
+        print(("PASS " if ok else "FAIL ") + d["name"].ljust(22) + msg)
+    print(f"{len(every) - bad} of {len(every)} replay equal")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

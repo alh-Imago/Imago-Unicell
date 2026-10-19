@@ -330,5 +330,15 @@ Next entry: #1239.
 
 *Not done.* Every other user of FlexGrid still uses v1 (replay tool, board tests, composer, workbench, tests): deliberately, one at a time. The 1208-test "before" run is unchanged by this entry (v1 untouched) but was not re-run; a full `quick_check --full` is still the gate before moving other callers. v2 has only been compared on the 25 example designs and one real held-constant design (CORDIC): a design with a preloaded constant into a multiplier has no test.
 
-Next entry: #1272.
+### #1272 (19 Oct 2026) -- FlexGrid v2: second caller moved (the card replay tool, as v3)
+
+*What.* `tools/replay_card_icm_vm_v3.py` (new): the card replay tool of #1179 run on `FlexGrid2` instead of `FlexGrid`; `replay_card_icm_vm_v2.py` and `board_tests_v1.py` are untouched (the tool had its own copy of `board_tests_v1.expected` made for FlexGrid v2, same feed rule, same 900 ticks).
+
+*Measured.* `python3 tools/replay_card_icm_vm_v3.py`: **11 of 11 card-tested designs equal the card's count and first words**, and its printed output is identical, line for line, to v2's (diff empty). Test: `tests/vm/test_replay_card_icm_vm_v3_v1.py` (1) passes. So for every design the card has actually been run on (#1120-#1161 line), v2 delivers exactly what v1 delivered and the card printed.
+
+*Callers on v2 so far.* The Kintex runner (#1271) and this replay tool. Still on v1: the composer, workbench, frontend (nano), export_card_icm, board_tests, flex_tang_bridge, flex_vm_rtl_lockstep, vm_state_bridge, and every test that builds a FlexGrid. Each is a separate change that needs its own check.
+
+*Not done.* The full `quick_check --full` has not been run on v2 (Alan intends to run tests separately).
+
+Next entry: #1273.
 
