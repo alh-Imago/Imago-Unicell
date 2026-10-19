@@ -639,4 +639,16 @@ Alan: choosing a design with Browse on the Load tab reset the drop-down to its f
 - *Measured (real Chromium, real file chooser, a copy of the CORDIC design named `k7_icm_cordic_copy.json`).* v6: drop-down falls back to the first entry (test fails). v7: drop-down shows the picked file, Path is set, 40 tiles loaded, no script errors. Test: `tests/vm/test_workbench_v7_browse_v1.py`.
 - *Not checked.* A picked file of the wrong kind (e.g. a flat .json that is not a hierarchical design) shows the load's own error message, not tested here.
 
-Next entry: #1301.
+### #1301 -- End of day, 19 Oct 2026: what was built, what is open (19 Oct 2026)
+
+A summary entry, not a new decision; the work is in #1288-#1300.
+
+*Built and measured today.* Card wire witnesses and the complete card SHAPE (#1288-#1292: 39/39 connections, 40 cells for CORDIC on the card); the one-click Walk button and wide vector set (#1292-#1293); the mirror reading the card SHAPE in the Workbench (#1294); Workbench v3 tabs/drop-downs/picker (#1295), v4 Composer-style grid (#1296), v5 Reset / ghost path / gold-data and magenta-logic glow / animated dots (#1297-#1298), v6 steady glow plus absorbed and card-only cells under a card SHAPE (#1299), v7 Browse fix (#1300). Current Workbench command: `python3 nano/workbench_v7.py`.
+
+*How to use the Workbench with the card (as walked through with Alan).* Target tab: pick the card's `card.shape.json` (in the card build folder) and press "Use as target". Load / save tab: pick `cordic_z_convergence_v2.icm-hier.json` from the drop-down and press "Load hierarchical design". Files in a card build folder other than `card.shape.json` (ASSEMBLY, design, design_map, expected, kit, the large k7_icm file) are build records and are not loaded in the Workbench.
+
+*Open, for tomorrow.* (1) The instructions note for the card Walk (needs Check OpenOCD first, #1293, cause unconfirmed) is still to be added to the user instructions. (2) Alan's own `card.shape.json` has been picked in the Workbench but a loaded result with its counts was not seen in this session; the measured 4 absorbed / 4 card-only figures are from the simulated-card shape. (3) Placeholder tiles for a card-only cell at an unused site are built but no design exercises them. (4) The mirror still runs in the VM's own cell model; flat programs are not checked against a SHAPE. (5) Parked VM word-programming gaps (adder ids 4-5; mul/div/priority/merge/command tables) and the #501 in-cell ping are not built. (6) Sub.bridge rarely appears (the VM has no bridge cells).
+
+*Unlogged-decision check.* Two small choices were made in #1297 and #1299 and are recorded there: `active_route` counts as a logic change (one regex), and the animated dots show per-tick change, not a traced value. Nothing else found unlogged.
+
+Next entry: #1302.
