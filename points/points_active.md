@@ -402,4 +402,8 @@ Alan: "A, the origional super grid and origional designs will take precedent in 
 
 *Alan's `test_flexsub_assemble_v2` failures (7 of 80, yosys 0.33).* His numbers equal the OLD recorded costs (v1's) exactly: flex/branch 201, flex/nano 627, flex/accumulator (242, 72), sub/adder 66, sub/nano 1117, sub/shift (3261, 62), sub/mul_dsp3 71 -- while DFF and MULT counts match in every case. So the cause is the yosys version (0.33 there, 0.69 here), not the hardware. Cloned as `tests/test_flexsub_assemble_v3.py` with both tables, chosen by the yosys version (below 0.50 -> the older table, else the 0.69 table); here (0.69) 80 passed, 0 failed. The 0.33 table has NOT been run on his PC yet (it equals what he printed, so it is expected to pass). `quick_check_v1.py` SUPERSEDED maps assemble v1 and v2 to v3.
 
-Next entry: #1280.
+## #1280 (19 Oct) -- ADDENDUM to #1279: the first vector set on the card also passes
+
+Alan's output for the same card build (`k7_icm_cordic_z_convergence_v2_flex`), run 2, input 10 1 2: `z_output` 3 words `2736 2727 2728`, signature 00003526, last at clock 24, "PASS the VM says 3 word(s): 2736 2727 2728", OVERALL PASS. Together with run 3 (#1279: 2740 2826 2729) both vector sets on the Kintex card equal the VM. Scope: two input sets of three words each, positive values only; z = 0 and negative inputs were not run on the card.
+
+Next entry: #1281.
