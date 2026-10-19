@@ -141,7 +141,7 @@ def build():
             "idcode": "READ ON THE CARD, 17 and 19 Oct 2026 (ledger #1189)",
             "clock_and_leds": "SEEN WORKING: openXC7 demo blinky-ypcb003381p1 and our blink_k7_v1 (ledger #1194, #1195, #1197); polarity and colours as Alan reported",
             "toolchain": "openXC7 under Nix runs on Alan's PC and produces bitstreams that load and run on the card",
-            "designs_run_on_card": "blink only so far; the first UniCell design (k7_tree4, ledger #1234) is built but not yet run on the card",
+            "designs_run_on_card": "blink (#1194, #1197) and k7_tree4 (#1237: PASS pattern on the LEDs, seen by eye; Fmax and timing report not yet recorded)",
             "schematic": "NOT CHECKED",
             "datasheet_figures": "QUOTED from a note, not re-read here",
         },

@@ -65,7 +65,7 @@ def test_the_man_does_not_claim_more_than_was_verified():
     v = MAN["verification"]
     assert v["schematic"] == "NOT CHECKED"
     assert v["chip_database"].startswith("NOT READ")
-    assert "not yet run" in v["designs_run_on_card"] or "blink only" in v["designs_run_on_card"]
+    assert "seen by eye" in v["designs_run_on_card"], "the k7_tree4 result is a visual observation and the MAN must say so"
     assert MAN["device"]["logic"]["ff_total"] is None and MAN["device"]["bram"]["total"] is None
     assert MAN["cell_costs"]["measured"] is None
     assert MAN["capabilities"]["uart"] is False and MAN["capabilities"]["leds"] == 3
