@@ -59,7 +59,8 @@ def changed_files(base=None):
 # ledger #1165: tests whose figures are tied to an older yosys and were cloned to v2 (the v1 files are kept, unedited apart from the notes in the ledger, but are no longer run by default:
 # under the yosys installed now they report numbers from the older tool as failures). A superseded file is run when it is named explicitly on the command line of pytest / python.
 SUPERSEDED = {
-    "tests/test_flexsub_assemble_v1.py": "tests/test_flexsub_assemble_v2.py",
+    "tests/test_flexsub_assemble_v1.py": "tests/test_flexsub_assemble_v3.py",
+    "tests/test_flexsub_assemble_v2.py": "tests/test_flexsub_assemble_v3.py",
     "tests/test_flexsub_synthflag_v1.py": "tests/test_flexsub_synthflag_v2.py",
     "tests/test_flexsub_mul_v1.py": "tests/test_flexsub_mul_v3.py",
     "tests/test_flexsub_mul_v2.py": "tests/test_flexsub_mul_v3.py",
