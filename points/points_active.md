@@ -579,4 +579,23 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Scope.* Only Chromium was tried. The browser's own picker needs the browser to allow it (normal); a very large file is refused rather than truncated. The Save path is still typed text (a picker cannot choose where to save); the shell/cell-count controls are unchanged.
 
-Next entry: #1296.
+## #1296 (19 Oct) -- WORKBENCH v4: the grid drawn the way the Composer draws it (first step)
+
+*Alan (after trying v3, "that worked very well, I am impressed"), from a screenshot of the old grid:* the grid is too heavy; in the original the details were kept to one side and shown only when a cell is selected; the grid itself should be a simple shape with a back colour for the cell family (Std, Carrier, Flex, sub.bridge), an internal colour for the type that brightens on action/change, and directional arrows for flow. "That's for starters."
+
+*Built (clone of workbench_v3; v1-v3 untouched).* `nano/workbench_v4.py`:
+- Each cell is a 44 px tile. Background and border = family: Std green, Carrier purple, Flex copper, Sub teal, Sub.bridge grey-blue (the Composer's own family colours). Inner rounded square = core type with a 2-4 letter tag (ADD, RAM, BR, MRG ...), in the Composer's core palette (adder copper, branch violet, comparator blue, ram grey-green ...).
+- A tile BRIGHTENS (white glow, 1.4 s fade) when its state changed since the previous drawing; the first drawing flashes nothing.
+- Arrows on the tile edges: copper outward arrows for the directions the cell sends to, blue inward arrows for where it receives from (from the same direction fields the old grid printed).
+- Details only for the clicked cell, in a panel under the grid (core, position, family, region, in/out directions, all fields); clicking again closes it; the selection survives a Step.
+- A legend above the grid (families, cores, what the brightening and arrows mean).
+- Found and fixed: the old grid placed cells by raw row/column, which broke with the negative coordinates a hierarchical design (CORDIC) uses; the new grid shifts to the smallest row/column.
+- Column balance: the left tabs narrower, the grid column wider. README now says `python3 nano/workbench_v4.py`.
+
+*Which family a cell shows.* The family a design names for a block (the earlier ledger #1114 tagging) is used. With none named, a cell is Std (the VM's standard cells); with a card SHAPE as the target it is Flex (the card runs a flex design). Sub.bridge appears only for a cell whose core name contains "bridge" or tagged so; the VM itself has no bridge cells (the assembler inserts bridges when it builds), so that swatch will rarely appear in the Workbench today.
+
+*Measured (real Chromium, CORDIC loaded, then 6 steps; screenshots looked right at 1280 px and 454 px).* 40 tiles, all grid positions valid, details empty until a click, 22 tiles brightened after the steps, arrows present, no script errors; with a card SHAPE target every tile is Flex. Tests: `tests/vm/test_workbench_v4_grid_v1.py` (2; the browser part skips if playwright or Chromium is missing).
+
+*Not done (Alan: "for starters").* Route lines or animated flow along arrows between tiles; the card-only cells (merge cores the generator inserts) and cells absorbed in the build shown as such on the grid; brightness keyed to data present as well as change; edit-in-place; the Std/Carrier/Sub/Bridge mix beyond the family the design names.
+
+Next entry: #1297.
