@@ -480,4 +480,26 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Scope.* This shows the Walker refuses a card that carries no runner for this folder. It does not show it distinguishes two different runner designs with different fingerprints (simulation test only). With #1287 the Walker's design-identity step is proven both ways on hardware. Cell-by-cell neighbour confirmation (discovery hardware) is not built.
 
-Next entry: #1289.
+## #1289 (19 Oct) -- WIRE WITNESSES: the card reports which connections and cells actually carried a word; the Walker writes the card's SHAPE for the mirror. Simulation only; not yet on the card
+
+*Alan's rulings.* "Yes if you can" (build the discovery step). Asked how, given what the RTL shows (below), he chose wire witnesses. Then: the Walker's output is the SHAPE of the cells on the card, the missing part for the mirror VM, so the mirror reflects the actual card layout cell by cell; it has to work with the mirror function, beyond just layout.
+
+*Checked in the RTL first (not assumed).* The flex cells (`*_v4sa.v`) have only point-to-point valid/ack wires; no cardinal faces, no `core_select`, no relay. The #501 ping (core_select 31, relay out a face) was designed for the standard cells and has nothing to attach to in the flex family. Building it would mean new cell versions for every cell type. Not done; kept as a later step.
+
+*Built (all clones; v1-era files untouched).*
+- `tools/flexsub_icm_flex_v4.py` (+ `flexsub_icm_generate_v4.py`): `emit_top_flex(..., witness=True)` adds `output wire [N-1:0] witness`: bits 0..E-1 are sticky "a word crossed connection k" (source valid and consumer ready at an edge, the flex transfer rule), then one sticky bit per cell "this cell offered an output" (branch and second-port cells use their `_p1_v | _p2_v`; tile slices have no bit). Cleared by `rst`, so each run reports itself. With `witness=False` the output is byte-for-byte v3's (tested).
+- `tools/design_map_v2.py`: the map carries the numbering (`witness`: bits, edges k/from/to/slot, cells k/id/index); the fingerprint covers it (CORDIC: 4ca08914, was 04c680b7).
+- `tools/kintex_icm_runner_v5.py`: layout gains `wit`/`nwit` after the entry buffers (CORDIC: 79 bits, 3 words, read-back 43 words, was 40); the fingerprint word and everything else stay where they were; the testbench also prints the whole read-back (`SNAPALL`).
+- `tools/walker_card_v2.py`: reads one or more run logs (what the card saw in any of them counts); prints "N of M connections carried a word; K of C cells offered an output", flags INCONSISTENT (a connection that carried a word whose source cell never offered one), lists connections not exercised (neither confirmed nor refuted), marks confirmed neighbours with `*`; `--shape OUT` writes the card SHAPE.
+- The card SHAPE: `shape_version` 1.0, `card_id`, `generated`, `cells`, `edges` as in `shape_extract_v1` / `walker_sim_v1.to_shape`, `discovery_method: card_wire_witness_v1`, the design fingerprint, runs read; every cell has `seen_on_card`, every connection `confirmed_by_card` (true/false, null if the folder has no witnesses), plus counts. Written only when the card is shown to run this folder's design and the witnesses are consistent. `walker_card_v2.read_card_shape()` loads and checks it.
+- `project_assemble_v5.py`, `frontend/unicell_frontend_v5.py` (new Kintex folders use all of the above); README pointers moved to frontend v5.
+
+*Measured (iverilog, CORDIC, both vector sets):* runner simulation PASS against the VM; no X in any witness bit; the card-side flags agree with the physics (every stage's gather path seen; 23 of 39 connections and 32 of 40 cells carried a word on these inputs; the other branch side of each stage idle because these z values only take one side). Tests: `tests/vm/test_wire_witness_v1.py` (5), `test_frontend_v5.py` (8, blank-read size 92), runner v4 and walker v1 tests unchanged and passing.
+
+*What this is and is not.* It is read back from the card's own wires, so it tests the built hardware against the map for every connection that carried traffic; cells and connections never exercised stay "not exercised", not confirmed. It does NOT prove physical adjacency on the die (the fitter places freely); it proves which cell is wired to which in the hardware, which is what the SHAPE edges mean for the flex family. Full coverage needs inputs that exercise every path (e.g. positive and negative z); several runs can be read together.
+
+*Mirror, honest scope.* The SHAPE is in the format the mirror side already reads for the simulated Walker, and `read_card_shape` gives it the cells (type, CELL_ID, grid row/col) and the confirmed connections. The mirror's own use of it (a FlexGrid/VMSession built from the card's SHAPE and checked against the design, instead of from the MAN) is NOT built yet; that is the next step.
+
+*Not done.* Card run of the witnesses (needs a fresh build of a v5 folder); the #501 ping in cells; the mirror consuming the SHAPE.
+
+Next entry: #1290.

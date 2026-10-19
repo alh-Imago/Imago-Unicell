@@ -183,7 +183,7 @@
 <li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
 <li><strong>What is NOT shown:</strong> running a design on a physical card <strong>and</strong> saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>).</li>
 <li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
-<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 19 October 2026 the ledger is at #1288).</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 19 October 2026 the ledger is at #1289).</li>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
@@ -736,7 +736,7 @@ throughout the project's own documentation, never blurred.</p>
   build folder for the chosen card (Kintex open-source flow, Tang, or
   plain Verilog export for closed toolchains such as Arria 10). Run:
   <code>bash
-  python3 tools/frontend/unicell_frontend_v4.py --demo ~/openFPGALoader/build/demo-projects --repo .</code>
+  python3 tools/frontend/unicell_frontend_v5.py --demo ~/openFPGALoader/build/demo-projects --repo .</code>
   See <code>tools/frontend/README.md</code>. (The ICM runner has been run on the Kintex card for one design,
   <code>small_relay_chain</code> (#1264) and the 4-input reduction tree (#1265),
   two input sets each: card equals VM.)</li>
@@ -6757,7 +6757,7 @@ before comparing (<code>#965</code>).</p>
 <h1>UniCell Bench -- the front end (ledger #1255, ICM panel #1260)</h1>
 <p>A local page for building designs and running them on a card, without typing the same cd and make lines again. Runs on your own PC; standard Python only (3.8+); the terminal library is bundled (<code>vendor/</code>), no internet needed.</p>
 <h2>Start it (plain terminal, Linux)</h2>
-<pre><code>python3 unicell_frontend_v4.py --demo ~/openFPGALoader/build/demo-projects --repo &lt;your Imago-Unicell clone&gt;
+<pre><code>python3 unicell_frontend_v5.py --demo ~/openFPGALoader/build/demo-projects --repo &lt;your Imago-Unicell clone&gt;
 </code></pre>
 <p><code>--repo</code> lets the page find the assembler and the example ICM files; without it the ICM panel asks for the folder.
 It prints an address like <code>http://127.0.0.1:8765/?t=...</code> and opens it in the browser. Keep that terminal open; Ctrl-C stops it. Only this PC can reach it (127.0.0.1, with a one-off key in the address).</p>
@@ -6818,6 +6818,7 @@ It prints an address like <code>http://127.0.0.1:8765/?t=...</code> and opens it
 | <code>prog_table_vs_rtl_v1.py</code> | Compares the VM's per-core programming tables with the PROG_ID_* the standard RTL declares (ledger #1284); lists gaps. |
 | <code>design_map_v1.py</code> (+ <code>flexsub_icm_generate_v3.py</code>, <code>flexsub_icm_flex_v3.py</code>) | Writes the neighbour map of a generated flex design (cells, CELL_ID, connections, faces, fingerprint) for the Walker (ledger #1285). The v3 generator/emitter write the same Verilog as v2. |
 | <code>project_assemble_v4.py</code>, <code>kintex_icm_runner_v4.py</code>, <code>frontend/unicell_frontend_v4.py</code>, <code>walker_card_v1.py</code> | Clones/new (ledger #1286): the card reports a design fingerprint over JTAG, the folder carries design_map.json, the Walker compares them. Use these for new Kintex folders. |
+| <code>project_assemble_v5.py</code>, <code>kintex_icm_runner_v5.py</code>, <code>flexsub_icm_generate_v4.py</code>, <code>flexsub_icm_flex_v4.py</code>, <code>design_map_v2.py</code>, <code>frontend/unicell_frontend_v5.py</code>, <code>walker_card_v2.py</code> | Clones/new (ledger #1289): WIRE WITNESSES. The generated design gets a read-only <code>witness</code> port (one sticky bit per connection, one per cell); the card read-back carries it; the Walker marks which neighbour connections the card itself saw a word cross and can write the card's SHAPE (<code>--shape OUT</code>, same format as the simulated Walker's, readable with <code>walker_card_v2.read_card_shape</code>). Use these for new Kintex folders. |
 | <code>kintex_icm_runner_v1.py</code> | Wraps a generated flex ICM design for the Kintex card: pins, reset, JTAG feed / read of entries and exits, the VM's expected answers, a self-check simulation (ledger #1259; front-end ICM panel #1260); called by <code>project_assemble_v1.py --icm</code> when the card's flow is openxc7. |\n| <code>man_gen/gen_kintex7_ypcb00338_man_v1.py</code> | Writes the MAN file and xdc for the Kintex-7 card (ledger #1235): <code>docs/man/kintex7-ypcb00338.man.json</code>; <code>--check</code> for drift. |</li>
 <li><code>board_esp32_c1_v1.py</code> (ledger #1211): test C1, the Tang as stopwatch and signal generator for an ESP32 interrupt handler; writes <code>fpga/board_tests_c1/</code> (c1_quiet, c1_storm). Built, not yet run.</li>
 <li><code>board_direct_latency_t3_v1.py</code> (ledger #1209): test T3, two input pins (jumpers 86 -&gt; 72 and 53 -&gt; 71); writes <code>fpga/board_tests_latency3/</code>. Card run passed (#1210).</li>
