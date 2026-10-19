@@ -276,5 +276,15 @@ Next entry: #1239.
 
 *Scope.* Two input sets of three words, one card, one build. The generated folder's README still says "Not run on the card" (the text is written at generation time).
 
-Next entry: #1267.
+### #1267 (19 Oct 2026) -- CORDIC: the VM is right; the card is right; the replay tool lacked a settle phase (corrects #1259 / #1266)
+
+*Finding.* The CORDIC disagreement (#1259) and the card result (#1266) are explained, at the level stated here. The design (`cordic_z_convergence`, ledger #742) is four stages, each adding +/- atan(2^-i) (scaled by 1000: 45000, 26565, 14036, 7125) according to the sign of z. I computed that independently in a few lines of Python (z -= a if z >= 0 else z += a, over the four constants): 10 -> 2736, 1 -> 2727, 2 -> 2728, 14 -> 2740, 100 -> 2826, 3 -> 2729, 50000 -> -404. **All six words the card delivered in #1266 equal this, and 50000 -> -404 is the value the original VM test (`nano/examples/test_cordic_z_convergence.py`, #742) expects.** So the card is computing the CORDIC correctly; "input + 2726" is just the common result for small positive z (signs - + + +), not a bug.
+
+*The VM.* That original test settles the grid for 6 ticks (so each stage's zero reference is in place) BEFORE injecting z0. The replay path used by the runner (`replay_card_icm_vm_v2.run_streams` and my copy `run_streams2`) injected at tick 0, racing the zero sources (the test's own comment names this failure mode), and so gave -2726 whatever the input. With a settle phase (3 ticks or more tried, 3 / 6 / 10 / 30 all the same), the FlexGrid gives 2736, 2727, 2728, 2740, 2826, 2729 for the six inputs fed one at a time, and 50000 gives 4294966892 = -404. So the VM was never wrong; the tool feeding it was. `kintex_icm_runner_v1.run_streams2` now takes `settle=12` (exit words seen during the settle are discarded); the proven `replay_card_icm_vm_v2.py` is not touched. Runner tests (5) and frontend tests (7) pass; the six single-word VM answers above are now equal to the card's.
+
+*Still different, not explained.* Fed a STREAM of several words, the VM delivers only the FIRST word's result ([10,1,2] -> 2736 only; [14,100,3] -> 2740 only) while the card delivers all three. Probably the VM's zero-reference / branch state is used up by the first word (the original test only ever fed one), whereas the hardware's constant sources keep offering; this was NOT checked. Which behaviour a multi-word CORDIC stream should have is therefore not settled by the VM; the card's three words are each the correct single-input answer. Folders made before this change (such as `cordic_z_convergence_kintex7-ypcb00338_2`) still hold the old expected answer (-2726) in `expected.json`; a folder made now compares word 0 correctly but still shows a word-count difference (1 VM vs 3 card) for multi-word input sets.
+
+*Correction of earlier text.* #1259's "VM seems to ignore the input" and #1266's "VM replay path is the suspect" are right in kind (the replay tool, not the VM engine); #1266's "whether input + 2726 is the intended result was not checked" is now checked (it is).
+
+Next entry: #1268.
 

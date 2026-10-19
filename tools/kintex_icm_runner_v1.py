@@ -370,8 +370,9 @@ def collapse(words):
     return out
 
 
-def run_streams2(recs, streams, exits, ticks=6000):
-    """tools/replay_card_icm_vm_v2.run_streams, additionally reading an ADDER exit (adder_data_valid / adder_out_buffer); the original only reads ram exits."""
+def run_streams2(recs, streams, exits, ticks=6000, settle=12):
+    """tools/replay_card_icm_vm_v2.run_streams, additionally reading an ADDER exit (adder_data_valid / adder_out_buffer); the original only reads ram exits.
+    settle (ledger #1267): clock the grid this many ticks BEFORE the first word is fed, as the original CORDIC test does (6 ticks) so that internal constant sources (the CORDIC's zero references) are in place; the card is fed long after power-up, so it always has this. Exit words seen during the settle are discarded."""
     import warnings
     import flex_grid_v1 as fg
     with warnings.catch_warnings():
@@ -381,6 +382,14 @@ def run_streams2(recs, streams, exits, ticks=6000):
     core = {r.cell_id: r.core for r in recs}
     todo = {k: list(v) for k, v in streams.items()}
     seen = {x: [] for x in exits}
+    for _ in range(settle):
+        g.tick()
+    for x in exits:
+        e = g.cells[pos[x]]
+        if core[x] == "adder":
+            e.adder_data_valid = False
+        else:
+            e.ram_data_valid = False
     for _ in range(ticks):
         for k, vals in todo.items():
             c = g.cells[pos[k]]
