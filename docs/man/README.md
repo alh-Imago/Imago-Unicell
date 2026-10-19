@@ -183,6 +183,15 @@ database** (there is none in the cloud workspace): written by `python3 tools/man
 with every fact marked measured, quoted or assumed, and null where unknown. Measured on the card: JTAG IDCODE `0x23751093`; clock and
 three LEDs seen working (demo and our own blink, #1194, #1197). Quoted: 74,650 slices and 1,920 DSP (datasheet note). Assumed: LED polarity,
 50 MHz value. Not checked: schematic. The `.xdc` beside it holds the four proven pins. Readers: identity, Flex-Sub loader and VM mirror accept
-it; the Quartus loader refuses it clearly. **Gaps the assembler still has for this card (not fixed here):** `flexsub_assemble_v1` writes
-`synth_gowin` for any non-Intel card and no `.xdc`/nextpnr-xilinx steps; `card_fit_v1` has no LUT6 mode (it falls into the Intel ALM path and
-refuses with a misleading message). Test: `tests/vm/test_man_kintex7_ypcb00338_v1.py`.
+it; the Quartus loader refuses it clearly. **Update (#1254-#1260):** the assembler now writes the openXC7 files for this card (see the build section below). Still missing: `card_fit_v1` has no LUT6 mode (it falls into the Intel ALM path and refuses with a misleading message). Test: `tests/vm/test_man_kintex7_ypcb00338_v1.py`.
+
+
+## `synthesis.build` -- how to build for this card (ledger #1253-#1260)
+The MAN file also says how a card is built. `synthesis.build.flow` is one of:
+| flow | for | what the assembler makes |
+|---|---|---|
+| `openxc7` | Kintex-7 (open tools, Nix) | `.sv` cells, top with LEDs and power-on reset, `.xdc`, a Makefile (FAMILY, PART, BOARD, TOP_MODULE, CHIPDB), `kit.json` |
+| `gowin-apicula` | Tang Nano 20K (open tools) | the Gowin project as before |
+| `export-only` | closed tools (Arria 10 / Quartus) | plain Verilog folder + README + `ASSEMBLY.json`; you synthesise it yourself |
+If `flow` is missing the vendor decides (gowin -> gowin-apicula, intel -> export-only); a Xilinx MAN without a `flow`, or an unknown `flow`, is refused. A new open-source target is a new MAN file with its own flow. Other fields: `build_command`, `load_command` (SRAM only, never flash), `timing_check`, and `startup` (a command the user may need typed first; `ask_user` makes the front end prompt for it and keep the answer only on the user's PC). The Tang and Arria 10 MAN files were left untouched (proven) and use the defaults.
+The front end that reads all this is `tools/frontend/` (UniCell Bench, `tools/frontend/README.md`).

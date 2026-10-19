@@ -127,3 +127,36 @@ def test_startup_command_default_and_user_override(demo, tmp_path, monkeypatch):
         for t in st.terms.values():
             t.close()
     assert fe.startup_for(os.path.join(demo, "nope"))[1] == fe.NIX_ENTER   # no kit.json: the Nix default
+
+
+def test_icm_panel_lists_and_creates(tmp_path, monkeypatch):
+    monkeypatch.setattr(fe, "SETTINGS", str(tmp_path / "cfg" / "unicell_bench.json"))
+    demo = tmp_path / "demo"
+    demo.mkdir()
+    st = fe.State(str(demo), ROOT)
+    try:
+        assert st.repo == ROOT
+        icms = fe.icm_files(ROOT)
+        cards = fe.card_files(ROOT)
+        assert any(i["name"] == "reduction_tree4_exit_v1" for i in icms)
+        flows = {c["file"]: c["flow"] for c in cards}
+        assert flows["kintex7-ypcb00338.man.json"] == "openxc7" and flows["mustang-f100-a10.man.json"] == "export-only" and flows["tang-nano-20k.man.json"] == "gowin-apicula"
+        tree = next(i["path"] for i in icms if i["name"] == "reduction_tree4_exit_v1")
+        kcard = next(c["path"] for c in cards if c["flow"] == "openxc7")
+        with pytest.raises(ValueError):
+            st.create_from_icm(tree, kcard, "../evil")
+        with pytest.raises(ValueError):
+            st.create_from_icm("/etc/passwd", kcard, "x")
+        r = st.create_from_icm(tree, kcard, "tree_k7")
+        assert r["ok"] and os.path.isfile(os.path.join(demo, "tree_k7", "run_vectors.sh"))
+        kits = {k["name"]: k for k in fe.list_kits(str(demo))}
+        assert {"run_v1", "run_v2", "run_read", "make", "load"} <= set(kits["tree_k7"]["buttons"])
+        with pytest.raises(ValueError):
+            st.create_from_icm(tree, kcard, "tree_k7")                   # never overwrites
+        st.select("tree_k7")
+        open(os.path.join(demo, "tree_k7", "run_vectors.log"), "w").write("SNAP result " + " ".join(["00000000"] * 91) + "\n")
+        v = st.view("run_vectors.log")
+        assert v["decoded"] and "WRONG" in v["decoded"]                # decoded by the folder's own decoder (a blank read is flagged)
+    finally:
+        for t in st.terms.values():
+            t.close()

@@ -183,7 +183,7 @@
 <li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
 <li><strong>What is NOT shown:</strong> running a design on a physical card <strong>and</strong> saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>).</li>
 <li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
-<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 17 October 2026 the ledger is at #1258).</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 17 October 2026 the ledger is at #1260).</li>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
@@ -713,6 +713,17 @@ throughout the project's own documentation, never blurred.</p>
   <code>bash
   python3 nano/frontend_v1.py
   # → http://localhost:7421</code></li>
+<li><strong>UniCell Bench (card front end)</strong> — one local page that holds the
+  tools for building and running on a real card: a design picker over
+  your build folder, two real shells (Build and Card) that both <code>cd</code>
+  to the chosen design, whitelisted make / load / OpenOCD buttons, a
+  results window, and an ICM panel that turns an ICM file into a new
+  build folder for the chosen card (Kintex open-source flow, Tang, or
+  plain Verilog export for closed toolchains such as Arria 10). Run:
+  <code>bash
+  python3 tools/frontend/unicell_frontend_v1.py --demo ~/openFPGALoader/build/demo-projects --repo .</code>
+  See <code>tools/frontend/README.md</code>. (The ICM runner on the card is not
+  yet measured; simulation against the VM only.)</li>
 <li><strong>A working browser workbench</strong> — compile a program, watch it run,
   drive individual cells, load multiple independent programs onto one
   shared grid as named regions, or let it auto-play at a chosen rate
@@ -6514,9 +6525,16 @@ database</strong> (there is none in the cloud workspace): written by <code>pytho
 with every fact marked measured, quoted or assumed, and null where unknown. Measured on the card: JTAG IDCODE <code>0x23751093</code>; clock and
 three LEDs seen working (demo and our own blink, #1194, #1197). Quoted: 74,650 slices and 1,920 DSP (datasheet note). Assumed: LED polarity,
 50 MHz value. Not checked: schematic. The <code>.xdc</code> beside it holds the four proven pins. Readers: identity, Flex-Sub loader and VM mirror accept
-it; the Quartus loader refuses it clearly. <strong>Gaps the assembler still has for this card (not fixed here):</strong> <code>flexsub_assemble_v1</code> writes
-<code>synth_gowin</code> for any non-Intel card and no <code>.xdc</code>/nextpnr-xilinx steps; <code>card_fit_v1</code> has no LUT6 mode (it falls into the Intel ALM path and
-refuses with a misleading message). Test: <code>tests/vm/test_man_kintex7_ypcb00338_v1.py</code>.</p>
+it; the Quartus loader refuses it clearly. <strong>Update (#1254-#1260):</strong> the assembler now writes the openXC7 files for this card (see the build section below). Still missing: <code>card_fit_v1</code> has no LUT6 mode (it falls into the Intel ALM path and refuses with a misleading message). Test: <code>tests/vm/test_man_kintex7_ypcb00338_v1.py</code>.</p>
+<h2><code>synthesis.build</code> -- how to build for this card (ledger #1253-#1260)</h2>
+<p>The MAN file also says how a card is built. <code>synthesis.build.flow</code> is one of:
+| flow | for | what the assembler makes |
+|---|---|---|
+| <code>openxc7</code> | Kintex-7 (open tools, Nix) | <code>.sv</code> cells, top with LEDs and power-on reset, <code>.xdc</code>, a Makefile (FAMILY, PART, BOARD, TOP_MODULE, CHIPDB), <code>kit.json</code> |
+| <code>gowin-apicula</code> | Tang Nano 20K (open tools) | the Gowin project as before |
+| <code>export-only</code> | closed tools (Arria 10 / Quartus) | plain Verilog folder + README + <code>ASSEMBLY.json</code>; you synthesise it yourself |
+If <code>flow</code> is missing the vendor decides (gowin -&gt; gowin-apicula, intel -&gt; export-only); a Xilinx MAN without a <code>flow</code>, or an unknown <code>flow</code>, is refused. A new open-source target is a new MAN file with its own flow. Other fields: <code>build_command</code>, <code>load_command</code> (SRAM only, never flash), <code>timing_check</code>, and <code>startup</code> (a command the user may need typed first; <code>ask_user</code> makes the front end prompt for it and keep the answer only on the user's PC). The Tang and Arria 10 MAN files were left untouched (proven) and use the defaults.
+The front end that reads all this is <code>tools/frontend/</code> (UniCell Bench, <code>tools/frontend/README.md</code>).</p>
 <div class="partsub">Toolchain setup (both lines)<span class="partsrc">docs/shared/TOOLCHAIN_SETUP.md</span></div>
 <h1>Toolchain Setup — Arria 10 / Quartus (2026-08-04) and Tang Nano 20K / open Gowin flow (2026-10)</h1>
 <p><em>The Tang Nano 20K section is at the end and covers the current line.</em></p>
@@ -6719,6 +6737,32 @@ constraints and facts are in <code>docs/man/tang-nano-20k.man.json</code> /
 <p><strong>Version caveat.</strong> The recorded synthesis numbers come from yosys
 0.33. A different yosys version may give different counts, so re-measure
 before comparing (<code>#965</code>).</p>
+<div class="partsub">UniCell Bench: the card front end<span class="partsrc">tools/frontend/README.md</span></div>
+<h1>UniCell Bench -- the front end (ledger #1255, ICM panel #1260)</h1>
+<p>A local page for building designs and running them on a card, without typing the same cd and make lines again. Runs on your own PC; standard Python only (3.8+); the terminal library is bundled (<code>vendor/</code>), no internet needed.</p>
+<h2>Start it (plain terminal, Linux)</h2>
+<pre><code>python3 unicell_frontend_v1.py --demo ~/openFPGALoader/build/demo-projects --repo &lt;your Imago-Unicell clone&gt;
+</code></pre>
+<p><code>--repo</code> lets the page find the assembler and the example ICM files; without it the ICM panel asks for the folder.
+It prints an address like <code>http://127.0.0.1:8765/?t=...</code> and opens it in the browser. Keep that terminal open; Ctrl-C stops it. Only this PC can reach it (127.0.0.1, with a one-off key in the address).</p>
+<h2>The page</h2>
+<ul>
+<li><strong>Designs</strong> (left): every folder in the demo folder that has a Makefile. Click one: <code>cd &lt;folder&gt;</code> is sent to BOTH shells. The line under the name is the first heading of the folder's README (or <code>kit.json</code> "title").</li>
+<li><strong>Build</strong> shell: button <em>Enter openXC7 shell</em> types <code>nix develop github:openxc7/toolchain-nix</code> (you can also type it). Then <em>Check environment</em> (are yosys, nextpnr-xilinx, openFPGALoader, make and KINTEX7_CHIPDB there?), <em>Build (make)</em> (writes <code>build.log</code> in the folder), <em>Load into the card (SRAM)</em> (asks first; <code>make program JTAG_LINK="-c ft232"</code>).</li>
+<li><strong>Card</strong> shell: a plain shell; the buttons run the kit's OpenOCD scripts through <code>nix shell nixpkgs#openocd --command sh &lt;script&gt;</code> (read, freeze, release, save, load, round trip, sweep). Only buttons for scripts the folder really contains are shown. Count boxes take whole numbers only.</li>
+<li><strong>Results</strong>: the build verdict (Fmax lines, "timing passed" or "TIMING FAILED - do not load"), and the files the scripts wrote (<code>.log .txt .csv</code>; new ones since you picked the design are marked). Click one: a card read is shown decoded (the same decoder as in the kit), a save/load round trip as PASS/FAIL lines, with the raw file under it.</li>
+</ul>
+<p>The two terminals are real shells: you can type in them as usual. The buttons only send fixed commands from a list in the program; nothing it sends writes the card's flash.</p>
+<h2>The ICM panel (end of the pipeline: composer / DSL / LLVM IR -&gt; ICM file -&gt; card)</h2>
+<ul>
+<li>Pick an ICM file (the repo's examples, or any path). Pick a card: the list is every MAN file in <code>docs/man/</code>.</li>
+<li><em>Create build folder</em> runs the assembler for you and makes a new folder <strong>inside the demo folder</strong>, so the Designs list picks it up by itself. What it makes depends on the card's <code>flow</code> in its MAN file: <code>openxc7</code> (Kintex: a runner project with Makefile, constraints, test vectors and the OpenOCD scripts), <code>gowin-apicula</code> (Tang: a Gowin project), <code>export-only</code> (closed toolchains such as Arria 10: a plain Verilog folder and a README, for you to synthesise yourself).</li>
+<li>On a Kintex runner project the folder name carries the tag <em>sim vs VM: PASS/FAIL</em>: the generated hardware was simulated and its answers compared with the VM's. This is simulation only; the runner has not yet been measured on the card.</li>
+<li>Extra Card-shell buttons for a runner project: <em>Run vectors v1/v2</em> (feed the test words, read the counts, signatures and last clock) and <em>Read run</em>. Results shows each exit as PASS/FAIL against the VM's expected answer.</li>
+<li>If the MAN file has a <code>startup</code> command (a line your design needs typed first), the page asks you once and keeps your answer only on your PC (<code>~/.config/unicell_bench.json</code>).</li>
+</ul>
+<h2>Not its job</h2>
+<p>It does not install Nix or openXC7, does not make the chip database and never builds or loads by itself. If the environment is not there, <em>Check environment</em> says what is missing.</p>
 <div class="partsub">Tools: the assembler and measurement tools<span class="partsrc">tools/README.md</span></div>
 <h1>Tools</h1>
 <blockquote>
@@ -6748,7 +6792,7 @@ before comparing (<code>#965</code>).</p>
 | <code>kintex_freeze_pack_v3.py</code> | Freeze, save and load kit builder: load-capable cells, cycle-exact freeze, 86-word scan (ledger #1250); writes <code>fpga/kintex7_tests/k7_freeze_load</code>. |
 | <code>cell_debug_clone_v2.py</code> | Clones the debug cells into load-capable v4g/v1g (adds <code>dbg_load_en</code>, <code>dbg_load_state</code>; ledger #1250). |
 | <code>frontend/unicell_frontend_v1.py</code> | UniCell Bench: a local browser page with a design picker, two real shells (Build, Card), whitelisted buttons and a results window (ledger #1255); see <code>tools/frontend/README.md</code>. |
-| <code>man_gen/gen_kintex7_ypcb00338_man_v1.py</code> | Writes the MAN file and xdc for the Kintex-7 card (ledger #1235): <code>docs/man/kintex7-ypcb00338.man.json</code>; <code>--check</code> for drift. |</li>
+| <code>kintex_icm_runner_v1.py</code> | Wraps a generated flex ICM design for the Kintex card: pins, reset, JTAG feed / read of entries and exits, the VM's expected answers, a self-check simulation (ledger #1259; front-end ICM panel #1260); called by <code>project_assemble_v1.py --icm</code> when the card's flow is openxc7. |\n| <code>man_gen/gen_kintex7_ypcb00338_man_v1.py</code> | Writes the MAN file and xdc for the Kintex-7 card (ledger #1235): <code>docs/man/kintex7-ypcb00338.man.json</code>; <code>--check</code> for drift. |</li>
 <li><code>board_esp32_c1_v1.py</code> (ledger #1211): test C1, the Tang as stopwatch and signal generator for an ESP32 interrupt handler; writes <code>fpga/board_tests_c1/</code> (c1_quiet, c1_storm). Built, not yet run.</li>
 <li><code>board_direct_latency_t3_v1.py</code> (ledger #1209): test T3, two input pins (jumpers 86 -&gt; 72 and 53 -&gt; 71); writes <code>fpga/board_tests_latency3/</code>. Card run passed (#1210).</li>
 <li><code>board_direct_latency_v2.py</code> (ledger #1207): clone of v1 with a loop-back pre-check (<code>pre=</code>, <code>res=L</code>) and LED4/LED5 showing pins 86/72; card run passed (#1208).</li>

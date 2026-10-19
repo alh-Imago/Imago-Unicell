@@ -15,6 +15,9 @@ aside h2,.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;c
 .kit{display:block;width:100%;text-align:left;border:1px solid transparent;background:none;color:inherit;padding:8px;border-radius:6px;cursor:pointer;font:inherit}
 .kit:hover{background:var(--bg)}.kit.sel{border-color:var(--acc);background:var(--bg)}
 .kit b{display:block;font-size:13px}.kit small{color:var(--mute)}
+.tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;border:1px solid var(--line);font-size:11px;font-weight:400}
+.frm label{display:block;font-size:12px;color:var(--mute);margin:8px 0 2px}.frm select,.frm input[type=text]{width:100%;font:inherit;font-size:13px;padding:4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.frm pre{margin-top:8px;max-height:180px;overflow:auto}
 .work{display:grid;grid-template-rows:minmax(0,1.3fr) minmax(0,1fr);gap:12px;min-height:0}
 .terms{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0;overflow:hidden}
 .card{display:flex;flex-direction:column;overflow:hidden}
@@ -37,7 +40,9 @@ pre{margin:0;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-brea
 </style></head><body>
 <header><h1>UniCell Bench</h1><span id="demo"></span><span id="msg"></span></header>
 <main>
-<aside><h2>Designs</h2><div id="kits"></div></aside>
+<aside><h2>Designs</h2><div id="kits"></div>
+<h2 style="margin-top:14px">New design from an ICM file</h2>
+<div id="icmbox" style="padding:4px 8px 10px"><button class="act" id="icmopen">Make a design…</button></div></aside>
 <div class="work">
  <div class="terms">
   <section class="card"><div class="bar"><h2>Build</h2><span id="b-build" class="btns"></span></div><div class="term" id="t-build"></div></section>
@@ -92,6 +97,8 @@ function drawKits(){
   const k=$("kits");k.innerHTML="";
   for(const d of S.kits){const b=document.createElement("button");b.className="kit"+(sel&&sel.name===d.name?" sel":"");
     b.innerHTML="<b></b><small></small>";b.firstChild.textContent=d.name;b.lastChild.textContent=d.title!==d.name?d.title:"";
+    if(d.flow==="export-only"){const t=document.createElement("span");t.className="tag";t.textContent="Verilog only";b.firstChild.append(t)}
+    if(d.sim){const t=document.createElement("span");t.className="tag "+(d.sim==="PASS"?"ok":d.sim==="not run"?"warn":"bad");t.textContent="sim vs VM: "+d.sim;b.firstChild.append(t)}
     b.onclick=async()=>{const r=await api("/api/select",{name:d.name});if(r.error){msg(r.error,"bad");return}
       sel=d;openFile=null;$("view").innerHTML="";drawKits();buttons();msg("both shells moved to "+d.name);poll()};k.append(b)}
   if(!S.kits.length)k.innerHTML="<p class=warn style='padding:8px'>No design folders found in the demo folder.</p>";
@@ -109,5 +116,23 @@ async function poll(){
   if(r.build){const v=r.build.verdict;const c=v==="timing passed"?"ok":"bad";
     s.innerHTML="Build: <b class='"+c+"'>"+v+"</b> "+r.build.fmax.map(x=>x.clock+" "+x.mhz+" MHz ("+x.verdict+" at "+x.target+")").join("; ")}
 }
+async function icmPanel(){
+  const box=$("icmbox");const r=await api("/api/icm");box.innerHTML="";
+  const f=document.createElement("div");f.className="frm";box.append(f);
+  if(!r.repo){f.innerHTML="<p class=warn style='font-size:12px'>The UniCell repo folder (the one that contains tools/project_assemble_v1.py) is not known.</p><label>Repo folder</label><input type=text id=repoin placeholder='/home/you/imago-unicell'><p></p><button class=act id=repoga>Save</button><pre id=repomsg></pre>";
+    $("repoga").onclick=async()=>{const x=await api("/api/repo",{path:$("repoin").value.trim()});if(x.error){$("repomsg").textContent=x.error;return}icmPanel()};return}
+  f.innerHTML="<label>ICM file</label><select id=icmsel></select><label>Card</label><select id=cardsel></select><div id=flownote style='font-size:12px;color:var(--mute);margin-top:4px'></div><label>Folder name</label><input type=text id=icmname><p></p><button class=act id=icmgo>Create</button> <button class=act id=icmclose>Close</button><pre id=icmout></pre>";
+  for(const i of r.icms){const o=document.createElement("option");o.value=i.path;o.textContent=i.name;$("icmsel").append(o)}
+  for(const c of r.cards){const o=document.createElement("option");o.value=c.path;o.textContent=c.card_id+"  ["+c.flow+"]";o.dataset.flow=c.flow;o.dataset.short=c.file.replace(".man.json","");$("cardsel").append(o)}
+  const note=()=>{const o=$("cardsel").selectedOptions[0];if(!o)return;const fl=o.dataset.flow;
+    $("flownote").textContent=fl==="export-only"?"This card's tools are not built here: you get plain Verilog and a README.":fl==="openxc7"?"Full project: build with make, run over JTAG.":"Open-source Gowin flow."};
+  const nm=()=>{const o=$("cardsel").selectedOptions[0],i=$("icmsel").selectedOptions[0];if(o&&i)$("icmname").value=(i.textContent+"_"+o.dataset.short).replace(/[^A-Za-z0-9_-]/g,"_").slice(0,60);note()};
+  $("icmsel").onchange=nm;$("cardsel").onchange=nm;nm();
+  $("icmclose").onclick=()=>{$("icmbox").innerHTML='<button class="act" id="icmopen">Make a design…</button>';$("icmopen").onclick=icmPanel};
+  $("icmgo").onclick=async()=>{$("icmout").textContent="working…";const x=await api("/api/icm/create",{icm:$("icmsel").value,card:$("cardsel").value,name:$("icmname").value.trim()});
+    $("icmout").textContent=x.error?x.error:x.output;if(x.error||!x.ok){msg(x.error||"the assembler refused this ICM for this card","bad");return}
+    S=await api("/api/state");sel=S.kits.find(k=>k.name===x.name)||null;drawKits();
+    if(sel){await api("/api/select",{name:x.name});buttons();poll()}msg("created "+x.name+" in the demo folder")}}
+$("icmopen").onclick=icmPanel;
 (async()=>{S=await api("/api/state");$("demo").textContent="demo folder: "+S.demo;mkTerm("build");mkTerm("card");drawKits();buttons();setInterval(poll,3000)})();
 </script></body></html>

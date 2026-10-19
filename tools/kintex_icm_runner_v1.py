@@ -229,9 +229,10 @@ SH_RUN = '''#!/bin/sh
 # run_vectors.sh [VECTORS] -- write the words in VECTORS (default vectors.txt) into the design's entries, run it, read every exit, and compare with the VM's answer.
 cd "$(dirname "$0")" || exit 1
 V=${1:-vectors.txt}
+B=$(basename "$V" .txt)
 python3 make_cmd.py "$V" cmd.txt || exit 1
-openocd -f k7_ft232h.cfg -c "init; irscan xc7.tap 0x02; source run_lib.tcl; rn_read before; rn_cmd_file cmd.txt; after 300; rn_read result; shutdown" 2>&1 | tee run.log | grep -v '^SNAP'
-python3 decode_run.py run.log "$V"
+openocd -f k7_ft232h.cfg -c "init; irscan xc7.tap 0x02; source run_lib.tcl; rn_read before; rn_cmd_file cmd.txt; after 300; rn_read result; shutdown" 2>&1 | tee run_$B.log | grep -v '^SNAP'
+python3 decode_run.py run_$B.log "$V"
 '''
 SH_READ = '''#!/bin/sh
 # run_read.sh -- read the runner's state without starting anything (what the exits hold now).

@@ -222,5 +222,14 @@ Next entry: #1239.
 
 *Not done.* Nothing run on the card. No freeze / save / load in this runner (the generated design ties the cells' freeze line off). Flex family only; `-s sub`, `-s std` and mixed designs not wrapped. The ICM panel in the front end is next (#1260).
 
-Next entry: #1260.
+### #1260 (19 Oct 2026) -- Front end: the ICM panel, and the documents brought up to date
 
+*What.* UniCell Bench (`tools/frontend/`) now has an ICM panel: pick an ICM file (the repo's examples or any path) and a card (every MAN file in `docs/man/`), and it runs the assembler and makes a new build folder inside the demo folder, so the Designs list finds it by itself. What it makes follows the card's `flow` (#1258): openxc7 gives the Kintex runner project (#1259), gowin-apicula the Tang project, export-only a plain Verilog folder and README. A Kintex runner folder carries its simulation verdict in the name ("sim vs VM: PASS/FAIL"). New Card-shell buttons: Run vectors v1/v2 and Read run; Results decodes the `run_*.log` files per exit as PASS/FAIL against the VM's expected answer. The results listing hides the input files (`vectors*.txt`, `cmd.txt`). New endpoints `/api/icm`, `/api/repo`, `/api/icm/create`; `--repo` points the page at the repo clone.
+
+*Documents updated to match (Alan's request).* `tools/frontend/README.md`, `README.md`, `docs/man/README.md` (new `synthesis.build` section with the three flows; the stale "gaps" sentence for the Kintex MAN corrected), the manual (`docs/build_manual.py` Hardware section now pulls the front-end README) and the teaching manual (new section 19c "UniCell Bench", `docs/teaching/bench_fragment.html`). Both manuals rebuilt.
+
+*Measured.* `tests/vm/test_frontend_v1.py`: 7 passed (including creating a reduction-tree Kintex folder from the panel and decoding a run log). A headless Chromium made `reduction_tree4_exit_v1_kintex7-ypcb00338` in a temporary demo folder with the tag "sim vs VM: PASS" and the run buttons shown.
+
+*Not done / scope.* The ICM panel has not yet been run on Alan's PC. The runner has not been run on the card (simulation against the VM only). The CORDIC disagreement of #1259 is still unexplained. No freeze / save / load in the runner; flex family only.
+
+Next entry: #1261.

@@ -1,0 +1,31 @@
+<!-- Bench fragment for docs/teaching_manual.html (built by docs/build_teaching_manual.py). Static page. Facts from ledger #1253-#1260. -->
+<div class="bench">
+<p class="lead">Building for a real card used to mean typing the same <code>cd</code>, <code>make</code> and OpenOCD lines again and again. UniCell Bench puts them on one page, and the same page can start from an ICM file.</p>
+
+<h2>The whole pipeline</h2>
+<p>Drawing (composer), LaTeX, DSL or LLVM IR &rarr; <strong>ICM file</strong> &rarr; either the VM, or the assembler &rarr; a build folder &rarr; the card. The Bench is the last two steps in one window.</p>
+
+<h2>What is on the page</h2>
+<table>
+<tr><th>Part</th><th>What it does</th></tr>
+<tr><td>Designs</td><td>Every build folder in your demo folder. Click one and both shells <code>cd</code> into it.</td></tr>
+<tr><td>Build shell</td><td>Enter the openXC7 environment, check it, <code>make</code>, and load into the card's SRAM (it asks first; it never writes flash).</td></tr>
+<tr><td>Card shell</td><td>Buttons for the kit's OpenOCD scripts: read, freeze at a clock, release, save, load, round trip, sweep. Only scripts the folder really has are shown.</td></tr>
+<tr><td>Results</td><td>The build verdict (timing passed or failed) and the files the scripts wrote, decoded: a card read, PASS/FAIL for a round trip.</td></tr>
+<tr><td>ICM panel</td><td>Pick an ICM file and a card; it makes a new build folder inside the demo folder, and the Designs list picks it up.</td></tr>
+</table>
+
+<h2>The card decides how it is built</h2>
+<p>Each card's MAN file has a <code>flow</code>: <strong>openxc7</strong> (Kintex, open tools), <strong>gowin-apicula</strong> (Tang Nano) or <strong>export-only</strong> (closed tools such as Arria 10: you get a plain Verilog folder and a README, and synthesise it yourself). A new open-source card is a new MAN file. The MAN file can also hold a startup command that the page asks you for once and keeps only on your PC.</p>
+
+<h2>What an ICM run on the Kintex card is</h2>
+<p>The generated project wraps the design in a small runner: it feeds test words into the entries, counts what comes out of each exit, and keeps a signature and the clock of the last word. A script reads that over JTAG and checks each exit against what the VM says it should be.</p>
+
+<h2>What has and has not been shown</h2>
+<table>
+<tr><th>Shown</th><th>Not yet</th></tr>
+<tr><td>Freeze, read, save and load on the Kintex card (several clocks, PASS).</td><td>The ICM runner on the card (simulation against the VM only; 3 of 4 example ICMs agree).</td></tr>
+<tr><td>An assembler-made flex adder chain builds (282.65 MHz) and its LEDs match simulation.</td><td>One example (CORDIC) disagrees between the RTL and the VM; the cause is not found.</td></tr>
+<tr><td>The page works in a headless browser test and on the author's PC for picking, shells, environment check and build verdicts.</td><td>The ICM panel on the author's PC; save/load inside the runner; sub, standard and mixed families on Xilinx.</td></tr>
+</table>
+</div>

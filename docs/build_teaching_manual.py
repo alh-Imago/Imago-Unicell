@@ -344,7 +344,14 @@ SECTIONS = [
              "machine: the real card, the simulator or the VM. What is in the file, why it refuses a "
              "wrong design, and the moves that were run.",
      "html":open(os.path.join(HERE, "teaching", "state_fragment.html"), encoding="utf-8").read(),
-     "links":[("← Back to Mixing Families","#sec-mixed","section"),("Continue → The Cells","#sec-cells","section")]},
+     "links":[("← Back to Mixing Families","#sec-mixed","section"),("Continue → UniCell Bench","#sec-bench","section")]},
+
+    {"id":"bench","num":"19c","tab":"Bench","title":"UniCell Bench: Building and Running on a Card From One Page",
+     "intro":"One local page that holds the picker, the two shells, the build and card buttons, the results "
+             "and an ICM panel that makes a new build folder for a chosen card. What each part does, how "
+             "the MAN file chooses the flow, and what has and has not been measured.",
+     "html":open(os.path.join(HERE, "teaching", "bench_fragment.html"), encoding="utf-8").read(),
+     "links":[("← Back to Saved State","#sec-state","section"),("Continue → The Cells","#sec-cells","section")]},
 
     {"id":"__CELLS__"},
 

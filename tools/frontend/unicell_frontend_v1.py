@@ -60,11 +60,14 @@ BUTTONS = {
     "sweep":      ("card", "Sweep counts", OPENOCD + "freeze_sweep.sh {0} {1} {2}", ["from", "to", "step"]),
     "clock":      ("card", "Measure clock", OPENOCD + "measure_clock.sh", None),
     "user1":      ("card", "Read USER1", OPENOCD + "read_user1.sh", None),
+    "run_v1":     ("card", "Run vectors.txt", OPENOCD + "run_vectors.sh vectors.txt", None),         # ICM runner folders (ledger #1260)
+    "run_v2":     ("card", "Run vectors2.txt", OPENOCD + "run_vectors.sh vectors2.txt", None),
+    "run_read":   ("card", "Read exits", OPENOCD + "run_read.sh", None),
 }
 # which buttons a design folder offers: build buttons if it has a Makefile; card buttons by the scripts it contains
 CARD_NEEDS = {"read": "freeze_read.sh", "freeze_at": "freeze_at.sh", "release": "freeze_release.sh", "save": "freeze_save.sh",
               "load_saved": "freeze_load.sh", "load_run": "freeze_load.sh", "saveload": "freeze_saveload_test.sh", "sweep": "freeze_sweep.sh",
-              "clock": "measure_clock.sh", "user1": "read_user1.sh"}
+              "clock": "measure_clock.sh", "user1": "read_user1.sh", "run_v1": "run_vectors.sh", "run_v2": "vectors2.txt", "run_read": "run_read.sh"}
 
 
 SETTINGS = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "unicell_bench.json")
@@ -80,6 +83,47 @@ def load_settings():
 def save_settings(d):
     os.makedirs(os.path.dirname(SETTINGS), exist_ok=True)
     json.dump(d, open(SETTINGS, "w"), indent=1)
+
+
+def find_repo(cli_repo=None):
+    """The folder holding tools/project_assemble_v1.py: --repo, else the settings file, else the repo this program sits in."""
+    for c in (cli_repo, load_settings().get("repo"), os.path.dirname(os.path.dirname(HERE))):
+        if c and os.path.isfile(os.path.join(os.path.expanduser(c), "tools", "project_assemble_v1.py")):
+            return os.path.abspath(os.path.expanduser(c))
+    return None
+
+
+def icm_files(repo):
+    dirs = [os.path.join(repo, "nano", "examples")] + [os.path.expanduser(d) for d in (load_settings().get("icm_dirs") or [])]
+    out = []
+    for d in dirs:
+        try:
+            for n in sorted(os.listdir(d)):
+                if n.endswith(".icm-hier.json"):
+                    out.append({"name": n[:-len(".icm-hier.json")], "path": os.path.join(d, n)})
+        except OSError:
+            pass
+    return out
+
+
+def card_files(repo):
+    sys.path.insert(0, os.path.join(repo, "tools"))
+    try:
+        import flexsub_assemble_v1 as fa
+    except ImportError:
+        fa = None
+    out = []
+    mandir = os.path.join(repo, "docs", "man")
+    for n in sorted(os.listdir(mandir)) if os.path.isdir(mandir) else []:
+        if n.endswith(".man.json"):
+            p = os.path.join(mandir, n)
+            try:
+                man = fa.load_man_flexsub(p)
+                flow = fa.resolve_flow(man)
+                out.append({"file": n, "path": p, "card_id": man["card_id"], "vendor": man["vendor"], "flow": flow})
+            except Exception as e:     # a card file this assembler cannot read: listed, but marked
+                out.append({"file": n, "path": p, "card_id": n, "vendor": "?", "flow": "unreadable: " + str(e)[:80]})
+    return out
 
 
 def startup_for(folder):
@@ -102,7 +146,7 @@ def kit_info(folder):
     kj = os.path.join(folder, "kit.json")
     if os.path.isfile(kj):
         try:
-            info.update({k: v for k, v in json.load(open(kj)).items() if k in ("title", "description")})
+            info.update({k: v for k, v in json.load(open(kj)).items() if k in ("title", "description", "flow", "sim")})
         except (OSError, ValueError):
             pass
     elif os.path.isfile(os.path.join(folder, "README.md")):
@@ -191,7 +235,8 @@ class Term:
 
 
 class State:
-    def __init__(self, demo):
+    def __init__(self, demo, repo=None):
+        self.repo = find_repo(repo)
         self.demo = os.path.abspath(os.path.expanduser(demo))
         self.terms = {"build": Term("build"), "card": Term("card")}
         self.selected = None
@@ -229,6 +274,29 @@ class State:
         self.terms[term].write((cmd + "\n").encode())
         return term, cmd
 
+    def create_from_icm(self, icm, card, name):
+        """Run the assembler for one ICM file and one card into <demo>/<name>. The ICM and card must be ones this program lists; the name is letters, digits, - and _ only; nothing is overwritten."""
+        if not self.repo:
+            raise ValueError("the repo folder is not set (the folder that contains tools/project_assemble_v1.py)")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", name or ""):
+            raise ValueError("the name must be 1-60 letters, digits, - or _")
+        icms = {i["path"]: i for i in icm_files(self.repo)}
+        cards = {c["path"]: c for c in card_files(self.repo)}
+        if icm not in icms or card not in cards:
+            raise ValueError("pick an ICM file and a card from the lists")
+        if cards[card]["flow"] not in ("openxc7", "gowin-apicula", "export-only"):
+            raise ValueError("this card file cannot be used: " + cards[card]["flow"])
+        out = os.path.join(self.demo, name)
+        if os.path.exists(out):
+            raise ValueError("a folder called %s already exists in the demo folder; pick another name" % name)
+        r = subprocess.run([sys.executable, os.path.join(self.repo, "tools", "project_assemble_v1.py"), "-s", "flex", "--icm", icm, "--man", card, "--output", out],
+                           cwd=self.repo, capture_output=True, text=True, timeout=900)
+        text = (r.stdout + r.stderr)[-6000:]
+        if r.returncode != 0:
+            shutil_rmtree(out)
+            return {"ok": False, "name": name, "output": text}
+        return {"ok": True, "name": name, "output": text, "flow": cards[card]["flow"]}
+
     def results(self):
         if not self.selected:
             return {"files": [], "build": None}
@@ -236,7 +304,7 @@ class State:
         files = []
         for n in sorted(os.listdir(folder)):
             p = os.path.join(folder, n)
-            if os.path.isfile(p) and re.search(r"\.(log|txt|csv)$", n):
+            if os.path.isfile(p) and re.search(r"\.(log|txt|csv)$", n) and not re.fullmatch(r"(vectors2?|cmd)\.txt", n):
                 files.append({"name": n, "mtime": os.path.getmtime(p), "new": os.path.getmtime(p) >= self.t_selected, "size": os.path.getsize(p)})
         return {"files": files, "build": build_summary(folder)}
 
@@ -247,7 +315,10 @@ class State:
         p = os.path.join(folder, fname)
         raw = open(p, errors="replace").read()
         decoded = None
-        if "SNAP " in raw and os.path.isfile(os.path.join(folder, "decode_freeze.py")):
+        mrun = re.fullmatch(r"run_(vectors2?|read)\.log", fname)
+        if mrun and "SNAP " in raw and os.path.isfile(os.path.join(folder, "decode_run.py")):
+            decoded = run_py(folder, "decode_run.py", p, [mrun.group(1) + ".txt"] if mrun.group(1) != "read" else [])
+        elif "SNAP " in raw and os.path.isfile(os.path.join(folder, "decode_freeze.py")):
             if re.match(r"freeze_saveload_", fname) and os.path.isfile(os.path.join(folder, "check_saveload.py")):
                 decoded = run_py(folder, "check_saveload.py", p)
             else:
@@ -255,9 +326,14 @@ class State:
         return {"name": fname, "text": raw[-200000:], "decoded": decoded}
 
 
-def run_py(folder, script, path):
+def shutil_rmtree(path):
+    import shutil
+    shutil.rmtree(path, ignore_errors=True)
+
+
+def run_py(folder, script, path, extra=()):
     try:
-        r = subprocess.run([sys.executable, "-I", os.path.join(folder, script), path], cwd=folder, capture_output=True, text=True, timeout=30)
+        r = subprocess.run([sys.executable, "-I", os.path.join(folder, script), path, *extra], cwd=folder, capture_output=True, text=True, timeout=30)
         return (r.stdout + r.stderr)[-60000:]
     except (OSError, subprocess.TimeoutExpired) as e:
         return "decoder failed: %s" % e
@@ -316,6 +392,10 @@ class H(BaseHTTPRequestHandler):
             kits = list_kits(self.st.demo)
             return self._send(200, json.dumps({"demo": self.st.demo, "kits": kits, "selected": self.st.selected, "nix_enter": NIX_ENTER,
                                                "buttons": {k: {"term": v[0], "label": v[1], "args": v[3] or []} for k, v in BUTTONS.items()}}))
+        if u.path == "/api/icm":
+            if not self.st.repo:
+                return self._send(200, json.dumps({"repo": None}))
+            return self._send(200, json.dumps({"repo": self.st.repo, "icms": icm_files(self.st.repo), "cards": card_files(self.st.repo), "demo": self.st.demo}))
         if u.path == "/api/startup":
             key, dflt, prompt, mine = startup_for(os.path.join(self.st.demo, self.st.selected) if self.st.selected else "")
             return self._send(200, json.dumps({"key": key, "default": dflt, "prompt": prompt, "mine": mine}))
@@ -364,6 +444,17 @@ class H(BaseHTTPRequestHandler):
         try:
             if u.path == "/api/select":
                 return self._send(200, json.dumps(self.st.select(str(body.get("name", "")))))
+            if u.path == "/api/repo":
+                path = os.path.abspath(os.path.expanduser(str(body.get("path", ""))))
+                if not os.path.isfile(os.path.join(path, "tools", "project_assemble_v1.py")):
+                    raise ValueError("that folder does not contain tools/project_assemble_v1.py")
+                d = load_settings()
+                d["repo"] = path
+                save_settings(d)
+                self.st.repo = path
+                return self._send(200, json.dumps({"repo": path}))
+            if u.path == "/api/icm/create":
+                return self._send(200, json.dumps(self.st.create_from_icm(str(body.get("icm", "")), str(body.get("card", "")), str(body.get("name", "")))))
             if u.path == "/api/startup":
                 cmd = str(body.get("command", "")).strip()
                 if not cmd or "\n" in cmd or "\r" in cmd or len(cmd) > 500:
@@ -384,7 +475,7 @@ class H(BaseHTTPRequestHandler):
                 else:
                     t.resize(int(body.get("rows", 24)), int(body.get("cols", 100)))
                 return self._send(200, "{}")
-        except (ValueError, OSError, KeyError, IndexError) as e:
+        except (ValueError, OSError, KeyError, IndexError, subprocess.TimeoutExpired) as e:
             return self._send(400, json.dumps({"error": str(e)}))
         self._send(404, "{}")
 
@@ -392,10 +483,11 @@ class H(BaseHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--demo", default="~/openFPGALoader/build/demo-projects", help="the demo folder that holds the design folders")
+    ap.add_argument("--repo", default=None, help="the Imago UniCell repo folder (contains tools/project_assemble_v1.py); needed for the New-design-from-ICM panel")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true")
     a = ap.parse_args()
-    H.st = State(a.demo)
+    H.st = State(a.demo, a.repo)
     srv = ThreadingHTTPServer(("127.0.0.1", a.port), H)
     url = "http://127.0.0.1:%d/?t=%s" % (a.port, H.st.token)
     print("Imago UniCell front end.  Demo folder:", H.st.demo)

@@ -123,6 +123,7 @@ SECTIONS = [
               {"sub":"Small unit bring-up: Tang Nano + ESP32","md":"docs/unit_bringup_guide.md"},
               {"sub":"MAN files (card capabilities)","md":"docs/man/README.md"},
               {"sub":"Toolchain setup (both lines)","md":"docs/shared/TOOLCHAIN_SETUP.md"},
+              {"sub":"UniCell Bench: the card front end","md":"tools/frontend/README.md"},
               {"sub":"Tools: the assembler and measurement tools","md":"tools/README.md"},
               {"sub":"Arria 10 programming procedure","md":"hardware/Arria10_Programming_Procedure.md"},
               {"sub":"Real bring-up findings","md":"hardware/YPCB_00338_bringup_findings.md"}],
