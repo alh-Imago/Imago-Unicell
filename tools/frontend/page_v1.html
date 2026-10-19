@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UniCell Bench</title>
+<link rel="stylesheet" href="/vendor/xterm.css?t=__TOKEN__">
+<style>
+:root{--bg:#f4f5f7;--panel:#fff;--ink:#1c2230;--mute:#667085;--line:#d9dde5;--acc:#1f5fbf;--ok:#17803d;--bad:#b42318;--warn:#a15c07;--term:#10141c}
+@media (prefers-color-scheme:dark){:root{--bg:#12151c;--panel:#1a1f2a;--ink:#e6e9f0;--mute:#9aa4b5;--line:#2c3444;--acc:#6ea8ff;--ok:#4cc27a;--bad:#ff7b6e;--warn:#e0a84a;--term:#0b0e14}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;gap:16px;align-items:baseline;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0}header span{color:var(--mute);font-size:12px}
+main{display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;height:calc(100vh - 47px)}
+aside,.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-height:0}
+aside{overflow:auto;padding:8px}
+aside h2,.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);margin:6px 8px}
+.kit{display:block;width:100%;text-align:left;border:1px solid transparent;background:none;color:inherit;padding:8px;border-radius:6px;cursor:pointer;font:inherit}
+.kit:hover{background:var(--bg)}.kit.sel{border-color:var(--acc);background:var(--bg)}
+.kit b{display:block;font-size:13px}.kit small{color:var(--mute)}
+.work{display:grid;grid-template-rows:minmax(0,1.3fr) minmax(0,1fr);gap:12px;min-height:0}
+.terms{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0;overflow:hidden}
+.card{display:flex;flex-direction:column;overflow:hidden}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line)}
+.bar h2{margin:0 8px 0 0}
+button.act{font:inherit;font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);cursor:pointer}
+button.act:hover{border-color:var(--acc)}button.act.go{border-color:var(--warn)}
+.btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.arg{width:56px;font:inherit;font-size:12px;padding:3px 4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.term{flex:1;background:var(--term);min-height:0;padding:4px;overflow:hidden}
+.res{display:grid;grid-template-columns:230px 1fr;min-height:0}
+.res .list{overflow:auto;border-right:1px solid var(--line);padding:6px}
+.res .view{overflow:auto;padding:8px 12px;min-width:0}
+.file{display:block;width:100%;text-align:left;font:12px ui-monospace,monospace;border:0;background:none;color:inherit;padding:3px 6px;border-radius:4px;cursor:pointer}
+.file:hover{background:var(--bg)}.file.new:before{content:"● ";color:var(--acc)}
+pre{margin:0;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--line)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+#msg{margin-left:auto;font-size:12px;color:var(--mute)}
+@media (max-width:900px){main{grid-template-columns:1fr;height:auto}.terms{grid-template-columns:1fr}.work{grid-template-rows:auto}.term{min-height:260px}.res{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>UniCell Bench</h1><span id="demo"></span><span id="msg"></span></header>
+<main>
+<aside><h2>Designs</h2><div id="kits"></div></aside>
+<div class="work">
+ <div class="terms">
+  <section class="card"><div class="bar"><h2>Build</h2><span id="b-build" class="btns"></span></div><div class="term" id="t-build"></div></section>
+  <section class="card"><div class="bar"><h2>Card</h2><span id="b-card" class="btns"></span></div><div class="term" id="t-card"></div></section>
+ </div>
+ <section class="card"><div class="bar"><h2>Results</h2><span id="sum"></span></div>
+  <div class="res"><div class="list" id="files"></div><div class="view" id="view"><span class="warn">Pick a design, then run something. New result files show here.</span></div></div></section>
+</div></main>
+<script src="/vendor/xterm.js?t=__TOKEN__"></script>
+<script src="/vendor/xterm-addon-fit.js?t=__TOKEN__"></script>
+<script>
+const T="__TOKEN__";
+const api=(p,b)=>fetch(p+(p.includes("?")?"&":"?")+"t="+T,b?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}:{}).then(r=>r.json());
+const $=id=>document.getElementById(id);
+let S=null, terms={}, sel=null, openFile=null;
+const msg=(t,c)=>{$("msg").textContent=t;$("msg").className=c||""};
+function mkTerm(name){
+  if(!window.Terminal){$("t-"+name).innerHTML="<pre class=bad>The terminal library did not load (vendor/ folder missing).</pre>";return}
+  const term=new Terminal({fontSize:13,cursorBlink:true,convertEol:false,theme:{background:getComputedStyle(document.documentElement).getPropertyValue("--term")}});
+  const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open($("t-"+name));
+  const doFit=()=>{try{fit.fit();api("/api/term/"+name+"/resize",{rows:term.rows,cols:term.cols})}catch(e){}};
+  new ResizeObserver(doFit).observe($("t-"+name));setTimeout(doFit,100);
+  const es=new EventSource("/api/term/"+name+"/stream?t="+T);
+  es.onmessage=e=>{const b=atob(e.data);const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);term.write(u)};
+  term.onData(d=>api("/api/term/"+name+"/input",{data:btoa(unescape(encodeURIComponent(d)))}));
+  terms[name]=term;
+}
+function buttons(){
+  for(const t of ["build","card"]){
+    const box=$("b-"+t);box.innerHTML="";
+    const ids=Object.keys(S.buttons).filter(id=>S.buttons[id].term===t&&(id==="enter_nix"||id==="card_env"||(sel&&sel.buttons.includes(id))));
+    for(const id of ids){
+      const b=S.buttons[id];const w=document.createElement("span");w.style.whiteSpace="nowrap";w.style.display="inline-flex";w.style.gap="4px";
+      const ins=b.args.map(a=>{const i=document.createElement("input");i.className="arg";i.placeholder=a;i.inputMode="numeric";return i});
+      const btn=document.createElement("button");btn.className="act"+(id==="load"?" go":"");btn.textContent=b.label;
+      btn.onclick=async()=>{
+        if(id==="load"&&!confirm("Load into the card (SRAM only)?\nOnly do this if the build's timing passed."))return;
+        const r=await api("/api/run",{id,args:ins.map(i=>i.value.trim())});
+        if(r.error)msg(r.error,"bad");else msg("sent to "+r.term+": "+r.command,"");
+        setTimeout(poll,1500)};
+      w.append(btn," ",...ins.flatMap(i=>[i," "]));box.append(w);
+    }
+  }
+}
+function drawKits(){
+  const k=$("kits");k.innerHTML="";
+  for(const d of S.kits){const b=document.createElement("button");b.className="kit"+(sel&&sel.name===d.name?" sel":"");
+    b.innerHTML="<b></b><small></small>";b.firstChild.textContent=d.name;b.lastChild.textContent=d.title!==d.name?d.title:"";
+    b.onclick=async()=>{const r=await api("/api/select",{name:d.name});if(r.error){msg(r.error,"bad");return}
+      sel=d;openFile=null;$("view").innerHTML="";drawKits();buttons();msg("both shells moved to "+d.name);poll()};k.append(b)}
+  if(!S.kits.length)k.innerHTML="<p class=warn style='padding:8px'>No design folders found in the demo folder.</p>";
+}
+async function showFile(n){openFile=n;const r=await api("/api/file?name="+encodeURIComponent(n));
+  const v=$("view");v.innerHTML="";if(r.error){v.textContent=r.error;return}
+  if(r.decoded){const h=document.createElement("pre");h.textContent=r.decoded;v.append(h);
+    const d=document.createElement("details");d.innerHTML="<summary>raw file</summary>";const p=document.createElement("pre");p.textContent=r.text;d.append(p);v.append(d)}
+  else{const p=document.createElement("pre");p.textContent=r.text;v.append(p)}}
+async function poll(){
+  if(!S||!sel)return;const r=await api("/api/results");
+  const f=$("files");f.innerHTML="";
+  for(const x of r.files.sort((a,b)=>b.mtime-a.mtime)){const b=document.createElement("button");b.className="file"+(x.new?" new":"");b.textContent=x.name;b.onclick=()=>showFile(x.name);f.append(b)}
+  const s=$("sum");s.innerHTML="";
+  if(r.build){const v=r.build.verdict;const c=v==="timing passed"?"ok":"bad";
+    s.innerHTML="Build: <b class='"+c+"'>"+v+"</b> "+r.build.fmax.map(x=>x.clock+" "+x.mhz+" MHz ("+x.verdict+" at "+x.target+")").join("; ")}
+}
+(async()=>{S=await api("/api/state");$("demo").textContent="demo folder: "+S.demo;mkTerm("build");mkTerm("card");drawKits();buttons();setInterval(poll,3000)})();
+</script></body></html>
