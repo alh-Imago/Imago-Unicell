@@ -16,9 +16,9 @@ import flexsub_icm_flex_v3 as ff  # noqa: E402
 _DELTA = {"N": (-1, 0), "S": (1, 0), "E": (0, 1), "W": (0, -1)}
 
 
-def build_map(icm_path, family="flex", **kw):
+def build_map(icm_path, family="flex", merge_mode="arbitrate", **kw):
     p = g.plan(icm_path, family=family, **kw)
-    ff.emit_top_flex("map_top", p)        # the emitter adds the merge cores in front of multi-source cells on its own copy; v3 leaves that graph in ff.LAST_BUILT
+    ff.emit_top_flex("map_top", p, merge_mode)        # the emitter adds the merge cores in front of multi-source cells on its own copy; v3 leaves that graph in ff.LAST_BUILT
     b = ff.LAST_BUILT
     order, cells, idx = b["order"], b["cells"], b["idx"]          # idx = the CELL_ID the emitter gives each cell
     p = dict(p, inputs=b["inputs"])
@@ -47,8 +47,8 @@ def build_map(icm_path, family="flex", **kw):
     return core
 
 
-def write_map(icm_path, folder, family="flex", **kw):
-    m = build_map(icm_path, family, **kw)
+def write_map(icm_path, folder, family="flex", merge_mode="arbitrate", **kw):
+    m = build_map(icm_path, family, merge_mode, **kw)
     json.dump(m, open(os.path.join(folder, "design_map.json"), "w"), indent=1)
     return m
 
