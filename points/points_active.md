@@ -528,4 +528,14 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Not done.* The card run; the mirror reading the card SHAPE; the #501 ping in cells.
 
-Next entry: #1292.
+## #1292 (19 Oct) -- WALK THE CARD ON THE KINTEX CARD: every connection and cell confirmed by the card's own wires; the card SHAPE is complete
+
+*Card result (Alan, Kintex-7 XC7K480T, folder built by the v6 Bench from `cordic_z_convergence_v2.icm-hier.json`, one click on "Walk the card"; `walk_report.txt`).* Run 1 `vectors.txt`: magic OK, fingerprint 4ca08914 SAME DESIGN, `z_output` 2736 2727 2728, PASS against the VM. Run 2 `vectors_wide.txt` (16 words, plus and minus, 3 ... -49152): same design, 16 exit words (2729 4294964567 2738 4294964558 2774 4294964522 2918 4294964378 3494 4294963802 5798 4294961498 764 4294966532 4294966044 1252), PASS against the VM word for word. Walker over both runs: design IS this folder's; entries/exits 1/1 match; "39 of 39 connections carried a word; 40 of 40 cells offered an output"; every neighbour marked `*`; no INCONSISTENT line; "SHAPE written to card.shape.json: 40 cells, 39 connections, 39 confirmed by the card, 0 not exercised". The earlier small-set-only result (#1290) was 23/39 and 32/40; the wide set is what closed the gap, as the simulation of #1291 predicted (39/39, 40/40).
+
+*What is now shown on hardware.* For this 40-cell CORDIC on the Kintex card: the card's own wires show a word crossing each of the 39 connections and each of the 40 cells producing output; the built hardware's connection graph equals the generator's map, connection for connection; and the card SHAPE (cells with type, CELL_ID, grid row/col; connections with directions; all confirmed) is the card's own picture, ready for the mirror. The runner's answers on a 16-word signed set agree with the VM.
+
+*Scope, stated plainly.* "Confirmed" means a word crossed that wire in a run; it does not show which die location the fitter gave each cell (not a flex-family property), and it does not show the arithmetic of every path is right beyond what the exit words show (they match the VM). Other designs need their own inputs for full coverage; the Walker reports what was not exercised. One design on one card.
+
+*Not done.* The mirror reading the card SHAPE (VMSession/FlexGrid built from the card's cells and checked against the design); the #501 ping in cells (not needed for the flex witnesses); the Walker for sub/std families.
+
+Next entry: #1293.
