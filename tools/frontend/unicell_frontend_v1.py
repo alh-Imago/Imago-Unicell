@@ -44,7 +44,7 @@ MAKE_CMD = ('make 2>&1 | tee .build.tmp; if grep -qE "Nothing to be done|is up t
             'else mv .build.tmp build.log; fi')
 # ---- the whitelist: id -> (terminal, label, command template, argument spec or None). Arguments are digits only.
 BUTTONS = {
-    "enter_nix":  ("build", "Enter openXC7 shell", NIX_ENTER, None),
+    "enter_nix":  ("build", "Enter build shell", NIX_ENTER, None),      # the command sent is the user's own startup command (settings file), default from the design's kit.json / the MAN
     "env_check":  ("build", "Check environment", ENV_CHECK, None),
     "make":       ("build", "Build (make)", MAKE_CMD, None),
     "rebuild":    ("build", "Rebuild from scratch", "make clean && " + MAKE_CMD, None),
@@ -65,6 +65,35 @@ BUTTONS = {
 CARD_NEEDS = {"read": "freeze_read.sh", "freeze_at": "freeze_at.sh", "release": "freeze_release.sh", "save": "freeze_save.sh",
               "load_saved": "freeze_load.sh", "load_run": "freeze_load.sh", "saveload": "freeze_saveload_test.sh", "sweep": "freeze_sweep.sh",
               "clock": "measure_clock.sh", "user1": "read_user1.sh"}
+
+
+SETTINGS = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "unicell_bench.json")
+
+
+def load_settings():
+    try:
+        return json.load(open(SETTINGS))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_settings(d):
+    os.makedirs(os.path.dirname(SETTINGS), exist_ok=True)
+    json.dump(d, open(SETTINGS, "w"), indent=1)
+
+
+def startup_for(folder):
+    """(key, default command, prompt text, user's saved command or None). The default and the prompt come from the design's kit.json (copied from the card's MAN build.startup)."""
+    key, cmd, prompt = "default", NIX_ENTER, "The command that opens your build shell"
+    kj = os.path.join(folder, "kit.json") if folder else ""
+    if kj and os.path.isfile(kj):
+        try:
+            st = json.load(open(kj)).get("startup") or {}
+            key = json.load(open(kj)).get("card_id") or key
+            cmd, prompt = st.get("command", cmd), st.get("prompt", prompt)
+        except (OSError, ValueError):
+            pass
+    return key, cmd, prompt, (load_settings().get("startup") or {}).get(key)
 
 
 def kit_info(folder):
@@ -189,6 +218,11 @@ class State:
             raise ValueError("this button needs %d whole number(s)" % len(spec))
         if self.selected is None and bid != "enter_nix":
             raise ValueError("pick a design first")
+        if bid == "enter_nix":
+            key, dflt, _, mine = startup_for(os.path.join(self.demo, self.selected) if self.selected else "")
+            cmd = mine or dflt
+            self.terms["build"].write((cmd + "\n").encode())
+            return "build", cmd
         if bid in CARD_NEEDS and not os.path.isfile(os.path.join(self.demo, self.selected, CARD_NEEDS[bid])):
             raise ValueError("this design has no " + CARD_NEEDS[bid])
         cmd = tmpl.format(*args) if spec else tmpl      # templates without arguments are sent as they are (they contain shell braces)
@@ -282,6 +316,9 @@ class H(BaseHTTPRequestHandler):
             kits = list_kits(self.st.demo)
             return self._send(200, json.dumps({"demo": self.st.demo, "kits": kits, "selected": self.st.selected, "nix_enter": NIX_ENTER,
                                                "buttons": {k: {"term": v[0], "label": v[1], "args": v[3] or []} for k, v in BUTTONS.items()}}))
+        if u.path == "/api/startup":
+            key, dflt, prompt, mine = startup_for(os.path.join(self.st.demo, self.st.selected) if self.st.selected else "")
+            return self._send(200, json.dumps({"key": key, "default": dflt, "prompt": prompt, "mine": mine}))
         if u.path == "/api/results":
             return self._send(200, json.dumps(self.st.results()))
         if u.path == "/api/file":
@@ -327,6 +364,15 @@ class H(BaseHTTPRequestHandler):
         try:
             if u.path == "/api/select":
                 return self._send(200, json.dumps(self.st.select(str(body.get("name", "")))))
+            if u.path == "/api/startup":
+                cmd = str(body.get("command", "")).strip()
+                if not cmd or "\n" in cmd or "\r" in cmd or len(cmd) > 500:
+                    raise ValueError("the startup command must be one line")
+                key = startup_for(os.path.join(self.st.demo, self.st.selected) if self.st.selected else "")[0]
+                d = load_settings()
+                d.setdefault("startup", {})[key] = cmd
+                save_settings(d)
+                return self._send(200, json.dumps({"key": key, "mine": cmd}))
             if u.path == "/api/run":
                 term, cmd = self.st.run(str(body.get("id", "")), [str(a) for a in body.get("args", [])])
                 return self._send(200, json.dumps({"term": term, "command": cmd}))

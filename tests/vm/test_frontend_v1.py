@@ -107,3 +107,23 @@ def test_make_command_keeps_the_real_log(tmp_path):
     assert fe.build_summary(str(tmp_path))["verdict"] == "timing passed"
     (tmp_path / "build.log").write_text("make: Nothing to be done for 'all'.\n")
     assert "already built" in fe.build_summary(str(tmp_path))["verdict"]
+
+
+def test_startup_command_default_and_user_override(demo, tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(fe, "SETTINGS", str(tmp_path / "cfg" / "unicell_bench.json"))
+    folder = os.path.join(demo, "k7_freeze_load")
+    json.dump({"title": "t", "card_id": "cardX", "startup": {"command": "mytools enter", "prompt": "which?"}}, open(os.path.join(folder, "kit.json"), "w"))
+    key, cmd, prompt, mine = fe.startup_for(folder)
+    assert (key, cmd, prompt, mine) == ("cardX", "mytools enter", "which?", None)
+    fe.save_settings({"startup": {"cardX": "my own enter"}})
+    assert fe.startup_for(folder)[3] == "my own enter"
+    st = fe.State(demo)
+    try:
+        st.select("k7_freeze_load")
+        assert st.run("enter_nix", [])[1] == "my own enter"             # the user's own answer wins over the default
+        assert "mytools" not in open(fe.SETTINGS).read()                # the default is never written into the user's file
+    finally:
+        for t in st.terms.values():
+            t.close()
+    assert fe.startup_for(os.path.join(demo, "nope"))[1] == fe.NIX_ENTER   # no kit.json: the Nix default

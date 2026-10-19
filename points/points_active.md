@@ -188,5 +188,13 @@ Next entry: #1239.
 
 *Open.* The cause of the `make program` error in the Build shell is unknown (output not captured); needs its full text.
 
-Next entry: #1257.
+## #1257 -- THE MAN FILE CARRIES THE STARTUP COMMAND DEFAULT; THE USER'S OWN ANSWER IS KEPT ON THEIR PC (Alan's idea, 19 Oct, and the "flow" plan for new targets)
+
+*Rulings (Alan, 19 Oct 12:58-12:59).* A new target is added by writing its MAN file; open-source flows get a full build, closed toolchains (Arria 10 / Quartus) get only the plain Verilog folder to synthesise in their own tools; the MAN can also hold the end user's startup command, filled in on a prompt.
+
+*Built now.* The Kintex MAN's `synthesis.build.startup` = {command: `nix develop github:openxc7/toolchain-nix`, ask_user: true, prompt, note}: a default and the question text only. The assembler's Xilinx output now writes a `kit.json` (title, card_id, flow, startup) into the design folder. The front end (button now *Enter build shell*, plus *Change startup command*): asks once with the default pre-filled, saves the answer in `~/.config/unicell_bench.json` keyed by card id (one line only), and from then on sends the user's own command; the default is never written into the user's file and nothing is ever written back into the MAN. A design folder without `kit.json` (the hand-made kits) uses the Nix default. Tests: `test_startup_command_default_and_user_override`; the Xilinx assembler test now expects `kit.json`.
+
+*Planned, not built.* A `build.flow` field (`openxc7`, `gowin-apicula`, `export-only`) so the assembler reads how to build from the MAN instead of hard-coding Gowin; the Tang MAN to get its build section; the Arria 10 MAN marked `export-only` (Verilog folder + README, no build buttons); an unknown flow refused. Then the generic Kintex runner for `--icm` designs and the ICM panel (acceptance: the reduction tree through the whole route reproduces signature 7FEF5298). Today `--icm` writes only the design module with either card (checked 19 Oct), and the `-s std` route refused the reduction tree for a missing tap `io_name`.
+
+Next entry: #1258.
 

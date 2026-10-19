@@ -23,7 +23,7 @@ def test_xilinx_project_written():
         names = set(os.listdir(out))
         assert {f"{top}.v", f"{top}.xdc", "Makefile", "ASSEMBLY.json"} <= names
         assert not any(n.endswith(".ys") or n == "build.sh" for n in names)       # no Gowin script
-        assert all(n.endswith(".sv") for n in names if n not in (f"{top}.v", f"{top}.xdc", "Makefile", "ASSEMBLY.json"))
+        assert all(n.endswith(".sv") for n in names if n not in (f"{top}.v", f"{top}.xdc", "Makefile", "ASSEMBLY.json", "kit.json"))
         v = open(os.path.join(out, f"{top}.v")).read()
         assert "input  wire CLK" in v and "output wire LED2" in v and "BTN_RST_N" in v and "synth_gowin" not in v
         x = open(os.path.join(out, f"{top}.xdc")).read()

@@ -603,7 +603,11 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
             f.write(generate_xdc(man))
         with open(os.path.join(output, "Makefile"), "w") as f:
             f.write(generate_openxc7_makefile(man, top_name, sv))
-        files = [f"{top_name}.v"] + sv + [f"{top_name}.xdc", "Makefile"]
+        with open(os.path.join(output, "kit.json"), "w") as f:       # read by the front end (ledger #1257): title, card, flow, the startup-command default
+            json.dump({"title": f"{top_name} -- made by the assembler ({family} {base}, {n} cells) for {man['card_id']}", "card_id": man["card_id"],
+                       "flow": man["build"].get("flow"), "startup": man["build"].get("startup")}, f, indent=1)
+            f.write("\n")
+        files = [f"{top_name}.v"] + sv + [f"{top_name}.xdc", "Makefile", "kit.json"]
         record = {"generator": "tools/flexsub_assemble_v1.py", "family": family, "cell": base, "cell_module": module, "cells": n, "width": width,
                   "width_source": width_source, "man": man["card_id"], "top": top_name, "files": files, "pnr": False, "flow": "openxc7",
                   "build": man["build"]["build_command"], "load": man["build"]["load_command"],

@@ -74,11 +74,17 @@ function buttons(){
       const ins=b.args.map(a=>{const i=document.createElement("input");i.className="arg";i.placeholder=a;i.inputMode="numeric";return i});
       const btn=document.createElement("button");btn.className="act"+(id==="load"?" go":"");btn.textContent=b.label;
       btn.onclick=async()=>{
+        if(id==="enter_nix"){const st=await api("/api/startup");
+          if(!st.mine){const c=prompt(st.prompt+"\n\nThis is saved on this PC only.",st.default);if(c===null)return;
+            const r0=await api("/api/startup",{command:c});if(r0.error){msg(r0.error,"bad");return}}}
         if(id==="load"&&!confirm("Load into the card (SRAM only)?\nOnly do this if the build's timing passed."))return;
         const r=await api("/api/run",{id,args:ins.map(i=>i.value.trim())});
         if(r.error)msg(r.error,"bad");else msg("sent to "+r.term+": "+r.command,"");
         setTimeout(poll,1500)};
       w.append(btn," ",...ins.flatMap(i=>[i," "]));box.append(w);
+      if(id==="enter_nix"){const e=document.createElement("button");e.className="act";e.textContent="Change startup command";e.title="The command typed to open your build shell";
+        e.onclick=async()=>{const st=await api("/api/startup");const c=prompt(st.prompt+"\n\nThis is saved on this PC only.",st.mine||st.default);if(c===null)return;
+          const r=await api("/api/startup",{command:c});msg(r.error||"startup command saved",r.error?"bad":"")};box.append(e)}
     }
   }
 }
