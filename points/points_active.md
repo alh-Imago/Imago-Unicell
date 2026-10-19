@@ -598,4 +598,16 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Not done (Alan: "for starters").* Route lines or animated flow along arrows between tiles; the card-only cells (merge cores the generator inserts) and cells absorbed in the build shown as such on the grid; brightness keyed to data present as well as change; edit-in-place; the Std/Carrier/Sub/Bridge mix beyond the family the design names.
 
-Next entry: #1297.
+### #1297 -- Workbench v5: Reset to tick 0, ghost path, gold (data) / magenta (logic) glow (19 Oct 2026)
+
+Alan, after seeing the v4 grid: the reset should put the tick back to 0; clicking a tile should show a ghost path of the data it generates and where it flows; and data changes and logic changes should have different highlight colours. `nano/workbench_v5.py` (clone of v4; v4 untouched).
+
+- **Reset.** The Workbench keeps a copy of the grid taken after every successful load, compile or target change. Reset (Run tab, `POST /reset`) stops auto-play and puts that copy back: tick 0, every cell as loaded. Target and regions are unchanged. With nothing loaded it says so.
+- **Ghost path.** Click a tile: the cells its output reaches are outlined with a dashed trail, and dashed arrows are drawn along each link, fading with distance; the detail panel says how many cells and hops. The path follows the cell's out directions to the neighbour whose in directions accept from the opposite side, and on from there (a graph walk of the directions as the grid shows them, not a measured data trace).
+- **Two glows.** A field counts as *logic* when its name says how the cell is wired or behaves (mask, mode, _dir, route, select, sequence, scheduling, subtract, addon, latency, width); everything else (values, valid/arrived flags) is *data*. Data change = gold glow, logic change = magenta glow, both = both. Decision to note: `active_route` counts as logic because it contains "route"; that is my classification, not something Alan specified, and is one regex (`LOGIC_FIELD`) to change.
+
+*Measured (real Chromium, CORDIC).* Reset after 6 steps: tick 6 -> 0. After 4 steps 16 tiles glowed gold, none magenta (the design changes no logic while running, as expected); clicking the first RAM tile outlined 4 cells with 4 trail links up to 4 hops. The logic/data classifier is unit-checked in the page (a data_reg change gives gold only, a downstream_mask change gives magenta only). Tests: `tests/vm/test_workbench_v5_reset_ghost_v1.py` (3). Not exercised: a live logic change in a running design, since the VM's cell-programming path was not driven here.
+
+*Still not done.* Animated flow along the arrows; card-only and absorbed cells on the grid; brightness for data present.
+
+Next entry: #1298.

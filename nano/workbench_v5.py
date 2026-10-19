@@ -1,0 +1,1871 @@
+"""
+workbench_v5.py -- CLONE of workbench_v4.py (ledger #1297): a Reset button (the grid goes back to the state it had when it was loaded, tick 0), a GHOST PATH (click a tile and the cells its output flows to are drawn as a fading trail), and two highlight colours (gold = a data value changed, magenta = logic/configuration changed). Everything else is v4's. Text of v4: workbench_v4.py -- CLONE of workbench_v3.py (ledger #1296): the GRID is redrawn the way the Composer draws a design: small square tiles, background colour = cell family (std, carrier, flex, sub, bridge), inner colour = core type (the Composer's palette), a tile brightens when its state changes, arrows on the tile edges show the directions data flows in and out, and the details of a cell are shown in a side panel only for the cell you click. Everything else is v3's. Text of v3: workbench_v3.py -- CLONE of workbench_v2.py (ledger #1295): the left column is TABS (Target | Load / save | Program | Run) so the page fits without long scrolling; every file field is a DROP-DOWN of the files the server finds (MAN files, card SHAPEs, designs) plus a Browse... button that opens the computer's own file picker (the chosen file is sent to the local server and used from there); GET /files, POST /upload. Everything else is v2's. Text of v2: workbench_v2.py -- CLONE of workbench_v1.py (ledger #1294): a mirror target can also be the CARD'S OWN SHAPE (card.shape.json from the Walker): POST /set_target_shape. The grid becomes the card's layout cell by cell and a hierarchical design loaded into it is checked against what the card has and has shown (nano/vm_mirror_v2.py). Everything else is v1's. Text below is v1's.
+
+workbench_v1.py — the new Unicell-S workbench. A thin HTTP layer
+directly over `vm_ai_port_v1.VMSession` (`points.md #362`/`#363`),
+built per `docs/stripped-cell/design-notes/workbench_scope.md`'s own
+real audit of the old `workbench.py`: everything address/`gate_state`-
+keyed there is dead under the new system shape; the replacement DATA
+LAYER already exists (`VMSession`, `#359`) and is reused here
+unchanged, not reimplemented.
+
+TWO REAL LAYERS, DELIBERATELY SEPARATE: `WorkbenchController` holds the
+current session, its regions, and implements every real operation as a
+plain Python method returning a JSON-ready dict -- it has NO knowledge
+of HTTP at all, so it's directly, fully testable without a live socket.
+`WorkbenchHandler` is a thin `http.server` request handler dispatching
+onto a `WorkbenchController` instance -- the reusable part of the old
+file's own shape (`http.server`/threading is genuine, addressing-
+agnostic infrastructure, kept as the same real precedent, not
+reinvented).
+
+REGIONS (`#363`, the real new capability closing this milestone): the
+old workbench's own "region" concept tracked SETS OF ADDRESSES -- dead
+under cardinal wiring, no address to track. The real equivalent here is
+a NAMED set of grid POSITIONS: `load_region()` compiles a program and
+hands its shape to `loader_v1.bind_shape()` (`#375`, the real loader/
+binder stage) -- MANUAL placement (`row_offset`/`col_offset` both
+given) shifts every record by that exact offset; AUTO placement (both
+omitted) finds a real, collision-free spot itself via a first-fit
+search. Either way, the shape is checked for real collisions before
+being added to the SAME shared grid as any other already-loaded region
+(reusing the exact "cell already occupied" reasoning `#346`'s own DSL
+compiler already established for a single program, applied here across
+MULTIPLE independently-loaded ones). `clear_region()` removes exactly
+that region's own cells, and cleans any `_pending` events that
+referenced them, WITHOUT touching any other region sharing the same
+grid -- confirmed by real tests running two regions side by side,
+clearing one, and checking the other keeps computing correctly.
+
+API, row/col-keyed throughout, never an address anywhere:
+    GET  /               -- serves the HTML/JS page
+    GET  /state           -- VMSession.describe(), as JSON
+    GET  /demos             -- the real demo library, name+description only
+    GET  /regions             -- every currently-loaded region and its cells
+    POST /compile               -- {"source", "language": "dsl"|"python"} --
+                                    REPLACES the whole session (single program)
+    POST /load_demo               -- {"name"} -- loads a demo via /compile
+    POST /load_region                -- {"name", "source", "language",
+                                          "row_offset", "col_offset",
+                                          "dsp_columns"} -- ADDS a program
+                                          to the shared grid as a named
+                                          region, alongside any others.
+                                          Omit row_offset/col_offset (both)
+                                          for real auto-placement (#375),
+                                          plus dsp_columns for real DSP-
+                                          column-aware auto-placement (#377).
+    POST /clear_region                 -- {"name"}
+    POST /set_target                     -- {"man_path", "cells", "shell"} --
+                                             points.md #605/#606: establishes
+                                             a real MAN-file (+ optional real
+                                             shell) target (vm_mirror_v2.py/
+                                             shell_compat_v1.py) -- the live
+                                             grid becomes a genuine, checked
+                                             reflection of that real card/
+                                             cell-count/shell config, persisting
+                                             across compile()/load_region()
+                                             calls until changed or cleared.
+    POST /clear_target                     -- returns to free mode (no real
+                                               card correspondence claimed)
+    GET  /target                             -- the current real target, if any
+    GET  /shells                               -- points.md #606: the real,
+                                                   RTL-derived shell/core
+                                                   compatibility matrix
+                                                   (shell_compat_v1.py)
+    POST /save_icm                       -- {"path", "name", "description"} --
+                                             points.md #607: real, on-disk
+                                             .icm file, written from every
+                                             cell currently in the live grid
+                                             (all regions, not just one)
+    POST /load_icm                         -- {"path"} -- REPLACES the whole
+                                               session from a real, existing
+                                               .icm file, mirroring /compile's
+                                               own real semantics; checked
+                                               against the real target (shell
+                                               + topology) exactly like /compile
+    POST /load_icm_region                    -- {"name", "path", "row_offset",
+                                                   "col_offset", "dsp_columns"} --
+                                                   ADDS a real .icm file's own
+                                                   records as a named region,
+                                                   mirroring /load_region
+    POST /step                           -- {"n": 1}
+    POST /deliver                          -- {"row", "col", "direction", "value", "injected"}
+    POST /inject                             -- {"row", "col", "value"}
+    POST /start_run                            -- {"ticks_per_sec": 1.0} --
+                                                   points.md #676, closing the
+                                                   real gap `#670`'s own
+                                                   archived-workbench audit
+                                                   found (`start_run`/
+                                                   `pause_run` in the old
+                                                   `workbench.py`, genuinely
+                                                   missing here): a real,
+                                                   continuous background
+                                                   auto-play thread, ticking
+                                                   at the given rate until
+                                                   paused or the design
+                                                   naturally quiesces (the
+                                                   last tick produced no
+                                                   activity at all).
+    POST /pause_run                              -- stops any running
+                                                     auto-play; a no-op,
+                                                     not an error, if none
+                                                     is running
+    GET  /run_status                             -- {"running", "ticks_per_sec",
+                                                       "ticks_executed"} --
+                                                       real, current auto-play
+                                                       status
+"""
+
+from __future__ import annotations
+
+import http.server
+import json
+import os
+import re
+import sys
+import threading
+import webbrowser
+from typing import Any, Dict, List, Optional, Tuple
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from vm_ai_port_v1 import VMSession, CompileFailure
+from dsl_diagnostics_v1 import CompileDiagnostic
+from dsl_compiler_v1 import compile_source
+from python_ast_frontend_v1 import compile_python_source
+from unicell_super_automaton_v1 import SuperGrid
+from unicell_automaton_v1 import N, S, E, W
+from loader_v1 import bind_shape
+import icm_vix_v1 as vix
+from host_registry_v1 import HostResourceRegistry
+import vm_mirror_v2
+import shell_compat_v1
+import ui_theme_v1 as ui  # ledger #998: the shared look
+import connection_check_v1
+import icm_v3
+
+_DIRS = {"n": N, "s": S, "e": E, "w": W}
+
+# ── The real demo library (points.md #363) -- every one a working,
+# already-proven Unicell-S program, not lifted from the old opcode-based
+# demos (which don't port -- see workbench_scope.md's own audit). ──────
+DEMOS: Dict[str, Dict[str, str]] = {
+    "simple_ram": {
+        "description": "A single fixed-value cell, offering a constant east.",
+        "language": "dsl",
+        "source": (
+            "program simple_ram {\n"
+            "    place r1 as ram_constant at (0, 0) {\n"
+            "        out: e\n"
+            "        init_data: 0xCAFEBEEF\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "adder_pair": {
+        "description": "Two-input adder: in_a + in_b -> out.",
+        "language": "dsl",
+        "source": (
+            "program adder_pair {\n"
+            "    place a1 as adder at (0, 0) {\n"
+            "        in_a: n\n"
+            "        in_b: w\n"
+            "        out: e\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "sentinel": {
+        "description": "The proven accumulator->comparator->latch monitor "
+                        "(real Quartus data: 78 ALM, 272.26 MHz).",
+        "language": "dsl",
+        "source": (
+            "program my_sentinel {\n"
+            "    place s1 as sentinel at (0, 0) {\n"
+            "        inc: n\n"
+            "        dec: s\n"
+            "        clear: s\n"
+            "        out: e\n"
+            "        cmp.threshold: 8\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "dual_threshold_monitor": {
+        "description": "One accumulator fanning out to independent low/high "
+                        "threshold alarms.",
+        "language": "dsl",
+        "source": (
+            "program dual {\n"
+            "    place m as dual_threshold_monitor at (0, 0) {\n"
+            "        inc: n\n"
+            "        dec: s\n"
+            "        clear_low: s\n"
+            "        out_low: w\n"
+            "        clear_high: n\n"
+            "        out_high: e\n"
+            "        cmp_low.threshold: 3\n"
+            "        cmp_high.threshold: 10\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "twin_sentinel": {
+        "description": "Two wholly independent nested sentinel instances -- "
+                        "a worked example of composed-tile nesting.",
+        "language": "dsl",
+        "source": (
+            "program twins {\n"
+            "    place t as twin_sentinel at (0, 0) {\n"
+            "        s1_inc: n\n"
+            "        s1_dec: s\n"
+            "        s1_clear: s\n"
+            "        s1_out: e\n"
+            "        s2_inc: n\n"
+            "        s2_dec: s\n"
+            "        s2_clear: s\n"
+            "        s2_out: e\n"
+            "        s1.cmp.threshold: 8\n"
+            "        s2.cmp.threshold: 4\n"
+            "    }\n"
+            "}\n"
+        ),
+    },
+    "python_ast_example": {
+        "description": "The same sentinel, authored via the real Python-AST "
+                        "frontend instead of the DSL.",
+        "language": "python",
+        "source": (
+            "def my_sentinel_program():\n"
+            "    with define(\"my_sentinel\"):\n"
+            "        place(\"acc\", \"accumulator\", (0, 0), out=\"e\", step_amount=1)\n"
+            "        place(\"cmp\", \"comparator\", (0, 1), **{\"in\": \"w\", \"out\": \"e\"})\n"
+            "        place(\"lat\", \"latch\", (0, 2), set=\"w\")\n"
+            "        expose(\"inc\", \"acc.inc\")\n"
+            "        expose(\"dec\", \"acc.dec\")\n"
+            "        expose(\"clear\", \"lat.clear\")\n"
+            "        expose(\"out\", \"lat.out\")\n"
+            "\n"
+            "    place(\"s1\", \"my_sentinel\", (0, 0), inc=\"n\", dec=\"s\", clear=\"s\",\n"
+            "          out=\"e\", **{\"cmp.threshold\": 8})\n"
+        ),
+    },
+}
+
+
+def _diag_to_dict(d: CompileDiagnostic) -> Dict[str, Any]:
+    return {
+        "severity": d.severity, "stage": d.stage, "what": d.what,
+        "problem": d.problem, "why": d.why, "suggestion": d.suggestion,
+        "span": list(d.span) if d.span else None,
+    }
+
+
+class WorkbenchController:
+    """Holds the current session, its regions, and every real API
+    operation -- zero HTTP knowledge, directly testable.
+
+    Two placement modes, both real: `compile()` REPLACES the whole
+    session with a single program (the simple case, unchanged from
+    `#362`). `load_region()` ADDS a program to the SAME shared grid as
+    a named region, alongside any others already loaded -- the real new
+    capability this entry closes the workbench milestone with."""
+
+    def __init__(self):
+        self.session: Optional[VMSession] = None
+        self.regions: Dict[str, List[Tuple[int, int]]] = {}
+        # the real, standalone host resource registry (#400) -- kept in
+        # sync alongside self.regions rather than replacing it outright,
+        # a deliberate, safe choice: self.regions is the already-tested
+        # code path every existing test relies on; the registry is the
+        # real, separately-queryable authority Alan asked for, added
+        # without risking a regression in what already works.
+        self.registry = HostResourceRegistry()
+        # points.md #606: real shell/version target, alongside the MAN
+        # target (#605) -- "the VM is a reflection of the supplied
+        # file" extends naturally to include which real shell a real
+        # assembler invocation would use, not just card/cell-count.
+        self.shell_version: Optional[str] = None
+        self.shell_path: Optional[str] = None
+        # points.md #606: raw core_config kept alongside self.regions,
+        # keyed by real grid position -- needed because SuperCell
+        # unpacks core_config into individual typed attributes on
+        # load and doesn't retain the original dict, but the real
+        # cross-cell connection check (connection_check_v1.py) needs
+        # the original per-core field names to work from.
+        self._records: Dict[Tuple[int, int], object] = {}
+        # points.md #676: real, continuous auto-play, the one genuinely
+        # missing feature `#670`'s own light scope of the old, archived
+        # `workbench.py` found (`start_run`/`pause_run` there). A real
+        # background thread, not a busy-loop -- `_run_lock` guards the
+        # actual `tick()` call so a manual /step, /inject, or /deliver
+        # arriving from the (separate) request-handling thread while
+        # auto-play is live can't race it mid-tick. Honest, narrow scope:
+        # this lock protects the tick call itself, not every other
+        # session-mutating endpoint (compile/load_region/etc.) -- calling
+        # those while auto-play is running is real, still-open, low-
+        # stakes future work, not solved here.
+        # ledger #1297: Reset. After every successful load/compile/target change the grid is copied; Reset puts that copy back (tick 0, the values the design was loaded with).
+        self._initial = None
+        for _name in ("compile", "load_demo", "load_region", "clear_region", "load_icm", "load_icm_region", "load_icm_vix", "load_state_vix", "set_target", "set_target_shape", "clear_target"):
+            setattr(self, _name, self._remember_initial(getattr(self, _name)))
+        self._run_lock = threading.Lock()
+        self._run_stop_event: Optional[threading.Event] = None
+        self._run_thread: Optional[threading.Thread] = None
+        self._run_active: bool = False
+        self._run_ticks_per_sec: float = 0.0
+        self._run_tick_count: int = 0
+        # points.md #747: real, honest tracking of the ORIGINAL
+        # hierarchical structure file path, if the current session was
+        # loaded via load_icm_vix() -- needed so save_state_vix() can
+        # save a real diff referencing that structure (per #737's own
+        # design: the structure stays on disk, unchanged; only a real,
+        # separate diff is ever written). None means the current
+        # session was NOT loaded from a hierarchical file (a flat ICM
+        # v3 load, a DSL compile, etc.) -- save_state_vix() refuses
+        # rather than guessing at a structure path that doesn't exist.
+        self._vix_structure_path: Optional[str] = None
+
+    # ── real target reflection (points.md #605) ────────────────────
+    #
+    # "the VM is a reflection of the supplied file from the assembler,
+    # and it's this the workbench connects to" -- Alan's own direct
+    # framing. Establishes a real MAN-file target (matching what
+    # tools/project_assemble_v1.py would actually build for `cells`
+    # cells on that card, via vm_mirror_v2.py/#601) that PERSISTS
+    # across compile()/load_region() calls until changed or cleared --
+    # the workbench's live grid becomes a genuine, checked reflection
+    # of that real config, not an arbitrary unconstrained shape.
+
+    def set_target(self, man_path: str, cells: int, shell: Optional[str] = None) -> Dict[str, Any]:
+        """Real, honest reset: establishes the target and starts a
+        fresh, empty, mirror-bound session -- same "clean starting
+        point" semantics `compile()` already has for a single program.
+        Any program/region loaded from here on (via `compile()` or
+        `load_region()`) is checked against this real card layout, and
+        (points.md #606) against `shell`'s own real core repertoire if
+        given -- "the VM is a reflection of the supplied file from the
+        assembler" extends to the shell, not just the card/cell-count."""
+        try:
+            bounds = vm_mirror_v2.load_mirror_bounds(man_path, cells)
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+        shell_path = None
+        if shell:
+            versions = shell_compat_v1.discover_shell_versions()
+            if shell not in versions:
+                return {"ok": False, "error": f"unknown shell {shell!r} -- real shells found on disk: {sorted(versions)}"}
+            shell_path = versions[shell]
+        self.session = VMSession(SuperGrid([]))
+        self.session.mirror_bounds = bounds
+        self.shell_version = shell
+        self.shell_path = shell_path
+        self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
+        self._records = {}
+        self.registry = HostResourceRegistry()
+        return {
+            "ok": True,
+            "target": {"card_id": bounds.card_id, "man_path": bounds.man_path,
+                       "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols,
+                       "shell": shell, "shell_cores": sorted(shell_compat_v1.supported_cores(shell_path)) if shell_path else None},
+            "state": self.session.describe(),
+        }
+
+    def set_target_shape(self, shape_path: str) -> Dict[str, Any]:
+        """Ledger #1294: the target is the card's own SHAPE (written by tools/walker_card_v2.py --shape): a fresh, empty, mirror-bound session whose allowed cells, sites and types are the card's.
+        A hierarchical design (load_icm_vix) is then checked against what the card has and has shown."""
+        try:
+            bounds = vm_mirror_v2.load_card_shape_bounds(shape_path)
+        except Exception as e:
+            return {"ok": False, "error": f"not a usable card SHAPE: {e}"}
+        self.session = VMSession(SuperGrid([]))
+        self.session.mirror_bounds = bounds
+        self.shell_version = None
+        self.shell_path = None
+        self.regions = {}
+        self._family = {}
+        self._records = {}
+        self.registry = HostResourceRegistry()
+        return {"ok": True, "target": {"kind": "card_shape", "card_id": bounds.card_id, "shape_path": shape_path, "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols,
+                                       "design_source": bounds.source, "design_fingerprint": bounds.fingerprint, "connections": len(bounds.edges), "confirmed_by_card": len(bounds.confirmed),
+                                       "complete": bounds.complete}, "state": self.session.describe()}
+
+    # ── file pickers (ledger #1295) ──────────────────────────────────
+
+    def _upload_dir(self) -> str:
+        return os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "unicell_workbench", "uploads")
+
+    def list_files(self, kind: str) -> Dict[str, Any]:
+        """The files the page's drop-downs offer. kind: man (MAN card files), shape (card SHAPEs from the Walker), design (.icm and hierarchical .icm-hier.json). Only these fixed places are looked in:
+        the repository's docs/man, docs/shapes, nano/examples; the folder the server was started in; the card build folders under ~/openFPGALoader/build/demo-projects; and the upload folder."""
+        import glob
+        repo = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+        cwd, home, up = os.getcwd(), os.path.expanduser("~"), self._upload_dir()
+        pats = {
+            "man": [os.path.join(repo, "docs", "man", "*.man.json"), os.path.join(up, "*.man.json")],
+            "shape": [os.path.join(home, "openFPGALoader", "build", "demo-projects", "*", "*.shape.json"), os.path.join(cwd, "*.shape.json"), os.path.join(up, "*.shape.json"),
+                      os.path.join(repo, "docs", "shapes", "**", "*.shape.json")],         # the cards you have walked first, the repository's example shapes last
+            "design": [os.path.join(repo, "nano", "examples", "*.icm"), os.path.join(repo, "nano", "examples", "*.icm-hier.json"), os.path.join(cwd, "*.icm"), os.path.join(cwd, "*.icm-hier.json"),
+                       os.path.join(up, "*.icm"), os.path.join(up, "*.icm-hier.json")],
+        }
+        if kind not in pats:
+            return {"ok": False, "error": f"unknown file kind {kind!r} (man, shape or design)"}
+        seen, out = set(), []
+        for pat in pats[kind]:
+            for f in sorted(glob.glob(pat, recursive=True)):
+                f = os.path.abspath(f)
+                if f in seen or not os.path.isfile(f):
+                    continue
+                seen.add(f)
+                parent = os.path.basename(os.path.dirname(f))
+                label = os.path.basename(f) if os.path.dirname(f) in (cwd, up) or kind in ("man", "design") else f"{parent}/{os.path.basename(f)}"
+                if os.path.dirname(f) == up:
+                    label += "  (uploaded)"
+                out.append({"label": label, "path": f})
+        return {"ok": True, "kind": kind, "files": out[:300]}
+
+    def upload_file(self, name: str, text: str) -> Dict[str, Any]:
+        """The Browse... button: the browser cannot give a page the real path of a file it picked, so the page reads the file and sends its text here; it is saved under the upload folder and that path is used.
+        Text files only (.json, .icm, .txt), at most 20 MB; the name is reduced to letters, digits, dot, dash, underscore."""
+        base = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(str(name or "")))
+        if not base or not base.lower().endswith((".json", ".icm", ".txt")):
+            return {"ok": False, "error": "only .json, .icm and .txt files can be picked"}
+        if not isinstance(text, str) or len(text) > 20 * 1024 * 1024:
+            return {"ok": False, "error": "file missing or larger than 20 MB"}
+        d = self._upload_dir()
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, base)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return {"ok": True, "path": path, "name": base}
+
+    def _remember_initial(self, fn):
+        import copy
+        import functools
+
+        @functools.wraps(fn)
+        def wrapped(*a, **kw):
+            res = fn(*a, **kw)
+            if isinstance(res, dict) and res.get("ok") and self.session is not None:
+                try:
+                    self._initial = copy.deepcopy(self.session)
+                except Exception:                      # a session that cannot be copied simply has no Reset
+                    self._initial = None
+            return res
+        return wrapped
+
+    def reset(self) -> Dict[str, Any]:
+        """Ledger #1297: back to the state the grid had when it was last loaded: tick 0, every cell as loaded. Stops auto-play first. The target and regions are unchanged."""
+        import copy
+        if self.session is None or self._initial is None:
+            return {"ok": False, "error": "nothing loaded yet, so there is nothing to reset to"}
+        if getattr(self, "_run_active", False):
+            self.pause_run()
+        self.session = copy.deepcopy(self._initial)
+        return self.state()
+
+    def clear_target(self) -> Dict[str, Any]:
+        """Real, explicit return to free mode -- no card or shell
+        correspondence claimed, matching every pre-#605/#606 session's
+        own real behavior."""
+        self.session = VMSession(SuperGrid([]))
+        self.shell_version = None
+        self.shell_path = None
+        self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
+        self._records = {}
+        self.registry = HostResourceRegistry()
+        return {"ok": True, "state": self.session.describe()}
+
+    def list_shells(self) -> Dict[str, Any]:
+        """points.md #606: the real, RTL-derived compatibility matrix
+        (shell_compat_v1.py) -- lets the UI populate a real, current
+        shell-version list rather than a hardcoded one that could
+        silently drift from what's actually on disk."""
+        return {"ok": True, "shells": shell_compat_v1.compatibility_matrix()}
+
+    def current_target(self) -> Dict[str, Any]:
+        bounds = self.session.mirror_bounds if self.session is not None else None
+        if bounds is None:
+            return {"ok": True, "target": None}
+        return {"ok": True, "target": {"card_id": bounds.card_id, "man_path": bounds.man_path, "kind": getattr(bounds, "kind", "man"),
+                                        "cells": bounds.cells, "rows": bounds.rows, "cols": bounds.cols,
+                                        "shell": self.shell_version,
+                                        "shell_cores": sorted(shell_compat_v1.supported_cores(self.shell_path)) if self.shell_path else None}}
+
+    def _check_shell_and_connections(self, new_records) -> Tuple[Optional[str], List[str]]:
+        """points.md #606: real, two-tier check run before ANY new
+        records are written into the grid.
+
+        TIER 1, hard: if a real shell target is set, every new record's
+        own core type must actually be instantiated in that shell's
+        real RTL (shell_compat_v1.py) -- a real hardware impossibility,
+        not a style preference, so this returns a real rejection
+        string (not None) on any failure, same "reject before
+        committing" tier as vm_mirror_v1's own topology check.
+
+        TIER 2, soft: cardinal-connection sanity across the FULL grid
+        (existing records + these new ones) via connection_check_v1.py
+        -- real, useful PROMPTS per Alan's own framing, never a
+        rejection; returned as a real list of hint strings alongside
+        a None error."""
+        if self.shell_path is not None:
+            for rec in new_records:
+                ok, reason = shell_compat_v1.check_core_compatible(self.shell_path, rec.core)
+                if not ok:
+                    return reason, []
+        combined = dict(self._records)
+        for rec in new_records:
+            combined[(rec.row, rec.col)] = rec
+        hints = connection_check_v1.check_connections(combined.values())
+        return None, hints
+
+    # ── single-program mode (#362, unchanged) ──────────────────────
+
+    def compile(self, source: str, language: str = "dsl") -> Dict[str, Any]:
+        target = self.session.mirror_bounds if self.session is not None else None
+        if isinstance(target, vm_mirror_v2.CardShapeBounds):
+            return {"ok": False, "error": "the target is a card SHAPE: load a hierarchical design (Load ICM-VIX) to check it against the card; flat DSL programs are not checked against a SHAPE in this version"}
+
+        # Compile once here (the same real compile_source()/
+        # compile_python_source() functions VMSession.from_dsl()/
+        # from_man() use internally) so the real ICM records --
+        # original core_config field names, needed by the shell/
+        # connection checks below -- are available BEFORE the session
+        # is replaced. VMSession's own from_*() methods are still used
+        # afterward to actually build the session, so construction
+        # logic isn't duplicated, only the (cheap) parse step.
+        if language == "python":
+            icm, diagnostics = compile_python_source(source)
+        else:
+            icm, diagnostics = compile_source(source)
+        if icm is None:
+            return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in diagnostics]}
+
+        # points.md #606: shell-compatibility (hard) + connection (soft)
+        # checks run against the real, freshly-compiled records BEFORE
+        # anything replaces the current session.
+        shell_error, connection_hints = self._check_shell_and_connections(icm.records)
+        if shell_error:
+            return {"ok": False, "error": f"shell incompatibility: {shell_error}"}
+
+        try:
+            if target is not None:
+                kwargs = {"python": source} if language == "python" else {"dsl": source}
+                session = VMSession.from_man(target.man_path, target.cells, **kwargs)
+            elif language == "python":
+                session = VMSession.from_python(source)
+            else:
+                session = VMSession.from_dsl(source)
+        except CompileFailure as e:
+            return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in e.diagnostics]}
+        except vm_mirror_v2.MirrorFitError as e:
+            return {"ok": False, "error": "program doesn't fit the real target ("
+                                           f"{target.card_id}, {target.cells} cells): " + "; ".join(e.problems)}
+
+        self.session = session
+        self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
+        self._records = {(r.row, r.col): r for r in icm.records}
+        self.registry = HostResourceRegistry()
+        return {
+            "ok": True,
+            "diagnostics": [_diag_to_dict(d) for d in session.diagnostics],
+            "connection_hints": connection_hints,
+            "state": session.describe(),
+        }
+
+    def load_demo(self, name: str) -> Dict[str, Any]:
+        if name not in DEMOS:
+            return {"ok": False, "error": f"unknown demo {name!r} -- known demos: {sorted(DEMOS)}"}
+        demo = DEMOS[name]
+        return self.compile(demo["source"], demo["language"])
+
+    # ── multi-program region mode (#363, new) ──────────────────────
+
+    def load_region(self, name: str, source: str, language: str = "dsl",
+                     row_offset: Optional[int] = None, col_offset: Optional[int] = None,
+                     dsp_columns: Optional[List[int]] = None) -> Dict[str, Any]:
+        if name in self.regions:
+            return {"ok": False, "error": f"region {name!r} is already loaded -- "
+                                           f"clear it first or choose a different name"}
+        if language == "python":
+            icm, diagnostics = compile_python_source(source)
+        else:
+            icm, diagnostics = compile_source(source)
+        if icm is None:
+            return {"ok": False, "diagnostics": [_diag_to_dict(d) for d in diagnostics]}
+
+        if self.session is None:
+            self.session = VMSession(SuperGrid([]))
+
+        # the real loader/binder stage (#375/#377) -- omit BOTH row_offset
+        # and col_offset for auto-placement (plain first-fit, or DSP-column
+        # -aware if dsp_columns is also given), or give both offsets for
+        # manual placement, the same behavior this method always had.
+        bound, bind_diags = bind_shape(icm.records, self.session.grid.cells,
+                                        row_offset=row_offset, col_offset=col_offset,
+                                        dsp_columns=dsp_columns,
+                                        what=f"loading region {name!r}")
+        if bound is None:
+            return {"ok": False, "error": bind_diags[0].problem}
+
+        # points.md #605: if a real target is set (set_target()), this
+        # region's own real placements are checked against it too --
+        # not just "doesn't collide with what's already loaded"
+        # (bind_shape's own real job above), but "corresponds to a
+        # position a real Quartus build of this card/cell-count would
+        # actually have." Checked BEFORE mutating the grid, so a
+        # rejected region never partially loads.
+        if self.session.mirror_bounds is not None:
+            fit_problems = vm_mirror_v2.check_records_fit(bound, self.session.mirror_bounds)
+            # a region's own records never collide with each other
+            # (bind_shape already guarantees that) -- only report real
+            # out-of-layout placements here, not the "collides" wording,
+            # which would be misleading for a single incoming region.
+            fit_problems = [p for p in fit_problems if "outside the real" in p]
+            if fit_problems:
+                return {"ok": False, "error": "region doesn't fit the real target ("
+                                               f"{self.session.mirror_bounds.card_id}): " + "; ".join(fit_problems)}
+
+        # points.md #606: shell-compatibility (hard) + connection (soft,
+        # checked across the FULL grid -- existing regions plus this
+        # one, catching cross-region mismatches too) checks, same
+        # "reject before writing anything" discipline as the topology
+        # check just above.
+        shell_error, connection_hints = self._check_shell_and_connections(bound)
+        if shell_error:
+            return {"ok": False, "error": f"shell incompatibility: {shell_error}"}
+
+        from unicell_super_automaton_v1 import SuperCell
+        positions = []
+        for rec in bound:
+            self.session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
+            self._records[(rec.row, rec.col)] = rec
+            positions.append((rec.row, rec.col))
+        self.regions[name] = positions
+        self.registry.register_load(name, positions, metadata={"language": language})
+
+        return {
+            "ok": True,
+            "diagnostics": [_diag_to_dict(d) for d in diagnostics],
+            "connection_hints": connection_hints,
+            "region": {"name": name, "positions": positions},
+            "state": self.session.describe(),
+        }
+
+    # ── real ICM file save/load (points.md #607) ────────────────────
+    #
+    # The workbench previously only ever compiled from DSL/Python
+    # SOURCE TEXT -- no way to save the live session out to a real
+    # .icm file, or load one back in. The underlying real capability
+    # already existed elsewhere (icm_v3.IcmV3File.save()/.load(),
+    # VMSession.from_icm_file()/from_man(icm_path=...), the CLI tools)
+    # -- this just threads it into the workbench's own real API,
+    # reusing all of it directly rather than reimplementing.
+
+    def save_icm(self, path: str, name: Optional[str] = None, description: str = "") -> Dict[str, Any]:
+        """Real, honest save: writes every real cell currently in the
+        live grid (self._records, tracked alongside self.regions since
+        #606) out to a real, loadable .icm file -- across ALL regions
+        and any single-program compile, not just one region."""
+        if self.session is None or not self._records:
+            return {"ok": False, "error": "no cells loaded -- nothing to save"}
+        icm = icm_v3.IcmV3File(
+            name=name or "workbench_session",
+            records=list(self._records.values()),
+            description=description,
+        )
+        try:
+            icm.save(path)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "path": path, "cell_count": len(self._records), "name": icm.name}
+
+    def load_icm(self, path: str) -> Dict[str, Any]:
+        """Real, honest load: REPLACES the whole session from an
+        existing .icm file, mirroring compile()'s own real "REPLACES
+        the whole session" semantics -- the ICM analog of compiling a
+        program from source, subject to the exact same real checks
+        (shell compatibility, topology fit if a real target is set)."""
+        try:
+            icm = icm_v3.IcmV3File.load(path)
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            return {"ok": False, "error": str(e)}
+
+        shell_error, connection_hints = self._check_shell_and_connections(icm.records)
+        if shell_error:
+            return {"ok": False, "error": f"shell incompatibility: {shell_error}"}
+
+        target = self.session.mirror_bounds if self.session is not None else None
+        if isinstance(target, vm_mirror_v2.CardShapeBounds):
+            return {"ok": False, "error": "the target is a card SHAPE: load a hierarchical design (Load ICM-VIX) to check it against the card; a flat ICM is not checked against a SHAPE in this version"}
+        try:
+            if target is not None:
+                session = VMSession.from_man(target.man_path, target.cells, icm_path=path)
+            else:
+                session = VMSession.from_icm_file(path)
+        except vm_mirror_v2.MirrorFitError as e:
+            return {"ok": False, "error": "loaded ICM doesn't fit the real target ("
+                                           f"{target.card_id}, {target.cells} cells): " + "; ".join(e.problems)}
+
+        self.session = session
+        self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
+        self._records = {(r.row, r.col): r for r in icm.records}
+        self.registry = HostResourceRegistry()
+        return {
+            "ok": True,
+            "name": icm.name,
+            "connection_hints": connection_hints,
+            "state": session.describe(),
+        }
+
+    def load_icm_region(self, name: str, path: str, row_offset: Optional[int] = None,
+                         col_offset: Optional[int] = None, dsp_columns: Optional[List[int]] = None) -> Dict[str, Any]:
+        """Real, honest load: ADDS an existing .icm file's own real
+        records to the shared grid as a named region, mirroring
+        load_region()'s own real semantics -- the ICM analog of
+        loading a program from source as a region."""
+        if name in self.regions:
+            return {"ok": False, "error": f"region {name!r} is already loaded -- "
+                                           f"clear it first or choose a different name"}
+        try:
+            icm = icm_v3.IcmV3File.load(path)
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            return {"ok": False, "error": str(e)}
+
+        if self.session is None:
+            self.session = VMSession(SuperGrid([]))
+
+        bound, bind_diags = bind_shape(icm.records, self.session.grid.cells,
+                                        row_offset=row_offset, col_offset=col_offset,
+                                        dsp_columns=dsp_columns,
+                                        what=f"loading ICM region {name!r}")
+        if bound is None:
+            return {"ok": False, "error": bind_diags[0].problem}
+
+        if self.session.mirror_bounds is not None:
+            fit_problems = vm_mirror_v2.check_records_fit(bound, self.session.mirror_bounds)
+            fit_problems = [p for p in fit_problems if "outside the real" in p]
+            if fit_problems:
+                return {"ok": False, "error": "region doesn't fit the real target ("
+                                               f"{self.session.mirror_bounds.card_id}): " + "; ".join(fit_problems)}
+
+        shell_error, connection_hints = self._check_shell_and_connections(bound)
+        if shell_error:
+            return {"ok": False, "error": f"shell incompatibility: {shell_error}"}
+
+        from unicell_super_automaton_v1 import SuperCell
+        positions = []
+        for rec in bound:
+            self.session.grid.cells[(rec.row, rec.col)] = SuperCell.from_record(rec)
+            self._records[(rec.row, rec.col)] = rec
+            positions.append((rec.row, rec.col))
+        self.regions[name] = positions
+        self.registry.register_load(name, positions, metadata={"source": "icm", "path": path})
+
+        return {
+            "ok": True,
+            "name": icm.name,
+            "connection_hints": connection_hints,
+            "region": {"name": name, "positions": positions},
+            "state": self.session.describe(),
+        }
+
+    def load_icm_vix(self, path: str) -> Dict[str, Any]:
+        """points.md #747: real, honest load for the real, formalized
+        hierarchical ICM format -- REPLACES the whole session, mirroring
+        load_icm()'s own real "REPLACES the whole session" semantics.
+        Flattens the hierarchical document (patterns + design map) into
+        real IcmV3Record objects via icm_vix_v1.IcmVixFile.flatten(),
+        then builds a session from those exactly the same way
+        VMSession.from_icm_file() already does for a flat ICM v3 file
+        -- no new session-construction path, a thin, direct reuse.
+        Runs the real, advisory connection check (icm_vix_v1's own
+        check_connections()) and returns any warnings as
+        connection_hints, the same real shape load_icm()/
+        load_icm_region() already use for the old lineage's own shell/
+        connection checks -- never blocks the load on an advisory
+        mismatch, matching #739's own established, non-authoritative
+        role for this check.
+
+        points.md #749: also runs check_known_gotchas() -- a real,
+        separate, static check for the specific known-bad patterns
+        CELL_GOTCHAS.md records (#742, #748), surfaced here as
+        gotcha_warnings so every design loaded through the workbench
+        gets this check automatically, without needing a compiler to
+        exist that calls it first."""
+        try:
+            icm = vix.IcmVixFile.load(path)
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            return {"ok": False, "error": str(e)}
+
+        try:
+            records, _ = icm.flatten()
+        except vix.IcmVixFormatError as e:
+            return {"ok": False, "error": f"real, structural problem: {e}"}
+
+        connection_hints = icm.check_connections()
+        gotcha_warnings = icm.check_known_gotchas()
+
+        card_target = self.session.mirror_bounds if (self.session is not None and isinstance(self.session.mirror_bounds, vm_mirror_v2.CardShapeBounds)) else None
+        card_check = None
+        if card_target is not None:       # ledger #1294: the design must fit the card's own cells, and may only use connections the card has
+            card_check = vm_mirror_v2.check_design_against_card(path, card_target)
+            fit = vm_mirror_v2.check_records_fit(records, card_target, absorbed_ok=bool(card_check.get("same_design")))
+            card_check["absorbed_in_build"] = vm_mirror_v2.records_not_on_card(records, card_target) if card_check.get("same_design") else []
+            if fit or (card_check.get("checked") and (card_check["cells_not_on_card"] or card_check["edges_not_on_card"])):
+                return {"ok": False, "error": "this design does not fit the card (" + card_target.card_id + ", SHAPE " + os.path.basename(card_target.shape_path) + "): "
+                        + "; ".join(fit + [f"cell {c} is not on the card" for c in card_check.get("cells_not_on_card", [])] + [f"the card has no connection {e}" for e in card_check.get("edges_not_on_card", [])]),
+                        "card_check": card_check}
+        self.session = VMSession(SuperGrid(records))
+        if card_target is not None:
+            self.session.mirror_bounds = card_target
+        self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
+        self._records = {(r.row, r.col): r for r in records}
+        self.registry = HostResourceRegistry()
+        self._vix_structure_path = path
+        # ledger #1114: a block may name the cell family it is built from (flex / sub). The VM runs every cell in its standard mode (it cannot express a fixed-latency sub block
+        # faithfully, Alan 12 Oct), so the family is only SHOWN: the page colours each cell by family, like the Composer does.
+        fam_of_inst = {p_.instance: p_.family for p_ in icm.placements if p_.family}
+        self._family = {(r.row, r.col): fam_of_inst[r.cell_id.split(".", 1)[0]] for r in records if r.cell_id.split(".", 1)[0] in fam_of_inst}
+        return {
+            "ok": True,
+            "families": sorted(set(self._family.values())),
+            "family_note": ("cells are coloured by the family their block is built from; the VM runs all of them in its standard mode, the assembler (tools/flexsub_mixed_v1.py) "
+                            "builds each block from its own family and inserts the sub bridge where two families meet") if self._family else None,
+            "name": icm.name,
+            "header": icm.header(),
+            "connection_hints": connection_hints,
+            "gotcha_warnings": gotcha_warnings,
+            "card_check": card_check,
+            "state": self.session.describe(),
+        }
+
+    def save_state_vix(self, diff_path: str) -> Dict[str, Any]:
+        """points.md #747: the real, separate save mechanism (#737's
+        own design, fully implemented #747) -- the structure file stays
+        exactly as it is on disk; only a real, separate diff (current
+        runtime values, keyed by each cell's own real, stable cell_id)
+        gets written here. Real, honest refusal, not a guess: only
+        works if the current session was actually loaded via
+        load_icm_vix() (self._vix_structure_path set) -- there is no
+        real structure file to reference otherwise (a DSL compile or a
+        flat ICM v3 load has no hierarchical structure at all)."""
+        if self._vix_structure_path is None:
+            return {"ok": False, "error": "no hierarchical structure currently loaded -- "
+                                           "use load_icm_vix() first, or save_icm() for a flat ICM v3 file"}
+        if self.session is None or not self._records:
+            return {"ok": False, "error": "no cells loaded -- nothing to save"}
+        try:
+            vix.save_state(self._vix_structure_path, diff_path,
+                            list(self._records.values()), self.session.grid)
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "structure_path": self._vix_structure_path, "diff_path": diff_path}
+
+    def load_state_vix(self, diff_path: str) -> Dict[str, Any]:
+        """points.md #747: the real, full round trip -- loads the diff
+        file, loads the ORIGINAL structure it references fresh from
+        disk (never assumes it's already in memory), builds a
+        COMPLETELY FRESH session from it, and replays the diff onto
+        that fresh session -- exactly the real round trip
+        test_full_state_save_and_restore_round_trip already proves
+        works. REPLACES the whole session, same real semantics as
+        load_icm()/load_icm_vix()."""
+        try:
+            icm, records, diff = vix.load_state(diff_path)
+        except (FileNotFoundError, ValueError, KeyError) as e:
+            return {"ok": False, "error": str(e)}
+
+        session = VMSession(SuperGrid(records))
+        missing = vix.apply_diff(records, session.grid, diff)
+
+        self.session = session
+        self.regions = {}
+        self._family = {}      # ledger #1114: the colouring belongs to the loaded ICM-VIX file only
+        self._records = {(r.row, r.col): r for r in records}
+        self.registry = HostResourceRegistry()
+        self._vix_structure_path = None  # loaded via a saved state, not directly from a structure file
+        result: Dict[str, Any] = {
+            "ok": True,
+            "name": icm.name,
+            "header": icm.header(),
+            "diff_entries_applied": len(diff) - len(missing),
+            "state": self.session.describe(),
+        }
+        if missing:
+            result["missing_cell_ids"] = missing
+        return result
+
+    def clear_region(self, name: str) -> Dict[str, Any]:
+        if self.session is None or name not in self.regions:
+            return {"ok": False, "error": f"no region named {name!r} is loaded -- "
+                                           f"known regions: {sorted(self.regions)}"}
+        positions = set(self.regions.pop(name))
+        self.registry.register_unload(name)
+        for pos in positions:
+            self.session.grid.cells.pop(pos, None)
+            self._records.pop(pos, None)
+        # real cleanup, not just deleting the cell entries: drop any
+        # pending event whose ORIGIN was one of the removed cells (it
+        # can never be acked now) or whose DESTINATION was removed
+        # entirely (nothing left to receive it).
+        grid = self.session.grid
+        for dest in list(grid._pending.keys()):
+            if dest in positions:
+                del grid._pending[dest]
+                continue
+            grid._pending[dest] = [ev for ev in grid._pending[dest] if ev[0] not in positions]
+            if not grid._pending[dest]:
+                del grid._pending[dest]
+        return {"ok": True, "state": self.session.describe()}
+
+    def list_regions(self) -> Dict[str, Any]:
+        return {"ok": True, "regions": {name: {"positions": positions, "cell_count": len(positions)}
+                                         for name, positions in self.regions.items()}}
+
+    def list_demos(self) -> Dict[str, Any]:
+        return {"ok": True, "demos": {name: {"description": d["description"], "language": d["language"]}
+                                       for name, d in DEMOS.items()}}
+
+    # ── shared operations (#362, unchanged) ────────────────────────
+
+    def state(self) -> Dict[str, Any]:
+        if self.session is None:
+            return {"ok": False, "error": "no program compiled yet"}
+        state = self.session.describe()
+        # annotate which region each cell belongs to, for UI highlighting
+        cell_to_region = {}
+        for name, positions in self.regions.items():
+            for pos in positions:
+                cell_to_region[f"{pos[0]},{pos[1]}"] = name
+        fam = getattr(self, "_family", None) or {}
+        for key, cell in state["cells"].items():
+            cell["region"] = cell_to_region.get(key)
+            cell["family"] = fam.get((cell.get("row"), cell.get("col")))        # ledger #1114: None unless the loaded ICM-VIX file tags the block
+        return {"ok": True, "state": state}
+
+    def step(self, n: int = 1) -> Dict[str, Any]:
+        if self.session is None:
+            return {"ok": False, "error": "no program compiled yet"}
+        self.session.tick(n)
+        return self.state()
+
+    def deliver(self, row: int, col: int, direction: Optional[str] = None,
+                value: int = 0, injected: bool = False) -> Dict[str, Any]:
+        if self.session is None:
+            return {"ok": False, "error": "no program compiled yet"}
+        try:
+            if injected:
+                accepted, _forward = self.session.deliver(row, col, {}, value)
+            else:
+                if direction not in _DIRS:
+                    return {"ok": False, "error": f"unknown direction {direction!r}, "
+                                                   f"expected one of n/s/e/w"}
+                accepted, _forward = self.session.deliver(row, col, {_DIRS[direction]: value}, None)
+        except KeyError as e:
+            return {"ok": False, "error": str(e)}
+        result = self.state()
+        result["accepted"] = accepted
+        return result
+
+    def inject(self, row: int, col: int, value: int) -> Dict[str, Any]:
+        if self.session is None:
+            return {"ok": False, "error": "no program compiled yet"}
+        self.session.inject(row, col, value)
+        return self.state()
+
+    # ── real, continuous auto-play (points.md #676) ─────────────────
+
+    def start_run(self, ticks_per_sec: float = 1.0) -> Dict[str, Any]:
+        """Starts a real background thread ticking the live session at
+        `ticks_per_sec`, until `pause_run()` is called or the design
+        naturally quiesces -- a tick that produces no activity at all
+        (`grid.tick()`'s own real per-tick "which cells did something"
+        map coming back empty), the honest, current-architecture
+        equivalent of the old workbench's own `not any(c.start_flag ...)`
+        check (`#670`): under cardinal wiring there's no single global
+        start_flag to poll, but "the last tick did nothing" is the same
+        real underlying signal -- nothing left to compute.
+
+        REAL, HONEST LIMITATION, matching `SuperGrid.run_to_quiescence()`'s
+        own documented behavior exactly (not a separate bug here): a
+        design containing any continuously-live core (accumulator/latch/
+        RAM fixed-mode) with a real downstream target NEVER produces an
+        empty tick by construction -- it's a heartbeat, on purpose. For
+        such a design, auto-play correctly runs forever until `pause_run()`
+        is called; that is the real, intended behavior for a live monitor
+        like the `sentinel` demo, not a defect to work around."""
+        if self.session is None:
+            return {"ok": False, "error": "no program compiled yet"}
+        if ticks_per_sec <= 0:
+            return {"ok": False, "error": "ticks_per_sec must be positive"}
+        if self._run_active:
+            return {"ok": False, "error": "already running -- call pause_run first"}
+
+        stop_event = threading.Event()
+        self._run_stop_event = stop_event
+        self._run_ticks_per_sec = ticks_per_sec
+        self._run_tick_count = 0
+        self._run_active = True
+        interval = 1.0 / ticks_per_sec
+
+        def _loop() -> None:
+            try:
+                while not stop_event.is_set():
+                    with self._run_lock:
+                        if self.session is None:
+                            break
+                        active = self.session.tick(1)
+                        self._run_tick_count += 1
+                    if not active:
+                        break
+                    if stop_event.wait(interval):
+                        break
+            finally:
+                self._run_active = False
+
+        thread = threading.Thread(target=_loop, daemon=True)
+        self._run_thread = thread
+        thread.start()
+        return {"ok": True, "running": True, "ticks_per_sec": ticks_per_sec}
+
+    def pause_run(self) -> Dict[str, Any]:
+        """Stops any running auto-play. A real, honest no-op (not an
+        error) if nothing is running -- matching every other real
+        workbench operation's own tolerance for being called when
+        there's nothing to do."""
+        if self._run_stop_event is not None:
+            self._run_stop_event.set()
+        thread = self._run_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=2.0)
+        self._run_active = False
+        return {"ok": True, "running": False, "ticks_executed": self._run_tick_count}
+
+    def run_status(self) -> Dict[str, Any]:
+        return {
+            "ok": True,
+            "running": self._run_active,
+            "ticks_per_sec": self._run_ticks_per_sec,
+            "ticks_executed": self._run_tick_count,
+        }
+
+
+WORKBENCH_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head><!--THEME_HEAD--></head>
+<body>
+<!--THEME_HEADER-->
+<main><div class="wrap">
+<div class="eyebrow">VM &middot; compile, run and drive cells</div>
+<h1>Unicell-S Workbench</h1>
+
+<div class="row">
+  <div class="col">
+    <div class="panel">
+      <div class="tabbar" role="tablist">
+        <button class="tab" id="tabbtn-target" onclick="showTab('target')">Target</button>
+        <button class="tab" id="tabbtn-load" onclick="showTab('load')">Load / save</button>
+        <button class="tab" id="tabbtn-program" onclick="showTab('program')">Program</button>
+        <button class="tab" id="tabbtn-run" onclick="showTab('run')">Run</button>
+      </div>
+      <input type="file" id="fileBrowse" style="display:none">
+
+      <div class="tabpane" id="tab-target">
+        <div class="muted">Optional: make the grid a checked reflection of a real card. Leave unset for free mode.</div>
+        <h4>From a MAN file and a cell count</h4>
+        <div class="frow"><label>MAN</label><select id="manPath"></select><button onclick="browseInto('manPath','man','.json')">Browse&hellip;</button>
+          <label>cells</label><input type="number" id="targetCells" value="4"></div>
+        <div class="frow"><label>shell</label><select id="targetShell" onchange="showShellCoreInfo()"><option value="">(no shell check)</option></select>
+          <button onclick="setTarget()">Set target</button></div>
+        <div id="shellCoreInfo" class="muted"></div>
+        <h4>From the card's own SHAPE (Walker)</h4>
+        <div class="frow"><label>SHAPE</label><select id="shapePath"></select><button onclick="browseInto('shapePath','shape','.json')">Browse&hellip;</button>
+          <button onclick="setTargetShape()">Use as target</button></div>
+        <div class="frow"><button onclick="clearTarget()">Clear target (free mode)</button></div>
+        <div id="targetStatus" class="status"></div>
+      </div>
+
+      <div class="tabpane" id="tab-load">
+        <div class="frow"><label>File</label><select id="icmPick" onchange="pickInto('icmPick','icmPath')"></select><button onclick="browseInto('icmPick','design','.json,.icm',true)">Browse&hellip;</button></div>
+        <div class="frow"><label>Path</label><input type="text" id="icmPath" value="workbench_session.icm" size="34"></div>
+        <div class="frow"><button onclick="loadIcm()">Load .icm (replaces)</button>
+          <button onclick="loadIcmVix()" title="a hierarchical design file (.icm-hier.json); with a card SHAPE as target it is checked against the card">Load hierarchical design</button>
+          <button onclick="saveIcm()">Save grid to path</button></div>
+        <div class="frow"><label>as region</label><input type="text" id="icmRegionName" value="r1" size="6">
+          <label>row</label><input type="number" id="icmRowOffset" value="0" placeholder="auto">
+          <label>col</label><input type="number" id="icmColOffset" value="0" placeholder="auto">
+          <button onclick="loadIcmRegion()">Load as region</button></div>
+        <div id="icmStatus" class="status"></div>
+        <h4>Regions loaded</h4>
+        <div id="regionList"></div>
+      </div>
+
+      <div class="tabpane" id="tab-program">
+        <div class="frow"><label>Demo</label><select id="demoSelect"></select><button onclick="loadSelectedDemo()">Load as single program</button></div>
+        <div id="demoDescription" class="muted"></div>
+        <div class="frow"><label>Language</label><select id="language"><option value="dsl">DSL</option><option value="python">Python-AST</option></select></div>
+        <textarea id="source" placeholder="program p { place r1 as ram_constant at (0,0) { out: e init_data: 42 } }"></textarea>
+        <div class="frow"><button class="primary" onclick="compileProgram()">Compile (replaces)</button>
+          <label>region</label><input type="text" id="regionName" value="r1" size="6">
+          <label>row</label><input type="number" id="rowOffset" value="0" placeholder="auto">
+          <label>col</label><input type="number" id="colOffset" value="0" placeholder="auto">
+          <button onclick="loadRegion()">Load as region</button></div>
+        <div class="muted">(clear both offsets for auto-placement)</div>
+        <div id="diagnostics"></div>
+        <div id="connectionHints" class="hint-text" style="white-space:pre-line;"></div>
+      </div>
+
+      <div class="tabpane" id="tab-run">
+        <div class="frow"><button onclick="step(1)">Step</button><button onclick="step(10)">Step 10</button><button onclick="refresh()">Refresh</button><button onclick="resetGrid()" title="back to the state the design was loaded in: tick 0">Reset</button><span id="tickcount"></span></div>
+        <div class="frow"><label>ticks/sec</label><input type="number" id="runRate" value="2" min="0.1" step="0.1">
+          <button onclick="startRun()">Auto-play</button><button onclick="pauseRun()">Pause</button><span id="runstatus"></span></div>
+        <h4>Deliver a value to a cell</h4>
+        <div class="frow"><label>row</label><input type="number" id="dRow" value="0"><label>col</label><input type="number" id="dCol" value="0">
+          <label>dir</label><select id="dDir"><option>n</option><option>s</option><option>e</option><option>w</option></select>
+          <label>value</label><input type="number" id="dVal" value="1"><button onclick="deliverCell()">Deliver</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel">
+      <h3>Grid</h3>
+      <div id="gridLegend" class="legend"></div>
+      <div class="gridwrap"><div id="grid"></div><div id="cellDetail" class="detail"><div class="muted">Click a cell to see its details.</div></div></div>
+    </div>
+  </div>
+</div>
+
+</div></main>
+<!--THEME_FOOTER-->
+<script>
+const DEMOS = {};
+const REGION_COLORS = ["#c17f45", "#7fa6d0", "#7fae7a", "#d9b46a", "#b88ac0", "#6fb5a8"];   // copper, blue, green, gold, violet, teal (ui_theme_v1 palette)
+function colorForRegion(name) {
+  if (!name) return "#2a352c";
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return REGION_COLORS[h % REGION_COLORS.length];
+}
+
+async function post(path, body) {
+  const r = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {})});
+  return r.json();
+}
+async function get(path) {
+  const r = await fetch(path);
+  return r.json();
+}
+
+// points.md #606/#609: real, client-side mirror of connection_check_v1.
+// py's own per-core direction-field mapping -- display only (the real
+// gate lives server-side); kept in the same shape so it can't silently
+// say something different from what the server actually checked.
+// branch deliberately omitted (dynamic output, not statically
+// checkable). sequencer has a real out (downstream_mask) but
+// genuinely no in field at all -- confirmed directly against the RTL.
+const CORE_OUT_FIELD = {ram: "downstream_mask", adder: "downstream_mask", accumulator: "downstream_mask",
+                         comparator: "downstream_mask", latch: "downstream_mask", nano: "routing_mask",
+                         sequencer: "downstream_mask"};
+const CORE_IN_FIELDS = {ram: ["upstream_mask"], adder: ["upstream_mask"], accumulator: ["inc_dir", "dec_dir"],
+                         comparator: ["upstream_mask"], latch: ["set_dir", "clear_dir"], nano: [],
+                         sequencer: []};
+
+function activeDirs(mask) {
+  const dirs = [];
+  if (mask & 1) dirs.push("N");
+  if (mask & 2) dirs.push("S");
+  if (mask & 4) dirs.push("E");
+  if (mask & 8) dirs.push("W");
+  return dirs;
+}
+
+function cellDirections(core, coreState) {
+  coreState = coreState || {};
+  const outField = CORE_OUT_FIELD[core];
+  const out = outField ? activeDirs(coreState[outField] || 0) : [];
+  let inMask = 0;
+  for (const f of (CORE_IN_FIELDS[core] || [])) inMask |= (coreState[f] || 0);
+  const inDirs = CORE_IN_FIELDS[core] !== undefined ? activeDirs(inMask) : [];
+  return {out, in: inDirs};
+}
+
+const CORE_COLOURS = {"adder": "#c17f45", "mul": "#d9b46a", "comparator": "#7fa6d0", "const": "#7fae7a", "io": "#e9ede6", "ram": "#627262", "cross": "#d0786a",
+  "branch": "#b48ad0", "nano": "#b48ad0", "latch": "#a7b58c", "accumulator": "#8cb5ad", "sequencer": "#b5a58c", "priority": "#9aab98", "corner": "#d0a06a", "merge": "#8fb0c8", "div": "#d9b46a"};
+const CORE_SHORT = {"adder": "ADD", "mul": "MUL", "div": "DIV", "comparator": "CMP", "ram": "RAM", "branch": "BR", "merge": "MRG", "latch": "LAT", "accumulator": "ACC",
+  "sequencer": "SEQ", "nano": "NANO", "priority": "PRI", "cross": "X", "corner": "COR"};
+const FAMILY_COLOURS = {"std": "#78a05a", "carrier": "#966ebe", "flex": "#c17f45", "sub": "#46a0b4", "bridge": "#8a93a6"};
+const FAMILY_NAMES = {"std": "Std", "carrier": "Carrier", "flex": "Flex", "sub": "Sub", "bridge": "Sub.bridge"};
+const ARROW_OUT = {N: "▲", S: "▼", E: "▶", W: "◀"};
+const ARROW_IN = {N: "▼", S: "▲", E: "◀", W: "▶"};
+let PREV_CELLS = {}, PREV_FIELDS = {}, SEL_KEY = null, LAST_STATE = null, TARGET_KIND = "man";
+// ledger #1297: a field is LOGIC when it says how the cell is wired or behaves (masks, modes, directions, the route a branch has chosen, add-on wiring); everything else is DATA (values and their valid/arrived flags)
+const LOGIC_FIELD = /mask|mode|_dir$|route|select|sequence|scheduling|subtract|addon|latency|width/;
+const DELTA = {N: [-1, 0], S: [1, 0], E: [0, 1], W: [0, -1]};
+const OPPOSITE = {N: "S", S: "N", E: "W", W: "E"};
+
+// the cells a tile's output reaches: follow its out directions to the neighbour that accepts from the opposite side, and on from there. Returns {key: hops}, and the list of links.
+function flowFrom(cells, startKey) {
+  const by = {};
+  for (const c of cells) by[c.row + "," + c.col] = c;
+  const hop = {}, links = [];
+  hop[startKey] = 0;
+  const q = [startKey];
+  while (q.length) {
+    const k = q.shift(), c = by[k];
+    for (const d of cellDirections(c.core, c[c.core]).out) {
+      const nk = (c.row + DELTA[d][0]) + "," + (c.col + DELTA[d][1]), n = by[nk];
+      if (!n) continue;
+      const nin = cellDirections(n.core, n[n.core]).in;
+      if (!(n.core === "nano" || nin.includes(OPPOSITE[d]))) continue;
+      links.push([k, nk]);
+      if (!(nk in hop)) { hop[nk] = hop[k] + 1; q.push(nk); }
+    }
+  }
+  return {hop, links};
+}
+
+function changeKind(prev, c) {
+  const now = Object.assign({}, c[c.core] || {}, {pending_ack: c.pending_ack});
+  let data = false, logic = false;
+  for (const f of Object.keys(now)) {
+    if (!(f in prev) || prev[f] !== JSON.stringify(now[f])) { if (LOGIC_FIELD.test(f)) logic = true; else data = true; }
+  }
+  return {data, logic, fields: Object.fromEntries(Object.entries(now).map(([f, v]) => [f, JSON.stringify(v)]))};
+}
+
+function familyOf(c) {
+  if (c.family && FAMILY_COLOURS[c.family]) return c.family;
+  if (String(c.core).indexOf("bridge") >= 0) return "bridge";
+  return TARGET_KIND === "card_shape" ? "flex" : "std";          // no family named: the VM's standard cells; a card SHAPE target is a flex card
+}
+
+function renderState(state) {
+  LAST_STATE = state;
+  document.getElementById("tickcount").textContent = "tick " + state.tick_count;
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  const cells = Object.values(state.cells).sort((a, b) => (a.row - b.row) || (a.col - b.col));
+  if (!cells.length) { document.getElementById("cellDetail").innerHTML = ""; PREV_CELLS = {}; return; }
+  const minR = Math.min(...cells.map(c => c.row)), minC = Math.min(...cells.map(c => c.col)), maxC = Math.max(...cells.map(c => c.col));
+  grid.style.gridTemplateColumns = `repeat(${maxC - minC + 1}, 44px)`;
+  const now = {}, nowFields = {};
+  const ghost = SEL_KEY ? flowFrom(cells, SEL_KEY) : null;
+  for (const c of cells) {
+    const key = c.row + "," + c.col;
+    const ck = (key in PREV_FIELDS) ? changeKind(PREV_FIELDS[key], c) : changeKind({}, c);
+    nowFields[key] = ck.fields;
+    now[key] = JSON.stringify(ck.fields);
+    const fam = familyOf(c);
+    const div = document.createElement("div");
+    const seen = key in PREV_FIELDS;
+    div.className = "tile" + (key === SEL_KEY ? " sel" : "") + (seen && ck.data ? " flash-data" : "") + (seen && ck.logic ? " flash-logic" : "")
+      + ((ghost && key !== SEL_KEY && key in ghost.hop) ? " ghost" : "");
+    if (ghost && key !== SEL_KEY && key in ghost.hop) div.style.setProperty("--gh", String(Math.max(0.3, 1 - ghost.hop[key] * 0.05)));
+    div.style.gridColumn = c.col - minC + 1;
+    div.style.gridRow = c.row - minR + 1;
+    div.style.background = FAMILY_COLOURS[fam] + "33";
+    div.style.borderColor = FAMILY_COLOURS[fam];
+    div.dataset.key = key;
+    div.title = `${c.core} (${c.row},${c.col}) ${FAMILY_NAMES[fam]}`;
+    const dirs = cellDirections(c.core, c[c.core]);
+    let arrows = "";
+    for (const d of dirs.out) arrows += `<span class="ar out ${d}">${ARROW_OUT[d]}</span>`;
+    for (const d of dirs.in) arrows += `<span class="ar in ${d}">${ARROW_IN[d]}</span>`;
+    div.innerHTML = arrows + `<span class="dot" style="background:${CORE_COLOURS[c.core] || "#8a8f9c"}">${CORE_SHORT[c.core] || c.core.slice(0, 3).toUpperCase()}</span>`;
+    div.onclick = () => { SEL_KEY = (SEL_KEY === key) ? null : key; renderState(LAST_STATE); };
+    grid.appendChild(div);
+  }
+  PREV_CELLS = now; PREV_FIELDS = nowFields;
+  drawGhost(cells, ghost);
+  showDetail(cells, ghost);
+}
+
+function drawGhost(cells, ghost) {
+  const grid = document.getElementById("grid");
+  const old = document.getElementById("ghostsvg");
+  if (old) old.remove();
+  if (!ghost || !ghost.links.length) return;
+  const tiles = {};
+  for (const t of grid.querySelectorAll(".tile")) tiles[t.dataset.key] = t;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.id = "ghostsvg";
+  svg.setAttribute("width", grid.scrollWidth); svg.setAttribute("height", grid.scrollHeight);
+  svg.innerHTML = '<defs><marker id="gha" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#e8a05a"/></marker></defs>';
+  for (const [a, b] of ghost.links) {
+    const ta = tiles[a], tb = tiles[b];
+    if (!ta || !tb) continue;
+    const x1 = ta.offsetLeft + ta.offsetWidth / 2, y1 = ta.offsetTop + ta.offsetHeight / 2, x2 = tb.offsetLeft + tb.offsetWidth / 2, y2 = tb.offsetTop + tb.offsetHeight / 2;
+    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, sh = 14;
+    const ln = document.createElementNS(ns, "line");
+    ln.setAttribute("x1", x1 + dx / len * sh); ln.setAttribute("y1", y1 + dy / len * sh); ln.setAttribute("x2", x2 - dx / len * sh); ln.setAttribute("y2", y2 - dy / len * sh);
+    ln.setAttribute("stroke", "#e8a05a"); ln.setAttribute("stroke-width", "2"); ln.setAttribute("stroke-dasharray", "4 3"); ln.setAttribute("marker-end", "url(#gha)");
+    ln.setAttribute("opacity", String(Math.max(0.25, 1 - ghost.hop[a] * 0.06)));
+    svg.appendChild(ln);
+  }
+  grid.appendChild(svg);
+}
+
+function showDetail(cells, ghost) {
+  const box = document.getElementById("cellDetail");
+  const c = cells.find(x => (x.row + "," + x.col) === SEL_KEY);
+  if (!c) { box.innerHTML = '<div class="muted">Click a cell to see its details.</div>'; return; }
+  const dirs = cellDirections(c.core, c[c.core]);
+  const fam = familyOf(c);
+  const rows = Object.entries(c[c.core] || {}).map(([k, v]) => `<tr><td>${k}</td><td>${JSON.stringify(v)}</td></tr>`).join("");
+  box.innerHTML = `<div class="dh"><span class="dot" style="background:${CORE_COLOURS[c.core] || "#8a8f9c"}">${CORE_SHORT[c.core] || c.core}</span> <b>${c.core}</b> (${c.row},${c.col})</div>` +
+    `<div class="muted">${FAMILY_NAMES[fam]}${c.region ? " &middot; region " + c.region : ""}</div>` +
+    `<div>out: ${dirs.out.length ? dirs.out.join(",") : "-"} &nbsp; in: ${dirs.in.length ? dirs.in.join(",") : (c.core === "nano" ? "any" : "-")}</div>` +
+    (ghost ? `<div class="muted">its output reaches ${Object.keys(ghost.hop).length - 1} cell(s), up to ${Math.max(...Object.values(ghost.hop))} hop(s) away (the dashed trail on the grid)</div>` : "") +
+    `<table class="kv">${rows}</table>`;
+}
+
+function renderLegend() {
+  const fam = Object.keys(FAMILY_COLOURS).map(k => `<span class="lg"><i style="background:${FAMILY_COLOURS[k]}55;border-color:${FAMILY_COLOURS[k]}"></i>${FAMILY_NAMES[k]}</span>`).join("");
+  const core = Object.keys(CORE_SHORT).map(k => `<span class="lg"><i class="r" style="background:${CORE_COLOURS[k]}"></i>${k}</span>`).join("");
+  document.getElementById("gridLegend").innerHTML = `<div>background = family: ${fam}</div><div>inner colour = core: ${core}</div><div class="muted"><span style="color:#ffd966">gold glow</span> = a data value changed &middot; <span style="color:#ff5fd2">magenta glow</span> = logic / configuration changed &middot; arrows: <span style="color:var(--copper)">out</span> / <span style="color:#7fa6d0">in</span> &middot; click a tile: dashed trail = where its output flows</div>`;
+}
+
+function renderDiagnostics(diags) {
+  document.getElementById("diagnostics").textContent =
+    (diags || []).map(d => `${d.severity.toUpperCase()} [${d.stage}]: ${d.problem}`).join("\n");
+}
+
+function renderConnectionHints(hints) {
+  // points.md #606: real, non-blocking prompts -- "hints/directions
+  // of connections before they are made," per Alan's own framing.
+  // Never an error; a cell can be deliberately left unconnected.
+  const div = document.getElementById("connectionHints");
+  div.textContent = (hints && hints.length) ? "HINT: " + hints.join("\nHINT: ") : "";
+}
+
+async function renderRegions() {
+  const result = await get("/regions");
+  const div = document.getElementById("regionList");
+  div.innerHTML = "";
+  if (!result.ok) return;
+  for (const name in result.regions) {
+    const r = result.regions[name];
+    const row = document.createElement("div");
+    row.className = "region-row";
+    row.innerHTML = `<span><span class="region-swatch" style="background:${colorForRegion(name)}"></span>` +
+      `${name} (${r.cell_count} cells)</span>`;
+    const btn = document.createElement("button");
+    btn.className = "danger";
+    btn.textContent = "Clear";
+    btn.onclick = () => clearRegion(name);
+    row.appendChild(btn);
+    div.appendChild(row);
+  }
+}
+
+async function loadDemos() {
+  const result = await get("/demos");
+  if (!result.ok) return;
+  const select = document.getElementById("demoSelect");
+  for (const name in result.demos) {
+    DEMOS[name] = result.demos[name];
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+  select.onchange = () => {
+    document.getElementById("demoDescription").textContent = DEMOS[select.value].description;
+  };
+  if (select.value) select.onchange();
+}
+
+async function loadSelectedDemo() {
+  const name = document.getElementById("demoSelect").value;
+  const result = await post("/load_demo", {name: name});
+  renderDiagnostics(result.diagnostics);
+  if (result.ok) { renderState(result.state); renderRegions(); }
+}
+
+async function compileProgram() {
+  const source = document.getElementById("source").value;
+  const language = document.getElementById("language").value;
+  const result = await post("/compile", {source: source, language: language});
+  renderDiagnostics(result.diagnostics || (result.error ? [{severity: "error", stage: "compile", problem: result.error}] : []));
+  renderConnectionHints(result.connection_hints);
+  if (result.ok) { renderState(result.state); renderRegions(); }
+}
+
+async function loadRegion() {
+  const source = document.getElementById("source").value;
+  const language = document.getElementById("language").value;
+  const name = document.getElementById("regionName").value;
+  // real loader/binder stage (#375): leave BOTH offset fields blank
+  // for auto-placement, or fill in BOTH for a manual position.
+  const rowRaw = document.getElementById("rowOffset").value.trim();
+  const colRaw = document.getElementById("colOffset").value.trim();
+  const rowOffset = rowRaw === "" ? null : parseInt(rowRaw);
+  const colOffset = colRaw === "" ? null : parseInt(colRaw);
+  const result = await post("/load_region", {source, language, name, row_offset: rowOffset, col_offset: colOffset});
+  renderDiagnostics(result.diagnostics || [{severity: "error", stage: "region", problem: result.error || ""}]);
+  renderConnectionHints(result.connection_hints);
+  if (result.ok) { renderState(result.state); renderRegions(); }
+}
+
+async function saveIcm() {
+  const path = document.getElementById("icmPath").value;
+  const result = await post("/save_icm", {path});
+  document.getElementById("icmStatus").textContent = result.ok
+    ? `Saved ${result.cell_count} cell(s) to ${result.path}`
+    : "Error: " + result.error;
+}
+
+async function loadIcm() {
+  const path = document.getElementById("icmPath").value;
+  const result = await post("/load_icm", {path});
+  renderConnectionHints(result.connection_hints);
+  if (result.ok) {
+    document.getElementById("icmStatus").textContent = `Loaded '${result.name}' from ${path} -- grid replaced.`;
+    renderState(result.state);
+    renderRegions();
+  } else {
+    document.getElementById("icmStatus").textContent = "Error: " + result.error;
+  }
+}
+
+async function loadIcmVix() {
+  const path = document.getElementById("icmPath").value;
+  const result = await post("/load_icm_vix", {path});
+  if (result.ok) {
+    let msg = `Loaded '${result.name}' from ${path} -- grid replaced.`;
+    const cc = result.card_check;
+    if (cc && cc.checked) {
+      msg += cc.same_design ? ` The card runs exactly this design (fingerprint ${cc.card_fingerprint}).` : ` Not the card's exact design (design ${cc.design_fingerprint}, card ${cc.card_fingerprint}) but it fits the card.`;
+      msg += ` Connections the card has not shown yet: ${cc.edges_not_shown.length}.`;
+    } else if (cc) {
+      msg += ` Card check not done: ${cc.why}`;
+    }
+    document.getElementById("icmStatus").textContent = msg;
+    renderState(result.state);
+    renderRegions();
+  } else {
+    document.getElementById("icmStatus").textContent = "Error: " + result.error;
+  }
+}
+
+async function loadIcmRegion() {
+  const path = document.getElementById("icmPath").value;
+  const name = document.getElementById("icmRegionName").value;
+  const rowRaw = document.getElementById("icmRowOffset").value.trim();
+  const colRaw = document.getElementById("icmColOffset").value.trim();
+  const rowOffset = rowRaw === "" ? null : parseInt(rowRaw);
+  const colOffset = colRaw === "" ? null : parseInt(colRaw);
+  const result = await post("/load_icm_region", {path, name, row_offset: rowOffset, col_offset: colOffset});
+  renderConnectionHints(result.connection_hints);
+  if (result.ok) {
+    document.getElementById("icmStatus").textContent = `Loaded '${result.name}' from ${path} as region '${name}'.`;
+    renderState(result.state);
+    renderRegions();
+  } else {
+    document.getElementById("icmStatus").textContent = "Error: " + result.error;
+  }
+}
+
+async function clearRegion(name) {
+  const result = await post("/clear_region", {name: name});
+  if (result.ok) { renderState(result.state); renderRegions(); }
+}
+
+async function step(n) {
+  const result = await post("/step", {n: n});
+  if (result.ok) renderState(result.state);
+}
+
+async function deliverCell() {
+  const row = parseInt(document.getElementById("dRow").value);
+  const col = parseInt(document.getElementById("dCol").value);
+  const direction = document.getElementById("dDir").value;
+  const value = parseInt(document.getElementById("dVal").value);
+  const result = await post("/deliver", {row, col, direction, value});
+  if (result.ok) renderState(result.state);
+  else renderDiagnostics([{severity: "error", stage: "deliver", problem: result.error}]);
+}
+
+async function refresh() {
+  const result = await get("/state");
+  if (result.ok) renderState(result.state);
+}
+
+let runPollHandle = null;
+
+async function resetGrid() {
+  const result = await post("/reset", {});
+  if (result.ok) {
+    PREV_CELLS = {}; PREV_FIELDS = {};
+    renderState(result.state);
+    document.getElementById("runstatus").textContent = "reset to tick 0";
+  } else {
+    document.getElementById("runstatus").textContent = result.error;
+  }
+}
+
+async function startRun() {
+  const rate = parseFloat(document.getElementById("runRate").value) || 1.0;
+  const result = await post("/start_run", {ticks_per_sec: rate});
+  if (!result.ok) {
+    document.getElementById("runstatus").textContent = "Error: " + result.error;
+    return;
+  }
+  if (runPollHandle === null) {
+    runPollHandle = setInterval(pollRun, Math.max(200, 1000 / rate));
+  }
+}
+
+async function pauseRun() {
+  await post("/pause_run", {});
+  if (runPollHandle !== null) { clearInterval(runPollHandle); runPollHandle = null; }
+  await pollRun();
+}
+
+async function pollRun() {
+  const result = await get("/run_status");
+  if (!result.ok) return;
+  document.getElementById("runstatus").textContent =
+    (result.running ? "running" : "stopped") + " (" + result.ticks_executed + " ticks)";
+  await refresh();
+  if (!result.running && runPollHandle !== null) {
+    clearInterval(runPollHandle);
+    runPollHandle = null;
+  }
+}
+
+async function setTarget() {
+  const man_path = document.getElementById("manPath").value;
+  const cells = parseInt(document.getElementById("targetCells").value);
+  const shell = document.getElementById("targetShell").value || null;
+  const result = await post("/set_target", {man_path, cells, shell});
+  if (result.ok) {
+    TARGET_KIND = "man";
+    const shellNote = result.target.shell ? `, shell ${result.target.shell}` : "";
+    document.getElementById("targetStatus").textContent =
+      `Target set: ${result.target.card_id}, ${result.target.cells} cells (${result.target.rows}x${result.target.cols})${shellNote} -- grid reset.`;
+    renderState(result.state);
+    renderRegions();
+  } else {
+    document.getElementById("targetStatus").textContent = "Error: " + result.error;
+  }
+}
+
+async function setTargetShape() {
+  const shape_path = document.getElementById("shapePath").value;
+  const result = await post("/set_target_shape", {shape_path});
+  if (result.ok) {
+    TARGET_KIND = "card_shape";
+    const t = result.target;
+    document.getElementById("targetStatus").textContent =
+      `Card SHAPE target: ${t.card_id}, ${t.cells} cells, ${t.connections} connections (${t.confirmed_by_card} confirmed by the card${t.complete ? ", complete" : ", partial"}), design ${t.design_source} [${t.design_fingerprint}] -- grid reset. Load the design with Load ICM-VIX to check it against the card.`;
+    renderState(result.state);
+    renderRegions();
+  } else {
+    document.getElementById("targetStatus").textContent = "Error: " + result.error;
+  }
+}
+
+async function clearTarget() {
+  const result = await post("/clear_target", {});
+  if (result.ok) {
+    TARGET_KIND = "man";
+    document.getElementById("targetStatus").textContent = "Free mode -- no real card target.";
+    renderState(result.state);
+    renderRegions();
+  }
+}
+
+async function refreshTargetStatus() {
+  const result = await get("/target");
+  TARGET_KIND = (result.ok && result.target && result.target.kind) || "man";
+  if (result.ok && result.target) {
+    const shellNote = result.target.shell ? `, shell ${result.target.shell}` : "";
+    document.getElementById("targetStatus").textContent =
+      `Target${result.target.kind === "card_shape" ? " (card SHAPE)" : ""}: ${result.target.card_id}, ${result.target.cells} cells (${result.target.rows}x${result.target.cols})${shellNote}`;
+  } else {
+    document.getElementById("targetStatus").textContent = "Free mode -- no real card target.";
+  }
+}
+
+async function loadShells() {
+  const result = await get("/shells");
+  if (!result.ok) return;
+  const sel = document.getElementById("targetShell");
+  for (const version in result.shells) {
+    const opt = document.createElement("option");
+    opt.value = version;
+    opt.textContent = version;
+    sel.appendChild(opt);
+  }
+  window._shellCores = {};
+  for (const version in result.shells) window._shellCores[version] = Object.keys(result.shells[version]).sort();
+  sel.value = "v3" in result.shells ? "v3" : "";
+  showShellCoreInfo();
+}
+
+function showShellCoreInfo() {
+  const version = document.getElementById("targetShell").value;
+  const info = document.getElementById("shellCoreInfo");
+  if (!version || !window._shellCores || !window._shellCores[version]) { info.textContent = ""; return; }
+  info.textContent = "real cores on " + version + ": " + window._shellCores[version].join(", ");
+}
+
+loadDemos();
+loadShells();
+refreshTargetStatus();
+renderLegend();
+
+function showTab(name) {
+  for (const t of ["target", "load", "program", "run"]) {
+    document.getElementById("tab-" + t).style.display = (t === name) ? "block" : "none";
+    document.getElementById("tabbtn-" + t).classList.toggle("active", t === name);
+  }
+  try { localStorage.setItem("wbTab", name); } catch (e) {}
+}
+
+async function fillList(selectId, kind, keep) {
+  const sel = document.getElementById(selectId);
+  const result = await get("/files?kind=" + kind);
+  const before = keep || sel.value;
+  sel.innerHTML = "";
+  if (result.ok) {
+    for (const f of result.files) {
+      const o = document.createElement("option"); o.value = f.path; o.textContent = f.label; sel.appendChild(o);
+    }
+    if (!result.files.length) { const o = document.createElement("option"); o.value = ""; o.textContent = "(none found -- use Browse)"; sel.appendChild(o); }
+  }
+  if (before) { for (const o of sel.options) { if (o.value === before) { sel.value = before; } } }
+  if (selectId === "icmPick") { pickInto("icmPick", "icmPath"); }
+}
+
+function pickInto(selectId, textId) {
+  const v = document.getElementById(selectId).value;
+  if (v) { document.getElementById(textId).value = v; }
+}
+
+function browseInto(selectId, kind, accept, alsoText) {
+  const inp = document.getElementById("fileBrowse");
+  inp.accept = accept;
+  inp.value = "";
+  inp.onchange = async () => {
+    const f = inp.files[0];
+    if (!f) return;
+    const text = await f.text();
+    const r = await post("/upload", {name: f.name, text});
+    if (r.ok) {
+      await fillList(selectId, kind, r.path);
+      if (alsoText) { document.getElementById("icmPath").value = r.path; }
+    } else {
+      alert(r.error);
+    }
+  };
+  inp.click();
+}
+
+fillList("manPath", "man");
+fillList("shapePath", "shape");
+fillList("icmPick", "design");
+try { showTab(localStorage.getItem("wbTab") || "target"); } catch (e) { showTab("target"); }
+</script>
+</body>
+</html>
+"""
+
+# Ledger #998: the shared look. The workbench keeps its own dense two-column layout; ui_theme_v1 supplies the palette, fonts,
+# header, nav and footer shared with the front panel and the manual.
+_WORKBENCH_CSS = """
+#grid { display: grid; gap: 4px; margin-top: 8px; overflow-x: auto; }
+.cell { border: 2px solid var(--line); padding: 6px 8px; min-width: 104px; font-size: 11px; background: var(--bg-input);
+        font-family: var(--font-mono); }
+.cell .core { color: var(--copper); font-weight: 600; }
+.cell.fam-sub { background: rgba(70,150,170,0.18); border-left: 5px solid #46a0b4; }
+.cell.fam-flex { background: rgba(193,127,69,0.14); border-left: 5px solid #c17f45; }
+.cell .pos { color: var(--fg-faint); font-size: 10px; }
+.cell .dirs { font-size: 10px; margin: 2px 0; }
+.dir-out { color: var(--ok); } .dir-in { color: var(--in); }
+#diagnostics { color: var(--err); white-space: pre-wrap; margin-top: 8px; font-size: 12px; font-family: var(--font-mono); }
+#tickcount { color: var(--ok); font-weight: 600; font-family: var(--font-mono); }
+.region-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.region-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.gridwrap { display: block; margin-top: 8px; }
+#grid { display: grid; gap: 4px; margin-top: 0; overflow: auto; max-width: 100%; padding: 2px; }
+.tile { position: relative; width: 44px; height: 44px; border: 1.5px solid var(--line); border-radius: 5px; cursor: pointer; box-sizing: border-box; }
+.tile:hover { outline: 1px solid var(--fg-dim); }
+.tile.sel { outline: 2px solid #fff; z-index: 2; }
+.tile .dot { position: absolute; left: 9px; top: 9px; width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+             font: 600 8.5px var(--font-mono); color: #0e130f; filter: brightness(0.8); }
+.tile.flash-data .dot, .tile.flash-data .ar { animation: flashdata 1.4s ease-out; }
+.tile.flash-logic .dot, .tile.flash-logic .ar { animation: flashlogic 1.4s ease-out; }
+.tile.flash-data.flash-logic .dot { animation: flashboth 1.4s ease-out; }
+@keyframes flashdata { 0% { filter: brightness(2.2) saturate(1.3); box-shadow: 0 0 9px 3px #ffd966cc; } 100% { filter: brightness(0.8); box-shadow: none; } }
+@keyframes flashlogic { 0% { filter: brightness(1.8) hue-rotate(40deg); box-shadow: 0 0 9px 3px #ff5fd2cc; } 100% { filter: brightness(0.8); box-shadow: none; } }
+@keyframes flashboth { 0% { filter: brightness(2.2); box-shadow: 0 0 8px 3px #ffd966cc, 0 0 14px 5px #ff5fd2aa; } 100% { filter: brightness(0.8); box-shadow: none; } }
+.tile.ghost { outline: 1.5px dashed #e8a05a; opacity: calc(0.55 + 0.45 * var(--gh, 1)); background-image: linear-gradient(#e8a05a22, #e8a05a22); }
+#grid { position: relative; }
+#ghostsvg { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; }
+@keyframes flashit { 0% { filter: brightness(2.4) saturate(1.3); box-shadow: 0 0 9px 2px #ffffffaa; } 100% { filter: brightness(0.8); box-shadow: none; } }
+.tile .ar { position: absolute; font-size: 8px; line-height: 8px; pointer-events: none; }
+.tile .ar.out { color: var(--copper); } .tile .ar.in { color: #7fa6d0; opacity: .85; }
+.tile .ar.N { top: 0; left: 18px; } .tile .ar.S { bottom: 0; left: 18px; } .tile .ar.W { left: 0; top: 18px; } .tile .ar.E { right: 0; top: 18px; }
+.detail { margin-top: 10px; min-height: 9em; font-family: var(--font-mono); font-size: 11.5px; border-top: 1px solid var(--line); padding-top: 8px; }
+.detail .dh { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.detail .dh .dot { position: static; }
+.detail .kv td { padding: 1px 8px 1px 0; vertical-align: top; overflow-wrap: anywhere; } .detail .kv td:first-child { color: var(--fg-faint); }
+.legend { font-size: 11px; line-height: 1.7; color: var(--fg-dim); }
+.legend .lg { display: inline-block; margin-right: 10px; white-space: nowrap; }
+.legend i { display: inline-block; width: 10px; height: 10px; border: 1.5px solid transparent; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.legend i.r { border-radius: 3px; }
+.tabbar { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.tabbar .tab { background: transparent; border: 1px solid transparent; border-bottom: none; padding: 5px 12px; cursor: pointer; color: var(--fg-faint); }
+.tabbar .tab.active { color: var(--copper); border-color: var(--line); background: var(--bg-input); }
+.tabpane { display: none; }
+.tabpane h4 { margin: 10px 0 4px; font-size: 0.8rem; color: var(--copper); font-weight: 600; }
+.frow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 4px 0; }
+.frow select { max-width: 100%; min-width: 0; }
+.frow input[type=text] { flex: 1; min-width: 8em; }
+.col { flex: 1 1 440px; min-width: 320px; }
+.row > .col:last-child { flex: 1.5 1 560px; }
+.panel label { display: inline; margin: 0 4px 0 0; font-size: 0.78rem; color: var(--fg-faint); }
+.panel input[type=text], .panel input[type=number], .panel select { margin: 2px 6px 2px 0; }
+.panel input[type=number] { width: 5.5em; }
+.panel textarea { width: 100%; height: 110px; display: block; margin: 6px 0; color: var(--ok); }
+.panel code { font-size: 0.85em; }
+"""
+WORKBENCH_HTML = (WORKBENCH_HTML
+                  .replace("<!--THEME_HEAD-->", ui.head("Unicell-S Workbench", _WORKBENCH_CSS))
+                  .replace("<!--THEME_HEADER-->", ui.header("workbench", app="workbench"))
+                  .replace("<!--THEME_FOOTER-->", ui.footer() + ui._MENU_JS))
+
+
+
+class WorkbenchHandler(http.server.BaseHTTPRequestHandler):
+    controller: Optional[WorkbenchController] = None
+
+    def _json_response(self, data: Dict[str, Any], status: int = 200) -> None:
+        body = json.dumps(data).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _html_response(self, html: str) -> None:
+        body = html.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json_body(self) -> Dict[str, Any]:
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            return {}
+        return json.loads(self.rfile.read(length))
+
+    def do_GET(self):
+        if self.path == "/state":
+            self._json_response(self.controller.state())
+        elif self.path == "/demos":
+            self._json_response(self.controller.list_demos())
+        elif self.path == "/regions":
+            self._json_response(self.controller.list_regions())
+        elif self.path == "/target":
+            self._json_response(self.controller.current_target())
+        elif self.path == "/shells":
+            self._json_response(self.controller.list_shells())
+        elif self.path.startswith("/files"):
+            from urllib.parse import urlparse, parse_qs
+            self._json_response(self.controller.list_files((parse_qs(urlparse(self.path).query).get("kind") or [""])[0]))
+        elif self.path == "/run_status":
+            self._json_response(self.controller.run_status())
+        elif self.path in ("/", "/index.html"):
+            self._html_response(WORKBENCH_HTML)
+        else:
+            self._json_response({"ok": False, "error": "not found"}, status=404)
+
+    def do_POST(self):
+        body = self._read_json_body()
+        if self.path == "/compile":
+            self._json_response(self.controller.compile(body.get("source", ""),
+                                                          body.get("language", "dsl")))
+        elif self.path == "/load_demo":
+            self._json_response(self.controller.load_demo(body.get("name", "")))
+        elif self.path == "/load_region":
+            self._json_response(self.controller.load_region(
+                body.get("name", ""), body.get("source", ""), body.get("language", "dsl"),
+                body.get("row_offset"), body.get("col_offset"), body.get("dsp_columns")))
+        elif self.path == "/clear_region":
+            self._json_response(self.controller.clear_region(body.get("name", "")))
+        elif self.path == "/save_icm":
+            self._json_response(self.controller.save_icm(
+                body.get("path", ""), body.get("name"), body.get("description", "")))
+        elif self.path == "/load_icm":
+            self._json_response(self.controller.load_icm(body.get("path", "")))
+        elif self.path == "/upload":
+            self._json_response(self.controller.upload_file(body.get("name", ""), body.get("text")))
+        elif self.path == "/load_icm_vix":
+            self._json_response(self.controller.load_icm_vix(body.get("path", "")))
+        elif self.path == "/load_icm_region":
+            self._json_response(self.controller.load_icm_region(
+                body.get("name", ""), body.get("path", ""),
+                body.get("row_offset"), body.get("col_offset"), body.get("dsp_columns")))
+        elif self.path == "/set_target":
+            self._json_response(self.controller.set_target(
+                body.get("man_path", ""), body.get("cells", 0), body.get("shell")))
+        elif self.path == "/set_target_shape":
+            self._json_response(self.controller.set_target_shape(body.get("shape_path", "")))
+        elif self.path == "/clear_target":
+            self._json_response(self.controller.clear_target())
+        elif self.path == "/reset":
+            self._json_response(self.controller.reset())
+        elif self.path == "/step":
+            self._json_response(self.controller.step(body.get("n", 1)))
+        elif self.path == "/deliver":
+            self._json_response(self.controller.deliver(
+                body.get("row"), body.get("col"), body.get("direction"),
+                body.get("value", 0), body.get("injected", False)))
+        elif self.path == "/inject":
+            self._json_response(self.controller.inject(
+                body.get("row"), body.get("col"), body.get("value", 0)))
+        elif self.path == "/start_run":
+            self._json_response(self.controller.start_run(body.get("ticks_per_sec", 1.0)))
+        elif self.path == "/pause_run":
+            self._json_response(self.controller.pause_run())
+        else:
+            self._json_response({"ok": False, "error": "not found"}, status=404)
+
+    def log_message(self, fmt, *args):
+        pass   # quiet -- matches the old workbench's own convention
+
+
+def serve(port: int = 7420, open_browser: bool = False) -> http.server.HTTPServer:
+    WorkbenchHandler.controller = WorkbenchController()
+    server = http.server.HTTPServer(("localhost", port), WorkbenchHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    if open_browser:
+        webbrowser.open(f"http://localhost:{port}")
+    return server
+
+
+if __name__ == "__main__":
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 7420
+    server = serve(port, open_browser=True)
+    print(f"Unicell-S workbench serving at http://localhost:{port}")
+    try:
+        while True:
+            pass
+    except KeyboardInterrupt:
+        server.shutdown()
