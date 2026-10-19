@@ -180,5 +180,13 @@ Next entry: #1239.
 
 *Not tested.* Not run on Alan's PC, not with the real Nix shell, openXC7, OpenOCD or the card; the card-read and round-trip decoding is tested on a synthetic file and the tests pass, not on a live run through the page. The Build shell's Nix environment is entered by the user, as ruled; the page does not detect that it was entered, only checks the tools. The picker's one-line description is the first README heading; per-design `kit.json` is read for title only. No results window for the freeze sweep plot yet; no frame viewer; the walker is not part of this version.
 
-Next entry: #1256.
+## #1256 -- FRONT END RUN ON ALAN'S PC (screenshot, 19 Oct 12:46): works; one misleading verdict fixed (front end v1 -> same file, corrected before any further use; cross-reference #1255)
+
+*Seen on Alan's screen.* The page runs on his Linux Mint PC against `~/openFPGALoader/build/demo-projects`: the picker lists his demo folders including the assembler-made `k7_asm_adder4` (listed with its README title) and the Kintex kits; the pick sent `cd` to both shells (the Card shell shows the cd chain through earlier picks); *Enter openXC7 shell* worked and the Build shell prompt became `[nix(openXC7)]`; *Check environment* outside the nix shell: yosys and nextpnr-xilinx MISSING, openFPGALoader and make ok; inside: all four ok; `KINTEX7_CHIPDB=<not set>`. *Check OpenOCD* started the nix fetch (`unpacking ... nixexprs.tar.zst into the Git cache`); *Build (make)* printed "make: Nothing to be done for 'all'" (the folder was already built). The Build shell also shows, above, an earlier `make program` that ended `make: *** [../openXC7.mk:43: program] Error 1` after a line ending "ib vers: 0x2"; the full output was not visible and its cause is not known.
+
+*The bug.* The Build button wrote `build.log` over the old log with that "Nothing to be done" text, and the results window then said **NOT BUILT / FAILED**, which was wrong (it was built; the log had lost its timing lines). *Fix:* the button now writes to a temporary file and keeps the earlier `build.log` when make says nothing to do ("Nothing to be done" or "is up to date"), printing a line saying so; a new button *Rebuild from scratch* (`make clean && make`) builds again; a log that is only "nothing to do" is shown as "already built - this log has no timing lines" instead of FAILED. Test added (`test_make_command_keeps_the_real_log`); `tests/vm/test_frontend_v1.py` 5 pass. The check line for KINTEX7_CHIPDB now says it is information only (builds so far worked with it not set in the shell). Alan's folder's current `build.log` is the "nothing to do" one; it will show "already built" until he presses Rebuild from scratch.
+
+*Open.* The cause of the `make program` error in the Build shell is unknown (output not captured); needs its full text.
+
+Next entry: #1257.
 

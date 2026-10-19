@@ -36,13 +36,18 @@ NIX_ENTER = "nix develop github:openxc7/toolchain-nix"
 LOAD_CMD = 'make program JTAG_LINK="-c ft232"'          # SRAM only (the MAN's build.load_command); no button writes flash
 OPENOCD = "nix shell nixpkgs#openocd --command sh "
 ENV_CHECK = ('for t in yosys nextpnr-xilinx openFPGALoader make; do command -v $t >/dev/null && echo "ok       $t" || echo "MISSING  $t"; done; '
-             'echo "KINTEX7_CHIPDB=${KINTEX7_CHIPDB:-<not set>}"')
+             'echo "KINTEX7_CHIPDB=${KINTEX7_CHIPDB:-<not set>} (information only: builds have worked with it not set in the shell)"')
 
+# make writes to a temporary log; if make had nothing to do, the last real build.log (with its timing lines) is kept
+MAKE_CMD = ('make 2>&1 | tee .build.tmp; if grep -qE "Nothing to be done|is up to date" .build.tmp; then '
+            'echo "(already built and up to date - kept the earlier build.log; use Rebuild from scratch to build again)"; rm -f .build.tmp; '
+            'else mv .build.tmp build.log; fi')
 # ---- the whitelist: id -> (terminal, label, command template, argument spec or None). Arguments are digits only.
 BUTTONS = {
     "enter_nix":  ("build", "Enter openXC7 shell", NIX_ENTER, None),
     "env_check":  ("build", "Check environment", ENV_CHECK, None),
-    "make":       ("build", "Build (make)", "make 2>&1 | tee build.log", None),
+    "make":       ("build", "Build (make)", MAKE_CMD, None),
+    "rebuild":    ("build", "Rebuild from scratch", "make clean && " + MAKE_CMD, None),
     "load":       ("build", "Load into the card (SRAM)", LOAD_CMD, None),
     "card_env":   ("card", "Check OpenOCD", "nix shell nixpkgs#openocd --command openocd --version 2>&1 | head -1", None),
     "read":       ("card", "Read state", OPENOCD + "freeze_read.sh", None),
@@ -77,7 +82,7 @@ def kit_info(folder):
                 info["title"] = line.lstrip("# ").strip()[:200]
                 break
     has_make = os.path.isfile(os.path.join(folder, "Makefile"))
-    for bid in ("env_check", "make", "load"):
+    for bid in ("env_check", "make", "rebuild", "load"):
         if has_make:
             info["buttons"].append(bid)
     for bid, need in CARD_NEEDS.items():
@@ -233,7 +238,7 @@ def build_summary(folder):
     last = fmax[-3:] if fmax else []
     return {"mtime": os.path.getmtime(p), "fmax": [{"clock": c, "mhz": float(m), "verdict": v, "target": float(t)} for c, m, v, t in last],
             "errors": len(re.findall(r"(?m)^(make: \*\*\*|ERROR|Error:)", txt)),
-            "verdict": ("NOT BUILT / FAILED" if not fmax else ("TIMING FAILED - do not load" if any(v == "FAIL" for _, _, v, _ in fmax[-3:]) else "timing passed"))}
+            "verdict": (("already built - this log has no timing lines (use Rebuild from scratch)" if re.search("Nothing to be done|is up to date", txt) else "NOT BUILT / FAILED") if not fmax else ("TIMING FAILED - do not load" if any(v == "FAIL" for _, _, v, _ in fmax[-3:]) else "timing passed"))}
 
 
 def shell_quote(s):

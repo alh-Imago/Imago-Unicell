@@ -92,3 +92,18 @@ def test_build_summary_and_decode(demo):
     finally:
         for t in st.terms.values():
             t.close()
+
+
+def test_make_command_keeps_the_real_log(tmp_path):
+    import subprocess
+    (tmp_path / "Makefile").write_text("all:\n\t@echo Info: Max frequency for clock 'CLK': 99.0 MHz '(PASS at 50.00 MHz)' >/dev/null\n\t@touch built\n")
+    # first run: a real build -> build.log replaced; second: make has nothing to do -> build.log kept
+    (tmp_path / "Makefile").write_text("built:\n\t@echo \"Info: Max frequency for clock 'CLK': 99.00 MHz (PASS at 50.00 MHz)\"; touch built\nall: built\n")
+    subprocess.run(["bash", "-c", fe.MAKE_CMD], cwd=tmp_path, capture_output=True)
+    assert "99.00 MHz" in (tmp_path / "build.log").read_text()
+    r = subprocess.run(["bash", "-c", fe.MAKE_CMD], cwd=tmp_path, capture_output=True, text=True)
+    assert "kept the earlier build.log" in r.stdout and "99.00 MHz" in (tmp_path / "build.log").read_text()
+    assert not (tmp_path / ".build.tmp").exists()
+    assert fe.build_summary(str(tmp_path))["verdict"] == "timing passed"
+    (tmp_path / "build.log").write_text("make: Nothing to be done for 'all'.\n")
+    assert "already built" in fe.build_summary(str(tmp_path))["verdict"]
