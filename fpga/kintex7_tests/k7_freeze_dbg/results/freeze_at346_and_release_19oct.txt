@@ -1,0 +1,83 @@
+alan@OptiPlex:~/openFPGALoader/build/demo-projects/k7_freeze_dbg$ nix shell nixpkgs#openocd --command sh freeze_at.sh 346
+Open On-Chip Debugger 0.12.0
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+Info : clock speed 6000 kHz
+Info : JTAG tap: xc7.tap tap/device found: 0x23751093 (mfg: 0x049 (Xilinx), part: 0x3751, ver: 0x2)
+Warn : gdb services need one or more targets defined
+SNAP 346 46525a32 0000015a 07020001 0000000a 0000000a 0000015a 00000064 00000000 00000064 00000002 00000002 00000000 00000002 00000000 00000003 00000000 00000003 00000000 00000004 00000000 00000004 00000000 00000001 00000000 00000003 00000000 00000006 00000000 0000000a 00000000 0000000a 00000002 00000064 00000064 00000000 00040004 00000064 00000000 00000000 00050204 00000002 00000002 00000000 00040004 00000002 00000000 00000000 00040204 00000003 00000003 00000000 00040004 00000003 00000000 00000000 00040204 00000004 00000004 00000000 00040004 00000004 00000000 00000000 00040204 00000001 00000000 00000000 00040202 00000000 00000003 00000242 00000188 00000000 00000006 00000242 00000188 00000000 0000000a 00000244 00000188 0000000a 00000000 00000000 00070200
+SNAP 346_again 46525a32 0000015a 07020001 0000000a 0000000a 0000015a 00000064 00000000 00000064 00000002 00000002 00000000 00000002 00000000 00000003 00000000 00000003 00000000 00000004 00000000 00000004 00000000 00000001 00000000 00000003 00000000 00000006 00000000 0000000a 00000000 0000000a 00000002 00000064 00000064 00000000 00040004 00000064 00000000 00000000 00050204 00000002 00000002 00000000 00040004 00000002 00000000 00000000 00040204 00000003 00000003 00000000 00040004 00000003 00000000 00000000 00040204 00000004 00000004 00000000 00040004 00000004 00000000 00000000 00040204 00000001 00000000 00000000 00040202 00000000 00000003 00000242 00000188 00000000 00000006 00000242 00000188 00000000 0000000a 00000244 00000188 0000000a 00000000 00000000 00070200
+shutdown command invoked
+T asked 346: magic 46525A32 OK | run count t=346 | frozen=1 | results so far 1 | run 2 | signature 0000000A | last result 0000000A | T in force 0000015A
+   C0  lane_0.in        ram   out 00000064 fire=0000 dv=0 aa=0 | data_reg 00000064  init 00000064  addon 00000  down 04 up 00 pend 0000  [armed]
+   C1  lane_0.out       ram   out 00000064 fire=0000 dv=1 aa=0 | data_reg 00000064  init 00000000  addon 00000  down 04 up 08 pend 0000  [data_valid armed]
+   C2  lane_1.in        ram   out 00000002 fire=0000 dv=0 aa=0 | data_reg 00000002  init 00000002  addon 00000  down 04 up 00 pend 0000  [armed]
+   C3  lane_1.out       ram   out 00000002 fire=0000 dv=0 aa=0 | data_reg 00000002  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C4  lane_2.in        ram   out 00000003 fire=0000 dv=0 aa=0 | data_reg 00000003  init 00000003  addon 00000  down 04 up 00 pend 0000  [armed]
+   C5  lane_2.out       ram   out 00000003 fire=0000 dv=0 aa=0 | data_reg 00000003  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C6  lane_3.in        ram   out 00000004 fire=0000 dv=0 aa=0 | data_reg 00000004  init 00000004  addon 00000  down 04 up 00 pend 0000  [armed]
+   C7  lane_3.out       ram   out 00000004 fire=0000 dv=0 aa=0 | data_reg 00000004  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C8  spine_0.relay    ram   out 00000001 fire=0000 dv=0 aa=0 | data_reg 00000001  init 00000000  addon 00000  down 02 up 08 pend 0000  [armed]
+   C9  spine_1.add      adder out 00000003 fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 00000003  down 02 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C10 spine_2.add      adder out 00000006 fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 00000006  down 02 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C11 spine_3.add      adder out 0000000A fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 0000000A  down 04 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C12 exit.exit_c0     ram   out 0000000A fire=0000 dv=1 aa=0 | data_reg 0000000A  init 00000000  addon 00000  down 00 up 08 pend 0000  [data_valid fixed armed]
+T asked 346_again: magic 46525A32 OK | run count t=346 | frozen=1 | results so far 1 | run 2 | signature 0000000A | last result 0000000A | T in force 0000015A
+   C0  lane_0.in        ram   out 00000064 fire=0000 dv=0 aa=0 | data_reg 00000064  init 00000064  addon 00000  down 04 up 00 pend 0000  [armed]
+   C1  lane_0.out       ram   out 00000064 fire=0000 dv=1 aa=0 | data_reg 00000064  init 00000000  addon 00000  down 04 up 08 pend 0000  [data_valid armed]
+   C2  lane_1.in        ram   out 00000002 fire=0000 dv=0 aa=0 | data_reg 00000002  init 00000002  addon 00000  down 04 up 00 pend 0000  [armed]
+   C3  lane_1.out       ram   out 00000002 fire=0000 dv=0 aa=0 | data_reg 00000002  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C4  lane_2.in        ram   out 00000003 fire=0000 dv=0 aa=0 | data_reg 00000003  init 00000003  addon 00000  down 04 up 00 pend 0000  [armed]
+   C5  lane_2.out       ram   out 00000003 fire=0000 dv=0 aa=0 | data_reg 00000003  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C6  lane_3.in        ram   out 00000004 fire=0000 dv=0 aa=0 | data_reg 00000004  init 00000004  addon 00000  down 04 up 00 pend 0000  [armed]
+   C7  lane_3.out       ram   out 00000004 fire=0000 dv=0 aa=0 | data_reg 00000004  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C8  spine_0.relay    ram   out 00000001 fire=0000 dv=0 aa=0 | data_reg 00000001  init 00000000  addon 00000  down 02 up 08 pend 0000  [armed]
+   C9  spine_1.add      adder out 00000003 fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 00000003  down 02 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C10 spine_2.add      adder out 00000006 fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 00000006  down 02 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C11 spine_3.add      adder out 0000000A fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 0000000A  down 04 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C12 exit.exit_c0     ram   out 0000000A fire=0000 dv=1 aa=0 | data_reg 0000000A  init 00000000  addon 00000  down 00 up 08 pend 0000  [data_valid fixed armed]
+alan@OptiPlex:~/openFPGALoader/build/demo-projects/k7_freeze_dbg$ nix shell nixpkgs#openocd --command sh freeze_release.sh
+Open On-Chip Debugger 0.12.0
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+Info : clock speed 6000 kHz
+Info : JTAG tap: xc7.tap tap/device found: 0x23751093 (mfg: 0x049 (Xilinx), part: 0x3751, ver: 0x2)
+Warn : gdb services need one or more targets defined
+SNAP before 46525a32 0000015a 07020001 0000000a 0000000a 0000015a 00000064 00000000 00000064 00000002 00000002 00000000 00000002 00000000 00000003 00000000 00000003 00000000 00000004 00000000 00000004 00000000 00000001 00000000 00000003 00000000 00000006 00000000 0000000a 00000000 0000000a 00000002 00000064 00000064 00000000 00040004 00000064 00000000 00000000 00050204 00000002 00000002 00000000 00040004 00000002 00000000 00000000 00040204 00000003 00000003 00000000 00040004 00000003 00000000 00000000 00040204 00000004 00000004 00000000 00040004 00000004 00000000 00000000 00040204 00000001 00000000 00000000 00040202 00000000 00000003 00000242 00000188 00000000 00000006 00000242 00000188 00000000 0000000a 00000244 00000188 0000000a 00000000 00000000 00070200
+SNAP after 46525a32 0098e42e 04020006 7fef5298 7ffffeaa 0000015a 80000288 00000000 80000288 00000000 fffffc18 00000000 fffffc18 00000000 00000005 00000000 00000005 00000000 00000005 00000000 00000005 00000000 80000288 00000000 7ffffea0 00000000 7ffffea5 00000000 7ffffeaa 00000000 7ffffeaa 00000002 80000288 80000288 00000000 00040004 80000288 00000000 00000000 00040204 fffffc18 fffffc18 00000000 00040004 fffffc18 00000000 00000000 00040204 00000005 00000005 00000000 00040004 00000005 00000000 00000000 00040204 00000005 00000005 00000000 00040004 00000005 00000000 00000000 00040204 80000288 00000000 00000000 00040202 00000000 7ffffea0 00000242 000001a8 00000000 7ffffea5 00000242 00000188 00000000 7ffffeaa 00000244 00000188 7ffffeaa 00000000 00000000 00070200
+shutdown command invoked
+T asked before: magic 46525A32 OK | run count t=346 | frozen=1 | results so far 1 | run 2 | signature 0000000A | last result 0000000A | T in force 0000015A
+   C0  lane_0.in        ram   out 00000064 fire=0000 dv=0 aa=0 | data_reg 00000064  init 00000064  addon 00000  down 04 up 00 pend 0000  [armed]
+   C1  lane_0.out       ram   out 00000064 fire=0000 dv=1 aa=0 | data_reg 00000064  init 00000000  addon 00000  down 04 up 08 pend 0000  [data_valid armed]
+   C2  lane_1.in        ram   out 00000002 fire=0000 dv=0 aa=0 | data_reg 00000002  init 00000002  addon 00000  down 04 up 00 pend 0000  [armed]
+   C3  lane_1.out       ram   out 00000002 fire=0000 dv=0 aa=0 | data_reg 00000002  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C4  lane_2.in        ram   out 00000003 fire=0000 dv=0 aa=0 | data_reg 00000003  init 00000003  addon 00000  down 04 up 00 pend 0000  [armed]
+   C5  lane_2.out       ram   out 00000003 fire=0000 dv=0 aa=0 | data_reg 00000003  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C6  lane_3.in        ram   out 00000004 fire=0000 dv=0 aa=0 | data_reg 00000004  init 00000004  addon 00000  down 04 up 00 pend 0000  [armed]
+   C7  lane_3.out       ram   out 00000004 fire=0000 dv=0 aa=0 | data_reg 00000004  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C8  spine_0.relay    ram   out 00000001 fire=0000 dv=0 aa=0 | data_reg 00000001  init 00000000  addon 00000  down 02 up 08 pend 0000  [armed]
+   C9  spine_1.add      adder out 00000003 fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 00000003  down 02 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C10 spine_2.add      adder out 00000006 fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 00000006  down 02 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C11 spine_3.add      adder out 0000000A fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 0000000A  down 04 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C12 exit.exit_c0     ram   out 0000000A fire=0000 dv=1 aa=0 | data_reg 0000000A  init 00000000  addon 00000  down 00 up 08 pend 0000  [data_valid fixed armed]
+T asked after: magic 46525A32 OK | run count t=10019886 | frozen=0 | results so far 6 | run 2 | signature 7FEF5298 | last result 7FFFFEAA | T in force 0000015A
+   C0  lane_0.in        ram   out 80000288 fire=0000 dv=0 aa=0 | data_reg 80000288  init 80000288  addon 00000  down 04 up 00 pend 0000  [armed]
+   C1  lane_0.out       ram   out 80000288 fire=0000 dv=0 aa=0 | data_reg 80000288  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C2  lane_1.in        ram   out FFFFFC18 fire=0000 dv=0 aa=0 | data_reg FFFFFC18  init FFFFFC18  addon 00000  down 04 up 00 pend 0000  [armed]
+   C3  lane_1.out       ram   out FFFFFC18 fire=0000 dv=0 aa=0 | data_reg FFFFFC18  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C4  lane_2.in        ram   out 00000005 fire=0000 dv=0 aa=0 | data_reg 00000005  init 00000005  addon 00000  down 04 up 00 pend 0000  [armed]
+   C5  lane_2.out       ram   out 00000005 fire=0000 dv=0 aa=0 | data_reg 00000005  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C6  lane_3.in        ram   out 00000005 fire=0000 dv=0 aa=0 | data_reg 00000005  init 00000005  addon 00000  down 04 up 00 pend 0000  [armed]
+   C7  lane_3.out       ram   out 00000005 fire=0000 dv=0 aa=0 | data_reg 00000005  init 00000000  addon 00000  down 04 up 08 pend 0000  [armed]
+   C8  spine_0.relay    ram   out 80000288 fire=0000 dv=0 aa=0 | data_reg 80000288  init 00000000  addon 00000  down 02 up 08 pend 0000  [armed]
+   C9  spine_1.add      adder out 7FFFFEA0 fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 7FFFFEA0  down 02 up 09 2nd_down 00 pend 0000  [join carry_held phase1_offered armed]
+   C10 spine_2.add      adder out 7FFFFEA5 fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 7FFFFEA5  down 02 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C11 spine_3.add      adder out 7FFFFEAA fire=0000 dv=0 aa=0 | a_reg 00000000  out_buffer 7FFFFEAA  down 04 up 09 2nd_down 00 pend 0000  [join phase1_offered armed]
+   C12 exit.exit_c0     ram   out 7FFFFEAA fire=0000 dv=1 aa=0 | data_reg 7FFFFEAA  init 00000000  addon 00000  down 00 up 08 pend 0000  [data_valid fixed armed]
+alan@OptiPlex:~/openFPGALoader/build/demo-projects/k7_freeze_dbg$ nix shell nixpkgs#openocd --command sh freeze_busy.sh
+wrote busy_40_70.csv
+wrote busy_340_370.csv
+wrote busy_1540_1570.csv
+alan@OptiPlex:~/openFPGALoader/build/demo-projects/k7_freeze_dbg$ 
