@@ -462,4 +462,14 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Not done / not known.* No card run of this. What the card CAN confirm is limited to the runner, the design identity (fingerprint) and the entry/exit counts; the per-cell neighbours are the map's. The discovery hardware (a cell answering a ping with its ID and type) does not exist, so cell-by-cell confirmation is not possible yet. The fingerprint depends on the build options (width, rings, merge mode, alignment), so the same ICM built with other options has a different fingerprint, as it should.
 
-Next entry: #1287.
+## #1287 (19 Oct) -- WALKER step 2 ON THE KINTEX CARD: the card reports the fingerprint of the design it runs, and the Walker's comparison works live
+
+*Card result (Alan, Kintex-7 XC7K480T, folder `cordic_walk`, made by the v4 Bench from `cordic_z_convergence_v2.icm-hier.json`, fresh build and `make program`).* `run_vectors.sh vectors.txt`: "result: magic 52554E31 OK | run 2 | started=1"; "design fingerprint on the card: 04c680b7 | this folder's design_map.json: 04c680b7 | SAME DESIGN"; `z_output` 3 words `2736 2727 2728`, "PASS the VM says ...", OVERALL PASS. `walker_card_v1.py . run_vectors.log`: card part (magic OK, fingerprint 04c680b7, entries 1, exits 1), map part (40 cells, 39 connections), comparison ("IS this folder's design"; entry/exit counts match 1/1), then the neighbour listing for all 40 cells from the entry `s0.branch` outward (4 stages of branch, two adders, two constants, two turn relays, a gather merge and a gather each), labelled as taken from the map. The listing matches the simulation-side output of #1286 line for line in the part shown.
+
+*What this shows.* The v4 path works on real hardware: the fingerprint word travels over the existing JTAG read-back and equals the folder's. It does not show that the card's cells are physically next to each other as the map says; the card confirmed only the runner, the design identity and the entry/exit counts. Cell-by-cell confirmation needs the discovery hardware (not built).
+
+*Earlier in the same session (for the record, no change to results).* A first folder (`cordic_z_convergence_v2_kintex7-ypcb00338`) ran on the card with the right words but without the fingerprint line because it had been made by an older Bench; the clone was current and the running Bench was the old one. The first Walker call failed from the wrong directory.
+
+*Not done.* The negative test (a different design on the card; expected: "IS NOT this folder's design", exit 1, no neighbours) has not been run on the card; it is tested in simulation only (`test_walker_card_v1.py`). The discovery hardware, and the Walker's use of it, are next.
+
+Next entry: #1288.
