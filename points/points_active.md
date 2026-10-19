@@ -350,5 +350,14 @@ Next entry: #1239.
 
 *Not known.* Whether other tests fail: the full `quick_check --full` has not been run here (Alan is running it on his PC).
 
-Next entry: #1274.
+## #1274 (19 Oct) -- ICM CONSISTENCY AUDIT, part 1: how each family reads the ram and branch fields (no code changed)
 
+Alan: "the icm definition needs to be consistant across all the designs". First pass, from the source files only (`docs/icm_field_readings_v1.md` has the table).
+
+*Found.* One real conflict of meaning: a ram with `preload_value`, `fixed_mode` 0 and nothing feeding it is a one-shot in the standard RTL (`fpga/verilog/ram_cell_v4.v` line 295, drained when the consumer acks) and in SuperGrid / FlexGrid v1, but a continuous constant in the flex hardware (the generator builds it as a fixed-mode ram, `flexsub_icm_generate_v1.py` lines 183 and 888). FlexGrid2 (#1270) matches the flex hardware only for unfed rams whose consumers are all adders or multipliers. Other rows (HOLD ram, one-shot with load_data_valid) exist on the flex family and the sub generator refuses them with a reason, which is a capability difference, not a different meaning. For branches the VM accepts cases the generator refuses (listed in the table), again explicit.
+
+*Not known / not done.* Whether the sub generator treats the preloaded unfed ram as a constant (same generator code, not separately run). Other cores (merge, adder, multiplier, divider, comparator, accumulator, latch, sequencer) are not tabulated. No further designs were run against the VM for new conflicts.
+
+*Needs Alan's ruling.* Which reading is official for a preloaded, unfed, non-fixed ram: (A) one-shot (standard RTL and VM), so the flex generator would have to change, and designs such as the CORDIC would need an explicit fixed_mode on their constants; or (B) constant, so the standard RTL / SuperGrid would change. Nothing is changed until he decides; any VM change would be a new cloned version checked against `tests/baselines/`.
+
+Next entry: #1275.
