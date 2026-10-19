@@ -422,4 +422,14 @@ Alan's output for the same card build (`k7_icm_cordic_z_convergence_v2_flex`), r
 
 *Also.* Alan's PC: `tests/test_flexsub_assemble_v3.py` -> 80 passed, 0 failed (yosys 0.33), as expected in #1279. All three top-level failures of his full run are now explained and cleared.
 
-Next entry: #1283.
+## #1283 (19 Oct) -- RULING + CHANGE: the VM is corrected to the hardware; runner v3 takes the hardware's count for equal words in a row
+
+Alan on #1282: "yes apply towards the hardware count, the vm is suppose to correct to the hardware not the other way around".
+
+*Made (clones; v2 files untouched).* `tools/kintex_icm_runner_v3.py`: the testbench now prints every buffered exit word; if the folder's simulation does not match the VM's list, `wrap()` reads the hardware's own lists, and ONLY IF, in every run and exit, the hardware list reduces (equal words in a row merged) to exactly the VM's list, the hardware's list becomes the expected answer (`expected.json`, testbench rewritten, simulation re-run; the verdict note says which runs). Any other difference stays "DISAGREES WITH THE VM". Cloned on: `tools/project_assemble_v3.py` (runner v3), `tools/frontend/unicell_frontend_v3.py` (assembler v3; the repo check lists the v3 files), tests `tests/vm/test_kintex_icm_runner_v3.py`, `tests/vm/test_frontend_v3.py` (13 passed), new `tests/vm/test_runner_hw_count_v1.py` (2 passed).
+
+*Measured.* `priority_weighted`: v2 DISAGREES, v3 PASS with the hardware's list `20 30 1 10 1 2 2 1 2` for the first vector set and `21 28 101 14 102 3 3 100 3` for the second; the first list equals the VM's raw list word for word (so the "all nine equal" left open in #1282 is now shown for that set). Controls: `ram_hold` with its default vectors stays DISAGREES (a real difference, not a count); `cordic_z_convergence_v2` stays PASS. Simulation only.
+
+*Scope.* The rule only accepts a difference that is purely equal-words-in-a-row. The card counts the same way as the simulation (same hardware), but this entry did not include a card run.
+
+Next entry: #1284.
