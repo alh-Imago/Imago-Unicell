@@ -5,7 +5,7 @@
 **What it does.** The Tang Nano 20K's own `std_tree4` grid (13 cells; four-lane add tree) runs on the Kintex. A small driver replays the Tang
 top's own load schedule. On a command from the PC the run restarts and **the card stops itself at a clock count T you choose** (every
 cell's `freeze_in` is tied to one line). The PC then reads, in one JTAG scan, every cell's output word, its four "fire" (pending
-acknowledge) bits and its data-valid and operand-arrived flags. Scan T = 0, 1, 2, ... to get a frame-by-frame record of the grid.
+acknowledge) bits and its data-valid and operand-arrived flags. A freeze at count T shows the state the running grid has at count T+1. Scan T = 0, 1, 2, ... to get a frame-by-frame record of the grid.
 
 **What it does NOT show (yet).** Only the cells' visible state. The waiting operand (`a_reg`), configuration, masks and the RAM cells'
 stored words are inside the cells and are not brought out; that needs a debug port on a cloned cell (v4f). The grid is the Tang's, unchanged
@@ -22,6 +22,6 @@ except the freeze line and the snapshot outputs.
 3. Send back `freeze_*.log` and `sweep.csv`.
 
 ## Checked in simulation (not on the card)
-`make sim` (iverilog): the run is frozen at ten counts; each frozen snapshot equals the state of an unfrozen copy at the same count; reading twice
+`make sim` (iverilog): the run is frozen at ten counts; each frozen snapshot equals the state of an unfrozen copy at count T+1 (the freeze takes one clock to act); reading twice
 gives the same snapshot; releasing the freeze gives the same six results and signature as an unfrozen run; a plain rerun gives the same signature.
 Real BSCANE2/JTAG timing, the Update-DR handling on the chip and the reset/restart on the card are **not** checked until you run it.

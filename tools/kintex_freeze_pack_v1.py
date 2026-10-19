@@ -256,7 +256,7 @@ EXPINIT
                 if (want === got) mask = mask | (1 << (delta + 2));
             end
             allmask = allmask & mask;
-            $display("   cell snapshot equals B's state at count T+d for d in (bit0 = -2 ... bit5 = +3): %b", mask[5:0]);
+            $display("   cell snapshot equals B's state at count T+d for d in (bit0 = -2, bit2 = 0, bit3 = +1): %b", mask[5:0]);
             check(mask != 0, "snapshot matches the free-running reference at some alignment");
             // hold: read again after waiting, nothing may change
             #50000;
@@ -264,8 +264,8 @@ EXPINIT
             check(rx[1023:192] === got, "frozen state is steady between reads");
         end
         // 3. all alignments agree
-        $display("3. offsets matching at EVERY T (bit0 = -2 ... bit5 = +3): %b", allmask[5:0]);
-        check(allmask[5:0] != 0, "one alignment holds at every T");
+        $display("3. offsets matching at EVERY T (bit0 = -2, bit1 = -1, bit2 = 0, bit3 = +1, bit4 = +2, bit5 = +3): %b  (001000 = the state at count T+1)", allmask[5:0]);
+        check(allmask[5:0] === 6'b001000, "the frozen state is exactly the free-running state at count T+1 at every T (bit3 = +1; bit0 = -2)");
         // 4. release after a freeze: the computation must still finish correctly
         scan(cmd(346, 1'b1, 1'b0)); #(20 * 800); scan(1024'd0);
         check(rx[88] === 1'b1, "frozen before release");
@@ -292,7 +292,7 @@ README = r"""# k7_freeze_v1 -- freeze the Tang tree on the Kintex card and read 
 **What it does.** The Tang Nano 20K's own `std_tree4` grid (13 cells; four-lane add tree) runs on the Kintex. A small driver replays the Tang
 top's own load schedule. On a command from the PC the run restarts and **the card stops itself at a clock count T you choose** (every
 cell's `freeze_in` is tied to one line). The PC then reads, in one JTAG scan, every cell's output word, its four "fire" (pending
-acknowledge) bits and its data-valid and operand-arrived flags. Scan T = 0, 1, 2, ... to get a frame-by-frame record of the grid.
+acknowledge) bits and its data-valid and operand-arrived flags. A freeze at count T shows the state the running grid has at count T+1. Scan T = 0, 1, 2, ... to get a frame-by-frame record of the grid.
 
 **What it does NOT show (yet).** Only the cells' visible state. The waiting operand (`a_reg`), configuration, masks and the RAM cells'
 stored words are inside the cells and are not brought out; that needs a debug port on a cloned cell (v4f). The grid is the Tang's, unchanged
@@ -309,7 +309,7 @@ except the freeze line and the snapshot outputs.
 3. Send back `freeze_*.log` and `sweep.csv`.
 
 ## Checked in simulation (not on the card)
-`make sim` (iverilog): the run is frozen at ten counts; each frozen snapshot equals the state of an unfrozen copy at the same count; reading twice
+`make sim` (iverilog): the run is frozen at ten counts; each frozen snapshot equals the state of an unfrozen copy at count T+1 (the freeze takes one clock to act); reading twice
 gives the same snapshot; releasing the freeze gives the same six results and signature as an unfrozen run; a plain rerun gives the same signature.
 Real BSCANE2/JTAG timing, the Update-DR handling on the chip and the reset/restart on the card are **not** checked until you run it.
 """

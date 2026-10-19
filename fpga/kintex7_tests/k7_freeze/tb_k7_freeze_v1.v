@@ -82,7 +82,7 @@ module tb_k7_freeze_v1;
                 if (want === got) mask = mask | (1 << (delta + 2));
             end
             allmask = allmask & mask;
-            $display("   cell snapshot equals B's state at count T+d for d in (bit0 = -2 ... bit5 = +3): %b", mask[5:0]);
+            $display("   cell snapshot equals B's state at count T+d for d in (bit0 = -2, bit2 = 0, bit3 = +1): %b", mask[5:0]);
             check(mask != 0, "snapshot matches the free-running reference at some alignment");
             // hold: read again after waiting, nothing may change
             #50000;
@@ -90,8 +90,8 @@ module tb_k7_freeze_v1;
             check(rx[1023:192] === got, "frozen state is steady between reads");
         end
         // 3. all alignments agree
-        $display("3. offsets matching at EVERY T (bit0 = -2 ... bit5 = +3): %b", allmask[5:0]);
-        check(allmask[5:0] != 0, "one alignment holds at every T");
+        $display("3. offsets matching at EVERY T (bit0 = -2, bit1 = -1, bit2 = 0, bit3 = +1, bit4 = +2, bit5 = +3): %b  (001000 = the state at count T+1)", allmask[5:0]);
+        check(allmask[5:0] === 6'b001000, "the frozen state is exactly the free-running state at count T+1 at every T (bit3 = +1; bit0 = -2)");
         // 4. release after a freeze: the computation must still finish correctly
         scan(cmd(346, 1'b1, 1'b0)); #(20 * 800); scan(1024'd0);
         check(rx[88] === 1'b1, "frozen before release");
