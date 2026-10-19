@@ -49,4 +49,10 @@ Next entry: #1239.
 *Plan, in order (each only after the one before worked):* A) `nix shell nixpkgs#openocd`, `sh scan_chain.sh` (expect IDCODE 0x23751093); B) build and load the kit, LEDs show the same PASS pattern; C) `sh read_user1.sh`.
 *What it is for.* Alan's idea (19 Oct): initiate a freeze and save over JTAG to get the actual states of the latches. This is the smallest step towards it: first prove a host can read a register of a running design out of the chip. The freeze/save itself (the UniCell's own saveload mechanism, `fpga/board_tests_saveload`) is not part of this kit.
 
-Next entry: #1240.
+## #1240 (19 Oct 2026) -- STEP A OF THE JTAG KIT PASSED: OpenOCD sees the Kintex through the cable
+
+*Run (Alan, 19 Oct, ~10:32), from a plain terminal in `k7_tree4_jtag`:* `nix shell nixpkgs#openocd --command sh scan_chain.sh`. *Output:* Open On-Chip Debugger **0.12.0**; "clock speed 6000 kHz"; "JTAG tap: xc7.tap tap/device found: **0x23751093** (mfg: 0x049 (Xilinx), part: 0x3751, ver: 0x2)"; a warning "gdb services need one or more targets defined" (expected: the config defines a JTAG tap only, no debug target; not a fault); "shutdown command invoked". The scan changes nothing on the chip.
+*What this supports.* The pin layout in `k7_ft232h.cfg` (the FT232H-type layout read from openFPGALoader v1.1.1's cable table, #1238) works with this card and cable, and the IDCODE matches the one read by the loader (#1189, #1238). The expected-id check in the config passed (it would have refused a different ID). It does not yet show that the USER1 register can be read: that needs the step-B bitstream.
+*Slips on the way, recorded.* (1) My first `nix shell` instruction was to nest it inside the openXC7 shell, which dumped Alan out of that shell; the corrected form runs OpenOCD as a one-shot command from a plain terminal. (2) He ran the script from the first kit's folder (`k7_tree4`), where it does not exist; the JTAG kit is the separate `k7_tree4_jtag` folder.
+
+Next entry: #1241.
