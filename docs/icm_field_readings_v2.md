@@ -14,7 +14,7 @@ Method: `flexsub_icm_generate_v2` (flex family) then `kintex_icm_runner_v2.wrap`
 |---|---|
 | PASS (agree) | adder_constant, adder_stalled, adder_stream, priority_sequenced, priority_strict, ram_oneshot, relay_chain, relay_chain_stalled, tiles_flex, cordic_z_convergence, cordic_z_convergence_v2, looped_cordic_v1_open, mixed_flex_carrier_flex_v1, mixed_flex_std_flex_v1, mixed_flex_sub_flex_carrier_flex_v1, mixed_flex_sub_flex_v1, parallel_reduction_tree |
 | DISAGREE: ram_hold | explained, a vector artefact: the default vectors write the HOLD ram 3 times while the other stream is flowing, so the result depends on timing. With the HOLD ram written once (the design's own description) the same check PASSES. Not a definition conflict. |
-| DISAGREE: priority_weighted | NOT explained. RTL delivers 9 words (all 9 inputs), the VM side of this check 8 (`20 30 1 10 1 2 1 2`). A dedicated test (`tests/vm/test_flex_grid_priority_hold_v1.py`) compares the same mode on a 12-item stream and passes, so a reading artefact in the runner's VM side is possible, but that is a guess and was not tested. |
+| DISAGREE: priority_weighted | RESOLVED in #1282: a counting artefact of the runner (the raw VM output is 9 words; the runner merges two equal words in a row, giving 8). Original note: NOT explained. RTL delivers 9 words (all 9 inputs), the VM side of this check 8 (`20 30 1 10 1 2 1 2`). A dedicated test (`tests/vm/test_flex_grid_priority_hold_v1.py`) compares the same mode on a 12-item stream and passes, so a reading artefact in the runner's VM side is possible, but that is a guess and was not tested. |
 | refused by the generator, with reasons | looped_cordic_v1 (no output cell), looped_cordic_v1_closed_flex (a ring with no stop) |
 | could not be compared | three `mixed_flex_*_div_*` designs (the VM refuses: both operands of a div arrive in the same tick, no operand order); reduction_tree4_exit_v1 and small_relay_chain (the check's exit-name lookup fails; a harness problem) |
 
@@ -38,4 +38,4 @@ Method: `flexsub_icm_generate_v2` (flex family) then `kintex_icm_runner_v2.wrap`
   differ in capability (flex-only cores, refusals) and in timing conventions the generator already states.
 - Not covered: the cores' fields individually against each family's RTL (this table relies on the generator's statements);
   designs beyond the 26 examples; widths other than 32; the standard-family RTL (not run here).
-- Open: priority_weighted (above) should be resolved before it is called agreement or disagreement.
+- priority_weighted is resolved (ledger #1282): not a disagreement of the VM and the hardware; the runner's equal-words merge can give a false DISAGREES.

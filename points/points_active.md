@@ -414,4 +414,12 @@ Alan's output for the same card build (`k7_icm_cordic_z_convergence_v2_flex`), r
 
 *Not known.* The weighted-priority difference. Field-by-field reading of each core's RTL in each family; designs beyond the 26 examples; widths other than 32.
 
-Next entry: #1282.
+## #1282 (19 Oct) -- RESOLVES the open item of #1281: `priority_weighted` "disagreement" is the runner's counting rule, not the VM or the hardware
+
+*Measured.* The raw VM output for `priority_weighted` (inputs E1 10 1 2, E2 20 1 2, E3 30 1 2, the check's default vectors) is 9 words: `20 30 1 10 1 2 2 1 2`. The runner's `collapse()` merges equal words in a row (it counts a word when an exit's valid rises or its data changes), so the two consecutive `2` become one and the VM side shows 8 words, `20 30 1 10 1 2 1 2`. The simulated hardware counted 9 words, and its first four equal the VM's (`20 30 1 10`; the testbench prints only four). So the 9 vs 8 is the VM side's merge of two equal consecutive words, where the hardware's valid dropped between them. Only the count (9 = 9) and the first four words were compared; the full RTL sequence was not printed, so "all nine equal" is not shown.
+
+*Consequence.* A design that produces equal words back to back can show a false DISAGREES in the Bench folder's simulation verdict. The runner cannot tell, on the VM side, whether valid dropped between the equal words. Not changed; a runner v3 would have to compare against the hardware's own count or keep the VM's raw list when the simulation shows a valid gap. For Alan to decide.
+
+*Also.* Alan's PC: `tests/test_flexsub_assemble_v3.py` -> 80 passed, 0 failed (yosys 0.33), as expected in #1279. All three top-level failures of his full run are now explained and cleared.
+
+Next entry: #1283.
