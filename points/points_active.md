@@ -380,4 +380,12 @@ Alan: "A, the origional super grid and origional designs will take precedent in 
 
 *Not known.* Whether the zero references behave as a one-shot on the flex hardware once the generator is changed (step 2); that is what step 2 will measure. The z=0 case and a held constant into a multiplier remain unproven (#1271).
 
-Next entry: #1277.
+## #1277 (19 Oct) -- STEP 2 of #1275: generator v2 (`flexsub_icm_generate_v2.py`, `flexsub_icm_flex_v2.py`): a preloaded, unfed, non-fixed ram is a ONE-SHOT; callers not yet moved
+
+*Made (clones; v1 files untouched).* In v2 a ram with `preload_value`, `fixed_mode` 0 and nothing feeding it is built as a ONE-SHOT (`ram_cell_v4sa` `OFFER_PRELOAD`, offers the preload once) instead of a constant. One exception, stated in the code: a ram whose only consumers are branches, or a merging cell that feeds only branches (the CORDIC's `merge` ram: a source plus an external input), stays a constant, because the VM's branch holds its first arrival as its reference, so a constant reference compares identically (this is how the CORDIC zero references are lowered, `lower_branches` const_ref). Unused rams (a branch reference after lowering) are unchanged. The sub family refuses the case with the reason (it has no one-shot cell; "set fixed_mode 1 if it is meant to be a constant").
+
+*Measured.* (1) Generated flex Verilog, v1 vs v2, over all 26 files in `nano/examples` (+ `card_tested`): identical for 25 (including `cordic_z_convergence_v2` and the three `looped_cordic` files, whose refusals are identical); different only for the old `cordic_z_convergence`, as intended. (2) RTL simulation through the Kintex wrapper (iverilog): `cordic_z_convergence_v2` with the v2 generator PASSES against the VM (the card words); the old `cordic_z_convergence` with the v2 generator DISAGREES with FlexGrid2 (which still holds those constants) but PASSES against the ORIGINAL grid FlexGrid v1 (one word) -- hardware and original VM now agree. Test `tests/vm/test_flexsub_oneshot_preload_v1.py`: 3 passed. This is simulation, not a card run.
+
+*Not done / not known.* The callers still use generator v1 (runner, `project_assemble_v1`, Bench path, mixed/compile tools, other tests), so the card path is unchanged until each is moved, one at a time. FlexGrid2's narrow held-constant rule is now only for old files; it should be retired once nothing relies on it (step 3). Step 4, running the v2-built CORDIC on the card, not done.
+
+Next entry: #1278.
