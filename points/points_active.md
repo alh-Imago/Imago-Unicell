@@ -442,4 +442,16 @@ Alan on #1282: "yes apply towards the hardware count, the vm is suppose to corre
 
 *Scope.* Standard family RTL only; widths and the sub and flex cells (which take their configuration by other means) were not compared.
 
-Next entry: #1285.
+## #1285 (19 Oct) -- WALKER step 1: the neighbour map of a generated design (`tools/design_map_v1.py`), from the generator that writes the Verilog
+
+Alan: the Walker needs to know which cell is next to which, either from what a programmed card reports (the carrier) or from the compiler's own placement, and "use both if there are details available, why waste a resource"; first step the existing JTAG readback, then the discovery hardware.
+
+*Basis (recorded earlier, #501/#551, not new).* The Walker's design is live discovery: ping a cell, it answers with its ID and type, a directional ping is relayed one hop. A compile-time map is never trusted as ground truth alone (the fitter places freely, CELL_IDs are not guaranteed stable between builds; the "compiled but forgot to program" case). So the map made here is a thing to be COMPARED with what the card reports, not a replacement for it. The discovery-mode hardware (`core_select` 31) is still not built (stated in `walker_sim_v1.py` and `frontend_v1.py`).
+
+*Made.* (1) `tools/flexsub_icm_flex_v3.py` and `tools/flexsub_icm_generate_v3.py`: clones of v2; the only change is that the emitter leaves the graph it really built (merge cores included, on its own copy) in `LAST_BUILT`. (2) `tools/design_map_v1.py`: writes `design_map.json` (per cell: ICM id, the CELL_ID index it has in the Verilog, core, row/col in the ICM grid, role (cell / constant / one-shot / hold / level / tile-slice), entry and exit names; per connection: from, to, the face of the receiving cell, whether the two are side by side in the ICM grid, or at the same site (a merge core in front of its cell); a 32-bit fingerprint of all of it).
+
+*Measured.* (a) The v3 Verilog is byte-identical to v2's for all 24 designs the generator accepts (2 are refused, with reasons, as before). (b) For those 24, every cell index in the map equals the CELL_ID of the instance of that name in the Verilog, and the cell counts match; wiring-tile slices (6 in `tiles_flex`) are marked tile-slice with no index because they are parts of one native tile instance. (c) CORDIC v2: 36 cells + 4 gather merge cores, 35+ connections, 32 of 35 connections side by side in the grid (the rest cross tile or merge sites). Tests `tests/vm/test_design_map_v1.py`: 2 passed.
+
+*Not done / not known.* The map is not yet written into the Bench build folders, and the runner does not yet report a design fingerprint over JTAG (that needs a runner/assembler/Bench v4: next). The existing JTAG scan gives the entry/exit counts and run counters only, no per-cell identity. Whether the map's adjacency equals what a real card would answer to pings is untested; discovery hardware does not exist. Second-port designs (adder carry, mul high word) have merge cores whose own connections are not in the map (noted in the file).
+
+Next entry: #1286.
