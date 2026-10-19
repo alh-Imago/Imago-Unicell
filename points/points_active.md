@@ -370,4 +370,14 @@ Alan: "A, the origional super grid and origional designs will take precedent in 
 
 *Plan (nothing done yet), each step with its own check.* (1) Clone the four CORDIC ICMs with `fixed_mode` 1 on those constants (the originals stay). (2) Clone the flex generator (v2) so a preloaded unfed non-fixed ram becomes a one-shot (OFFER_PRELOAD) instead of a constant; check generated Verilog for the 21 other examples is byte-identical. (3) Then FlexGrid2's narrow rule is no longer needed for the new files; keep it for the old files, state that. (4) Re-run the CORDIC on the card from the clone with fixed constants: expected the same words. Card runs already made (#1266-#1271) were of the old, non-fixed file.
 
-Next entry: #1276.
+## #1276 (19 Oct) -- STEP 1 of #1275: `cordic_z_convergence_v2.icm-hier.json` (8 adder constants fixed); nothing else changed
+
+*Measured.* Only `cordic_z_convergence` needs a clone: the three `looped_cordic_v1*` files have just their 4 zero references unfixed (their adder constants were already fixed). Variants run on the ORIGINAL VM grid (FlexGrid v1) with input 10, 1, 2 (card, #1266: 2736 2727 2728): no constants fixed gives `[2736]` (one word); the 8 adder constants fixed gives `[2736, 2727, 2728]` (the card's words); all 12 fixed (zero references too) floods the exit with 7125/6911/... (wrong). So the zero references must stay one-shot, and the rule "say fixed_mode 1 for a permanent constant" applies to the 8.
+
+*Made.* `nano/examples/cordic_z_convergence_v2.icm-hier.json`: the original with `fixed_mode` 1 on `const_pos`/`const_neg` of the four stages (16 changed lines, 8 cells); description says so; the original is untouched. The flex Verilog generated from it is identical to the original's apart from the module name (diffed), so the hardware is the same and the earlier card runs (#1266-#1271) are of the same logic; this is a diff of generated text, not a new card run. Test `tests/vm/test_cordic_v2_fixed_constants_v1.py`: 3 passed (8 of 12 fixed; card words on FlexGrid v1; Verilog unchanged).
+
+*Tool clones (the new example made the baseline check count one unknown design as a difference).* `tools/vm_baseline_v2.py` lists a design added after the record as NEW and does not count it; `tests/vm/test_flex_grid_v2_v2.py` is the v1 test using it (4 passed, 0 differences in the 25 recorded designs); `tools/quick_check_v1.py` SUPERSEDED maps the v1 test to v2.
+
+*Not known.* Whether the zero references behave as a one-shot on the flex hardware once the generator is changed (step 2); that is what step 2 will measure. The z=0 case and a held constant into a multiplier remain unproven (#1271).
+
+Next entry: #1277.
