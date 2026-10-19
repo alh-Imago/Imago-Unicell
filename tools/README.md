@@ -22,6 +22,7 @@ Standalone utilities and offshoots built alongside the Imago UniCell project.
 | `board_esp32_pulse_v1.py` | P1 pulse width into the ESP32 (ledger #1227), the mirror of T4: Tang sends 12 pulse widths (100 us to 37 ns); the ESP32 interrupt handler toggles an answer pin; builds `fpga/board_tests_esp32_pulse`. |
 | `make_comparison_sheet_v1.py` | Builds the UniCell-against-ESP32 comparison workbook from the saved card results (ledger #1233): `fpga/board_results_comparison/unicell_vs_esp32_comparison_v1.xlsx`. |
 | `kintex_tree4_pack_v1.py` | Builds the first Kintex-7 self-check kit (ledger #1234): the Tang std_tree4 design unchanged, a byte-for-byte compare of its report line inside the chip, LED result; writes `fpga/kintex7_tests/k7_tree4`. |
+| `kintex_tree4_pack_v2.py` | Clone of the v1 kit output plus a BSCANE2 JTAG user register and OpenOCD read scripts (ledger #1239); writes `fpga/kintex7_tests/k7_tree4_jtag`. |
 | `man_gen/gen_kintex7_ypcb00338_man_v1.py` | Writes the MAN file and xdc for the Kintex-7 card (ledger #1235): `docs/man/kintex7-ypcb00338.man.json`; `--check` for drift. |
 - `board_esp32_c1_v1.py` (ledger #1211): test C1, the Tang as stopwatch and signal generator for an ESP32 interrupt handler; writes `fpga/board_tests_c1/` (c1_quiet, c1_storm). Built, not yet run.
 - `board_direct_latency_t3_v1.py` (ledger #1209): test T3, two input pins (jumpers 86 -> 72 and 53 -> 71); writes `fpga/board_tests_latency3/`. Card run passed (#1210).
