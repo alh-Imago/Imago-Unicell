@@ -618,4 +618,16 @@ Alan asked for an animated flow of data. Added to `nano/workbench_v5.py` (same f
 - *Measured (real Chromium, CORDIC, 6 steps):* dots drawn for the cells that glowed gold; no script errors. Test: added to `tests/vm/test_workbench_v5_reset_ghost_v1.py`.
 - *Observation, unresolved.* Alan's screenshot after loading the generated card SHAPE showed every tile as Std (green), whereas a card SHAPE target should make tiles Flex (copper). The family colour follows the page's target state, so the SHAPE was probably not set as the target through the Target tab (e.g. only the ICM was loaded). Cause not confirmed.
 
-Next entry: #1299.
+### #1299 -- Workbench v6: steady glow for held values, card-only and absorbed cells on the grid (19 Oct 2026)
+
+Alan asked for the three follow-ups listed under #1297/#1298 (brightness for data present, card-only and absorbed cells on the grid, the real card shape in the Workbench). `nano/workbench_v6.py` (clone of v5; v5 untouched).
+
+- **Steady glow.** A cell whose valid flag is set (any field ending in `valid`) holds a soft gold glow, separate from the one-off change flashes and the moving dots.
+- **Card-only and absorbed cells.** Only when the target is a card SHAPE and a design has been loaded. *Absorbed* = design cells the card does not have as separate cells (the entry merges folded into branches): drawn with a dashed outline and a tooltip. *Card-only* = cells the card has that the design does not (the generator's merge cores): drawn as dashed placeholder tiles, or, when they share a site with a design cell, as a small "+n" badge on that tile; clicking a placeholder says what it is. The VM does not run the card-only cells; it does run the absorbed ones.
+- **Real card shape.** Loaded as the target the tiles turn Flex (copper), as designed in #1296. Alan's earlier screenshot showed Std tiles, so the SHAPE had most likely not been set as target through the Target tab (not confirmed). The shape used for measuring here is the one the tests build from the simulated card read-back, not Alan's own `card.shape.json`.
+
+*Measured (real Chromium, CORDIC under the full simulated-card SHAPE).* 4 absorbed cells dashed; the 4 card-only merge cores all share a site with a design cell, so they show as 4 "+1" badges and no placeholder tiles (the placeholder path exists but was not exercised by this design); 12 cells hold a value at load (preloaded), 24 after 6 steps, matching the valid flags exactly; 40 design tiles; no script errors. Tests: `tests/vm/test_workbench_v6_card_overlay_v1.py` (2; need iverilog; the browser part skips without Chromium); v5 tests still pass.
+
+*Not done.* Placeholder tiles for a card-only cell at an unused site have no real-design example yet; the steady glow does not show which value; Alan's own `card.shape.json` not yet tried here.
+
+Next entry: #1300.
