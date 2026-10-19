@@ -156,4 +156,11 @@ Next entry: #1239.
 
 *Not fixed.* `tests/test_flexsub_family_equivalence_v1.py` fails one check (div, valid mismatch) with and without this change (checked with the change stashed); it is older and unrelated. `nano/card_fit_v1.py` still has no Xilinx cost table. A Xilinx branch for `--icm` (step 2) is not written.
 
-Next entry: #1253.
+## #1253 -- SAVE / LOAD ROUND TRIP PASSES ON THE KINTEX CARD AT 60, 346, 700 AND 1000 (card-measured, corrected checker; completes #1251)
+
+*Run (Alan, 19 Oct, the k7_freeze_load kit with the corrected `check_saveload.py`; `freeze_saveload_test.sh T 1400` for T = 346, 60, 700, 1000).* All four runs printed OVERALL: PASS with all eight statements: FRZ3 bitstream; S and D taken frozen; the disturbance (run to 1400) changed the hidden state; **after the load all 78 cell words (visible and hidden) equal the saved ones**; **the driver state (count, k, result count, signature, last word, last-result clock) equals the saved one**; frozen after the load; after the release 6 results, signature 7FEF5298, last word 7FFFFEAA; last result at count 1562. This closes the #1251 failing line: it was the checker, as stated there.
+
+*Scope.* Four saved counts, one disturbance count (1400). The negative control (a corrupted loaded register changes the result) was run in simulation only (#1250), not on the card. The tree's add-ons were idle at these counts. The freeze-read-write path is now proven on the card for the Tang std_tree4 design; other cell families and add-on-active designs are not yet.
+
+Next entry: #1254.
+
