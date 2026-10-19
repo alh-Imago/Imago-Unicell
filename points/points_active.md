@@ -232,4 +232,9 @@ Next entry: #1239.
 
 *Not done / scope.* The ICM panel has not yet been run on Alan's PC. The runner has not been run on the card (simulation against the VM only). The CORDIC disagreement of #1259 is still unexplained. No freeze / save / load in the runner; flex family only.
 
-Next entry: #1261.
+### #1261 (19 Oct 2026) -- Front end: the ICM panel now finds saved ICM files (fix after Alan's first look)
+
+*Problem.* Alan opened the panel looking for his saved ICM files and did not see them: the list only searched the repo's `nano/examples`, and the only way to add folders was by editing the settings file by hand. *Fix.* The panel now searches `nano/examples`, `nano`, `~/Downloads`, `~/Documents` and the folders the user adds in the panel (box "Look for saved ICM files in another folder", remembered in `~/.config/unicell_bench.json`), each plus its sub-folders one level down; every entry shows its folder. Only `*.icm-hier.json` (the Composer's VIX save, named `<name>.composed.icm-hier.json`) is listed: that is the format `--icm` reads; the flat `*.icm.json` the Composer also saves is not accepted by the assembler. Test `tests/vm/test_frontend_v1.py` (7) passes. Not tried on Alan's PC yet.
+
+Next entry: #1262.
+

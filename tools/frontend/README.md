@@ -16,7 +16,7 @@ It prints an address like `http://127.0.0.1:8765/?t=...` and opens it in the bro
 The two terminals are real shells: you can type in them as usual. The buttons only send fixed commands from a list in the program; nothing it sends writes the card's flash.
 
 ## The ICM panel (end of the pipeline: composer / DSL / LLVM IR -> ICM file -> card)
-* Pick an ICM file (the repo's examples, or any path). Pick a card: the list is every MAN file in `docs/man/`.
+* Pick an ICM file. The list searches the repo examples, Downloads, Documents and any folder you add in the panel (only `*.icm-hier.json`, the Composer's VIX save, is accepted by the assembler). Pick a card: the list is every MAN file in `docs/man/`.
 * *Create build folder* runs the assembler for you and makes a new folder **inside the demo folder**, so the Designs list picks it up by itself. What it makes depends on the card's `flow` in its MAN file: `openxc7` (Kintex: a runner project with Makefile, constraints, test vectors and the OpenOCD scripts), `gowin-apicula` (Tang: a Gowin project), `export-only` (closed toolchains such as Arria 10: a plain Verilog folder and a README, for you to synthesise yourself).
 * On a Kintex runner project the folder name carries the tag *sim vs VM: PASS/FAIL*: the generated hardware was simulated and its answers compared with the VM's. This is simulation only; the runner has not yet been measured on the card.
 * Extra Card-shell buttons for a runner project: *Run vectors v1/v2* (feed the test words, read the counts, signatures and last clock) and *Read run*. Results shows each exit as PASS/FAIL against the VM's expected answer.

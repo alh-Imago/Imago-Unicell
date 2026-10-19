@@ -93,16 +93,31 @@ def find_repo(cli_repo=None):
     return None
 
 
+def icm_dirs(repo):
+    """Folders searched for ICM files: the repo's examples, Downloads, Documents, the repo's nano folder, and any the user added."""
+    base = [os.path.join(repo, "nano", "examples"), os.path.join(repo, "nano"), "~/Downloads", "~/Documents"]
+    return [os.path.expanduser(d) for d in base + (load_settings().get("icm_dirs") or [])]
+
+
 def icm_files(repo):
-    dirs = [os.path.join(repo, "nano", "examples")] + [os.path.expanduser(d) for d in (load_settings().get("icm_dirs") or [])]
-    out = []
-    for d in dirs:
+    """Every *.icm-hier.json in those folders and in their sub-folders one level down."""
+    out, seen = [], set()
+    for d in icm_dirs(repo):
         try:
-            for n in sorted(os.listdir(d)):
-                if n.endswith(".icm-hier.json"):
-                    out.append({"name": n[:-len(".icm-hier.json")], "path": os.path.join(d, n)})
+            names = sorted(os.listdir(d))
         except OSError:
-            pass
+            continue
+        spots = [d] + [os.path.join(d, n) for n in names if os.path.isdir(os.path.join(d, n)) and not n.startswith(".")]
+        for sp in spots:
+            try:
+                for n in sorted(os.listdir(sp)):
+                    pth = os.path.join(sp, n)
+                    if n.endswith(".icm-hier.json") and pth not in seen:
+                        seen.add(pth)
+                        rel = os.path.relpath(sp, os.path.expanduser("~")) if sp.startswith(os.path.expanduser("~")) else sp
+                        out.append({"name": n[:-len(".icm-hier.json")], "path": pth, "where": rel})
+            except OSError:
+                pass
     return out
 
 
@@ -395,7 +410,7 @@ class H(BaseHTTPRequestHandler):
         if u.path == "/api/icm":
             if not self.st.repo:
                 return self._send(200, json.dumps({"repo": None}))
-            return self._send(200, json.dumps({"repo": self.st.repo, "icms": icm_files(self.st.repo), "cards": card_files(self.st.repo), "demo": self.st.demo}))
+            return self._send(200, json.dumps({"repo": self.st.repo, "icms": icm_files(self.st.repo), "dirs": icm_dirs(self.st.repo), "cards": card_files(self.st.repo), "demo": self.st.demo}))
         if u.path == "/api/startup":
             key, dflt, prompt, mine = startup_for(os.path.join(self.st.demo, self.st.selected) if self.st.selected else "")
             return self._send(200, json.dumps({"key": key, "default": dflt, "prompt": prompt, "mine": mine}))
@@ -453,6 +468,15 @@ class H(BaseHTTPRequestHandler):
                 save_settings(d)
                 self.st.repo = path
                 return self._send(200, json.dumps({"repo": path}))
+            if u.path == "/api/icm/dir":
+                path = os.path.abspath(os.path.expanduser(str(body.get("path", ""))))
+                if not os.path.isdir(path):
+                    raise ValueError("that is not a folder on this PC")
+                d = load_settings()
+                if path not in d.setdefault("icm_dirs", []):
+                    d["icm_dirs"].append(path)
+                save_settings(d)
+                return self._send(200, json.dumps({"icms": len(icm_files(self.st.repo))}))
             if u.path == "/api/icm/create":
                 return self._send(200, json.dumps(self.st.create_from_icm(str(body.get("icm", "")), str(body.get("card", "")), str(body.get("name", "")))))
             if u.path == "/api/startup":
