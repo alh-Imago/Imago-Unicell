@@ -183,7 +183,7 @@
 <li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
 <li><strong>What is NOT shown:</strong> running a design on a physical card <strong>and</strong> saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>).</li>
 <li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
-<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 17 October 2026 the ledger is at #1261).</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 17 October 2026 the ledger is at #1264).</li>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
@@ -287,6 +287,11 @@
 <td><strong>Sub-family tiles and sub + trimmed carrier through the bridge</strong>: the native cross and corner cells in the sub family (6 streams x 8 words, all at once, 3,418 LUT4); flex -&gt; SUB -&gt; flex -&gt; trimmed CARRIER -&gt; flex (x + 1319, random exit stalls, 2,092 LUT4, sub bridge and carrier adapter in one design), and the same chain with the carrier's DIVISION core (1000000 // (x + 1239) + 3, one divide by zero, 2,193 LUT4)</td>
 <td><strong>Card</strong>: both board lines equal the simulation in every field (sigs AF35B8F0, 00002D70 and 0001422C). Sub and carrier are not directly adjacent (the assembler refuses that); the carrier is the trimmed one (adder or divider; no multiplier yet); one run each</td>
 <td>#1184-#1187</td>
+</tr>
+<tr>
+<td><strong>ICM file -&gt; Kintex runner project -&gt; card</strong> (<code>small_relay_chain</code>, made by the UniCell Bench panel, built with openXC7: dut.clk 148.77 MHz, JTAG clock 280.27 MHz; fed over JTAG, two input sets of 3 words)</td>
+<td><strong>Card (Kintex-7)</strong>: both sets equal the VM (10 1 2, signature 00000028; 14 100 3, signature 000000F3), last word at clock 12</td>
+<td>#1264</td>
 </tr>
 <tr>
 <td><strong>Kintex-7 (XC7K480T, YPCB-00338-1P1) first design</strong>: JTAG IDCODE 0x23751093 read; the openXC7 blinky demo for this board built and loaded into SRAM over JTAG</td>
@@ -722,8 +727,8 @@ throughout the project's own documentation, never blurred.</p>
   plain Verilog export for closed toolchains such as Arria 10). Run:
   <code>bash
   python3 tools/frontend/unicell_frontend_v1.py --demo ~/openFPGALoader/build/demo-projects --repo .</code>
-  See <code>tools/frontend/README.md</code>. (The ICM runner on the card is not
-  yet measured; simulation against the VM only.)</li>
+  See <code>tools/frontend/README.md</code>. (The ICM runner has been run on the Kintex card for one design,
+  <code>small_relay_chain</code>, two input sets: card equals VM, ledger #1264.)</li>
 <li><strong>A working browser workbench</strong> — compile a program, watch it run,
   drive individual cells, load multiple independent programs onto one
   shared grid as named regions, or let it auto-play at a chosen rate
@@ -6757,7 +6762,7 @@ It prints an address like <code>http://127.0.0.1:8765/?t=...</code> and opens it
 <ul>
 <li>Pick an ICM file. The list searches the repo examples, Downloads, Documents and any folder you add in the panel (only <code>*.icm-hier.json</code>, the Composer's VIX save, is accepted by the assembler). Pick a card: the list is every MAN file in <code>docs/man/</code>.</li>
 <li><em>Create build folder</em> runs the assembler for you and makes a new folder <strong>inside the demo folder</strong>, so the Designs list picks it up by itself. What it makes depends on the card's <code>flow</code> in its MAN file: <code>openxc7</code> (Kintex: a runner project with Makefile, constraints, test vectors and the OpenOCD scripts), <code>gowin-apicula</code> (Tang: a Gowin project), <code>export-only</code> (closed toolchains such as Arria 10: a plain Verilog folder and a README, for you to synthesise yourself).</li>
-<li>On a Kintex runner project the folder name carries the tag <em>sim vs VM: PASS/FAIL</em>: the generated hardware was simulated and its answers compared with the VM's. This is simulation only; the runner has not yet been measured on the card.</li>
+<li>On a Kintex runner project the folder name carries the tag <em>sim vs VM: PASS/FAIL</em>: the generated hardware was simulated and its answers compared with the VM's. The tag is the simulation verdict. On the card, one such project (<code>small_relay_chain</code>, two input sets) has been run and agreed with the VM (ledger #1264); other designs have not been run on the card yet.</li>
 <li>Extra Card-shell buttons for a runner project: <em>Run vectors v1/v2</em> (feed the test words, read the counts, signatures and last clock) and <em>Read run</em>. Results shows each exit as PASS/FAIL against the VM's expected answer.</li>
 <li>If the MAN file has a <code>startup</code> command (a line your design needs typed first), the page asks you once and keeps your answer only on your PC (<code>~/.config/unicell_bench.json</code>).</li>
 </ul>

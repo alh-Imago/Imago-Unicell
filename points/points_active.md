@@ -244,5 +244,15 @@ Next entry: #1239.
 
 *Why.* Alan made a folder by hand (a copy of a created design with a slightly different name, `a_small_relay_chain_kintex7-ypcb00338`) while the page was open and it did not appear: the list was read once at start and after Create. *Change.* The page re-reads the list every 10 s, when the browser window gets focus again, and on a new Refresh button next to "Designs". A folder shows if it has a Makefile or a kit.json. Test (7) passes. Cause stated as the most likely one from the code; not confirmed on Alan's PC.
 
-Next entry: #1264.
+### #1264 (19 Oct 2026) -- FIRST CARD RUN OF AN ICM-MADE KINTEX PROJECT: small_relay_chain, card equals VM
+
+*What was done (all by Alan, from the UniCell Bench, 19 Oct afternoon).* After `git pull` brought his clone from #1258 to #1263 (his first panel attempts ran the old assembler and made a folder with only `.v`/`.ys`; cause: repo clone out of date, not a panel fault), the panel created `small_relay_chain_kintex7-ypcb00338` from `nano/examples/small_relay_chain.icm-hier.json` and the Kintex card file. Build (openXC7, inside `nix develop github:openxc7/toolchain-nix`): "timing passed", dut.clk 148.77 MHz (PASS at 50 MHz), j_tck 280.27 MHz (PASS at 12 MHz). Load into SRAM with `make program JTAG_LINK="-c ft232"`: Done. Card shell: `run_vectors.sh vectors.txt` then `vectors2.txt`, then `run_read.sh`.
+
+*Measured on the card (Kintex-7 XC7K480T, JTAG IDCODE 0x23751093).* Set 1: loaded 3, fed 3; exit 3 words **10 1 2**, signature 00000028, last word at clock 12; the VM's expected list is the same: PASS. Set 2: 3 words **14 100 3**, signature 000000F3, last at clock 12; VM the same: PASS. `run_read.sh` afterwards shows the same state (run 3). Magic `52554E31` OK each time.
+
+*Scope, stated plainly.* One design (8 cells, flex family), two input sets of three words each, one card, one build. This proves the whole path ICM file -> panel -> assembler -> openXC7 -> SRAM -> JTAG feed -> JTAG read -> check against the VM for that design. It does not show the larger examples on the card (the reduction trees agreed in simulation only), nor the CORDIC example (VM and RTL still disagree, unexplained, #1259), and the runner has no freeze / save / load.
+
+*Docs.* `README.md` (new row in the card table; the "not measured" note changed), `tools/frontend/README.md` and the teaching manual's Bench section updated to say one design has run on the card.
+
+Next entry: #1265.
 
