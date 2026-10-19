@@ -296,5 +296,15 @@ Next entry: #1239.
 
 *Standing result.* Single words: VM = card = independent CORDIC (#1267). Streams: card gives the correct single-input answer for every word; VM gives only the first. Which model of a preloaded `fixed_mode`-0 ram is the intended one for the VM is a design decision for Alan.
 
-Next entry: #1269.
+### #1269 (19 Oct 2026) -- FlexGrid v2 groundwork: only FlexGrid needs it; a before/after recorder for the VM (no VM code changed)
+
+*Decision (Alan, 19 Oct).* A full v2 of the VM is wanted (held constants), done carefully, with every current model checked afterwards. Steps: (1) find what each family's hardware does, (2) record what the current VM does, (3) build v2 as a clone, (4) compare, (5) switch callers one at a time.
+
+*Step 1 (read from the files).* The standard ram cell (`fpga/verilog/ram_cell_v4.v`): `fixed_mode` 0 = flowing, the cell empties after its offer (`!fixed_mode && offer_draining -> data_valid <= 0`); only `fixed_mode` 1 keeps offering. `SuperGrid` models that, so the standard family is already faithful. The flex generator (`flexsub_icm_generate_v1.py` line 570, and the header of `flexsub_icm_flex_v1.py`) treats any ram with nothing feeding it and either a `preload_value` or `fixed_mode` as a CONSTANT (`.cfg_fixed_mode(1'b1)`, offered continuously), so an ICM cell with preload and `fixed_mode` 0 means two different things in the two families. `FlexGrid` does not copy the flex generator's rule. Measured in #1268: both VMs run one CORDIC word; the card runs all. So the change belongs in FlexGrid only (a `flex_grid_v2`); `SuperGrid` and the standard family are not to be touched. Not yet done: the held-constant model itself (a flag does not work, #1268).
+
+*Step 2 (in progress).* `tools/vm_baseline_v1.py` (new): feeds fixed words (7, 3, 12, 100) to every entry of the 25 example ICMs (`nano/examples`, `card_tested`) on `FlexGrid` or `SuperGrid` and records every exit's words; `--write FILE` records, `--check FILE` lists differences. Entries and exits are found the way the flex generator finds them. Run twice on the current code: identical (0 differences). 4 flex designs cannot run on the current FlexGrid (three with a divider: "both operands of a div arrive in the same tick"; `looped_cordic_v1`: refused by the generator); they are recorded as errors, so they are not a difference later. The test baseline (84 `tests/vm` files that reach FlexGrid directly or through the tools that import it) is running; its result is NOT in this entry and will be logged separately.
+
+*Not done.* No VM file was changed. The recorded baseline JSON files are in the session's scratch area, not yet in the repo.
+
+Next entry: #1270.
 
