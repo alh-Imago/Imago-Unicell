@@ -5,7 +5,7 @@ Clone of kintex_tree4_pack_v1.py's output (v1 is NOT edited): the same wrapper a
 plus a BSCANE2 JTAG user register (USER1) that lets a host read the design's own state straight out of the chip:
 
     word 0 (bits  31..0 ) 0x554E4943  ("UNIC", a fixed pattern: proves the path)
-    word 1 (bits  63..32) a free-running 32-bit counter of 50 MHz clocks, captured at the moment of the scan
+    word 1 (bits  63..32) a free-running 32-bit counter of 50 MHz clocks (counts from the moment the design was loaded), captured at the scan
     word 2 (bits  95..64) {16'h0, idx[7:0], 4'h0, lamp_on, timeout, bad, seen}  -- the wrapper's own registers
 
 Whether the open-source flow (nextpnr-xilinx) can place a BSCANE2 is NOT known: the build itself is the first test.
@@ -117,10 +117,36 @@ if not m:
     sys.exit("no USER1 line found: step B (load the bitstream) or the OpenOCD run failed; see the log")
 w0, w1, w2 = (int(x, 16) for x in m.groups())
 print("word0 = 0x%08X   %s" % (w0, "OK, the fixed pattern 'UNIC' came back" if w0 == 0x554E4943 else "NOT the expected 0x554E4943"))
-print("word1 = %d clocks of 50 MHz since power-up (a snapshot; changes on every read) -> %.3f s" % (w1, w1 / 50e6))
+print("word1 = %d clocks since the design was loaded (a snapshot; changes on every read) -> %.3f s if the clock is 50 MHz" % (w1, w1 / 50e6))
 seen, bad, tmo, lamp = w2 & 1, (w2 >> 1) & 1, (w2 >> 2) & 1, (w2 >> 3) & 1
 print("word2 = 0x%08X   seen=%d bad=%d timeout=%d lamp_on=%d idx=%d" % (w2, seen, bad, tmo, lamp, (w2 >> 8) & 0xFF))
 print("compare: %s" % ("PASS (a complete line was received and every byte matched)" if seen and not bad and not tmo else "NOT a pass"))
+'''
+
+CLOCK_SH = """#!/bin/sh
+# measure_clock.sh -- read the design's clock counter twice, 10 s apart (OpenOCD's own sleep), and work out the real clock frequency.
+# Needs the k7_tree4_jtag bitstream loaded. Reads only. The two scans are separated by a 10,000 ms host sleep plus the time of one scan
+# (a few milliseconds at most through USB), so the result is good to roughly 0.1 %, not better.
+cd "$(dirname "$0")" || exit 1
+openocd -f k7_ft232h.cfg -c "init; irscan xc7.tap 0x02; set a [drscan xc7.tap 32 0 32 0 32 0]; sleep 10000; set b [drscan xc7.tap 32 0 32 0 32 0]; puts \\"CLK1 \\$a\\"; puts \\"CLK2 \\$b\\"; shutdown" 2>&1 | tee measure_clock.log
+python3 decode_clock.py measure_clock.log 10.0
+"""
+
+DECODE_CLOCK_PY = '''#!/usr/bin/env python3
+"""decode_clock.py LOG SECONDS -- the counter (word 1) is 32 bits and wraps every 85.9 s at 50 MHz; two reads 10 s apart are fine."""
+import re
+import sys
+
+text = open(sys.argv[1]).read()
+secs = float(sys.argv[2])
+a = re.search(r"CLK1\\s+([0-9a-fA-F]+)\\s+([0-9a-fA-F]+)\\s+([0-9a-fA-F]+)", text)
+b = re.search(r"CLK2\\s+([0-9a-fA-F]+)\\s+([0-9a-fA-F]+)\\s+([0-9a-fA-F]+)", text)
+if not (a and b):
+    sys.exit("could not find the CLK1 / CLK2 lines; see the log")
+c1, c2 = int(a.group(2), 16), int(b.group(2), 16)
+d = (c2 - c1) % (1 << 32)
+print("counter %d -> %d, difference %d clocks in about %.3f s" % (c1, c2, d, secs))
+print("clock = %.4f MHz (nominal 50; good to about 0.1 %% because of the host-side timing)" % (d / secs / 1e6))
 '''
 
 README = """# k7_tree4_jtag_v1 -- read the design's own state out of the Kintex chip over JTAG (ledger #1239)
@@ -139,6 +165,8 @@ Three steps, each only after the one before worked. Nothing here writes the card
     copy this folder into demo-projects (next to blinky-ypcb003381p1), then:  make   and   make program JTAG_LINK="-c ft232"
     The LEDs must show the same PASS pattern as k7_tree4_v1 (green, yellow, green + yellow, off; red off).
     If `make` stops with an error mentioning BSCANE2 or an unknown cell, paste it: that is the answer to the question.
+
+**D. (optional) Measure the clock:** `nix shell nixpkgs#openocd --command sh measure_clock.sh` reads the counter twice, 10 s apart, and prints the real clock frequency.
 
 **C. Read the register**
     sh read_user1.sh                   # prints the three words and what they mean
@@ -176,7 +204,8 @@ def main():
     mk = mk.replace("tb_" + NAME + ".v", "tb_k7_tree4_jtag_v1.v")
     open(old("Makefile"), "w").write(mk)
     for fn, txt in (("k7_ft232h.cfg", OPENOCD_CFG), ("scan_chain.sh", SCAN_SH), ("read_user1.sh", READ_SH),
-                    ("decode_user1.py", DECODE_PY), ("README.md", README)):
+                    ("decode_user1.py", DECODE_PY), ("measure_clock.sh", CLOCK_SH),
+                    ("decode_clock.py", DECODE_CLOCK_PY), ("README.md", README)):
         open(old(fn), "w").write(txt)
     print("wrote", OUT)
 

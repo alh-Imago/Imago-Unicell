@@ -141,7 +141,7 @@ def build():
             "idcode": "READ ON THE CARD, 17 and 19 Oct 2026 (ledger #1189)",
             "clock_and_leds": "SEEN WORKING: openXC7 demo blinky-ypcb003381p1 and our blink_k7_v1 (ledger #1194, #1195, #1197); polarity and colours as Alan reported",
             "toolchain": "openXC7 under Nix runs on Alan's PC and produces bitstreams that load and run on the card",
-            "designs_run_on_card": "blink (#1194, #1197) and k7_tree4 (#1237: PASS pattern on the LEDs, seen by eye; Fmax and timing report not yet recorded)",
+            "designs_run_on_card": "blink (#1194, #1197) and k7_tree4 (#1237: PASS pattern on the LEDs, seen by eye); k7_tree4_jtag (#1241: result read out over JTAG USER1, seen=1 bad=0 timeout=0, compare PASS; nextpnr-xilinx estimate Fmax 202.88 MHz for the 50 MHz clock, an estimate not a measurement)",
             "config_status": ("READ OVER JTAG, 19 Oct (ledger #1238), design loaded into SRAM: `openFPGALoader -c ft232 --read-register STAT` (v1.1.1) -> raw 0x04107AFC: "
                               "DONE 1, EOS 1, INIT complete 1, release done 1, MMCM lock 1, no CRC error, no ID error, MODE 010 (Master BPI), bus width x16, "
                               "startup state 4 (binary 100). Agrees with the 26 May 2026 bring-up notes."),

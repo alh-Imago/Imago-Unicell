@@ -15,6 +15,8 @@ Three steps, each only after the one before worked. Nothing here writes the card
     The LEDs must show the same PASS pattern as k7_tree4_v1 (green, yellow, green + yellow, off; red off).
     If `make` stops with an error mentioning BSCANE2 or an unknown cell, paste it: that is the answer to the question.
 
+**D. (optional) Measure the clock:** `nix shell nixpkgs#openocd --command sh measure_clock.sh` reads the counter twice, 10 s apart, and prints the real clock frequency.
+
 **C. Read the register**
     sh read_user1.sh                   # prints the three words and what they mean
     Expect word0 = 0x554E4943, a counter that differs on every read, and seen=1 bad=0 timeout=0.
