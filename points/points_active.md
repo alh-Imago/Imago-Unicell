@@ -360,4 +360,14 @@ Alan: "the icm definition needs to be consistant across all the designs". First 
 
 *Needs Alan's ruling.* Which reading is official for a preloaded, unfed, non-fixed ram: (A) one-shot (standard RTL and VM), so the flex generator would have to change, and designs such as the CORDIC would need an explicit fixed_mode on their constants; or (B) constant, so the standard RTL / SuperGrid would change. Nothing is changed until he decides; any VM change would be a new cloned version checked against `tests/baselines/`.
 
-Next entry: #1275.
+## #1275 (19 Oct) -- RULING on #1274: the original standard / SuperGrid reading is official (no code changed)
+
+Alan: "A, the origional super grid and origional designs will take precedent in most of the changes, that was the std by which all others things stem from".
+
+*Ruling.* A ram with `preload_value`, `fixed_mode` 0 and nothing feeding it is a ONE-SHOT everywhere (standard RTL, SuperGrid, FlexGrid, flex and sub hardware). A permanent constant must say `fixed_mode` 1. General rule recorded: where families differ, the original standard reading (`ram_cell_v4.v`, SuperGrid) is the definition and the others are brought to it.
+
+*Measured impact (25 example ICMs, `nano/examples`, read from the files).* Only these have a preloaded, non-fixed ram: `cordic_z_convergence` (12 of 12), and the three `looped_cordic_v1*` files (4 of 13 each). The `mixed_flex_*` files' preloaded rams are all already fixed. So the designs that would change meaning under the ruling are the CORDIC family.
+
+*Plan (nothing done yet), each step with its own check.* (1) Clone the four CORDIC ICMs with `fixed_mode` 1 on those constants (the originals stay). (2) Clone the flex generator (v2) so a preloaded unfed non-fixed ram becomes a one-shot (OFFER_PRELOAD) instead of a constant; check generated Verilog for the 21 other examples is byte-identical. (3) Then FlexGrid2's narrow rule is no longer needed for the new files; keep it for the old files, state that. (4) Re-run the CORDIC on the card from the clone with fixed constants: expected the same words. Card runs already made (#1266-#1271) were of the old, non-fixed file.
+
+Next entry: #1276.
