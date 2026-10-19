@@ -472,4 +472,12 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Not done.* The negative test (a different design on the card; expected: "IS NOT this folder's design", exit 1, no neighbours) has not been run on the card; it is tested in simulation only (`test_walker_card_v1.py`). The discovery hardware, and the Walker's use of it, are next.
 
-Next entry: #1288.
+## #1288 (19 Oct) -- WALKER negative test ON THE KINTEX CARD: a different design on the card is refused
+
+*Card result (Alan).* The `k7_asm_adder4` design was programmed onto the card, then `run_vectors.sh vectors.txt` was run from the `cordic_walk` folder (twice, same result): "magic 00000000 WRONG - the runner is not loaded | run 0 | started=0"; "design fingerprint on the card: 00000000 | this folder's design_map.json: 04c680b7 | DIFFERENT - the card is not running this folder's design"; FAIL, no words. `walker_card_v1.py . run_vectors.log` then printed: runner magic WRONG, entries 0, exits 0; "design on the card IS NOT this folder's design (fingerprint 00000000 vs 04c680b7)"; counts 0/0 vs 1/1 DIFFERENT; and no neighbour listing.
+
+*Correction of an earlier attempt.* Alan's first try ran the Walker straight after programming adder4 without re-running `run_vectors.sh`; it read the stale CORDIC log and said SAME DESIGN. That was not a test of the card (the Walker reads only the log). Its output is not evidence either way.
+
+*Scope.* This shows the Walker refuses a card that carries no runner for this folder. It does not show it distinguishes two different runner designs with different fingerprints (simulation test only). With #1287 the Walker's design-identity step is proven both ways on hardware. Cell-by-cell neighbour confirmation (discovery hardware) is not built.
+
+Next entry: #1289.
