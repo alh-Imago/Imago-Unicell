@@ -391,11 +391,26 @@ openocd -f k7_ft232h.cfg -c "init; irscan xc7.tap 0x02; source freeze_lib.tcl; f
 python3 decode_freeze.py sweep.log sweep.csv > sweep_decoded.txt && echo "wrote sweep_decoded.txt and sweep.csv"
 """
 
+SH_BUSY = """#!/bin/sh
+# freeze_busy.sh -- step 1: every single clock count over the three busy stretches of the run (loads at 44-56, 344-356, 1544-1556 and
+# the results around 1562). Each stretch is its own file so nothing is overwritten: busy_40_70, busy_340_370, busy_1540_1570 (.log .csv _decoded.txt).
+cd "$(dirname "$0")" || exit 1
+for R in "40 70" "340 370" "1540 1570"; do
+  set -- $R
+  openocd -f k7_ft232h.cfg -c "init; irscan xc7.tap 0x02; source freeze_lib.tcl; for {set T $1} {\\$T <= $2} {incr T 1} { fz_go \\$T; after 20; fz_read \\$T }; shutdown" > busy_$1_$2.log 2>&1
+  python3 decode_freeze.py busy_$1_$2.log busy_$1_$2.csv > busy_$1_$2_decoded.txt && echo "wrote busy_$1_$2.csv"
+done
+"""
+
 
 def main():
     if os.path.isdir(OUT):
-        shutil.rmtree(OUT)
-    os.makedirs(os.path.join(OUT, "rtl"))
+        for entry in os.listdir(OUT):          # rebuild everything except recorded results from the card
+            if entry == "results":
+                continue
+            full = os.path.join(OUT, entry)
+            shutil.rmtree(full) if os.path.isdir(full) else os.remove(full)
+    os.makedirs(os.path.join(OUT, "rtl"), exist_ok=True)
     # cell files and the Tang grid / top, unchanged copies from the previous kit (same files that ran on the card)
     for f in CELL_FILES:
         shutil.copy(os.path.join(SRC, "rtl", f), os.path.join(OUT, "rtl", f))
@@ -425,7 +440,7 @@ def main():
     json.dump([{"cell": n, "name": c.split(" (")[0].strip(), "kind": k, "comment": c} for n, c, k in cells],
               open(os.path.join(OUT, "cells.json"), "w"), indent=1)
     for fn, txt in (("freeze_lib.tcl", TCL), ("freeze_read.sh", SH_READ), ("freeze_at.sh", SH_AT), ("freeze_release.sh", SH_REL),
-                    ("freeze_sweep.sh", SH_SWEEP), ("decode_freeze.py", DECODE), ("README.md", README)):
+                    ("freeze_sweep.sh", SH_SWEEP), ("freeze_busy.sh", SH_BUSY), ("decode_freeze.py", DECODE), ("README.md", README)):
         open(os.path.join(OUT, fn), "w").write(txt)
     print("wrote", OUT)
 

@@ -1,0 +1,80 @@
+[
+ {
+  "cell": 0,
+  "name": "lane_0.in",
+  "kind": "ram",
+  "comment": "lane_0.in (0,0) ram"
+ },
+ {
+  "cell": 1,
+  "name": "lane_0.out",
+  "kind": "ram",
+  "comment": "lane_0.out (0,1) ram"
+ },
+ {
+  "cell": 2,
+  "name": "lane_1.in",
+  "kind": "ram",
+  "comment": "lane_1.in (1,0) ram"
+ },
+ {
+  "cell": 3,
+  "name": "lane_1.out",
+  "kind": "ram",
+  "comment": "lane_1.out (1,1) ram"
+ },
+ {
+  "cell": 4,
+  "name": "lane_2.in",
+  "kind": "ram",
+  "comment": "lane_2.in (2,0) ram"
+ },
+ {
+  "cell": 5,
+  "name": "lane_2.out",
+  "kind": "ram",
+  "comment": "lane_2.out (2,1) ram"
+ },
+ {
+  "cell": 6,
+  "name": "lane_3.in",
+  "kind": "ram",
+  "comment": "lane_3.in (3,0) ram"
+ },
+ {
+  "cell": 7,
+  "name": "lane_3.out",
+  "kind": "ram",
+  "comment": "lane_3.out (3,1) ram"
+ },
+ {
+  "cell": 8,
+  "name": "spine_0.relay",
+  "kind": "ram",
+  "comment": "spine_0.relay (0,2) ram"
+ },
+ {
+  "cell": 9,
+  "name": "spine_1.add",
+  "kind": "adder",
+  "comment": "spine_1.add (1,2) adder"
+ },
+ {
+  "cell": 10,
+  "name": "spine_2.add",
+  "kind": "adder",
+  "comment": "spine_2.add (2,2) adder"
+ },
+ {
+  "cell": 11,
+  "name": "spine_3.add",
+  "kind": "adder",
+  "comment": "spine_3.add (3,2) adder"
+ },
+ {
+  "cell": 12,
+  "name": "exit.exit_c0",
+  "kind": "ram",
+  "comment": "exit.exit_c0 (3,3) ram"
+ }
+]
