@@ -26,6 +26,8 @@ Standalone utilities and offshoots built alongside the Imago UniCell project.
 | `kintex_freeze_pack_v1.py` | Builds the freeze-and-read kit: the Tang std_tree4 grid with one freeze line and a snapshot port, a driver that freezes it at a programmed clock count, and a 1024-bit BSCANE2 register with OpenOCD scripts (ledger #1243); writes `fpga/kintex7_tests/k7_freeze`. |
 | `cell_debug_clone_v1.py` | Clones the proven adder and RAM cell + shell files into debug versions (adder_cell_v4f, adder_shell_v1f, ram_cell_v4d, ram_shell_v1d) with one extra output port for the hidden registers (ledger #1247); writes into `fpga/verilog/`. |
 | `kintex_freeze_pack_v2.py` | Clone of the freeze kit builder that uses the debug cells and an 84-word scan with the hidden state (ledger #1247); writes `fpga/kintex7_tests/k7_freeze_dbg`. |
+| `kintex_freeze_pack_v3.py` | Freeze, save and load kit builder: load-capable cells, cycle-exact freeze, 86-word scan (ledger #1250); writes `fpga/kintex7_tests/k7_freeze_load`. |
+| `cell_debug_clone_v2.py` | Clones the debug cells into load-capable v4g/v1g (adds `dbg_load_en`, `dbg_load_state`; ledger #1250). |
 | `man_gen/gen_kintex7_ypcb00338_man_v1.py` | Writes the MAN file and xdc for the Kintex-7 card (ledger #1235): `docs/man/kintex7-ypcb00338.man.json`; `--check` for drift. |
 - `board_esp32_c1_v1.py` (ledger #1211): test C1, the Tang as stopwatch and signal generator for an ESP32 interrupt handler; writes `fpga/board_tests_c1/` (c1_quiet, c1_storm). Built, not yet run.
 - `board_direct_latency_t3_v1.py` (ledger #1209): test T3, two input pins (jumpers 86 -> 72 and 53 -> 71); writes `fpga/board_tests_latency3/`. Card run passed (#1210).
