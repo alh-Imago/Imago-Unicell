@@ -630,4 +630,13 @@ Alan asked for the three follow-ups listed under #1297/#1298 (brightness for dat
 
 *Not done.* Placeholder tiles for a card-only cell at an unused site have no real-design example yet; the steady glow does not show which value; Alan's own `card.shape.json` not yet tried here.
 
-Next entry: #1300.
+### #1300 -- Workbench v7: Browse keeps the picked file and loads it (19 Oct 2026)
+
+Alan: choosing a design with Browse on the Load tab reset the drop-down to its first entry and the design did not load. `nano/workbench_v7.py` (clone of v6; v6 untouched).
+
+- *Cause (reproduced).* Browse uploads the file and re-reads the drop-down list, then selects the picked file in it; the design list only knows names ending `.icm` or `.icm-hier.json`, so a picked file named differently (Alan's `k7_icm_cord...`) was not in the list, the selection fell back to the first entry (`super_cell_adder_ram_example.icm`), and nothing was loaded because Browse only ever filled the Path box and waited for a Load button. This is my own v3 design; the "does not load" part was a missing step, not a failed load.
+- *Fix.* A picked file that the list does not know is added to the drop-down and selected (labelled "(picked)"). On the Load tab, picking a design now loads it at once: `.icm` through Load .icm, any other JSON through Load hierarchical design. Picking a SHAPE or MAN file still only fills the list (those need "Use as target"/"Set target" deliberately).
+- *Measured (real Chromium, real file chooser, a copy of the CORDIC design named `k7_icm_cordic_copy.json`).* v6: drop-down falls back to the first entry (test fails). v7: drop-down shows the picked file, Path is set, 40 tiles loaded, no script errors. Test: `tests/vm/test_workbench_v7_browse_v1.py`.
+- *Not checked.* A picked file of the wrong kind (e.g. a flat .json that is not a hierarchical design) shows the load's own error message, not tested here.
+
+Next entry: #1301.
