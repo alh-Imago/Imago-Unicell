@@ -432,4 +432,14 @@ Alan on #1282: "yes apply towards the hardware count, the vm is suppose to corre
 
 *Scope.* The rule only accepts a difference that is purely equal-words-in-a-row. The card counts the same way as the simulation (same hardware), but this entry did not include a card run.
 
-Next entry: #1284.
+## #1284 (19 Oct) -- ICM AUDIT part 3: the VM's programming tables against the RTL (`tools/prog_table_vs_rtl_v1.py`); teaching manual updated
+
+*Measured (by the new tool, which reads the PROG_ID_* localparams of the standard RTL and the VM's `_PROG_TABLES`).* Seven cores have a VM programming table: adder, ram, comparator, accumulator, latch, sequencer, branch. For six, every id the RTL declares is in the VM table and vice versa, with the same field meaning on inspection of the printed name pairs (names are not matched automatically). The one gap: the adder's `SECOND_OUTPUT` (id 4) and `SECOND_DOWNSTREAM_MASK` (id 5), added to the RTL in #1036, are not in the VM's word-programming table. The VM does read those fields when it loads a design file (`second_output`, `second_downstream_mask`, lines 622-737 of the super automaton), so only programming them word by word is missing, and that path raises an explicit error. The VM has NO programming table at all for mul, div, priority, merge or command cells (the RTL has PROG_IDs for them). Who uses word programming: the carrier (live reprogramming).
+
+*Guard.* `tests/vm/test_prog_table_vs_rtl_v1.py` (1 passed) fails if the gap changes. Not changed: adding the adder ids and the missing tables would be a new VM version, not done.
+
+*Teaching manual.* `docs/teaching/bench_fragment.html` (section 19c) now explains the constant rule (#1275), which VM the card is compared with, the hardware-count rule (#1283), and its "shown / not yet" table is rewritten to match the measurements (the old text still said the CORDIC disagreed).
+
+*Scope.* Standard family RTL only; widths and the sub and flex cells (which take their configuration by other means) were not compared.
+
+Next entry: #1285.

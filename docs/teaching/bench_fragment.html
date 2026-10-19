@@ -21,11 +21,15 @@
 <h2>What an ICM run on the Kintex card is</h2>
 <p>The generated project wraps the design in a small runner: it feeds test words into the entries, counts what comes out of each exit, and keeps a signature and the clock of the last word. A script reads that over JTAG and checks each exit against what the VM says it should be.</p>
 
+<h2>One rule for a constant, and which VM checks the card</h2>
+<p>A ram cell that has a preloaded value, is not marked fixed and has nothing feeding it gives its value <b>once</b> and is then empty. That is the original (standard) reading, and every family now follows it. If you want a value that is always there, such as a CORDIC angle constant, mark the cell <b>fixed</b> (<code>fixed_mode</code> 1). The CORDIC example <code>cordic_z_convergence_v2</code> does exactly that for its eight angle constants; the four zero references stay one-shot because the branch cell keeps the first value it sees as its reference.</p>
+<p>The VM that the card is compared with is the original grid (FlexGrid v1). A second grid, FlexGrid v2, exists only to reproduce older results that relied on the old flex behaviour; new work does not use it. When the hardware counts two equal words in a row as two words and the VM's list merged them, the hardware's count is taken, because the VM is corrected to the hardware, not the other way round. Any other difference is still reported as a disagreement.</p>
+
 <h2>What has and has not been shown</h2>
 <table>
 <tr><th>Shown</th><th>Not yet</th></tr>
-<tr><td>Freeze, read, save and load on the Kintex card (several clocks, PASS). A whole ICM path: ICM file &rarr; panel &rarr; build &rarr; load &rarr; fed over JTAG &rarr; answers equal the VM (small relay chain: 10 1 2 and 14 100 3; reduction tree with 4 entries: 100 4 8 and 98 406 12).</td><td>Further designs through the runner on the card: so far the small relay chain and the 4-input reduction tree (two input sets each, card = VM). In simulation 3 of 4 example ICMs agree with the VM; CORDIC is the one that does not.</td></tr>
-<tr><td>An assembler-made flex adder chain builds (282.65 MHz) and its LEDs match simulation.</td><td>One example (CORDIC) disagrees between the RTL and the VM; the cause is not found.</td></tr>
-<tr><td>The page works in a headless browser test and on the author's PC for picking, shells, environment check and build verdicts.</td><td>The ICM panel on the author's PC; save/load inside the runner; sub, standard and mixed families on Xilinx.</td></tr>
+<tr><td>Freeze, read, save and load on the Kintex card (several clocks, PASS). A whole ICM path: ICM file &rarr; panel &rarr; build &rarr; load &rarr; fed over JTAG &rarr; answers equal the VM, for the small relay chain, the 4-input reduction tree and the 4-stage CORDIC with fixed constants (two input sets each; CORDIC 10 1 2 &rarr; 2736 2727 2728 and 14 100 3 &rarr; 2740 2826 2729).</td><td>Save and load inside the runner; the sub, standard and mixed families on Xilinx.</td></tr>
+<tr><td>In simulation the generated hardware agrees with the VM for 17 of the 26 example designs (the rest are refused with a reason, cannot be compared, or were explained).</td><td>CORDIC with an input of 0 or with negative inputs on the card; a held constant feeding a multiplier.</td></tr>
+<tr><td>The page works in a headless browser test and on the author's PC for picking, shells, environment check, build verdicts and the ICM panel.</td><td>Any design beyond the examples; widths other than 32.</td></tr>
 </table>
 </div>
