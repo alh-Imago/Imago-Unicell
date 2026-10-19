@@ -498,6 +498,43 @@ def _derive_deps(top_path, cell_dir):
     return sorted(found.items())
 
 
+FLOWS = ("gowin-apicula", "openxc7", "export-only")
+# Flow used when a card's MAN has no synthesis.build.flow (ledger #1258). The two cards that exist (Tang, Arria 10) keep their proven MAN files untouched;
+# a NEW card states its own flow in its MAN file and never needs this table. A Xilinx MAN without a build section is refused (no safe default).
+VENDOR_DEFAULT_FLOW = {"gowin": "gowin-apicula", "intel": "export-only"}
+
+
+def resolve_flow(man):
+    """Which build flow a card gets: the MAN's synthesis.build.flow, else the vendor default above. No MAN: the original Gowin synthesis-only output."""
+    if man is None:
+        return "gowin-apicula"
+    flow = (man.get("build") or {}).get("flow")
+    if flow is None:
+        flow = VENDOR_DEFAULT_FLOW.get(man["vendor"])
+        if flow is None:
+            raise ValueError(f"MAN {man['card_id']} (vendor {man['vendor']!r}) states no build flow (synthesis.build.flow) and there is no default for its vendor")
+    if flow not in FLOWS:
+        raise ValueError(f"MAN {man['card_id']}: unknown build flow {flow!r}; known flows: {', '.join(FLOWS)}")
+    return flow
+
+
+def export_readme(man, top_name, family, base, n, width, files):
+    b = man.get("board", {}) if man else {}
+    clk = next(iter((b.get("clock") or {}).values()), {}) if isinstance(b.get("clock"), dict) else {}
+    L = [f"# {top_name} -- plain Verilog for {man['card_id'] if man else 'a card'} (made by tools/flexsub_assemble_v1.py, ledger #1258)", "",
+         f"This card's toolchain is not built by this project ({man['vendor'] if man else 'unknown'}; flow: export-only). The folder holds the design as plain Verilog for you to",
+         "synthesise, place and route in your own tools. Nothing here has been built or run for this card by this project.", "",
+         f"* Design: {n}-cell {base} ({family} family), data width {width}. Top module `{top_name}` in `{top_name}.v`; the other .v files are the cells it uses.",
+         "* Top-level ports: `BOARD_CLK` (input clock), `BTN_RST_N` (input, active-low reset), `BTN_ENTRY` (input, tie low if unused), `LED0_N`, `LED1_N`, `LED2_N` (outputs, active-low).",
+         "  They are observability outputs for a test design: connect or constrain them as your card allows."]
+    if clk.get("pin"):
+        L.append(f"* The card's MAN records its clock on pin {clk['pin']}" + (f" at {clk.get('freq_hz')} Hz" if clk.get("freq_hz") else "") + ". Other pins: see the MAN file and its pin file.")
+    else:
+        L.append("* Pins and clock: see the card's MAN file and its pin file (not translated here: this project has no constraint format for this toolchain).")
+    L += ["", "Files: " + ", ".join(files)]
+    return "\n".join(L) + "\n"
+
+
 def generate_xdc(man):
     """The .xdc from the Xilinx MAN's own board table (clock and LED pins, io standards, clock period)."""
     b = man["board"]
@@ -581,8 +618,9 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
     top_name = top or f"flexsub_{base}_{suffix}_n{n}_w{width}"
     os.makedirs(output, exist_ok=True)
     top_path = os.path.join(output, f"{top_name}.v")
-    target = "xilinx" if (man and man["vendor"] == "xilinx") else "gowin"
-    if target == "xilinx" and not man.get("build"):
+    flow = resolve_flow(man)
+    target = "xilinx" if flow == "openxc7" else "gowin"
+    if flow == "openxc7" and not (man and man.get("build")):
         raise ValueError(f"MAN {man['card_id']} is a Xilinx card but has no synthesis.build section -- cannot say how to build it")
     with open(top_path, "w") as f:
         f.write(generate_top(top_name, family, base, n, width, real[0], target))
@@ -592,6 +630,23 @@ def assemble_flexsub(family, cell, n, output, man_path=None, width_arg=None, top
     if cell_file not in deps:
         raise RuntimeError(f"dependency derivation did not find {cell_file} -- generated top is wrong")
     import shutil
+    if flow == "export-only":
+        for fname, src in dep_pairs:
+            shutil.copy2(os.path.join(src, fname), os.path.join(output, fname))
+        files = [f"{top_name}.v"] + deps + ["README.md", "kit.json"]
+        with open(os.path.join(output, "README.md"), "w") as f:
+            f.write(export_readme(man, top_name, family, base, n, width, files))
+        with open(os.path.join(output, "kit.json"), "w") as f:
+            json.dump({"title": f"{top_name} -- Verilog only, for your own tools ({man['card_id']})", "card_id": man["card_id"], "flow": "export-only"}, f, indent=1)
+            f.write("\n")
+        record = {"generator": "tools/flexsub_assemble_v1.py", "family": family, "cell": base, "cell_module": module, "cells": n, "width": width,
+                  "width_source": width_source, "man": man["card_id"], "top": top_name, "files": files + ["ASSEMBLY.json"], "pnr": False, "flow": "export-only",
+                  "synth_flags": "-nowidelut" if nowidelut else "(wide-LUT mapping)", "synth_flags_reason": nowidelut_why,
+                  "note": "export-only card: plain Verilog and a README, no build script (the card's toolchain is not built by this project)"}
+        with open(os.path.join(output, "ASSEMBLY.json"), "w") as f:
+            json.dump(record, f, indent=2)
+            f.write("\n")
+        return record
     if target == "xilinx":
         # ledger #1251: openXC7 flow -- dependencies renamed .sv (the flow reads .sv as SystemVerilog), top stays <PROJECT>.v, .xdc + Makefile from the MAN
         sv = []

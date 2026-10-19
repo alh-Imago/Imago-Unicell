@@ -41,7 +41,7 @@ def test_xilinx_man_without_build_refused():
     try:
         p = os.path.join(d, "m.json")
         json.dump(man, open(p, "w"))
-        with pytest.raises(ValueError, match="no synthesis.build"):
+        with pytest.raises(ValueError, match="no build flow"):
             fa.assemble_flexsub("flex", "adder", 2, os.path.join(d, "o"), man_path=p)
     finally:
         shutil.rmtree(d)
@@ -55,3 +55,34 @@ def test_gowin_output_unchanged():
         assert "input  wire BOARD_CLK" in open(os.path.join(out, r["top"] + ".v")).read()
     finally:
         shutil.rmtree(out)
+
+
+def test_flow_resolution_and_export_only():
+    import tempfile
+    a10 = os.path.join(ROOT, "docs", "man", "mustang-f100-a10.man.json")
+    assert fa.resolve_flow(None) == "gowin-apicula"
+    assert fa.resolve_flow(fa.load_man_flexsub(a10)) == "export-only"                 # vendor default for the existing Arria 10 card
+    assert fa.resolve_flow(fa.load_man_flexsub(os.path.join(ROOT, "docs", "man", "tang-nano-20k.man.json"))) == "gowin-apicula"
+    assert fa.resolve_flow(fa.load_man_flexsub(MAN)) == "openxc7"                      # stated in the MAN itself
+    out = tempfile.mkdtemp()
+    try:
+        r = fa.assemble_flexsub("flex", "adder", 4, out, man_path=a10)
+        names = set(os.listdir(out))
+        assert r["flow"] == "export-only" and "README.md" in names and "kit.json" in names
+        assert not any(n.endswith((".ys", ".cst", ".xdc")) or n in ("build.sh", "Makefile") for n in names)
+        assert json.load(open(os.path.join(out, "kit.json")))["flow"] == "export-only"
+    finally:
+        shutil.rmtree(out)
+
+
+def test_unknown_flow_refused_and_new_card_needs_only_a_man(tmp_path):
+    man = json.load(open(MAN))
+    man["synthesis"]["build"]["flow"] = "quartus-magic"
+    p = tmp_path / "m.json"
+    json.dump(man, open(p, "w"))
+    with pytest.raises(ValueError, match="unknown build flow"):
+        fa.assemble_flexsub("flex", "adder", 2, str(tmp_path / "o"), man_path=str(p))
+    man["synthesis"]["build"]["flow"] = "export-only"                                  # the same card, declared closed: a Verilog folder, nothing else
+    json.dump(man, open(p, "w"))
+    r = fa.assemble_flexsub("flex", "adder", 2, str(tmp_path / "o2"), man_path=str(p))
+    assert r["flow"] == "export-only"

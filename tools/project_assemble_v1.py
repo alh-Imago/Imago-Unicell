@@ -1617,7 +1617,9 @@ def main():
         print(f"Cells:  {r['cells']}  Width: {r['width']}  (from {r['width_source']})")
         print(f"Card:   {r['man'] or 'none (no --man)'}")
         print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
-        if r.get("flow") == "openxc7":
+        if r.get("flow") == "export-only":
+            print("Build:  none -- this card's toolchain is not built here; " + args.output + " holds plain Verilog and a README for your own tools")
+        elif r.get("flow") == "openxc7":
             print("Build:  openXC7 flow (ledger #1251): copy " + args.output + " next to the demo-projects, then  " + r["build"] + "  and  " + r["load"] + "  (SRAM only)")
         else:
             print("Build:  " + os.path.join(args.output, "build.sh") + ("  (synthesis + place-and-route)" if r["pnr"] else "  (synthesis only)"))

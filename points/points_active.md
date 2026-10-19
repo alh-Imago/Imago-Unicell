@@ -196,5 +196,19 @@ Next entry: #1239.
 
 *Planned, not built.* A `build.flow` field (`openxc7`, `gowin-apicula`, `export-only`) so the assembler reads how to build from the MAN instead of hard-coding Gowin; the Tang MAN to get its build section; the Arria 10 MAN marked `export-only` (Verilog folder + README, no build buttons); an unknown flow refused. Then the generic Kintex runner for `--icm` designs and the ICM panel (acceptance: the reduction tree through the whole route reproduces signature 7FEF5298). Today `--icm` writes only the design module with either card (checked 19 Oct), and the `-s std` route refused the reduction tree for a missing tap `io_name`.
 
-Next entry: #1258.
+## #1258 -- BUILD FLOWS: A CARD STATES HOW IT IS BUILT; CLOSED TOOLCHAINS GET A PLAIN VERILOG FOLDER (Alan's ruling, 19 Oct; implements the plan in #1257)
+
+*Ruling.* A new target is a new MAN file. Open-source flows get a full build; cards with their own tools (Arria 10 / Quartus) get only the basic Verilog folder to synthesise themselves.
+
+*Built.* `tools/flexsub_assemble_v1.py` now picks a flow per card: `resolve_flow(man)` = the MAN's `synthesis.build.flow` if stated, else a default by vendor, `VENDOR_DEFAULT_FLOW` = {gowin: gowin-apicula, intel: export-only}; no MAN keeps the original Gowin synthesis-only output; a Xilinx MAN without a stated flow, or any unknown flow name, is refused with a message. Flows: `gowin-apicula` (unchanged), `openxc7` (#1252), and the new `export-only`: writes the top, the cell files, a `README.md` (ports, what the design is, the card's clock pin from its MAN if recorded, a plain statement that nothing was built or run for this card) and `kit.json`; no synthesis script, no constraint file, no Makefile; `ASSEMBLY.json` still records the `-nowidelut` decision and reason. The printed build line says "none -- this card's toolchain is not built here".
+
+*Decision recorded.* The Tang and Arria 10 MAN files were NOT edited (the Tang MAN is generated from live yosys data and has an archived lineage; the Arria 10 file is hand-assembled and proven): their flows come from the vendor defaults in the assembler. A new card never needs the table: it states its flow in its own MAN. If a MAN for either existing card should state its flow explicitly, that is a cloned MAN with its own entry.
+
+*Behaviour change (correction to earlier output).* A step-1 chain built for the Arria 10 MAN used to get a `.ys` script containing `synth_gowin` and a `build.sh` -- a Gowin script for an Intel card, which was meaningless. It now gets the Verilog-only folder. The two tests that read that script for the `-nowidelut` line (`test_flexsub_synthflag_v1/v2`) had their `synth_line()` helper changed to return an empty line when the folder has no `.ys`; their other checks are unchanged.
+
+*Measured.* New tests in `tests/vm/test_flexsub_assemble_xilinx_v1.py` (flow resolution for the three cards, export-only folder contents, unknown flow refused, an existing MAN re-declared `export-only` behaves as one). Run: assemble_v2 80/80, mul_v2 42/42, synthflag_v2 20/20, icm_generate_v1 41/41, frontend and Xilinx assembler tests pass. `test_flexsub_synthflag_v1` (18/20), `test_flexsub_assemble_v1` (72/80) and `test_flexsub_mul_v1` (40/42) fail the same checks with and without this change (checked with the change stashed): they compare to synthesis counts of an older yosys; the v2 tests are the current ones.
+
+*Not done.* No second open-source flow (ECP5 / iCE40 / Artix-7 boards) -- one is added when there is a real card to test it on. The front end shows an export-only folder in the picker with its README title and no build buttons (no Makefile); it has no special display for it yet.
+
+Next entry: #1259.
 

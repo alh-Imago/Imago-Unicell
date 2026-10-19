@@ -40,7 +40,10 @@ def cli(*a):
 
 
 def synth_line(folder):
-    ys = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".ys")][0]
+    ys = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".ys")]
+    if not ys:                    # ledger #1258: an export-only card (the Arria 10) gets no synthesis script at all, so there is no synth_gowin line to carry the flag
+        return ""
+    ys = ys[0]
     return re.search(r"^synth_gowin.*$", open(ys).read(), re.M).group(0)
 
 
