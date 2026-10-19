@@ -343,7 +343,7 @@ def generate_top(top_name, family, base, n, width, real_in, target="gowin"):
         a("always @(posedge CLK) if (!(&por)) por <= por + 8'd1;")
         a("wire BTN_RST_N = &por;")
         a("wire LED0_N, LED1_N, LED2_N;")
-        a("assign LED0 = ~LED0_N; assign LED1 = ~LED1_N; assign LED2 = ~LED2_N;   // the design drives them active-low; the card's LEDs are active-high (assumed)")
+        a("assign LED0 = ~LED0_N; assign LED1 = ~LED1_N; assign LED2 = ~LED2_N;   // the design drives them active-low; the card's LEDs are active-high (shown on the card, #1254)")
     else:
         a("    input  wire BOARD_CLK,")
         a("    input  wire BTN_RST_N,")

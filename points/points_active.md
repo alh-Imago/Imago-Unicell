@@ -162,5 +162,13 @@ Next entry: #1239.
 
 *Scope.* Four saved counts, one disturbance count (1400). The negative control (a corrupted loaded register changes the result) was run in simulation only (#1250), not on the card. The tree's add-ons were idle at these counts. The freeze-read-write path is now proven on the card for the Tang std_tree4 design; other cell families and add-on-active designs are not yet.
 
-Next entry: #1254.
+## #1254 -- THE ASSEMBLER'S OWN XILINX OUTPUT BUILT AND RAN ON THE KINTEX CARD (card-measured; completes #1252's open item)
+
+*Run (Alan, 19 Oct).* `project_assemble_v1.py -s flex -S adder --cells 4 --man kintex7-ypcb00338.man.json` (width 32, top k7_asm_adder4), built with openXC7 `make` and loaded with `make program JTAG_LINK="-c ft232"` (SRAM). nextpnr: Max frequency for the clock 282.65 MHz (PASS at 50.00 MHz). LEDs: red and yellow bright, green dim -- the pattern iverilog predicted for active-high LEDs (over 200,000 clocks: red on 97%, yellow 51%, green 3%).
+
+*What this shows.* The assembler's Xilinx branch (MAN `synthesis.build` -> top, .sv cells, .xdc, Makefile) produces a project that builds, meets timing and runs on the card. The LED result also fits active-high polarity (previously assumed); the MAN's `led_polarity` text now says so, with the limit below.
+
+*Scope.* One cell type (adder, flex family), 4 cells, width 32; the readout is brightness only (no JTAG), so it shows the design is alive and shows the polarity, not that the adders compute correctly (the cells' correctness on Xilinx is covered by the Tang-tree runs, #1241-#1253, not by this one). Other cells, sizes, the sub family, and `--icm` step 2 for Xilinx are untried. The brightness pattern would also arise from other fault-free explanations only if polarity were inverted AND the design differed; the simulation made the opposite prediction for inverted polarity, so the match supports active-high.
+
+Next entry: #1255.
 

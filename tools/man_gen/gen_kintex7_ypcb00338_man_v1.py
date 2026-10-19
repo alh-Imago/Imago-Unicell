@@ -47,11 +47,11 @@ def build():
             "build": {
                 "flow": "openxc7",
                 "note": ("How a design is built for this card, as data the assembler reads (ledger #1251). Every item is what the hand-built kits "
-                         "(k7_tree4, k7_freeze*) did and the card accepted; the assembler's own output for this flow has NOT yet been loaded on the card."),
+                         "(k7_tree4, k7_freeze*) did and the card accepted; the assembler's own output for this flow (adder chain, 4 cells, flex family, width 32) was built and loaded on the card on 19 Oct (ledger #1254): timing passed (282.65 MHz for the 50 MHz clock) and the LEDs showed the simulated pattern. Other cell types and sizes are untried."),
                 "synth": "yosys synth_xilinx -flatten -abc9 -arch xc7 (run by openXC7.mk, not by the assembler)",
                 "constraint_format": "xdc",
                 "constraint_file": "docs/man/kintex7-ypcb00338.xdc",
-                "top_ports": {"clock": "CLK", "leds": ["LED0", "LED1", "LED2"], "led_polarity": "active-high (assumed, not measured)", "reset_button": None, "entry_button": None},
+                "top_ports": {"clock": "CLK", "leds": ["LED0", "LED1", "LED2"], "led_polarity": "active-high (shown by the 19 Oct assembler-built adder chain: LEDs matched the simulation predicted for active-high, ledger #1254)", "reset_button": None, "entry_button": None},
                 "reset_rule": "no button: the design makes its own power-up reset",
                 "source_extension": ".sv for every file except the top, which is <PROJECT>.v (openXC7.mk reads .sv as SystemVerilog)",
                 "makefile": {"FAMILY": "kintex7", "PART": "xc7k480tffg1156-1", "BOARD": "ypcb003381p1", "TOP_MODULE": "top", "CHIPDB": "${KINTEX7_CHIPDB}",
