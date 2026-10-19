@@ -24,7 +24,7 @@
 <h2>What has and has not been shown</h2>
 <table>
 <tr><th>Shown</th><th>Not yet</th></tr>
-<tr><td>Freeze, read, save and load on the Kintex card (several clocks, PASS). A whole ICM path: ICM file &rarr; panel &rarr; build &rarr; load &rarr; fed over JTAG &rarr; answers equal the VM (small relay chain: 10 1 2 and 14 100 3).</td><td>More than one design through the runner on the card (so far only the small relay chain, two input sets, card = VM). In simulation 3 of 4 example ICMs agree with the VM.</td></tr>
+<tr><td>Freeze, read, save and load on the Kintex card (several clocks, PASS). A whole ICM path: ICM file &rarr; panel &rarr; build &rarr; load &rarr; fed over JTAG &rarr; answers equal the VM (small relay chain: 10 1 2 and 14 100 3; reduction tree with 4 entries: 100 4 8 and 98 406 12).</td><td>Further designs through the runner on the card: so far the small relay chain and the 4-input reduction tree (two input sets each, card = VM). In simulation 3 of 4 example ICMs agree with the VM; CORDIC is the one that does not.</td></tr>
 <tr><td>An assembler-made flex adder chain builds (282.65 MHz) and its LEDs match simulation.</td><td>One example (CORDIC) disagrees between the RTL and the VM; the cause is not found.</td></tr>
 <tr><td>The page works in a headless browser test and on the author's PC for picking, shells, environment check and build verdicts.</td><td>The ICM panel on the author's PC; save/load inside the runner; sub, standard and mixed families on Xilinx.</td></tr>
 </table>

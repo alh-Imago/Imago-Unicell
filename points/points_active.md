@@ -254,5 +254,15 @@ Next entry: #1239.
 
 *Docs.* `README.md` (new row in the card table; the "not measured" note changed), `tools/frontend/README.md` and the teaching manual's Bench section updated to say one design has run on the card.
 
-Next entry: #1265.
+### #1265 (19 Oct 2026) -- Second card run of an ICM-made Kintex project: the 4-input reduction tree, card equals VM
+
+*What.* Same path as #1264, by Alan from the Bench: `reduction_tree4_exit_v1_kintex7-ypcb00338` (13 cells, 4 entries, 1 exit) made by the panel, built with openXC7 (timing passed: dut.clk 185.77 MHz against 50, JTAG clock 260.76 MHz against 12), loaded into SRAM, then `run_vectors.sh vectors.txt`, `vectors2.txt`, `run_read.sh`.
+
+*Measured on the card (Kintex-7, IDCODE 0x23751093).* Set 1: 4 entries each loaded 3, fed 3; exit 3 words **100 4 8**, signature 00000190, last word at clock 11; the VM's list is the same: PASS. Set 2: **98 406 12**, signature 000002A8, last at clock 11; PASS. `run_read.sh` afterwards: same state. The raw scan of set 1 holds the same numbers (count 3, signature 0x190, last clock 0xB, words 0x64 0x4 0x8). These are the same expected values the simulation gave in #1259.
+
+*Scope.* Two designs now run on the card through the runner (relay chain #1264, this tree), two input sets of three words per entry each, one card. Not run: the parallel reduction tree (adder exit), CORDIC (RTL vs VM disagreement still unexplained, #1259), anything with freeze / save / load in the runner, sub / std / mixed families.
+
+*Docs.* `README.md` card table (new row), front-end README and teaching manual Bench section updated.
+
+Next entry: #1266.
 
