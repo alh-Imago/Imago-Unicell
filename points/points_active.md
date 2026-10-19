@@ -565,4 +565,18 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Not done.* Trying it with the real file in the Workbench page; mirroring the card's SHAPE into the Composer; applying card constraints to flat DSL programs; the instructions note (#1293) is still to be added to the user instructions now that the mirror step exists.
 
-Next entry: #1295.
+## #1295 (19 Oct) -- WORKBENCH v3: tabs so the page fits, drop-down file fields, and a real file picker
+
+*Alan (from a screenshot of the v2 page):* "this is very long, doesn't fit on the page without scrolling; the MAN file list should be a drop down; the file selection doesn't give a picker option, for any of the select file buttons."
+
+*Built (clone of workbench_v2; v1 and v2 untouched).* `nano/workbench_v3.py`:
+- The left column is four TABS, **Target | Load / save | Program | Run** (the last tab used is remembered in the browser if it allows). The grid stays on the right. On a desktop-width window the whole page fits without scrolling in the Load / save tab as measured (800 px window, no page scroll); at phone width (454 px) the Target tab plus grid is 953 px.
+- Every file field is a DROP-DOWN of the files the server finds, plus a **Browse...** button. MAN: the MAN files in `docs/man`. SHAPE: card SHAPEs in `~/openFPGALoader/build/demo-projects/*/`, the server's start folder, the upload folder, then the repository's example shapes. Load / save: `.icm` and `.icm-hier.json` in `nano/examples`, the start folder and the upload folder (choosing one fills the Path box; the Path box stays editable and is what Save uses).
+- **Browse...** opens the computer's own file picker. A web page is never told the real path of a file the browser picked, so the page reads the file and sends its text to the Workbench server (`POST /upload`), which saves it under `~/.cache/unicell_workbench/uploads/` and uses that copy; the new entry appears in the list marked "(uploaded)". The server is the local Workbench, so this reaches any file on the machine. Only `.json`, `.icm`, `.txt` up to 20 MB; the name is reduced to letters, digits, dot, dash, underscore (a name like `../../x` becomes `x`). `GET /files?kind=man|shape|design` lists the choices.
+- Everything else (SHAPE target, design check, MAN target) is v2's. README now says `python3 nano/workbench_v3.py`.
+
+*Measured.* A real Chromium run (playwright) at 454 px and 1280 px: dropdowns filled (3 MAN files, 16 designs), the picker dialog opened, a SHAPE chosen through it was uploaded, appeared in the list, was used as the target ("Card SHAPE target ... 39 confirmed by the card, complete"), tabs switch; no script errors (the only console error was the web-font link, unreachable in the sandbox). Screenshots of both widths looked right. Tests: `tests/vm/test_workbench_v3_pickers_v1.py` (4: file lists, upload and its refusals, page markup keeps every element id the script reads, routes over HTTP with the card-SHAPE check); v2's 5 and v1's tests unchanged and passing.
+
+*Scope.* Only Chromium was tried. The browser's own picker needs the browser to allow it (normal); a very large file is refused rather than truncated. The Save path is still typed text (a picker cannot choose where to save); the shell/cell-count controls are unchanged.
+
+Next entry: #1296.
