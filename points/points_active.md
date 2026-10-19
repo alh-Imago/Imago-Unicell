@@ -316,5 +316,19 @@ Next entry: #1239.
 
 *Next (not started).* Step 3: `nano/flex_grid_v2.py` as a clone with the held constant (a preloaded ram with nothing feeding it offers its word continuously, read as an operand, per the flex generator's rule); its own test (the CORDIC stream: card words 2736 2727 2728 / 2740 2826 2729); then step 4, compare against these records.
 
-Next entry: #1271.
+### #1271 (19 Oct 2026) -- FlexGrid v2 built (held constants): the CORDIC streams now equal the card word for word
+
+*What was found (explains #1268 precisely).* Traced tick by tick on the VM: each CORDIC stage's two constants (+/-atan) are loaded into the adders' A operands at settle; the first word uses them up, and the second word then arrives at the adder as ITS first operand (`A=1`) and waits for ever for a constant that is never offered again. The four zero references are different: the VM's branch HOLDS its reference (br_ref_valid stays set), so they are not needed again (making them continuous floods the branch with "stream" zeros, the #1268 result).
+
+*What was built.* `nano/flex_grid_v2.py` (new; `flex_grid_v1.py` untouched), class `FlexGrid2(FlexGrid)`. One narrow rule: a ram with a `preload_value`, not fixed_mode, with nothing feeding it, whose consumers are ALL adders or multipliers, is a HELD CONSTANT: re-armed after the tick in which it drained. Anything else is exactly v1 (divide is excluded on purpose; a constant into a relay / merge / branch reference stays a one-shot). On the CORDIC that is exactly the 8 constants; the 4 zero sources are not held.
+
+*Measured (VM).* v2 on `cordic_z_convergence`: [10, 1, 2] -> 2736 2727 2728; [14, 100, 3] -> 2740 2826 2729; [100, 14, 3] -> 2826 2740 2729; 50000 -> -404; eight mixed words equal an independent CORDIC computation. These are the Kintex card's words from #1266. Tests: `tests/vm/test_flex_grid_v2_v1.py` (4): (1) the stream words, (2) v1 still gives one word (so v1 was not edited), (3) the rule holds exactly 8 cells, (4) `tools/vm_baseline_v1.py --check tests/baselines/vm_flexgrid_before_v2.json --grid flex2`: **0 differences in the 25 example designs**. `vm_baseline_v1.py` gained `--grid flex2`.
+
+*Correction of my own earlier arithmetic (#1267).* The independent CORDIC check I wrote used "z >= 0 subtract". The design's branch routes `equal` like `low` (route_equal S), so z = 0 ADDS: positive subtracts, zero and negative add. For z = 0 the VM (and so v2) gives -2726; my first formula said +2726. All the card's six words and 50000 -> -404 are unaffected. The z = 0 case was NOT run on the card or in the RTL simulation; the VM's -2726 for 0 is derived from the design's own branch settings, not measured on hardware.
+
+*First caller switched.* `tools/kintex_icm_runner_v1.run_streams2` now uses `FlexGrid2`. A CORDIC folder made now says "Simulation against the VM: PASS" and `expected.json` holds 2736 2727 2728 / 2740 2826 2729 (the card's words). Runner, front-end and v2 tests: 16 passed. Folders made earlier (e.g. `cordic_z_convergence_kintex7-ypcb00338_2`) still hold the old expectation; make a fresh folder or ignore their VM verdict.
+
+*Not done.* Every other user of FlexGrid still uses v1 (replay tool, board tests, composer, workbench, tests): deliberately, one at a time. The 1208-test "before" run is unchanged by this entry (v1 untouched) but was not re-run; a full `quick_check --full` is still the gate before moving other callers. v2 has only been compared on the 25 example designs and one real held-constant design (CORDIC): a design with a preloaded constant into a multiplier has no test.
+
+Next entry: #1272.
 

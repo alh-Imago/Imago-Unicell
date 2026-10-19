@@ -374,10 +374,10 @@ def run_streams2(recs, streams, exits, ticks=6000, settle=12):
     """tools/replay_card_icm_vm_v2.run_streams, additionally reading an ADDER exit (adder_data_valid / adder_out_buffer); the original only reads ram exits.
     settle (ledger #1267): clock the grid this many ticks BEFORE the first word is fed, as the original CORDIC test does (6 ticks) so that internal constant sources (the CORDIC's zero references) are in place; the card is fed long after power-up, so it always has this. Exit words seen during the settle are discarded."""
     import warnings
-    import flex_grid_v1 as fg
+    import flex_grid_v2 as fg                       # ledger #1271: FlexGrid v2 (held constants), the flex generator's reading of a preloaded ram; flex_grid_v1 stays the proven reference
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        g = fg.FlexGrid(recs)
+        g = fg.FlexGrid2(recs)
     pos = {r.cell_id: (r.row, r.col) for r in recs}
     core = {r.cell_id: r.core for r in recs}
     todo = {k: list(v) for k, v in streams.items()}

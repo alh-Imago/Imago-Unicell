@@ -7,7 +7,7 @@ allowed ones are the designs the change is meant to fix.
 
     python3 tools/vm_baseline_v1.py --write FILE     record
     python3 tools/vm_baseline_v1.py --check FILE     compare with a recorded file, exit 1 on any difference
-    --grid flex|super   which VM (default flex)
+    --grid flex|flex2|super   which VM (default flex; flex2 = FlexGrid v2)
 
 Entries and exits are found the way the flex generator finds them. Words fed to every entry: 7, 3, 12, 100 (fixed).
 A design the VM cannot build or run is recorded as {"error": "..."} (that too is compared).
@@ -51,6 +51,9 @@ def run(path, recs, grid, ticks=1500):
     if grid == "flex":
         import flex_grid_v1 as g_
         G = g_.FlexGrid
+    elif grid == "flex2":
+        import flex_grid_v2 as g_
+        G = g_.FlexGrid2
     else:
         from unicell_super_automaton_v1 import SuperGrid as G
     with warnings.catch_warnings():
@@ -100,7 +103,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--write")
     ap.add_argument("--check")
-    ap.add_argument("--grid", default="flex", choices=["flex", "super"])
+    ap.add_argument("--grid", default="flex", choices=["flex", "flex2", "super"])
     a = ap.parse_args()
     snap = snapshot(a.grid)
     if a.write:
