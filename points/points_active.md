@@ -406,4 +406,12 @@ Alan: "A, the origional super grid and origional designs will take precedent in 
 
 Alan's output for the same card build (`k7_icm_cordic_z_convergence_v2_flex`), run 2, input 10 1 2: `z_output` 3 words `2736 2727 2728`, signature 00003526, last at clock 24, "PASS the VM says 3 word(s): 2736 2727 2728", OVERALL PASS. Together with run 3 (#1279: 2740 2826 2729) both vector sets on the Kintex card equal the VM. Scope: two input sets of three words each, positive values only; z = 0 and negative inputs were not run on the card.
 
-Next entry: #1281.
+## #1281 (19 Oct) -- ICM CONSISTENCY AUDIT, part 2: the other cores; every example against the generated hardware (`docs/icm_field_readings_v2.md`)
+
+*Measured.* Every example design generated with generator v2 (flex) and simulated through the Kintex wrapper (iverilog), compared with the original VM grid on two default vector sets: 17 agree; 2 refused by the generator with reasons (`looped_cordic_v1`, `looped_cordic_v1_closed_flex`); 5 could not be compared (3 div designs, where the VM refuses same-tick operands; 2 whose exit-name lookup fails in the check); 2 disagree. `ram_hold`: a vector artefact (the default vectors write the HOLD ram three times against a flowing stream); written once, as the design describes, the same check PASSES. `priority_weighted`: RTL delivers 9 words, the VM side of this check 8; NOT explained. The dedicated test of the same mode on a 12-item stream passes, so a reading artefact in the check is possible, but it is a guess, untested.
+
+*From the source, not re-run.* The comparator is signed `>=` in the standard RTL, the VM and the generator (read in all three). The other cores' differences (arrival-order pairing, nano hold/flow, sequencer drain vs pulse, accumulator/latch level sources, flex-only priority and merge modes, div ordering) are the ones the generator's own comments already state; they are capability and timing conventions, not a different meaning of a field.
+
+*Not known.* The weighted-priority difference. Field-by-field reading of each core's RTL in each family; designs beyond the 26 examples; widths other than 32.
+
+Next entry: #1282.
