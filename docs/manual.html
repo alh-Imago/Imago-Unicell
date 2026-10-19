@@ -183,7 +183,7 @@
 <li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
 <li><strong>What is NOT shown:</strong> running a design on a physical card <strong>and</strong> saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>).</li>
 <li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
-<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 19 October 2026 the ledger is at #1292).</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 19 October 2026 the ledger is at #1293).</li>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
@@ -6780,6 +6780,12 @@ It prints an address like <code>http://127.0.0.1:8765/?t=...</code> and opens it
 </ul>
 <h2>Not its job</h2>
 <p>It does not install Nix or openXC7, does not make the chip database and never builds or loads by itself. If the environment is not there, <em>Check environment</em> says what is missing.</p>
+<h2>Notes for the instructions (to go into the user instructions when the mirror step is reached, ledger #1293)</h2>
+<ul>
+<li>On the card side, click <strong>Check OpenOCD</strong> once before <strong>Walk the card</strong> (or any other card button) in a session. Seen on the card on 19 Oct 2026: the Walk button ran only after Check OpenOCD had been used. The cause is not confirmed (a guess: the first <code>nix shell nixpkgs#openocd</code> in that terminal has to fetch/start OpenOCD).</li>
+<li>The card has to be programmed with THIS folder's bitstream first (Build, then Load into the card); a card with nothing or another design shows magic 00000000 / "IS NOT this folder's design" and no SHAPE is written.</li>
+<li>Folders made before the v6 Bench have no wide vector set and no Walk button; make a new folder.</li>
+</ul>
 <div class="partsub">Tools: the assembler and measurement tools<span class="partsrc">tools/README.md</span></div>
 <h1>Tools</h1>
 <blockquote>

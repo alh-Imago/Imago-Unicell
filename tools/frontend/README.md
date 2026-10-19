@@ -25,3 +25,10 @@ The two terminals are real shells: you can type in them as usual. The buttons on
 
 ## Not its job
 It does not install Nix or openXC7, does not make the chip database and never builds or loads by itself. If the environment is not there, *Check environment* says what is missing.
+
+## Notes for the instructions (to go into the user instructions when the mirror step is reached, ledger #1293)
+
+- On the card side, click **Check OpenOCD** once before **Walk the card** (or any other card button) in a session. Seen on the card on 19 Oct 2026: the Walk button ran only after Check OpenOCD had been used. The cause is not confirmed (a guess: the first `nix shell nixpkgs#openocd` in that terminal has to fetch/start OpenOCD).
+- The card has to be programmed with THIS folder's bitstream first (Build, then Load into the card); a card with nothing or another design shows magic 00000000 / "IS NOT this folder's design" and no SHAPE is written.
+- Folders made before the v6 Bench have no wide vector set and no Walk button; make a new folder.
+

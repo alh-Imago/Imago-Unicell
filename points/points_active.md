@@ -538,4 +538,12 @@ Alan: the Walker needs to know which cell is next to which, either from what a p
 
 *Not done.* The mirror reading the card SHAPE (VMSession/FlexGrid built from the card's cells and checked against the design); the #501 ping in cells (not needed for the flex witnesses); the Walker for sub/std families.
 
-Next entry: #1293.
+## #1293 (19 Oct) -- DECISION AND NOTE: the mirror step is the Workbench integration (a separate web instance); the card-side instructions note waits for it
+
+*Alan:* after the card run (#1292) he reported that the Check OpenOCD button had to be used before the Walk button would run, and asked for a note for the instructions side. Told that the Walk button could run the OpenOCD check itself, he said no, that is fine. The note is to be added to the instructions once the mirror function is reached; the mirror step is the Workbench integration side, "as it uses another web instance" (the Workbench server, `nano/workbench_v1.py`, is separate from the Bench in `tools/frontend/`).
+
+*Done.* The note is written down in `tools/frontend/README.md` (section "Notes for the instructions"): click Check OpenOCD before Walk the card; the card must hold this folder's bitstream; older folders lack the wide set and the button. The cause of the OpenOCD ordering is NOT confirmed (a guess only, recorded as such). No code change; the Walk button is unchanged.
+
+*Next, when Alan says go.* The mirror reading `card.shape.json` through the Workbench (its own web instance), then the instructions text above goes into the user instructions.
+
+Next entry: #1294.
