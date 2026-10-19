@@ -121,6 +121,25 @@ def icm_files(repo):
     return out
 
 
+NEEDED_FOR_FLOW = {"openxc7": ["tools/kintex_icm_runner_v1.py", "nano/flex_grid_v2.py"]}     # files a repo must have before the panel can make that kind of folder (ledger #1273)
+
+
+def repo_info(repo):
+    """What the page shows about the repo clone: where, which commit, and which files for the card flows are missing (an out-of-date clone made a wrong folder silently, ledger #1273)."""
+    info = {"path": repo, "commit": None, "subject": None, "date": None, "missing": {}}
+    try:
+        r = subprocess.run(["git", "-C", repo, "log", "-1", "--format=%h|%cs|%s"], capture_output=True, text=True, timeout=10)
+        if r.returncode == 0 and r.stdout.strip():
+            info["commit"], info["date"], info["subject"] = (r.stdout.strip().split("|", 2) + ["", ""])[:3]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    for flow, files in NEEDED_FOR_FLOW.items():
+        miss = [f for f in files if not os.path.isfile(os.path.join(repo, f))]
+        if miss:
+            info["missing"][flow] = miss
+    return info
+
+
 def card_files(repo):
     sys.path.insert(0, os.path.join(repo, "tools"))
     try:
@@ -301,6 +320,9 @@ class State:
             raise ValueError("pick an ICM file and a card from the lists")
         if cards[card]["flow"] not in ("openxc7", "gowin-apicula", "export-only"):
             raise ValueError("this card file cannot be used: " + cards[card]["flow"])
+        miss = repo_info(self.repo)["missing"].get(cards[card]["flow"])
+        if miss:
+            raise ValueError("this copy of the repo (%s) is out of date for that card: %s missing. Run `git pull` in %s, then restart the Bench. Nothing was made." % (self.repo, ", ".join(miss), self.repo))
         out = os.path.join(self.demo, name)
         if os.path.exists(out):
             raise ValueError("a folder called %s already exists in the demo folder; pick another name" % name)
@@ -310,6 +332,9 @@ class State:
         if r.returncode != 0:
             shutil_rmtree(out)
             return {"ok": False, "name": name, "output": text}
+        if cards[card]["flow"] == "openxc7" and not os.path.isfile(os.path.join(out, "Makefile")):
+            shutil_rmtree(out)           # the assembler ran but did not make a Kintex project: an old assembler
+            raise ValueError("the assembler did not make a Kintex project (no Makefile): the repo at %s is older than the Kintex flow. Run `git pull` there and restart the Bench. The folder was removed." % self.repo)
         return {"ok": True, "name": name, "output": text, "flow": cards[card]["flow"]}
 
     def results(self):
@@ -410,7 +435,7 @@ class H(BaseHTTPRequestHandler):
         if u.path == "/api/icm":
             if not self.st.repo:
                 return self._send(200, json.dumps({"repo": None}))
-            return self._send(200, json.dumps({"repo": self.st.repo, "icms": icm_files(self.st.repo), "dirs": icm_dirs(self.st.repo), "cards": card_files(self.st.repo), "demo": self.st.demo}))
+            return self._send(200, json.dumps({"repo": self.st.repo, "info": repo_info(self.st.repo), "icms": icm_files(self.st.repo), "dirs": icm_dirs(self.st.repo), "cards": card_files(self.st.repo), "demo": self.st.demo}))
         if u.path == "/api/startup":
             key, dflt, prompt, mine = startup_for(os.path.join(self.st.demo, self.st.selected) if self.st.selected else "")
             return self._send(200, json.dumps({"key": key, "default": dflt, "prompt": prompt, "mine": mine}))

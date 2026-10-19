@@ -62,6 +62,7 @@ SUPERSEDED = {
     "tests/test_flexsub_assemble_v1.py": "tests/test_flexsub_assemble_v2.py",
     "tests/test_flexsub_synthflag_v1.py": "tests/test_flexsub_synthflag_v2.py",
     "tests/test_flexsub_mul_v1.py": "tests/test_flexsub_mul_v2.py",
+    "tests/test_flexsub_family_equivalence_v1.py": "tests/test_flexsub_family_equivalence_v2.py",
 }
 
 

@@ -546,7 +546,7 @@ def run_sim(out, proj, sv):
 def readme(proj, icm_path, man, entries, exits, lay, sim=None):
     simline = {"PASS": "Simulation (make sim, run when this folder was made): the runner's exits equal the VM's answer for both vector sets.",
                "not run": "Simulation against the VM was not run when this folder was made (run `make sim`).",
-               }.get((sim or {}).get("verdict"), "Simulation against the VM DISAGREES: see sim_vs_vm in ASSEMBLY.json. Until that is explained, do not read a card result for this design as right or wrong.")
+               }.get((sim or {}).get("verdict"), "When this folder was made, the simulation of the generated hardware disagreed with the VM's answer (details: sim_vs_vm in ASSEMBLY.json). That can be a fault on either side or in how the VM was fed; the newest entries of the ledger (points/points_active.md) say whether a cause has been found. A card run is a real measurement of the hardware: compare it with both answers.")
     return f"""# {proj} -- the ICM design {os.path.basename(icm_path)} on {man['card_id']} (ledger #1259)
 
 Made by tools/project_assemble_v1.py from the ICM file; the Kintex runner (tools/kintex_icm_runner_v1.py) wraps the generated design: pins, power-up reset, and a JTAG USER1 register.
@@ -561,6 +561,6 @@ An exit that holds its value (the usual kind) never drops valid, so the runner c
 3. Own words: copy vectors.txt, change the numbers, run `run_vectors.sh yourfile.txt` (no VM answer is stored for it: the exits are shown, not compared).
 
 {simline}
-Not run on the card.
+This folder does not record whether it has been run on a card: your own run logs (run_*.log) are the record, and the ledger lists the designs that have been measured.
 No freeze / save / load in this runner: the generated design ties the cells' freeze line off.
 """

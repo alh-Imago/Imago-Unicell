@@ -160,3 +160,29 @@ def test_icm_panel_lists_and_creates(tmp_path, monkeypatch):
     finally:
         for t in st.terms.values():
             t.close()
+
+
+def test_out_of_date_repo_is_refused_and_shown(tmp_path, monkeypatch):
+    """ledger #1273: an old clone (no Kintex runner) must not make a wrong folder quietly: the panel shows the repo commit and refuses with 'git pull'."""
+    monkeypatch.setattr(fe, "SETTINGS", str(tmp_path / "cfg" / "unicell_bench.json"))
+    demo = tmp_path / "demo"
+    demo.mkdir()
+    info = fe.repo_info(ROOT)
+    assert info["path"] == ROOT and not info["missing"]                       # this repo has everything
+    assert info["commit"] is None or len(info["commit"]) >= 7
+    monkeypatch.setattr(fe, "NEEDED_FOR_FLOW", {"openxc7": ["tools/kintex_icm_runner_v1.py", "tools/does_not_exist_v9.py"]})
+    assert fe.repo_info(ROOT)["missing"] == {"openxc7": ["tools/does_not_exist_v9.py"]}
+    st = fe.State(str(demo), ROOT)
+    try:
+        icms, cards = fe.icm_files(ROOT), fe.card_files(ROOT)
+        tree = next(i["path"] for i in icms if i["name"] == "reduction_tree4_exit_v1")
+        kcard = next(c["path"] for c in cards if c["flow"] == "openxc7")
+        with pytest.raises(ValueError, match="git pull"):
+            st.create_from_icm(tree, kcard, "should_not_exist")
+        assert not os.path.exists(os.path.join(demo, "should_not_exist"))
+        tcard = next(c["path"] for c in cards if c["flow"] == "export-only")      # a flow with no missing files is unaffected
+        r = st.create_from_icm(tree, tcard, "tree_export")
+        assert r["ok"]
+    finally:
+        for t in st.terms.values():
+            t.close()

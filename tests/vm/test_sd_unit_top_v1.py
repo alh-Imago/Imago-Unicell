@@ -101,7 +101,8 @@ def test_the_generated_top_synthesises_for_gowin(built):
     assert r.returncode == 0, (r.stderr or r.stdout)[-800:]
     stat = open(os.path.join(built, "stat.txt")).read()
     assert "DPX9" in stat                                          # the playout / capture RAMs became block RAM
-    lut = sum(int(m.group(1)) for m in re.finditer(r"^\s+LUT[1-4]\s+(\d+)", stat, re.M))
+    # yosys prints "<count> LUT4" (0.69 and later) or "LUT4 <count>" (the older layout); read both (ledger #1273)
+    lut = sum(int(m.group(1)) for m in re.finditer(r"^\s+(\d+)\s+LUT[1-4]\b", stat, re.M)) + sum(int(m.group(1)) for m in re.finditer(r"^\s+LUT[1-4]\s+(\d+)", stat, re.M))
     assert 0 < lut < 20736
 
 
