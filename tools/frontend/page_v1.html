@@ -40,9 +40,9 @@ pre{margin:0;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-brea
 </style></head><body>
 <header><h1>UniCell Bench</h1><span id="demo"></span><span id="msg"></span></header>
 <main>
-<aside><h2>Designs</h2><div id="kits"></div>
-<h2 style="margin-top:14px">New design from an ICM file</h2>
-<div id="icmbox" style="padding:4px 8px 10px"><button class="act" id="icmopen">Make a design…</button></div></aside>
+<aside><h2>New design from an ICM file</h2>
+<div id="icmbox" style="padding:4px 8px 10px"><button class="act" id="icmopen">Make a design…</button></div>
+<h2 style="margin-top:14px">Designs</h2><div id="kits"></div></aside>
 <div class="work">
  <div class="terms">
   <section class="card"><div class="bar"><h2>Build</h2><span id="b-build" class="btns"></span></div><div class="term" id="t-build"></div></section>
@@ -93,6 +93,7 @@ function buttons(){
     }
   }
 }
+let scrollSel=false;
 function drawKits(){
   const k=$("kits");k.innerHTML="";
   for(const d of S.kits){const b=document.createElement("button");b.className="kit"+(sel&&sel.name===d.name?" sel":"");
@@ -101,6 +102,7 @@ function drawKits(){
     if(d.sim){const t=document.createElement("span");t.className="tag "+(d.sim==="PASS"?"ok":d.sim==="not run"?"warn":"bad");t.textContent="sim vs VM: "+d.sim;b.firstChild.append(t)}
     b.onclick=async()=>{const r=await api("/api/select",{name:d.name});if(r.error){msg(r.error,"bad");return}
       sel=d;openFile=null;$("view").innerHTML="";drawKits();buttons();msg("both shells moved to "+d.name);poll()};k.append(b)}
+  const se=k.querySelector(".sel");if(se&&scrollSel){se.scrollIntoView({block:"center"});scrollSel=false}
   if(!S.kits.length)k.innerHTML="<p class=warn style='padding:8px'>No design folders found in the demo folder.</p>";
 }
 async function showFile(n){openFile=n;const r=await api("/api/file?name="+encodeURIComponent(n));
@@ -132,8 +134,10 @@ async function icmPanel(){
   $("icmsel").onchange=nm;$("cardsel").onchange=nm;nm();
   $("icmclose").onclick=()=>{$("icmbox").innerHTML='<button class="act" id="icmopen">Make a design…</button>';$("icmopen").onclick=icmPanel};
   $("icmgo").onclick=async()=>{$("icmout").textContent="working…";const x=await api("/api/icm/create",{icm:$("icmsel").value,card:$("cardsel").value,name:$("icmname").value.trim()});
-    $("icmout").textContent=x.error?x.error:x.output;if(x.error||!x.ok){msg(x.error||"the assembler refused this ICM for this card","bad");return}
-    S=await api("/api/state");sel=S.kits.find(k=>k.name===x.name)||null;drawKits();
+    $("icmout").textContent=x.error?x.error:x.output;
+    if(x.error&&/already exists/.test(x.error)){const nmx=$("icmname").value.trim();S=await api("/api/state");const ex=S.kits.find(k=>k.name===nmx);if(ex){await api("/api/select",{name:nmx});sel=ex;scrollSel=true;drawKits();buttons();poll();msg("that design already existed: opened it (change the name to make a new copy)");return}}
+    if(x.error||!x.ok){msg(x.error||"the assembler refused this ICM for this card","bad");return}
+    S=await api("/api/state");sel=S.kits.find(k=>k.name===x.name)||null;scrollSel=true;drawKits();
     if(sel){await api("/api/select",{name:x.name});buttons();poll()}msg("created "+x.name+" in the demo folder")}}
 $("icmopen").onclick=icmPanel;
 (async()=>{S=await api("/api/state");$("demo").textContent="demo folder: "+S.demo;mkTerm("build");mkTerm("card");drawKits();buttons();setInterval(poll,3000)})();

@@ -236,5 +236,9 @@ Next entry: #1239.
 
 *Problem.* Alan opened the panel looking for his saved ICM files and did not see them: the list only searched the repo's `nano/examples`, and the only way to add folders was by editing the settings file by hand. *Fix.* The panel now searches `nano/examples`, `nano`, `~/Downloads`, `~/Documents` and the folders the user adds in the panel (box "Look for saved ICM files in another folder", remembered in `~/.config/unicell_bench.json`), each plus its sub-folders one level down; every entry shows its folder. Only `*.icm-hier.json` (the Composer's VIX save, named `<name>.composed.icm-hier.json`) is listed: that is the format `--icm` reads; the flat `*.icm.json` the Composer also saves is not accepted by the assembler. Test `tests/vm/test_frontend_v1.py` (7) passes. Not tried on Alan's PC yet.
 
-Next entry: #1262.
+### #1262 (19 Oct 2026) -- Front end: ICM panel moved to the top; new design is selected and scrolled to
+
+*Why.* Alan's second look: the "New design from an ICM file" block sat under the long Designs list and was hard to find; pressing Create a second time gave only a quiet "already exists" line while the first copy was far down the alphabetical list. *Change.* The ICM block is now the first thing in the left column. After Create the new design is selected and the list scrolls to it; if the name already exists, that design is opened instead of only refusing. `tests/vm/test_frontend_v1.py` (7) passes (headless check of the panel create path). Not retried on Alan's PC yet.
+
+Next entry: #1263.
 
