@@ -29,7 +29,7 @@ Standalone utilities and offshoots built alongside the Imago UniCell project.
 | `kintex_freeze_pack_v3.py` | Freeze, save and load kit builder: load-capable cells, cycle-exact freeze, 86-word scan (ledger #1250); writes `fpga/kintex7_tests/k7_freeze_load`. |
 | `cell_debug_clone_v2.py` | Clones the debug cells into load-capable v4g/v1g (adds `dbg_load_en`, `dbg_load_state`; ledger #1250). |
 | `frontend/unicell_frontend_v1.py` | UniCell Bench: a local browser page with a design picker, two real shells (Build, Card), whitelisted buttons and a results window (ledger #1255); see `tools/frontend/README.md`. |
-| `man_gen/gen_kintex7_ypcb00338_man_v1.py` | Writes the MAN file and xdc for the Kintex-7 card (ledger #1235): `docs/man/kintex7-ypcb00338.man.json`; `--check` for drift. |
+| `kintex_icm_runner_v1.py` | Wraps a generated flex ICM design for the Kintex card: pins, reset, JTAG feed / read of entries and exits, the VM's expected answers, a self-check simulation (ledger #1259); called by `project_assemble_v1.py --icm` when the card's flow is openxc7. |\n| `man_gen/gen_kintex7_ypcb00338_man_v1.py` | Writes the MAN file and xdc for the Kintex-7 card (ledger #1235): `docs/man/kintex7-ypcb00338.man.json`; `--check` for drift. |
 - `board_esp32_c1_v1.py` (ledger #1211): test C1, the Tang as stopwatch and signal generator for an ESP32 interrupt handler; writes `fpga/board_tests_c1/` (c1_quiet, c1_storm). Built, not yet run.
 - `board_direct_latency_t3_v1.py` (ledger #1209): test T3, two input pins (jumpers 86 -> 72 and 53 -> 71); writes `fpga/board_tests_latency3/`. Card run passed (#1210).
 - `board_direct_latency_v2.py` (ledger #1207): clone of v1 with a loop-back pre-check (`pre=`, `res=L`) and LED4/LED5 showing pins 86/72; card run passed (#1208).

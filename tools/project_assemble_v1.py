@@ -1579,6 +1579,30 @@ def main():
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
+        if r.get("family") == "flex" and args.man:        # ledger #1259: the card's own flow decides what the folder becomes
+            import flexsub_assemble_v1 as _fa
+            _man = _fa.load_man_flexsub(args.man)
+            _flow = _fa.resolve_flow(_man)
+            if _flow == "openxc7":
+                import kintex_icm_runner_v1 as _kr
+                try:
+                    _k = _kr.wrap(args.output, args.icm, _man)
+                except (ValueError, AssertionError, RuntimeError) as e:
+                    print(f"error: {e}", file=sys.stderr)
+                    return 1
+                print(f"Family: flex   Source: {r['source']}   Cells: {r['cells']}   Card: {_man['card_id']} (openXC7 runner: entries {', '.join(n for n, _ in _k['entries'])}; exits {', '.join(n for n, _ in _k['exits'])})")
+                print(f"Output: {args.output}  project {_k['proj']}: make, make program, then run_vectors.sh (see README.md in the folder)")
+                print(f"Simulation against the VM: {_k['sim']['verdict']}" + ("" if _k["sim"]["verdict"] in ("PASS", "not run") else "   " + "; ".join(_k["sim"].get("fails", []))))
+                return 0
+            if _flow == "export-only":
+                for f in os.listdir(args.output):
+                    if f.endswith(".ys"):
+                        os.remove(os.path.join(args.output, f))
+                with open(os.path.join(args.output, "README.md"), "w") as f:
+                    f.write(_fa.export_readme(_man, r["top"], "flex", os.path.basename(args.icm), r["cells"], r.get("built_width", 32), sorted(os.listdir(args.output))))
+                print(f"Family: flex   Source: {r['source']}   Cells: {r['cells']}   Card: {_man['card_id']} (export-only)")
+                print(f"Output: {args.output}  plain Verilog and a README for your own tools (this card's toolchain is not built here)")
+                return 0
         if r.get("family") == "flex":
             print(f"Family: flex   Source: {r['source']}   Cells: {r['cells']}   Forks: {len(r['forks'])}   Joins: {len(r['joins'])}")
             print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})   (handshake design: no alignment, no padding)")

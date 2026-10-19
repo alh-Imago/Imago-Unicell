@@ -210,5 +210,17 @@ Next entry: #1239.
 
 *Not done.* No second open-source flow (ECP5 / iCE40 / Artix-7 boards) -- one is added when there is a real card to test it on. The front end shows an export-only folder in the picker with its README title and no build buttons (no Makefile); it has no special display for it yet.
 
-Next entry: #1259.
+## #1259 -- THE KINTEX ICM RUNNER: an ICM file becomes a project that is fed and read over JTAG, and the folder maker checks it against the VM (simulation only; not run on the card)
+
+*What was missing (found 19 Oct).* `project_assemble_v1.py -s flex --icm FILE --man CARD` wrote only the design module and its cells, the same for every card; there was no pin-bound top, no way to feed the entries and no way to read the exits (on the Tang this was done by the hand-built `board_*` tools; on the Kintex by hand in the freeze kits).
+
+*Built.* `tools/kintex_icm_runner_v1.py`, called by `project_assemble_v1.py --icm` when the card's flow (#1258) is `openxc7`: reads the design's own port list (entries `in_<n>_*`, exits `out_<n>_*`, never guessed), writes a top (`top`, project file `k7_icm_<design>.v`) with the card's pins and a power-up reset, the reset / configuration sequence the step-1 tops use, and a JTAG USER1 register (BSCANE2 as in the freeze kits): the host writes up to 16 words per entry and a go bit, and reads, per exit, the word count, a signature, the clock of the last word and the first 16 words, plus a clock counter. Folder contents: design `.sv` files, the top, `.xdc` and `Makefile` from the MAN's build section, `kit.json`, `design.json` (names, widths, scan layout), `vectors.txt` / `vectors2.txt` (default words), `expected.json` (the VM's answers, computed with the FlexGrid at folder-creation time, read from the exit cell: ram exits and, new, adder exits), a testbench, `run_vectors.sh`, `run_read.sh`, `make_cmd.py`, `decode_run.py` (compares the card's read with the VM answer and prints PASS / FAIL), `run_lib.tcl`, README. The folder maker also simulates the testbench with iverilog (3 s) and writes the verdict into `ASSEMBLY.json`, `kit.json` and the README.
+
+*Design rule found on the way.* The usual exit (a HOLD ram) never drops valid, so the first version counted one word thousands of times. The runner now counts a word when valid rises or the data changes; two equal results in a row appear as one, and the VM's list is collapsed the same way.
+
+*Measured (simulation, iverilog, the folder's own testbench, two vector sets each).* reduction tree (13 cells): PASS, exit = 100, 4, 8 and 98, 406, 12 as the VM says; the small relay chain: PASS; the parallel reduction tree (adder exit): PASS (after the adder-exit reading was added to the VM side); yosys `synth_xilinx` on the tree project: no error, 8,332 FDRE, 1,825 LUT6, 82 CARRY4, 1 BSCANE2. **`cordic_z_convergence` DISAGREES with the VM**: the hardware delivers one word per input (2736, 2727, 2728 for inputs 10, 1, 2, i.e. input + 2726) while the VM tool delivers a single word, 4294964570 (-2726), the same for different inputs. Not explained: it may be the way the replay tool feeds that design's merge-entry (the VM seems to ignore the input) or a real difference; the folder is marked DISAGREES and its README says not to read a card result as right or wrong. A design with a cycle is refused by the existing generator (`looped_cordic_v1_closed_flex`). Tests: `tests/vm/test_kintex_icm_runner_v1.py` (5); the changed-file test run passes (240, 1 skipped).
+
+*Not done.* Nothing run on the card. No freeze / save / load in this runner (the generated design ties the cells' freeze line off). Flex family only; `-s sub`, `-s std` and mixed designs not wrapped. The ICM panel in the front end is next (#1260).
+
+Next entry: #1260.
 
