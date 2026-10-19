@@ -264,5 +264,17 @@ Next entry: #1239.
 
 *Docs.* `README.md` card table (new row), front-end README and teaching manual Bench section updated.
 
-Next entry: #1266.
+### #1266 (19 Oct 2026) -- CORDIC on the card: the card agrees with the generated hardware, not with the VM tool
+
+*What.* The disagreement logged in #1259 (`cordic_z_convergence`: hardware simulation gives input + 2726, the VM tool gives -2726) was taken to the card by Alan from the Bench: folder `cordic_z_convergence_kintex7-ypcb00338_2` (36 cells), built with openXC7 (timing passed: dut.clk 176.09 MHz against 50, JTAG clock 426.62 MHz against 12), loaded into SRAM, `run_vectors.sh` with both input sets.
+
+*Measured on the card (Kintex-7, IDCODE 0x23751093).* Set 1, inputs 10 1 2: exit z_output 3 words **2736 2727 2728** (0xAB0 0xAA7 0xAA8), signature 00003526, last at clock 24; each is input + 2726. Set 2, inputs 14 100 3: **2740 2826 2729** (0xAB4 0xB0A 0xAA9), signature 0000366D, last at clock 24; again input + 2726 each. Both equal the iverilog simulation of #1259 word for word. The runner reports FAIL because the VM list differs.
+
+*What the VM tool gives (run here, this session, FlexGrid via the replay tool).* Every single input alone (10, 1, 2, 14, 100, 3): one word, 4294964570 (= -2726), the input has no effect. Streams: [10,1,2] -> -2726 only; [14,100,3] -> -2726, 2826; [100,14,3] -> -2726 only; [3,100,14] -> -2726, 2826. So the VM tool's answer depends on word order and loses the input in most positions; 2826 (= 100 + 2726, the same as the card) appears only when 100 is not the first word. This is not a sign of an input-dependent function in the hardware: the card gives input + 2726 for all six inputs.
+
+*What this does and does not show.* It shows the generated hardware, simulated and on the card, is self-consistent for this design, and that the VM replay path (`replay_card_icm_vm_v2.run_streams2` driving the entry cell) is the odd one out. It does NOT show which answer is the intended CORDIC function (the design description says each stage adds a signed atan constant chosen by the branch on z; whether z + 2726 is the right net result for a real converging CORDIC was not checked), and it does not yet explain why the VM tool behaves so. Likely place to look: how the replay feeds this design's merge entry (the entry gets its words as a stream, but the branch stages also need a zero reference from a zero_source cell). Not fixed here.
+
+*Scope.* Two input sets of three words, one card, one build. The generated folder's README still says "Not run on the card" (the text is written at generation time).
+
+Next entry: #1267.
 
