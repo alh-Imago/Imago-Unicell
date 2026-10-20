@@ -715,5 +715,12 @@ Done as proposed in #1306 and approved by Alan: **moved, not deleted or changed*
 - **Checked:** `tests/vm/test_nor_adder_3d_v1.py` and `tests/vm/test_unit_bringup_v1.py` (its file-exists check passes through the stubs): 41 passed; the crossing demo runs and prints PASS from the old path; `tools/nor_adder_3d_v1.py` still starts. The wider `quick_check_v2.py --changed` run is the next step in this entry's commit.
 - **Not done:** older ledger entries and the docs that name the old paths (`docs/measurements/ALU_LADDER.md`, `docs/stripped-cell/design-notes/ai_training_buckets_scope.md`, `tools/README.md`) were left as written; the stubs make those paths still valid.
 
-Next entry: #1309.
+### #1309 -- README status block brought up to 20 October; download kit rebuilt (20 Oct 2026)
+
+- **README:** the top block said "Status (13 October 2026)" and the card table was dated 17 October. Now: status line dated 20 October with a new "Update, 20 October 2026 (#1260-#1308)" bullet (Kintex ICM path with three designs equal to the VM, the Walker and wire witnesses, FlexGrid v2 and the word-programming gaps closed, Workbench v7, `quick_check_v2.py` and the last full-run figure, the 3D files moved, the Hex-N branch not part of this project). The card table is re-dated and gained two rows from the ledger: Walker design identity both ways (#1287, #1288) and wire witnesses with "Walk the card" on the CORDIC (#1290, #1292, with the scope sentence from #1292: a word crossing a wire in a run, not die placement; one design, one card). The note under the front-end bullet said the ICM runner had run on the card for one design; it now says three. Earlier remarks were left in place below the new bullet.
+- **Facts taken from:** ledger entries #1264, #1265, #1266-#1271, #1279, #1287, #1288, #1290, #1292, #1305, #1307, #1308 (read in this session; nothing new measured for this entry).
+- **Kit:** `python3 tools/make_package_v1.py --onion` from a clean commit (1bfb30d7, #1308): `dist/unicell-kit-20261020-1bfb30d7.zip` (25.7 MB) and `.onion` (17.6 MB; round trip verified, 3,211 files identical). It does not contain this README change; rebuild again after this commit if the kit should carry it.
+- **Not done:** the claude.ai project description is edited on the website; replacement wording for its test line was given to Alan in chat (tests/vm 2,958 passed and 13 skipped in the 20 Oct full run; 2,964 collected on the working copy; ledger at #1309), the old "2,409 passing tests across 43 suites" line to be replaced.
+
+Next entry: #1310.
 

@@ -172,8 +172,11 @@
 <section class="panel" id="sec-start" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§02 / 09</span></div><h1 class="ptitle">Start Here</h1><p class="intro">Orientation and your first run: what the project is, current status, and how to get the VM/workbench going.</p><hr class="rule"><div class="doc"><div class="partsub">Read me first<span class="partsrc">README.md</span></div>
 <h1>Imago UniCell</h1>
 <blockquote>
-<p><strong>Status (13 October 2026): a working research system with a confirmed card path; still not a finished or validated product. Nothing is proven beyond what is listed below (see "Confirmed on the card, and what is still simulation only").</strong></p>
+<p><strong>Status (20 October 2026): a working research system with a confirmed card path on two cards (Tang Nano 20K and Kintex-7); still not a finished or validated product. Nothing is proven beyond what is listed below (see "Confirmed on the card, and what is still simulation only").</strong></p>
 <ul>
+<li>
+<p><strong>Update, 20 October 2026 (ledger #1260-#1308):</strong> the work since the 13th has been on the <strong>card path and the tools around it</strong>, not on new cell designs. A design is now picked as an ICM file in the front end and built into a project for the <strong>Kintex-7 card</strong>, fed and read over JTAG; three designs have run that way and equal the VM (a relay chain, a 4-input reduction tree, and the 36-cell CORDIC, which also passed a 16-word signed set). The <strong>Walker</strong> compares the design on the card with the design the folder was built from (same design, and a wrong design is refused), and <strong>wire witnesses</strong> let the card report which connections and cells carried a word: for the CORDIC all 39 of 39 connections and 40 of 40 cells were seen by the card's own wires, and the card's SHAPE was written out (one design, one card). Checking the VM against the hardware found and closed gaps: a constant-versus-one-shot ram reading (FlexGrid v2, #1271; the CORDIC streams now equal the card's words) and the VM's word-programming tables for the adder, multiplier, divider, priority and merge cores (#1305, checked against the RTL in simulation). The <strong>Workbench</strong> (now <code>nano/workbench_v7.py</code>) reads the card's SHAPE and shows cells, flow and changes. The test runner has a version 2 that skips replaced tests (<code>tools/quick_check_v2.py</code>); the last full run (Alan's machine, 20 October) was <code>tests/vm</code> 2,958 passed, 13 skipped, and its only failures were old tests already replaced by newer ones. The 3D toy-grid files are now gathered in <code>experimental/three_d/</code> (VM only; no 3D hardware exists). A separate neural-cell idea, <strong>Hex-N</strong>, is on its own branch and is not part of this project. Nothing here changes the findings below.</p>
+</li>
 <li>
 <p><strong>Update, 12 October 2026:</strong> after the 10 October notice that development had stopped, work started again (the ledger was at #1060 then) on making the architecture easier to use rather than on new hardware claims: a hardware <strong>division core</strong> (one cell instead of about 23,000 for a written-out division), a <strong>LaTeX front end</strong> that turns an integer formula into a checked design, a <strong>library of stored arithmetic plans and blocks</strong> (Horner polynomials, sums, a multiply-accumulate block, matrices), and a LaTeX writing guide with a reduction advisory (see "Writing a formula" below). None of this changes the findings below: nothing has been run on a physical card beyond what is listed, and no clock-rate claim is made for these designs, only cell counts and simulation results.</p>
 </li>
@@ -183,11 +186,11 @@
 <li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
 <li><strong>What is NOT shown:</strong> running a design on a physical card <strong>and</strong> saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>).</li>
 <li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
-<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 20 October 2026 the ledger is at #1308).</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 20 October 2026 the ledger is at #1309).</li>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
-<h2>Confirmed on the card, and what is still simulation only (17 October 2026)</h2>
+<h2>Confirmed on the card, and what is still simulation only (20 October 2026)</h2>
 <p>Each row says where the check was actually made. "Card" means the real Tang Nano 20K (Sipeed, card_id <code>sipeed-tang-nano-20k-01</code>, GW2AR-LV18QN88C8/I7) unless the row says Arria 10. One card, one PC, small designs at 27 MHz: this shows the cells and the handshake work on silicon, not capacity or speed.</p>
 <table>
 <thead>
@@ -302,6 +305,16 @@
 <td><strong><code>cordic_z_convergence</code> (36 cells) through the ICM -&gt; Kintex runner path</strong> (dut.clk 176.09 MHz, JTAG clock 426.62 MHz; inputs 10 1 2 and 14 100 3)</td>
 <td><strong>Card (Kintex-7)</strong>: equals the generated hardware's simulation (input + 2726 for every word: 2736 2727 2728; 2740 2826 2729), and equals an independent CORDIC computation (50000 -&gt; -404 as in the original VM test). The VM tool disagreed first for want of a settle phase (#1267), then because FlexGrid v1 used up the stage constants on the first word; FlexGrid v2 (held constants, #1271) now gives the card's words for whole streams</td>
 <td>#1266, #1267, #1271</td>
+</tr>
+<tr>
+<td><strong>Design identity on the Kintex card (the Walker)</strong>: the card reports a fingerprint of the design it runs (04c680b7 = the folder's design map for the first, 4ca08914 for the CORDIC build); a different design on the card is refused ("IS NOT this folder's design", no neighbours printed)</td>
+<td><strong>Card (Kintex-7)</strong>: same design accepted and wrong design refused, both shown on the card</td>
+<td>#1287, #1288</td>
+</tr>
+<tr>
+<td><strong>Wire witnesses and "Walk the card" on <code>cordic_z_convergence_v2</code></strong> (40 cells, 39 connections; two runs: a 3-word set and a 16-word signed set)</td>
+<td><strong>Card (Kintex-7)</strong>: both runs PASS against the VM word for word; the card's own wires show a word crossing 39 of 39 connections and 40 of 40 cells (the small set alone gave 23 of 39 and 32 of 40, equal to the simulation); card SHAPE written. "Confirmed" means a word crossed that wire in a run; it does not show where the fitter placed each cell. One design, one card</td>
+<td>#1290, #1292</td>
 </tr>
 <tr>
 <td><strong>Kintex-7 (XC7K480T, YPCB-00338-1P1) first design</strong>: JTAG IDCODE 0x23751093 read; the openXC7 blinky demo for this board built and loaded into SRAM over JTAG</td>
@@ -743,9 +756,9 @@ throughout the project's own documentation, never blurred.</p>
   plain Verilog export for closed toolchains such as Arria 10). Run:
   <code>bash
   python3 tools/frontend/unicell_frontend_v6.py --demo ~/openFPGALoader/build/demo-projects --repo .</code>
-  See <code>tools/frontend/README.md</code>. (The ICM runner has been run on the Kintex card for one design,
-  <code>small_relay_chain</code> (#1264) and the 4-input reduction tree (#1265),
-  two input sets each: card equals VM.)</li>
+  See <code>tools/frontend/README.md</code>. (The ICM runner has been run on the Kintex card for three designs:
+  <code>small_relay_chain</code> (#1264), the 4-input reduction tree (#1265) and the 36-cell CORDIC (#1279, #1292);
+  card equals VM in each case. The current front end is <code>unicell_frontend_v6.py</code>.)</li>
 <li><strong>A working browser workbench</strong> — compile a program, watch it run,
   drive individual cells, load multiple independent programs onto one
   shared grid as named regions, or let it auto-play at a chosen rate
