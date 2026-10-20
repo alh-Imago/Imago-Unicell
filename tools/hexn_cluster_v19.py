@@ -2,6 +2,8 @@
 Steps (each added alone on top of the best so far; the accept rule is fixed in advance, see hexn_ladder_compare_v1.py):
   --fbpush   step 2  the feedback total also votes on the threshold offset. Per window: fire vote = +1 if the cell reached else -1; feedback vote = +1 if it reached WITHOUT feedback agreeing (fb total 0),
                      -1 if it did not reach although feedback arrived, else 0.  Net vote > 0: 'hi' run grows, < 0: 'lo' run grows, = 0: both runs reset (opposing votes cancel).
+  --fbagree  step 2b the REPLACEMENT for step 2 (which proved void: its vote always had the same sign as the fire vote, so 25 of 25 seeds were identical to the arm without it):
+                     when the feedback total agrees with what the cell did (reached and feedback arrived, or did not reach and none arrived) the net vote is 0 (cancels, runs reset); otherwise the fire vote stands.
   --score    step 3  the reward gets a readout term: share of training samples where the right group fires strictly more than every other group, scaled to 0..15 (the answer is read that way).
   --aim      step 4  half of the mutations pick a cell from the output cells of a group that is stuck (fires for every training sample or none) instead of a random cell.
   --decay    step 5  at the start of each sample an offset that did not move in the previous sample steps one toward zero.
@@ -13,7 +15,7 @@ def load(name):
     sp = importlib.util.spec_from_file_location(name, os.path.join(ROOT, "tools", name + ".py"))
     m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); return m
 c15 = load("hexn_cluster_v15"); mc = c15.mc; N, P, PL = c15.N, c15.P, c15.PL
-FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False)
+FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False)
 
 
 class Cell(mc.MixCell):
@@ -53,6 +55,7 @@ class Cell(mc.MixCell):
             self.thr = base
             if self.M:
                 v = 1 if self.reach_r else -1
+                if FLAGS["fbagree"] and bool(self.fbok_r) == bool(self.reach_r): v = 0          # step 2b: feedback agrees with what the cell did -> leave the offset alone
                 if FLAGS["fbpush"]:
                     if self.reach_r and not self.fbok_r: v += 1
                     elif not self.reach_r and self.fbok_r: v -= 1
