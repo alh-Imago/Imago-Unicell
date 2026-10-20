@@ -183,7 +183,7 @@
 <li><strong>What was tested and did not favour it:</strong> on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See <code>docs/measurements/UNICELL_VS_PURE.md</code>.</li>
 <li><strong>What is NOT shown:</strong> running a design on a physical card <strong>and</strong> saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (<code>docs/freeze/PURE_VERILOG_FREEZE.md</code>).</li>
 <li><strong>Prior art:</strong> every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in <code>docs/prior_art/PRIOR_ART_REPORT.md</code>; it is not a proof of novelty either way.</li>
-<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 19 October 2026 the ledger is at #1301).</li>
+<li>Everything is kept as it was, and nothing was removed. The full record is the ledger in <code>points/</code> (as of 19 October 2026 the ledger is at #1302).</li>
 </ul>
 <p><strong>A possible new use (10 October 2026): teaching.</strong> The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in <a href="../docs/teaching/README.md"><code>docs/teaching/</code></a>, and a first teaching manual built from it (11 October 2026) is <a href="../docs/teaching_manual.html"><code>docs/teaching_manual.html</code></a>: 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.</p>
 </blockquote>
@@ -6008,7 +6008,68 @@ place a_in as ram_flowing at (1, 0) {
 <p>A program that uses <code>family:</code> is compiled with the VIX backend and written as ICM-VIX (<code>.icm-hier.json</code>), the form that can carry the tag (one placement per family). <code>dsl_cli_v1.py --target std|vixen|flex|sub</code> chooses that backend explicitly and names the target whose abilities are checked at compile time; a block that names its family is checked against that family's abilities instead (a <code>sub</code> block asking for <code>second_output</code> is refused). The VIX backend has the Tier-0 tiles only (no <code>define</code>), as before. A program that does not use <code>family:</code> and gives no <code>--target</code> compiles exactly as it always did.</p>
 <p><strong>The standard line (ledger #1126).</strong> <code>family: std</code> builds the block on the v4 standalone shells and <code>family: carrier</code> on the VIXeN carrier trimmed to the cores the design uses. Every place of a design must name the same one of these two (or none, with <code>-s</code>), because a bridge between the standard line and flex/sub is not built; <code>project_assemble_v1.py --icm F --tap-io NAME</code> then needs no <code>-s</code> (the tag chooses it, and a conflicting <code>-s</code> is refused). <code>--tap-io</code> names the cell the grid's tap watches; a terminal flowing ram there is made a hold ram (the tap watches, it never acknowledges). The mixed example re-tagged <code>family: std</code> or <code>family: carrier</code> computes x + 1239 on both RTLs (<code>tests/vm/test_dsl_family_std_v1.py</code>).</p>
 <p>The DSL has no negative coordinates: put the constants above the main line by moving the main line down. Worked example: <code>nano/examples/mixed_flex_sub_flex_v1.uc</code> (flex +1000, SUB +234, flex +5, so out = x + 1239); it compiles, assembles and simulates end to end (<code>tests/vm/test_dsl_family_v1.py</code>).</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-workbench"><span class="ref-kind">§</span><span class="ref-text">Continue → The Workbench</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-icm">‹ ICM &amp; Cores</button><button class="pn pn-next" data-target="sec-workbench">Workbench ›</button></nav></section>
-<section class="panel" id="sec-workbench" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§06 / 09</span></div><h1 class="ptitle">The Browser Workbench</h1><p class="intro">Compile a program, watch it run, drive individual cells, and load multiple independent programs onto one shared grid as named regions &mdash; either at a manual offset or via a real auto-placement search. Run it with:<br><br><code>python3 nano/workbench_v1.py</code><br>→ opens at <code>http://localhost:7420</code></p><hr class="rule"><div class="doc"><h1>The Unicell-S workbench — design scope</h1>
+<section class="panel" id="sec-workbench" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§06 / 09</span></div><h1 class="ptitle">The Browser Workbench</h1><p class="intro">Compile a program, watch it run, drive individual cells, and load multiple independent programs onto one shared grid as named regions &mdash; either at a manual offset or via a real auto-placement search. Run it with:<br><br><code>python3 nano/workbench_v7.py</code><br>→ opens at <code>http://localhost:7420</code></p><hr class="rule"><div class="doc"><div class="partsub">A plain guide: tabs, using it with the card, reading the grid<span class="partsrc">docs/WORKBENCH_USER_GUIDE.md</span></div>
+<h1>The Workbench: a plain guide (current page: <code>nano/workbench_v7.py</code>)</h1>
+<p>Written 20 Oct 2026 (ledger #1302) from what was built and tried on 19 Oct (#1294-#1300). Everything here was seen working in a real browser; items marked <em>not tried</em> were not.</p>
+<h2>Start it</h2>
+<pre><code class="language-bash">python3 nano/workbench_v7.py        # opens http://localhost:7420
+</code></pre>
+<p>The Workbench runs the UniCell virtual machine (the VM) in your browser. It is a separate web page from the front panel (the Bench) that drives the card; the two do not share a server.</p>
+<h2>The four tabs on the left</h2>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>What it is for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Target</strong></td>
+<td>Optional. Make the grid a checked reflection of a real card: either from a MAN file plus a cell count, or from the card's own SHAPE (<code>card.shape.json</code>, written by the Walker). Leave it unset for free mode.</td>
+</tr>
+<tr>
+<td><strong>Load / save</strong></td>
+<td>Load a design: the <strong>File</strong> drop-down lists what the server finds (the repository's <code>nano/examples</code>, the folder you started in, uploads). <strong>Browse...</strong> opens your computer's file picker; a picked design loads at once (<code>.icm</code> through Load .icm, any other <code>.json</code> through Load hierarchical design).</td>
+</tr>
+<tr>
+<td><strong>Program</strong></td>
+<td>Type or load a small program (DSL or Python) and compile it onto the grid.</td>
+</tr>
+<tr>
+<td><strong>Run</strong></td>
+<td>Step, Step 10, Refresh, <strong>Reset</strong> (back to tick 0 with the design as loaded), Auto-play at a ticks/sec rate, Pause, and Deliver (put one value into one cell).</td>
+</tr>
+</tbody>
+</table>
+<h2>Using it with the real card (the sequence that worked)</h2>
+<ol>
+<li><strong>Walk the card first, in the Bench</strong> (the front panel): Check OpenOCD <strong>once</strong> before anything else on the card side, then Load the folder's bitstream into the card (Build, then Load), then <strong>Walk the card</strong>. Seen on 19 Oct: the Walk button ran only after Check OpenOCD had been used (cause not confirmed). A card with nothing or another design loaded shows magic 00000000 or "IS NOT this folder's design", and no SHAPE is written. Folders made before the v6 Bench have no Walk button; make a new folder.</li>
+<li>The Walk writes <code>card.shape.json</code> in that card build folder (for example <code>~/openFPGALoader/build/demo-projects/&lt;folder&gt;/card.shape.json</code>).</li>
+<li><strong>Workbench, Target tab:</strong> pick that <code>card.shape.json</code> under "From the card's own SHAPE" and press <strong>Use as target</strong>. The status line should say "Card SHAPE target" with the cell and connection counts. The tiles turn copper (Flex).</li>
+<li><strong>Workbench, Load / save tab:</strong> pick the design the folder was built from (for CORDIC, <code>cordic_z_convergence_v2.icm-hier.json</code> in the drop-down) and press <strong>Load hierarchical design</strong>. The Workbench checks the design against the card: every cell and connection must exist on the card, and it reports any connection the card has not yet shown a word crossing.</li>
+</ol>
+<p>Other files in a card build folder (<code>ASSEMBLY.json</code>, <code>design.json</code>, <code>design_map.json</code>, <code>expected.json</code>, <code>kit.json</code>, the large <code>k7_icm_..._flex.json</code>) are build records. They are not loaded in the Workbench.</p>
+<p>With CORDIC the simulated card gives 40 design cells and 36 + 4 on the card: 4 design cells are <strong>absorbed</strong> (the generator folded the entry merges into their branches) and 4 <strong>card-only</strong> merge cores exist only in the hardware. <em>Your own card's counts: not yet seen in the Workbench.</em></p>
+<h2>Reading the grid</h2>
+<ul>
+<li><strong>Background colour</strong> = cell family: Std (green), Carrier (purple), Flex (copper), Sub (teal), Sub.bridge (grey). With a card SHAPE as target everything is Flex; a design that names a family colours by it.</li>
+<li><strong>Inner colour and letters</strong> = core type (ADD adder, BR branch, RAM, and so on; the legend has them all).</li>
+<li><strong>Arrows</strong> on a tile's edges: copper = out, blue = in. Click a tile for its details (the details are kept to the side and only shown for the clicked tile).</li>
+<li><strong>Gold glow</strong> (flash) = a data value changed on the last tick. <strong>Magenta glow</strong> = logic or configuration changed (a field whose name says mask, mode, direction, route, select, sequence, scheduling, subtract, add-on, latency or width). Running data through a design normally changes no logic, so magenta is rare.</li>
+<li><strong>Steady soft glow</strong> = the cell holds a value (a valid flag is set).</li>
+<li><strong>Gold dots</strong> run along the arrows from a cell whose data changed to the neighbour that accepts it. They show per-tick change, not a traced value.</li>
+<li><strong>Click a tile:</strong> the cells its output reaches are outlined with a dashed trail and dashed arrows; click it again to clear. The trail follows the arrows as drawn, it is not a measured data path.</li>
+<li><strong>Dashed outline</strong> = absorbed in the card build (the VM runs it, the card has no separate cell). <strong>"+1" badge</strong> = the card also has a cell at this site that the design does not. <strong>Dashed placeholder tile</strong> = a card-only cell at a site the design does not use (built, but no design has exercised it yet).</li>
+</ul>
+<h2>Limits to know</h2>
+<ul>
+<li>The VM runs every cell in its standard mode; the family colour is shown, not simulated (a fixed-latency sub block cannot be expressed faithfully).</li>
+<li>The mirror runs in the VM's own cell model. A flat DSL or flat ICM program is refused under a card SHAPE target; only the card's own hierarchical design (or one that fits it) loads.</li>
+<li>Sub.bridge tiles rarely appear: the VM has no bridge cells (the assembler inserts them when it builds).</li>
+</ul>
+<div class="partsub">The original scoping note (what&#x27;s dead vs. reusable from the old workbench)<span class="partsrc">docs/stripped-cell/design-notes/workbench_scope.md</span></div>
+<h1>The Unicell-S workbench — design scope</h1>
 <p><em>Captured 2026-08-16 (day 2), based on a real, line-level audit of the
 old <code>workbench.py</code> (2711 lines) -- not a fresh design from nothing.
 Per Alan's own instruction: check the old version first for what's
@@ -6826,6 +6887,7 @@ It prints an address like <code>http://127.0.0.1:8765/?t=...</code> and opens it
 | <code>project_assemble_v4.py</code>, <code>kintex_icm_runner_v4.py</code>, <code>frontend/unicell_frontend_v4.py</code>, <code>walker_card_v1.py</code> | Clones/new (ledger #1286): the card reports a design fingerprint over JTAG, the folder carries design_map.json, the Walker compares them. Use these for new Kintex folders. |
 | <code>project_assemble_v5.py</code>, <code>kintex_icm_runner_v5.py</code>, <code>flexsub_icm_generate_v4.py</code>, <code>flexsub_icm_flex_v4.py</code>, <code>design_map_v2.py</code>, <code>frontend/unicell_frontend_v5.py</code>, <code>walker_card_v2.py</code> | Clones/new (ledger #1289): WIRE WITNESSES. The generated design gets a read-only <code>witness</code> port (one sticky bit per connection, one per cell); the card read-back carries it; the Walker marks which neighbour connections the card itself saw a word cross and can write the card's SHAPE (<code>--shape OUT</code>, same format as the simulated Walker's, readable with <code>walker_card_v2.read_card_shape</code>). Use these for new Kintex folders. |
 | <code>project_assemble_v6.py</code>, <code>kintex_icm_runner_v6.py</code>, <code>frontend/unicell_frontend_v6.py</code> | Clones (ledger #1291): a wide vector set (<code>vectors_wide.txt</code>, 16 words per entry, plus and minus) so every data-dependent path is used; <code>walk_card.sh</code> runs both sets and then <code>walker_card_v2.py</code>, writing <code>walk_report.txt</code> and <code>card.shape.json</code>; the Bench has a </em><em>Walk the card</em>* button for it. Use these for new Kintex folders. |
+| <code>workbench_clip_v1.py</code> | New (ledger #1302): records a clean clip (<code>.webm</code> and <code>.mp4</code>) of the Workbench grid only, CORDIC under a simulated-card SHAPE: <code>python3 tools/workbench_clip_v1.py OUTNAME</code>. Needs iverilog, playwright with Chromium, ffmpeg. |
 | <code>kintex_icm_runner_v1.py</code> | Wraps a generated flex ICM design for the Kintex card: pins, reset, JTAG feed / read of entries and exits, the VM's expected answers, a self-check simulation (ledger #1259; front-end ICM panel #1260); called by <code>project_assemble_v1.py --icm</code> when the card's flow is openxc7. |\n| <code>man_gen/gen_kintex7_ypcb00338_man_v1.py</code> | Writes the MAN file and xdc for the Kintex-7 card (ledger #1235): <code>docs/man/kintex7-ypcb00338.man.json</code>; <code>--check</code> for drift. |</li>
 <li><code>board_esp32_c1_v1.py</code> (ledger #1211): test C1, the Tang as stopwatch and signal generator for an ESP32 interrupt handler; writes <code>fpga/board_tests_c1/</code> (c1_quiet, c1_storm). Built, not yet run.</li>
 <li><code>board_direct_latency_t3_v1.py</code> (ledger #1209): test T3, two input pins (jumpers 86 -&gt; 72 and 53 -&gt; 71); writes <code>fpga/board_tests_latency3/</code>. Card run passed (#1210).</li>

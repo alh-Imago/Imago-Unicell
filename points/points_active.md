@@ -651,4 +651,13 @@ A summary entry, not a new decision; the work is in #1288-#1300.
 
 *Unlogged-decision check.* Two small choices were made in #1297 and #1299 and are recorded there: `active_route` counts as a logic change (one regex), and the animated dots show per-tick change, not a traced value. Nothing else found unlogged.
 
-Next entry: #1302.
+### #1302 -- Clean demo clip, Workbench user guide, manual refresh (20 Oct 2026)
+
+Start of day 2 (toolchain checked: iverilog, yosys, pytest, llvmlite present; tree clean at #1301). Alan's list: outstanding parts, then a general tidy and catch-up, then experimental parts. First outstanding items done:
+
+- **Clean demo clip.** Alan's own screen recording of the Workbench could not be published (too much on screen). `tools/workbench_clip_v1.py OUTNAME` records a headless-Chromium clip of the grid panel only (the rest of the page hidden by injected CSS, so no paths, file names or desktop): CORDIC under a SHAPE made from the simulated card read-back (40 cells, 39/39 connections), 10 steps, a click for the ghost trail, 8 more steps, Reset to tick 0, 6 more steps. Writes `.webm` and `.mp4` (34 s). Frames checked by eye: no paths or names on screen. It shows the simulated-card shape, not Alan's own card; it needs iverilog, playwright with Chromium, ffmpeg. Sent to Alan.
+- **Instructions note (the #1293 / #1301 item).** Written as `docs/WORKBENCH_USER_GUIDE.md` and added to the manual's Workbench section (which also still said `workbench_v1.py`; now `workbench_v7.py`): start-up, the four tabs, the sequence that worked with the card (Check OpenOCD once, program the folder's bitstream, Walk, then Target tab `card.shape.json`, then Load hierarchical design), which build-folder files are not loaded, how to read the grid (every colour, glow, dot, outline and badge), and the limits. Facts in it are from #1288-#1300 measurements; the card's own counts in the Workbench are still marked not seen. `tools/frontend/README.md` keeps its shorter note (not edited).
+
+*Still open from #1301.* Alan's own `card.shape.json` result in the Workbench; placeholder tiles for a card-only cell at an unused site (no design exercises them); mirror still in the VM's own cell model, flat programs not checked against a SHAPE; parked VM word-programming gaps; #501 in-cell ping; Sub.bridge rarely shown.
+
+Next entry: #1303.

@@ -109,9 +109,10 @@ SECTIONS = [
      "intro":"Compile a program, watch it run, drive individual cells, and load "
              "multiple independent programs onto one shared grid as named regions "
              "&mdash; either at a manual offset or via a real auto-placement search. "
-             "Run it with:<br><br><code>python3 nano/workbench_v1.py</code><br>"
+             "Run it with:<br><br><code>python3 nano/workbench_v7.py</code><br>"
              "→ opens at <code>http://localhost:7420</code>",
-     "parts":[{"sub":"The original scoping note (what's dead vs. reusable from the old workbench)",
+     "parts":[{"sub":"A plain guide: tabs, using it with the card, reading the grid","md":"docs/WORKBENCH_USER_GUIDE.md"},
+              {"sub":"The original scoping note (what's dead vs. reusable from the old workbench)",
                "md":"docs/stripped-cell/design-notes/workbench_scope.md"}],
      "links":[("Continue → Hardware","#sec-hw","section")]},
 
