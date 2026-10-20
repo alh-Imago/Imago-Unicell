@@ -20,25 +20,29 @@ class MixCell:
     def __init__(self, active, dr, code, thr, bias):
         self.a, self.d, self.c, self.thr, self.bias = active, dr, code, thr[0], bias
         self.fwd = self.fb = 0; self.inany = self.inany_r = self.fbok_r = self.reach_r = self.margin_r = 0
-        self.bc = [0] * N
+        self.bc = 0                       # one shared clock counter (identical for every lane, as in the RTL)
+        # static per-lane facts, worked out once (speed only; the behaviour is unchanged)
+        self.first = [not any(self.a[f * P + q] and self.c[f * P + q] == 1 and self.d[f * P + q] != 0 for q in range(p)) for f in range(F) for p in range(P)]
+        self.snd = [[bool(self.a[i] and (d in (1, 3))) for i, d in enumerate(self.d)], [bool(self.a[i] and d == 2) for i, d in enumerate(self.d)]]
+        self.rcv = [[i for i in range(N) if self.a[i] and self.d[i] in (0, 2)], [i for i in range(N) if self.a[i] and self.d[i] == 3]]
 
     def tx(self, phase):
+        r, fo, ia = self.reach_r, self.fbok_r, self.inany_r
+        burst = self.bc < self.margin_r + 1
+        snd = self.snd[phase]
+        if not (r and burst): return [0] * N
         out = []
-        for f in range(F):
-            for p in range(P):
-                i = f * P + p; d, cd = self.d[i], self.c[i]
-                sender = self.a[i] and ((d == 2) if phase else (d in (1, 3)))
-                first = not any(self.a[f * P + q] and self.c[f * P + q] == 1 and self.d[f * P + q] != 0 for q in range(p))
-                r, fo, ia = self.reach_r, self.fbok_r, self.inany_r
-                pas = {0: r and fo and ia, 1: r and first, 2: r and ((not ia) if p & 1 else ia), 3: False}[cd]
-                out.append(int(bool(sender and pas and self.bc[i] < self.margin_r + 1)))
+        for i in range(N):
+            if not snd[i]: out.append(0); continue
+            cd = self.c[i]
+            pas = (fo and ia) if cd == 0 else (self.first[i] if cd == 1 else ((not ia) if (i % P) & 1 else ia) if cd == 2 else False)
+            out.append(int(bool(pas)))
         return out
 
     def clock(self, rx, phase, ph_start, win_end):
         delta = 0; any_rx = 0
-        for i in range(N):
-            d = self.d[i]
-            if self.a[i] and rx[i] and ((d == 3) if phase else (d in (0, 2))):
+        for i in self.rcv[phase]:
+            if rx[i]:
                 any_rx = 1; delta += -1 if self.c[i] == 3 else 1
         cap = (1 << AW) - 1
         if not phase:
@@ -47,7 +51,7 @@ class MixCell:
             else: self.inany |= any_rx
         else:
             self.fb = min(max(self.fb + delta, 0), cap)
-        self.bc = [0 if ph_start else min(b + 1, 7) for b in self.bc]
+        self.bc = 0 if ph_start else min(self.bc + 1, 7)
         if win_end and phase:
             te = self.thr + self.bias
             self.reach_r = int(self.fwd >= te); self.margin_r = max(min(self.fwd - te, 6), 0)
