@@ -9,8 +9,8 @@ Alan (the author) is not a programmer. Focus on concepts, architecture decisions
    `which iverilog yosys && python3 -c "import pytest, llvmlite"`
    Install steps are in `current/START.md`.
 3. Tests: `tests/vm` has over 2,000 tests and a full run takes hours, so Alan runs them on demand or for what was touched.
-   - Everyday: `python3 tools/quick_check_v1.py --changed` runs only the tests that name a file you changed (it also refuses to run without `iverilog`/`yosys` and fails any suite that prints SKIP).
-   - Everything except the slow ones: `python3 tools/quick_check_v1.py`. Everything: add `--full` (run it in the background).
+   - Everyday: `python3 tools/quick_check_v2.py --changed` runs only the tests that name a file you changed (it also refuses to run without `iverilog`/`yosys` and fails any suite that prints SKIP).
+   - Everything except the slow ones: `python3 tools/quick_check_v2.py`. Everything: add `--full` (run it in the background).
    - Refresh the slow-test list after a long run: `python3 -m pytest tests/vm -q -n 2 --log-durations=d.log`, then `python3 tools/update_slow_tests_v1.py d.log`.
    - `tests/test_status_files_v1.py` fails if `current/latest.md` does not mention the newest ledger entry: after adding a ledger entry, add its summary to `latest.md` and update its header line.
 
