@@ -119,6 +119,9 @@ _PROG_TABLES: dict = {
         1: ("dir6", "adder_upstream_mask"),
         2: ("bool", "adder_subtract_mode"),
         3: ("raw20", "addon_config"),
+        # ledger #1305: ids 4 and 5 (added to adder_cell_v4.v in #1036, left out of this table until now; #1284 found the gap)
+        4: ("bool", "adder_carry_mode"),                 # PROG_ID_SECOND_OUTPUT: second_output <= prog_word[0]
+        5: ("dir6", "second_mask"),                      # PROG_ID_SECOND_DOWNSTREAM_MASK: prog_word[5:0]
         7: ("complete", None),
     },
     "ram": {
@@ -189,6 +192,41 @@ _PROG_TABLES: dict = {
         15: ("complete", None),
     },
 }
+# ledger #1305: the four cores that had no word-programming table (found by #1284), each read directly from its own RTL's `case (prog_id)` block (the standard-family files named below).
+# The VM's mul is the wide-mode mul (mul_cell_v5.v: ids 0 1 2 3 4 7; mul_cell_v4.v has no ids 2 or 4). All masks are prog_word[5:0]; addon_config is prog_word[19:0].
+_PROG_TABLES.update({
+    "mul": {                                              # mul_cell_v5.v
+        0: ("dir6", "mul_downstream_mask"),
+        1: ("dir6", "mul_upstream_mask"),
+        2: ("bool", "mul_wide_mode"),                     # PROG_ID_WIDE_MODE <= prog_word[0]
+        3: ("raw20", "addon_config"),
+        4: ("dir6", "second_mask"),                       # PROG_ID_SECOND_DOWNSTREAM_MASK
+        7: ("complete", None),
+    },
+    "div": {                                              # div_cell_v4.v
+        0: ("dir6", "div_downstream_mask"),
+        1: ("dir6", "div_upstream_mask"),
+        2: ("bool", "div_remainder_primary"),             # PROG_ID_REM_PRIMARY <= prog_word[0]
+        3: ("raw20", "addon_config"),
+        4: ("bool", "div_second_output"),                 # PROG_ID_SECOND_OUTPUT <= prog_word[0]
+        5: ("dir6", "second_mask"),                       # PROG_ID_SECOND_DOWNSTREAM_MASK
+        7: ("complete", None),
+    },
+    "priority": {                                         # priority_cell_v4.v: NOTE upstream is id 0 and downstream id 1 (the reverse of most cores)
+        0: ("dir6", "pri_upstream_mask"),
+        1: ("dir6", "pri_downstream_mask"),
+        2: ("priority_ranks", None),                      # PROG_ID_PRIORITY_RANKS: one word sets four 2-bit ranks and the scheduling bit, and clears the credits
+        3: ("raw20", "addon_config"),
+        7: ("complete", None),
+    },
+    "merge": {                                            # merge_cell_v4.v: addon_config is id 5 here, not 3
+        0: ("dir6", "mrg_downstream_mask"),
+        1: ("dir6", "mrg_upstream_mask"),
+        2: ("raw2", "mrg_mode"),                          # PROG_ID_MODE <= prog_word[1:0]
+        5: ("raw20", "addon_config"),
+        7: ("complete", None),
+    },
+})
 _PROG_ID_WIDTH_4BIT = {"branch", "nano"}   # real, confirmed -- see table comment above; nano_gate_v4.v ALSO uses a real 4-bit PROG_ID field (prog_id = prog_data_val[23:20], COMPLETE=15), found by #665's own real RTL testbench, not previously caught
 
 # Real width->mask lookup for the "rawN"/"dirN" kind strings above --
@@ -579,6 +617,15 @@ class SuperCell:
             self._prog_program_done = True
         elif kind == "bool":
             setattr(self, field, bool(data & 1))
+        elif kind == "priority_ranks":
+            # ledger #1305, priority_cell_v4.v: {scheduling_mode = [8], rank_w = [7:6], rank_e = [5:4], rank_s = [3:2], rank_n = [1:0]}; the four credits are cleared by the same write.
+            # The RTL's scheduling_mode is ONE bit (strict / weighted); the VM's third mode (2, the sequenced-channel prototype, #772) cannot be set by a word.
+            self.pri_rank_n = data & 0x3
+            self.pri_rank_s = (data >> 2) & 0x3
+            self.pri_rank_e = (data >> 4) & 0x3
+            self.pri_rank_w = (data >> 6) & 0x3
+            self.pri_scheduling_mode = (data >> 8) & 1
+            self.pri_credit_n = self.pri_credit_s = self.pri_credit_e = self.pri_credit_w = 0
         elif kind == "half_low":
             cur = getattr(self, field)
             setattr(self, field, (cur & 0xFFFF0000) | (data & 0xFFFF))
