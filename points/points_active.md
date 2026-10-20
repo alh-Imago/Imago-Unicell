@@ -706,5 +706,14 @@ Also answered for Alan (no change made): the placer and compiler do not use word
 - **Not determined:** why the 13 skips happen (his machine has iverilog; likely candidates by reading the files are missing browser tooling, node, the Tang Nano package, networkx, or a test that says to run a tool first; a run with `-rs` would name them); why `assemble_v2` failed in his run rather than only running long (it is superseded either way). The total on his checkout was 2,972 tests (2,958 + 1 + 13), against 2,964 collected here on 20 Oct; the difference is not explained and may be his checkout being at a different commit.
 - **Also today (Hex-N branch, not merged into main):** cluster experiments v15-v17 on the neural-cell design (`tools/hexn_cluster_v15.py` .. `v17.py`). Findings so far are in `docs/hex-n/HEXN_DESIGN.md` on that branch and are not claims about UniCell.
 
-Next entry: #1308.
+### #1308 -- The 3D toy-grid files gathered in `experimental/three_d/` (20 Oct 2026)
+
+Done as proposed in #1306 and approved by Alan: **moved, not deleted or changed**, pointers left behind.
+- **Moved with `git mv` (content unchanged):** `nano/experimental_3d_grid_v1.py`, `nano/experimental_3d_nor_v2.py`, `tools/experimental/experimental_3d_chaos_run_v1.py`, `tools/experimental/experimental_3d_crossing_demo_v1.py` -> `experimental/three_d/`.
+- **Pointers:** at each old path a small stub. The two modules load the moved file under the old module name (so `import experimental_3d_nor_v2` and the demos' `from experimental_3d_grid_v1 import ...` still work); the two scripts run the moved script as `__main__`.
+- **README** `experimental/three_d/README.md`: says in a table what is real hardware (none: the built chips have four face ports; the cores' 6-bit masks are headroom; no 3D RTL, nothing on a card) and what is the VM model (six neighbours, crossings, the NOR adder), lists the four files with their old paths and the tests that use them. `tools/experimental/README.md` row updated to say pointer.
+- **Checked:** `tests/vm/test_nor_adder_3d_v1.py` and `tests/vm/test_unit_bringup_v1.py` (its file-exists check passes through the stubs): 41 passed; the crossing demo runs and prints PASS from the old path; `tools/nor_adder_3d_v1.py` still starts. The wider `quick_check_v2.py --changed` run is the next step in this entry's commit.
+- **Not done:** older ledger entries and the docs that name the old paths (`docs/measurements/ALU_LADDER.md`, `docs/stripped-cell/design-notes/ai_training_buckets_scope.md`, `tools/README.md`) were left as written; the stubs make those paths still valid.
+
+Next entry: #1309.
 
