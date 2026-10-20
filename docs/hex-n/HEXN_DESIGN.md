@@ -87,6 +87,34 @@ Run-to-run noise in a mean of 30 is roughly 30 to 60 points; earlier conclusions
 
 Flip-flops stay at 117. The settings (82 bits at 1 lane, 172 at 4, 292 at 8) are inputs in this prototype and would add storage. Tool: `tools/hexn_size_v1.sh`, yosys 0.33. The learning-versus-lanes result is still running and will be added.
 
+## 4a. Pattern recognition and the hex cluster (20 Oct 2026, VM only; all numbers from the files named)
+
+**Cell v2 (Alan's choice):** all six faces feed one decision (one shared forward total, one feedback total, one threshold); the earlier cell (v1) was six independent faces. Model `tools/hexn_cell_v2_model.py`, RTL `rtl/hexn_cell_v2.v` (checked against the model by `tests/test_hexn_cell_v2.py`), size tables `tools/hexn_size_v2.sh`.
+
+**Task:** four classes of 12 on/off wires, noise = chance each wire is flipped, chance level 0.25, "template rule" ceiling about 0.90 at noise 0.15 (0.72 at 0.25). A single detector cell per class reaches about 0.68; one cluster of 7 cells (radius 1) with one shared reward reached 0.45 (random best 0.42, `hexn_cluster_v15.py`).
+
+**What was tried, one change at a time on the same seeds (v18 to v20).** Accept rule fixed in advance (`tools/hexn_ladder_compare_v1.py`): the mean paired difference must be at least 2 standard errors and the new arm must win on more seeds than it loses.
+
+| Change | Result | Verdict |
+|---|---|---|
+| Local reward per output group instead of one reward (v16) | 0.25 at 600 tries, 0.29 at 2,000 (global reward: 0.45) | worse |
+| Outputs that never vary with the input get no credit (v18 reward) | 0.199 (25 seeds) | baseline for the ladder |
+| Threshold offset, clamped, driven by firing (v18, M=2, run 3) | 0.227 vs 0.199 | no difference shown |
+| Grow from one-in-one-out cells, with stuck-lane pruning (v17) | 0.00 to 0.26 depending on arm | no help |
+| Feedback also pushes the offset (first form) | identical on all 25 seeds | VOID: its vote could never oppose the firing vote |
+| Feedback agreement cancels the push (v19 fbagree) | 0.170 vs 0.227 | leans worse, not accepted |
+| Offset decay | 0.247 vs 0.227 | no difference shown |
+| **Readout score: reward also counts "my group fires strictly more than the others"** | **0.312 vs 0.199 (+0.112, 3.6x its error, 19 wins 5 losses)** | **accepted** |
+| Aimed mutations (shared output cells) | 0.309 vs 0.312 | no difference shown |
+| Per-face weights 1 to 3, trained, fixed at run time | 0.329 vs 0.312 | no difference shown |
+| **Each output group served by its own cell (`--ownout`)** | **0.385 vs 0.315 over 50 seeds (+0.070, 3.35x, 31 wins 16 losses); the last 25 seeds alone also pass** | **accepted** |
+
+**Why the layout change mattered.** A diagnostic (`tools/hexn_diag_v1.py`) on models trained on clean data showed each one learned only 1 to 3 of the 4 classes. In the original layout output groups 1 and 2 were driven by the same cell and groups 2 and 3 by another; a v2 cell makes one decision, so those groups could not differ.
+
+**Frozen model (train, freeze, then add noise), `tools/hexn_cluster_v20.py`, 12 seeds, run on Alan's machine and here.** Trained on clean data the frozen model scores 0.417 / 0.382 / 0.323 / 0.273 at test noise 0 / 0.05 / 0.15 / 0.25 (ceiling 1.00 / 0.98 / 0.89 / 0.70). Trained at noise 0.15: 0.375 / 0.352 / 0.292 / 0.274, no better. Letting the threshold offset adapt during the test stream made it **worse** at every level (by 0.139 to 0.072), losing on 8 to 11 of 12 seeds. This tests one form of run-time adaptation; it does not show adaptation in general cannot help.
+
+**Where it stands.** Best cluster so far 0.385, against 0.68 for four separate detectors and about 0.90 for the ceiling. The gap is not closed. Two mistakes of mine are on record: the first feedback test was void (see above), and the earlier network tests (section 4) were withdrawn.
+
 ## 5. Open questions
 
 1. A1 to A7 (how strongly each lane counts, which way the bias acts, what "graded" means, and so on).
@@ -103,4 +131,4 @@ Tang Nano 20K (Gowin) and a Kintex card, both on hand. Nothing has been placed y
 
 ## 7. Files (branch `Hex-N`)
 
-`docs/hex-n/` (this document, the older notes, link protocol), `rtl/hexn_cell_v1.v`, `tests/test_hexn_cell_v1.py`, and `tools/hexn_*.py` (experiments v1 to v12; v7, v8 and v12 rest on a faulty layout and are kept as a record, each a new file; see the header of each for the question it asks), `tools/hexn_size_v1.sh`, `tools/hexn_state_sweep_v1.sh`, `tools/hexn_state_summary_v1.py`.
+`docs/hex-n/` (this document, the older notes, link protocol), `rtl/hexn_cell_v1.v`, `tests/test_hexn_cell_v1.py`, and `tools/hexn_*.py` (experiments v1 to v20, plus `hexn_diag_v1.py`, `hexn_ladder_compare_v1.py`, `hexn_ladder_run_v1.py`, `hexn_run_frozen_v1.sh`;  v7, v8 and v12 rest on a faulty layout and are kept as a record, each a new file; see the header of each for the question it asks), `tools/hexn_size_v1.sh`, `tools/hexn_state_sweep_v1.sh`, `tools/hexn_state_summary_v1.py`.
