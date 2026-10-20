@@ -4,6 +4,7 @@ Steps (each added alone on top of the best so far; the accept rule is fixed in a
                      -1 if it did not reach although feedback arrived, else 0.  Net vote > 0: 'hi' run grows, < 0: 'lo' run grows, = 0: both runs reset (opposing votes cancel).
   --fbagree  step 2b the REPLACEMENT for step 2 (which proved void: its vote always had the same sign as the fire vote, so 25 of 25 seeds were identical to the arm without it):
                      when the feedback total agrees with what the cell did (reached and feedback arrived, or did not reach and none arrived) the net vote is 0 (cancels, runs reset); otherwise the fire vote stands.
+  --graded   step 8  adds a second readout term that counts HOW MUCH the right group leads in burst clocks (Alan, 21 Oct: the amount, not just that something happened); use together with --score.
   --score    step 3  the reward gets a readout term: share of training samples where the right group fires strictly more than every other group, scaled to 0..15 (the answer is read that way).
   --aim      step 4  half of the mutations pick a cell from the output cells of a group that is stuck (fires for every training sample or none) instead of a random cell.
   --decay    step 5  at the start of each sample an offset that did not move in the previous sample steps one toward zero.
@@ -15,7 +16,7 @@ def load(name):
     sp = importlib.util.spec_from_file_location(name, os.path.join(ROOT, "tools", name + ".py"))
     m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); return m
 c15 = load("hexn_cluster_v15"); mc = c15.mc; N, P, PL = c15.N, c15.P, c15.PL
-FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False, ownout=False)
+FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False, ownout=False, graded=False)
 
 
 class Cell(mc.MixCell):
@@ -108,6 +109,11 @@ def rewards(topo, cfgs, data, M, run, bits=4):
     if FLAGS["score"]:
         ok = sum((max(x) > 0 and x.count(max(x)) == 1 and x.index(max(x)) == y) for (_, y), x in zip(data, g))
         tot += round(top * ok / len(data))
+    if FLAGS["graded"]:      # step 8: HOW MUCH, not just whether. Per sample: lead of the right group's burst count over the best wrong group's, scaled by the largest count seen (0.5 = tie, 1 = full lead, 0 = fully behind)
+        D = max(1, max(max(x) for x in g)); lead = 0.0
+        for (_, y), x in zip(data, g):
+            mw = max(x[k] for k in range(4) if k != y); lead += min(1.0, max(0.0, 0.5 + (x[y] - mw) / (2.0 * D)))
+        tot += round(top * lead / len(data))
     return tot, stuck
 
 
