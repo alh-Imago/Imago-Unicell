@@ -2,6 +2,8 @@
 
 Written 20 Oct 2026 (ledger #1302) from what was built and tried on 19 Oct (#1294-#1300). Everything here was seen working in a real browser; items marked *not tried* were not.
 
+A 34-second clip of the grid running (CORDIC under a simulated-card SHAPE) is at `docs/media/workbench_v7_demo.mp4` (and `.webm`); it is also embedded in the Workbench tab of `docs/teaching_manual.html`.
+
 ## Start it
 
 ```bash

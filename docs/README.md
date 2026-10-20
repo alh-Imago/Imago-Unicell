@@ -27,6 +27,7 @@ The documents that describe the current line:
 - **`ESP32_BITSTREAM_LOADER_v1.md`** (ledger #1177) -- loading a precompiled design into an FPGA from an ESP32: a separate, general method, kept apart from the UniCell architecture. A proposed route, NOT built.
 - **`PRIOR_ART_AND_CONTRIBUTION_v3.md`** (v1, v2 kept; v2 is ledger #1181, v3 #1183) and **`NO_INTERRUPT_PARALLEL_TEST_PLAN_v3.md`** (v1, v2 kept; ledger #1177, v2 #1181, v3 #1183) -- what the project builds on and what it claims; and the planned tests for the no-interrupt and parallelism claims (a plan, no results yet).
 - **`../nano/examples/card_tested/`** (ledger #1177) -- eleven designs tested on the card as plain ICM files (the ten group tests and the native cross/corner tiles), with `python3 tools/replay_card_icm_vm_v2.py` to replay them in the VM (#1179).
+- **`WORKBENCH_USER_GUIDE.md`** (ledger #1302) -- a plain guide to the Workbench page (`nano/workbench_v7.py`): its tabs, the sequence with the real card, how to read the grid. `media/` holds the 34-second clip of it (`workbench_v7_demo.mp4`, `.webm`), made by `tools/workbench_clip_v1.py`.
 - **`man/README.md`** and **`man/tang-nano-20k-getting-started.md`** —
   the card files (Arria 10 and Tang Nano 20K). They cover what the
   assembler reads (`native_width`, DSP primitives, `synthesis.nowidelut`,

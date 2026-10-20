@@ -213,7 +213,7 @@ committed file (#975). See `docs/man/README.md`.
 ## The local browser tools share one look (`nano/ui_theme_v1.py`, ledger #998)
 
 The front panel (`python3 nano/frontend_v1.py`, port 7421: Start, MAN file, Create cells, Walker, Other tools, Manual) and the
-workbench (`python3 nano/workbench_v1.py`, port 7420) use one stylesheet and one header/nav from `nano/ui_theme_v1.py`.
+workbench (`python3 nano/workbench_v7.py` now, v1 is the original; port 7420) use one stylesheet and one header/nav from `nano/ui_theme_v1.py`.
 That module is presentation only. A new page should call `ui.page(title, body, active=...)` rather than carry its own CSS.
 
 ## `shape_extract_v1.py` — real cell-to-cell adjacency extraction

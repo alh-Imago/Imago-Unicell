@@ -106,6 +106,15 @@ f.mirror_bounds = bounds</pre>
 <p>The shell check uses the list of core kinds each assembler shell really instantiates (read from the Verilog file of that shell):</p>
 <table id="mi-shells"></table>
 
+<h2>Added 20 October 2026: the mirror can take the card's own shape</h2>
+<p>Sections 1 to 6 were captured when the only mirror target was a MAN file and a cell count. Since ledger #1294 the Workbench can instead take the card's own SHAPE, <code>card.shape.json</code>, written by the Walker after it has run the design on the card. In that case the card is no longer described by what its file says it could hold but by what it was seen to hold: its cells, their types and sites, every connection its hardware has, and which of those connections the card itself saw a word cross (the Walker's "wire witnesses", one stored bit per connection).</p>
+<ul>
+  <li>A hierarchical design loaded under that target is checked against the card: every cell and connection must exist on the card, and the Workbench says which connections the card has not yet shown a word crossing. A different design from the one the card ran is refused; a flat DSL or flat ICM program is refused too.</li>
+  <li>The card can have fewer or more cells than the design. For CORDIC the design has 40 cells; the simulated card has 36 of them plus 4 merge cores the generator inserted. The 4 design cells the card folded into their branches are shown as <em>absorbed</em> (dashed outline) and the 4 extra card cells as <em>card-only</em> (a badge or a placeholder tile). This is allowed only when the design's fingerprint equals the card's.</li>
+  <li>Measured with the card read-back simulated (CORDIC): 40 cells, 39 connections, all 39 confirmed with the wide vector set (23 of 39 with the small set). On the real Kintex card the Walk gave 39 of 39 on 19 October. The mirror's own cell model is still the VM's standard one.</li>
+</ul>
+<p class="fine">Not yet seen: Alan's own <code>card.shape.json</code> read in the Workbench page. See the Workbench tab for the clip and <code>docs/WORKBENCH_USER_GUIDE.md</code> for the steps.</p>
+
 <h2>7. How far to trust this page</h2>
 <ul>
   <li><strong>Shape only.</strong> The mirror checks positions, not chip capacity, speed or routing. Its own file header says so, and section 3 shows how far apart the two questions can be.</li>

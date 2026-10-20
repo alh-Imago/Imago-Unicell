@@ -49,7 +49,7 @@ python3 -m pytest tests/vm -q
 for t in tests/test_*.py; do python3 "$t" > /dev/null || echo "FAILED: $t"; done
 ```
 
-As of #986: `tests/vm` 1763 passed; 20 top-level suites, 0 failed.
+Last full-run figure recorded here: as of #986, `tests/vm` 1763 passed; 20 top-level suites, 0 failed. Since then the suite has grown: on 20 Oct 2026 `pytest tests/vm --collect-only` finds 2,964 tests (collected, not all run; a full run takes hours, so use `python3 tools/quick_check_v1.py --changed`).
 
 ## Arria 10 / stripped-cell era reading list (2026-08) -- background
 

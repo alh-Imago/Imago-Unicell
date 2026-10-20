@@ -32,13 +32,28 @@
 
 <div class="linkrow">
   <a class="go" href="http://localhost:7420" target="_blank" rel="noopener">Open the workbench (once it is running)</a>
-  <a href="../nano/workbench_v1.py">Workbench source</a>
+  <a href="../nano/workbench_v7.py">Workbench source (v7)</a>
+  <a href="../nano/workbench_v1.py">v1 source</a>
+  <a href="../docs/WORKBENCH_USER_GUIDE.md">Plain guide</a>
   <a href="../nano/vm_ai_port_v1.py">The session behind it</a>
   <a href="../docs/stripped-cell/design-notes/workbench_scope.md">Design note</a>
 </div>
-<p style="font-size:.9em;color:var(--ink-soft)">The first link works only after you start the workbench on your own computer: run <code>python3 nano/workbench_v1.py</code> in the repository folder. It serves on port 7420 and opens your browser by itself (add a number after it for another port). Leave that terminal window open; closing it stops the workbench.</p>
+<p style="font-size:.9em;color:var(--ink-soft)">The first link works only after you start the workbench on your own computer: run <code>python3 nano/workbench_v7.py</code> in the repository folder (the numbered picture and the worked example further down are of the first version, <code>nano/workbench_v1.py</code>). It serves on port 7420 and opens your browser by itself (add a number after it for another port). Leave that terminal window open; closing it stops the workbench.</p>
 
-<h2>1. The workbench, part by part</h2>
+<h2>The current Workbench (v7), added 20 October 2026</h2>
+<p>Everything below this section describes the first Workbench, <code>nano/workbench_v1.py</code>, which is still in the repository and still runs. The page you get today is <code>python3 nano/workbench_v7.py</code> (same port, 7420). It keeps what v1 did and adds: tabs (Target, Load / save, Program, Run); drop-downs of the files it finds with a Browse button; a Reset that returns to tick 0; a small-tile grid like the Composer's; and, when the target is the card's own shape, the card-only and absorbed cells. The clip is a real run of the CORDIC design under a card shape made from the simulated card read-back, recorded in a headless browser: 34 seconds, grid only.</p>
+<video controls loop muted playsinline preload="metadata" poster="@@WB7_POSTER@@" style="width:100%;max-width:1100px;border:1px solid var(--rule);border-radius:8px;background:#0d130f"><source src="@@WB7_VIDEO@@" type="video/mp4"><source src="@@WB7_WEBM@@" type="video/webm">Your browser cannot play the clip; it is <code>docs/media/workbench_v7_demo.mp4</code>.</video>
+<p class="fine">Clip file: <code>docs/media/workbench_v7_demo.mp4</code> (and a .webm copy, together about 1 MB, both embedded in this page); regenerate with <code>python3 tools/workbench_clip_v1.py NAME</code>.</p>
+<ul>
+  <li><strong>Background colour</strong> of a tile is its cell family (Std, Carrier, Flex, Sub, Sub.bridge); with a card shape as the target every tile is Flex. The <strong>inner colour and letters</strong> are the core type (ADD, BR, RAM and so on). Small <strong>arrows</strong> on a tile's edges show where it sends (copper) and receives (blue).</li>
+  <li><strong>Gold glow</strong> means a data value changed on the last tick; <strong>magenta glow</strong> means logic or configuration changed (rare while a design simply runs). A <strong>steady soft glow</strong> means the cell holds a value. <strong>Gold dots</strong> run along the arrows from a cell whose data changed; they show change per tick, not a traced value.</li>
+  <li><strong>Click a tile</strong> to see its details at the side and a dashed trail of the cells its output reaches; click it again to clear. The trail follows the drawn arrows, it is not a measured path.</li>
+  <li><strong>Dashed outline</strong> = a design cell the card absorbed when it was built (the VM runs it, the card has no separate cell). <strong>"+1" badge</strong> = the card also has a cell at that site that the design does not. A <strong>dashed placeholder tile</strong> = a card-only cell at a site the design does not use. With the simulated card for CORDIC: 4 absorbed, 4 card-only (all four share a site, so they show as badges).</li>
+  <li><strong>The sequence with the real card:</strong> Walk the card in the Bench (Check OpenOCD first, folder's own bitstream loaded); then, in the Workbench, Target tab: pick <code>card.shape.json</code> and press <em>Use as target</em>; Load / save tab: pick the design and press <em>Load hierarchical design</em>. The full steps and the limits are in <code>docs/WORKBENCH_USER_GUIDE.md</code>.</li>
+</ul>
+<p class="fine">Not yet seen: Alan's own <code>card.shape.json</code> loaded in this page. The figures above are from the simulated card read-back (ledger #1299).</p>
+
+<h2>1. The first workbench (v1), part by part</h2>
 <p>This is a real screenshot, taken after loading the adder demo, delivering a 7 and a 5, adding a second small program as its own region, and pressing Step twice. Click a number on the picture, or a line in the list, to see where it is.</p>
 
 <div class="fig" id="wb-fig"><div class="inner" id="wb-inner"><img src="@@WB_IMG@@" alt="Screenshot of the workbench with an adder and a ram cell on its grid" width="1180" height="1900"></div></div>

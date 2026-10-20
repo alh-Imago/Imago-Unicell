@@ -34,6 +34,13 @@ OUT  = os.path.join(HERE, "teaching_manual.html")
 
 # Each section: short tab label, number, title, source doc, framing intro, and
 # run/access links (relative paths -- they resolve on a local clone AND on Pages).
+def _data_uri_as(rel, mime):
+    """Embed any small file (the Workbench clip and its poster) as a data: URI."""
+    import base64
+    with open(os.path.join(HERE, rel), "rb") as f:
+        return "data:" + mime + ";base64," + base64.b64encode(f.read()).decode("ascii")
+
+
 def _data_uri(rel):
     """Embed a PNG as a data: URI so the built manual stays one self-contained file."""
     import base64
@@ -269,7 +276,7 @@ SECTIONS = [
              "into cells, step the clock and watch every register. A labelled screenshot, a "
              "worked 7 + 5, what it can and cannot show, and which grid it builds and what "
              "you can set.",
-     "html":open(os.path.join(HERE, "teaching", "workbench_fragment.html"), encoding="utf-8").read().replace("@@WB_IMG@@", _data_uri("teaching/workbench_screenshot.png")).replace("@@WB_DATA@@", _wb_data()),
+     "html":open(os.path.join(HERE, "teaching", "workbench_fragment.html"), encoding="utf-8").read().replace("@@WB_IMG@@", _data_uri("teaching/workbench_screenshot.png")).replace("@@WB7_VIDEO@@", _data_uri_as("media/workbench_v7_demo.mp4", "video/mp4")).replace("@@WB7_WEBM@@", _data_uri_as("media/workbench_v7_demo.webm", "video/webm")).replace("@@WB7_POSTER@@", _data_uri_as("teaching/workbench_v7_poster.jpg", "image/jpeg")).replace("@@WB_DATA@@", _wb_data()),
      "links":[("← Back to The Mirror VM","#sec-mirror","section"),("Continue → The DSL","#sec-dsl","section")]},
 
     {"id":"dsl","num":"13","tab":"DSL","title":"Programming: The DSL",

@@ -1,3 +1,5 @@
+> **Moved 20 Oct 2026 (ledger #1303) from `current/` to the archive: a historical snapshot of 2026-08-08, its 8 gaps all closed (see the status block below). Content unchanged apart from this note.**
+
 # VM Core Gap Analysis — root-level Python vs. the nano cell, vs. #216's requirements
 
 **Real, major status update, 2026-09-07: every one of the 8 gaps this
