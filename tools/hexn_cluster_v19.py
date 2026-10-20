@@ -15,7 +15,7 @@ def load(name):
     sp = importlib.util.spec_from_file_location(name, os.path.join(ROOT, "tools", name + ".py"))
     m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); return m
 c15 = load("hexn_cluster_v15"); mc = c15.mc; N, P, PL = c15.N, c15.P, c15.PL
-FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False)
+FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False, ownout=False)
 
 
 class Cell(mc.MixCell):
@@ -123,8 +123,21 @@ def mutate(cfg, r):
     return tuple(c15.mutate(cfg[:5], r)) + tuple(cfg[5:])
 
 
+def own_outputs(topo):
+    """step 7 (--ownout): each output group gets its OWN cell.  Diagnosis (20 Oct): with the original layout groups 1 and 2 shared cell 4 and groups 2 and 3 shared cell 1 (radius 1), and a v2 cell makes one decision, so those groups could not differ.
+    Scan the external faces from the half-way point round the patch, skip the input faces and the input cells, take the first 4 distinct cells, and use up to 2 of their external faces (8 lanes) as that class's output."""
+    n = len(topo.ext); in_cells = {i for (i, _) in topo.inputs}; used = {(i, l // P) for (i, l) in topo.inputs}
+    order = [topo.ext[(n // 2 - 1 + k) % n] for k in range(n)]; cells = []
+    for (i, f) in order:
+        if i not in in_cells and (i, f) not in used and i not in cells: cells.append(i)
+    cells = cells[:4]
+    return [[(i, f * P + p) for f in [ff for (ii, ff) in order if ii == i][:2] for p in range(P)] for i in cells]
+
+
 def one(seed, R, q, tries, S, M, run, warm=100):
-    topo = c15.Topo(R); rnd = random.Random(seed); tpl = c15.v12.make_templates(rnd, 4)
+    topo = c15.Topo(R)
+    if FLAGS["ownout"]: topo.outputs = own_outputs(topo)
+    rnd = random.Random(seed); tpl = c15.v12.make_templates(rnd, 4)
     train = [(c15.v12.sample(rnd, tpl[y], q), y) for y in range(4) for _ in range(S)]
     test = [(c15.v12.sample(rnd, tpl[y], q), y) for y in range(4) for _ in range(50)]
     sh = random.Random(seed + 5); sh.shuffle(train); sh.shuffle(test)
