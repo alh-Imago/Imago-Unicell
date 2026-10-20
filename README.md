@@ -92,6 +92,13 @@ work happens.
    (below). The board's role is a testbed and proof of concept, not an
    accelerator (#891).
 
+**A separate idea on its own branch (not part of UniCell, not to be merged):**
+the `Hex-N` branch holds early work on a silicon version of a neural cell. It
+shares roots with UniCell (cells wired in a hex pattern, trained in the VM and
+then frozen) but is a different design. Its status and measurements are in
+`docs/hex-n/HEXN_DESIGN.md` on that branch; nothing on it changes the UniCell
+results above.
+
 The ledger in [`points/`](points/INDEX.md) is the full record. Every
 design decision, measurement and correction is there with its reasoning.
 [`current/latest.md`](current/latest.md) has a one-paragraph summary per
@@ -473,6 +480,8 @@ throughout the project's own documentation, never blurred.
   python3 nano/workbench_v7.py
   # → http://localhost:7420
   ```
+  A plain-language guide is in [`docs/WORKBENCH_USER_GUIDE.md`](docs/WORKBENCH_USER_GUIDE.md), and
+  `python3 tools/workbench_clip_v1.py` records a clean demo clip of it (#1302).
 - **Real hard-IP wrapper cells** — a DSP arithmetic/comparison wrapper
   and a shared-BRAM interface, both **independently confirmed on real
   silicon**: correct fire/ACK/re-arming for the DSP wrapper, and real
@@ -550,6 +559,10 @@ which iverilog yosys && python3 -c "import pytest, llvmlite"
 
 # Run the VM test suite, then the flex/sub suites (each is a plain script)
 python3 -m pytest tests/vm -q
+# Or the one-command runner (checks the toolchain first; skips tests that a newer file replaced):
+python3 tools/quick_check_v2.py --changed   # only tests that name a file you changed
+python3 tools/quick_check_v2.py --full      # everything: hours (last full run, #1307: tests/vm 2,958 passed, 13 skipped;
+                                            # the 4 failures were all superseded files, now skipped by v2)
 for t in tests/test_*.py; do python3 "$t" || echo "FAILED: $t"; done
 
 # Compile a DSL program to a real ICM v3 file
