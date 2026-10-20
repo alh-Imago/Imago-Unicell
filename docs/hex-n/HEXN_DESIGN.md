@@ -108,12 +108,14 @@ Flip-flops stay at 117. The settings (82 bits at 1 lane, 172 at 4, 292 at 8) are
 | Aimed mutations (shared output cells) | 0.309 vs 0.312 | no difference shown |
 | Per-face weights 1 to 3, trained, fixed at run time | 0.329 vs 0.312 | no difference shown |
 | **Each output group served by its own cell (`--ownout`)** | **0.385 vs 0.315 over 50 seeds (+0.070, 3.35x, 31 wins 16 losses); the last 25 seeds alone also pass** | **accepted** |
+| Aimed mutations again, now with one cell per output group | 0.366 vs 0.376 (25 seeds) | no difference shown |
+| Longer search, 2,000 tries instead of 600 (15 seeds only) | 0.418 vs 0.366 (+0.052, 1.6x its error, 8 wins 4 losses) | no difference shown; leans better, would need more seeds |
 
 **Why the layout change mattered.** A diagnostic (`tools/hexn_diag_v1.py`) on models trained on clean data showed each one learned only 1 to 3 of the 4 classes. In the original layout output groups 1 and 2 were driven by the same cell and groups 2 and 3 by another; a v2 cell makes one decision, so those groups could not differ.
 
 **Frozen model (train, freeze, then add noise), `tools/hexn_cluster_v20.py`, 12 seeds, run on Alan's machine and here.** Trained on clean data the frozen model scores 0.417 / 0.382 / 0.323 / 0.273 at test noise 0 / 0.05 / 0.15 / 0.25 (ceiling 1.00 / 0.98 / 0.89 / 0.70). Trained at noise 0.15: 0.375 / 0.352 / 0.292 / 0.274, no better. Letting the threshold offset adapt during the test stream made it **worse** at every level (by 0.139 to 0.072), losing on 8 to 11 of 12 seeds. This tests one form of run-time adaptation; it does not show adaptation in general cannot help.
 
-**Where it stands.** Best cluster so far 0.385, against 0.68 for four separate detectors and about 0.90 for the ceiling. The gap is not closed. Two mistakes of mine are on record: the first feedback test was void (see above), and the earlier network tests (section 4) were withdrawn.
+**Where it stands.** Best cluster so far 0.385 (0.418 on 15 seeds with 2,000 tries, not accepted), against 0.68 for four separate detectors and about 0.90 for the ceiling. The gap is not closed. Two mistakes of mine are on record: the first feedback test was void (see above), and the earlier network tests (section 4) were withdrawn.
 
 ## 5. Open questions
 
