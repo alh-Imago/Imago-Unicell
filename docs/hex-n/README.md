@@ -39,7 +39,11 @@ Feedback lines currently share the same accumulator as forward input
   direct GPIO link — see `esp32-bl616-link-protocol-v0.1.md` for that protocol
   draft.
 
-## Status
+## Start here
+
+**`HEXN_DESIGN.md` is the current design document** (what the cell is, how it learns, what has been measured, open questions). The notes below are older and are kept as written; where they differ, the design document is newer.
+
+## Status (older text)
 
 Scoping stage, with a first behavioural prototype. The Tang Nano 20K has arrived and
 the UniCell small unit (SD card + SPI bridge + ESP32) runs on it, which changes the
