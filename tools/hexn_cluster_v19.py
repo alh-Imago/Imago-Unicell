@@ -5,6 +5,7 @@ Steps (each added alone on top of the best so far; the accept rule is fixed in a
   --fbagree  step 2b the REPLACEMENT for step 2 (which proved void: its vote always had the same sign as the fire vote, so 25 of 25 seeds were identical to the arm without it):
                      when the feedback total agrees with what the cell did (reached and feedback arrived, or did not reach and none arrived) the net vote is 0 (cancels, runs reset); otherwise the fire vote stands.
   --graded   step 8  adds a second readout term that counts HOW MUCH the right group leads in burst clocks (Alan, 21 Oct: the amount, not just that something happened); use together with --score.
+  --panic    step 9  (Alan, 21 Oct: keep the openness) after 60 tries without a strict improvement the next try changes 8-12 settings at once instead of 1-3; kept only if not worse.
   --score    step 3  the reward gets a readout term: share of training samples where the right group fires strictly more than every other group, scaled to 0..15 (the answer is read that way).
   --aim      step 4  half of the mutations pick a cell from the output cells of a group that is stuck (fires for every training sample or none) instead of a random cell.
   --decay    step 5  at the start of each sample an offset that did not move in the previous sample steps one toward zero.
@@ -16,7 +17,7 @@ def load(name):
     sp = importlib.util.spec_from_file_location(name, os.path.join(ROOT, "tools", name + ".py"))
     m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); return m
 c15 = load("hexn_cluster_v15"); mc = c15.mc; N, P, PL = c15.N, c15.P, c15.PL
-FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False, ownout=False, graded=False)
+FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False, ownout=False, graded=False, panic=False)
 
 
 class Cell(mc.MixCell):
@@ -151,15 +152,18 @@ def one(seed, R, q, tries, S, M, run, warm=100):
     for _ in range(warm):
         c = [c15.easy(lf) for _ in range(n)]; r, st = rewards(topo, c, train, M, run)
         if r > br: best, br, bst = c, r, st
-    cur, cr, cst = best, br, bst
+    cur, cr, cst = best, br, bst; stall = 0
     for t in range(tries - warm):
         nxt = list(cur)
-        for _ in range(1 + lf.randrange(3)):
+        npush = 1 + lf.randrange(3)
+        if FLAGS["panic"] and stall >= 60: npush = 8 + lf.randrange(5); stall = 0           # step 9 (--panic): no strict improvement for 60 tries -> one big shake (8-12 settings at once), kept only if not worse
+        for _ in range(npush):
             if FLAGS["aim"] and cst and lf.randrange(2):
                 cand = sorted({ci for k in cst for (ci, _) in topo.outputs[k]}); j = cand[lf.randrange(len(cand))]
             else: j = lf.randrange(n)
             nxt[j] = mutate(nxt[j], lf)
         r, st = rewards(topo, nxt, train, M, run)
+        stall = 0 if r > cr else stall + 1
         if r >= cr: cur, cr, cst = nxt, r, st
     return accuracy(topo, cur, test, M, run), c15.v12.template_rule(tpl, test)
 
