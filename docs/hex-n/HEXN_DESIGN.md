@@ -39,6 +39,12 @@ Per lane the settings are: active or not, a direction code, and a gate code. Per
 
 Files: `rtl/hexn_cell_v1.v` (Verilog), `tests/test_hexn_cell_v1.py` (an independent cycle-accurate Python model; the RTL matches it on 60 random configurations). The model rests on seven assumptions, marked A1 to A7 in the RTL and listed in `walkthrough-v0.2.md`; they are guesses made to build the prototype, not decisions, and only Alan can settle them.
 
+## 2a. Finding (20 Oct, measured): the faces of a cell do not talk to each other
+
+In the prototype each face works alone: its output depends only on what that same face received, on its own threshold and on the shared bias. Changing the input on faces 0 to 2 never changed the output on faces 3 to 5 (0 of 100 random cells). Information moves between cells only along the wires, from a face to the matching face of a neighbour; inside a cell it does not move at all. So today a Hex-N cell is six independent face-neurons that happen to share a bias, not one neuron with six faces of dendrites.
+
+This may or may not be intended. If it is, a recognition task needs a layout where each face sees its own inputs and outputs and a network is built by wiring faces together. If it is not, the cell needs a mixing step (for example one shared accumulator, or a crossbar between faces), which is a design change that would raise its size. Decision for Alan.
+
 ## 3. How it learns
 
 The method, as Alan specified it:
@@ -65,7 +71,7 @@ Single cell, 30 seeds, 1,500 tries each. "Random guessing" is the best of the sa
 
 Run-to-run noise in a mean of 30 is roughly 30 to 60 points; earlier conclusions drawn from small differences were not reliable.
 
-**Networks.** A line of cells, one reward for the whole line, same 1,500 tries: 1 cell 883, 2 cells 731, 4 cells 612, 8 cells 695 (random guessing about 600). Learning fades from 4 cells at this budget. Whether more tries or a per-cell teacher signal fixes it is not yet tested.
+**Networks: no valid result yet.** Two earlier network tests (`hexn_network_v7.py`, `hexn_network_v8.py`, a line of 1 to 8 cells) reported that learning faded from 4 cells. That is **withdrawn**: in the cell as built, information never crosses from one face to another inside a cell (section 2a), so in those line networks the external input never reached the cell whose output was scored (checked: its output did not change at all when the input changed, in 0 of 40 networks at 2, 4 and 8 cells). The 1-cell rows were valid. The network question is open and needs a proper test (section 2a).
 
 **Memory of older input.** When the right output depends on input from earlier windows, a plain cell loses score steadily: delay 0 scores 833, delay 1 641, delay 2 524, delay 3 443. Adding a small writable memory (a shift register of "input arrived", with trained taps that the AND and XOR gates can read) lifts delay 4 from 390 (none) to 475 (4 bits), 563 (8 bits) and 480 (16 bits). The same memory costs score when it is not needed (delay 0: 761 without, 615 to 677 with). A live-input AND was tried and cannot change anything in this cell as built, so it is not a result. The 8-bit memory could share the existing 16-bit latch (8 memory, 8 bias), which needs no extra storage. More sweep results (other delays) will be added here when they are complete.
 
@@ -86,7 +92,7 @@ Flip-flops stay at 117. The settings (82 bits at 1 lane, 172 at 4, 292 at 8) are
 1. A1 to A7 (how strongly each lane counts, which way the bias acts, what "graded" means, and so on).
 2. Should the accumulator leak slowly or clear at the end of each window? Not decided; the biggest gap against a real neuron.
 3. How many bits of memory, and should it be a plain shift register or something richer (a counter, context tags)?
-4. Credit assignment in a network: with one reward for the whole network learning fades from 4 cells; a per-cell teacher signal is the next test.
+4. Credit assignment in a network: not yet measured (the earlier test was void, see section 4). Needs a layout in which input can actually reach the output, which depends on the answer to section 2a.
 5. Where the goal and teacher live in hardware (an external teacher such as the ESP32, a reference held in the cell, or neighbours scoring each other).
 6. A real routing question for clusters: several routes, and different results depending on the input, so a route has to remember the input. Wire weights alone cannot do this; the memory above is one answer, a ring of cells holding a value is another (untested).
 7. Real hardware: stacked-die chips could carry a third dimension in future (a note on the 3D thread in UniCell; nothing here depends on it).
@@ -97,4 +103,4 @@ Tang Nano 20K (Gowin) and a Kintex card, both on hand. Nothing has been placed y
 
 ## 7. Files (branch `Hex-N`)
 
-`docs/hex-n/` (this document, the older notes, link protocol), `rtl/hexn_cell_v1.v`, `tests/test_hexn_cell_v1.py`, and `tools/hexn_*.py` (experiments v1 to v11, each a new file; see the header of each for the question it asks), `tools/hexn_size_v1.sh`, `tools/hexn_state_sweep_v1.sh`, `tools/hexn_state_summary_v1.py`.
+`docs/hex-n/` (this document, the older notes, link protocol), `rtl/hexn_cell_v1.v`, `tests/test_hexn_cell_v1.py`, and `tools/hexn_*.py` (experiments v1 to v12; v7, v8 and v12 rest on a faulty layout and are kept as a record, each a new file; see the header of each for the question it asks), `tools/hexn_size_v1.sh`, `tools/hexn_state_sweep_v1.sh`, `tools/hexn_state_summary_v1.py`.
