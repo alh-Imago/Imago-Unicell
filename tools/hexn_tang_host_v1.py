@@ -57,6 +57,9 @@ class Board:
     def divtest(self, num):
         self.s.write(bytes([9, num & 255, (num >> 8) & 255, (num >> 16) & 255])); d = self._rd(5)
         return d[0] | (d[1] << 8) | (d[2] << 16), d[3] | (d[4] << 8)
+    def probe(self):
+        self.s.write(bytes([10])); d = self._rd(2 * self.K)
+        return [((d[2 * k] - 256 if d[2 * k] > 127 else d[2 * k]), d[2 * k + 1]) for k in range(self.K)]
     def run(self, m):
         self.s.write(bytes([6, m & 255, m >> 8])); r = self._rd(1 + self.K)
         return (r[0] & 31 if r[0] & 128 else -1), list(r[1:])
@@ -83,7 +86,7 @@ class FakeSerial:
     def read(self, n): d = bytes(self.out[:n]); del self.out[:n]; return d
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--baud", type=int, default=115200); ap.add_argument("--cells", type=int, default=7)
-    ap.add_argument("--seeds", default="0-4"); ap.add_argument("--train-noise", type=float, default=0.15); ap.add_argument("--test-noise", default="0.05,0.15,0.25"); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--selftest", action="store_true"); ap.add_argument("--dumpsums", action="store_true", help="after training, read back the two running sums of the threshold pass per detector and test the divider (needs the _v3 bitstream)"); ap.add_argument("--dump", action="store_true", help="after training, read the trained weights and thresholds back from the board (needs the _v2 bitstream) and compare with the model")
+    ap.add_argument("--seeds", default="0-4"); ap.add_argument("--train-noise", type=float, default=0.15); ap.add_argument("--test-noise", default="0.05,0.15,0.25"); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--selftest", action="store_true"); ap.add_argument("--dumpsums", action="store_true", help="after training, read back the two running sums of the threshold pass per detector and test the divider (needs the _v3 bitstream)"); ap.add_argument("--probe", type=int, default=0, metavar="N", help="after training, push N training samples through ACCUM one at a time and compare, per detector, the hardware's net lane count and forward total with the model (needs the _v4 bitstream)"); ap.add_argument("--dump", action="store_true", help="after training, read the trained weights and thresholds back from the board (needs the _v2 bitstream) and compare with the model")
     a = ap.parse_args(); K = a.cells; tests = [float(x) for x in a.test_noise.split(",")]; allok = tot = 0
     print("seed  test-noise  samples  identical-to-model  board-accuracy  model-accuracy")
     for seed in parse_range(a.seeds):
@@ -95,6 +98,16 @@ def main():
         b = Board(ser, K)
         if not a.selftest and not b.sync(): sys.exit(2)
         b.train(m)
+        if a.probe:
+            bad = tot = 0; shown = 0
+            for bits, y in m["train"][:a.probe]:
+                b.accum(y, mask(bits)); got = b.probe()
+                for k in range(K):
+                    net = sum(m["wts"][k][j] * bits[j] for j in range(12)); fwd = 0 if net <= 0 else min(10 * net, 63)
+                    ok = (got[k] == (net, fwd)); bad += (not ok); tot += 1
+                    if not ok and shown < 12: shown += 1; print("sample label %d bits %03x detector %d: board net %d fwd %d | model net %d fwd %d  <-- DIFFERENT" % (y, mask(bits), k, got[k][0], got[k][1], net, fwd))
+            print("probe: %d of %d (sample, detector) results differ from the model" % (bad, tot))
+            continue
         if a.dumpsums:
             S_ = m["S"]; nP = S_; nN = S_ * (K - 1); den = 2 * nP * nN; got = b.dumpsums(); bad = 0
             for k in range(K):
