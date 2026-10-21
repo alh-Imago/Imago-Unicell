@@ -1,7 +1,7 @@
 """Hex-N cluster v21 (new file): the cluster of DECISION-TABLE cells (hexn_cell_v3_model.py), judged the same way as the v19 ladder: gated local reward + readout score, one cell per output group (--ownout is always on here),
 600 tries, 16 samples per class, noise 0.15, same seeds, same compare tool.  Start: lane settings as v2 'easy'; every table entry starts as straight-through (each face with input fires the opposite face at level 2), with
 each entry replaced by random levels with chance --rand (default 0.2) so the 100 warm-start candidates differ.  Mutation: a table entry's level (3 in 5), a lane's active flag, a lane's direction.
-Usage: python3 tools/hexn_cluster_v21.py [--init straight|broadcast] [--first S] [--runs N] [--tries T] [--noise Q] [--rand R]"""
+Usage: python3 tools/hexn_cluster_v21.py [--init straight|broadcast|off] [--first S] [--runs N] [--tries T] [--noise Q] [--rand R]"""
 import argparse, importlib.util, os, random
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def load(name):
@@ -18,6 +18,7 @@ def new_cfg(r, rand):
     table = []
     for combo in range(64):
         if r.random() < rand: table.append([r.randint(0, 3) for _ in range(F)])
+        elif INIT == "off": table.append([0] * F)                                       # all off: nothing fires until the search turns paths on
         elif INIT == "broadcast": table.append([2] * F if combo else [0] * F)       # untrained cell: any input is passed to ALL six faces (Alan, 21 Oct)
         else: table.append([2 if (combo >> ((f + 3) % F)) & 1 else 0 for f in range(F)])
     return (a, d, table)
