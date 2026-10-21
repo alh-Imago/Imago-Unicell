@@ -1,7 +1,7 @@
 """Hex-N cluster v21 (new file): the cluster of DECISION-TABLE cells (hexn_cell_v3_model.py), judged the same way as the v19 ladder: gated local reward + readout score, one cell per output group (--ownout is always on here),
 600 tries, 16 samples per class, noise 0.15, same seeds, same compare tool.  Start: lane settings as v2 'easy'; every table entry starts as straight-through (each face with input fires the opposite face at level 2), with
 each entry replaced by random levels with chance --rand (default 0.2) so the 100 warm-start candidates differ.  Mutation: a table entry's level (3 in 5), a lane's active flag, a lane's direction.
-Usage: python3 tools/hexn_cluster_v21.py [--first S] [--runs N] [--tries T] [--noise Q] [--rand R]"""
+Usage: python3 tools/hexn_cluster_v21.py [--init straight|broadcast] [--first S] [--runs N] [--tries T] [--noise Q] [--rand R]"""
 import argparse, importlib.util, os, random
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def load(name):
@@ -10,11 +10,15 @@ def load(name):
 v19 = load("hexn_cluster_v19"); m3 = load("hexn_cell_v3_model"); c15 = v19.c15; F, P, N = m3.F, m3.P, m3.N
 
 
+INIT = "straight"      # --init straight | broadcast
+
+
 def new_cfg(r, rand):
     a, d, _, _, _ = c15.easy(r)
     table = []
     for combo in range(64):
         if r.random() < rand: table.append([r.randint(0, 3) for _ in range(F)])
+        elif INIT == "broadcast": table.append([2] * F if combo else [0] * F)       # untrained cell: any input is passed to ALL six faces (Alan, 21 Oct)
         else: table.append([2 if (combo >> ((f + 3) % F)) & 1 else 0 for f in range(F)])
     return (a, d, table)
 
@@ -72,8 +76,9 @@ def one(seed, R, q, tries, S, rand, warm=100):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--radius", type=int, default=1); ap.add_argument("--noise", type=float, default=0.15)
     ap.add_argument("--first", type=int, default=0); ap.add_argument("--runs", type=int, default=5); ap.add_argument("--tries", type=int, default=600)
-    ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--rand", type=float, default=0.2); a = ap.parse_args()
-    print(f"hex cluster v21 (decision-table cells) radius {a.radius}, noise {a.noise}, {a.tries} tries, rand {a.rand}")
+    ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--rand", type=float, default=0.2); ap.add_argument("--init", default="straight"); a = ap.parse_args()
+    INIT = a.init
+    print(f"hex cluster v21 (decision-table cells) init {a.init}, radius {a.radius}, noise {a.noise}, {a.tries} tries, rand {a.rand}")
     print(f"{'seed':>4} {'learned':>8} {'template-rule':>13}")
     tot = 0
     for s in range(a.first, a.first + a.runs):
