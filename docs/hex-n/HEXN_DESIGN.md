@@ -121,6 +121,19 @@ Flip-flops stay at 117. The settings (82 bits at 1 lane, 172 at 4, 292 at 8) are
 
 **Where it stands.** Best cluster so far 0.385 (0.418 on 15 seeds with 2,000 tries, not accepted), against 0.68 for four separate detectors and about 0.90 for the ceiling. The gap is not closed. Two mistakes of mine are on record: the first feedback test was void (see above), and the earlier network tests (section 4) were withdrawn.
 
+## 4b. Published relatives (21 Oct 2026; a first pass from abstracts and summaries, NOT a novelty review and not a claim either way)
+
+Each idea in this design has a published relative. Read from the linked papers only as far as stated; the notes are what the fetched text said.
+
+| Our idea | Relative | What the source says |
+|---|---|---|
+| Decision-table cell: a table addressed by which faces had input | Weightless networks, WiSARD and [ULEEN](https://arxiv.org/pdf/2304.10618) | A neuron is a lookup table addressed by input bits with learned 1-bit entries; each class has its own bank and the strongest summed response wins. Training can be one-shot counting followed by a threshold ("bleaching"), with no search. |
+| Table cells frozen into hardware; small fan-in | [LogicNets](https://arxiv.org/abs/2004.03021) | A trained neuron with few quantised inputs becomes a truth table in an FPGA circuit; the table cost grows exponentially with fan-in, so fan-in must stay small. |
+| Tally with a commit threshold per decision | Tsetlin machine, hardware tool [MATADOR](https://arxiv.org/pdf/2403.10538) | Learning elements are small state machines whose state crossing a boundary flips include/exclude; trained models are sparse and map to few AND/NOT gates. Update rules not read. A search result title suggests on-chip training accelerators exist ("Convolutional Tsetlin Machine-based Training and Inference Accelerator", not read). |
+| Remember the path used, multiply by feedback when it arrives | Eligibility traces, [e-prop](https://arxiv.org/html/2512.24506v1) | Each connection keeps a running trace of its recent effect; a later learning signal is multiplied by the trace; no history is stored. The maths assumes smooth functions, ours are discrete. |
+
+What may still be particular to this design is the combination under its constraints: small cells with six faces and burst signalling, local rules only, and retraining in place in silicon. That is a guess about scope, not a finding.
+
 ## 5. Open questions
 
 1. A1 to A7 (how strongly each lane counts, which way the bias acts, what "graded" means, and so on).
