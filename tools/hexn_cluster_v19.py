@@ -6,6 +6,7 @@ Steps (each added alone on top of the best so far; the accept rule is fixed in a
                      when the feedback total agrees with what the cell did (reached and feedback arrived, or did not reach and none arrived) the net vote is 0 (cancels, runs reset); otherwise the fire vote stands.
   --graded   step 8  adds a second readout term that counts HOW MUCH the right group leads in burst clocks (Alan, 21 Oct: the amount, not just that something happened); use together with --score.
   --panic    step 9  (Alan, 21 Oct: keep the openness) after 60 tries without a strict improvement the next try changes 8-12 settings at once instead of 1-3; kept only if not worse.
+  --lweights step 10 (Alan, 21 Oct) a weight 1..3 (2 bits) for EACH of the 24 lanes of a cell, trained, fixed at run time; the finer version of --fweights.
   --score    step 3  the reward gets a readout term: share of training samples where the right group fires strictly more than every other group, scaled to 0..15 (the answer is read that way).
   --aim      step 4  half of the mutations pick a cell from the output cells of a group that is stuck (fires for every training sample or none) instead of a random cell.
   --decay    step 5  at the start of each sample an offset that did not move in the previous sample steps one toward zero.
@@ -17,21 +18,21 @@ def load(name):
     sp = importlib.util.spec_from_file_location(name, os.path.join(ROOT, "tools", name + ".py"))
     m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); return m
 c15 = load("hexn_cluster_v15"); mc = c15.mc; N, P, PL = c15.N, c15.P, c15.PL
-FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False, ownout=False, graded=False, panic=False)
+FLAGS = dict(fbpush=False, score=False, aim=False, decay=False, fweights=False, fbagree=False, ownout=False, graded=False, panic=False, lweights=False)
 
 
 class Cell(mc.MixCell):
     def __init__(self, cfg, M, run, prev=None):
         super().__init__(*cfg[:5]); self.M, self.run = M, run
-        self.w = cfg[5] if len(cfg) > 5 else [1] * 6
+        self.w = cfg[5] if len(cfg) > 5 else [1] * (N if FLAGS["lweights"] else 6)
         self.off, self.hi, self.lo, self.pushed = (prev.off, prev.hi, prev.lo, False) if prev else (0, 0, 0, False)
         if prev and FLAGS["decay"] and not prev.pushed and self.off:
             self.off += -1 if self.off > 0 else 1
-        if FLAGS["fweights"]:
-            self.rcv_w = {ph: [(i, self.w[i // P]) for i in self.rcv[ph]] for ph in (0, 1)}
+        if FLAGS["fweights"] or FLAGS["lweights"]:
+            self.rcv_w = {ph: [(i, self.w[i] if FLAGS["lweights"] else self.w[i // P]) for i in self.rcv[ph]] for ph in (0, 1)}
 
     def clock(self, rx, phase, ph_start, win_end):
-        if FLAGS["fweights"]:
+        if FLAGS["fweights"] or FLAGS["lweights"]:
             delta = 0; any_rx = 0
             for i, wt in self.rcv_w[phase]:
                 if rx[i]:
@@ -50,7 +51,7 @@ class Cell(mc.MixCell):
                 self.fbok_r = int(self.fb != 0); self.inany_r = self.inany
         if win_end and phase:
             base = self.thr; self.thr = max(0, base + self.off)
-            if FLAGS["fweights"]:
+            if FLAGS["fweights"] or FLAGS["lweights"]:
                 te = self.thr + self.bias; self.reach_r = int(self.fwd >= te); self.margin_r = max(min(self.fwd - te, 6), 0)
             else:
                 super().clock(rx, phase, ph_start, win_end)
@@ -66,7 +67,7 @@ class Cell(mc.MixCell):
                 else: self.hi = self.lo = 0
                 if self.hi >= self.run: self.off = min(self.off + 1, self.M); self.hi = 0; self.pushed = True
                 if self.lo >= self.run: self.off = max(self.off - 1, -self.M); self.lo = 0; self.pushed = True
-        elif not FLAGS["fweights"]:
+        elif not (FLAGS["fweights"] or FLAGS["lweights"]):
             super().clock(rx, phase, ph_start, win_end)
 
 
@@ -124,6 +125,9 @@ def accuracy(topo, cfgs, data, M, run):
 
 
 def mutate(cfg, r):
+    if FLAGS["lweights"] and r.randrange(6) == 0:
+        w = list(cfg[5]) if len(cfg) > 5 else [1] * N; i = r.randrange(N); w[i] = max(1, min(3, w[i] + r.choice([-1, 1])))
+        return tuple(cfg[:5]) + (w,)
     if FLAGS["fweights"] and r.randrange(6) == 0:
         w = list(cfg[5]) if len(cfg) > 5 else [1] * 6; f = r.randrange(6); w[f] = max(1, min(3, w[f] + r.choice([-1, 1])))
         return tuple(cfg[:5]) + (w,)
