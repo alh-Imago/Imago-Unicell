@@ -19,13 +19,14 @@ def make(seed, K, NB=12, AW=6, S=16, q=0.15, per_test=50, D=4):
             for j in range(NB):
                 if bits[j]: cnt[k][j] = max(-CAP, min(CAP, cnt[k][j] + ((K - 1) if y == k else -1)))
     wts = [[(1 if cnt[k][j] >= T else -1 if cnt[k][j] <= -T else 0) for j in range(NB)] for k in range(K)]
-    thr = []
+    thr = []; sump = []; sumn = []
     for k in range(K):
         fw = [(t5.run(t5.cfg_w(wts[k], 0, NB), bits, NB)[1], y == k) for bits, y in train]
         pos = [v for v, p in fw if p]; neg = [v for v, p in fw if not p]
+        sump.append(sum(pos)); sumn.append(sum(neg))
         R = (Fraction(sum(pos), len(pos)) + Fraction(sum(neg), len(neg))) / 2
         thr.append(max(0, min((1 << AW) - 1, round(R))))
-    return dict(K=K, NB=NB, AW=AW, S=S, q=q, tpl=tpl, train=train, test=test, T=T, wts=wts, thr=thr, seed=seed, D=D)
+    return dict(K=K, NB=NB, AW=AW, S=S, q=q, tpl=tpl, train=train, test=test, T=T, wts=wts, thr=thr, sump=sump, sumn=sumn, seed=seed, D=D)
 def classify(m, samples):
     t5.mc.AW = m["AW"]; K, NB = m["K"], m["NB"]; cf = [t5.cfg_w(m["wts"][k], m["thr"][k], NB) for k in range(K)]; out = []
     for bits, y in samples:
