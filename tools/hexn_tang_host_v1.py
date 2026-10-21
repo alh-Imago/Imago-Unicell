@@ -24,6 +24,22 @@ class Board:
     def _ack(self):
         a = self._rd(1)[0]
         if a != ACK: raise SystemExit("unexpected reply byte 0x%02x (wanted 0xA5)" % a)
+    def sync(self, tries=6):
+        """Throw away anything already waiting on the port (text left by an earlier design, noise) and make sure the board answers CLEAR with 0xA5."""
+        seen = bytearray()
+        time.sleep(0.3)
+        for t in range(tries):
+            if hasattr(self.s, "reset_input_buffer"):
+                n = getattr(self.s, "in_waiting", 0)
+                if n: seen += self.s.read(n)
+                self.s.reset_input_buffer()
+            self.s.write(bytes([1])); d = self.s.read(1)
+            if d and d[0] == ACK: return True
+            seen += d; time.sleep(0.3)
+        print("board did not answer CLEAR with 0xA5 after %d tries. Bytes seen: %s" % (tries, bytes(seen[:40]).hex(" ") or "none"), file=sys.stderr)
+        if not seen: print("  (nothing at all came back: check the port, and that the bitstream is loaded; if the board lights nothing, the receive pin may be wrong)", file=sys.stderr)
+        else: print("  (something is transmitting but not the expected answer: another design may still be running, or the baud rate / receive pin is wrong)", file=sys.stderr)
+        return False
     def clear(self): self.s.write(bytes([1])); self._ack()
     def count(self, label, m): self.s.write(bytes([2, label, m & 255, m >> 8])); self._ack()
     def setw(self, t): self.s.write(bytes([3, t])); self._ack()
@@ -64,7 +80,9 @@ def main():
         else:
             import serial
             ser = serial.Serial(a.port, a.baud, timeout=5)
-        b = Board(ser, K); b.train(m)
+        b = Board(ser, K)
+        if not a.selftest and not b.sync(): sys.exit(2)
+        b.train(m)
         import random
         for qn in tests:
             rnd = random.Random(1000 + seed); sm = [(M.sample(rnd, m["tpl"][y], qn), y) for y in range(K) for _ in range(50)]; random.Random(seed + 9).shuffle(sm)
