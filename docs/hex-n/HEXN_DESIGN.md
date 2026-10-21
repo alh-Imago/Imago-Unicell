@@ -191,6 +191,7 @@ What may still be particular to this design is the combination under its constra
 5. Where the goal and teacher live in hardware (an external teacher such as the ESP32, a reference held in the cell, or neighbours scoring each other).
 6. A real routing question for clusters: several routes, and different results depending on the input, so a route has to remember the input. Wire weights alone cannot do this; the memory above is one answer, a ring of cells holding a value is another (untested).
 7. Real hardware: stacked-die chips could carry a third dimension in future (a note on the 3D thread in UniCell; nothing here depends on it).
+8. DECIDED (Alan, 21 Oct 2026): the fan-out relays on a hex grid are repeaters / bridges on the cell edges (three per cell, one per edge direction), NOT full cells. They are required joins and part of the repeating pattern, so their cost belongs to the design (about 4 flip-flops each, about 1.6% on top of the detectors by the count in section 4a), and the 'compose from existing cells' rule is not applied to them. Observation by Claude, NOT checked by a layout: in a hex lattice every cell sits on exactly one straight line in each of the three edge directions, and 3 directions x 4 lanes per face = 12 wires, so a 12-wire detector bank may fit this pattern with one 4-wire group per direction; 18 or 20 wires would need more lanes per face (the original specification had 16) or more groups per direction. Open: the output path, and feeding each parallel line from the boundary.
 
 ## 6. Targets
 
