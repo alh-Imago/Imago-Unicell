@@ -45,6 +45,12 @@ class Board:
     def setw(self, t): self.s.write(bytes([3, t])); self._ack()
     def accum(self, label, m): self.s.write(bytes([4, label, m & 255, m >> 8])); self._ack()
     def finish(self): self.s.write(bytes([5])); self._ack()
+    def dump(self):
+        r = self._rd(0) if False else None
+        self.s.write(bytes([7])); d = self._rd(5 * self.K); out = []
+        for k in range(self.K):
+            c = d[5 * k:5 * k + 5]; out.append((c[0] | (c[1] << 8), c[2] | (c[3] << 8), c[4]))
+        return out
     def run(self, m):
         self.s.write(bytes([6, m & 255, m >> 8])); r = self._rd(1 + self.K)
         return (r[0] & 31 if r[0] & 128 else -1), list(r[1:])
@@ -71,7 +77,7 @@ class FakeSerial:
     def read(self, n): d = bytes(self.out[:n]); del self.out[:n]; return d
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--baud", type=int, default=115200); ap.add_argument("--cells", type=int, default=7)
-    ap.add_argument("--seeds", default="0-4"); ap.add_argument("--train-noise", type=float, default=0.15); ap.add_argument("--test-noise", default="0.05,0.15,0.25"); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--seeds", default="0-4"); ap.add_argument("--train-noise", type=float, default=0.15); ap.add_argument("--test-noise", default="0.05,0.15,0.25"); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--selftest", action="store_true"); ap.add_argument("--dump", action="store_true", help="after training, read the trained weights and thresholds back from the board (needs the _v2 bitstream) and compare with the model")
     a = ap.parse_args(); K = a.cells; tests = [float(x) for x in a.test_noise.split(",")]; allok = tot = 0
     print("seed  test-noise  samples  identical-to-model  board-accuracy  model-accuracy")
     for seed in parse_range(a.seeds):
@@ -83,6 +89,14 @@ def main():
         b = Board(ser, K)
         if not a.selftest and not b.sync(): sys.exit(2)
         b.train(m)
+        if a.dump:
+            got = b.dump(); bad = 0
+            for k in range(K):
+                wp = sum(1 << j for j in range(12) if m["wts"][k][j] > 0); wn = sum(1 << j for j in range(12) if m["wts"][k][j] < 0)
+                gp, gn, gt = got[k]; ok = (gp == wp and gn == wn and gt == m["thr"][k]); bad += (not ok)
+                print("seed %d detector %d: board +%03x -%03x thr %2d | model +%03x -%03x thr %2d %s" % (seed, k, gp, gn, gt, wp, wn, m["thr"][k], "" if ok else "  <-- DIFFERENT"))
+            print("seed %d: %d of %d detectors differ in their trained settings" % (seed, bad, K))
+            continue
         import random
         for qn in tests:
             rnd = random.Random(1000 + seed); sm = [(M.sample(rnd, m["tpl"][y], qn), y) for y in range(K) for _ in range(50)]; random.Random(seed + 9).shuffle(sm)
