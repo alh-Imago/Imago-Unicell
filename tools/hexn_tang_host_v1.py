@@ -60,6 +60,9 @@ class Board:
     def probe(self):
         self.s.write(bytes([10])); d = self._rd(2 * self.K)
         return [((d[2 * k] - 256 if d[2 * k] > 127 else d[2 * k]), d[2 * k + 1]) for k in range(self.K)]
+    def peek(self):
+        self.s.write(bytes([11])); d = self._rd(12 * self.K)
+        return [(x - 256 if x > 127 else x) for x in d]
     def run(self, m):
         self.s.write(bytes([6, m & 255, m >> 8])); r = self._rd(1 + self.K)
         return (r[0] & 31 if r[0] & 128 else -1), list(r[1:])
@@ -86,7 +89,7 @@ class FakeSerial:
     def read(self, n): d = bytes(self.out[:n]); del self.out[:n]; return d
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--baud", type=int, default=115200); ap.add_argument("--cells", type=int, default=7)
-    ap.add_argument("--seeds", default="0-4"); ap.add_argument("--train-noise", type=float, default=0.15); ap.add_argument("--test-noise", default="0.05,0.15,0.25"); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--selftest", action="store_true"); ap.add_argument("--dumpsums", action="store_true", help="after training, read back the two running sums of the threshold pass per detector and test the divider (needs the _v3 bitstream)"); ap.add_argument("--probe", type=int, default=0, metavar="N", help="after training, push N training samples through ACCUM one at a time and compare, per detector, the hardware's net lane count and forward total with the model (needs the _v4 bitstream)"); ap.add_argument("--dump", action="store_true", help="after training, read the trained weights and thresholds back from the board (needs the _v2 bitstream) and compare with the model")
+    ap.add_argument("--seeds", default="0-4"); ap.add_argument("--train-noise", type=float, default=0.15); ap.add_argument("--test-noise", default="0.05,0.15,0.25"); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--selftest", action="store_true"); ap.add_argument("--dumpsums", action="store_true", help="after training, read back the two running sums of the threshold pass per detector and test the divider (needs the _v3 bitstream)"); ap.add_argument("--probe", type=int, default=0, metavar="N", help="after training, push N training samples through ACCUM one at a time and compare, per detector, the hardware's net lane count and forward total with the model (needs the _v4 bitstream)"); ap.add_argument("--peek", action="store_true", help="read all trainer counters back from the board after COUNT, after SETW and after ACCUM and compare with the model (needs the _v5 bitstream)"); ap.add_argument("--dump", action="store_true", help="after training, read the trained weights and thresholds back from the board (needs the _v2 bitstream) and compare with the model")
     a = ap.parse_args(); K = a.cells; tests = [float(x) for x in a.test_noise.split(",")]; allok = tot = 0
     print("seed  test-noise  samples  identical-to-model  board-accuracy  model-accuracy")
     for seed in parse_range(a.seeds):
@@ -96,6 +99,19 @@ def main():
             import serial
             ser = serial.Serial(a.port, a.baud, timeout=5)
         b = Board(ser, K)
+        if a.peek:
+            if not b.sync(): sys.exit(2)
+            exp = [m["cnt"][k][j] for k in range(K) for j in range(12)]
+            def chk(tag):
+                got = b.peek(); bad = [i for i in range(len(exp)) if got[i] != exp[i]]
+                print("seed %d counters %-14s: %d of %d differ from the model" % (seed, tag, len(bad), len(exp)))
+                for i in bad[:6]: print("     detector %d lane %d: board %d, model %d" % (i // 12, i % 12, got[i], exp[i]))
+            b.clear()
+            for bits, y in m["train"]: b.count(y, mask(bits))
+            chk("after COUNT"); b.setw(m["T"]); chk("after SETW")
+            for bits, y in m["train"]: b.accum(y, mask(bits))
+            chk("after ACCUM"); b.finish(); chk("after FINISH")
+            continue
         if not a.selftest and not b.sync(): sys.exit(2)
         b.train(m)
         if a.probe:

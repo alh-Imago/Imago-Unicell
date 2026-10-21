@@ -26,7 +26,7 @@ def make(seed, K, NB=12, AW=6, S=16, q=0.15, per_test=50, D=4):
         sump.append(sum(pos)); sumn.append(sum(neg))
         R = (Fraction(sum(pos), len(pos)) + Fraction(sum(neg), len(neg))) / 2
         thr.append(max(0, min((1 << AW) - 1, round(R))))
-    return dict(K=K, NB=NB, AW=AW, S=S, q=q, tpl=tpl, train=train, test=test, T=T, wts=wts, thr=thr, sump=sump, sumn=sumn, seed=seed, D=D)
+    return dict(K=K, NB=NB, AW=AW, S=S, q=q, tpl=tpl, cnt=cnt, train=train, test=test, T=T, wts=wts, thr=thr, sump=sump, sumn=sumn, seed=seed, D=D)
 def classify(m, samples):
     t5.mc.AW = m["AW"]; K, NB = m["K"], m["NB"]; cf = [t5.cfg_w(m["wts"][k], m["thr"][k], NB) for k in range(K)]; out = []
     for bits, y in samples:
