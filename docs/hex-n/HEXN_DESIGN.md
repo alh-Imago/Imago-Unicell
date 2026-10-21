@@ -110,6 +110,8 @@ Flip-flops stay at 117. The settings (82 bits at 1 lane, 172 at 4, 292 at 8) are
 | **Each output group served by its own cell (`--ownout`)** | **0.385 vs 0.315 over 50 seeds (+0.070, 3.35x, 31 wins 16 losses); the last 25 seeds alone also pass** | **accepted** |
 | Aimed mutations again, now with one cell per output group | 0.366 vs 0.376 (25 seeds) | no difference shown |
 | Longer search, 2,000 tries instead of 600 (15 seeds only) | 0.418 vs 0.366 (+0.052, 1.6x its error, 8 wins 4 losses) | no difference shown; leans better, would need more seeds |
+| Graded readout term: how much the right group leads in burst clocks (Alan's idea, 21 Oct) | 0.348 vs 0.376 (25 seeds; 6 wins 11 losses) | no difference shown; leans worse |
+| Panic shake: after 60 tries without strict improvement, change 8 to 12 settings at once (Alan's "keep the openness") | 0.378 vs 0.376 (25 seeds) | no difference shown; with 600 tries the shake fires only a few times, so a longer search would be a fairer test |
 
 **Why the layout change mattered.** A diagnostic (`tools/hexn_diag_v1.py`) on models trained on clean data showed each one learned only 1 to 3 of the 4 classes. In the original layout output groups 1 and 2 were driven by the same cell and groups 2 and 3 by another; a v2 cell makes one decision, so those groups could not differ.
 
