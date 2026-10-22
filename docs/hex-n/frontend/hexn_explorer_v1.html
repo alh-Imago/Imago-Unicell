@@ -136,8 +136,25 @@ svg text{fill:var(--ink2);font:11px var(--f-mono)}
   <p class="small">Weight cutoff and threshold bias are experiments. The chip fixes the cutoff at half the samples per class and sets thresholds itself.</p>
 </section>
 
+<section id="s-mem">
+  <div><h2>7. Memory: save, recall and what to keep</h2><p class="small">The memory block holds 8 saved patterns. A cue is watched for a few windows, then recalled: the best slot, how well it fits on the wires actually seen, and which wires deviate. With more objects than slots, a write rule decides what to store and what to forget. Pick a rule below, or start from one of the four tested on the board and in simulation.</p></div>
+  <div class="cards" id="m-presets"></div>
+  <div class="ctl" id="m-ctl"></div>
+  <div id="m-sum" class="small"></div>
+  <div class="scroll"><table id="m-tab" style="text-align:left"></table></div>
+  <div><h3>Slots at the end of run 1 (your rule)</h3><div class="row" id="m-slots"></div></div>
+  <p class="small" id="m-note"></p>
+</section>
+
+<section id="s-leak">
+  <div><h2>8. Leak setting for a cell</h2><p class="small">A leaky cell lets its running total drain a little each window, so recent input counts more than old: new level = level − (level shifted right by s). Choose s to see how fast a held level fades when the input stops. This is the board's exact arithmetic; it does not model the input.</p></div>
+  <div class="ctl"><label><span class="t">Leak setting s</span><select id="l-s"></select></label></div>
+  <div class="scroll"><table id="l-tab"></table></div>
+  <p class="small" id="l-note"></p>
+</section>
+
 <section id="s-exp">
-  <div><h2>7. Export for the board</h2><p class="small">Copy the text into a file. The training script holds the exact training and test samples for this page's settings. The bank holds the trained weights as the board's positive and negative wire masks.</p></div>
+  <div><h2>9. Export for the board</h2><p class="small">Copy the text into a file. The training script holds the exact training and test samples for this page's settings. The bank holds the trained weights as the board's positive and negative wire masks.</p></div>
   <div class="row" style="gap:20px">
     <div style="flex:1 1 380px"><h3>Training script</h3><textarea id="x-script" readonly spellcheck="false" aria-label="Training script"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-copy="x-script">Copy script</button><span class="small" id="x-script-n"></span></div></div>
     <div style="flex:1 1 380px"><h3>Trained bank</h3><textarea id="x-bank" readonly spellcheck="false" aria-label="Trained bank"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-copy="x-bank">Copy bank</button><span class="small" id="x-bank-n"></span></div></div>
@@ -210,6 +227,81 @@ function evalSet(m,te){
 }
 function weightCutoff(S,frac){return Math.max(1,roundHalfEven(frac*S))}
 /*CORE-END*/
+
+/*MEM-START*/
+/* Save-and-recall block (rules of rtl/hexn_mem_v1.v) and the write rule that runs on the host (tools/hexn_mem_write_v1.py). */
+const MEM_NB=18, MEM_M=8, MEM_P=12;
+function pc18(v){let n=0;v=v&0x3ffff;while(v){n+=v&1;v>>>=1}return n}
+function MemRef(){this.c=new Array(MEM_NB).fill(0);this.known=0;this.slot=new Array(MEM_M).fill(0);this.valid=new Array(MEM_M).fill(0)}
+MemRef.prototype.clr=function(){this.c.fill(0);this.known=0};
+MemRef.prototype.clrall=function(){this.valid.fill(0)};
+MemRef.prototype.watch=function(bits,mask){this.known|=mask;for(let j=0;j<MEM_NB;j++)if((mask>>j)&1)this.c[j]=Math.max(-7,Math.min(7,this.c[j]+(((bits>>j)&1)?1:-1)))};
+MemRef.prototype.cue=function(){let v=0;for(let j=0;j<MEM_NB;j++)if(this.c[j]>0)v|=1<<j;return v};
+MemRef.prototype.save=function(n){this.slot[n]=this.cue();this.valid[n]=1};
+MemRef.prototype.recall=function(){
+  const cue=this.cue();let id=15,best=0,second=0;
+  for(let s=0;s<MEM_M;s++)if(this.valid[s]){
+    const m=pc18(~(cue^this.slot[s])&this.known);
+    if(m>best){second=best;best=m;id=s}else if(m>second)second=m;
+  }
+  const rec=id<MEM_M?this.slot[id]:0;
+  return{id,best,known:pc18(this.known),second,cue,rec,dev:(cue^rec)&this.known&0x3ffff};
+};
+function memNoisy(rnd,obj,q){let v=0;for(let j=0;j<MEM_NB;j++)v|=(((obj>>j)&1)^(rnd()<q?1:0))<<j;return v}
+/* write-rule presets: mk = wires that must be visible before a new object is stored (0 = any view), acq = look windows before storing,
+   ev = what to do when all slots are full (none / fifo / weak), fade = events between strength drops (0 = off), gain = strength added per recall */
+const MEM_PRESETS=[
+ {name:"Store any view, overwrite in turn",mk:0,acq:1,ev:"fifo",fade:0,gain:3},
+ {name:"Nearly complete views only, stop when full",mk:16,acq:4,ev:"none",fade:0,gain:3},
+ {name:"Nearly complete views, weakest out",mk:16,acq:4,ev:"weak",fade:0,gain:3},
+ {name:"Nearly complete views, weakest out, fade",mk:16,acq:4,ev:"weak",fade:10,gain:3}];
+/* world: nc = cue windows, qc = cue noise, hideP = share of views partly hidden (30% of wires), chgP = share of views with 2 wires changed,
+   T = events, fam = share of the known wires that must agree for "familiar" */
+function memRun(pol,par,seed){
+  const r=mulberry32(seed*7919+5),T=par.T,nc=par.nc,qc=par.qc;
+  const objs=[];for(let i=0;i<MEM_P;i++)objs.push(Math.floor(r()*262144));
+  const w1=[6,6,6,6,2,2,2,2,1,1,1,1],w2=[1,1,1,1,6,6,6,6,2,2,2,2];
+  const pick=w=>{let tot=0;for(const x of w)tot+=x;let u=r()*tot;for(let i=0;i<w.length;i++){u-=w[i];if(u<0)return i}return w.length-1};
+  const ref=new MemRef();ref.clrall();
+  const owner=new Array(MEM_M).fill(null),strength=new Array(MEM_M).fill(0),age=new Array(MEM_M).fill(0);let fifo=0;const log=[];
+  for(let t=0;t<T;t++){
+    const k=pick(t<T/2?w1:w2);let o=objs[k];
+    if(r()<par.chgP){const a=Math.floor(r()*MEM_NB);let b=Math.floor(r()*(MEM_NB-1));if(b>=a)b++;o^=(1<<a)|(1<<b)}
+    const hide=r()<par.hideP?0.3:0;let mask=0,nk=0;for(let j=0;j<MEM_NB;j++)if(r()>=hide){mask|=1<<j;nk++}
+    if(nk<3){mask=7;nk=3}
+    ref.clr();for(let i=0;i<nc;i++)ref.watch(memNoisy(r,o,qc),mask);
+    const g=ref.recall();const fam=g.id!==15&&g.best>g.second&&g.best>=par.fam*g.known;const stored=owner.indexOf(k)>=0;
+    if(fam){log.push([t,k,owner[g.id]===k?"hit":(stored?"wrong":"falsefam")]);strength[g.id]=Math.min(9,strength[g.id]+pol.gain);age[g.id]=t}
+    else{
+      log.push([t,k,"novel"]);
+      if(nk>=pol.mk){
+        ref.clr();for(let i=0;i<pol.acq;i++)ref.watch(memNoisy(r,o,qc),mask);
+        let s=null;const free=[];for(let x=0;x<MEM_M;x++)if(owner[x]===null&&!ref.valid[x])free.push(x);
+        if(free.length)s=free[0];
+        else if(pol.ev==="fifo"){s=fifo%MEM_M;fifo++}
+        else if(pol.ev==="weak"){s=0;for(let x=1;x<MEM_M;x++)if(strength[x]<strength[s]||(strength[x]===strength[s]&&age[x]<age[s]))s=x}
+        if(s!==null){ref.save(s);owner[s]=k;strength[s]=3;age[s]=t}
+      }
+    }
+    if(pol.fade&&t%pol.fade===pol.fade-1)for(let x=0;x<MEM_M;x++)strength[x]=Math.max(0,strength[x]-1);
+  }
+  const rate=L=>L.filter(e=>e[2]==="hit").length/Math.max(1,L.length);
+  const late=log.filter(e=>e[0]>=T*3/4&&e[1]>=4&&e[1]<=7),old=log.filter(e=>e[0]>=T*3/4&&e[1]<=3),early=log.filter(e=>e[0]>=T/4&&e[0]<T/2&&e[1]<=3);
+  const held=new Set(owner.filter(x=>x!==null));let hold2=0,hold1=0,dup=0;
+  held.forEach(x=>{if(x>=4&&x<=7)hold2++;if(x<=3)hold1++;if(owner.filter(y=>y===x).length>1)dup++});
+  let errSum=0,nOcc=0;const slots=[];
+  for(let s=0;s<MEM_M;s++){if(owner[s]!==null){const e=pc18((ref.slot[s]^objs[owner[s]]));errSum+=e;nOcc++;slots.push({owner:owner[s],strength:strength[s],err:e})}else slots.push(null)}
+  return{hot2:rate(late),hot1_early:rate(early),old_late:rate(old),hold_hot2:hold2,hold_hot1:hold1,dup,err:errSum/Math.max(1,nOcc),
+    wrong:log.filter(e=>e[2]==="wrong").length/log.length,falsefam:log.filter(e=>e[2]==="falsefam").length/log.length,slots};
+}
+function memStudy(pol,par,seeds){
+  const acc={};let first=null;
+  for(let sd=1;sd<=seeds;sd++){const a=memRun(pol,par,sd);if(!first)first=a.slots;for(const k in a)if(k!=="slots")acc[k]=(acc[k]||0)+a[k]/seeds}
+  acc.slots=first;return acc;
+}
+/* leak rule of the cell: level - (level >> s); s = 7 keeps the level */
+function leakStep(a,s){return s>=7?a:a-(a>>s)}
+/*MEM-END*/
 </script>
 <script>
 (function(){
@@ -355,7 +447,7 @@ function gridHTML(vals,cols,cls){return'<div class="grid" style="grid-template-c
 function renderAll(){renderCards();renderInfo();renderSummary();renderCurve();renderConf();renderDets();renderTry();renderWhat();renderExport()}
 function renderCards(){
   $("cards").innerHTML=Object.keys(SETS).map(k=>{const s=SETS[k];return'<button class="card" data-k="'+k+'" aria-pressed="'+(k===st.set)+'"><b>'+esc(s.name)+'</b><span>'+esc(s.blurb)+'</span></button>'}).join("");
-  document.querySelectorAll(".card").forEach(b=>b.addEventListener("click",()=>loadSet(b.dataset.k)));
+  document.querySelectorAll("#cards .card").forEach(b=>b.addEventListener("click",()=>loadSet(b.dataset.k)));
 }
 function renderInfo(){
   const ds=st.ds;let t="<b>"+ds.K+" classes, "+ds.NB+" wires.</b> ";
@@ -477,6 +569,56 @@ document.querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click",(
   const done=()=>{b.textContent="Copied";setTimeout(()=>{b.textContent=old},1400)};
   try{navigator.clipboard.writeText(ta.value).then(done,()=>{document.execCommand("copy");done()})}catch(e){try{document.execCommand("copy");done()}catch(_){}}
 }));
+
+/* ---------- memory and leak sections ---------- */
+const MST={pol:Object.assign({},MEM_PRESETS[3]),par:{nc:3,qc:0.15,T:400,hideP:0.33,chgP:0.1,fam:0.75,runs:5},leak:2};
+function memCtl(){
+  const sl=(id,lab,min,max,step,val,disp)=>'<label><span class="t">'+lab+'<b id="'+id+'-v">'+disp+'</b></span><input type="range" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'"></label>';
+  const p=MST.pol,w=MST.par;
+  $("m-ctl").innerHTML=
+    sl("m-mk","Wires that must be visible before storing",0,18,1,p.mk,p.mk===0?"any view":p.mk)+
+    sl("m-acq","Look windows before storing",1,8,1,p.acq,p.acq)+
+    '<label><span class="t">When all 8 slots are full</span><select id="m-ev"><option value="none">Stop storing</option><option value="fifo">Overwrite in turn</option><option value="weak">Overwrite the weakest</option></select></label>'+
+    sl("m-fade","Fade: events between strength drops",0,40,1,p.fade,p.fade?p.fade:"off")+
+    sl("m-gain","Strength added per recall",1,5,1,p.gain,p.gain)+
+    sl("m-nc","Cue windows",1,5,1,w.nc,w.nc)+sl("m-qc","Cue noise",0,0.3,0.01,w.qc,w.qc.toFixed(2))+
+    sl("m-hide","Share of views partly hidden",0,1,0.05,w.hideP,w.hideP.toFixed(2))+sl("m-chg","Share of views with 2 wires changed",0,0.3,0.05,w.chgP,w.chgP.toFixed(2))+
+    sl("m-fam","Fit needed to call it familiar",0.5,1,0.05,w.fam,w.fam.toFixed(2))+sl("m-T","Events per run",100,600,50,w.T,w.T)+sl("m-runs","Runs averaged",1,10,1,w.runs,w.runs);
+  $("m-ev").value=p.ev;
+  const set=(id,f,txt)=>{const e=$(id);e.addEventListener("input",()=>{f(+e.value);const v=$(id+"-v");if(v)v.textContent=txt(+e.value);markCustom();memGo()})};
+  set("m-mk",v=>p.mk=v,v=>v===0?"any view":v);set("m-acq",v=>p.acq=v,v=>v);set("m-fade",v=>p.fade=v,v=>v?v:"off");set("m-gain",v=>p.gain=v,v=>v);
+  set("m-nc",v=>w.nc=v,v=>v);set("m-qc",v=>w.qc=v,v=>v.toFixed(2));set("m-hide",v=>w.hideP=v,v=>v.toFixed(2));set("m-chg",v=>w.chgP=v,v=>v.toFixed(2));
+  set("m-fam",v=>w.fam=v,v=>v.toFixed(2));set("m-T",v=>w.T=v,v=>v);set("m-runs",v=>w.runs=v,v=>v);
+  $("m-ev").addEventListener("input",()=>{p.ev=$("m-ev").value;markCustom();memGo()});
+}
+let mCustom=false;
+function markCustom(){mCustom=true;memCards()}
+function memCards(){
+  const same=i=>{const q=MEM_PRESETS[i],p=MST.pol;return q.mk===p.mk&&q.acq===p.acq&&q.ev===p.ev&&q.fade===p.fade&&q.gain===p.gain};
+  $("m-presets").innerHTML=MEM_PRESETS.map((q,i)=>'<button class="card" data-i="'+i+'" aria-pressed="'+same(i)+'"><b>'+esc(q.name)+'</b><span>'+(i===0?"Stores anything it meets":i===1?"Keeps the first 8, ignores the rest":i===2?"Replaces what is used least":"Also lets unused memories fade")+'</span></button>').join("");
+  document.querySelectorAll("#m-presets .card").forEach(b=>b.addEventListener("click",()=>{MST.pol=Object.assign({},MEM_PRESETS[+b.dataset.i]);memCtl();memCards();memGo()}));
+}
+let mtm=null;function memGo(){clearTimeout(mtm);mtm=setTimeout(memShow,60)}
+function memShow(){
+  const f=x=>x.toFixed(2),par=MST.par;const rows=[["Your rule",MST.pol]].concat(MEM_PRESETS.map(q=>[q.name,q]));
+  const res=rows.map(([n,p])=>[n,memStudy(p,par,par.runs)]);const y=res[0][1];
+  $("m-sum").innerHTML='Your rule, average of '+par.runs+' runs of '+par.T+' events (12 objects, popularity switches half way): the right slot is found for <b>'+Math.round(y.hot2*100)+'%</b> of the objects that are popular late in the run; <b>'+f(y.hold_hot2)+'</b> of the 4 late-popular objects are held; <b>'+f(y.err)+'</b> wires wrong per stored slot.';
+  $("m-tab").innerHTML='<tr><th>Rule</th><th>Right slot, popular now</th><th>Right slot, early phase</th><th>Old objects, late</th><th>Held of 4 popular now</th><th>Old popular still held</th><th>Duplicate slots</th><th>Wires wrong per slot</th><th>Wrong slot named</th><th>Never-stored called familiar</th></tr>'+
+    res.map(([n,a],i)=>'<tr'+(i===0?' style="outline:1px solid var(--accent)"':'')+'><td style="text-align:left">'+esc(n)+'</td>'+[a.hot2,a.hot1_early,a.old_late].map(v=>'<td>'+f(v)+'</td>').join("")+'<td>'+f(a.hold_hot2)+'</td><td>'+f(a.hold_hot1)+'</td><td>'+f(a.dup)+'</td><td>'+f(a.err)+'</td><td>'+a.wrong.toFixed(3)+'</td><td>'+a.falsefam.toFixed(3)+'</td></tr>').join("");
+  $("m-slots").innerHTML=y.slots.map((s,i)=>'<div class="dcard" style="min-width:110px"><div class="n">Slot '+(i+1)+'</div><div class="m">'+(s?'object '+(s.owner+1)+(s.owner<4?' (popular first)':s.owner<8?' (popular later)':' (rare)')+'<br>strength '+s.strength+'<br>'+s.err+' wires wrong':'empty')+'</div></div>').join("");
+  $("m-note").textContent="Fading and replacing forget on purpose: old objects are recognised less late in the run. Known flaws: an object judged new from a noisy view can be stored twice, and a never-stored object is sometimes called familiar. Status: the memory block itself passed on the Tang Nano 20K (0 of 3080 answers differ from these rules); the write rule is checked in simulation, board run pending. This page uses its own random numbers, so figures match the Python tool on average, not run for run.";
+}
+const LEAKNAMES=["clear every window","halve","three quarters kept","seven eighths kept","15/16 kept","31/32 kept","63/64 kept","no leak"];
+function leakShow(){
+  const s=MST.leak;
+  const cols=[0,1,2,4,8,12,16];let h='<tr><th>s</th>'+cols.map(c=>'<th>after '+c+'</th>').join("")+'</tr>';
+  for(let k=0;k<8;k++){let a=60;const v=[];for(let i=0;i<=16;i++){v.push(a);a=leakStep(a,k)}h+='<tr'+(k===s?' style="outline:1px solid var(--accent)"':'')+'><td>'+k+'</td>'+cols.map(c=>'<td>'+v[c]+'</td>').join("")+'</tr>'}
+  $("l-tab").innerHTML=h;
+  $("l-note").textContent="Level left from a start of 60 after the given number of windows with no input. In the model, s = 2 (three quarters kept) gave the best balance: a held scene stayed recognised (about 0.88) and recovery after 8 windows at 15% noise was about 0.82. The leaky cells passed on the board: 0 of 6720 frames differ from the model. A level below 2^s does not shrink at all, because the shifted part is zero.";
+}
+$("l-s").innerHTML=LEAKNAMES.map((n,i)=>'<option value="'+i+'">'+i+" – "+n+"</option>").join("");$("l-s").value=MST.leak;
+memCtl();memCards();memShow();leakShow();
+$("l-s").addEventListener("input",()=>{MST.leak=+$("l-s").value;leakShow()});
 window.__hexn={st,runOnce,parsePatterns,parseCSV};
 loadSet("glyphs");
 })();
