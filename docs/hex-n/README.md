@@ -45,7 +45,7 @@ Feedback lines currently share the same accumulator as forward input
 
 ## Status (older text)
 
-*Update 22 Oct 2026: past the scoping stage. A bank of counted detectors on a 12-wire hex lattice has been built, trained serially and loaded onto the Tang Nano 20K, where it answers over the serial link; on the 7-detector bank the board now matches the simulation exactly (5,250 of 5,250 test samples) when built without the chip's carry-chain arithmetic cells; see `HEXN_DESIGN.md` section 4a. The text below is as first written.*
+*Update 22 Oct 2026: past the scoping stage. A bank of counted detectors on a 12-wire hex lattice has been built, trained serially and loaded onto the Tang Nano 20K, where it answers over the serial link; on the 7-detector bank the board now matches the simulation exactly (5,250 of 5,250 test samples) when built without the chip's carry-chain arithmetic cells; see `HEXN_DESIGN.md` section 4a. A browser front end (`frontend/hexn_explorer_v1.html`) now trains the same counted bank, tests it against noise, and exports a training script that `tools/hexn_tang_script_v1.py` runs on the board (7 machine states, 140 of 140 test samples identical to the rules on the 18-wire hex7 build). The text below is as first written.*
 
 Scoping stage, with a first behavioural prototype. The Tang Nano 20K has arrived and
 the UniCell small unit (SD card + SPI bridge + ESP32) runs on it, which changes the
