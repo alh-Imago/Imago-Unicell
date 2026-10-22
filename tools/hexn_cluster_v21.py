@@ -1,88 +1,56 @@
-"""Hex-N cluster v21 (new file): the cluster of DECISION-TABLE cells (hexn_cell_v3_model.py), judged the same way as the v19 ladder: gated local reward + readout score, one cell per output group (--ownout is always on here),
-600 tries, 16 samples per class, noise 0.15, same seeds, same compare tool.  Start: lane settings as v2 'easy'; every table entry starts as straight-through (each face with input fires the opposite face at level 2), with
-each entry replaced by random levels with chance --rand (default 0.2) so the 100 warm-start candidates differ.  Mutation: a table entry's level (3 in 5), a lane's active flag, a lane's direction.
-Usage: python3 tools/hexn_cluster_v21.py [--init straight|broadcast|off] [--first S] [--runs N] [--tries T] [--noise Q] [--rand R]"""
+"""(v21: clone of hexn_cluster_v20.py, left untouched. --tokens: the cluster is fed CLEAN ONE-HOT TOKENS (class k = wire k of the 12 on, all others off) instead of 12-wire patterns, the form a detector bank in front would hand it; --test-noises then means the chance a token wire flips, 0 = a perfect front end. Tests Alan's idea of a cleaning front end for the full cell, 22 Oct 2026.) Hex-N cluster v20 (new file): the FROZEN-MODEL test (Alan, 20 Oct 2026).  Train the cluster on data with --train-noise (default 0 = clean), FREEZE it, then test it on fresh samples at several noise levels (--test-noises),
+with and without run-time adaptation.  'Adapt' = the threshold offset (--M, --run) starts at 0 and moves during the test stream; 'frozen' = M 0 at test time (the plain cell).
+The search itself (warm start, keep-or-undo, v19 flags such as --score) is v19's; training always uses M 0 unless --train-M is given, so the adaptation is only ever tested on a model it was not trained with.
+Output per seed: accuracy at each test noise, frozen and adapted, and the template-rule ceiling at that noise.
+Usage: python3 tools/hexn_cluster_v20.py [--train-noise Q] [--test-noises 0,0.05,0.15,0.25] [--M 2 --run 3] [--score] [--first S] [--runs N] [--tries T]"""
 import argparse, importlib.util, os, random
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-def load(name):
-    sp = importlib.util.spec_from_file_location(name, os.path.join(ROOT, "tools", name + ".py"))
-    m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); return m
-v19 = load("hexn_cluster_v19"); m3 = load("hexn_cell_v3_model"); c15 = v19.c15; F, P, N = m3.F, m3.P, m3.N
+sp = importlib.util.spec_from_file_location("hexn_cluster_v19", os.path.join(ROOT, "tools", "hexn_cluster_v19.py"))
+v19 = importlib.util.module_from_spec(sp); sp.loader.exec_module(v19)
+c15 = v19.c15
 
 
-INIT = "straight"      # --init straight | broadcast
+TOKENS = False
 
 
-def new_cfg(r, rand):
-    a, d, _, _, _ = c15.easy(r)
-    table = []
-    for combo in range(64):
-        if r.random() < rand: table.append([r.randint(0, 3) for _ in range(F)])
-        elif INIT == "off": table.append([0] * F)                                       # all off: nothing fires until the search turns paths on
-        elif INIT == "broadcast": table.append([2] * F if combo else [0] * F)       # untrained cell: any input is passed to ALL six faces (Alan, 21 Oct)
-        else: table.append([2 if (combo >> ((f + 3) % F)) & 1 else 0 for f in range(F)])
-    return (a, d, table)
-
-
-def mutate(cfg, r):
-    a, d, t = list(cfg[0]), list(cfg[1]), [list(x) for x in cfg[2]]; k = r.randrange(5)
-    if k < 3: t[r.randrange(64)][r.randrange(F)] = r.randint(0, 3)
-    elif k == 3: i = r.randrange(N); a[i] ^= 1
-    else: i = r.randrange(N); d[i] = r.randint(0, 3)
-    return (a, d, t)
-
-
-def run_all(topo, cfgs, data):
-    out = []
-    for bits, y in data:
-        out.append(v19.sample_counts(topo, [m3.TableCell(*c) for c in cfgs], bits))
-    return out
-
-
-def rewards(topo, cfgs, data, bits=4):
-    g = run_all(topo, cfgs, data); top = (1 << bits) - 1; tot = 0; stuck = []
-    for k in range(4):
-        pos = [x for (_, y), x in zip(data, g) if y == k]; neg = [x for (_, y), x in zip(data, g) if y != k]
-        tp = sum(x[k] > 0 for x in pos); tn = sum(not x[k] > 0 for x in neg); fired = tp + (len(neg) - tn)
-        if fired in (0, len(data)): stuck.append(k); continue
-        tot += round(top * (tp / len(pos) + tn / len(neg)) / 2)
-    ok = sum((max(x) > 0 and x.count(max(x)) == 1 and x.index(max(x)) == y) for (_, y), x in zip(data, g))
-    return tot + round(top * ok / len(data))
-
-
-def accuracy(topo, cfgs, data):
-    g = run_all(topo, cfgs, data)
-    return sum((max(x) > 0 and x.count(max(x)) == 1 and x.index(max(x)) == y) for (_, y), x in zip(data, g)) / len(data)
-
-
-def one(seed, R, q, tries, S, rand, warm=100):
-    topo = c15.Topo(R); topo.outputs = v19.own_outputs(topo); rnd = random.Random(seed); tpl = c15.v12.make_templates(rnd, 4)
-    train = [(c15.v12.sample(rnd, tpl[y], q), y) for y in range(4) for _ in range(S)]
-    test = [(c15.v12.sample(rnd, tpl[y], q), y) for y in range(4) for _ in range(50)]
-    sh = random.Random(seed + 5); sh.shuffle(train); sh.shuffle(test)
+def train(seed, R, q, tries, S, trainM, run, warm=100):
+    topo = c15.Topo(R); rnd = random.Random(seed); tpl = c15.v12.make_templates(rnd, 4)
+    if TOKENS: tpl = [[1 if j == y else 0 for j in range(len(tpl[0]))] for y in range(4)]
+    tr = [(c15.v12.sample(rnd, tpl[y], q), y) for y in range(4) for _ in range(S)]
+    random.Random(seed + 5).shuffle(tr)
     lf = c15.v6.Lfsr(seed + 77); n = len(topo.cells); best = None; br = -1
     for _ in range(warm):
-        c = [new_cfg(lf, rand) for _ in range(n)]; r = rewards(topo, c, train)
-        if r > br: best, br = c, r
-    cur, cr = best, br
-    for _ in range(tries - warm):
+        c = [c15.easy(lf) for _ in range(n)]; r, st = v19.rewards(topo, c, tr, trainM, run)
+        if r > br: best, br, bst = c, r, st
+    cur, cr, cst = best, br, bst
+    for t in range(tries - warm):
         nxt = list(cur)
         for _ in range(1 + lf.randrange(3)):
-            j = lf.randrange(n); nxt[j] = mutate(nxt[j], lf)
-        r = rewards(topo, nxt, train)
-        if r >= cr: cur, cr = nxt, r
-    return accuracy(topo, cur, test), c15.v12.template_rule(tpl, test)
+            if v19.FLAGS["aim"] and cst and lf.randrange(2):
+                cand = sorted({ci for k in cst for (ci, _) in topo.outputs[k]}); j = cand[lf.randrange(len(cand))]
+            else: j = lf.randrange(n)
+            nxt[j] = v19.mutate(nxt[j], lf)
+        r, st = v19.rewards(topo, nxt, tr, trainM, run)
+        if r >= cr: cur, cr, cst = nxt, r, st
+    return topo, tpl, cur
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--radius", type=int, default=1); ap.add_argument("--noise", type=float, default=0.15)
-    ap.add_argument("--first", type=int, default=0); ap.add_argument("--runs", type=int, default=5); ap.add_argument("--tries", type=int, default=600)
-    ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--rand", type=float, default=0.2); ap.add_argument("--init", default="straight"); a = ap.parse_args()
-    INIT = a.init
-    print(f"hex cluster v21 (decision-table cells) init {a.init}, radius {a.radius}, noise {a.noise}, {a.tries} tries, rand {a.rand}")
-    print(f"{'seed':>4} {'learned':>8} {'template-rule':>13}")
-    tot = 0
+    ap = argparse.ArgumentParser(); ap.add_argument("--radius", type=int, default=1); ap.add_argument("--train-noise", type=float, default=0.0)
+    ap.add_argument("--test-noises", default="0,0.05,0.15,0.25"); ap.add_argument("--first", type=int, default=0); ap.add_argument("--runs", type=int, default=5)
+    ap.add_argument("--tries", type=int, default=600); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--M", type=int, default=2); ap.add_argument("--run", type=int, default=3)
+    ap.add_argument("--train-M", type=int, default=0); ap.add_argument("--tokens", action="store_true")
+    for f in v19.FLAGS: ap.add_argument("--" + f, action="store_true")
+    a = ap.parse_args()
+    for f in v19.FLAGS: v19.FLAGS[f] = getattr(a, f)
+    TOKENS = a.tokens
+    nz = [float(x) for x in a.test_noises.split(",")]
+    print(f"v20 frozen-model test: trained at noise {a.train_noise}, train M {a.train_M}, adaptation M={a.M} run={a.run}, flags {[f for f in v19.FLAGS if v19.FLAGS[f]]}, {a.tries} tries")
+    print("seed noise frozen adapted ceiling")
     for s in range(a.first, a.first + a.runs):
-        l, t = one(s, a.radius, a.noise, a.tries, a.per_class, a.rand); tot += l
-        print(f"{s:>4} {l:>8.2f} {t:>13.2f}", flush=True)
-    print(f"mean learned {tot / a.runs:.2f}")
+        topo, tpl, cur = train(s, a.radius, a.train_noise, a.tries, a.per_class, a.train_M, a.run)
+        for q in nz:
+            rnd = random.Random(1000 * s + int(q * 100) + 7)
+            test = [(c15.v12.sample(rnd, tpl[y], q), y) for y in range(4) for _ in range(50)]; random.Random(s + 11).shuffle(test)
+            fz = v19.accuracy(topo, cur, test, 0, a.run); ad = v19.accuracy(topo, cur, test, a.M, a.run); ce = c15.v12.template_rule(tpl, test)
+            print(f"{s:>4} {q:>5} {fz:>6.2f} {ad:>7.2f} {ce:>7.2f}", flush=True)
