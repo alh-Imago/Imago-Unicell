@@ -1,12 +1,14 @@
 #!/bin/bash
 # build_hexn_kintex_v1.sh - Hex-N bank + memory block on the Kintex-7 card, openXC7 flow: SIZE AND TIMING MEASUREMENT (no host link yet; top = rtl/hexn_kintex_top_v1.v).
-# Run inside the openXC7 nix environment (same as fpga/build_kintex7.sh):   nix develop ~/toolchain-nix
+# No nix shell needed: if nextpnr-xilinx / prjxray are not on PATH they are looked up in /nix/store (as installed on the OptiPlex).
 # Usage: bash fpga/build_hexn_kintex_v1.sh SHAPE NCLS NCELL [BAUDDIV]      e.g.  hex7 7 7   |   hex19 19 1
 # Prints ONE summary line at the end (yosys LUT/FF/DSP/BRAM, nextpnr max frequency at the 50 MHz clock, PASS/FAIL), also appended to $OUT/summary.txt.
 # Same chipdb search and flow as fpga/build_kintex7.sh. No bitstream is made unless MAKEBIT=1 (the card has no way to talk to it yet).
 set -o pipefail
+if ! command -v nextpnr-xilinx >/dev/null; then for d in /nix/store/*-nextpnr-1.0.0 /nix/store/*-prjxray-0.9.2; do [ -x $d/bin/nextpnr-xilinx ] || [ -x $d/bin/fasm2frames ] && PATH=$d/bin:$PATH; done; fi
+command -v nextpnr-xilinx >/dev/null || { echo "ERROR: nextpnr-xilinx not found (not on PATH, not in /nix/store)"; exit 1; }
 SH=${1:-hex7}; K=${2:-7}; NC=${3:-1}; DIV=${4:-434}
-DEVICE="xc7k480tffg1156-2"; DEVICE_BASE="xc7k480tffg1156"
+DEVICE="xc7k480tffg1156-1"   # the blinky demo for this card (YPCB-00338) uses speed grade -1; DEVICE_BASE="xc7k480tffg1156"
 cd "$(dirname "$0")/.." || exit 1; R=$(pwd); OUT=${OUT:-$R/build_hexn_kintex}; D=$OUT/${SH}_k${K}_nc$NC; mkdir -p $D; cd $D || exit 1
 SRC="$R/rtl/hexn_kintex_top_v1.v $R/rtl/hexn_tang_top_v11.v $R/rtl/hexn_uart_v1.v $R/rtl/hexn_mem_v1.v $R/rtl/gen/hexn_lattice_${SH}_w18_v14.v $R/rtl/hexn_bank_v15.v $R/rtl/hexn_det_v3.v $R/rtl/hexn_glue_v1.v $R/rtl/hexn_cell_v4.v $R/rtl/hexn_trainbank_v9.v $R/rtl/hexn_cfgbank_v2.v $R/rtl/hexn_sdiv_v1.v"
 echo "=== Hex-N on Kintex-7: $SH, K=$K detectors, NCELL=$NC ==="
