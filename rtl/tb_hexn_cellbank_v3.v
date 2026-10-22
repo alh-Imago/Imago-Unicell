@@ -1,0 +1,44 @@
+`timescale 1ns/1ps
+// Clone of tb_hexn_cellbank_v2.v (left untouched): adds the per-trial leak setting (stim line: mode, bits, leak, then the cells).
+// Clone of tb_hexn_cellbank_v1.v (left untouched) for NC cells behind the glue buffer (hexn_bank_v14). Stim file per trial: mode, sample bits (hex), then for each cell: threshold and K lane codes.
+// Prints per trial: R mode ans_valid ans_class cnt[0..K-1] cap[0..K-1] then for each cell: forward_total output_burst.  Macro LAT = lattice module name; parameters K, NB, AW, NC.
+module tb_hexn_cellbank_v3;
+    parameter K = 7, NB = 18, AW = 7, S = 16, NC = 3;
+    reg clk = 0, rst = 1, tr_start = 0, run_start = 0, cell_mode = 0; reg [2:0] tr_cmd = 0;
+    reg [NB-1:0] bits = 0; reg [$clog2(K)-1:0] lab = 0; reg [5:0] t_in = 8; reg [NC*2*K-1:0] lc = 0; reg [NC*AW-1:0] cthr = 0; reg [2:0] lk = 0;
+    wire tr_busy, run_busy, run_done, ans_valid; wire [$clog2(K)-1:0] ans_class; wire [4*K-1:0] cnt; wire [NC*5-1:0] ccnt; wire [NC*AW-1:0] cfwd; wire [3*K-1:0] cap;
+    `LAT #(.K(K), .NB(NB), .AW(AW), .S(S), .NC(NC)) dut(.clk(clk), .rst(rst), .tr_start(tr_start), .tr_cmd(tr_cmd), .tr_busy(tr_busy), .s_bits(bits), .s_label(lab), .t_in(t_in),
+        .run_start(run_start), .run_busy(run_busy), .run_done(run_done), .ans_valid(ans_valid), .ans_class(ans_class), .cnt_flat(cnt), .cell_mode(cell_mode), .leak_sh(lk), .lane_cfg(lc), .cell_thr(cthr), .cell_cnt(ccnt), .cell_fwd(cfwd), .cap_flat(cap),
+        .cap_ad({$clog2(K*NB+1){1'b0}}), .peek_ad({$clog2(K*NB+1){1'b0}}));
+    always #5 clk = ~clk;
+    integer fd, n, i, k, c, ntr, tr, v, y, TT; reg [1023:0] fn; reg [NB-1:0] bb [0:K*S-1]; integer yy [0:K*S-1]; reg [NB-1:0] m;
+    task go(input [2:0] cm); begin
+        @(posedge clk); #1 tr_cmd = cm; tr_start = 1; @(posedge clk); #1 tr_start = 0;
+        while (tr_busy) @(posedge clk); #1;
+    end endtask
+    initial begin
+        if (!$value$plusargs("stim=%s", fn)) begin $display("need +stim=FILE"); $finish; end
+        fd = $fopen(fn, "r"); n = $fscanf(fd, "%d %d\n", TT, ntr);
+        for (i = 0; i < K*S; i = i + 1) begin n = $fscanf(fd, "%d %h\n", y, m); yy[i] = y; bb[i] = m; end
+        t_in = TT;
+        repeat (3) @(posedge clk); #1 rst = 0;
+        go(1);
+        for (i = 0; i < K*S; i = i + 1) begin bits = bb[i]; lab = yy[i]; go(2); end
+        go(3);
+        for (i = 0; i < K*S; i = i + 1) begin bits = bb[i]; lab = yy[i]; go(4); end
+        go(5);
+        for (tr = 0; tr < ntr; tr = tr + 1) begin
+            n = $fscanf(fd, "%d %h %d", v, m, y); cell_mode = v; bits = m; lk = y;
+            for (c = 0; c < NC; c = c + 1) begin
+                n = $fscanf(fd, "%d", y); cthr[c*AW +: AW] = y;
+                for (i = 0; i < K; i = i + 1) begin n = $fscanf(fd, "%d", v); lc[c*2*K + 2*i +: 2] = v; end
+            end
+            @(posedge clk); #1 run_start = 1; @(posedge clk); #1 run_start = 0;
+            while (!run_done) @(posedge clk); while (run_busy) @(posedge clk); @(posedge clk); #1;
+            $write("R %0d %0d %0d", cell_mode, ans_valid, ans_class); for (k = 0; k < K; k = k + 1) $write(" %0d", cnt[4*k +: 4]);
+            for (k = 0; k < K; k = k + 1) $write(" %0d", cap[3*k +: 3]);
+            for (c = 0; c < NC; c = c + 1) $write(" %0d %0d", cfwd[c*AW +: AW], ccnt[c*5 +: 5]); $write("\n");
+        end
+        $finish;
+    end
+endmodule
