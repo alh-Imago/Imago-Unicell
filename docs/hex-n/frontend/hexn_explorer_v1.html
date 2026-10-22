@@ -1,0 +1,475 @@
+<title>Hex-N Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one working column. Data and settings on top, results below, export last. Positive weights amber, negative weights blue. */
+:root{
+  --bg:#eef1f4; --panel:#f8fafb; --ink:#14202b; --ink2:#4a5a68; --line:#cfd8df; --accent:#0b6e6e; --accent-ink:#ffffff;
+  --plus:#c9731a; --minus:#2a64b0; --zero:#dfe5ea; --good:#2c8a4b; --bad:#b43a3a; --warn:#a67300;
+  --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-head:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161b; --panel:#192027; --ink:#e4eaef; --ink2:#9aabb8; --line:#2c3843; --accent:#3cc0bd; --accent-ink:#06201f;
+  --plus:#f0a04b; --minus:#6ea2ee; --zero:#27323b; --good:#58c07a; --bad:#e07b7b; --warn:#e0b43f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161b; --panel:#192027; --ink:#e4eaef; --ink2:#9aabb8; --line:#2c3843; --accent:#3cc0bd; --accent-ink:#06201f;
+  --plus:#f0a04b; --minus:#6ea2ee; --zero:#27323b; --good:#58c07a; --bad:#e07b7b; --warn:#e0b43f; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1{font:600 30px/1.1 var(--f-head);margin:0;letter-spacing:.01em}
+h2{font:600 19px/1.2 var(--f-head);margin:0 0 4px;letter-spacing:.02em;text-wrap:balance}
+h3{font:500 12px/1.2 var(--f-mono);text-transform:uppercase;letter-spacing:.09em;color:var(--ink2);margin:0 0 8px}
+p{margin:0}.sub{color:var(--ink2);max-width:68ch}.small{font-size:13px;color:var(--ink2)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}.row>*{min-width:0}
+.mono{font-family:var(--f-mono)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.card{border:1px solid var(--line);background:var(--bg);border-radius:5px;padding:10px 12px;text-align:left;cursor:pointer;color:var(--ink);font:inherit;display:flex;flex-direction:column;gap:4px}
+.card[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.card b{font:600 15px var(--f-head)}.card span{font-size:12.5px;color:var(--ink2)}
+.ctl{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px 22px}
+.ctl label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--ink2)}
+.ctl label b{color:var(--ink);font:500 13px var(--f-mono);float:right}
+.ctl .t{display:flex;justify-content:space-between}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select,input[type=number],input[type=text],textarea{font:13px var(--f-mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%}
+textarea{min-height:120px;resize:vertical;white-space:pre}
+button.btn{font:500 13px var(--f-body);background:var(--accent);color:var(--accent-ink);border:0;border-radius:4px;padding:7px 12px;cursor:pointer}
+button.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{font:500 12.5px var(--f-mono);border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--bg)}
+.pill.ok{color:var(--good);border-color:var(--good)}.pill.no{color:var(--bad);border-color:var(--bad)}.pill.wn{color:var(--warn);border-color:var(--warn)}
+.big{font:600 40px/1 var(--f-head)}
+.scroll{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;font:12px var(--f-mono)}
+td,th{padding:3px 5px;text-align:center;border:1px solid var(--line);min-width:26px}th{font-weight:500;color:var(--ink2)}
+.det{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.dcard{border:1px solid var(--line);background:var(--bg);border-radius:5px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.dcard .n{font:500 13px var(--f-head);overflow-wrap:anywhere}.dcard .m{font:12px var(--f-mono);color:var(--ink2)}
+.grid{display:grid;gap:2px}.grid i{display:block;width:14px;height:14px;background:var(--zero);border-radius:2px}
+.grid i.p{background:var(--plus)}.grid i.m{background:var(--minus)}
+.tgl{display:grid;gap:4px}.tgl button{width:30px;height:30px;border:1px solid var(--line);background:var(--zero);border-radius:3px;cursor:pointer;color:var(--ink);font:11px var(--f-mono);padding:0}
+.tgl button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.bars{display:flex;flex-direction:column;gap:3px;min-width:200px;flex:1}
+.bar{display:grid;grid-template-columns:minmax(70px,130px) 1fr 22px;gap:8px;align-items:center;font:12px var(--f-mono)}
+.bar div{height:12px;background:var(--zero);border-radius:2px;overflow:hidden}.bar div i{display:block;height:100%;background:var(--ink2)}
+.bar.win div i{background:var(--accent)}.bar.win{color:var(--accent)}
+.sw{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;align-items:center;font:12px var(--f-mono)}
+.sw .bs{display:flex;gap:4px;flex-wrap:wrap}
+.sw .b{padding:2px 8px;border:1px solid var(--line);border-radius:3px;background:var(--bg)}.sw .b.cur{border-color:var(--accent);color:var(--accent)}
+.err{color:var(--bad);font-size:13px}
+details{border:1px solid var(--line);border-radius:5px;padding:10px 12px;background:var(--bg)}summary{cursor:pointer;font:500 14px var(--f-head)}
+details[open] summary{margin-bottom:10px}
+.tabs{display:flex;gap:6px;margin-bottom:8px}
+svg text{fill:var(--ink2);font:11px var(--f-mono)}
+@media (prefers-reduced-motion:no-preference){.bar div i{transition:width .15s}}
+</style>
+
+<div class="wrap">
+<header style="display:flex;flex-direction:column;gap:6px">
+  <h1>Hex-N Explorer</h1>
+  <p class="sub">Train a counted-detector bank in your browser with the same rules as the chip, see what it learns, test it against noise, and export the training set and trained bank for the Tang Nano 20K board. This page follows the counting rules in the design document; the board and the Python model remain the reference.</p>
+</header>
+
+<section id="s-data">
+  <div><h2>1. Choose a data set</h2><p class="small">Each class is one pattern of on/off wires. Training uses noisy copies of it, as the chip does. Example sets load directly; your own files go in below.</p></div>
+  <div class="cards" id="cards"></div>
+  <div id="dsinfo" class="small"></div>
+  <details id="own"><summary>Use your own data</summary>
+    <div class="row" style="gap:20px">
+      <div style="flex:1 1 320px">
+        <h3>Labelled patterns</h3>
+        <p class="small" style="margin-bottom:6px">One pattern per line: a label, then the wires as 0 and 1 (separator may be a space, comma, colon or tab). Lines starting with # are ignored. Train and test lines can be marked with the words train or test at the start.</p>
+        <textarea id="own-text" spellcheck="false" aria-label="Labelled patterns"></textarea>
+        <div class="row" style="margin-top:8px;align-items:center"><input type="file" id="own-file" accept=".txt,.csv,.tsv,.dat" style="width:auto" aria-label="Pattern file"><button class="btn" id="own-go">Use these patterns</button></div>
+        <p class="err" id="own-err" role="alert"></p>
+      </div>
+      <div style="flex:1 1 320px">
+        <h3>Make patterns from numbers (CSV)</h3>
+        <p class="small" style="margin-bottom:6px">Rows of numbers with one label column. Each number column becomes one or more wires.</p>
+        <textarea id="csv-text" spellcheck="false" aria-label="CSV numbers"></textarea>
+        <div class="ctl" style="margin-top:8px;grid-template-columns:1fr 1fr">
+          <label>Label column<select id="csv-lab"><option value="first">first</option><option value="last" selected>last</option></select></label>
+          <label>Encoding<select id="csv-enc"><option value="median">1 wire, split at median</option><option value="mean">1 wire, split at mean</option><option value="therm">thermometer, several wires</option></select></label>
+          <label>Wires per column (thermometer)<input type="number" id="csv-n" min="2" max="8" value="3"></label>
+        </div>
+        <div class="row" style="margin-top:8px;align-items:center"><button class="btn" id="csv-go">Convert and use</button><span class="small" id="csv-info"></span></div>
+        <p class="err" id="csv-err" role="alert"></p>
+      </div>
+    </div>
+  </details>
+</section>
+
+<section id="s-set">
+  <div><h2>2. Training settings</h2><p class="small">Chip values are the defaults. Change one at a time and watch the result below.</p></div>
+  <div class="ctl" id="ctl"></div>
+</section>
+
+<section id="s-res">
+  <div><h2>3. How well it recognises</h2></div>
+  <div id="summary" class="row" style="align-items:center"></div>
+  <div class="row" style="gap:22px">
+    <div style="flex:1 1 380px"><h3>Accuracy as noise rises</h3><div id="curve"></div></div>
+    <div style="flex:1 1 380px"><h3>Confusion at the chosen test noise</h3><div class="scroll" id="conf"></div></div>
+  </div>
+  <div id="insight" class="small"></div>
+</section>
+
+<section id="s-det">
+  <div><h2>4. What each detector learned</h2><p class="small">Amber wires add to the detector when on, blue wires subtract, grey wires are ignored. The threshold is the forward total a sample must reach to make the detector fire.</p></div>
+  <div class="det" id="dets"></div>
+</section>
+
+<section id="s-try">
+  <div><h2>5. Try a pattern</h2><p class="small">Switch wires on and off. The detector that fires for the most clocks wins; a tie or silence counts as no answer, as on the chip.</p></div>
+  <div class="row" style="gap:24px">
+    <div><div class="tgl" id="tgl"></div><div class="row" style="margin-top:8px" id="tbtn"></div></div>
+    <div class="bars" id="bars"></div>
+  </div>
+</section>
+
+<section id="s-what">
+  <div><h2>6. What if</h2><p class="small">Each line changes one setting and keeps the rest. Accuracy is the average of five training runs at the chosen test noise. The outlined value is your current setting.</p></div>
+  <div id="whatif" class="sw"></div>
+  <p class="small">Weight cutoff and threshold bias are experiments. The chip fixes the cutoff at half the samples per class and sets thresholds itself.</p>
+</section>
+
+<section id="s-exp">
+  <div><h2>7. Export for the board</h2><p class="small">Copy the text into a file. The training script holds the exact training and test samples for this page's settings. The bank holds the trained weights as the board's positive and negative wire masks.</p></div>
+  <div class="row" style="gap:20px">
+    <div style="flex:1 1 380px"><h3>Training script</h3><textarea id="x-script" readonly spellcheck="false" aria-label="Training script"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-copy="x-script">Copy script</button><span class="small" id="x-script-n"></span></div></div>
+    <div style="flex:1 1 380px"><h3>Trained bank</h3><textarea id="x-bank" readonly spellcheck="false" aria-label="Trained bank"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-copy="x-bank">Copy bank</button><span class="small" id="x-bank-n"></span></div></div>
+  </div>
+  <p class="small" id="x-fit"></p>
+</section>
+</div>
+
+<script>
+/*CORE-START*/
+const CAP=31, PL=10, MAXOUT=7;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function roundHalfEven(x){const f=Math.floor(x),r=x-f;if(r>0.5)return f+1;if(r<0.5)return f;return f%2===0?f:f+1}
+function divRoundEven(num,den){let q=Math.floor(num/den);const r=num-q*den;if(2*r>den||(2*r===den&&q%2!==0))q++;return q}
+function autoAW(NB){return NB<=12?6:7}
+function fwdOf(net,AW){return net>0?Math.min(PL*net,(1<<AW)-1):0}
+function clocksOf(f,thr){return f>=thr?Math.min(f-thr+1,MAXOUT):0}
+function netOf(w,bits){let s=0;for(let j=0;j<w.length;j++)if(bits[j])s+=w[j];return s}
+/* samples: [{bits:[0/1..], y}] in training order. opts: {K,NB,AW,T,bias} */
+function trainBank(samples,opts){
+  const K=opts.K,NB=opts.NB,AW=opts.AW,T=opts.T,bias=opts.bias||0,maxv=(1<<AW)-1;
+  const cnt=Array.from({length:K},()=>new Array(NB).fill(0));
+  for(const s of samples)for(let k=0;k<K;k++){const d=s.y===k?K-1:-1,c=cnt[k];for(let j=0;j<NB;j++)if(s.bits[j])c[j]=Math.max(-CAP,Math.min(CAP,c[j]+d))}
+  const wts=cnt.map(r=>r.map(c=>c>=T?1:c<=-T?-1:0));
+  const thr=[],sump=[],sumn=[],np=[],nn=[];
+  for(let k=0;k<K;k++){
+    let sp=0,sn=0,cp=0,cn=0;
+    for(const s of samples){const f=fwdOf(netOf(wts[k],s.bits),AW);if(s.y===k){sp+=f;cp++}else{sn+=f;cn++}}
+    sump.push(sp);sumn.push(sn);np.push(cp);nn.push(cn);
+    let t=0;if(cp>0&&cn>0)t=divRoundEven(sp*cn+sn*cp,2*cp*cn);else if(cp>0)t=Math.round(sp/cp);
+    thr.push(Math.max(0,Math.min(maxv,t+bias)));
+  }
+  return {K,NB,AW,T,cnt,wts,thr,sump,sumn,np,nn};
+}
+function classifyBits(m,bits){
+  const g=[];for(let k=0;k<m.K;k++)g.push(clocksOf(fwdOf(netOf(m.wts[k],bits),m.AW),m.thr[k]));
+  const mx=Math.max(...g);let c=0,idx=-1;for(let k=0;k<m.K;k++)if(g[k]===mx){c++;idx=k}
+  return {pred:(mx>0&&c===1)?idx:-1,g};
+}
+function flipBits(rnd,bits,q){return bits.map(b=>rnd()<q?1-b:b)}
+function popDist(a,b){let d=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])d++;return d}
+function minDist(protos){let m=1e9;for(let i=0;i<protos.length;i++)for(let j=0;j<i;j++)m=Math.min(m,popDist(protos[i],protos[j]));return protos.length<2?0:m}
+function randomProtos(seed,K,NB,D){
+  const r=mulberry32(seed);let tries=0;
+  for(;;){const p=[];for(let i=0;i<K;i++){const a=[];for(let j=0;j<NB;j++)a.push(r()<0.5?1:0);p.push(a)}
+    tries++;if(minDist(p)>=D||tries>20000)return p}
+}
+function lexicode(NB,K,D){const out=[];for(let v=0;v<(1<<NB)&&out.length<K;v++){let ok=true;for(const w of out){let x=v^w,c=0;while(x){c+=x&1;x>>>=1}if(c<D){ok=false;break}}if(ok)out.push(v)}return out.map(v=>Array.from({length:NB},(_,j)=>(v>>j)&1))}
+/* ds: {protos:[bits]} or {rows:[{bits,y}]}; returns {train,test}. perTest = test samples per class */
+function groupRows(rows,K){const g=Array.from({length:K},()=>[]);for(const r of rows)g[r.y].push(r);return g}
+function buildTrain(ds,rnd,S,q){
+  const K=ds.K,tr=[];
+  if(ds.protos){for(let y=0;y<K;y++)for(let i=0;i<S;i++)tr.push({bits:flipBits(rnd,ds.protos[y],q),y})}
+  else{const g=groupRows(ds.trainRows,K);for(let y=0;y<K;y++){const a=g[y].slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
+    for(const r of a.slice(0,S))tr.push({bits:q>0?flipBits(rnd,r.bits,q):r.bits.slice(),y})}}
+  for(let i=tr.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[tr[i],tr[j]]=[tr[j],tr[i]]}
+  return tr;
+}
+function buildTest(ds,rnd,per,q,train){
+  const K=ds.K,te=[];
+  if(ds.protos){for(let y=0;y<K;y++)for(let i=0;i<per;i++)te.push({bits:flipBits(rnd,ds.protos[y],q),y})}
+  else{const pool=ds.testRows&&ds.testRows.length?ds.testRows:train;const g=groupRows(pool,K);
+    for(let y=0;y<K;y++){const a=g[y];if(!a.length)continue;for(let i=0;i<per;i++){const r=a[Math.floor(rnd()*a.length)];te.push({bits:flipBits(rnd,r.bits,q),y})}}}
+  return te;
+}
+function evalSet(m,te){
+  const K=m.K,conf=Array.from({length:K},()=>new Array(K+1).fill(0));let ok=0;
+  for(const s of te){const r=classifyBits(m,s.bits);conf[s.y][r.pred<0?K:r.pred]++;if(r.pred===s.y)ok++}
+  return {acc:te.length?ok/te.length:0,conf,n:te.length,invalid:conf.reduce((a,r)=>a+r[K],0)};
+}
+function weightCutoff(S,frac){return Math.max(1,roundHalfEven(frac*S))}
+/*CORE-END*/
+</script>
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=x=>(100*x).toFixed(1)+"%";
+
+/* ---------- example data sets ---------- */
+const GLYPHS={"0":"010101101101101010","1":"010110010010010111","2":"111001001010100111","3":"111001011001001111","4":"101101101111001001","5":"111100111001001111","6":"111100111101101111","7":"111001001010010010","8":"111101111101101111","9":"111101111001001111"};
+const SENS=["motor on","motor hot","oil pressure ok","oil pressure low","belt tension ok","belt slipping","door closed","guard down","stock present","output clear","vibration high","coolant flowing","coolant hot","supply ok","supply sagging","e-stop armed","cycle running","fault lamp"];
+const STATES={
+ "Running":["motor on","oil pressure ok","belt tension ok","door closed","guard down","stock present","output clear","coolant flowing","supply ok","e-stop armed","cycle running"],
+ "Idle":["oil pressure ok","belt tension ok","door closed","guard down","output clear","coolant flowing","supply ok","e-stop armed"],
+ "Overheat":["motor on","motor hot","oil pressure ok","belt tension ok","door closed","guard down","stock present","output clear","coolant hot","supply ok","e-stop armed","cycle running","fault lamp"],
+ "Low oil":["motor on","oil pressure low","belt tension ok","door closed","guard down","stock present","output clear","vibration high","coolant flowing","supply ok","e-stop armed","cycle running","fault lamp"],
+ "Belt slip":["motor on","oil pressure ok","belt slipping","door closed","guard down","stock present","vibration high","coolant flowing","supply ok","e-stop armed","fault lamp"],
+ "Door open":["oil pressure ok","belt tension ok","output clear","coolant flowing","supply ok","e-stop armed","fault lamp"],
+ "Power sag":["motor on","oil pressure ok","belt tension ok","door closed","guard down","stock present","output clear","coolant flowing","supply sagging","e-stop armed","cycle running","fault lamp"]};
+const SETS={
+ random:{name:"Random patterns",blurb:"The chip's own test: random patterns that differ in at least D wires.",cols:6,tn:0.15,sn:0.15,
+   make(P){const K=P.k,NB=P.nb;return{K,NB,cols:6,labels:Array.from({length:K},(_,i)=>"class "+(i+1)),protos:randomProtos(P.seed*7919+1,K,NB,P.d)}}},
+ glyphs:{name:"Glyphs on a 3×6 grid",blurb:"Ten digit shapes drawn on 18 pixels. Pixels flip at random.",cols:3,tn:0.05,sn:0.08,
+   make(){const l=Object.keys(GLYPHS);return{K:10,NB:18,cols:3,labels:l,protos:l.map(k=>GLYPHS[k].split("").map(Number))}}},
+ sensors:{name:"Machine states (18 sensors)",blurb:"Seven machine conditions read from 18 on/off sensors, with unreliable readings.",cols:6,tn:0.06,sn:0.1,
+   make(){const l=Object.keys(STATES);return{K:7,NB:18,cols:6,labels:l,wireNames:SENS,protos:l.map(k=>SENS.map(s=>STATES[k].includes(s)?1:0))}}},
+ codes:{name:"Code words (18 bits)",blurb:"Eight code words at least 8 wires apart, then corrupted in transit.",cols:6,tn:0.15,sn:0.2,
+   make(){const p=lexicode(18,8,8);return{K:8,NB:18,cols:6,labels:p.map((_,i)=>"word "+String.fromCharCode(65+i)),protos:p}}},
+ own:{name:"Your own data",blurb:"Load labelled patterns or convert a CSV below.",cols:6,tn:0,sn:0,make(){return null}}
+};
+const st={set:"glyphs",P:{k:7,nb:18,d:4,seed:1},spc:16,tn:0.05,sn:0.08,tfrac:0.5,aw:"auto",bias:0,seed:1,ds:null,model:null,tr:null,info:"",tryBits:null};
+
+function loadSet(key){
+  st.set=key;const s=SETS[key];
+  if(key==="own"){if(!st.ownDs){$("own").open=true;st.set=st.prevSet||"glyphs";return loadSet(st.set)}st.ds=st.ownDs;st.tn=0;st.sn=0.1}
+  else{st.prevSet=key;st.ds=s.make(st.P);st.tn=s.tn;st.sn=s.sn}
+  st.aw="auto";st.tryBits=null;buildControls();recompute();
+}
+
+/* ---------- own data parsing ---------- */
+function parsePatterns(text){
+  const lines=text.split(/\r?\n/),rows=[];let NB=null;
+  for(let ln=0;ln<lines.length;ln++){
+    let L=lines[ln].trim();if(!L||L[0]==="#")continue;
+    let split=null;const m=L.match(/^(train|test)\b[\s,:;\t]+(.*)$/i);if(m){split=m[1].toLowerCase();L=m[2]}
+    const parts=L.split(/[\s,:;\t]+/).filter(x=>x!=="");
+    if(parts.length<2)throw new Error("Line "+(ln+1)+": needs a label and the wires.");
+    const label=parts[0];let b=parts.slice(1).join("");
+    if(!/^[01]+$/.test(b))throw new Error("Line "+(ln+1)+": after the label only 0 and 1 are allowed.");
+    if(NB===null)NB=b.length;else if(b.length!==NB)throw new Error("Line "+(ln+1)+": has "+b.length+" wires, earlier lines have "+NB+".");
+    rows.push({label,split,bits:b.split("").map(Number)});
+  }
+  if(!rows.length)throw new Error("No patterns found.");
+  if(NB>32)throw new Error("More than 32 wires is not supported here.");
+  const labels=[];for(const r of rows)if(!labels.includes(r.label))labels.push(r.label);
+  if(labels.length<2)throw new Error("At least two different labels are needed.");
+  if(labels.length>32)throw new Error("More than 32 classes is not supported here.");
+  const all=rows.map(r=>({bits:r.bits,y:labels.indexOf(r.label),split:r.split}));
+  const marked=all.some(r=>r.split);
+  let trainRows,testRows;
+  if(marked){trainRows=all.filter(r=>r.split!=="test");testRows=all.filter(r=>r.split==="test")}
+  else{
+    const r=mulberry32(12345),g=groupRows(all,labels.length);trainRows=[];testRows=[];
+    for(const a of g){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[b[i],b[j]]=[b[j],b[i]]}
+      const nt=b.length>=4?Math.max(1,Math.round(b.length*0.3)):0;testRows.push(...b.slice(0,nt));trainRows.push(...b.slice(nt))}
+  }
+  for(let y=0;y<labels.length;y++)if(!trainRows.some(r=>r.y===y))throw new Error("Class '"+labels[y]+"' has no training lines.");
+  return{K:labels.length,NB,cols:NB%6===0?6:NB,labels,trainRows,testRows,own:true,total:all.length};
+}
+function parseCSV(text,labelCol,enc,nTherm){
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&l[0]!=="#");
+  if(lines.length<3)throw new Error("Need at least a few rows.");
+  let rows=lines.map(l=>l.split(/[,;\t]+/).map(x=>x.trim()));
+  const w=rows[0].length;if(w<2)throw new Error("Need a label column and at least one number column.");
+  const isNum=x=>x!==""&&isFinite(Number(x));
+  const li=labelCol==="first"?0:w-1;
+  if(rows[0].some((x,i)=>i!==li&&!isNum(x)))rows=rows.slice(1);
+  const bad=rows.findIndex(r=>r.length!==w||r.some((x,i)=>i!==li&&!isNum(x)));
+  if(bad>=0)throw new Error("Row "+(bad+1)+" has a missing or non-numeric value.");
+  const cols=[];for(let i=0;i<w;i++)if(i!==li)cols.push(i);
+  const stats=cols.map(c=>{const v=rows.map(r=>Number(r[c]));const s=v.slice().sort((a,b)=>a-b);const n=s.length;
+    return{min:s[0],max:s[n-1],med:n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2,mean:v.reduce((a,b)=>a+b,0)/n}});
+  const out=rows.map(r=>{const bits=[];cols.forEach((c,ci)=>{const x=Number(r[c]),s=stats[ci];
+    if(enc==="therm"){for(let t=1;t<=nTherm;t++)bits.push(x>=s.min+(s.max-s.min)*t/(nTherm+1)?1:0)}
+    else bits.push(x>(enc==="mean"?s.mean:s.med)?1:0)});return r[li]+" "+bits.join("")});
+  return{text:out.join("\n"),wires:out[0].split(" ")[1].length};
+}
+function csvExample(){const r=mulberry32(5),L=["length,width,weight,hardness,type"];
+  const C=[["bolt",[40,8,22,60]],["pin",[25,4,6,45]],["rivet",[16,6,9,75]]];
+  for(const [n,m] of C)for(let i=0;i<14;i++)L.push(m.map((v,k)=>(v*(1+(r()-0.5)*(k===3?0.25:0.4))).toFixed(1)).join(",")+","+n);
+  return L.join("\n")}
+function patternExample(){return "# label then wires. Add 'train' or 'test' at the start of a line to fix the split.\nup 110000110000110000\nup 110000110100110000\nup 100000110000110000\nup 110000110000110010\nup 110000010000110000\nup 110000110000100000\ndown 000011000011000011\ndown 000011000111000011\ndown 000001000011000011\ndown 000011000011000111\ndown 000011100011000011\ndown 000011000011000010\nflat 001100001100001100\nflat 001100001100001110\nflat 001100001100000100\nflat 011100001100001100\nflat 001100001100001101\nflat 001100001000001100"}
+
+/* ---------- controls ---------- */
+function buildControls(){
+  const S=SETS[st.set];let h="";
+  const slider=(id,lab,min,max,step,val,disp)=>'<label><span class="t">'+lab+'<b id="'+id+'-v">'+disp+'</b></span><input type="range" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'"></label>';
+  if(st.set==="random"){
+    h+=slider("c-k","Classes (detectors)",2,19,1,st.P.k,st.P.k)+slider("c-nb","Wires",6,18,1,st.P.nb,st.P.nb)+slider("c-d","Min wires between patterns",1,8,1,st.P.d,st.P.d)+slider("c-ps","Pattern set number",1,20,1,st.P.seed,st.P.seed);
+  }
+  h+=slider("c-spc","Training samples per class",1,31,1,st.spc,st.spc);
+  if(!st.ds.own||st.ds.protos)h+=slider("c-tn","Training noise (chance a wire flips)",0,0.4,0.01,st.tn,fmt(st.tn));
+  else h+=slider("c-tn","Extra noise on training rows",0,0.4,0.01,st.tn,fmt(st.tn));
+  h+=slider("c-sn","Test noise",0,0.4,0.01,st.sn,fmt(st.sn));
+  h+=slider("c-tf","Weight cutoff, share of samples per class",0.1,0.9,0.025,st.tfrac,st.tfrac.toFixed(3));
+  h+='<label><span class="t">Accumulator width (bits)</span><select id="c-aw"><option value="auto">'+"chip default ("+autoAW(st.ds.NB)+")"+'</option>'+[4,5,6,7,8].map(v=>'<option value="'+v+'">'+v+'</option>').join("")+'</select></label>';
+  h+=slider("c-bias","Threshold bias (experiment)",-4,4,1,st.bias,st.bias);
+  h+=slider("c-seed","Training run number",1,50,1,st.seed,st.seed);
+  $("ctl").innerHTML=h;$("c-aw").value=st.aw;
+  const bind=(id,f)=>{const e=$(id);if(!e)return;e.addEventListener("input",()=>{f(e);debounce()})};
+  const val=(id,t)=>{const v=$(id+"-v");if(v)v.textContent=t};
+  bind("c-k",e=>{st.P.k=+e.value;val("c-k",e.value);regen()});bind("c-nb",e=>{st.P.nb=+e.value;val("c-nb",e.value);regen()});
+  bind("c-d",e=>{st.P.d=+e.value;val("c-d",e.value);regen()});bind("c-ps",e=>{st.P.seed=+e.value;val("c-ps",e.value);regen()});
+  bind("c-spc",e=>{st.spc=+e.value;val("c-spc",e.value)});bind("c-tn",e=>{st.tn=+e.value;val("c-tn",fmt(st.tn))});
+  bind("c-sn",e=>{st.sn=+e.value;val("c-sn",fmt(st.sn))});bind("c-tf",e=>{st.tfrac=+e.value;val("c-tf",st.tfrac.toFixed(3))});
+  bind("c-aw",e=>{st.aw=e.value});bind("c-bias",e=>{st.bias=+e.value;val("c-bias",e.value)});bind("c-seed",e=>{st.seed=+e.value;val("c-seed",e.value)});
+}
+function regen(){st.ds=SETS.random.make(st.P);st.tryBits=null}
+let dtm=null;function debounce(){clearTimeout(dtm);dtm=setTimeout(recompute,60)}
+
+/* ---------- compute ---------- */
+function runOnce(ds,p,seed,per,qTest){
+  const rnd=mulberry32(seed*1000003+17);
+  const tr=buildTrain(ds,rnd,p.spc,p.tn);
+  const per_class=Math.max(1,...Array.from({length:ds.K},(_,y)=>tr.filter(s=>s.y===y).length));
+  const T=weightCutoff(per_class,p.tfrac);
+  const AW=p.aw==="auto"?autoAW(ds.NB):+p.aw;
+  const m=trainBank(tr,{K:ds.K,NB:ds.NB,AW,T,bias:p.bias});
+  const te=buildTest(ds,mulberry32(seed*7777+3),per,qTest,tr);
+  return{m,tr,te,S:per_class};
+}
+function recompute(){
+  const ds=st.ds,p=st;
+  const r=runOnce(ds,p,st.seed,40,st.sn);
+  st.model=r.m;st.tr=r.tr;st.S=r.S;st.ev=evalSet(r.m,r.te);
+  st.curve=[];for(let q=0;q<=0.3001;q+=0.05){const te=buildTest(ds,mulberry32(991+Math.round(q*100)),40,q,r.tr);st.curve.push({q,acc:evalSet(r.m,te).acc})}
+  if(!st.tryBits||st.tryBits.length!==ds.NB){st.tryBits=ds.protos?ds.protos[0].slice():ds.trainRows[0].bits.slice()}
+  renderAll();
+}
+
+/* ---------- render ---------- */
+function gridHTML(vals,cols,cls){return'<div class="grid" style="grid-template-columns:repeat('+cols+',14px)">'+vals.map(v=>'<i class="'+cls(v)+'"></i>').join("")+'</div>'}
+function renderAll(){renderCards();renderInfo();renderSummary();renderCurve();renderConf();renderDets();renderTry();renderWhat();renderExport()}
+function renderCards(){
+  $("cards").innerHTML=Object.keys(SETS).map(k=>{const s=SETS[k];return'<button class="card" data-k="'+k+'" aria-pressed="'+(k===st.set)+'"><b>'+esc(s.name)+'</b><span>'+esc(s.blurb)+'</span></button>'}).join("");
+  document.querySelectorAll(".card").forEach(b=>b.addEventListener("click",()=>loadSet(b.dataset.k)));
+}
+function renderInfo(){
+  const ds=st.ds;let t="<b>"+ds.K+" classes, "+ds.NB+" wires.</b> ";
+  if(ds.protos){const d=minDist(ds.protos);t+="The closest two patterns differ in "+d+" wire"+(d===1?"":"s")+". "+(d<=2?"Patterns this close are hard to tell apart once wires flip.":"")}
+  else t+=ds.trainRows.length+" training rows, "+ds.testRows.length+" held-out rows"+(ds.testRows.length?"":" (none held out, so tests use noisy copies of the training rows)")+".";
+  $("dsinfo").innerHTML=t;
+}
+function renderSummary(){
+  const m=st.model,ev=st.ev,ds=st.ds;
+  const chance=1/ds.K;
+  const fits=ds.NB<=18&&ds.K<=19;
+  let h='<div><div class="big mono">'+fmt(ev.acc)+'</div><div class="small">correct at '+fmt(st.sn)+' test noise ('+ev.n+' samples)</div></div><div class="pills">';
+  h+='<span class="pill">chance '+fmt(chance)+'</span>';
+  h+='<span class="pill '+(ev.invalid?"wn":"")+'">no answer '+ev.invalid+' of '+ev.n+'</span>';
+  h+='<span class="pill">weight cutoff T = '+m.T+'</span><span class="pill">accumulator '+m.AW+' bits</span>';
+  h+='<span class="pill '+(fits?"ok":"no")+'">'+(fits?"fits the 18-wire, 19-detector build":"too big for the 18-wire, 19-detector build")+'</span>';
+  if(st.bias!==0||m.AW!==autoAW(ds.NB)||Math.abs(st.tfrac-0.5)>1e-9)h+='<span class="pill wn">not the chip settings</span>';
+  $("summary").innerHTML=h+"</div>";
+}
+function renderCurve(){
+  const W=420,H=230,L=36,R=12,Tp=12,B=30,x=q=>L+(W-L-R)*q/0.3,y=a=>Tp+(H-Tp-B)*(1-a);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Accuracy against test noise" style="width:100%;height:auto">';
+  for(const a of [0,0.25,0.5,0.75,1])s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(a)+'" y2="'+y(a)+'" stroke="var(--line)"/><text x="'+(L-5)+'" y="'+(y(a)+4)+'" text-anchor="end">'+Math.round(a*100)+'</text>';
+  for(let i=0;i<=6;i++){const q=i*0.05;s+='<text x="'+x(q)+'" y="'+(H-12)+'" text-anchor="middle">'+Math.round(q*100)+'</text>'}
+  s+='<text x="'+((L+W-R)/2)+'" y="'+(H-1)+'" text-anchor="middle">wire flips, %</text>';
+  s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(1/st.ds.K)+'" y2="'+y(1/st.ds.K)+'" stroke="var(--ink2)" stroke-dasharray="4 4"/>';
+  s+='<line x1="'+x(Math.min(st.sn,0.3))+'" x2="'+x(Math.min(st.sn,0.3))+'" y1="'+Tp+'" y2="'+(H-B)+'" stroke="var(--accent)" stroke-dasharray="2 3"/>';
+  s+='<polyline fill="none" stroke="var(--accent)" stroke-width="2.5" points="'+st.curve.map(c=>x(c.q)+","+y(c.acc)).join(" ")+'"/>';
+  for(const c of st.curve)s+='<circle cx="'+x(c.q)+'" cy="'+y(c.acc)+'" r="3.5" fill="var(--accent)"/>';
+  const last=st.curve[st.curve.length-1];s+='<text x="'+(x(last.q)-4)+'" y="'+(y(last.acc)-8)+'" text-anchor="end" style="fill:var(--ink)">'+Math.round(last.acc*100)+'%</text>';
+  $("curve").innerHTML=s+'</svg><p class="small">Dashed grey line is chance. Dotted line is your chosen test noise.</p>';
+}
+function renderConf(){
+  const m=st.model,K=m.K,ev=st.ev,lab=st.ds.labels;
+  let h='<table><tr><th>true \\ said</th>'+lab.map((l,i)=>'<th title="'+esc(l)+'">'+(i+1)+'</th>').join("")+'<th title="no answer">–</th></tr>';
+  for(let y=0;y<K;y++){const tot=ev.conf[y].reduce((a,b)=>a+b,0)||1;
+    h+='<tr><th style="text-align:left" title="'+esc(lab[y])+'">'+(y+1)+" "+esc(lab[y].slice(0,10))+'</th>'+ev.conf[y].map((c,k)=>{const f=c/tot;const diag=k===y;
+      const bg=c?'color-mix(in srgb,'+(diag?'var(--good)':'var(--bad)')+' '+Math.round(15+70*f)+'%,transparent)':"transparent";return'<td style="background:'+bg+'">'+(c||"")+'</td>'}).join("")+'</tr>'}
+  $("conf").innerHTML=h+"</table>";
+  let best=null;for(let y=0;y<K;y++)for(let k=0;k<K;k++)if(y!==k&&ev.conf[y][k]>0&&(!best||ev.conf[y][k]>best.c))best={y,k,c:ev.conf[y][k]};
+  let t="";if(best){t="Most common mistake: <b>"+esc(lab[best.y])+"</b> read as <b>"+esc(lab[best.k])+"</b> ("+best.c+" times)."+(st.ds.protos?" Those two patterns differ in "+popDist(st.ds.protos[best.y],st.ds.protos[best.k])+" wires.":"")}
+  else t="No wrong answers between classes at this noise.";
+  if(ev.invalid)t+=" "+ev.invalid+" samples got no answer (tie or silence).";
+  $("insight").innerHTML=t;
+}
+function renderDets(){
+  const m=st.model,lab=st.ds.labels,cols=st.ds.cols;
+  $("dets").innerHTML=m.wts.map((w,k)=>{const p=w.filter(v=>v>0).length,n=w.filter(v=>v<0).length;
+    return'<div class="dcard"><div class="n">'+(k+1)+" "+esc(lab[k])+'</div>'+gridHTML(w,cols,v=>v>0?"p":v<0?"m":"")+'<div class="m">threshold '+m.thr[k]+'<br>'+p+' amber · '+n+' blue</div></div>'}).join("");
+}
+function renderTry(){
+  const ds=st.ds,m=st.model,b=st.tryBits,cols=ds.cols;
+  $("tgl").style.gridTemplateColumns="repeat("+cols+",30px)";
+  $("tgl").innerHTML=b.map((v,j)=>'<button aria-pressed="'+(v===1)+'" data-j="'+j+'" title="'+esc(ds.wireNames?ds.wireNames[j]:"wire "+j)+'">'+j+'</button>').join("");
+  $("tgl").querySelectorAll("button").forEach(e=>e.addEventListener("click",()=>{const j=+e.dataset.j;st.tryBits[j]^=1;renderTry()}));
+  const r=classifyBits(m,b);
+  $("bars").innerHTML=r.g.map((g,k)=>'<div class="bar'+(r.pred===k?" win":"")+'"><span>'+(k+1)+" "+esc(ds.labels[k].slice(0,12))+'</span><div><i style="width:'+(g/MAXOUT*100)+'%"></i></div><span>'+g+'</span></div>').join("")+
+   '<p class="small" style="margin-top:6px">'+(r.pred>=0?"Answer: <b>"+esc(ds.labels[r.pred])+"</b>":"No answer (tie or silence)")+(ds.wireNames?" · hover a wire for its sensor name":"")+'</p>';
+  const rn=mulberry32(Date.now()%100000);
+  $("tbtn").innerHTML='<button class="btn alt" id="t-ex">Noisy example</button><button class="btn alt" id="t-flip">Flip a wire</button><button class="btn alt" id="t-clr">All off</button>';
+  $("t-ex").onclick=()=>{const y=Math.floor(Math.random()*ds.K);const src=ds.protos?ds.protos[y]:(ds.trainRows.filter(r=>r.y===y)[0]||ds.trainRows[0]).bits;st.tryBits=flipBits(Math.random,src,st.sn);renderTry()};
+  $("t-flip").onclick=()=>{st.tryBits[Math.floor(Math.random()*ds.NB)]^=1;renderTry()};
+  $("t-clr").onclick=()=>{st.tryBits=st.tryBits.map(()=>0);renderTry()};
+}
+function sweepAcc(over){
+  const p=Object.assign({},st,over);let a=0;
+  for(let s=1;s<=5;s++){const r=runOnce(st.ds,p,s,30,st.sn);a+=evalSet(r.m,r.te).acc}
+  return a/5;
+}
+function renderWhat(){
+  const sets=[
+    {lab:"Samples per class",key:"spc",vals:[2,4,8,16,24,31],cur:st.spc,f:v=>String(v)},
+    {lab:"Training noise",key:"tn",vals:[0,0.05,0.1,0.15,0.2,0.3],cur:st.tn,f:fmt},
+    {lab:"Weight cutoff",key:"tfrac",vals:[0.25,0.375,0.5,0.625,0.75],cur:st.tfrac,f:v=>v.toFixed(3)},
+    {lab:"Accumulator bits",key:"aw",vals:[4,5,6,7,8],cur:st.aw==="auto"?autoAW(st.ds.NB):+st.aw,f:String},
+    {lab:"Threshold bias",key:"bias",vals:[-2,-1,0,1,2],cur:st.bias,f:v=>(v>0?"+":"")+v}];
+  const mean=(a,b)=>Math.abs(a-b)<1e-9;
+  $("whatif").innerHTML=sets.map(s=>'<span>'+s.lab+'</span><div class="bs">'+s.vals.map(v=>{const a=sweepAcc({[s.key]:v});return'<span class="b'+(mean(v,s.cur)?" cur":"")+'">'+s.f(v)+' → '+Math.round(a*100)+'%</span>'}).join("")+'</div>').join("");
+}
+function bitsStr(b){return b.join("")}
+function renderExport(){
+  const ds=st.ds,m=st.model,r=runOnce(ds,st,st.seed,10,st.sn);
+  const head=["# Hex-N training script v1 (written by Hex-N Explorer)","# data set: "+(SETS[st.set].name),"# wires are written wire 0 first; the board host packs them with wire j = bit j of the mask",
+    "wires "+ds.NB,"classes "+ds.K,"samples_per_class "+st.S,"weight_cutoff "+m.T,"accumulator_bits "+m.AW,"labels "+ds.labels.map((l,i)=>i+"="+l.replace(/\s+/g,"_")).join(" ")];
+  const body=r.tr.map(s=>"train "+s.y+" "+bitsStr(s.bits)).concat(r.te.map(s=>"test "+s.y+" "+bitsStr(s.bits)));
+  const script=head.concat(body).join("\n")+"\n";
+  $("x-script").value=script;$("x-script-n").textContent=r.tr.length+" training and "+r.te.length+" test samples";
+  const mask=a=>a.reduce((s,v,j)=>s+(v?Math.pow(2,j):0),0);
+  const bank={format:"hexn-bank-v1",dataset:SETS[st.set].name,wires:ds.NB,detectors:ds.K,weight_cutoff:m.T,accumulator_bits:m.AW,labels:ds.labels,
+    detector:m.wts.map((w,k)=>({class:k,label:ds.labels[k],positive_mask:mask(w.map(v=>v>0)),negative_mask:mask(w.map(v=>v<0)),threshold:m.thr[k],weights:w.join(","),counters:m.cnt[k].join(",")}))};
+  $("x-bank").value=JSON.stringify(bank,null,1);$("x-bank-n").textContent=ds.K+" detectors";
+  const ok=ds.NB<=18&&ds.K<=19;
+  $("x-fit").textContent=(ok?"This set fits the 18-wire, 19-detector bitstreams.":"This set has more wires or classes than the 18-wire, 19-detector bitstreams.")+(st.bias!==0?" A threshold bias is set, which the chip does not apply: the board will compute its own thresholds.":"");
+}
+
+/* ---------- own-data wiring ---------- */
+$("own-text").value=patternExample();$("csv-text").value=csvExample();
+$("own-file").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const fr=new FileReader();fr.onload=()=>{$("own-text").value=String(fr.result)};fr.readAsText(f)});
+function useOwn(text){
+  $("own-err").textContent="";
+  try{const ds=parsePatterns(text);st.ownDs=ds;loadSet("own");$("dsinfo").scrollIntoView({block:"nearest"})}catch(e){$("own-err").textContent=e.message}
+}
+$("own-go").addEventListener("click",()=>useOwn($("own-text").value));
+$("csv-go").addEventListener("click",()=>{
+  $("csv-err").textContent="";
+  try{const r=parseCSV($("csv-text").value,$("csv-lab").value,$("csv-enc").value,+$("csv-n").value);
+    $("own-text").value=r.text;$("csv-info").textContent=r.wires+" wires"+(r.wires>18?" (more than the board's 18)":"");useOwn(r.text)}catch(e){$("csv-err").textContent=e.message}
+});
+document.querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click",()=>{
+  const ta=$(b.dataset.copy);ta.focus();ta.select();const old=b.textContent;
+  const done=()=>{b.textContent="Copied";setTimeout(()=>{b.textContent=old},1400)};
+  try{navigator.clipboard.writeText(ta.value).then(done,()=>{document.execCommand("copy");done()})}catch(e){try{document.execCommand("copy");done()}catch(_){}}
+}));
+window.__hexn={st,runOnce,parsePatterns,parseCSV};
+loadSet("glyphs");
+})();
+</script>
