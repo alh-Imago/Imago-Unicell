@@ -92,7 +92,7 @@ class FakeSerial:
     def read(self, n): d = bytes(self.out[:n]); del self.out[:n]; return d
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--baud", type=int, default=115200); ap.add_argument("--cells", type=int, default=7)
-    ap.add_argument("--seeds", default="0-4"); ap.add_argument("--train-noise", type=float, default=0.15); ap.add_argument("--test-noise", default="0.05,0.15,0.25"); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--selftest", action="store_true"); ap.add_argument("--dumpsums", action="store_true", help="after training, read back the two running sums of the threshold pass per detector and test the divider (needs the _v3 bitstream)"); ap.add_argument("--probe", type=int, default=0, metavar="N", help="after training, push N training samples through ACCUM one at a time and compare, per detector, the hardware's net lane count and forward total with the model (needs the _v4 bitstream)"); ap.add_argument("--echo", type=int, default=0, metavar="N", help="after training, for N training samples: ACCUM it, then read back what the board holds for the trainer (sample bits, label, T), the trained weights and the hardware net counts, recompute the net counts on this computer from the board's own bits and weights, and say which of the three disagrees (needs the _v6 top bitstream)"); ap.add_argument("--peek", action="store_true", help="read all trainer counters back from the board after COUNT, after SETW and after ACCUM and compare with the model (needs the _v5 bitstream)"); ap.add_argument("--dump", action="store_true", help="after training, read the trained weights and thresholds back from the board (needs the _v2 bitstream) and compare with the model")
+    ap.add_argument("--seeds", default="0-4"); ap.add_argument("--train-noise", type=float, default=0.15); ap.add_argument("--test-noise", default="0.05,0.15,0.25"); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--selftest", action="store_true"); ap.add_argument("--dumpsums", action="store_true", help="after training, read back the two running sums of the threshold pass per detector and test the divider (needs the _v3 bitstream)"); ap.add_argument("--probe", type=int, default=0, metavar="N", help="after training, push N training samples through ACCUM one at a time and compare, per detector, the hardware's net lane count and forward total with the model (needs the _v4 bitstream)"); ap.add_argument("--echo", type=int, default=0, metavar="N", help="after training, for N training samples: ACCUM it, then read back what the board holds for the trainer (sample bits, label, T), the trained weights and the hardware net counts, recompute the net counts on this computer from the board's own bits and weights, and say which of the three disagrees (needs the _v6 top bitstream)"); ap.add_argument("--wstage", action="store_true", help="read the trained weights back from the board after SETW, after every ACCUM and after FINISH and list which lanes differ from the model (works with the _v2 and later bitstreams)"); ap.add_argument("--peek", action="store_true", help="read all trainer counters back from the board after COUNT, after SETW and after ACCUM and compare with the model (needs the _v5 bitstream)"); ap.add_argument("--dump", action="store_true", help="after training, read the trained weights and thresholds back from the board (needs the _v2 bitstream) and compare with the model")
     a = ap.parse_args(); K = a.cells; tests = [float(x) for x in a.test_noise.split(",")]; allok = tot = 0
     print("seed  test-noise  samples  identical-to-model  board-accuracy  model-accuracy")
     for seed in parse_range(a.seeds):
@@ -116,6 +116,22 @@ def main():
             chk("after ACCUM"); b.finish(); chk("after FINISH")
             continue
         if not a.selftest and not b.sync(): sys.exit(2)
+        if a.wstage:
+            def wchk(tag):
+                dm = b.dump(); bad = []
+                for k in range(K):
+                    for j in range(12):
+                        bw = (1 if dm[k][0] >> j & 1 else 0) - (1 if dm[k][1] >> j & 1 else 0)
+                        if bw != m["wts"][k][j]: bad.append((k, j, bw, m["wts"][k][j]))
+                print("weights %-16s: %d of %d lanes differ from the model" % (tag, len(bad), K * 12))
+                for k, j, bw, mw in bad[:10]: print("     detector %d lane %d (model counter %d): board weight %d, model weight %d" % (k, j, m["cnt"][k][j], bw, mw))
+            b.clear(); wchk("after CLEAR")
+            for bits, y in m["train"]: b.count(y, mask(bits))
+            wchk("after COUNT"); b.setw(m["T"]); wchk("after SETW")
+            b.accum(m["train"][0][1], mask(m["train"][0][0])); wchk("after 1 ACCUM")
+            for bits, y in m["train"][1:]: b.accum(y, mask(bits))
+            wchk("after all ACCUM"); b.finish(); wchk("after FINISH")
+            continue
         b.train(m)
         if a.echo:
             pc = lambda v: bin(v).count("1"); nb = ne = nw = nc = 0
