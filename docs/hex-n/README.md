@@ -45,6 +45,8 @@ Feedback lines currently share the same accumulator as forward input
 
 ## Status (older text)
 
+*Update 22 Oct 2026: past the scoping stage. A bank of counted detectors on a 12-wire hex lattice has been built, trained serially and loaded onto the Tang Nano 20K, where it answers over the serial link; results on the board do not yet match simulation (open, see `HEXN_DESIGN.md` section 4a). The text below is as first written.*
+
 Scoping stage, with a first behavioural prototype. The Tang Nano 20K has arrived and
 the UniCell small unit (SD card + SPI bridge + ESP32) runs on it, which changes the
 pin budget and the ESP32 link: see `walkthrough-v0.2.md` (review, open questions,
