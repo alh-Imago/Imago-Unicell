@@ -10,12 +10,16 @@ v19 = importlib.util.module_from_spec(sp); sp.loader.exec_module(v19)
 c15 = v19.c15
 
 
-TOKENS = False
+TOKENS = 0
 
 
 def train(seed, R, q, tries, S, trainM, run, warm=100):
     topo = c15.Topo(R); rnd = random.Random(seed); tpl = c15.v12.make_templates(rnd, 4)
-    if TOKENS: tpl = [[1 if j == y else 0 for j in range(len(tpl[0]))] for y in range(4)]
+    if TOKENS:
+        n = len(tpl[0]); g = n // 4     # TOKENS = 1: one wire per class; 3: a block of n/4 wires per class; 6: that block plus the next class's block (half the wires on, as the cells expect)
+        if TOKENS == 1: tpl = [[1 if j == y else 0 for j in range(n)] for y in range(4)]
+        elif TOKENS == 3: tpl = [[1 if j // g == y else 0 for j in range(n)] for y in range(4)]
+        else: tpl = [[1 if j // g in (y, (y + 1) % 4) else 0 for j in range(n)] for y in range(4)]
     tr = [(c15.v12.sample(rnd, tpl[y], q), y) for y in range(4) for _ in range(S)]
     random.Random(seed + 5).shuffle(tr)
     lf = c15.v6.Lfsr(seed + 77); n = len(topo.cells); best = None; br = -1
@@ -39,7 +43,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--radius", type=int, default=1); ap.add_argument("--train-noise", type=float, default=0.0)
     ap.add_argument("--test-noises", default="0,0.05,0.15,0.25"); ap.add_argument("--first", type=int, default=0); ap.add_argument("--runs", type=int, default=5)
     ap.add_argument("--tries", type=int, default=600); ap.add_argument("--per-class", type=int, default=16); ap.add_argument("--M", type=int, default=2); ap.add_argument("--run", type=int, default=3)
-    ap.add_argument("--train-M", type=int, default=0); ap.add_argument("--tokens", action="store_true")
+    ap.add_argument("--train-M", type=int, default=0); ap.add_argument("--tokens", type=int, default=0, help="0 = 12-wire patterns; 1 = one wire per class; 3 = a block of 3 wires per class; 6 = two blocks (6 wires on)")
     for f in v19.FLAGS: ap.add_argument("--" + f, action="store_true")
     a = ap.parse_args()
     for f in v19.FLAGS: v19.FLAGS[f] = getattr(a, f)
