@@ -363,15 +363,23 @@ function renderInfo(){
   else t+=ds.trainRows.length+" training rows, "+ds.testRows.length+" held-out rows"+(ds.testRows.length?"":" (none held out, so tests use noisy copies of the training rows)")+".";
   $("dsinfo").innerHTML=t;
 }
+function boardFit(){
+  const ds=st.ds,K=ds.K,NB=ds.NB,c=new Array(K).fill(0);for(const x of st.tr)c[x.y]++;
+  const why=[];
+  if(K!==7&&K!==19)why.push("the built bitstreams have 7 or 19 detectors, this set has "+K);
+  if(NB!==12&&NB!==18)why.push("the built bitstreams have 12 or 18 wires, this set has "+NB);
+  if(c.some(v=>v!==16))why.push("the board trains exactly 16 samples per class");
+  return{ok:!why.length,why};
+}
 function renderSummary(){
   const m=st.model,ev=st.ev,ds=st.ds;
   const chance=1/ds.K;
-  const fits=ds.NB<=18&&ds.K<=19;
+  const bf=boardFit(),fits=bf.ok;
   let h='<div><div class="big mono">'+fmt(ev.acc)+'</div><div class="small">correct at '+fmt(st.sn)+' test noise ('+ev.n+' samples)</div></div><div class="pills">';
   h+='<span class="pill">chance '+fmt(chance)+'</span>';
   h+='<span class="pill '+(ev.invalid?"wn":"")+'">no answer '+ev.invalid+' of '+ev.n+'</span>';
   h+='<span class="pill">weight cutoff T = '+m.T+'</span><span class="pill">accumulator '+m.AW+' bits</span>';
-  h+='<span class="pill '+(fits?"ok":"no")+'">'+(fits?"fits the 18-wire, 19-detector build":"too big for the 18-wire, 19-detector build")+'</span>';
+  h+='<span class="pill '+(fits?"ok":"no")+'">'+(fits?"runs on a built bitstream":"needs a new bitstream: "+bf.why.join("; "))+'</span>';
   if(st.bias!==0||m.AW!==autoAW(ds.NB)||Math.abs(st.tfrac-0.5)>1e-9)h+='<span class="pill wn">not the chip settings</span>';
   $("summary").innerHTML=h+"</div>";
 }
@@ -447,8 +455,8 @@ function renderExport(){
   const bank={format:"hexn-bank-v1",dataset:SETS[st.set].name,wires:ds.NB,detectors:ds.K,weight_cutoff:m.T,accumulator_bits:m.AW,labels:ds.labels,
     detector:m.wts.map((w,k)=>({class:k,label:ds.labels[k],positive_mask:mask(w.map(v=>v>0)),negative_mask:mask(w.map(v=>v<0)),threshold:m.thr[k],weights:w.join(","),counters:m.cnt[k].join(",")}))};
   $("x-bank").value=JSON.stringify(bank,null,1);$("x-bank-n").textContent=ds.K+" detectors";
-  const ok=ds.NB<=18&&ds.K<=19;
-  $("x-fit").textContent=(ok?"This set fits the 18-wire, 19-detector bitstreams.":"This set has more wires or classes than the 18-wire, 19-detector bitstreams.")+(st.bias!==0?" A threshold bias is set, which the chip does not apply: the board will compute its own thresholds.":"");
+  const bf=boardFit();
+  $("x-fit").textContent=(bf.ok?"This set runs on the built bitstreams. On the OptiPlex: python3 tools/hexn_tang_script_v1.py SCRIPT.txt --port /dev/ttyUSB1":"Not yet runnable on the built bitstreams ("+bf.why.join("; ")+"). The script still works in the self-test: add --selftest.")+(st.bias!==0?" A threshold bias is set, which the chip does not apply: the board will compute its own thresholds.":"");
 }
 
 /* ---------- own-data wiring ---------- */
