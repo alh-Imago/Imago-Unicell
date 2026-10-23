@@ -477,6 +477,15 @@ def vectors(seed=5, n=60):
 def selfcheck(design):
     """For a design that declares meta.expect == 'add32' with meta.inputs [A, B] and meta.watch: run the adder vectors and compare with real addition."""
     m = design.meta
+    if m.get("expect") == "netlist":                      # a design made by placer3d_v1.py: compare every exit with direct evaluation of the netlist it was made from
+        import placer3d_v1 as pl
+        try:
+            cells, nets = pl.parse_netlist(m["netlist"])
+            nodes = {p: {**n, "down": set(n["down"])} for p, n in design.nodes.items()}
+            r = pl.verify(nodes, cells, nets, trials=100)
+        except (pl.PlaceError, KeyError) as e:
+            raise DesignError("cannot check against the netlist: %s" % e)
+        return {"ok": r["ok"], "checked": r["trials"], "failed": None if r["ok"] else {"a": 0, "b": 0, "got": r["failed"]["got"], "exit": r["failed"]["exit"]}, "ticks": r["ticks"], "kind": "netlist"}
     if m.get("expect") != "add32":
         raise DesignError("this design declares no expected function")
     a, b, w = design.pos_of(m["inputs"][0]), design.pos_of(m["inputs"][1]), design.pos_of(m["watch"])
@@ -546,7 +555,14 @@ def example_gate():
     return d
 
 
-EXAMPLES = {"adder": ("NOR adder, 44 cells, 3 layers", example_adder), "crossing": ("two wires crossing on two layers", example_crossing), "gate": ("one gate fed from two layers", example_gate)}
+def example_adder_auto():
+    import placer3d_v1 as pl
+    cells, nets = pl.adder_netlist()
+    d, rep = pl.place(cells, nets, layers=3, seed=1, keep=2)
+    return d
+
+
+EXAMPLES = {"adder_auto": ("NOR adder placed AUTOMATICALLY (3 layers; about 3 s)", example_adder_auto), "adder": ("NOR adder, 44 cells, 3 layers", example_adder), "crossing": ("two wires crossing on two layers", example_crossing), "gate": ("one gate fed from two layers", example_gate)}
 
 
 # ----------------------------------------------------------------------------------------------------------------------------- the controller
@@ -597,7 +613,15 @@ class Composer3D:
             if action == "undo":
                 d.undo()
                 self.sim = None
-            elif action in ("place", "delete", "set", "face", "link", "resize", "add_layer", "remove_layer", "clear", "example", "load", "description"):
+            elif action == "export_icm3d":
+                import icm3d_v1 as icm
+                try:
+                    doc = icm.from_design(d, body.get("name") or "design")
+                except icm.IcmError as e:
+                    raise DesignError(str(e))
+                import base64
+                return self.state({"icm3d": doc, "icm3d_bin": base64.b64encode(icm.pack(doc)).decode("ascii")})
+            elif action in ("place", "delete", "set", "face", "link", "resize", "add_layer", "remove_layer", "clear", "example", "load", "description", "autoplace", "load_icm3d", "load_icm3d_bin"):
                 self.sim = None
                 if action == "place":
                     d.place(body["pos"], body.get("kind", "relay"), body.get("gate"), body.get("shift", 0), body.get("left", True), body.get("name"))
@@ -626,6 +650,10 @@ class Composer3D:
                     d.rows, d.cols, d.layers, d.nodes, d.description, d.meta = new.rows, new.cols, new.layers, new.nodes, new.description, new.meta
                 elif action == "load":
                     new = Design.from_export(body["doc"])
+                    d._push()
+                    d.rows, d.cols, d.layers, d.nodes, d.description, d.meta = new.rows, new.cols, new.layers, new.nodes, new.description, new.meta
+                elif action in ("autoplace", "load_icm3d", "load_icm3d_bin"):
+                    new = self._build(action, body)
                     d._push()
                     d.rows, d.cols, d.layers, d.nodes, d.description, d.meta = new.rows, new.cols, new.layers, new.nodes, new.description, new.meta
                 elif action == "description":
@@ -660,6 +688,37 @@ class Composer3D:
             else:
                 raise DesignError("unknown action %r" % action)
             return self.state()
+
+
+def _build(self, action, body):
+    """The heavier loaders: auto-place a netlist, or read an ICM-3D file (JSON document, or base64 of the binary)."""
+    if action == "autoplace":
+        import placer3d_v1 as pl
+        try:
+            cells, nets = pl.parse_netlist(body["doc"])
+            layers = int(body.get("layers", 3))
+            new, rep = pl.place(cells, nets, layers=layers, seed=int(body.get("seed", 1)), keep=int(body.get("keep", 2)))
+        except pl.PlaceError as e:
+            raise DesignError(str(e))
+        return new
+    import icm3d_v1 as icm
+    try:
+        if action == "load_icm3d_bin":
+            import base64
+            import binascii
+            try:
+                data = base64.b64decode(body["b64"], validate=True)
+            except (binascii.Error, ValueError):
+                raise icm.IcmError("the upload is not valid base64")
+            doc = icm.unpack(data)
+        else:
+            doc = body["doc"]
+        return icm.to_design(doc)
+    except icm.IcmError as e:
+        raise DesignError(str(e))
+
+
+Composer3D._build = _build
 
 
 def _parse_word(v):
@@ -741,6 +800,10 @@ drag to rotate, right-drag or shift-drag to pan, wheel to zoom. The <b>depth sli
   <select id="example"><option value="">open an example…</option>__OPTS__</select>
   <button id="openBtn">Open file…</button><input type="file" id="file" accept=".json" hidden>
   <button id="save" class="primary" title="download the design as an imago-3d-design file">Save design</button>
+  <button id="saveIcm" title="download as an ICM-3D v1 JSON file (needs every face to point at a cell)">Save ICM-3D</button>
+  <button id="saveIcmBin" title="download as an ICM-3D v1 binary file">Save ICM-3D binary</button>
+  <button id="autoBtn" title="open a netlist file (imago-3d-netlist) and place it automatically">Auto-place netlist…</button><input type="file" id="netfile" accept=".json" hidden>
+  <label title="layers the automatic placer may use">layers <input type="number" id="autoLayers" min="1" max="24" value="3" style="width:56px"></label>
   <button id="undo" title="undo the last edit (Ctrl+Z)">Undo</button>
   <span class="sep"></span>
     <label>rows <input type="number" id="rows" min="1" max="40" style="width:60px"></label>
@@ -882,4 +945,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    sys.modules.setdefault("composer3d_v1", sys.modules["__main__"])     # the loaders import this module by name: they must get THIS copy
     main()

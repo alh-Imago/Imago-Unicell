@@ -110,8 +110,8 @@
       S.entries.forEach(function (n) { h += '<div class="in"><span>' + n + '</span><input type="text" data-in="' + n + '" value="' + (runVals[n] || "") + '" placeholder="0"></div>'; });
       if (!S.entries.length) h += "<div>(no entry cells yet: an entry is a cell that sends but receives nothing)</div>";
       h += '<div class="in"><span>watch</span><select id="rWatch"><option value="">none</option>' + S.cells.map(function (c) { return "<option" + (c.name === runWatch ? " selected" : "") + ">" + c.name + "</option>"; }).join("") + "</select></div>";
-      h += '<div class="actions"><button id="rStart" class="primary">Start</button>' + (S.meta && S.meta.expect ? '<button id="rCheck" title="run 100 adder vectors against real addition">Check adder</button>' : "") + "</div>";
-      if (S.check) h += "<div>" + (S.check.ok ? "<b>adder check passed</b>: " + S.check.checked + " vectors, settled at tick " + S.check.ticks.join("/") : "<b>FAILED</b> at a=" + hexw(S.check.failed.a) + " b=" + hexw(S.check.failed.b) + " got " + (S.check.failed.got === null ? "nothing" : hexw(S.check.failed.got))) + "</div>";
+      h += '<div class="actions"><button id="rStart" class="primary">Start</button>' + (S.meta && S.meta.expect ? '<button id="rCheck" title="run the design against what it should compute (100 random runs)">Check</button>' : "") + "</div>";
+      if (S.check) h += "<div>" + (S.check.ok ? "<b>" + (S.check.kind === "netlist" ? "netlist check passed" : "adder check passed") + "</b>: " + S.check.checked + " vectors, settled at tick " + S.check.ticks.join("/") : "<b>FAILED</b>" + (S.check.failed.exit ? " at exit " + S.check.failed.exit : " at a=" + hexw(S.check.failed.a) + " b=" + hexw(S.check.failed.b)) + " got " + (S.check.failed.got === null ? "nothing" : hexw(S.check.failed.got))) + "</div>";
     } else {
       h += "tick <b>" + sim.tick + "</b> · " + (sim.settled ? "settled" : sim.cells ? Object.keys(sim.cells).length + " cells hold words" : "") + "<br>fired this tick: " + sim.fired.length + " · words moving: " + sim.moves.length;
       if (sim.watch) h += "<br>watch " + sim.watch.name + ": " + (sim.watch.value === null ? "no word yet" : "<b>" + hexw(sim.watch.value) + "</b> (first at tick " + sim.watch.first_tick + ")");
@@ -125,7 +125,7 @@
         var inputs = {}; S.entries.forEach(function (n) { inputs[n] = runVals[n] === undefined || runVals[n] === "" ? "0" : runVals[n]; });
         api("sim_start", { inputs: inputs, watch: runWatch || null });
       };
-      if ($("rCheck")) $("rCheck").onclick = function () { say("checking…"); api("check", {}).then(function (j) { if (j) say(j.check.ok ? "adder check passed" : "adder check FAILED", j.check.ok ? "ok" : "err"); }); };
+      if ($("rCheck")) $("rCheck").onclick = function () { say("checking…"); api("check", {}).then(function (j) { if (j) say(j.check.ok ? "check passed" : "check FAILED", j.check.ok ? "ok" : "err"); }); };
     } else {
       $("rStep").onclick = function () { api("sim_step", { n: 1 }, true); };
       $("rStep10").onclick = function () { api("sim_step", { n: 10 }, true); };
@@ -232,7 +232,7 @@
     g.fillStyle = C.bg; g.fillRect(0, 0, f.w, f.h);
     if ($("layout").value === "plan-only") return;
     var radius = 0.5 * Math.sqrt(z.cols * z.cols + z.rows * z.rows + Math.pow(z.layers * gap, 2));
-    var o = { cx: f.w / 2, cy: f.h / 2, D: radius * 3.2, k: Math.min(f.w, f.h) * 0.5 / radius * 1.15 * cam.zoom };
+    var o = { cx: f.w / 2, cy: f.h / 2, D: radius * 3.2, k: Math.min(f.w, f.h) * 0.5 / radius * 1.0 * cam.zoom };
     var X = function (c) { return c - (z.cols - 1) / 2; }, Z = function (r) { return r - (z.rows - 1) / 2; }, Y = function (l) { return (l - (z.layers - 1) / 2) * gap; };
     var items = [];
     // layer sheets
@@ -374,7 +374,36 @@
   $("openBtn").onclick = function () { $("file").click(); };
   $("file").onchange = function () {
     var f = this.files[0]; this.value = ""; if (!f) return; var r = new FileReader();
-    r.onload = function () { var doc; try { doc = JSON.parse(r.result); } catch (e) { say("that file is not JSON", "err"); return; } sel = null; api("load", { doc: doc }).then(function (j) { if (j) { setLayer(0); say("opened " + f.name, "ok"); } }); };
+    r.onload = function () {
+      var bytes = new Uint8Array(r.result), magic = String.fromCharCode.apply(null, bytes.slice(0, 4)), act, body;
+      if (magic === "I3D1") { var bin = ""; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); act = "load_icm3d_bin"; body = { b64: btoa(bin) }; }
+      else {
+        var doc; try { doc = JSON.parse(new TextDecoder().decode(bytes)); } catch (e) { say("that file is neither JSON nor an ICM-3D binary", "err"); return; }
+        act = doc && doc.format === "icm-3d" ? "load_icm3d" : "load"; body = { doc: doc };
+      }
+      sel = null; api(act, body).then(function (j) { if (j) { setLayer(0); say("opened " + f.name + (act === "load" ? "" : " (ICM-3D)"), "ok"); } });
+    };
+    r.readAsArrayBuffer(f);
+  };
+  function download(name, blob) { var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+  function saveIcm(binary) {
+    api("export_icm3d", { name: "design" }, true).then(function (j) {
+      if (!j) return;
+      if (binary) { var s = atob(j.icm3d_bin), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); download("design.icm3d", new Blob([u], { type: "application/octet-stream" })); }
+      else download("design.icm3d.json", new Blob([JSON.stringify(j.icm3d, null, 1)], { type: "application/json" }));
+      say("saved ICM-3D v1 " + (binary ? "binary" : "JSON") + " (VM-only exploration format)", "ok");
+    });
+  }
+  $("saveIcm").onclick = function () { saveIcm(false); };
+  $("saveIcmBin").onclick = function () { saveIcm(true); };
+  $("autoBtn").onclick = function () { $("netfile").click(); };
+  $("netfile").onchange = function () {
+    var f = this.files[0]; this.value = ""; if (!f) return; var r = new FileReader();
+    r.onload = function () {
+      var doc; try { doc = JSON.parse(r.result); } catch (e) { say("that file is not JSON", "err"); return; }
+      say("placing… (a few seconds)"); sel = null;
+      api("autoplace", { doc: doc, layers: parseInt($("autoLayers").value || "3", 10) }, true).then(function (j) { if (j) { setLayer(0); var m = j.summary; say("placed " + m.cells + " cells on " + m.layers_used + " layers; use Check in the Run panel to verify", "ok"); } });
+    };
     r.readAsText(f);
   };
   $("rows").onchange = function () { api("resize", { rows: parseInt(this.value, 10) }); };

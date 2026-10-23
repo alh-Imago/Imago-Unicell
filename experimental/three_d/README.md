@@ -22,6 +22,8 @@ Gathered here on 20 Oct 2026 (ledger #1308). The files were **moved, not changed
 | `experimental_3d_crossing_demo_v1.py` | the wire-crossing test | `tools/experimental/experimental_3d_crossing_demo_v1.py` |
 | `CELL_AUDIT_6_FACE.md`, `cell_face_budget_v1.py` | new (#1310): what each cell type needs for six faces, and the ICM v3 config-bit budget (re-runnable) | -- |
 | `composer3d_v1.py`, `composer3d_v1.js` | new (#1312): a separate Composer for the six-face toy grid: floor plan, rotatable 3D view, depth slider (current layer shown, others faded); `python3 experimental/three_d/composer3d_v1.py` (port 7422) | `tests/vm/test_composer3d_v1.py` |
+| `placer3d_v1.py` | new (#1313): an automatic placer and router for the six-face toy grid; any feed-forward netlist; every layout is proven by running it; `--example adder --layers 3` | `tests/vm/test_placer3d_v1.py` |
+| `icm3d_v1.py`, `ICM_3D_FORMAT.md` | new (#1313): ICM-3D v1, a standalone six-face file format (flex family; JSON and binary); the composer saves and opens it | `tests/vm/test_icm3d_v1.py` |
 
 The two demos find the grid file through `nano/` (the pointer), which works as before.
 
