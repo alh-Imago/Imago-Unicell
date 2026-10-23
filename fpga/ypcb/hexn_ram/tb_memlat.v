@@ -2,7 +2,7 @@
 // acks in order and one per cycle at most, optional stall (PERIOD cycles out of every 16).
 `timescale 1ns/1ps
 module tb_memlat;
-    parameter integer LAT = 20, EXTRA = 0, MODE = 0, COUNT = 50, STALLCYC = 0;
+    parameter integer LAT = 20, EXTRA = 0, MODE = 0, COUNT = 50, STALLCYC = 0, LEN = 6;
     reg clk = 0; always #5 clk = ~clk;
     integer now = 0; always @(posedge clk) now <= now + 1;
     reg start = 0; reg ready = 1;
@@ -10,9 +10,18 @@ module tb_memlat;
     wire [15:0] n_done; wire [31:0] lat_min, lat_max, lat_sum, stall_sum, total_cycles, rd_fold;
     wire [24:0] wb_addr; wire [575:0] wb_data;
     reg [575:0] rdata = 0;
+`ifdef WRAP
+    // same probe seen through the drop-in memtest wrapper (count = 2^LEN, results in the old memtest fields)
+    wire [71:0] mask72; wire [31:0] rcyc;
+    memtest dut (.clk(clk), .ready(ready), .start(start), .mode(MODE[1:0] + 2'd1), .len(LEN[4:0]), .seed(8'd7), .busy(busy),
+        .errors(lat_min), .first_err_addr(lat_max), .err_mask(mask72), .write_cycles(total_cycles), .read_cycles(rcyc),
+        .wb_stb(wb_stb), .wb_we(wb_we), .wb_addr(wb_addr), .wb_data(wb_data), .wb_stall(wb_stall), .wb_ack(wb_ack), .wb_rdata(rdata));
+    assign lat_sum = mask72[31:0]; assign stall_sum = mask72[63:32]; assign n_done = rcyc[15:0]; assign rd_fold = {24'd0, mask72[71:64]};
+`else
     memlat dut (.clk(clk), .ready(ready), .start(start), .mode(MODE[1:0]), .count(COUNT[15:0]), .seed(8'd7), .busy(busy), .n_done(n_done),
         .lat_min(lat_min), .lat_max(lat_max), .lat_sum(lat_sum), .stall_sum(stall_sum), .total_cycles(total_cycles), .rd_fold(rd_fold),
         .wb_stb(wb_stb), .wb_we(wb_we), .wb_addr(wb_addr), .wb_data(wb_data), .wb_stall(wb_stall), .wb_ack(wb_ack), .wb_rdata(rdata));
+`endif
     assign wb_stall = (STALLCYC != 0) && ((now % 16) < STALLCYC);
     reg ack_r = 0; assign wb_ack = ack_r;
     integer due [0:65535]; integer head = 0, tail = 0, last_due = 0, d, bad = 0;
