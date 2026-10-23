@@ -40,6 +40,11 @@ class JtagLink:
                 if c["echo"] == seqn: self.seq = seqn; break
                 self.resends += 1; tries += 1
                 if tries > 5000: raise RuntimeError("the card does not take the frame")
+    in_waiting = 0
+    def reset_input_buffer(self):          # for the serial-port style suites (BIST): drain what the card still holds, then forget it
+        for _ in range(60):
+            if self._poll()["nvalid"] == 0: break
+        self.rxq.clear()
     def read(self, n):
         polls = 0
         while len(self.rxq) < n:
