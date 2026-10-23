@@ -1,689 +1,108 @@
 # Imago UniCell
 
-> **Status (20 October 2026): a working research system with a confirmed card path on two cards (Tang Nano 20K and Kintex-7); still not a finished or validated product. Nothing is proven beyond what is listed below (see "Confirmed on the card, and what is still simulation only").**
->
-> - **Update, 20 October 2026 (ledger #1260-#1308):** the work since the 13th has been on the **card path and the tools around it**, not on new cell designs. A design is now picked as an ICM file in the front end and built into a project for the **Kintex-7 card**, fed and read over JTAG; three designs have run that way and equal the VM (a relay chain, a 4-input reduction tree, and the 36-cell CORDIC, which also passed a 16-word signed set). The **Walker** compares the design on the card with the design the folder was built from (same design, and a wrong design is refused), and **wire witnesses** let the card report which connections and cells carried a word: for the CORDIC all 39 of 39 connections and 40 of 40 cells were seen by the card's own wires, and the card's SHAPE was written out (one design, one card). Checking the VM against the hardware found and closed gaps: a constant-versus-one-shot ram reading (FlexGrid v2, #1271; the CORDIC streams now equal the card's words) and the VM's word-programming tables for the adder, multiplier, divider, priority and merge cores (#1305, checked against the RTL in simulation). The **Workbench** (now `nano/workbench_v7.py`) reads the card's SHAPE and shows cells, flow and changes. The test runner has a version 2 that skips replaced tests (`tools/quick_check_v2.py`); the last full run (Alan's machine, 20 October) was `tests/vm` 2,958 passed, 13 skipped, and its only failures were old tests already replaced by newer ones. The 3D toy-grid files are now gathered in `experimental/three_d/` (VM only; no 3D hardware exists). A separate neural-cell idea, **Hex-N**, is on its own branch and is not part of this project. Nothing here changes the findings below.
->
-> - **Update, 12 October 2026:** after the 10 October notice that development had stopped, work started again (the ledger was at #1060 then) on making the architecture easier to use rather than on new hardware claims: a hardware **division core** (one cell instead of about 23,000 for a written-out division), a **LaTeX front end** that turns an integer formula into a checked design, a **library of stored arithmetic plans and blocks** (Horner polynomials, sums, a multiply-accumulate block, matrices), and a LaTeX writing guide with a reduction advisory (see "Writing a formula" below). None of this changes the findings below: nothing has been run on a physical card beyond what is listed, and no clock-rate claim is made for these designs, only cell counts and simulation results.
->
-> - **What exists and was measured:** a Python VM and a Verilog implementation (Tang Nano 20K) that agree cycle for cycle on small designs, a compiler path from LLVM IR and Python, and designs that ran live on the Tang board (CORDIC, relay, a 4-input reduction tree).
-> - **What was tested and did not favour it:** on a 4-stage 32-bit CORDIC, compared with hand-written Verilog, it was larger (about 6 times in the sub family), the flex family ran one item per two cycles, and a constant change needed re-synthesis. See `docs/measurements/UNICELL_VS_PURE.md`.
-> - **What is NOT shown:** running a design on a physical card **and** saving and restoring it in flight is now confirmed on the Tang Nano 20K (#1150-#1161, see the section below). Still simulation only: the mixed flex/std/carrier designs (#1162), clock rates for the LaTeX designs beyond estimates, and anything on a second card. A hand-written Verilog design gets the same save/restore from a clock enable and a scan chain (`docs/freeze/PURE_VERILOG_FREEZE.md`).
-> - **Prior art:** every mechanism here has published relatives (dataflow circuits, elastic CGRAs, FPGA state save). A first-pass review is in `docs/prior_art/PRIOR_ART_REPORT.md`; it is not a proof of novelty either way.
-> - Everything is kept as it was, and nothing was removed. The full record is the ledger in `points/` (as of 20 October 2026 the ledger is at #1309).
->
-> **A possible new use (10 October 2026): teaching.** The hardware design is not being extended for this, but its tools (the composer and the VM) let a learner watch logic, timing and routing happen one step at a time. A plan for using UniCell as the backdrop for teaching how computers work is in [`docs/teaching/`](docs/teaching/README.md), and a first teaching manual built from it (11 October 2026) is [`docs/teaching_manual.html`](docs/teaching_manual.html): 24 tabs from the cells and their arithmetic, branching and memory, through the VM (standard and flex grids, the card mirror, the workbench), the DSL and LLVM front ends, the compiler and placer, to the Verilog, MAN files and the assembler, with one page per cell kind showing its family table, internal structure and source. Its pages are interactive and every figure on them was captured from real runs (limits are stated on each page). It has not been tried with real learners, it changes nothing in the status above, and the main manual remains the manual for UniCell itself.
+A computer built as a field of small cells, where the wiring is the program.
 
-## Confirmed on the card, and what is still simulation only (20 October 2026)
+You are welcome to look around. This page gives the idea, the design features that make UniCell what it is, what has actually been shown on real hardware (and what has not), and where to begin. It is a research project by one author, Alan Hill, developed with Claude. It is not a finished product, and it does not pretend to be one.
 
-Each row says where the check was actually made. "Card" means the real Tang Nano 20K (Sipeed, card_id `sipeed-tang-nano-20k-01`, GW2AR-LV18QN88C8/I7) unless the row says Arria 10. One card, one PC, small designs at 27 MHz: this shows the cells and the handshake work on silicon, not capacity or speed.
+*Status, 23 October 2026 (ledger #1316): a working research system with a confirmed path onto two cards, the Tang Nano 20K and the Kintex-7. Nothing is claimed beyond what the table further down lists. The full record is the ledger in [`points/`](points/INDEX.md); the previous, much longer README is kept whole as [`docs/README_STATUS_RECORD_20261020.md`](docs/README_STATUS_RECORD_20261020.md).*
 
-| Item | Where checked | Ledger |
+---
+
+## The idea
+
+**Topology is computation.** There is no CPU, no instruction fetch, no decode stage, no program counter and no shared bus. A program is a *wiring*: which of a small set of fixed hardware cores sits where, joined to its physical neighbours. Values arrive, a cell does its one job, and the result moves on to the next cell, one hop at a time. In the sub family every cell takes exactly one tick, so a design's timing is known in advance; in the flex family the handshake absorbs the differences.
+
+Memory and compute are not separate places: each cell holds its own state, so there is no separate memory to attach, and more cells means more compute and more memory together.
+
+## What makes the design what it is
+
+- **The wiring is the program.** A design is written down as an ICM file: what each cell is, how it is configured, and which neighbours it listens to and sends to. Cells have no addresses; they are wired to the cells next to them.
+- **A small set of fixed cores.** Nano (a universal two-input gate built from NOR logic, with twelve selectable functions), adder, multiplier, divider, comparator, accumulator, latch, sequencer, ram, branch, priority, merge, and the crossing and corner tiles that let one lane pass over another. New behaviour is made by composing these, not by inventing a specialist cell. A counter and a comparator beside an adder is preferred to an adder that knows when to stop.
+- **Two arrivals, and an acknowledge.** A cell fires when both of its operands have arrived, so small differences in path length do not matter. The timing pulse only schedules when a word is handed from one cell to the next; the cell internals are not clocked. In the handshake family it is the acknowledge that governs the flow.
+- **Freeze, capture, restore.** A freeze line disconnects a cell from the flow, so it can be reprogrammed without moving any data, and a design that is only half loaded cannot start early. Each cell's state can be read out as a series of words and loaded back later, in the same card, a simulated card or the VM.
+- **One design, several kinds of cell.** The same ICM describes a design for three families: **flex** (a valid and acknowledge handshake, width set at build time, 18 bits on the Tang), **sub** (fixed one-cycle cells, timed statically, no handshake) and the original **standard / carrier** cells that the Arria 10 line was built on. The ICM never names a target. It states what a design needs, and a target either provides it or refuses; it never truncates.
+- **Cells can program cells.** The command core can freeze a neighbour and send it a new configuration. A standard command cell reprogrammed carrier cells (adder, accumulator, multiplier) live on the Tang (#1087-#1089).
+- **The VM is held to the hardware.** The Python VM and the generated Verilog are checked against each other cycle by cycle. The flex VM (`FlexGrid`) was built using the generated RTL as the oracle, and that comparison found and closed real defects in both. On the Kintex card a **fingerprint** of the running design is read back and compared with the folder it was built from (a wrong design is refused), and **wire witnesses** let the card report which connections and cells actually carried a word.
+- **Honest measurement.** Stripping the cells down paid: the adder went from 2,348 LUT4 to 66, and 37 with the handshake. A like-for-like test did not favour UniCell: a 4-stage 32-bit CORDIC was about six times larger than hand-written Verilog in the sub family ([`docs/measurements/UNICELL_VS_PURE.md`](docs/measurements/UNICELL_VS_PURE.md)). Both results are in the record, with their limits.
+
+## What has been shown on real hardware
+
+One card, small designs, one PC. This shows that the cells, the handshake, freeze and restore, and the tool chain work on silicon. It does not show capacity or speed at scale. The numbered rows of the full table, with the run lines and signatures, are in the [status record](docs/README_STATUS_RECORD_20261020.md#confirmed-on-the-card-and-what-is-still-simulation-only-20-october-2026).
+
+| Card | What was confirmed | Ledger |
 |---|---|---|
-| Every core of the super carrier shell | **Card (Arria 10)**, over JTAG | Aug/Sep 2026 |
-| First UniCell core on the Tang (sequencer counting on the LEDs) | **Card** | #896 |
-| The ten flex-cell self-checking tests (relay, adders with stalls and constants, three priority modes, ram hold and one-shot), run as two grouped bitstreams | **Card**: 10 of 10, first in #1024, again with a rebuilt bitstream on the current toolchain in #1167 (lines equal the simulation) | #1024, #1167 |
-| **Mixed standard + carrier**: the carrier (adder, accumulator, mul) reprogrammed live by a standard command cell and fed by a standard sequencer cell (7 of 7 phases, two 64-result streams, reprogram 40 clocks) | **Card**: counts equal the simulation | #1087-#1089 |
-| Loops: flex ring, sub ring, standard-cell ring (counter, branch, join gate) | **Card**: lines captured, equal to the simulation | #1120, #1122 |
-| **Mixed families: flex -> bridge -> sub -> bridge -> flex** (8 words, x + 1239, random stalls) | **Card**: line captured, checksum 0000CC60, equal to the simulation | #1112, #1120, #1122 |
-| Designs built from an ICM file on the standard shells (sum tree, looped CORDIC ring control) and on the trimmed carrier | **Card**: same lines as the simulation | #1125, #1126, #1140, #1143 |
-| **The sanity check** (12 Oct, one run, nine checks): back-pressure stops the flow and it resumes; freeze stop (the first freeze ever run on a card); freeze with a word inside the grid, then resume; save, whole-card reset, load, run on | **Card**: 9 of 9 ok, values equal the model, no retries, and the clocks counted on the card equal the simulation exactly (137 / 132 / 123 / 29 / 137) | #1100 |
-| A saved VM state loaded into the card, which then runs on and agrees with the VM | **Card** | #1101 |
-| In-flight capture and restore, UniCell and the usual-FPGA scan-chain version, four cuts each | **Card**: same answer as the model, identical end state | #1148-#1150 |
-| LaTeX formula -> ICM -> Verilog -> bitstream (`y = (z^2+12345) \bmod 65521`), 4 cuts | **Card**: answers equal the model | #1151, #1152 |
-| Injected serial faults during capture or restore (lost byte, corrupted chunk) | **Card**: all caught and retried | #1153 |
-| State moving between the real card, the simulated card and the VM, every direction tried; restore after a real power-off | **Card + simulation + VM**: all pass | #1154, #1155, #1158, #1159, #1161 |
-| Native cross and corner wiring cells: cross, corner turn 0, corner turn 1, six streams, random exit stalls | **Card** (flex family): board line equals the simulation in every field. The sub-family tiles are simulation only | #1165, #1169, #1170 |
-| **Flex <-> standard and flex <-> carrier adapters**: flex -> standard (or carrier) cells -> flex, 8 words, x + 1239, random stalls | **Card**: carrier 270 lines equal the simulation (sig 0000CC60); standard PASS per the run script | #1160, #1162, #1168, #1169 |
-| **Division core on the standard line and on the trimmed carrier** (flex -> divider -> flex, 9 words incl. divide by zero, random stalls) | **Card**: both boards lines equal the simulation in every field (sig 0002F664). A LaTeX formula compiled for the standard line is not built | #1073, #1171, #1172 |
-| **"No interrupts" and parallel work, Tang-only tests** (64-word job, 131 clocks, stall-free): the job alone, beside 4 and beside 8 busy storm lanes; 4 independent copies at once; the same words through 1, 2, 4, 8 lanes behind one shared port | **Card**: all 10 runs equal the simulation exactly, 131 clocks each, words and signature equal. Means: other work in separate cells did not change this job's timing; copies did not slow each other; a shared port is the limit (no speed-up from more lanes). One small job, one workload, no random stalls; the shared exit port, serial line and SPI still queue. The first run of the isolation test did not count (synthesis had deleted the storm lanes, #1182); the corrected build is the result. T2, T3 and the microcontroller contrast need the ESP32 parts and are not run | #1180, #1182, #1183 |
-| **Sub-family tiles and sub + trimmed carrier through the bridge**: the native cross and corner cells in the sub family (6 streams x 8 words, all at once, 3,418 LUT4); flex -> SUB -> flex -> trimmed CARRIER -> flex (x + 1319, random exit stalls, 2,092 LUT4, sub bridge and carrier adapter in one design), and the same chain with the carrier's DIVISION core (1000000 // (x + 1239) + 3, one divide by zero, 2,193 LUT4) | **Card**: both board lines equal the simulation in every field (sigs AF35B8F0, 00002D70 and 0001422C). Sub and carrier are not directly adjacent (the assembler refuses that); the carrier is the trimmed one (adder or divider; no multiplier yet); one run each | #1184-#1187 |
-| **ICM file -> Kintex runner project -> card** (`small_relay_chain`, made by the UniCell Bench panel, built with openXC7: dut.clk 148.77 MHz, JTAG clock 280.27 MHz; fed over JTAG, two input sets of 3 words) | **Card (Kintex-7)**: both sets equal the VM (10 1 2, signature 00000028; 14 100 3, signature 000000F3), last word at clock 12 | #1264 |
-| **4-input reduction tree (13 cells, 4 entries) through the same ICM -> Kintex runner path** (dut.clk 185.77 MHz, JTAG clock 260.76 MHz; 4 x 3 words fed over JTAG, two input sets) | **Card (Kintex-7)**: both sets equal the VM (100 4 8, signature 00000190; 98 406 12, signature 000002A8), last word at clock 11 | #1265 |
-| **`cordic_z_convergence` (36 cells) through the ICM -> Kintex runner path** (dut.clk 176.09 MHz, JTAG clock 426.62 MHz; inputs 10 1 2 and 14 100 3) | **Card (Kintex-7)**: equals the generated hardware's simulation (input + 2726 for every word: 2736 2727 2728; 2740 2826 2729), and equals an independent CORDIC computation (50000 -> -404 as in the original VM test). The VM tool disagreed first for want of a settle phase (#1267), then because FlexGrid v1 used up the stage constants on the first word; FlexGrid v2 (held constants, #1271) now gives the card's words for whole streams | #1266, #1267, #1271 |
-| **Design identity on the Kintex card (the Walker)**: the card reports a fingerprint of the design it runs (04c680b7 = the folder's design map for the first, 4ca08914 for the CORDIC build); a different design on the card is refused ("IS NOT this folder's design", no neighbours printed) | **Card (Kintex-7)**: same design accepted and wrong design refused, both shown on the card | #1287, #1288 |
-| **Wire witnesses and "Walk the card" on `cordic_z_convergence_v2`** (40 cells, 39 connections; two runs: a 3-word set and a 16-word signed set) | **Card (Kintex-7)**: both runs PASS against the VM word for word; the card's own wires show a word crossing 39 of 39 connections and 40 of 40 cells (the small set alone gave 23 of 39 and 32 of 40, equal to the simulation); card SHAPE written. "Confirmed" means a word crossed that wire in a run; it does not show where the fitter placed each cell. One design, one card | #1290, #1292 |
-| **Kintex-7 (XC7K480T, YPCB-00338-1P1) first design**: JTAG IDCODE 0x23751093 read; the openXC7 blinky demo for this board built and loaded into SRAM over JTAG | **Card (Kintex-7)**: loader reported Done, `done 1`; the three LEDs run (Alan's report; pattern and LED order not recorded). No UniCell design yet; nothing written to flash | #1189-#1194 |
-
-Open: a second card, the BL616 firmware check (needs the new card reader), re-run statistics, and a direct sub-to-carrier crossing (refused by the assembler; the chain sub -> flex -> carrier through the bridge and adapter passed on the card, #1185).
-
----
-
-A spatial compute architecture built on one principle: **topology is
-computation**. There's no CPU, no instruction set, no shared bus.
-Programs are described as physical topology — which of a fixed set of
-hardware cores sits where, wired to its physical neighbors — and
-computation happens as values arrive and propagate outward across that
-topology, one hop at a time.
-
-**Timing, in Alan's words (2026-10-06):** there is a timing pulse, but
-it only schedules when data is passed from one cell to the next; the
-cell internals are unclocked. Most designs use the two-arrival model (a
-cell waits for both of its operands), so skew between paths can almost
-be ignored. It is the **ack** that really controls flow. That is why
-the **freeze** line works so well. It disconnects a cell's inputs and
-outputs from the flow, so a frozen cell can be reprogrammed without
-moving any data. Each cell's state can be captured and its latch values
-stored as a series of data, to be reloaded at any time. Freeze also
-stops a partly loaded design from pre-firing in a half-built state.
-
-**What this is:** a research project building working pieces of a new
-FPGA architecture, on real hardware, with measured numbers. It is not
-a general-purpose computer, not commercially packaged, and not
-something you can `pip install` today.
-
----
-
-## Where things stand (October 2026)
-
-The project has two hardware lines. The second one is where current
-work happens.
-
-1. **The Arria 10 line (2026-08/09)** — the super carrier shell
-   (`unicell_super_v3.v`, 8 cores per cell) on an IEI Mustang-F100-A10.
-   Every core was confirmed on that silicon over JTAG. A measured
-   ceiling of roughly 200-250 cells on that card closed hardware work
-   there (see [The Arria 10 line](#the-arria-10-line-the-super-carrier-shell-unicell-s)
-   below). It is still the reference for the VM's standard ("std") mode.
-2. **The Tang Nano 20K line (from 2026-09-28, ledger #886 onward)** — a
-   Sipeed Tang Nano 20K (Gowin GW2AR-LV18, 20,736 LUT4, 48 18x18
-   multipliers) arrived and hardware work resumed on it, with a fully
-   open toolchain (yosys → nextpnr-himbaechel-gowin → gowin_pack). A
-   UniCell core has **run on the physical board** (#896). Measuring the
-   original cells on this chip showed they are far too large for it
-   (one VIX carrier position is ~80% of the chip, #887), so two new,
-   stripped cell families were built for it: **sub** and **flex**
-   (below). The board's role is a testbed and proof of concept, not an
-   accelerator (#891).
-
-**A separate idea on its own branch (not part of UniCell, not to be merged):**
-the `Hex-N` branch holds early work on a silicon version of a neural cell. It
-shares roots with UniCell (cells wired in a hex pattern, trained in the VM and
-then frozen) but is a different design. Its status and measurements are in
-`docs/hex-n/HEXN_DESIGN.md` on that branch; nothing on it changes the UniCell
-results above.
-
-The ledger in [`points/`](points/INDEX.md) is the full record. Every
-design decision, measurement and correction is there with its reasoning.
-[`current/latest.md`](current/latest.md) has a one-paragraph summary per
-recent entry.
-
-## The active line: the sub and flex cell families (`sub/`)
-
-Alan's direction for the Tang (#898): strip each cell down to its bare
-compute function. That means no add-on chain, no 4-way cardinal
-routing and no runtime routing decisions: "computing through physics,
-not control." Every cell lives in [`sub/verilog/`](sub/verilog/) with
-its own self-checking testbench. The full design record is
-[`sub/README.md`](sub/README.md).
-
-| Family | Files | What it is |
-|---|---|---|
-| **sub** (v4s) | `*_cell_v4s.v` | Fixed 32-bit, no handshake. Every cell has exactly one cycle of latency, so a design is timed statically: the generator pads early operands with relay cells. Add-ons (mask, shift, invert) become plain wiring. One result per cycle. |
-| **flex** (v4sa) | `*_cell_v4sa.v` | `WIDTH`-parameterised (the Tang's native width is **18**, #903/#913), with a point-to-point valid/ack handshake and a global freeze (#906). No alignment or padding is needed; one item per two cycles per cell. |
-
-Cells in both families: adder (add/subtract), multiplier (LUT, and a
-DSP version using `MULT36X36`), comparator, accumulator, latch,
-sequencer, ram, router, mask, shift stage, nano (the universal 2-input
-gate), and branch. Flex also has a **merge** core (`merge_cell_v4sa`:
-A only / B only / arbitrate / join-OR, #955).
-
-Main results, all measured with yosys `synth_gowin` and, where stated,
-real place-and-route:
-
-- **Stripping pays.** For example, the adder went from 2,348 LUT4
-  (full cell) to 66 LUT4 (v4s, #898). Fixing a config value at build
-  time instead of loading it at runtime cuts further: a shift stage costs
-  26 LUT4 against 3,261 (#899).
-- **The handshake is cheaper than expected.** The flex adder with
-  ack+freeze is 37 LUT4, against 66 for the no-ack v4s (#906); the
-  nano shows the same (#917).
-- **18 bits fits the chip.** ALU use scales exactly with width (32 → 18
-  = 0.5625 on every arithmetic cell). A 100-cell 18-bit chain
-  place-and-routes at 287 MHz against the board's 27 MHz clock (#910).
-- **`-nowidelut` is the default Gowin flow** (#950/#952). It is about
-  3x smaller across all families, and the LUT multiplier is ~3x smaller
-  *and* ~3x faster. The card's MAN file sets the default; `--wide-lut`
-  opts out.
-- **Cost against width** for every flex cell at W = 4…32 is in
-  [`docs/measurements/flex_width_sweep_975/`](docs/measurements/flex_width_sweep_975/)
-  and in the Tang MAN's `cell_costs` (#975/#976). For example,
-  adder = W + 5 LUT4 and nano = 7W + 33.
-- **Second output ports** (#974-#981): the adder can deliver its carry
-  and the multiplier its high word as a second word on its own port.
-  That makes multi-word arithmetic work: a 64-bit add from two 32-bit
-  limbs is proven in RTL. The port is a build parameter (`SECOND_PORT`)
-  and costs nothing unless a design asks for it.
-
-### From an ICM file to Verilog: the Flex-Sub assembler
-
-The existing assembler (`tools/project_assemble_v1.py`) takes a family
-flag and can read an ICM-VIX file as a map of the design:
-
-```bash
-# an N-cell chain of one flex cell type at the card's native width
-python3 tools/project_assemble_v1.py -s flex -S adder --cells 100 --man docs/man/tang-nano-20k.man.json --output build/chain
-
-# a whole design from an ICM-VIX file, as handshake (flex) or fixed-latency (sub) hardware
-python3 tools/project_assemble_v1.py -s flex --icm nano/examples/cordic_z_convergence.icm-hier.json --man docs/man/tang-nano-20k.man.json --output build/cordic
-python3 tools/project_assemble_v1.py -s sub  --icm nano/examples/parallel_reduction_tree.icm-hier.json --man docs/man/tang-nano-20k.man.json --output build/tree
-```
-
-The width comes from `-w`, else the MAN's `native_width`, else 32
-(#914). The multiplier uses DSP blocks while the MAN says the card has
-them, falls back to the LUT multiplier, and refuses if even that does
-not fit (`--mul auto|lut|dsp`, #941/#942). Each merge's mode can be
-chosen (`--merge-mode`, #957). Every compiled program in the test
-corpus (41 programs, compiled from LLVM IR via
-`tools/flexsub_compile_v1.py`) and the hand-built 36-cell CORDIC run as
-generated Verilog. Each one's output equals the VM's and plain
-arithmetic, under random stalls on flex. **Limits:** the `--icm`
-generators still build 32-bit designs; genuine cycles (rings with a
-data-dependent exit) are refused; on sub, a sequencer feeding a
-two-operand cell is refused.
-
-## Writing a formula: the LaTeX front end (12 October 2026, #1066-#1084)
-
-Instead of drawing cells, you can write an integer formula the way a maths book does and get a design back:
-
-```bash
-python3 nano/latex_cli_v1.py "y = (a + b)^2 - 3c" --set a=2 --set b=3 --set c=4 -o poly.icm
-python3 nano/latex_cli_v1.py "A_{ij} = i j" --matrix 3x3 --set x_1=1 --set x_2=2 --set x_3=3
-```
-
-Every compile checks the design against a plain Python evaluation of the same formula (corner values plus random ones, once on the generated operations and once in the VM); a mismatch raises an error and returns no design. It adds no new hardware, and it refuses what it cannot do (square roots, fractions, negative powers, a sum whose range is not written out) with a message pointing at the character.
-
-- **Division and remainder** (`a / b`, `a \bmod b`) are placed as one **division core** cell by default: 8 cells in all for `a / 7`, against about 23,000 for the written-out form (`--division unrolled`). The number of quotient bits per clock (`--div-steps K`) is a build-time setting because it changes the cell's size. Checked on the VM, generated flex RTL and generated sub RTL. Not yet run on the v4/v4c carrier designs.
-- **Plans and stored blocks** (`nano/arith_plan_library_v1.py`, `nano/arith_blocks_v1.py`): a base pattern plus a rule for joining copies. A one-variable polynomial is built both directly and by Horner and the smaller is kept (`3x^2+2x+1`: 26 cells against 44); a fixed-range `\sum` or `\prod` is a chain (6 cells per term); a dot product is the stored multiply-accumulate block (exactly 7n - 1 cells; 8 terms 55, against 326 from the general placer).
-- **Matrices**: a rule and a size give `y = A x` (3 by 3: 68 cells); leave the rule off for a run-time matrix; `--then` chains matrices; matrix times matrix streams the columns through one block. The looped small form, entries that depend on a run-time value, and explicit numeric matrices are not built.
-- **The writing guide and the reduction advisory** (how to write each input, what is refused, and measured pairs such as `\sum_{i=1}^{8} i x` at 284 cells against `36 x` at 8) are in [`docs/teaching/latex_writing_guide.md`](docs/teaching/latex_writing_guide.md), tab "Formulas" of [`docs/teaching_manual.html`](docs/teaching_manual.html). The full record is [`sub/README.md`](sub/README.md) ("Writing a formula in LaTeX").
-
-## The ICM stays target-agnostic
-
-The program format never names a target or a family. It states what a
-design *needs*, and each target either provides it or refuses:
-
-- **`min_bit_width`** (#958/#959) is an optional header flag in ICM v3,
-  v4 and VIX files: "this design needs at least N bits". If it is
-  absent, the width is 32. Values stay sign-extended in the 32-bit
-  fields. A target narrower than the flag refuses; it never truncates.
-- **`second_output`** (bit 12 on adder and mul; `carry_mode` and
-  `wide_mode` are accepted aliases) and **`second_downstream_mask`**
-  (bits 13-16) ask for the carry or high word, optionally on its own
-  faces (#980/#981). The compiler sets the flag only when a program
-  needs both results; the default is off.
-- **Shift amount** (#985/#986) is one number. flex makes any amount
-  from 0 to 31 (it is wiring); std makes coarse taps plus fine; sub
-  makes coarse taps only.
-- **Per-target capability table** (`nano/target_capabilities_v1.py`):
-  when a target is named, the compiler refuses at compile time what that
-  target cannot do. With no target named, the ICM is produced unchanged.
-
-Field tables: [`docs/stripped-cell/ICM_V3_FORMAT.md`](docs/stripped-cell/ICM_V3_FORMAT.md),
-[`docs/stripped-cell/ICM_VIX_FORMAT.md`](docs/stripped-cell/ICM_VIX_FORMAT.md).
-
-## The VM: std mode and mirror mode (`FlexGrid`)
-
-Alan's ruling (#960): the VM comes *before* the fit, because a fit can
-only be proved by a VM that can mirror the target.
-
-- **std mode** (`SuperGrid(records, width=W)`) is the original VM,
-  unchanged in behaviour. Since #961 it takes a data width (default 32).
-- **mirror mode for flex** (`nano/flex_grid_v1.py`, `FlexGrid(records,
-  width=W, merge_mode=...)`) is a subclass with its own per-core
-  handlers. An empty `FlexGrid` is proved identical to `SuperGrid`
-  (#965). Each flex core was then added and checked against the
-  **generated RTL as the oracle** at W = 4, 8, 18, 32 and 36 (#966-#973).
-  Where the RTL has a limit, FlexGrid refuses with the reason rather
-  than guessing.
-
-That work also found and fixed real RTL defects in the flex cells: the
-nano and sequencer captured while unarmed (#956/#971), the comparator
-threshold above 32 bits (it now has its own port, #972), the
-accumulator below 16 bits (#973), and the mask above 32 bits (the mask
-word now scales with the width, #968).
-
-### Floating point on cells
-
-[`docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md`](docs/stripped-cell/design-notes/fp32_stage_map_second_ports.md)
-maps an fp32 add and multiply onto cells in 16 stages (#982). These
-stages are built from real flex cells, with no loops, and tested
-RTL == FlexGrid == the Python model: unpack, carry → exponent bump,
-multiplier high word → normalise bit, a 5-stage left-normalise with
-exponent adjust, sticky, round-to-nearest-even (#982-#984), and
-alignment: a variable right shift that also collects the sticky bits,
-built from one multiplier per stage using both of its output words
-(#987/#988). An open fp assembler (`tools/fp_assembler_v1.py`, #989)
-generates those blocks for any format (fp32, fp16, bfloat16), with
-operand timing balanced automatically.
-
-Built from flex cells and bit-exact in the generated RTL (as of #1027):
-
-- **The adder** (`tools/fp_add_v1.py`, #990): normals and zero (#990);
-  inf, nan and overflow (#1001); subnormal inputs and results with
-  gradual underflow (#1006); all five IEEE rounding modes and the sign
-  of an exact zero (#1007). It also runs at fp64 on a 64-bit cell word
-  (#1027).
-- **The multiplier** (`tools/fp_mul_v1.py`, #1008): fp16, all five
-  modes, subnormals, zeros, inf, nan and overflow; fp32 on a 64-bit
-  cell word (#1011).
-- **The comparator** (`tools/fp_compare_v1.py`, #1009): -1 / 0 / +1,
-  or 2 when either input is a nan; fp16, bfloat16, and fp32 on a 64-bit
-  word (#1011).
-- **Wider words** (#1010/#1011): `-s flex --icm -w W` builds a W-bit
-  design, and the ram's constant port scales with the cell.
-- **Tight placement** (`tools/tightplace_v1.py`, #1012-#1016, #1026):
-  the loose builds were mostly relays (a placer gives every op a column
-  and routes through gutter lanes, `tools/netplace_v1.py`). Drawing each
-  block as a map shrank the comparator from 641 to 74 cells, the fp16
-  multiplier from 5,805 to 1,103 (folded into a U), and the fp16 adder
-  from 1,702 to 1,531 (`*_tight_v1.py`).
-
-To route these, the **crossing tile** (`cross`, ICM core 10, #999) lets
-one lane pass straight over another. It has no control logic and costs
-one tick per tile per direction (a register slice), like every other
-core. Still open: an automatic placer (layouts are drawn or templated),
-and a delay-line cell for the remaining pure-delay lanes (#1015).
-
-## On the physical board
-
-[`docs/man/tang-nano-20k-getting-started.md`](docs/man/tang-nano-20k-getting-started.md)
-covers the first flashable deliverable, a `sequencer` core counting on
-the LEDs. It is built from source to a committed bitstream
-(`fpga/build/unicell_tang_nano_20k_smoke_v2.fs`). It is **confirmed
-working on the physical board** (#896); use v2, because v1's reset
-button held the design in reset. The board's MAN file
-(`docs/man/tang-nano-20k.man.json`) is generated from the chip database
-rather than written by hand.
-
-**The flex cells have run on the board** (#1023-#1025). Ten
-self-checking bitstreams (relay chains, adders with stalls and
-constants, the three priority modes, the ram's hold and one-shot) each
-feed a generated flex design a fixed stream and compare the output with
-words from FlexGrid stored in the bitstream. All ten pass on the real
-Tang Nano 20K and match the simulation. Because the board's USB serial
-link went silent after repeated loads, they run as two grouped
-bitstreams, one load per power-up: `tools/board_tests_v1.py`,
-`tools/board_groups_v1.py`, and `run_groups.sh` give 10 of 10 PASS in
-one run. This proves the cell RTL and the handshake on silicon at
-27 MHz with small designs, not capacity or speed. The ESP32 host link is now
-built and running: see [The small unit](#the-small-unit-tang-nano-20k--sd-card--esp32) below.
-
----
-
-## The small unit: Tang Nano 20K + SD card + ESP32
-
-A working test tool built around any flex design (ledger #1036, addenda 1-12). An SD card (raw 512-byte blocks) feeds a playout RAM, the design runs, a capture RAM collects the results and writes them back to the card; an ESP32 controls it all over SPI (and by WiFi: a password-protected web page for running the unit from a phone or laptop).
-**Verified on the real board:** the CORDIC design (all six test angles match the simulator) and a full SD-card round trip. The reduction-tree and relay designs also fit the Nano and pass in simulation, but have no bitstream yet. The Wasserstein engine does not fit this chip.
-**Not yet tried on hardware:** the WiFi web sketch, the S1 reset button, loading a design from the ESP32 (research only).
-Start with [`docs/unit_bringup_guide.md`](docs/unit_bringup_guide.md); the ready-made bitstream is `fpga/build/unit_cordic_v1/unit_top.fs`; the ESP32 sketches are in `tools/esp32/`.
-
----
-
-## The Arria 10 line: the super carrier shell (Unicell-S)
-
-*This was the active line until 2026-09; it is now the earlier line (see
-"Where things stand" above). It remains the reference for the VM's std
-mode and for ICM v3/v4.*
-
-The **super carrier shell** is — a
-single physical FPGA cell that holds multiple real, different cores
-simultaneously, with the active one chosen by a runtime configuration
-write (`core_select`), not a synthesis-time choice. Every core is
-always physically present in every bitstream; only the selected one
-ever does real work. Cells wire directly to their North/South/East/
-West physical neighbors — there is no addressed bus anywhere in this
-design.
-
-**`unicell_super_v3.v` is the recommended baseline for this line** — the
-real, cheapest, fastest, and most placement-tolerant of every shell
-version built and measured, confirmed across four independent real
-axes (ALM, Fmax, register-scaling behavior at array scale, and
-tolerance of physical placement constraints). It holds 8 cores (nano,
-RAM, adder, accumulator, comparator, latch, sequencer, branch), each
-with its own separate, dedicated internal storage:
-
-| Shell | Real change from v3 | Real N=1 ALM / Fmax | Real N=10 array avg (ALM/cell) |
-|---|---|---|---|
-| `unicell_super_v1.v` | 6 cores (original) | 233 ALM / 129.48 MHz | not measured at array scale |
-| `unicell_super_v2.v` | +sequencer (7 total) | 305 ALM / 99.57 MHz | not measured at array scale |
-| **`unicell_super_v3.v`** | **+branch cell (8 total) — current baseline** | **479 ALM / 107.05 MHz** | **1030.5 ALM/cell / 68.5-75.1 MHz** |
-| `unicell_super_v4.v` | shared external storage (1 register for all 8 cores) | 708 ALM / 96.9 MHz | 1307.4 ALM/cell / 58.6 MHz — **costs more, not adopted** |
-| `unicell_super_v5.v` | v4's storage, written per-bit instead of one wide mux | 721 ALM / 95.0 MHz | not measured — **ties v4, not adopted** |
-| `unicell_super_v6.v`/`v7.v`/`v8.v` | 3 cores' own config fields read live off the shell instead of re-latched locally | 483-487 ALM / 96-107 MHz | not measured — **one core (compare) shows a real, solid win; the other two are inconclusive against normal build variance** |
-
-**Real, honest summary of that exploration:** v4/v5's shared-storage
-idea was tried, measured, and found to cost more than it saves — a
-real, negative, useful result, not a dead end hidden from view. v6-v8
-found one small, real, confirmed win (the comparator core) and two
-inconclusive results, closed for now rather than chased further.
-Full detail, including every real Quartus number behind the table
-above, is in the ledger (`points/points_07_572-652.md` onward; see
-`points/INDEX.md`).
-
-(target: IEI Mustang-F100-A10, Arria 10 GX, 10AX066H2F34E2SG, 25 MHz
-fabric clock)
-
-**Every one of this project's own core capabilities has real,
-independent, JTAG-based functional confirmation on actual silicon** —
-not just simulation, not just "Quartus compiled it" — via a real
-In-System Sources and Probes debug channel built specifically to give
-an unambiguous pass/fail regardless of whether a given board's own
-LEDs are reliably wired (a real uncertainty found and worked around
-early in this project). Branch cell in particular went from zero real
-hardware history to fully confirmed — standalone, and through the
-real v3 shell's own `core_select` routing — in one session.
-
-For full detail, see [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/stripped-cell/SUPER_CELL_INTERNALS.md).
-
-## The Arria 10's scale ceiling, and why hardware work on it closed
-
-> **9 Oct 2026:** the Arria 10 (and the Kintex-7 480T) are still target cards; bring-up is stalled, not abandoned, and a possible fix is being looked at. The text below is the measured record of why it stalled.
-
-**This card's own real, measured ceiling is roughly 200-250 cells,**
-at a real Fmax of 65-75 MHz at that scale (251,680 ALM / ~1030 ALM per
-real cell, `unicell_super_v3.v`'s own array-scale measurement — every
-alternative design tried costs more, not less, per cell). That Fmax
-is a genuine ~2.5-3x margin over the card's actual 25 MHz fabric-clock
-requirement — functionally comfortable — but 200-250 cells is not a
-large substrate by any real measure, and a systematic investigation
-(shared storage, config-sharing, physical placement constraints, a
-"moat" of small buffer cells around each super-cell) found no lever
-that moved this ceiling by more than a small amount, let alone an
-order of magnitude.
-
-Multi-card scaling remains real and possible in principle (a switched
-PCIe backplane, not the direct card-to-card link this device's own
-transceivers can't provide), but reaching a genuinely serious workload
-that way would need tens to hundreds of cards and the enterprise-class
-backplane infrastructure that implies — a real, honest cost that
-undercuts the point of a small, novel compute substrate rather than
-fulfilling it.
-
-**Conclusion at the time: this project's near-term identity is a
-small, correctness-proven hardware platform, not a compute
-accelerator in any competitive sense.** Hardware exploration on the
-Arria 10 was closed as a deliberate result. (Hardware work has since
-resumed on a different, smaller board, the Tang Nano 20K, as a
-testbed: see "Where things stand" above.) The genuinely promising path to real scale is a future custom
-ASIC (matching this project's own clockless/asynchronous architecture
-ideas, closest in spirit to Wave Computing's own DPU design) —
-confirmed as real and worth pursuing eventually, and confirmed as not
-a near-term undertaking. Ongoing work continues on the VM and
-tooling side, where scale and design exploration remain genuinely
-free of any real hardware ceiling.
-
-## The software stack (shared by both lines), and how it's verified
-
-Everything below lives in [`nano/`](nano/) unless noted, and every
-piece states plainly whether it's simulation-only or independently
-confirmed on real hardware — that distinction is kept honest
-throughout the project's own documentation, never blurred.
-
-- **ICM v3/v4** — the program format: real `SUPER_LATCH[79:0]` encode/
-  decode, verified two independent ways (bit-for-bit against real,
-  iverilog-compiled RTL test vectors, and mechanically re-derived
-  straight from the RTL's own comments). ICM v4 extends this with a
-  second real record kind for DSP wrapper cells (below), mixed freely
-  with ordinary super-cell records in the same file.
-- **A real VM** (`SuperGrid`/`SuperCell`) — event-driven, every core in
-  every shell version, a real registry so a new core type can be added
-  without touching the VM's own dispatch code. It takes a data width
-  (`width=W`, default 32), and `FlexGrid` mirrors the flex family (see
-  above).
-- **A tile library** — primitive cores plus composed multi-cell patterns
-  (`sentinel`, `dual_threshold_monitor`, `twin_sentinel`, DSP-wrapper
-  compositions), with real nested composition.
-- **A compiler and a real, purpose-built DSL** — `place`/`define`/`expose`
-  syntax, real diagnostics (what/problem/why/suggestion, not bare
-  exceptions), a naming-hygiene lint, and a circular-reference guard.
-  See [`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`](docs/stripped-cell/UNICELL_S_DSL_MANUAL.md)
-  — every example in it was independently compiled and confirmed
-  working before being written down, not just described.
-- **A second, genuinely independent frontend** — a real Python-AST
-  parser (a declarative subset of actual Python syntax), proven to
-  produce byte-identical output to the DSL for the same program.
-- **A real LLVM IR frontend** — compiles real, working loops (both
-  ascending and descending counting patterns) straight from LLVM IR's
-  own `phi`/`br`/`icmp` control flow onto a real, proven 4-cell bounded
-  loop-ring construction, plus `select` (ternary) and `icmp eq`/`ne`,
-  each lowered to a small composition of existing primitives — no
-  bespoke hardware needed for any of it. Deliberately narrow, stated
-  plainly: single induction variable, no nested loops yet.
-- **A real AI-interaction port** (`VMSession`) — compile → load → run →
-  inspect, in one clean object, with real JSON introspection of any
-  cell or the whole grid.
-- **A step-by-step, tabbed browser front end** — the recommended
-  starting point: MAN file generation, Quartus project generation,
-  and the simulated Walker, each its own tab, walking through this
-  project's own real build process in order. Every action-performing
-  page also shows the exact equivalent CLI command. Run it with:
-  ```bash
-  python3 nano/frontend_v1.py
-  # → http://localhost:7421
-  ```
-- **UniCell Bench (card front end)** — one local page that holds the
-  tools for building and running on a real card: a design picker over
-  your build folder, two real shells (Build and Card) that both `cd`
-  to the chosen design, whitelisted make / load / OpenOCD buttons, a
-  results window, and an ICM panel that turns an ICM file into a new
-  build folder for the chosen card (Kintex open-source flow, Tang, or
-  plain Verilog export for closed toolchains such as Arria 10). Run:
-  ```bash
-  python3 tools/frontend/unicell_frontend_v6.py --demo ~/openFPGALoader/build/demo-projects --repo .
-  ```
-  See `tools/frontend/README.md`. (The ICM runner has been run on the Kintex card for three designs:
-  `small_relay_chain` (#1264), the 4-input reduction tree (#1265) and the 36-cell CORDIC (#1279, #1292);
-  card equals VM in each case. The current front end is `unicell_frontend_v6.py`.)
-- **A working browser workbench** — compile a program, watch it run,
-  drive individual cells, load multiple independent programs onto one
-  shared grid as named regions, or let it auto-play at a chosen rate
-  until you pause it or the design naturally settles. Linked from the
-  front end above ("Other tools"), or run directly:
-  ```bash
-  python3 nano/workbench_v7.py
-  # → http://localhost:7420
-  ```
-  A plain-language guide is in [`docs/WORKBENCH_USER_GUIDE.md`](docs/WORKBENCH_USER_GUIDE.md), and
-  `python3 tools/workbench_clip_v1.py` records a clean demo clip of it (#1302).
-- **Real hard-IP wrapper cells** — a DSP arithmetic/comparison wrapper
-  and a shared-BRAM interface, both **independently confirmed on real
-  silicon**: correct fire/ACK/re-arming for the DSP wrapper, and real
-  BRAM read/write plus real ICM (`SUPER_LATCH`) loading over an actual
-  JTAG host bridge — the first genuinely host-driven hardware success
-  in this project's own history. Honest note: the current DSP wrapper
-  uses a real, hardware-confirmed soft-logic floating-point IP, not
-  the chip's own hard DSP blocks — that path is real and deferred, not
-  yet built.
-- **Real MAN/SHAPE/placement tooling** (`tools/`, `docs/man/`,
-  `docs/shapes/`) — a MAN file captures one card's own real, fixed
-  capabilities (device resources, confirmed pin assignments); a SHAPE
-  file captures one *compiled design's* own real cell-to-cell wiring,
-  extracted straight from its RTL; a placement file adds real physical
-  bounding boxes pulled from Quartus's own Control Signals report. See
-  `tools/README.md` for each tool's own real scope and honest
-  limitations.
-- **A real Quartus project generator** (`tools/project_assemble_v1.py`)
-  — given a MAN file and a cell count, produces a complete, ready-to-
-  import Quartus project for a real N-cell array, guarding directly
-  against a real, already-confirmed Quartus behavior (pruning logic it
-  can prove unreachable) rather than assuming it away. Now also
-  supports targeting any real shell version (not just the built-in
-  ones), a real per-cell LogicLock placement mode, and a custom,
-  explicit dependency-file list (with a real, advisory compatibility
-  check) for mixing and matching core versions without hand-writing a
-  Quartus project file list each time.
-
-## The VIX Carrier — a 9-core generation (sim-only, no Quartus data)
-
-Alongside `unicell_super_v1.v`-`v8.v` above, a genuinely separate,
-parallel core family was built: a real 9th core (`command`), each of
-the 9 cores wrapped in its own new cardinal control shell (so
-`active`/`freeze_in`/nano's own feedback ports become real 4-way
-cardinal ports instead of flat wires), all combined into one
-mutually-exclusive, runtime-selected cell: `unicell_vix_carrier_v1.v`
-("V" for version, "IX" for the real 9th-core count). The command core
-watches for a real toggle pattern to trigger a burst, or drives a
-freeze-and-relay programming sequence onto a neighboring cell — real,
-new mechanisms this project didn't have before.
-
-**Real, honest status:** RTL and VM both real and sim-verified —
-including a genuine bounded loop-ring wired through the new cardinal
-shells, and a command core actually programming a fresh, never-
-configured target end to end. **No Quartus/silicon data exists for
-this family yet** — the Quartus license expired before a real build
-could be run — and it has no portable, on-disk ICM file format of its
-own; ICM v3/v4 above are scoped to the older lineage only. (On the
-Tang Nano 20K one carrier position measures ~80% of the chip, #887,
-which is what led to the sub/flex families.) Full detail:
-[`docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md`](docs/stripped-cell/CORES_AND_WRAPPERS_REFERENCE.md).
+| **Tang Nano 20K** (Gowin GW2AR-LV18, 27 MHz) | A sequencer counting on the LEDs; ten self-checking flex-cell tests (10 of 10); mixed flex, standard, carrier and sub designs equal to simulation; loops and rings; back-pressure, freeze, and save and restore in flight with identical end state; faults injected during capture and restore all caught and retried; a LaTeX formula carried through to a bitstream; cross and corner tiles; the division core; "no interrupts" and parallel-work tests (131 clocks each, equal to simulation) | #896, #1024, #1087-#1187 |
+| **Kintex-7** (XC7K480T) | An ICM file picked in the front end, built into a project with the open openXC7 flow and fed and read over JTAG: a relay chain, a 4-input reduction tree and the 36-cell CORDIC each equal the VM (the CORDIC also passed a 16-word signed set); design fingerprint accepted and a wrong design refused; wire witnesses saw 39 of 39 connections and 40 of 40 cells of the CORDIC on the card's own wires | #1264-#1292 |
+| **Arria 10** (IEI Mustang-F100-A10) | Every core of the super carrier shell, over JTAG. A measured ceiling of about 200 to 250 cells closed hardware work there; it is still the reference for the VM's standard mode | Aug-Sep 2026 |
+
+**Not shown:** a design larger than a small one on any card, clock rates for the LaTeX-built designs beyond estimates, a direct sub-to-carrier crossing (the assembler refuses it on purpose), more than the three designs that have run through the Kintex path, or any 3D hardware. A hand-written Verilog design gets the same save and restore from a clock enable and a scan chain ([`docs/freeze/PURE_VERILOG_FREEZE.md`](docs/freeze/PURE_VERILOG_FREEZE.md)). Every mechanism here also has published relatives: dataflow circuits, elastic CGRAs, FPGA state save ([`docs/prior_art/PRIOR_ART_REPORT.md`](docs/prior_art/PRIOR_ART_REPORT.md)). The review is a first pass and is not a proof of novelty either way.
+
+## Ways in
+
+Start wherever suits you. Each page also shows the command-line equivalent of what it does.
+
+| If you want to... | Use |
+|---|---|
+| Follow the whole build in order: MAN file, project, Walker | the tabbed front end, `python3 nano/frontend_v1.py` (port 7421) |
+| Watch a design run, drive cells, see what changes | the **Workbench**, `python3 nano/workbench_v7.py` (port 7420), guide in [`docs/WORKBENCH_USER_GUIDE.md`](docs/WORKBENCH_USER_GUIDE.md); it can read a card's own SHAPE and show the difference |
+| Turn an ICM file into a project for a real card and run it | **UniCell Bench**, `python3 tools/frontend/unicell_frontend_v6.py --demo <demo folder> --repo .`, notes in [`tools/frontend/README.md`](tools/frontend/README.md) |
+| Write a formula instead of drawing cells | the LaTeX front end, `python3 nano/latex_cli_v1.py "y = (a + b)^2 - 3c" --set a=2 --set b=3 --set c=4 -o poly.icm` |
+| Write a program | the DSL ([manual](docs/stripped-cell/UNICELL_S_DSL_MANUAL.md)), the Python-AST front end, or LLVM IR |
+| Learn how computers work through the cells | the [teaching manual](docs/teaching_manual.html), 24 interactive tabs, every figure captured from a real run; not yet tried with real learners |
+| Read the whole project as a manual | [`docs/manual.html`](docs/manual.html) |
+| Explore six-face (stacked, 3D) cells | the 3D kit, below |
+
+## Other parts that have been built
+
+- **The sub and flex families** ([`sub/`](sub/README.md)): every cell with its own self-checking testbench, measured costs against width, and a second output port so that, for example, a 64-bit add from two 32-bit limbs works. The Flex-Sub assembler (`tools/project_assemble_v1.py`) turns an ICM file into Verilog for a chosen family and card.
+- **Arithmetic from cells.** A division core (one cell instead of about 23,000 for a written-out division); a LaTeX front end that checks every design against a plain evaluation of the same formula; stored plans and blocks (Horner polynomials, sums, a multiply-accumulate block, matrices); and floating point built from cells (the adder complete in all five rounding modes with subnormals, inf and nan; the fp16 multiplier; the fp16 and bfloat16 comparator).
+- **The small unit:** a Tang Nano 20K, an SD card and an ESP32 as a test tool for any flex design. The CORDIC design and a full SD-card round trip have run on the real board ([`docs/unit_bringup_guide.md`](docs/unit_bringup_guide.md)).
+- **The 3D exploration** ([`experimental/three_d/`](experimental/three_d/README.md)): a software study of cells with six faces (north, south, east, west, up, down) for stacked-chip designs. It has its own composer (a floor plan, a rotatable 3D view and a depth slider that shows one layer and fades the rest), an automatic placer that proves each layout by running it, a file format (ICM-3D v2) and its own manual and **download kit** (`python3 experimental/three_d/make_bundle_v1.py`; the kit needs only Python). It is **exploration only**: there is no 3D RTL and no card, and the automatic placer's layouts are larger than the hand-placed one (80 cells against 44 for the NOR adder). The paper audit of what each cell type needs for six faces is [`experimental/three_d/CELL_AUDIT_6_FACE.md`](experimental/three_d/CELL_AUDIT_6_FACE.md).
+- **Hex-N:** an idea for a silicon neural cell that shares roots with UniCell, kept on its own branch. It is a different design and nothing on it changes the UniCell results here.
 
 ## Quick start
 
-**One-stop install (new, 9 Oct 2026):** get the folder (a `git clone`, or the
-zip / `.onion` kit built by `tools/make_package_v1.py`), then run
-`python3 quickstart.py --install`. It makes a private environment in the
-folder, installs everything pip can supply (numpy, llvmlite, pycparser, pytest
-and the YoWASP yosys / nextpnr / apycula bitstream tools) and runs the
-self-test. Two things pip cannot supply are listed with the command for your
-system: `iverilog` (simulation) and `openFPGALoader` (loading the board).
-Tested on Linux only; the Windows and macOS paths are written but not run.
-
-There is no pip-installable package yet — everything runs as scripts directly
-from the folder. The flex/sub suites need `iverilog` and
-`yosys` on the path, and `pytest` and `llvmlite` installed. **Without
-`iverilog` they skip and exit 0, which looks like a pass** (#965), so
-check before trusting a run:
+Get the folder (`git clone`, or the zip or `.onion` kit built by `tools/make_package_v1.py`) and run:
 
 ```bash
-git clone https://github.com/alh-Imago/Imago-Unicell.git
-cd Imago-Unicell
-python3 quickstart.py        # checks what you have installed, runs a 10-second self-test, says what to do next
-which iverilog yosys && python3 -c "import pytest, llvmlite"
+python3 quickstart.py --install      # a private environment inside the folder, the pip tools, and a self-test
+python3 quickstart.py                # what you have, and what to do next
+which iverilog yosys && python3 -c "import pytest, llvmlite"   # check the toolchain before trusting a test run
+```
 
-# Run the VM test suite, then the flex/sub suites (each is a plain script)
-python3 -m pytest tests/vm -q
-# Or the one-command runner (checks the toolchain first; skips tests that a newer file replaced):
-python3 tools/quick_check_v2.py --changed   # only tests that name a file you changed
-python3 tools/quick_check_v2.py --full      # everything: hours (last full run, #1307: tests/vm 2,958 passed, 13 skipped;
-                                            # the 4 failures were all superseded files, now skipped by v2)
-for t in tests/test_*.py; do python3 "$t" || echo "FAILED: $t"; done
+Two programs pip cannot supply are listed with the command for your system: `iverilog` (simulation) and `openFPGALoader` (loading a board). **Without `iverilog` the flex and sub suites print SKIP and exit 0, which looks like a pass** (#965). The install path has been tried on Linux only.
 
-# Compile a DSL program to a real ICM v3 file
-python3 nano/dsl_cli_v1.py your_program.uc -o out.icm
+```bash
+python3 tools/quick_check_v2.py --changed   # only the tests that name a file you changed
+python3 tools/quick_check_v2.py             # everything except the slow ones
+python3 tools/quick_check_v2.py --full      # everything: takes hours
+```
 
-# Generate Verilog for the Tang Nano 20K from an ICM-VIX file (flex family)
+`tests/vm` held about 2,960 tests on 20 October and has grown since (the 3D work alone adds 55). The last full run (20 October, #1307) was 2,958 passed and 13 skipped; its only failures were old tests since replaced by newer files.
+
+A first design, from an ICM file to Verilog for the Tang:
+
+```bash
 python3 tools/project_assemble_v1.py -s flex --icm nano/examples/small_relay_chain.icm-hier.json \
     --man docs/man/tang-nano-20k.man.json --output build/relay
-
-# Or drive the whole compile → run → inspect loop from Python directly
-python3 -c "
-import sys; sys.path.insert(0, 'nano')
-from vm_ai_port_v1 import VMSession
-
-session = VMSession.from_dsl('''
-program my_sentinel {
-    place s1 as sentinel at (0, 0) {
-        inc: n
-        dec: s
-        clear: s
-        out: e
-        cmp.threshold: 8
-    }
-}
-''')
-session.tick(5)
-print(session.describe())
-"
-
-# Or open the tabbed front end (MAN file -> Quartus project -> Walker)
-python3 nano/frontend_v1.py
-
-# Or just open the browser workbench directly
-python3 nano/workbench_v7.py
 ```
 
 ## Documentation
 
-- [`docs/README.md`](docs/README.md) — the documentation index.
-- [`sub/README.md`](sub/README.md) — the sub and flex cell families:
-  every cell, its measurements, and the design rules behind it.
-- [`docs/man/README.md`](docs/man/README.md) — MAN files: one card's
-  fixed capabilities (Arria 10 and Tang Nano 20K), including the DSP,
-  synthesis and cost tables the assembler reads.
-- [`docs/man/tang-nano-20k-getting-started.md`](docs/man/tang-nano-20k-getting-started.md)
-  — flashing the first deliverable onto the board.
-- [`docs/stripped-cell/ICM_V3_FORMAT.md`](docs/stripped-cell/ICM_V3_FORMAT.md)
-  and [`docs/stripped-cell/ICM_VIX_FORMAT.md`](docs/stripped-cell/ICM_VIX_FORMAT.md)
-  — the program formats, including the target-agnostic flags.
-- [`tools/README.md`](tools/README.md) — the assembler (both lines),
-  the Flex-Sub generators, the measurement tools, and their limits.
-- [`docs/stripped-cell/UNICELL_S_DSL_MANUAL.md`](docs/stripped-cell/UNICELL_S_DSL_MANUAL.md)
-  — the DSL language reference.
-- [`docs/stripped-cell/SUPER_CELL_INTERNALS.md`](docs/stripped-cell/SUPER_CELL_INTERNALS.md)
-  — the Arria 10 line's shell/RTL reference.
-- [`docs/teaching_manual.html`](docs/teaching_manual.html) — the teaching manual: how the cells, the VM, the compiler, the assembler and the MAN files work, one interactive tab each (built by `python3 docs/build_teaching_manual.py` from the fragments and captured data in [`docs/teaching/`](docs/teaching/README.md); the captures are re-made by the `capture_*_v1.py` scripts there). Separate from `docs/manual.html`.
-- `points/` — the project's append-only, numbered decision log (split
-  across files since it outgrew GitHub's render limit; start at
-  [`points/INDEX.md`](points/INDEX.md)). Every design decision, bug
-  found and measurement taken is in here with its reasoning.
-- [`current/latest.md`](current/latest.md) — a short summary per recent
-  ledger entry, newest first.
-- [`docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md`](docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md)
-  — which docs are current and which have fallen behind. Read it before
-  relying on an older reference doc.
+- [`docs/README.md`](docs/README.md): the documentation index. [`docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md`](docs/shared/DOCS_AND_STATIC_PAGES_AUDIT.md) says which docs are current and which have fallen behind; read it before relying on an older reference.
+- [`sub/README.md`](sub/README.md): the sub and flex families, every cell and its measurements. [`tools/README.md`](tools/README.md): the assembler and measurement tools.
+- [`docs/stripped-cell/ICM_V3_FORMAT.md`](docs/stripped-cell/ICM_V3_FORMAT.md) and [`ICM_VIX_FORMAT.md`](docs/stripped-cell/ICM_VIX_FORMAT.md): the program formats. [`experimental/three_d/ICM_3D_FORMAT.md`](experimental/three_d/ICM_3D_FORMAT.md): the six-face format.
+- [`docs/man/README.md`](docs/man/README.md): MAN files, one card's fixed capabilities; [`docs/man/tang-nano-20k-getting-started.md`](docs/man/tang-nano-20k-getting-started.md): the first flashable design.
+- [`docs/PROJECT_PHILOSOPHY.md`](docs/PROJECT_PHILOSOPHY.md): why the project is built the way it is.
+- [`points/`](points/INDEX.md): the append-only numbered ledger of every decision, measurement and correction; [`current/latest.md`](current/latest.md): a short summary of each recent entry, newest first.
+- [`docs/README_STATUS_RECORD_20261020.md`](docs/README_STATUS_RECORD_20261020.md): the earlier, detailed README: the full card table, the Arria 10 shell history and its scale ceiling, the VIX carrier, the floating-point write-up and the notes on archived work.
 
-## What's genuinely archived, and why
+## Earlier work
 
-A large amount of earlier work — an older, addressed-bus cell
-architecture (`gate_state`-configured cells sharing a wired-OR bus), its
-own compiler/VM/tile-library stack, an OS-layer (Companion/Shore/Ward),
-a domain-model ecosystem (the Trix family), and assorted tooling — is
-real prior work, but built for a fundamentally different, incompatible
-architecture than the one described above. None of it is deleted:
-every file is preserved byte-for-byte, independently checksum-verified,
-in `archeology/onion/` (real, searchable metadata per archive — see
-`points.md` #364-#367 for the full record of what moved and why). If
-you're looking for something referenced in older material and it's not
-where you expect, it's very likely in there.
-
-The Trix family specifically is a real, deliberate conclusion, not
-just an artifact of the archival sweep: designing a proper interface
-for even one small, well-bounded piece of real hardware (see the DSP
-design notes under `docs/stripped-cell/design-notes/`) takes genuine,
-careful, bit-level work — checking exactly which operations touch which
-part of a value, finding real constraints that only show up once you
-go and check. Trix wasn't one domain needing that treatment; it was a
-whole family of them (fluid dynamics, neuron models, MIDI, sensor data,
-and more), each with a genuinely different natural structure, each
-needing that same depth of design work done again from scratch — on a
-substrate that's still flat 32-bit integers today, with no signed
-number representation and no fixed-point convention at all. Real,
-useful domain logic, not lost — just not something this substrate is
-ready to carry yet, and not a small gap to close.
+An older, addressed-bus architecture, its compiler and VM, an OS layer and a family of domain models were built for a different, incompatible design and have been archived, not deleted: every file is kept byte for byte in `archeology/onion/` with searchable metadata. The Arria 10 line (the super carrier shell, eight cores per cell) and the nine-core VIX carrier are described in the status record above; the VIX carrier has RTL and VM results only, with no Quartus or silicon data.
 
 ## Licence
 
-Imago UniCell is dual-licensed, with software and hardware under
-separate permissive licences appropriate to each:
+Software (the Python VM, compiler and tools): [MIT](LICENSE). Hardware (Verilog RTL, cell architecture, FPGA gateware): [CERN Open Hardware Licence v2, Permissive](LICENSE-HARDWARE). Both are permissive and ask only that the notices are kept. See [NOTICE](NOTICE) for which licence covers which files.
 
-- **Software** (the Python VM, compiler, tooling) — [MIT License](LICENSE)
-- **Hardware** (Verilog RTL, cell architecture, FPGA gateware) —
-  [CERN Open Hardware Licence v2 - Permissive](LICENSE-HARDWARE)
-
-Both are permissive and attribution-only. You are free to use, study,
-modify, make, and distribute every part of this project, including
-commercially, provided you retain the relevant notices. See
-[NOTICE](NOTICE) for the full explanation of which licence covers which
-files and why.
-
-**Copyright (c) 2026 Imago UniCell Project.** All rights reserved except as granted by the two licences above.
-
-| Covers | Licence | SPDX identifier | File |
-|---|---|---|---|
-| Software: the Python VM, compiler, tooling | MIT License | `MIT` | [`LICENSE`](LICENSE) |
-| Hardware: Verilog RTL, cell architecture, FPGA gateware | CERN Open Hardware Licence v2 - Permissive | `CERN-OHL-P-2.0` | [`LICENSE-HARDWARE`](LICENSE-HARDWARE) |
-
-The licence texts and the copyright notice must be kept with any copy or
-substantial portion of the project. The licences carry no warranty. See
-[`NOTICE`](NOTICE) for which files fall under which licence.
+**Copyright (c) 2026 Imago UniCell Project.**
