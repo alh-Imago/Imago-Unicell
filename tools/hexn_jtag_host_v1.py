@@ -16,8 +16,20 @@ def unpack(cap):
 class JtagLink:
     def __init__(self, scan, maxpoll=200000):
         self.scan = scan; self.seq = 0; self.abs_got = 0; self.rxq = bytearray(); self.rxfree = 0; self.maxpoll = maxpoll
-        self.scans = 0; self.bad = 0; self.resends = 0
+        self.scans = 0; self.bad = 0; self.resends = 0; self.synced = False
+    def _sync(self):
+        """A new link may meet a card that an earlier run left mid-stream (its byte counter pop_total and last seq are not zero, and the card only drops bytes when the ack is ahead of its own counter). Read the card's counters first, line up with them, and throw away whatever stale bytes it still holds."""
+        self.synced = True
+        for _ in range(self.maxpoll):
+            cap = unpack(self.scan(pack(0, 0, 0, b""))); self.scans += 1
+            if cap["ok"]: self.abs_got = cap["pop"]; self.seq = cap["echo"]; break
+            self.bad += 1
+        for _ in range(60):
+            c = self._frame()
+            if c is not None and c["nvalid"] == 0: break
+        self.rxq.clear()
     def _frame(self, send=b"", seq=None):
+        if not self.synced: self._sync()
         cap = unpack(self.scan(pack(len(send), self.abs_got & 255, self.seq if seq is None else seq, send))); self.scans += 1
         if not cap["ok"]: self.bad += 1; return None
         start = self.abs_got - ((self.abs_got - cap["pop"]) & 255)
