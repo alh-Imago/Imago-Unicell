@@ -1,0 +1,682 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>3D Kit manual — Imago UniCell</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"><style>
+:root {
+  --bg: #0e130f; --bg-panel: #161d18; --bg-panel-2: #1c241d; --bg-input: #0b100c;
+  --line: #2a352c; --line-soft: #1f2921;
+  --fg: #e9ede6; --fg-dim: #9aab98; --fg-faint: #627262;
+  --copper: #c17f45; --copper-dim: #8a5c30; --gold: #d9b46a;
+  --ok: #7fae7a; --ok-bg: #18241a; --warn: #c1a145; --warn-bg: #241f15; --err: #d0786a; --err-bg: #2a1a17;
+  --in: #7fa6d0;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --font-sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --measure: 760px; --wide: 1180px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  background-image: linear-gradient(var(--line-soft) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 28px 28px; background-position: -1px -1px;
+  font-family: var(--font-sans); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+a { color: var(--copper); text-decoration: none; }
+a:hover { color: var(--gold); text-decoration: underline; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: 2px;
+}
+h1, h2, h3 { font-family: var(--font-mono); font-weight: 600; letter-spacing: -0.01em; color: var(--fg); margin: 0 0 0.5em; }
+h1 { font-size: 1.7rem; line-height: 1.2; }
+h2 { font-size: 1.15rem; margin-top: 2em; }
+h3 { font-size: 0.95rem; color: var(--copper); }
+p, li { color: var(--fg-dim); }
+p { max-width: var(--measure); margin: 0 0 1em; }
+b, strong { color: var(--fg); }
+code, .mono, pre, kbd { font-family: var(--font-mono); }
+code { font-size: 0.88em; color: var(--gold); overflow-wrap: anywhere; }
+pre code { overflow-wrap: normal; }
+pre { background: var(--bg-input); border: 1px solid var(--line); padding: 12px 14px; overflow-x: auto;
+      font-size: 0.82rem; color: var(--fg-dim); white-space: pre; }
+pre code { color: inherit; }
+
+/* header / nav / footer */
+header.site { border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20;
+              background: rgba(14,19,15,0.94); backdrop-filter: blur(6px); }
+.site-nav { max-width: var(--wide); margin: 0 auto; padding: 12px 24px; display: flex; align-items: center;
+            justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.brand { font-family: var(--font-mono); font-weight: 600; color: var(--fg); display: flex; align-items: baseline; gap: 8px; }
+.brand .dot { color: var(--copper); }
+.brand small { color: var(--fg-faint); font-weight: 400; font-size: 0.75rem; }
+nav.links { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+nav.links a { color: var(--fg-dim); font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.02em; }
+nav.links a:hover { color: var(--copper); text-decoration: none; }
+nav.links a.active { color: var(--fg); border-bottom: 1px solid var(--copper); }
+nav.links .sep { width: 1px; height: 14px; background: var(--line); }
+.menu-toggle { display: none; }
+@media (max-width: 700px) {
+  nav.links { display: none; width: 100%; flex-direction: column; align-items: flex-start; gap: 6px; }
+  nav.links.open { display: flex; }
+  nav.links .sep { display: none; }
+  .menu-toggle { display: inline-flex; background: none; border: 1px solid var(--line); color: var(--fg);
+                 font-family: var(--font-mono); padding: 5px 10px; cursor: pointer; margin: 0; }
+}
+main { padding: 32px 0 48px; }
+.wrap { max-width: var(--wide); margin: 0 auto; padding: 0 24px; }
+.wrap.narrow { max-width: calc(var(--measure) + 48px); }
+footer.site { border-top: 1px solid var(--line); padding: 18px 0 28px; color: var(--fg-faint);
+              font-family: var(--font-mono); font-size: 0.75rem; }
+footer.site .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+           color: var(--fg-faint); display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.7em; }
+.eyebrow::before { content: ""; width: 7px; height: 7px; background: var(--copper); transform: rotate(45deg); }
+.help { float: right; font-size: 1.1rem; text-decoration: none; color: var(--fg-faint); }
+.help:hover { color: var(--gold); text-decoration: none; }
+
+/* panels, notes, results */
+.panel { background: var(--bg-panel); border: 1px solid var(--line); padding: 16px 18px; margin-bottom: 14px; }
+.panel h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+.note, .real, .placeholder { border: 1px solid var(--line); border-left: 3px solid var(--fg-faint);
+        background: var(--bg-panel); padding: 10px 14px; margin: 14px 0; color: var(--fg-dim); max-width: var(--measure); }
+.real, .note.ok { border-left-color: var(--ok); }
+.placeholder, .note.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+.result { margin: 18px 0; padding: 12px 14px; border: 1px solid var(--line); max-width: var(--measure); }
+.result.ok { border-left: 3px solid var(--ok); background: var(--ok-bg); }
+.result.err { border-left: 3px solid var(--err); background: var(--err-bg); }
+.result h2 { margin-top: 0.8em; }
+.muted { color: var(--fg-faint); font-size: 0.85em; }
+.status { color: var(--in); font-size: 0.85em; }
+.error-text { color: var(--err); }
+.hint-text { color: var(--warn); }
+
+/* tables */
+table.fields { width: 100%; max-width: var(--measure); border-collapse: collapse; font-size: 0.86rem; margin: 8px 0 18px; }
+table.fields th { text-align: left; font-family: var(--font-mono); font-weight: 500; color: var(--fg-faint);
+                  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+table.fields td { border-bottom: 1px solid var(--line-soft); padding: 6px 8px; color: var(--fg-dim); vertical-align: top; }
+table.fields td:first-child { color: var(--fg); white-space: nowrap; }
+@media (max-width: 700px) { table.fields { display: block; overflow-x: auto; } table.fields td:first-child { white-space: normal; } }
+
+/* forms */
+form.tool { max-width: var(--measure); }
+label { display: block; margin-top: 12px; font-size: 0.85rem; color: var(--fg-dim); }
+label.inline { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; }
+input, select, textarea {
+  font: inherit; font-size: 0.88rem; color: var(--fg); background: var(--bg-input);
+  border: 1px solid var(--line); padding: 6px 8px; border-radius: 0;
+}
+form.tool input:not([type=checkbox]):not([type=radio]), form.tool select, form.tool textarea { width: 100%; margin-top: 3px; display: block; }
+textarea { font-family: var(--font-mono); font-size: 0.82rem; }
+input[type=checkbox], input[type=radio] { accent-color: var(--copper); width: auto; }
+input:focus, select:focus, textarea:focus { border-color: var(--copper-dim); outline: none; }
+button, .btn {
+  font-family: var(--font-mono); font-size: 0.82rem; color: var(--fg); background: transparent;
+  border: 1px solid var(--copper-dim); padding: 7px 14px; margin: 6px 6px 6px 0; cursor: pointer; display: inline-block;
+}
+button:hover, .btn:hover { border-color: var(--gold); color: var(--gold); background: var(--bg-panel-2); text-decoration: none; }
+button.primary { border-color: var(--copper); background: rgba(193,127,69,0.12); }
+button.danger { border-color: #6a3a30; }
+button.danger:hover { border-color: var(--err); color: var(--err); }
+form.tool button[type=submit] { margin-top: 20px; }
+
+.m3 { display: grid; grid-template-columns: 250px 1fr; gap: 28px; align-items: start; }
+.m3 nav.toc { position: sticky; top: 64px; max-height: calc(100vh - 80px); overflow-y: auto; font-size: 14px; padding-right: 6px; }
+.m3 nav.toc h4 { margin: 14px 0 4px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-dim); }
+.m3 nav.toc a { display: block; padding: 2px 0; color: var(--fg-dim); text-decoration: none; overflow-wrap: anywhere; }
+.m3 nav.toc a:hover, .m3 nav.toc a.cur { color: var(--copper); }
+.m3 nav.toc a.sub { padding-left: 12px; font-size: 13px; }
+.m3 article { min-width: 0; max-width: var(--measure); }
+.m3 article section { margin-bottom: 56px; padding-top: 8px; }
+.m3 article table { border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; margin: 10px 0; }
+.m3 article th, .m3 article td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; vertical-align: top; font-size: 14px; }
+.m3 article th { background: var(--bg-panel); }
+.m3 article pre { background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; font-size: 13px; }
+.m3 article code { font-family: var(--font-mono); font-size: .92em; }
+.m3 article blockquote { border-left: 3px solid var(--copper); margin: 12px 0; padding: 4px 14px; color: var(--fg-dim); background: var(--bg-panel); }
+@media (max-width: 860px) { .m3 { grid-template-columns: 1fr; } .m3 nav.toc { position: static; max-height: none; } }
+</style></head><body><header class="site"><div class="site-nav"><div class="brand"><span class="dot">&#9670;</span>IMAGO UNICELL <small>3D kit &middot; manual</small></div><nav class="links"><a href="/">Composer</a></nav></div></header><main><div class="wrap"><div class="m3"><nav class="toc" aria-label="contents"><h4>Manual</h4><a href="#imago-unicell-3d-kit-manual">Imago UniCell 3D Kit — manual</a><a href="#1-what-this-is-and-what-it-is-not" class="sub">1. What this is, and what it is not</a><a href="#2-quick-start" class="sub">2. Quick start</a><a href="#3-the-ideas-in-plain-words" class="sub">3. The ideas, in plain words</a><a href="#4-the-3d-composer" class="sub">4. The 3D Composer</a><a href="#5-the-automatic-placer" class="sub">5. The automatic placer</a><a href="#6-icm-3d-v2-the-file-format" class="sub">6. ICM-3D v2 — the file format</a><a href="#7-the-three-file-formats" class="sub">7. The three file formats</a><a href="#8-checks" class="sub">8. Checks</a><a href="#9-limits-what-is-not-done" class="sub">9. Limits — what is not done</a><a href="#10-troubleshooting" class="sub">10. Troubleshooting</a><h4>ICM-3D v2 specification</h4><a href="#icm-3d-v2-a-file-format-for-six-face-3d-designs-flex-family">ICM-3D v2 — a file format for six-face (3D) designs, flex family</a><a href="#why-a-separate-format" class="sub">Why a separate format</a><a href="#what-a-record-says" class="sub">What a record says</a><a href="#two-forms" class="sub">Two forms</a><a href="#use" class="sub">Use</a><a href="#not-done" class="sub">Not done</a><h4>Cell audit: six faces</h4><a href="#what-each-cell-type-needs-to-have-six-faces-n-s-e-w-u-d">What each cell type needs to have six faces (N, S, E, W, U, D)</a><a href="#the-short-answer" class="sub">The short answer</a><a href="#flex-sub-family-only-three-cells-know-about-faces" class="sub">Flex / sub family: only three cells know about faces</a><a href="#standard-family-the-core-by-core-table-v4c-rtl" class="sub">Standard family: the core-by-core table (v4c RTL)</a><a href="#the-icm-v3-file-format-is-the-one-real-squeeze" class="sub">The ICM v3 file format is the one real squeeze</a><a href="#wires-per-face-the-cost-of-two-more-faces" class="sub">Wires per face (the cost of two more faces)</a><a href="#software-that-hard-codes-four-directions" class="sub">Software that hard-codes four directions</a><a href="#what-was-not-checked" class="sub">What was NOT checked</a><a href="#decisions-only-alan-can-make" class="sub">Decisions only Alan can make</a></nav><article><section id="sec-manual"><h1 id="imago-unicell-3d-kit-manual">Imago UniCell 3D Kit — manual</h1>
+<p><em>Version of 23 Oct 2026 (ledger #1310–#1314). This kit is </em><em>separate from the main UniCell tools</em><em>: its own composer, its own placer, its own file formats. It does not need, and is not connected to, the main Composer, the workbench or the front panel.</em></p>
+<h2 id="1-what-this-is-and-what-it-is-not">1. What this is, and what it is not</h2>
+<p>The kit explores one idea: what if a cell had <strong>six</strong> neighbours — north, south, east, west, <strong>up and down</strong> — so that a design can be built in layers, the way a stacked chip is? It lets you <strong>draw</strong> such a design, <strong>run</strong> it, <strong>place it automatically</strong>, and <strong>save it in a file format</strong> meant for six-face cells.</p>
+<p><strong>It is an exploration, not a product.</strong> Be clear about this before relying on anything here:</p>
+<ul>
+<li><strong>There is no 3D hardware, no 3D RTL and no card to run any of this on.</strong> Everything runs in software, in a small <em>toy model</em> of the six-face grid (<code>experimental_3d_nor_v2.py</code>): a cell passes a word on, or combines two words with a gate, one cell per tick.</li>
+<li>The number of layers is <strong>free</strong> (a stack can be 2 or 20 high). The cells themselves have to carry all six faces.</li>
+<li>The three file formats in this kit (design, netlist, ICM-3D) are <strong>read only by this kit</strong>. Nothing else — no assembler, no generator, no FPGA flow — reads them.</li>
+<li>Timing in the toy (one tick per cell) is <strong>not</strong> hardware timing.</li>
+</ul>
+<h2 id="2-quick-start">2. Quick start</h2>
+<p>You need <strong>Python 3.12 or newer</strong> (tested on 3.13; nothing outside the standard library). From the folder that holds this manual:</p>
+<pre><code>python3 run_composer.py
+</code></pre>
+<p>The 3D Composer opens in your browser at <strong>http://127.0.0.1:7422</strong>. (<code>--port 7430</code> changes the port, <code>--no-browser</code> stops it opening a window, <code>--example adder_auto</code> starts with an example loaded.) Stop it with Ctrl+C.</p>
+<p>First things to try, in the page:</p>
+<ol>
+<li><strong>Open an example…</strong> → <em>NOR adder, 44 cells, 3 layers</em>.</li>
+<li>Drag the <strong>Depth</strong> slider: the layer you are on is shown in full, everything on other layers fades.</li>
+<li>Drag in the <strong>3D view</strong> to rotate; press <strong>Top</strong>, <strong>Front</strong>, <strong>Side</strong>, <strong>3/4</strong>.</li>
+<li>In the <strong>Run / step</strong> panel give A and B some numbers, choose <strong>watch</strong> <code>E</code>, press <strong>Start</strong>, then <strong>Run to end</strong>: E holds A + B.</li>
+</ol>
+<p>To check the whole kit works: <code>python3 run_tests.py</code> (needs <code>pytest</code>: <code>pip install pytest</code>).</p>
+<h2 id="3-the-ideas-in-plain-words">3. The ideas, in plain words</h2>
+<ul>
+<li><strong>Six faces.</strong> Every cell has N, S, E, W, U, D. A cell sends a word out of the faces you switch on; a neighbour receives it through its opposite face.</li>
+<li><strong>Layers.</strong> Up/down moves to the next layer. Layer 0 is the bottom. The board is rows × columns × layers.</li>
+<li><strong>Two kinds of cell.</strong></li>
+<li><strong>Relay</strong> — passes the word on, optionally <strong>shifted</strong> left or right by 0–31 bits. In ICM-3D terms a relay is a <strong>ram cell in flowing (pass-through) mode</strong>: one word in, one or more faces out (Alan, 23 Oct 2026; read from <code>ram_cell_v4sa.v</code>). The shift is the add-on.</li>
+<li><strong>Gate</strong> — waits for <strong>two</strong> words, then outputs AND, OR, XOR, NOR, NAND or XNOR of them. In ICM-3D a gate is a <strong>nano</strong> cell with the toy's topology code.</li>
+<li><strong>Joins.</strong> A "join" is just a face switched on towards a neighbour. Cells that are not neighbours are joined by a chain of relay cells laid between them.</li>
+<li><strong>Entries and exits.</strong> An <strong>entry</strong> is a cell that sends but receives nothing: you give it a word to start. An <strong>exit</strong> is a cell that receives but sends nothing: you read the answer there.</li>
+<li><strong>Ticks.</strong> In each tick every cell that has a word passes it on; it arrives next tick. A gate fires when its second word arrives. There is no flow control: one set of words at a time.</li>
+<li><strong>Nothing crosses by accident.</strong> A cell sends only through the faces switched on, so two wires can pass side by side or one over the other without touching. The only rule: two wires never share a cell.</li>
+</ul>
+<h2 id="4-the-3d-composer">4. The 3D Composer</h2>
+<h3 id="the-page">The page</h3>
+<ul>
+<li><strong>Floor plan</strong> (left): one layer, editable. The layers above (▲n) and below (▼n) are drawn faded behind it. A gold triangle on a tile means it sends up or down; a hollow gold triangle means it receives from there.</li>
+<li><strong>3D view</strong> (right): the whole stack in perspective. The current layer's sheet is outlined in copper; its cells are drawn solid and labelled, other layers are faded.</li>
+<li><strong>Depth slider</strong> (and the ▼ ▲ buttons, or the <code>[</code> and <code>]</code> keys): chooses the current layer. The <strong>others</strong> menu sets how strongly other layers fade (hidden · very faint · faint · visible); layers further from the current one fade more. <strong>layer gap</strong> spreads the layers apart in the 3D view. <strong>show</strong> switches between plan + 3D, plan only and 3D only.</li>
+<li><strong>3D view controls:</strong> drag to rotate; shift-drag or right-drag to pan; mouse wheel to zoom; <strong>3/4 · Top · Front · Side</strong> presets; <strong>Spin</strong> turns it slowly. Click a cell to select it.</li>
+</ul>
+<h3 id="tools">Tools</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Select</strong></td>
+<td>click a cell to select it and edit it in the <em>Selected</em> panel</td>
+</tr>
+<tr>
+<td><strong>Place</strong></td>
+<td>pick Relay or a gate in the palette, then click an empty square of the current layer</td>
+</tr>
+<tr>
+<td><strong>Join</strong></td>
+<td>click a source cell, then a target cell. Neighbours get a face; otherwise a shortest chain of relay cells is laid through free squares. The box <em>joins may route through other layers</em> chooses whether the chain may leave the current layer</td>
+</tr>
+<tr>
+<td><strong>Delete</strong></td>
+<td>click a cell (or select it and press Delete)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-selected-panel">The Selected panel</h3>
+<p>Name, kind (relay/gate), gate type, shift bits and direction (relay only), and <strong>six face buttons</strong> N S E W U D — a face can be switched on only where a neighbouring cell exists. It also shows what the cell receives from, and a <strong>Delete cell</strong> button.</p>
+<h3 id="board-and-layers">Board and layers</h3>
+<p>Set <strong>rows</strong> and <strong>cols</strong>; <strong>+ layer top</strong> / <strong>+ layer bottom</strong> add an empty layer (adding underneath moves everything up one, so neighbours stay neighbours); <strong>− top</strong> / <strong>− bottom</strong> remove an empty end layer. A change that would cut off a cell is refused. <strong>Undo</strong> (or Ctrl+Z) takes back the last edit.</p>
+<h3 id="run-step">Run / step</h3>
+<p>Give each entry a word (decimal or <code>0x</code> hex), choose a <strong>watch</strong> cell, press <strong>Start</strong>. <strong>Step</strong> advances one tick, <strong>+10</strong> ten, <strong>Run to end</strong> until nothing moves (a loop is cut off after 2000 ticks). Cells holding words are outlined green; cells that fired this tick copper; the watch cell shows its word and the tick it first appeared. Any edit stops the run. <strong>Check</strong> (when the design says what it should compute) runs 100 random tests: for the adder against real addition, for an auto-placed design against its netlist.</p>
+<h3 id="problems-panel">Problems panel</h3>
+<p>Warns about: a face that points at no cell; a gate without two inputs; a loop (a word would go round for ever); a cell not joined to anything. Click a line to jump to it.</p>
+<h3 id="files">Files</h3>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Save design</strong> / <strong>Open file…</strong></td>
+<td>the composer's own <code>imago-3d-design</code> file (JSON)</td>
+</tr>
+<tr>
+<td><strong>Save ICM-3D</strong> / <strong>Save ICM-3D binary</strong></td>
+<td>the ICM-3D v2 file (section 6); refused if any face points at nothing</td>
+</tr>
+<tr>
+<td><strong>Open file…</strong></td>
+<td>reads a design, an ICM-3D JSON or an ICM-3D binary (decided by what is inside, not the name)</td>
+</tr>
+<tr>
+<td><strong>Auto-place netlist…</strong></td>
+<td>choose a netlist file (section 5); <em>layers</em> sets how many layers the placer may use</td>
+</tr>
+</tbody>
+</table>
+<p>The <strong>examples</strong> menu has the NOR adder (hand-laid, 44 cells), the same adder <strong>placed automatically</strong>, two wires crossing on two layers, and one gate fed from two layers.</p>
+<h2 id="5-the-automatic-placer">5. The automatic placer</h2>
+<p><code>experimental/three_d/placer3d_v1.py</code> takes a <strong>netlist</strong> and lays it out by itself.</p>
+<pre><code>python3 experimental/three_d/placer3d_v1.py --example adder --layers 3 --out adder.3d.json
+python3 experimental/three_d/placer3d_v1.py --netlist my_net.json --layers 2 --seed 3 --out my.3d.json
+</code></pre>
+<p>Open the result with <strong>Open file…</strong> in the composer.</p>
+<h3 id="the-netlist-file">The netlist file</h3>
+<pre><code>{"format": "imago-3d-netlist", "version": 1,
+ "cells": [{"name": "A", "kind": "relay"},
+           {"name": "G", "kind": "gate", "gate": "XOR"},
+           {"name": "S", "kind": "relay", "shift": 4, "left": true}, ...],
+ "nets": [["A", "G"], ["B", "G"], ["G", "S"]]}
+</code></pre>
+<p>A net <code>["A", "G"]</code> means <em>A's output goes to G</em>. Rules the placer checks and states plainly if broken: no loops; a gate has exactly two inputs; a relay at most one; a cell's inputs plus outputs at most six (add a fan-out relay yourself); every cell joined to something; names unique.</p>
+<h3 id="how-it-works">How it works</h3>
+<ol>
+<li><strong>Spread</strong> the cells on a lattice by simulated annealing (short wires, and no cell walled in by cells it is not joined to).</li>
+<li><strong>Route</strong> every net as a chain of relay cells, by negotiated congestion (nets may share squares at first; sharing gets dearer each round until none do).</li>
+<li><strong>Close the gaps</strong> between rows, columns and layers while it still routes, and delete planes that hold only straight-through relays.</li>
+<li><strong>Verify by running</strong>: every exit must give the same word as direct evaluation of the netlist, for 64 random input sets. A layout that fails is never returned.</li>
+</ol>
+<p>Several layouts are found (<code>keep</code>) and the smallest is returned; different <code>--seed</code>s give different layouts.</p>
+<h3 id="what-it-achieves-measured">What it achieves (measured)</h3>
+<p>For the NOR adder (35 netlist cells), 3 layers allowed: <strong>80 cells in all</strong> from the default three layouts (seed 1), <strong>72</strong> if eight are tried, <strong>62</strong> with 4 layers allowed. The hand-placed adder is <strong>44 cells</strong> in 22 ticks; the automatic ones settle in about 40 ticks. So the placer is <strong>correct but not compact</strong> — about 1.4 to 1.8 times the hand layout. With <strong>one layer</strong> the adder cannot be placed (wires must cross) and the placer says so.</p>
+<h2 id="6-icm-3d-v2-the-file-format">6. ICM-3D v2 — the file format</h2>
+<p>A standalone file format for six-face designs in the flex family. Full specification: the next section of this manual (<em>ICM-3D v2 specification</em>). In short: one record per cell — its square, its core (<code>ram</code> pass-through or <code>nano</code> gate with a topology code), its shift add-on, and two 6-bit face masks (<code>out_mask</code>: faces it sends to; <code>in_mask</code>: faces it receives from; bit order N S E W <strong>U D</strong>). A reader recomputes every <code>in_mask</code> from the neighbours and refuses the file if it disagrees. JSON form (with names) and a compact binary with a checksum (the 44-cell adder is 367 bytes).</p>
+<pre><code>python3 experimental/three_d/icm3d_v2.py convert design.3d.json out.icm3d.json
+python3 experimental/three_d/icm3d_v2.py convert design.3d.json out.icm3d
+python3 experimental/three_d/icm3d_v2.py convert out.icm3d back.3d.json
+python3 experimental/three_d/icm3d_v2.py show out.icm3d
+</code></pre>
+<p><code>icm3d_v1.py</code> (the first version, with a toy relay) is kept as it was written; v1 and v2 files refuse each other.</p>
+<h2 id="7-the-three-file-formats">7. The three file formats</h2>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Made by</th>
+<th>Read by</th>
+<th>Contains</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>imago-3d-design</code> v1 (JSON)</td>
+<td>composer <strong>Save design</strong>, placer <code>--out</code></td>
+<td>composer</td>
+<td>cells, positions, faces, names, board size, description</td>
+</tr>
+<tr>
+<td><code>imago-3d-netlist</code> v1 (JSON)</td>
+<td>you (or a tool)</td>
+<td>placer, composer <strong>Auto-place</strong></td>
+<td>cells and nets, no positions</td>
+</tr>
+<tr>
+<td><code>icm-3d</code> v2 (JSON or binary <code>I3D2</code>)</td>
+<td>composer, <code>icm3d_v2.py</code></td>
+<td>composer, <code>icm3d_v2.py</code></td>
+<td>cells as hardware-style records</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8-checks">8. Checks</h2>
+<p><code>python3 run_tests.py</code> runs 55 tests: edit refusals and undo, routing, layer changes, file round trips and damaged files, the stepper against the toy model's own run, the adder against real addition (and the check failing when a gate is broken), the placer's refusals and its verification (also tested to bite: a changed gate and a cut wire are caught), ICM-3D consistency rules and damaged binaries, and the live server.</p>
+<h2 id="9-limits-what-is-not-done">9. Limits — what is not done</h2>
+<ul>
+<li>No 3D hardware, RTL, assembler pass or card (section 1).</li>
+<li>ICM-3D covers <strong>only <code>nano</code> gates and <code>ram</code> pass-throughs</strong>. The other cores (adder, mul, div, accumulator, comparator, latch, sequencer, branch, priority, cross, corner, merge, the other ram modes) have no record; their six-face widths are in the cell audit (last section). The <code>sub</code> family is not defined.</li>
+<li>The <code>ram</code> record is not a full ram configuration (no preload word; fixed mode off). How one ram offers a word to several consumers is the flex glue's job, not a ram setting. A real ram holds a word for two cycles; the toy passes one cell per tick. The polarity of the add-on's direction bit against "shift left" was not checked.</li>
+<li>The nano topology codes are copied from the toy model, not re-checked against the RTL here.</li>
+<li>The placer handles feed-forward netlists only, does not insert fan-out relays, and is not minimal.</li>
+<li>The composer's Join router is a plain shortest-path search; it can fail on a dense design. Placing is in the floor plan only. Touch pinch-zoom is untested.</li>
+<li>In the downloaded kit, the cell-audit's numbers come from the full project (<code>cell_face_budget_v1.py</code> there); the script is not in the kit.</li>
+</ul>
+<h2 id="10-troubleshooting">10. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Problem</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"Address already in use"</td>
+<td>another copy is running: <code>python3 run_composer.py --port 7430</code></td>
+</tr>
+<tr>
+<td>The browser does not open</td>
+<td><code>--no-browser</code>, then open http://127.0.0.1:7422 yourself</td>
+</tr>
+<tr>
+<td>The page looks plain (different font)</td>
+<td>the page asks Google Fonts for its font; offline it falls back to system fonts, everything still works</td>
+</tr>
+<tr>
+<td>"no routable layout found"</td>
+<td>allow more layers (<code>--layers 4</code>), try another <code>--seed</code>, or the netlist needs a crossing and you allowed one layer</td>
+</tr>
+<tr>
+<td>"in_mask does not match" opening an ICM-3D file</td>
+<td>the file was edited by hand or damaged; the reader refuses it on purpose</td>
+</tr>
+<tr>
+<td>An older ICM-3D file will not open</td>
+<td>it is v1; the kit reads v2. Re-save from the design file</td>
+</tr>
+</tbody>
+</table></section><section id="sec-icm3d"><h1 id="icm-3d-v2-a-file-format-for-six-face-3d-designs-flex-family">ICM-3D v2 — a file format for six-face (3D) designs, flex family</h1>
+<p><em>23 Oct 2026. </em><em>v2 supersedes v1</em><em> (#1314): v1 had a toy <code>relay</code> pseudo-core; per Alan a relay is a </em><em>ram cell in flowing (pass-through) mode</em><em>, and v2 says so. <code>icm3d_v1.py</code> is kept as it was. </em><em>Exploration only</em><em> (see the scope note in <code>README.md</code>): there is no 3D RTL, no assembler pass and no card. The format is read and written only by <code>icm3d_v2.py</code> and the 3D Composer, and describes designs in the toy grid <code>experimental_3d_nor_v2.py</code>.</em></p>
+<h2 id="why-a-separate-format">Why a separate format</h2>
+<p>ICM v3's <code>core_config</code> is a 42-bit union shared by all cores; with six faces five cores overflow it (branch needs 49, nano 47, ram 46, comparator 44, accumulator 43 — <code>CELL_AUDIT_6_FACE.md</code>, re-run <code>cell_face_budget_v1.py</code>). Rather than move fields inside the 80-bit SUPER_LATCH, ICM-3D is a <strong>new standalone format with its own per-core records</strong> (Alan's choice, 23 Oct 2026). ICM v3 is untouched, and an ICM v3 reader will refuse an ICM-3D file (different <code>format</code>, different magic).</p>
+<p>Family chosen first: <strong>flex/sub</strong> (Alan, 23 Oct 2026). In that family a cell has generic lanes and the wiring is the netlist, so the format needs one thing per cell beyond the core: which of the six faces it sends to and receives from.</p>
+<h2 id="what-a-record-says">What a record says</h2>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pos</code> <code>[row, col, layer]</code></td>
+<td>the grid square; layer 0 is the bottom, U goes to a higher layer</td>
+</tr>
+<tr>
+<td><code>core</code></td>
+<td><code>nano</code> (a gate) or <code>ram</code> (a pass-through, see below)</td>
+</tr>
+<tr>
+<td><code>topology</code></td>
+<td>nano only: the toy's nano topology code — AND <code>0x007</code>, OR <code>0x024</code>, XOR <code>0x0BC</code>, NOR <code>0x004</code>, NAND <code>0x027</code>, XNOR <code>0x03C</code> (copied from the toy model; <strong>not re-checked against the RTL</strong> here)</td>
+</tr>
+<tr>
+<td><code>shift</code>, <code>shift_left</code></td>
+<td>the shift add-on, 0–31 bits (on a <code>ram</code> pass-through only; a gate has none in this model)</td>
+</tr>
+<tr>
+<td><code>out_mask</code></td>
+<td>6 bits, faces the cell sends to: bit 0 N, 1 S, 2 E, 3 W, <strong>4 U, 5 D</strong> (U, D after W, so a four-face design keeps its four low bits)</td>
+</tr>
+<tr>
+<td><code>in_mask</code></td>
+<td>6 bits, faces it receives from; <strong>derived</strong> from the neighbours' <code>out_mask</code>s and stored anyway</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The consistency rule:</strong> a reader recomputes every <code>in_mask</code> from the neighbours' <code>out_mask</code>s and refuses the file if any differs. It also refuses: two cells on a square, a square outside the board, a face sending into an empty square, a gate without exactly two inputs, an unknown topology, a shift on a gate, a mask wider than six bits. A design with a dangling face cannot be exported (the composer shows it as a warning; the format has no dangling faces).</p>
+<p><strong>What a relay is (Alan, 23 Oct 2026):</strong> a <code>ram</code> core in its flowing mode — <code>fixed_mode</code> 0, no preload — one word in, any of the six faces out. Read from <code>sub/verilog/ram_cell_v4sa.v</code> (flowing mode: capture on <code>valid_in</code>, offer until <code>ack_in</code>) and <code>icm_v3.CORE_FIELD_TABLES</code> (ram: <code>downstream_mask</code>, <code>upstream_mask</code>, <code>fixed_mode</code>, <code>load_data_valid</code>, <code>init_data</code>). The shift is not a ram field: it is the <strong>add-on</strong> (<code>addon_config</code>: <code>shift_en</code>, <code>shift_amt</code>, <code>direction</code>), whose bit polarity for <code>shift_left</code> was not checked here. Not simulated in 3D, and the toy's one-tick-per-cell timing is not the ram's (it holds a word for two cycles).</p>
+<h2 id="two-forms">Two forms</h2>
+<ul>
+<li><strong>JSON</strong> — human readable; also carries cell <code>name</code>s, a <code>description</code> and <code>meta</code>.</li>
+<li><strong>Binary</strong> — little-endian. Header <code>&lt;4s B B B B B H&gt;</code>: magic <code>I3D2</code>, version (2), family (1 = flex), rows, cols, layers, cell count. Then one 64-bit record per cell, then a CRC-32 of everything before it. No names.</li>
+</ul>
+<p>Record bits (LSB first): <code>row[0:6] col[6:12] layer[12:17] core[17:19] gate_index[19:22] shift[22:27] shift_left[27] out_mask[28:34] in_mask[34:40] reserved[40:64]</code>. <code>core</code>: 0 ram (flowing), 1 nano. <code>gate_index</code>: 0 AND, 1 OR, 2 XOR, 3 NOR, 4 NAND, 5 XNOR. <strong>Reserved bits must be zero</strong>; a reader that finds one set refuses (a newer format). Limits: 63 × 63 × 31 squares, 65,535 cells. The 44-cell adder is 367 bytes.</p>
+<h2 id="use">Use</h2>
+<pre><code>python3 experimental/three_d/icm3d_v2.py convert design.3d.json out.icm3d.json   # composer design -&gt; ICM-3D JSON
+python3 experimental/three_d/icm3d_v2.py convert design.3d.json out.icm3d        # -&gt; binary
+python3 experimental/three_d/icm3d_v2.py convert out.icm3d back.3d.json          # back to a composer design
+python3 experimental/three_d/icm3d_v2.py show out.icm3d
+</code></pre>
+<p>The 3D Composer has <strong>Save ICM-3D</strong> and <strong>Save ICM-3D binary</strong> buttons, and <strong>Open file…</strong> reads either form.</p>
+<h2 id="not-done">Not done</h2>
+<ul>
+<li>No core other than <code>nano</code> gates and <code>ram</code> pass-throughs: the other ram modes (fixed, preloaded), adder, mul, accumulator, comparator, latch, sequencer, branch, priority, cross, corner, merge and div have no ICM-3D record yet. Their six-face widths are in <code>CELL_AUDIT_6_FACE.md</code>; each would need a per-core record layout of its own.</li>
+<li>The <code>sub</code> (v4s) family: only <code>flex</code> is defined (<code>family</code> 1).</li>
+<li>The binary does not carry names, so a name-based check (the adder's "A", "B", "E") needs the names put back.</li>
+<li>No generator, assembler or RTL reads this.</li>
+</ul></section><section id="sec-audit"><h1 id="what-each-cell-type-needs-to-have-six-faces-n-s-e-w-u-d">What each cell type needs to have six faces (N, S, E, W, U, D)</h1>
+<p><em>Audit of 23 Oct 2026. Paper analysis of the real RTL and code: </em><em>no 3D RTL exists and nothing here was simulated in 3D.</em><em> The number of stacked layers is a free variable (a stack can be 2 or 20 high), so the question is not "how thin" but "what must a cell itself carry to have all six faces". Everything below was read from the named files or measured by the scripts named; the last section lists what was NOT checked.</em></p>
+<blockquote>
+<p><strong>Scope (Alan, 23 Oct 2026): this is an exploration, not a design under way.</strong> There is no card that could run any of it, nothing 3D exists in RTL, and the one 3D layout (the NOR adder) was placed by a hand-derived stage-tile formula with only the end cells and long nets searched automatically; an automatic simulated-annealing placement was tried first (#1036 addendum 50) and never produced a routable layout. Read the decisions at the end as a menu of what six faces would cost, not as a to-do list.</p>
+</blockquote>
+<h2 id="the-short-answer">The short answer</h2>
+<p>A cell touches direction in <strong>three places</strong>. Each cell type was checked for all three:</p>
+<ol>
+<li><strong>Ports</strong> (the physical faces).</li>
+<li><strong>Direction fields</strong> (which faces a cell listens on / sends to).</li>
+<li><strong>Face-indexed logic</strong> (selects, ack vectors, tie-break order, the programming channel).</li>
+</ol>
+<p>The cell families differ a lot:</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Files</th>
+<th>Direction in the cell</th>
+<th>Six faces mean</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Flex / sub</strong> (the active line, Tang Nano)</td>
+<td><code>sub/verilog/*_v4sa.v</code>, <code>*_v4s.v</code></td>
+<td><strong>None.</strong> Cells have generic lanes (data, valid, ack). Which neighbour a lane meets is decided by the netlist, not the cell.</td>
+<td>No cell change, except <strong>corner, cross, priority</strong>. The change is in the ICM masks, the assembler, the layout tool and the VM.</td>
+</tr>
+<tr>
+<td><strong>Standard</strong> (carrier / super shells, Arria 10 line)</td>
+<td><code>fpga/verilog/*_cell_v4c.v</code>, shells, <code>unicell_vix_carrier_v1d.v</code></td>
+<td><strong>Everywhere.</strong> Four named faces on every core and on the carrier.</td>
+<td>Every one of the 15 cores, its shell and the carrier.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="flex-sub-family-only-three-cells-know-about-faces">Flex / sub family: only three cells know about faces</h2>
+<p>Checked by listing every module's ports in <code>sub/verilog</code> (a throwaway scan, not saved): the only cells with face-named ports are</p>
+<table>
+<thead>
+<tr>
+<th>Cell</th>
+<th>Why it is face-aware</th>
+<th>What six faces needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>corner</code>, <code>cross</code></td>
+<td>four independent one-word slices, one per face a word enters by; <code>partner(face)</code> is a hard-coded 4-entry table (cross: N-S, E-W; corner: N-E/S-W or N-W/S-E)</td>
+<td><strong>six slices.</strong> Cross gains the U-D pair (three straight-through pairs). Corner is the real design question: with six faces a "turn" is no longer one bit (<code>TURN</code>); a pairing of six faces into three pairs has 15 possibilities, so the partner map needs to be a configured table, not two parameters.</td>
+</tr>
+<tr>
+<td><code>priority</code></td>
+<td>four inputs named <code>in_n/s/e/w</code>, four per-face ranks, tie-break "a fixed N&gt;S&gt;E&gt;W order", weighted round-robin credits one per face</td>
+<td>two more inputs, two more ranks, two more credit counters; the tie-break order extends U, D (so every existing four-face design keeps its result).</td>
+</tr>
+</tbody>
+</table>
+<p>Every other flex cell (nano, ram, mask, shift, compare, sequencer, accumulator, latch, merge, router, adder, mul, div, branch) has 2 to 4 lanes in and out and <strong>no face in its RTL</strong>. A six-face grid does not change them. What it removes is the 2D cost of having more than four neighbours (the toy adder shows 44 cells against 80).</p>
+<p>One thing to keep in mind: a face carries a lane in and a lane out, so "faces needed" is the number of <em>distinct neighbours</em>, which is at most the number of lanes. Priority (4 in + 1 out) and the two-output cells (adder, mul, div, branch: 2 in + 2 out) are the ones that can need four or more neighbours.</p>
+<p>Also order-sensitive: <code>merge</code> (A = the first set upstream bit in N,S,E,W order) and the two-operand cells (the first arrival is A) rely on face order only to break ties; adding U and D after W keeps every existing result.</p>
+<h2 id="standard-family-the-core-by-core-table-v4c-rtl">Standard family: the core-by-core table (v4c RTL)</h2>
+<p>Measured from the RTL (<code>fpga/verilog/*_v4c.v</code>, <code>mul_cell_v5c.v</code>):</p>
+<ul>
+<li><strong>Direction registers are already 6 bits wide</strong> in every core ("N/S/E/W real + 2 reserved"), and <code>branch</code> has a 3-bit direction and 6-bit routes. <strong>Nothing reads bit 4 or bit 5 of any of them</strong>, so this is headroom, not a half-built feature. (Nano ties its top two bits to <code>2'b00</code>.)</li>
+<li><strong>Ack vectors are 4 bits</strong> (<code>pending_ack</code>, <code>ack_in_vec</code>) in every core except nano, whose <code>pending_ack</code> is 6 bits with the top two always zero.</li>
+<li><strong>Select logic is four copies</strong>: <code>sel_n/s/e/w = arrived_x &amp;&amp; mask[0..3]</code>, and the data path ORs four buses.</li>
+<li><strong>The programming channel is four faces in all 15 cores</strong> (checked: every file has the <code>prog_sel_n/s/e/w</code> chain with a fixed N&gt;S&gt;E&gt;W priority and four <code>prog_data_in_*</code> buses). Programming reaches a cell through a neighbour, so in a stack a cell must be programmable from U and D as well.</li>
+<li><strong>Ports</strong>: every core and every shell has <code>arrived/fire/ack/ready/data</code> per face, four times.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Core</th>
+<th>Direction fields today</th>
+<th>Specific work for six faces</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nano (<code>nano_gate_v4c</code>)</td>
+<td><code>routing_mask</code> 6, <code>cardinal_edge</code> 6, <code>pending_ack</code> 6; the three 4-bit routing patterns</td>
+<td>Already the closest: widen the three patterns, add <code>sel_u/d</code>, use ack bits 4-5. Its "ready" is broadcast on all four faces.</td>
+</tr>
+<tr>
+<td>ram</td>
+<td>down 6, up 6</td>
+<td>selects and ack vector</td>
+</tr>
+<tr>
+<td>adder, mul, div</td>
+<td>down, up, second-down 6 each</td>
+<td>same; second word leaves by its own mask</td>
+</tr>
+<tr>
+<td>accumulator</td>
+<td>inc_dir, dec_dir, down</td>
+<td>same</td>
+</tr>
+<tr>
+<td>comparator</td>
+<td>down, up</td>
+<td>same</td>
+</tr>
+<tr>
+<td>latch</td>
+<td>set, clear, toggle, down</td>
+<td>four masks</td>
+</tr>
+<tr>
+<td>sequencer</td>
+<td>down</td>
+<td>one mask</td>
+</tr>
+<tr>
+<td>branch</td>
+<td><code>upstream_dir</code> 3-bit <strong>encoded</strong> (0-3 used), three 6-bit routes</td>
+<td>the encoded direction already holds 0-5; the compare of <code>== 3'd0..3</code> extends; routes widen their active use</td>
+</tr>
+<tr>
+<td>priority</td>
+<td>masks 6, ranks 2x4, <code>sequence_0..3</code> 2-bit</td>
+<td>ranks and credits per face; sequence entries become 3-bit (a six-turn order needs six entries)</td>
+</tr>
+<tr>
+<td>merge</td>
+<td>up, down</td>
+<td>A/B order by face index</td>
+</tr>
+<tr>
+<td>cross, corner</td>
+<td>4 slices</td>
+<td>six slices and the partner table (see above)</td>
+</tr>
+<tr>
+<td>command</td>
+<td><code>drive_dir</code> 3-bit (0-3 used)</td>
+<td>freeze / program drive outputs for U and D; <code>drive_dir</code> already holds 4-5</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-icm-v3-file-format-is-the-one-real-squeeze">The ICM v3 file format is the one real squeeze</h2>
+<p><code>nano/icm_v3.py</code>'s <code>core_config</code> is a <strong>42-bit union</strong> shared by all cores. Re-run <code>python3 experimental/three_d/cell_face_budget_v1.py</code>:</p>
+<table>
+<thead>
+<tr>
+<th>core</th>
+<th>uses</th>
+<th>with six faces</th>
+<th>verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nano</td>
+<td>41</td>
+<td>47</td>
+<td>over by 5</td>
+</tr>
+<tr>
+<td>ram</td>
+<td>42</td>
+<td>46</td>
+<td>over by 4</td>
+</tr>
+<tr>
+<td>accumulator</td>
+<td>37</td>
+<td>43</td>
+<td>over by 1</td>
+</tr>
+<tr>
+<td>comparator</td>
+<td>40</td>
+<td>44</td>
+<td>over by 2</td>
+</tr>
+<tr>
+<td>branch</td>
+<td>42</td>
+<td>49</td>
+<td><strong>over by 7</strong></td>
+</tr>
+<tr>
+<td>priority</td>
+<td>29</td>
+<td>41 (47 if a full six-turn order is allowed)</td>
+<td>fits (tight)</td>
+</tr>
+<tr>
+<td>adder, mul, div</td>
+<td>25</td>
+<td>31</td>
+<td>fits</td>
+</tr>
+<tr>
+<td>latch</td>
+<td>16</td>
+<td>24</td>
+<td>fits</td>
+</tr>
+<tr>
+<td>sequencer</td>
+<td>38</td>
+<td>40</td>
+<td>fits</td>
+</tr>
+<tr>
+<td>cross, corner, merge</td>
+<td>8-10</td>
+<td>12-14</td>
+<td>fits</td>
+</tr>
+</tbody>
+</table>
+<p>So <strong>five cores do not fit the 42-bit union with six faces</strong>; the worst needs 49. This is a limit of the <em>file layout</em>, not of the cells: the standalone v4c cores take 64-, 80- or 128-bit config words, and the VIX carrier's <code>core_config</code> is 128 bits. The old 80-bit SUPER_LATCH has 11 reserved bits <code>[79:69]</code>, enough for the worst case (7), but using them moves every field after them (the carrier shells and the ICM encoder/decoder would change together). The 3D toy's own header (#520) already said branch was at the edge of the 42 bits (41 then; 42 today, since <code>rolling_mode</code> was added) for the same reason.</p>
+<h2 id="wires-per-face-the-cost-of-two-more-faces">Wires per face (the cost of two more faces)</h2>
+<p>Counted from the port lists:</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Wires per face</th>
+<th>Four faces</th>
+<th>Six faces</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>flex lane (one link, <code>WIDTH</code> = 32)</td>
+<td>34 (data 32, valid, ack)</td>
+<td>n/a (per link)</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td><code>unicell_super_v3</code> shell</td>
+<td>102</td>
+<td>408</td>
+<td>612</td>
+</tr>
+<tr>
+<td><code>unicell_vix_carrier_v1d</code></td>
+<td>141 (four 32-bit buses: data in/out and programming in/out)</td>
+<td>564</td>
+<td>846</td>
+</tr>
+</tbody>
+</table>
+<p>For a real stacked chip the two vertical faces are the through-silicon connections, so these counts matter. The flex lane is far cheaper than the carrier face, because the carrier face carries a programming bus both ways.</p>
+<h2 id="software-that-hard-codes-four-directions">Software that hard-codes four directions</h2>
+<p>49 non-archived Python files in <code>nano/</code> and <code>tools/</code> name four directions (delta tables, opposite-face tables, direction-bit maps), including <code>icm_v3.py</code>, <code>unicell_super_automaton_v1.py</code>, <code>flex_grid_v1/v2.py</code>, <code>flex_layout_v1.py</code>, <code>design_map_v1/v2.py</code>, <code>walker_card_v1/v2.py</code>, and every <code>flexsub_icm_*</code> generator. (Found by searching for the direction tables, not by reading each file; some may need no change.)</p>
+<h2 id="what-was-not-checked">What was NOT checked</h2>
+<ul>
+<li>The per-core <strong>shells</strong> (<code>*_shell_v1c.v</code>) and carrier internals beyond their port lists and the header of <code>v1d</code>.</li>
+<li>The Flex-Sub assembler / ICM generators: found by name only; not read for how a mask becomes a link.</li>
+<li>Timing and area of six-face cells (nothing built).</li>
+<li>Whether <code>priority</code>'s weighted round-robin keeps its fairness with six requesters (a behaviour question, not a width one).</li>
+<li>The standard-VM's treatment of simultaneous arrivals on U/D (the VM would need the same extension).</li>
+<li>The <code>sub</code> (v4s) family was checked by port list only (same result as flex: only corner and cross carry faces).</li>
+</ul>
+<h2 id="decisions-only-alan-can-make">Decisions only Alan can make</h2>
+<ol>
+<li><strong>Which family first?</strong> Flex/sub needs almost no cell change (three cells) and the most tool change; the standard family needs all 15 cores plus shells.</li>
+<li><strong>Corner in 3D:</strong> keep it as a fixed set of turn tiles, or make the partner table configurable?</li>
+<li><strong>Fixed-order extension:</strong> U and D after W everywhere (keeps all four-face designs identical) — recommended unless there is a reason to put them first.</li>
+<li><strong>ICM format:</strong> a v4 with per-core widths, or use the 11 reserved bits.</li>
+<li><strong>Programming a stack:</strong> the programming channel enters through faces, so it needs vertical entry; decide whether a stack is programmed layer by layer or through the vertical faces.</li>
+</ol></section></article></div></div></main><footer class="site"><div class="wrap"><span>Exploration only: no 3D hardware, no 3D RTL</span><span>separate from the main UniCell manual</span></div></footer></body></html>

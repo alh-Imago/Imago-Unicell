@@ -36,6 +36,7 @@ import experimental_3d_nor_v2 as m3  # noqa: E402  (the six-neighbour toy; gate 
 import ui_theme_v1 as ui  # noqa: E402  (the one shared look)
 
 PORT = 7422
+PORT_IN_USE = [PORT]                  # the port actually served (shown in the page footer)
 M32 = m3.M32
 FACE_NAMES = "NSEWUD"                      # index = the face's number in the toy: N=0 S=1 E=2 W=3 U=4 D=5 (U / D are the new faces)
 FACE_INDEX = {f: i for i, f in enumerate(FACE_NAMES)}
@@ -851,7 +852,12 @@ drag to rotate, right-drag or shift-drag to pan, wheel to zoom. The <b>depth sli
 </div>
 <script>window.C3_COLOURS = __COLOURS__;</script>
 <script src="/composer3d_v1.js"></script>""".replace("__OPTS__", opts).replace("__LEGEND__", legend).replace("__COLOURS__", json.dumps(COLOURS))
-    return ui.page("3D Composer", body, active="", app="composer3d", extra_css=CSS, narrow=False)
+    head = ui.head("3D Composer", CSS)
+    top = ('<header class="site"><div class="site-nav"><div class="brand"><span class="dot">&#9670;</span>IMAGO UNICELL <small>3D composer &middot; exploration</small></div>'
+           '<nav class="links"><a href="/" class="active" aria-current="page">Composer</a><a href="/manual">Manual</a></nav></div></header>')
+    foot = ('<footer class="site"><div class="wrap"><span>3D COMPOSER 127.0.0.1:%d &middot; VM-only exploration, not connected to the main Composer</span>'
+            '<span>no 3D hardware, no 3D RTL</span></div></footer>' % PORT_IN_USE[0])
+    return '<!doctype html><html lang="en"><head>%s</head><body>%s<main><div class="wrap">%s</div></main>%s</body></html>' % (head, top, body, foot)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -883,6 +889,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/":
             return self._send(200, page(), "text/html; charset=utf-8")
+        if path == "/manual":
+            f = os.path.join(HERE, "manual3d.html")
+            if os.path.exists(f):
+                with open(f, "rb") as fh:
+                    return self._send(200, fh.read(), "text/html; charset=utf-8")
+            return self._send(404, "manual3d.html has not been built here: python3 experimental/three_d/build_manual_3d_v1.py (the download kit ships it built)", "text/plain; charset=utf-8")
         if path == "/composer3d_v1.js":
             with open(os.path.join(HERE, "composer3d_v1.js"), "rb") as f:
                 return self._send(200, f.read(), "application/javascript; charset=utf-8")
@@ -912,6 +924,7 @@ def serve(controller=None, port=PORT, block=True):
     handler = type("H", (Handler,), {"controller": controller})
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     srv.controller = controller
+    PORT_IN_USE[0] = srv.server_address[1]
     if block:
         try:
             srv.serve_forever()
