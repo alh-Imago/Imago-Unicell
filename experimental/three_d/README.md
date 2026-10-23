@@ -25,6 +25,8 @@ Gathered here on 20 Oct 2026 (ledger #1308). The files were **moved, not changed
 | `placer3d_v1.py` | new (#1313): an automatic placer and router for the six-face toy grid; any feed-forward netlist; every layout is proven by running it; `--example adder --layers 3` | `tests/vm/test_placer3d_v1.py` |
 | `icm3d_v1.py` | #1313: ICM-3D v1 (toy relay pseudo-core); kept as written, superseded by v2 | `tests/vm/test_icm3d_v1.py` |
 | `icm3d_v2.py`, `ICM_3D_FORMAT.md` | new (#1314): ICM-3D v2, a standalone six-face file format (flex family; JSON and binary); a relay is a ram cell in flowing mode; the composer saves and opens it | `tests/vm/test_icm3d_v2.py` |
+| `MANUAL_3D.md`, `build_manual_3d_v1.py`, `manual3d.html` | new (#1315): the 3D kit's OWN manual (separate from `docs/manual.html`); rebuild the html with `python3 experimental/three_d/build_manual_3d_v1.py` after editing it, `ICM_3D_FORMAT.md` or `CELL_AUDIT_6_FACE.md`; also served at `/manual` by the composer | -- |
+| `make_bundle_v1.py` | new (#1315): builds the separate download kit `dist/imago-3d-kit-<date>-<commit>.zip` (stdlib only, from a clean commit, unpacks and runs its own 55 tests as a check); `python3 experimental/three_d/make_bundle_v1.py` | -- |
 
 The two demos find the grid file through `nano/` (the pointer), which works as before.
 
