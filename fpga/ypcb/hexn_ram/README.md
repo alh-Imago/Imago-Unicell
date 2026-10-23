@@ -12,5 +12,4 @@ How it plugs in (nothing of Alan's ypcb repo or of UberDDR3 is copied or changed
 - `memlat.py` is the host script (uses ypcb's `tools/jtagdr.py`).
 - Simulation: `python3 tools/hexn_memlat_sim_v1.py` (stand-in memory; PASS says only that the probe counts correctly).
 
-STILL UNKNOWN (needs ypcb's `fpga` script): how `fpga build` finds the top module and picks up the .v files of a design folder. This
-folder is meant to be symlinked as `~/ypcb-00338-1p1/designs/hexn_ram`, like `designs/hexn`. Not built yet.
+Build facts (read from ypcb tools/xc7-build.sh): it runs this folder's prebuild.py with the build dir, reads `gen_*.v` from the build dir then every `*.v` in THIS folder (not subfolders, so the testbench lives in `sim/`), uses `gen_*.xdc` from the build dir, and the top module is the 2nd argument (default: folder name). The top module name of the uberddr3 generated top level still has to be confirmed. This folder is meant to be symlinked as `~/ypcb-00338-1p1/designs/hexn_ram`, like `designs/hexn`. Not built yet.

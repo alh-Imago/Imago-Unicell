@@ -8,7 +8,7 @@ d = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fpga", "ypcb
 out = "/tmp/hexn_memlat_tb.vvp"
 def run(mode, lat, extra, count, stall, wrap=False):
     subprocess.run(["iverilog", "-g2012"] + (["-DWRAP", "-P", f"tb_memlat.LEN={count.bit_length() - 1}"] if wrap else []) + ["-o", out, "-P", f"tb_memlat.MODE={mode}", "-P", f"tb_memlat.LAT={lat}", "-P", f"tb_memlat.EXTRA={extra}",
-                    "-P", f"tb_memlat.COUNT={count}", "-P", f"tb_memlat.STALLCYC={stall}", os.path.join(d, "tb_memlat.v"), os.path.join(d, "memlat.v")] + ([os.path.join(d, "memtest.v")] if wrap else []), check=True)
+                    "-P", f"tb_memlat.COUNT={count}", "-P", f"tb_memlat.STALLCYC={stall}", os.path.join(d, "sim", "tb_memlat.v"), os.path.join(d, "memlat.v")] + ([os.path.join(d, "memtest.v")] if wrap else []), check=True)
     t = subprocess.run(["vvp", out], capture_output=True, text=True, timeout=300).stdout
     m = re.search(r"RESULT .*: (.*)", t)
     if not m: sys.exit("no RESULT line: " + t[-300:])
