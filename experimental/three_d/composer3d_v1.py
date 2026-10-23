@@ -614,7 +614,7 @@ class Composer3D:
                 d.undo()
                 self.sim = None
             elif action == "export_icm3d":
-                import icm3d_v1 as icm
+                import icm3d_v2 as icm
                 try:
                     doc = icm.from_design(d, body.get("name") or "design")
                 except icm.IcmError as e:
@@ -701,7 +701,7 @@ def _build(self, action, body):
         except pl.PlaceError as e:
             raise DesignError(str(e))
         return new
-    import icm3d_v1 as icm
+    import icm3d_v2 as icm
     try:
         if action == "load_icm3d_bin":
             import base64
@@ -800,8 +800,8 @@ drag to rotate, right-drag or shift-drag to pan, wheel to zoom. The <b>depth sli
   <select id="example"><option value="">open an example…</option>__OPTS__</select>
   <button id="openBtn">Open file…</button><input type="file" id="file" accept=".json" hidden>
   <button id="save" class="primary" title="download the design as an imago-3d-design file">Save design</button>
-  <button id="saveIcm" title="download as an ICM-3D v1 JSON file (needs every face to point at a cell)">Save ICM-3D</button>
-  <button id="saveIcmBin" title="download as an ICM-3D v1 binary file">Save ICM-3D binary</button>
+  <button id="saveIcm" title="download as an ICM-3D v2 JSON file (needs every face to point at a cell)">Save ICM-3D</button>
+  <button id="saveIcmBin" title="download as an ICM-3D v2 binary file">Save ICM-3D binary</button>
   <button id="autoBtn" title="open a netlist file (imago-3d-netlist) and place it automatically">Auto-place netlist…</button><input type="file" id="netfile" accept=".json" hidden>
   <label title="layers the automatic placer may use">layers <input type="number" id="autoLayers" min="1" max="24" value="3" style="width:56px"></label>
   <button id="undo" title="undo the last edit (Ctrl+Z)">Undo</button>

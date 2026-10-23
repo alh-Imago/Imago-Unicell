@@ -376,7 +376,7 @@
     var f = this.files[0]; this.value = ""; if (!f) return; var r = new FileReader();
     r.onload = function () {
       var bytes = new Uint8Array(r.result), magic = String.fromCharCode.apply(null, bytes.slice(0, 4)), act, body;
-      if (magic === "I3D1") { var bin = ""; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); act = "load_icm3d_bin"; body = { b64: btoa(bin) }; }
+      if (magic === "I3D2") { var bin = ""; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); act = "load_icm3d_bin"; body = { b64: btoa(bin) }; }
       else {
         var doc; try { doc = JSON.parse(new TextDecoder().decode(bytes)); } catch (e) { say("that file is neither JSON nor an ICM-3D binary", "err"); return; }
         act = doc && doc.format === "icm-3d" ? "load_icm3d" : "load"; body = { doc: doc };
@@ -391,7 +391,7 @@
       if (!j) return;
       if (binary) { var s = atob(j.icm3d_bin), u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); download("design.icm3d", new Blob([u], { type: "application/octet-stream" })); }
       else download("design.icm3d.json", new Blob([JSON.stringify(j.icm3d, null, 1)], { type: "application/json" }));
-      say("saved ICM-3D v1 " + (binary ? "binary" : "JSON") + " (VM-only exploration format)", "ok");
+      say("saved ICM-3D v2 " + (binary ? "binary" : "JSON") + " (VM-only exploration format)", "ok");
     });
   }
   $("saveIcm").onclick = function () { saveIcm(false); };

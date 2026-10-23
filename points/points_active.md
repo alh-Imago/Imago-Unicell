@@ -763,5 +763,12 @@ Alan asked for the automatic placer and an ICM file format for 3D designs. Decis
 - **Not done / limits:** only `nano` gates and toy relays have ICM-3D records (the other 13 cores, and the `sub` family, have none); `relay` has no real core behind it, which must be settled before any generator; the topology codes are copied from the toy, not re-checked against the RTL; the placer handles feed-forward netlists only, and does not insert fan-out relays itself (a cell with more than six connections is refused); results are not minimal. No generator, assembler or RTL reads ICM-3D.
 - **Open, for Alan:** which real core carries a relay; whether the placer should also be given a layer budget per net or a bounding box; whether to extend ICM-3D to the remaining cores.
 
-Next entry: #1314.
+### #1314 -- Correction to #1313: a relay is a ram cell in flowing mode; ICM-3D v2 (23 Oct 2026)
+
+#1313 left open which real core carries a relay and used a toy pseudo-core `relay` in ICM-3D v1. Alan: the relay is just a ram cell, with a pass-through setting, one in and several out. Checked against the files before accepting it: `sub/verilog/ram_cell_v4sa.v` in flowing mode (`fixed_mode` 0, no preload) captures a word on `valid_in` and offers it until `ack_in` (a pass-through); `icm_v3.CORE_FIELD_TABLES` gives the ram core `downstream_mask`, `upstream_mask`, `fixed_mode`, `load_data_valid`, `init_data`. The shift is not a ram field but the add-on (`addon_config`: `shift_en`, `shift_amt`, `direction`).
+- **Changed:** new `experimental/three_d/icm3d_v2.py` (clone of v1, version 2, magic `I3D2`): core `ram` replaces `relay`; the spec `ICM_3D_FORMAT.md` is rewritten for v2. `icm3d_v1.py` is left as written (the project rule: clone, do not edit). The 3D Composer now saves and opens v2; v1 and v2 files refuse each other (different magic, version). `tests/vm/test_icm3d_v2.py` (13 tests) covers v2; the composer-action test moved there from the v1 test file because the composer now speaks v2.
+- **Still open, stated plainly:** the `ram` record is not a full ram config (no `init_data`, `fixed_mode` fixed at 0); how a flex-family ram offers one word to several consumers is the generator's fork glue (#924), not a ram setting, so "multiple out" in the toy means that glue; the ram holds a word for two cycles, the toy passes one cell per tick; the polarity of the add-on `direction` bit against `shift_left` was not checked. Nothing here was simulated in 3D hardware terms.
+- **Not done:** a check that a relay's shift chain maps onto one add-on (the add-on has one shift amount, the toy allows 0-31 as well, so it fits; `lane_cut`, `mask`, `invert` are unused).
+
+Next entry: #1315.
 

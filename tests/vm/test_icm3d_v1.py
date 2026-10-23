@@ -132,24 +132,3 @@ def test_command_line_round_trip(tmp_path):
     assert icm.main(["show", str(tmp_path / "d.icm3d")]) == 0
     (tmp_path / "junk").write_bytes(b"not a file")
     assert icm.main(["show", str(tmp_path / "junk")]) == 1
-
-
-def test_composer_export_and_load_actions():
-    import base64
-    comp = c3.Composer3D(c3.EXAMPLES["gate"][1]())
-    st = comp.handle("export_icm3d", {})
-    assert st["icm3d"]["format"] == "icm-3d"
-    assert len(icm.unpack(base64.b64decode(st["icm3d_bin"]))["cells"]) == len(st["icm3d"]["cells"]) == 4
-    comp2 = c3.Composer3D()
-    s2 = comp2.handle("load_icm3d_bin", {"b64": st["icm3d_bin"]})
-    assert s2["summary"]["cells"] == 4 and s2["summary"]["gates"] == 1
-    s3 = c3.Composer3D().handle("load_icm3d", {"doc": st["icm3d"]})
-    assert s3["summary"]["cells"] == 4
-    with pytest.raises(c3.DesignError):
-        comp2.handle("load_icm3d_bin", {"b64": "!!!"})
-    with pytest.raises(c3.DesignError):
-        comp2.handle("load_icm3d", {"doc": {"format": "icm-3d"}})
-    bad = c3.Composer3D(c3.EXAMPLES["gate"][1]())
-    bad.design.nodes[(1, 2, 0)]["down"].add(2)
-    with pytest.raises(c3.DesignError, match="no cell there"):
-        bad.handle("export_icm3d", {})
