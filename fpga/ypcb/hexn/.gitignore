@@ -1,3 +1,4 @@
-build/
+build*/
+build*
 gen_00_hexn.v
 __pycache__/
