@@ -14,7 +14,10 @@ if a.sim:
     srcs = ["rtl/tb_hexn_jtag_v1.v", "rtl/hexn_jtag_bridge_v1.v", "rtl/sim/bscane2_model.v", "rtl/hexn_core_v1.v", "rtl/hexn_mem_v1.v", "rtl/gen/hexn_lattice_hex7_w18_v16.v", "rtl/hexn_bank_v17.v", "rtl/hexn_det_v3.v", "rtl/hexn_glue_v1.v", "rtl/hexn_cell_v5.v", "rtl/hexn_trainbank_v9.v", "rtl/hexn_cfgbank_v2.v", "rtl/hexn_sdiv_v1.v"]
     ex = J.SimExec(C.build(["-DREALCORE", "-DLATMOD=hexn_lattice_hex7_v16", "-DNBW=18", "-DAWB=7", "-DNCLS=7", "-DNCELL=1", "-DACCMODE=0", "-DFSP=128"], srcs))
 else:
-    cfg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../board/ypcb-00338-1p1/openocd.cfg")
+    # the design folder is usually a symlink into the Imago-Unicell checkout, so find the board file from the current folder or OPENOCD_CFG, never from this file's real location
+    cands = [os.environ.get("OPENOCD_CFG", ""), os.path.join(os.getcwd(), "board/ypcb-00338-1p1/openocd.cfg"), os.path.expanduser("~/ypcb-00338-1p1/board/ypcb-00338-1p1/openocd.cfg"), os.path.normpath(os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "../../board/ypcb-00338-1p1/openocd.cfg"))]
+    cfg = next((c for c in cands if c and os.path.isfile(c)), None)
+    if cfg is None: sys.exit("openocd.cfg not found; set OPENOCD_CFG=<path to board/ypcb-00338-1p1/openocd.cfg> or run from ~/ypcb-00338-1p1")
     ex = J.OpenOCDExec(cfg)
 link = J.JtagLink(ex.scan); ok = True
 try:
