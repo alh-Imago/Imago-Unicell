@@ -5,7 +5,7 @@
 #   bash designs/hexn/sweep_v1.sh 32 64 128 255            (sizes optional; default 32 64 128 255; HEXN_SHAPE=hex19 default)
 # Output goes to $HEXN_STORE (default /mnt/hdd/hexn_builds, the big disk: mount it first, `sudo mount /dev/sda1 /mnt/hdd`), one folder per size, with a symlink in designs/hexn so the build tools find it. Results: $HEXN_STORE/sweep_results.txt (also printed).
 # After each build the big intermediate files are deleted (the .bit, the logs and the timing report stay). The run stops at the first size that fails, or when less than 15 GB are free on the store.
-# THREADS (default 4) is the number of placer threads; more threads use more memory. DRY=1 only prints what it would do.
+# HEXN_TAG (optional) is added to every build folder name (for example HEXN_TAG=_c2 keeps an earlier build of the same size). THREADS (default 4) is the number of placer threads; more threads use more memory. DRY=1 only prints what it would do.
 set -u
 [ -n "${CHIPDB:-}" ] || { echo "set CHIPDB first (see the comment at the top of this script)"; exit 1; }
 SHAPE=${HEXN_SHAPE:-hex19}; STORE=${HEXN_STORE:-/mnt/hdd/hexn_builds}; THR=${THREADS:-4}
@@ -14,7 +14,7 @@ D=designs/hexn; [ -d "$D" ] || { echo "run this from ~/ypcb-00338-1p1 (designs/h
 mkdir -p "$STORE" || exit 1
 res=$STORE/sweep_results.txt
 for nc in $NCS; do
-    name=build_${SHAPE}_nc$nc
+    name=build_${SHAPE}_nc$nc${HEXN_TAG:-}
     free_gb=$(df -BG --output=avail "$STORE" | tail -n1 | tr -dc 0-9)
     if [ "${free_gb:-0}" -lt 15 ]; then echo "only ${free_gb} GB free on $STORE: stopping before $nc cells" | tee -a "$res"; break; fi
     mkdir -p "$STORE/$name"; ln -sfn "$STORE/$name" "$D/$name"

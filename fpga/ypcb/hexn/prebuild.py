@@ -4,7 +4,7 @@ Settings (environment): HEXN_REPO = the Imago-Unicell checkout (default ~/Imago-
 Lattice v16 / bank v17 / cell v5 are the versions that closed 50 MHz on this card (see docs/hex-n/HEXN_DESIGN.md)."""
 import os, sys
 repo = os.path.expanduser(os.environ.get("HEXN_REPO", "~/Imago-Unicell")); shape = os.environ.get("HEXN_SHAPE", "hex19"); ncell = int(os.environ.get("HEXN_NCELL", "19")); K = {"hex7": 7, "hex19": 19}[shape]
-files = ["rtl/hexn_jtag_bridge_v1.v", "rtl/hexn_core_v1.v", "rtl/hexn_mem_v1.v", "rtl/gen/hexn_lattice_%s_w18_v16.v" % shape, "rtl/hexn_bank_v17.v", "rtl/hexn_det_v3.v", "rtl/hexn_glue_v1.v", "rtl/hexn_cell_v5.v", "rtl/hexn_trainbank_v9.v", "rtl/hexn_cfgbank_v2.v", "rtl/hexn_sdiv_v1.v"]
+files = ["rtl/hexn_jtag_bridge_v1.v", "rtl/hexn_core_v2.v", "rtl/hexn_mem_v1.v", "rtl/gen/hexn_lattice_%s_w18_v16.v" % shape, "rtl/hexn_bank_v17.v", "rtl/hexn_det_v3.v", "rtl/hexn_glue_v1.v", "rtl/hexn_cell_v5.v", "rtl/hexn_trainbank_v9.v", "rtl/hexn_cfgbank_v2.v", "rtl/hexn_sdiv_v1.v"]
 out = [("`define LATMOD hexn_lattice_%s_v16\n`define NBW 18\n`define AWB 7\n`define NCLS %d\n`define NCELL %d\n`define ACCMODE 0\n`define CLKDIV 434\n") % (shape, K, ncell)]
 for f in files:
     p = os.path.join(repo, f)
