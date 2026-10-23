@@ -18,7 +18,9 @@ def main():
     b.train(m); got = b.dump(); bad_set = sum(1 for k in range(K) if got[k] != (sum(1 << j for j in range(NB) if m["wts"][k][j] > 0), sum(1 << j for j in range(NB) if m["wts"][k][j] < 0), m["thr"][k]))
     print("trained settings: %d of %d detectors differ from the rules" % (bad_set, K))
     cfg = [[r.choice((0, 0, 1, 1, 2)) for _ in range(K)] for _ in range(NC)]; thr = [r.randrange(0, 12) for _ in range(NC)]
-    for n in range(NC): b.loadcelln(n, thr[n], cfg[n])
+    for n in range(NC):
+        lc = sum(c << (2 * i) for i, c in enumerate(cfg[n])); b.s.write(bytes([0x11, n, thr[n]] + [(lc >> (8 * j)) & 255 for j in range(5)])); x = b.s.read(1)[0]
+        if x != H.ACK: sys.exit("loading cell %d (of %d): the card answered 0x%02x instead of 0xA5" % (n, NC, x))
     tpl = {}
     for bits, y in d["train"] + d["test"]: tpl.setdefault(y, []).append(bits)
     frames = bad_frames = bad_cells = fired = 0; seen_bad = []
