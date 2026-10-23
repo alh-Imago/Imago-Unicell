@@ -2,6 +2,8 @@
 
 *Audit of 23 Oct 2026. Paper analysis of the real RTL and code: **no 3D RTL exists and nothing here was simulated in 3D.** The number of stacked layers is a free variable (a stack can be 2 or 20 high), so the question is not "how thin" but "what must a cell itself carry to have all six faces". Everything below was read from the named files or measured by the scripts named; the last section lists what was NOT checked.*
 
+> **Scope (Alan, 23 Oct 2026): this is an exploration, not a design under way.** There is no card that could run any of it, nothing 3D exists in RTL, and the one 3D layout (the NOR adder) was placed by a hand-derived stage-tile formula with only the end cells and long nets searched automatically; an automatic simulated-annealing placement was tried first (#1036 addendum 50) and never produced a routable layout. Read the decisions at the end as a menu of what six faces would cost, not as a to-do list.
+
 ## The short answer
 
 A cell touches direction in **three places**. Each cell type was checked for all three:

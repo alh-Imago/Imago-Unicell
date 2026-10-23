@@ -735,5 +735,11 @@ Alan asked for the 3D work (`experimental/three_d/`, #1308) to be taken further.
 - **Not checked:** the per-core shells beyond ports, the assembler/generators (by name only), timing and area, priority's fairness with six requesters, the VM's handling of U/D arrivals, the `sub` (v4s) family beyond its port list.
 - **Open, for Alan:** which family first; whether corner becomes a configured partner table; ICM layout beyond 42 bits (v4 or the reserved bits); how a stack is programmed through vertical faces. Proposed (not decided): U and D after W everywhere, so every four-face design keeps its meaning.
 
-Next entry: #1311.
+### #1311 -- The 3D work marked as exploration (23 Oct 2026)
+
+Alan: the 3D design is experimental, there is no card to run it on, and the placer attempt was, he thinks, hand-written rather than automatic. Checked against the record before saying so: #1036 addendum 50 (and the header of `tools/nor_adder_3d_v1.py`) say simulated-annealing placement was tried first and never produced a routable layout; the stage tiles of the stored 3D adder are placed by a formula, only the end cells (nearest free square) and the long nets (a shortest-path router) are automatic; no 3D annealing code was kept (the only annealing placer left is the 2D `tools/tightplace_v1.py`). The 2D tile it is compared with was drawn by hand, so the cell-count ratio stays indicative.
+- **Changed:** a scope note at the top of `experimental/three_d/CELL_AUDIT_6_FACE.md` (the decisions are a menu, not a to-do list) and in `experimental/three_d/README.md` (plus a row for the audit files). Nothing else.
+- **Cheapest next steps, if wanted (not started):** a real automatic placer for the six-face grid; or a six-face version of one flex cell in the VM.
+
+Next entry: #1312.
 
