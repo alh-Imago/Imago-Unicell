@@ -21,6 +21,7 @@ Gathered here on 20 Oct 2026 (ledger #1308). The files were **moved, not changed
 | `experimental_3d_chaos_run_v1.py` | a 5x5x5 random grid run | `tools/experimental/experimental_3d_chaos_run_v1.py` |
 | `experimental_3d_crossing_demo_v1.py` | the wire-crossing test | `tools/experimental/experimental_3d_crossing_demo_v1.py` |
 | `CELL_AUDIT_6_FACE.md`, `cell_face_budget_v1.py` | new (#1310): what each cell type needs for six faces, and the ICM v3 config-bit budget (re-runnable) | -- |
+| `composer3d_v1.py`, `composer3d_v1.js` | new (#1312): a separate Composer for the six-face toy grid: floor plan, rotatable 3D view, depth slider (current layer shown, others faded); `python3 experimental/three_d/composer3d_v1.py` (port 7422) | `tests/vm/test_composer3d_v1.py` |
 
 The two demos find the grid file through `nano/` (the pointer), which works as before.
 
