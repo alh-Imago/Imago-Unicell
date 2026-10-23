@@ -76,6 +76,7 @@ class OpenOCDExec:
             try: self.s = socket.create_connection(("127.0.0.1", port), timeout=5); break
             except OSError: time.sleep(0.1)
         if self.s is None: raise RuntimeError("OpenOCD did not start; is the cable free and the card powered? (%s)" % self._err())
+        self.s.settimeout(30)      # a scan takes under a millisecond; a stall this long is reported with OpenOCD's log
         self.cmd("irscan %s 0x%x" % (tap, ir))
     def _err(self):
         try: return open(self.logpath).read()[-900:]
