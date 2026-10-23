@@ -66,11 +66,11 @@ class OpenOCDExec:
     """The card, through OpenOCD (the repo's board/ypcb-00338-1p1/openocd.cfg: Digilent JTAG-HS3, 10 MHz TCK, tap xc7.tap, IR length 6). One OpenOCD process stays up with its Tcl port open; every scan is `drscan` on USER1 (IR 0x02) of 160 bits. Only one program may own the cable: hw_server / xsdb are stopped first (as the repo's `fpga` command does)."""
     def __init__(self, cfg, openocd=None, port=6666, tap="xc7.tap", ir=0x02, bits=160):
         import socket, time, shutil
-        self.tap, self.bits = tap, bits
+        self.tap, self.bits = tap, bits; self.logpath = "/tmp/hexn_openocd.log"
         for name in ("hw_server", "cs_server", "openocd"): subprocess.run(["pkill", "-x", name], capture_output=True)
         time.sleep(1.0)
         exe = openocd or os.environ.get("OPENOCD") or shutil.which("openocd") or "/opt/oss-cad-suite/bin/openocd"
-        self.p = subprocess.Popen([exe, "-f", cfg, "-c", "tcl_port %d" % port, "-c", "gdb_port disabled", "-c", "telnet_port disabled", "-c", "init"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.p = subprocess.Popen([exe, "-f", cfg, "-c", "tcl_port %d" % port, "-c", "gdb_port disabled", "-c", "telnet_port disabled", "-c", "init"], stdout=subprocess.DEVNULL, stderr=open(self.logpath, "w"))
         self.s = None
         for _ in range(100):
             try: self.s = socket.create_connection(("127.0.0.1", port), timeout=5); break
@@ -78,12 +78,13 @@ class OpenOCDExec:
         if self.s is None: raise RuntimeError("OpenOCD did not start; is the cable free and the card powered? (%s)" % self._err())
         self.cmd("irscan %s 0x%x" % (tap, ir))
     def _err(self):
-        try: self.p.terminate(); return self.p.stderr.read()[-600:]
+        try: return open(self.logpath).read()[-900:]
         except Exception: return ""
     def cmd(self, c):
         self.s.sendall(c.encode() + b"\x1a"); buf = b""
         while not buf.endswith(b"\x1a"):
-            d = self.s.recv(65536)
+            try: d = self.s.recv(65536)
+            except OSError: raise RuntimeError("OpenOCD did not answer %r within the timeout; its log (%s) ends: %s" % (c[:60], self.logpath, self._err()))
             if not d: raise RuntimeError("OpenOCD closed the connection")
             buf += d
         return buf[:-1].decode().strip()
