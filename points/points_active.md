@@ -926,4 +926,23 @@ The flip-flop counts equal the FPGA runs of #1319 (1,539 and 1,517 plus control)
 
 *Not done.* Anything placed or routed (OpenLane); timing in silicon cells; the area of a trimmed carrier or of a whole design's grid; the interface, power and edge area; whether a 1 cm die fits the chosen shuttle or process offering (not looked at).
 
-Next entry: #1327.
+## #1327 (24 Oct 2026) -- DIE PLANNING NOTES (Alan, 24 Oct): 1 cm x 1 cm for the unicells, about 1.5 cm overall, a 28 nm class process, an array limit of 256 x 256; and the first SKY130 area of a TRIMMED carrier. Arithmetic and one synthesis result; nothing placed, routed or timed
+
+*Alan's planning assumptions, as stated (not measured).* About 300 to 400 unicells per 1 cm x 1 cm die (from #1326); the chip about 1.5 cm "square" overall to hold the edge, interface and power (read here as 1.5 cm on a side, so a 2.5 mm border and about 56% of the die as overhead; Alan did not say if he meant 1.5 cm2 total, which would be about 33%); a reasonable tape-out size "in the region of 27 nm" (I know 28 nm as the standard foundry node and have not looked at a 27 nm one); an array limit of 256 x 256 per die (65,536 cells); and that the 1 cm core at that process "yields roughly the 128 x 128 count".
+
+*New measurement: the area of a TRIMMED carrier.* `unicell_vixen_v1m` made by `tools/make_carrier_subset_v3.py` with only ram, adder and branch kept (the cores of the CORDIC grids; removed: nano, compare, accum, latch, seq, mul, priority, corner, cross, merge, div, command), synthesised as in #1324 (yosys 0.33, sky130 hd typical corner, `synth -flatten`, `dfflibmap`, `abc`): 4,127 cells, 321 flip-flops, **27,208.6 um2** (0.0272 mm2). That is 5.04 times smaller than the full VIXeN (137,136.5 um2). Cell area only; no wiring, clock tree, timing or placement. The subset script was run here once and its output cell was not otherwise tested against the VM or simulation in this entry; the trimmed carrier is the same one the CORDIC card grids use (#1102 onward).
+
+*Array arithmetic under an IDEAL area scaling (area x (node / 130 nm)^2, which real processes fall short of; no source consulted for any real 28 nm density).* One cell, then the cells that fit 100 mm2 at 100% / 60% / 50% of the area, and the area a given array needs:
+| carrier, node | cell um2 | fit 100 mm2: 100% / 60% / 50% | 128 x 128 needs | 256 x 256 needs |
+|---|---|---|---|---|
+| full, 130 nm | 137,137 | 729 (27 x 27) / 438 / 365 | 2,247 mm2 | 8,987 mm2 |
+| full, 28 nm | 6,362 | 15,719 (125 x 125) / 9,431 (97 x 97) / 7,859 (89 x 89) | 104 mm2 | 417 mm2 |
+| trimmed, 130 nm | 27,209 | 3,675 (61 x 61) / 2,205 (47 x 47) / 1,838 (43 x 43) | 446 mm2 | 1,783 mm2 |
+| trimmed, 28 nm | 1,262 | 79,225 (281 x 281) / 47,535 (218 x 218) / 39,613 (199 x 199) | 20.7 mm2 | 82.7 mm2 |
+*Reading.* Full carriers at 28 nm do NOT reach 128 x 128 in a 100 mm2 core even at 100% fill (104 mm2 needed); a realistic fill gives about 89 to 97 per side. Trimmed carriers (ram, adder, branch) at 28 nm fit 128 x 128 with room (21 mm2 at 100% fill, about 41 mm2 at 50%), and 256 x 256 would need about 83 mm2 at 100% fill and about 138 mm2 at 60%, i.e. just over the core at a realistic fill. A uniform array of trimmed carriers can only run designs that use those three cores; a different core mix changes the area. At 130 nm (the free SKY130 route) 1 cm holds only a few hundred full or about two thousand trimmed carriers.
+
+*Not done.* Placement, routing or timing in any flow; a real 28 nm library (none consulted, so the scaling is the ideal one); the interface, power and edge area; trimmed-carrier variants with other core sets (mul, div, etc.); cost, access and shuttle options for a 28 nm or 130 nm 1 cm die.
+
+*Scope, stated plainly.* One SKY130 synthesis of two carriers plus arithmetic on Alan's assumptions. The 28 nm figures are an idealisation, not a prediction.
+
+Next entry: #1328.
