@@ -30,7 +30,7 @@ class T(unittest.TestCase):
     def test_folder_files_and_wiring(self):
         tmp = tempfile.mkdtemp()
         try:
-            out, proj = g.make_folder(4, tmp, 100)
+            out, proj = g.make_folder(4, tmp, 50)
             for need in ("Makefile", "kit.json", "README.md", proj + ".v", proj + ".xdc", "unicell_vixen_v1.sv"):
                 self.assertTrue(os.path.exists(os.path.join(out, need)), need)
             mk = open(os.path.join(out, "Makefile")).read()
@@ -39,7 +39,7 @@ class T(unittest.TestCase):
             self.assertNotIn("cross_cell_v4c.v ", mk)
             self.assertTrue(os.path.exists(os.path.join(out, "cross_cell_v4c.sv")))
             xdc = open(os.path.join(out, proj + ".xdc")).read()
-            self.assertIn("create_clock -period 10.000", xdc)
+            self.assertIn("create_clock -period 20.000", xdc)
             self.assertIn("AA28", xdc)
             v = open(os.path.join(out, proj + ".v")).read()
             # cell 0 (0,0): its east input is cell 1's west output; its south input is cell 2's north output
@@ -56,7 +56,7 @@ class T(unittest.TestCase):
     def test_elaborates_and_leds_toggle(self):
         tmp = tempfile.mkdtemp()
         try:
-            out, proj = g.make_folder(2, tmp, 100)
+            out, proj = g.make_folder(2, tmp, 50)
             tb = os.path.join(tmp, "tb.v")
             open(tb, "w").write("`timescale 1ns/1ps\nmodule tb; reg clk=0; always #5 clk=~clk; wire a,b,c; top t(.CLK(clk),.LED0(a),.LED1(b),.LED2(c));\n"
                                 " integer tg=0; reg la=0; always @(posedge clk) begin if (a!==la) tg=tg+1; la<=a; end\n"

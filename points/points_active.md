@@ -836,4 +836,12 @@ Alan's request: the last Kintex build is a size test and a speed test of the ful
 
 *What Alan does.* `git pull`, delete the folders already made (`k7_scale_vixen_n*`), generate again, build again.
 
-Next entry: #1321.
+## #1321 (24 Oct 2026) -- CORRECTION to #1319: the scale-test clock target is 50 MHz, not 100 (Alan's point)
+
+*What was wrong.* #1319 wrote a 100 MHz clock target into the scale-test `.xdc` files and called it a stretch target. Alan pointed out that it would make the models fail timing. He is right that it was a poor choice: I had no measurement showing a full VIXeN grid can come near 100 MHz (the smaller Kintex runner designs reported 148 to 160 MHz, but they are a few ram, adder and branch cells, not full carriers), the number was my guess, and a FAIL verdict at every size would hide the useful result and trip the Bench's rule not to load a design that failed timing. A higher target also makes nextpnr work harder, which costs build time and can make a build fail to route.
+
+*Change.* `tools/kintex_carrier_scale_v1.py` (edited in place; hours old and not yet in use): the default target is 50 MHz (`--mhz`), the card's own clock and the target of every earlier Kintex build, so PASS or FAIL at 50 means "would this run at the card's clock". The folder README says what the Fmax figure is: nextpnr stops working on timing once the target is met, so a passing build reports a lower bound on what the design could reach; to push the figure, make the folders again with a higher `--mhz`. Tests updated (20 ns period); 5 pass. Not rebuilt by openXC7 here.
+
+*What this does to the speed test.* The speed figure at each N is still a nextpnr estimate. With a 50 MHz target the number is conservative if the build passes, and tells the true shortfall if it fails. A second sweep with a higher target is the way to find the ceiling, if wanted.
+
+Next entry: #1322.
