@@ -31,11 +31,13 @@ class T(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         try:
             out, proj = g.make_folder(4, tmp, 100)
-            for need in ("Makefile", "kit.json", "README.md", proj + ".v", proj + ".xdc", "unicell_vixen_v1.v"):
+            for need in ("Makefile", "kit.json", "README.md", proj + ".v", proj + ".xdc", "unicell_vixen_v1.sv"):
                 self.assertTrue(os.path.exists(os.path.join(out, need)), need)
             mk = open(os.path.join(out, "Makefile")).read()
             self.assertIn("include ../openXC7.mk", mk)
-            self.assertIn("unicell_vixen_v1.v", mk)
+            self.assertIn("unicell_vixen_v1.sv", mk)
+            self.assertNotIn("cross_cell_v4c.v ", mk)
+            self.assertTrue(os.path.exists(os.path.join(out, "cross_cell_v4c.sv")))
             xdc = open(os.path.join(out, proj + ".xdc")).read()
             self.assertIn("create_clock -period 10.000", xdc)
             self.assertIn("AA28", xdc)
@@ -60,7 +62,7 @@ class T(unittest.TestCase):
                                 " integer tg=0; reg la=0; always @(posedge clk) begin if (a!==la) tg=tg+1; la<=a; end\n"
                                 " initial begin #300000; $display(\"TOGGLES %0d\", tg); $finish; end endmodule\n")
             exe = os.path.join(tmp, "s.vvp")
-            files = [os.path.join(out, f) for f in sorted(os.listdir(out)) if f.endswith(".v")]
+            files = [os.path.join(out, f) for f in sorted(os.listdir(out)) if f.endswith((".v", ".sv"))]
             c = subprocess.run(["iverilog", "-g2012", "-o", exe, tb] + files, capture_output=True, text=True)
             self.assertEqual(c.returncode, 0, c.stderr[:500])
             r = subprocess.run(["vvp", exe], capture_output=True, text=True, timeout=600)

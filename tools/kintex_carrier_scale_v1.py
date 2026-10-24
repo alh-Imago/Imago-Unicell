@@ -144,8 +144,12 @@ def make_folder(n, demo, mhz, name_prefix="k7_scale_vixen_n"):
     srcs = []
     for f in files:
         p = f if os.path.isabs(f) else os.path.join(ROOT, f)
-        shutil.copy(p, os.path.join(out, os.path.basename(p)))
-        srcs.append(os.path.basename(p))
+        # the openXC7 flow reads *.v as plain Verilog-2005; several cells use SystemVerilog (e.g. `.*` in cross_cell_v4c.v), so the copies are named .sv, as the Bench runner folders do
+        base = os.path.basename(p)
+        if base.endswith(".v"):
+            base = base[:-2] + ".sv"
+        shutil.copy(p, os.path.join(out, base))
+        srcs.append(base)
     proj = "k7_scale_vixen_n%d" % n
     open(os.path.join(out, proj + ".v"), "w").write(top_verilog(n, proj))
     period = 1000.0 / mhz
@@ -179,7 +183,7 @@ def check(n=4):
     import tempfile
     tmp = tempfile.mkdtemp(prefix="k7scale_")
     out, proj = make_folder(n, tmp, 100)
-    srcs = sorted(f for f in os.listdir(out) if f.endswith(".v"))
+    srcs = sorted(f for f in os.listdir(out) if f.endswith((".v", ".sv")))
     tb = os.path.join(tmp, "tb.v")
     open(tb, "w").write("`timescale 1ns/1ps\nmodule tb; reg clk=0; always #5 clk=~clk; wire a,b,c; top t(.CLK(clk),.LED0(a),.LED1(b),.LED2(c));\n"
                         " initial begin #200000; $display(\"RAN %b%b%b\", a, b, c); $finish; end endmodule\n")
@@ -193,7 +197,7 @@ def check(n=4):
         res = {}
         for k in sorted({1, 2, n}):
             o2, p2 = make_folder(k, tmp, 100)
-            fl = [os.path.join(o2, s) for s in sorted(f for f in os.listdir(o2) if f.endswith(".v"))]
+            fl = [os.path.join(o2, s) for s in sorted(f for f in os.listdir(o2) if f.endswith((".v", ".sv")))]
             st = os.path.join(tmp, "s%d.stat" % k)
             rr = subprocess.run(["yosys", "-q", "-p", "read_verilog -sv %s ; hierarchy -top top ; synth_xilinx -family xc7 -top top -flatten -noiopad ; tee -o %s stat" % (" ".join(fl), st)], capture_output=True, text=True)
             if rr.returncode:

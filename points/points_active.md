@@ -828,4 +828,12 @@ Alan's request: the last Kintex build is a size test and a speed test of the ful
 
 *Scope, stated plainly.* Nothing here has been placed, routed or timed. The sizes above are synthesis results and the 31 is arithmetic. The speed result will be an nextpnr estimate with a 100 MHz target, as the earlier Kintex figures were (the Hex-N notes say a real silicon clock was not measured either).
 
-Next entry: #1320.
+## #1320 (24 Oct 2026) -- CORRECTION to #1319: the scale-test folders copied the cell sources as `.v`; openXC7 reads those as Verilog-2005 and stopped (found by Alan's first build)
+
+*What happened (Alan, first build of `k7_scale_vixen_n001`).* yosys stopped at `cross_cell_v4c.v:24: ERROR: Wildcard port connections are only supported in SystemVerilog mode` and `make` failed. Cause: the generator of #1319 copied the carrier's source files into the folder under their own `.v` names; the openXC7 Makefile reads `.v` as plain Verilog-2005 and `.sv` as SystemVerilog, and several cells use SystemVerilog (the `.*` wildcard in `cross_cell_v4c.v`). The Bench's runner folders already name their cells `.sv` for this reason. My check in #1319 did not catch it because it used iverilog (`-g2012`, which reads everything as SystemVerilog) and yosys with `read_verilog -sv` on every file, not the Makefile's own per-extension rule. That is a gap in the check, not only in the tool.
+
+*Fix.* `tools/kintex_carrier_scale_v1.py` (edited in place; it was one hour old and not yet in use): the copied cell sources are written with `.sv` names and listed so in the Makefile; the generated top stays `.v` (it is plain Verilog-2005). Tests changed accordingly (the `.sv` names, and that `cross_cell_v4c.sv` exists). Re-checked here: 5 tests pass, and a yosys run that reads the top as Verilog-2005 and the cells as SystemVerilog, the way the flow does, synthesises N=1 without errors. That reproduces the flow's reading rule, but it is still not the openXC7 build itself.
+
+*What Alan does.* `git pull`, delete the folders already made (`k7_scale_vixen_n*`), generate again, build again.
+
+Next entry: #1321.
