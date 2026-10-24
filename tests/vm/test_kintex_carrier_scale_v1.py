@@ -79,6 +79,8 @@ class T(unittest.TestCase):
             "Info:             SLICE_FFX:   22240/1194400    1%",
             "Info: Max frequency for clock 'sys_clk': 61.10 MHz (FAIL at 100.00 MHz)",
             "Info: Max frequency for clock 'sys_clk': 72.50 MHz (FAIL at 100.00 MHz)",
+            "Info: Running post-routing legalisation...",
+            "Info: Program finished normally.",
             "fpga-as --part xc7k480tffg1156-1 x.fasm > x.bit",
         ])
         r = rep.parse_log(log)
@@ -86,6 +88,7 @@ class T(unittest.TestCase):
         self.assertEqual(r["lut_total"], 597200)
         self.assertEqual(r["ff"], 22240)
         self.assertTrue(r["bit"])
+        self.assertTrue(r["routed"])
         self.assertEqual(len(r["fmax"]), 1)
         self.assertAlmostEqual(r["fmax"][0][1], 72.50)
         self.assertEqual(r["fmax"][0][2], "FAIL")
@@ -93,7 +96,12 @@ class T(unittest.TestCase):
     def test_report_no_bitstream_and_empty(self):
         r = rep.parse_log("Info: Placing..\nERROR: failed to place")
         self.assertFalse(r["bit"])
+        self.assertFalse(r["routed"])
         self.assertIn("ERROR", r["last"])
+        # a finished P&R whose log has no bitstream step still counts as routed
+        r2 = rep.parse_log("Info: Running post-routing legalisation...\nInfo: Program finished normally.")
+        self.assertTrue(r2["routed"])
+        self.assertFalse(r2["bit"])
         self.assertEqual(r["fmax"], [])
 
 

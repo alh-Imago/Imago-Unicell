@@ -844,4 +844,29 @@ Alan's request: the last Kintex build is a size test and a speed test of the ful
 
 *What this does to the speed test.* The speed figure at each N is still a nextpnr estimate. With a 50 MHz target the number is conservative if the build passes, and tells the true shortfall if it fails. A second sweep with a higher target is the way to find the ceiling, if wanted.
 
-Next entry: #1322.
+## #1322 (24 Oct 2026) -- KINTEX SIZE AND SPEED SWEEP OF THE FULL VIXeN CARRIER, FIRST RESULTS: 1, 4, 9 and 16 cells all place and route; the clock estimate falls from 77.6 MHz to 45.6 MHz, below the card's 50 MHz from 9 cells up (nextpnr estimates, 100 MHz target; Alan's builds, report table pasted)
+
+*What was built.* `tools/kintex_carrier_scale_v1.py` folders (#1319, with the `.sv` fix #1320) made BEFORE the 50 MHz default of #1321, so their target is **100 MHz** (Alan kept them on purpose: a hard target gives the lowest-timing floor). One openXC7 build per size on Alan's OptiPlex. The table is `tools/kintex_carrier_scale_report_v1.py` output as pasted.
+
+| N | LUT sites used (nextpnr) | per cell | FF sites used | final Fmax (clock net `C0.clk`) | verdict at the 100 MHz target |
+|---|---|---|---|---|---|
+| 1 | 7,768 / 597,200 (1%) | 7,768 | 1,752 | 77.62 MHz | FAIL |
+| 4 | 31,993 (5%) | 7,998 | 6,393 | 51.64 MHz | FAIL |
+| 9 | 71,543 (12%) | 7,949 | 14,109 | 46.19 MHz | FAIL |
+| 16 | 127,752 (21%) | 7,984 | 24,885 | 45.63 MHz | FAIL |
+
+(Per-cell figures are my division. The 54.5 MHz Alan saw first for N=4 was the estimate before routing; 51.64 is the final figure after routing, and the report takes the last timing block.)
+
+*Reading, size.* All four logs end with nextpnr's post-routing step and "Program finished normally", so all four were routed. Whether a `.bit` file was written was not shown: the logs end at nextpnr and the report printed "NO BITSTREAM" (see the report change below); Alan has not yet checked for the files. The cost per cell is steady at about 7,980 LUT sites, and the flip-flops equal yosys's count exactly for N=1 (1,752) and N=4 (6,393), so the same design was built. The nextpnr LUT-site count is about 17% LOWER than yosys's LUT count for the same design (N=1: 7,768 against 9,419; N=4: 31,993 against 38,302); the reason was not investigated.
+
+*Reading, how many would fit (arithmetic, NOT a measurement).* If the nextpnr site count were the binding limit: 597,200 / 7,984 = about 74 cells. If the binding limit is the 298,600 six-input LUTs by the yosys count (#1304, #1319): 298,600 / 9,628 = about 31. The two differ by more than 2x and which one is nearer is not known: a LUT6 takes a whole LUT6 site, so a design with many LUT6s (about half of this cell's) can use more of the chip than the "sites used" percentage suggests. Only larger builds answer it. **Not yet found: the largest N that places and routes.**
+
+*Reading, speed (the estimates are nextpnr's, the target 100 MHz, no clock measured on the card).* One cell alone reaches 77.62 MHz (its neighbours in that build are the random sources). Joining cells face to face drops the figure to 51.64 at N=4 and 46.19 at N=9, but only to 45.63 at N=16, nearly flat from 9 to 16. A hypothesis, NOT tested: the limit from N=4 up is a path that crosses from one cell to the next, which does not lengthen as the grid grows; the build logs' critical-path reports (clock `C0.clk`) would say. Against the card's 50 MHz clock: N=1 and N=4 pass, N=9 and N=16 do not. Alan's conclusion: a full-carrier grid of this size has to run the card well below 50 MHz. The Arria 10 fabric ran at 25 MHz (CLK_100M / 4, `archeology/full-cell/docs/hardware/PCIE_ARRIA10_NOTES.md` line 289), and 25 MHz would be about 1.8x below the N=16 estimate. Making a slower clock on the Kintex card is not built (a clock divider or the card's PLL; the Hex-N DDR3 work uses an 83.33 MHz clock derived on this card, which suggests a PLL works under openXC7 -- inferred, not checked).
+
+*Report script changed (this entry; the tool is from #1319).* `tools/kintex_carrier_scale_report_v1.py` printed "NO BITSTREAM" for a log that ended at "Program finished normally". It now reports "routed" (post-routing step and normal finish seen) separately from "bitstream line in the log", and adds the LUT sites per cell. Test updated; 5 pass.
+
+*Not done / next.* Check `ls -l *.bit` in the four folders. Build N=24, 32 and larger (bisect for the failure point). Paste the critical-path report of the N=16 log to test the hypothesis. Decide on the slower clock, and on a running (not noise) full-carrier design for the card.
+
+*Scope, stated plainly.* nextpnr estimates at a 100 MHz target. Four sizes, one run each. The design is a size and timing build, not a program, so nothing here shows the carrier computing at these speeds. Build times were not recorded.
+
+Next entry: #1323.
