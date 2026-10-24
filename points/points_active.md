@@ -959,4 +959,36 @@ The flip-flop counts equal the FPGA runs of #1319 (1,539 and 1,517 plus control)
 
 *Not done.* Anything placed, routed or timed (OpenLane); a real 28 nm density; the area of mixed or other-core trimmed carriers (mul, div, etc.); the wrapper, clock, reset and interface for any test chip; cost, access and yield; whether a given shuttle accepts these areas; the Kintex sweep (N=24 was building).
 
-Next entry: #1329.
+## #1329 (24 Oct 2026) -- KINTEX SIZE AND SPEED SWEEP, N=24: 24 FULL VIXeN CARRIERS PLACE, ROUTE, MEET A 25 MHz TARGET AT 41.61 MHz AND MAKE A BITSTREAM (nextpnr estimate; Alan's build; not loaded on the card)
+
+*Run.* Folder `k7_scale_vixen_n024` made by `tools/kintex_carrier_scale_v1.py` with the 25 MHz default of #1323 (`.sv` sources, #1320), built on Alan's OptiPlex in the openXC7 shell. First attempt started 17:18 and was killed at 18:07 when a cat stepped on the keyboard (about 49 minutes lost, during placement). Second attempt started about 18:08 with `nohup make > build.log 2>&1 &`; `make` found the finished synthesis output and went straight to nextpnr, so the time below is place and route only. Placement had finished and routing begun by 18:56; the router's first pass (`iter=1`) was logged at 19:26:55; the last write to `build.log` was **20:33:52** and the `.bit` file was written at **20:34:06**. So place and route took about **2 h 26 min** after the 18:08 restart (17:18 to 20:34, about 3 h 16 min, counting the lost attempt). Times are from Alan's `ls -l --time-style=full-iso`; the start time of the second attempt is Alan's note (18:07 stop, restart at about that time).
+
+*Results (nextpnr-xilinx, as pasted by Alan).*
+- LUT sites: **189,825 / 597,200 (31%)**, which is 7,909 per cell (my division). Flip-flop sites: 37,197 / 597,200 (6%), 1,550 per cell. Wires used about 4.785 million.
+- Final clock (net `C0.clk`, after routing): **41.61 MHz, PASS at the 25.00 MHz target**. The estimate after placement, before routing, was 42.94 MHz; routing lowered it, as at N=4 (#1322). Best slack about 16 ns against the 40 ns period.
+- Router2: **20 iterations**. Overused wires: 365,323 at iteration 1 (the figure Alan pasted earlier), 8 at iteration 16, 2 at iterations 17 to 19, **0 at iteration 20** (`archfail=0`). 0 errors, 1 warning. The log ends with `fpga-as ... k7_scale_vixen_n24.bit` and "finished".
+- The bitstream is 18,735,109 bytes. It was not loaded on the card. The design does nothing useful (random inputs, LEDs are noise, #1319), and a board clock of 50 MHz would be above what the larger grids reach, so loading it would show only that the chip configures.
+
+*The sweep so far (all nextpnr estimates; the first four with a 100 MHz target that makes the tool stop with an error and no bitstream, #1323; N=24 with the 25 MHz target).*
+| N | LUT sites | per cell | final Fmax | target | bitstream |
+|---|---|---|---|---|---|
+| 1 | 7,768 | 7,768 | 77.62 MHz | 100 | none |
+| 4 | 31,993 | 7,998 | 51.64 | 100 | none |
+| 9 | 71,543 | 7,949 | 46.19 | 100 | none |
+| 16 | 127,752 | 7,984 | 45.63 | 100 | none |
+| 24 | 189,825 | 7,909 | 41.61 | 25 | yes |
+The N=24 figure is NOT like-for-like with the others: with a low target nextpnr stops working on timing once it is met, so 41.61 is a lower bound on what a 100 MHz run would give for N=24 (a guess: it would still be somewhat under N=16's 45.63; not run). The trend of the 100 MHz runs (flat from N=9 to N=16) is not extended by this point.
+
+*What it says about size (arithmetic on one more point, NOT a measurement of the limit).* The cost per cell is steady at about 7,900 to 8,000 LUT sites from N=1 to N=24. If the nextpnr site count were the only limit, the 597,200 sites would hold about 75 cells; the yosys-count arithmetic of #1319 gave about 31. N=24 uses 31% of the sites and routed, so the 31 figure is not contradicted but is no longer the limit proven; the largest N that places and routes is still not found. Router convergence got no harder over this range: it reached zero overuse in 20 iterations at N=24.
+
+*What it says about the machine (Alan's observations, and a linear guess).* At N=24 the machine held about 7.4 GB of RAM in use of 8.3 GB (89%) and 9.6 GB of swap of 34 GB, steady; the OptiPlex monitor showed all four CPUs at 50 to 70%. `swapfile2` on the internal disk (`/media/alan/InternalHDD`; the notes call the disk `/mnt/hdd`) was NOT active at first (the monitor showed only 8.2 GB of swap) and had to be switched on with `swapon`; Alan believes it does not stay on after a reboot (not checked against `/etc/fstab`). The first router pass took at least 31 minutes. **Guess, not measured:** if memory grows roughly in line with N, the roughly 17 GB held at N=24 would become about 23 GB at N=32 and about 34 GB at N=48, near the 42 GB of RAM plus swap; N=64 would not fit without more memory. Run time is also likely to grow faster than N.
+
+*Procedure notes.* Start large builds with `nohup make > build.log 2>&1 &` and watch with `tail -f build.log`: a stray key stopped the first N=24 attempt, and a job started with `&` does not receive Ctrl-C. Switch the big swap file on first (`swapon --show` to check). `make` reuses finished synthesis output, so a restart skips it; nextpnr cannot resume.
+
+*Open questions for Alan (asked 24 Oct, not answered):* the planned chip is "1.5 cm square": 1.5 cm on a side (2.25 cm2) or 1.5 cm2 in total; and "27 nm" against the standard 28 nm node. Die planning is in #1326 to #1328.
+
+*Not done.* Sizes above 24; a 25 MHz run of N=1 to N=16 to confirm they make bitstreams; the 100 MHz run of N=24; the critical-path report of any build (to test the cell-to-cell hypothesis of #1322); a design that computes at these sizes; loading anything on the card; more RAM for large builds.
+
+*Scope, stated plainly.* One build per size, nextpnr estimates, a design that is a size and timing build and not a program. The clock was not measured on the card.
+
+Next entry: #1330.
