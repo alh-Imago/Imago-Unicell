@@ -16,7 +16,7 @@ LUTs per cell (reported by the generator's own count); the sources are shared by
 Not a function test: the cells are being reconfigured at random all the time, so the LEDs are noise. This is only a size and timing build. Use `--check` to
 make the generator elaborate one small grid with iverilog (does it compile and run) and synthesise it with yosys (do the LUTs grow with N).
 
-  python3 tools/kintex_carrier_scale_v1.py --sizes 1,4,9,16 --demo ~/openFPGALoader/build/demo-projects [--mhz 50]
+  python3 tools/kintex_carrier_scale_v1.py --sizes 1,4,9,16 --demo ~/openFPGALoader/build/demo-projects [--mhz 25]
   python3 tools/kintex_carrier_scale_v1.py --check
 """
 import argparse
@@ -182,7 +182,7 @@ def make_folder(n, demo, mhz, name_prefix="k7_scale_vixen_n"):
 def check(n=4):
     import tempfile
     tmp = tempfile.mkdtemp(prefix="k7scale_")
-    out, proj = make_folder(n, tmp, 50)
+    out, proj = make_folder(n, tmp, 25)
     srcs = sorted(f for f in os.listdir(out) if f.endswith((".v", ".sv")))
     tb = os.path.join(tmp, "tb.v")
     open(tb, "w").write("`timescale 1ns/1ps\nmodule tb; reg clk=0; always #5 clk=~clk; wire a,b,c; top t(.CLK(clk),.LED0(a),.LED1(b),.LED2(c));\n"
@@ -196,7 +196,7 @@ def check(n=4):
     if shutil.which("yosys"):
         res = {}
         for k in sorted({1, 2, n}):
-            o2, p2 = make_folder(k, tmp, 50)
+            o2, p2 = make_folder(k, tmp, 25)
             fl = [os.path.join(o2, s) for s in sorted(f for f in os.listdir(o2) if f.endswith((".v", ".sv")))]
             st = os.path.join(tmp, "s%d.stat" % k)
             rr = subprocess.run(["yosys", "-q", "-p", "read_verilog -sv %s ; hierarchy -top top ; synth_xilinx -family xc7 -top top -flatten -noiopad ; tee -o %s stat" % (" ".join(fl), st)], capture_output=True, text=True)
@@ -227,7 +227,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sizes", default="1,4,9,16", help="comma list of N")
     ap.add_argument("--demo", default=None, help="the demo-projects folder to make the project folders in")
-    ap.add_argument("--mhz", type=float, default=50.0, help="clock target written to the .xdc (default 50, the card's own clock; a higher target makes nextpnr work harder and fail more often)")
+    ap.add_argument("--mhz", type=float, default=25.0, help="clock target written to the .xdc (default 25, below what the larger grids reach; nextpnr-xilinx treats a missed target as an ERROR and make then writes no bitstream)")
     ap.add_argument("--check", action="store_true", help="elaborate and synthesise small grids here")
     a = ap.parse_args()
     if a.check:

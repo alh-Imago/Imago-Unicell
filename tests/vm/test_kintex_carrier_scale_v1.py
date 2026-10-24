@@ -30,7 +30,7 @@ class T(unittest.TestCase):
     def test_folder_files_and_wiring(self):
         tmp = tempfile.mkdtemp()
         try:
-            out, proj = g.make_folder(4, tmp, 50)
+            out, proj = g.make_folder(4, tmp, 25)
             for need in ("Makefile", "kit.json", "README.md", proj + ".v", proj + ".xdc", "unicell_vixen_v1.sv"):
                 self.assertTrue(os.path.exists(os.path.join(out, need)), need)
             mk = open(os.path.join(out, "Makefile")).read()
@@ -39,7 +39,7 @@ class T(unittest.TestCase):
             self.assertNotIn("cross_cell_v4c.v ", mk)
             self.assertTrue(os.path.exists(os.path.join(out, "cross_cell_v4c.sv")))
             xdc = open(os.path.join(out, proj + ".xdc")).read()
-            self.assertIn("create_clock -period 20.000", xdc)
+            self.assertIn("create_clock -period 40.000", xdc)
             self.assertIn("AA28", xdc)
             v = open(os.path.join(out, proj + ".v")).read()
             # cell 0 (0,0): its east input is cell 1's west output; its south input is cell 2's north output
@@ -56,7 +56,7 @@ class T(unittest.TestCase):
     def test_elaborates_and_leds_toggle(self):
         tmp = tempfile.mkdtemp()
         try:
-            out, proj = g.make_folder(2, tmp, 50)
+            out, proj = g.make_folder(2, tmp, 25)
             tb = os.path.join(tmp, "tb.v")
             open(tb, "w").write("`timescale 1ns/1ps\nmodule tb; reg clk=0; always #5 clk=~clk; wire a,b,c; top t(.CLK(clk),.LED0(a),.LED1(b),.LED2(c));\n"
                                 " integer tg=0; reg la=0; always @(posedge clk) begin if (a!==la) tg=tg+1; la<=a; end\n"
@@ -99,6 +99,8 @@ class T(unittest.TestCase):
         self.assertFalse(r["routed"])
         self.assertIn("ERROR", r["last"])
         # a finished P&R whose log has no bitstream step still counts as routed
+        r3 = rep.parse_log("ERROR: Max frequency for clock 'C0.clk': 45.63 MHz (FAIL at 100.00 MHz)\nInfo: Running post-routing legalisation...\nInfo: Program finished normally.\nmake: *** [../openXC7.mk:69: x.fasm] Error 1\nmake: *** Deleting file 'x.fasm'")
+        self.assertTrue(r3["routed"] and r3["make_failed"] and r3["timing_error"] and not r3["bit"])
         r2 = rep.parse_log("Info: Running post-routing legalisation...\nInfo: Program finished normally.")
         self.assertTrue(r2["routed"])
         self.assertFalse(r2["bit"])

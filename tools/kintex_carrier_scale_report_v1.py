@@ -16,7 +16,7 @@ import sys
 
 
 def parse_log(text):
-    r = {"lut": None, "lut_total": None, "ff": None, "ff_total": None, "fmax": [], "bit": False, "routed": False, "last": ""}
+    r = {"make_failed": False, "timing_error": False, "lut": None, "lut_total": None, "ff": None, "ff_total": None, "fmax": [], "bit": False, "routed": False, "last": ""}
     for line in text.splitlines():
         m = re.search(r"(SLICE_LUTX|SLICE_LUT\w*)\S*:?\s+(\d+)\s*/\s*(\d+)", line)
         if m:
@@ -31,6 +31,9 @@ def parse_log(text):
     # nextpnr only gets to "post-routing legalisation" and "Program finished normally" after the router succeeded (ledger #1322: the log of a finished P&R need not
     # contain the later bitstream step, so "routed" and "bitstream written" are reported separately)
     r["routed"] = ("post-routing legalisation" in text) and ("Program finished normally" in text)
+    # ledger #1323: a timing FAIL makes nextpnr-xilinx print an ERROR line and exit with failure; then make stops and deletes the .fasm, so no bitstream is made
+    r["make_failed"] = bool(re.search(r"make: \*\*\*.*Error \d+", text)) or "Deleting file" in text
+    r["timing_error"] = bool(re.search(r"ERROR: Max frequency", text))
     # the last block of "Max frequency" lines is the final report
     allf = re.findall(r"Max frequency for clock\s+'([^']+)':\s*([\d.]+)\s*MHz\s*\((PASS|FAIL) at ([\d.]+) MHz\)", text)
     if allf:
@@ -72,7 +75,7 @@ def main():
         lut = "?" if r["lut"] is None else "%d / %d (%.0f%%) (%.0f per cell)" % (r["lut"], r["lut_total"], 100.0 * r["lut"] / r["lut_total"], r["lut"] / float(n))
         ff = "?" if r["ff"] is None else "%d / %d" % (r["ff"], r["ff_total"])
         fm = "; ".join("%s %.2f MHz (%s at %.0f)" % (n_, f, s, t) for n_, f, s, t in r["fmax"]) or "none in the log"
-        out.append("%d | %s | %s | %s | %s" % (n, lut, ff, fm, ("routed; bitstream line in log" if r["bit"] else "routed; no bitstream line in the log (check for the .bit file)") if r["routed"] else ("NOT ROUTED (last: %s)" % (r["last"][:90] or "empty log"))))
+        out.append("%d | %s | %s | %s | %s" % (n, lut, ff, fm, ("routed; bitstream line in log" if r["bit"] else ("routed; make stopped after nextpnr%s, no bitstream" % (" (timing FAIL is an error there)" if r["timing_error"] else "") if r["make_failed"] else "routed; no bitstream line in the log (check for the .bit file)")) if r["routed"] else ("NOT ROUTED (last: %s)" % (r["last"][:90] or "empty log"))))
         for n_, f, s, t in (r["fmax"] or [("", 0, "", 0)]):
             csv.append("%d,%s,%s,%s,%s,%s,%.2f,%.0f,%s,%s,%s" % (n, r["lut"], r["lut_total"], r["ff"], r["ff_total"], n_, f, t, s, r["routed"], r["bit"]))
     print("\n".join(out))

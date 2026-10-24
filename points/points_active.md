@@ -869,4 +869,20 @@ Alan's request: the last Kintex build is a size test and a speed test of the ful
 
 *Scope, stated plainly.* nextpnr estimates at a 100 MHz target. Four sizes, one run each. The design is a size and timing build, not a program, so nothing here shows the carrier computing at these speeds. Build times were not recorded.
 
-Next entry: #1323.
+## #1323 (24 Oct 2026) -- CORRECTION to #1322 and a finding: at a missed clock target nextpnr-xilinx reports an ERROR, make stops and deletes the .fasm, so NO bitstream is written; the scale-test default target is now 25 MHz (Alan's tail of the N=16 build)
+
+*What Alan's build tail shows (N=16, target 100 MHz).* After the final timing report: `ERROR: Max frequency for clock 'C0.clk': 45.63 MHz (FAIL at 100.00 MHz)`, the slack histogram (the worst endpoints about -11.9 ns against the 10 ns period, a large share of endpoints below zero), `Running post-routing legalisation`, `1 warning, 2 errors`, `Program finished normally`, then `make: *** [../openXC7.mk:69: k7_scale_vixen_n16.fasm] Error 1` and `make: *** Deleting file 'k7_scale_vixen_n16.fasm'`. So nextpnr-xilinx routed the design, counted the missed target as an error, exited with failure, and make stopped before the bitstream step. (Only one of the two errors was in the pasted tail; the other was not seen.)
+
+*Correction to #1322.* #1322 said the report's "NO BITSTREAM" label looked misleading and that whether a `.bit` was written was not shown. The label was right: **none of the four 100 MHz folders produced a bitstream**; the N=4 and N=1 builds also missed 100 MHz, so the same stop applies to them (N=1 and N=4 not seen in detail; inferred from their FAIL lines). What those builds do give: place and route finished and the final clock estimate. The numbers of #1322 stand. What does not: any reading of "routed" as "a loadable image exists" (#1322 did not say that, but the report wording could be read so).
+
+*Consequence for the tool and the sweep.*
+- The 100 MHz folders are a FLOOR measurement (routed, timing known, never loadable).
+- The 50 MHz default of #1321 would fail the same way from N=9 up (their estimates are 46.19 and 45.63). So the default in `tools/kintex_carrier_scale_v1.py` is now **25 MHz** (Alan: the original design ran at 25 MHz; the Arria 10 fabric did, #1322). A folder made at 25 MHz should build to a bitstream if its estimate is above 25 MHz.
+- A bitstream built at a 25 MHz target is still clocked by the card's 50 MHz board oscillator if loaded, so on the card the larger grids would run beyond what timing says they can. The design does nothing useful anyway, but "it loaded" would show only that the chip configures, not that it works at speed. Making a real 25 MHz clock (divider or PLL) is not built.
+- `tools/kintex_carrier_scale_report_v1.py` now says, for a log like this one, "routed; make stopped after nextpnr (timing FAIL is an error there), no bitstream". Tests: 5 pass.
+
+*Not yet done.* Sizes above 16 (24, 32 and so on) to find where placement or routing fails; a 25 MHz build of the sizes already done to confirm they make bitstreams; the critical-path reports to test the hypothesis of #1322.
+
+*Scope, stated plainly.* One log tail read. Nothing was loaded on the card for this test.
+
+Next entry: #1324.
