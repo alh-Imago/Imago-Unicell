@@ -885,4 +885,25 @@ Alan's request: the last Kintex build is a size test and a speed test of the ful
 
 *Scope, stated plainly.* One log tail read. Nothing was loaded on the card for this test.
 
-Next entry: #1324.
+## #1324 (24 Oct 2026) -- SILICON SIZE OF THE FULL CARRIER (SKY130, synthesis only): one full VIXeN = 137,137 um2 (36,535 NAND2 gate equivalents, 1,539 flip-flops), and the area per cell stays flat in an array
+
+Alan: the full carrier is really for the ASIC side, where the transistor count is large anyway, and the per-cell FPGA figure changing in an array may be FPGA routing, since silicon has fixed wires. Asked to size it for silicon; no card details were needed from him.
+
+*Method.* Native yosys 0.33, `synth -flatten`, `dfflibmap` and `abc` against the SkyWater `sky130_fd_sc_hd` typical-corner liberty file (`sky130_fd_sc_hd__tt_025C_1v80.lib`, 12.8 MB, fetched from the efabless GitHub mirror; NOT stored in the repo), then `stat -liberty`. New script `tools/sky130_sizing/size_carrier_sky130_v1.sh` (it reproduced the numbers below when run again). **Synthesis only:** cell area from the library; nothing placed or routed; no clock tree, no timing, no placement utilisation, no wire load.
+
+*Results (one cell, all ports left as pins so nothing is pruned).*
+| carrier | cells | flip-flops (`dfxtp_1`) | cell area um2 | NAND2-equivalents (area / 3.7536, the library's `nand2_1`) |
+|---|---|---|---|---|
+| `unicell_vixen_v1` (VIXeN) | 19,526 | 1,539 | 137,136.5 | 36,535 |
+| `unicell_vix_carrier_v1d` | 18,463 | 1,517 | 132,021.6 | 35,172 |
+The flip-flop counts equal the FPGA runs of #1319 (1,539 and 1,517 plus control), as they should. VIXeN is about 4% bigger than v1d here (about 8% on the FPGA LUT count). The biggest gate types in the VIXeN netlist are `nand2_1` (3,487), `a21oi_1` (2,605) and `nor2_1` (2,577).
+*Transistors: not counted.* A rough conversion at four transistors per NAND2-equivalent gives on the order of 150,000 for the logic, but flip-flops are much larger than a NAND2, so that figure is a loose floor, not a count.
+
+*Array test of Alan's point, in silicon cells (the scale-test grids of #1319 with their shared pseudo-random sources and output fold).* N=1: 141,822 um2 (19,546 cells, 1,800 flip-flops); N=2: 279,429 (39,135; 3,339); N=4: 550,141 (77,713; 6,417). Added area per extra cell: 137,607 (1 to 2) and 135,356 (2 to 4), against 137,137 for the bare cell. So **in standard cells the area per cell does not grow in an array** (it is slightly lower, the neighbour wiring and fold being small and some boundary logic merging); the N=1 excess over the bare cell (about 4,700 um2) is the shared sources and the fold.
+*What this says about the FPGA figures.* The FPGA LUT sites per cell rose from 7,768 (N=1) to about 7,980 (N=4 to 16), up 2.7%. That is a LUT-count effect, and nextpnr counts LUT sites after synthesis, before and independent of routing (apart from rare route-through use, not checked), so it is not wire routing. The silicon-cell figures show no such rise, so it is most likely an FPGA mapping and packing effect at the cell boundaries; this was not traced further. The clock figures are different: Alan's point is likely right for them in part (in the build log of the 61-cell CORDIC, #1318, the critical path was about 68% routing delay, 4.27 of 6.24 ns), but the logic part of a cell-to-cell path carries to silicon; the N=16 critical-path report was not yet seen, so the split for the carrier grid is NOT known.
+
+*Not done.* Placement, utilisation and routing in a real flow (OpenLane); timing in silicon cells (a static timing run of the cell with this library would give the logic-only delay); the die area available on chipIgnite (the archived note `05_Hardware_and_Scaling.md` names the SKY130 / ChipFoundry route but gives no area figure; Alan's recollection or the shuttle documentation is needed), so how many cells fit a die is NOT stated here.
+
+*Scope, stated plainly.* Synthesis cell area for two carrier versions and three small grids, one library corner. Real silicon area will be larger once placement density, clock tree and wiring are added.
+
+Next entry: #1325.
