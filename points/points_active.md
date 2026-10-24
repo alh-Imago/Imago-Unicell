@@ -906,4 +906,14 @@ The flip-flop counts equal the FPGA runs of #1319 (1,539 and 1,517 plus control)
 
 *Scope, stated plainly.* Synthesis cell area for two carrier versions and three small grids, one library corner. Real silicon area will be larger once placement density, clock tree and wiring are added.
 
-Next entry: #1325.
+## #1325 (24 Oct 2026) -- HOW MANY FULL CARRIERS FIT A chipIgnite DIE: arithmetic from the die figures Alan supplied (not measured, die figures not verified)
+
+*Inputs.* The die figures are as Alan pasted them on 24 Oct (source not stated and NOT checked by me against the ChipFoundry / Efabless documentation): standard chipIgnite die 3.6 mm x 5.2 mm = 18.72 mm2; usable custom area about 10 mm2 on the Caravel and Caravan templates, about 15 mm2 on OpenFrame, about 2 mm2 on Caravel Mini (shared die, quoted as roughly 150,000 to 200,000 digital gates). The cell area is #1324's: one full VIXeN = 0.137137 mm2 (137,137 um2, SKY130 hd synthesis, cell area only).
+
+*Arithmetic.* Cells that would fit at 100% of the user area (an upper bound that cannot be reached): Caravel / Caravan 72.9; OpenFrame 109.4; Mini 14.6. At an ASSUMED placement utilisation of 40% to 60% (my guess for a routable digital layout; not taken from any source and not measured): Caravel / Caravan about 29 to 44; OpenFrame about 44 to 66; Mini about 6 to 9. The Mini's quoted gate count is consistent in order of magnitude with its area (2 mm2 / 3.7536 um2 per NAND2 = about 533,000 equivalents raw).
+
+*What the numbers leave out, and what they are.* The user area also has to hold the harness interface, clock distribution, reset and any I/O wrapper for the array; nothing of that is sized. Cell area has no wiring, clock tree or timing in it. These are full carriers, the largest cell. A design that uses trimmed carriers (only the cores it needs, as the CORDIC designs do) would fit more cells; that area has not been synthesised in SKY130 yet.
+
+*Not done.* The SKY130 area of a trimmed carrier and of a whole design's grid (the 61-cell looped CORDIC, for example); a placed-and-routed run (OpenLane); timing.
+
+Next entry: #1326.
