@@ -916,4 +916,14 @@ The flip-flop counts equal the FPGA runs of #1319 (1,539 and 1,517 plus control)
 
 *Not done.* The SKY130 area of a trimmed carrier and of a whole design's grid (the 61-cell looped CORDIC, for example); a placed-and-routed run (OpenLane); timing.
 
-Next entry: #1326.
+## #1326 (24 Oct 2026) -- CORRECTION TO THE ASSUMPTION OF #1325: the proposed die is 1 cm x 1 cm (100 mm2) for the unicells, with the interface, power and edge area counted on top (Alan)
+
+*Alan's ruling.* The proposed die was 1 cm square, not a chipIgnite template. Take the whole 1 cm x 1 cm = 100 mm2 as the area for the unicells, and add area on top for the interface side, power, and the edge (the edge ring and the chips round the edge of the die). The chipIgnite figures of #1325 (about 10 mm2 usable on Caravel, about 15 on OpenFrame, about 2 on Mini) were my reading of the earlier ones; they stay in #1325 as the small-shuttle case and are not this die.
+
+*Arithmetic (one full VIXeN = 0.137137 mm2, #1324; cell area only, no wiring, clock tree or timing).* At 100% of 100 mm2: 729 full carriers (an upper bound that cannot be reached). At an ASSUMED placement utilisation (my guess, not measured, not from any source): 60% about 437; 50% about 365; 40% about 292. A 27 x 27 grid is 729. The interface, power and edge area are outside this count by Alan's choice, and are not sized.
+
+*Against the cards.* On the Kintex the same cell reached 16 in the sweep so far (#1322; the largest fit is not found, and the LUT arithmetic gives 31 to 74); the Arria 10 closed at a ceiling of about 200 to 250 cells with an earlier, smaller nine-core carrier (#1188). The die figure here is cell area only; the FPGA figures are place-and-route results, so they are not like-for-like.
+
+*Not done.* Anything placed or routed (OpenLane); timing in silicon cells; the area of a trimmed carrier or of a whole design's grid; the interface, power and edge area; whether a 1 cm die fits the chosen shuttle or process offering (not looked at).
+
+Next entry: #1327.
