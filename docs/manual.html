@@ -173,7 +173,7 @@
 <h1>Imago UniCell</h1>
 <p>A computer built as a field of small cells, where the wiring is the program.</p>
 <p>You are welcome to look around. This page gives the idea, the design features that make UniCell what it is, what has actually been shown on real hardware (and what has not), and where to begin. It is a research project by one author, Alan Hill, developed with Claude. It is not a finished product, and it does not pretend to be one.</p>
-<p><em>Status, 23 October 2026 (ledger #1316): a working research system with a confirmed path onto two cards, the Tang Nano 20K and the Kintex-7. Nothing is claimed beyond what the table further down lists. The full record is the ledger in <a href="../points/INDEX.md"><code>points/</code></a>; the previous, much longer README is kept whole as <a href="../docs/README_STATUS_RECORD_20261020.md"><code>docs/README_STATUS_RECORD_20261020.md</code></a>.</em></p>
+<p><em>Status, 24 October 2026 (ledger #1318): a working research system with a confirmed path onto two cards, the Tang Nano 20K and the Kintex-7. Nothing is claimed beyond what the table further down lists. The full record is the ledger in <a href="../points/INDEX.md"><code>points/</code></a>; the previous, much longer README is kept whole as <a href="../docs/README_STATUS_RECORD_20261020.md"><code>docs/README_STATUS_RECORD_20261020.md</code></a>.</em></p>
 <hr />
 <h2>The idea</h2>
 <p><strong>Topology is computation.</strong> There is no CPU, no instruction fetch, no decode stage, no program counter and no shared bus. A program is a <em>wiring</em>: which of a small set of fixed hardware cores sits where, joined to its physical neighbours. Values arrive, a cell does its one job, and the result moves on to the next cell, one hop at a time. In the sub family every cell takes exactly one tick, so a design's timing is known in advance; in the flex family the handshake absorbs the differences.</p>
@@ -207,8 +207,8 @@
 </tr>
 <tr>
 <td><strong>Kintex-7</strong> (XC7K480T)</td>
-<td>An ICM file picked in the front end, built into a project with the open openXC7 flow and fed and read over JTAG: a relay chain, a 4-input reduction tree and the 36-cell CORDIC each equal the VM (the CORDIC also passed a 16-word signed set); design fingerprint accepted and a wrong design refused; wire witnesses saw 39 of 39 connections and 40 of 40 cells of the CORDIC on the card's own wires</td>
-<td>#1264-#1292</td>
+<td>An ICM file picked in the front end, built into a project with the open openXC7 flow and fed and read over JTAG: a relay chain, two 4-input reduction trees, the 36-cell CORDIC and a 61-cell looped CORDIC each equal the VM (the CORDIC and the 61-cell design also passed a 16-word signed set); design fingerprint accepted and a wrong design refused; wire witnesses saw every connection and cell on the card's own wires, 39 of 39 and 40 of 40 for the CORDIC and 60 of 60 and 61 of 61 for the 61-cell design</td>
+<td>#1264-#1318</td>
 </tr>
 <tr>
 <td><strong>Arria 10</strong> (IEI Mustang-F100-A10)</td>
@@ -217,7 +217,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Not shown:</strong> a design larger than a small one on any card, clock rates for the LaTeX-built designs beyond estimates, a direct sub-to-carrier crossing (the assembler refuses it on purpose), more than the three designs that have run through the Kintex path, or any 3D hardware. A hand-written Verilog design gets the same save and restore from a clock enable and a scan chain (<a href="../docs/freeze/PURE_VERILOG_FREEZE.md"><code>docs/freeze/PURE_VERILOG_FREEZE.md</code></a>). Every mechanism here also has published relatives: dataflow circuits, elastic CGRAs, FPGA state save (<a href="../docs/prior_art/PRIOR_ART_REPORT.md"><code>docs/prior_art/PRIOR_ART_REPORT.md</code></a>). The review is a first pass and is not a proof of novelty either way.</p>
+<p><strong>Not shown:</strong> a design larger than a small one on any card, clock rates for the LaTeX-built designs beyond estimates, a direct sub-to-carrier crossing (the assembler refuses it on purpose), more than the five designs that have run through the Kintex path (the largest has 61 cells), or any 3D hardware. A hand-written Verilog design gets the same save and restore from a clock enable and a scan chain (<a href="../docs/freeze/PURE_VERILOG_FREEZE.md"><code>docs/freeze/PURE_VERILOG_FREEZE.md</code></a>). Every mechanism here also has published relatives: dataflow circuits, elastic CGRAs, FPGA state save (<a href="../docs/prior_art/PRIOR_ART_REPORT.md"><code>docs/prior_art/PRIOR_ART_REPORT.md</code></a>). The review is a first pass and is not a proof of novelty either way.</p>
 <h2>Ways in</h2>
 <p>Start wherever suits you. Each page also shows the command-line equivalent of what it does.</p>
 <table>
