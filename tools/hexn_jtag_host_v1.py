@@ -81,8 +81,9 @@ class SimExec:
         self.p.wait(timeout=30)
 class OpenOCDExec:
     """The card, through OpenOCD (the repo's board/ypcb-00338-1p1/openocd.cfg: Digilent JTAG-HS3, 10 MHz TCK, tap xc7.tap, IR length 6). One OpenOCD process stays up with its Tcl port open; every scan is `drscan` on USER1 (IR 0x02) of 160 bits. Only one program may own the cable: hw_server / xsdb are stopped first (as the repo's `fpga` command does)."""
-    def __init__(self, cfg, openocd=None, port=6666, tap="xc7.tap", ir=0x02, bits=160):
+    def __init__(self, cfg, openocd=None, port=6666, tap="xc7.tap", ir=None, bits=160):
         import socket, time, shutil
+        if ir is None: ir = {1: 0x02, 2: 0x03, 3: 0x22, 4: 0x23}[int(os.environ.get("HEXN_CHAIN", "1"))]      # USER1..USER4 of the 7-series TAP; env HEXN_CHAIN (default 1 = as before) picks the chain the design's bridge is on
         self.tap, self.bits = tap, bits; self.logpath = "/tmp/hexn_openocd.log"
         for name in ("hw_server", "cs_server", "openocd"): subprocess.run(["pkill", "-x", name], capture_output=True)
         time.sleep(1.0)
