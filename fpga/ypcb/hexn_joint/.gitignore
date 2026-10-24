@@ -1,0 +1,5 @@
+build*/
+build*
+gen_00_hexn.v
+__pycache__/
+gen_01_hexn.v
