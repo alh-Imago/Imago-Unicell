@@ -991,4 +991,32 @@ The N=24 figure is NOT like-for-like with the others: with a low target nextpnr 
 
 *Scope, stated plainly.* One build per size, nextpnr estimates, a design that is a size and timing build and not a program. The clock was not measured on the card.
 
-Next entry: #1330.
+## #1330 (25 Oct 2026) -- KINTEX SIZE AND SPEED SWEEP, N=32: 32 FULL VIXeN CARRIERS PLACE, ROUTE AND MAKE A BITSTREAM; FINAL CLOCK 38.86 MHz AT A 25 MHz TARGET (nextpnr estimate; Alan's overnight build; not loaded on the card)
+
+*Run.* Folder `k7_scale_vixen_n032` (generator default 25 MHz target, #1323), built overnight on Alan's OptiPlex with the large swap file switched on and the power profile set to performance. Alan pasted the tail of `build.log` on the morning of 25 Oct. From his `ls -l --time-style=full-iso`: `build.log` last written **01:46:40** and the `.bit` at **01:47:00** (local time, +0100). The start time of the build was NOT given to me, so the run time is not recorded here.
+
+*Results (nextpnr-xilinx, as pasted).*
+- Final clock (net `C0.clk`, after routing): **38.86 MHz, PASS at the 25.00 MHz target**. 1 warning, 0 errors, "Program finished normally", and the log ends with the `fpga-as ... k7_scale_vixen_n32.bit` step. The slack histogram's lowest bin starts at 14,267 ps; 40,000 minus 1,000,000/38.86 = 14,270 ps, so the histogram and the Fmax line agree.
+- The `.bit` is **18,735,109 bytes, the same as N=24**. That is consistent with a bitstream for the whole device whatever the design size; I have not checked that against the device's frame count.
+- NOT given and so not logged: LUT and flip-flop sites used, router iteration count and the iteration where overuse reached zero. Asked for (the same three greps as for N=24).
+
+*The sweep.* N=24 and N=32 are like-for-like (same 25 MHz target and generator); the 100 MHz runs of N=1 to 16 are not (#1323, #1329).
+| N | final Fmax | target | bitstream |
+|---|---|---|---|
+| 1 | 77.62 | 100 | none |
+| 4 | 51.64 | 100 | none |
+| 9 | 46.19 | 100 | none |
+| 16 | 45.63 | 100 | none |
+| 24 | 41.61 | 25 | yes |
+| 32 | 38.86 | 25 | yes |
+From N=24 to N=32 the estimate fell 2.75 MHz (about 6.6%) for 8 more cells. Two points are not a trend; I do not extend the line. With a 25 MHz target the figure is a lower bound on what the same design could reach (#1329).
+
+*Chip size answered.* Alan: the planned chip dimensions were **per side**, so the 1.5 cm figure is 1.5 cm on a side (2.25 cm2 overall). This settles the open question of #1329 on that point. The "27 nm" against 28 nm question was not answered. The die-count arithmetic of #1326 to #1328 should be read with this; it has not been redone here.
+
+*Limit.* N=32 fits and routes, so the largest fitting N is still not found, and nothing above 32 has been tried. By the site count of #1329 (about 7,900 per cell) 32 cells would be about 253,000 sites, 42% of 597,200: arithmetic, not a log figure, until the grep is read.
+
+*Not done.* LUT/FF figures for N=32; sizes above 32; a 25 MHz rerun of N=1 to 16; critical-path report; loading anything on the card.
+
+*Scope, stated plainly.* One build per size, nextpnr estimates, a size and timing build and not a program, clock not measured on the card.
+
+Next entry: #1331.
