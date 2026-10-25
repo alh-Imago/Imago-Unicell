@@ -1040,4 +1040,11 @@ Alan, with nothing else running on the OptiPlex: the N=32 build ran comfortably 
 
 *Not done.* A memory figure for N=32; any size above 32.
 
-Next entry: #1333.
+## #1333 (25 Oct 2026) -- README: A NEW SECTION, "THREE THINGS THAT SET IT APART" (saved state, no interrupts, steady flow), WITH LEDGER CITATIONS (Alan's request, 25 Oct)
+
+*Request.* Alan gave three paragraphs (the ICM state as a name-keyed, design-level schema that is portable across substrates and through power-off and bit-exact; no interrupts, with the ESP32 storm numbers and "the button/CORDIC run"; steady flow, 131 clocks under flood, 8 cycles idle or busy, zero jitter) and asked for them in the README with citations by ledger number, not by date.
+*Done.* `README.md` has a new section between "What makes the design what it is" and "What has been shown on real hardware". Citations: state #1093, #1154-#1159, #1161, bit-exact on the card #1150 and #1152; 131 clocks #1183 (#1182 as corrected there); 8 clocks #1208 and #1210; ESP32 contrast #1213, #1216, #1219-#1221, #1223; pulse catch #1225. `docs/manual.html` rebuilt.
+*Where the text differs from the request, and why.* (1) "Nothing else offers this" is not in the README: the ledger itself built a plain-Verilog save and restore for comparison (#1150) and the prior-art review is a first pass (README, "Not shown"), so the claim is narrowed to the name-keyed, design-level file moving between a card, a simulator and the VM. (2) "Bit-exact" is kept for the card captures (identical end state, #1150, #1152); for the VM leg the entry itself says the VM continues to the right words, not the same cycle-by-cycle state (#1159), and the README says so. (3) "Zero jitter" is written as "no spread" in the 8 clocks of the design's own part (#1208, #1210); the edge-to-result time as a whole has a spread of up to the 1 ms sampling window, and a pulse shorter than that can be missed (#1225), both stated. (4) "The button/CORDIC run": I could not find a ledger entry with that name. The nearest are the direct-input runs on the reduction-tree design (#1205, tilt switch and jumper on the two sensor pins) and T2/T3; I did not cite a button or CORDIC run and left it out. Alan to say which run he means.
+*Not changed.* The README's status line still reads "24 October 2026 (ledger #1318)" and was not touched.
+
+Next entry: #1334.
