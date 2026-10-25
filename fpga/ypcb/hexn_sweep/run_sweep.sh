@@ -9,6 +9,11 @@ set -u
 NC=${1:-64}; shift 2>/dev/null || true
 VARS=${*:-base A B AB}
 OUT=/mnt/hdd/hexn_builds
+# The chip database must be the ready-made file, or the flow tries to generate it (hours, and it exhausts 8 GB: this happened on 25 Oct). Use the known path if CHIPDB is not set.
+: "${CHIPDB:=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin}"; export CHIPDB
+[ -s "$CHIPDB" ] || { echo "CHIPDB file not found or empty: $CHIPDB (export CHIPDB=<path to xc7k480tffg1156.bin>)"; exit 1; }
+echo "CHIPDB = $CHIPDB ($(du -h "$CHIPDB" | cut -f1))"
+[ -d designs/hexn_sweep ] || { echo "run this from ~/ypcb-00338-1p1 after: ln -sfn ~/hexn-wt/fpga/ypcb/hexn_sweep designs/hexn_sweep"; exit 1; }
 mountpoint -q /mnt/hdd || { echo "/mnt/hdd is not mounted: sudo mount /dev/sda1 /mnt/hdd"; exit 1; }
 for v in $VARS; do
   name=sweep_${v}_${NC}
