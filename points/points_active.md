@@ -1051,4 +1051,10 @@ Alan, with nothing else running on the OptiPlex: the N=32 build ran comfortably 
 
 *Alan:* the three points are the main takeaways of the system design, not the cell design, not speed, not even the parallelism (though the storm demonstrates it). *Done.* In `README.md` the section "Three things that set it apart" now follows "The idea" directly (before "What makes the design what it is"), and its opening says what Alan said, adding that they follow from the structure (the wiring is the program; nothing sits between an input and the cell it lands on, the second half being my wording). The three paragraphs and their citations (#1333) are unchanged. `docs/manual.html` rebuilt.
 
-Next entry: #1335.
+## #1335 (25 Oct 2026) -- README: THE HW-262 SHIELD BUTTON RUN ADDED TO "NO INTERRUPTS" (Alan, 25 Oct; cross-reference #1333, #1334)
+
+*Alan:* there was a test on a separate board that put buttons straight into the fabric, no driver, that produced a calculation result and sounded a buzzer. *Found.* Not CORDIC and not "yesterday": it is the HW-262 shield run of 9 Oct, recorded as #1036 addenda 40, 41 and 42 (`points_12_946-1036.md`). The shield's buttons on Tang pins 72 and 71 drive the reduction-tree design in direct mode, with no ESP32; the display (scanned by `hw262_shield_v1.v`, logic in the fabric) shows 2000 for one button and 4000 for two, 0000 on release, and the buzzer sounds with two. Addendum 41 ran with only ground connected (current through the pin protection diodes); addendum 42 repeated it with 3V3 on the shield's 5V pin and the result held.
+*Done.* One bullet added to the "no interrupts" part of the README section, citing #1036 addenda 40 to 42, stating it is a bench check and not a timed one. I wrote "no driver software", not "no driver": the display and buzzer need a small block of logic in the fabric (addendum 40). `docs/manual.html` rebuilt.
+*Not claimed.* A CORDIC run on buttons: none found in the ledger. If Alan means a different run (a CORDIC fed from buttons), he is to say which.
+
+Next entry: #1336.
