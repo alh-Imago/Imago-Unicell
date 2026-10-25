@@ -1032,4 +1032,12 @@ From N=24 to N=32 the estimate fell 2.75 MHz (about 6.6%) for 8 more cells. Two 
 
 *Not done.* Sizes above 32; run time of N=32; loading anything on the card.
 
-Next entry: #1332.
+## #1332 (25 Oct 2026) -- KINTEX N=32: WHERE THE BUILD MACHINE'S MEMORY WENT (Alan's observation, not a measurement)
+
+Alan, with nothing else running on the OptiPlex: the N=32 build ran comfortably in memory through placement and routing, and swap use rose sharply only when the build reached the **final timing round** (the last timing analysis after routing). He gave no figures and no times. I did not see the monitor; this is his report only.
+
+*What it changes.* My N=48 guess in #1329 assumed memory grows roughly in line with N through the whole run. If the peak is in the final timing stage, the number that matters is the memory of that stage, not of the router, and it has not been measured. At N=24 the monitor showed 7.4 GB RAM and 9.6 GB swap (#1329); no figure exists for N=32. To measure it: watch the monitor, or run `/usr/bin/time -v make` and read "Maximum resident set size" at the end.
+
+*Not done.* A memory figure for N=32; any size above 32.
+
+Next entry: #1333.
