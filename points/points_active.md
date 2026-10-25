@@ -1019,4 +1019,17 @@ From N=24 to N=32 the estimate fell 2.75 MHz (about 6.6%) for 8 more cells. Two 
 
 *Scope, stated plainly.* One build per size, nextpnr estimates, a size and timing build and not a program, clock not measured on the card.
 
-Next entry: #1331.
+## #1331 (25 Oct 2026) -- KINTEX N=32: UTILISATION AND ROUTER FIGURES, ADDED TO #1330 (nextpnr-xilinx, as pasted by Alan)
+
+*Adds to #1330, which logged the N=32 clock and bitstream without these figures. Nothing in #1330 is changed.*
+
+- LUT sites: **250,331 / 597,200 (41%)**, which is 7,823 per cell (my division). Flip-flop sites: **49,509 / 597,200 (8%)**, 1,547 per cell.
+- My arithmetic guess in #1330 (about 253,000 sites, 42%) was close; the log figure is 250,331 and is the one to use.
+- Router2: overused wires 26 at iteration 14, 12 at 15, 5 at 16, 4 at 17, **0 at iteration 18** (`archfail=0`); wires used about 6.33 million. That is 18 iterations, fewer than the 20 of N=24 (#1329), so routing did not get harder from 24 to 32 cells in iteration count. The time per iteration was not given, and the build's start time was never given, so the run time is NOT recorded.
+- The per-cell cost over the sweep (LUT sites per cell): 7,768 (N=1), 7,998 (4), 7,949 (9), 7,984 (16), 7,909 (24), 7,823 (32). It stays within about 3% of 7,900 and does not grow with N.
+
+*Limit.* 32 cells use 41% of the LUT sites and routed. If the site count were the only limit, the arithmetic of #1329 gives about 76 cells (597,200 / 7,823); that is arithmetic, not a measurement, and the real limit may come earlier (memory on the build machine, router convergence). Not found.
+
+*Not done.* Sizes above 32; run time of N=32; loading anything on the card.
+
+Next entry: #1332.
