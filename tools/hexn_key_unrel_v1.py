@@ -45,4 +45,4 @@ def main():
         print("\n%s: stored keys differ pairwise by min %.0f (worst seed %d), mean %.1f bits; undamaged accuracy on own test samples %.2f" % (kind, sum(mins) / seeds, min(mins), sum(means) / seeds, sum(accs) / seeds))
         print("  damage |  noise 0.1 |  noise 0.2 |  noise 0.3")
         for nd in (12, 24, 48, 96): print("   %3d   | " % nd + " | ".join("   %5.2f   " % (agg[(nd, q)][0] / agg[(nd, q)][2]) for q in (0.1, 0.2, 0.3)))
-main()
+if __name__ == "__main__": main()
