@@ -43,4 +43,4 @@ def main():
                             rec = cand[0] if len(cand) == 1 else -1; hit += rec == e; tot += 1
                             a_dam += accuracy(dm, tests); a_org += accuracy(models[e], tests); a_rec += accuracy(models[rec], tests) if rec >= 0 else 0.0
                     print(f"  {nd:3d}   |    {q:.1f}      |   {hit:4d} / {tot:4d}        |  {a_dam / tot:.2f} -> {a_rec / tot:.2f}  ({a_org / tot:.2f})")
-main()
+if __name__ == "__main__": main()
