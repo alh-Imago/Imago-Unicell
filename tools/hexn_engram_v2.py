@@ -1,4 +1,4 @@
-"""(v2: clone of hexn_engram_v1.py, left untouched; the number of probes P is now a 4th argument, to test a longer quick key.)
+"""(v2: clone of hexn_engram_v1.py, left untouched; the number of probes P is now a 4th argument, to test a longer quick key.)"""
 """hexn_engram_v1: STORE and RECALL a learned one-layer network as a two-part engram (Python model only; new file; imports the untouched hexn_depth_v1.py / hexn_layer_v2.py).
 Two parts, after Alan's two-tier intention (26 Oct): the DEEP part = the network's settings packed into bits (per cell: 20 lanes x 2 bits + a 6-bit threshold = 46 bits);
 the QUICK part (key) = the network's ACTIVATION PATTERN on P fixed probe patterns (which output cells fire, 1 bit per cell per probe).
