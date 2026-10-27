@@ -40,3 +40,9 @@ What this says (for this synthetic world only):
 
 ## Not yet done
 Fixed-point model of the blend, RTL for the moment builder and ranked read, real coupled recordings (remote plus analog sensors captured at once).
+
+## Memory tiers (Alan, 27 Oct 2026, 18:37)
+Forgetting should not mean losing: patterns that have proven themselves move down to slower, larger memory instead of being deleted, and come back when needed.
+- **Tang Nano 20K:** fast tier = BSRAM (the store v5 index and heap); slow tier = the SD card (Alan has a small one to use), reached through the on-board BL616 housekeeping firmware, which waits until a second Tang is available. Not yet checked: how the SD slot is wired to the FPGA and BL616 on this board, and the access speed.
+- **Kintex card:** no SD card slot. Fast tier = local BRAM; slower tier = the card's main RAM; slowest tier = through the JTAG link. The PCIe route, which would normally serve as the slow path, is not available on this card. Not yet checked: which main RAM the card carries and what it takes to drive it.
+- Design consequence: the store needs a **spill and recall** step (write a proven entry out, read it back on a miss) that is the same in principle on both cards, with a different slow tier behind it.
