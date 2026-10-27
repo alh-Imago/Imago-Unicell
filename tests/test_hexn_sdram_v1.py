@@ -13,3 +13,10 @@ def test_controller_against_model():
 def test_board_selftest_logic():
     o = sim(["rtl/tb_hexn_tang_sdramtest_v1.v", "rtl/hexn_tang_sdramtest_v1.v", "rtl/hexn_sdram_v1.v", "rtl/sim/sdram_model_v1.v", "rtl/sim/rpll_model.v"], "selftest")
     assert "SDRAM SELFTEST PASS" in o, o[-1500:]
+def test_board_selftest_v2_logic():
+    o = sim(["rtl/tb_hexn_tang_sdramtest_v2.v", "rtl/hexn_tang_sdramtest_v2.v", "rtl/hexn_sdram_v1.v", "rtl/hexn_uart_v1.v", "rtl/sim/sdram_model_v1.v", "rtl/sim/rpll_model.v"], "selftest2")
+    assert "SDRAM SELFTEST2 PASS" in o, o[-1500:]
+def test_sd_tier_test_logic():
+    """SD tier board test (reuses the project's sd_spi_v1) against the behavioural card: ready, three regions written and read back clean."""
+    o = sim(["rtl/tb_hexn_tang_sdtest_v1.v", "rtl/hexn_tang_sdtest_v1.v", "fpga/verilog/sd_spi_v1.v", "fpga/verilog/sd_card_model_v1.v", "rtl/hexn_uart_v1.v"], "sdtest")
+    assert "SD TIER TEST PASS" in o, o[-1500:]
