@@ -1,0 +1,18 @@
+// Pins for hexn_tang_sdramtest_v2 on the Tang Nano 20K. Clock and LED pins as in rtl/hexn_tang_v1.cst (the clock and LED pin numbers also match the Sipeed NESTang constraint file). The embedded SDRAM ports (O_sdram_*, IO_sdram_dq) take NO pin lines: the open-source chip database (Apycula) carries their pad locations for the device GW2AR-LV18QN88C8/I7 (the Sipeed part number) and applies them by port name; the 'PC8' variant used by our other builds has no such entry, and giving the ports pin lines of our own makes nextpnr fail with 'Pin not found'. Not yet checked on a board.
+IO_LOC "clk27" 4;
+IO_PORT "clk27" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "led[0]" 15;
+IO_PORT "led[0]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "led[1]" 16;
+IO_PORT "led[1]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "led[2]" 17;
+IO_PORT "led[2]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "led[3]" 18;
+IO_PORT "led[3]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "led[4]" 19;
+IO_PORT "led[4]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "led[5]" 20;
+IO_PORT "led[5]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+
+IO_LOC "uart_tx" 69;
+IO_PORT "uart_tx" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
