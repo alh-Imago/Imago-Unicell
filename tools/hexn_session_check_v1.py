@@ -27,6 +27,18 @@ def align(a, b):
         elif i and d[i][j] == d[i - 1][j] + 1: ops.append(("extra", i - 1, None)); i -= 1
         else: ops.append(("missing", None, j - 1)); j -= 1
     return ops[::-1]
+def routine_view(got, plan):
+    """if the plan has routines, cut the pressed keys into blocks that each end at a goal key (7 or 8) and name each block's routine ('?' if it is not one); returns (pressed string, planned string, summary) or None. Only meaningful when no single extra/missing key shifts the blocks."""
+    if "routine_order" not in plan: return None
+    dig = {v: int(k) for k, v in json.load(open(PLAN))["table_index_of_digit"].items()}; names = {tuple(v): k for k, v in json.load(open(PLAN))["routines"].items()}
+    goal = set(json.load(open(PLAN))["goal_key"].values()); blocks = []; cur = []
+    for k in got:
+        cur.append(dig.get(k, 0))
+        if dig.get(k, 0) in goal: blocks.append(tuple(cur)); cur = []
+    if cur: blocks.append(tuple(cur))
+    pressed = "".join(names.get(b, "?") for b in blocks); planned = "".join(plan["routine_order"])
+    ops = align(list(pressed), list(planned)); miss = [o[2] + 1 for o in ops if o[0] == "missing"]; extra = [o[1] + 1 for o in ops if o[0] == "extra"]
+    return pressed, planned, "routine level: %d pressed, %d planned; planned routine numbers not pressed (alignment is ambiguous for repeats): %s; pressed routines not in the plan: %s; blocks that are not a routine: %d" % (len(pressed), len(planned), miss, extra, pressed.count("?"))
 def check(edges, run, plan_path=PLAN, quiet=False):
     plan = json.load(open(plan_path))["runs"][str(run)]; want = plan["table_index"]; ps, unk = presses_of(edges); got = [k for k, _, _ in ps]; ops = align(got, want)
     cnt = {k: sum(1 for o in ops if o[0] == k) for k in ("match", "sub", "extra", "missing")}
@@ -34,7 +46,9 @@ def check(edges, run, plan_path=PLAN, quiet=False):
         print("run %s: planned %d presses, decoded %d (+%d unknown codes); matched %d, substituted %d, extra %d, missing %d" % (run, len(want), len(got), unk, cnt["match"], cnt["sub"], cnt["extra"], cnt["missing"]))
         for o in [o for o in ops if o[0] != "match"][:10]: print("  ", o[0], "pressed key %s" % (got[o[1]] if o[1] is not None else "-"), "planned key %s (planned press #%s)" % (want[o[2]] if o[2] is not None else "-", o[2] + 1 if o[2] is not None else "-"))
         if ps:
-            gaps = [round(b[1] - a[1], 2) for a, b in zip(ps, ps[1:])]; print("  seconds between presses: median %.2f, shortest %.2f, longest %.2f" % (sorted(gaps)[len(gaps) // 2], min(gaps), max(gaps)))
+            gaps = [(b[1] - a[1]) / 1e6 for a, b in zip(ps, ps[1:])]; print("  seconds between presses: median %.2f, shortest %.2f, longest %.2f; pauses over 2.5 s after press numbers %s" % (sorted(gaps)[len(gaps) // 2], min(gaps), max(gaps), [i + 1 for i, g in enumerate(gaps) if g > 2.5]))
+        rt = routine_view(got, plan)
+        if rt: print("  routines pressed: %s\n  routines planned: %s\n  %s" % (rt[0], rt[1], rt[2]))
     return cnt["sub"] + cnt["extra"] + cnt["missing"] == 0, cnt
 def selftest():
     plan = json.load(open(PLAN)); import tempfile
