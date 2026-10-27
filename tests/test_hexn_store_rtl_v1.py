@@ -1,4 +1,4 @@
-"""RTL store (rtl/hexn_store_v1.v) against the bit-true model (tools/hexn_store_v2.py): every command's outputs and the final tables must match in four cases. Refuses to pass without iverilog (a SKIP would look like a pass). About 3 s."""
+"""RTL store (rtl/hexn_store_v1.v flop arrays and rtl/hexn_store_v2.v block-RAM style tables) against the bit-true model (tools/hexn_store_v2.py): every command's outputs and the final tables must match in four cases. Refuses to pass without iverilog (a SKIP would look like a pass). About 9 s."""
 import os, sys, shutil, subprocess
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); sys.path.insert(0, os.path.join(ROOT, "tools"))
 def test_toolchain_present():
@@ -6,7 +6,7 @@ def test_toolchain_present():
 def test_rtl_matches_model_in_all_cases():
     r = subprocess.run([sys.executable, os.path.join(ROOT, "tools/hexn_store_rtl_check_v1.py")], capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
-    assert r.stdout.count("mismatches 0") == 4, r.stdout
+    assert r.stdout.count("mismatches 0") == 8, r.stdout      # four cases for each of the two RTL versions
 def test_model_v2_agrees_with_v1_on_real_run3():
     import hexn_store_v2 as M, hexn_layer2_v2 as V
     V.R = V.runs(); runs = [[k - 12 for k, _ in r] for r in V.R]; st = M.StoreV2(N=3, W=80)
