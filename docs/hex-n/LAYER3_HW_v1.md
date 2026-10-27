@@ -56,3 +56,12 @@ Consequences for the memory tiers:
 - Slow-tier reads are whole 512-byte sectors, so a spilled context should be stored so that all its followers sit in one sector and come back in one read (this is the "bring a whole context back in one read" idea from the forgetting model).
 - Because the card keeps its contents, the SD tier also gives the store a **save and reload across power-off** without the BL616.
 - Reusing the NESTang `sd_reader` needs its source and its licence checked first; not done.
+
+## SD reader source read (Alan sent `sd_reader` and `sdcmd_ctrl`, 27 Oct 2026, 18:57)
+The file header names the project: github.com/WangXuan95/FPGA-SDcard-Reader. I could not open that page (not reachable from this session), so its LICENCE is UNKNOWN to me; check it before copying any of this code into our tree. Read from the two files only:
+- Initialisation: CMD0, CMD8, CMD55 + ACMD41 (repeated until ready), CMD2, CMD3, CMD7, CMD16 (block length 512), then CMD17 single-block reads. Card types SDv1, SDv2 and SDHC are told apart (SDHC takes a sector number, the others a byte address). Init runs at a slow clock (the fast divider times 48), then the fast clock.
+- Data on DAT0 only (1-bit mode), never driven by the FPGA. The 16-bit data CRC is skipped (64 tail clocks are counted and ignored), and the command response CRC is not checked either; the command CRC7 IS generated. So a bad read would not be detected unless we add our own check.
+- Read only: CMD17 is the only data command. No write (CMD24), no data CRC16 generation, no busy wait. Spilling to the card still needs a writer written from scratch.
+- Speed, derived from the code and NOT measured: the SD clock period is 2*(clkdiv+2) core clocks; with CLK_DIV=1 that is core clock / 8 (3.4 MHz at 27 MHz), with CLK_DIV=0 core clock / 6 (4.5 MHz). One 512-byte sector is 4,096 data bits plus about 400 bits of command, response and wait, so a sector read takes about 1 to 1.5 ms before the card's own latency: order of a thousand reads a second at best.
+- Interface for our store: set `rstart` with a sector number when `rbusy` is low, take bytes from `outen`/`outbyte` (`outaddr` 0 to 511) until `rdone`.
+Consequence for the forgetting model: 12 slow reads per moment would cost about 12 to 20 ms per moment, fine for slow sensors and too slow for fast streams, so recall must be one sector per context (or cached), as already planned.
