@@ -42,11 +42,11 @@ def main(seeds=3, games=3000):
             for opp, key in ((T.opp_random, "vr"), (T.opp_blocker, "vb")):
                 e = T.evaluate(ax, opp, random.Random(7 + sd), 400)
                 for i in range(3): tot[key][i] += e[i] / seeds
-            ev = [0, 0, 0]; cc = copy.deepcopy(ao)
+            ev = [0, 0, 0]; cc = copy.deepcopy(ao); rr = random.Random(500 + sd)
             for _ in range(400):
-                b = [0] * 9; cc.start(); turn = 1; rr = random.Random(500 + sd)
+                b = [0] * 9; cc.start(); turn = 1
                 while True:
-                    c = T.opp_random(b, rr) if turn == 1 else (cc.pick(b, T.legal(b), True) or rr.choice(T.legal(b)))
+                    c = T.opp_random(b, rr) if turn == 1 else (lambda pk: rr.choice(T.legal(b)) if pk is None else pk)(cc.pick(b, T.legal(b), True))
                     b[c] = turn; cc.observe(turn, c); w = T.winner(b)
                     if w or not T.legal(b): ev[{2: 0, 0: 1, 1: 2}[w]] += 1; break
                     turn = 3 - turn
