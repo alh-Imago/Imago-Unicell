@@ -1,0 +1,2310 @@
+{
+ "version": 1,
+ "source": "routine recordings run 3 played after host load of run 1,2",
+ "settings": {
+  "promote_after": 2,
+  "window_events": 80,
+  "value_step_shift": 3,
+  "goal_read_context": 1,
+  "desired_goal_key": 7,
+  "known_capacity": 128,
+  "candidate_capacity": 32
+ },
+ "summary": {
+  "events": 65,
+  "flagged": 1,
+  "known_at_start": 70,
+  "known_at_end": 70,
+  "candidates_at_end": 6,
+  "promoted": 0,
+  "goals": 16,
+  "desired_goals": 8,
+  "rewards_sent": 16,
+  "next_event_right": {
+   "1": {
+    "right": 0,
+    "of": 2
+   },
+   "2": {
+    "right": 2,
+    "of": 2
+   },
+   "3": {
+    "right": 50,
+    "of": 60
+   }
+  }
+ },
+ "events": [
+  {
+   "run": 3,
+   "n": 1,
+   "key": 1,
+   "frames": 2,
+   "gap_s": null,
+   "verdict": "start",
+   "pred": null,
+   "goal_read": null,
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 2,
+   "key": 5,
+   "frames": 2,
+   "gap_s": 0.951,
+   "verdict": "ok",
+   "pred": {
+    "level": 1,
+    "key": 2,
+    "seen": 8,
+    "total": 15
+   },
+   "goal_read": {
+    "key": 2,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 3,
+   "key": 6,
+   "frames": 2,
+   "gap_s": 1.67,
+   "verdict": "ok",
+   "pred": {
+    "level": 2,
+    "key": 6,
+    "seen": 7,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 6,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 4,
+   "key": 8,
+   "frames": 1,
+   "gap_s": 1.235,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 8,
+    "seen": 7,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": -0.5
+  },
+  {
+   "run": 3,
+   "n": 5,
+   "key": 1,
+   "frames": 2,
+   "gap_s": 2.001,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 4,
+    "seen": 6,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 4,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 6,
+   "key": 2,
+   "frames": 2,
+   "gap_s": 0.817,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 1,
+    "total": 1
+   },
+   "goal_read": {
+    "key": 2,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 7,
+   "key": 3,
+   "frames": 3,
+   "gap_s": 0.733,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 3,
+    "seen": 3,
+    "total": 3
+   },
+   "goal_read": {
+    "key": 3,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 8,
+   "key": 7,
+   "frames": 2,
+   "gap_s": 1.333,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 7,
+    "seen": 8,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": 1.0
+  },
+  {
+   "run": 3,
+   "n": 9,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 2.059,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 4,
+    "seen": 4,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 10,
+   "key": 2,
+   "frames": 2,
+   "gap_s": 0.656,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 2,
+    "total": 4
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 11,
+   "key": 3,
+   "frames": 3,
+   "gap_s": 0.848,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 3,
+    "seen": 3,
+    "total": 3
+   },
+   "goal_read": {
+    "key": 3,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 12,
+   "key": 8,
+   "frames": 2,
+   "gap_s": 1.078,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 8,
+    "seen": 6,
+    "total": 6
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": -0.5
+  },
+  {
+   "run": 3,
+   "n": 13,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 2.799,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 1,
+    "seen": 4,
+    "total": 5
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 14,
+   "key": 5,
+   "frames": 2,
+   "gap_s": 0.83,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 5,
+    "seen": 1,
+    "total": 1
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 15,
+   "key": 6,
+   "frames": 2,
+   "gap_s": 0.875,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 6,
+    "seen": 4,
+    "total": 4
+   },
+   "goal_read": {
+    "key": 6,
+    "value": -4
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 16,
+   "key": 7,
+   "frames": 2,
+   "gap_s": 0.893,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 7,
+    "seen": 7,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": 1.0
+  },
+  {
+   "run": 3,
+   "n": 17,
+   "key": 1,
+   "frames": 1,
+   "gap_s": 3.926,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 1,
+    "seen": 6,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 18,
+   "key": 2,
+   "frames": 2,
+   "gap_s": 0.991,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 4,
+    "total": 6
+   },
+   "goal_read": {
+    "key": 2,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 19,
+   "key": 3,
+   "frames": 3,
+   "gap_s": 0.936,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 3,
+    "seen": 4,
+    "total": 4
+   },
+   "goal_read": {
+    "key": 3,
+    "value": 3
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 20,
+   "key": 7,
+   "frames": 2,
+   "gap_s": 0.942,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 7,
+    "seen": 9,
+    "total": 9
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": 1.0
+  },
+  {
+   "run": 3,
+   "n": 21,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 3.665,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 4,
+    "seen": 5,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 0,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 22,
+   "key": 1,
+   "frames": 3,
+   "gap_s": 3.658,
+   "verdict": "contradiction",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 3,
+    "total": 5
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 3,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 23,
+   "key": 5,
+   "frames": 2,
+   "gap_s": 1.096,
+   "verdict": "ok",
+   "pred": {
+    "level": 1,
+    "key": 2,
+    "seen": 10,
+    "total": 18
+   },
+   "goal_read": {
+    "key": 2,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 5,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 24,
+   "key": 6,
+   "frames": 3,
+   "gap_s": 1.103,
+   "verdict": "ok",
+   "pred": {
+    "level": 2,
+    "key": 6,
+    "seen": 8,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 6,
+    "value": 5
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 25,
+   "key": 8,
+   "frames": 2,
+   "gap_s": 2.011,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 8,
+    "seen": 8,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": -0.5
+  },
+  {
+   "run": 3,
+   "n": 26,
+   "key": 1,
+   "frames": 2,
+   "gap_s": 2.473,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 4,
+    "seen": 6,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 4,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 27,
+   "key": 2,
+   "frames": 2,
+   "gap_s": 0.895,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 2,
+    "total": 2
+   },
+   "goal_read": {
+    "key": 2,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 28,
+   "key": 3,
+   "frames": 3,
+   "gap_s": 0.948,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 3,
+    "seen": 4,
+    "total": 4
+   },
+   "goal_read": {
+    "key": 3,
+    "value": 11
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 29,
+   "key": 7,
+   "frames": 2,
+   "gap_s": 1.11,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 7,
+    "seen": 10,
+    "total": 10
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": 1.0
+  },
+  {
+   "run": 3,
+   "n": 30,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 3.029,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 4,
+    "seen": 6,
+    "total": 9
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 31,
+   "key": 2,
+   "frames": 2,
+   "gap_s": 0.722,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 3,
+    "total": 5
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 32,
+   "key": 3,
+   "frames": 3,
+   "gap_s": 0.898,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 3,
+    "seen": 4,
+    "total": 4
+   },
+   "goal_read": {
+    "key": 3,
+    "value": 18
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 33,
+   "key": 8,
+   "frames": 2,
+   "gap_s": 1.007,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 8,
+    "seen": 7,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": -0.5
+  },
+  {
+   "run": 3,
+   "n": 34,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 3.235,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 1,
+    "seen": 4,
+    "total": 6
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 35,
+   "key": 5,
+   "frames": 2,
+   "gap_s": 0.714,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 5,
+    "seen": 2,
+    "total": 2
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 36,
+   "key": 6,
+   "frames": 3,
+   "gap_s": 1.091,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 6,
+    "seen": 5,
+    "total": 5
+   },
+   "goal_read": {
+    "key": 6,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 37,
+   "key": 7,
+   "frames": 2,
+   "gap_s": 1.192,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 7,
+    "seen": 8,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": 1.0
+  },
+  {
+   "run": 3,
+   "n": 38,
+   "key": 1,
+   "frames": 2,
+   "gap_s": 2.507,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 1,
+    "seen": 7,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 39,
+   "key": 5,
+   "frames": 2,
+   "gap_s": 1.004,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 5,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 2,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 40,
+   "key": 6,
+   "frames": 3,
+   "gap_s": 0.917,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 6,
+    "seen": 5,
+    "total": 5
+   },
+   "goal_read": {
+    "key": 6,
+    "value": 8
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 41,
+   "key": 8,
+   "frames": 1,
+   "gap_s": 1.237,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 8,
+    "seen": 9,
+    "total": 9
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": -0.5
+  },
+  {
+   "run": 3,
+   "n": 42,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 1.895,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 4,
+    "seen": 6,
+    "total": 9
+   },
+   "goal_read": {
+    "key": 4,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 43,
+   "key": 2,
+   "frames": 2,
+   "gap_s": 0.708,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 3,
+    "total": 6
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 44,
+   "key": 3,
+   "frames": 2,
+   "gap_s": 0.955,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 3,
+    "seen": 3,
+    "total": 3
+   },
+   "goal_read": {
+    "key": 3,
+    "value": 11
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 45,
+   "key": 8,
+   "frames": 1,
+   "gap_s": 1.095,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 8,
+    "seen": 8,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": -0.5
+  },
+  {
+   "run": 3,
+   "n": 46,
+   "key": 1,
+   "frames": 2,
+   "gap_s": 4.395,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 1,
+    "seen": 4,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 47,
+   "key": 5,
+   "frames": 2,
+   "gap_s": 0.882,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 2,
+    "total": 4
+   },
+   "goal_read": {
+    "key": 2,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 48,
+   "key": 6,
+   "frames": 3,
+   "gap_s": 1.111,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 6,
+    "seen": 2,
+    "total": 2
+   },
+   "goal_read": {
+    "key": 6,
+    "value": 3
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 49,
+   "key": 8,
+   "frames": 2,
+   "gap_s": 0.949,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 8,
+    "seen": 10,
+    "total": 10
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": -0.5
+  },
+  {
+   "run": 3,
+   "n": 50,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 3.808,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 4,
+    "seen": 7,
+    "total": 10
+   },
+   "goal_read": {
+    "key": 4,
+    "value": 9
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 51,
+   "key": 5,
+   "frames": 2,
+   "gap_s": 0.839,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 4,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 52,
+   "key": 6,
+   "frames": 2,
+   "gap_s": 0.893,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 6,
+    "seen": 6,
+    "total": 6
+   },
+   "goal_read": {
+    "key": 6,
+    "value": -2
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 53,
+   "key": 7,
+   "frames": 3,
+   "gap_s": 1.158,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 7,
+    "seen": 9,
+    "total": 9
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 15
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": 1.0
+  },
+  {
+   "run": 3,
+   "n": 54,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 5.754,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 1,
+    "seen": 8,
+    "total": 9
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 3
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 55,
+   "key": 2,
+   "frames": 2,
+   "gap_s": 0.716,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 1,
+    "total": 1
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 56,
+   "key": 3,
+   "frames": 3,
+   "gap_s": 1.594,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 3,
+    "seen": 5,
+    "total": 5
+   },
+   "goal_read": {
+    "key": 3,
+    "value": 5
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 57,
+   "key": 8,
+   "frames": 2,
+   "gap_s": 1.089,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 8,
+    "seen": 9,
+    "total": 9
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": -0.5
+  },
+  {
+   "run": 3,
+   "n": 58,
+   "key": 4,
+   "frames": 2,
+   "gap_s": 2.132,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 1,
+    "seen": 5,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 4,
+    "value": 16
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 59,
+   "key": 5,
+   "frames": 2,
+   "gap_s": 0.814,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 5,
+    "seen": 3,
+    "total": 3
+   },
+   "goal_read": {
+    "key": 5,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 60,
+   "key": 6,
+   "frames": 3,
+   "gap_s": 0.851,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 6,
+    "seen": 7,
+    "total": 7
+   },
+   "goal_read": {
+    "key": 6,
+    "value": 7
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 61,
+   "key": 7,
+   "frames": 2,
+   "gap_s": 1.013,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 7,
+    "seen": 10,
+    "total": 10
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": 1.0
+  },
+  {
+   "run": 3,
+   "n": 62,
+   "key": 1,
+   "frames": 2,
+   "gap_s": 2.041,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 1,
+    "seen": 8,
+    "total": 10
+   },
+   "goal_read": {
+    "key": 1,
+    "value": 3
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 63,
+   "key": 2,
+   "frames": 2,
+   "gap_s": 0.754,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 2,
+    "seen": 5,
+    "total": 8
+   },
+   "goal_read": {
+    "key": 2,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 64,
+   "key": 3,
+   "frames": 2,
+   "gap_s": 0.817,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 3,
+    "seen": 5,
+    "total": 5
+   },
+   "goal_read": {
+    "key": 3,
+    "value": 0
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": null
+  },
+  {
+   "run": 3,
+   "n": 65,
+   "key": 7,
+   "frames": 3,
+   "gap_s": 0.985,
+   "verdict": "ok",
+   "pred": {
+    "level": 3,
+    "key": 7,
+    "seen": 11,
+    "total": 11
+   },
+   "goal_read": {
+    "key": 7,
+    "value": 22
+   },
+   "promoted": 0,
+   "known": 70,
+   "candidates": 6,
+   "reward": 1.0
+  }
+ ],
+ "known": [
+  {
+   "len": 3,
+   "ctx": [
+    1,
+    2,
+    3
+   ],
+   "next": 7,
+   "seen": 12,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 3,
+   "ctx": [
+    1,
+    5,
+    6
+   ],
+   "next": 8,
+   "seen": 11,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 3,
+   "ctx": [
+    4,
+    5,
+    6
+   ],
+   "next": 7,
+   "seen": 11,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 3,
+   "ctx": [
+    4,
+    2,
+    3
+   ],
+   "next": 8,
+   "seen": 10,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 3,
+   "ctx": [
+    5,
+    6,
+    7
+   ],
+   "next": 1,
+   "seen": 9,
+   "contra": 0,
+   "value": 11
+  },
+  {
+   "len": 3,
+   "ctx": [
+    5,
+    6,
+    8
+   ],
+   "next": 4,
+   "seen": 8,
+   "contra": 0,
+   "value": 5
+  },
+  {
+   "len": 3,
+   "ctx": [
+    8,
+    4,
+    5
+   ],
+   "next": 6,
+   "seen": 8,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 3,
+   "ctx": [
+    2,
+    3,
+    7
+   ],
+   "next": 4,
+   "seen": 7,
+   "contra": 0,
+   "value": -11
+  },
+  {
+   "len": 3,
+   "ctx": [
+    6,
+    7,
+    1
+   ],
+   "next": 2,
+   "seen": 6,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 3,
+   "ctx": [
+    7,
+    1,
+    2
+   ],
+   "next": 3,
+   "seen": 6,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 3,
+   "ctx": [
+    7,
+    1,
+    5
+   ],
+   "next": 6,
+   "seen": 6,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    7,
+    4,
+    2
+   ],
+   "next": 3,
+   "seen": 6,
+   "contra": 0,
+   "value": -11
+  },
+  {
+   "len": 3,
+   "ctx": [
+    2,
+    3,
+    8
+   ],
+   "next": 1,
+   "seen": 5,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    8,
+    1,
+    2
+   ],
+   "next": 3,
+   "seen": 5,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 3,
+   "ctx": [
+    2,
+    3,
+    8
+   ],
+   "next": 4,
+   "seen": 4,
+   "contra": 0,
+   "value": 22
+  },
+  {
+   "len": 3,
+   "ctx": [
+    3,
+    7,
+    4
+   ],
+   "next": 2,
+   "seen": 4,
+   "contra": 1,
+   "value": -8
+  },
+  {
+   "len": 3,
+   "ctx": [
+    3,
+    8,
+    4
+   ],
+   "next": 5,
+   "seen": 4,
+   "contra": 0,
+   "value": 22
+  },
+  {
+   "len": 3,
+   "ctx": [
+    6,
+    8,
+    4
+   ],
+   "next": 2,
+   "seen": 4,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    6,
+    8,
+    4
+   ],
+   "next": 5,
+   "seen": 4,
+   "contra": 0,
+   "value": 8
+  },
+  {
+   "len": 3,
+   "ctx": [
+    8,
+    4,
+    2
+   ],
+   "next": 3,
+   "seen": 4,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    2,
+    3,
+    7
+   ],
+   "next": 1,
+   "seen": 3,
+   "contra": 0,
+   "value": 0
+  },
+  {
+   "len": 3,
+   "ctx": [
+    3,
+    7,
+    1
+   ],
+   "next": 5,
+   "seen": 3,
+   "contra": 0,
+   "value": 0
+  },
+  {
+   "len": 3,
+   "ctx": [
+    3,
+    8,
+    1
+   ],
+   "next": 5,
+   "seen": 3,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    5,
+    6,
+    8
+   ],
+   "next": 1,
+   "seen": 3,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 3,
+   "ctx": [
+    6,
+    7,
+    1
+   ],
+   "next": 5,
+   "seen": 3,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    6,
+    8,
+    1
+   ],
+   "next": 2,
+   "seen": 3,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 3,
+   "ctx": [
+    8,
+    1,
+    5
+   ],
+   "next": 6,
+   "seen": 3,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    3,
+    7,
+    4
+   ],
+   "next": 5,
+   "seen": 2,
+   "contra": 1,
+   "value": 0
+  },
+  {
+   "len": 3,
+   "ctx": [
+    3,
+    8,
+    1
+   ],
+   "next": 2,
+   "seen": 2,
+   "contra": 0,
+   "value": 0
+  },
+  {
+   "len": 3,
+   "ctx": [
+    5,
+    6,
+    7
+   ],
+   "next": 4,
+   "seen": 2,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    6,
+    7,
+    4
+   ],
+   "next": 2,
+   "seen": 2,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 3,
+   "ctx": [
+    7,
+    4,
+    5
+   ],
+   "next": 6,
+   "seen": 2,
+   "contra": 0,
+   "value": 0
+  },
+  {
+   "len": 2,
+   "ctx": [
+    1,
+    2
+   ],
+   "next": 3,
+   "seen": 12,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 2,
+   "ctx": [
+    2,
+    3
+   ],
+   "next": 7,
+   "seen": 12,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 2,
+   "ctx": [
+    1,
+    5
+   ],
+   "next": 6,
+   "seen": 11,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 2,
+   "ctx": [
+    4,
+    5
+   ],
+   "next": 6,
+   "seen": 11,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 2,
+   "ctx": [
+    5,
+    6
+   ],
+   "next": 7,
+   "seen": 11,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 2,
+   "ctx": [
+    5,
+    6
+   ],
+   "next": 8,
+   "seen": 11,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 2,
+   "ctx": [
+    2,
+    3
+   ],
+   "next": 8,
+   "seen": 10,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 2,
+   "ctx": [
+    4,
+    2
+   ],
+   "next": 3,
+   "seen": 10,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 2,
+   "ctx": [
+    6,
+    7
+   ],
+   "next": 1,
+   "seen": 9,
+   "contra": 0,
+   "value": 11
+  },
+  {
+   "len": 2,
+   "ctx": [
+    6,
+    8
+   ],
+   "next": 4,
+   "seen": 8,
+   "contra": 0,
+   "value": 5
+  },
+  {
+   "len": 2,
+   "ctx": [
+    8,
+    4
+   ],
+   "next": 5,
+   "seen": 8,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 2,
+   "ctx": [
+    3,
+    7
+   ],
+   "next": 4,
+   "seen": 7,
+   "contra": 0,
+   "value": -11
+  },
+  {
+   "len": 2,
+   "ctx": [
+    7,
+    1
+   ],
+   "next": 2,
+   "seen": 6,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 2,
+   "ctx": [
+    7,
+    1
+   ],
+   "next": 5,
+   "seen": 6,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 2,
+   "ctx": [
+    7,
+    4
+   ],
+   "next": 2,
+   "seen": 6,
+   "contra": 0,
+   "value": -11
+  },
+  {
+   "len": 2,
+   "ctx": [
+    3,
+    8
+   ],
+   "next": 1,
+   "seen": 5,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 2,
+   "ctx": [
+    8,
+    1
+   ],
+   "next": 2,
+   "seen": 5,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 2,
+   "ctx": [
+    3,
+    8
+   ],
+   "next": 4,
+   "seen": 4,
+   "contra": 0,
+   "value": 22
+  },
+  {
+   "len": 2,
+   "ctx": [
+    8,
+    4
+   ],
+   "next": 2,
+   "seen": 4,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 2,
+   "ctx": [
+    3,
+    7
+   ],
+   "next": 1,
+   "seen": 3,
+   "contra": 0,
+   "value": 0
+  },
+  {
+   "len": 2,
+   "ctx": [
+    6,
+    8
+   ],
+   "next": 1,
+   "seen": 3,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 2,
+   "ctx": [
+    8,
+    1
+   ],
+   "next": 5,
+   "seen": 3,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 2,
+   "ctx": [
+    6,
+    7
+   ],
+   "next": 4,
+   "seen": 2,
+   "contra": 0,
+   "value": -4
+  },
+  {
+   "len": 2,
+   "ctx": [
+    7,
+    4
+   ],
+   "next": 5,
+   "seen": 2,
+   "contra": 0,
+   "value": 0
+  },
+  {
+   "len": 1,
+   "ctx": [
+    2
+   ],
+   "next": 3,
+   "seen": 22,
+   "contra": 0,
+   "value": 8
+  },
+  {
+   "len": 1,
+   "ctx": [
+    5
+   ],
+   "next": 6,
+   "seen": 22,
+   "contra": 0,
+   "value": 15
+  },
+  {
+   "len": 1,
+   "ctx": [
+    1
+   ],
+   "next": 2,
+   "seen": 12,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 1,
+   "ctx": [
+    3
+   ],
+   "next": 7,
+   "seen": 12,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 1,
+   "ctx": [
+    7
+   ],
+   "next": 1,
+   "seen": 12,
+   "contra": 0,
+   "value": 11
+  },
+  {
+   "len": 1,
+   "ctx": [
+    8
+   ],
+   "next": 4,
+   "seen": 12,
+   "contra": 0,
+   "value": 22
+  },
+  {
+   "len": 1,
+   "ctx": [
+    1
+   ],
+   "next": 5,
+   "seen": 11,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 1,
+   "ctx": [
+    4
+   ],
+   "next": 5,
+   "seen": 11,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 1,
+   "ctx": [
+    6
+   ],
+   "next": 7,
+   "seen": 11,
+   "contra": 0,
+   "value": 28
+  },
+  {
+   "len": 1,
+   "ctx": [
+    6
+   ],
+   "next": 8,
+   "seen": 11,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 1,
+   "ctx": [
+    3
+   ],
+   "next": 8,
+   "seen": 10,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 1,
+   "ctx": [
+    4
+   ],
+   "next": 2,
+   "seen": 10,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 1,
+   "ctx": [
+    7
+   ],
+   "next": 4,
+   "seen": 9,
+   "contra": 0,
+   "value": -14
+  },
+  {
+   "len": 1,
+   "ctx": [
+    8
+   ],
+   "next": 1,
+   "seen": 8,
+   "contra": 0,
+   "value": 9
+  }
+ ],
+ "candidates": [
+  {
+   "len": 3,
+   "ctx": [
+    3,
+    7,
+    4
+   ],
+   "next": 1,
+   "count": 1
+  },
+  {
+   "len": 3,
+   "ctx": [
+    4,
+    1,
+    5
+   ],
+   "next": 6,
+   "count": 1
+  },
+  {
+   "len": 3,
+   "ctx": [
+    7,
+    4,
+    1
+   ],
+   "next": 5,
+   "count": 1
+  },
+  {
+   "len": 2,
+   "ctx": [
+    4,
+    1
+   ],
+   "next": 5,
+   "count": 1
+  },
+  {
+   "len": 2,
+   "ctx": [
+    7,
+    4
+   ],
+   "next": 1,
+   "count": 1
+  },
+  {
+   "len": 1,
+   "ctx": [
+    4
+   ],
+   "next": 1,
+   "count": 1
+  }
+ ]
+}

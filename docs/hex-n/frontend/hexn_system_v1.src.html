@@ -1,0 +1,135 @@
+<title>Hex-N System View</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one working column. Summary and settings first, then the layers, the event timeline, the stored sequences. Same tokens as the Explorer page: amber and blue mark the two goal keys, green / amber / red mark the self-check verdicts. */
+:root{
+  --bg:#eef1f4; --panel:#f8fafb; --ink:#14202b; --ink2:#4a5a68; --line:#cfd8df; --accent:#0b6e6e; --accent-ink:#ffffff;
+  --plus:#c9731a; --minus:#2a64b0; --zero:#dfe5ea; --good:#2c8a4b; --bad:#b43a3a; --warn:#a67300; --soft:#e6ecf0;
+  --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-head:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161b; --panel:#192027; --ink:#e4eaef; --ink2:#9aabb8; --line:#2c3843; --accent:#3cc0bd; --accent-ink:#06201f;
+  --plus:#f0a04b; --minus:#6ea2ee; --zero:#27323b; --good:#58c07a; --bad:#e07b7b; --warn:#e0b43f; --soft:#212b33; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161b; --panel:#192027; --ink:#e4eaef; --ink2:#9aabb8; --line:#2c3843; --accent:#3cc0bd; --accent-ink:#06201f;
+  --plus:#f0a04b; --minus:#6ea2ee; --zero:#27323b; --good:#58c07a; --bad:#e07b7b; --warn:#e0b43f; --soft:#212b33; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1{font:600 30px/1.1 var(--f-head);margin:0;letter-spacing:.01em}
+h2{font:600 19px/1.2 var(--f-head);margin:0 0 4px;letter-spacing:.02em;text-wrap:balance}
+h3{font:500 12px/1.2 var(--f-mono);text-transform:uppercase;letter-spacing:.09em;color:var(--ink2);margin:0 0 8px}
+p{margin:0}.sub{color:var(--ink2);max-width:68ch}.small{font-size:13px;color:var(--ink2)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}.row>*{min-width:0}
+.mono{font-family:var(--f-mono)}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 18px}
+.stat{display:flex;flex-direction:column;gap:2px}.stat b{font:500 22px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}.stat span{font-size:12.5px;color:var(--ink2)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.set{font:13px var(--f-mono);background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:4px 9px;color:var(--ink)}
+.layers{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.layer{border:1px solid var(--line);border-radius:5px;padding:12px;background:var(--bg);display:flex;flex-direction:column;gap:6px}
+.layer b{font:600 15px var(--f-head)}.layer .tag{align-self:flex-start;font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:3px;border:1px solid var(--line);color:var(--ink2)}
+.layer .tag.built{color:var(--good);border-color:var(--good)}.layer .tag.not{color:var(--warn);border-color:var(--warn)}
+.layer p{font-size:13px;color:var(--ink2)}
+.bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.bar label{display:flex;gap:6px;align-items:center;font-size:13.5px;color:var(--ink2)}
+button.btn,label.btn{font:500 13px var(--f-body);background:var(--accent);color:var(--accent-ink);border:0;border-radius:4px;padding:7px 13px;cursor:pointer;display:inline-block}
+button.seg{font:500 13px var(--f-mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);padding:6px 12px;cursor:pointer}
+button.seg:first-child{border-radius:4px 0 0 4px}button.seg:last-child{border-radius:0 4px 4px 0}button.seg+button.seg{border-left:0}
+button.seg[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:focus-visible,label.btn:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--bg);max-height:560px;overflow-y:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{position:sticky;top:0;background:var(--soft);text-align:left;font:500 11.5px var(--f-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--ink2);padding:8px 10px;white-space:nowrap;border-bottom:1px solid var(--line)}
+td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
+tr.flag td{background:color-mix(in srgb,var(--bad) 12%,var(--bg))}
+tr.goalrow td{background:color-mix(in srgb,var(--plus) 7%,var(--bg))}
+.k{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;border-radius:5px;font:500 14px var(--f-mono);background:var(--soft);border:1px solid var(--line);color:var(--ink)}
+.k.g7{border-color:var(--plus);color:var(--plus);background:color-mix(in srgb,var(--plus) 12%,var(--bg))}
+.k.g8{border-color:var(--minus);color:var(--minus);background:color-mix(in srgb,var(--minus) 12%,var(--bg))}
+.seq{display:inline-flex;gap:3px;align-items:center}.arrow{color:var(--ink2);padding:0 4px}
+.pill{font:500 11.5px var(--f-mono);padding:2px 8px;border-radius:10px;border:1px solid currentColor;display:inline-block}
+.pill.ok{color:var(--good)}.pill.contradiction{color:var(--bad)}.pill.novel{color:var(--warn)}.pill.start{color:var(--ink2)}
+.dots{display:inline-flex;gap:2px;vertical-align:middle}.dots i{width:6px;height:12px;background:var(--accent);border-radius:1px;display:block}
+.val{display:inline-block;position:relative;width:110px;height:12px;background:var(--zero);border-radius:2px;vertical-align:middle}
+.val::before{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--ink2)}
+.val i{position:absolute;top:0;bottom:0;display:block}
+.val i.pos{background:var(--good)}.val i.neg{background:var(--bad)}
+.hit{color:var(--good)}.miss{color:var(--bad)}.dim{color:var(--ink2)}
+.note{border-left:3px solid var(--line);padding:2px 0 2px 12px;color:var(--ink2);font-size:13.5px;max-width:78ch}
+</style>
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:8px">
+    <h1>Hex-N System View</h1>
+    <p class="sub" id="source">Loading the trace.</p>
+    <div class="bar"><label class="btn" for="file">Load another trace<input type="file" id="file" accept=".json,application/json"></label><span class="small" id="fileMsg">A trace is made by tools/hexn_system_trace_v1.py from the recordings; this page only shows it.</span></div>
+  </header>
+  <section aria-labelledby="h-sum"><div><h2 id="h-sum">Run summary</h2><p class="small">What the store did over the played run.</p></div><div class="stats" id="stats"></div><div><h3>Settings used</h3><div class="chips" id="settings"></div></div></section>
+  <section aria-labelledby="h-lay"><div><h2 id="h-lay">The layers</h2><p class="small">Each event passes through them in this order. Layer 3 is not built yet.</p></div><div class="layers" id="layers"></div></section>
+  <section aria-labelledby="h-tl"><div><h2 id="h-tl">Event timeline</h2><p class="small">One row per key press. The prediction was made before the key arrived; the verdict compares it with what came. The goal read is the key the reward values favour next.</p></div>
+    <div class="bar"><label><input type="checkbox" id="onlyFlag"> only flagged and goal keys</label><span class="small" id="tlCount"></span></div>
+    <div class="scroll" role="region" aria-label="Event timeline" tabindex="0"><table><thead><tr><th>#</th><th>Gap</th><th>Layer 1 key</th><th>Layer 2 predicted</th><th>Verdict</th><th>Goal read</th><th>Reward</th><th>Known / cand.</th></tr></thead><tbody id="tl"></tbody></table></div></section>
+  <section aria-labelledby="h-st"><div><h2 id="h-st">Stored sequences</h2><p class="small">At the end of the run. A sequence is the last few keys and the key that came next; seen counts it, contradicted counts the times its context was followed by something else, value is what the rewards say about it (bar: red below zero, green above; full scale is a reward of +1).</p></div>
+    <div class="bar" id="tabs" role="group" aria-label="Context length"></div><div class="scroll" role="region" aria-label="Stored sequences" tabindex="0"><table><thead id="sth"></thead><tbody id="stb"></tbody></table></div><div class="bar"><button class="btn" id="more" hidden>Show all</button><span class="small" id="stCount"></span></div></section>
+  <section aria-labelledby="h-l3"><div><h2 id="h-l3">Layer 3</h2></div><p class="note">Layer 3 will line up the latest stable key of each of the three sensor channels at one moment and combine them into an inference, with a deeper memory path. It is not built, so nothing here comes from it. The light, pot and thermistor channels of these runs were quiet, so only the remote's keys are shown.</p></section>
+  <section aria-labelledby="h-lim"><div><h2 id="h-lim">What this view does not show</h2></div><p class="note">The keys are the real presses decoded from the recordings, with their real frame counts; no frame damage is added here. The store is the Python model that the RTL is checked against, run in simulation. Nothing has been built for the card. The reward is a rule (the desired goal key), not a measured teacher.</p></section>
+</div>
+<script type="application/json" id="trace">__TRACE__</script>
+<script>
+(function(){
+var T=null, level=3, showAll=false;
+function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
+function chip(k){var c=el('span','k'+(k===7?' g7':k===8?' g8':''),String(k));c.title=k===7||k===8?'goal key '+k:'key '+k;return c}
+function seq(ctx){var s=el('span','seq');ctx.forEach(function(k){s.appendChild(chip(k))});return s}
+function valbar(v){var b=el('span','val');var w=Math.min(Math.abs(v),64)/64*50;var i=el('i',v>=0?'pos':'neg');if(v>=0){i.style.left='50%'}else{i.style.right='50%'}i.style.width=w+'%';b.appendChild(i);b.title='value '+v+' (64 = reward +1)';return b}
+function td(parent,child,cls){var d=el('td',cls||'');if(typeof child==='string')d.textContent=child;else if(child)d.appendChild(child);parent.appendChild(d);return d}
+function stat(label,value){var s=el('div','stat');s.appendChild(el('b','',String(value)));s.appendChild(el('span','',label));return s}
+function renderTop(){
+  document.getElementById('source').textContent='Source: '+T.source+'. Simulation of the store model; nothing from a card.';
+  var S=T.summary,r3=S.next_event_right['3']||{right:0,of:0};var st=document.getElementById('stats');st.textContent='';
+  [['Key presses',S.events],['Self-check flags',S.flagged],['Next key right, 3-key context',r3.right+' of '+r3.of],['Goal keys that were the desired goal',S.desired_goals+' of '+S.goals],['Known sequences at end',S.known_at_end],['Candidates at end',S.candidates_at_end],['Promoted during run',S.promoted],['Rewards sent',S.rewards_sent]].forEach(function(x){st.appendChild(stat(x[0],x[1]))});
+  var c=T.settings,ch=document.getElementById('settings');ch.textContent='';
+  ['promote after '+c.promote_after+' sightings in '+c.window_events+' events','value step 1/'+Math.pow(2,c.value_step_shift),'goal read from the last '+c.goal_read_context+' key'+(c.goal_read_context>1?'s':''),'desired goal key '+c.desired_goal_key,c.known_capacity+' known and '+c.candidate_capacity+' candidate slots'].forEach(function(t){ch.appendChild(el('span','set',t))});
+  var fr={};T.events.forEach(function(e){fr[e.frames]=(fr[e.frames]||0)+1});var frs=Object.keys(fr).sort().map(function(k){return k+' frame'+(k==='1'?'':'s')+': '+fr[k]}).join(', ');
+  var L=document.getElementById('layers');L.textContent='';
+  [['Layer 1: detector bank','built','Turns the sensor wires into a clean key number (exact-match mode here), then the hold counter passes only changes on. This run: '+S.events+' key presses. Frames per press: '+frs+'.'],
+   ['Layer 2: history and paths','built','Keeps the last three keys, predicts the next, checks itself, holds new sequences as candidates until they repeat, and learns from rewards what each stored sequence is worth.'],
+   ['Layer 3: inference','not','Not built yet. Will combine the three sensor channels.']].forEach(function(x){var d=el('div','layer');d.appendChild(el('b','',x[0]));d.appendChild(el('span','tag '+x[1],x[1]==='built'?'built, simulation':'not built'));d.appendChild(el('p','',x[2]));L.appendChild(d)})
+}
+function renderTimeline(){
+  var only=document.getElementById('onlyFlag').checked,tb=document.getElementById('tl');tb.textContent='';var n=0;
+  T.events.forEach(function(e){
+    var isGoal=e.key===7||e.key===8,flag=e.verdict==='contradiction'||e.verdict==='novel';
+    if(only&&!(isGoal||flag))return;n++;
+    var tr=el('tr',flag?'flag':isGoal?'goalrow':'');
+    td(tr,String(e.n),'mono');td(tr,e.gap_s===null?'':e.gap_s.toFixed(2)+' s','dim');
+    var l1=el('span');l1.appendChild(chip(e.key));var dots=el('span','dots');dots.style.marginLeft='8px';for(var i=0;i<e.frames;i++)dots.appendChild(el('i'));dots.title=e.frames+' frame'+(e.frames===1?'':'s');l1.appendChild(dots);td(tr,l1);
+    if(e.pred){var p=el('span');p.appendChild(chip(e.pred.key));var hit=e.pred.key===e.key;var m=el('span',hit?'hit':'miss',hit?' matched':' missed');m.style.marginLeft='6px';p.appendChild(m);var q=el('span','dim',' '+e.pred.seen+' of '+e.pred.total+', '+e.pred.level+'-key');q.style.fontSize='12px';p.appendChild(q);td(tr,p)}else td(tr,'none yet','dim');
+    td(tr,el('span','pill '+e.verdict,e.verdict));
+    if(e.goal_read){var g=el('span');g.appendChild(chip(e.goal_read.key));var v=valbar(e.goal_read.value);v.style.marginLeft='8px';g.appendChild(v);td(tr,g)}else td(tr,'','dim');
+    td(tr,e.reward===null?'':(e.reward>0?'+':'')+e.reward,'mono');
+    td(tr,e.known+' / '+e.candidates+(e.promoted?'  promoted '+e.promoted:''),'dim');tb.appendChild(tr)});
+  document.getElementById('tlCount').textContent='showing '+n+' of '+T.events.length;
+}
+function renderTables(){
+  var tabs=document.getElementById('tabs');tabs.textContent='';
+  [3,2,1,0].forEach(function(l){var b=el('button','seg',l?l+'-key context':'candidates');b.setAttribute('aria-pressed',String(level===l));b.onclick=function(){level=l;showAll=false;renderTables()};tabs.appendChild(b)});
+  var th=document.getElementById('sth'),tb=document.getElementById('stb');th.textContent='';tb.textContent='';var hr=el('tr');
+  var rows;
+  if(level){['Sequence','Seen','Contradicted','Value'].forEach(function(h){hr.appendChild(el('th','',h))});rows=T.known.filter(function(k){return k.len===level})}
+  else{['Sequence','Sightings'].forEach(function(h){hr.appendChild(el('th','',h))});rows=T.candidates}
+  th.appendChild(hr);var cap=showAll?rows.length:40,shown=rows.slice(0,cap);
+  shown.forEach(function(k){var tr=el('tr');var s=el('span','seq');s.appendChild(seq(k.ctx));s.appendChild(el('span','arrow','then'));s.appendChild(chip(k.next));td(tr,s);
+    if(level){td(tr,String(k.seen),'mono');td(tr,String(k.contra),'mono');var v=el('span');v.appendChild(valbar(k.value));var t=el('span','mono dim',' '+k.value);t.style.marginLeft='8px';v.appendChild(t);td(tr,v)}else td(tr,String(k.count),'mono');tb.appendChild(tr)});
+  var more=document.getElementById('more');more.hidden=rows.length<=40||showAll;more.onclick=function(){showAll=true;renderTables()};
+  document.getElementById('stCount').textContent=rows.length?'showing '+shown.length+' of '+rows.length:'none';
+}
+function load(t){T=t;renderTop();renderTimeline();renderTables()}
+document.getElementById('onlyFlag').onchange=function(){if(T)renderTimeline()};
+document.getElementById('file').onchange=function(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var t=JSON.parse(r.result);if(!t.events||!t.summary)throw new Error('not a Hex-N trace');level=3;showAll=false;load(t);document.getElementById('fileMsg').textContent='Showing '+f.name}catch(e){document.getElementById('fileMsg').textContent='Could not read that file: '+e.message}};r.readAsText(f)};
+try{load(JSON.parse(document.getElementById('trace').textContent))}catch(e){document.getElementById('source').textContent='The embedded trace could not be read: '+e.message}
+})();
+</script>
