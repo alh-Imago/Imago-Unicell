@@ -50,4 +50,4 @@ def main():
     fresh = hc1[1] & 1 == 1 and hc2[1] & 1 == 1 and hc2[0] == (S1.classify(m, by[classes[-1]][0])[0] if S1.classify(m, by[classes[-1]][0])[0] >= 0 else NONE)
     print("SETHOLD clears the hold (first sample after it is taken at once): %s" % ("yes" if fresh else "NO")); bad += 0 if fresh else 1
     print("HOLD CHECK %s (%d samples)" % ("PASS" if bad == 0 else "FAIL (%d differences)" % bad, total)); sys.exit(0 if bad == 0 else 1)
-main()
+if __name__ == "__main__": main()
