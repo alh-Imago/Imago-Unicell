@@ -1,0 +1,28 @@
+# Alan's serial capture, 28 Oct 2026, 17:06: picocom -b 115200 /dev/ttyUSB1 on the Tang Nano 20K, board running the flash image (LiteX BIOS). Typed: help
+litex> help
+
+LiteX BIOS, available commands:
+
+leds                     - Set Leds value
+buttons                  - Get Buttons value
+flush_l2_cache           - Flush L2 cache
+flush_cpu_dcache         - Flush CPU data cache
+crc                      - Compute CRC32 of a part of the address space
+ident                    - Identifier of the system
+help                     - Print this help
+
+serialboot               - Boot from Serial (SFL)
+reboot                   - Reboot
+boot                     - Boot from Memory
+
+mem_cmp                  - Compare memory content
+mem_speed                - Test memory speed
+mem_test                 - Test memory access
+mem_copy                 - Copy address space
+mem_write                - Write address space
+mem_read                 - Read address space
+mem_list                 - List available memory regions
+
+sdram_mr_write           - Write SDRAM Mode Register
+sdram_test               - Test SDRAM
+sdram_init               - Initialize SDRAM (Init + Calibration)
