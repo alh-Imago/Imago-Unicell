@@ -1,4 +1,4 @@
-# Source: YPCB-00338-1P1 DDR3 channel 0 pin map, constraints folder of github.com/TiferKing/ypcb_00338_1p1_hack (MIT licence, TiferKing). Pasted by Alan on 28 Oct 2026; content below is verbatim, ISE/UCF style. Not checked on a board by this project.
+# Source: YPCB-00338-1P1 DDR3 pin map "A" (the first of two files Alan pasted; which one the repo calls channel 0 or 1 is not known to us), constraints folder of github.com/TiferKing/ypcb_00338_1p1_hack (MIT licence, TiferKing). Pasted 28 Oct 2026; content below is verbatim, ISE/UCF style. Not checked on a board by this project.
 NET   "ddr3_dq[0]"                             LOC = "AG17"  |    ;
 NET   "ddr3_dq[1]"                             LOC = "AG16"  |    ;
 NET   "ddr3_dq[2]"                             LOC = "AH17"  |    ;
