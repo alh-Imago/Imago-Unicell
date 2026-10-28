@@ -45,7 +45,8 @@ def judge(text, **kw):
     out.append("probe: %s; non-zero words %d; first non-empty block %s; SD_BASE %d" % (names.get(h[0], h[0]), h[1], "none" if h[2] == 0xFFFFFFFF else h[2], h[15]))
     if h[0] == 1: return "REFUSED", out + ["nothing was written to the card; choose another SD_BASE (rebuild with the new value)"]
     if h[0] == 2: return "CARD ERROR", out + ["card error word %08X" % h[3]]
-    if h[3] and h[0] == 3: return "CARD ERROR", out + ["tier card error flag %08X" % h[3]]
+    if h[0] == 3 and (h[3] & 0xBFFFFFFF): return "CARD ERROR", out + ["tier card error flag %08X" % h[3]]
+    if h[3] & 0x40000000: out.append("the region was NOT empty and was wiped with zeros first (ERASE build)")
     if not h[4]: return "FAIL", out + ["test not finished"]
     out.append("before the reset: wrong %d, known not found %d, never-seen found %d" % (h[10], h[11], h[12]))
     out.append("after save+reset+restore: wrong %d, known not found %d, never-seen found %d" % (h[6], h[7], h[8]))

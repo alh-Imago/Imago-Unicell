@@ -23,3 +23,9 @@ def test_non_empty_region_is_refused_and_nothing_is_written():
         v, lines = C.judge(re.search(r"REPORT(.*)", o).group(1), **P)
         assert v == "REFUSED", lines
         h, _ = C.parse(re.search(r"REPORT(.*)", o).group(1)); assert h[1] == 1 and h[2] == 40 + poison, h
+def test_erase_build_wipes_only_the_region_then_runs():
+    o = sim(**P, SD_BASE=40, POISON=7, ERASE=1)
+    assert "CARDTEST SIM DONE" in o, o[-1500:]   # includes: nothing outside the region changed
+    v, lines = C.judge(re.search(r"REPORT(.*)", o).group(1), **P)
+    assert v == "PASS", lines
+    assert any("wiped" in x for x in lines), lines
