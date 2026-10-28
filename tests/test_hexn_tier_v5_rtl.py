@@ -54,7 +54,7 @@ def test_crash_without_save_matches_reference():
     m = check(MODE=2)
     assert m["n2"]["replay_live"] > 0 and m["n2"]["replay_tomb"] > 0
 def test_compaction_log_full_and_tombstones_match_reference():
-    m = check(MODE=1, LB=4, LOW=3, NK=400, STEPS=1500, FB=3, RAMB=3)
+    m = check(MODE=1, LB=3, LOW=3, NK=400, STEPS=1500, FB=3, RAMB=3)
     assert m["n1"]["gc_rd"] > 0 and m["n1"]["tomb_dropped"] > 0 and m["n1"]["log_full"] > 0
 def test_damaged_block_is_counted_and_skipped_like_the_reference():
     m = check(MODE=2, LB=5, LOW=4, NK=200, STEPS=1500, FB=3, RAMB=3, CORRUPT=7)

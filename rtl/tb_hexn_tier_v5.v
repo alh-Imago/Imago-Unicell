@@ -16,7 +16,7 @@ module tb_hexn_tier_v5;
         reg [31:0] m; begin m = x * 32'h9E3779B1; m = m ^ (m >> 15); m = m * 32'h85EBCA6B; hash32 = m ^ (m >> 13); end
     endfunction
     localparam [31:0] MK = (32'd1 << KW) - 1, MV = (64'd1 << VW) - 1;
-    reg [VW-1:0] ev [0:NK-1]; reg ek [0:NK-1]; integer bad = 0, lost = 0, n, ki, i, j, b; reg [31:0] r; reg [KW-1:0] kk;
+    reg [VW-1:0] ev [0:NK-1]; reg ek [0:NK-1]; integer bad = 0, lost = 0, lf1 = 0, n, ki, i, j, b; reg [31:0] r; reg [KW-1:0] kk;
     task op(input fl, input sv, input rs, input we, input [KW-1:0] k, input [VW-1:0] d);
         begin
             @(posedge clk); cmd_valid <= 1; cmd_flush <= fl; cmd_save <= sv; cmd_restore <= rs; cmd_we <= we; key <= k; wdata <= d;
@@ -55,6 +55,7 @@ module tb_hexn_tier_v5;
         end
         if (MODE == 0) op(1, 0, 0, 0, 0, 0); else if (MODE == 1) op(0, 1, 0, 0, 0, 0);
         if (CORRUPT >= 0) card.mem[CORRUPT * 512 + 100] = card.mem[CORRUPT * 512 + 100] ^ 8'hFF;   // a torn or damaged block
+        lf1 = cnts[32*14 +: 32];   // entries dropped because the log was full (the counters are wiped by the reset)
         show("COUNTERS1"); dump("BLK1");
         if (MODE >= 1) begin
             resetn = 0; model.inited = 0; model.got_pre = 0; model.mode_set = 0; model.nref_init = 0; model.last_ref = -1;   // the power goes: the SDRAM chip forgets its start-up too (its contents stay in the model, the tier clears what it uses)
@@ -68,8 +69,8 @@ module tb_hexn_tier_v5;
             end
             show("COUNTERS3"); dump("BLK2");
         end
-        $display("SDRAM rule violations %0d, data errors %0d, known keys not found after restore %0d (log_full %0d), card error %b", model.errors, bad, lost, cnts[32*14 +: 32], sd_error);
-        if (bad == 0 && model.errors == 0 && !sd_error && (MODE != 1 || lost <= cnts[32*14 +: 32])) $display("TIER5 TEST PASS"); else $display("TIER5 TEST FAIL");
+        $display("SDRAM rule violations %0d, data errors %0d, known keys not found after restore %0d (log_full before the power loss %0d), card error %b", model.errors, bad, lost, lf1, sd_error);
+        if (bad == 0 && model.errors == 0 && !sd_error && (MODE != 1 || lost <= lf1)) $display("TIER5 TEST PASS"); else $display("TIER5 TEST FAIL");
         $finish;
     end
     initial begin #20000000000; $display("TIER5 TEST FAIL: timeout"); $finish; end
