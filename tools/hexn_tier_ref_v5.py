@@ -3,7 +3,7 @@ What is new against v4 (design row 28 Oct 2026, CARD_FORMAT_v1.md):
  * LOG BLOCK = 512 bytes: 16-byte header + 62 entries of 8 bytes. Header: byte 0 volume id, bytes 1-5 sequence number (40 bits, little endian, first block = 1), byte 6 entry count, byte 7 format version (1), bytes 8-9 magic 0x4858, bytes 10-11 CRC16 (CCITT, over the whole block with these two bytes zero), bytes 12-15 zero. Entry = tag word + value word, little endian. Tag: bit 31 set = live entry, bit 30 set = TOMBSTONE, low KW bits = the key hash; tag 0 = unused. The block position on the card is (sequence - 1) mod L.
  * TOMBSTONE: when a key is promoted away from the card (a GET or a PUT that finds it there) its old log entry stays on the card, so a tombstone is appended to the log; a restore replays the log in sequence order and a tombstone removes the key. Compaction drops tombstones (a tombstone is always newer than the entry it kills, and blocks are reclaimed oldest first).
  * SAVE (drain): every fast and SDRAM entry is moved down into the log and the open sector is written (flush). Entries that do not fit (CAP) are dropped and counted in log_full; save() returns how many were lost.
- * POWER LOSS and RESTORE BY SCAN (no checkpoint yet): RAM is lost, the card stays. restore() reads all L blocks (pass 1, finds valid blocks: magic, version, volume, CRC16, position), then replays the valid ones oldest sequence first (pass 2), live entry sets the index word, tombstone clears it. Fast table and SDRAM level start empty. Reads counted in scan_rd: L + the number of valid blocks.
+ * POWER LOSS and RESTORE BY SCAN (no checkpoint yet): RAM is lost, the card stays. restore() reads all L blocks (pass 1, finds valid blocks: magic, version, volume, CRC16, position), then replays the valid ones oldest sequence first (pass 2), live entry sets the index word, tombstone clears it. Fast table and SDRAM level start empty. Reads counted in scan_rd: L + the number of valid blocks. bad_blocks counts blocks whose magic field is non-zero but that fail a check (a block with an empty magic field is taken as never written, because the hardware cannot tell the two apart).
  * What a crash gives back: the state at the last durable block write. A GET or PUT that happened after it, and anything still in the fast table, the SDRAM level or the open sector, is gone. A key that was only in RAM is absent; a key that had been demoted to the card comes back with its last durable value, which can be older than the value it had in RAM. LOW must be at least 3: a compacted block's live entries are re-appended within the next two blocks and the old block is only overwritten LOW-1 blocks later, so a torn write of a block can only destroy entries that exist elsewhere."""
 M32 = 0xFFFFFFFF
 ODD = 0x9E3779B1 | 1
@@ -134,7 +134,7 @@ class Tier5:
         s._reset_ram(); good = []
         for pos in range(s.L):
             s.n["scan_rd"] += 1; raw = s.card.get(pos)
-            if raw is None: continue
+            if raw is None or raw[8:10] == b"\0\0": continue   # never written (the magic field is empty)
             p = parse_block(raw, s.VOL)
             if p is None or (p[0] - 1) % s.L != pos: s.n["bad_blocks"] += 1; continue
             good.append((p[0], pos, p[1]))
