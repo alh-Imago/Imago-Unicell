@@ -364,6 +364,9 @@ COMPOSER_CSS = """
 }
 """
 
+# ledger #1337: core_select numbers of the VIX carrier RTL (unicell_vixen_v1.v, unicell_vix_carrier_v1d.v), by the composer's core names. The bar itself shows the SUPER shell / ICM v3 numbers; these two lineages differ (tools/core_id_consistency_v1.py checks both against their RTL).
+CARRIER_SEL = {"nano": 0, "adder": 1, "ram": 2, "comparator": 3, "branch": 4, "accumulator": 5, "latch": 6, "sequencer": 7, "mul": 9, "priority": 10, "corner": 12, "cross": 13, "merge": 14, "div": 15}
+
 CORE_COLOURS = {"adder": "#c17f45", "mul": "#d9b46a", "comparator": "#7fa6d0", "const": "#7fae7a", "io": "#e9ede6", "ram": "#627262", "cross": "#d0786a",
                 "branch": "#b48ad0", "nano": "#b48ad0", "latch": "#a7b58c", "accumulator": "#8cb5ad", "sequencer": "#b5a58c", "priority": "#9aab98", "corner": "#d0a06a", "merge": "#8fb0c8"}
 
@@ -373,6 +376,8 @@ def page_composer():
     b_opts = "".join(f'<option value="{b}">{b}</option>' for b in flv.BUILDERS)
     legend = "".join(f'<span style="--sw:{c}">{k}</span>' for k, c in CORE_COLOURS.items() if k not in ("priority",))
     meta = flv.core_meta()
+    for _c, _m in meta["cores"].items():            # ledger #1337: the VIX carrier numbers its cores differently from the super shell (the numbers in `sel`); shown beside it in the bar's hover text
+        _m["carrier_sel"] = CARRIER_SEL.get(_c)
     body = f"""<h1>Composer</h1>
 <p class="lede">Build a design on the board, or import one and arrange it. <b>Place</b> cells from the palette and set each cell's fields; the panel shows the
 80-bit SUPER_LATCH the cell encodes to, as the explainer does. <b>Join</b> a cell's output to another cell's input; the layout engine
@@ -684,7 +689,7 @@ function fieldVal(cfg, f) {
 function bitbar(c) {
   const m = META.cores[c.core]; if (!m) return '';
   const seg = (w, cls, title) => `<span class="${cls}" style="flex:${w}" title="${esc(title)}"></span>`;
-  let out = `<div class="bitbar" title="core_select [4:0] · core_config [46:5] · add-on [66:47]">` + seg(5, 'sel set', `core_select = ${m.sel} (${c.core})`);
+  let out = `<div class="bitbar" title="core_select [4:0] · core_config [46:5] · add-on [66:47]">` + seg(5, 'sel set', `core_select = ${m.sel} (${c.core}) in the SUPER shell / ICM v3 numbering` + (m.carrier_sel == null ? '' : `; the VIX carrier numbers this core ${m.carrier_sel}`));
   let at = 0;
   for (const f of [...m.fields].sort((a, b) => a.lo - b.lo)) {
     if (f.lo > at) out += seg(f.lo - at, '', `core_config bits ${at}..${f.lo - 1}: unused`);
