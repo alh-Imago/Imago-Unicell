@@ -49,9 +49,9 @@ def run(opp, games, seed, **kw):
     return res, pl
 VARIANTS = [("fixed depth 6 (as v1)", dict(dmax=6, conf=2.0)), ("fixed depth 4", dict(dmax=4, conf=2.0)), ("depth 4 + free plies at conf .8", dict(dmax=4, conf=0.8)),
             ("depth 4 + free plies at conf .6", dict(dmax=4, conf=0.6)), ("depth 6 + free plies at conf .8", dict(dmax=6, conf=0.8))]
-def main(games=30, seeds=1):
+def main(games=30, seeds=1, only=0):
     h = games // 2
-    for oname, opp in (("BLOCKER opponent", C.opp_blocker), ("lookahead(2) opponent", C.make_lookahead(2))):
+    for oname, opp in [x for i, x in enumerate((("BLOCKER opponent", C.opp_blocker), ("lookahead(2) opponent", C.make_lookahead(2))), 1) if only in (0, i)]:
         print("\n%s: layer 3 prediction, theta .04; online [win / draw / loss] games 1-%d and %d-%d, %d seed(s); positions created per move" % (oname, h, h + 1, games, seeds))
         for name, kw in VARIANTS:
             rs = [run(opp, games, sd, **kw) for sd in range(seeds)]
