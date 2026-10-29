@@ -85,3 +85,13 @@ JTAG chains: USER1 = ypcb DDR3 register, USER2 = Hex-N core (`HEXN_CHAIN=2`), US
 - Only one program can use the JTAG cable at a time (OpenOCD stops other users).
 - Everything in the combined design runs on the 83.33 MHz DDR3 controller clock; the flow's timing check only tests 50 MHz.
 - Keep logs on `/mnt/hdd/hexn_builds/`.
+
+### hexn_tier2 (tier with CLEAR, 29 Oct 2026; not built yet when written)
+One-time links, then build (about 45 min: synth 6 min, place and route 27 min), inside the toolchain shell with CHIPDB exported:
+    cd ~/hexn-wt && git pull && cd ~/ypcb-00338-1p1
+    ln -sfn ~/hexn-wt/fpga/ypcb/hexn_tier2 designs/hexn_tier2
+    mkdir -p /mnt/hdd/hexn_builds/tier2_hex7
+    ln -sfn /mnt/hdd/hexn_builds/tier2_hex7 designs/hexn_tier2/build_tier2_hex7
+    HEXN_REPO=$HOME/hexn-wt HEXN_SHAPE=hex7 HEXN_NCELL=7 BUILD=build_tier2_hex7 THREADS=4 FPGA_HOST=$(hostname -s) ./fpga build designs/hexn_tier2 ypcb_00338_1p1_ddr3 2>&1 | tee /mnt/hdd/hexn_builds/tier2_hex7.log
+Load: `~/openFPGALoader/build/openFPGALoader -c digilent_hs2 designs/hexn_tier2/build_tier2_hex7/ypcb_00338_1p1_ddr3.bit`
+Test (CLEAR is sent first by itself, no reload needed between runs): `nix shell nixpkgs#openocd --command env OPENOCD=openocd python3 ~/hexn-wt/tools/hexn_tier7_card_v2.py --steps 20000 --keys 100000`
