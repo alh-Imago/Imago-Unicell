@@ -62,7 +62,8 @@ def parse(text, stage=None):
         d = {}
         for typ, a, v in re.findall(r"([HC])([0-9A-F]{2})=([0-9A-F]{8})", "H00=" + chunk): d.setdefault((typ, int(a, 16)), v)
         h01 = d.get(("H", 1))
-        if stage is not None and h01 is not None and ((int(h01, 16) > 0) != (stage == 1)): continue
+        h00 = d.get(("H", 0))
+        if stage is not None and h00 == "00000003" and h01 is not None and ((int(h01, 16) > 0) != (stage == 1)): continue   # only a run that PASSED the probe tells its stage apart this way (refused runs have no test result anyway)
         frames.append(d)
     parse.frames = len(frames); parse.unsure = []; parse.single = []
     votes = collections.defaultdict(collections.Counter)
