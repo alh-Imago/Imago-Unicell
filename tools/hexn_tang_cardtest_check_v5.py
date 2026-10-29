@@ -52,16 +52,36 @@ def expected_stage1(KW=18, VW=18, FB=6, RAMB=8, LB=6, LOW=4, N=1500, M=500):
     t.power_loss(); t.n = {k: 0 for k in R.NAMES}; t.restore(); c0 = [t.n[k] for k in R.NAMES]
     e = gets(); c1 = [t.n[k] for k in R.NAMES]
     return c0, c1, e
-def parse(text):
-    """Text from the serial port (or the simulation) -> (dict of H lines, list of 81 C values or None). Uses the last complete frame."""
-    h = {}; c = {}
-    for typ, a, v in re.findall(r"([HC])([0-9A-F]{2})=([0-9A-F]{8})", text):
-        (h if typ == "H" else c)[int(a, 16)] = int(v, 16)
+def parse(text, stage=None):
+    """Text from the serial port (or the simulation) -> (dict of H lines, dict of C lines).
+    The report repeats every 0.5 s. A capture can start in the middle of a frame, contain garbled characters, or hold frames of two different runs (if the board was reloaded while capturing). So each frame is kept apart (split at 'H00='), frames of the wrong stage are dropped (stage 1 = the power-cut half has H01 = valid blocks > 0, stage 0 has H01 = 0),
+    and every line takes the value most frames agree on (more than any other value; a line seen intact in only one frame counts if no other value was ever seen for it, and is reported). A single garbled copy of a line therefore cannot change the verdict. parse.frames / parse.lines_unsure report how much support there was."""
+    import collections
+    frames = []
+    for chunk in text.split("H00=")[1:]:
+        d = {}
+        for typ, a, v in re.findall(r"([HC])([0-9A-F]{2})=([0-9A-F]{8})", "H00=" + chunk): d.setdefault((typ, int(a, 16)), v)
+        h01 = d.get(("H", 1))
+        if stage is not None and h01 is not None and ((int(h01, 16) > 0) != (stage == 1)): continue
+        frames.append(d)
+    parse.frames = len(frames); parse.unsure = []; parse.single = []
+    votes = collections.defaultdict(collections.Counter)
+    for d in frames:
+        for k, v in d.items(): votes[k][v] += 1
+    best = {}
+    for k, cnt in votes.items():
+        (v1, n1), rest = cnt.most_common(1)[0], cnt.most_common()[1:]
+        if not rest: best[k] = v1; (parse.single.append(k) if n1 == 1 else None)   # only one value ever seen for this line (a lone intact copy counts, and is reported)
+        elif n1 > rest[0][1]: best[k] = v1
+        else: parse.unsure.append(k)
+    h = {a: int(v, 16) for (t, a), v in best.items() if t == "H"}; c = {a: int(v, 16) for (t, a), v in best.items() if t == "C"}
+    if len(best) < 97: return {}, {}
     return h, c
 def judge(text, stage=0, **kw):
     """-> (verdict, lines). verdict: 'PASS', 'REFUSED' (region not empty, nothing written), 'CARD ERROR', 'FAIL' or 'NO REPORT'."""
-    h, c = parse(text); out = []
-    if len(h) < 16: return "NO REPORT", ["no complete report in the capture (%d H lines)" % len(h)]
+    h, c = parse(text, stage); out = []
+    if len(h) < 16: return "NO REPORT", ["no usable report in the capture: not every line was seen intact in at least two frames (%d frames of the right stage; try a longer capture, e.g. timeout 10; lines unsure: %s)" % (parse.frames, ", ".join("%s%02X" % (t, a) for t, a in parse.unsure[:8]))]
+    out.append("report frames used: %d (each line taken from the value most frames agree on; %d lines rest on a single intact copy)" % (parse.frames, len(parse.single)))
     names = {0: "running", 1: "REFUSED: region not empty", 2: "card error during probe", 3: "passed"}
     if stage: out.append("probe: %s; valid log blocks %d; first foreign block %s; SD_BASE %d" % (names.get(h[0], h[0]), h[1], "none" if h[2] == 0xFFFFFFFF else h[2], h[15]))
     else: out.append("probe: %s; non-zero words %d; first non-empty block %s; SD_BASE %d" % (names.get(h[0], h[0]), h[1], "none" if h[2] == 0xFFFFFFFF else h[2], h[15]))
