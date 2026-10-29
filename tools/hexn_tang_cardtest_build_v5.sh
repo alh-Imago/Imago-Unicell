@@ -1,9 +1,9 @@
 #!/bin/sh
 # hexn_tang_cardtest_build_v5.sh -- open-flow build (yosys synth_gowin, YoWASP nextpnr-himbaechel, gowin_pack) of the v5 card-log test hexn_tang_cardtest_v5 (read-only probe first) for the Tang Nano 20K. New file; same flow as hexn_tang_build_v18.sh.
-# Options (environment): ERASE=1 builds the opt-in variant that wipes its own region first (see the header of the top); SD_BASE=<block> moves the region.
+# Options (environment): STAGE=1 builds the second half of the power-cut test; FINAL_SAVE=1 makes stage 1 end with a last SAVE; ERASE=1 builds the opt-in variant that wipes its own region first (see the header of the top); SD_BASE=<block> moves the region.
 # Usage: sh tools/hexn_tang_cardtest_build_v5.sh   Output: $OUT/cardtest5/hexn_tang_cardtest_v5.fs, report.json, pnr.log
 Y=${YOSYS:-yosys}; cd "$(dirname "$0")/.." || exit 1; R=$(pwd); D=${OUT:-/tmp/hexn_tang}/cardtest5; mkdir -p $D; cd $D || exit 1
-CHPARAM="log build_options"; [ -n "$ERASE" ] && CHPARAM="$CHPARAM; chparam -set ERASE $ERASE hexn_tang_cardtest_v5"; [ -n "$SD_BASE" ] && CHPARAM="$CHPARAM; chparam -set SD_BASE $SD_BASE hexn_tang_cardtest_v5"
+CHPARAM="log build_options"; [ -n "$ERASE" ] && CHPARAM="$CHPARAM; chparam -set ERASE $ERASE hexn_tang_cardtest_v5"; [ -n "$STAGE" ] && CHPARAM="$CHPARAM; chparam -set STAGE $STAGE hexn_tang_cardtest_v5"; [ -n "$FINAL_SAVE" ] && CHPARAM="$CHPARAM; chparam -set FINAL_SAVE $FINAL_SAVE hexn_tang_cardtest_v5"; [ -n "$SD_BASE" ] && CHPARAM="$CHPARAM; chparam -set SD_BASE $SD_BASE hexn_tang_cardtest_v5"
 cp $R/rtl/hexn_tang_cardtest_v5.cst top.cst
 $Y -q -l synth.log -p "read_verilog $R/rtl/hexn_tang_cardtest_v5.v $R/rtl/hexn_tier_v5.v $R/fpga/verilog/sd_spi_v1.v $R/rtl/hexn_sdram_v1.v $R/rtl/hexn_uart_v1.v; ${CHPARAM}; synth_gowin -top hexn_tang_cardtest_v5 -json t.json" > synth.out 2>&1 || { echo "synthesis failed"; tail -8 synth.out; exit 1; }
 grep -E "has no driver|is implicitly declared" synth.log | head -5 | sed "s/^/SYNTH WARNING: /"

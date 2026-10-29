@@ -1,6 +1,7 @@
 `timescale 1ns/1ps
 // hexn_tang_cardtest_v5.v -- Board test of the three-level tier with the v5 card log (hexn_tier_v5) for the Tang Nano 20K. New file. Not yet run on a board.
 // ERASE=1 (opt-in, default 0): a non-empty region is wiped with zero blocks (only SD_BASE .. +2^LB-1), read again, and the test then runs; H03 bit 30 is set. Use only on an SD card whose contents may be lost. With ERASE=0 there is no write path in use before the probe has passed.
+// STAGE=1 (power-cut check, second half): the region must hold only blocks of our log (every non-zero block has magic 0x4858 in its header, at least one block valid), else REFUSED and nothing is written. Then: RESTORE straight away, GET all N known keys and M never-seen keys (counter sets C00.. after the restore, C1B.. after the GETs). H01 = valid blocks found, H02 = first foreign block. Run it after a real power-off following a STAGE=0, FINAL_SAVE=1 run (that run ends with a SAVE so the card holds every key).
 // SAFETY FIRST: the tier is held in reset until a READ-ONLY probe has read all 2^LB blocks SD_BASE .. SD_BASE + 2^LB - 1 of the card and found every word zero. If any word is not zero, or the card gives an error, the tier is never started, nothing is ever written to the card, and the report says which block was not empty. Blocks outside that region are never touched.
 // After the probe passes: PUT N keys; UPDATE every 7th; GET all N (value must be the latest); GET M never-seen keys (must be 'not found') -> counters snapshot 0 is taken after SAVE (everything in the fast table and SDRAM is written down into the card log).
 // Then the tier is reset (power-loss emulation: the FPGA side loses everything it held; the SDRAM chip and the SD card keep their contents), RESTORE rebuilds the index from the card by scanning the log (snapshot 1), and the same GETs are repeated (snapshot 2): every known key must come back with its latest value.
@@ -11,7 +12,7 @@
 //  H0D clocks until the tier was ready  H0E clocks for the whole test  H0F SD_BASE
 //  C00..C1A counters after SAVE (v5's 27 counters, order as in tools/hexn_tier_ref_v5.py NAMES)  C1B..C35 after RESTORE  C36..C50 after the final GETs   (C-lines are numbered in hex: set*27 + counter)
 // tools/hexn_tang_cardtest_check_v5.py compares them with the bit-true reference. LEDs (lit = true): led0 PLL locked, led1 probe passed (region empty), led2 tier ready, led3 finished, led4 finished with no error at all, led5 stopped (refused, or card error).
-module hexn_tang_cardtest_v5 #(parameter KW = 18, parameter VW = 18, parameter FB = 6, parameter RAMB = 8, parameter LB = 6, parameter LOW = 4, parameter VOL = 1, parameter SD_BASE = 4608, parameter ERASE = 0,
+module hexn_tang_cardtest_v5 #(parameter KW = 18, parameter VW = 18, parameter FB = 6, parameter RAMB = 8, parameter LB = 6, parameter LOW = 4, parameter VOL = 1, parameter SD_BASE = 4608, parameter ERASE = 0, parameter STAGE = 0, parameter FINAL_SAVE = 0,
     parameter N = 1500, parameter M = 500, parameter GAP = 13_500_000, parameter CLKDIV = 234, parameter INIT_DIV = 34, parameter FAST_DIV = 1) (
     input  wire clk27, output wire uart_tx, output wire [5:0] led,
     output wire O_sdram_clk, output wire O_sdram_cke, output wire O_sdram_cs_n, output wire O_sdram_cas_n, output wire O_sdram_ras_n, output wire O_sdram_wen_n,
@@ -34,20 +35,27 @@ module hexn_tang_cardtest_v5 #(parameter KW = 18, parameter VW = 18, parameter F
         .block_done(p_done), .w_valid(p_wv), .w_data(p_wd), .w_index(p_wi), .src_addr(p_sa), .src_data(32'd0));
     localparam P_WAIT = 0, P_ISS = 1, P_RW = 2, P_END = 3, P_EZ = 4, P_EZW = 5;
     reg [2:0] pst = P_WAIT; reg [31:0] pi = 32'd0, nz = 32'd0, first_nz = 32'hFFFFFFFF; reg [1:0] pstate = 2'd0;   // pstate 0 running, 1 refused, 2 card error, 3 passed
-    reg [31:0] p_errw = 32'd0;
+    reg [31:0] p_errw = 32'd0; reg bnz = 1'b0, bmg = 1'b0; reg [31:0] nvalid = 32'd0, nforeign = 32'd0;
     always @(posedge clk) begin
         p_rd <= 1'b0; p_wr <= 1'b0;
-        if (!resetn) begin erased <= 1'b0; pst <= P_WAIT; pi <= 32'd0; nz <= 32'd0; first_nz <= 32'hFFFFFFFF; pstate <= 2'd0; own <= 1'b0; p_errw <= 32'd0; end
+        if (!resetn) begin bnz <= 1'b0; bmg <= 1'b0; nvalid <= 32'd0; nforeign <= 32'd0; erased <= 1'b0; pst <= P_WAIT; pi <= 32'd0; nz <= 32'd0; first_nz <= 32'hFFFFFFFF; pstate <= 2'd0; own <= 1'b0; p_errw <= 32'd0; end
         else case (pst)
             P_WAIT: if (p_error) begin pstate <= 2'd2; p_errw <= {1'b1, 2'd0, p_ec, p_ecmd, p_erx}; pst <= P_END; end else if (p_ready) pst <= P_ISS;
             P_ISS:  begin p_blk <= SD_BASE + pi; p_rd <= 1'b1; pst <= P_RW; end
             P_RW: begin
-                if (p_wv && p_wd != 32'd0) begin nz <= nz + 32'd1; if (first_nz == 32'hFFFFFFFF) first_nz <= SD_BASE + pi; end
+                if (p_wv && p_wd != 32'd0) begin bnz <= 1'b1; nz <= nz + 32'd1; if (STAGE == 0 && first_nz == 32'hFFFFFFFF) first_nz <= SD_BASE + pi; end
+                if (p_wv && p_wi == 7'd2) bmg <= (p_wd[15:0] == 16'h4858);
                 if (p_error) begin pstate <= 2'd2; p_errw <= {1'b1, 2'd0, p_ec, p_ecmd, p_erx}; pst <= P_END; end
-                else if (p_done) begin if (pi == LBLK - 1) pst <= P_END; else begin pi <= pi + 32'd1; pst <= P_ISS; end end
+                else if (p_done) begin
+                    bnz <= 1'b0; bmg <= 1'b0;
+                    if (bnz && bmg) nvalid <= nvalid + 32'd1;
+                    if (bnz && !bmg) begin nforeign <= nforeign + 32'd1; if (STAGE != 0 && first_nz == 32'hFFFFFFFF) first_nz <= SD_BASE + pi; end
+                    if (pi == LBLK - 1) pst <= P_END; else begin pi <= pi + 32'd1; pst <= P_ISS; end
+                end
             end
             P_END: if (pstate == 2'd0) begin
-                if (nz == 32'd0) begin pstate <= 2'd3; own <= 1'b1; end   // the only place where the tier is allowed to start
+                if (STAGE != 0) begin if (nforeign == 32'd0 && nvalid != 32'd0) begin pstate <= 2'd3; own <= 1'b1; end else pstate <= 2'd1; end   // stage 2: only our own log blocks may be in the region
+                else if (nz == 32'd0) begin pstate <= 2'd3; own <= 1'b1; end   // the only place where the tier is allowed to start
                 else if (ERASE != 0 && !erased) begin erased <= 1'b1; pi <= 32'd0; pst <= P_EZ; end   // opt-in build only: wipe THIS REGION (SD_BASE .. +2^LB-1) with zeros, then read it all again
                 else pstate <= 2'd1;
             end
@@ -78,8 +86,8 @@ module hexn_tang_cardtest_v5 #(parameter KW = 18, parameter VW = 18, parameter F
     function [KW-1:0] kof(input [15:0] i); reg [31:0] m; begin m = ({16'd0, i} + 32'd1) * 32'h2545F491; kof = m & MK; end endfunction
     function [VW-1:0] vof(input [15:0] i); reg [31:0] m; begin m = ({16'd0, i} + 32'd1) * 32'h85EBCA6B; vof = (m >> 7) & MV; end endfunction
     function [VW-1:0] uof(input [15:0] i); uof = vof(i) ^ ({VW{1'b1}} & 32'h2AAAA); endfunction
-    localparam T_RDY = 0, T_ISS = 1, T_HOLD = 2, T_WAIT = 3, T_NEXT = 4, T_SAVE = 5, T_SNAP = 6, T_PL = 7, T_PLW = 8, T_RES = 9, T_END = 10;
-    reg [3:0] ts = T_RDY; reg [2:0] ph = 0; reg [15:0] i = 0; reg [2:0] m7 = 0; reg [1:0] snapset = 0; reg [6:0] snapk = 0; reg [7:0] plc = 0; reg [3:0] after_snap = 0;
+    localparam T_RDY = 0, T_ISS = 1, T_HOLD = 2, T_WAIT = 3, T_NEXT = 4, T_SAVE = 5, T_SNAP = 6, T_PL = 7, T_PLW = 8, T_RES = 9, T_END = 10, T_FS = 11;
+    reg [3:0] ts = T_RDY; reg [2:0] ph = 0; reg [15:0] i = 0; reg [2:0] m7 = 0; reg [1:0] snapset = 0; reg [6:0] snapk = 0; reg [7:0] plc = 0; reg [3:0] after_snap = 0; reg fin_save = 1'b0;
     reg [31:0] e_val = 0, e_lost = 0, e_ff = 0, q_val = 0, q_lost = 0, q_ff = 0, c_init = 0, c_run = 0; reg finished = 0, ever_ready = 0, stopped = 0;
     reg [31:0] snap [0:80]; reg [31:0] sd_errw = 32'd0; integer zi; initial for (zi = 0; zi < 81; zi = zi + 1) snap[zi] = 32'd0;
     wire [VW-1:0] want = (m7 == 3'd0) ? uof(i) : vof(i);
@@ -87,13 +95,13 @@ module hexn_tang_cardtest_v5 #(parameter KW = 18, parameter VW = 18, parameter F
     always @(posedge clk) begin
         if (!resetn || !own) begin
             ts <= T_RDY; ph <= 0; i <= 0; m7 <= 0; cmd_valid <= 0; cmd_save <= 0; cmd_restore <= 0; pl <= 0; snapset <= 0; snapk <= 0; plc <= 0;
-            e_val <= 0; e_lost <= 0; e_ff <= 0; q_val <= 0; q_lost <= 0; q_ff <= 0; c_init <= 0; c_run <= 0; finished <= 0; ever_ready <= 0; stopped <= 0; sd_errw <= 32'd0;
+            e_val <= 0; e_lost <= 0; e_ff <= 0; q_val <= 0; q_lost <= 0; q_ff <= 0; c_init <= 0; c_run <= 0; finished <= 0; ever_ready <= 0; stopped <= 0; sd_errw <= 32'd0; fin_save <= 1'b0;
         end else begin
             if (!ever_ready) c_init <= c_init + 32'd1; else if (!finished && !stopped) c_run <= c_run + 32'd1;
             if (ready) ever_ready <= 1'b1;
             if (sd_error && !stopped && !finished) begin stopped <= 1; sd_errw <= {1'b1, 2'd0, 5'd0, 6'd0, 8'd0}; end
             case (ts)
-            T_RDY: if (ready) begin ts <= T_ISS; ph <= 0; i <= 0; end
+            T_RDY: if (ready) begin ts <= (STAGE != 0) ? T_RES : T_ISS; ph <= 0; i <= 0; end
             T_ISS: begin
                 cmd_valid <= 1; cmd_we <= (ph < 3'd2); cmd_save <= 0; cmd_restore <= 0;
                 key <= (ph == 3'd3 || ph == 3'd5) ? kof(i + N16) : kof(i);
@@ -116,7 +124,7 @@ module hexn_tang_cardtest_v5 #(parameter KW = 18, parameter VW = 18, parameter F
                 3'd2: begin m7 <= (m7 == 3'd6) ? 3'd0 : m7 + 3'd1; if (i == N - 1) begin ph <= 3'd3; i <= 0; end else i <= i + 16'd1; end
                 3'd3: if (i == M - 1) begin ts <= T_SAVE; end else i <= i + 16'd1;
                 3'd4: begin m7 <= (m7 == 3'd6) ? 3'd0 : m7 + 3'd1; if (i == N - 1) begin ph <= 3'd5; i <= 0; end else i <= i + 16'd1; end
-                3'd5: if (i == M - 1) begin ts <= T_SNAP; after_snap <= T_END; end else i <= i + 16'd1;
+                3'd5: if (i == M - 1) begin ts <= T_SNAP; after_snap <= (FINAL_SAVE != 0 && STAGE == 0) ? T_FS : T_END; end else i <= i + 16'd1;
                 default: ts <= T_END;
                 endcase
             end
@@ -125,13 +133,14 @@ module hexn_tang_cardtest_v5 #(parameter KW = 18, parameter VW = 18, parameter F
                 snap[snapset * 27 + snapk] <= cnts[32*snapk +: 32];
                 if (snapk == 7'd26) begin snapk <= 0; snapset <= snapset + 2'd1; ts <= after_snap; end else snapk <= snapk + 7'd1;
             end
+            T_FS: begin cmd_valid <= 1; cmd_save <= 1; cmd_we <= 0; ts <= T_HOLD; ph <= 3'd6; fin_save <= 1'b1; end   // last SAVE: the card then holds every key (for the power-cut stage)
             T_PL: begin pl <= 1; plc <= plc + 8'd1; if (plc == 8'd63) begin pl <= 0; plc <= 0; ts <= T_PLW; end end
             T_PLW: begin plc <= plc + 8'd1; if (plc > 8'd32 && ready) begin plc <= 0; ts <= T_RES; end end
             T_RES: begin cmd_valid <= 1; cmd_restore <= 1; cmd_we <= 0; ts <= T_HOLD; after_snap <= T_ISS; ph <= 3'd7; end
             T_END: if (!stopped) finished <= 1;
             endcase
             // the end of SAVE and RESTORE (ph 6 and 7): leave T_WAIT through the snapshot
-            if (ts == T_WAIT && done && ph == 3'd6) begin ts <= T_SNAP; ph <= 3'd0; end
+            if (ts == T_WAIT && done && ph == 3'd6) begin if (fin_save) begin ts <= T_END; ph <= 3'd0; end else begin ts <= T_SNAP; ph <= 3'd0; end end
             if (ts == T_WAIT && done && ph == 3'd7) begin ts <= T_SNAP; ph <= 3'd4; i <= 0; m7 <= 0; after_snap <= T_ISS; end
             if (stopped) begin ts <= T_END; end
         end
@@ -149,7 +158,7 @@ module hexn_tang_cardtest_v5 #(parameter KW = 18, parameter VW = 18, parameter F
     always @* begin
         if (ln >= 7'd16) val = snap[cn];
         else case (ln[3:0])
-        4'h0: val = {30'd0, pstate}; 4'h1: val = nz; 4'h2: val = first_nz; 4'h3: val = ((pstate == 2'd2) ? p_errw : sd_errw) | {1'b0, erased, 30'd0};
+        4'h0: val = {30'd0, pstate}; 4'h1: val = (STAGE != 0) ? nvalid : nz; 4'h2: val = first_nz; 4'h3: val = ((pstate == 2'd2) ? p_errw : sd_errw) | {1'b0, erased, 30'd0};
         4'h4: val = {31'd0, finished}; 4'h5: val = e_tot; 4'h6: val = e_val; 4'h7: val = e_lost; 4'h8: val = e_ff; 4'h9: val = q_tot; 4'hA: val = q_val; 4'hB: val = q_lost; 4'hC: val = q_ff;
         4'hD: val = c_init; 4'hE: val = c_run; default: val = SD_BASE;
         endcase
