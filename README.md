@@ -63,7 +63,7 @@ Start wherever suits you. Each page also shows the command-line equivalent of wh
 |---|---|
 | Follow the whole build in order: MAN file, project, Walker | the tabbed front end, `python3 nano/frontend_v1.py` (port 7421) |
 | Watch a design run, drive cells, see what changes | the **Workbench**, `python3 nano/workbench_v7.py` (port 7420), guide in [`docs/WORKBENCH_USER_GUIDE.md`](docs/WORKBENCH_USER_GUIDE.md); it can read a card's own SHAPE and show the difference |
-| Turn an ICM file into a project for a real card and run it | **UniCell Bench**, `python3 tools/frontend/unicell_frontend_v6.py --demo <demo folder> --repo .`, notes in [`tools/frontend/README.md`](tools/frontend/README.md) |
+| Turn an ICM file into a project for a real card and run it | **UniCell Bench**, `python3 tools/frontend/unicell_frontend_v7.py --demo <demo folder> --repo .`, notes in [`tools/frontend/README.md`](tools/frontend/README.md) |
 | Write a formula instead of drawing cells | the LaTeX front end, `python3 nano/latex_cli_v1.py "y = (a + b)^2 - 3c" --set a=2 --set b=3 --set c=4 -o poly.icm` |
 | Write a program | the DSL ([manual](docs/stripped-cell/UNICELL_S_DSL_MANUAL.md)), the Python-AST front end, or LLVM IR |
 | Learn how computers work through the cells | the [teaching manual](docs/teaching_manual.html), 24 interactive tabs, every figure captured from a real run; not yet tried with real learners |

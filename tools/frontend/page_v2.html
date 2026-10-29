@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UniCell Bench</title>
+<link rel="stylesheet" href="/vendor/xterm.css?t=__TOKEN__">
+<style>
+:root{--bg:#f4f5f7;--panel:#fff;--ink:#1c2230;--mute:#667085;--line:#d9dde5;--acc:#1f5fbf;--ok:#17803d;--bad:#b42318;--warn:#a15c07;--term:#10141c}
+@media (prefers-color-scheme:dark){:root{--bg:#12151c;--panel:#1a1f2a;--ink:#e6e9f0;--mute:#9aa4b5;--line:#2c3444;--acc:#6ea8ff;--ok:#4cc27a;--bad:#ff7b6e;--warn:#e0a84a;--term:#0b0e14}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;gap:16px;align-items:baseline;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0}header span{color:var(--mute);font-size:12px}
+main{display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;height:calc(100vh - 47px)}
+aside,.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-height:0}
+aside{overflow:auto;padding:8px}
+aside h2,.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);margin:6px 8px}
+.kit{display:block;width:100%;text-align:left;border:1px solid transparent;background:none;color:inherit;padding:8px;border-radius:6px;cursor:pointer;font:inherit}
+.kit:hover{background:var(--bg)}.kit.sel{border-color:var(--acc);background:var(--bg)}
+.kit b{display:block;font-size:13px}.kit small{color:var(--mute)}
+.tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;border:1px solid var(--line);font-size:11px;font-weight:400}
+.frm label{display:block;font-size:12px;color:var(--mute);margin:8px 0 2px}.frm select,.frm input[type=text]{width:100%;font:inherit;font-size:13px;padding:4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.frm pre{margin-top:8px;max-height:180px;overflow:auto}
+.work{display:grid;grid-template-rows:minmax(0,1.3fr) minmax(0,1fr);gap:12px;min-height:0}
+.terms{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0;overflow:hidden}
+.card{display:flex;flex-direction:column;overflow:hidden}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line)}
+.bar h2{margin:0 8px 0 0}
+button.act{font:inherit;font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);cursor:pointer}
+button.act:hover{border-color:var(--acc)}button.act.go{border-color:var(--warn)}
+.btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.arg{width:56px;font:inherit;font-size:12px;padding:3px 4px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+.term{flex:1;background:var(--term);min-height:0;padding:4px;overflow:hidden}
+.res{display:grid;grid-template-columns:230px 1fr;min-height:0}
+.res .list{overflow:auto;border-right:1px solid var(--line);padding:6px}
+.res .view{overflow:auto;padding:8px 12px;min-width:0}
+.file{display:block;width:100%;text-align:left;font:12px ui-monospace,monospace;border:0;background:none;color:inherit;padding:3px 6px;border-radius:4px;cursor:pointer}
+.file:hover{background:var(--bg)}.file.new:before{content:"● ";color:var(--acc)}
+pre{margin:0;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--line)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+#msg{margin-left:auto;font-size:12px;color:var(--mute)}
+@media (max-width:900px){main{grid-template-columns:1fr;height:auto}.terms{grid-template-columns:1fr}.work{grid-template-rows:auto}.term{min-height:260px}.res{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>UniCell Bench</h1><span id="demo"></span><span id="msg"></span></header>
+<main>
+<aside><h2>New design from an ICM file</h2>
+<div id="icmbox" style="padding:4px 8px 10px"><button class="act" id="icmopen">Make a design…</button></div>
+<h2 style="margin-top:14px">Designs <button class="act" id="kitsref" style="font-size:11px;padding:1px 8px;margin-left:6px">Refresh</button></h2><div id="kits"></div></aside>
+<div class="work">
+ <div class="terms">
+  <section class="card"><div class="bar"><h2>Build</h2><span id="b-build" class="btns"></span></div><div class="term" id="t-build"></div></section>
+  <section class="card"><div class="bar"><h2>Card</h2><span id="b-card" class="btns"></span></div><div class="term" id="t-card"></div></section>
+ </div>
+ <section class="card"><div class="bar"><h2>Results</h2><span id="sum"></span></div>
+  <div class="res"><div class="list" id="files"></div><div class="view" id="view"><span class="warn">Pick a design, then run something. New result files show here.</span></div></div></section>
+</div></main>
+<script src="/vendor/xterm.js?t=__TOKEN__"></script>
+<script src="/vendor/xterm-addon-fit.js?t=__TOKEN__"></script>
+<script>
+const T="__TOKEN__";
+const api=(p,b)=>fetch(p+(p.includes("?")?"&":"?")+"t="+T,b?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}:{}).then(r=>r.json());
+const $=id=>document.getElementById(id);
+let S=null, terms={}, sel=null, openFile=null;
+const msg=(t,c)=>{$("msg").textContent=t;$("msg").className=c||""};
+function mkTerm(name){
+  if(!window.Terminal){$("t-"+name).innerHTML="<pre class=bad>The terminal library did not load (vendor/ folder missing).</pre>";return}
+  const term=new Terminal({fontSize:13,cursorBlink:true,convertEol:false,theme:{background:getComputedStyle(document.documentElement).getPropertyValue("--term")}});
+  const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open($("t-"+name));
+  const doFit=()=>{try{fit.fit();api("/api/term/"+name+"/resize",{rows:term.rows,cols:term.cols})}catch(e){}};
+  new ResizeObserver(doFit).observe($("t-"+name));setTimeout(doFit,100);
+  const es=new EventSource("/api/term/"+name+"/stream?t="+T);
+  es.onmessage=e=>{const b=atob(e.data);const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);term.write(u)};
+  term.onData(d=>api("/api/term/"+name+"/input",{data:btoa(unescape(encodeURIComponent(d)))}));
+  terms[name]=term;
+}
+function buttons(){
+  for(const t of ["build","card"]){
+    const box=$("b-"+t);box.innerHTML="";
+    const ids=Object.keys(S.buttons).filter(id=>S.buttons[id].term===t&&(id==="enter_nix"||id==="card_env"||(sel&&sel.buttons.includes(id))));
+    for(const id of ids){
+      const b=S.buttons[id];const w=document.createElement("span");w.style.whiteSpace="nowrap";w.style.display="inline-flex";w.style.gap="4px";
+      const ins=b.args.map(a=>{const i=document.createElement("input");i.className="arg";i.placeholder=a;i.inputMode="numeric";return i});
+      const btn=document.createElement("button");btn.className="act"+(id==="load"?" go":"");btn.textContent=b.label;
+      btn.onclick=async()=>{
+        if(id==="enter_nix"){const st=await api("/api/startup");
+          if(!st.mine){const c=prompt(st.prompt+"\n\nThis is saved on this PC only.",st.default);if(c===null)return;
+            const r0=await api("/api/startup",{command:c});if(r0.error){msg(r0.error,"bad");return}}}
+        if(id==="load"&&!confirm("Load into the card (SRAM only)?\nOnly do this if the build's timing passed."))return;
+        const r=await api("/api/run",{id,args:ins.map(i=>i.value.trim())});
+        if(r.error)msg(r.error,"bad");else msg("sent to "+r.term+": "+r.command,"");
+        setTimeout(poll,1500)};
+      w.append(btn," ",...ins.flatMap(i=>[i," "]));box.append(w);
+      if(id==="enter_nix"){const e=document.createElement("button");e.className="act";e.textContent="Change startup command";e.title="The command typed to open your build shell";
+        e.onclick=async()=>{const st=await api("/api/startup");const c=prompt(st.prompt+"\n\nThis is saved on this PC only.",st.mine||st.default);if(c===null)return;
+          const r=await api("/api/startup",{command:c});msg(r.error||"startup command saved",r.error?"bad":"")};box.append(e)}
+    }
+  }
+}
+let scrollSel=false;
+function drawKits(){
+  const k=$("kits");k.innerHTML="";
+  for(const d of S.kits){const b=document.createElement("button");b.className="kit"+(sel&&sel.name===d.name?" sel":"");
+    b.innerHTML="<b></b><small></small>";b.firstChild.textContent=d.name;b.lastChild.textContent=d.title!==d.name?d.title:"";
+    if(d.flow==="export-only"){const t=document.createElement("span");t.className="tag";t.textContent="Verilog only";b.firstChild.append(t)}
+    if(d.sim){const t=document.createElement("span");t.className="tag "+(d.sim==="PASS"?"ok":d.sim==="not run"?"warn":"bad");t.textContent="sim vs VM: "+d.sim;b.firstChild.append(t)}
+    b.onclick=async()=>{const r=await api("/api/select",{name:d.name});if(r.error){msg(r.error,"bad");return}
+      sel=d;openFile=null;$("view").innerHTML="";drawKits();buttons();msg("both shells moved to "+d.name);poll()};k.append(b)}
+  const se=k.querySelector(".sel");if(se&&scrollSel){se.scrollIntoView({block:"center"});scrollSel=false}
+  if(!S.kits.length)k.innerHTML="<p class=warn style='padding:8px'>No design folders found in the demo folder.</p>";
+}
+async function showFile(n){openFile=n;const r=await api("/api/file?name="+encodeURIComponent(n));
+  const v=$("view");v.innerHTML="";if(r.error){v.textContent=r.error;return}
+  if(r.decoded){const h=document.createElement("pre");h.textContent=r.decoded;v.append(h);
+    const d=document.createElement("details");d.innerHTML="<summary>raw file</summary>";const p=document.createElement("pre");p.textContent=r.text;d.append(p);v.append(d)}
+  else{const p=document.createElement("pre");p.textContent=r.text;v.append(p)}}
+async function poll(){
+  if(!S||!sel)return;const r=await api("/api/results");
+  const f=$("files");f.innerHTML="";
+  for(const x of r.files.sort((a,b)=>b.mtime-a.mtime)){const b=document.createElement("button");b.className="file"+(x.new?" new":"");b.textContent=x.name;b.onclick=()=>showFile(x.name);f.append(b)}
+  const s=$("sum");s.innerHTML="";
+  if(r.build){const v=r.build.verdict;const c=v==="timing passed"?"ok":"bad";
+    s.innerHTML="Build: <b class='"+c+"'>"+v+"</b> "+r.build.fmax.map(x=>x.clock+" "+x.mhz+" MHz ("+x.verdict+" at "+x.target+")").join("; ")}
+}
+async function icmPanel(){
+  const box=$("icmbox");const r=await api("/api/icm");box.innerHTML="";
+  const f=document.createElement("div");f.className="frm";box.append(f);
+  if(!r.repo){f.innerHTML="<p class=warn style='font-size:12px'>The UniCell repo folder (the one that contains tools/project_assemble_v1.py) is not known.</p><label>Repo folder</label><input type=text id=repoin placeholder='/home/you/imago-unicell'><p></p><button class=act id=repoga>Save</button><pre id=repomsg></pre>";
+    $("repoga").onclick=async()=>{const x=await api("/api/repo",{path:$("repoin").value.trim()});if(x.error){$("repomsg").textContent=x.error;return}icmPanel()};return}
+  f.innerHTML="<label>ICM file</label><select id=icmsel></select><label>Card</label><select id=cardsel></select><div id=flownote style='font-size:12px;color:var(--mute);margin-top:4px'></div><label>Build as</label><select id=buildas><option value=card>Card project (flex)</option><option value=carrier>Trimmed carrier grid (Verilog for simulation)</option></select><div id=carrierbox style='display:none'><div style='font-size:12px;color:var(--mute)'>The cores this design needs are ticked and locked. Tick any extra cores to keep in the carrier as well (it gets bigger; the grid does not configure them).</div><div id=corelist style='font-size:13px;line-height:1.7'></div><label>Observation cell (tap)</label><select id=tapsel></select></div><div style='font-size:12px;color:var(--mute)' id=repoinfo></div><div style='font-size:12px;color:var(--mute)' id=icmcount></div><label>Look for saved ICM files in another folder</label><input type=text id=dirin placeholder='/home/alan/...'> <button class=act id=dirgo>Add</button><label>Folder name</label><input type=text id=icmname><p></p><button class=act id=icmgo>Create</button> <button class=act id=icmclose>Close</button><pre id=icmout></pre>";
+  for(const i of r.icms){const o=document.createElement("option");o.value=i.path;o.textContent=i.name+"  ("+i.where+")";o.dataset.nm=i.name;$("icmsel").append(o)}
+  for(const c of r.cards){const o=document.createElement("option");o.value=c.path;o.textContent=c.card_id+"  ["+c.flow+"]";o.dataset.flow=c.flow;o.dataset.short=c.file.replace(".man.json","");$("cardsel").append(o)}
+  const note=()=>{const o=$("cardsel").selectedOptions[0];if(!o)return;const fl=o.dataset.flow;
+    $("flownote").textContent=fl==="export-only"?"This card's tools are not built here: you get plain Verilog and a README.":fl==="openxc7"?"Full project: build with make, run over JTAG.":"Open-source Gowin flow."};
+  const nm=()=>{const o=$("cardsel").selectedOptions[0],i=$("icmsel").selectedOptions[0];if(o&&i)$("icmname").value=(i.dataset.nm+"_"+o.dataset.short).replace(/[^A-Za-z0-9_-]/g,"_").slice(0,60);note()};
+  const inf=r.info||{};const mi=Object.entries(inf.missing||{});
+  $("repoinfo").innerHTML="repo: "+(inf.path||"?")+(inf.commit?" @ <b>"+inf.commit+"</b> ("+inf.date+") "+(inf.subject||""):"")+(mi.length?"<br><span class=warn>This copy of the repo is out of date: "+mi.map(([k,v])=>k+" needs "+v.join(", ")).join("; ")+". Run <b>git pull</b> in that folder and restart the Bench.</span>":"");
+  $("icmcount").textContent=r.icms.length+" ICM file(s) found in: "+r.dirs.join(", ");
+  $("dirgo").onclick=async()=>{const x=await api("/api/icm/dir",{path:$("dirin").value.trim()});if(x.error){msg(x.error,"bad");return}icmPanel()};
+  const loadCores=async()=>{const bx=$("carrierbox");if($("buildas").value!=="carrier"){bx.style.display="none";return}bx.style.display="block";
+    const x=await api("/api/icm/cores",{icm:$("icmsel").value});const L=$("corelist");L.innerHTML="";
+    if(x.error){L.textContent=x.error;return}
+    for(const c of x.all){const need=x.cores_used.includes(c);const w=document.createElement("label");w.style.cssText="display:inline-block;margin-right:12px;font-weight:normal";
+      const i=document.createElement("input");i.type="checkbox";i.value=c;i.checked=need;i.disabled=need;i.dataset.need=need?"1":"";w.append(i," "+c+(need?" (needed)":""));L.append(w)}
+    if(x.unsupported.length){const n=document.createElement("div");n.className="warn";n.style.fontSize="12px";n.textContent="This design needs "+x.unsupported.join(", ")+", which the carrier grid cannot build yet; the assembler will refuse it.";L.append(n)}
+    const T=$("tapsel");T.innerHTML="";for(const n of x.io_names){const o=document.createElement("option");o.value=n;o.textContent=n;T.append(o)}
+    const pick=x.io_names.includes("result")?"result":(x.io_names.includes("output")?"output":x.io_names[x.io_names.length-1]);if(pick)T.value=pick};
+  $("buildas").onchange=loadCores;
+  $("icmsel").onchange=()=>{nm();loadCores()};$("cardsel").onchange=nm;nm();
+  $("icmclose").onclick=()=>{$("icmbox").innerHTML='<button class="act" id="icmopen">Make a design…</button>';$("icmopen").onclick=icmPanel};
+  $("icmgo").onclick=async()=>{$("icmout").textContent="working…";const x=await api("/api/icm/create",{icm:$("icmsel").value,card:$("cardsel").value,name:$("icmname").value.trim(),build_as:$("buildas").value,keep:[...document.querySelectorAll("#corelist input")].filter(i=>i.checked&&!i.dataset.need).map(i=>i.value),tap:$("tapsel").value||"result"});
+    $("icmout").textContent=x.error?x.error:x.output;
+    if(x.ok&&x.flow==="carrier"){msg("carrier grid made in carrier_builds/"+x.name);return}
+    if(x.error&&/already exists/.test(x.error)){const nmx=$("icmname").value.trim();S=await api("/api/state");const ex=S.kits.find(k=>k.name===nmx);if(ex){await api("/api/select",{name:nmx});sel=ex;scrollSel=true;drawKits();buttons();poll();msg("that design already existed: opened it (change the name to make a new copy)");return}}
+    if(x.error||!x.ok){msg(x.error||"the assembler refused this ICM for this card","bad");return}
+    S=await api("/api/state");sel=S.kits.find(k=>k.name===x.name)||null;scrollSel=true;drawKits();
+    if(sel){await api("/api/select",{name:x.name});buttons();poll()}msg("created "+x.name+" in the demo folder")}}
+async function refreshKits(){try{const n=await api("/api/state");if(n&&n.kits&&JSON.stringify(n.kits.map(k=>k.name+k.title+(k.sim||"")))!==JSON.stringify(S.kits.map(k=>k.name+k.title+(k.sim||"")))){S=n;if(sel)sel=S.kits.find(k=>k.name===sel.name)||sel;drawKits()}}catch(e){}}
+$("kitsref").onclick=async()=>{await refreshKits();msg("design list refreshed: "+S.kits.length+" designs")};
+window.addEventListener("focus",refreshKits);
+$("icmopen").onclick=icmPanel;
+(async()=>{S=await api("/api/state");$("demo").textContent="demo folder: "+S.demo;mkTerm("build");mkTerm("card");drawKits();buttons();setInterval(poll,3000);setInterval(refreshKits,10000)})();
+</script></body></html>

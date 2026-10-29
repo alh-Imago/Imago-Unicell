@@ -144,3 +144,7 @@ generator, nothing built. The real ordering this note makes explicit:
 `#735`'s own generator has to exist before Mode A means anything; a
 VIX-compatible ICM format has to exist before Mode B means anything
 at all, even once the generator does.
+
+## Status, 29 Oct 2026 (ledger #1336)
+Built: **Mode B** is in the assembler (`-s carrier` keeps the cores the design uses) and the prerequisite named above now exists: the ICM-VIX header carries `cores_used`, worked out from the cells every time (`docs/stripped-cell/ICM_VIX_FORMAT.md`), so the statement near the top that ICM has no core summary is out of date. **Mode A** is built as `project_assemble_v7.py -s carrier --keep CORES` (extra cores kept in addition to the design's own) and as a tick-list in the Bench v7 (*Build as: Trimmed carrier grid*). Limits: the grid generator configures only ram, adder, branch and accumulator, so the design's own cores must be among those and an extra kept core is present in the hardware but not set by the grid. The "fully loaded or trimmed" choice is made by the person by what they tick; a full carrier is not offered in the Bench.
+

@@ -1,0 +1,1737 @@
+#!/usr/bin/env python3
+"""
+project_assemble_v7.py is a CLONE of v6 (v6 untouched): `-s carrier --keep CORES` keeps the named cores in the trimmed carrier IN ADDITION to the cores the design uses (Mode A; uses std_icm_generate_v2). Everything else is v6's.
+project_assemble_v6.py is a CLONE of v5 (ledger #1291: runner v6 = wide vector set + walk_card.sh). Previous: project_assemble_v5.py is a CLONE of project_assemble_v4.py (ledger #1289: generator v4 + runner v5 + design_map v2 = the wire witnesses read back from the card).
+project_assemble_v4.py is a CLONE of project_assemble_v3.py (ledger #1286: uses generator v3, runner v4, and writes design_map.json next to a flex design).
+project_assemble_v3.py was a CLONE of project_assemble_v2.py (ledger #1283: the Kintex runner is kintex_icm_runner_v3, which takes the hardware's count for equal words in a row).
+project_assemble_v2.py was a CLONE of project_assemble_v1.py (ledger #1278): the --icm path uses flexsub_icm_generate_v2 (a preloaded, unfed,
+non-fixed ram is a one-shot, #1277) and kintex_icm_runner_v2 (checks against the original VM grid); nothing else differs. Text below is v1's.
+
+project_assemble_v1.py — points.md #552: the real "initial creator
+tool" Alan asked for, distinct from both Composer (a visual placement-
+*review* tool, `docs/stripped-cell/design-notes/composer_scope.md`,
+explicitly NOT an RTL generator) and the Walker (`#501`, a live
+hardware-discovery tool, gated on this build existing first).
+
+REAL JOB: given a MAN file (real card capabilities) and a cell count,
+generate one complete, self-contained folder -- every real Verilog
+source file needed, a newly-generated top-level instantiating N real
+`unicell_super_v3` cells in a grid with genuine cardinal wiring, a
+matching `.qsf` (built on `#538`'s own PROVEN flat-file-path template,
+the one that's actually worked every real time it was used), and a
+matching `.sdc` -- ready to import directly into Quartus.
+
+REAL, HONEST SCOPE, matching composer_scope.md's own discipline of
+naming what's explicitly NOT here:
+- No placement/routing optimization. Quartus's own fitter decides real
+  physical placement regardless -- matches every build this project
+  has run so far. Simple row-major grid tiling only.
+- No DSL/program compilation. Unicell-S already owns that.
+- No live host connectivity, JTAG burst mode, or ICM loading wired in
+  yet -- Alan's own explicit sequencing: this build exists first, to
+  get real dimensions/utilization; host connectivity is real, separate,
+  later work.
+
+A REAL, ALREADY-CONFIRMED RISK this design guards against directly,
+not incidentally: Quartus prunes logic it can prove never reaches an
+observable point -- confirmed concretely twice this session (#528,
+#550) on single-core self-tests. At N cells, an ungated design (every
+`cfg_valid`/`arrived_*` tied to a constant 0) risks Quartus proving
+the WHOLE array dead and reporting a meaningless near-zero ALM count.
+Guarded against here the same way every self-test this session already
+did it (a real, unconstrained top-level input feeding in, a real
+XOR-reduced output Quartus can't prove constant) -- just scaled to
+cover the whole array via one entry cell and one XOR-tree, not one
+core's own single probe.
+"""
+
+import argparse
+import json
+import math
+import os
+import re
+import shutil
+import sys
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+VERILOG_DIR = os.path.join(REPO_ROOT, "fpga", "verilog")
+
+# Real, complete dependency set for unicell_super_v3.v -- every file
+# it actually instantiates, confirmed directly against its own real
+# QSF (fpga/archive/arria10_super_line/quartus/top_super_v3_branch_test_v1.qsf, #548), not
+# assumed.
+V3_DEPENDENCIES = [
+    "adder_v1.v",
+    "ram_cell_v1.v",
+    "adder_cell_v1.v",
+    "accumulator_cell_v1.v",
+    "compare_cell_v1.v",
+    "latch_cell_v1.v",
+    "nibble_mask_addon_v1.v",
+    "shift_fine_addon_v1.v",
+    "shift_lane_addon_v2.v",
+    "invert_addon_v1.v",
+    "unicell_stripped_v1.v",
+    "sequencer_cell_v1.v",
+    "branch_cell_v1.v",
+    "unicell_super_v3.v",
+    "debug_issp_probe_v1.v",
+]
+
+# points.md #578: real, complete dependency set for unicell_super_v4.v
+# (the shared-external-storage shell, #573) -- the v2 cores plus
+# unicell_stripped_v3.v, confirmed directly against top_unicell_super_
+# test_v4.qsf, the one real, already-working build this mirrors.
+V4_DEPENDENCIES = [
+    "adder_v1.v",
+    "ram_cell_v2.v",
+    "adder_cell_v2.v",
+    "accumulator_cell_v2.v",
+    "compare_cell_v2.v",
+    "latch_cell_v2.v",
+    "nibble_mask_addon_v1.v",
+    "shift_fine_addon_v1.v",
+    "shift_lane_addon_v2.v",
+    "invert_addon_v1.v",
+    "unicell_stripped_v3.v",
+    "sequencer_cell_v2.v",
+    "branch_cell_v2.v",
+    "unicell_super_v4.v",
+    "debug_issp_probe_v1.v",
+]
+
+# points.md #578: real registry mapping a real, named shell version to
+# its own real module name + dependency set -- generalizes generate_
+# top()/generate_qsf()/assemble() from the original v3-only hardcoding
+# to a real, explicit choice between the two shells now that a real
+# comparative Quartus number is wanted at ARRAY scale (#575/#577's own
+# comparison was N=1 only). v5 deliberately NOT included here -- #577
+# already found it performs the same as v4, not better, so an array
+# build of it wouldn't answer a new question.
+# points.md #647: real, complete dependency set for unicell_vix_
+# carrier_v1.v -- all 9 unified-carrier cores, all 9 real cardinal
+# control shells (#639/#645/#646), the 3 addon modules, and adder_v1.v
+# (adder_cell_v4's own internal dependency). Confirmed directly against
+# the real iverilog regression command line used throughout #647's own
+# session, not assumed.
+# points.md #734: VIX_DEPENDENCIES (the old, hand-maintained static
+# list) removed entirely -- it had silently gone stale across the
+# whole #719-#731 correction arc (still the pre-correction _v4/
+# _shell_v1 files, missing mul/priority, missing the corrected addon
+# set), with nothing forcing an update when new cores were added. See
+# derive_vix_dependencies() below: the real, current list is now
+# derived fresh from unicell_vix_carrier_v1.v's own actual
+# instantiations every time it's needed, so it can't go stale the
+# same way again.
+
+def find_dependency_file(basename, src_dir):
+    """points.md #734: real, general dependency-file resolver -- a
+    direct fix for a real, wider regression #728's own reorganization
+    introduced (found while fixing the VIX-specific dependency-list
+    staleness above): #728 moved every historical RTL file into a
+    per-family subfolder, leaving only the CURRENT VIX Carrier build
+    directly in fpga/verilog/'s own root. V3_DEPENDENCIES/V4_
+    DEPENDENCIES (the old lineage's own static lists) still pointed at
+    the root directly, so every real v3/v4 project generation silently
+    broke the moment #728 landed -- confirmed directly (10 of 15 real
+    files missing for each) before writing this fix, not assumed.
+    Checks src_dir directly first (the common, fast case for the
+    current VIX build); if not found there, searches src_dir's own
+    real, immediate subdirectories (matching #728's own real, one-level-
+    deep reorganization shape) and returns the first real match.
+    Raises FileNotFoundError with a clear, real path if genuinely not
+    found anywhere -- never silently returns a guessed path."""
+    direct = os.path.join(src_dir, basename)
+    if os.path.exists(direct):
+        return direct
+    for entry in sorted(os.listdir(src_dir)):
+        subdir = os.path.join(src_dir, entry)
+        if os.path.isdir(subdir):
+            candidate = os.path.join(subdir, basename)
+            if os.path.exists(candidate):
+                return candidate
+    # archived older cores (fpga/archive/arria10_super_line, moved there by tools/archive_move_v1.py) are still found, so old projects keep generating
+    archive = os.path.join(REPO_ROOT, "fpga", "archive", "arria10_super_line", "verilog")
+    if os.path.isdir(archive) and os.path.abspath(src_dir) == os.path.abspath(VERILOG_DIR):
+        for entry in [""] + sorted(os.listdir(archive)):
+            candidate = os.path.join(archive, entry, basename)
+            if os.path.exists(candidate):
+                return candidate
+    raise FileNotFoundError(
+        f"real dependency file not found: {basename} (searched {src_dir} directly "
+        f"and its own real, immediate subdirectories)"
+    )
+
+
+def build_module_index(search_dir):
+    """points.md #734: real, full index of every module DECLARED
+    anywhere in search_dir -- module_name -> filename. Built by
+    scanning every real .v file directly (reusing MODULE_DECL_RE, the
+    same regex discover_declared_modules() already uses), not by
+    assuming a module's own name matches its own filename. This is
+    the real building block a recursive dependency walk needs: given
+    an instantiated module NAME, find which real FILE declares it."""
+    index = {}
+    for fname in os.listdir(search_dir):
+        if not fname.endswith(".v"):
+            continue
+        path = os.path.join(search_dir, fname)
+        with open(path) as f:
+            text = f.read()
+        for m in MODULE_DECL_RE.finditer(text):
+            index[m.group(1)] = fname
+    return index
+
+
+def derive_dependencies_recursive(top_file, search_dir):
+    """points.md #734: real, automatic dependency derivation, a direct
+    fix for the exact class of bug that motivated it -- VIX_DEPENDENCIES
+    was a hand-maintained list that silently went stale the moment new
+    cores (mul, priority) or the corrected _v4c/_shell_v1c file set
+    replaced what it originally pointed at (#719-#731), with nothing
+    forcing it to be updated. This walks the REAL, actual file
+    (top_file) and its own real, transitive instantiations, using the
+    same discover_instantiated_modules()/build_module_index() machinery
+    already proven for the --shell-file advisory check (#590) -- so
+    the real dependency list is always derived from what the shell
+    file ACTUALLY instantiates today, not from what someone remembered
+    to update by hand. Real, honest limits, inherited directly from
+    discover_instantiated_modules()'s own documented heuristic: this is
+    a best-effort regex scan, not a real parser -- it can miss a real
+    dependency or include a false positive. Returns a real, ordered
+    list of filenames (top_file's own basename first, then every real
+    transitive dependency found, alphabetically after that) -- NOT a
+    substitute for a real compile, which remains the only authoritative
+    confirmation, same as every other check in this file."""
+    index = build_module_index(search_dir)
+    top_basename = os.path.basename(top_file)
+    visited_files = {top_basename}
+    to_scan = [top_file]
+    while to_scan:
+        current = to_scan.pop()
+        instantiated = discover_instantiated_modules(current)
+        for module_name in instantiated:
+            fname = index.get(module_name)
+            if fname is None:
+                continue  # real, honest gap -- module not found in this
+                          # search_dir; discover_instantiated_modules()'s
+                          # own false-positive risk means this is
+                          # expected sometimes, not always a real bug
+            if fname not in visited_files:
+                visited_files.add(fname)
+                to_scan.append(os.path.join(search_dir, fname))
+    return [top_basename] + sorted(visited_files - {top_basename})
+
+
+def derive_vix_dependencies(src_dir, top_name="unicell_vix_carrier_v1.v"):
+    """points.md #734: the real, current VIX Carrier dependency list,
+    derived fresh from unicell_vix_carrier_v1.v's own actual real
+    instantiations every time this is called -- replaces the old,
+    hand-maintained VIX_DEPENDENCIES constant, which had silently gone
+    stale across the entire #719-#731 correction arc (still pointing
+    at the pre-correction _v4/_shell_v1 files, missing mul/priority
+    entirely, missing the corrected addon set). debug_issp_probe_v1.v
+    is added explicitly -- a real, separate host-bridge dependency the
+    carrier file itself never instantiates directly, so the recursive
+    scan can't find it on its own."""
+    top_file = os.path.join(src_dir, top_name)          # ledger #1105: top_name lets the VIXeN carrier (unicell_vixen_v1.v) reuse this
+    deps = derive_dependencies_recursive(top_file, src_dir)
+    if "debug_issp_probe_v1.v" not in deps:
+        deps.append("debug_issp_probe_v1.v")
+    return deps
+
+
+SHELL_REGISTRY = {
+    "v3": {"module": "unicell_super_v3", "dependencies": V3_DEPENDENCIES},
+    "v4": {"module": "unicell_super_v4", "dependencies": V4_DEPENDENCIES},
+    "vixen": {"module": "unicell_vixen_v1", "dependencies": None},  # ledger #1105: VIXeN, the final carrier (join mode, sequenced priority, nano hold from config); same array wiring as "vix", dependencies derived from unicell_vixen_v1.v
+    "vix": {"module": "unicell_vix_carrier_v1", "dependencies": None},  # points.md #734: derived, not hardcoded -- see resolve_shell_dependencies()
+}
+
+# points.md #590: real, custom-dependency-list support, per Alan's own
+# direct request -- mixing and matching core versions (compare_cell_
+# v3.v with 7 other v1 cores, #584; a hand-built moat tile, #588) has
+# meant hand-writing a fresh QSF dependency list, or a whole new shell
+# file, every single time. A real `--shell-file`/`--shell-module` pair
+# lets `--shell` point at ANY real shell file (not just the two
+# hardcoded in SHELL_REGISTRY), and `--file-list`/`--files` supplies
+# its own real dependency list explicitly, overriding SHELL_REGISTRY
+# entirely. Neither replaces hand-building a genuinely NEW shell file
+# with a different per-slot core mix (unicell_super_v6.v/v7.v are
+# still real, hand-written files, `#584`/`#587`) -- this only removes
+# the SEPARATE, real, repeated chore of re-deriving that shell's own
+# QSF file list by hand every time it's used in an array build.
+
+MODULE_DECL_RE = re.compile(r'^\s*module\s+(\w+)', re.MULTILINE)
+# Real, deliberately conservative heuristic for finding module
+# INSTANTIATIONS in a shell file -- Verilog instantiation syntax is
+# `IDENTIFIER [#(...)] IDENTIFIER (`, but so is a function/task call
+# and several other constructs. This regex requires the pattern to
+# start a statement (only whitespace/newline before it) and the
+# module name to look like a real module (lowercase-led identifier,
+# matching this project's own real naming convention throughout --
+# confirmed against every real core/shell file already in this repo
+# before writing this pattern, not guessed) to keep the real false-
+# positive rate low. This is a real, useful, ADVISORY check -- it
+# is NOT a substitute for a real compile (iverilog/Quartus remain the
+# only real, authoritative confirmation), and is documented as such
+# everywhere it's surfaced to the person using this tool.
+INSTANTIATION_RE = re.compile(
+    r'^\s*([a-z][a-zA-Z0-9_]*)\s*(?:#\s*\([^;]*?\))?\s+[A-Za-z_]\w*\s*\(',
+    re.MULTILINE
+)
+# Real, known non-module keywords that can otherwise false-positive
+# against INSTANTIATION_RE's own deliberately loose pattern.
+VERILOG_KEYWORDS_NOT_MODULES = {
+    "if", "else", "case", "casex", "casez", "for", "while", "repeat",
+    "begin", "end", "function", "task", "always", "initial", "assign",
+    "wire", "reg", "input", "output", "inout", "parameter", "localparam",
+    "generate", "endgenerate", "module", "endmodule", "genvar",
+}
+
+
+def resolve_dependency_list(file_list_path=None, files_string=None):
+    """points.md #590: resolve a real, explicit dependency list from
+    EITHER a real text file (--file-list, one real filename per line,
+    blank lines and #-comments ignored) OR a real inline comma-
+    separated string (--files, e.g. "compare_cell_v3.v,latch_cell_v3.v").
+    Returns None if neither is given (the caller should fall back to
+    SHELL_REGISTRY's own real, existing default list in that case)."""
+    if file_list_path:
+        real_names = []
+        with open(file_list_path) as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip()
+                if line:
+                    real_names.append(line)
+        return real_names
+    if files_string:
+        return [n.strip() for n in files_string.split(",") if n.strip()]
+    return None
+
+
+def discover_declared_modules(src_dir, filenames):
+    """points.md #590: for each real file in filenames, find every
+    real `module <name>` declaration it contains (a file can declare
+    more than one, e.g. adder_v1.v-style small helper modules bundled
+    alongside a core). Returns {module_name: filename}. Raises a
+    real, clear error immediately if a named file doesn't exist --
+    better than a confusing Quartus-side "missing file" error later."""
+    declared = {}
+    for fname in filenames:
+        path = find_dependency_file(fname, src_dir)
+        with open(path) as f:
+            text = f.read()
+        for m in MODULE_DECL_RE.finditer(text):
+            declared[m.group(1)] = fname
+    return declared
+
+
+def discover_instantiated_modules(shell_path):
+    """points.md #590: real, best-effort scan of a shell file's own
+    body for module instantiations, per INSTANTIATION_RE's own
+    documented, deliberately conservative heuristic. Returns a set of
+    real candidate module names -- NOT guaranteed complete or free of
+    false positives, advisory only (see this function's own module-
+    level comment for why)."""
+    with open(shell_path) as f:
+        text = f.read()
+    found = set()
+    for m in INSTANTIATION_RE.finditer(text):
+        name = m.group(1)
+        if name not in VERILOG_KEYWORDS_NOT_MODULES:
+            found.add(name)
+    return found
+
+
+def check_dependency_compatibility(src_dir, shell_path, shell_module, dependency_filenames):
+    """points.md #590: real, advisory compatibility check, per Alan's
+    own real acknowledgment that mixing core versions "would have to
+    check compatibility too." Confirms (a) the shell file itself
+    really declares shell_module, and (b) every module the shell file
+    appears to instantiate is declared somewhere in the real
+    dependency list. Returns a list of real, human-readable warning
+    strings (empty if nothing looked wrong) -- this NEVER raises or
+    blocks generation on its own; it's a real, early, friendly signal,
+    not a hard gate, since the heuristic instantiation scan can both
+    miss real problems and flag real non-problems. The only real,
+    authoritative confirmation remains a real compile."""
+    warnings = []
+    declared = discover_declared_modules(src_dir, dependency_filenames)
+
+    if shell_module not in declared:
+        # The shell file itself might not be IN dependency_filenames
+        # (callers pass the shell separately) -- check it directly too.
+        shell_declared = discover_declared_modules(src_dir, [os.path.basename(shell_path)])
+        if shell_module not in shell_declared:
+            warnings.append(
+                f"shell module '{shell_module}' was not found declared in "
+                f"{os.path.basename(shell_path)} -- check --shell-module matches "
+                f"the real module name inside that file."
+            )
+
+    instantiated = discover_instantiated_modules(shell_path)
+    missing = sorted(m for m in instantiated if m not in declared and m != shell_module)
+    if missing:
+        warnings.append(
+            "the shell file appears to instantiate the following real module(s) "
+            f"not found declared in the real dependency list: {', '.join(missing)}. "
+            "This is a real, heuristic scan (not a full parser) -- it can miss "
+            "real problems and flag real non-problems, so treat this as a "
+            "prompt to double-check, not a guaranteed diagnosis. A real compile "
+            "(iverilog or Quartus) remains the authoritative confirmation."
+        )
+    return warnings
+
+QSF_BOILERPLATE = """set_global_assignment -name FAMILY "{family}"
+set_global_assignment -name DEVICE {device}
+set_global_assignment -name TOP_LEVEL_ENTITY {top}
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 25.1STD.0
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Standard Edition"
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+set_global_assignment -name DEVICE_FILTER_PIN_COUNT 1152
+set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 2
+
+set_location_assignment {clk_pin} -to CLK_100M
+set_location_assignment {led0_pin} -to LED0_N
+set_location_assignment {led1_pin} -to LED1_N
+
+"""
+
+
+# ── points.md #567: real registry of the 8 standalone core types,
+# for single-core-type array generation. Port lists here are NOT
+# guessed -- they're taken directly from the real, already-verified
+# differential testbenches built in #563/#564/#566 (tb_*_v2_diff_v1.v/
+# tb_nano_v3_diff_v1.v), which are already proven correct against each
+# core's own real v1 behavior. ──────────────────────────────────────
+CORE_REGISTRY = {
+    "ram_cell":         {"cfg_width": 64, "extra_status": ["status_data_valid"], "nano_shaped": False, "extra_deps": []},
+    "adder_cell":       {"cfg_width": 64, "extra_status": ["status_data_valid", "status_a_arrived"], "nano_shaped": False, "extra_deps": ["adder_v1.v"]},
+    "accumulator_cell": {"cfg_width": 64, "extra_status": ["status_negative"], "nano_shaped": False, "extra_deps": []},
+    "compare_cell":     {"cfg_width": 64, "extra_status": ["status_data_valid"], "nano_shaped": False, "extra_deps": []},
+    "latch_cell":       {"cfg_width": 64, "extra_status": ["status_latched"], "nano_shaped": False, "extra_deps": []},
+    "sequencer_cell":   {"cfg_width": 64, "extra_status": ["status_seq_index"], "nano_shaped": False, "extra_deps": []},
+    "branch_cell":      {"cfg_width": 64, "extra_status": ["status_data_valid"], "nano_shaped": False, "extra_deps": []},
+    "unicell_stripped": {"cfg_width": 128, "extra_status": [], "nano_shaped": True, "extra_deps": []},
+}
+
+
+def resolve_core_file(base_name, core_path):
+    """points.md #567: version-agnostic file resolution -- find every
+    real file matching `{base_name}_v<N>.v` in core_path, return the
+    one with the highest N. Real, deliberate choice: prefers the
+    newest real version automatically rather than needing every
+    caller to track version numbers by hand."""
+    pattern = re.compile(rf"^{re.escape(base_name)}_v(\d+)\.v$")
+    candidates = []
+    for fname in os.listdir(core_path):
+        m = pattern.match(fname)
+        if m:
+            candidates.append((int(m.group(1)), fname))
+    if not candidates:
+        raise FileNotFoundError(f"no real file matching {base_name}_v<N>.v found in {core_path}")
+    candidates.sort()
+    return candidates[-1][1]  # highest version wins
+
+
+def generate_single_core_top(top_name, module_name, base_name, n, rows, cols, cell_id_base=0x1000, probe_name=None):
+    """points.md #567: a genuinely simpler generation mode than the
+    full 8-core shell -- no core_select, no CFG_SELECT broadcast,
+    since there's only ever one real core type here. Still needs the
+    same real anti-pruning discipline (#554's own real lesson): a
+    genuine one-shot config load from an unconstrained input, so
+    Quartus can't prove every cell's own config is a known constant
+    and collapse the array."""
+    info = CORE_REGISTRY[base_name]
+    positions = cell_positions(n, rows, cols)
+    pos_set = set(positions)
+    cfg_width = info["cfg_width"]
+
+    lines = []
+    lines.append(f"// {top_name}.v — points.md #567: real, generated {n}-cell array,")
+    lines.append(f"// {rows}x{cols} row-major grid, SINGLE core type ({base_name}), no shell.")
+    lines.append("// Generated by tools/project_assemble_v1.py -- do not hand-edit;")
+    lines.append("// regenerate from the same command instead.")
+    lines.append("`default_nettype none")
+    lines.append("`timescale 1ns / 1ps")
+    lines.append("")
+    lines.append(f"module {top_name} (")
+    lines.append("    input  wire CLK_100M,")
+    lines.append("    input  wire ENTRY_DATA,")
+    lines.append("    output wire LED0_N,")
+    lines.append("    output wire LED1_N")
+    lines.append(");")
+    lines.append("")
+    lines.append("reg [1:0] div_cnt = 2'b00;")
+    lines.append("always @(posedge CLK_100M) div_cnt <= div_cnt + 2'd1;")
+    lines.append("wire clk = div_cnt[1];")
+    lines.append("")
+    lines.append("reg [3:0] rst_sr = 4'hF;")
+    lines.append("always @(posedge clk) rst_sr <= {rst_sr[2:0], 1'b0};")
+    lines.append("wire rst = rst_sr[3];")
+    lines.append("")
+    lines.append("reg [3:0] cfg_pulse_sr = 4'hF;")
+    lines.append("always @(posedge clk) if (!rst) cfg_pulse_sr <= {cfg_pulse_sr[2:0], 1'b0};")
+    lines.append("wire cfg_valid_bcast = !rst && cfg_pulse_sr[3] && !cfg_pulse_sr[2];")
+    lines.append("")
+    lines.append(f"// Real, genuinely unconstrained config broadcast to every cell --")
+    lines.append(f"// prevents Quartus proving all {n} cells' own config is a known")
+    lines.append("// constant and collapsing the array (#554's own real lesson).")
+    lines.append(f"wire [{cfg_width-1}:0] cfg_data_bcast = {{{cfg_width}{{ENTRY_DATA}}}};")
+    lines.append("")
+    lines.append("wire [31:0] entry_data = {31'b0, ENTRY_DATA};")
+    lines.append("")
+
+    for (r, c) in positions:
+        nm = inst_name(r, c)
+        lines.append(f"wire [31:0] {nm}_dout_n, {nm}_dout_s, {nm}_dout_e, {nm}_dout_w;")
+        lines.append(f"wire {nm}_fire_n, {nm}_fire_s, {nm}_fire_e, {nm}_fire_w;")
+        lines.append(f"wire {nm}_ack_n, {nm}_ack_s, {nm}_ack_e, {nm}_ack_w;")
+    lines.append("")
+
+    for idx, (r, c) in enumerate(positions):
+        nm = inst_name(r, c)
+        cid = cell_id_base + idx
+
+        def neighbor(nr, nc):
+            return inst_name(nr, nc) if (nr, nc) in pos_set else None
+
+        n_nb, s_nb, e_nb, w_nb = neighbor(r-1, c), neighbor(r+1, c), neighbor(r, c+1), neighbor(r, c-1)
+
+        def data_in(direction, nb, opp):
+            if nb is None:
+                return "entry_data" if (direction == "n" and idx == 0) else "32'h0"
+            return f"{nb}_dout_{opp}"
+
+        def arrived_in(direction, nb, opp):
+            if nb is None:
+                return "ENTRY_DATA" if (direction == "n" and idx == 0) else "1'b0"
+            return f"{nb}_fire_{opp}"
+
+        def ack_in(nb, opp):
+            return "1'b0" if nb is None else f"{nb}_ack_{opp}"
+
+        lines.append(f"{module_name} #(.CELL_ID(16'h{cid:04X})) {nm} (")
+        lines.append("    .clk(clk), .rst(rst),")
+        lines.append(f"    .cfg_valid(cfg_valid_bcast), .cfg_data(cfg_data_bcast),")
+        lines.append(f"    .data_in_n({data_in('n', n_nb, 's')}), .data_in_s({data_in('s', s_nb, 'n')}),")
+        lines.append(f"    .data_in_e({data_in('e', e_nb, 'w')}), .data_in_w({data_in('w', w_nb, 'e')}),")
+        lines.append(f"    .arrived_n({arrived_in('n', n_nb, 's')}), .arrived_s({arrived_in('s', s_nb, 'n')}),")
+        lines.append(f"    .arrived_e({arrived_in('e', e_nb, 'w')}), .arrived_w({arrived_in('w', w_nb, 'e')}),")
+        lines.append(f"    .data_out_n({nm}_dout_n), .data_out_s({nm}_dout_s), .data_out_e({nm}_dout_e), .data_out_w({nm}_dout_w),")
+        lines.append(f"    .fire_n({nm}_fire_n), .fire_s({nm}_fire_s), .fire_e({nm}_fire_e), .fire_w({nm}_fire_w),")
+        lines.append(f"    .ready_out(), .ready_in_n(1'b1), .ready_in_s(1'b1), .ready_in_e(1'b1), .ready_in_w(1'b1),")
+        lines.append(f"    .ack_out_n({nm}_ack_n), .ack_out_s({nm}_ack_s), .ack_out_e({nm}_ack_e), .ack_out_w({nm}_ack_w),")
+        lines.append(f"    .ack_in_n({ack_in(n_nb, 's')}), .ack_in_s({ack_in(s_nb, 'n')}), .ack_in_e({ack_in(e_nb, 'w')}), .ack_in_w({ack_in(w_nb, 'e')}),")
+        lines.append("    .freeze_in(1'b0),")
+        if info["nano_shaped"]:
+            lines.append("    .cmd_in_n(32'h0), .cmd_in_s(32'h0), .cmd_in_e(32'h0), .cmd_in_w(32'h0),")
+            lines.append("    .cmd_out_n(), .cmd_out_s(), .cmd_out_e(), .cmd_out_w(),")
+            lines.append("    .hold_in(1'b0), .fb_internal_in(1'b0), .a_reemit_in(1'b0),")
+            lines.append("    .a_update_in(1'b0), .a_self_update_in(1'b0),")
+            lines.append("    .program_in(1'b0), .program_done(),")
+            lines.append("    .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),")
+            lines.append("    .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),")
+            lines.append("    .prog_ack_out_n(), .prog_ack_out_s(), .prog_ack_out_e(), .prog_ack_out_w()")
+        else:
+            status_ports = ", ".join(f".{s}()" for s in info["extra_status"])
+            lines.append(f"    {status_ports}")
+        lines.append(");")
+        lines.append("")
+
+    terms = []
+    for (r, c) in positions:
+        nm = inst_name(r, c)
+        terms.extend([f"{nm}_fire_n", f"{nm}_fire_s", f"{nm}_fire_e", f"{nm}_fire_w",
+                      f"{nm}_dout_n[0]", f"{nm}_dout_s[0]", f"{nm}_dout_e[0]", f"{nm}_dout_w[0]"])
+    lines.append(f"wire array_alive = {' ^ '.join(terms)};")
+    lines.append("")
+    lines.append("reg [23:0] hb_cnt = 0;")
+    lines.append("always @(posedge clk) hb_cnt <= hb_cnt + 24'd1;")
+    lines.append("")
+    lines.append("assign LED0_N = ~hb_cnt[23];")
+    lines.append("assign LED1_N = ~array_alive;")
+    lines.append("")
+    if probe_name:
+        lines.append(f"debug_issp_probe_v1 {probe_name} (")
+        lines.append("    .err_sticky(array_alive),")
+        lines.append("    .heartbeat(hb_cnt[23])")
+        lines.append(");")
+        lines.append("")
+    lines.append("endmodule")
+    return "\n".join(lines) + "\n"
+
+
+def load_man_identity(path):
+    """Vendor-neutral: the facts every consumer of a MAN file needs regardless of vendor (points.md #887).
+    The VM mirror only needs the card id and a name; it must not require Intel-only fields (`alm_total`,
+    `CLK_100M`, ...) just to lay out a grid."""
+    with open(path) as f:
+        man = json.load(f)
+    return {"card_id": man["card_id"], "part": man["device"]["part"],
+            "vendor": man.get("vendor", "intel"), "man_version": man.get("man_version")}
+
+
+def load_man(path):
+    with open(path) as f:
+        man = json.load(f)
+    device = man["device"]
+    board = man["board"]
+    # points.md #887: this loader drives the QUARTUS project generator and is Intel/Arria-shaped end to end
+    # (family string, ALM budget, CLK_100M, LED0_N/LED1_N). Refuse a foreign-vendor MAN with a clear message
+    # instead of a bare KeyError deep inside the generator.
+    if man.get("vendor", "intel") != "intel" or device.get("alm_total") is None:
+        raise ValueError(
+            f"{path}: MAN file {man.get('card_id')!r} describes a non-Intel device "
+            f"(vendor={man.get('vendor')!r}; logic is counted in {device.get('logic', {}).get('unit', '?')}, not ALM). "
+            f"The Quartus project generator supports Intel MAN files only; use load_man_identity() for "
+            f"vendor-neutral facts or the target's own toolchain flow.")
+    return {
+        # Real, deliberate choice: NOT device["family"] directly (the
+        # MAN file's own value is "Arria 10 GX", a real, accurate
+        # human-readable description -- but every proven, actually-
+        # working QSF this project has ever built uses the literal
+        # string "Arria 10", confirmed directly against #538's own
+        # template and every real build since. Found and fixed before
+        # this ever reached a real Quartus project, not after.
+        "family": "Arria 10",
+        "device": device["part"],
+        "alm_total": device["alm_total"],
+        "dsp_total": device["dsp"]["total_blocks"],
+        "clk_pin": board["clock"]["CLK_100M"]["pin"],
+        "led0_pin": board["leds"]["LED0_N"],
+        "led1_pin": board["leds"]["LED1_N"],
+        "card_id": man["card_id"],
+    }
+
+
+def generate_logiclock_assignments(positions, fixed_alm_per_cell=None, headroom=1.25, alm_per_lab=8.484):
+    """points.md #582/#583: real, per-cell LogicLock regions -- one
+    region per cell, with the cell's own top-level instance (and
+    everything under it: every core, every addon, the shell's own
+    write-arbitration logic) assigned as that region's sole member.
+
+    points.md #583: a real, honest finding from the FIRST real
+    LogicLock build (v3, N=10, #583) forced this function to grow a
+    second real mode. `LL_AUTO_SIZE ON` (the original, still the
+    default when fixed_alm_per_cell is None) genuinely improved real
+    Fmax (+9.7%) for near-zero real ALM cost -- but its own real,
+    measured region sizes reserved 3.10x more physical die area than
+    the real logic inside them needed (32,090 ALM-equivalent LAB
+    capacity reserved for 10,343 real ALM used, 32.2% average real
+    utilization). Since LogicLock regions cannot overlap, that's a
+    real, hard area cost, not a soft one -- it dropped the real,
+    area-limited max cell count from `#579`'s own ALM-only ~244 down
+    to a real ~78, WORSE than no LogicLock at all for Alan's own real
+    "useful area available" concern.
+
+    When fixed_alm_per_cell is given (a real, empirically-measured
+    per-cell ALM figure -- e.g. #579's own real 1030.52 for v3,
+    #580's own real 1307.42 for v4), this instead emits `LL_AUTO_SIZE
+    OFF` with an explicit, computed `LL_WIDTH`/`LL_HEIGHT` sized to
+    `fixed_alm_per_cell * headroom` ALM, converted to LAB units via
+    `alm_per_lab` -- a real, but ONLY SINGLE-DATA-POINT-CALIBRATED
+    (from this same #583 real build) ALM-per-LAB density, not a
+    device datasheet constant. `headroom` (default 1.25 = 25% real
+    slack over the measured figure) is a real, deliberately modest
+    choice compared to AUTO_SIZE's own real ~3.1x, not zero slack --
+    real per-cell ALM cost genuinely varies cell-to-cell (#579's own
+    real per-cell range was 900-1189 for v3), so SOME headroom over
+    the average is a real, honest necessity, not padding for its own
+    sake. Regions are made square (equal width/height) for simplicity,
+    real, honest, not claimed optimal -- a real next real-world result
+    is the only way to know if this specific choice is any good."""
+    lines = []
+    lines.append("")
+    if fixed_alm_per_cell is not None:
+        target_alm = fixed_alm_per_cell * headroom
+        target_labs = target_alm / alm_per_lab
+        side = max(1, math.ceil(math.sqrt(target_labs)))
+        lines.append(f"# points.md #583: real, FIXED-size LogicLock regions -- {side}x{side}")
+        lines.append(f"# LABs each (~{target_labs:.0f} LABs, ~{target_alm:.0f} ALM at "
+                      f"~{alm_per_lab:.2f} ALM/LAB, {fixed_alm_per_cell:.2f} real measured")
+        lines.append(f"# ALM/cell x {headroom:.2f} headroom) -- NOT AUTO_SIZE, which #583's own")
+        lines.append("# real build showed reserves ~3.1x more physical area than needed,")
+        lines.append("# a real, hard area cost since LogicLock regions cannot overlap.")
+    else:
+        lines.append("# points.md #582: real, per-cell LogicLock regions -- one fixed-")
+        lines.append("# size, floating region per cell, forcing every real instance under")
+        lines.append("# that cell (every core, every addon, the shell's own write logic)")
+        lines.append("# to be placed as one contiguous block, rather than scattered across")
+        lines.append("# the die the way the unconstrained baseline build showed.")
+    for (r, c) in positions:
+        nm = inst_name(r, c)
+        region = f"LL_{nm}"
+        lines.append(f"set_global_assignment -name LL_ENABLED ON -section_id {region}")
+        if fixed_alm_per_cell is not None:
+            lines.append(f"set_global_assignment -name LL_AUTO_SIZE OFF -section_id {region}")
+            lines.append(f"set_global_assignment -name LL_WIDTH {side} -section_id {region}")
+            lines.append(f"set_global_assignment -name LL_HEIGHT {side} -section_id {region}")
+        else:
+            lines.append(f"set_global_assignment -name LL_AUTO_SIZE ON -section_id {region}")
+        lines.append(f"set_global_assignment -name LL_STATE FLOATING -section_id {region}")
+        lines.append(f"set_global_assignment -name LL_RESERVED OFF -section_id {region}")
+        lines.append(f"set_instance_assignment -name LL_MEMBER_OF {region} -to {nm} -section_id {region}")
+    return "\n".join(lines) + "\n"
+
+
+def grid_dims(n):
+    """Real, simple row-major grid -- roughly square, no placement
+    optimization attempted (that's the fitter's real job, and later
+    the Walker's for logical verification, not this tool's)."""
+    rows = int(math.ceil(math.sqrt(n)))
+    cols = int(math.ceil(n / rows))
+    return rows, cols
+
+
+def cell_positions(n, rows, cols):
+    """Row-major fill, stopping at exactly n cells (the last row may
+    be partial)."""
+    positions = []
+    for r in range(rows):
+        for c in range(cols):
+            if len(positions) >= n:
+                return positions
+            positions.append((r, c))
+    return positions
+
+
+def inst_name(r, c):
+    return f"C_{r}_{c}"
+
+
+def generate_top(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=None, shell="v3", shell_module=None):
+    # points.md #590: shell_module, when given, overrides SHELL_REGISTRY's
+    # own lookup -- lets --shell-module point this generator at ANY real
+    # shell (e.g. unicell_super_v6/v7, #584/#587) sharing v3/v4's own
+    # real port list, without adding it to the registry first.
+    module_name = shell_module if shell_module else SHELL_REGISTRY[shell]["module"]
+    positions = cell_positions(n, rows, cols)
+    pos_set = set(positions)
+
+    lines = []
+    lines.append(f"// {top_name}.v — points.md #552/#554/#578: real, generated {n}-cell array,")
+    lines.append(f"// {rows}x{cols} row-major grid, {module_name} per cell.")
+    lines.append("// Generated by tools/project_assemble_v1.py -- do not hand-edit;")
+    lines.append("// regenerate from the same command instead.")
+    lines.append("//")
+    lines.append("// REAL FIX (#554), found from a real, honest Quartus result: the first")
+    lines.append("// version of this generator tied cfg_valid=0 PERMANENTLY on every cell.")
+    lines.append("// unicell_stripped_v1.v's own real config register only updates `if")
+    lines.append("// (cfg_valid)` -- with cfg_valid permanently false, Quartus could PROVE")
+    lines.append("// every cell's own SUPER_LATCH register never leaves its reset value")
+    lines.append("// (nano, topology=0), for all 500 cells identically. That's not just")
+    lines.append("// prunable dead logic -- it's a huge network of PROVABLY IDENTICAL,")
+    lines.append("// fully-determined NOR-gate trees, exactly the shape Quartus's own")
+    lines.append("// Boolean optimizer collapses aggressively (real result: 13 ALM for")
+    lines.append("// 500 cells). Fixed here with a real, one-shot, broadcast config-load")
+    lines.append("// pulse a few cycles after reset, loading a genuinely unconstrained")
+    lines.append("// top-level input into every cell's own core_select field")
+    lines.append("// simultaneously -- Quartus cannot prove which of the 8 real cores")
+    lines.append("// ends up selected for any given cell, so it cannot collapse any of")
+    lines.append("// them away.")
+    lines.append("`default_nettype none")
+    lines.append("`timescale 1ns / 1ps")
+    lines.append("")
+    lines.append(f"module {top_name} (")
+    lines.append("    input  wire CLK_100M,")
+    lines.append("    input  wire ENTRY_DATA,      // real, unconstrained -- feeds the array's own entry point")
+    lines.append("    input  wire [4:0] CFG_SELECT, // real, unconstrained -- broadcast core_select, see header")
+    lines.append("    output wire LED0_N,")
+    lines.append("    output wire LED1_N")
+    lines.append(");")
+    lines.append("")
+    lines.append("reg [1:0] div_cnt = 2'b00;")
+    lines.append("always @(posedge CLK_100M) div_cnt <= div_cnt + 2'd1;")
+    lines.append("wire clk = div_cnt[1];   // 25 MHz")
+    lines.append("")
+    lines.append("reg [3:0] rst_sr = 4'hF;")
+    lines.append("always @(posedge clk) rst_sr <= {rst_sr[2:0], 1'b0};")
+    lines.append("wire rst = rst_sr[3];")
+    lines.append("")
+    lines.append("// Real, one-shot, broadcast config-load pulse -- fires exactly once,")
+    lines.append("// a few cycles after reset, simultaneously to every cell in the array.")
+    lines.append("reg [3:0] cfg_pulse_sr = 4'hF;")
+    lines.append("always @(posedge clk) if (!rst) cfg_pulse_sr <= {cfg_pulse_sr[2:0], 1'b0};")
+    lines.append("wire cfg_valid_bcast = !rst && cfg_pulse_sr[3] && !cfg_pulse_sr[2];   // one real cycle")
+    lines.append("")
+    lines.append("// Real, genuinely unconstrained SUPER_LATCH value broadcast to every")
+    lines.append("// cell -- core_select from CFG_SELECT (real top-level input, cannot be")
+    lines.append("// proven constant), remaining core_config/addon_config bits filled from")
+    lines.append("// ENTRY_DATA repeated rather than left as a hardcoded, provably-known")
+    lines.append("// constant (still not truly random, but no longer provably fixed).")
+    lines.append("wire [79:0] cfg_data_bcast = {13'b0, {20{ENTRY_DATA}}, {42{ENTRY_DATA}}, CFG_SELECT};")
+    lines.append("")
+    lines.append("// Real entry point: ONE cell's own N-side arrival is driven from a")
+    lines.append("// genuine, unconstrained top-level input.")
+    lines.append("wire [31:0] entry_data = {31'b0, ENTRY_DATA};")
+    lines.append("")
+
+    # Per-cell wire declarations
+    for (r, c) in positions:
+        nm = inst_name(r, c)
+        lines.append(f"wire [31:0] {nm}_dout_n, {nm}_dout_s, {nm}_dout_e, {nm}_dout_w;")
+        lines.append(f"wire {nm}_fire_n, {nm}_fire_s, {nm}_fire_e, {nm}_fire_w;")
+        lines.append(f"wire {nm}_ack_n, {nm}_ack_s, {nm}_ack_e, {nm}_ack_w;")
+    lines.append("")
+
+    # Instantiations
+    for idx, (r, c) in enumerate(positions):
+        nm = inst_name(r, c)
+        cid = cell_id_base + idx
+
+        def neighbor(nr, nc):
+            return inst_name(nr, nc) if (nr, nc) in pos_set else None
+
+        n_nb = neighbor(r - 1, c)
+        s_nb = neighbor(r + 1, c)
+        e_nb = neighbor(r, c + 1)
+        w_nb = neighbor(r, c - 1)
+
+        def data_in(direction, nb, opp):
+            if nb is None:
+                return "entry_data" if (direction == "n" and idx == 0) else "32'h0"
+            return f"{nb}_dout_{opp}"
+
+        def arrived_in(direction, nb, opp):
+            if nb is None:
+                return "ENTRY_DATA" if (direction == "n" and idx == 0) else "1'b0"
+            return f"{nb}_fire_{opp}"
+
+        def ack_in(direction, nb, opp):
+            if nb is None:
+                return "1'b0"
+            return f"{nb}_ack_{opp}"
+
+        def ready_in(nb):
+            return "1'b1" if nb is None else "1'b1"
+
+        lines.append(f"{module_name} #(.CELL_ID(16'h{cid:04X})) {nm} (")
+        lines.append("    .clk(clk), .rst(rst),")
+        lines.append(f"    .cfg_valid(cfg_valid_bcast), .cfg_data(cfg_data_bcast),")
+        lines.append(f"    .data_in_n({data_in('n', n_nb, 's')}), .data_in_s({data_in('s', s_nb, 'n')}),")
+        lines.append(f"    .data_in_e({data_in('e', e_nb, 'w')}), .data_in_w({data_in('w', w_nb, 'e')}),")
+        lines.append(f"    .arrived_n({arrived_in('n', n_nb, 's')}), .arrived_s({arrived_in('s', s_nb, 'n')}),")
+        lines.append(f"    .arrived_e({arrived_in('e', e_nb, 'w')}), .arrived_w({arrived_in('w', w_nb, 'e')}),")
+        lines.append(f"    .data_out_n({nm}_dout_n), .data_out_s({nm}_dout_s), .data_out_e({nm}_dout_e), .data_out_w({nm}_dout_w),")
+        lines.append(f"    .fire_n({nm}_fire_n), .fire_s({nm}_fire_s), .fire_e({nm}_fire_e), .fire_w({nm}_fire_w),")
+        lines.append(f"    .ready_out(), .ready_in_n({ready_in(n_nb)}), .ready_in_s({ready_in(s_nb)}), .ready_in_e({ready_in(e_nb)}), .ready_in_w({ready_in(w_nb)}),")
+        lines.append(f"    .ack_out_n({nm}_ack_n), .ack_out_s({nm}_ack_s), .ack_out_e({nm}_ack_e), .ack_out_w({nm}_ack_w),")
+        lines.append(f"    .ack_in_n({ack_in('n', n_nb, 's')}), .ack_in_s({ack_in('s', s_nb, 'n')}), .ack_in_e({ack_in('e', e_nb, 'w')}), .ack_in_w({ack_in('w', w_nb, 'e')}),")
+        lines.append("    .freeze_in(1'b0),")
+        lines.append("    .program_in(1'b0), .program_done(),")
+        lines.append("    .prog_data_in_n(32'h0), .prog_data_in_s(32'h0), .prog_data_in_e(32'h0), .prog_data_in_w(32'h0),")
+        lines.append("    .prog_arrived_in_n(1'b0), .prog_arrived_in_s(1'b0), .prog_arrived_in_e(1'b0), .prog_arrived_in_w(1'b0),")
+        lines.append("    .status_core_select()")
+        lines.append(");")
+        lines.append("")
+
+    # Real XOR-tree reduction of every cell's own fire outputs into one
+    # observable point -- the real anti-pruning guard, scaled to the
+    # whole array.
+    lines.append("// Real anti-pruning guard: every cell's own fire_* outputs XOR-reduced")
+    lines.append("// into one real, observable signal -- Quartus cannot prove this")
+    lines.append("// constant (it structurally depends on ENTRY_DATA's own real fanout),")
+    lines.append("// so it cannot prune any contributing cell away.")
+    terms = []
+    for (r, c) in positions:
+        nm = inst_name(r, c)
+        terms.extend([f"{nm}_fire_n", f"{nm}_fire_s", f"{nm}_fire_e", f"{nm}_fire_w",
+                      f"{nm}_dout_n[0]", f"{nm}_dout_s[0]", f"{nm}_dout_e[0]", f"{nm}_dout_w[0]"])
+    xor_expr = " ^ ".join(terms)
+    lines.append(f"wire array_alive = {xor_expr};")
+    lines.append("")
+    lines.append("reg [23:0] hb_cnt = 0;")
+    lines.append("always @(posedge clk) hb_cnt <= hb_cnt + 24'd1;")
+    lines.append("")
+    lines.append("assign LED0_N = ~hb_cnt[23];")
+    lines.append("assign LED1_N = ~array_alive;   // real, observable, non-prunable")
+    lines.append("")
+    if probe_name:
+        lines.append("// Real, JTAG-readable confirmation (points.md #529/#537's own proven")
+        lines.append("// pattern) -- added BEFORE the first real build, not after, so a real")
+        lines.append("// silicon check doesn't need a second ~2-hour rebuild just to add it.")
+        lines.append("// probe[0]=array_alive (a real snapshot of the array's own current")
+        lines.append("// state), probe[1]=heartbeat (continuously toggling, proves the design")
+        lines.append("// is genuinely clocking -- use debug_issp_poll.tcl, not the older fixed-")
+        lines.append("// gap script, per #537's own real aliasing finding).")
+        lines.append(f"debug_issp_probe_v1 {probe_name} (")
+        lines.append("    .err_sticky(array_alive),")
+        lines.append("    .heartbeat(hb_cnt[23])")
+        lines.append(");")
+        lines.append("")
+    lines.append("endmodule")
+    return "\n".join(lines) + "\n"
+
+
+def generate_top_vix(top_name, n, rows, cols, cell_id_base=0x1000, probe_name=None, shell_key="vix"):
+    """points.md #647/#648: real, generated N-cell array of
+    `unicell_vix_carrier_v1.v` -- the 9-core VIX Carrier, a genuinely
+    different real port shape from every prior shell this tool
+    generates (real cardinal `active_in_x`/`freeze_in_x` instead of a
+    single flat pin each, a real 160-bit VIX_LATCH instead of the old
+    80-bit SUPER_LATCH, and command mode's own new drive-side
+    programming-channel ports with no analogue in any prior shell) --
+    kept as its own dedicated generator rather than bent into
+    `generate_top()`'s own v3/v4-shaped wiring.
+
+    Real, necessary EXTENSION of `#554`'s own anti-pruning fix, not
+    just a reapplication of it: with 9 real selectable cores instead
+    of the old lineage's up to 8, and a genuinely new RECEIVE-side
+    programming channel PLUS command mode's own new DRIVE-side one,
+    every one of `program_in`/`prog_arrived_in_x`/`prog_data_in_x`/
+    `prog_ack_in_x` is ALSO broadcast from the same real, unconstrained
+    ENTRY_DATA-derived signal used for `core_select`/`core_config`
+    -- but ONLY at real array boundaries now (points.md #665): tying
+    any of these to a hard 0 constant would let Quartus prove the
+    entire receive-side PROG_ID decode path (all 9 cores) AND command
+    mode's own relay-confirmation logic permanently dead, the exact
+    same real failure class `#554` already found once (13 ALM for 500
+    cells), just via a different signal this time.
+
+    Points.md #665: real carrier-to-carrier wiring -- the standing gap
+    `#658` found and left open (`program_out`/`freeze_out` declared,
+    captured into per-cell wires, but never actually connected to any
+    real neighbor). `freeze_in`/`prog_data_in`/`prog_arrived_in`/
+    `prog_ack_in` are all real, cardinal, point-to-point ports
+    (confirmed directly against `unicell_vix_carrier_v1.v` -- exactly
+    one real neighbor per direction, or none at a boundary), wired the
+    SAME real way `data_in`/`arrived_in`/`ack_in` already were.
+    `program_in` is the one real exception: a SINGLE flat port on the
+    carrier (confirmed directly -- only one command core can ever be
+    actively driving a given target at a time), so it becomes a real
+    OR of whichever real neighbors exist instead of one point-to-point
+    wire. Interior connections are now genuinely live, config-
+    dependent signals (a real neighbor's own output), not tied to a
+    provably-constant value at all -- the anti-pruning broadcast is
+    now needed, and used, only at real array boundaries where no such
+    neighbor exists.
+    """
+    module_name = SHELL_REGISTRY[shell_key]["module"]
+    positions = cell_positions(n, rows, cols)
+    pos_set = set(positions)
+
+    lines = []
+    lines.append(f"// {top_name}.v — points.md #647/#648: real, generated {n}-cell VIX")
+    lines.append(f"// Carrier array, {rows}x{cols} row-major grid, {module_name} per cell.")
+    lines.append("// Generated by tools/project_assemble_v1.py --shell vix -- do not")
+    lines.append("// hand-edit; regenerate from the same command instead.")
+    lines.append("//")
+    lines.append("// Real, necessary extension of #554's own anti-pruning fix (see this")
+    lines.append("// function's own real docstring): core_select/core_config AND the")
+    lines.append("// receive-side programming channel AND command mode's own new")
+    lines.append("// drive-side channel are ALL broadcast from real, unconstrained")
+    lines.append("// top-level inputs -- none of the 9 real cores' own PROG_ID decode")
+    lines.append("// or command's own relay-confirmation logic can be proven dead.")
+    lines.append("`default_nettype none")
+    lines.append("`timescale 1ns / 1ps")
+    lines.append("")
+    lines.append(f"module {top_name} (")
+    lines.append("    input  wire CLK_100M,")
+    lines.append("    input  wire ENTRY_DATA,      // real, unconstrained -- feeds the array's own entry point AND every anti-pruning broadcast below")
+    lines.append("    input  wire [4:0] CFG_SELECT, // real, unconstrained -- broadcast core_select, see header")
+    lines.append("    output wire LED0_N,")
+    lines.append("    output wire LED1_N")
+    lines.append(");")
+    lines.append("")
+    lines.append("reg [1:0] div_cnt = 2'b00;")
+    lines.append("always @(posedge CLK_100M) div_cnt <= div_cnt + 2'd1;")
+    lines.append("wire clk = div_cnt[1];   // 25 MHz")
+    lines.append("")
+    lines.append("reg [3:0] rst_sr = 4'hF;")
+    lines.append("always @(posedge clk) rst_sr <= {rst_sr[2:0], 1'b0};")
+    lines.append("wire rst = rst_sr[3];")
+    lines.append("")
+    lines.append("// Real, one-shot, broadcast config-load pulse -- fires exactly once,")
+    lines.append("// a few cycles after reset, simultaneously to every cell in the array.")
+    lines.append("reg [3:0] cfg_pulse_sr = 4'hF;")
+    lines.append("always @(posedge clk) if (!rst) cfg_pulse_sr <= {cfg_pulse_sr[2:0], 1'b0};")
+    lines.append("wire cfg_valid_bcast = !rst && cfg_pulse_sr[3] && !cfg_pulse_sr[2];   // one real cycle")
+    lines.append("")
+    lines.append("// Real, genuinely unconstrained VIX_LATCH value broadcast to every")
+    lines.append("// cell -- core_select from CFG_SELECT (real top-level input, cannot be")
+    lines.append("// proven constant), core_config's full real 128 bits filled from")
+    lines.append("// ENTRY_DATA repeated rather than a hardcoded, provably-known constant.")
+    lines.append("wire [159:0] cfg_data_bcast = {27'b0, {128{ENTRY_DATA}}, CFG_SELECT};")
+    lines.append("")
+    lines.append("// Real entry point: ONE cell's own N-side arrival is driven from a")
+    lines.append("// genuine, unconstrained top-level input.")
+    lines.append("wire [31:0] entry_data = {31'b0, ENTRY_DATA};")
+    lines.append("")
+    lines.append("// Real, unconstrained broadcast covering the RECEIVE-side programming")
+    lines.append("// channel (every one of the 9 cores) and command mode's own DRIVE-side")
+    lines.append("// confirmation input -- see this function's own real docstring.")
+    lines.append("wire [31:0] prog_data_bcast = {32{ENTRY_DATA}};")
+    lines.append("")
+
+    # Per-cell wire declarations
+    for (r, c) in positions:
+        nm = inst_name(r, c)
+        lines.append(f"wire [31:0] {nm}_dout_n, {nm}_dout_s, {nm}_dout_e, {nm}_dout_w;")
+        lines.append(f"wire {nm}_fire_n, {nm}_fire_s, {nm}_fire_e, {nm}_fire_w;")
+        lines.append(f"wire {nm}_ack_n, {nm}_ack_s, {nm}_ack_e, {nm}_ack_w;")
+        lines.append(f"wire {nm}_ready;")
+        lines.append(f"wire {nm}_prog_done;")
+        lines.append(f"wire {nm}_pack_n, {nm}_pack_s, {nm}_pack_e, {nm}_pack_w;")
+        lines.append(f"wire {nm}_fzo_n, {nm}_fzo_s, {nm}_fzo_e, {nm}_fzo_w;")
+        lines.append(f"wire {nm}_pon, {nm}_pos, {nm}_poe, {nm}_pow;")
+        lines.append(f"wire [31:0] {nm}_pdon, {nm}_pdos, {nm}_pdoe, {nm}_pdow;")
+        lines.append(f"wire {nm}_paon, {nm}_paos, {nm}_paoe, {nm}_paow;")
+    lines.append("")
+
+    # Instantiations
+    for idx, (r, c) in enumerate(positions):
+        nm = inst_name(r, c)
+        cid = cell_id_base + idx
+
+        def neighbor(nr, nc):
+            return inst_name(nr, nc) if (nr, nc) in pos_set else None
+
+        n_nb = neighbor(r - 1, c)
+        s_nb = neighbor(r + 1, c)
+        e_nb = neighbor(r, c + 1)
+        w_nb = neighbor(r, c - 1)
+
+        def data_in(direction, nb, opp):
+            if nb is None:
+                return "entry_data" if (direction == "n" and idx == 0) else "32'h0"
+            return f"{nb}_dout_{opp}"
+
+        def arrived_in(direction, nb, opp):
+            if nb is None:
+                return "ENTRY_DATA" if (direction == "n" and idx == 0) else "1'b0"
+            return f"{nb}_fire_{opp}"
+
+        def ack_in(direction, nb, opp):
+            if nb is None:
+                return "1'b0"
+            return f"{nb}_ack_{opp}"
+
+        # points.md #665: real carrier-to-carrier wiring -- the
+        # standing gap #658 found (program_out/freeze_out declared but
+        # never connected to any neighbor). freeze_in/prog_data_in/
+        # prog_arrived_in/prog_ack_in are all real, cardinal, point-
+        # to-point ports (exactly one real neighbor per direction, or
+        # none at a boundary) -- the SAME real convention already used
+        # for data_in/arrived_in/ack_in above, just extended to the
+        # command-specific channel. `program_in` is the one real
+        # exception: a SINGLE flat port on the carrier (confirmed
+        # directly against unicell_vix_carrier_v1.v -- only one command
+        # core can ever be actively driving a given target at a time),
+        # so it becomes a real OR of whichever real neighbors exist,
+        # not a single point-to-point wire.
+        def freeze_in(direction, nb, opp):
+            if nb is None:
+                return "1'b0"
+            return f"{nb}_fzo_{opp}"
+
+        def prog_data_in(direction, nb, opp):
+            if nb is None:
+                return "prog_data_bcast"
+            return f"{nb}_pdo{opp}"
+
+        def prog_arrived_in(direction, nb, opp):
+            if nb is None:
+                return "ENTRY_DATA" if direction == "n" else "1'b0"
+            return f"{nb}_pao{opp}"
+
+        def prog_ack_in(direction, nb, opp):
+            if nb is None:
+                return "ENTRY_DATA" if direction == "n" else "1'b0"
+            return f"{nb}_pack_{opp}"
+
+        program_in_terms = []
+        if n_nb is not None:
+            program_in_terms.append(f"{n_nb}_pos")
+        if s_nb is not None:
+            program_in_terms.append(f"{s_nb}_pon")
+        if e_nb is not None:
+            program_in_terms.append(f"{e_nb}_pow")
+        if w_nb is not None:
+            program_in_terms.append(f"{w_nb}_poe")
+        program_in_expr = " | ".join(program_in_terms) if program_in_terms else "ENTRY_DATA"
+
+        lines.append(f"{module_name} #(.CELL_ID(16'h{cid:04X})) {nm} (")
+        lines.append("    .clk(clk), .rst(rst),")
+        lines.append("    .active_in_n(1'b1), .active_in_s(1'b1), .active_in_e(1'b1), .active_in_w(1'b1),")
+        lines.append(f"    .freeze_in_n({freeze_in('n', n_nb, 's')}), .freeze_in_s({freeze_in('s', s_nb, 'n')}),")
+        lines.append(f"    .freeze_in_e({freeze_in('e', e_nb, 'w')}), .freeze_in_w({freeze_in('w', w_nb, 'e')}),")
+        lines.append(f"    .cfg_valid(cfg_valid_bcast), .cfg_data(cfg_data_bcast),")
+        lines.append(f"    .data_in_n({data_in('n', n_nb, 's')}), .data_in_s({data_in('s', s_nb, 'n')}),")
+        lines.append(f"    .data_in_e({data_in('e', e_nb, 'w')}), .data_in_w({data_in('w', w_nb, 'e')}),")
+        lines.append(f"    .arrived_n({arrived_in('n', n_nb, 's')}), .arrived_s({arrived_in('s', s_nb, 'n')}),")
+        lines.append(f"    .arrived_e({arrived_in('e', e_nb, 'w')}), .arrived_w({arrived_in('w', w_nb, 'e')}),")
+        lines.append(f"    .data_out_n({nm}_dout_n), .data_out_s({nm}_dout_s), .data_out_e({nm}_dout_e), .data_out_w({nm}_dout_w),")
+        lines.append(f"    .fire_n({nm}_fire_n), .fire_s({nm}_fire_s), .fire_e({nm}_fire_e), .fire_w({nm}_fire_w),")
+        lines.append(f"    .ready_out({nm}_ready), .ready_in_n(1'b1), .ready_in_s(1'b1), .ready_in_e(1'b1), .ready_in_w(1'b1),")
+        lines.append(f"    .ack_out_n({nm}_ack_n), .ack_out_s({nm}_ack_s), .ack_out_e({nm}_ack_e), .ack_out_w({nm}_ack_w),")
+        lines.append(f"    .ack_in_n({ack_in('n', n_nb, 's')}), .ack_in_s({ack_in('s', s_nb, 'n')}), .ack_in_e({ack_in('e', e_nb, 'w')}), .ack_in_w({ack_in('w', w_nb, 'e')}),")
+        lines.append(f"    .program_in({program_in_expr}), .program_done({nm}_prog_done),")
+        lines.append(f"    .prog_data_in_n({prog_data_in('n', n_nb, 's')}), .prog_data_in_s({prog_data_in('s', s_nb, 'n')}),")
+        lines.append(f"    .prog_data_in_e({prog_data_in('e', e_nb, 'w')}), .prog_data_in_w({prog_data_in('w', w_nb, 'e')}),")
+        lines.append(f"    .prog_arrived_in_n({prog_arrived_in('n', n_nb, 's')}), .prog_arrived_in_s({prog_arrived_in('s', s_nb, 'n')}),")
+        lines.append(f"    .prog_arrived_in_e({prog_arrived_in('e', e_nb, 'w')}), .prog_arrived_in_w({prog_arrived_in('w', w_nb, 'e')}),")
+        lines.append(f"    .prog_ack_out_n({nm}_pack_n), .prog_ack_out_s({nm}_pack_s), .prog_ack_out_e({nm}_pack_e), .prog_ack_out_w({nm}_pack_w),")
+        lines.append(f"    .freeze_out_n({nm}_fzo_n), .freeze_out_s({nm}_fzo_s), .freeze_out_e({nm}_fzo_e), .freeze_out_w({nm}_fzo_w),")
+        lines.append(f"    .program_out_n({nm}_pon), .program_out_s({nm}_pos), .program_out_e({nm}_poe), .program_out_w({nm}_pow),")
+        lines.append(f"    .prog_data_out_n({nm}_pdon), .prog_data_out_s({nm}_pdos), .prog_data_out_e({nm}_pdoe), .prog_data_out_w({nm}_pdow),")
+        lines.append(f"    .prog_arrived_out_n({nm}_paon), .prog_arrived_out_s({nm}_paos), .prog_arrived_out_e({nm}_paoe), .prog_arrived_out_w({nm}_paow),")
+        lines.append(f"    .prog_ack_in_n({prog_ack_in('n', n_nb, 's')}), .prog_ack_in_s({prog_ack_in('s', s_nb, 'n')}), .prog_ack_in_e({prog_ack_in('e', e_nb, 'w')}), .prog_ack_in_w({prog_ack_in('w', w_nb, 'e')}),")
+        lines.append("    .status_core_select()")
+        lines.append(");")
+        lines.append("")
+
+    lines.append("// Real anti-pruning guard: every cell's own real output -- ordinary")
+    lines.append("// cardinal fire/data, ready, program_done, every real prog_ack_out,")
+    lines.append("// and command mode's own new drive-side outputs -- XOR-reduced into")
+    lines.append("// one real, observable signal Quartus cannot prove constant.")
+    terms = []
+    for (r, c) in positions:
+        nm = inst_name(r, c)
+        terms.extend([
+            f"{nm}_fire_n", f"{nm}_fire_s", f"{nm}_fire_e", f"{nm}_fire_w",
+            f"{nm}_dout_n[0]", f"{nm}_dout_s[0]", f"{nm}_dout_e[0]", f"{nm}_dout_w[0]",
+            f"{nm}_ready", f"{nm}_prog_done",
+            f"{nm}_pack_n", f"{nm}_pack_s", f"{nm}_pack_e", f"{nm}_pack_w",
+            f"{nm}_fzo_n", f"{nm}_fzo_s", f"{nm}_fzo_e", f"{nm}_fzo_w",
+            f"{nm}_pon", f"{nm}_pos", f"{nm}_poe", f"{nm}_pow",
+            f"{nm}_pdon[0]", f"{nm}_pdos[0]", f"{nm}_pdoe[0]", f"{nm}_pdow[0]",
+            f"{nm}_paon", f"{nm}_paos", f"{nm}_paoe", f"{nm}_paow",
+        ])
+    xor_expr = " ^ ".join(terms)
+    lines.append(f"wire array_alive = {xor_expr};")
+    lines.append("")
+    lines.append("reg [23:0] hb_cnt = 0;")
+    lines.append("always @(posedge clk) hb_cnt <= hb_cnt + 24'd1;")
+    lines.append("")
+    lines.append("assign LED0_N = ~hb_cnt[23];")
+    lines.append("assign LED1_N = ~array_alive;   // real, observable, non-prunable")
+    lines.append("")
+    if probe_name:
+        lines.append("// Real, JTAG-readable confirmation (points.md #529/#537's own proven")
+        lines.append("// pattern).")
+        lines.append(f"debug_issp_probe_v1 {probe_name} (")
+        lines.append("    .err_sticky(array_alive),")
+        lines.append("    .heartbeat(hb_cnt[23])")
+        lines.append(");")
+        lines.append("")
+    lines.append("endmodule")
+    return "\n".join(lines) + "\n"
+
+
+def generate_yosys_script(top_name, dependencies, probe_name=None):
+    """Points.md #663: real, honest open-toolchain path -- a genuine
+    Yosys synthesis script, not a Quartus substitute pretending to be
+    one. Targets `synth_intel_alm -family cyclone10gx`, the CLOSEST
+    real, genuinely-supported ALM family Yosys has (confirmed directly
+    against Yosys's own current documentation before writing this:
+    `synth_intel_alm`'s own real `-family` option supports exactly
+    three targets -- cyclonev, arriav, cyclone10gx -- and NONE of them
+    is Arria 10, which uses a real, materially different, newer
+    HyperFlex-era logic cell architecture this techlib does not model
+    at all). This script's own real output (via `stat`) is therefore a
+    real, genuine SAME-GENERATION ALM ballpark from an actual open
+    synthesis run -- not a real Arria 10 number, and not claimed to be
+    one anywhere in this tool's own output. The only way to get a real
+    Arria 10 number remains a real Quartus build, unchanged.
+
+    Real, necessary exclusion: the ISSP debug probe is a real, Quartus-
+    IP-only blackbox (`issp`) with no synthesizable definition anywhere
+    in this repo -- Yosys's own `read_verilog` would fail on it. This
+    function silently drops it from the dependency list rather than
+    failing the whole script (`assemble()`'s own caller is responsible
+    for warning the person up front if they asked for both)."""
+    real_deps = [d for d in dependencies if d != "debug_issp_probe_v1.v"]
+    lines = [
+        f"# {top_name}.ys — points.md #663: a real, honest Yosys synthesis",
+        "# script -- generates a genuine same-generation ALM ballpark via",
+        "# synth_intel_alm -family cyclone10gx (the closest real family Yosys",
+        "# supports; Arria 10 itself has no model in this techlib). NOT a real",
+        "# Arria 10 number -- only an actual Quartus build gives that.",
+        "#",
+        "# Run with: yosys " + f"{top_name}.ys",
+        "",
+    ]
+    for dep in real_deps:
+        lines.append(f"read_verilog {dep}")
+    lines.append(f"read_verilog {top_name}.v")
+    lines.append("")
+    lines.append(f"synth_intel_alm -top {top_name} -family cyclone10gx")
+    lines.append("")
+    lines.append("# Real, genuine cell-type/count report from this actual synthesis run --")
+    lines.append("# a same-generation ballpark, not a real Arria 10 ALM figure.")
+    lines.append("stat")
+    lines.append("")
+    lines.append(f"write_verilog {top_name}_synth_cyclone10gx.v")
+    return "\n".join(lines) + "\n"
+
+
+def generate_sdc(man):
+    return (
+        "# Generated by tools/project_assemble_v1.py -- points.md #552/#554.\n"
+        "# Real clocking convention already established across this project.\n\n"
+        "create_clock -name CLK_100M -period 10.000 [get_ports CLK_100M]\n\n"
+        "create_generated_clock -name clk_div -source [get_ports CLK_100M] -divide_by 4 \\\n"
+        "    [get_registers {div_cnt[1]}]\n\n"
+        "derive_clock_uncertainty\n\n"
+        "set_false_path -to [get_ports {LED0_N LED1_N}]\n"
+        "set_false_path -from [get_ports {ENTRY_DATA}]\n"
+        "set_false_path -from [get_ports {CFG_SELECT[*]}]\n"
+    )
+
+
+def generate_qsf(man, top_name, probe_name=None, shell="v3", logiclock=False, cell_positions_list=None,
+                  ll_fixed_alm=None, ll_headroom=1.25, custom_dependencies=None):
+    # points.md #590: custom_dependencies, when given, overrides
+    # SHELL_REGISTRY's own registered list entirely -- see
+    # resolve_dependency_list(). points.md #734: "vix" no longer has a
+    # real static list here at all (SHELL_REGISTRY["vix"]["dependencies"]
+    # is None) -- its own real dependency list is derived fresh from
+    # the actual file (derive_vix_dependencies(), called by this
+    # function's own real caller before reaching here). A direct call
+    # to generate_qsf() with shell="vix" and no custom_dependencies is
+    # a genuine caller error, not a case to silently paper over with a
+    # stale fallback.
+    if custom_dependencies is not None:
+        dependencies = custom_dependencies
+    elif SHELL_REGISTRY[shell]["dependencies"] is None:
+        raise ValueError(
+            f"generate_qsf() called with shell='{shell}' and no custom_dependencies -- "
+            f"'{shell}' has no real static dependency list; its caller must derive one "
+            f"(e.g. derive_vix_dependencies(src_dir) for 'vix') and pass it explicitly."
+        )
+    else:
+        dependencies = SHELL_REGISTRY[shell]["dependencies"]
+    out = QSF_BOILERPLATE.format(
+        family=man["family"], device=man["device"], top=top_name,
+        clk_pin=man["clk_pin"], led0_pin=man["led0_pin"], led1_pin=man["led1_pin"],
+    )
+    for dep in dependencies:
+        if dep == "debug_issp_probe_v1.v" and not probe_name:
+            continue
+        out += f"set_global_assignment -name VERILOG_FILE {dep}\n"
+    out += f"set_global_assignment -name VERILOG_FILE {top_name}.v\n"
+    if probe_name:
+        out += "set_global_assignment -name QSYS_FILE issp.qsys\n"
+        out += (
+            "\n# points.md #529/#554: this project also needs the real, locally-\n"
+            "# generated `issp` IP output (the actual .v/.qip Quartus produces from\n"
+            "# issp.qsys via IP Catalog \"Generate HDL\" -- NOT the .qsys config file\n"
+            "# alone). Add that generated .qip to this project before compiling --\n"
+            "# not tracked in this repo, environment-specific generated output,\n"
+            "# same convention issp.qsys itself already follows. The SAME already-\n"
+            "# generated issp files used for earlier real builds this session work\n"
+            "# here unmodified -- the probe's own bit layout never changes.\n\n"
+        )
+    out += f"set_global_assignment -name SDC_FILE {top_name}.sdc\n"
+    if logiclock and cell_positions_list:
+        out += generate_logiclock_assignments(cell_positions_list, fixed_alm_per_cell=ll_fixed_alm, headroom=ll_headroom)
+    return out
+
+
+def generate_single_core_qsf(man, top_name, resolved_filename, extra_deps, probe_name=None):
+    out = QSF_BOILERPLATE.format(
+        family=man["family"], device=man["device"], top=top_name,
+        clk_pin=man["clk_pin"], led0_pin=man["led0_pin"], led1_pin=man["led1_pin"],
+    )
+    out += f"set_global_assignment -name VERILOG_FILE {resolved_filename}\n"
+    for dep in extra_deps:
+        out += f"set_global_assignment -name VERILOG_FILE {dep}\n"
+    if probe_name:
+        out += "set_global_assignment -name VERILOG_FILE debug_issp_probe_v1.v\n"
+    out += f"set_global_assignment -name VERILOG_FILE {top_name}.v\n"
+    if probe_name:
+        out += "set_global_assignment -name QSYS_FILE issp.qsys\n"
+        out += (
+            "\n# points.md #529/#567: needs the real, locally-generated `issp`\n"
+            "# IP output added to this project before compiling -- same real,\n"
+            "# already-generated issp files used for every other build this\n"
+            "# session work here unmodified.\n\n"
+        )
+    out += f"set_global_assignment -name SDC_FILE {top_name}.sdc\n"
+    return out
+
+
+def assemble(man_path, cells, output, top=None, single_core=None, core_path=None, probe_name=None, shell="v3", logiclock=False, ll_fixed_alm=None, ll_headroom=1.25,
+             shell_file=None, shell_module=None, file_list=None, files_string=None, target="quartus"):
+    """The real, single implementation of this tool's own job --
+    both main() (CLI) and any other caller (e.g. the frontend,
+    points.md #557) call this directly, so there is exactly one real
+    code path, never a duplicated copy that could drift out of sync.
+
+    points.md #663: target="quartus" (default, unchanged) generates the
+    real .qsf/.sdc pair this tool always has. target="yosys" instead
+    generates a real .ys Yosys synthesis script (see generate_yosys_
+    script()'s own real, honest scope note: a genuine same-generation
+    ALM ballpark via the closest real family Yosys supports, NOT a real
+    Arria 10 number -- no .qsf/.sdc are written in this mode, since
+    they're meaningless outside Quartus. Combining target="yosys" with
+    a real probe_name raises a clear error rather than silently
+    generating a script that would fail on Yosys's own real inability
+    to synthesize the Quartus-only `issp` blackbox.
+
+    points.md #567: single_core, when given a real core base name
+    (e.g. "ram_cell"), switches to single-core-type generation --
+    a card of just that one core, no shell, no core_select. core_path
+    overrides where real source files are read from (default:
+    fpga/verilog); resolve_core_file() picks the highest real version
+    found there automatically, ignoring version suffixes.
+
+    points.md #578: shell selects which real 8-core shell version the
+    FULL-array path (single_core not given) generates -- "v3" (each
+    core's own separate internal storage, the original default) or
+    "v4" (the shared external-storage shell, #573). Ignored when
+    single_core is given (that path never touches the shell at all).
+
+    points.md #582: logiclock, when True, adds a real per-cell
+    LogicLock region (fixed-membership, auto-sized, floating -- see
+    generate_logiclock_assignments()) for every cell in a FULL-array
+    build, forcing each cell's own logic to be placed as one
+    contiguous block instead of left to the fitter's own unconstrained
+    global optimization (the real cause found in #579-#581's own
+    Chip Planner evidence of cross-die scattering). Ignored when
+    single_core is given.
+
+    points.md #583: ll_fixed_alm, when given alongside logiclock,
+    switches region sizing from AUTO_SIZE (found to reserve a real
+    ~3.1x more physical area than needed, #583's own real finding) to
+    an explicit, computed fixed size based on this real, empirically-
+    measured per-cell ALM figure plus ll_headroom (default 1.25 =
+    25% real slack).
+
+    points.md #590: shell_file/shell_module let this generator target
+    ANY real shell file (not just the two hardcoded in SHELL_REGISTRY)
+    sharing v3/v4's own real port list -- e.g. unicell_super_v6.v/v7.v
+    (#584/#587), built by hand when mixing core versions. file_list/
+    files_string supply a real, explicit dependency list (a text file,
+    one real filename per line, or an inline comma-separated string),
+    overriding SHELL_REGISTRY's own registered list entirely. Per
+    Alan's own real request: this removes the separate, repeated
+    chore of hand-deriving a QSF file list every time a custom shell
+    or a mixed set of core versions is used in an array build. A real,
+    advisory compatibility check (check_dependency_compatibility())
+    runs automatically whenever shell_file is given, and its own real
+    warnings (if any) are returned in the result dict rather than
+    printed silently, so a caller can surface them."""
+    if cells < 1:
+        raise ValueError("cells must be >= 1")
+    if shell_module is None and shell not in SHELL_REGISTRY:
+        raise ValueError(f"unknown shell '{shell}' -- real options: {', '.join(SHELL_REGISTRY)}")
+    if target not in ("quartus", "yosys"):
+        raise ValueError(f"unknown target '{target}' -- real options: quartus, yosys")
+    if target == "yosys" and probe_name:
+        raise ValueError(
+            "target='yosys' cannot include a real debug probe -- the ISSP IP "
+            "(debug_issp_probe_v1.v's own `issp` instance) is a real, Quartus-only "
+            "blackbox with no synthesizable definition anywhere in this repo; "
+            "Yosys's own read_verilog would fail on it. Drop --probe for a yosys build."
+        )
+
+    man = load_man(man_path)
+    src_dir = core_path or VERILOG_DIR
+    rows, cols = grid_dims(cells)
+    os.makedirs(output, exist_ok=True)
+
+    if single_core:
+        if single_core not in CORE_REGISTRY:
+            raise ValueError(f"unknown core '{single_core}' -- real options: {', '.join(CORE_REGISTRY)}")
+        info = CORE_REGISTRY[single_core]
+        resolved = resolve_core_file(single_core, src_dir)
+        top_name = top or f"top_{single_core}_{cells}cells_v1"
+
+        shutil.copy(os.path.join(src_dir, resolved), os.path.join(output, resolved))
+        for dep in info["extra_deps"]:
+            dep_src = find_dependency_file(dep, src_dir)
+            shutil.copy(dep_src, os.path.join(output, dep))
+        files_written = 1 + len(info["extra_deps"])
+        if probe_name:
+            probe_src = find_dependency_file("debug_issp_probe_v1.v", VERILOG_DIR)
+            shutil.copy(probe_src, os.path.join(output, "debug_issp_probe_v1.v"))
+            files_written += 1
+
+        resolved_module_name = resolved[:-2]  # strip real ".v" -- the actual module name inside includes the version suffix
+        top_rtl = generate_single_core_top(top_name, resolved_module_name, single_core, cells, rows, cols, probe_name=probe_name)
+        with open(os.path.join(output, f"{top_name}.v"), "w") as f:
+            f.write(top_rtl)
+
+        if target == "yosys":
+            with open(os.path.join(output, f"{top_name}.ys"), "w") as f:
+                f.write(generate_yosys_script(top_name, [resolved] + info["extra_deps"], probe_name=probe_name))
+        else:
+            with open(os.path.join(output, f"{top_name}.sdc"), "w") as f:
+                f.write(generate_sdc(man))
+            with open(os.path.join(output, f"{top_name}.qsf"), "w") as f:
+                f.write(generate_single_core_qsf(man, top_name, resolved, info["extra_deps"], probe_name=probe_name))
+
+        return {
+            "card_id": man["card_id"], "family": man["family"], "device": man["device"],
+            "cells": cells, "rows": rows, "cols": cols, "alm_total": man["alm_total"],
+            "output": output, "top_name": top_name,
+            "files_written": files_written + 3,
+            "single_core": single_core, "resolved_file": resolved,
+            "probe_name": probe_name, "target": target,
+        }
+
+    ll_suffix = ""
+    if logiclock:
+        ll_suffix = "_llfix" if ll_fixed_alm is not None else "_ll"
+    shell_tag = shell_module if shell_module else shell
+    top_name = top or f"top_array_{shell_tag}_{cells}cells{ll_suffix}_v1"
+
+    # points.md #590: resolve the real dependency list -- an explicit
+    # custom list (file_list/files_string) always wins; otherwise fall
+    # back to SHELL_REGISTRY's own registered default for `shell`.
+    dependencies = resolve_dependency_list(file_list, files_string)
+    if dependencies is None:
+        if shell in ("vix", "vixen") and shell_module is None:
+            # points.md #734: vix has no real static dependency list
+            # anymore -- derive it fresh from the real, actual file,
+            # every time, so it can never silently go stale again the
+            # way VIX_DEPENDENCIES did across the whole #719-#731 arc.
+            dependencies = derive_vix_dependencies(src_dir, "unicell_vixen_v1.v" if shell == "vixen" else "unicell_vix_carrier_v1.v")
+        else:
+            dependencies = SHELL_REGISTRY[shell]["dependencies"]
+
+    real_module_name = shell_module if shell_module else SHELL_REGISTRY[shell]["module"]
+
+    compat_warnings = []
+    if shell_file:
+        # A custom shell file needs to be in the real dependency list
+        # too (it's real RTL just like every other file here) -- add
+        # it if the person didn't already include it themselves.
+        shell_fname = os.path.basename(shell_file)
+        if shell_fname not in dependencies:
+            dependencies = dependencies + [shell_fname]
+        # points.md #590: real, forgiving path resolution -- try the
+        # given path exactly as given first (absolute, or relative to
+        # the current working directory, matching how a person would
+        # naturally type it on a command line), and only fall back to
+        # resolving the bare filename against src_dir (this tool's own
+        # established convention for every other dependency) if that
+        # exact path doesn't exist. A real bug here on the first
+        # attempt at this feature (a doubled fpga/verilog/fpga/verilog/
+        # path) showed this ambiguity needed real, explicit handling,
+        # not just documentation asking for one specific format.
+        if os.path.exists(shell_file):
+            shell_src_path = shell_file
+        else:
+            candidate = os.path.join(src_dir, shell_fname)
+            if os.path.exists(candidate):
+                shell_src_path = candidate
+            else:
+                raise FileNotFoundError(
+                    f"--shell-file '{shell_file}' not found as given, and "
+                    f"'{shell_fname}' not found in {src_dir} either."
+                )
+        compat_warnings = check_dependency_compatibility(src_dir, shell_src_path, real_module_name, dependencies)
+
+    files_written = 0
+    for dep in dependencies:
+        if dep == "debug_issp_probe_v1.v" and not probe_name:
+            continue
+        src = find_dependency_file(dep, src_dir)
+        shutil.copy(src, os.path.join(output, dep))
+        files_written += 1
+
+    if shell in ("vix", "vixen"):
+        top_rtl = generate_top_vix(top_name, cells, rows, cols, probe_name=probe_name, shell_key=shell)
+    else:
+        top_rtl = generate_top(top_name, cells, rows, cols, probe_name=probe_name, shell=shell, shell_module=shell_module)
+    with open(os.path.join(output, f"{top_name}.v"), "w") as f:
+        f.write(top_rtl)
+
+    if target == "yosys":
+        with open(os.path.join(output, f"{top_name}.ys"), "w") as f:
+            f.write(generate_yosys_script(top_name, dependencies, probe_name=probe_name))
+    else:
+        with open(os.path.join(output, f"{top_name}.sdc"), "w") as f:
+            f.write(generate_sdc(man))
+
+        positions = cell_positions(cells, rows, cols)
+        with open(os.path.join(output, f"{top_name}.qsf"), "w") as f:
+            f.write(generate_qsf(man, top_name, probe_name=probe_name, shell=shell,
+                                  logiclock=logiclock, cell_positions_list=positions,
+                                  ll_fixed_alm=ll_fixed_alm, ll_headroom=ll_headroom,
+                                  custom_dependencies=dependencies))
+
+    return {
+        "card_id": man["card_id"], "family": man["family"], "device": man["device"],
+        "cells": cells, "rows": rows, "cols": cols, "alm_total": man["alm_total"],
+        "output": output, "top_name": top_name,
+        "files_written": files_written + 3,
+        "probe_name": probe_name, "shell": shell_tag, "logiclock": logiclock,
+        "compat_warnings": compat_warnings, "target": target,
+    }
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--man", default=None, help="Path to a MAN file (real card capabilities). Required for every mode except `-s flex` given -w (see -s/-w).")
+    ap.add_argument("--cells", default=None, type=int, help="Number of cells to generate (not used with --icm: the ICM file defines the cells)")
+    ap.add_argument("--output", required=True, help="Output folder for the generated project (required -- prevents build artifacts landing inside the tracked repo by accident)")
+    ap.add_argument("--top", default=None, help="Top-level module name (default: auto-generated)")
+    ap.add_argument("-S", "--single-core", default=None,
+                     help=f"Generate an array of ONE real core type instead of the full 8-core shell. Real options: {', '.join(CORE_REGISTRY)}")
+    ap.add_argument("-x", "--core-path", default=None,
+                     help="Real path to search for core source files (default: fpga/verilog). Files are matched by base name only, ignoring version suffixes -- the highest real version found wins.")
+    ap.add_argument("-P", "--probe", nargs="?", const="DEBUG_PROBE", default=None, metavar="NAME",
+                     help="points.md #569: include a real ISSP debug probe, optionally naming the instance (default name if -P given with no value: DEBUG_PROBE). Omitted by default -- the LED-based anti-pruning check works independently of the probe, so it's a real, optional extra for JTAG confirmation, not required for a pure resource/timing build.")
+    ap.add_argument("--shell", default="v3", choices=sorted(SHELL_REGISTRY),
+                     help="points.md #578: which real 8-core shell to array (ignored with -S). 'v3' = each core's own separate storage (the original default). 'v4' = the shared external-storage shell (#573).")
+    ap.add_argument("--logiclock", action="store_true",
+                     help="points.md #582: add a real per-cell LogicLock region (fixed-membership) forcing each cell's own logic to place as one contiguous block, instead of the fitter's unconstrained global optimization. Ignored with -S. Real, direct fix for the cross-die scattering Alan found in the Chip Planner on the unconstrained N=10 builds (#579-#581).")
+    ap.add_argument("--ll-fixed-alm", type=float, default=None,
+                     help="points.md #583: real, measured per-cell ALM figure (e.g. 1030.52 for v3 N=10, #579; 1307.42 for v4 N=10, #580) to size FIXED LogicLock regions from, instead of AUTO_SIZE -- found to reserve ~3.1x more physical area than needed (#583). Only meaningful with --logiclock.")
+    ap.add_argument("--ll-headroom", type=float, default=1.25,
+                     help="points.md #583: real slack multiplier over --ll-fixed-alm (default 1.25 = 25%%) -- per-cell ALM cost genuinely varies cell-to-cell, so some real headroom is needed, deliberately far less than AUTO_SIZE's own real ~3.1x.")
+    ap.add_argument("--shell-file", default=None,
+                     help="points.md #590: real path to a custom shell .v file (e.g. fpga/verilog/unicell_super_v7.v, #587) to array instead of a SHELL_REGISTRY entry -- must share v3/v4's own real port list. Requires --shell-module. Automatically added to the dependency list, and triggers a real, advisory compatibility check (see check_dependency_compatibility()).")
+    ap.add_argument("--shell-module", default=None,
+                     help="points.md #590: the real module name inside --shell-file (e.g. unicell_super_v7). Required when --shell-file is given.")
+    ap.add_argument("--file-list", default=None,
+                     help="points.md #590: real path to a plain text file listing dependency filenames, one real filename per line (blank lines and #-comments ignored) -- overrides SHELL_REGISTRY's own registered list entirely. Per Alan's own real request, for mixing and matching core versions without hand-writing a QSF file list each time.")
+    ap.add_argument("--files", default=None,
+                     help="points.md #590: real, inline comma-separated dependency list (e.g. \"compare_cell_v3.v,latch_cell_v3.v,ram_cell_v1.v,...\") -- an alternative to --file-list for a short real override. Takes precedence over --file-list if both are given.")
+    ap.add_argument("--target", default="quartus", choices=["quartus", "yosys"],
+                     help="points.md #663: 'quartus' (default) generates the real .qsf/.sdc pair this tool always has. 'yosys' generates a real .ys synthesis script instead (synth_intel_alm -family cyclone10gx -- the closest real family Yosys supports; Arria 10 has NO real model in this open-source techlib, so this gives a genuine same-generation ALM ballpark, not a real Arria 10 number). Cannot combine with --probe.")
+    ap.add_argument("-s", "--family", default=None, choices=["flex", "sub", "nano", "std", "carrier"],
+                     help="Which cell family to build from (NOT the same as -S, which names ONE core type within the family). 'flex' = the Flex-Sub family in sub/verilog (*_cell_v4sa.v: WIDTH-parameterised, ack+freeze); 'sub' = the fixed-32 stripped family (*_cell_v4s.v); 'nano' = explicit name for the existing default behaviour (the carrier/shell lineage), identical to omitting -s; 'std' = the standard line on the v4 standalone shells and 'carrier' = the standard line on the VIXeN carrier trimmed to the ICM's cores (both ICM only: --icm, ledger #1123). For flex/sub the core type comes from -S (e.g. `-s flex -S adder`), the count from --cells, the card from --man. Handled by tools/flexsub_assemble_v1.py (Alan's two-step Flex-Sub assembler plan, step 1).")
+    ap.add_argument("--icm", default=None, metavar="FILE",
+                     help="STEP 2 of the Flex-Sub plan: read this ICM-VIX file (*.icm-hier.json) as a map and generate the design it describes as Verilog into --output. Requires -s sub (fixed-latency design: tools/flexsub_icm_generate_v1.py) or -s flex (handshake design: tools/flexsub_icm_flex_v1.py, ledger #944 onward); --cells is not used.")
+    ap.add_argument("--allow-rings", action="store_true",
+                     help="ledger #1109 (-s flex --icm only): accept a design with a genuine feedback ring. The ring is cut where the host enters (that edge is left out of the timing / operand-order analysis and kept in the wiring), "
+                          "the entry cell gets a host port and a merge, the cell named io_name `result` becomes the observation point (a fork: the ring AND the host port; a host that does not ack stalls the ring). Off by default: a cycle is refused with its reason.")
+    ap.add_argument("--ring-steps", type=int, default=None, metavar="N",
+                     help="ledger #1110 (with --allow-rings): the ring's CONTROL, required for any design with a ring (Alan: a ring without one runs away). The generated design counts the results the host takes, stops after N (the Nth result is held, nothing is fed back) "
+                          "and raises `ring_stopped`; a pulse on `ring_release` lets it run N more. N = 1..65535.")
+    ap.add_argument("--keep", default="", metavar="CORES",
+                    help="-s carrier only: a comma list of cores to KEEP in the trimmed carrier in addition to the ones the design uses (e.g. mul,compare). Names: the ICM names (accumulator, comparator, sequencer, multiplier, divider) or the carrier's (accum, compare, seq, mul, div), plus nano, adder, ram, latch, branch, priority, corner, cross, merge, command. A kept core the design does not use makes the carrier bigger and is not configured by the grid generator. Unknown names are refused.")
+    ap.add_argument("--tap-io", default="result", metavar="NAME",
+                     help="ledger #1124 (-s std / -s carrier): the io_name of the cell the grid's tap observes (default `result`).")
+    ap.add_argument("--nowidelut", action="store_true",
+                     help="Gowin synthesis (-s flex / -s sub, step-1 chains and --icm): FORCE `synth_gowin -nowidelut`. This is already the DEFAULT for the Gowin generators (ledger #951 / Alan's "
+                          "ruling after #950: smaller in every cell measured, ~3x smaller and ~3x faster for the LUT multiplier); the card's MAN (synthesis.nowidelut) decides the default, and "
+                          "forcing it where the MAN says the toolchain does not support it (the Arria 10 / synth_intel_alm path) is refused.")
+    ap.add_argument("--wide-lut", action="store_true",
+                     help="Opt OUT of the -nowidelut default: write the historical `synth_gowin` line (wide-LUT / MUX2_LUT mapping). Same Gowin-only scope as --nowidelut.")
+    ap.add_argument("--merge-mode", default="arbitrate", metavar="SPEC",
+                     help="With -s flex --icm: the mode of the MERGE core (merge_cell_v4sa) placed at each ICM merge, chosen PER MERGE. SPEC is a default mode, or 'consumer=mode,...,default': "
+                          "e.g. 'arbitrate', 'join-or', or 's0.gather=join-or,arbitrate'. arbitrate (default) = take one source at a time, round-robin: right when the paths are ALTERNATIVES "
+                          "(a branch's outcomes rejoining, e.g. the cordic's gather). join-or = WAIT for all sources, then OR: right when the paths are HALVES of one item (the VM's 'free OR' "
+                          "used as a feature). Merges of 3-4 sources become a tree of two-input cores. A core is placed only where an ICM merge exists.")
+    ap.add_argument("--mul", default="auto", choices=["auto", "lut", "dsp"],
+                     help="With --icm: how `mul` cells are realised. auto (default) = the DSP cell (mul_cell_v4s_dsp2, one MULT36X36, a few dozen LUTs) while the MAN's card has DSP blocks left, the exact LUT multiplier (~4,277 LUT4 each) as the fall back, and a refusal if even that cannot fit the card; lut = always the LUT multiplier; dsp = always DSP (refused if the card has too few). Needs --man for resource information; without one auto uses the LUT multiplier.")
+    ap.add_argument("--no-align", action="store_true",
+                     help="With --icm: do NOT pad early adder operands with relay cells. A negative control -- the generated design is then expected to compute the wrong answer.")
+    ap.add_argument("-w", "--width", type=int, default=None,
+                     help="Cell data width for `-s flex` (e.g. -w 18). Overrides the MAN file's device.logic.native_width; required when no --man is given. Rejected with `-s sub` (fixed 32) and with the default/nano path.")
+    args = ap.parse_args()
+    if args.nowidelut and args.wide_lut:
+        ap.error("--nowidelut and --wide-lut contradict each other")
+    if (args.nowidelut or args.wide_lut) and args.family not in ("flex", "sub"):
+        ap.error("--nowidelut / --wide-lut are Gowin `synth_gowin` options and apply only to -s flex / -s sub (the generated .ys scripts); the original nano/Quartus path targets "
+                 "synth_intel_alm, which has no such option -- it would be silently ignored, so it is refused")
+    args.nowidelut_request = True if args.nowidelut else (False if args.wide_lut else None)
+    if args.merge_mode != "arbitrate" and not (args.icm and args.family == "flex"):
+        ap.error("--merge-mode applies only to -s flex --icm (the merge core exists in the flex family)")
+
+    if args.icm and args.family in (None, "std", "carrier"):          # ledger #1126: an ICM whose places say `family: std|carrier` (DSL) builds on the standard line without -s
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import std_icm_generate_v2 as _sig0
+        _tags = _sig0.icm_families(args.icm)
+        _std = _tags & {"std", "carrier"}
+        if _std:
+            if _tags - _std or len(_std) > 1:                            # ledger #1162: a design that mixes the standard line with flex / sub (or std with carrier) is built region by region by flexsub_mixed_v2, adapters inserted
+                if args.family in (None, "std", "carrier"):
+                    args.family = "flex"                                  # the default family of any untagged block
+            else:
+                _fam = next(iter(_std))
+                if args.family in ("std", "carrier") and args.family != _fam:
+                    print(f"error: -s {args.family} but the ICM's places say family: {_fam}", file=sys.stderr)
+                    return 1
+                args.family = _fam
+    if args.keep and args.family != "carrier":
+        ap.error("--keep applies only to -s carrier")
+    if args.family in ("std", "carrier") and not args.icm:
+        ap.error("-s %s works from an ICM map only (--icm FILE)" % args.family)
+    if args.icm and args.family in ("std", "carrier"):                # ledger #1123: the ICM drives the standard line too
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import std_icm_generate_v2 as sig
+        try:
+            r = sig.generate(args.icm, args.output, family=args.family, top=args.top, rings=args.allow_rings, ring_steps=args.ring_steps, result_io=args.tap_io, extra_keep=args.keep)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        print(f"Family: {args.family}   Source: {args.icm}   Cells: {r['cells']}" + (f"   Ring control: offset {r['ring']['offset']}, reference {r['ring']['reference']}" if r["ring"] else ""))
+        print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})   io map in GRID.json")
+        return 0
+    if args.icm:
+        if args.family not in ("sub", "flex"):
+            print("error: --icm needs -s sub, -s flex, -s std or -s carrier", file=sys.stderr)
+            return 1
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import flexsub_icm_generate_v4 as fig
+        import flexsub_mixed_v3 as mix       # ledger #1171: v3 = v2 plus the division core in standard / carrier regions (was v2, #1162)
+        if mix.is_mixed(args.icm):                                   # ledger #1114: a block names its family -> split at the family boundaries, bridge every crossing
+            try:
+                r = mix.generate(args.icm, args.output, top=args.top or "mixed_top", default_family=args.family, man_path=args.man)
+            except (ValueError, FileNotFoundError, RuntimeError) as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 1
+            print(f"Mixed families: {', '.join(x['name'] + '(' + x['family'] + ')' for x in r['regions'])}   Bridges inserted: {len(r['bridges'])}")
+            print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
+            return 0
+        try:
+            r = fig.generate(args.icm, args.output, top=args.top, align=not args.no_align, cell_dir=args.core_path,
+                             man_path=args.man, mul_mode=args.mul, family=args.family, nowidelut=args.nowidelut_request, merge_mode=args.merge_mode, width=args.width, rings=args.allow_rings, ring_steps=args.ring_steps)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        if r.get("family") == "flex":                     # ledger #1286: the neighbour map of the design as built, next to it (tools/design_map_v1.py); the Walker compares it with the card
+            try:
+                import design_map_v2 as _dm
+                _m = _dm.write_map(args.icm, args.output, merge_mode=args.merge_mode, align=not args.no_align, width=args.width, rings=args.allow_rings)
+                print(f"Map: {args.output}/design_map.json  (fingerprint {_m['fingerprint']})")
+            except Exception as e:                    # the map is an extra; a failure to write it must not stop the build, but it is said
+                print(f"warning: design_map.json was not written: {e}", file=sys.stderr)
+        if r.get("family") == "flex" and args.man:        # ledger #1259: the card's own flow decides what the folder becomes
+            import flexsub_assemble_v1 as _fa
+            _man = _fa.load_man_flexsub(args.man)
+            _flow = _fa.resolve_flow(_man)
+            if _flow == "openxc7":
+                import kintex_icm_runner_v6 as _kr
+                try:
+                    _k = _kr.wrap(args.output, args.icm, _man)
+                except (ValueError, AssertionError, RuntimeError) as e:
+                    print(f"error: {e}", file=sys.stderr)
+                    return 1
+                print(f"Family: flex   Source: {r['source']}   Cells: {r['cells']}   Card: {_man['card_id']} (openXC7 runner: entries {', '.join(n for n, _ in _k['entries'])}; exits {', '.join(n for n, _ in _k['exits'])})")
+                print(f"Output: {args.output}  project {_k['proj']}: make, make program, then run_vectors.sh (see README.md in the folder)")
+                print(f"Simulation against the VM: {_k['sim']['verdict']}" + ("" if _k["sim"]["verdict"] in ("PASS", "not run") else "   " + "; ".join(_k["sim"].get("fails", []))))
+                return 0
+            if _flow == "export-only":
+                for f in os.listdir(args.output):
+                    if f.endswith(".ys"):
+                        os.remove(os.path.join(args.output, f))
+                with open(os.path.join(args.output, "README.md"), "w") as f:
+                    f.write(_fa.export_readme(_man, r["top"], "flex", os.path.basename(args.icm), r["cells"], r.get("built_width", 32), sorted(os.listdir(args.output))))
+                print(f"Family: flex   Source: {r['source']}   Cells: {r['cells']}   Card: {_man['card_id']} (export-only)")
+                print(f"Output: {args.output}  plain Verilog and a README for your own tools (this card's toolchain is not built here)")
+                return 0
+        if r.get("family") == "flex":
+            print(f"Family: flex   Source: {r['source']}   Cells: {r['cells']}   Forks: {len(r['forks'])}   Joins: {len(r['joins'])}")
+            print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})   (handshake design: no alignment, no padding)")
+            return 0
+        print(f"Family: sub   Source: {r['source']}   Cells: {r['cells']}   Pad relay cells: {r['pad_relay_cells']}"
+              f"{'' if r['align'] else '   (ALIGNMENT OFF: negative control)'}")
+        print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
+        for c, t in r["output_latency_cycles"].items():
+            print(f"Latency to output {c}: {t} cycles")
+        return 0
+
+    if args.family in ("std", "carrier"):
+        ap.error("-s %s works from an ICM map only (--icm FILE)" % args.family)
+    if args.family in ("flex", "sub"):
+        # Step 1 of the Flex-Sub plan: a separate, additive path; nothing below this block runs.
+        _ignored = [n for n, v in (("--logiclock", args.logiclock), ("--shell-file", args.shell_file),
+                                   ("--shell-module", args.shell_module), ("--file-list", args.file_list),
+                                   ("--files", args.files), ("--probe", args.probe),
+                                   ("--target", args.target if args.target != "quartus" else None),
+                                   ("--shell", args.shell if args.shell != "v3" else None)) if v]
+        if _ignored:
+            print(f"error: {', '.join(_ignored)} do not apply with -s {args.family} (carrier/shell-lineage options)", file=sys.stderr)
+            return 1
+        if args.cells is None:
+            ap.error("the following arguments are required: --cells")
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import flexsub_assemble_v1 as fsa
+        try:
+            r = fsa.assemble_flexsub(args.family, args.single_core, args.cells, args.output,
+                                     man_path=args.man, width_arg=args.width, top=args.top,
+                                     cell_dir=args.core_path, nowidelut=args.nowidelut_request)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        print(f"Family: {args.family} ({r['cell_module']})")
+        print(f"Cells:  {r['cells']}  Width: {r['width']}  (from {r['width_source']})")
+        print(f"Card:   {r['man'] or 'none (no --man)'}")
+        print(f"Output: {args.output}  ({len(r['files'])} files, top {r['top']})")
+        if r.get("flow") == "export-only":
+            print("Build:  none -- this card's toolchain is not built here; " + args.output + " holds plain Verilog and a README for your own tools")
+        elif r.get("flow") == "openxc7":
+            print("Build:  openXC7 flow (ledger #1251): copy " + args.output + " next to the demo-projects, then  " + r["build"] + "  and  " + r["load"] + "  (SRAM only)")
+        else:
+            print("Build:  " + os.path.join(args.output, "build.sh") + ("  (synthesis + place-and-route)" if r["pnr"] else "  (synthesis only)"))
+        return 0
+
+    if args.family is None or args.family == "nano":
+        if args.width is not None:
+            ap.error("-w/--width only applies with -s flex")
+    _missing = [n for n, v in (("--man", args.man), ("--cells", args.cells)) if not v]
+    if _missing:
+        ap.error("the following arguments are required: " + ", ".join(_missing))
+    if args.no_align:
+        ap.error("--no-align only applies with --icm")
+    if args.mul != "auto":
+        ap.error("--mul only applies with --icm")
+
+    if args.shell_file and not args.shell_module:
+        print("error: --shell-file requires --shell-module (the real module name inside that file)", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        result = assemble(args.man, args.cells, args.output, args.top, args.single_core, args.core_path, args.probe, args.shell, args.logiclock, args.ll_fixed_alm, args.ll_headroom,
+                           shell_file=args.shell_file, shell_module=args.shell_module,
+                           file_list=args.file_list, files_string=args.files, target=args.target)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Card:   {result['card_id']} ({result['family']}, {result['device']})")
+    print(f"Cells:  {result['cells']} (grid {result['rows']}x{result['cols']}, real ALM budget {result['alm_total']:,})")
+    if result.get("single_core"):
+        print(f"Core:   {result['single_core']} (resolved to real file: {result['resolved_file']})")
+    else:
+        print(f"Shell:  {result['shell']}")
+        if result.get("logiclock"):
+            if args.ll_fixed_alm is not None:
+                print(f"LogicLock: ON -- real FIXED-size regions ({args.ll_fixed_alm:.2f} ALM/cell x {args.ll_headroom:.2f} headroom)")
+            else:
+                print(f"LogicLock: ON -- one real per-cell region per cell (fixed-membership, auto-sized, floating)")
+        if result.get("compat_warnings"):
+            print("\nCOMPATIBILITY WARNINGS (points.md #590 -- a real, advisory, heuristic scan,")
+            print("NOT a substitute for a real compile; double-check, don't assume either way):")
+            for w in result["compat_warnings"]:
+                print(f"  - {w}")
+    print(f"Output: {result['output']}")
+    if result["target"] == "yosys":
+        print(f"\nWrote {result['files_written']} real files (source + top-level RTL + .ys) to {result['output']}/")
+        print(f"Real, open-source path -- run: yosys {result['top_name']}.ys")
+        print(f"\nHONEST SCOPE (points.md #663): this synthesizes for Cyclone 10 GX, the")
+        print(f"closest real family Yosys's own synth_intel_alm supports -- Arria 10 has")
+        print(f"NO model in this open-source techlib at all (a materially different,")
+        print(f"newer HyperFlex-era logic cell architecture). The 'stat' output this")
+        print(f"script prints is a real, genuine same-generation ALM ballpark from an")
+        print(f"actual synthesis run -- it is NOT a real Arria 10 number. Only a real")
+        print(f"Quartus build gives that.")
+        return 0
+    print(f"\nWrote {result['files_written']} real files (source + top-level RTL + .qsf + .sdc) to {result['output']}/")
+    print(f"Import into Quartus using {result['top_name']}.qsf directly, matching #538's own proven flat-file template.")
+    if result.get("probe_name"):
+        print(f"\nReal ISSP probe included, instance name: {result['probe_name']}")
+        print(f"REMINDER: generate the real issp IP in Quartus before compiling --")
+        print(f"IP Catalog -> In-System Sources and Probes, probe_width=2, source_width=1,")
+        print(f"no source clock (the same real configuration used throughout this project).")
+        print(f"Without this step, Analysis & Synthesis will fail with 'undefined entity \"issp\"'.")
+    else:
+        print(f"\nNo ISSP probe included (use -P [NAME] to add one). The real LED-based")
+        print(f"anti-pruning check (array_alive/heartbeat) works independently and needs")
+        print(f"no extra Quartus IP generation step.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

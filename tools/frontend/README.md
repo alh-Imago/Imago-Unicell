@@ -3,9 +3,16 @@
 A local page for building designs and running them on a card, without typing the same cd and make lines again. Runs on your own PC; standard Python only (3.8+); the terminal library is bundled (`vendor/`), no internet needed.
 
 ## Start it (plain terminal, Linux)
-    python3 unicell_frontend_v6.py --demo ~/openFPGALoader/build/demo-projects --repo <your Imago-Unicell clone>
+    python3 unicell_frontend_v7.py --demo ~/openFPGALoader/build/demo-projects --repo <your Imago-Unicell clone>
 `--repo` lets the page find the assembler and the example ICM files; without it the ICM panel asks for the folder.
 It prints an address like `http://127.0.0.1:8765/?t=...` and opens it in the browser. Keep that terminal open; Ctrl-C stops it. Only this PC can reach it (127.0.0.1, with a one-off key in the address).
+
+## Build as: trimmed carrier grid (v7, ledger #1336)
+In **Make a design**, *Build as* has two choices. *Card project (flex)* is what the panel always did. *Trimmed carrier grid (Verilog for simulation)* builds the design as a grid of VIXeN carriers cut down to the cores it needs, and shows the choice of cores as a tick-list:
+* The cores the design needs are ticked and locked. They come from the design file's header (`cores_used`), which is worked out from the cells each time, so it cannot disagree with the design.
+* Tick any extra core to keep it in the carrier as well. The carrier gets bigger; the grid does not configure the extra cores. (This is Mode A of `docs/stripped-cell/design-notes/carrier_build_frontend_scope.md`; the ticked-and-locked ones are Mode B.)
+* *Observation cell (tap)* is the named cell the grid watches (`result` by default; the list offers the design's own io names, e.g. `output` for the reduction tree).
+* The result is `carrier_top.v`, `carrier_sub.v` and `GRID.json` in `<demo folder>/carrier_builds/<name>`. It is simulation Verilog, not a card project, so it does not appear in the Designs list. The carrier grid builds only ram, adder, branch and accumulator designs; anything else is refused by the assembler with a message naming the core.
 
 ## The page
 * **Designs** (left): every folder in the demo folder that has a Makefile. Click one: `cd <folder>` is sent to BOTH shells. The line under the name is the first heading of the folder's README (or `kit.json` "title").
