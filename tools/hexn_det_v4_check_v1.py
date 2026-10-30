@@ -20,7 +20,7 @@ def check(nb, aw, seed=1, nwin=400, pl=10):
     subprocess.run(["iverilog", "-g2012", "-o", vvp, "-P", f"tb_hexn_det_v4.NB={nb}", "-P", f"tb_hexn_det_v4.AW={aw}", "-P", f"tb_hexn_det_v4.NWIN={nwin}",
                     os.path.join(ROOT, "rtl", "tb_hexn_det_v4.v"), os.path.join(ROOT, "rtl", "hexn_det_v4.v")], check=True)
     out = subprocess.run(["vvp", vvp], cwd=d, capture_output=True, text=True).stdout
-    return out.strip().splitlines()[-1], out
+    lines = out.strip().splitlines(); return next((l for l in lines if "TB DET V4" in l), lines[-1] if lines else "NO OUTPUT"), out
 if __name__ == "__main__":
     args = [int(a) for a in sys.argv[1:]] or [12, 7, 18, 8, 20, 8, 12, 8]; ok = True
     for i in range(0, len(args), 2):
