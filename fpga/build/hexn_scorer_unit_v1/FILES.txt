@@ -1,0 +1,8 @@
+rtl/sd_unit_v1.v
+rtl/sd_stream_v1.v
+rtl/sd_spi_v1.v
+rtl/spi_bridge_v1.v
+rtl/playout_v1.v
+rtl/capture_v1.v
+rtl/hexn_scorer_v1.v
+unit_top.v

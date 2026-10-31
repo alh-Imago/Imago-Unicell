@@ -1,0 +1,6 @@
+{
+ "design_top": "hexn_scorer_v1",
+ "lanes": 1,
+ "outs": 1,
+ "words": "top nibble 0..11 SCORE (8 bins x 4 bits, sensor 7 in the top nibble), 12 LOAD (class [24], addr [22:16], weight [7:0]), 13 BIAS [15:0]; result {pred, 3'b0, s1[11:0] at 27:16, s0[11:0] at 11:0}"
+}
