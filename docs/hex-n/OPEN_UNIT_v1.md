@@ -28,3 +28,12 @@ The proven SPI bridge counts bytes in 8 bits (63-word limit, measured on the boa
 3. Pin matrix.
 4. A second table / second scorer job, raw-word input from the ESP32, a preset list for the front end.
 Stage 1 is small; stages 2 to 4 are each a day-sized piece. Nothing here is built or measured yet.
+
+## STAGE 1 DONE IN SIMULATION AND BUILT (1 Nov 2026, not run on a board)
+One bitstream, `fpga/build/hexn_open_unit_v1/unit_top.fs` (`hexn_open_top_v1.v`). Config register 16 (SPI address 16), bits 1:0 = MODE: 0 idle (display blank, nothing running), 1 reaction game, 2 Morse key. The personality not chosen is held in reset, and a mode change restarts the chosen one.
+- `spi_bridge_v2.v` (new; v1 untouched): 16-bit byte counter (long transactions work), ID `0x57320002`, config registers 16..31 (written and read back), read-only status register 10 (bits 1:0 mode, bit 2 reaction core ready, bit 3 Morse core ready). Bridge v1's registers 0..9 are unchanged.
+- The two personalities are now cores (`hexn_react_core_v1.v`, `hexn_morse_core_v1.v`) with no pins or shield driver of their own; the top gives them reset, buttons and the single shield driver (`hw262_shield_v2.v`).
+- A 1,024-word scratch RAM behind WR_WORDS / RD_WORDS lets long transfers be checked on the board.
+- Pins: SPI 73 to 77 as `LINK_TEST_v1.md`; shield A1 72, A2 71, A3 86, display 25/26/27, buzzer 28. READY (77) is high while a personality runs.
+Checked in simulation (`tests/vm/test_hexn_open_v1.py`): ID, config write and read-back, a 64-word and a 200-word transfer written and read back exactly, mode 2 decoding O, mode 1 scoring a good hit, switching modes (the other one reset), switching back to Morse and decoding L, mode 0 idle and silent. Build: 3,245 of 20,736 LUT4 (16%), 2 block RAMs, 162 MHz capable at 27, 20 pins.
+To try on the boards: `openFPGALoader -b tangnano20k fpga/build/hexn_open_unit_v1/unit_top.fs`, upload `tools/esp32/hexn_open_test/hexn_open_test.ino`, then `id`, `ram`, `mode 1`, `mode 2`, `mode 0`.
