@@ -11,12 +11,23 @@ POOL = [72, 71, 86, 25, 26, 27, 28, 29, 30, 31, 85, 80, 42, 41, 56, 54]         
 OUT_DEFAULT = {"latch": 3, "clk": 4, "data": 5, "buzz": 6}
 UNIT_ID = 0x57320002
 class SerialLink:
-    def __init__(self, port, baud=921600, timeout=3.0):
-        import serial; self.s = serial.Serial(port, baud, timeout=timeout); time.sleep(1.5); self.s.reset_input_buffer()
+    """The real link to the ESP32 gateway. Opening the port resets the ESP32 (it prints 'OK hexn gateway ready' about a second later), so wait for that greeting, then throw away anything else; cmd() also skips a greeting that arrives late."""
+    BANNER = "OK hexn gateway ready"
+    def __init__(self, port, baud=921600, timeout=3.0, serial_obj=None):
+        if serial_obj is None:
+            import serial; serial_obj = serial.Serial(port, baud, timeout=timeout)
+        self.s = serial_obj; t0 = time.time()
+        while time.time() - t0 < 4.0:                                   # up to 4 s for the greeting after the reset
+            if self.BANNER in self.s.readline().decode(errors="replace"): break
+        time.sleep(0.1); self.s.reset_input_buffer()
     def cmd(self, line):
-        self.s.write((line + "\n").encode()); r = self.s.readline().decode(errors="replace").strip()
-        if not r.startswith("OK"): raise IOError("gateway said %r to %r" % (r, line[:60]))
-        return r
+        self.s.write((line + "\n").encode())
+        for _ in range(4):
+            r = self.s.readline().decode(errors="replace").strip()
+            if r == self.BANNER: continue                               # a late greeting, not the answer
+            if not r.startswith("OK"): raise IOError("gateway said %r to %r" % (r, line[:60]))
+            return r
+        raise IOError("no answer from the gateway to %r" % line[:60])
 def binning_word(kind="log", shift=0, low_ms=0):
     """0 = log2 of the milliseconds; 'linear' = (ms - low) >> shift, capped at 11"""
     return 0 if kind == "log" else 1 | ((shift & 15) << 4) | ((low_ms & 0xFFF) << 16)

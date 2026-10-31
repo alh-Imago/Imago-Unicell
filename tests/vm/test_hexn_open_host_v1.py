@@ -47,3 +47,15 @@ def test_control_words_inside_one_stream():
     rs = rows(7, 30); r = u.stream(s + [R.w_score(v) for v in rs]); exp = []
     for v in rs: exp += [R.score(WA, 25, v)[0], R.score(WB, -17, v)[0]]
     assert r == exp
+class FakeSerial:
+    """stands in for pyserial: the ESP32 greeting arrives first, as after the reset that opening the port causes; then it answers commands"""
+    def __init__(self, greet_late=False):
+        self.out = [] if greet_late else [b"OK hexn gateway ready\n"]; self.late = greet_late
+    def readline(self): return self.out.pop(0) if self.out else b""
+    def reset_input_buffer(self): pass
+    def write(self, b):
+        if self.late: self.out.append(b"OK hexn gateway ready\n"); self.late = False          # the greeting lands AFTER the command was sent
+        self.out.append(b"OK 57320002\n" if b.startswith(b"ID") else b"OK\n")
+def test_serial_link_skips_the_gateway_greeting():
+    for late in (False, True):
+        u = H.OpenUnit(H.SerialLink("fake", serial_obj=FakeSerial(greet_late=late))); assert u.id() == H.UNIT_ID
