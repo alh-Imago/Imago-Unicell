@@ -104,3 +104,12 @@ def test_clear_judges_removes_leftover_weights():
     assert r == [R.score(z, 0, v)[0]] * 2                                          # both judges: all weights and biases zero
     u.load_judges(load_words(table(13)), 0, 0); u.clear_judges("B"); r = u.stream([R.w_score(v)])
     assert r[0] == R.score(table(13), 0, v)[0] and r[1] == R.score(z, 0, v)[0]     # only judge B was cleared
+
+def test_clear_judges_by_hardware_control_word():
+    u, e = unit(); u.preset(4); v = [3, 1, 4, 1, 5, 9, 2, 6]; z = np.zeros((2, 8, 16), dtype=int)
+    u.load_judges(load_words(table(12)), 5, -9); u.clear_judges("both", hardware=True)
+    assert u.stream([R.w_score(v)]) == [R.score(z, 0, v)[0]] * 2
+    u.load_judges(load_words(table(13)), 0, 0); u.clear_judges("B", hardware=True); r = u.stream([R.w_score(v)])
+    assert r[0] == R.score(table(13), 0, v)[0] and r[1] == R.score(z, 0, v)[0]
+    e.clear_ok = False; u.load_judges(load_words(table(13)), 0, 0); u.clear_judges("both", hardware=True)       # a v5 build ignores the bit: nothing cleared
+    assert u.stream([R.w_score(v)])[0] == R.score(table(13), 0, v)[0]

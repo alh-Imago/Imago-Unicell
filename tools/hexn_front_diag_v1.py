@@ -10,7 +10,7 @@ import sys, os, argparse
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hexn_open_host_v1 as H, hexn_scorer_ref_v1 as R
-def main(u):
+def main(u, hw_clear=False):
     ok = True
     def stage(name, good, detail=""):
         nonlocal ok; ok &= bool(good); print("%-12s %s %s" % (name, "ok  " if good else "FAIL", detail))
@@ -37,11 +37,17 @@ def main(u):
     u.preset(4); u.load_judges(load, 0, -40); res = u.stream([R.w_score(v) for v in rows]); e = []
     for v in rows: e += [R.score(W, 0, v)[0], R.score(W, -40, v)[0]]
     w2 = sum(1 for r, x in zip(res, e) if r != x); stage("5 rows, 2 judges", w2 == 0, "%d of %d result words wrong" % (w2, len(e)))
+    if hw_clear:                                      # ONLY with the v6 bitstream: the clear control word 0xE000000C / 0xE000000A
+        z = np.zeros((2, 8, 16), dtype=int); u.preset(4); u.load_judges(load, 0, -40); u.clear_judges("B", hardware=True); res = u.stream([R.w_score(v) for v in rows[:50]]); e = []
+        for v in rows[:50]: e += [R.score(W, 0, v)[0], R.score(z, 0, v)[0]]
+        stage("6 clear B", res == e, "%d of %d result words wrong" % (sum(1 for r, x in zip(res, e) if r != x), len(e)))
+        u.clear_judges("both", hardware=True); res = u.stream([R.w_score(v) for v in rows[:50]]); e = [R.score(z, 0, v)[0] for v in rows[:50] for _ in (0, 1)]
+        stage("6 clear both", res == e, "%d of %d result words wrong" % (sum(1 for r, x in zip(res, e) if r != x), len(e)))
     print("ALL STAGES OK" if ok else "SOME STAGES FAILED: the first FAIL line above is the stage to look at")
     return ok
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--emulate", action="store_true"); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument("--port"); ap.add_argument("--emulate", action="store_true"); ap.add_argument("--hw-clear", action="store_true", help="also test the hardware clear (v6 bitstream only)"); a = ap.parse_args()
     if a.emulate: import hexn_open_emu_v1 as E; link = E.EmuLink()
     elif a.port: link = H.SerialLink(a.port)
     else: raise SystemExit("give --port or --emulate")
-    sys.exit(0 if main(H.OpenUnit(link)) else 1)
+    sys.exit(0 if main(H.OpenUnit(link), a.hw_clear) else 1)

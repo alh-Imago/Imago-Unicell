@@ -11,6 +11,7 @@ class EmuLink:
     def __init__(self):
         self.reg = {i: 0 for i in range(32)}; self.reg[0] = UNIT_ID
         self.scratch = [0] * 1024; self.spaces = {}; self.presets = [0] * 64; self.presets[0] = 1; self.presets[8] = 2; self.presets[16] = 3; self.presets[24] = 3; self.presets[30] = 1
+        self.clear_ok = True                                              # models build v6 (clear control word); False models v5
         self.W = [np.zeros((2, 8, 16), dtype=int), np.zeros((2, 8, 16), dtype=int)]; self.bias = [0, 0]
         self.copy_go = 0; self.raw_go = 0; self.psel_applied = 0; self.eff = None; self.nres = 0; self.log = []; self.pin_level = [1] * 16
     def _eff(self, i, k):          # effective setting: from the active preset, else the register
@@ -49,7 +50,11 @@ class EmuLink:
         ctl = self.reg[24]; cnt = ctl & 0xFFFF; ob = ctl >> 16 & 0xFFF; jc = self.jc_start(); o = 0; self.nres = 0
         for i in range(cnt):
             w = self.scratch[i]; t = w >> 28
-            if t == 14: jc = w & 7; continue
+            if t == 14:
+                jc = w & 7
+                if w & 8 and self.clear_ok:                                   # v6 hardware clear: bit 3, targets from bits 2:1 (0 A, 1 B, else both)
+                    for j in {0: [0], 1: [1]}.get(jc >> 1 & 3, [0, 1]): self.W[j][:] = 0; self.bias[j] = 0
+                continue
             if t == 15: continue
             if t >= 12: tg = {0: [0], 1: [1], 2: [0, 1]}.get(jc >> 1 & 3, [0])
             else: tg = [0, 1] if jc & 1 else [0]
