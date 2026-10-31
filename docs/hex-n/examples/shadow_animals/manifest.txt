@@ -1,0 +1,9 @@
+example shadow_animals
+usage 2
+build nin=24 wb=8 lmax=8
+item 01_goals.hxi        goals     the goal table: six animals with typical shadow height and spread (cm)
+item 02_weights.hxi      weights   neural starting weights made from the goals (Q8, 6 outputs x 24 inputs), goals_to_weights
+item 03_settings.hxi     settings  look-back 3, learning rate 1.5, learning on, 5 readings per passing
+item 04_target.hxi       target    strategist target: 0 = esp (a sensor needs no search: goal setter)
+data sample_worldA.csv   300 labelled passings, animals as the table says
+data sample_worldB.csv   300 labelled passings, animals 25 percent taller than the table says

@@ -1,0 +1,7 @@
+example connect4
+usage 1
+build nin=7 wb=14 lmax=8
+item 01_weights.hxi      weights   the hand score as whole numbers (Q14): own 1, 4, 9 and opponent -1, -4, -9 per counter, parity 0, bias 0
+item 02_settings.hxi     settings  search depth 3, 5 percent random moves, layer 2 gate 0.50, learning off, update constant 5, bias step input 64, look-back 3
+item 03_detector.hxi     detector  style detector: 4 opponent types, 4 features, scales and centroids at 400 opponent moves (example layout, not yet fixed)
+item 04_target.hxi       target    strategist target: 0 = esp
