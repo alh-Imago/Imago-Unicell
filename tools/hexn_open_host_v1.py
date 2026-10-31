@@ -17,11 +17,11 @@ class SerialLink:
     def __init__(self, port, baud=460800, timeout=1.5, serial_obj=None):
         if serial_obj is None:
             import serial; serial_obj = serial.Serial(port, baud, timeout=timeout)
-        self.s = serial_obj; self.retries = 0; t0 = time.time(); heard = False
+        self.s = serial_obj; self.retries = 0; self.hint = ""; t0 = time.time(); heard = False
         import sys; print("opening %s at %d baud, waiting for the gateway greeting (up to 4 s)..." % (port, baud), file=sys.stderr)
         while time.time() - t0 < 4.0:                                   # up to 4 s for the greeting after the reset
             if self.BANNER in self.s.readline().decode(errors="replace"): heard = True; break
-        if not heard: print("NO GREETING from the gateway. Check: the new hexn_gateway.ino is on the ESP32 (460800 baud), this is the ESP32's port, and the Arduino Serial Monitor is closed. Trying anyway...", file=sys.stderr)
+        self.hint = "" if heard else " (no greeting was heard: if this keeps failing check that the new hexn_gateway.ino is on the ESP32 at 460800 baud, that this is the ESP32's port and that the Arduino Serial Monitor is closed; no greeting is normal when the ESP32 was already running)"
         time.sleep(0.1); self.s.reset_input_buffer()
     def _read_reply(self):
         for _ in range(4):
@@ -44,7 +44,7 @@ class SerialLink:
                 if good and body.startswith("OK"): return body
                 why = "damaged reply"
             self.retries += 1; self.s.write(b"\n"); time.sleep(0.05); self.s.reset_input_buffer()          # clear a half-received line on both sides, then resend
-        raise IOError("no good answer to %r after %d tries (%s)" % (line[:60], tries, why))
+        raise IOError("no good answer to %r after %d tries (%s)%s" % (line[:60], tries, why, self.hint))
 def binning_word(kind="log", shift=0, low_ms=0):
     """0 = log2 of the milliseconds; 'linear' = (ms - low) >> shift, capped at 11"""
     return 0 if kind == "log" else 1 | ((shift & 15) << 4) | ((low_ms & 0xFFF) << 16)
