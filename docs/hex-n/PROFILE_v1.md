@@ -23,7 +23,25 @@ One file (a volume on the card, `CARD_FORMAT_v1.md`) holding everything the unit
 
 1. **Pick usage:** game or sensor (later: more types). 2. **Look for a profile** of that name on the card. 3a. **Found:** load it (weights, settings, strategist target) and start. 3b. **Not found:** say so plainly ("no tuned weights for this usage"), load the generic profile for the chosen type, and start with learning ON for a sensor (where a prior is stated) or the hand weights with learning OFF for a game (a blank start collapsed against strong opponents, 13:30 row). 4. **Save:** at the end the learned weights can be written back as a new profile (never over the old one: clone and increment).
 
-## 3. What is and is not known
+## 3. Loading any kind of data (Alan, 31 Oct 14:53)
+
+A profile is not one block. The front end loads TYPED ITEMS, each on its own, from the card or the host, so goals can come from one file and weights from another. An item is a header (type, version, size, checksum, build limits it needs) plus its data.
+
+| Item type | Holds | Path into the unit today |
+|---|---|---|
+| `goals` | the goal table (animal -> height and spread; or a game's target/win rule) | none: needs a table-to-weights step (the sensor test did it in Python: log density, floored at -8) |
+| `weights` | neural weights and bias, whole numbers | BUILT in simulation: weight write port (`w_wr`, address, data) of `rtl/hexn_neural_v1.v` |
+| `settings` | look-back, ID width, learning rate, depth, gate, thresholds | look-back and ID width are build/start-up variables (plan in `STORE_V7_LOOKBACK_v1.md`); the rest have no register yet |
+| `detector` | style-detector centroids and scales | none (MODEL) |
+| `history` | layer 2 / layer 3 store contents (pairs seen before) | the store has a LOAD command (pairs enter as seen once, `StoreV7` command 2); layer 3 has no RTL |
+| `memory` | key/value contents of the memory tier | BUILT on the Kintex card (PUT / GET / FLUSH); not joined to the core |
+| `target` | where the strategist runs (`esp`, `host`, `onboard`) | a setting of the strategist program |
+
+Rules for any item: (1) the header is checked against the build before anything is written (inputs count, weight width WB, look-back maximum, store sizes) and a mismatch is refused with the reason, not truncated; (2) nothing is overwritten: saving writes a new item (clone and increment); (3) items can be combined freely, and the front end shows what is loaded and what is still the generic default; (4) a loaded item says where it came from (file, date, trained on what), so a user can see that a weight set was trained on weak opponents (the 10:05 row: learned weights depend on who produced the training games); (5) an item for a different usage type is refused unless the user says so.
+
+NOT designed: the item header to the byte; how the host sends an item (the host link protocol is `esp32-bl616-link-protocol-v0.1.md`, items are not in it); a viewer for the loaded items.
+
+## 4. What is and is not known
 
 - Game profile: values are measured (Python); the line counters and the strategist are not hardware yet.
 - Sensor profile: the shadow test is synthetic and layer 1 plus neural only. The prior alone gave .91 with a right table and the learner repaired a wrong table (.57 to .94); one cue cannot do an unknown sun factor (.72). There are no real sensor recordings behind it, and the whole-number arithmetic has not been run for the multi-output case.
