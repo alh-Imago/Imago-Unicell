@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hexn_connect4_v1 as C, hexn_layer3_v1 as V1, hexn_judge_int_v1 as JI
 JUDGE = {}
 def judge(kind):
-    if kind not in JUDGE: JUDGE[kind] = JI.JudgeInt(6, 6) if kind == 'j' else JI.JudgeFloat()
+    if kind not in JUDGE: path = os.environ.get('HEXN_JUDGE') or JI.WPATH; JUDGE[kind] = JI.JudgeInt(6, 6, path=path) if kind == 'j' else JI.JudgeFloat(path)
     return JUDGE[kind]
 ORDER = C.ORDER; NEW = 7
 def fixed(depth):
