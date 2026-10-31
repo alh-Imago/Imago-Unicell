@@ -26,7 +26,8 @@ def main():
     for name, arr in (("REPLAY_TABLE", table), ("REPLAY_ROWS", rows), ("REPLAY_EXPECT", exp)):
         L.append("static const uint32_t %s[] = {%s};" % (name, ",".join("0x%08XUL" % (w & 0xFFFFFFFF) for w in arr)))
     L.append("static const uint8_t REPLAY_LABEL[] = {%s};" % ",".join(str(v) for v in lab))
-    os.makedirs(os.path.join(HERE, "esp32", "hexn_open3_test"), exist_ok=True)
-    open(os.path.join(HERE, "esp32", "hexn_open3_test", "replay_data.h"), "w").write("\n".join(L) + "\n")
+    for sk in ("hexn_open3_test", "hexn_open5_test"):                      # each Arduino sketch folder needs its own copy
+        os.makedirs(os.path.join(HERE, "esp32", sk), exist_ok=True)
+        open(os.path.join(HERE, "esp32", sk, "replay_data.h"), "w").write("\n".join(L) + "\n")
     print("rows %d (%d positive) | AUC float %.4f, int8 %.4f | wrote replay_data.h" % (len(rows), sum(lab), af, ai))
 if __name__ == "__main__": main()
