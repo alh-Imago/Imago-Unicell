@@ -134,6 +134,10 @@ class OpenUnit:
                 if seen != min(255, expect): raise IOError("unit counted %d results, expected %d" % (seen, min(255, expect)))
                 out += self.read_words(self.OUT_BASE, expect)
         return out
+    def clear_judges(self, which="both"):
+        """The unit keeps its scorer weights between runs and has no clear control, so clear by sending zeros: all 256 weights (2 classes x 8 slots x 16 bins) and a zero bias, to judge A, B or both (mode 3 must be selected)."""
+        to = {"A": 0, "B": 1, "both": 2}[which]; zeros = [(12 << 28) | (c << 24) | (((s << 4) | b) << 16) for c in range(2) for s in range(8) for b in range(16)]
+        self.stream([control_word_raw(to << 1)] + zeros + [13 << 28])
     def load_judges(self, table_words, bias_a=0, bias_b=None):
         """table_words: LOAD words of one table (no BIAS). Judge A gets the table and bias_a; if bias_b is given judge B gets the same table with that bias. Leaves jc = two judges, loads to A when bias_b is given."""
         w = [control_word_raw(judge_value(bias_b is not None, "A"))] + list(table_words) + [(13 << 28) | (bias_a & 0xFFFF)]

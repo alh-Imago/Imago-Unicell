@@ -97,3 +97,10 @@ def test_flaky_serial_line_never_changes_a_word():
     W = table(9); u.preset(4); u.load_judges(load_words(W), 0, -40); rs = rows(10, 150); r = u.stream([R.w_score(v) for v in rs]); exp = []
     for v in rs: exp += [R.score(W, 0, v)[0], R.score(W, -40, v)[0]]
     assert r == exp and link.retries > 3                                                                        # many exchanges were damaged, all were repaired by resending
+
+def test_clear_judges_removes_leftover_weights():
+    u, e = unit(); u.preset(4); u.load_judges(load_words(table(12)), 5, -9); u.clear_judges("both")
+    v = [3, 1, 4, 1, 5, 9, 2, 6]; r = u.stream([R.w_score(v)]); z = np.zeros((2, 8, 16), dtype=int)
+    assert r == [R.score(z, 0, v)[0]] * 2                                          # both judges: all weights and biases zero
+    u.load_judges(load_words(table(13)), 0, 0); u.clear_judges("B"); r = u.stream([R.w_score(v)])
+    assert r[0] == R.score(table(13), 0, v)[0] and r[1] == R.score(z, 0, v)[0]     # only judge B was cleared

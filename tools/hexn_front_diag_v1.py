@@ -23,7 +23,7 @@ def main(u):
         stage("2 words %3d" % n, not bad, "" if not bad else "%d of %d wrong over 5 tries, first at word %d" % (len(bad), 5 * n, bad[0]))
     # the unit KEEPS its weights between runs (by design), so clear all 192 weights first or leftovers from an earlier table would be added in
     W = np.zeros((2, 8, 16), dtype=int); W[1][0][5] = -7; W[0][0][5] = -3; u.preset(3)
-    u.stream([R.w_load(c, s, b, 0) for c in range(2) for s in range(8) for b in range(16)] + [R.w_load(1, 0, 5, -7), R.w_load(0, 0, 5, -3), R.w_bias(2)])
+    u.clear_judges("A"); u.stream([R.w_load(1, 0, 5, -7), R.w_load(0, 0, 5, -3), R.w_bias(2)])
     res = u.stream([R.w_score([5, 0, 0, 0, 0, 0, 0, 0])]); stage("3 one row", res == [R.score(W, 2, [5, 0, 0, 0, 0, 0, 0, 0])[0]], "got %s want %08x" % (["%08x" % x for x in res], R.score(W, 2, [5, 0, 0, 0, 0, 0, 0, 0])[0]))
     W = np.zeros((2, 8, 16), dtype=int); W[:, :, :12] = rng.integers(-120, 1, size=(2, 8, 12)); load = [R.w_load(c, s, b, W[c][s][b]) for c in range(2) for s in range(8) for b in range(12)]
     u.preset(3); u.stream(load + [R.w_bias(0)])
