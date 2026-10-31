@@ -17,3 +17,9 @@ def test_river_exe_file_to_unit():
     r2 = F.send_and_verify(u, pkg, rows, lab, exp, max_rows=400, bias_b=-40)
     assert r2["judge_A_wrong_vs_reference"] == 0 and r2["judge_B"]["false_alarms"] < r2["judge_A"]["false_alarms"]         # a lower bias on B means fewer alarms
     assert sum(r2["judge_B"].values()) == 400
+def test_diagnostic_passes_even_when_the_unit_holds_leftover_weights():
+    """found on the first real board run: the unit keeps its weights between runs, and the diagnostic's one-row stage wrongly assumed zeros"""
+    import numpy as np, hexn_front_diag_v1 as D, hexn_scorer_ref_v1 as R
+    e = E.EmuLink(); u = H.OpenUnit(e); u.preset(3)
+    rng = np.random.default_rng(1); u.stream([R.w_load(c, s, b, int(rng.integers(-120, 1))) for c in range(2) for s in range(8) for b in range(12)] + [R.w_bias(5)])      # leftovers from an earlier run
+    assert D.main(u)
