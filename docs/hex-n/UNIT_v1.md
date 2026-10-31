@@ -66,6 +66,8 @@ The search is a loop with a stack, 250 to 1,850 nodes per decision, each leaf a 
 
 For the sensor-control direction decided on 30 Oct (20:10) L4 reduces to a goal setter and no search is needed, so placement A costs nothing there.
 
+**Decision (Alan, 31 Oct 14:43):** on the Tang the strategist goes on the ESP; on the Kintex it may have to move to the host. Reading: the same strategist program, the same integer arithmetic, a different place to run it per card. Consequences to hold to: (1) the link carries few things: opponent/sensor events up, a periodic copy of layer 3's tables down (the 30 Oct staleness result: a planning copy refreshed every 1 to 10 games played as well as the live one at depth 4), the 8 neural weights both ways, and the chosen action; it does NOT carry one query per search node. (2) The strategist keeps its own integer copy of the neural weights (bit-true to `rtl/hexn_neural_v1.v`) so a leaf costs no link traffic. (3) NOT measured: ESP32 speed for 250 to 1,850 nodes per decision, host link speed on the Kintex, the size of a layer 3 copy.
+
 ## 5. Evidence, and what it does and does not support
 
 All Connect Four, Python; 600-game runs (800 for the selector), the mean of the last games, 2 to 6 seeds per cell; standard error of a cell mean is about 0.02 to 0.04.
