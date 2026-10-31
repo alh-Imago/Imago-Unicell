@@ -15,7 +15,11 @@ Status: written and compile-checked only (sketch stub-built on a PC, search head
 
 Notes
 - Pins 75 and 76 are also the BL616's SPI port; it has been quiet so far.
-- Tang pins are the package pin numbers on the right-hand header; count holes from the Tang's own first pin (column 4 in Alan's setup).
+- Tang pins are the package pin numbers printed on the board's pinout (Alan's picture, 31 Oct 2026). With the USB-C socket at the top, they sit on BOTH headers, not one:
+  - left header, top to bottom: **73, 74, 75**, 85, **77**, 15, 16, 27, 28, 25, 26, 29, 30, 31, 17, 20, 19, 18, 3V3, GND
+  - right header, top to bottom: 5V, GND, **76**, 80, 42, 41, 56, 54, 51, 48, 55, 49, 86, 79, GND, 3V3, 72, 71, 53, 52
+  - so CS_N (73), SCLK (74), MOSI (75) are the top three on the left; READY (77) is the fifth on the left (pin 85 sits between 75 and 77); MISO (76) is the third on the right. (The first version of this sheet said "right-hand header" for all five; that was wrong. The wiring that worked on the boards is whatever Alan actually connected; this table is what the pin numbers mean.)
+  - pins 15 to 20 drive the six on-board LEDs.
 - Keep wires short. The sketch runs SCLK at 0.5, 1 and 1.5 MHz; the bridge limit is below 27 MHz / 16 = about 1.69 MHz.
 - Do not run the loader and the ESP32 JTAG at the same time.
 - Source of the pin list: `docs/unit_bringup_guide.md` and `tools/esp32/unicell_unit_bridge/unicell_unit_bridge.ino` in the main repo.
