@@ -1,6 +1,6 @@
 // hexn_open5_test.ino -- Hex-N open unit, stage 4b PRESETS and TWO JUDGES (fpga/build/hexn_open_unit_v5/unit_top.fs). Serial Monitor 115200, line ending Newline.
 // Wiring as docs/hex-n/LINK_TEST_v1.md (IO5 CS -> 73, IO18 SCLK -> 74, IO23 MOSI -> 75, IO19 MISO <- 76, IO34 READY <- 77, GND) plus the HW-262 shield as docs/hex-n/DEMO_REACT_v1.md (A1 72, A2 71, A3 86, display 25/26/27, buzzer 28).
-// Commands: id | status | preset 0..8 | setp P MODE BR BP BG IN OUT JC (edit preset P, 1..8, in the Tang's preset table) | factory | twojudge [BIAS_B] | all.   Needs replay_data.h next to this sketch (python3 tools/hexn_raw_replay_v1.py).
+// Commands: pins | btn 1|2|3 TANGPIN | out latch|clk|data|buzz TANGPIN | default (the pin matrix, see hexn_open4_test) | id | status | preset 0..8 | setp P MODE BR BP BG IN OUT JC (edit preset P, 1..8, in the Tang's preset table) | factory | twojudge [BIAS_B] | all.   Needs replay_data.h next to this sketch (python3 tools/hexn_raw_replay_v1.py).
 // preset 0 = no preset (direct registers); 1 reaction game, 2 Morse key, 3 raw stream (one judge), 4 raw stream (two judges), 5..8 idle until you edit them. 'twojudge' streams the River Exe table into judges A AND B (B gets a different bias), then 1000 real rows: two answers per row.
 #include <Arduino.h>
 #include <SPI.h>
@@ -35,6 +35,20 @@ static bool cmd_id() {
   Serial.printf("ID 0x%08lX -> %s\n", (unsigned long)id, id == UNIT_ID_V2 ? "OPEN UNIT (v2 bridge) OK" : "NOT the open unit (wiring, or another bitstream)");
   return id == UNIT_ID_V2; }
 static void cmd_status() { uint32_t s = rd_reg(10); Serial.printf("status 0x%08lX: mode %lu, copy busy %lu, raw busy %lu, preset active %lu, raw results %lu | cfg29 (preset select) = %lu\n", (unsigned long)s, (unsigned long)(s & 3), (unsigned long)((s >> 4) & 1), (unsigned long)((s >> 6) & 1), (unsigned long)((s >> 7) & 1), (unsigned long)((s >> 8) & 255), (unsigned long)rd_reg(29)); }
+static const int POOLPIN[16] = { 72, 71, 86, 25, 26, 27, 28, 29, 30, 31, 85, 80, 42, 41, 56, 54 };
+static int pool_index(int tang) { for (int i = 0; i < 16; i++) if (POOLPIN[i] == tang) return i; return -1; }
+static void cmd_pins() {
+  uint32_t lv = rd_reg(10) >> 16; Serial.printf("registers: inputs (26) 0x%03lX, outputs (27) 0x%04lX  (0 = the normal shield wiring)\n", (unsigned long)rd_reg(26), (unsigned long)rd_reg(27));
+  Serial.print("pin levels:"); for (int i = 0; i < 16; i++) Serial.printf(" %d=%d", POOLPIN[i], (int)((lv >> i) & 1)); Serial.println(); }
+static void cmd_btn(int which, int tang) {
+  int idx = pool_index(tang); if (which < 1 || which > 3 || idx < 0) { Serial.println("btn 1|2|3 TANGPIN (a pool pin: 72 71 86 25 26 27 28 29 30 31 85 80 42 41 56 54)"); return; }
+  uint32_t r = rd_reg(26); int def = which - 1, sh = 4 * (which - 1); r = (r & ~(0xFUL << sh)) | ((uint32_t)(idx ^ def) << sh); wr_reg(26, r);
+  Serial.printf("button %d now read from Tang pin %d (applies when no preset is active: type 'preset 0')\n", which, tang); }
+static void cmd_out(const String& name, int tang) {
+  int idx = pool_index(tang), k = name == "latch" ? 0 : name == "clk" ? 1 : name == "data" ? 2 : name == "buzz" ? 3 : -1;
+  if (k < 0 || idx < 0) { Serial.println("out latch|clk|data|buzz TANGPIN (a pool pin)"); return; }
+  uint32_t r = rd_reg(27); int def = k + 3, sh = 4 * k; r = (r & ~(0xFUL << sh)) | ((uint32_t)(idx ^ def) << sh); wr_reg(27, r);
+  Serial.printf("%s now driven on Tang pin %d (only wire that pin to the shield input!)\n", name.c_str(), tang); }
 static uint32_t seq = 3000;
 static bool wait_copy() { for (int i = 0; i < 200; i++) { if (!((rd_reg(10) >> 4) & 1)) return true; delay(2); } return false; }
 static bool wait_raw() { for (int i = 0; i < 4000; i++) { if (!((rd_reg(10) >> 6) & 1)) return true; } Serial.println("raw engine still busy"); return false; }
@@ -69,16 +83,21 @@ static void cmd_twojudge(long biasB) {
   Serial.println(wrongA == 0 ? "TWO JUDGES OK (A matches the reference; B differs only by its bias)" : "MISMATCH"); }
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1); delay(300); shadow_factory();
-  Serial.println("\nHex-N open unit, stage 4b. Type: id | status | preset 0..8 | setp ... | factory | twojudge [BIAS_B] | all"); }
+  Serial.println("\nHex-N open unit, stage 4b. Type: id | status | pins | btn N PIN | out NAME PIN | default | preset 0..8 | setp ... | factory | twojudge [BIAS_B] | all"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
     if (c == '\n' || c == '\r') {
-      if (line == "id") cmd_id(); else if (line == "status") cmd_status();
+      if (line.length() == 0) { }
+      else if (line == "id") cmd_id(); else if (line == "status") cmd_status(); else if (line == "pins") cmd_pins();
+      else if (line == "default") { wr_reg(26, 0); wr_reg(27, 0); Serial.println("normal shield wiring restored"); }
+      else if (line.startsWith("btn ")) { int a = 0, b = 0; sscanf(line.c_str(), "btn %d %d", &a, &b); cmd_btn(a, b); }
+      else if (line.startsWith("out ")) { char nm[16] = {0}; int b = 0; sscanf(line.c_str(), "out %15s %d", nm, &b); cmd_out(String(nm), b); }
       else if (line == "factory") { wr_reg(23, ++seq); delay(5); wait_copy(); shadow_factory(); Serial.println("factory tables and presets restored"); }
       else if (line == "all") { if (cmd_id()) { cmd_status(); set_preset(1); delay(300); set_preset(2); set_preset(0); cmd_twojudge(-40); set_preset(0); } }
       else if (line.startsWith("preset ")) set_preset((int)line.substring(7).toInt());
       else if (line.startsWith("setp ")) cmd_setp(line.substring(5));
       else if (line.startsWith("twojudge")) cmd_twojudge(line.length() > 9 ? line.substring(9).toInt() : -40);
+      else Serial.printf("unknown command: %s\n", line.c_str());
       line = ""; } else line += c; }
 }
