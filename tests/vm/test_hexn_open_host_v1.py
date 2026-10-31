@@ -59,3 +59,41 @@ class FakeSerial:
 def test_serial_link_skips_the_gateway_greeting():
     for late in (False, True):
         u = H.OpenUnit(H.SerialLink("fake", serial_obj=FakeSerial(greet_late=late))); assert u.id() == H.UNIT_ID
+class GatewayModel:
+    """pyserial stand-in that behaves like the gateway sketch (checksummed commands and replies, partial lines kept until a newline) in front of the unit model, with a FLAKY LINE:
+    every 7th command has a character flipped, every 11th loses its newline (the gateway never answers), every 9th reply is damaged. The host must still get exactly the right words."""
+    def __init__(self, flaky=True):
+        self.emu = E.EmuLink(); self.out = [b"OK hexn gateway ready\n"]; self.buf = b""; self.n = 0; self.flaky = flaky
+    def readline(self): return self.out.pop(0) if self.out else b""
+    def reset_input_buffer(self): self.out = []
+    def _reply(self, text):
+        self.n += 1; line = "%s #%04X" % (text, sum(text.encode()) & 0xFFFF)
+        if self.flaky and self.n % 9 == 0: line = line[:6] + "0" + line[7:]                       # damage one character of the reply
+        self.out.append((line + "\n").encode())
+    def write(self, b):
+        for ch in b.decode():
+            if ch not in "\r\n": self.buf += ch.encode(); continue
+            line = self.buf.decode(); self.buf = b""
+            if not line: continue
+            h = line.rfind(" #")
+            if h >= 0:
+                try: want = int(line[h + 2:], 16)
+                except ValueError: want = -1                                                       # a damaged checksum field is just a mismatch (strtoul in the sketch)
+                if sum(line[:h].encode()) & 0xFFFF != want: self.out.append(b"ERR checksum\n"); continue
+                line = line[:h]
+            try: r = self.emu.cmd(line)
+            except Exception: self.out.append(b"ERR bad command\n"); continue
+            if r.startswith("OK"): self._reply(r)
+            else: self.out.append((r + "\n").encode())
+    def write_line(self, b):
+        self.cmds = getattr(self, "cmds", 0) + 1
+        if self.flaky and self.cmds % 7 == 0: b = b[:5] + (b"Z" if b[5:6] != b"Z" else b"Y") + b[6:]       # a character damaged on the way in
+        if self.flaky and self.cmds % 11 == 0: b = b.rstrip(b"\n")                                             # the newline lost: no answer comes
+        self._write(b)
+    _write = write
+    write = write_line
+def test_flaky_serial_line_never_changes_a_word():
+    gm = GatewayModel(flaky=True); link = H.SerialLink("fake", serial_obj=gm); u = H.OpenUnit(link); assert u.id() == H.UNIT_ID
+    W = table(9); u.preset(4); u.load_judges(load_words(W), 0, -40); rs = rows(10, 150); r = u.stream([R.w_score(v) for v in rs]); exp = []
+    for v in rs: exp += [R.score(W, 0, v)[0], R.score(W, -40, v)[0]]
+    assert r == exp and link.retries > 3                                                                        # many exchanges were damaged, all were repaired by resending
