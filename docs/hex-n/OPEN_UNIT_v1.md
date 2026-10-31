@@ -1,4 +1,15 @@
-# Open unit v1: one build, personality chosen by data (DESIGN NOTE, 1 Nov 2026, nothing built yet)
+# Open unit v1: one build, personality chosen by data (design note of 1 Nov 2026; BUILT, see the stages below)
+
+**Where it stands (ledger `HEXN_DESIGN.md` has the measurements):**
+| Stage | What | Bitstream | State |
+|---|---|---|---|
+| 1 | Reaction game, Morse key, display, buzzer in one build | `hexn_open_build_v1` | built; the later stages contain it |
+| 2 | Loadable tables, per-channel binning | `hexn_open_build_v2` | confirmed on the board |
+| 4a | Mode 3: raw word stream from the ESP32 | `hexn_open_build_v3` | confirmed on the board (0 of 1000 wrong) |
+| 3 | Pin matrix chosen by the ESP32 | `hexn_open_build_v4` | confirmed on the board |
+| 4b | Presets and a second table (two judges) | `hexn_open_build_v5` | confirmed on the board |
+| 4c | CLEAR control word for the judges | `hexn_open_build_v6` | confirmed on the board (diagnostic stage 6) |
+Build the newest with `sh tools/hexn_open_build_v6.sh` (about 4 minutes, output in `fpga/build/hexn_open_unit_v6/`). The front end that drives it is described in `FRONT_END_UNIT_v1.md`. The text below is the original design note followed by one section per stage.
 
 Alan, 19:23: "if it can become more open, so when we integrate with the front end (which could be housed on the esp), you just select the data type, raw, game etc, and the extra parts to be switched on or off, the extra table, maybe the pin assignments ... an open enough system design that can handle a lot of things thrown at it."
 
@@ -29,7 +40,7 @@ The proven SPI bridge counts bytes in 8 bits (63-word limit, measured on the boa
 4. A second table / second scorer job, raw-word input from the ESP32, a preset list for the front end.
 Stage 1 is small; stages 2 to 4 are each a day-sized piece. Nothing here is built or measured yet.
 
-## STAGE 1 DONE IN SIMULATION AND BUILT (1 Nov 2026, not run on a board)
+## STAGE 1 DONE IN SIMULATION AND BUILT (1 Nov 2026; written before any board run, the later stages that contain it were then run on the board)
 One bitstream, `fpga/build/hexn_open_unit_v1/unit_top.fs` (`hexn_open_top_v1.v`). Config register 16 (SPI address 16), bits 1:0 = MODE: 0 idle (display blank, nothing running), 1 reaction game, 2 Morse key. The personality not chosen is held in reset, and a mode change restarts the chosen one.
 - `spi_bridge_v2.v` (new; v1 untouched): 16-bit byte counter (long transactions work), ID `0x57320002`, config registers 16..31 (written and read back), read-only status register 10 (bits 1:0 mode, bit 2 reaction core ready, bit 3 Morse core ready). Bridge v1's registers 0..9 are unchanged.
 - The two personalities are now cores (`hexn_react_core_v1.v`, `hexn_morse_core_v1.v`) with no pins or shield driver of their own; the top gives them reset, buttons and the single shield driver (`hw262_shield_v2.v`).
@@ -81,10 +92,10 @@ Factory presets: 1 reaction game, 2 Morse key, 3 raw stream with one judge, 4 ra
 Checked in simulation (`tests/vm/test_hexn_open5_v1.py`, passes, shown to fail when the judge-B routing is wrong): preset 1 and 2 start the games with no mode register written; preset 0 returns to direct control (mode 0, idle) and the mode register still works; a custom preset loaded into space 5 moves the buttons to pool pins 9 to 11 and the buzzer to pin 12 in one write; preset 4 plus a stream of two different random tables loaded by control words, two biases and 20 rows: every A and B result equals the bit-exact reference. Stages 1 to 4a tests still pass (6 tests together). Build (`tools/hexn_open_build_v5.sh`): 5,375 of 20,736 LUT4 (26%), 10 block RAMs, 116 MHz capable at 27.
 Not yet run on a board. To try: `openFPGALoader -b tangnano20k fpga/build/hexn_open_unit_v5/unit_top.fs`, upload `tools/esp32/hexn_open5_test/hexn_open5_test.ino` (with its `replay_data.h`), then `id`, `preset 1` (the game runs with no mode set), `preset 2`, `preset 0`, `twojudge -40` (the river table into both judges, B with bias -40: A and B answers for 1,000 real rows from one pass), `setp 6 1 0 0 0 0 0 0` (edit preset 6: reaction game) then `preset 6`, `factory`.
 
-## Stage 4c (1 Nov 2026): a CLEAR control word for the judges (SIMULATED and BUILT, not on a board)
+## Stage 4c (1 Nov 2026): a CLEAR control word for the judges (simulated, built and CONFIRMED ON THE BOARD)
 Alan remembered a 'clear function' from the layer-1 days (the `hexn_tier2` CLEAR, 29 Oct). The open unit had none: the judges keep their weights between runs. Now a control word does it, inside the stream.
 - **Control word** `0xE000000C` = clear BOTH judges, `0xE000000A` = clear B only, `0xE0000008` = clear A only. Layout: top nibble 14 (CONTROL), bit 3 = CLEAR, bits 2:1 = target (0 A, 1 B, 2 or 3 both), bit 0 = two judges as before. Clear sets all 256 weights and the bias of the target to zero; the rest of the stream waits until it is done (about 130 clocks, one address per clock). A word with bit 3 clear behaves exactly as before.
 - **New files** (the proven ones are untouched): `hexn_scorer_v2.v` (v1 plus `clr` / `clr_busy`), `hexn_raw_engine_v3.v`, `hexn_open_top_v6.v`, `tools/hexn_open_build_v6.sh`. The Morse core still uses scorer v1. Build: 5,380 LUT4, 10 BSRAM, 132 MHz against a 27 MHz target (about 4 minutes).
 - **Test**: `tests/vm/test_hexn_open6_v1.py` (iverilog): stage 4b repeated on the v6 top, then judge B cleared (A still equals the reference, B all zero), then both cleared (all zero). Passes; open2 to open5 tests still pass.
 - **Host**: `clear_judges(which, hardware=True)` sends the one word; the default still sends 256 zero LOADs, so it works on every build. The ID word is the same on v5 and v6, so the host cannot detect the build: a v5 bitstream ignores the bit and clears nothing. Diagnostic: `python3 tools/hexn_front_diag_v1.py --port ... --hw-clear` adds stage 6 (v6 only).
-- **Not yet done**: load `fpga/build/hexn_open_unit_v6/unit_top.fs` and run the diagnostic with `--hw-clear`.
+- **On the board** (v6 bitstream, `python3 tools/hexn_front_diag_v1.py --port /dev/ttyUSB3 --hw-clear`): all stages ok; stage 6 clear B and clear both each 0 of 100 result words wrong.

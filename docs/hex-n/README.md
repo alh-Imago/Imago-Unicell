@@ -43,6 +43,8 @@ Feedback lines currently share the same accumulator as forward input
 
 **`HEXN_DESIGN.md` is the current design document** (what the cell is, how it learns, what has been measured, open questions). The notes below are older and are kept as written; where they differ, the design document is newer.
 
+**The open unit and its front end (1 Nov 2026).** One Tang Nano 20K build whose personality is chosen by data from an ESP32: `OPEN_UNIT_v1.md` (the unit, stage by stage, all confirmed on the board) and `FRONT_END_UNIT_v1.md` (the ESP32 gateway, the command line and the web page: `python3 tools/hexn_front_web_v1.py`).
+
 ## Status (older text)
 
 *Update 22 Oct 2026: past the scoping stage. A bank of counted detectors on a 12-wire hex lattice has been built, trained serially and loaded onto the Tang Nano 20K, where it answers over the serial link; on the 7-detector bank the board now matches the simulation exactly (5,250 of 5,250 test samples) when built without the chip's carry-chain arithmetic cells; see `HEXN_DESIGN.md` section 4a. A browser front end (`frontend/hexn_explorer_v1.html`) now trains the same counted bank, tests it against noise, and exports a training script that `tools/hexn_tang_script_v1.py` runs on the board (7 machine states, 140 of 140 test samples identical to the rules on the 18-wire hex7 build). The text below is as first written.*

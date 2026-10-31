@@ -10,7 +10,7 @@ from types import SimpleNamespace
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import numpy as np
-import hexn_intake_v1 as I, hexn_front_unit_v1 as F
+import hexn_intake_v1 as I, hexn_front_unit_v2 as F          # v2 = v1 plus 'first_wrong' and the header warning; v1 itself is untouched
 
 LOCK = threading.Lock(); UPLOADS = tempfile.mkdtemp(prefix="hexn_web_"); DATA_DIRS = [os.path.join(ROOT, "docs", "hex-n", "data")]
 
@@ -39,7 +39,7 @@ def jsonable(o):
 def inspect(paths):
     d, infos, Rl = I.load(safe_paths(paths))
     sens = [c for c in d.columns if Rl.get(c) == "sensor"]
-    return {"rows": int(len(d)), "sensors": sens, "columns": [str(c) for c in d.columns if c != "_t"], "has_time": "_t" in d,
+    return {"rows": int(len(d)), "sensors": sens, "warnings": F.header_warnings(d.columns), "columns": [str(c) for c in d.columns if c != "_t"], "has_time": "_t" in d,
             "files": [{"path": os.path.basename(i["path"]), "rows": i["rows"]} for i in infos]}
 def run(req):
     paths = safe_paths(req.get("files", [])); mode = req.get("task", "future")
@@ -48,7 +48,7 @@ def run(req):
     elif mode == "label": a.label = req.get("column") or None
     elif mode == "rule": a.rule = (req.get("rule") or "").strip() or None
     if not (a.future or a.label or a.rule): raise ValueError("choose the task: which sensor, column or rule")
-    t0 = time.time(); pkg, rows, lab, exp = F.fit(paths, a); res = {"task": pkg["task"], "package": pkg, "fit_seconds": round(time.time() - t0, 1)}
+    t0 = time.time(); pkg, rows, lab, exp = F.fit(paths, a); res = {"task": pkg["task"], "package": pkg, "fit_seconds": round(time.time() - t0, 1), "warnings": F.header_warnings(I.load(paths)[0].columns)}
     where = req.get("unit", "none")
     if where == "none": return res
     import hexn_open_host_v1 as H
@@ -116,7 +116,7 @@ button{font:inherit;border:0;border-radius:7px;padding:9px 16px;background:var(-
 <section><h2>1 · Data files</h2>
 <div id="files" class="files">loading…</div>
 <div class="row" style="margin-top:10px"><label>Add your own file (csv, csv.gz)<input type="file" id="up" multiple></label><div style="flex:0 0 auto"><button class="alt" id="load">Read the chosen files</button></div></div>
-<div id="info" class="mute" style="margin-top:8px"></div></section>
+<div id="info" class="mute" style="margin-top:8px"></div><div id="warn" class="msg err" hidden style="margin-top:8px"></div></section>
 <section><h2>2 · What to predict</h2>
 <div class="row"><label style="flex-basis:290px">Task<select id="task"><option value="future">A sensor will cross a line soon</option><option value="label">An existing column is the answer</option><option value="rule">A rule I type</option></select></label>
 <label id="l_sensor">Sensor<select id="sensor"></select></label><label id="l_col" hidden>Column<select id="column"></select></label><label id="l_rule" hidden>Rule (e.g. flow &gt; 30)<input id="rule"></label>
@@ -136,16 +136,17 @@ async function refresh(keep){const j=await api('/api/files');const root=j.root+'
  if(j.ports===null){$('portnote').hidden=false;$('portnote').textContent='pyserial is not installed on this PC, so the real unit cannot be reached from here (the model still works).'}else{fill($('ports'),j.ports);if(j.ports.length&&!$('port').value)$('port').value=j.ports[j.ports.length-1]}}
 function chosen(){return [...document.querySelectorAll('#files input:checked')].map(x=>x.value)}
 $('up').onchange=async e=>{const keep=chosen();for(const f of e.target.files){const r=await fetch('/api/upload',{method:'POST',headers:{'X-Filename':f.name},body:await f.arrayBuffer()});const j=await r.json();keep.push(j.path)}await refresh(keep)};
-$('load').onclick=async()=>{try{const f=chosen();const j=await api('/api/inspect',{files:f});selected=f;$('info').textContent=`${j.rows} rows · sensors: ${j.sensors.join(', ')}${j.has_time?'':' · no time column (rows treated as independent)'}`;fill($('sensor'),j.sensors);fill($('column'),j.columns)}catch(e){$('info').textContent='Could not read: '+e.message}};
+$('load').onclick=async()=>{try{const f=chosen();const j=await api('/api/inspect',{files:f});selected=f;$('info').textContent=`${j.rows} rows · sensors: ${j.sensors.join(', ')}${j.has_time?'':' · no time column (rows treated as independent)'}`;fill($('sensor'),j.sensors);fill($('column'),j.columns);warn(j.warnings)}catch(e){$('info').textContent='Could not read: '+e.message}};
 function layout(){const t=$('task').value;$('l_sensor').hidden=$('l_q').hidden=$('l_h').hidden=t!=='future';$('l_col').hidden=t!=='label';$('l_rule').hidden=t!=='rule';$('l_port').hidden=$('unit').value!=='real'}
 $('task').onchange=$('unit').onchange=layout;layout();
+function warn(w){$('warn').hidden=!(w&&w.length);$('warn').textContent=(w||[]).join(' ')}
 const n=x=>x==null?'—':(+x).toFixed(4);
 function counts(c){return `<table><tr><th>caught</th><th>missed</th><th>false alarms</th><th>correctly quiet</th></tr><tr><td>${c.caught}</td><td>${c.missed}</td><td>${c.false_alarms}</td><td>${c.correct_quiet}</td></tr></table>`}
-function show(r){const p=r.package;let h=`<section><h2>Result</h2><div class="msg">${r.task}</div><div class="cards" style="margin-top:12px"><div class="card">Training rows<b>${p.training_rows}</b></div><div class="card">Test rows<b>${p.test_rows}</b><span class="mute">${p.test_positives} positive</span></div>
+function show(r){const p=r.package;warn(r.warnings);let h=`<section><h2>Result</h2><div class="msg">${r.task}</div><div class="cards" style="margin-top:12px"><div class="card">Training rows<b>${p.training_rows}</b></div><div class="card">Test rows<b>${p.test_rows}</b><span class="mute">${p.test_positives} positive</span></div>
 <div class="card">AUC, whole-number table<b>${n(p.auc_whole_numbers)}</b><span class="mute">float, same detectors: ${n(p.auc_float_selected)}</span></div><div class="card">Detectors kept<b>${p.detectors.length} of ${p.detectors_available}</b></div></div>
 <h2 style="margin-top:16px">Detectors in the 8 slots</h2><div class="tw"><table><tr><th>slot</th><th>detector</th><th>low edge</th><th>high edge</th></tr>${p.detectors.map(d=>`<tr><td>${d.slot}</td><td>${d.name}</td><td>${(+d.lo).toPrecision(4)}</td><td>${(+d.hi).toPrecision(4)}</td></tr>`).join('')}</table></div></section>`;
  if(r.unit){const u=r.unit,w=u.judge_A_wrong_vs_reference;h+=`<section><h2>Check on ${u.where==='model'?'the software model (NOT hardware)':u.where}</h2><div class="big ${w===0?'ok':'bad'}">${w===0?'Every answer matches the reference':w+' answers differ from the reference'}</div>
- <div class="mute">${u.rows_sent} rows sent (${u.positives} positive) in ${u.seconds} s · AUC from the unit's own answers ${n(u.auc_from_unit_results_A)}</div><h2 style="margin-top:12px">Judge A</h2>${counts(u.judge_A)}${u.judge_B?`<h2 style="margin-top:12px">Judge B (bias ${u.judge_B_bias})</h2>${counts(u.judge_B)}`:''}</section>`}
+ <div class="mute">${u.rows_sent} rows sent (${u.positives} positive) in ${u.seconds} s · AUC from the unit's own answers ${n(u.auc_from_unit_results_A)}</div><h2 style="margin-top:12px">Judge A</h2>${counts(u.judge_A)}${u.judge_B?`<h2 style="margin-top:12px">Judge B (bias ${u.judge_B_bias})</h2>${counts(u.judge_B)}`:''}${u.first_wrong&&u.first_wrong.length?`<h2 style="margin-top:12px">First answers that differ (judge A)</h2><div class="tw"><table><tr><th>row</th><th>unit gave</th><th>reference says</th><th>bins sent (slots 0-7)</th></tr>${u.first_wrong.map(x=>`<tr><td>${x.row}</td><td>${x.got}</td><td>${x.want}</td><td>${x.bins.join(' ')}</td></tr>`).join('')}</table></div>`:''}</section>`}
  $('out').innerHTML=h}
 $('run').onclick=async()=>{const f=chosen();$('run').disabled=true;$('status').textContent='working… (fitting takes a few seconds, sending to the real unit a little longer)';$('out').innerHTML='';
  try{const r=await api('/api/run',{files:f,task:$('task').value,sensor:$('sensor').value,column:$('column').value,rule:$('rule').value,q:$('q').value,hours:$('hours').value,unit:$('unit').value,port:$('port').value,max_rows:$('max_rows').value,bias_b:$('bias_b').value});$('status').textContent='done';show(r)}

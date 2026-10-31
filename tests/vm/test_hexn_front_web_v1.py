@@ -15,6 +15,9 @@ def test_web_server_end_to_end_on_the_model():
         c, j = call(port, "/api/inspect", {"files": exr}); assert c == 200 and "flow" in j["sensors"] and j["rows"] > 1000
         c, j = call(port, "/api/run", {"files": exr, "task": "future", "sensor": "flow", "q": 0.9, "hours": 6, "unit": "model", "max_rows": 300, "bias_b": -40})
         assert c == 200 and j["unit"]["judge_A_wrong_vs_reference"] == 0 and j["unit"]["rows_sent"] == 300 and "judge_B" in j["unit"] and len(j["package"]["detectors"]) == 8
+        c, jm = call(port, "/api/run", {"files": exr, "task": "future", "sensor": "flow", "unit": "model", "max_rows": 50}); assert jm["warnings"] == [] and jm["unit"]["first_wrong"] == []
+        oc = [f for f in call(port, "/api/files")[1]["files"] if f.endswith("Optode_Saturation_10-28_10-30_with_position.csv")]
+        if oc: c, j2 = call(port, "/api/inspect", {"files": oc}); assert c == 200 and "NO HEADER ROW" in j2["warnings"][0]
         c, j = call(port, "/api/run", {"files": exr, "task": "future", "sensor": "flow", "unit": "none"}); assert c == 200 and "unit" not in j and j["package"]["auc_whole_numbers"] > 0.9
         c, j = call(port, "/api/run", {"files": ["/etc/passwd"], "task": "future", "sensor": "flow", "unit": "none"}); assert c == 400 and "not a listed" in j["error"]
         c, j = call(port, "/api/run", {"files": exr, "task": "rule", "rule": "", "unit": "none"}); assert c == 400 and "choose the task" in j["error"]
