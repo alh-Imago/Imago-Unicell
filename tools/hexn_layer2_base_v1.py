@@ -109,7 +109,8 @@ def anomaly(model_f, seed, n=700, p=0.05):
 
 ARMS = {"last": Last, "freq": Freq, "ngram1": lambda: Ngram(1), "ngram2": lambda: Ngram(2), "ngram3": lambda: Ngram(3),
         "store N=3": lambda: Store(N=3), "store N=2": lambda: Store(N=2), "store N=1": lambda: Store(N=1), "store N=3 KCAP 1024": lambda: Store(N=3, KCAP=1024),
-        "store N=1 KCAP 1024": lambda: Store(N=1, KCAP=1024), "store net score": lambda: Store(N=1, KCAP=1024, score="net"), "store decay": lambda: Store(N=1, KCAP=1024, decay=2), "store N=1 KCAP 128 LRU": lambda: StoreLRU(N=1, KCAP=128), "store N=3 KCAP 128 LRU": lambda: StoreLRU(N=3, KCAP=128), "ngram3 decay": lambda: Ngram(3, decay=2)}
+        "store N=1 KCAP 1024": lambda: Store(N=1, KCAP=1024), "store net score": lambda: Store(N=1, KCAP=1024, score="net"), "store decay": lambda: Store(N=1, KCAP=1024, decay=2), "store N=1 KCAP 128 LRU": lambda: StoreLRU(N=1, KCAP=128), "store N=3 KCAP 128 LRU": lambda: StoreLRU(N=3, KCAP=128), "ngram3 decay": lambda: Ngram(3, decay=2),
+        "store N=2 KCAP 128 LRU": lambda: StoreLRU(N=2, KCAP=128)}
 
 def reset(m):
     if isinstance(m, Ngram): m.h = []
