@@ -22,3 +22,9 @@ def test_v2_longer_context_beats_layer2_signals_in_the_announced_flip_world():
     V = load("hexn_layer3_l2in_v2"); sp = [(150, 500)]; w = [V.world3(300, s) for s in range(2)]
     b4 = st.mean(V.run(x, sp)[0] for x in w); s4 = st.mean(V.run(x, sp, v=(0, 1, 2))[0] for x in w); b8 = st.mean(V.run(x, sp, L=8)[0] for x in w)
     assert b8 > max(b4, s4) + 0.04      # recorded 0.835 against 0.740 and 0.757
+
+def test_look_back_sweep_shape():
+    V = load("hexn_layer3_len_v1"); Wd = load("hexn_layer3_l2in_v2"); w = Wd.world3(300, 1); sp = [(150, 500)]
+    r = {L: V.one(w, sp, L) for L in (3, 7, 12)}
+    assert r[7][0][0] > r[3][0][0] + 0.05           # a longer look-back helps in the announced-flip world
+    assert r[12][1] > 2 * r[7][1] // 1.5            # and the table keeps growing steeply beyond it
