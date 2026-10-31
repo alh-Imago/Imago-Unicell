@@ -25,7 +25,7 @@ module tb_hexn_store_v6;
             while (!done && cyc < 200000) begin @(posedge clk); #1; cyc = cyc + 1; end
             if (cyc >= 200000) begin $display("HANG at command %0d", i); $finish; end
             if (cyc > maxcyc) maxcyc = cyc;
-            $fdisplay(f, "%0d %0d %0d %0d", verdict, vlevel, plevel, pbest);
+            $fdisplay(f, "%0d %0d %0d %0d %0d %0d %0d %0d", verdict, vlevel, plevel, pbest, pbest_seen, ptotal, gbest, $signed(gval));
             @(posedge clk); #1;
         end
         $fdisplay(f, "S %0d %0d %0d %0d %0d %0d", n_known, n_cand, n_promoted, n_dropk, n_dropc, n_evict);

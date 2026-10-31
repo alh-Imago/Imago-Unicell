@@ -23,7 +23,7 @@ def score(ev, lines, spans):
     for a, b in spans:
         ok = 0
         for i in range(a, b):
-            v, vl, pl, pb = map(int, lines[2 * i].split()); ok += (pl > 0 and pb == ev[i])
+            v, vl, pl, pb = map(int, lines[2 * i].split()[:4]); ok += (pl > 0 and pb == ev[i])
         res.append(ok / (b - a))
     return res
 def main():
