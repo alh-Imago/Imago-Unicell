@@ -17,3 +17,8 @@ def test_unbounded_cap_none_equals_a_large_cap():
 def test_layer2_verdict_channels_run_and_change_little_here():
     sp = [(200, 600)]; w = C.world2(300, 1, 150); a = X.run(w, sp, ())[0]; b = X.run(w, sp, (0, 1, 2))[0]
     assert 0.4 < a <= 1.0 and abs(a - b) < 0.15
+
+def test_v2_longer_context_beats_layer2_signals_in_the_announced_flip_world():
+    V = load("hexn_layer3_l2in_v2"); sp = [(150, 500)]; w = [V.world3(300, s) for s in range(2)]
+    b4 = st.mean(V.run(x, sp)[0] for x in w); s4 = st.mean(V.run(x, sp, v=(0, 1, 2))[0] for x in w); b8 = st.mean(V.run(x, sp, L=8)[0] for x in w)
+    assert b8 > max(b4, s4) + 0.04      # recorded 0.835 against 0.740 and 0.757
