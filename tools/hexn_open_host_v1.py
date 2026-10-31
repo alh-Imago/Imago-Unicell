@@ -14,12 +14,14 @@ class SerialLink:
     """The real link to the ESP32 gateway. Opening the port resets the ESP32 (it prints 'OK hexn gateway ready' about a second later), so wait for that greeting, then throw away anything else.
     Every command goes out with ' #HHHH' (16-bit sum of its bytes) and every OK reply is checked the same way; a damaged or missing exchange is resent (up to 4 tries), so a character lost on the line can never silently change a word."""
     BANNER = "OK hexn gateway ready"
-    def __init__(self, port, baud=460800, timeout=3.0, serial_obj=None):
+    def __init__(self, port, baud=460800, timeout=1.5, serial_obj=None):
         if serial_obj is None:
             import serial; serial_obj = serial.Serial(port, baud, timeout=timeout)
-        self.s = serial_obj; self.retries = 0; t0 = time.time()
+        self.s = serial_obj; self.retries = 0; t0 = time.time(); heard = False
+        import sys; print("opening %s at %d baud, waiting for the gateway greeting (up to 4 s)..." % (port, baud), file=sys.stderr)
         while time.time() - t0 < 4.0:                                   # up to 4 s for the greeting after the reset
-            if self.BANNER in self.s.readline().decode(errors="replace"): break
+            if self.BANNER in self.s.readline().decode(errors="replace"): heard = True; break
+        if not heard: print("NO GREETING from the gateway. Check: the new hexn_gateway.ino is on the ESP32 (460800 baud), this is the ESP32's port, and the Arduino Serial Monitor is closed. Trying anyway...", file=sys.stderr)
         time.sleep(0.1); self.s.reset_input_buffer()
     def _read_reply(self):
         for _ in range(4):
