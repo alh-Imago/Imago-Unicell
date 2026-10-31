@@ -1,5 +1,6 @@
 // hexn_scorer_test.ino -- Hex-N: drives the Tang batch scorer (fpga/build/hexn_scorer_unit_v1/unit_top.fs) over SPI and times it against the ESP32 judging the same words itself. Serial Monitor 115200, Newline.
 // Wiring as in docs/hex-n/LINK_TEST_v1.md (IO5 CS -> 73, IO18 SCLK -> 74, IO23 MOSI -> 75, IO19 MISO <- 76, IO34 READY <- 77, GND). Commands: id | table | bench | all
+// NOTE: the SPI bridge counts bytes in 8 bits, so one transaction must stay under 256 bytes: at most 63 words per WR_WORDS / RD_WORDS (a 64th word is silently lost; found 1 Nov 2026).
 // Word format (hexn_scorer_v1.v): top nibble 0..11 = SCORE (sensor i's bin in bits 4i+3:4i, 8 sensors); 12 = LOAD table entry; 13 = BIAS. Result {pred, 3'b0, s1[11:0] at 27:16, s0[11:0] at 11:0}.
 #include <Arduino.h>
 #include <SPI.h>
@@ -20,11 +21,11 @@ static void cs_high() { delayMicroseconds(3); digitalWrite(PIN_CS, HIGH); delayM
 static void wr_reg(uint8_t a, uint32_t d) { uint8_t t[6] = { 0x01, a, (uint8_t)(d >> 24), (uint8_t)(d >> 16), (uint8_t)(d >> 8), (uint8_t)d }; SPI.beginTransaction(cfg); cs_low(); SPI.transfer(t, 6); cs_high(); SPI.endTransaction(); }
 static uint32_t rd_reg(uint8_t a) { uint8_t t[7] = { 0x02, a, 0, 0, 0, 0, 0 }; SPI.beginTransaction(cfg); cs_low(); SPI.transfer(t, 7); cs_high(); SPI.endTransaction(); return ((uint32_t)t[3] << 24) | ((uint32_t)t[4] << 16) | ((uint32_t)t[5] << 8) | t[6]; }
 static void wr_words(uint16_t addr, const uint32_t* w, int n) {
-  while (n > 0) { int k = n > 64 ? 64 : n; uint8_t t[3 + 64 * 4]; t[0] = 0x03; t[1] = addr >> 8; t[2] = addr & 255;
+  while (n > 0) { int k = n > 63 ? 63 : n; uint8_t t[3 + 64 * 4]; t[0] = 0x03; t[1] = addr >> 8; t[2] = addr & 255;
     for (int i = 0; i < k; i++) { uint32_t v = w[i]; t[3+4*i] = v >> 24; t[4+4*i] = v >> 16; t[5+4*i] = v >> 8; t[6+4*i] = v; }
     SPI.beginTransaction(cfg); cs_low(); SPI.transfer(t, 3 + 4 * k); cs_high(); SPI.endTransaction(); w += k; n -= k; addr += k; } }
 static void rd_words(uint16_t addr, uint32_t* w, int n) {
-  while (n > 0) { int k = n > 64 ? 64 : n; uint8_t t[4 + 64 * 4] = { 0x04, (uint8_t)(addr >> 8), (uint8_t)(addr & 255), 0 };
+  while (n > 0) { int k = n > 63 ? 63 : n; uint8_t t[4 + 64 * 4] = { 0x04, (uint8_t)(addr >> 8), (uint8_t)(addr & 255), 0 };
     SPI.beginTransaction(cfg); cs_low(); SPI.transfer(t, 4 + 4 * k); cs_high(); SPI.endTransaction();
     for (int i = 0; i < k; i++) w[i] = ((uint32_t)t[4+4*i] << 24) | ((uint32_t)t[5+4*i] << 16) | ((uint32_t)t[6+4*i] << 8) | t[7+4*i];
     w += k; n -= k; addr += k; } }
@@ -54,7 +55,7 @@ static bool cmd_table() {
   return ok;
 }
 static void cmd_bench() {
-  const int N = 64, REPS = 20; static uint32_t smp[64], res[64];
+  const int N = 63, REPS = 20; static uint32_t smp[64], res[64];
   uint32_t tw = 0, tp = 0, tr = 0, tl = 0; int bad = 0, timeouts = 0; long polls = 0;
   for (int rep = 0; rep < REPS; rep++) {
     for (int i = 0; i < N; i++) smp[i] = make_sample();
@@ -65,7 +66,7 @@ static void cmd_bench() {
     uint32_t t2 = micros();
     rd_words(0, res, N);
     uint32_t t3 = micros();
-    uint32_t sink = 0; for (int i = 0; i < N; i++) sink += local_judge(smp[i]);   // the ESP32 judging the same 64 words itself
+    volatile uint32_t sink = 0; for (int i = 0; i < N; i++) sink = sink + local_judge(smp[i]);   // the ESP32 judging the same 63 words itself
     uint32_t t4 = micros();
     (void)sink;
     for (int i = 0; i < N; i++) if (res[i] != local_judge(smp[i])) bad++;
@@ -74,7 +75,7 @@ static void cmd_bench() {
   Serial.printf("SPI %d Hz, batches of %d words x %d: wrong %d of %d | timeouts %d\n", SPI_HZ_USED, N, REPS, bad, N * REPS, timeouts);
   Serial.printf("per batch: write+start %.0f us | wait for results %.0f us (%.1f register polls) | read %.0f us | Tang route total %.0f us = %.1f us per word\n",
     tw / (float)REPS, tp / (float)REPS, polls / (float)REPS, tr / (float)REPS, (tw + tp + tr) / (float)REPS, (tw + tp + tr) / (float)(REPS * N));
-  Serial.printf("ESP32 judging the same 64 words itself: %.0f us per batch = %.2f us per word\n", tl / (float)REPS, tl / (float)(REPS * N));
+  Serial.printf("ESP32 judging the same 63 words itself: %.0f us per batch = %.2f us per word\n", tl / (float)REPS, tl / (float)(REPS * N));
 }
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1); delay(300);

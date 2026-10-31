@@ -1,6 +1,7 @@
 // hexn_link_speed.ino -- Hex-N: times the ESP32 <-> Tang Nano 20K SPI link and the ESP32's own Connect Four search.
 // Load the CORDIC unit bitstream on the Tang first (fpga/build/unit_cordic_v1/unit_top.fs). Serial Monitor 115200 baud.
 // Wiring (ESP32 pin -> Tang Nano package pin): IO5 CS_N -> 73, IO18 SCLK -> 74, IO23 MOSI -> 75, IO19 MISO <- 76, IO34 READY <- 77, GND-GND.
+// NOTE: a transaction must stay under 256 bytes (the bridge counts bytes in 8 bits), so batches are 63 words, not 64.
 // Type: id | link | search | all
 #include <Arduino.h>
 #include <SPI.h>
@@ -25,12 +26,12 @@ static uint32_t rd_reg(uint8_t a) {
   SPI.beginTransaction(cfg); cs_low(); SPI.transfer(t, 7); cs_high(); SPI.endTransaction();
   return ((uint32_t)t[3] << 24) | ((uint32_t)t[4] << 16) | ((uint32_t)t[5] << 8) | t[6];
 }
-static void wr_block(uint16_t addr, uint32_t seed, int k) {         // k <= 64 words into the playout RAM
+static void wr_block(uint16_t addr, uint32_t seed, int k) {         // k <= 63 words into the playout RAM
   uint8_t t[3 + 64 * 4]; t[0] = 0x03; t[1] = addr >> 8; t[2] = addr & 255;
   for (int i = 0; i < k; i++) { uint32_t v = seed + i; t[3+4*i] = v >> 24; t[4+4*i] = v >> 16; t[5+4*i] = v >> 8; t[6+4*i] = v; }
   SPI.beginTransaction(cfg); cs_low(); SPI.transfer(t, 3 + 4 * k); cs_high(); SPI.endTransaction();
 }
-static void rd_block(uint16_t addr, int k) {                          // k <= 64 words from the capture RAM
+static void rd_block(uint16_t addr, int k) {                          // k <= 63 words from the capture RAM
   uint8_t t[4 + 64 * 4] = { 0x04, (uint8_t)(addr >> 8), (uint8_t)(addr & 255), 0 };
   SPI.beginTransaction(cfg); cs_low(); SPI.transfer(t, 4 + 4 * k); cs_high(); SPI.endTransaction();
 }
@@ -48,14 +49,14 @@ static void cmd_link() {
     int bad = 0; const int N = 200;
     for (int i = 0; i < N; i++) { uint32_t v = 0xA5000000UL + i * 2654435761UL; wr_reg(R_SCRATCH, v); if (rd_reg(R_SCRATCH) != v) bad++; }
     uint32_t t0 = micros(); for (int i = 0; i < N; i++) (void)rd_reg(R_ID); uint32_t us = micros() - t0;
-    t0 = micros(); for (int i = 0; i < 100; i++) wr_block(0, i, 64); uint32_t uw = micros() - t0;
-    t0 = micros(); for (int i = 0; i < 100; i++) rd_block(0, 64); uint32_t ur = micros() - t0;
+    t0 = micros(); for (int i = 0; i < 100; i++) wr_block(0, i, 63); uint32_t uw = micros() - t0;
+    t0 = micros(); for (int i = 0; i < 100; i++) rd_block(0, 63); uint32_t ur = micros() - t0;
     t0 = micros(); for (int i = 0; i < 6400; i++) wr_block(0, i, 1); uint32_t u1 = micros() - t0;
-    Serial.printf("SCLK %lu Hz: scratch loopback %d/%d wrong | reg read %.1f us | 64-word write %.0f us = %.0f words/s | 64-word read %.0f us = %.0f words/s | 1-word write %.1f us = %.0f words/s\n",
-      (unsigned long)hzs[h], bad, N, us / (float)N, uw / 100.0, 6400000000.0 / uw, ur / 100.0, 6400000000.0 / ur, u1 / 6400.0, 6400000000.0 / u1);
+    Serial.printf("SCLK %lu Hz: scratch loopback %d/%d wrong | reg read %.1f us | 63-word write %.0f us = %.0f words/s | 63-word read %.0f us = %.0f words/s | 1-word write %.1f us = %.0f words/s\n",
+      (unsigned long)hzs[h], bad, N, us / (float)N, uw / 100.0, 6300000000.0 / uw, ur / 100.0, 6300000000.0 / ur, u1 / 6400.0, 6400000000.0 / u1);
   }
   setHz(1000000);
-  Serial.println("A position is 1-3 words; compare 'one per transaction' (1-word row) with 'batch of 64' (64-word row).");
+  Serial.println("A position is 1-3 words; compare 'one per transaction' (1-word row) with 'batch of 63' (63-word row).");
 }
 static void cmd_search() {
   int cols[] = { 3, 3, 2, 4 };
