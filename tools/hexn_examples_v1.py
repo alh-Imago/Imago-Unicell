@@ -1,7 +1,7 @@
 """hexn_examples_v1: BUILDS AND CHECKS THE EXAMPLE LOADS (31 Oct 2026; Alan, 14:58: 'the animal test and the games become example loads, so the folder for each contains all the required files'). Python only; uses tools/hexn_item_v1.py (item format) and the 31 Oct test code.
 make  : writes docs/hex-n/examples/shadow_animals/ and docs/hex-n/examples/connect4/ : numbered .hxi item files, manifest.txt (build limits, usage, and what each file is), sample data, README.md.
 check FOLDER : reads manifest.txt, validates every item against the manifest's build and usage (the same check the front end would do), then runs the example's own test with ONLY the loaded files and prints the result.
-Shadow example check : classifies the sample passings with the loaded weights (world A and world B samples), then lets the neural learn from the first 60 labelled passings of the B sample (float delta rule at the loaded rate) and scores the rest. Game example check : plays 40 games of depth-3 search with the LOADED weights (whole numbers, Q14) against the noisy opponent and reads the detector item.
+Shadow example check : classifies the sample passings with the loaded weights (world A and world B samples), then lets the neural learn from the first 60 labelled passings of the B sample (the WHOLE-NUMBER softmax delta rule of tools/hexn_multiout_int_v1.py at the loaded rate) and scores the rest. Game example check : plays 40 games of depth-3 search with the LOADED weights (whole numbers, Q14) against the noisy opponent and reads the detector item.
 Usage: python3 tools/hexn_examples_v1.py make | check FOLDER"""
 import os, sys, struct, random
 import numpy as np
@@ -9,14 +9,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hexn_item_v1 as I, hexn_sensor_shadow_v1 as S
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); EX = os.path.join(ROOT, "docs/hex-n/examples")
 TABLE = [("rat", 10, 2), ("cat", 28, 4), ("dog", 50, 10), ("sheep", 75, 8), ("deer", 110, 12), ("horse", 150, 12)]
-SET_KEYS = {1: "look-back", 2: "learning rate x100", 3: "learning on", 4: "reading count per passing", 5: "search depth", 6: "random move percent", 7: "layer 2 gate x100", 8: "update constant (x 2^-29)", 9: "bias step input"}
+SET_KEYS = {10: "learning rate in 1/128 (whole-number rule)", 1: "look-back", 2: "learning rate x100 (decimal rule, superseded)", 3: "learning on", 4: "reading count per passing", 5: "search depth", 6: "random move percent", 7: "layer 2 gate x100", 8: "update constant (x 2^-29)", 9: "bias step input"}
 def w(folder, name, b): open(os.path.join(folder, name), "wb").write(b)
 def make_shadow():
     d = os.path.join(EX, "shadow_animals"); os.makedirs(d, exist_ok=True)
     g = I.goals_payload(TABLE, 24, 80); W = I.goals_to_weights(g, 8)
     w(d, "01_goals.hxi", I.pack(I.T_GOALS, g, usage=2, trained=b"table"))
     w(d, "02_weights.hxi", I.pack(I.T_WEIGHTS, I.weights_payload(W, [0] * 6, 8), usage=2, nin=24, wb=8, trained=b"table", parent=0))
-    w(d, "03_settings.hxi", I.pack(I.T_SETTINGS, I.settings_payload({1: 3, 2: 150, 3: 1, 4: 5}), usage=2, lmax=3, trained=b"shadow"))
+    v1 = I.pack(I.T_SETTINGS, I.settings_payload({1: 3, 2: 150, 3: 1, 4: 5}), usage=2, lmax=3, trained=b"shadow")   # version 1 (decimal rule), kept as the parent of version 2
+    w(d, "03_settings.hxi", I.pack(I.T_SETTINGS, I.settings_payload({1: 3, 10: 192, 3: 1, 4: 5}), usage=2, version=2, lmax=3, trained=b"shadow", parent=I.item_id(v1)))
     w(d, "04_target.hxi", I.pack(I.T_TARGET, bytes([0]), usage=0))
     for tag, world in (("A", "A"), ("B", "B")):
         rng = np.random.default_rng(321 if world == "A" else 654); rows = []
@@ -89,13 +90,13 @@ def check(d):
     if not ok_all: print("refused"); return False
     name = os.path.basename(os.path.normpath(d))
     if name == "shadow_animals":
-        Wq, Bq, wb = I.read_weights(items[I.T_WEIGHTS]["payload"]); W = np.array(Wq, dtype=float) / (1 << wb); st = I.read_settings(items[I.T_SETTINGS]["payload"]); lr = st[2] / 100.0
+        import hexn_multiout_int_v1 as MO
+        Wq, Bq, wb = I.read_weights(items[I.T_WEIGHTS]["payload"]); W = np.array(Wq, dtype=float) / (1 << wb); st = I.read_settings(items[I.T_SETTINGS]["payload"]); rate = st[10]
         for tag in ("A", "B"):
             rows = [l.strip().split(",") for l in open(os.path.join(d, "sample_world%s.csv" % tag)) if not l.startswith("#") and l.strip()]; y = np.array([int(r[0]) for r in rows]); X = np.array([[float(v) for v in r[1:]] for r in rows])
-            acc0 = np.mean(np.argmax(X @ W.T, 1) == y); Wl = W.copy()
-            for i in range(60):
-                z = Wl @ X[i]; z -= z.max(); p = np.exp(z); p /= p.sum(); t = np.zeros(6); t[y[i]] = 1; Wl -= lr * np.outer(p - t, X[i])
-            acc1 = np.mean(np.argmax(X[60:] @ Wl.T, 1) == y[60:]); acc0b = np.mean(np.argmax(X[60:] @ W.T, 1) == y[60:])
+            acc0 = np.mean(np.argmax(X @ W.T, 1) == y); mo = MO.MultiOutInt(Wq, rate, wb)
+            for i in range(60): mo.learn([int(v) for v in X[i]], int(y[i]))
+            Wl = np.array(mo.W, dtype=float); acc1 = np.mean(np.argmax(X[60:] @ Wl.T, 1) == y[60:]); acc0b = np.mean(np.argmax(X[60:] @ W.T, 1) == y[60:])
             print("  world %s: loaded weights, nothing learned: %.2f on all 300; on passings 61-300: %.2f; after learning from the first 60: %.2f" % (tag, acc0, acc0b, acc1))
     elif name == "connect4":
         import hexn_connect4_v1 as C, hexn_connect4_blend_v2 as B, hexn_layer1_int_v1 as J
