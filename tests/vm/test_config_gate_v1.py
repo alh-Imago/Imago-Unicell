@@ -152,3 +152,14 @@ def test_mask_is_a_special_case_of_the_nano_and(tmp_path):
     assert "ARITH BLOCK V6 FAILED" in sim(tmp_path, [str(p)] + files[1:])
     t5 = open(f"{S}/tb_arith_block_v5.v").read().replace("arith_block_v5", "arith_block_v6"); q = tmp_path / "tb5on6.v"; q.write_text(t5)
     assert "ALL ARITH BLOCK V5 TESTS PASS" in sim(tmp_path, [f"{S}/arith_block_v6.v", str(q), f"{S}/nano_cell_v4s.v", f"{F}/adder_v1.v"])
+
+
+def test_arith_block_v7_fine_coarse_shift(tmp_path):
+    """arith_block_v7 SHIFT_CF=1 (fine 0-3 then even coarse taps 0,4,8,12,16, same direction) equals the plain shift reference and the v6 shifter for every amount 0..31, both directions; a wrong tap is caught; the v5 test passes on v7."""
+    files = [f"{S}/arith_block_v7.v", f"{S}/tb_arith_block_v7.v", f"{F}/adder_v1.v"]
+    assert "ALL ARITH BLOCK V7 TESTS PASS" in sim(tmp_path, files)
+    src = open(f"{S}/arith_block_v7.v").read(); a = "3'd2: coarse = fine << 8;"; assert a in src
+    p = tmp_path / "v7_mut.v"; p.write_text(src.replace(a, "3'd2: coarse = fine << 7;"))
+    assert "ARITH BLOCK V7 FAILED" in sim(tmp_path, [str(p)] + files[1:])
+    t5 = open(f"{S}/tb_arith_block_v5.v").read().replace("arith_block_v5", "arith_block_v7"); q = tmp_path / "tb5on7.v"; q.write_text(t5)
+    assert "ALL ARITH BLOCK V5 TESTS PASS" in sim(tmp_path, [f"{S}/arith_block_v7.v", str(q), f"{S}/nano_cell_v4s.v", f"{F}/adder_v1.v"])
