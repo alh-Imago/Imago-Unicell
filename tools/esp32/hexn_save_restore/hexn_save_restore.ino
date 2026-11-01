@@ -9,9 +9,10 @@
 //   jsave <A|B>               dump the judge (260-word guarded record: header with array size, 256 entries, bias, checksum) and store it as /judge<A|B>.bin.
 //   jload <A|B> [A|B]         restore /judge<first>.bin into the judge named by the optional second letter (default the same). The unit checks the whole record
 //                             first; a refused record is reported and the judge is not touched. Status 0 ok, 1 bad magic, 2 wrong array size, 3 bad checksum, 4 order wrong or truncated.
+//   tabcheck <space> [count]  read the table space from the card now and compare it word for word with /tab<space>.bin (use after tabload).
 //   jfill <A|B>               put a known test table (192 weights and a bias, different for A and B) into the judge, so jtest has something to save.
 //   jcheck <A|B>              dump the judge now and compare it word for word with the file /judge<A|B>.bin in flash (use after jload, or after a power cycle).
-//   jbreak <A|B> <c|m|g>      make a DAMAGED copy of the stored record as /judgeZ.bin (the real file is not touched): c = one weight bit flipped (checksum now wrong), m = wrong magic, g = wrong array size (checksum made right in both, so only that fault is present).
+//   jbreak <A|B> <c|m|g|o>   make a DAMAGED copy of the stored record as /judgeZ.bin (the real file is not touched): c = one weight bit flipped (checksum now wrong), m = wrong magic, g = wrong array size, o = two body words swapped (checksum made right in both, so only that fault is present).
 //                             then `jclear` and `jload Z A`: the unit should refuse (status 3, 1 or 2) and `jcheck` / a dump should show judge A still empty.
 //   jclear                    clear both judges (tables and bias)
 //   jtest                     self test: dump A, clear, restore from the dump, dump again, compare word for word (needs a judge with weights loaded first).
@@ -52,18 +53,28 @@ static uint32_t buf[REC_N + 8], buf2[REC_N + 8];
 static int space_default(int sp) { return sp == 3 ? 256 : (sp == 4 || sp == 5) ? 64 : 0; }
 static bool put_file(const char* name, const uint32_t* w, int n) { File f = LittleFS.open(name, "w"); if (!f) return false; size_t k = f.write((const uint8_t*)w, 4 * n); f.close(); return k == (size_t)(4 * n); }
 static int get_file(const char* name, uint32_t* w, int maxn) { File f = LittleFS.open(name, "r"); if (!f) return -1; int n = f.read((uint8_t*)w, 4 * maxn) / 4; f.close(); return n; }
-static void cmd_tabsave(int sp, int count) {
-  if (sp < 1 || sp > 5) { Serial.println("space must be 1..5"); return; }
-  if (count <= 0) count = space_default(sp);
-  if (count <= 0) { Serial.println("give the word count for space 1 or 2"); return; }
-  if (count > 1000) { Serial.println("count too large for the scratch RAM"); return; }
+static bool tabread(int sp, int count, uint32_t* out) {                   // copy a table space into scratch RAM (cfg30/31) and read it
   uint16_t base = (count > 124) ? 0 : 900;                               // scratch RAM has 1024 words; a short table goes to 900, a long one to 0
   wr_reg(30, ((uint32_t)sp << 28) | ((uint32_t)base << 16) | (uint32_t)count);
   wr_reg(31, ++seq); delay(2);
-  if (!wait_idle()) return;
-  rd_words(base, buf, count);
+  if (!wait_idle()) return false;
+  rd_words(base, out, count); return true; }
+static bool tab_args(int sp, int& count) {
+  if (sp < 1 || sp > 5) { Serial.println("space must be 1..5"); return false; }
+  if (count <= 0) count = space_default(sp);
+  if (count <= 0) { Serial.println("give the word count for space 1 or 2"); return false; }
+  if (count > 1000) { Serial.println("count too large for the scratch RAM"); return false; }
+  return true; }
+static void cmd_tabsave(int sp, int count) {
+  if (!tab_args(sp, count) || !tabread(sp, count, buf)) return;
   char nm[24]; snprintf(nm, sizeof nm, "/tab%d.bin", sp);
   Serial.printf("space %d: %d words read; stored %s -> %s\n", sp, count, nm, put_file(nm, buf, count) ? "ok" : "FAILED"); }
+static void cmd_tabcheck(int sp, int count) {
+  if (!tab_args(sp, count)) return;
+  char nm[24]; snprintf(nm, sizeof nm, "/tab%d.bin", sp); int n = get_file(nm, buf, 1000);
+  if (n != count) { Serial.printf("%s: %d words, asked for %d\n", nm, n, count); return; }
+  if (!tabread(sp, count, buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < count; i++) { if (buf[i] != buf2[i]) bad++; if (buf2[i]) nz++; }
+  Serial.printf("space %d now: %d non-zero words; %d of %d differ from %s (want 0)\n", sp, nz, bad, count, nm); Serial.println(bad == 0 ? "MATCHES THE FLASH COPY" : "DIFFERS FROM THE FLASH COPY"); }
 static void cmd_tabload(int sp) {
   if (sp < 1 || sp > 5) { Serial.println("space must be 1..5"); return; }
   char nm[24]; snprintf(nm, sizeof nm, "/tab%d.bin", sp); int n = get_file(nm, buf, 1000);
@@ -113,15 +124,16 @@ static void cmd_jbreak(char j, char how) {
   if (n != REC_N) { Serial.printf("%s: %d words, want %d\n", nm, n, REC_N); return; }
   if (how == 'c') buf[100] ^= 1UL;                                        // body word: one weight bit, checksum left as it was
   else if (how == 'm') { buf[0] ^= (1UL << 20); }                         // magic field (bits 31..12) changed
-  else if (how == 'g') { buf[1] ^= (1UL << 24); }                         // sensors field 8 -> 9
-  else { Serial.println("use c, m or g"); return; }
+  else if (how == 'g') { buf[1] ^= (1UL << 24); }
+  else if (how == 'o') { uint32_t t = buf[2]; buf[2] = buf[3]; buf[3] = t; }  // two body words swapped: class / address out of order, expect status 4                         // sensors field 8 -> 9
+  else { Serial.println("use c, m, g or o"); return; }
   if (how != 'c') { uint32_t sum = 0; for (int i = 0; i < REC_N - 1; i++) sum += buf[i]; buf[REC_N - 1] = sum; }   // keep the checksum right so only one fault is present
   Serial.printf("damaged copy (%c) stored as /judgeZ.bin -> %s. Now: jclear, then jload Z A\n", how, put_file("/judgeZ.bin", buf, REC_N) ? "ok" : "FAILED"); }
 static void cmd_ls() { File d = LittleFS.open("/"); File f = d.openNextFile(); while (f) { Serial.printf("%s  %u bytes\n", f.name(), (unsigned)f.size()); f = d.openNextFile(); } }
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g> | jclear | jtest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | tabcheck <1..5> [count] | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
@@ -129,6 +141,7 @@ void loop() {
       if (line == "id") cmd_id(); else if (line == "status") Serial.printf("status 0x%08lX\n", (unsigned long)rd_reg(10));
       else if (line.startsWith("tabsave ")) { int sp = line.substring(8).toInt(); int sx = line.indexOf(' ', 8); cmd_tabsave(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
       else if (line.startsWith("tabload ")) cmd_tabload(line.substring(8).toInt());
+      else if (line.startsWith("tabcheck ")) { int sp = line.substring(9).toInt(); int sx = line.indexOf(' ', 9); cmd_tabcheck(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
       else if (line.startsWith("jsave ")) cmd_jsave(toupper(line.charAt(6)));
       else if (line.startsWith("jload ")) { char a = toupper(line.charAt(6)); char b = line.length() > 8 ? toupper(line.charAt(8)) : a; cmd_jload(a, b); }
       else if (line == "jclear") { uint32_t w[1] = { CLEAR_BOTH }; run_stream(w, 1, 300); Serial.println("both judges cleared"); }
