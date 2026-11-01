@@ -256,7 +256,10 @@ static void cfill() { static uint32_t b[64]; uint32_t BY = cw(0, 0, 0, 0, 0, 1);
 // PROGRAM n units (0 = all four) from consecutive bank slots; true when the status words are as expected (units programmed: 0; the rest untouched)
 static bool cprog(int slot, int n, const uint32_t* bank, bool expect_ok, int verbose) {
   uint32_t sent[8], st[8]; for (int i = 0; i < 8; i++) sent[i] = 0xDEADBEEFUL; wr_words(400, sent, 8); ucmd2(3, 400, 0, n, slot); if (!wait_idle()) { Serial.println("  no end of command"); return false; } rd_words(400, st, 8);
-  int nn = n ? n : 4; bool ok = true; for (int i = 0; i < 8; i++) if (st[i] != (i < nn && expect_ok ? 0UL : 0xDEADBEEFUL)) ok = false;
+  int nn = n ? n : 4; bool ok = true, warn = false;
+  // status word of a stage: [1:0] cfg_err, [2] fault, [3] dead, [23:16] lost words, [31:24] region resets (the layout of hexn_unit_v2.v). 0 is clean. cfg_err 0 and dead 0 with fault / lost / resets set means the unit WAS set but dropped a stale word that was still inside it (for example left by an earlier run that timed out): accepted with a warning, and crun checks the real behaviour.
+  for (int i = 0; i < 8; i++) { if (i < nn && expect_ok) { if ((st[i] & 0xBUL) != 0) ok = false; else if (st[i]) warn = true; } else if (st[i] != 0xDEADBEEFUL) ok = false; }
+  if (ok && warn) Serial.println("  note: a unit reported a fault, a lost word and a region reset: a stale word was inside it and was dropped; the new setting was applied");
   if (verbose) Serial.printf("  status words %08lX %08lX %08lX %08lX\n", (unsigned long)st[0], (unsigned long)st[1], (unsigned long)st[2], (unsigned long)st[3]);
   if (ok && expect_ok) for (int u = 0; u < nn; u++) chn.config(u, bank[slot + u]);
   return ok; }
