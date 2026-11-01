@@ -7,7 +7,7 @@
 //   rload <space> [z]         read the record (z = the damaged copy /recZ.bin), CHECK it first; a refused record is reported with a code and the card is not touched; a good one is loaded.
 //   rcheck <space>            read the space from the card and compare with the record's words.
 //   rbreak <space> <c|m|g|t|s> damaged copy /recZ.bin with ONE fault: c checksum (3), m magic (1), g width (2), t truncated (4), s other structure (5).
-//   tabsave <space> [count]   copy table space 1..6 (1 rt, 2 mt, 3 decode, 4 glyph, 5 presets, 6 the neural judge's 8 values: 7 weights + bias, needs bitstream v10) from the card into scratch RAM, read it, store in flash as /tab<space>.bin.
+//   tabsave <space> [count]   copy table space 1..7 (1 rt, 2 mt, 3 decode, 4 glyph, 5 presets, 6 the neural judge's 8 values: 7 weights + bias, needs bitstream v10; 7 the PATTERN BANK: 64 config words of the mutable blocks, needs bitstream v11) from the card into scratch RAM, read it, store in flash as /tab<space>.bin.
 //                             count may be left out for spaces 3,4,5 (256, 64, 64 words); give it for spaces 1 and 2 (the length of the table you loaded).
 //   tabload <space>           read /tab<space>.bin from flash, write it into scratch RAM, copy it into the card's table (cfg17 / cfg19, the existing load path).
 //   jsave <A|B>               dump the judge (260-word guarded record: header with array size, 256 entries, bias, checksum) and store it as /judge<A|B>.bin.
@@ -61,7 +61,7 @@ static bool wait_idle() {                                                 // sta
   Serial.println("unit still busy"); return false; }
 static bool cmd_id() { uint32_t id = rd_reg(0); Serial.printf("ID 0x%08lX -> %s\n", (unsigned long)id, id == UNIT_ID_V2 ? "OPEN UNIT OK" : "NOT the open unit"); return id == UNIT_ID_V2; }
 static uint32_t buf[REC_N + 8], buf2[REC_N + 8];
-static int space_default(int sp) { return sp == 3 ? 256 : (sp == 4 || sp == 5) ? 64 : sp == 6 ? 8 : 0; }
+static int space_default(int sp) { return sp == 3 ? 256 : (sp == 4 || sp == 5 || sp == 7) ? 64 : sp == 6 ? 8 : 0; }
 static bool put_file(const char* name, const uint32_t* w, int n) { File f = LittleFS.open(name, "w"); if (!f) return false; size_t k = f.write((const uint8_t*)w, 4 * n); f.close(); return k == (size_t)(4 * n); }
 static int get_file(const char* name, uint32_t* w, int maxn) { File f = LittleFS.open(name, "r"); if (!f) return -1; int n = f.read((uint8_t*)w, 4 * maxn) / 4; f.close(); return n; }
 static bool tabread(int sp, int count, uint32_t* out) {                   // copy a table space into scratch RAM (cfg30/31) and read it
@@ -71,7 +71,7 @@ static bool tabread(int sp, int count, uint32_t* out) {                   // cop
   if (!wait_idle()) return false;
   rd_words(base, out, count); return true; }
 static bool tab_args(int sp, int& count) {
-  if (sp < 1 || sp > 6) { Serial.println("space must be 1..6"); return false; }
+  if (sp < 1 || sp > 7) { Serial.println("space must be 1..7"); return false; }
   if (count <= 0) count = space_default(sp);
   if (count <= 0) { Serial.println("give the word count for space 1 or 2"); return false; }
   if (count > 1000) { Serial.println("count too large for the scratch RAM"); return false; }
@@ -87,7 +87,7 @@ static void cmd_tabcheck(int sp, int count) {
   if (!tabread(sp, count, buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < count; i++) { if (buf[i] != buf2[i]) bad++; if (buf2[i]) nz++; }
   Serial.printf("space %d now: %d non-zero words; %d of %d differ from %s (want 0)\n", sp, nz, bad, count, nm); Serial.println(bad == 0 ? (nz == 0 ? "MATCHES THE FLASH COPY, BUT BOTH ARE ALL ZERO: this proves nothing" : "MATCHES THE FLASH COPY") : "DIFFERS FROM THE FLASH COPY"); }
 static void cmd_tabload(int sp) {
-  if (sp < 1 || sp > 6) { Serial.println("space must be 1..6"); return; }
+  if (sp < 1 || sp > 7) { Serial.println("space must be 1..7"); return; }
   char nm[24]; snprintf(nm, sizeof nm, "/tab%d.bin", sp); int n = get_file(nm, buf, 1000);
   if (n <= 0) { Serial.printf("no file %s\n", nm); return; }
   wr_words(0, buf, n);
@@ -181,14 +181,14 @@ static void cmd_rsave(int sp, int count) {
   int n = hr_pack(sp, buf2, count, 0, buf); char nm[24]; rec_name(nm, sizeof nm, sp, false);
   Serial.printf("space %d: record of %d words (header %08lX %08lX, checksum %08lX); stored %s -> %s\n", sp, n, (unsigned long)buf[0], (unsigned long)buf[1], (unsigned long)buf[n - 1], nm, put_file(nm, buf, n) ? "ok" : "FAILED"); }
 static void cmd_rload(int sp, bool z) {
-  if (sp < 1 || sp > 6) { Serial.println("space must be 1..6"); return; }
+  if (sp < 1 || sp > 7) { Serial.println("space must be 1..7"); return; }
   char nm[24]; rec_name(nm, sizeof nm, sp, z); int n = get_file(nm, buf, 264);
   if (n <= 0) { Serial.printf("no file %s\n", nm); return; }
   int code = hr_verify(buf, n, sp, 0);
   if (code) { Serial.printf("record %s REFUSED, code %d: %s. The card was not touched.\n", nm, code, rec_why[code]); return; }
   tabwrite(sp, buf + 3, n - 4); if (wait_idle()) Serial.printf("space %d: record %s checked ok, %d words loaded into the card's table\n", sp, nm, n - 4); }
 static void cmd_rcheck(int sp) {
-  if (sp < 1 || sp > 6) { Serial.println("space must be 1..6"); return; }
+  if (sp < 1 || sp > 7) { Serial.println("space must be 1..7"); return; }
   char nm[24]; rec_name(nm, sizeof nm, sp, false); int n = get_file(nm, buf, 264);
   if (n <= 0) { Serial.printf("no file %s\n", nm); return; }
   int code = hr_verify(buf, n, sp, 0); if (code) { Serial.printf("record %s is not good, code %d: %s\n", nm, code, rec_why[code]); return; }
@@ -208,7 +208,7 @@ static void cmd_rbreak(int sp, char how) {                                // a D
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | rsave <1..6> [count] | rload <1..6> [z] | rcheck <1..6> | rbreak <1..6> <c|m|g|t|s> | tabsave <1..6> [count] | tabload <1..6> | tabcheck <1..6> [count] | tabfill <1..6> [count] | tabclear <1..6> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | rsave <1..7> [count] | rload <1..7> [z] | rcheck <1..7> | rbreak <1..7> <c|m|g|t|s> | tabsave <1..7> [count] | tabload <1..7> | tabcheck <1..7> [count] | tabfill <1..7> [count] | tabclear <1..7> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
