@@ -163,3 +163,12 @@ def test_arith_block_v7_fine_coarse_shift(tmp_path):
     assert "ARITH BLOCK V7 FAILED" in sim(tmp_path, [str(p)] + files[1:])
     t5 = open(f"{S}/tb_arith_block_v5.v").read().replace("arith_block_v5", "arith_block_v7"); q = tmp_path / "tb5on7.v"; q.write_text(t5)
     assert "ALL ARITH BLOCK V5 TESTS PASS" in sim(tmp_path, [f"{S}/arith_block_v7.v", str(q), f"{S}/nano_cell_v4s.v", f"{F}/adder_v1.v"])
+
+
+def test_arith_block_v8_coarse_only_shift(tmp_path):
+    """arith_block_v8 SHIFT_CF=2 (binary amount, supported 0,1,2,4,8,12,16, others pass the data unchanged) and SHIFT_CF=3 (tap index) equal the reference, both directions; a wrong tap is caught."""
+    files = [f"{S}/arith_block_v8.v", f"{S}/tb_arith_block_v8.v", f"{F}/adder_v1.v"]
+    assert "ALL ARITH BLOCK V8 TESTS PASS" in sim(tmp_path, files)
+    src = open(f"{S}/arith_block_v8.v").read(); a = "5'd8: only = sx << 8;"; assert a in src
+    p = tmp_path / "v8_mut.v"; p.write_text(src.replace(a, "5'd8: only = sx << 7;"))
+    assert "ARITH BLOCK V8 FAILED" in sim(tmp_path, [str(p)] + files[1:])
