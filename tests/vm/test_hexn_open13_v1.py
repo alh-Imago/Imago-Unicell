@@ -75,6 +75,7 @@ def script(d):
     L.append('run_batch(%d, 10\'d24, "restored bank: program A again");' % bid); bid += 1
     # out of range commands are ignored
     L.append("sentinel(16'd900, 8); ucmd(4'd3, 10'd900, 10'd0, 4'd4, 6'd62); repeat (40) @(negedge clk); rd_reg(8'd10); check(!rv[4], \"PROGRAM of 4 units from slot 62 is ignored (busy low)\"); rd_words(16'd900, 8); check(rbuf[0] === SENT && rbuf[3] === SENT, \"and no status word was written\");")
+    L.append("sentinel(16'd900, 8); ucmd(4'd2, 10'd900, 10'd100, 4'd0, 6'd0); repeat (40) @(negedge clk); rd_reg(8'd10); check(!rv[4], \"RUN whose results would pass the end of the scratch (900 + 3*100 > 1024) is ignored\");")
     L.append("sentinel(16'd900, 8); ucmd(4'd1, 10'd900, 10'd0, 4'd5, 6'd0); repeat (40) @(negedge clk); rd_reg(8'd10); check(!rv[4], \"APPLY to unit 5 (there are 4) is ignored\");")
     return "\n        ".join(L)
 
@@ -97,7 +98,7 @@ def test_chain_with_bypass_from_the_bank():
     try: res = run(d)
     finally: shutil.rmtree(d, ignore_errors=True)
     assert "PASS" in res and "FAIL" not in res and "TIMEOUT" not in res, res[-2500:]
-    assert res.count("ok ") == 5 * 2 + 2 + 2 + 1 + 2 + 2 + 3, res[-2500:]
+    assert res.count("ok ") == 5 * 2 + 2 + 2 + 1 + 2 + 2 + 4, res[-2500:]
 
 
 MUTS = [("hexn_unit_v2.v", "assign out_data  = byp ? in_data  : bd;", "assign out_data  = bd;"),                                   # bypass does not pass the data
