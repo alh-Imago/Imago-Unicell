@@ -212,7 +212,8 @@ static void cmd_rbreak(int sp, char how) {                                // a D
 static const uint32_t UCFG[9] = { 0, 1, 2, 3, 4UL | (5UL << 8), 5, 6, 7UL | (0x0BCUL << 16), 7UL | (0x35UL << 8) | (0x007UL << 16) | (1UL << 26) };   // add, sub, >=, cmp3, accumulate step 5, shl, shr, nano XOR, nano AND with config mask
 static const char* UNAME[9] = { "add", "sub", "ge", "cmp3", "accumulate", "shl", "shr", "nano xor", "nano and+mask" };
 static uint32_t ucnt = 0;
-static void ucmd(uint32_t op, uint32_t base, uint32_t cnt, uint32_t slot) { ucnt = (ucnt + 1) & 15; wr_reg(18, (op << 28) | ((uint32_t)ucnt << 24) | (base << 14) | (cnt << 4) | slot); delay(2); }
+// The unit starts a command when the command register CHANGES. The register keeps its last value while the ESP32 restarts (opening the Serial Monitor restarts it) and ucnt starts again at 0, so the first command after a restart could be IDENTICAL to the last one before it and be ignored. So a 0 is written first (op 0 does nothing): every command is then a change.
+static void ucmd(uint32_t op, uint32_t base, uint32_t cnt, uint32_t slot) { wr_reg(18, 0); delay(1); ucnt = (ucnt + 1) & 15; wr_reg(18, (op << 28) | ((uint32_t)ucnt << 24) | (base << 14) | (cnt << 4) | slot); delay(2); }
 static void bank_load(const uint32_t* w) { wr_words(0, w, 64); wr_reg(17, (7UL << 28) | 64UL); wr_reg(19, ++seq); delay(2); wait_idle(); }
 static void cmd_ufill() { static uint32_t b[64]; for (int i = 0; i < 64; i++) b[i] = (i < 9) ? UCFG[i] : 0; bank_load(b); Serial.println("pattern bank: slots 0..8 hold add, sub, ge, cmp3, accumulate, shl, shr, nano xor, nano and+mask; the rest 0"); }
 static bool uapply(int slot, uint32_t& st) { uint32_t sent = 0xDEADBEEFUL; wr_words(400, &sent, 1); ucmd(1, 400, 0, slot); if (!wait_idle()) return false; rd_words(400, &st, 1); return st != 0xDEADBEEFUL; }
@@ -246,7 +247,7 @@ static void cmd_utest() {
 static uint32_t cw(uint32_t mode, uint32_t step, uint32_t topo, uint32_t held, uint32_t bsrc, uint32_t byp) { return mode | (step << 8) | (topo << 16) | (held << 26) | (bsrc << 27) | (byp << 31); }
 static const char CPNAME[5] = { 'A', 'B', 'C', 'D', 'E' };
 static ChainModel chn;                                        // what the sketch believes the four units are set to
-static void ucmd2(uint32_t op, uint32_t base, uint32_t cnt, uint32_t unit, uint32_t slot) { ucnt = (ucnt + 1) & 15; wr_reg(18, (op << 28) | ((uint32_t)ucnt << 24) | (base << 14) | (cnt << 4) | (unit << 8) | slot); delay(2); }
+static void ucmd2(uint32_t op, uint32_t base, uint32_t cnt, uint32_t unit, uint32_t slot) { wr_reg(18, 0); delay(1); ucnt = (ucnt + 1) & 15; wr_reg(18, (op << 28) | ((uint32_t)ucnt << 24) | (base << 14) | (cnt << 4) | (unit << 8) | slot); delay(2); }
 static void cfill() { static uint32_t b[64]; uint32_t BY = cw(0, 0, 0, 0, 0, 1); for (int i = 0; i < 64; i++) b[i] = 0;
   // A: add 5, shift left 2, xor with the side operand, subtract the side operand | B: bypass, add side, bypass, ge | C: all bypassed | D: only the last unit (add 9) | E: only the first (sub 3)
   uint32_t P[5][4] = { { cw(0, 5, 0, 0, 1, 0), cw(5, 2, 0, 0, 1, 0), cw(7, 0, 0x0BC, 0, 0, 0), cw(1, 0, 0, 0, 0, 0) }, { BY, cw(0, 0, 0, 0, 0, 0), BY, cw(2, 0, 0, 0, 0, 0) }, { BY, BY, BY, BY }, { BY, BY, BY, cw(0, 9, 0, 0, 1, 0) }, { cw(1, 3, 0, 0, 1, 0), BY, BY, BY } };
