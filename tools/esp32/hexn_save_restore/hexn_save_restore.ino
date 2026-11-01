@@ -3,6 +3,7 @@
 // NOT YET RUN ON A BOARD (written 1 Nov 2026 against the simulated test benches tests/hexn_open7 and tests/hexn_open8; the SPI calls are copied from hexn_open3_test).
 // Commands:
 //   id | status
+//   ufill | uapply <slot> | urun <slot> | utest   the gated Hex-N unit (needs bitstream v12): ufill puts nine example configs in the pattern bank, uapply sends a slot through the gate, urun applies a slot and runs 16 operand pairs and compares with the model, utest does all of it and the save / clear / load of the bank.
 //   rsave <space> [count]     like tabsave, but stores a GUARDED RECORD /rec<space>.bin (magic, kind, count, width, structure id, words, checksum).
 //   rload <space> [z]         read the record (z = the damaged copy /recZ.bin), CHECK it first; a refused record is reported with a code and the card is not touched; a good one is loaded.
 //   rcheck <space>            read the space from the card and compare with the record's words.
@@ -31,6 +32,7 @@
 #include <SPI.h>
 #include <LittleFS.h>
 #include "hexn_record.h"
+#include "hexn_unit_model.h"
 #define PIN_CS 5
 #define PIN_SCLK 18
 #define PIN_MOSI 23
@@ -205,10 +207,43 @@ static void cmd_rbreak(int sp, char how) {                                // a D
   else { Serial.println("use c, m, g, t or s"); return; }
   Serial.printf("damaged copy (%c) stored as /recZ.bin -> %s\n", how, put_file("/recZ.bin", buf, n) ? "ok" : "FAILED"); }
 //==== END RECORD COMMANDS ====
+//==== UNIT COMMANDS (the gated Hex-N unit, bitstream v12; docs/hex-n/HEXN_DESIGN.md row 19:40; the expected answers come from hexn_unit_model.h, tested on a PC) ====
+static const uint32_t UCFG[9] = { 0, 1, 2, 3, 4UL | (5UL << 8), 5, 6, 7UL | (0x0BCUL << 16), 7UL | (0x35UL << 8) | (0x007UL << 16) | (1UL << 26) };   // add, sub, >=, cmp3, accumulate step 5, shl, shr, nano XOR, nano AND with config mask
+static const char* UNAME[9] = { "add", "sub", "ge", "cmp3", "accumulate", "shl", "shr", "nano xor", "nano and+mask" };
+static uint32_t ucnt = 0;
+static void ucmd(uint32_t op, uint32_t base, uint32_t cnt, uint32_t slot) { ucnt = (ucnt + 1) & 15; wr_reg(18, (op << 28) | ((uint32_t)ucnt << 24) | (base << 14) | (cnt << 4) | slot); delay(2); }
+static void bank_load(const uint32_t* w) { wr_words(0, w, 64); wr_reg(17, (7UL << 28) | 64UL); wr_reg(19, ++seq); delay(2); wait_idle(); }
+static void cmd_ufill() { static uint32_t b[64]; for (int i = 0; i < 64; i++) b[i] = (i < 9) ? UCFG[i] : 0; bank_load(b); Serial.println("pattern bank: slots 0..8 hold add, sub, ge, cmp3, accumulate, shl, shr, nano xor, nano and+mask; the rest 0"); }
+static bool uapply(int slot, uint32_t& st) { uint32_t sent = 0xDEADBEEFUL; wr_words(400, &sent, 1); ucmd(1, 400, 0, slot); if (!wait_idle()) return false; rd_words(400, &st, 1); return st != 0xDEADBEEFUL; }
+// run 16 fixed operand pairs through the unit and compare with the model of config word cfgw; returns the number of differences, -1 on a link problem
+static int urun(uint32_t cfgw, int verbose) {
+  static uint32_t ops[32], res[20]; uint32_t M = (1UL << 18) - 1; UnitModel m; m.config(cfgw);
+  for (int k = 0; k < 16; k++) { ops[2 * k] = ((0x2A5B3UL * (k + 1)) ^ (k * 977UL)) & M; ops[2 * k + 1] = (k < 8) ? (uint32_t)(k * 3) : ((0x1F3C7UL * (k + 1)) & M); }
+  wr_words(100, ops, 32); for (int i = 0; i < 17; i++) res[i] = 0xDEADBEEFUL; wr_words(132, res, 17);
+  ucmd(2, 100, 16, 0); if (!wait_idle()) return -1; rd_words(132, res, 17);
+  int bad = 0, nz = 0; for (int k = 0; k < 16; k++) { uint32_t e = m.word(ops[2 * k], ops[2 * k + 1]); if (res[k] != e) { bad++; if (bad <= 3) Serial.printf("  pair %d: got %05lX expected %05lX\n", k, (unsigned long)res[k], (unsigned long)e); } if (res[k]) nz++; }
+  if (res[16] != 0xDEADBEEFUL) { bad++; Serial.println("  a word after the results was overwritten"); }
+  if (verbose) Serial.printf("  16 pairs: %d differ from the model; %d non-zero results; first four %05lX %05lX %05lX %05lX\n", bad, nz, (unsigned long)res[0], (unsigned long)res[1], (unsigned long)res[2], (unsigned long)res[3]);
+  return bad; }
+static void cmd_uapply(int slot) { uint32_t st; if (slot < 0 || slot > 63) { Serial.println("slot 0..63"); return; } if (!uapply(slot, st)) { Serial.println("no status word came back"); return; }
+  Serial.printf("slot %d applied: status %08lX (cfg_err %lu, fault %lu, dead %lu, time-out %lu, lost %lu, resets %lu)\n", slot, (unsigned long)st, (unsigned long)(st & 3), (unsigned long)((st >> 2) & 1), (unsigned long)((st >> 3) & 1), (unsigned long)((st >> 4) & 1), (unsigned long)((st >> 8) & 255), (unsigned long)((st >> 16) & 255)); }
+static void cmd_urun(int slot) {
+  static uint32_t bank[64]; if (slot < 0 || slot > 63) { Serial.println("slot 0..63"); return; } if (!tabread(7, 64, bank)) return;
+  uint32_t st; if (!uapply(slot, st)) { Serial.println("no status word came back"); return; } if (st) { Serial.printf("apply status %08lX is not 0\n", (unsigned long)st); return; }
+  int bad = urun(bank[slot], 1); Serial.printf("slot %d (config %08lX): %s\n", slot, (unsigned long)bank[slot], bad == 0 ? "ALL 16 EQUAL THE MODEL" : bad < 0 ? "link problem" : "DIFFERENCES"); }
+static void cmd_utest() {
+  static uint32_t saved[64], zeros[64]; int fails = 0; cmd_ufill(); if (!tabread(7, 64, saved)) return; uint32_t st;
+  for (int s = 0; s < 9; s++) { bool ok = uapply(s, st) && st == 0; int bad = ok ? urun(saved[s], 0) : -1; Serial.printf("slot %d %-14s: %s\n", s, UNAME[s], (ok && bad == 0) ? "ok" : "FAILED"); if (!ok || bad) fails++; }
+  for (int i = 0; i < 64; i++) zeros[i] = 0; bank_load(zeros);                                        // clear the bank: slot 5 is now an all-zero config = add
+  bool ok = uapply(5, st) && st == 0; int b0 = ok ? urun(0, 0) : -1; int b1 = ok ? urun(UCFG[5], 0) : -1;
+  Serial.printf("bank cleared, slot 5 applied: results %s the add model and %s the shift-left model\n", b0 == 0 ? "EQUAL" : "differ from", b1 == 0 ? "EQUAL (the clear had no effect)" : "differ from"); if (b0 != 0 || b1 == 0) fails++;
+  bank_load(saved); ok = uapply(5, st) && st == 0; int b2 = ok ? urun(UCFG[5], 0) : -1; Serial.printf("bank loaded back, slot 5 applied: results %s the shift-left model\n", b2 == 0 ? "EQUAL" : "differ from"); if (b2 != 0) fails++;
+  Serial.println(fails == 0 ? "UNIT TEST PASSED" : "UNIT TEST FAILED"); }
+//==== END UNIT COMMANDS ====
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | rsave <1..7> [count] | rload <1..7> [z] | rcheck <1..7> | rbreak <1..7> <c|m|g|t|s> | tabsave <1..7> [count] | tabload <1..7> | tabcheck <1..7> [count] | tabfill <1..7> [count] | tabclear <1..7> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | ufill | uapply <slot> | urun <slot> | utest | rsave <1..7> [count] | rload <1..7> [z] | rcheck <1..7> | rbreak <1..7> <c|m|g|t|s> | tabsave <1..7> [count] | tabload <1..7> | tabcheck <1..7> [count] | tabfill <1..7> [count] | tabclear <1..7> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
@@ -234,6 +269,9 @@ void loop() {
       else if (line.startsWith("rload ")) cmd_rload(line.substring(6).toInt(), line.indexOf(" z", 6) > 0);
       else if (line.startsWith("rcheck ")) cmd_rcheck(line.substring(7).toInt());
       else if (line.startsWith("rbreak ")) { int sp = line.substring(7).toInt(); cmd_rbreak(sp, tolower(line.charAt(9))); }
+      else if (line == "ufill") cmd_ufill(); else if (line == "utest") cmd_utest();
+      else if (line.startsWith("uapply ")) cmd_uapply(line.substring(7).toInt());
+      else if (line.startsWith("urun ")) cmd_urun(line.substring(5).toInt());
       else if (line == "jtest") cmd_jtest(); else if (line == "ls") cmd_ls();
       line = ""; } else line += c; }
 }
