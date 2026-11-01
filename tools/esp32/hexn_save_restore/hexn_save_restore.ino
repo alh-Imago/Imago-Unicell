@@ -14,6 +14,7 @@
 //   jcompare <A|B> <A|B>      dump both judges now and compare geometry, entries and bias (not the judge number or checksum) word for word.
 //   jsnap                     score 16 fixed test rows through BOTH judges and store the 32 result words in flash (/score.bin).
 //   jscorecheck               score the same rows again and compare with /score.bin: after a restore the answers must be identical.
+//   tabfill <space> [count]   load a known pattern (word i = 37*i + 11, cut to the table's width) into the card's table space, so the table tests have something real to carry.
 //   jfill <A|B>               put a known test table (192 weights and a bias, different for A and B) into the judge, so jtest has something to save.
 //   jcheck <A|B>              dump the judge now and compare it word for word with the file /judge<A|B>.bin in flash (use after jload, or after a power cycle).
 //   jbreak <A|B> <c|m|g|o>   make a DAMAGED copy of the stored record as /judgeZ.bin (the real file is not touched): c = one weight bit flipped (checksum now wrong), m = wrong magic, g = wrong array size, o = two body words swapped (checksum made right in both, so only that fault is present).
@@ -139,6 +140,12 @@ static void cmd_tabclear(int sp, int count) {
   static uint32_t z[1000]; for (int i = 0; i < count; i++) z[i] = 0;
   wr_words(0, z, count); wr_reg(17, ((uint32_t)sp << 28) | (0UL << 16) | (uint32_t)count); wr_reg(19, ++seq); delay(2);
   if (wait_idle()) Serial.printf("space %d: %d zero words loaded into the card's table\n", sp, count); }
+static void cmd_tabfill(int sp, int count) {
+  if (!tab_args(sp, count)) return;
+  static uint32_t f[1000]; uint32_t mask = (sp == 3) ? 0x3FUL : (sp == 4) ? 0xFFUL : 0xFFFFFFFFUL;
+  for (int i = 0; i < count; i++) f[i] = ((uint32_t)(37 * i + 11)) & mask;
+  wr_words(0, f, count); wr_reg(17, ((uint32_t)sp << 28) | (0UL << 16) | (uint32_t)count); wr_reg(19, ++seq); delay(2);
+  if (wait_idle()) Serial.printf("space %d: pattern of %d words loaded into the card's table\n", sp, count); }
 static void cmd_jcompare(char a, char b) {
   if (!jdump(a, buf) || !jdump(b, buf2)) return; int bad = 0, nz = 0; for (int i = 1; i < REC_N - 1; i++) { if (buf[i] != buf2[i]) bad++; if (buf[i] & 0xFF) nz++; }
   Serial.printf("judge %c vs judge %c: %d of %d words differ (geometry, entries, bias); %c has %d non-zero words\n", a, b, bad, REC_N - 2, a, nz); Serial.println(nz == 0 ? "BOTH EMPTY: this proves nothing" : bad == 0 ? "THE JUDGES MATCH" : "THE JUDGES DIFFER"); }
@@ -163,7 +170,7 @@ static void cmd_ls() { File d = LittleFS.open("/"); File f = d.openNextFile(); w
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | tabcheck <1..5> [count] | tabclear <1..5> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | tabcheck <1..5> [count] | tabfill <1..5> [count] | tabclear <1..5> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
@@ -180,6 +187,7 @@ void loop() {
       else if (line.startsWith("jcheck ")) cmd_jcheck(toupper(line.charAt(7)));
       else if (line.startsWith("jbreak ")) cmd_jbreak(toupper(line.charAt(7)), tolower(line.charAt(9)));
       else if (line.startsWith("tabclear ")) { int sp = line.substring(9).toInt(); int sx = line.indexOf(' ', 9); cmd_tabclear(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
+      else if (line.startsWith("tabfill ")) { int sp = line.substring(8).toInt(); int sx = line.indexOf(' ', 8); cmd_tabfill(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
       else if (line.startsWith("jcompare ")) cmd_jcompare(toupper(line.charAt(9)), toupper(line.charAt(11)));
       else if (line == "jsnap") cmd_jsnap(); else if (line == "jscorecheck") cmd_jscorecheck();
       else if (line == "pintest") cmd_pintest();
