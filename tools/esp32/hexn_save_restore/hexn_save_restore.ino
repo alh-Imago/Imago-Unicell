@@ -3,6 +3,7 @@
 // NOT YET RUN ON A BOARD (written 1 Nov 2026 against the simulated test benches tests/hexn_open7 and tests/hexn_open8; the SPI calls are copied from hexn_open3_test).
 // Commands:
 //   id | status
+//   cfill | cprog <slot> [n] | capply <unit> <slot> | crun | ctest   the CHAIN of four gated units with a bypass switch each (needs bitstream v13): cfill puts five example programs in the pattern bank, cprog sets n units from consecutive bank slots, capply sets one unit, crun runs 16 pairs through the chain and compares with the model, ctest does all of it.
 //   ufill | uapply <slot> | urun <slot> | utest   the gated Hex-N unit (needs bitstream v12): ufill puts nine example configs in the pattern bank, uapply sends a slot through the gate, urun applies a slot and runs 16 operand pairs and compares with the model, utest does all of it and the save / clear / load of the bank.
 //   rsave <space> [count]     like tabsave, but stores a GUARDED RECORD /rec<space>.bin (magic, kind, count, width, structure id, words, checksum).
 //   rload <space> [z]         read the record (z = the damaged copy /recZ.bin), CHECK it first; a refused record is reported with a code and the card is not touched; a good one is loaded.
@@ -240,10 +241,57 @@ static void cmd_utest() {
   bank_load(saved); ok = uapply(5, st) && st == 0; int b2 = ok ? urun(UCFG[5], 0) : -1; Serial.printf("bank loaded back, slot 5 applied: results %s the shift-left model\n", b2 == 0 ? "EQUAL" : "differ from"); if (b2 != 0) fails++;
   Serial.println(fails == 0 ? "UNIT TEST PASSED" : "UNIT TEST FAILED"); }
 //==== END UNIT COMMANDS ====
+//==== CHAIN COMMANDS (four gated Hex-N units in a chain, each with a BYPASS switch; bitstream v13; docs/hex-n/HEXN_DESIGN.md stage 9; expected answers from ChainModel in hexn_unit_model.h, tested on a PC against the Python chain model) ====
+// config word of one unit: mode | step<<8 | topology<<16 | held<<26 | operand source<<27 (0 side operand, 1 the step constant, 2 the word itself) | bypass<<31
+static uint32_t cw(uint32_t mode, uint32_t step, uint32_t topo, uint32_t held, uint32_t bsrc, uint32_t byp) { return mode | (step << 8) | (topo << 16) | (held << 26) | (bsrc << 27) | (byp << 31); }
+static const char CPNAME[5] = { 'A', 'B', 'C', 'D', 'E' };
+static ChainModel chn;                                        // what the sketch believes the four units are set to
+static void ucmd2(uint32_t op, uint32_t base, uint32_t cnt, uint32_t unit, uint32_t slot) { ucnt = (ucnt + 1) & 15; wr_reg(18, (op << 28) | ((uint32_t)ucnt << 24) | (base << 14) | (cnt << 4) | (unit << 8) | slot); delay(2); }
+static void cfill() { static uint32_t b[64]; uint32_t BY = cw(0, 0, 0, 0, 0, 1); for (int i = 0; i < 64; i++) b[i] = 0;
+  // A: add 5, shift left 2, xor with the side operand, subtract the side operand | B: bypass, add side, bypass, ge | C: all bypassed | D: only the last unit (add 9) | E: only the first (sub 3)
+  uint32_t P[5][4] = { { cw(0, 5, 0, 0, 1, 0), cw(5, 2, 0, 0, 1, 0), cw(7, 0, 0x0BC, 0, 0, 0), cw(1, 0, 0, 0, 0, 0) }, { BY, cw(0, 0, 0, 0, 0, 0), BY, cw(2, 0, 0, 0, 0, 0) }, { BY, BY, BY, BY }, { BY, BY, BY, cw(0, 9, 0, 0, 1, 0) }, { cw(1, 3, 0, 0, 1, 0), BY, BY, BY } };
+  for (int k = 0; k < 5; k++) for (int u = 0; u < 4; u++) b[4 * k + u] = P[k][u];
+  b[20] = cw(6, 1, 0, 0, 1, 0);                                  // slot 20: shift right by 1
+  bank_load(b); Serial.println("pattern bank: slots 0-3 program A, 4-7 B, 8-11 C (all bypass), 12-15 D, 16-19 E, slot 20 shift right 1; the rest 0"); }
+// PROGRAM n units (0 = all four) from consecutive bank slots; true when the status words are as expected (units programmed: 0; the rest untouched)
+static bool cprog(int slot, int n, const uint32_t* bank, bool expect_ok, int verbose) {
+  uint32_t sent[8], st[8]; for (int i = 0; i < 8; i++) sent[i] = 0xDEADBEEFUL; wr_words(400, sent, 8); ucmd2(3, 400, 0, n, slot); if (!wait_idle()) { Serial.println("  no end of command"); return false; } rd_words(400, st, 8);
+  int nn = n ? n : 4; bool ok = true; for (int i = 0; i < 8; i++) if (st[i] != (i < nn && expect_ok ? 0UL : 0xDEADBEEFUL)) ok = false;
+  if (verbose) Serial.printf("  status words %08lX %08lX %08lX %08lX\n", (unsigned long)st[0], (unsigned long)st[1], (unsigned long)st[2], (unsigned long)st[3]);
+  if (ok && expect_ok) for (int u = 0; u < nn; u++) chn.config(u, bank[slot + u]);
+  return ok; }
+static bool capply1(int unit, int slot, const uint32_t* bank, int verbose) {
+  uint32_t sent[4] = { 0xDEADBEEFUL, 0xDEADBEEFUL, 0xDEADBEEFUL, 0xDEADBEEFUL }, st[4]; wr_words(400, sent, 4); ucmd2(1, 400, 0, unit, slot); if (!wait_idle()) { Serial.println("  no end of command"); return false; } rd_words(400, st, 4);
+  bool ok = st[0] == 0 && st[1] == 0xDEADBEEFUL; if (verbose) Serial.printf("  status word %08lX\n", (unsigned long)st[0]); if (ok) chn.config(unit, bank[slot]); return ok; }
+// run 16 fixed pairs {a, x} through the chain and compare with the chain model; differences, -1 on a link problem
+static int crun(int verbose) {
+  static uint32_t ops[32], res[20]; uint32_t M = (1UL << 18) - 1;
+  for (int k = 0; k < 16; k++) { ops[2 * k] = ((0x2A5B3UL * (k + 1)) ^ (k * 977UL)) & M; ops[2 * k + 1] = (k < 8) ? (uint32_t)(k * 3) : ((0x1F3C7UL * (k + 1)) & M); }
+  wr_words(100, ops, 32); for (int i = 0; i < 17; i++) res[i] = 0xDEADBEEFUL; wr_words(132, res, 17);
+  ucmd2(2, 100, 16, 0, 0); if (!wait_idle()) return -1; rd_words(132, res, 17);
+  int bad = 0; for (int k = 0; k < 16; k++) { uint32_t e = chn.word(ops[2 * k], ops[2 * k + 1]); if (res[k] != e) { bad++; if (bad <= 3) Serial.printf("  pair %d: got %05lX expected %05lX\n", k, (unsigned long)res[k], (unsigned long)e); } }
+  if (res[16] != 0xDEADBEEFUL) { bad++; Serial.println("  a word after the results was overwritten"); }
+  if (verbose) Serial.printf("  16 pairs: %d differ from the model; first four %05lX %05lX %05lX %05lX\n", bad, (unsigned long)res[0], (unsigned long)res[1], (unsigned long)res[2], (unsigned long)res[3]);
+  return bad; }
+static void cmd_cprog(int slot, int n) { static uint32_t bank[64]; if (slot < 0 || slot > 63 || n < 0 || n > 4) { Serial.println("cprog <slot 0..63> [units 1..4, default all]"); return; } if (!tabread(7, 64, bank)) return;
+  bool ok = cprog(slot, n, bank, slot + (n ? n : 4) <= 64, 1); Serial.printf("units programmed from slot %d: %s\n", slot, ok ? "ok" : "REFUSED or unexpected status"); }
+static void cmd_capply(int unit, int slot) { static uint32_t bank[64]; if (unit < 0 || unit > 3 || slot < 0 || slot > 63) { Serial.println("capply <unit 0..3> <slot 0..63>"); return; } if (!tabread(7, 64, bank)) return;
+  Serial.printf("unit %d set from slot %d (config %08lX): %s\n", unit, slot, (unsigned long)bank[slot], capply1(unit, slot, bank, 1) ? "ok" : "FAILED"); }
+static void cmd_crun() { int bad = crun(1); Serial.println(bad == 0 ? "ALL 16 EQUAL THE CHAIN MODEL" : bad < 0 ? "link problem" : "DIFFERENCES"); }
+static void cmd_ctest() {
+  static uint32_t saved[64], zeros[64]; int fails = 0; cfill(); if (!tabread(7, 64, saved)) return;
+  for (int k = 0; k < 5; k++) { bool ok = cprog(4 * k, 4, saved, true, 0); int bad = ok ? crun(0) : -1; Serial.printf("program %c: %s\n", CPNAME[k], (ok && bad == 0) ? "ok" : "FAILED"); if (!ok || bad) fails++; }
+  bool ok = cprog(0, 2, saved, true, 0); int bad = ok ? crun(0) : -1; Serial.printf("two units from slot 0 (rest untouched, E left units 2 and 3 bypassed): %s\n", (ok && bad == 0) ? "ok" : "FAILED"); if (!ok || bad) fails++;
+  ok = capply1(2, 20, saved, 0); bad = ok ? crun(0) : -1; Serial.printf("unit 2 alone set to shift right (slot 20): %s\n", (ok && bad == 0) ? "ok" : "FAILED"); if (!ok || bad) fails++;
+  ok = cprog(62, 4, saved, false, 0); bad = ok ? crun(0) : -1; Serial.printf("program past slot 63 refused, chain unchanged: %s\n", (ok && bad == 0) ? "ok" : "FAILED"); if (!ok || bad) fails++;
+  for (int i = 0; i < 64; i++) zeros[i] = 0; bank_load(zeros); ok = cprog(0, 4, zeros, true, 0); bad = ok ? crun(0) : -1; Serial.printf("bank cleared, program from slot 0: units are plain adds: %s\n", (ok && bad == 0) ? "ok" : "FAILED"); if (!ok || bad) fails++;
+  bank_load(saved); ok = cprog(0, 4, saved, true, 0); bad = ok ? crun(0) : -1; Serial.printf("bank loaded back, program A again: %s\n", (ok && bad == 0) ? "ok" : "FAILED"); if (!ok || bad) fails++;
+  Serial.println(fails == 0 ? "CHAIN TEST PASSED" : "CHAIN TEST FAILED"); }
+//==== END CHAIN COMMANDS ====
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | ufill | uapply <slot> | urun <slot> | utest | rsave <1..7> [count] | rload <1..7> [z] | rcheck <1..7> | rbreak <1..7> <c|m|g|t|s> | tabsave <1..7> [count] | tabload <1..7> | tabcheck <1..7> [count] | tabfill <1..7> [count] | tabclear <1..7> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | ufill | uapply <slot> | urun <slot> | utest | cfill | cprog <slot> [n] | capply <unit> <slot> | crun | ctest | rsave <1..7> [count] | rload <1..7> [z] | rcheck <1..7> | rbreak <1..7> <c|m|g|t|s> | tabsave <1..7> [count] | tabload <1..7> | tabcheck <1..7> [count] | tabfill <1..7> [count] | tabclear <1..7> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
@@ -270,6 +318,9 @@ void loop() {
       else if (line.startsWith("rcheck ")) cmd_rcheck(line.substring(7).toInt());
       else if (line.startsWith("rbreak ")) { int sp = line.substring(7).toInt(); cmd_rbreak(sp, tolower(line.charAt(9))); }
       else if (line == "ufill") cmd_ufill(); else if (line == "utest") cmd_utest();
+      else if (line == "cfill") cfill(); else if (line == "crun") cmd_crun(); else if (line == "ctest") cmd_ctest();
+      else if (line.startsWith("cprog ")) { int sl = 0, n = 0; sscanf(line.c_str() + 6, "%d %d", &sl, &n); cmd_cprog(sl, n); }
+      else if (line.startsWith("capply ")) { int un = 0, sl = 0; sscanf(line.c_str() + 7, "%d %d", &un, &sl); cmd_capply(un, sl); }
       else if (line.startsWith("uapply ")) cmd_uapply(line.substring(7).toInt());
       else if (line.startsWith("urun ")) cmd_urun(line.substring(5).toInt());
       else if (line == "jtest") cmd_jtest(); else if (line == "ls") cmd_ls();
