@@ -253,19 +253,20 @@ static void cfill() { static uint32_t b[64]; uint32_t BY = cw(0, 0, 0, 0, 0, 1);
   for (int k = 0; k < 5; k++) for (int u = 0; u < 4; u++) b[4 * k + u] = P[k][u];
   b[20] = cw(6, 1, 0, 0, 1, 0);                                  // slot 20: shift right by 1
   bank_load(b); Serial.println("pattern bank: slots 0-3 program A, 4-7 B, 8-11 C (all bypass), 12-15 D, 16-19 E, slot 20 shift right 1; the rest 0"); }
+static uint32_t cseen[4] = { 0, 0, 0, 0 };
+static void cnote(int, int u, uint32_t st) { if (st == cseen[u]) return; cseen[u] = st; if (st) Serial.printf("  note: unit %d now reports fault %lu, lost %lu, region resets %lu (sticky counts since its last reset): a word was stuck inside it and was dropped when the gate reset it; the setting was applied\n", u, (unsigned long)((st >> 2) & 1), (unsigned long)((st >> 16) & 255), (unsigned long)((st >> 24) & 255)); else Serial.printf("  note: unit %d status is clean again\n", u); }
 // PROGRAM n units (0 = all four) from consecutive bank slots; true when the status words are as expected (units programmed: 0; the rest untouched)
 static bool cprog(int slot, int n, const uint32_t* bank, bool expect_ok, int verbose) {
   uint32_t sent[8], st[8]; for (int i = 0; i < 8; i++) sent[i] = 0xDEADBEEFUL; wr_words(400, sent, 8); ucmd2(3, 400, 0, n, slot); if (!wait_idle()) { Serial.println("  no end of command"); return false; } rd_words(400, st, 8);
-  int nn = n ? n : 4; bool ok = true, warn = false;
-  // status word of a stage: [1:0] cfg_err, [2] fault, [3] dead, [23:16] lost words, [31:24] region resets (the layout of hexn_unit_v2.v). 0 is clean. cfg_err 0 and dead 0 with fault / lost / resets set means the unit WAS set but dropped a stale word that was still inside it (for example left by an earlier run that timed out): accepted with a warning, and crun checks the real behaviour.
-  for (int i = 0; i < 8; i++) { if (i < nn && expect_ok) { if ((st[i] & 0xBUL) != 0) ok = false; else if (st[i]) warn = true; } else if (st[i] != 0xDEADBEEFUL) ok = false; }
-  if (ok && warn) Serial.println("  note: a unit reported a fault, a lost word and a region reset: a stale word was inside it and was dropped; the new setting was applied");
+  int nn = n ? n : 4; bool ok = true;
+  // status word of a stage (hexn_unit_v2.v): [1:0] cfg_err, [2] fault, [3] dead, [23:16] lost words, [31:24] region resets. fault, lost and resets are STICKY: they count events since the unit was last reset (power-up or a new bitstream) and are not cleared by setting the unit again, so the same value on every later read is ONE old event, not a new one. cfg_err 0 and dead 0 means the setting was applied.
+  for (int i = 0; i < 8; i++) { if (i < nn && expect_ok) { if ((st[i] & 0xBUL) != 0) ok = false; else cnote(0, i, st[i]); } else if (st[i] != 0xDEADBEEFUL) ok = false; }
   if (verbose) Serial.printf("  status words %08lX %08lX %08lX %08lX\n", (unsigned long)st[0], (unsigned long)st[1], (unsigned long)st[2], (unsigned long)st[3]);
   if (ok && expect_ok) for (int u = 0; u < nn; u++) chn.config(u, bank[slot + u]);
   return ok; }
 static bool capply1(int unit, int slot, const uint32_t* bank, int verbose) {
   uint32_t sent[4] = { 0xDEADBEEFUL, 0xDEADBEEFUL, 0xDEADBEEFUL, 0xDEADBEEFUL }, st[4]; wr_words(400, sent, 4); ucmd2(1, 400, 0, unit, slot); if (!wait_idle()) { Serial.println("  no end of command"); return false; } rd_words(400, st, 4);
-  bool ok = st[0] == 0 && st[1] == 0xDEADBEEFUL; if (verbose) Serial.printf("  status word %08lX\n", (unsigned long)st[0]); if (ok) chn.config(unit, bank[slot]); return ok; }
+  bool ok = (st[0] & 0xBUL) == 0 && st[1] == 0xDEADBEEFUL; if (ok) cnote(0, unit, st[0]); if (verbose) Serial.printf("  status word %08lX\n", (unsigned long)st[0]); if (ok) chn.config(unit, bank[slot]); return ok; }
 // run 16 fixed pairs {a, x} through the chain and compare with the chain model; differences, -1 on a link problem
 static int crun(int verbose) {
   static uint32_t ops[32], res[20]; uint32_t M = (1UL << 18) - 1;
