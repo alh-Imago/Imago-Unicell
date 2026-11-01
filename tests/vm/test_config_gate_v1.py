@@ -114,3 +114,41 @@ def test_arith_block_v5_tests_can_fail(tmp_path, a, b):
     src = open(f"{S}/arith_block_v5.v").read(); assert a in src
     p = tmp_path / "blk_mut.v"; p.write_text(src.replace(a, b))
     assert "ARITH BLOCK V5 FAILED" in _v5(tmp_path, str(p))
+
+
+@pytest.mark.parametrize("scen", [1, 2, 3, 4])
+def test_join_stage(tmp_path, scen):
+    """join_v1, the two-arrival front stage. 1 pair mode, operands arriving in random order (A first, B first), a lone operand never fires; 2 sticky B (the nano-cell behaviour: B is held and pairs with every later A); 3 join -> gate_v3 -> block v5 (nano XOR, sticky B) equals the REAL nano_cell_v4s fed load_hold / flow in the same order; 4 a new B offered while a pair waits must not change that pair."""
+    o = sim(tmp_path, [f"{S}/join_v1.v", f"{S}/tb_join_v1.v", f"{S}/config_gate_v3.v", f"{S}/arith_block_v5.v", f"{S}/nano_cell_v4s.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"], [f"tb_join_v1.SCEN={scen}"])
+    assert f"JOIN SCEN {scen} PASS" in o and "FAIL" not in o, o
+
+
+@pytest.mark.parametrize("a,b,scen", [("assign out_valid = have_a & have_b;", "assign out_valid = have_a;", 1),
+                                      ("if (!STICKY_B) have_b <= 1'b0;", "have_b <= 1'b0;", 2),
+                                      ("(STICKY_B ? ~out_valid : ~have_b)", "1'b1", 4)])
+def test_join_tests_can_fail(tmp_path, a, b, scen):
+    """Mutation checks: firing on one operand, clearing the held B after use, overwriting B under a waiting pair - each must fail."""
+    src = open(f"{S}/join_v1.v").read(); assert a in src
+    p = tmp_path / "join_mut.v"; p.write_text(src.replace(a, b))
+    o = sim(tmp_path, [str(p), f"{S}/tb_join_v1.v", f"{S}/config_gate_v3.v", f"{S}/arith_block_v5.v", f"{S}/nano_cell_v4s.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"], [f"tb_join_v1.SCEN={scen}"])
+    assert f"JOIN SCEN {scen} FAILED" in o, o
+
+
+def test_nano_truth_table_cell_is_identical(tmp_path):
+    """nano_cell_v4s_tt (4-bit truth table decoded once) equals the original nano_cell_v4s every clock for all 1,024 topology words; a wrong table entry is caught."""
+    files = [f"{S}/nano_cell_v4s.v", f"{S}/nano_cell_v4s_tt.v", f"{S}/tb_nano_tt_v1.v"]
+    assert "NANO TT EQUIVALENT" in sim(tmp_path, files)
+    src = open(f"{S}/nano_cell_v4s_tt.v").read(); a = "10'h0BC: tt = 4'b0110;"; assert a in src
+    p = tmp_path / "ntt_mut.v"; p.write_text(src.replace(a, "10'h0BC: tt = 4'b0111;"))
+    assert "NANO TT DIFFERS" in sim(tmp_path, [files[0], str(p), files[2]])
+
+
+def test_mask_is_a_special_case_of_the_nano_and(tmp_path):
+    """arith_block_v6 mode 7 with the held operand taken from the config (cfg_data[26]) and topology AND equals the REAL mask_cell_v4s for all 256 nibble masks x mask_en 0/1; the v5 test still passes on v6; inverted keep flags are caught."""
+    files = [f"{S}/arith_block_v6.v", f"{S}/tb_arith_block_v6.v", f"{S}/mask_cell_v4s.v", f"{S}/nano_cell_v4s.v", f"{F}/nibble_mask_addon_v1.v", f"{F}/adder_v1.v"]
+    assert "ALL ARITH BLOCK V6 TESTS PASS" in sim(tmp_path, files)
+    src = open(f"{S}/arith_block_v6.v").read(); a = "wire [31:0] nh = heldsrc ? keep_exp : in_b;"; assert a in src
+    p = tmp_path / "v6_mut.v"; p.write_text(src.replace(a, "wire [31:0] nh = heldsrc ? ~keep_exp : in_b;"))
+    assert "ARITH BLOCK V6 FAILED" in sim(tmp_path, [str(p)] + files[1:])
+    t5 = open(f"{S}/tb_arith_block_v5.v").read().replace("arith_block_v5", "arith_block_v6"); q = tmp_path / "tb5on6.v"; q.write_text(t5)
+    assert "ALL ARITH BLOCK V5 TESTS PASS" in sim(tmp_path, [f"{S}/arith_block_v6.v", str(q), f"{S}/nano_cell_v4s.v", f"{F}/adder_v1.v"])
