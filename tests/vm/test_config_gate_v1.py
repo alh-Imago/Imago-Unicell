@@ -48,3 +48,28 @@ def test_gate_in_front_of_block(tmp_path):
     assert "ALL GATE+BLOCK TESTS PASS (1500 words" in o and "PHASE2 no-result word: admitted=1" in o and "cfg_err=01" in o, o
     c = sim(tmp_path, files(), ["tb_gate_block_v1.GATED=0"])
     assert "CONTROL SHOWS CORRUPTION" in c, c
+
+
+def test_arith_block_v4_answers_every_word(tmp_path):
+    """v4 (Alan, 03:04): every word gets a result. The v4 test checks the valid pulse for every word incl. an accumulate word with neither pulse; the same test on v3 must report NO ANSWER."""
+    o = sim(tmp_path, [f"{S}/arith_block_v4.v", f"{S}/tb_arith_block_v4.v", f"{S}/adder_cell_v4s.v", f"{S}/accumulator_cell_v4s.v", f"{F}/adder_v1.v"])
+    assert "ALL ARITH BLOCK V4 TESTS PASS" in o and "NO ANSWER" not in o, o
+    t = open(f"{S}/tb_arith_block_v4.v").read().replace("arith_block_v4", "arith_block_v3"); p = tmp_path / "tb_v3_on_v4.v"; p.write_text(t)
+    o3 = sim(tmp_path, [f"{S}/arith_block_v3.v", str(p), f"{S}/adder_cell_v4s.v", f"{S}/accumulator_cell_v4s.v", f"{F}/adder_v1.v"])
+    assert "NO ANSWER" in o3, o3
+
+
+def test_gate_v2_block_v4_and_watchdog(tmp_path):
+    """Same random stream as the v1 test with config_gate_v2 + arith_block_v4: all words right; phase 2 a no-pulse word no longer stalls (admitted=2); phase 3 a dead region raises `fault` after the WATCHDOG (0 at 60 clocks, 1 at 180). Control (no gate) still corrupts."""
+    files = [f"{S}/config_gate_v2.v", f"{S}/arith_block_v4.v", f"{S}/tb_gate_block_v2.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"]
+    o = sim(tmp_path, files, ["tb_gate_block_v2.GATED=1"])
+    assert "ALL GATE+BLOCK TESTS PASS (1500 words" in o and "PHASE2 no-pulse word: admitted=2" in o, o
+    assert "60 clocks: fault=0" in o and "180 clocks: fault=1" in o, o
+    assert "CONTROL SHOWS CORRUPTION" in sim(tmp_path, files, ["tb_gate_block_v2.GATED=0"])
+
+
+@pytest.mark.parametrize("gated", [1, 0])
+def test_bridge_throughput_is_five_clocks_per_word(tmp_path, gated):
+    """Measured: one word through producer -> (gate or plain bridge) -> adder cell -> sub_to_flex -> consumer takes 5 clocks (the bridge waits for each result to be taken); the adder cell alone takes a word every clock. The idle gate adds nothing."""
+    o = sim(tmp_path, [f"{S}/config_gate_v1.v", f"{S}/tb_gate_throughput_v1.v", f"{S}/adder_cell_v4s.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"], [f"tb_gate_throughput_v1.GATED={gated}"])
+    assert "200 words, 200 results" in o and "= 5 clocks per word" in o, o
