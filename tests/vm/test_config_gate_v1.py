@@ -73,3 +73,23 @@ def test_bridge_throughput_is_five_clocks_per_word(tmp_path, gated):
     """Measured: one word through producer -> (gate or plain bridge) -> adder cell -> sub_to_flex -> consumer takes 5 clocks (the bridge waits for each result to be taken); the adder cell alone takes a word every clock. The idle gate adds nothing."""
     o = sim(tmp_path, [f"{S}/config_gate_v1.v", f"{S}/tb_gate_throughput_v1.v", f"{S}/adder_cell_v4s.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"], [f"tb_gate_throughput_v1.GATED={gated}"])
     assert "200 words, 200 results" in o and "= 5 clocks per word" in o, o
+
+
+@pytest.mark.parametrize("scen,maxr", [(1, 2), (2, 1), (3, 1), (4, 2), (5, 2)])
+def test_chain_of_three_units_with_fault_policy(tmp_path, scen, maxr):
+    """Chain of three gate_v3 + arith_block_v4 + sub_to_flex units, joined by the flex hand-off, each stage checked against a model. 1 transient fault recovered (1 word lost, counted); 2 two far-apart faults recovered with MAX_RETRY=1 (retries forgiven); 3 persistent fault -> dead, neighbours untouched, upstream held; 4 a downstream stall longer than the watchdog causes NO fault or reset; 5 clean run with ~70 random reconfigurations of the middle unit."""
+    o = sim(tmp_path, [f"{S}/config_gate_v3.v", f"{S}/arith_block_v4.v", f"{S}/tb_chain_v1.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"], [f"tb_chain_v1.SCEN={scen}", f"tb_chain_v1.MAXR={maxr}"])
+    assert f"CHAIN SCEN {scen} PASS" in o and "FAIL" not in o, o
+
+
+@pytest.mark.parametrize("mut,scen,maxr", [("watchdog ignores a present result", 4, 2), ("no config replay", 1, 2), ("retries never forgiven", 2, 1), ("lost word not counted", 1, 2)])
+def test_chain_tests_can_fail(tmp_path, mut, scen, maxr):
+    """Mutation checks: each deliberate break of config_gate_v3 must make its chain scenario FAIL."""
+    src = open(f"{S}/config_gate_v3.v").read()
+    subs = {"watchdog ignores a present result": (" && !res_valid && (wd >= WATCHDOG);", " && (wd >= WATCHDOG);"),
+            "no config replay": ("if (have_cfg) state <= REC_CFG; else state <= OPEN;", "state <= OPEN;"),
+            "retries never forgiven": ("if (good >= GOOD_WORDS - 1)", "if (1'b0)"),
+            "lost word not counted": ("resets <= resets + 8'd1; lost <= lost + 8'd1;", "resets <= resets + 8'd1;")}
+    a, b = subs[mut]; assert a in src; p = tmp_path / "gate_mut.v"; p.write_text(src.replace(a, b))
+    o = sim(tmp_path, [str(p), f"{S}/arith_block_v4.v", f"{S}/tb_chain_v1.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"], [f"tb_chain_v1.SCEN={scen}", f"tb_chain_v1.MAXR={maxr}"])
+    assert f"CHAIN SCEN {scen} FAILED" in o, o
