@@ -29,3 +29,22 @@ def test_arith_block_v2(tmp_path):
     """v2: add, sub, ge, 3-way compare, accumulate; shared and naive vs the arithmetic, modes 0/1 vs adder_cell_v4s, accumulate vs the real accumulator_cell_v4s (continuous mode, 32-bit)."""
     o = sim(tmp_path, [f"{S}/arith_block_v2.v", f"{S}/tb_arith_block_v2.v", f"{S}/adder_cell_v4s.v", f"{S}/accumulator_cell_v4s.v", f"{F}/adder_v1.v"])
     assert "ALL ARITH BLOCK V2 TESTS PASS" in o and "MISMATCH" not in o, o
+
+
+def test_arith_block_v3_fix(tmp_path):
+    """v3 fixes a v2 bug found by the combined test: accumulate pulses were not qualified by valid_in. The v3 test leaves in_a STALE after each pulse; the same test must FAIL on v2."""
+    o = sim(tmp_path, [f"{S}/arith_block_v3.v", f"{S}/tb_arith_block_v3.v", f"{S}/adder_cell_v4s.v", f"{S}/accumulator_cell_v4s.v", f"{F}/adder_v1.v"])
+    assert "ALL ARITH BLOCK V3 TESTS PASS" in o and "MISMATCH" not in o, o
+    v2tb = open(f"{S}/tb_arith_block_v3.v").read().replace("arith_block_v3", "arith_block_v2")
+    p = tmp_path / "tb_v2_stale.v"; p.write_text(v2tb)
+    o2 = sim(tmp_path, [f"{S}/arith_block_v2.v", str(p), f"{S}/adder_cell_v4s.v", f"{S}/accumulator_cell_v4s.v", f"{F}/adder_v1.v"])
+    assert "FAILED" in o2 and "ALL ARITH" not in o2, o2
+
+
+def test_gate_in_front_of_block(tmp_path):
+    """Random stream of 1500 words with ~440 random reconfiguration requests through config_gate_v1 -> arith_block_v3 -> sub_to_flex_v1. Every word is processed under the config active when it was admitted, none lost, order kept. CONTROL (no gate, config driven straight in): corruption. PHASE 2: a word that yields no result stalls the one-word bridge; a later request times out (cfg_err[0])."""
+    files = lambda: [f"{S}/config_gate_v1.v", f"{S}/arith_block_v3.v", f"{S}/tb_gate_block_v1.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"]
+    o = sim(tmp_path, files(), ["tb_gate_block_v1.GATED=1"])
+    assert "ALL GATE+BLOCK TESTS PASS (1500 words" in o and "PHASE2 no-result word: admitted=1" in o and "cfg_err=01" in o, o
+    c = sim(tmp_path, files(), ["tb_gate_block_v1.GATED=0"])
+    assert "CONTROL SHOWS CORRUPTION" in c, c
