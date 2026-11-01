@@ -20,6 +20,7 @@
 //                             then `jclear` and `jload Z A`: the unit should refuse (status 3, 1 or 2) and `jcheck` / a dump should show judge A still empty.
 //   jclear                    clear both judges (tables and bias)
 //   jtest                     self test: dump A, clear, restore from the dump, dump again, compare word for word (needs a judge with weights loaded first).
+//   pintest                   wiggle CS, MOSI and SCLK by hand (no SPI): on the Tang idle LEDs 1 (CS), 4 (MOSI) and 2 (clock) must light and STAY lit (they latch until the bitstream is reloaded). Works even when the unit is not answering.
 //   ls                        list the stored files.
 #include <Arduino.h>
 #include <SPI.h>
@@ -153,16 +154,21 @@ static void cmd_jscorecheck() {
   int n = get_file("/score.bin", buf, 2 * NROWS + 4); if (n != 2 * NROWS) { Serial.printf("/score.bin: %d words, want %d (run jsnap first)\n", n, 2 * NROWS); return; }
   if (!score_run(buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < 2 * NROWS; i++) { if (buf[i] != buf2[i]) bad++; if (buf2[i]) nz++; }
   Serial.printf("scored again: %d non-zero result words; %d of %d differ from /score.bin (want 0)\n", nz, bad, 2 * NROWS); Serial.println(bad == 0 ? (nz == 0 ? "SAME, BUT ALL ZERO: this proves nothing (judges empty or the unit is not scoring)" : "SAME ANSWERS AS BEFORE") : "ANSWERS DIFFER FROM THE SNAPSHOT"); }
+static void cmd_pintest() {
+  SPI.end(); pinMode(PIN_SCLK, OUTPUT); pinMode(PIN_MOSI, OUTPUT); digitalWrite(PIN_SCLK, LOW); digitalWrite(PIN_MOSI, LOW);
+  digitalWrite(PIN_CS, LOW); delay(100); digitalWrite(PIN_MOSI, HIGH); delay(100); digitalWrite(PIN_SCLK, HIGH); delay(100);
+  digitalWrite(PIN_SCLK, LOW); digitalWrite(PIN_MOSI, LOW); digitalWrite(PIN_CS, HIGH); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
+  Serial.println("pintest done: CS (IO5) was pulled low, MOSI (IO23) high, SCLK (IO18) pulsed. Look at the Tang LEDs 1, 4 and 2 (they stay lit)."); }
 static void cmd_ls() { File d = LittleFS.open("/"); File f = d.openNextFile(); while (f) { Serial.printf("%s  %u bytes\n", f.name(), (unsigned)f.size()); f = d.openNextFile(); } }
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | tabcheck <1..5> [count] | tabclear <1..5> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | tabcheck <1..5> [count] | tabclear <1..5> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
     if (c == '\n' || c == '\r') { line.trim();
-      if (line.length() && line != "id" && line != "ls" && rd_reg(0) != UNIT_ID_V2) Serial.printf("the unit is not answering (ID read 0x%08lX, want 0x57320002): check the Tang has the v8 bitstream loaded and the wiring; command ignored\n", (unsigned long)rd_reg(0));
+      if (line.length() && line != "id" && line != "ls" && line != "pintest" && rd_reg(0) != UNIT_ID_V2) Serial.printf("the unit is not answering (ID read 0x%08lX, want 0x57320002): check the Tang has the v8 bitstream loaded and the wiring; command ignored\n", (unsigned long)rd_reg(0));
       else if (line == "id") cmd_id(); else if (line == "status") Serial.printf("status 0x%08lX\n", (unsigned long)rd_reg(10));
       else if (line.startsWith("tabsave ")) { int sp = line.substring(8).toInt(); int sx = line.indexOf(' ', 8); cmd_tabsave(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
       else if (line.startsWith("tabload ")) cmd_tabload(line.substring(8).toInt());
@@ -176,6 +182,8 @@ void loop() {
       else if (line.startsWith("tabclear ")) { int sp = line.substring(9).toInt(); int sx = line.indexOf(' ', 9); cmd_tabclear(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
       else if (line.startsWith("jcompare ")) cmd_jcompare(toupper(line.charAt(9)), toupper(line.charAt(11)));
       else if (line == "jsnap") cmd_jsnap(); else if (line == "jscorecheck") cmd_jscorecheck();
+      else if (line == "pintest") cmd_pintest();
+      else if (line == "pintest") cmd_pintest();
       else if (line == "jtest") cmd_jtest(); else if (line == "ls") cmd_ls();
       line = ""; } else line += c; }
 }
