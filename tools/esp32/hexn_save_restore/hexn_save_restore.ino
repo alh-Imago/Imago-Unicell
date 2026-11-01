@@ -10,6 +10,10 @@
 //   jload <A|B> [A|B]         restore /judge<first>.bin into the judge named by the optional second letter (default the same). The unit checks the whole record
 //                             first; a refused record is reported and the judge is not touched. Status 0 ok, 1 bad magic, 2 wrong array size, 3 bad checksum, 4 order wrong or truncated.
 //   tabcheck <space> [count]  read the table space from the card now and compare it word for word with /tab<space>.bin (use after tabload).
+//   tabclear <space> [count]  write zeros into the card's table space (load path), so tabcheck should then DIFFER from the flash copy; tabload puts it back and tabcheck matches again.
+//   jcompare <A|B> <A|B>      dump both judges now and compare geometry, entries and bias (not the judge number or checksum) word for word.
+//   jsnap                     score 16 fixed test rows through BOTH judges and store the 32 result words in flash (/score.bin).
+//   jscorecheck               score the same rows again and compare with /score.bin: after a restore the answers must be identical.
 //   jfill <A|B>               put a known test table (192 weights and a bias, different for A and B) into the judge, so jtest has something to save.
 //   jcheck <A|B>              dump the judge now and compare it word for word with the file /judge<A|B>.bin in flash (use after jload, or after a power cycle).
 //   jbreak <A|B> <c|m|g|o>   make a DAMAGED copy of the stored record as /judgeZ.bin (the real file is not touched): c = one weight bit flipped (checksum now wrong), m = wrong magic, g = wrong array size, o = two body words swapped (checksum made right in both, so only that fault is present).
@@ -129,11 +133,31 @@ static void cmd_jbreak(char j, char how) {
   else { Serial.println("use c, m, g or o"); return; }
   if (how != 'c') { uint32_t sum = 0; for (int i = 0; i < REC_N - 1; i++) sum += buf[i]; buf[REC_N - 1] = sum; }   // keep the checksum right so only one fault is present
   Serial.printf("damaged copy (%c) stored as /judgeZ.bin -> %s. Now: jclear, then jload Z A\n", how, put_file("/judgeZ.bin", buf, REC_N) ? "ok" : "FAILED"); }
+static void cmd_tabclear(int sp, int count) {
+  if (!tab_args(sp, count)) return;
+  static uint32_t z[1000]; for (int i = 0; i < count; i++) z[i] = 0;
+  wr_words(0, z, count); wr_reg(17, ((uint32_t)sp << 28) | (0UL << 16) | (uint32_t)count); wr_reg(19, ++seq); delay(2);
+  if (wait_idle()) Serial.printf("space %d: %d zero words loaded into the card's table\n", sp, count); }
+static void cmd_jcompare(char a, char b) {
+  if (!jdump(a, buf) || !jdump(b, buf2)) return; int bad = 0, nz = 0; for (int i = 1; i < REC_N - 1; i++) { if (buf[i] != buf2[i]) bad++; if (buf[i] & 0xFF) nz++; }
+  Serial.printf("judge %c vs judge %c: %d of %d words differ (geometry, entries, bias); %c has %d non-zero words\n", a, b, bad, REC_N - 2, a, nz); Serial.println(bad == 0 ? "THE JUDGES MATCH" : "THE JUDGES DIFFER"); }
+static const int NROWS = 16;
+static bool score_run(uint32_t* res) {                                      // CONTROL word 1 = score both judges; results alternate A, B per row
+  static uint32_t w[NROWS + 1]; w[0] = (14UL << 28) | 1UL;
+  for (int r = 0; r < NROWS; r++) { uint32_t v = 0; for (int i = 0; i < 8; i++) v |= (uint32_t)((r * 5 + i * 3 + (r >> 2)) % 12) << (4 * i); w[1 + r] = v; }
+  if (!run_stream(w, NROWS + 1, 300)) return false; rd_words(300, res, 2 * NROWS); return true; }
+static void cmd_jsnap() {
+  if (!score_run(buf)) return; int nz = 0; for (int i = 0; i < 2 * NROWS; i++) if (buf[i]) nz++;
+  Serial.printf("scored %d rows through both judges: %d non-zero result words; first four %08lX %08lX %08lX %08lX; stored /score.bin -> %s\n", NROWS, nz, (unsigned long)buf[0], (unsigned long)buf[1], (unsigned long)buf[2], (unsigned long)buf[3], put_file("/score.bin", buf, 2 * NROWS) ? "ok" : "FAILED"); }
+static void cmd_jscorecheck() {
+  int n = get_file("/score.bin", buf, 2 * NROWS + 4); if (n != 2 * NROWS) { Serial.printf("/score.bin: %d words, want %d (run jsnap first)\n", n, 2 * NROWS); return; }
+  if (!score_run(buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < 2 * NROWS; i++) { if (buf[i] != buf2[i]) bad++; if (buf2[i]) nz++; }
+  Serial.printf("scored again: %d non-zero result words; %d of %d differ from /score.bin (want 0)\n", nz, bad, 2 * NROWS); Serial.println(bad == 0 ? "SAME ANSWERS AS BEFORE" : "ANSWERS DIFFER FROM THE SNAPSHOT"); }
 static void cmd_ls() { File d = LittleFS.open("/"); File f = d.openNextFile(); while (f) { Serial.printf("%s  %u bytes\n", f.name(), (unsigned)f.size()); f = d.openNextFile(); } }
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | tabcheck <1..5> [count] | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | tabcheck <1..5> [count] | tabclear <1..5> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
@@ -148,6 +172,9 @@ void loop() {
       else if (line.startsWith("jfill ")) cmd_jfill(toupper(line.charAt(6)));
       else if (line.startsWith("jcheck ")) cmd_jcheck(toupper(line.charAt(7)));
       else if (line.startsWith("jbreak ")) cmd_jbreak(toupper(line.charAt(7)), tolower(line.charAt(9)));
+      else if (line.startsWith("tabclear ")) { int sp = line.substring(9).toInt(); int sx = line.indexOf(' ', 9); cmd_tabclear(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
+      else if (line.startsWith("jcompare ")) cmd_jcompare(toupper(line.charAt(9)), toupper(line.charAt(11)));
+      else if (line == "jsnap") cmd_jsnap(); else if (line == "jscorecheck") cmd_jscorecheck();
       else if (line == "jtest") cmd_jtest(); else if (line == "ls") cmd_ls();
       line = ""; } else line += c; }
 }
