@@ -23,3 +23,9 @@ def test_config_gate(tmp_path, settle):
 def test_arith_block(tmp_path):
     o = sim(tmp_path, [f"{S}/arith_block_v1.v", f"{S}/tb_arith_block_v1.v", f"{S}/adder_cell_v4s.v", f"{F}/adder_v1.v"])
     assert "ALL ARITH BLOCK TESTS PASS" in o and "MISMATCH" not in o, o
+
+
+def test_arith_block_v2(tmp_path):
+    """v2: add, sub, ge, 3-way compare, accumulate; shared and naive vs the arithmetic, modes 0/1 vs adder_cell_v4s, accumulate vs the real accumulator_cell_v4s (continuous mode, 32-bit)."""
+    o = sim(tmp_path, [f"{S}/arith_block_v2.v", f"{S}/tb_arith_block_v2.v", f"{S}/adder_cell_v4s.v", f"{S}/accumulator_cell_v4s.v", f"{F}/adder_v1.v"])
+    assert "ALL ARITH BLOCK V2 TESTS PASS" in o and "MISMATCH" not in o, o
