@@ -10,6 +10,7 @@
 //   jload <A|B> [A|B]         restore /judge<first>.bin into the judge named by the optional second letter (default the same). The unit checks the whole record
 //                             first; a refused record is reported and the judge is not touched. Status 0 ok, 1 bad magic, 2 wrong array size, 3 bad checksum, 4 order wrong or truncated.
 //   jfill <A|B>               put a known test table (192 weights and a bias, different for A and B) into the judge, so jtest has something to save.
+//   jcheck <A|B>              dump the judge now and compare it word for word with the file /judge<A|B>.bin in flash (use after jload, or after a power cycle).
 //   jclear                    clear both judges (tables and bias)
 //   jtest                     self test: dump A, clear, restore from the dump, dump again, compare word for word (needs a judge with weights loaded first).
 //   ls                        list the stored files.
@@ -99,11 +100,17 @@ static void cmd_jfill(char j) {                                           // cla
   for (int c = 0; c < 2; c++) for (int sn = 0; sn < 8; sn++) for (int b = 0; b < 12; b++) { int wt = ((sn * 7 + b * 3 + c * 5 + k) % 101) - 50; w[n++] = (12UL << 28) | ((uint32_t)c << 24) | ((uint32_t)((sn << 4) | b) << 16) | (uint32_t)(wt & 0xFF); }
   w[n++] = (13UL << 28) | (uint32_t)((j == 'B') ? 0xFFEF : 25); w[n++] = (14UL << 28) | 1UL;
   if (run_stream(w, n, 300)) Serial.printf("judge %c filled with the test table (%d words)\n", j, n); }
+static void cmd_jcheck(char j) {
+  char nm[24]; snprintf(nm, sizeof nm, "/judge%c.bin", j); int n = get_file(nm, buf, REC_N + 4);
+  if (n != REC_N) { Serial.printf("%s: %d words, want %d\n", nm, n, REC_N); return; }
+  if (!jdump(j, buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < REC_N; i++) if (buf[i] != buf2[i]) bad++;
+  for (int i = 2; i < REC_N - 1; i++) if (buf2[i] & 0xFF) nz++;
+  Serial.printf("judge %c now has %d non-zero entries; %d of %d words differ from %s (want 0)\n", j, nz, bad, REC_N, nm); Serial.println(bad == 0 ? "MATCHES THE FLASH COPY" : "DIFFERS FROM THE FLASH COPY"); }
 static void cmd_ls() { File d = LittleFS.open("/"); File f = d.openNextFile(); while (f) { Serial.printf("%s  %u bytes\n", f.name(), (unsigned)f.size()); f = d.openNextFile(); } }
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jclear | jtest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..5> [count] | tabload <1..5> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jclear | jtest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
@@ -115,6 +122,7 @@ void loop() {
       else if (line.startsWith("jload ")) { char a = toupper(line.charAt(6)); char b = line.length() > 8 ? toupper(line.charAt(8)) : a; cmd_jload(a, b); }
       else if (line == "jclear") { uint32_t w[1] = { CLEAR_BOTH }; run_stream(w, 1, 300); Serial.println("both judges cleared"); }
       else if (line.startsWith("jfill ")) cmd_jfill(toupper(line.charAt(6)));
+      else if (line.startsWith("jcheck ")) cmd_jcheck(toupper(line.charAt(7)));
       else if (line == "jtest") cmd_jtest(); else if (line == "ls") cmd_ls();
       line = ""; } else line += c; }
 }
