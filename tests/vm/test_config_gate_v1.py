@@ -93,3 +93,24 @@ def test_chain_tests_can_fail(tmp_path, mut, scen, maxr):
     a, b = subs[mut]; assert a in src; p = tmp_path / "gate_mut.v"; p.write_text(src.replace(a, b))
     o = sim(tmp_path, [str(p), f"{S}/arith_block_v4.v", f"{S}/tb_chain_v1.v", f"{S}/flex_sub_bridge_v1.v", f"{F}/adder_v1.v"], [f"tb_chain_v1.SCEN={scen}", f"tb_chain_v1.MAXR={maxr}"])
     assert f"CHAIN SCEN {scen} FAILED" in o, o
+
+
+def _v5(tmp_path, block_src=None, tb_extra=()):
+    blk = block_src or f"{S}/arith_block_v5.v"
+    return sim(tmp_path, [blk, f"{S}/tb_arith_block_v5.v", f"{S}/nano_cell_v4s.v", f"{F}/adder_v1.v"])
+
+
+def test_arith_block_v5_shift_and_nano(tmp_path):
+    """v5 adds an 18-bit shift left/right (mode 5/6, amount in_b[4:0], 18 or more gives 0) and the nano logic (mode 7: the 12 topologies of nano_cell_v4s; FLOW = in_a, HELD = in_b). Shared, naive and the truth-table nano variant all equal the reference; nano equals the REAL nano_cell_v4s for all 12 topologies; every word is answered."""
+    o = _v5(tmp_path)
+    assert "ALL ARITH BLOCK V5 TESTS PASS" in o and "MISMATCH" not in o and "NO ANSWER" not in o, o
+
+
+@pytest.mark.parametrize("a,b", [("wire [17:0] sx = (mode == 3'd6) ? rev_in : in_a[17:0];", "wire [17:0] sx = (mode == 3'd5) ? rev_in : in_a[17:0];"),
+                                 ("10'h0BC: tt = 4'b0110;", "10'h0BC: tt = 4'b1001;"),
+                                 ("wire [17:0] sy = sx << sh;", "wire [17:0] sy = sx << (sh % 18);")])
+def test_arith_block_v5_tests_can_fail(tmp_path, a, b):
+    """Mutation checks: shared shifter direction swapped, XOR truth table wrong, shift amount wrapping instead of clearing at 18 or more - each must fail."""
+    src = open(f"{S}/arith_block_v5.v").read(); assert a in src
+    p = tmp_path / "blk_mut.v"; p.write_text(src.replace(a, b))
+    assert "ARITH BLOCK V5 FAILED" in _v5(tmp_path, str(p))
