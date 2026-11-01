@@ -26,4 +26,8 @@ def test_web_server_end_to_end_on_the_model():
         c, j = call(port, "/api/run", {"files": ["/etc/passwd"], "task": "future", "sensor": "flow", "unit": "none"}); assert c == 400 and "not a listed" in j["error"]
         c, j = call(port, "/api/run", {"files": exr, "task": "rule", "rule": "", "unit": "none"}); assert c == 400 and "choose the task" in j["error"]
         c, j = call(port, "/api/run", {"files": exr, "task": "future", "sensor": "flow", "unit": "real", "port": ""}); assert c == 400 and "port" in j["error"]
+        c, g = call(port, "/api/c4/state"); assert c == 200 and g["status"] == "play" and len(g["moves"]) == 1 and abs(sum(g["next"].values()) + g["human_wins_chance"] - 1.0) < 1e-9
+        c, g = call(port, "/api/c4/move", {"col": g["legal"][0]}); assert c == 200 and (g["status"] == "over" or len(g["moves"]) == 3) and set(g) >= {"board", "next", "reply", "stats", "legal", "win_cells"}
+        c, e = call(port, "/api/c4/move", {"col": 99}); assert c == 400 and "column" in e["error"] or "over" in e["error"]
+        c, g = call(port, "/api/c4/new", {"forget": True}); assert c == 200 and g["status"] == "play" and g["stats"]["games"] == 0
     finally: srv.shutdown()

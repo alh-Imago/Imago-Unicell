@@ -10,8 +10,9 @@ from types import SimpleNamespace
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import numpy as np
-import hexn_intake_v1 as I, hexn_front_unit_v2 as F          # v2 = v1 plus 'first_wrong' and the header warning; v1 itself is untouched
+import hexn_intake_v1 as I, hexn_c4_play_v1 as G4, hexn_front_unit_v2 as F          # v2 = v1 plus 'first_wrong' and the header warning; v1 itself is untouched
 
+GAME = {}; GLOCK = threading.Lock()                                    # the Connect Four game of this page (one player, this PC)
 LOCK = threading.Lock(); UPLOADS = tempfile.mkdtemp(prefix="hexn_web_"); DATA_DIRS = [os.path.join(ROOT, "docs", "hex-n", "data")]
 
 def list_files():
@@ -74,6 +75,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(b))); self.send_header("Cache-Control", "no-store"); self.end_headers(); self.wfile.write(b)
     def do_GET(self):
         if self.path in ("/", "/index.html"): return self.send(200, PAGE.encode(), "text/html; charset=utf-8")
+        if self.path == "/api/c4/state":
+            with GLOCK:
+                if "c4" not in GAME: GAME["c4"] = G4.Game(seed=int(time.time()) % 100000)
+                return self.send(200, GAME["c4"].state())
         if self.path == "/api/files": return self.send(200, {"files": list_files(), "root": ROOT, "ports": serial_ports()})
         self.send(404, {"error": "not found"})
     def do_POST(self):
@@ -83,6 +88,14 @@ class Handler(BaseHTTPRequestHandler):
                 name = os.path.basename(self.headers.get("X-Filename", "upload.csv")) or "upload.csv"; p = os.path.join(UPLOADS, name); open(p, "wb").write(body)
                 return self.send(200, {"path": p})
             req = json.loads(body or b"{}")
+            if self.path in ("/api/c4/new", "/api/c4/move"):
+                with GLOCK:
+                    if "c4" not in GAME: GAME["c4"] = G4.Game(seed=int(time.time()) % 100000)
+                    g = GAME["c4"]
+                    if self.path == "/api/c4/move": g.human(int(req.get("col", -1)))
+                    elif req.get("forget"): g.forget()
+                    else: g.new()
+                    return self.send(200, g.state())
             if self.path == "/api/inspect": return self.send(200, inspect(req.get("files", [])))
             if self.path == "/api/run":
                 if not LOCK.acquire(blocking=False): return self.send(409, {"error": "another run is still going; wait for it to finish"})
@@ -95,8 +108,8 @@ class Handler(BaseHTTPRequestHandler):
 
 PAGE = r'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hex-N Front End</title>
 <style>
-:root{--bg:#f4f1ea;--panel:#fffdf8;--fg:#1f2a2e;--mute:#5d6a6e;--line:#d9d3c4;--acc:#0b6e69;--accfg:#fff;--ok:#1b7a3a;--bad:#b3261e;--chip:#e9e4d6}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14191b;--panel:#1b2225;--fg:#e6e9e6;--mute:#93a1a4;--line:#2d383c;--acc:#4fc3bb;--accfg:#06201e;--ok:#5fcf80;--bad:#ff8a80;--chip:#262f32;color-scheme:dark}}
+:root{--bg:#f4f1ea;--panel:#fffdf8;--fg:#1f2a2e;--mute:#5d6a6e;--line:#d9d3c4;--acc:#0b6e69;--accfg:#fff;--ok:#1b7a3a;--bad:#b3261e;--chip:#e9e4d6;--boardbg:#2d4a73;--hole:#e8edf5;--xc:#c8352b;--oc:#e8b32a;--ghost:#e58a84}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14191b;--panel:#1b2225;--fg:#e6e9e6;--mute:#93a1a4;--line:#2d383c;--acc:#4fc3bb;--accfg:#06201e;--ok:#5fcf80;--bad:#ff8a80;--chip:#262f32;--boardbg:#1d3250;--hole:#0f1a28;--xc:#e0564b;--oc:#e8b32a;--ghost:#9a4a44;color-scheme:dark}}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,Segoe UI,sans-serif}
 main{max-width:980px;margin:0 auto;padding:24px 16px 60px;display:grid;gap:16px}
 h1{font-size:1.5rem;margin:0}h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--mute);margin-top:2px}
@@ -110,9 +123,19 @@ button{font:inherit;border:0;border-radius:7px;padding:9px 16px;background:var(-
 .big{font-size:1.25rem;font-weight:700}.ok{color:var(--ok)}.bad{color:var(--bad)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg)}.card b{display:block;font-size:1.3rem}
 .tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.85rem}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--mute);font-weight:600}
-.mute{color:var(--mute);font-size:.85rem}[hidden]{display:none!important}
+.mute{color:var(--mute);font-size:.85rem}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{background:var(--chip);color:var(--fg)}.tabs button.on{background:var(--acc);color:var(--accfg)}
+.c4{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;max-width:560px;margin:0 auto;background:var(--boardbg);padding:10px;border-radius:12px}
+.c4col{display:grid;gap:6px;cursor:pointer;border-radius:8px;padding:2px}.c4col.off{cursor:default}.c4col.on:hover{outline:2px solid var(--acc)}
+.c4bar{height:44px;border-radius:6px;background:var(--panel);position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
+.c4bar i{position:absolute;left:0;right:0;bottom:0;background:var(--ghost);opacity:.8}.c4bar b{position:relative;font-size:.78rem;padding:2px 0;color:var(--fg)}
+.cell{aspect-ratio:1;border-radius:50%;background:var(--hole);position:relative;border:3px solid transparent;box-sizing:border-box}
+.cell.x{background:var(--xc)}.cell.o{background:var(--oc)}.cell.last::after{content:"";position:absolute;inset:34%;border-radius:50%;background:rgba(255,255,255,.75)}
+.cell.ghost{border:3px dashed var(--xc)}.cell.win{border:3px solid var(--ok);box-shadow:0 0 0 3px var(--ok)}[hidden]{display:none!important}
 </style></head><body><main>
 <h1>Hex-N Front End<small>Data file → learn a table → fit it to the unit → check every answer. Runs on this PC only.</small></h1>
+<div class="tabs"><button id="t_unit" class="on">Data → unit</button><button id="t_play">Play Connect Four</button></div>
+<div id="tab_unit" style="display:grid;gap:16px;min-width:0">
 <section><h2>1 · Data files</h2>
 <div id="files" class="files">loading…</div>
 <div class="row" style="margin-top:10px"><label>Add your own file (csv, csv.gz)<input type="file" id="up" multiple></label><div style="flex:0 0 auto"><button class="alt" id="load">Read the chosen files</button></div></div>
@@ -128,6 +151,12 @@ button{font:inherit;border:0;border-radius:7px;padding:9px 16px;background:var(-
 <div id="portnote" class="mute" hidden></div>
 <div style="margin-top:12px"><button id="run">Run</button> <span id="status" class="mute"></span></div></section>
 <div id="out"></div>
+</div>
+<div id="tab_play" hidden style="display:grid;gap:16px;min-width:0"><section><h2>Connect Four against the layer 3 / 4 models</h2>
+<div class="mute">A software model running on this PC, not the board. The system plays red and moves first; you play yellow. Click a column to drop your counter.</div>
+<div class="row" style="margin-top:10px"><div id="c4status" class="big" style="flex:2 1 260px"></div><div style="flex:0 0 auto;display:flex;gap:8px;flex-wrap:wrap"><button id="c4new">New game</button><button id="c4forget" class="alt">Forget what it learned</button></div></div>
+<label style="display:flex;gap:8px;align-items:center;margin:10px 0;flex-direction:row;color:var(--fg)"><input type="checkbox" id="c4ov" checked> Show where the system is heading (bars and dashed rings)</label>
+<div id="c4board"></div><div id="c4why" class="mute" style="margin-top:10px"></div><div id="c4stats" class="mute" style="margin-top:6px"></div></section></div>
 </main><script>
 const $=id=>document.getElementById(id);let selected=[];
 async function api(p,body){const r=await fetch(p,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
@@ -151,6 +180,24 @@ function show(r){const p=r.package;warn(r.warnings);let h=`<section><h2>Result</
 $('run').onclick=async()=>{const f=chosen();$('run').disabled=true;$('status').textContent='working… (fitting takes a few seconds, sending to the real unit a little longer)';$('out').innerHTML='';
  try{const r=await api('/api/run',{files:f,task:$('task').value,sensor:$('sensor').value,column:$('column').value,rule:$('rule').value,q:$('q').value,hours:$('hours').value,unit:$('unit').value,port:$('port').value,max_rows:$('max_rows').value,bias_b:$('bias_b').value});$('status').textContent='done';show(r)}
  catch(e){$('status').textContent='';$('out').innerHTML=`<section><div class="msg err">${e.message}</div></section>`}finally{$('run').disabled=false}};
+
+let c4=null,c4busy=false,c4err='';
+function tab(t){$('tab_unit').hidden=t!=='unit';$('tab_play').hidden=t!=='play';$('t_unit').className=t==='unit'?'on':'';$('t_play').className=t==='play'?'on':'';if(t==='play'&&!c4)c4go('/api/c4/state')}
+$('t_unit').onclick=()=>tab('unit');$('t_play').onclick=()=>tab('play');
+async function c4go(path,body){c4busy=true;c4err='';c4draw();try{c4=await api(path,body)}catch(e){c4err=e.message}c4busy=false;c4draw()}
+$('c4new').onclick=()=>c4go('/api/c4/new',{});$('c4forget').onclick=()=>c4go('/api/c4/new',{forget:true});$('c4ov').onchange=()=>c4draw();
+function c4draw(){const b=$('c4board');if(!c4){b.innerHTML='<div class="mute">loading the game…</div>';$('c4status').textContent='';return}
+ const show=$('c4ov').checked&&c4.status==='play'&&!c4busy,nx=c4.next||{},mx=Math.max(0,...Object.values(nx)),winSet=new Set((c4.win_cells||[]).map(x=>x[0]+','+x[1]));let h='<div class="c4">';
+ for(let c=0;c<7;c++){const p=nx[c]||0,ok=c4.status==='play'&&!c4busy&&c4.legal.includes(c),height=c4.board[c].filter(v=>v).length;
+  h+=`<div class="c4col ${ok?'on':'off'}" data-c="${c}"><div class="c4bar" title="chance the system plays column ${c+1} next">${show?`<i style="height:${Math.round(p*100)}%"></i><b>${Math.round(p*100)}%</b>`:''}</div>`;
+  for(let r=5;r>=0;r--){const v=c4.board[c][r],cls=['cell',v===1?'x':v===2?'o':'',c4.last&&c4.last[0]===c&&c4.last[1]===r?'last':'',winSet.has(c+','+r)?'win':'',(show&&r===height&&p>=0.03)?'ghost':''].join(' ');
+   h+=`<div class="${cls}" ${(show&&r===height&&p>=0.03)?`style="opacity:${(0.35+0.65*p/(mx||1)).toFixed(2)}"`:''}></div>`}
+  h+='</div>'}
+ b.innerHTML=h+'</div>';b.querySelectorAll('.c4col.on').forEach(e=>e.onclick=()=>c4go('/api/c4/move',{col:+e.dataset.c}));
+ let st=c4busy?'The system is thinking…':c4.status==='play'?'Your turn (yellow)':c4.over==='human'?'You win!':c4.over==='system'?'The system wins':'A draw';if(c4err)st+=' · '+c4err;$('c4status').textContent=st;
+ const lm=c4.last?` Its last move: column ${c4.moves.filter(m=>m[0]===1).slice(-1)[0][1]+1}${c4.note?' ('+c4.note+')':''}.`:'';
+ $('c4why').textContent=c4.status==='play'?`Bars: the chance, in this model's estimate, that the system plays that column next, adding up what it would do after each reply you might make, weighted by how likely layer 3 thinks that reply is. ${c4.human_wins_chance>0.005?Math.round(c4.human_wins_chance*100)+'% of its guessed replies would win the game for you. ':''}Dashed rings mark where the counter would land.`+lm:lm;
+ const s=c4.stats;$('c4stats').textContent=`Games this session: ${s.games} · system won ${s.system_wins} · you won ${s.human_wins} · draws ${s.draws}. It keeps what it learns about your moves from game to game until you press "Forget what it learned".`}
 refresh();
 </script></body></html>'''
 
