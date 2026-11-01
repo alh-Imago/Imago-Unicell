@@ -1,0 +1,4 @@
+hysu_pixels.csv.gz -- made by tools/hexn_hysu_to_csv_v1.py from the DLR HySU benchmark (1 Nov 2026).
+Source data: DLR HySU, free to use and share with credit. Cite: Cerra, D.; Pato, M.; Alonso, K.; Koehler, C.; Schneider, M.; de los Reyes, R.; Carmona, E.; Richter, R.; Kurz, F.; Reinartz, P.; Mueller, R. DLR HySU - A Benchmark Dataset for Spectral Unmixing. Remote Sens. 2021, 13, 2559. https://doi.org/10.3390/rs13132559
+One row per pixel (86 x 123 image, 0.7 m pixels, HySpex VNIR, 135 bands 417-903 nm, reflectance as a fraction). Column 'material' = the pixel's target ROI or 'background'. 60 pixels that lie in two or more material ROIs are left out (10,518 of 10,578 remain). Position is not included.
+Use: python3 tools/hexn_front_unit_v1.py docs/hex-n/data/hysu/hysu_pixels.csv.gz --rule "material == 'redMetal'" --emulate     (or pick the file in the web page, task = a rule I type)

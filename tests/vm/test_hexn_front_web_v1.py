@@ -18,6 +18,10 @@ def test_web_server_end_to_end_on_the_model():
         c, jm = call(port, "/api/run", {"files": exr, "task": "future", "sensor": "flow", "unit": "model", "max_rows": 50}); assert jm["warnings"] == [] and jm["unit"]["first_wrong"] == []
         oc = [f for f in call(port, "/api/files")[1]["files"] if f.endswith("Optode_Saturation_10-28_10-30_with_position.csv")]
         if oc: c, j2 = call(port, "/api/inspect", {"files": oc}); assert c == 200 and "NO HEADER ROW" in j2["warnings"][0]
+        hy = [f for f in call(port, "/api/files")[1]["files"] if f.endswith("hysu_pixels.csv.gz")]
+        if hy:                                                               # hyperspectral pixels (DLR HySU), task given as a rule on the 'material' column
+            c, j3 = call(port, "/api/run", {"files": hy, "task": "rule", "rule": "material == 'redMetal'", "unit": "model", "max_rows": 400, "bias_b": -40})
+            assert c == 200 and j3["unit"]["judge_A_wrong_vs_reference"] == 0 and j3["package"]["detectors_available"] == 135 and all(d["name"].startswith("nm") for d in j3["package"]["detectors"]) and j3["warnings"] == []
         c, j = call(port, "/api/run", {"files": exr, "task": "future", "sensor": "flow", "unit": "none"}); assert c == 200 and "unit" not in j and j["package"]["auc_whole_numbers"] > 0.9
         c, j = call(port, "/api/run", {"files": ["/etc/passwd"], "task": "future", "sensor": "flow", "unit": "none"}); assert c == 400 and "not a listed" in j["error"]
         c, j = call(port, "/api/run", {"files": exr, "task": "rule", "rule": "", "unit": "none"}); assert c == 400 and "choose the task" in j["error"]
