@@ -35,3 +35,30 @@ def test_no_single_bit_flip_accepted():
         for i in range(len(r)):
             for bit in range(32):
                 b = list(r); b[i] ^= 1 << bit; assert H.verify(b, k, 0xBEEF)[0] != 0, (k, i, bit)
+
+
+def test_sketch_header_agrees_with_reference():
+    """The C++ header the ESP32 sketch includes (hexn_record.h) is compiled on the PC and must give the same code as the Python reference on valid and damaged records of every kind."""
+    import shutil, subprocess, tempfile
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    assert shutil.which("g++"), "g++ is REQUIRED"
+    d = tempfile.mkdtemp(prefix="hexnrec_"); exe = os.path.join(d, "h")
+    c = subprocess.run(["g++", "-O1", "-o", exe, os.path.join(root, "tests", "hexn_record_host.cpp")], capture_output=True, text=True); assert c.returncode == 0, c.stderr[:1500]
+    rnd = random.Random(9); n_checked = 0
+
+    def cpp(rec, kind, sid):
+        p = os.path.join(d, "r.txt"); open(p, "w").write("\n".join("%08x" % (w & H.M32) for w in rec) + "\n")
+        return int(subprocess.run([exe, p, str(kind), str(sid)], capture_output=True, text=True).stdout)
+
+    for k, (cap, wd) in H.KINDS.items():
+        if k == 7: pass
+        base = H.pack(k, [rnd.getrandbits(wd) for _ in range(cap // 2)], 0x55)
+        cases = [list(base), base[:-1], base + [0], base[:4], []]
+        for _ in range(40):
+            b = list(base); b[rnd.randrange(len(b))] ^= 1 << rnd.randrange(32); cases.append(b)
+            b = list(base); b[rnd.randrange(len(b) - 1)] ^= 1 << rnd.randrange(32); cases.append(fix(b))
+        for rec in cases:
+            for want, sid in ((k, 0x55), (k, 0x56), (0, 0x55), ((k % 7) + 1, 0x55)):
+                got = cpp(rec, want, sid); exp = H.verify(rec, want or None, sid)[0]
+                assert got == exp, (k, want, sid, got, exp); n_checked += 1
+    assert n_checked > 1000

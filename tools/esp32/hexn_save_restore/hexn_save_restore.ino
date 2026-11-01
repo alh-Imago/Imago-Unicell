@@ -3,6 +3,10 @@
 // NOT YET RUN ON A BOARD (written 1 Nov 2026 against the simulated test benches tests/hexn_open7 and tests/hexn_open8; the SPI calls are copied from hexn_open3_test).
 // Commands:
 //   id | status
+//   rsave <space> [count]     like tabsave, but stores a GUARDED RECORD /rec<space>.bin (magic, kind, count, width, structure id, words, checksum).
+//   rload <space> [z]         read the record (z = the damaged copy /recZ.bin), CHECK it first; a refused record is reported with a code and the card is not touched; a good one is loaded.
+//   rcheck <space>            read the space from the card and compare with the record's words.
+//   rbreak <space> <c|m|g|t|s> damaged copy /recZ.bin with ONE fault: c checksum (3), m magic (1), g width (2), t truncated (4), s other structure (5).
 //   tabsave <space> [count]   copy table space 1..6 (1 rt, 2 mt, 3 decode, 4 glyph, 5 presets, 6 the neural judge's 8 values: 7 weights + bias, needs bitstream v10) from the card into scratch RAM, read it, store in flash as /tab<space>.bin.
 //                             count may be left out for spaces 3,4,5 (256, 64, 64 words); give it for spaces 1 and 2 (the length of the table you loaded).
 //   tabload <space>           read /tab<space>.bin from flash, write it into scratch RAM, copy it into the card's table (cfg17 / cfg19, the existing load path).
@@ -26,6 +30,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <LittleFS.h>
+#include "hexn_record.h"
 #define PIN_CS 5
 #define PIN_SCLK 18
 #define PIN_MOSI 23
@@ -167,10 +172,43 @@ static void cmd_pintest() {
   digitalWrite(PIN_SCLK, LOW); digitalWrite(PIN_MOSI, LOW); digitalWrite(PIN_CS, HIGH); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   Serial.println("pintest done: CS (IO5) was pulled low, MOSI (IO23) high, SCLK (IO18) pulsed. Look at the Tang LEDs 1, 4 and 2 (they stay lit)."); }
 static void cmd_ls() { File d = LittleFS.open("/"); File f = d.openNextFile(); while (f) { Serial.printf("%s  %u bytes\n", f.name(), (unsigned)f.size()); f = d.openNextFile(); } }
+//==== RECORD COMMANDS (guarded record v1, docs/hex-n/GUARDED_RECORD_v1.md; the check is hexn_record.h, tested on a PC against tools/hexn_record_v1.py) ====
+static const char* rec_why[] = { "ok", "bad magic, version or kind", "wrong geometry", "bad checksum", "truncated, too long or stray bits", "made for another structure" };
+static void rec_name(char* nm, size_t n, int sp, bool z) { if (z) snprintf(nm, n, "/recZ.bin"); else snprintf(nm, n, "/rec%d.bin", sp); }
+static void tabwrite(int sp, const uint32_t* w, int n) { wr_words(0, w, n); wr_reg(17, ((uint32_t)sp << 28) | (0UL << 16) | (uint32_t)n); wr_reg(19, ++seq); delay(2); }
+static void cmd_rsave(int sp, int count) {
+  if (!tab_args(sp, count) || !tabread(sp, count, buf2)) return;
+  int n = hr_pack(sp, buf2, count, 0, buf); char nm[24]; rec_name(nm, sizeof nm, sp, false);
+  Serial.printf("space %d: record of %d words (header %08lX %08lX, checksum %08lX); stored %s -> %s\n", sp, n, (unsigned long)buf[0], (unsigned long)buf[1], (unsigned long)buf[n - 1], nm, put_file(nm, buf, n) ? "ok" : "FAILED"); }
+static void cmd_rload(int sp, bool z) {
+  if (sp < 1 || sp > 6) { Serial.println("space must be 1..6"); return; }
+  char nm[24]; rec_name(nm, sizeof nm, sp, z); int n = get_file(nm, buf, 264);
+  if (n <= 0) { Serial.printf("no file %s\n", nm); return; }
+  int code = hr_verify(buf, n, sp, 0);
+  if (code) { Serial.printf("record %s REFUSED, code %d: %s. The card was not touched.\n", nm, code, rec_why[code]); return; }
+  tabwrite(sp, buf + 3, n - 4); if (wait_idle()) Serial.printf("space %d: record %s checked ok, %d words loaded into the card's table\n", sp, nm, n - 4); }
+static void cmd_rcheck(int sp) {
+  if (sp < 1 || sp > 6) { Serial.println("space must be 1..6"); return; }
+  char nm[24]; rec_name(nm, sizeof nm, sp, false); int n = get_file(nm, buf, 264);
+  if (n <= 0) { Serial.printf("no file %s\n", nm); return; }
+  int code = hr_verify(buf, n, sp, 0); if (code) { Serial.printf("record %s is not good, code %d: %s\n", nm, code, rec_why[code]); return; }
+  int count = n - 4; if (!tabread(sp, count, buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < count; i++) { if (buf[3 + i] != buf2[i]) bad++; if (buf2[i]) nz++; }
+  Serial.printf("space %d now: %d non-zero words; %d of %d differ from the record %s (want 0)\n", sp, nz, bad, count, nm);
+  Serial.println(bad == 0 ? (nz == 0 ? "MATCHES THE RECORD, BUT BOTH ARE ALL ZERO: this proves nothing" : "MATCHES THE RECORD") : "DIFFERS FROM THE RECORD"); }
+static void cmd_rbreak(int sp, char how) {                                // a DAMAGED copy as /recZ.bin (the real record is not touched), one fault only
+  char nm[24]; rec_name(nm, sizeof nm, sp, false); int n = get_file(nm, buf, 264); if (n <= 0 || hr_verify(buf, n, sp, 0)) { Serial.println("no good record to damage: rsave first"); return; }
+  if (how == 'c') buf[3] ^= 1UL;                                          // a payload bit: checksum now wrong -> 3
+  else if (how == 'm') { buf[0] ^= (1UL << 20); buf[n - 1] = hr_sum(buf, n - 1); }       // magic -> 1
+  else if (how == 'g') { buf[1] += (1UL << 8); buf[n - 1] = hr_sum(buf, n - 1); }        // entry width -> 2
+  else if (how == 't') n -= 3;                                            // truncated -> 4
+  else if (how == 's') { buf[2] ^= 1UL; buf[n - 1] = hr_sum(buf, n - 1); }               // structure id -> 5
+  else { Serial.println("use c, m, g, t or s"); return; }
+  Serial.printf("damaged copy (%c) stored as /recZ.bin -> %s\n", how, put_file("/recZ.bin", buf, n) ? "ok" : "FAILED"); }
+//==== END RECORD COMMANDS ====
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
   if (!LittleFS.begin(true)) Serial.println("flash file system failed to start"); delay(300);
-  Serial.println("\nHex-N save/restore. Type: id | status | tabsave <1..6> [count] | tabload <1..6> | tabcheck <1..6> [count] | tabfill <1..6> [count] | tabclear <1..6> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
+  Serial.println("\nHex-N save/restore. Type: id | status | rsave <1..6> [count] | rload <1..6> [z] | rcheck <1..6> | rbreak <1..6> <c|m|g|t|s> | tabsave <1..6> [count] | tabload <1..6> | tabcheck <1..6> [count] | tabfill <1..6> [count] | tabclear <1..6> [count] | jsnap | jscorecheck | jcompare <A|B> <A|B> | jsave <A|B> | jload <A|B> [A|B] | jfill <A|B> | jcheck <A|B> | jbreak <A|B> <c|m|g|o> | jclear | jtest | pintest | ls"); }
 void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
@@ -192,6 +230,10 @@ void loop() {
       else if (line == "jsnap") cmd_jsnap(); else if (line == "jscorecheck") cmd_jscorecheck();
       else if (line == "pintest") cmd_pintest();
       else if (line == "pintest") cmd_pintest();
+      else if (line.startsWith("rsave ")) { int sp = line.substring(6).toInt(); int sx = line.indexOf(' ', 6); cmd_rsave(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
+      else if (line.startsWith("rload ")) cmd_rload(line.substring(6).toInt(), line.indexOf(" z", 6) > 0);
+      else if (line.startsWith("rcheck ")) cmd_rcheck(line.substring(7).toInt());
+      else if (line.startsWith("rbreak ")) { int sp = line.substring(7).toInt(); cmd_rbreak(sp, tolower(line.charAt(9))); }
       else if (line == "jtest") cmd_jtest(); else if (line == "ls") cmd_ls();
       line = ""; } else line += c; }
 }
