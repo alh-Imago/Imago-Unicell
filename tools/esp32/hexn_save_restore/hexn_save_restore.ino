@@ -78,7 +78,7 @@ static void cmd_tabcheck(int sp, int count) {
   char nm[24]; snprintf(nm, sizeof nm, "/tab%d.bin", sp); int n = get_file(nm, buf, 1000);
   if (n != count) { Serial.printf("%s: %d words, asked for %d\n", nm, n, count); return; }
   if (!tabread(sp, count, buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < count; i++) { if (buf[i] != buf2[i]) bad++; if (buf2[i]) nz++; }
-  Serial.printf("space %d now: %d non-zero words; %d of %d differ from %s (want 0)\n", sp, nz, bad, count, nm); Serial.println(bad == 0 ? "MATCHES THE FLASH COPY" : "DIFFERS FROM THE FLASH COPY"); }
+  Serial.printf("space %d now: %d non-zero words; %d of %d differ from %s (want 0)\n", sp, nz, bad, count, nm); Serial.println(bad == 0 ? (nz == 0 ? "MATCHES THE FLASH COPY, BUT BOTH ARE ALL ZERO: this proves nothing" : "MATCHES THE FLASH COPY") : "DIFFERS FROM THE FLASH COPY"); }
 static void cmd_tabload(int sp) {
   if (sp < 1 || sp > 5) { Serial.println("space must be 1..5"); return; }
   char nm[24]; snprintf(nm, sizeof nm, "/tab%d.bin", sp); int n = get_file(nm, buf, 1000);
@@ -122,7 +122,7 @@ static void cmd_jcheck(char j) {
   if (n != REC_N) { Serial.printf("%s: %d words, want %d\n", nm, n, REC_N); return; }
   if (!jdump(j, buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < REC_N; i++) if (buf[i] != buf2[i]) bad++;
   for (int i = 2; i < REC_N - 1; i++) if (buf2[i] & 0xFF) nz++;
-  Serial.printf("judge %c now has %d non-zero entries; %d of %d words differ from %s (want 0)\n", j, nz, bad, REC_N, nm); Serial.println(bad == 0 ? "MATCHES THE FLASH COPY" : "DIFFERS FROM THE FLASH COPY"); }
+  Serial.printf("judge %c now has %d non-zero entries; %d of %d words differ from %s (want 0)\n", j, nz, bad, REC_N, nm); Serial.println(bad == 0 ? (nz == 0 ? "MATCHES THE FLASH COPY, BUT BOTH ARE ALL ZERO: this proves nothing" : "MATCHES THE FLASH COPY") : "DIFFERS FROM THE FLASH COPY"); }
 static void cmd_jbreak(char j, char how) {
   char nm[24]; snprintf(nm, sizeof nm, "/judge%c.bin", j); int n = get_file(nm, buf, REC_N + 4);
   if (n != REC_N) { Serial.printf("%s: %d words, want %d\n", nm, n, REC_N); return; }
@@ -140,7 +140,7 @@ static void cmd_tabclear(int sp, int count) {
   if (wait_idle()) Serial.printf("space %d: %d zero words loaded into the card's table\n", sp, count); }
 static void cmd_jcompare(char a, char b) {
   if (!jdump(a, buf) || !jdump(b, buf2)) return; int bad = 0, nz = 0; for (int i = 1; i < REC_N - 1; i++) { if (buf[i] != buf2[i]) bad++; if (buf[i] & 0xFF) nz++; }
-  Serial.printf("judge %c vs judge %c: %d of %d words differ (geometry, entries, bias); %c has %d non-zero words\n", a, b, bad, REC_N - 2, a, nz); Serial.println(bad == 0 ? "THE JUDGES MATCH" : "THE JUDGES DIFFER"); }
+  Serial.printf("judge %c vs judge %c: %d of %d words differ (geometry, entries, bias); %c has %d non-zero words\n", a, b, bad, REC_N - 2, a, nz); Serial.println(nz == 0 ? "BOTH EMPTY: this proves nothing" : bad == 0 ? "THE JUDGES MATCH" : "THE JUDGES DIFFER"); }
 static const int NROWS = 16;
 static bool score_run(uint32_t* res) {                                      // CONTROL word 1 = score both judges; results alternate A, B per row
   static uint32_t w[NROWS + 1]; w[0] = (14UL << 28) | 1UL;
@@ -152,7 +152,7 @@ static void cmd_jsnap() {
 static void cmd_jscorecheck() {
   int n = get_file("/score.bin", buf, 2 * NROWS + 4); if (n != 2 * NROWS) { Serial.printf("/score.bin: %d words, want %d (run jsnap first)\n", n, 2 * NROWS); return; }
   if (!score_run(buf2)) return; int bad = 0, nz = 0; for (int i = 0; i < 2 * NROWS; i++) { if (buf[i] != buf2[i]) bad++; if (buf2[i]) nz++; }
-  Serial.printf("scored again: %d non-zero result words; %d of %d differ from /score.bin (want 0)\n", nz, bad, 2 * NROWS); Serial.println(bad == 0 ? "SAME ANSWERS AS BEFORE" : "ANSWERS DIFFER FROM THE SNAPSHOT"); }
+  Serial.printf("scored again: %d non-zero result words; %d of %d differ from /score.bin (want 0)\n", nz, bad, 2 * NROWS); Serial.println(bad == 0 ? (nz == 0 ? "SAME, BUT ALL ZERO: this proves nothing (judges empty or the unit is not scoring)" : "SAME ANSWERS AS BEFORE") : "ANSWERS DIFFER FROM THE SNAPSHOT"); }
 static void cmd_ls() { File d = LittleFS.open("/"); File f = d.openNextFile(); while (f) { Serial.printf("%s  %u bytes\n", f.name(), (unsigned)f.size()); f = d.openNextFile(); } }
 void setup() {
   Serial.begin(115200); pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH); pinMode(PIN_READY, INPUT); SPI.begin(PIN_SCLK, PIN_MISO, PIN_MOSI, -1);
@@ -162,7 +162,8 @@ void loop() {
   static String line;
   while (Serial.available()) { char c = Serial.read();
     if (c == '\n' || c == '\r') { line.trim();
-      if (line == "id") cmd_id(); else if (line == "status") Serial.printf("status 0x%08lX\n", (unsigned long)rd_reg(10));
+      if (line.length() && line != "id" && line != "ls" && rd_reg(0) != UNIT_ID_V2) Serial.printf("the unit is not answering (ID read 0x%08lX, want 0x57320002): check the Tang has the v8 bitstream loaded and the wiring; command ignored\n", (unsigned long)rd_reg(0));
+      else if (line == "id") cmd_id(); else if (line == "status") Serial.printf("status 0x%08lX\n", (unsigned long)rd_reg(10));
       else if (line.startsWith("tabsave ")) { int sp = line.substring(8).toInt(); int sx = line.indexOf(' ', 8); cmd_tabsave(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
       else if (line.startsWith("tabload ")) cmd_tabload(line.substring(8).toInt());
       else if (line.startsWith("tabcheck ")) { int sp = line.substring(9).toInt(); int sx = line.indexOf(' ', 9); cmd_tabcheck(sp, sx > 0 ? line.substring(sx + 1).toInt() : 0); }
