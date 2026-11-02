@@ -72,3 +72,34 @@ def unicell_view(unit, base=None, pattern=None):
                   name=h.get("name"), base=h.get("base"), pattern=h.get("pattern"))
     ok = st["header"] == OK and st["program"] == OK
     return (unit["program"] if ok else None), report
+
+
+def load_plan(unit, loaded, library):
+    """THE LOADER'S DECISION (Alan, 2 Nov 16:27): a unit stays with the base+pattern it was designed for, or it would fail.
+    loaded  : (base, pattern) now on the card, or None
+    library : {(base, pattern): {'file': bitstream file, 'judges': [judge names that bitstream holds]}}
+    -> (steps, problems).  steps are plain words for the host to carry out; problems non-empty means NOTHING is loaded.
+    Order: [load the bitstream only if it is not the one already on the card], wipe, program, weights, ready for data."""
+    st = check(unit)
+    h = unit.get("header", {}) if isinstance(unit, dict) else {}
+    problems = []
+    if st["header"] != OK:
+        return [], ["header refused (status %d)" % st["header"]]
+    for p in PARTS:
+        if st[p] != OK:
+            problems.append("%s part refused (status %d)" % (p, st[p]))
+    key = (h.get("base"), h.get("pattern"))
+    if not key[0] or not key[1]:
+        problems.append("unit does not name its base and pattern")
+    elif key not in library:
+        problems.append("no bitstream for base %r pattern %r in the library" % key)
+    else:
+        missing = sorted(set(unit.get("weights", {})) - set(library[key].get("judges", [])))
+        if missing:
+            problems.append("weights for judges the bitstream does not hold: %s" % ", ".join(missing))
+    if problems:
+        return [], problems
+    steps = []
+    if tuple(loaded or ()) != key:
+        steps.append("load bitstream %s" % library[key]["file"])
+    return steps + ["wipe all cells", "load program", "load weights", "ready for data"], []

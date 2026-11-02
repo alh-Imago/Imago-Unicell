@@ -44,3 +44,26 @@ def test_unicell_adapter_ignores_weights():
     u = unit(); u["program"]["routing"]["1,2"]["E"] = "N"
     assert U.unicell_view(u)[0] is None                        # a damaged program is still refused
     assert U.unicell_view({})[0] is None
+
+
+LIB = {("tang-base-1", "math-1"): dict(file="math1.fs", judges=["judge_a", "judge_b"]),
+       ("tang-base-1", "logic-1"): dict(file="logic1.fs", judges=["judge_a"])}
+
+
+def test_loader_plan():
+    u = unit()
+    s, p = U.load_plan(u, ("tang-base-1", "logic-1"), LIB)                      # wrong pattern on the card: load the right one first
+    assert p == [] and s == ["load bitstream math1.fs", "wipe all cells", "load program", "load weights", "ready for data"]
+    s, p = U.load_plan(u, ("tang-base-1", "math-1"), LIB)                       # already there: no bitstream load
+    assert p == [] and s == ["wipe all cells", "load program", "load weights", "ready for data"]
+    assert U.load_plan(u, None, LIB)[0][0] == "load bitstream math1.fs"
+
+
+def test_loader_refuses_and_loads_nothing():
+    u = unit()
+    s, p = U.load_plan(u, None, {}); assert s == [] and "no bitstream" in p[0]
+    u2 = U.make_unit("x", "tang-base-1", "logic-1", PROG, dict(judge_b=W))     # logic bitstream holds only judge_a
+    s, p = U.load_plan(u2, None, LIB); assert s == [] and "judge_b" in p[0]
+    u3 = unit(); u3["program"]["routing"]["1,2"]["E"] = "N"
+    s, p = U.load_plan(u3, None, LIB); assert s == [] and "program part refused" in p[0]
+    assert U.load_plan({}, None, LIB)[0] == []
