@@ -43,3 +43,17 @@ Same ICM file, two routes: (a) the serial VM; (b) assembler -> Verilog -> iveril
 - **Chain for everything:** accept the shift chain for all tiles, including wrappers for the pin-style cores?
 - **Four faces now:** build the tile with `faces` as a parameter, default four. Confirmed by Alan 16:45.
 - **Kintex MAN file:** who writes it, and from which source?
+
+## 8. Addendum, 2 Nov 17:53 (after Alan's reply): two corrections to the framing, and the flag lane measured
+**Carrier, not fixed design.** Alan: Flex and Sub never had a carrier system, only the VIX design did; they were fixed designs, you made the design and the assembler made the bitstream from it. Hex-N is closer to the VIX carrier: the bitstream is a fabric (a pattern) and the design arrives later as a program. So section 2 above is only half the template. The Flex-Sub assembler is the model for the MECHANICS (shape table, port checks, copied dependencies, yosys script, pin file), but the better model for the CONCEPT is the carrier path in `tools/project_assemble_v1.py` (`generate_top_vix`, `derive_vix_dependencies`: an array of programmable cells with cardinal wiring, the program loaded afterwards through the live programming channel). The Hex-N family should be built as a carrier-style assembler: the output is a pattern bitstream, and `icm-hexn-v2` files are loaded into it. This is a new concept at this level of the design (the pattern is the bitstream; the ICM file is the program).
+
+**Flag lane measured (Alan: "needs to be confirmed, and built").** Built `sub/verilog/hexn_rcore_flag_v1.v` (routing cell with a data lane and a flag lane, FACES parameter 4 or 6, one select per output shared by both lanes, so the chain is no longer) with `tests/hexn_rcore_flag_tb.v` and `tests/vm/test_hexn_rcore_flag_v1.py` (2 tests pass in iverilog, 4 and 6 faces, 200 random chain loads x 3 inputs; a mutant giving the flag the next output's select is caught). Synthesis counts (yosys 0.69, `synth_gowin -nowidelut`, JSON cell count, one cell alone, no place and route):
+
+| Routing cell | LUT | Flip-flops | of which chain |
+|---|---|---|---|
+| 4 faces, data only | 12 | 16 | 12 |
+| 4 faces, data + flag | 24 | 20 | 12 |
+| 6 faces, data only | 30 | 24 | 18 |
+| 6 faces, data + flag | 59 | 30 | 18 |
+
+Reading: the flag lane doubles the multiplexer logic and the output registers, not the chain. The planner's estimates (routing cell 30, 60 once a self-timed type is present) match the SIX-face numbers; for FOUR faces the measured cell is 12 and 24, about 40 percent of the estimate. Arithmetic only, not a measured design: a 9 by 9 base has 65 routing cells, 65 x 60 = 3,900 slots as estimated against 65 x 24 = 1,560 at four faces with the flag lane, about 2,300 fewer. Not included: work cores, RAM routing cells, pads, the chain loader, place and route.
