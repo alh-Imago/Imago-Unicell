@@ -13,4 +13,4 @@ def test_ramroute_v6_trigger_hold_repeat():
         r = subprocess.run(["vvp", o], capture_output=True, text=True, timeout=300).stdout
     finally:
         shutil.rmtree(d, ignore_errors=True)
-    assert "FAIL" not in r and "ALL PASS" in r and r.count("PASS ") >= 8, r
+    assert "FAIL" not in r and "ALL PASS" in r and sum(1 for l in r.splitlines() if l.startswith("PASS ")) == 7, r
