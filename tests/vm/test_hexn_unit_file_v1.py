@@ -32,3 +32,15 @@ def test_wrong_target_missing_and_magic():
     del u["weights"]; assert U.check(u)["weights"] == U.MISSING
     u = unit(); u["header"]["format"] = "x"; assert U.check(u)["header"] == U.BAD_MAGIC
     assert U.check({})["header"] == U.BAD_MAGIC
+
+
+def test_unicell_adapter_ignores_weights():
+    u = unit()
+    prog, rep = U.unicell_view(u, "tang-base-1", "math-1")
+    assert prog == json.loads(json.dumps(PROG)) and rep["weights_skipped"] == 1 and rep["program"] == 0
+    u["weights"]["judge_a"]["b1"][0] += 1                      # damaged weights must not matter to UniCell
+    assert U.unicell_view(u)[0] is not None
+    assert U.unicell_view(U.make_unit("e", "b", "p", PROG, {}))[1]["weights_skipped"] == 0     # empty holding place is fine
+    u = unit(); u["program"]["routing"]["1,2"]["E"] = "N"
+    assert U.unicell_view(u)[0] is None                        # a damaged program is still refused
+    assert U.unicell_view({})[0] is None

@@ -58,3 +58,17 @@ def check(unit, base=None, pattern=None):
         else:
             out[p] = OK
     return out
+
+
+def unicell_view(unit, base=None, pattern=None):
+    """ADAPTER for the UniCell side (Alan, 2 Nov 16:25): read the SAME file but ignore the judge weights.
+    Returns (program or None, report).  The weights part is never read, only counted as skipped, so a UniCell loader
+    needs no judge code; an empty weights part (the holding place with nothing in it) is normal.
+    Only the header and the program part are checked.  It does NOT yet turn the program into ICM cell records, and it does not
+    say which cells UniCell can run: faces beyond four and the Hex-N-only parts are the 'to a point' still to be listed."""
+    st = check(unit, base, pattern)
+    h = unit.get("header", {}) if isinstance(unit, dict) else {}
+    report = dict(header=st["header"], program=st["program"], weights_skipped=len(unit.get("weights", {})) if isinstance(unit, dict) and isinstance(unit.get("weights"), dict) else 0,
+                  name=h.get("name"), base=h.get("base"), pattern=h.get("pattern"))
+    ok = st["header"] == OK and st["program"] == OK
+    return (unit["program"] if ok else None), report
