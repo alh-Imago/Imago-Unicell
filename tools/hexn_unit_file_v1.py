@@ -25,10 +25,20 @@ def part_hash(x):
     return hashlib.sha256(_canon(x).encode()).hexdigest()
 
 
-def make_unit(name, base, pattern, program, weights, description=""):
-    """weights: {judge name: json payload}"""
+def pack_id(ptype, version):
+    """pattern ID word as read from register 11 of spi_bridge_v3: [31:16] type, [15:0] version (4 hex digits each); 0 = no pattern"""
+    assert 0 <= ptype <= 0xFFFF and 0 <= version <= 0xFFFF
+    return (ptype << 16) | version
+
+
+def unpack_id(word):
+    return (word >> 16) & 0xFFFF, word & 0xFFFF
+
+
+def make_unit(name, base, pattern, program, weights, description="", pattern_id=None):
+    """weights: {judge name: json payload}; pattern_id: the 32-bit word the card reports for the pattern this unit was designed for"""
     body = dict(program=json.loads(_canon(program)), weights=json.loads(_canon(weights)))
-    return dict(header=dict(format=MAGIC, name=name, base=base, pattern=pattern, description=description,
+    return dict(header=dict(format=MAGIC, name=name, base=base, pattern=pattern, pattern_id=pattern_id, description=description,
                             load_order=list(LOAD_ORDER), part_hash={p: part_hash(body[p]) for p in PARTS}), **body)
 
 
@@ -74,10 +84,11 @@ def unicell_view(unit, base=None, pattern=None):
     return (unit["program"] if ok else None), report
 
 
-def load_plan(unit, loaded, library):
+def load_plan(unit, loaded, library, card_pattern_id=None):
     """THE LOADER'S DECISION (Alan, 2 Nov 16:27): a unit stays with the base+pattern it was designed for, or it would fail.
-    loaded  : (base, pattern) now on the card, or None
-    library : {(base, pattern): {'file': bitstream file, 'judges': [judge names that bitstream holds]}}
+    loaded  : (base, pattern) the host last loaded, or None (only a fallback)
+    card_pattern_id : the word READ FROM THE CARD (register 11 of spi_bridge_v3); when given it decides what is loaded, not the host's record
+    library : {(base, pattern): {'file': bitstream file, 'judges': [judge names that bitstream holds], 'pattern_id': 32-bit word (optional)}}
     -> (steps, problems).  steps are plain words for the host to carry out; problems non-empty means NOTHING is loaded.
     Order: [load the bitstream only if it is not the one already on the card], wipe, program, weights, ready for data."""
     st = check(unit)
@@ -97,9 +108,16 @@ def load_plan(unit, loaded, library):
         missing = sorted(set(unit.get("weights", {})) - set(library[key].get("judges", [])))
         if missing:
             problems.append("weights for judges the bitstream does not hold: %s" % ", ".join(missing))
+    want = library.get(key, {}).get("pattern_id")
+    if not problems and h.get("pattern_id") is not None and want is not None and h["pattern_id"] != want:
+        problems.append("unit expects pattern id %08X but the library bitstream has %08X" % (h["pattern_id"], want))
     if problems:
         return [], problems
     steps = []
-    if tuple(loaded or ()) != key:
+    if card_pattern_id is not None and want is not None:
+        on_card = card_pattern_id == want
+    else:
+        on_card = tuple(loaded or ()) == key
+    if not on_card:
         steps.append("load bitstream %s" % library[key]["file"])
     return steps + ["wipe all cells", "load program", "load weights", "ready for data"], []

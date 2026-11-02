@@ -67,3 +67,14 @@ def test_loader_refuses_and_loads_nothing():
     u3 = unit(); u3["program"]["routing"]["1,2"]["E"] = "N"
     s, p = U.load_plan(u3, None, LIB); assert s == [] and "program part refused" in p[0]
     assert U.load_plan({}, None, LIB)[0] == []
+
+
+def test_pattern_id_word_and_card_read():
+    assert U.pack_id(0x00A1, 3) == 0x00A10003 and U.unpack_id(0x00A10003) == (0x00A1, 3)
+    lib = {("tang-base-1", "math-1"): dict(file="math1.fs", judges=["judge_a"], pattern_id=U.pack_id(0xA1, 3))}
+    u = U.make_unit("d", "tang-base-1", "math-1", PROG, dict(judge_a=W), pattern_id=U.pack_id(0xA1, 3))
+    assert U.load_plan(u, None, lib, card_pattern_id=U.pack_id(0xA1, 3))[0][0] == "wipe all cells"            # the card says it is already there
+    assert U.load_plan(u, ("tang-base-1", "math-1"), lib, card_pattern_id=U.pack_id(0xA1, 2))[0][0] == "load bitstream math1.fs"   # old version on the card: the card's word wins over the host's record
+    assert U.load_plan(u, None, lib, card_pattern_id=0)[0][0] == "load bitstream math1.fs"                      # nothing recognisable on the card
+    u2 = U.make_unit("d", "tang-base-1", "math-1", PROG, dict(judge_a=W), pattern_id=U.pack_id(0xA1, 4))      # unit built for version 4, library has 3
+    s, p = U.load_plan(u2, None, lib, card_pattern_id=U.pack_id(0xA1, 3)); assert s == [] and "pattern id" in p[0]
