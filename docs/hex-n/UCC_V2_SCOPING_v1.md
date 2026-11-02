@@ -7,6 +7,14 @@ Status: **SCOPING ONLY. Nothing here is built, decided or measured unless it say
 - **One cell kind instead of separate cores: a LOOK-UP-TABLE cell.** "Similar idea, just simpler." So the maths cells (section 3, kinds B and C) are not separate hardware; function comes from a table loaded into the cell. My reading, to be confirmed.
 - Notes on that reading (mine, not decided): a table cell is simple and uniform, and the chip's block RAM is a natural place for the tables (the Tang has 46 blocks, 11 used by v1; the Hex-N judge's tanh already is a 512-entry table). It suits small inputs well (binning, curves, activation functions, small-digit logic). A table cannot hold wide arithmetic directly (two 18-bit operands would need 2^36 entries), so adds and compares on wide words would be built by slicing into small digits chained through cells, or by keeping one small adder helper. That trade-off is the main thing to settle.
 
+### 0b. Working direction, 2 Nov 05:55 (Alan: "the serial option works ... add a buffer at the start and at the end")
+Readings taken, to be confirmed:
+- **Cells:** six faces as the inputs of a look-up table, so routing and logic are one thing (section 0). One bit per face, **sent serially**: a number travels as a stream of bits, one per clock, so a 32-bit word costs 32 clocks, not 32 cells. A bit-serial adder is one cell plus a carry it remembers; a word-start marker frames each word.
+- **Parallel streams:** many serial streams run through the grid at the same time, so throughput scales with the number of streams, not the width of a number.
+- **Buffers at both ends:** an input RAM and an output RAM. The input RAM feeds a serialiser into the grid; the results come out of a de-serialiser into the output RAM. This is the on-card design of section 6, and it is also what Alan proposed for the Tang at 21:23 (data in one half of the RAM, results in the other, the control only loads the settings and a start, then reads a done). It is therefore stage 10 in a first form.
+- **Programming order:** the cells are set one after another (the first, then the second, and so on), which matches the existing program-from-consecutive-slots command and the stage-to-stage config path of section 5.
+- **Not measured:** the cost of one bit-serial cell on the Tang (a 6-input table is about four 4-input tables plus selection), the clocks per word, and how many streams fit. A first measurement would be a bit-serial adder cell and a short chain of them, synthesis counts only.
+
 ## 1. Why a v2 (Alan, 20:27, 21:14, 21:18, readings taken)
 - The chain with a bypass switch per unit (v1, stage 9) works on the Tang and is board-confirmed at 4 units. Alan: with bypass the routing is not needed at this stage; "but more stages yes, see how far it goes".
 - For the larger cards (the Kintex XC7K480T) a version 2 or larger is needed: bring in some of the extra cores and add routing, so that more complex systems can be designed.
