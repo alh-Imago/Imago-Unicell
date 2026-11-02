@@ -380,12 +380,13 @@ throughout the project's own documentation, never blurred.
   inspect, in one clean object, with real JSON introspection of any
   cell or the whole grid.
 - **A step-by-step, tabbed browser front end** — the recommended
-  starting point: MAN file generation, Quartus project generation,
+  starting point: MAN file generation (Intel or Xilinx; pick the card maker in the
+  dropdown), Quartus project generation,
   and the simulated Walker, each its own tab, walking through this
   project's own real build process in order. Every action-performing
   page also shows the exact equivalent CLI command. Run it with:
   ```bash
-  python3 nano/frontend_v1.py
+  python3 nano/frontend_v2.py
   # → http://localhost:7421
   ```
 - **A working browser workbench** — compile a program, watch it run,
@@ -495,7 +496,7 @@ print(session.describe())
 "
 
 # Or open the tabbed front end (MAN file -> Quartus project -> Walker)
-python3 nano/frontend_v1.py
+python3 nano/frontend_v2.py
 
 # Or just open the browser workbench directly
 python3 nano/workbench_v1.py

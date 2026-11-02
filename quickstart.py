@@ -44,7 +44,7 @@ def main():
     ap.add_argument("--full", action="store_true", help="also run the whole VM test suite")
     a = ap.parse_args()
     if a.composer:
-        os.execv(sys.executable, [sys.executable, os.path.join(ROOT, "nano", "frontend_v1.py")])
+        os.execv(sys.executable, [sys.executable, os.path.join(ROOT, "nano", "frontend_v2.py")])
     print("Imago UniCell quickstart\n")
     missing = []
     for name, test, job, how in NEED:

@@ -565,12 +565,13 @@ throughout the project's own documentation, never blurred.</p>
   inspect, in one clean object, with real JSON introspection of any
   cell or the whole grid.</li>
 <li><strong>A step-by-step, tabbed browser front end</strong> — the recommended
-  starting point: MAN file generation, Quartus project generation,
+  starting point: MAN file generation (Intel or Xilinx; pick the card maker in the
+  dropdown), Quartus project generation,
   and the simulated Walker, each its own tab, walking through this
   project's own real build process in order. Every action-performing
   page also shows the exact equivalent CLI command. Run it with:
   <code>bash
-  python3 nano/frontend_v1.py
+  python3 nano/frontend_v2.py
   # → http://localhost:7421</code></li>
 <li><strong>A working browser workbench</strong> — compile a program, watch it run,
   drive individual cells, load multiple independent programs onto one
@@ -672,7 +673,7 @@ print(session.describe())
 &quot;
 
 # Or open the tabbed front end (MAN file -&gt; Quartus project -&gt; Walker)
-python3 nano/frontend_v1.py
+python3 nano/frontend_v2.py
 
 # Or just open the browser workbench directly
 python3 nano/workbench_v1.py
@@ -6069,6 +6070,11 @@ any other fixed feature a given device may or may not physically have.</p>
   export — not something a MAN file (a per-card-model artifact) should
   hold at all; that belongs with a SHAPE file instead.</li>
 </ul>
+<h2>Making a MAN file: the front end or the command line</h2>
+<p>The tabbed front end (<code>python3 nano/frontend_v2.py</code>, MAN tab) has a card-maker dropdown: <strong>Intel</strong> (Quartus, <code>tools/man_generate_v1.py</code>), <strong>Xilinx</strong>
+(<code>tools/man_generate_v2.py</code>: chip facts from the openXC7 chip database <code>.bba</code> or the facts file <code>docs/man/data/xc7k480tffg1156.chipdb_facts.json</code>, board facts typed in,
+blanks stay null) and <strong>Gowin</strong> (not on that page yet; the Tang Nano file below comes from its own generator). The older <code>frontend_v1.py</code> only knows Intel.
+The Kintex card's file is <code>ypcb-00338-1p1.man.json</code> (<code>tools/man_gen/gen_ypcb_00338_1p1_man.py</code>).</p>
 <h2><code>tang-nano-20k.man.json</code> -- the first non-Intel MAN (points.md #887)</h2>
 <p>The Sipeed Tang Nano 20K (Gowin <code>GW2AR-LV18QN88C8/I7</code>), the project's current hardware target (a testbed and proof of concept,
 <code>#891</code>), to be paired with an ESP32 host that owns the web front end, WiFi, and feeding/collecting data. The host is the kit's
@@ -6663,7 +6669,7 @@ data. <code>--check</code> exits 1 if either committed file is stale. It needs
 <code>pip install apycula msgpack</code>; pin apycula to 0.32 to reproduce the
 committed file (#975). See <code>docs/man/README.md</code>.</p>
 <h2>The local browser tools share one look (<code>nano/ui_theme_v1.py</code>, ledger #998)</h2>
-<p>The front panel (<code>python3 nano/frontend_v1.py</code>, port 7421: Start, MAN file, Create cells, Walker, Other tools, Manual) and the
+<p>The front panel (<code>python3 nano/frontend_v2.py</code>, port 7421; <code>frontend_v1.py</code> is the older Intel-only version, kept: Start, MAN file, Create cells, Walker, Other tools, Manual) and the
 workbench (<code>python3 nano/workbench_v1.py</code>, port 7420) use one stylesheet and one header/nav from <code>nano/ui_theme_v1.py</code>.
 That module is presentation only. A new page should call <code>ui.page(title, body, active=...)</code> rather than carry its own CSS.</p>
 <h2><code>shape_extract_v1.py</code> — real cell-to-cell adjacency extraction</h2>

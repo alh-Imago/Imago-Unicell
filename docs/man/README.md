@@ -63,6 +63,13 @@ any other fixed feature a given device may or may not physically have.
   export — not something a MAN file (a per-card-model artifact) should
   hold at all; that belongs with a SHAPE file instead.
 
+## Making a MAN file: the front end or the command line
+
+The tabbed front end (`python3 nano/frontend_v2.py`, MAN tab) has a card-maker dropdown: **Intel** (Quartus, `tools/man_generate_v1.py`), **Xilinx**
+(`tools/man_generate_v2.py`: chip facts from the openXC7 chip database `.bba` or the facts file `docs/man/data/xc7k480tffg1156.chipdb_facts.json`, board facts typed in,
+blanks stay null) and **Gowin** (not on that page yet; the Tang Nano file below comes from its own generator). The older `frontend_v1.py` only knows Intel.
+The Kintex card's file is `ypcb-00338-1p1.man.json` (`tools/man_gen/gen_ypcb_00338_1p1_man.py`).
+
 ## `tang-nano-20k.man.json` -- the first non-Intel MAN (points.md #887)
 
 The Sipeed Tang Nano 20K (Gowin `GW2AR-LV18QN88C8/I7`), the project's current hardware target (a testbed and proof of concept,
