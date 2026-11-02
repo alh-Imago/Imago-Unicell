@@ -1,0 +1,2869 @@
+{
+ "grid": "327 x 417 tiles (the file's chip_info header), 98 tile types, 136,359 tile instances",
+ "packages": [
+  {
+   "name": "ffg1156",
+   "pads": 562
+  },
+  {
+   "name": "ffg901",
+   "pads": 522
+  },
+  {
+   "name": "ffv1156",
+   "pads": 562
+  },
+  {
+   "name": "ffv901",
+   "pads": 522
+  }
+ ],
+ "pads": [
+  {
+   "pin": "A11",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y6"
+  },
+  {
+   "pin": "A12",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y6"
+  },
+  {
+   "pin": "A16",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y36"
+  },
+  {
+   "pin": "A18",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y38"
+  },
+  {
+   "pin": "A19",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y44"
+  },
+  {
+   "pin": "A20",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y44"
+  },
+  {
+   "pin": "A21",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y46"
+  },
+  {
+   "pin": "A23",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y48"
+  },
+  {
+   "pin": "A24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y57"
+  },
+  {
+   "pin": "A25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y57"
+  },
+  {
+   "pin": "A26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y59"
+  },
+  {
+   "pin": "A28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y63"
+  },
+  {
+   "pin": "A29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y107"
+  },
+  {
+   "pin": null,
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y69"
+  },
+  {
+   "pin": "A30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y107"
+  },
+  {
+   "pin": "A31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y109"
+  },
+  {
+   "pin": "A33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y113"
+  },
+  {
+   "pin": null,
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y69"
+  },
+  {
+   "pin": "A7",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y35"
+  },
+  {
+   "pin": "A8",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y35"
+  },
+  {
+   "pin": "AA24",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y209"
+  },
+  {
+   "pin": "AA25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y252"
+  },
+  {
+   "pin": "AA26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y248"
+  },
+  {
+   "pin": "AA28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y236"
+  },
+  {
+   "pin": "AA29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y236"
+  },
+  {
+   "pin": "AA3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y243"
+  },
+  {
+   "pin": "AA30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y246"
+  },
+  {
+   "pin": "AA31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y246"
+  },
+  {
+   "pin": "AA33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y211"
+  },
+  {
+   "pin": "AA34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y211"
+  },
+  {
+   "pin": "AA4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y243"
+  },
+  {
+   "pin": "AA7",
+   "site": "IPAD_X0Y3.PAD",
+   "tile": "X309Y237"
+  },
+  {
+   "pin": "AA8",
+   "site": "IPAD_X0Y2.PAD",
+   "tile": "X309Y237"
+  },
+  {
+   "pin": "AB1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y254"
+  },
+  {
+   "pin": "AB2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y254"
+  },
+  {
+   "pin": "AB25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y252"
+  },
+  {
+   "pin": "AB26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y248"
+  },
+  {
+   "pin": "AB27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y250"
+  },
+  {
+   "pin": "AB28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y250"
+  },
+  {
+   "pin": "AB30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y240"
+  },
+  {
+   "pin": "AB31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y240"
+  },
+  {
+   "pin": "AB32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y244"
+  },
+  {
+   "pin": "AB33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y244"
+  },
+  {
+   "pin": "AB5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y254"
+  },
+  {
+   "pin": "AB6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y254"
+  },
+  {
+   "pin": "AC24",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y259"
+  },
+  {
+   "pin": "AC25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y258"
+  },
+  {
+   "pin": "AC27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y254"
+  },
+  {
+   "pin": "AC28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y256"
+  },
+  {
+   "pin": "AC29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y256"
+  },
+  {
+   "pin": "AC3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y266"
+  },
+  {
+   "pin": "AC30",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y261"
+  },
+  {
+   "pin": "AC32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y263"
+  },
+  {
+   "pin": "AC33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y263"
+  },
+  {
+   "pin": "AC34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y265"
+  },
+  {
+   "pin": "AC4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y266"
+  },
+  {
+   "pin": "AC7",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y289"
+  },
+  {
+   "pin": "AC8",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y289"
+  },
+  {
+   "pin": "AD1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y266"
+  },
+  {
+   "pin": "AD2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y266"
+  },
+  {
+   "pin": "AD24",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y363"
+  },
+  {
+   "pin": "AD25",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y313"
+  },
+  {
+   "pin": "AD26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y258"
+  },
+  {
+   "pin": "AD27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y254"
+  },
+  {
+   "pin": "AD29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y352"
+  },
+  {
+   "pin": "AD30",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y311"
+  },
+  {
+   "pin": "AD31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y273"
+  },
+  {
+   "pin": "AD32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y273"
+  },
+  {
+   "pin": "AD34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y265"
+  },
+  {
+   "pin": "AD5",
+   "site": "IPAD_X0Y3.PAD",
+   "tile": "X309Y289"
+  },
+  {
+   "pin": "AD6",
+   "site": "IPAD_X0Y2.PAD",
+   "tile": "X309Y289"
+  },
+  {
+   "pin": "AE24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y360"
+  },
+  {
+   "pin": "AE26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y358"
+  },
+  {
+   "pin": "AE27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y356"
+  },
+  {
+   "pin": "AE28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y356"
+  },
+  {
+   "pin": "AE29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y352"
+  },
+  {
+   "pin": "AE3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y277"
+  },
+  {
+   "pin": "AE31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y271"
+  },
+  {
+   "pin": "AE32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y271"
+  },
+  {
+   "pin": "AE33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y269"
+  },
+  {
+   "pin": "AE34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y267"
+  },
+  {
+   "pin": "AE4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y277"
+  },
+  {
+   "pin": "AF1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y277"
+  },
+  {
+   "pin": "AF2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y277"
+  },
+  {
+   "pin": "AF24",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y360"
+  },
+  {
+   "pin": "AF25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y362"
+  },
+  {
+   "pin": "AF26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y358"
+  },
+  {
+   "pin": "AF28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y354"
+  },
+  {
+   "pin": "AF29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y354"
+  },
+  {
+   "pin": "AF30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y277"
+  },
+  {
+   "pin": "AF31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y285"
+  },
+  {
+   "pin": "AF33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y269"
+  },
+  {
+   "pin": "AF34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y267"
+  },
+  {
+   "pin": "AF5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y295"
+  },
+  {
+   "pin": "AF6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y295"
+  },
+  {
+   "pin": "AG15",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y415"
+  },
+  {
+   "pin": "AG16",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y402"
+  },
+  {
+   "pin": "AG17",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y402"
+  },
+  {
+   "pin": "AG18",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y365"
+  },
+  {
+   "pin": "AG20",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y410"
+  },
+  {
+   "pin": "AG21",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y410"
+  },
+  {
+   "pin": "AG22",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y412"
+  },
+  {
+   "pin": "AG23",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y414"
+  },
+  {
+   "pin": "AG25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y362"
+  },
+  {
+   "pin": "AG26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y348"
+  },
+  {
+   "pin": "AG27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y348"
+  },
+  {
+   "pin": "AG28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y350"
+  },
+  {
+   "pin": "AG3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y306"
+  },
+  {
+   "pin": "AG30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y277"
+  },
+  {
+   "pin": "AG31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y285"
+  },
+  {
+   "pin": "AG32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y283"
+  },
+  {
+   "pin": "AG33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y279"
+  },
+  {
+   "pin": "AG4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y306"
+  },
+  {
+   "pin": "AG7",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y341"
+  },
+  {
+   "pin": "AG8",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y341"
+  },
+  {
+   "pin": "AH1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y295"
+  },
+  {
+   "pin": "AH10",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y393"
+  },
+  {
+   "pin": "AH17",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y400"
+  },
+  {
+   "pin": "AH18",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y400"
+  },
+  {
+   "pin": "AH19",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y394"
+  },
+  {
+   "pin": "AH2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y295"
+  },
+  {
+   "pin": "AH20",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y408"
+  },
+  {
+   "pin": "AH22",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y412"
+  },
+  {
+   "pin": "AH23",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y414"
+  },
+  {
+   "pin": "AH24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y346"
+  },
+  {
+   "pin": "AH25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y344"
+  },
+  {
+   "pin": "AH27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y342"
+  },
+  {
+   "pin": "AH28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y342"
+  },
+  {
+   "pin": "AH29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y350"
+  },
+  {
+   "pin": "AH30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y281"
+  },
+  {
+   "pin": "AH32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y283"
+  },
+  {
+   "pin": "AH33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y279"
+  },
+  {
+   "pin": "AH34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y275"
+  },
+  {
+   "pin": "AH5",
+   "site": "IPAD_X0Y3.PAD",
+   "tile": "X309Y341"
+  },
+  {
+   "pin": "AH6",
+   "site": "IPAD_X0Y2.PAD",
+   "tile": "X309Y341"
+  },
+  {
+   "pin": "AH9",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y393"
+  },
+  {
+   "pin": "AJ11",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y381"
+  },
+  {
+   "pin": "AJ12",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y381"
+  },
+  {
+   "pin": "AJ16",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y398"
+  },
+  {
+   "pin": "AJ17",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y398"
+  },
+  {
+   "pin": "AJ19",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y394"
+  },
+  {
+   "pin": "AJ20",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y408"
+  },
+  {
+   "pin": "AJ21",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y406"
+  },
+  {
+   "pin": "AJ22",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y404"
+  },
+  {
+   "pin": "AJ24",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y346"
+  },
+  {
+   "pin": "AJ25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y344"
+  },
+  {
+   "pin": "AJ26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y340"
+  },
+  {
+   "pin": "AJ27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y340"
+  },
+  {
+   "pin": "AJ29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y329"
+  },
+  {
+   "pin": "AJ3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y318"
+  },
+  {
+   "pin": "AJ30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y281"
+  },
+  {
+   "pin": "AJ31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y288"
+  },
+  {
+   "pin": "AJ32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y290"
+  },
+  {
+   "pin": "AJ34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y275"
+  },
+  {
+   "pin": "AJ4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y318"
+  },
+  {
+   "pin": "AJ7",
+   "site": "IPAD_X0Y3.PAD",
+   "tile": "X309Y393"
+  },
+  {
+   "pin": "AJ8",
+   "site": "IPAD_X0Y2.PAD",
+   "tile": "X309Y393"
+  },
+  {
+   "pin": "AK1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y306"
+  },
+  {
+   "pin": "AK10",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y370"
+  },
+  {
+   "pin": "AK16",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y396"
+  },
+  {
+   "pin": "AK17",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y396"
+  },
+  {
+   "pin": "AK18",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y392"
+  },
+  {
+   "pin": "AK19",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y392"
+  },
+  {
+   "pin": "AK2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y306"
+  },
+  {
+   "pin": "AK21",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y406"
+  },
+  {
+   "pin": "AK22",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y404"
+  },
+  {
+   "pin": "AK23",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y367"
+  },
+  {
+   "pin": "AK24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y331"
+  },
+  {
+   "pin": "AK26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y337"
+  },
+  {
+   "pin": "AK27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y337"
+  },
+  {
+   "pin": "AK28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y333"
+  },
+  {
+   "pin": "AK29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y329"
+  },
+  {
+   "pin": "AK31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y288"
+  },
+  {
+   "pin": "AK32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y290"
+  },
+  {
+   "pin": "AK33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y292"
+  },
+  {
+   "pin": "AK34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y294"
+  },
+  {
+   "pin": "AK5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y329"
+  },
+  {
+   "pin": "AK6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y329"
+  },
+  {
+   "pin": "AK9",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y370"
+  },
+  {
+   "pin": "AL11",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y399"
+  },
+  {
+   "pin": "AL12",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y399"
+  },
+  {
+   "pin": "AL16",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y385"
+  },
+  {
+   "pin": "AL18",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y389"
+  },
+  {
+   "pin": "AL19",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y389"
+  },
+  {
+   "pin": "AL20",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y387"
+  },
+  {
+   "pin": "AL21",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y377"
+  },
+  {
+   "pin": "AL23",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y367"
+  },
+  {
+   "pin": "AL24",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y331"
+  },
+  {
+   "pin": "AL25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y335"
+  },
+  {
+   "pin": "AL26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y335"
+  },
+  {
+   "pin": "AL28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y333"
+  },
+  {
+   "pin": "AL29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y298"
+  },
+  {
+   "pin": "AL3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y347"
+  },
+  {
+   "pin": "AL30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y296"
+  },
+  {
+   "pin": "AL31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y296"
+  },
+  {
+   "pin": "AL33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y292"
+  },
+  {
+   "pin": "AL34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y294"
+  },
+  {
+   "pin": "AL4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y347"
+  },
+  {
+   "pin": "AL7",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y370"
+  },
+  {
+   "pin": "AL8",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y370"
+  },
+  {
+   "pin": "AM1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y318"
+  },
+  {
+   "pin": "AM10",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y410"
+  },
+  {
+   "pin": "AM16",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y385"
+  },
+  {
+   "pin": "AM17",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y383"
+  },
+  {
+   "pin": "AM18",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y383"
+  },
+  {
+   "pin": "AM2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y318"
+  },
+  {
+   "pin": "AM20",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y387"
+  },
+  {
+   "pin": "AM21",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y377"
+  },
+  {
+   "pin": "AM22",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y369"
+  },
+  {
+   "pin": "AM23",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y315"
+  },
+  {
+   "pin": "AM25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y327"
+  },
+  {
+   "pin": "AM26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y327"
+  },
+  {
+   "pin": "AM27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y325"
+  },
+  {
+   "pin": "AM28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y325"
+  },
+  {
+   "pin": "AM30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y298"
+  },
+  {
+   "pin": "AM31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y300"
+  },
+  {
+   "pin": "AM32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y300"
+  },
+  {
+   "pin": "AM33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y302"
+  },
+  {
+   "pin": "AM5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y358"
+  },
+  {
+   "pin": "AM6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y358"
+  },
+  {
+   "pin": "AM9",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y410"
+  },
+  {
+   "pin": "AN11",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y410"
+  },
+  {
+   "pin": "AN12",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y410"
+  },
+  {
+   "pin": "AN17",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y379"
+  },
+  {
+   "pin": "AN18",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y379"
+  },
+  {
+   "pin": "AN19",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y375"
+  },
+  {
+   "pin": "AN20",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y373"
+  },
+  {
+   "pin": "AN22",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y369"
+  },
+  {
+   "pin": "AN23",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y315"
+  },
+  {
+   "pin": "AN24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y317"
+  },
+  {
+   "pin": "AN25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y319"
+  },
+  {
+   "pin": "AN27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y323"
+  },
+  {
+   "pin": "AN28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y323"
+  },
+  {
+   "pin": "AN29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y310"
+  },
+  {
+   "pin": "AN3",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y347"
+  },
+  {
+   "pin": "AN30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y310"
+  },
+  {
+   "pin": "AN32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y304"
+  },
+  {
+   "pin": "AN34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y302"
+  },
+  {
+   "pin": "AN4",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y347"
+  },
+  {
+   "pin": "AN7",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y381"
+  },
+  {
+   "pin": "AN8",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y381"
+  },
+  {
+   "pin": "AP1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y329"
+  },
+  {
+   "pin": "AP10",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y399"
+  },
+  {
+   "pin": "AP16",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y381"
+  },
+  {
+   "pin": "AP17",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y381"
+  },
+  {
+   "pin": "AP19",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y375"
+  },
+  {
+   "pin": "AP2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y329"
+  },
+  {
+   "pin": "AP20",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y373"
+  },
+  {
+   "pin": "AP21",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y371"
+  },
+  {
+   "pin": "AP22",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y371"
+  },
+  {
+   "pin": "AP24",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y317"
+  },
+  {
+   "pin": "AP25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y319"
+  },
+  {
+   "pin": "AP26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y321"
+  },
+  {
+   "pin": "AP27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y321"
+  },
+  {
+   "pin": "AP29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y308"
+  },
+  {
+   "pin": "AP30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y308"
+  },
+  {
+   "pin": "AP31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y306"
+  },
+  {
+   "pin": "AP32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y306"
+  },
+  {
+   "pin": "AP33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y304"
+  },
+  {
+   "pin": "AP5",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y358"
+  },
+  {
+   "pin": "AP6",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y358"
+  },
+  {
+   "pin": "AP9",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y399"
+  },
+  {
+   "pin": "B1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y87"
+  },
+  {
+   "pin": "B10",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y17"
+  },
+  {
+   "pin": "B16",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y36"
+  },
+  {
+   "pin": "B17",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y34"
+  },
+  {
+   "pin": "B18",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y38"
+  },
+  {
+   "pin": "B2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y87"
+  },
+  {
+   "pin": "B20",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y42"
+  },
+  {
+   "pin": "B21",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y46"
+  },
+  {
+   "pin": "B22",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y48"
+  },
+  {
+   "pin": "B23",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y50"
+  },
+  {
+   "pin": "B25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y59"
+  },
+  {
+   "pin": "B26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y61"
+  },
+  {
+   "pin": "B27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y61"
+  },
+  {
+   "pin": "B28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y63"
+  },
+  {
+   "pin": "B30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y109"
+  },
+  {
+   "pin": "B31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y111"
+  },
+  {
+   "pin": "B32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y111"
+  },
+  {
+   "pin": "B33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y113"
+  },
+  {
+   "pin": "B5",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y58"
+  },
+  {
+   "pin": "B6",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y58"
+  },
+  {
+   "pin": "B9",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y17"
+  },
+  {
+   "pin": "C11",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y6"
+  },
+  {
+   "pin": "C12",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y6"
+  },
+  {
+   "pin": "C17",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y34"
+  },
+  {
+   "pin": "C18",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y30"
+  },
+  {
+   "pin": "C19",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y30"
+  },
+  {
+   "pin": "C20",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y42"
+  },
+  {
+   "pin": "C22",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y40"
+  },
+  {
+   "pin": "C23",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y50"
+  },
+  {
+   "pin": "C24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y55"
+  },
+  {
+   "pin": "C25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y55"
+  },
+  {
+   "pin": "C27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y65"
+  },
+  {
+   "pin": "C28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y65"
+  },
+  {
+   "pin": "C29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y117"
+  },
+  {
+   "pin": "C3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y58"
+  },
+  {
+   "pin": "C30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y117"
+  },
+  {
+   "pin": "C32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y115"
+  },
+  {
+   "pin": "C33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y115"
+  },
+  {
+   "pin": "C34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y123"
+  },
+  {
+   "pin": "C4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y58"
+  },
+  {
+   "pin": "C7",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y46"
+  },
+  {
+   "pin": "C8",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y46"
+  },
+  {
+   "pin": null,
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y98"
+  },
+  {
+   "pin": "D10",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y17"
+  },
+  {
+   "pin": "D16",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y32"
+  },
+  {
+   "pin": "D17",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y32"
+  },
+  {
+   "pin": "D19",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y28"
+  },
+  {
+   "pin": null,
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y98"
+  },
+  {
+   "pin": "D20",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y23"
+  },
+  {
+   "pin": "D21",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y23"
+  },
+  {
+   "pin": "D22",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y40"
+  },
+  {
+   "pin": "D24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y71"
+  },
+  {
+   "pin": "D25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y71"
+  },
+  {
+   "pin": "D26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y69"
+  },
+  {
+   "pin": "D27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y69"
+  },
+  {
+   "pin": "D29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y119"
+  },
+  {
+   "pin": "D30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y119"
+  },
+  {
+   "pin": "D31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y127"
+  },
+  {
+   "pin": "D32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y129"
+  },
+  {
+   "pin": "D34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y123"
+  },
+  {
+   "pin": null,
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y69"
+  },
+  {
+   "pin": null,
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y69"
+  },
+  {
+   "pin": "D9",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y17"
+  },
+  {
+   "pin": "E11",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y35"
+  },
+  {
+   "pin": "E12",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y35"
+  },
+  {
+   "pin": "E16",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y9"
+  },
+  {
+   "pin": "E17",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y11"
+  },
+  {
+   "pin": "E18",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y11"
+  },
+  {
+   "pin": "E19",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y28"
+  },
+  {
+   "pin": "E21",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y25"
+  },
+  {
+   "pin": "E22",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y25"
+  },
+  {
+   "pin": "E23",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y21"
+  },
+  {
+   "pin": "E24",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y67"
+  },
+  {
+   "pin": "E26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y77"
+  },
+  {
+   "pin": "E27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y77"
+  },
+  {
+   "pin": "E28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y73"
+  },
+  {
+   "pin": "E29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y138"
+  },
+  {
+   "pin": "E3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y87"
+  },
+  {
+   "pin": "E31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y127"
+  },
+  {
+   "pin": "E32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y129"
+  },
+  {
+   "pin": "E33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y125"
+  },
+  {
+   "pin": "E34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y121"
+  },
+  {
+   "pin": "E4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y87"
+  },
+  {
+   "pin": "E7",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y29"
+  },
+  {
+   "pin": "E8",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y29"
+  },
+  {
+   "pin": "F1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y110"
+  },
+  {
+   "pin": "F10",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y46"
+  },
+  {
+   "pin": "F16",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y9"
+  },
+  {
+   "pin": "F18",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y13"
+  },
+  {
+   "pin": "F19",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y13"
+  },
+  {
+   "pin": "F2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y110"
+  },
+  {
+   "pin": "F20",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y17"
+  },
+  {
+   "pin": "F21",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y17"
+  },
+  {
+   "pin": "F23",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y21"
+  },
+  {
+   "pin": "F24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y67"
+  },
+  {
+   "pin": "F25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y75"
+  },
+  {
+   "pin": "F26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y75"
+  },
+  {
+   "pin": "F28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y73"
+  },
+  {
+   "pin": "F29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y138"
+  },
+  {
+   "pin": "F30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y132"
+  },
+  {
+   "pin": "F31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y134"
+  },
+  {
+   "pin": "F33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y125"
+  },
+  {
+   "pin": "F34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y121"
+  },
+  {
+   "pin": "F5",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y81"
+  },
+  {
+   "pin": "F6",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y81"
+  },
+  {
+   "pin": "F9",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y46"
+  },
+  {
+   "pin": "G16",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y1"
+  },
+  {
+   "pin": "G17",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y7"
+  },
+  {
+   "pin": "G18",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y7"
+  },
+  {
+   "pin": "G20",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y15"
+  },
+  {
+   "pin": "G21",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y15"
+  },
+  {
+   "pin": "G22",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y19"
+  },
+  {
+   "pin": "G23",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y19"
+  },
+  {
+   "pin": "G25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y82"
+  },
+  {
+   "pin": "G26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y82"
+  },
+  {
+   "pin": "G27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y80"
+  },
+  {
+   "pin": "G28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y88"
+  },
+  {
+   "pin": "G3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y98"
+  },
+  {
+   "pin": "G30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y132"
+  },
+  {
+   "pin": "G31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y134"
+  },
+  {
+   "pin": "G32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y140"
+  },
+  {
+   "pin": "G33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y142"
+  },
+  {
+   "pin": "G4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y98"
+  },
+  {
+   "pin": "G7",
+   "site": "IPAD_X0Y3.PAD",
+   "tile": "X309Y81"
+  },
+  {
+   "pin": "G8",
+   "site": "IPAD_X0Y2.PAD",
+   "tile": "X309Y81"
+  },
+  {
+   "pin": "H1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y121"
+  },
+  {
+   "pin": "H10",
+   "site": "IPAD_X0Y2.PAD",
+   "tile": "X309Y29"
+  },
+  {
+   "pin": "H17",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y5"
+  },
+  {
+   "pin": "H18",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y5"
+  },
+  {
+   "pin": "H19",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y3"
+  },
+  {
+   "pin": "H2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y121"
+  },
+  {
+   "pin": "H20",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y3"
+  },
+  {
+   "pin": "H22",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y51"
+  },
+  {
+   "pin": "H23",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y53"
+  },
+  {
+   "pin": "H24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y86"
+  },
+  {
+   "pin": "H25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y86"
+  },
+  {
+   "pin": "H27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y80"
+  },
+  {
+   "pin": "H28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y88"
+  },
+  {
+   "pin": "H29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y136"
+  },
+  {
+   "pin": "H30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y136"
+  },
+  {
+   "pin": "H32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y140"
+  },
+  {
+   "pin": "H33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y142"
+  },
+  {
+   "pin": "H34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y154"
+  },
+  {
+   "pin": "H5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y110"
+  },
+  {
+   "pin": "H6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y110"
+  },
+  {
+   "pin": "H9",
+   "site": "IPAD_X0Y3.PAD",
+   "tile": "X309Y29"
+  },
+  {
+   "pin": "J24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y84"
+  },
+  {
+   "pin": "J25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y84"
+  },
+  {
+   "pin": "J26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y90"
+  },
+  {
+   "pin": "J27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y90"
+  },
+  {
+   "pin": "J29",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y105"
+  },
+  {
+   "pin": "J3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y121"
+  },
+  {
+   "pin": "J30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y144"
+  },
+  {
+   "pin": "J31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y144"
+  },
+  {
+   "pin": "J32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y148"
+  },
+  {
+   "pin": "J34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y154"
+  },
+  {
+   "pin": "J4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y121"
+  },
+  {
+   "pin": "J7",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y133"
+  },
+  {
+   "pin": "J8",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y133"
+  },
+  {
+   "pin": "K1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y139"
+  },
+  {
+   "pin": "K2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y139"
+  },
+  {
+   "pin": "K24",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y94"
+  },
+  {
+   "pin": "K26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y98"
+  },
+  {
+   "pin": "K27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y98"
+  },
+  {
+   "pin": "K28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y96"
+  },
+  {
+   "pin": "K29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y96"
+  },
+  {
+   "pin": "K31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y146"
+  },
+  {
+   "pin": "K32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y148"
+  },
+  {
+   "pin": "K33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y150"
+  },
+  {
+   "pin": "K34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y152"
+  },
+  {
+   "pin": "K5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y139"
+  },
+  {
+   "pin": "K6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y139"
+  },
+  {
+   "pin": "L24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y94"
+  },
+  {
+   "pin": "L25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y92"
+  },
+  {
+   "pin": "L26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y92"
+  },
+  {
+   "pin": "L28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y102"
+  },
+  {
+   "pin": "L29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y102"
+  },
+  {
+   "pin": "L3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y150"
+  },
+  {
+   "pin": "L30",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y155"
+  },
+  {
+   "pin": "L31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y146"
+  },
+  {
+   "pin": "L33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y150"
+  },
+  {
+   "pin": "L34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y152"
+  },
+  {
+   "pin": "L4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y150"
+  },
+  {
+   "pin": "L7",
+   "site": "IPAD_X0Y3.PAD",
+   "tile": "X309Y133"
+  },
+  {
+   "pin": "L8",
+   "site": "IPAD_X0Y2.PAD",
+   "tile": "X309Y133"
+  },
+  {
+   "pin": "M1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y150"
+  },
+  {
+   "pin": "M2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y150"
+  },
+  {
+   "pin": "M25",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y103"
+  },
+  {
+   "pin": "M26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y100"
+  },
+  {
+   "pin": "M27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y100"
+  },
+  {
+   "pin": "M28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y159"
+  },
+  {
+   "pin": "M30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y188"
+  },
+  {
+   "pin": "M31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y188"
+  },
+  {
+   "pin": "M32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y190"
+  },
+  {
+   "pin": "M33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y192"
+  },
+  {
+   "pin": "M5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y162"
+  },
+  {
+   "pin": "M6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y162"
+  },
+  {
+   "pin": "N24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y165"
+  },
+  {
+   "pin": "N25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y165"
+  },
+  {
+   "pin": "N27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y163"
+  },
+  {
+   "pin": "N28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y159"
+  },
+  {
+   "pin": "N29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y161"
+  },
+  {
+   "pin": "N3",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y162"
+  },
+  {
+   "pin": "N30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y186"
+  },
+  {
+   "pin": "N32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y190"
+  },
+  {
+   "pin": "N33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y192"
+  },
+  {
+   "pin": "N34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y194"
+  },
+  {
+   "pin": "N4",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y162"
+  },
+  {
+   "pin": "P1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y173"
+  },
+  {
+   "pin": "P2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y173"
+  },
+  {
+   "pin": "P24",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y169"
+  },
+  {
+   "pin": "P25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y167"
+  },
+  {
+   "pin": "P26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y167"
+  },
+  {
+   "pin": "P27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y163"
+  },
+  {
+   "pin": "P29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y161"
+  },
+  {
+   "pin": "P30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y186"
+  },
+  {
+   "pin": "P31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y184"
+  },
+  {
+   "pin": "P32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y202"
+  },
+  {
+   "pin": "P34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y194"
+  },
+  {
+   "pin": "P5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y173"
+  },
+  {
+   "pin": "P6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y173"
+  },
+  {
+   "pin": "R24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y169"
+  },
+  {
+   "pin": "R26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y171"
+  },
+  {
+   "pin": "R27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y171"
+  },
+  {
+   "pin": "R28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y181"
+  },
+  {
+   "pin": "R29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y181"
+  },
+  {
+   "pin": "R3",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y191"
+  },
+  {
+   "pin": "R31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y184"
+  },
+  {
+   "pin": "R32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y202"
+  },
+  {
+   "pin": "R33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y206"
+  },
+  {
+   "pin": "R34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y206"
+  },
+  {
+   "pin": "R4",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y191"
+  },
+  {
+   "pin": "R7",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y185"
+  },
+  {
+   "pin": "R8",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y185"
+  },
+  {
+   "pin": null,
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y191"
+  },
+  {
+   "pin": null,
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y191"
+  },
+  {
+   "pin": "T24",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y157"
+  },
+  {
+   "pin": "T25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y173"
+  },
+  {
+   "pin": "T26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y173"
+  },
+  {
+   "pin": "T28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y179"
+  },
+  {
+   "pin": "T29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y179"
+  },
+  {
+   "pin": "T30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y198"
+  },
+  {
+   "pin": "T31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y198"
+  },
+  {
+   "pin": "T33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y204"
+  },
+  {
+   "pin": "T34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y204"
+  },
+  {
+   "pin": "T5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y202"
+  },
+  {
+   "pin": "T6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y202"
+  },
+  {
+   "pin": "U17",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X61Y181"
+  },
+  {
+   "pin": "U25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y175"
+  },
+  {
+   "pin": "U26",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y175"
+  },
+  {
+   "pin": "U27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y177"
+  },
+  {
+   "pin": "U28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y177"
+  },
+  {
+   "pin": "U3",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y202"
+  },
+  {
+   "pin": "U30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y196"
+  },
+  {
+   "pin": "U31",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y196"
+  },
+  {
+   "pin": "U32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y200"
+  },
+  {
+   "pin": "U33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y200"
+  },
+  {
+   "pin": "U4",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y202"
+  },
+  {
+   "pin": "U7",
+   "site": "IPAD_X0Y3.PAD",
+   "tile": "X309Y185"
+  },
+  {
+   "pin": "U8",
+   "site": "IPAD_X0Y2.PAD",
+   "tile": "X309Y185"
+  },
+  {
+   "pin": "V1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y214"
+  },
+  {
+   "pin": "V16",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X61Y181"
+  },
+  {
+   "pin": "V2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y214"
+  },
+  {
+   "pin": "V24",
+   "site": "IOB_X0Y0.IOB33.PAD",
+   "tile": "X0Y207"
+  },
+  {
+   "pin": "V25",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y223"
+  },
+  {
+   "pin": "V27",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y227"
+  },
+  {
+   "pin": "V28",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y227"
+  },
+  {
+   "pin": "V29",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y225"
+  },
+  {
+   "pin": "V30",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y221"
+  },
+  {
+   "pin": "V32",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y217"
+  },
+  {
+   "pin": "V33",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y217"
+  },
+  {
+   "pin": "V34",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y215"
+  },
+  {
+   "pin": "V5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y214"
+  },
+  {
+   "pin": "V6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y214"
+  },
+  {
+   "pin": "W24",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y229"
+  },
+  {
+   "pin": "W25",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y223"
+  },
+  {
+   "pin": "W26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y231"
+  },
+  {
+   "pin": "W27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y231"
+  },
+  {
+   "pin": "W29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y225"
+  },
+  {
+   "pin": "W3",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y225"
+  },
+  {
+   "pin": "W30",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y221"
+  },
+  {
+   "pin": "W31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y219"
+  },
+  {
+   "pin": "W32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y219"
+  },
+  {
+   "pin": "W34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y215"
+  },
+  {
+   "pin": "W4",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y225"
+  },
+  {
+   "pin": "W7",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y237"
+  },
+  {
+   "pin": "W8",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y237"
+  },
+  {
+   "pin": "Y1",
+   "site": "OPAD_X0Y0.PAD",
+   "tile": "X309Y243"
+  },
+  {
+   "pin": "Y2",
+   "site": "OPAD_X0Y1.PAD",
+   "tile": "X309Y243"
+  },
+  {
+   "pin": "Y24",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y229"
+  },
+  {
+   "pin": "Y26",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y233"
+  },
+  {
+   "pin": "Y27",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y233"
+  },
+  {
+   "pin": "Y28",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y238"
+  },
+  {
+   "pin": "Y29",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y238"
+  },
+  {
+   "pin": "Y31",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y242"
+  },
+  {
+   "pin": "Y32",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y242"
+  },
+  {
+   "pin": "Y33",
+   "site": "IOB_X0Y1.IOB33M.PAD",
+   "tile": "X0Y213"
+  },
+  {
+   "pin": "Y34",
+   "site": "IOB_X0Y0.IOB33S.PAD",
+   "tile": "X0Y213"
+  },
+  {
+   "pin": "Y5",
+   "site": "IPAD_X0Y0.PAD",
+   "tile": "X309Y225"
+  },
+  {
+   "pin": "Y6",
+   "site": "IPAD_X0Y1.PAD",
+   "tile": "X309Y225"
+  }
+ ],
+ "sites": {
+  "BSCAN": 4,
+  "BUFGCTRL": 32,
+  "BUFHCE": 192,
+  "BUFIO": 32,
+  "DCIRESET": 1,
+  "DNA_PORT": 1,
+  "DSP48": 1920,
+  "EFUSE_USR": 1,
+  "FRAME_ECC": 1,
+  "GTXE2_CHANNEL": 32,
+  "GTXE2_COMMON": 8,
+  "IBUFDS_GTE2": 16,
+  "ICAP": 2,
+  "IDELAY": 400,
+  "IDELAYCTRL": 8,
+  "ILOGIC": 400,
+  "IOB": 400,
+  "IPAD": 98,
+  "MMCME2_ADV": 8,
+  "OLOGIC": 400,
+  "OPAD": 64,
+  "PCIE": 1,
+  "PLLE2_ADV": 8,
+  "RAMB18": 1910,
+  "RAMB36": 955,
+  "SLICE": 74650,
+  "STARTUP": 1,
+  "USR_ACCESS": 1
+ },
+ "slice_ff_sites": 597200,
+ "slice_lut_sites": 597200,
+ "source": "xc7k480tffg1156.bba (openXC7 / nextpnr-xilinx chip database, text form, 278,286,261 bytes, uploaded by Alan 2 Nov 2026), read by tools/man_gen/bba_read_v1.py",
+ "string_id_offset": 762,
+ "tile_instances": 136359,
+ "tile_types": 98
+}
