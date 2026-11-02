@@ -38,9 +38,16 @@ def _paths(core, cc):
     return {table[i]: i for i in ups if table[i] in downs}
 
 
-def to_icm(program, name, faces=4):
+def to_icm(program, name, faces=4, bridges=None):
+    """bridges: optional list of {name, pad: [row, col] (an edge pad of this program), direction: 'to_unicell' | 'from_unicell', unicell_io: the io_name on the UniCell-side ICM file}.
+    A bridge is where a serial stream meets the parallel UniCell side (flex_to_sub_v1 / sub_to_flex_v1 plus a serialiser, not built); the record only NAMES the join."""
     d = V1.to_icm(program, name, faces)                                         # also refuses six faces
     d["format_version"] = FORMAT
+    pads = {tuple(v) for v in list(d["io"]["inputs"].values()) + list(d["io"]["outputs"].values())}
+    for b in bridges or []:
+        if b["direction"] not in ("to_unicell", "from_unicell") or tuple(b["pad"]) not in pads:
+            raise ValueError("bridge %r: unknown direction or its pad is not a pad of this program" % b.get("name"))
+    d["io"]["bridges"] = [dict(b) for b in (bridges or [])]
     for rec in d["records"]:
         if rec["core"] != "route":
             rec["icm_core"] = ICM_CORE.get(rec["core_config"]["kind"])              # the corrected table (v1's is not used)

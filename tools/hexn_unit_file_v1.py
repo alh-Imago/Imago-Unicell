@@ -121,3 +121,8 @@ def load_plan(unit, loaded, library, card_pattern_id=None):
     if not on_card:
         steps.append("load bitstream %s" % library[key]["file"])
     return steps + ["wipe all cells", "load program", "load weights", "ready for data"], []
+
+
+def unit_from_icm(icm, weights, pattern, pattern_id=None, description=""):
+    """a unit whose program part IS an icm-hexn file: the unit takes the ICM file's own name and base (bitstream), so one name ties file, program and unit together"""
+    return make_unit(icm["name"], icm["bitstream"], pattern, icm, weights, description, pattern_id)

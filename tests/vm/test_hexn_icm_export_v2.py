@@ -45,3 +45,16 @@ def test_native_tiles_are_used_and_counted():
         for k, v in X.report(json.loads(json.dumps(X.to_icm(prog, nm))))["routing_by_core"].items(): tot[k] = tot.get(k, 0) + v
     assert tot.get("cross", 0) > 0 and tot.get("corner", 0) > 0                     # the native cores are really used
     assert sum(v for k, v in tot.items() if k != "route") > sum(tot.get("route", 0) for _ in [0])   # most cells need no private core
+
+
+def test_bridge_record_and_unit_tie():
+    import hexn_unit_file_v1 as U
+    b, t, prog = _prog("old/scale_offset")
+    pad = prog["pads_out"]["y"]
+    d = json.loads(json.dumps(X.to_icm(prog, "so", bridges=[dict(name="y_out", pad=pad, direction="to_unicell", unicell_io="input_0")])))
+    assert d["io"]["bridges"][0]["unicell_io"] == "input_0" and X.from_icm(d) == X.from_icm(json.loads(json.dumps(X.to_icm(prog, "so"))))   # a bridge changes no cell
+    with pytest.raises(ValueError): X.to_icm(prog, "so", bridges=[dict(name="z", pad=[99, 99], direction="to_unicell")])
+    with pytest.raises(ValueError): X.to_icm(prog, "so", bridges=[dict(name="z", pad=pad, direction="sideways")])
+    u = U.unit_from_icm(d, {"judge_a": {"w": [1]}}, "math-1")
+    assert u["header"]["name"] == "so" and u["header"]["base"] == d["bitstream"] and U.check(u) == dict(header=0, program=0, weights=0)
+    assert U.unicell_view(u)[0] == d
