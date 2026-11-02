@@ -1,6 +1,11 @@
-# Hex-N UCC v2: scoping (1 Nov 2026, 21:30)
+# Hex-N UCC v2: scoping (1 Nov 2026, 21:30; direction added 2 Nov 05:45)
 
 Status: **SCOPING ONLY. Nothing here is built, decided or measured unless it says so.** Every item marked PROPOSAL is for Alan to accept, change or drop.
+
+## 0. DIRECTION from Alan, 2 Nov 05:45 (readings taken; supersedes parts of sections 3 and 4 below)
+- v1 is **chaining**. v2 of the large Hex-N UCC should follow the **UniCell neighbour-shell scheme** (each cell has its own shell and knows its neighbours; paths are made by writing routing config, as with `routing_mask`), so it allows **routing**, not just chaining. The neighbour awareness is the UniCell side, not the hex-grid side; v2 should not be tied to a hex layout.
+- **One cell kind instead of separate cores: a LOOK-UP-TABLE cell.** "Similar idea, just simpler." So the maths cells (section 3, kinds B and C) are not separate hardware; function comes from a table loaded into the cell. My reading, to be confirmed.
+- Notes on that reading (mine, not decided): a table cell is simple and uniform, and the chip's block RAM is a natural place for the tables (the Tang has 46 blocks, 11 used by v1; the Hex-N judge's tanh already is a 512-entry table). It suits small inputs well (binning, curves, activation functions, small-digit logic). A table cannot hold wide arithmetic directly (two 18-bit operands would need 2^36 entries), so adds and compares on wide words would be built by slicing into small digits chained through cells, or by keeping one small adder helper. That trade-off is the main thing to settle.
 
 ## 1. Why a v2 (Alan, 20:27, 21:14, 21:18, readings taken)
 - The chain with a bypass switch per unit (v1, stage 9) works on the Tang and is board-confirmed at 4 units. Alan: with bypass the routing is not needed at this stage; "but more stages yes, see how far it goes".
@@ -16,7 +21,7 @@ Status: **SCOPING ONLY. Nothing here is built, decided or measured unless it say
 - Data path 18 bits wide. One word in flight per stage; about 5 clocks per word per stage.
 - Known weakness found on the board: the unit starts a command when the command register changes, so a repeated identical word is ignored (fixed in the host by writing 0 first). v2 should use a command that cannot be missed (for example a toggle plus acknowledge).
 
-## 3. Stage types for v2 (PROPOSAL)
+## 3. Stage types for v2 (PROPOSAL of 1 Nov; see section 0: a single look-up-table cell may replace kinds A to C)
 | Kind | What it does | Notes |
 |---|---|---|
 | A. Logic/route cell | truth-table (nano), mask, compare, select, bypass | the cheap one; no adder or shifter |
@@ -27,7 +32,7 @@ Status: **SCOPING ONLY. Nothing here is built, decided or measured unless it say
 | F. Memory port | read/write a word from the card's RAM | Kintex: DDR3 |
 All kinds speak the same handshake and carry the same bypass bit, so the engine and the program format do not care which kind sits where. Question 1 in section 8 decides how many kinds to build first.
 
-## 4. Routing (PROPOSAL, small first)
+## 4. Routing (PROPOSAL, small first; section 0: follow the UniCell neighbour-shell scheme)
 - v1 is a straight line. v2 needs branches, so each cell gets an **input choice** (which neighbour it listens to) and split/merge cells.
 - Keep it **local**: a cell listens to one of a few nearby cells (previous, one back, or a named side input), chosen by a field in its config word. No global crossbar: it would break the flat timing the chain showed on the Tang.
 - Paths are set by writing config words, as UniCell does with `routing_mask` (docs/shared/SYSTEM_MECHANICS.md); the host-side "walker" (discovery by ping/relay) is not a path creator and stays out of it.
@@ -50,7 +55,8 @@ All kinds speak the same handshake and carry the same bypass bit, so the engine 
 - The sketch's C++ chain model is fixed at 4 units; it needs a parameter before bigger chains are tested on the board.
 
 ## 8. Questions for Alan
-1. Which kinds first: A (logic/route) and C (hard maths) only, or B as well?
+1. Cell kinds: with the single look-up-table cell of section 0, how wide is the table (address bits, data bits), and how should wide adds and compares be done: sliced into small digits, or one small adder helper kept?
+1b. Neighbours: which UniCell neighbour set does v2 use (how many directions, and does the routing mask choose input, output or both)?
 2. Branching: is **split + merge** enough for the first v2 systems, or do you want a general small crossbar?
 3. Word width: stay at 18 bits or go to 32 on the big cards?
 4. Target order: build and measure on the Tang first (cheap, quick) or go straight to a Kintex ladder (16 / 64 / 256 stages)?
