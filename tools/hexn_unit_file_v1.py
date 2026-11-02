@@ -126,3 +126,42 @@ def load_plan(unit, loaded, library, card_pattern_id=None):
 def unit_from_icm(icm, weights, pattern, pattern_id=None, description=""):
     """a unit whose program part IS an icm-hexn file: the unit takes the ICM file's own name and base (bitstream), so one name ties file, program and unit together"""
     return make_unit(icm["name"], icm["bitstream"], pattern, icm, weights, description, pattern_id)
+
+
+def plan_load(unit, card, card_pattern_id, library, can_build=False):
+    """THE FULL LOAD DECISION (Alan, 2 Nov 17:59).  An ICM/unit is read by the programmer, which
+      A) checks which pattern the target card holds (the pattern id word read from the card),
+      B) if it is the right one, goes straight on; if not, PULLS the bitstream from the library, or, if there is none, BUILDS it from the pattern's reference file
+         with the assembler (only when can_build), or else TELLS THE USER the bitstream has to be put in place first and loads NOTHING,
+      C) then wipes, loads the program from the file, then the weights, then is ready for data.
+    card: card id (a bitstream is per card).  library: {card: {(base, pattern): {'pattern_id': word, 'reference': pattern reference file name or None,
+      'file': bitstream file for THIS card or None, 'judges': [names]}}}.  -> dict(steps=[...], problems=[...], needs=[...]); problems non-empty means nothing is done."""
+    st = check(unit); h = unit.get("header", {}) if isinstance(unit, dict) else {}
+    problems, needs = [], []
+    if st["header"] != OK:
+        return dict(steps=[], problems=["header refused (status %d)" % st["header"]], needs=[])
+    for p in PARTS:
+        if st[p] != OK: problems.append("%s part refused (status %d)" % (p, st[p]))
+    key = (h.get("base"), h.get("pattern")); entry = library.get(card, {}).get(key)
+    if not key[0] or not key[1]: problems.append("unit does not name its base and pattern")
+    elif entry is None: problems.append("pattern %r on base %r is not known for card %r (no reference file, no bitstream)" % (key[1], key[0], card))
+    else:
+        missing = sorted(set(unit.get("weights", {})) - set(entry.get("judges", [])))
+        if missing: problems.append("weights for judges the bitstream does not hold: %s" % ", ".join(missing))
+        if h.get("pattern_id") is not None and entry.get("pattern_id") is not None and h["pattern_id"] != entry["pattern_id"]:
+            problems.append("unit expects pattern id %08X but the library has %08X" % (h["pattern_id"], entry["pattern_id"]))
+    steps = []
+    if not problems:
+        if card_pattern_id is not None and entry.get("pattern_id") is not None and card_pattern_id == entry["pattern_id"]:
+            steps.append("bitstream already on the card")
+        elif entry.get("file"):
+            steps.append("pull bitstream %s from the library and load it on card %s" % (entry["file"], card))
+        elif entry.get("reference") and can_build:
+            steps += ["build the bitstream for card %s from reference %s with the assembler" % (card, entry["reference"]), "load the new bitstream"]
+        else:
+            what = "reference file %s" % entry["reference"] if entry.get("reference") else "reference file"
+            needs.append("bitstream for pattern %r on card %r" % (key[1], card))
+            problems.append("the bitstream is not on the card, not in the library, and cannot be built here (%s %s): it needs to be in place before this unit can load"
+                            % ("have" if entry.get("reference") else "no", what))
+    if problems: return dict(steps=[], problems=problems, needs=needs)
+    return dict(steps=steps + ["wipe all cells", "load program", "load weights", "ready for data"], problems=[], needs=[])

@@ -78,3 +78,37 @@ def test_pattern_id_word_and_card_read():
     assert U.load_plan(u, None, lib, card_pattern_id=0)[0][0] == "load bitstream math1.fs"                      # nothing recognisable on the card
     u2 = U.make_unit("d", "tang-base-1", "math-1", PROG, dict(judge_a=W), pattern_id=U.pack_id(0xA1, 4))      # unit built for version 4, library has 3
     s, p = U.load_plan(u2, None, lib, card_pattern_id=U.pack_id(0xA1, 3)); assert s == [] and "pattern id" in p[0]
+
+
+def _lib(file=None, ref="math-1.pattern.json", card="tang20k"):
+    return {card: {("tang-base-1", "math-1"): dict(pattern_id=U.pack_id(0x19, 1), reference=ref, file=file, judges=["judge_a"])}}
+
+
+def _unit():
+    return U.make_unit("d", "tang-base-1", "math-1", PROG, dict(judge_a=W), pattern_id=U.pack_id(0x19, 1))
+
+
+def test_plan_load_all_four_outcomes():
+    ID = U.pack_id(0x19, 1)
+    r = U.plan_load(_unit(), "tang20k", ID, _lib(file="m.fs"))                                   # already on the card
+    assert r["steps"] == ["bitstream already on the card", "wipe all cells", "load program", "load weights", "ready for data"]
+    r = U.plan_load(_unit(), "tang20k", 0, _lib(file="m.fs"))                                    # wrong or nothing: pull it
+    assert r["steps"][0].startswith("pull bitstream m.fs") and r["steps"][-1] == "ready for data"
+    r = U.plan_load(_unit(), "tang20k", 0, _lib(file=None), can_build=True)                      # not in library: build from the reference
+    assert r["steps"][0].startswith("build the bitstream") and r["steps"][1] == "load the new bitstream"
+    r = U.plan_load(_unit(), "tang20k", 0, _lib(file=None))                                      # cannot build: tell the user, load nothing
+    assert r["steps"] == [] and "needs to be in place" in r["problems"][0] and r["needs"] == ["bitstream for pattern 'math-1' on card 'tang20k'"]
+
+
+def test_plan_load_is_per_card_and_refuses_the_rest():
+    ID = U.pack_id(0x19, 1)
+    r = U.plan_load(_unit(), "kintex", ID, _lib(file="m.fs"))                                    # the library only has the Tang: unknown here
+    assert r["steps"] == [] and "not known for card" in r["problems"][0]
+    r = U.plan_load(_unit(), "tang20k", ID, _lib(file=None, ref=None))                           # no reference, no bitstream, but it is on the card
+    assert r["steps"][0] == "bitstream already on the card"
+    r = U.plan_load(_unit(), "tang20k", 0, _lib(file=None, ref=None), can_build=True)            # nothing to build from
+    assert r["steps"] == [] and "no a reference file" not in r["problems"][0] and "no" in r["problems"][0]
+    u = _unit(); u["weights"]["judge_a"]["b1"][0] += 1
+    assert U.plan_load(u, "tang20k", ID, _lib(file="m.fs"))["steps"] == []                       # a damaged part: nothing loads
+    u2 = U.make_unit("d", "tang-base-1", "math-1", PROG, dict(judge_a=W), pattern_id=U.pack_id(0x19, 2))
+    assert "pattern id" in U.plan_load(u2, "tang20k", ID, _lib(file="m.fs"))["problems"][0]
