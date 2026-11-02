@@ -168,8 +168,8 @@
 <body>
   <div class="manual">
     <div class="page"><div class="reading">
-      <section class="panel active" id="sec-idea" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§01 / 09</span></div><h1 class="ptitle">Topology Is Computation</h1><p class="intro">A spatial FPGA compute architecture where the physical WIRING is the program, not a thing the program runs on. There's no CPU, no instruction set, and no shared bus &mdash; a physical cell holds a fixed set of real hardware cores, each wired directly to its North/South/East/West neighbors. Computation happens as values arrive and propagate across that topology, one hop at a time. In the Arria 10 line a two-operand cell fires once it has received arrivals from two directions (a <strong>two-arrival firing model</strong>); in the current Tang Nano 20K line each cell has a dedicated port per role and the wiring is generated from the program file. A timing pulse only schedules when data passes between cells (the cell internals are unclocked); the acknowledge handshake controls the flow, and the freeze line lets a cell be reprogrammed, have its state captured, or be reloaded without data moving or a partial design pre-firing.<br><br><strong>What this actually is, stated plainly:</strong> a research project building real, working pieces of this architecture, on real hardware, with real measured numbers &mdash; not a general-purpose computer, not commercially packaged. Current work runs on a Sipeed Tang Nano 20K as a testbed and proof of concept, with an open toolchain; the earlier Arria 10 line found that card's ceiling and closed.</p><hr class="rule"><div class="doc"></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-start"><span class="ref-kind">§</span><span class="ref-text">Continue → Start Here</span></a></aside><nav class="pagenav"><span class="pn pn-empty"></span><button class="pn pn-next" data-target="sec-start">Start ›</button></nav></section>
-<section class="panel" id="sec-start" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§02 / 09</span></div><h1 class="ptitle">Start Here</h1><p class="intro">Orientation and your first run: what the project is, current status, and how to get the VM/workbench going.</p><hr class="rule"><div class="doc"><div class="partsub">Read me first<span class="partsrc">README.md</span></div>
+      <section class="panel active" id="sec-idea" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§01 / 10</span></div><h1 class="ptitle">Topology Is Computation</h1><p class="intro">A spatial FPGA compute architecture where the physical WIRING is the program, not a thing the program runs on. There's no CPU, no instruction set, and no shared bus &mdash; a physical cell holds a fixed set of real hardware cores, each wired directly to its North/South/East/West neighbors. Computation happens as values arrive and propagate across that topology, one hop at a time. In the Arria 10 line a two-operand cell fires once it has received arrivals from two directions (a <strong>two-arrival firing model</strong>); in the current Tang Nano 20K line each cell has a dedicated port per role and the wiring is generated from the program file. A timing pulse only schedules when data passes between cells (the cell internals are unclocked); the acknowledge handshake controls the flow, and the freeze line lets a cell be reprogrammed, have its state captured, or be reloaded without data moving or a partial design pre-firing.<br><br><strong>What this actually is, stated plainly:</strong> a research project building real, working pieces of this architecture, on real hardware, with real measured numbers &mdash; not a general-purpose computer, not commercially packaged. Current work runs on a Sipeed Tang Nano 20K as a testbed and proof of concept, with an open toolchain; the earlier Arria 10 line found that card's ceiling and closed.</p><hr class="rule"><div class="doc"></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-start"><span class="ref-kind">§</span><span class="ref-text">Continue → Start Here</span></a></aside><nav class="pagenav"><span class="pn pn-empty"></span><button class="pn pn-next" data-target="sec-start">Start ›</button></nav></section>
+<section class="panel" id="sec-start" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§02 / 10</span></div><h1 class="ptitle">Start Here</h1><p class="intro">Orientation and your first run: what the project is, current status, and how to get the VM/workbench going.</p><hr class="rule"><div class="doc"><div class="partsub">Read me first<span class="partsrc">README.md</span></div>
 <h1>Imago UniCell</h1>
 <p>A spatial compute architecture built on one principle: <strong>topology is
 computation</strong>. There's no CPU, no instruction set, no shared bus.
@@ -567,7 +567,7 @@ throughout the project's own documentation, never blurred.</p>
 <li><strong>A step-by-step, tabbed browser front end</strong> — the recommended
   starting point: MAN file generation (Intel or Xilinx; pick the card maker in the
   dropdown), Quartus project generation,
-  and the simulated Walker, each its own tab, walking through this
+  the simulated Walker, and a Hex-N tab (serial VM, unit files, programmer plan), each its own tab, walking through this
   project's own real build process in order. Every action-performing
   page also shows the exact equivalent CLI command. Run it with:
   <code>bash
@@ -923,7 +923,7 @@ sweep (see <code>../archeology/README.md</code> for the full reorganization):</p
 <p>Everything else that used to live loose at the repo root or in <code>docs/</code>
 has moved to <code>../archeology/</code>, split by which cell line it actually
 describes (FULL cell / stripped cell / shared).</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-cell"><span class="ref-kind">§</span><span class="ref-text">Continue → The Cell</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-idea">‹ The Idea</button><button class="pn pn-next" data-target="sec-cell">The Cell ›</button></nav></section>
-<section class="panel" id="sec-cell" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§03 / 09</span></div><h1 class="ptitle">The Cell</h1><p class="intro">The current line's cells are the <strong>sub</strong> and <strong>flex</strong> families built for the Tang Nano 20K: each cell stripped to one function, with a dedicated port per role. sub is fixed-latency with no flow control; flex is width-parameterised (18 bits on the Tang) with a point-to-point handshake. The earlier Arria 10 line's <strong>super carrier shell</strong> holds eight cores in one physical cell, chosen by a runtime configuration write, and the standalone <strong>nano cell</strong> is that line's NOR-gate logic core on its own.</p><hr class="rule"><div class="doc"><div class="partsub">The sub and flex cell families (current line)<span class="partsrc">sub/README.md</span></div>
+<section class="panel" id="sec-cell" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§03 / 10</span></div><h1 class="ptitle">The Cell</h1><p class="intro">The current line's cells are the <strong>sub</strong> and <strong>flex</strong> families built for the Tang Nano 20K: each cell stripped to one function, with a dedicated port per role. sub is fixed-latency with no flow control; flex is width-parameterised (18 bits on the Tang) with a point-to-point handshake. The earlier Arria 10 line's <strong>super carrier shell</strong> holds eight cores in one physical cell, chosen by a runtime configuration write, and the standalone <strong>nano cell</strong> is that line's NOR-gate logic core on its own.</p><hr class="rule"><div class="doc"><div class="partsub">The sub and flex cell families (current line)<span class="partsrc">sub/README.md</span></div>
 <h1>sub/ -- the "v4s" (stripped) cell family</h1>
 <p>Real design direction from a live conversation with Alan (2026-09-29 evening into
 morning), building directly on that session's own measured findings (<code>points.md
@@ -2882,7 +2882,7 @@ STRIPPED-cell-only.</p>
 </table>
 <p>500-cell (20×25) fallback zone built and sim-verified in reserve
 (<code>points.md</code> #157), not yet needed.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-icm"><span class="ref-kind">§</span><span class="ref-text">Continue → ICM v3 &amp; Cores</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-start">‹ Start</button><button class="pn pn-next" data-target="sec-icm">ICM &amp; Cores ›</button></nav></section>
-<section class="panel" id="sec-icm" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§04 / 09</span></div><h1 class="ptitle">The ICM Formats &amp; Core Reference</h1><p class="intro">The program formats (records at row/col grid positions, verified against compiled RTL), which never name a target: a design states what it needs and each target provides it or refuses. Then a reference for every cell generation's ports, costs and proof status, and the behaviours that bite.</p><hr class="rule"><div class="doc"><div class="partsub">The ICM v3 format<span class="partsrc">docs/stripped-cell/ICM_V3_FORMAT.md</span></div>
+<section class="panel" id="sec-icm" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§04 / 10</span></div><h1 class="ptitle">The ICM Formats &amp; Core Reference</h1><p class="intro">The program formats (records at row/col grid positions, verified against compiled RTL), which never name a target: a design states what it needs and each target provides it or refuses. Then a reference for every cell generation's ports, costs and proof status, and the behaviours that bite.</p><hr class="rule"><div class="doc"><div class="partsub">The ICM v3 format<span class="partsrc">docs/stripped-cell/ICM_V3_FORMAT.md</span></div>
 <h1>ICM v3 Format — the super cell's own program format</h1>
 <p><em>Implemented and verified 2026-08-16; brought up to date 2026-10-06 (ledger
 #986): ten cores, the fine shift, the second-output flags, <code>min_bit_width</code>
@@ -5216,7 +5216,7 @@ recombiner at all.</p>
 <p><em>(No composed tile exists for this yet — real, concrete follow-up
 once the branch cell itself is built: register a <code>recombiner_4way</code>
 composed tile so this structure never has to be hand-wired.)</em></p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-dsl"><span class="ref-kind">§</span><span class="ref-text">Continue → The DSL &amp; Compiler</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-cell">‹ The Cell</button><button class="pn pn-next" data-target="sec-dsl">DSL ›</button></nav></section>
-<section class="panel" id="sec-dsl" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§05 / 09</span></div><h1 class="ptitle">The DSL, Compiler &amp; Other Frontends</h1><p class="intro">A real, purpose-built language for authoring Unicell-S programs, plus a real C-AST frontend and a real Python-AST frontend, all compiling down to the exact same shared IR and backend. Every worked example in this reference was independently compiled and confirmed working before being written down.</p><hr class="rule"><div class="doc"><h1>The Unicell-S DSL — Language Manual</h1>
+<section class="panel" id="sec-dsl" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§05 / 10</span></div><h1 class="ptitle">The DSL, Compiler &amp; Other Frontends</h1><p class="intro">A real, purpose-built language for authoring Unicell-S programs, plus a real C-AST frontend and a real Python-AST frontend, all compiling down to the exact same shared IR and backend. Every worked example in this reference was independently compiled and confirmed working before being written down.</p><hr class="rule"><div class="doc"><h1>The Unicell-S DSL — Language Manual</h1>
 <p><em>A reference for the language <code>nano/dsl_lexer_v1.py</code>/<code>dsl_parser_v1.py</code>/<code>dsl_compiler_v1.py</code> actually implement, verified against those files and the live tile registries at time of writing (<code>points.md</code> #343, #346, and #347). If this manual and the code ever disagree, the code is right — this document describes what's built, not an aspiration.</em></p>
 <h2>1. What this is</h2>
 <p>A small, purpose-built language for describing programs for the
@@ -5718,7 +5718,7 @@ instead, at whichever layer first sees the cycle:</p>
 <pre><code>ValueError: circular composed-tile reference: a -&gt; b -&gt; a -- a tile can
 never (directly or indirectly) contain itself
 </code></pre></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-workbench"><span class="ref-kind">§</span><span class="ref-text">Continue → The Workbench</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-icm">‹ ICM &amp; Cores</button><button class="pn pn-next" data-target="sec-workbench">Workbench ›</button></nav></section>
-<section class="panel" id="sec-workbench" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§06 / 09</span></div><h1 class="ptitle">The Browser Workbench</h1><p class="intro">Compile a program, watch it run, drive individual cells, and load multiple independent programs onto one shared grid as named regions &mdash; either at a manual offset or via a real auto-placement search. Run it with:<br><br><code>python3 nano/workbench_v1.py</code><br>→ opens at <code>http://localhost:7420</code></p><hr class="rule"><div class="doc"><h1>The Unicell-S workbench — design scope</h1>
+<section class="panel" id="sec-workbench" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§06 / 10</span></div><h1 class="ptitle">The Browser Workbench</h1><p class="intro">Compile a program, watch it run, drive individual cells, and load multiple independent programs onto one shared grid as named regions &mdash; either at a manual offset or via a real auto-placement search. Run it with:<br><br><code>python3 nano/workbench_v1.py</code><br>→ opens at <code>http://localhost:7420</code></p><hr class="rule"><div class="doc"><h1>The Unicell-S workbench — design scope</h1>
 <p><em>Captured 2026-08-16 (day 2), based on a real, line-level audit of the
 old <code>workbench.py</code> (2711 lines) -- not a fresh design from nothing.
 Per Alan's own instruction: check the old version first for what's
@@ -5784,7 +5784,7 @@ confirm state, step it, drive it, confirm the accumulator/comparator/
 latch state matches the same real behavior already proven in
 <code>points.md #340</code>) -- before spending time on visual polish. A minimal,
 functional HTML page comes after the API is proven correct, not before.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-hw"><span class="ref-kind">§</span><span class="ref-text">Continue → Hardware</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-dsl">‹ DSL</button><button class="pn pn-next" data-target="sec-hw">Hardware ›</button></nav></section>
-<section class="panel" id="sec-hw" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§07 / 09</span></div><h1 class="ptitle">Hardware</h1><p class="intro">From simulator to silicon. Current: the Tang Nano 20K, its MAN file, the open Gowin toolchain, and the first bitstream confirmed on the board. Earlier: the Arria 10 card's programming procedure and bring-up findings.</p><hr class="rule"><div class="doc"><div class="partsub">Tang Nano 20K: getting started<span class="partsrc">docs/man/tang-nano-20k-getting-started.md</span></div>
+<section class="panel" id="sec-hw" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§07 / 10</span></div><h1 class="ptitle">Hardware</h1><p class="intro">From simulator to silicon. Current: the Tang Nano 20K, its MAN file, the open Gowin toolchain, and the first bitstream confirmed on the board. Earlier: the Arria 10 card's programming procedure and bring-up findings.</p><hr class="rule"><div class="doc"><div class="partsub">Tang Nano 20K: getting started<span class="partsrc">docs/man/tang-nano-20k-getting-started.md</span></div>
 <h1>Tang Nano 20K -- getting started (points.md #892/#896)</h1>
 <p>This is the first real, flashable UniCell deliverable for the Sipeed Tang Nano 20K, and it has now been
 <strong>confirmed working on the physical board</strong> (<code>#894</code>/<code>#895</code>/<code>#896</code>) -- not just simulated and synthesized.</p>
@@ -6669,7 +6669,7 @@ data. <code>--check</code> exits 1 if either committed file is stale. It needs
 <code>pip install apycula msgpack</code>; pin apycula to 0.32 to reproduce the
 committed file (#975). See <code>docs/man/README.md</code>.</p>
 <h2>The local browser tools share one look (<code>nano/ui_theme_v1.py</code>, ledger #998)</h2>
-<p>The front panel (<code>python3 nano/frontend_v2.py</code>, port 7421; <code>frontend_v1.py</code> is the older Intel-only version, kept: Start, MAN file, Create cells, Walker, Other tools, Manual) and the
+<p>The front panel (<code>python3 nano/frontend_v2.py</code>, port 7421; running <code>frontend_v1.py</code> now starts v2 too, its pages are kept for the tests: Start, MAN file, Create cells, Walker, Other tools, Composer, Hex-N, Manual; the Hex-N tab holds the unit-file check, serial VM, demo export, programmer plan and the assembler status) and the
 workbench (<code>python3 nano/workbench_v1.py</code>, port 7420) use one stylesheet and one header/nav from <code>nano/ui_theme_v1.py</code>.
 That module is presentation only. A new page should call <code>ui.page(title, body, active=...)</code> rather than carry its own CSS.</p>
 <h2><code>shape_extract_v1.py</code> — real cell-to-cell adjacency extraction</h2>
@@ -7029,8 +7029,1013 @@ cd Imago-Unicell
 <li>Bitstream: <code>top_xdma_unicell.bit</code></li>
 <li>MCS: <code>top_xdma_unicell.mcs</code></li>
 <li>BPI page size and read cycle settings in COR1 are at defaults (00/00) — may need tuning for mt28gu512aax1e timing once correct device is targeted</li>
-</ul></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-roadmap"><span class="ref-kind">§</span><span class="ref-text">Continue → Roadmap</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-workbench">‹ Workbench</button><button class="pn pn-next" data-target="sec-roadmap">Roadmap ›</button></nav></section>
-<section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§08 / 09</span></div><h1 class="ptitle">Roadmap &amp; The Project&#x27;s Own Record</h1><p class="intro">Where the project is heading, the active plan, and the full, honest, append-only decision log &mdash; every real design decision, bug found, and measurement taken, with its actual reasoning, not just a changelog line. <code>points.md</code> itself is genuinely huge (300+ numbered entries, one growing project-long log) &mdash; linked below rather than embedded inline, the same real reason the Session Logs section (next) links out instead of reprinting.</p><hr class="rule"><div class="doc"><h1>Imago UniCell — Active Plan</h1>
+</ul></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-hexn"><span class="ref-kind">§</span><span class="ref-text">Continue → Hex-N</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-workbench">‹ Workbench</button><button class="pn pn-next" data-target="sec-hexn">Hex-N ›</button></nav></section>
+<section class="panel" id="sec-hexn" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§08 / 10</span></div><h1 class="ptitle">Hex-N: the Serial Cousin</h1><p class="intro">Hex-N is a separate project on its own branch that shares lineage with Imago UniCell: a serial, 32-bit, one-word-per-link version of the cell idea, with a judge system built in as the base. A full Hex-N program is <strong>one loadable file</strong> (a header plus two parts: the program and the judge weights), tied to a named bitstream pattern. The front end has a <strong>Hex-N tab</strong> (unit file check, serial VM, demo programs and export, programmer plan, assembler status). Run it with:<br><br><code>python3 nano/frontend_v2.py</code><br>&rarr; <code>http://localhost:7421/hexn</code>. The assembler and the card-talking programmer are scoped but not built; each page says so.</p><hr class="rule"><div class="doc"><div class="partsub">Hex-N: what it is<span class="partsrc">docs/hex-n/README.md</span></div>
+<h1>Hex-N</h1>
+<p><strong>This branch is not intended to be merged into <code>main</code>.</strong></p>
+<p>Hex-N is a separate project that shares lineage and some core concepts with
+Imago UniCell, but is a distinct architecture with its own direction. It lives
+on this branch for convenience (shared history, shared repo access) rather
+than as a feature under development for UniCell itself. If GitHub prompts you
+to open a pull request comparing this branch to <code>main</code>, that prompt can be
+ignored — there is no plan to reconcile the two.</p>
+<h2>What it is</h2>
+<p>A hex-cell neuron design: a 6-face cell, 16 individually-configurable
+in/out lines per face (96 lines total), each line gated through one of four
+selectable logic functions (AND / OR / XOR / NOT). Lines pair directionally
+between neighbouring cells (an <code>out</code> on one cell wired to a matching <code>in</code> on
+the next) rather than sharing a physical bidirectional wire, avoiding the bus
+contention problems the original UniCell "full fat" cell design hit.</p>
+<p>Each face accumulates its active input lines over a timer-gated window and
+compares the result against a threshold to decide whether to fire — a trained,
+frozen threshold rather than one that keeps adapting after deployment.
+Feedback lines currently share the same accumulator as forward input
+(simplest version, not separately weighted).</p>
+<h2>Relationship to Imago UniCell</h2>
+<ul>
+<li>Concept-linked: same "topology is computation" thinking, same style of
+  cardinal/point-to-point wiring, same instinct to compose from small proven
+  pieces before adding new hardware.</li>
+<li>Architecturally separate: different cell design, different resource profile
+  (this is a heavier per-cell cost — closer to a small ALU than a pure logic
+  mesh), different training method (discrete parameters — lane active/inactive,
+  gate-per-lane, threshold — so evolutionary/genetic search or simulated
+  annealing rather than backprop).</li>
+<li>Separate hardware target in mind: Tang Nano 20K (Gowin GW2AR-18), with a
+  BL616-based link out to a front-end (originally scoped as an ESP32) over a
+  direct GPIO link — see <code>esp32-bl616-link-protocol-v0.1.md</code> for that protocol
+  draft.</li>
+</ul>
+<h2>Start here</h2>
+<p><strong><code>HEXN_DESIGN.md</code> is the current design document</strong> (what the cell is, how it learns, what has been measured, open questions). The notes below are older and are kept as written; where they differ, the design document is newer.</p>
+<p><strong>The open unit and its front end (1 Nov 2026).</strong> One Tang Nano 20K build whose personality is chosen by data from an ESP32: <code>OPEN_UNIT_v1.md</code> (the unit, stage by stage, all confirmed on the board) and <code>FRONT_END_UNIT_v1.md</code> (the ESP32 gateway, the command line and the web page: <code>python3 tools/hexn_front_web_v1.py</code>).</p>
+<h2>Status (older text)</h2>
+<p><em>Update 22 Oct 2026: past the scoping stage. A bank of counted detectors on a 12-wire hex lattice has been built, trained serially and loaded onto the Tang Nano 20K, where it answers over the serial link; on the 7-detector bank the board now matches the simulation exactly (5,250 of 5,250 test samples) when built without the chip's carry-chain arithmetic cells; see <code>HEXN_DESIGN.md</code> section 4a. A browser front end (<code>frontend/hexn_explorer_v1.html</code>) now trains the same counted bank, tests it against noise, and exports a training script that <code>tools/hexn_tang_script_v1.py</code> runs on the board (7 machine states, 140 of 140 test samples identical to the rules on the 18-wire hex7 build). The text below is as first written.</em></p>
+<p>Scoping stage, with a first behavioural prototype. The Tang Nano 20K has arrived and
+the UniCell small unit (SD card + SPI bridge + ESP32) runs on it, which changes the
+pin budget and the ESP32 link: see <code>walkthrough-v0.2.md</code> (review, open questions,
+measured cost). <code>rtl/hexn_cell_v0.v</code> + <code>tests/test_hexn_cell_v0.py</code> are scoping
+prototypes that pin down assumptions, not decisions.</p>
+<div class="partsub">Walkthrough<span class="partsrc">docs/hex-n/walkthrough-v0.2.md</span></div>
+<h1>Hex-N walkthrough, v0.2 (9 Oct 2026)</h1>
+<p>Status: review of the v0.1 notes against what the UniCell side has since built (the small unit: SD card + SPI bridge + ESP32 web control, running on the real Tang Nano 20K), plus a first behavioural RTL (<code>rtl/hexn_cell_v0.v</code>) and an independent Python model (<code>tests/test_hexn_cell_v0.py</code>, passes on 300 random configurations). <strong>Nothing here is a decision</strong>: it lists what the notes contradict or leave open, and what changes because the unit exists.</p>
+<h2>The cell in one paragraph</h2>
+<p>A cell has 6 faces; each face has 4 channels (6x8 version) or 8 (6x16); a channel is one <code>in</code> line plus one <code>out</code> line to a matching channel on the neighbouring cell. Once per window (one shared tick for the whole mesh) the cell samples its inputs, counts how many active channels on each face are high, and the face fires if that count reaches the face's threshold. Each channel's output is then one of AND / OR / XOR / NOT of (the face's fire decision, that channel's own input), registered so it appears only at the next window. Everything is trained offline (discrete: active bits, gates, thresholds), frozen, and loaded as a pattern.</p>
+<h2>What the notes disagree about or leave open</h2>
+<ol>
+<li><strong>Spatial count or temporal accumulation?</strong> README: each face "accumulates its active input lines over a timer-gated window". Internals v0.1: the count is a one-shot sample at the window start, range 0-4, so thresholds are 3 bits. These are different machines. The 16-bit shared bias only makes sense against a wide, accumulated count; against 0-4 it is meaningless (a 16-bit value subtracted from at most 4). <strong>Decision needed first.</strong> The prototype implements the spatial sample and ignores the bias.</li>
+<li><strong>What does NOT negate?</strong> NOT(fire) is an inhibitory output (high unless the face fires); NOT(in) is an inverted echo. Both are cheap; they behave very differently. The prototype takes NOT(fire) by default (parameter <code>NOT_OF_IN</code>).</li>
+<li><strong>Config bits.</strong> v0.1 says per-line config falls from 4 to 3 bits (gate 2 + active 1). But gate and active belong to a <em>channel</em> (an in/out pair), not to a line. Per channel: 24 channels x 3 = 72 bits plus 6 x 3 thresholds = 90 bits (+16 bias) for 6x8; 6x16: 48 x 3 + 6 x 4 = 168 (+16). The old 4x96-bit total (384) no longer applies.</li>
+<li><strong>Hop latency.</strong> "Computed from the sample, presented at the next boundary" read strictly with flip-flops is two windows per hop; one register stage is one. The prototype uses one. Decide, because training depends on it.</li>
+<li><strong>Echo behaviour.</strong> Because a channel's output includes its own input, a signal can bounce between neighbours. In a rough two-cell toy run, AND/OR pulses simply died out, while an all-NOT(fire) pair never settled (period-2 oscillation). The toy wiring was crude; the proper check is a 7-cell hexagonal "flower" in the real mesh wiring, with a defined quiet state and a global activity limit (the bias knob).</li>
+<li><strong>No task yet.</strong> Evolutionary search needs a fitness function. Suggest the first one is tiny and checkable: parity or "all four inputs equal", then a delay line, then a pattern detector.</li>
+</ol>
+<h2>What the unit changes</h2>
+<ul>
+<li><strong>The pin budget stops being the limit.</strong> v0.1 chose 6x8 because 96 lines cannot all go to pins (66 chip I/O, and the Tang's headers expose only about 34 usable signals). With the unit, the cell's input lines can come from an SPI-loaded register and its outputs go to the capture RAM, so no line needs a pin. A full 6x16 cell, or an array, is possible; pins are needed only for the SPI link (5), SD card (4), clock and status.</li>
+<li><strong>The BL616 hop is not needed.</strong> The draft ESP32-to-BL616 protocol maps onto the existing ESP32-to-FPGA SPI bridge: <code>PATTERN_PUSH</code> = words written into a config RAM over SPI (WR_WORDS); <code>RESULT_DATA</code> = RD_WORDS from capture; <code>STATUS_*</code> = the STATUS register; the attention line = the READY pin (already wired, IO34); <code>REF_DATA</code> = the SD load/save registers. <code>BITSTREAM_SELECT</code> is the only message that stays hard: it is the JTAG-loader research (spare Tang first). The BL616's own SPI port is wired to FPGA pins 75/76/13/86 on the board, so a BL616 route remains possible, but nothing needs it now.</li>
+<li><strong>Test rig and tools exist:</strong> playout/capture RAMs, SD card, web page, file card on the ESP32 (for pattern libraries), S1 reset.</li>
+</ul>
+<h2>Measured cost (yosys synth_gowin, config held outside; before place-and-route)</h2>
+<table>
+<thead>
+<tr>
+<th>Cell</th>
+<th>LUT4</th>
+<th>ALU (carry)</th>
+<th>Flip-flops (state)</th>
+<th>Config flip-flops if on-cell</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6 faces x 4 channels (6x8)</td>
+<td>66</td>
+<td>48</td>
+<td>30</td>
+<td>about 106</td>
+</tr>
+<tr>
+<td>6 faces x 8 channels (6x16)</td>
+<td>240</td>
+<td>48</td>
+<td>54</td>
+<td>about 184</td>
+</tr>
+<tr>
+<td>Rough capacity on a Nano 20K after the unit (2,150 LUT4 / 1,870 FF): flip-flops limit it to roughly 100 cells of 6x8 or 55 of 6x16, before routing; the W2 engine showed routing can take most of the chip, so treat these as upper bounds. <strong>Not placed-and-routed.</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2>Alan's recollection of the original intent (9 Oct 2026, from memory, "it's been a while")</h2>
+<p>A simple neural cell: it has an <strong>accumulated weight</strong>; connections are made in <strong>pairs whose direction can be set either way</strong>; each can have <strong>one of four logic gates</strong> applied; and the original concept was <strong>single wires, where the more of them are active the greater the chance of flowing down that path</strong>.
+What this does to the open points (my reading, to be confirmed):
+- <strong>Accumulation is temporal</strong> (point 1 goes the README's way): a weight that builds up, not a one-shot 0-4 count. That also gives the 16-bit shared value a job (it is wide enough to be compared against a running total) and makes the thresholds wider than 3 bits.
+- <strong>Direction is a configurable property of each pair</strong>, not implicit. v0.1's removal of the direction bit (config 4 -&gt; 3 bits) contradicts this; it should stay: gate 2 + active 1 + direction 1 = 4 bits per pair.
+- <strong>"Greater chance of flowing"</strong> is new and is not in any note. Two readings: (a) <em>graded, deterministic</em>: more active wires fill the accumulator sooner, so that path reaches its threshold earlier and carries more; (b) <em>literally probabilistic</em>: the accumulated value is compared with a random number, so the chance of a path firing rises with its weight. (b) needs a pseudo-random source in each cell (a small shift register, which is fine here: this is not the security use). It makes runs non-repeatable unless the random source is seeded and the VM copies it bit for bit, which matters for training.</p>
+<h2>Decided by Alan, 9 Oct 2026</h2>
+<ol>
+<li><strong>Temporal accumulation</strong> (a weight that builds over the window), not a one-off 0-4 count.</li>
+<li><strong>Graded and deterministic</strong>: more active wires fill the accumulator sooner and carry more; no random source.</li>
+<li><strong>Direction is configurable per pair</strong>, and a wire can carry flow <strong>both ways, never at the same time</strong>: that reverse flow is the <strong>feedback</strong> that makes the cell behave like a simple neural net (forward pass, then feedback pass) rather than a feed-forward logic mesh.</li>
+</ol>
+<h2>What those decisions imply (my reading, to confirm)</h2>
+<ul>
+<li><strong>Time-shared direction.</strong> Each pair is logically ONE wire whose direction is set by a phase: forward in one window, feedback in the next (or fixed forward / fixed back by config; three modes: forward only, back only, alternating). On the die this is two unidirectional wires and a mux (the fabric has no internal tri-state); only at the package pins would a real bidirectional pin be needed.</li>
+<li><strong>That is the loop fix, done properly.</strong> v0.1 separated in and out per channel and clocked the whole cell to avoid a combinational loop. With one direction live at a time there is no loop at all, and the same window tick also provides the phase.</li>
+<li><strong>The gate formula must change.</strong> v0.1 had <code>out = GATE(fire, own in)</code>, which needs the channel's own input while it is the output. Under time-sharing that input is not live in the same phase. Suggest <code>out = GATE(face fire, the face's other-phase value)</code> or simply <code>GATE(fire, 1)</code>: needs a decision (below).</li>
+<li><strong>Accumulator.</strong> Proposal: each clock, add the number of active input pairs currently flowing into the face; at the window end compare with the face threshold (wide enough for window length x pairs); the 16-bit shared value is the bias/damping applied to the total before the compare; clear at the window end. "Greater chance of flowing" then means: more active wires -&gt; the total clears the threshold by a bigger margin / sooner, and the margin can scale the output (graded) if wanted.</li>
+<li><strong>Prototype status.</strong> <code>rtl/hexn_cell_v0.v</code> still implements the v0.1 spatial reading; it is superseded by the above and kept only as the first measurement.</li>
+</ul>
+<h2>What the four "gates" mean in the neural reading (Alan, 9 Oct 2026; my table, to confirm)</h2>
+<p>"NOT" is the wrong word here. Alan's description, in two parts.
+<strong>Positive is not a gate.</strong> Positive means <em>strengthening a path</em>: increasing the number of active lanes along it so it reaches a desired target. Once trained, that lane pattern becomes the reference, and positive feedback reinforces it. So positive is carried by the <strong>active-lane bits / the count of active lanes</strong> (the accumulated weight itself), and by the feedback phase, not by one of the four codes.
+<strong>The four codes shape the choice of path:</strong>
+| Code | Better name | Meaning (proposed) |
+|---|---|---|
+| AND | <strong>ALL THREE</strong> | the path is chosen only when all of these hold: (1) the in-path is active, (2) the face's accumulated weight has reached its threshold, (3) the feedback agrees (Alan, 9 Oct: "it would depend on those three: the threshold, the feedback and the in path") |
+| OR | <strong>CHOOSE</strong> | when paths carry equal weight, one is picked (arbitrate, like the flex family's merge core) |
+| XOR | <strong>STEER</strong> | the incoming flow decides which way it goes (a branch/switch, like the flex branch core): this value one way, that value the other |
+| NOT | <strong>NEGATIVE</strong> | the pair's active flow is subtracted from the face's accumulated weight (the inhibitory case) |
+UniCell's flex family already has the matching pieces (merge arbitrate/join, branch select), which the Hex-N RTL could reuse.
+<strong>Runtime vs training.</strong> Per the earlier decision the deployed cell is frozen (no learning at run time). So "positive feedback reinforces it" is read as: <em>during training</em>, reinforcement raises lane counts toward the target; <em>at run time</em>, the feedback phase adds to the accumulator for that window only (transient), without changing any stored lane bit. To confirm.</p>
+<h2>Draft cell definition, v0.3 (plain words; to be checked, then coded)</h2>
+<ol>
+<li>A cell has 6 faces; each face has pairs (lanes). Each pair has: an <strong>active</strong> bit, a <strong>direction mode</strong> (forward / back / alternating), and one of <strong>four path codes</strong>.</li>
+<li>Each window has two phases: a <strong>forward</strong> phase, then a <strong>feedback</strong> phase (one global phase for the mesh).</li>
+<li>During a window each face <strong>accumulates</strong>: active lanes flowing in add to its weight; lanes coded NEGATIVE subtract. Positive strength is simply how many lanes are active.</li>
+<li>At the window end the face's <strong>weight is compared with its threshold</strong> (graded: the margin above it is kept).</li>
+<li>A pair's path code decides whether its output is passed: <strong>ALL THREE</strong> (in-path active, weight at threshold, feedback agrees), <strong>CHOOSE</strong> (equal weights: pick one), <strong>STEER</strong> (the in-flow value picks which way), <strong>NEGATIVE</strong> (already counted as a subtraction).</li>
+<li>In the feedback phase the flow runs the other way along the same pairs and adds to the accumulator for that window only (nothing stored changes). Training changes the active-lane bits, thresholds and codes offline, then freezes them.</li>
+</ol>
+<h2>Prototype v1 (9 Oct 2026): <code>rtl/hexn_cell_v1.v</code> + <code>tests/test_hexn_cell_v1.py</code></h2>
+<p>Implements the plain-words cell above. Checked against an independent cycle-accurate Python model on 60 random configurations x 3 windows (every clock of <code>tx</code> compared; over 200 transmitted clocks exercised). Simulation only; not placed-and-routed; not on hardware.
+<strong>The assumptions I had to make (each marked A1..A7 in the RTL; correct any of them):</strong>
+- A1 accumulator: +1 per active receiving lane per clock, NEGATIVE lanes -1, floored at 0, saturating.
+- A2 the shared 16-bit bias is ADDED to the threshold (more bias = less excitable); clamped to the weight width.
+- A3 graded output: margin above threshold, capped at 6, sets a burst of 1+margin clocks high (more margin = more flow at the neighbour).
+- A4 "feedback agrees" = any net positive feedback arrived in the feedback phase.
+- A5 "in-path" = some active lane received in the forward phase.
+- A6 CHOOSE: the lowest-numbered active sending-capable CHOOSE lane on the face wins (fixed priority).
+- A7 STEER: an even lane sends when the in-path was active, an odd lane when it was not.
+Also: dir has four modes (in only / out only / in then out / out then in); the mesh controller supplies <code>phase</code>, <code>ph_start</code>, <code>win_end</code>; phases must be at least 7 clocks.
+<strong>Measured (yosys synth_gowin, config held outside, before place-and-route, NOT optimised):</strong> a 6-face x 4-lane cell is about 1,300 LUT + 315 carry cells + 600 mux cells + 117 flip-flops; 6 x 8 lanes about 3,300 LUT + 570 carry + 1,600 mux + 141 flip-flops. That is far above the first guess (v0's 66 LUT4) because the accumulate/compare/graded-burst logic is much richer; it would allow only roughly 8-10 small cells on a Nano 20K as written. I have not tried to optimise it (the config lives in registers in a real build too, which adds flip-flops).
+<code>rtl/hexn_cell_v0.v</code> is the earlier spatial-count prototype, kept only for its measurement.</p>
+<h2>Still open</h2>
+<ol>
+<li>~~What does NOT negate~~ answered: it is a negative weight (above). Positive is not a code (it is lane count); AND is the two-condition case.</li>
+<li>How is the output formed from fire plus the carried value now that in and out share a wire?</li>
+<li>Is the output on/off, or graded (the margin above threshold)?</li>
+<li>Alternating phase: one global phase for the mesh, or per-pair?</li>
+<li>First bring-up shape: one 6x8 cell through the unit, or the 7-cell flower?</li>
+</ol>
+<h2>Proposed next steps once decided</h2>
+<p>Pattern RAM + SPI loader for the cell; wrap one cell as a unit "design" (inputs register in, outputs to capture); Python/VM model kept bit-identical to the RTL; the 7-cell flower; first fitness task and a simple evolutionary search on the PC; patterns saved to the ESP32 file card.</p>
+<div class="partsub">Cell internals<span class="partsrc">docs/hex-n/cell-internals-v0.1.md</span></div>
+<h1>Hex-N cell internals — 6x8 bring-up unit, v0.1</h1>
+<p>Status: scoping, resolved through direct design discussion (2026-09-29). No RTL yet.
+This records what was decided and why, so it isn't lost to chat history before RTL starts.</p>
+<h2>Why 6x8, not 6x16</h2>
+<p>The original spec (6 faces x 16 lines/face = 96 lines/cell) cannot be a standalone,
+fully-instrumented bring-up unit on the Tang Nano 20K: the board has only 66 I/O
+pins total (confirmed against the real Apicula chip database, not an estimate), and
+96 raw lines already exceeds that before spending a single pin on clock, reset, or
+the BL616 programming link.</p>
+<p>6x8 (48 lines/cell) fits with room to spare (66 - 48 = 18 pins for clock/programming/
+status), at the cost of narrower per-face channel count (see below). 6x4 was the
+more conservative fallback if 6x8's margin proves too tight in practice.</p>
+<p>This sizing question applies specifically to a <strong>single, fully-instrumented bring-up
+cell</strong> — every line broken out to a real pin so it can be individually driven/observed
+during initial calibration. A later multi-cell substrate, where most connections are
+cell-to-cell on the same die (not through package pins), faces a completely different
+and far less restrictive budget — that budget is LUT4, not pin count, and scales with
+the array's <em>boundary</em>, not each cell's total line count.</p>
+<h2>The channel-pair model (this session's main resolution)</h2>
+<p>Each face's 8 physical lines are not 8 independent lines — they are <strong>4 channels</strong>,
+each channel one in/out pair bound to one specific neighbour connection point:</p>
+<ul>
+<li>An <code>out</code> on this cell's channel feeds the matching <code>in</code> on the neighbour's paired
+  channel, and vice versa — never a shared bidirectional wire (this is the existing,
+  already-decided fix for the bus-contention problems the original UniCell "full fat"
+  cell design hit).</li>
+<li>This is <em>why</em> lines are paired at all: AND/OR/XOR need two operands, and each
+  channel's own in/out pair supplies them naturally. NOT is unary and doesn't need
+  the second operand, but uses the same channel shape for uniformity.</li>
+</ul>
+<p><strong>Per-face weight/firing decision:</strong> popcount of how many of the face's 4 channels
+currently have an active, asserted <code>in</code> value. Range 0-4, so the per-face accumulator
+and per-face threshold register are each only <strong>3 bits</strong> wide (not the 4 bits a naive
+0-8 reading of "8 lines" would suggest — the channel-pair halving matters here).</p>
+<p><strong>Per-channel output:</strong> <code>out = GATE_select[channel](../face_fire_decision, that_channel's
+_own_in_value)</code> — the face's collective fire decision combined with that specific
+channel's own current input, gate chosen independently per channel (2 bits: AND / OR
+/ XOR / NOT). This is what makes per-channel gate selection meaningful rather than
+redundant (a gate combining only the fire decision with itself would make every
+channel on a face identical).</p>
+<p><strong>Consequence: direction is now implicit, not a free per-line bit.</strong> Since a channel
+is structurally an in/out pair, "direction" isn't an independent runtime choice per
+physical lane the way the original spec described it — it's which half of the pair a
+given lane plays, fixed by channel-slot rather than a separate config bit. Still
+configurable once at pattern-load time (the same physical lane can be the in-half in
+one trained pattern and the out-half in another), but this drops per-line config from
+4 bits (gate-select 2 + direction 1 + active 1) to <strong>3 bits</strong> (gate-select 2 + active
+1), since direction no longer needs its own bit. Not yet re-verified against the
+original 4-bit-per-line total elsewhere in the docs — flagged for whoever writes the
+real config field map next.</p>
+<h2>The feedback-loop hazard, and the fix (also resolved this session)</h2>
+<p>A channel is bidirectional between two neighbouring cells: this cell's output on that
+channel depends on this cell's own input on it, which is the neighbour's output on
+their matching channel, which depends on the neighbour's own input — which is this
+cell's output. A real combinational loop, not just a modelling nuisance: wired without
+a clock edge between the two directions, this either fails to synthesise cleanly or
+causes real oscillation/metastability on actual silicon.</p>
+<p><strong>Fix: the whole cell updates synchronously, once per timer window, not
+combinationally.</strong> In-lines are sampled at the start of a window; the fire decision
+and new out-values are computed from that sample; the new out-values are only
+presented to neighbours at the <em>next</em> window boundary. An output this window is a
+function of inputs from <em>last</em> window, never the current instant. This costs nothing
+new in hardware — the design already has a timer-gated window for the threshold
+check; it now also does double duty as the thing that breaks the loop into safe,
+discrete steps and keeps the whole mesh's updates in lockstep.</p>
+<h2>The 16-bit memory latch: one shared, trained bias value (resolved this session)</h2>
+<p>Originally ambiguous (a candidate for the gate's second operand, before the
+channel-pair model above settled that question differently). Resolved: it is <strong>a
+single, shared, per-cell bias value</strong>, generated during VM training and loaded onto
+the deployed cell alongside the threshold (i.e. via the same eventual <code>PATTERN_PUSH</code>
+loading mechanism the ESP32-BL616 link protocol already anticipates) — not split six
+ways across faces, not read/written at runtime by the cell itself.</p>
+<p>Its purpose is a <strong>tuning value, not a fixed constant</strong>: if a deployed unit turns out
+to be overloaded (firing too readily, presumably contributing to runaway or
+excessive mesh activity), this bias can be <em>retrained and reloaded</em> to make the whole
+cell less excitable across all six faces at once, without touching per-face
+thresholds or per-channel gate/active configuration individually. A cheap, global
+damping knob, separate from and cheaper to adjust than the rest of the trained state.</p>
+<p>Exact application to the per-face comparison (e.g. <code>effective_popcount = popcount -
+bias</code>, or something else) is not yet decided — this session settled <em>what the value
+is for</em>, not the precise arithmetic. Flagged as the next open question when RTL work
+starts.</p>
+<h2>Still open (not resolved this session, listed so they aren't lost either)</h2>
+<ul>
+<li>Exact arithmetic combining the shared bias with each face's popcount/threshold
+  comparison.</li>
+<li>Whether the per-line config bit width correction above (4 -&gt; 3 bits/line) has been
+  reconciled against the original 4x96-bit-latch total described elsewhere, or
+  whether that total needs restating for the channel-pair model.</li>
+<li>Real RTL for any of this — still scoping stage, unchanged from the branch's
+  existing status note.</li>
+</ul>
+<div class="partsub">The unit and the open unit<span class="partsrc">docs/hex-n/UNIT_v1.md</span></div>
+<h1>Hex-N unit v1: the whole unit with every component in (31 Oct 2026)</h1>
+<p>New file. <code>LAYER_INTERFACES_v4.md</code> (30 Oct) stays untouched; this file is the next step of it: the same nested unit, now with the parts that were built or measured on 31 Oct, a block-by-block size table and a stated fit on the Tang Nano 20K.</p>
+<p>Status words (as in v4): <strong>BUILT</strong> = RTL passing in simulation (some also run on a card); <strong>MODEL</strong> = Python only; <strong>DESIGNED</strong> = specified here from model rules, no RTL; <strong>ESTIMATE</strong> = a number I derived, not a measurement. Every figure is copied from a ledger row of <code>HEXN_DESIGN.md</code> (time in brackets) or from a measurement made for this file (marked <strong>[this file]</strong>). Resource figures are yosys counts, not place-and-route, unless said.</p>
+<h2>1. The picture</h2>
+<pre><code> world (sensors / game)
+    |
+ [ L1  counted detectors ]--- counts x1..x6, parity ------------------------------+
+    | classes (one feed per sensor)                                                |
+ [ L2  history per feed: one store per feed ] (A: opponent / sensor events          |
+    |   predicted next, verdict, SURPRISE flag)                                     v
+    |                                                                 [ NEURAL  judge + learning rule ]
+ [ L3  history across feeds: moments, snapshots,                       7 counts -&gt; 8 weights -&gt; tanh
+    |   weighted possible next moments, hit rate ]                         ^    |
+    |                                                                      |    | position value (leaf)
+ [ L4  strategist: expectimax with path-probability cutoff ]---------------+----+
+    |   blend by confidence x hit rate x L2 gate; its search value = the TEACHER
+    |
+ [ PLAYER DETECTOR ] -&gt; [ SELECTOR: fixed or learning, decided once after 200-400 opponent moves ]
+    |
+ choice out (column / action)
+
+ DATA flows inward (L1 -&gt; L2 -&gt; L3 -&gt; L4).  CONFIDENCE flows the other way and sideways:
+   L2 surprise -&gt; L4 (gate) ; L3 hit rate -&gt; L4 (blend weight) ; L4 right/wrong -&gt; L3 (hit rate) ;
+   L4 search value -&gt; NEURAL (teaching target) ; NEURAL value -&gt; L4 (leaf) ; detector -&gt; selector.
+ TRAINING MODULE = L2 + L3 + L4 acting together as the teacher of the NEURAL; the neural reads only L1.
+</code></pre>
+<h2>2. Components: what each is, what state it is in, what it costs</h2>
+<p>Sizes are Gowin (Tang Nano 20K family) from yosys unless stated. "slot" = LUT4 + ALU cell, the unit nextpnr counts against the 20,736 of the board. 46 BSRAM on the board.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Block</th>
+<th>Job in the unit</th>
+<th>State</th>
+<th>Size</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>L1 counted detectors</td>
+<td>turn the sensor wires (or the game position) into small counts</td>
+<td>BUILT (sensors); the game's line counters are MODEL</td>
+<td>minimal detector: 150 / 224 / 268 LUT4 + 35 / 39 / 39 ALU at 12 / 18 / 20 wires, per detector</td>
+<td>[21 Oct]</td>
+</tr>
+<tr>
+<td>2</td>
+<td>NEURAL: 8-weight judge + whole-number learning rule</td>
+<td>value of a situation from the L1 counts; learns from the teacher</td>
+<td><strong>BUILT (simulation, bit-true to the Python integer model, 2,400 commands, WB 14 and 10)</strong></td>
+<td><strong>477 LUT + 180 ALU = 657 slots, 273 FF, 5 MULT18X18, no BSRAM</strong> (weights 16 bit, accumulator 28 bit as synthesised; Q14 needs 16-bit weights and a 17-bit accumulator, which is the setting that learns; Q10 learned worse, so do not shrink below Q14 for a learning cell)</td>
+<td><strong>[this file]</strong> <code>rtl/hexn_neural_v1.v</code>, <code>hexn_tanh512_v1.v</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>L2 store, one per feed (2 feeds)</td>
+<td>history per feed: predicted next event, verdict, surprise</td>
+<td>BUILT (store v6, LRU, simulation; v5 on the card)</td>
+<td>per store: <strong>1,472 LUT + 572 ALU = 2,044 slots, 1,101 FF, 14 BSRAM + 46 RAM16SDP4 at the default (1,024 index slots, 512 rows)</strong>; the configuration used in the tests (IB 8, RB 7) maps to 4 BSRAM + 74 RAM16SDP4 and 988 FF with the same 572 ALU <strong>[this file]</strong>, so the logic does not shrink, only the memory</td>
+<td>[04:10, 31 Oct], [this file]</td>
+</tr>
+<tr>
+<td>4</td>
+<td>L3 across feeds</td>
+<td>moments, snapshots, weighted possible next moments, hit rate</td>
+<td>MODEL; DESIGNED in <code>LAYER3_HW_v1.md</code></td>
+<td>ESTIMATE: one more store v6 (2,044 slots, 4 to 14 BSRAM) for the path memory + moment builder (counter and latch per channel, tiny) + two ID tables (<code>hexn_snapid_v1.py</code>, 512 slots each, about 1 BSRAM each) + a read that ranks all followers of a context (new, not sized)</td>
+<td>[27 Oct], [07:30, 31 Oct]</td>
+</tr>
+<tr>
+<td>5</td>
+<td>L4 strategist</td>
+<td>search: expectimax, path cutoff, blend; its value is the teaching target</td>
+<td>MODEL (Connect Four, draughts)</td>
+<td>NOT SIZED. Measured work per decision in the tests: 250 to 1,850 search nodes (depth 3 to 4); each leaf = one neural evaluation (12 clocks serial). See 4. for where it can live</td>
+<td>[09:40, 10:30, 31 Oct]</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Player detector + selector</td>
+<td>tell the opponent's style from L3's hit rate and the opponent's missed chances, and pick the approach</td>
+<td>MODEL (detector and selector; 200 to 400 opponent moves to decide)</td>
+<td>ESTIMATE: 4 cumulative counters, 4 ratios, a nearest-centroid compare over 3 groups and one mode bit; well under 300 slots; the 'missed chance' count needs the board (a layer 1 count in the game)</td>
+<td>[15:40, 16:00]</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Memory tier</td>
+<td>shared key/value store behind the layers</td>
+<td>BUILT on the Kintex card (2,000,000 steps, 0 wrong); not joined to the core</td>
+<td>Tang: levels would be BSRAM, SDRAM, SD (SDRAM test block 538 LUT4)</td>
+<td>[30 Oct], [27 Oct]</td>
+</tr>
+</tbody>
+</table>
+<h2>3. Fit on the Tang Nano 20K (20,736 slots, 46 BSRAM)</h2>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Slots</th>
+<th>BSRAM</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sensor side only: 8 detectors at 18 wires (8 x (224 + 39))</td>
+<td>about 2,100</td>
+<td>0</td>
+<td>from [21 Oct] unit sizes; the 19-detector build with its lattice was 15,730 slots, so the lattice (wiring between detectors), not the detector, is what grows</td>
+</tr>
+<tr>
+<td>Neural</td>
+<td>657</td>
+<td>0</td>
+<td>measured</td>
+</tr>
+<tr>
+<td>2 x L2 store v6 (tests' memory size IB 8 / RB 7)</td>
+<td>4,088</td>
+<td>8</td>
+<td>measured logic, memory from the yosys stat</td>
+</tr>
+<tr>
+<td>L3 (estimate: store v6 + ID tables + moment builder)</td>
+<td>about 2,400</td>
+<td>about 6</td>
+<td>ESTIMATE</td>
+</tr>
+<tr>
+<td>Detector + selector</td>
+<td>under 300</td>
+<td>0</td>
+<td>ESTIMATE</td>
+</tr>
+<tr>
+<td><strong>Fabric total (L1 8 detectors, neural, 2 x L2, L3, detector)</strong></td>
+<td><strong>about 9,500</strong></td>
+<td><strong>about 14</strong></td>
+<td><strong>about 46% of the logic, 30% of BSRAM, if the 19-detector lattice overhead is NOT repeated; ESTIMATE where marked, not placed and routed, no timing</strong></td>
+</tr>
+<tr>
+<td>L4</td>
+<td>0 on the fabric</td>
+<td>0</td>
+<td>proposed: runs on the ESP32/BL616 beside the FPGA (4. below); NOT built</td>
+</tr>
+</tbody>
+</table>
+<p>Reading: the parts that can be built fit with room to spare; the fit is not proven until L3 exists and the lot is placed and routed. At the default store size (14 BSRAM each) three stores would take 42 of 46 BSRAM, so the test-size memory (IB 8) is the working choice. The Tang has 46 BSRAM; the Kintex card has far more.</p>
+<h2>4. Where the strategist (L4) lives, and why it matters</h2>
+<p>The search is a loop with a stack, 250 to 1,850 nodes per decision, each leaf a 7-multiply evaluation. That is trivial for a small processor and awkward in fabric. Two placements, choose one (open decision):
+- <strong>A. Co-processor (proposed):</strong> L4 on the board's ESP32/BL616 (the link already exists, <code>esp32-bl616-link-protocol-v0.1.md</code>). The fabric holds L1, L2, L3, the neural's weights and its learning rule; L4 asks the fabric for the L3 ranking and the neural value per leaf (or holds an identical integer copy of the 8 weights and evaluates leaves itself, which the bit-true model makes safe).
+- <strong>B. All in fabric:</strong> a small sequencer with a stack and the neural as its leaf unit; the neural is already the right shape (serial, one multiplier). Size unknown; this is the larger build.</p>
+<p>For the sensor-control direction decided on 30 Oct (20:10) L4 reduces to a goal setter and no search is needed, so placement A costs nothing there.</p>
+<p><strong>Decision (Alan, 31 Oct 14:43):</strong> on the Tang the strategist goes on the ESP; on the Kintex it may have to move to the host. Reading: the same strategist program, the same integer arithmetic, a different place to run it per card. Consequences to hold to: (1) the link carries few things: opponent/sensor events up, a periodic copy of layer 3's tables down (the 30 Oct staleness result: a planning copy refreshed every 1 to 10 games played as well as the live one at depth 4), the 8 neural weights both ways, and the chosen action; it does NOT carry one query per search node. (2) The strategist keeps its own integer copy of the neural weights (bit-true to <code>rtl/hexn_neural_v1.v</code>) so a leaf costs no link traffic. (3) NOT measured: ESP32 speed for 250 to 1,850 nodes per decision, host link speed on the Kintex, the size of a layer 3 copy.</p>
+<h2>5. Evidence, and what it does and does not support</h2>
+<p>All Connect Four, Python; 600-game runs (800 for the selector), the mean of the last games, 2 to 6 seeds per cell; standard error of a cell mean is about 0.02 to 0.04.</p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Result</th>
+<th>Row</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Does a judge on layer 1 counts alone score positions as well as the hand score?</td>
+<td>Learned from game results it beats the hand score against weak and habit opponents (noisy .91 to .95, habit .74 to .87 at depth 4) and loses to strong ones; learned weights depend on who played the training games</td>
+<td>[09:55, 10:05]</td>
+</tr>
+<tr>
+<td>Does the neural learn while playing, with no host?</td>
+<td>Yes. From blank it works only against weak and habit opponents; from the hand weights it adds about .07 to .19 against the habit opponent and costs score against noisy and strong ones</td>
+<td>[12:55, 13:30]</td>
+</tr>
+<tr>
+<td>Do layers 2 to 4 help as the teacher?</td>
+<td>Layer 4's search teaches better than the result alone (+.03 to +.13). Adding layer 3 lets a blank start survive a strong opponent (.24 against .02) and lifts the habit result to .57; adding the layer 2 surprise gate lifts it to .64 (hand start). Layer 2's prediction as a second opinion does NOT help</td>
+<td>[13:30, 14:10, 15:20]</td>
+</tr>
+<tr>
+<td>Does it fit in whole numbers?</td>
+<td>Yes with Q14 (16-bit weights, 17-bit accumulator): .58 against float .61 on the habit opponent after the bias-step correction; Q10 does not learn as well (.53)</td>
+<td>[15:00, 15:10]</td>
+</tr>
+<tr>
+<td>Can the opponent's style be detected?</td>
+<td>Yes after 200 to 400 opponent moves: three-group accuracy .84 and 1.00; from the opponent's missed chances and layer 3's hit rate, not from layer 2's surprise rate</td>
+<td>[15:40]</td>
+</tr>
+<tr>
+<td>Does switching approach by the detected style help?</td>
+<td>A little: mean .564 against .551 (always fixed) and .525 (always learn), oracle .584; 5 of 6 decisions right; two seeds</td>
+<td>[16:00]</td>
+</tr>
+<tr>
+<td>Does the whole unit beat the simple designs?</td>
+<td><strong>No.</strong> Nowhere in these tests does the unit beat the plain search with the hand score by more than the noise, except against the habit opponent (.60 to .64 against .50) where it is built to learn. It EQUALS the plain search elsewhere only because the selector keeps the fixed approach. Lower limit (equal) met on this evidence; better not shown</td>
+<td>all</td>
+</tr>
+</tbody>
+</table>
+<h2>6. Step of the unit, in order (one decision)</h2>
+<ol>
+<li>L1 turns the position/sensors into counts. 2. The opponent's last event goes into its L2 store (read first for the verdict, then observed); L3 takes the moment and updates its hit rate. 3. L4 searches: at each opponent node it takes the L3 ranking, weights it by hit rate and halves that when L2 reported a surprise; leaves are scored by the neural. 4. The chosen action goes out; the unit stores the position and the search value. 5. After the next move (or the end) each stored position is taught to the neural: target = the next search value (the result at the end), one whole-number step per position. 6. In parallel the detector counts the opponent's missed chances and layer 3's hits; once 200 to 400 opponent moves are in, the selector sets the mode bit once: learning on only for a habit opponent.</li>
+</ol>
+<h2>7. NOT built (so nobody reads this as a finished unit)</h2>
+<p>L3 hardware; L4 hardware or firmware; the join of the memory tier to the core; any layer 1 hardware for the game's line counters (the sensor detectors exist, but the neural has only ever been tested on game counts, not on sensor class counts); the player detector and selector; a placed-and-routed build of the whole; any timing figure.</p>
+<div class="partsub">The open unit, stage by stage<span class="partsrc">docs/hex-n/OPEN_UNIT_v1.md</span></div>
+<h1>Open unit v1: one build, personality chosen by data (design note of 1 Nov 2026; BUILT, see the stages below)</h1>
+<p><strong>Where it stands (ledger <code>HEXN_DESIGN.md</code> has the measurements):</strong>
+| Stage | What | Bitstream | State |
+|---|---|---|---|
+| 1 | Reaction game, Morse key, display, buzzer in one build | <code>hexn_open_build_v1</code> | built; the later stages contain it |
+| 2 | Loadable tables, per-channel binning | <code>hexn_open_build_v2</code> | confirmed on the board |
+| 4a | Mode 3: raw word stream from the ESP32 | <code>hexn_open_build_v3</code> | confirmed on the board (0 of 1000 wrong) |
+| 3 | Pin matrix chosen by the ESP32 | <code>hexn_open_build_v4</code> | confirmed on the board |
+| 4b | Presets and a second table (two judges) | <code>hexn_open_build_v5</code> | confirmed on the board |
+| 4c | CLEAR control word for the judges | <code>hexn_open_build_v6</code> | confirmed on the board (diagnostic stage 6) |
+Build the newest with <code>sh tools/hexn_open_build_v6.sh</code> (about 4 minutes, output in <code>fpga/build/hexn_open_unit_v6/</code>). The front end that drives it is described in <code>FRONT_END_UNIT_v1.md</code>. The text below is the original design note followed by one section per stage.</p>
+<p>Alan, 19:23: "if it can become more open, so when we integrate with the front end (which could be housed on the esp), you just select the data type, raw, game etc, and the extra parts to be switched on or off, the extra table, maybe the pin assignments ... an open enough system design that can handle a lot of things thrown at it."</p>
+<h2>What can be data, what stays a build (honest split)</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Can be chosen by data at run time?</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Judging tables (thresholds, weights, bias)</td>
+<td>Yes (already: the ESP32 test loads one over SPI)</td>
+<td>LOAD / BIAS words</td>
+</tr>
+<tr>
+<td>A second or third table</td>
+<td>Yes</td>
+<td>table-select field per scorer job (or two scorer blocks)</td>
+</tr>
+<tr>
+<td>Which input feeds which sensor slot, and how it is binned</td>
+<td>Yes</td>
+<td>per-slot config: source, mode (level, press length, space length, range or log2 bins), range low/high</td>
+</tr>
+<tr>
+<td>Morse code table, display glyph table</td>
+<td>Yes</td>
+<td>small RAMs loaded over SPI instead of ROMs</td>
+</tr>
+<tr>
+<td>Which optional blocks are active (reaction game, Morse decoder, display, buzzer)</td>
+<td>Yes</td>
+<td>enable bits in a mode register; the blocks are in the build all the time and idle when off (together about 10% of the chip)</td>
+</tr>
+<tr>
+<td>Pin assignments</td>
+<td>Mostly yes</td>
+<td>a pin matrix: every free header pin goes through a small mux, registers say which logical signal (sensor 0..7, display latch/clock/data, buzzer, LED) is on which pin</td>
+</tr>
+<tr>
+<td>A new kind of game or a new state machine</td>
+<td>No, that needs a build</td>
+<td>add it to the block library once, then it is selectable</td>
+</tr>
+<tr>
+<td>Pull-up or pull-down on a pin, 3.3 V levels, which pins exist</td>
+<td>No (fixed in the constraints file)</td>
+<td>default: weak pull-up on all free pins (buttons work; a sensor needing a pull-down needs an external resistor)</td>
+</tr>
+</tbody>
+</table>
+<h2>Shape of it</h2>
+<ul>
+<li>Host side (ESP32, or the PC): writes a "personality" = register values + tables, over SPI. Front-end choices (raw, game, Morse) become a preset of those values.</li>
+<li>Tang side: pin matrix -&gt; input conditioning (sync, debounce) -&gt; slot binner (config per slot) -&gt; scorer (table loadable) -&gt; outputs (display, buzzer, LEDs, SPI result words). Optional blocks (reaction game, Morse) sit beside and use the same slots.</li>
+<li>Raw data from the ESP32 (an ADC reading) arrives as SPI words and is binned in a slot, the same as a pin would be.</li>
+</ul>
+<h2>Prerequisite found on the way</h2>
+<p>The proven SPI bridge counts bytes in 8 bits (63-word limit, measured on the boards). A new bridge version (<code>spi_bridge_v2</code>, new file, v1 untouched) with a 16-bit byte counter and room for config registers is the first step, so config and tables can be written in long transactions.</p>
+<h2>Stages (each one tested before the next)</h2>
+<ol>
+<li><code>spi_bridge_v2</code> with config registers; a mode register; the reaction game and the Morse key in ONE build, selected by the mode register (shows the principle with parts we already have).</li>
+<li>Slot binner with per-slot config (source, mode, range); loadable Morse and glyph tables.</li>
+<li>Pin matrix.</li>
+<li>A second table / second scorer job, raw-word input from the ESP32, a preset list for the front end.
+Stage 1 is small; stages 2 to 4 are each a day-sized piece. Nothing here is built or measured yet.</li>
+</ol>
+<h2>STAGE 1 DONE IN SIMULATION AND BUILT (1 Nov 2026; written before any board run, the later stages that contain it were then run on the board)</h2>
+<p>One bitstream, <code>fpga/build/hexn_open_unit_v1/unit_top.fs</code> (<code>hexn_open_top_v1.v</code>). Config register 16 (SPI address 16), bits 1:0 = MODE: 0 idle (display blank, nothing running), 1 reaction game, 2 Morse key. The personality not chosen is held in reset, and a mode change restarts the chosen one.
+- <code>spi_bridge_v2.v</code> (new; v1 untouched): 16-bit byte counter (long transactions work), ID <code>0x57320002</code>, config registers 16..31 (written and read back), read-only status register 10 (bits 1:0 mode, bit 2 reaction core ready, bit 3 Morse core ready). Bridge v1's registers 0..9 are unchanged.
+- The two personalities are now cores (<code>hexn_react_core_v1.v</code>, <code>hexn_morse_core_v1.v</code>) with no pins or shield driver of their own; the top gives them reset, buttons and the single shield driver (<code>hw262_shield_v2.v</code>).
+- A 1,024-word scratch RAM behind WR_WORDS / RD_WORDS lets long transfers be checked on the board.
+- Pins: SPI 73 to 77 as <code>LINK_TEST_v1.md</code>; shield A1 72, A2 71, A3 86, display 25/26/27, buzzer 28. READY (77) is high while a personality runs.
+Checked in simulation (<code>tests/vm/test_hexn_open_v1.py</code>): ID, config write and read-back, a 64-word and a 200-word transfer written and read back exactly, mode 2 decoding O, mode 1 scoring a good hit, switching modes (the other one reset), switching back to Morse and decoding L, mode 0 idle and silent. Build: 3,245 of 20,736 LUT4 (16%), 2 block RAMs, 162 MHz capable at 27, 20 pins.
+To try on the boards: <code>openFPGALoader -b tangnano20k fpga/build/hexn_open_unit_v1/unit_top.fs</code>, upload <code>tools/esp32/hexn_open_test/hexn_open_test.ino</code>, then <code>id</code>, <code>ram</code>, <code>mode 1</code>, <code>mode 2</code>, <code>mode 0</code>.</p>
+<h2>Stage 2 (1 Nov 2026): loadable tables and per-channel binning</h2>
+<p>The same unit, but the data the personalities judge by is now LOADED over SPI instead of being fixed in the build. Nothing from stage 1 was edited: new files are <code>hexn_open_top_v2.v</code>, <code>hexn_react_core_v2.v</code>, <code>hexn_morse_core_v2.v</code>, <code>hexn_tabs_v1.v</code>; the stage 1 files stay as they were.
+- Four table spaces, each filled with the factory contents at power-up: 1 reaction scorer table (up to 256 words), 2 Morse scorer table (up to 256 words), 3 Morse decode table (256 x 6 bits: index {length, dots-and-dashes bits} gives a character code), 4 glyph table (64 x 8 bits: character code gives the seven-segment byte).
+- Loading: write the words into the scratch RAM (WR_WORDS at address 0), then set cfg17 = {space[31:28], scratch base[27:16], count[15:0]} and write ANY new value to cfg19. The copy runs in hardware; status bit 4 (busy) is high until it is done. Then re-select the mode (the cores are held in reset while a copy runs and reload their table when they start).
+- Binning, one word per channel (cfg20 reaction time, cfg21 press length, cfg22 gap length): 0 = log2 of the milliseconds (stage 1 behaviour); bit 0 set = linear, bin = (ms - low) &gt;&gt; shift, capped at 11, with shift in bits 7:4 and the low end in ms in bits 27:16.
+- cfg23: write any new value to restore all four factory tables.
+- Status register 10 now: bits 1:0 mode, 2 reaction ready, 3 Morse ready, 4 copy busy, 5 defaults loaded.
+Checked in simulation (<code>tests/vm/test_hexn_open2_v1.py</code>, passes): defaults still decode L; a custom decode table (a single dot becomes Q) and glyph table (S shown differently) take effect; a Morse scorer table for a fast key with linear 32 ms bins decodes S and O at a 60 ms unit; restore brings E back; the default reaction table calls 170 ms a good hit and a loaded strict table (good only under 128 ms) does not. Build (<code>tools/hexn_open_build_v2.sh</code>): 3,790 of 20,736 LUT4 (18%), 9 block RAMs, 139 MHz capable at 27. The first build failed to place (each table had two write statements, so the tools used logic RAM, 187% of it); fixed with one write port per table in <code>hexn_tabs_v1.v</code>, simulation re-run after the fix.
+Not yet run on a board. To try: <code>openFPGALoader -b tangnano20k fpga/build/hexn_open_unit_v2/unit_top.fs</code>, upload <code>tools/esp32/hexn_open2_test/hexn_open2_test.ino</code>, then <code>id</code>, <code>all</code>, <code>fast</code> then <code>mode 2</code> (tap a quick key, about 60 ms dots), <code>strict</code> then <code>mode 1</code>, <code>bins press log</code>, <code>restore</code>.</p>
+<h2>Stage 4a (1 Nov 2026): mode 3, the raw word stream</h2>
+<p>Alan, 20:01: if the ESP32 can send its sensor data too, that is just a data stream, the same as loading data. Built that way: in MODE 3 the unit takes scorer words from the ESP32 and sends result words back; table LOAD / BIAS words and sensor SCORE words are the same kind of thing and can be mixed in one stream.
+- New files (earlier ones untouched): <code>hexn_raw_engine_v1.v</code>, <code>hexn_open_top_v3.v</code>. The engine has its own scorer. The ESP32 writes the words into the scratch RAM at address 0 (up to 255 per SPI transaction, several transactions for more), sets cfg24 = {out_base[27:16], count[15:0]} and changes cfg25 (any new value) to start. Each SCORE word's result is written at out_base, out_base+1, ... in order (LOAD and BIAS words give no result). Status: bit 6 raw busy, bits 15:8 results written (saturates at 255).
+- The scorer's weights are NOT cleared by a reset or mode change (only the bias is). A table loaded once stays until overwritten or power-off. Send a BIAS word at the start of a stream if you rely on one.
+- The scratch RAM has ONE write port, shared: do not write over SPI while raw busy is set (those writes are lost). Reads are fine at any time. The table-copy of stage 2 and the raw engine share the second read port, so run one at a time.
+- READY (77) is now high in any mode but 0.
+Checked in simulation (<code>tests/vm/test_hexn_open3_v1.py</code>, 2 tests pass): (1) a random table as LOAD words plus a BIAS plus 55 SCORE words with a LOAD in the middle, in ONE stream: all results equal the bit-exact reference; after a mode change the weights stay, the bias is cleared and a second batch is exact; Morse mode still starts. (2) REAL River Exe rows: the int8 table learned on 2022 (193 words) and 210 evenly spaced 2023 rows, results all equal the reference. The test was shown to fail when the engine's result address is deliberately wrong. Build (<code>tools/hexn_open_build_v3.sh</code>): 4,363 of 20,736 LUT4 (21%), 9 block RAMs, 134 MHz capable at 27. Earlier stage tests still pass.
+Real-data replay: <code>tools/hexn_raw_replay_v1.py</code> writes <code>tools/esp32/hexn_open3_test/replay_data.h</code> (the table plus 1,000 evenly spaced 2023 rows; only 18 of them are high-flow crossings, so on this subset the AUC is 0.9647 float and 0.9639 int8, against 0.973 on the whole of 2023). The sketch <code>hexn_open3_test.ino</code> command <code>replay</code> streams them in batches of 250 and counts result words that differ from the expected ones.
+Not yet run on a board. To try: <code>openFPGALoader -b tangnano20k fpga/build/hexn_open_unit_v3/unit_top.fs</code>, upload <code>tools/esp32/hexn_open3_test/hexn_open3_test.ino</code> (keep <code>replay_data.h</code> next to it), then <code>id</code>, <code>replay</code>.</p>
+<h2>Stage 3 (1 Nov 2026): the pin matrix, chosen by the ESP32</h2>
+<p>Alan, 20:21: 'let the choice be on the esp'. A chip pin cannot change its physical position at run time, so the build fixes a POOL of 16 pre-assigned pins and the ESP32 chooses, by register, which pool pin each shield signal uses. New files (earlier ones untouched): <code>hexn_pins_v1.v</code>, <code>hexn_open_top_v4.v</code>, <code>tools/hexn_open_build_v4.sh</code>.
+- Pool (pool index: Tang pin): 0:72, 1:71, 2:86, 3:25, 4:26, 5:27, 6:28, 7:29, 8:30, 9:31, 10:85, 11:80, 12:42, 13:41, 14:56, 15:54. Each pad has an internal pull-up and is an input unless an output is routed to it.
+- Three logical inputs (button 1, 2, 3) and four logical outputs (display latch, display clock, display data, buzzer) each pick a pool pin with a 4-bit selector. cfg26 = {button 3 [11:8], button 2 [7:4], button 1 [3:0]}; cfg27 = {buzzer [15:12], data [11:8], clock [7:4], latch [3:0]}. Each selector is stored XOR the default index (buttons 0, 1, 2; latch, clock, data, buzzer 3, 4, 5, 6), so a register value of 0 is exactly the old wiring: pins 72, 71, 86, 25, 26, 27, 28.
+- Two outputs picking the same pin: the lower one in the order latch, clock, data, buzzer drives it.
+- Status register 10 bits 31:16 = the live level of all 16 pool pins (so the ESP32 can scan which pin a wire or button is on).
+- The buzzer on the HW-262 is ACTIVE LOW: a beep is the pin going low.
+- SAFETY: routing an output onto a pin that something else drives makes two drivers fight. Only route outputs to pins you have wired to the matching shield input. Not touched: SPI 73 to 77, KEY S1, the six on-board LEDs 15 to 20, the RGB LED 79 and the HDMI EDID pins 52/53.
+Checked in simulation (<code>tests/vm/test_hexn_open4_v1.py</code>, passes, shown to fail when a default is wrong): default wiring scores a good hit; the three buttons moved to pool pins 9 to 11 still work and the old pins do nothing; the status bits show a held-low pin; the buzzer moved to pool pin 12 beeps there and not on pin 6; register 0 restores the default. Build (<code>tools/hexn_open_build_v4.sh</code>): 4,552 of 20,736 LUT4 (22%), 9 block RAMs, 16 bidirectional pads, 149 MHz capable at 27. NOT yet on a board; in particular, bidirectional pads (tristate) are exercised only in simulation and by the tools' IOBUF mapping.
+To try: <code>openFPGALoader -b tangnano20k fpga/build/hexn_open_unit_v4/unit_top.fs</code>, upload <code>tools/esp32/hexn_open4_test/hexn_open4_test.ino</code>, then <code>id</code>, <code>mode 1</code> (shield as before), <code>pins</code> (press a button: its pin reads 0), <code>btn 1 31</code> and wire a switch from pin 31 to GND: button 1 is now on pin 31; <code>out buzz 54</code> with the buzzer lead on 54; <code>default</code>.</p>
+<h2>Stage 4b (1 Nov 2026): presets and a second table (two judges)</h2>
+<p>Alan, 20:38: 'start on the presets and second table, we have space on the tang so lets use some'. New files (earlier ones untouched): <code>hexn_tabs_v2.v</code> (adds table space 5), <code>hexn_presets_v1.v</code>, <code>hexn_raw_engine_v2.v</code>, <code>hexn_open_top_v5.v</code>, <code>tools/hexn_open_build_v5.sh</code>.
+<strong>Second table = a second judge in the raw stream.</strong> Two scorers, A and B, each with its own weight table and bias. With the TWO-JUDGES bit set, every SCORE word is scored by A and then by B and two result words are written, A first. Judge control jc[2:0]: bit 0 = two judges; bits 2:1 = where LOAD and BIAS words go (0 judge A, 1 judge B, 2 both). jc starts each run at cfg28 (or the active preset's word 6) and can be changed INSIDE the stream by a control word, top nibble 14, jc in bits 2:0 (no result). One stream can therefore load table A, switch, load table B, switch back, then stream data. Top nibble 15 stays reserved.
+<strong>Presets.</strong> The Tang holds eight presets of eight words in table space 5 (64 x 32; loaded like any table: scratch RAM, cfg17 with space 5, count 64, change cfg19). Words: 0 mode, 1 reaction binning, 2 press binning, 3 gap binning, 4 input pins (cfg26 format), 5 output pins (cfg27 format), 6 raw judge control, 7 reserved. cfg29 = preset select: 0 = none, the registers act directly (as before); n = 1..8 applies preset n-1 (the personalities are held in reset for the few clock cycles it takes). While one is active its words REPLACE the mode, binning, pin and judge registers; the tables themselves are not part of a preset. Writing 0 returns to the direct registers. Status bit 7 = a preset is active. cfg23 (restore) refills the presets with the factory ones.
+Factory presets: 1 reaction game, 2 Morse key, 3 raw stream with one judge, 4 raw stream with two judges (loads go to A), 5..8 idle.
+Checked in simulation (<code>tests/vm/test_hexn_open5_v1.py</code>, passes, shown to fail when the judge-B routing is wrong): preset 1 and 2 start the games with no mode register written; preset 0 returns to direct control (mode 0, idle) and the mode register still works; a custom preset loaded into space 5 moves the buttons to pool pins 9 to 11 and the buzzer to pin 12 in one write; preset 4 plus a stream of two different random tables loaded by control words, two biases and 20 rows: every A and B result equals the bit-exact reference. Stages 1 to 4a tests still pass (6 tests together). Build (<code>tools/hexn_open_build_v5.sh</code>): 5,375 of 20,736 LUT4 (26%), 10 block RAMs, 116 MHz capable at 27.
+Not yet run on a board. To try: <code>openFPGALoader -b tangnano20k fpga/build/hexn_open_unit_v5/unit_top.fs</code>, upload <code>tools/esp32/hexn_open5_test/hexn_open5_test.ino</code> (with its <code>replay_data.h</code>), then <code>id</code>, <code>preset 1</code> (the game runs with no mode set), <code>preset 2</code>, <code>preset 0</code>, <code>twojudge -40</code> (the river table into both judges, B with bias -40: A and B answers for 1,000 real rows from one pass), <code>setp 6 1 0 0 0 0 0 0</code> (edit preset 6: reaction game) then <code>preset 6</code>, <code>factory</code>.</p>
+<h2>Stage 4c (1 Nov 2026): a CLEAR control word for the judges (simulated, built and CONFIRMED ON THE BOARD)</h2>
+<p>Alan remembered a 'clear function' from the layer-1 days (the <code>hexn_tier2</code> CLEAR, 29 Oct). The open unit had none: the judges keep their weights between runs. Now a control word does it, inside the stream.
+- <strong>Control word</strong> <code>0xE000000C</code> = clear BOTH judges, <code>0xE000000A</code> = clear B only, <code>0xE0000008</code> = clear A only. Layout: top nibble 14 (CONTROL), bit 3 = CLEAR, bits 2:1 = target (0 A, 1 B, 2 or 3 both), bit 0 = two judges as before. Clear sets all 256 weights and the bias of the target to zero; the rest of the stream waits until it is done (about 130 clocks, one address per clock). A word with bit 3 clear behaves exactly as before.
+- <strong>New files</strong> (the proven ones are untouched): <code>hexn_scorer_v2.v</code> (v1 plus <code>clr</code> / <code>clr_busy</code>), <code>hexn_raw_engine_v3.v</code>, <code>hexn_open_top_v6.v</code>, <code>tools/hexn_open_build_v6.sh</code>. The Morse core still uses scorer v1. Build: 5,380 LUT4, 10 BSRAM, 132 MHz against a 27 MHz target (about 4 minutes).
+- <strong>Test</strong>: <code>tests/vm/test_hexn_open6_v1.py</code> (iverilog): stage 4b repeated on the v6 top, then judge B cleared (A still equals the reference, B all zero), then both cleared (all zero). Passes; open2 to open5 tests still pass.
+- <strong>Host</strong>: <code>clear_judges(which, hardware=True)</code> sends the one word; the default still sends 256 zero LOADs, so it works on every build. The ID word is the same on v5 and v6, so the host cannot detect the build: a v5 bitstream ignores the bit and clears nothing. Diagnostic: <code>python3 tools/hexn_front_diag_v1.py --port ... --hw-clear</code> adds stage 6 (v6 only).
+- <strong>On the board</strong> (v6 bitstream, <code>python3 tools/hexn_front_diag_v1.py --port /dev/ttyUSB3 --hw-clear</code>): all stages ok; stage 6 clear B and clear both each 0 of 100 result words wrong.</p>
+<div class="partsub">Card and item formats<span class="partsrc">docs/hex-n/CARD_FORMAT_v1.md</span></div>
+<h1>Hex-N card format, proposal v1 (28 Oct 2026)</h1>
+<p><strong>Status: a proposal for Alan to confirm. Nothing here is built.</strong> It follows from three things Alan said on 28 Oct 2026: the key space must be larger; long runs mean the index gets cached onto the card, which is where "save" comes in; and models and datasets must be kept apart, which leads to some directory structure.</p>
+<h2>What already exists and applies (checked in the UniCell repo)</h2>
+<p><code>archeology/full-cell/docs/core/NATIVE_FS.md</code> (June 2026) and the standing decision recorded for the UniCell project: no directory tree; every block is self-describing (a header says what it belongs to); the index is rebuilt by reading the headers, so the blocks are the source of truth; collections are saved filters over the index. This proposal keeps that rule: the "directory" is a one-level <strong>catalogue of volumes</strong>, and every log block carries its own volume id and sequence number.</p>
+<h2>Card layout (raw 512-byte blocks, no FAT; the card is used by Hex-N only)</h2>
+<table>
+<thead>
+<tr>
+<th>Region</th>
+<th>Blocks</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Catalogue</td>
+<td>0 to 1 (two copies, the newer sequence wins)</td>
+<td>magic, format version, catalogue sequence, up to 31 volume entries</td>
+</tr>
+<tr>
+<td>Volume 1, 2, ...</td>
+<td>start and length from the catalogue</td>
+<td>header block, log region, two checkpoint slots, files region</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Catalogue entry (one per volume):</strong> volume id (8 bits), name (16 characters), model id, dataset id, state (empty, open, clean-saved), first block, block count, key bits, value bits, hash version, config hash (of <code>hexn_config.json</code>), creation time/sequence.</p>
+<p><strong>Volume header block:</strong> copy of the entry plus the full <code>hexn_config.json</code> text it was built with, so the volume describes the design that wrote it.</p>
+<p><strong>Log region:</strong> the circular log of tier v4, L blocks. <strong>Log block:</strong> 16-byte header (volume id, 40-bit sequence number, entry count, CRC16) and 62 entries of 8 bytes (tag word with valid bit and key hash, value word). The current v4 block has 64 entries and no header; this changes it to 62 plus a header (a 3% capacity cost) so a block can be recognised and ordered after a power cycle.</p>
+<p><strong>Checkpoint region:</strong> two slots (A and B, written alternately). A checkpoint holds the index, a sequence number, the log head and tail, and a CRC; the newer valid one is used. This is the "index cached onto the card".</p>
+<p><strong>Files region:</strong> ordinary named files stored with a small header (type, name, size, CRC): the design's <code>hexn_config.json</code>, the bitstream (<code>.fs</code>) that produced the data, the serial test captures, a note file. So the bitstream and its associated data live next to the data they made, as files, whatever loads them.</p>
+<h2>Save and restore</h2>
+<ul>
+<li><strong>Save</strong> (clean shutdown or on demand): drain the fast table and the SDRAM level down into the log (every entry ends up on the card), flush the open sector, write the index checkpoint to the older slot, then set the volume state to clean-saved. After this the card alone holds everything.</li>
+<li><strong>Restore after a clean save:</strong> read the catalogue, pick the volume, read the newer valid checkpoint into the SDRAM index (index size 1 MiB for 18-bit keys: about 2,000 block reads, 1.2 s), set head and tail. The fast table and SDRAM level start empty and refill by promotion on use.</li>
+<li><strong>Restore after a crash (no clean save):</strong> read the checkpoint, then replay the log blocks with a sequence number newer than the checkpoint, in order. <strong>Needed addition:</strong> when a key is promoted away from the card its old log entry stays on the card, so replay would bring back a stale copy. Fix: a promotion appends a <strong>tombstone</strong> entry (the key with the valid bit clear) to the log, so replay removes it. Costs one extra log entry per promotion and is not in v4 yet.</li>
+<li>Restore without any checkpoint: scan every log block header, sort by sequence number, replay: the time is L blocks at 0.6 ms (4,096 blocks 2.5 s; 1 million blocks 10 minutes).</li>
+</ul>
+<h2>Larger key space</h2>
+<p>The direct index (one word per possible key) stops being practical above about 20 bits. Options, in order of build size: (1) a <strong>hashed index in the SDRAM</strong>: index words hold the key hash tag, the sector and the entry number, found by probing; 8 MiB of SDRAM gives about 1.5 million live entries at a safe load; 24-bit keys give 16.7 million possible keys; (2) <strong>index cached on the card</strong>: the SDRAM index becomes a cache of the checkpointed index, so the live entry count is limited by the card, at the price of one extra card read for a lookup that misses the cached part. Alan gave no preference on width on 28 Oct; default proposal: build (1) with a 24-bit key first, design the block and checkpoint formats so that (2) can follow.</p>
+<h2>Loading bitstreams from the card</h2>
+<p><strong>Not possible directly on this board.</strong> From the Gowin configuration guide UG206 (read 28 Oct 2026): the GW2AR-18 QN88 package supports only the JTAG and MSPI (flash boot) modes; the SSPI, SERIAL and CPU slave modes that would let logic or a host feed a bitstream are marked unsupported for this package. A running design can trigger a reload with the RECONFIG_N pin, but the reload comes from the MSPI flash, not from the SD card. The SD slot is wired to ordinary FPGA pins (81 to 84), not to the configuration path. <strong>Indirect routes, NOT verified:</strong> a small loader design that reads a bitstream file from the card and writes it into the board's configuration flash, then pulses RECONFIG_N (needs the flash pins to be usable from user logic after configuration, and wears the flash); or the host loading over USB-JTAG as now. On the Kintex card there is no SD slot at all; bitstreams load over JTAG or from the BPI flash. The file region above keeps the bitstream and its data together regardless.</p>
+<h2>Open questions for Alan</h2>
+<ol>
+<li>Volumes-and-catalogue (proposed, one level, matches the UniCell rule), real folders, or one store per card? (No answer given on 28 Oct; the question about bitstreams was added instead.)</li>
+<li>Key width: 24 bits with the hashed index (proposed), or 32 bits with the card-cached index. (No preference given.)</li>
+<li>Tombstones and the 62-entry block change the v4 log; agree before the card format is frozen.</li>
+</ol>
+<div class="partsub">UCC v2 and the loadable unit file (scoping)<span class="partsrc">docs/hex-n/UCC_V2_SCOPING_v1.md</span></div>
+<h1>Hex-N UCC v2: scoping (1 Nov 2026, 21:30; direction added 2 Nov 05:45)</h1>
+<p>Status: <strong>SCOPING ONLY. Nothing here is built, decided or measured unless it says so.</strong> Every item marked PROPOSAL is for Alan to accept, change or drop.</p>
+<h2>0. DIRECTION from Alan, 2 Nov 05:45 (readings taken; supersedes parts of sections 3 and 4 below)</h2>
+<ul>
+<li>v1 is <strong>chaining</strong>. v2 of the large Hex-N UCC should follow the <strong>UniCell neighbour-shell scheme</strong> (each cell has its own shell and knows its neighbours; paths are made by writing routing config, as with <code>routing_mask</code>), so it allows <strong>routing</strong>, not just chaining. The neighbour awareness is the UniCell side, not the hex-grid side; v2 should not be tied to a hex layout.</li>
+<li><strong>One cell kind instead of separate cores: a LOOK-UP-TABLE cell.</strong> "Similar idea, just simpler." So the maths cells (section 3, kinds B and C) are not separate hardware; function comes from a table loaded into the cell. My reading, to be confirmed.</li>
+<li>Notes on that reading (mine, not decided): a table cell is simple and uniform, and the chip's block RAM is a natural place for the tables (the Tang has 46 blocks, 11 used by v1; the Hex-N judge's tanh already is a 512-entry table). It suits small inputs well (binning, curves, activation functions, small-digit logic). A table cannot hold wide arithmetic directly (two 18-bit operands would need 2^36 entries), so adds and compares on wide words would be built by slicing into small digits chained through cells, or by keeping one small adder helper. That trade-off is the main thing to settle.</li>
+</ul>
+<h3>0b. Working direction, 2 Nov 05:55 (Alan: "the serial option works ... add a buffer at the start and at the end")</h3>
+<p>Readings taken, to be confirmed:
+- <strong>Cells:</strong> six faces as the inputs of a look-up table, so routing and logic are one thing (section 0). One bit per face, <strong>sent serially</strong>: a number travels as a stream of bits, one per clock, so a 32-bit word costs 32 clocks, not 32 cells. A bit-serial adder is one cell plus a carry it remembers; a word-start marker frames each word.
+- <strong>Parallel streams:</strong> many serial streams run through the grid at the same time, so throughput scales with the number of streams, not the width of a number.
+- <strong>Buffers at both ends:</strong> an input RAM and an output RAM. The input RAM feeds a serialiser into the grid; the results come out of a de-serialiser into the output RAM. This is the on-card design of section 6, and it is also what Alan proposed for the Tang at 21:23 (data in one half of the RAM, results in the other, the control only loads the settings and a start, then reads a done). It is therefore stage 10 in a first form.
+- <strong>Programming order:</strong> the cells are set one after another (the first, then the second, and so on), which matches the existing program-from-consecutive-slots command and the stage-to-stage config path of section 5.
+- <strong>Not measured:</strong> the cost of one bit-serial cell on the Tang (a 6-input table is about four 4-input tables plus selection), the clocks per word, and how many streams fit. A first measurement would be a bit-serial adder cell and a short chain of them, synthesis counts only.</p>
+<h2>1. Why a v2 (Alan, 20:27, 21:14, 21:18, readings taken)</h2>
+<ul>
+<li>The chain with a bypass switch per unit (v1, stage 9) works on the Tang and is board-confirmed at 4 units. Alan: with bypass the routing is not needed at this stage; "but more stages yes, see how far it goes".</li>
+<li>For the larger cards (the Kintex XC7K480T) a version 2 or larger is needed: bring in some of the extra cores and add routing, so that more complex systems can be designed.</li>
+<li>Alan's Kintex card has <strong>no working PCIe side</strong> (JTAG only), which limits what can be done from a host. This shapes the design (section 6).</li>
+<li>A different direction Alan raised at 20:27: drop the maths cores and keep only logic and routing cells, doing maths in the chip's hard multiplier blocks. Section 3 keeps both open.</li>
+</ul>
+<h2>2. What v1 is (facts, measured or read from the code)</h2>
+<ul>
+<li>A stage = config gate (drain, program, settle, fault policy) + <code>arith_block_v10</code> + output bridge, with a <strong>bypass register</strong> that turns the stage into a wire. Chain of N stages, one engine, one pattern bank (64 x 32-bit words in block RAM, space 7).</li>
+<li>Config word: [2:0] mode, [15:8] step/keep flags, [25:16] nano topology, [26] held-from-config, [28:27] second-operand source, [31] bypass.</li>
+<li>Commands: apply one unit, run a batch, program units from consecutive bank slots. The unit number is 4 bits (at most 15 units); the bank has 64 slots.</li>
+<li>Size on the Tang (place and route, NOT on a board beyond 4 units): 4 / 8 / 12 units = 11,321 / 14,139 / 17,051 slots (55 / 68 / 82 percent); about 705 to 728 slots per stage; clock 101 to 108 MHz against 27 required.</li>
+<li>Data path 18 bits wide. One word in flight per stage; about 5 clocks per word per stage.</li>
+<li>Known weakness found on the board: the unit starts a command when the command register changes, so a repeated identical word is ignored (fixed in the host by writing 0 first). v2 should use a command that cannot be missed (for example a toggle plus acknowledge).</li>
+</ul>
+<h2>3. Stage types for v2 (PROPOSAL of 1 Nov; see section 0: a single look-up-table cell may replace kinds A to C)</h2>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>What it does</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A. Logic/route cell</td>
+<td>truth-table (nano), mask, compare, select, bypass</td>
+<td>the cheap one; no adder or shifter</td>
+</tr>
+<tr>
+<td>B. Maths cell (soft)</td>
+<td>v1's block: add, sub, accumulate, shifts</td>
+<td>about 700 slots on the Tang</td>
+</tr>
+<tr>
+<td>C. Maths cell (hard)</td>
+<td>one hard multiplier / multiply-accumulate block per stage</td>
+<td>counts: Tang 48 (18x18, from the Sipeed page); Kintex DSP count to be checked</td>
+</tr>
+<tr>
+<td>D. Split</td>
+<td>one input word to two outputs</td>
+<td>new</td>
+</tr>
+<tr>
+<td>E. Merge/join</td>
+<td>two inputs to one; reuse <code>join_v1</code> ideas (pair mode, sticky B)</td>
+<td>prior art exists</td>
+</tr>
+<tr>
+<td>F. Memory port</td>
+<td>read/write a word from the card's RAM</td>
+<td>Kintex: DDR3</td>
+</tr>
+<tr>
+<td>All kinds speak the same handshake and carry the same bypass bit, so the engine and the program format do not care which kind sits where. Question 1 in section 8 decides how many kinds to build first.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2>4. Routing (PROPOSAL, small first; section 0: follow the UniCell neighbour-shell scheme)</h2>
+<ul>
+<li>v1 is a straight line. v2 needs branches, so each cell gets an <strong>input choice</strong> (which neighbour it listens to) and split/merge cells.</li>
+<li>Keep it <strong>local</strong>: a cell listens to one of a few nearby cells (previous, one back, or a named side input), chosen by a field in its config word. No global crossbar: it would break the flat timing the chain showed on the Tang.</li>
+<li>Paths are set by writing config words, as UniCell does with <code>routing_mask</code> (docs/shared/SYSTEM_MECHANICS.md); the host-side "walker" (discovery by ping/relay) is not a path creator and stays out of it.</li>
+<li>Prior art to check before building: <code>join_v1</code>, <code>routing_mask</code>, the hex-grid relays decided on 21 Oct (HEXN_DESIGN.md), and the Onion archive.</li>
+</ul>
+<h2>5. Scale: what must change from v1</h2>
+<ol>
+<li>Unit number: 4 bits to as wide as needed (8 bits gives 255).</li>
+<li>Pattern bank: 64 slots to a program store sized by parameter; on the Kintex it can sit in DDR3 (two channels working; UberDDR3 at 83.33 MHz measured).</li>
+<li>Config path: v1 broadcasts the config word to every stage. For hundreds of stages pass it <strong>stage to stage</strong> (a pipelined ring or shift path) so no wire reaches everything at once. Same for reset and the handshake back to the engine.</li>
+<li>Command: replace "change the register" by a toggle with acknowledge.</li>
+<li>Timing is not guaranteed to stay flat: Hex-N's own Kintex ladder fell from about 76 MHz (64 cells) to about 60 MHz (255 cells) by the tool's estimate. Must be measured, not assumed.</li>
+</ol>
+<h2>6. No PCIe: the card must run itself (PROPOSAL)</h2>
+<ul>
+<li>Programs and working data live <strong>on the card</strong> (DDR3 on the Kintex, block RAM on the Tang).</li>
+<li>A small <strong>on-card sequencer</strong> reads program words, programs the stages, feeds data in and writes results back. The UniCell sequencer is the model.</li>
+<li>The host (JTAG on the Kintex, SPI through the ESP32 on the Tang) only loads programs, starts runs and reads results and status. No bulk streaming over JTAG.</li>
+</ul>
+<h2>7. Host side</h2>
+<ul>
+<li>The existing front end (docs/hex-n/FRONT_END_UNIT_v1.md) is an ESP32 gateway that only moves words plus a PC module (<code>tools/hexn_open_host_v1.py</code>, class <code>OpenUnit</code>). The chain commands (fill the bank, program, apply one, run) belong in that PC module; the gateway sketch needs no change except where Alan wants a stand-alone ESP32 mode (his 19:38 direction).</li>
+<li>The sketch's C++ chain model is fixed at 4 units; it needs a parameter before bigger chains are tested on the board.</li>
+</ul>
+<h2>8. Questions for Alan</h2>
+<ol>
+<li>Cell kinds: with the single look-up-table cell of section 0, how wide is the table (address bits, data bits), and how should wide adds and compares be done: sliced into small digits, or one small adder helper kept?
+1b. Neighbours: which UniCell neighbour set does v2 use (how many directions, and does the routing mask choose input, output or both)?</li>
+<li>Branching: is <strong>split + merge</strong> enough for the first v2 systems, or do you want a general small crossbar?</li>
+<li>Word width: stay at 18 bits or go to 32 on the big cards?</li>
+<li>Target order: build and measure on the Tang first (cheap, quick) or go straight to a Kintex ladder (16 / 64 / 256 stages)?</li>
+<li>Should the on-card sequencer be part of v2 or a separate step?</li>
+</ol>
+<h2>9. Plan (PROPOSAL, nothing started)</h2>
+<ol>
+<li>Alan answers section 8.</li>
+<li>Measure on the Tang: one logic cell, one hard-multiplier stage (synthesis counts only); this also gives the soft against hard comparison.</li>
+<li>Write the v2 word format and handshake (a short spec), simulate split/merge with the same style of model-checked tests as v1.</li>
+<li>Tang build with the new cells, board test.</li>
+<li>Kintex ladder, one build at a time (tens of minutes to over an hour each, openXC7 flow, <code>CHIPDB</code> set).</li>
+</ol>
+<h2>10. Not decided</h2>
+<p>Cell kinds, widths, the routing choice, the program store layout, the sequencer, and whether v1 stays frozen as the proven base (my assumption: it does, v2 is new files).</p>
+<div class="partsub">The Hex-N assembler (scoping)<span class="partsrc">docs/hex-n/HEXN_ASSEMBLER_SCOPING_v1.md</span></div>
+<h1>Hex-N assembler: scoping (2 Nov 2026, 17:48; Alan: "lets scope out the assembler side")</h1>
+<p>Status: <strong>SCOPING ONLY. Nothing here is built.</strong> Facts are read from the files named; items marked PROPOSAL are for Alan to accept, change or drop; guesses are marked as guesses.</p>
+<h2>1. The job (Alan's words, 16:37)</h2>
+<p>The assembler "just grabs the latest version of the verilog for the components, and creates a specified top; that's its job, and it targets different cards too." It reads the ICM. The route is: ICM, then assembler, then place and route on the board (Alan, 17:17). The serial VM (<code>tools/hexn_vm_v2.py</code>) is the place to check the result.</p>
+<h2>2. What exists to copy (read, not assumed)</h2>
+<ul>
+<li><code>tools/project_assemble_v1.py</code> has a family flag (<code>-s flex|sub|nano|...</code>), <code>--man</code> (card capabilities), <code>--icm FILE</code>, <code>--target quartus|yosys</code>. The Flex-Sub family was added the same way: <code>tools/flexsub_assemble_v1.py</code> plus "one dispatch line" in the main file. A Hex-N family would be <code>-s hexn</code> dispatching to a new <code>tools/hexn_assemble_v1.py</code>.</li>
+<li>Flex-Sub already does what Hex-N needs: a table of cell shapes whose ports were read from each source file (<code>SHAPES</code>), <code>check_ports</code> against the real parsed module header, a generated top with anti-pruning stimulus and an XOR observer, dependency copy into a flat folder, a yosys script, <code>build.sh</code>, <code>ASSEMBLY.json</code>, and a <code>.cst</code> built from the MAN's pin table. <code>flexsub_icm_generate_v4.py</code> reads an ICM-VIX file as the netlist (that is Flex-Sub "step 2").</li>
+<li>Cards: <code>docs/man/tang-nano-20k.man.json</code> exists (Gowin GW2AR-18, open flow yosys, nextpnr-himbaechel, gowin_pack, openFPGALoader). <strong>No MAN file for the Kintex card is in <code>docs/man</code></strong> (only the Tang and a Mustang Arria 10); Kintex builds so far used <code>fpga/build_hexn_kintex_v*.sh</code> with openXC7. So "targets different cards" needs a Kintex MAN file first.</li>
+</ul>
+<h2>3. The Hex-N components (the RTL in <code>sub/verilog</code>) and the mismatch between them</h2>
+<p>Two styles, both tested or probed, that a generator has to put in one grid:
+- <strong>A. Face-vector cells with a config SHIFT CHAIN:</strong> <code>hexn_rcore_v1</code> (pure switch), <code>hexn_scell_v1</code>, <code>hexn_ramroute_v6</code>. Ports <code>fi[5:0]</code>, <code>fo[5:0]</code> (<strong>six faces</strong>), <code>cfg_en</code>, <code>cfg_in</code>, <code>cfg_out</code>. Routing select is 3 bits per output (18 bits per cell). The six-face width is already in the RTL; a four-face grid would leave two faces unused (and could drop their multiplexer inputs: a face-count parameter, not measured).
+- <strong>B. Pin-style cores:</strong> <code>hexn_seq_core_v1</code>, <code>hexn_prio_core_v1</code>, <code>hexn_branch_core_v1</code>, <code>hexn_merge_core_v1</code>, <code>hexn_unary_core_v1</code>, <code>hexn_join_core_v2</code> (with <code>hexn_ramfifo_v8</code>), <code>hexn_latch_core_v1</code>. Separate data and start-flag pins per input, parallel config ports (<code>cfgload</code>, <code>vals[127:0]</code>, <code>mask</code>, <code>ranks</code>, <code>mode</code>...), no shift chain.
+- <strong>Gap 1, flags on the links:</strong> the Python grid model carries a start flag with every word on every link (<code>rflag</code> in <code>hexn_wrgrid_v11.simulate9</code>); the face-vector routing probe routes ONE bit per face. A routing cell for the real grid needs a data lane and a flag lane. Not built, not measured.
+- <strong>Gap 2, no tested routing cell with program load:</strong> <code>hexn_rcore_v1</code> is a measurement probe ("counts only"); the grid has no complete tile (routing cell + attached work core) as a module.</p>
+<h2>4. What the assembler has to do (PROPOSAL)</h2>
+<ol>
+<li><strong>Component catalogue</strong> (like <code>SHAPES</code>): per component the file, parsed ports, config width and bit order, role (work / route / RAM), and a MEASURED cost on the target. Ports are checked against the parsed header; an unknown component is refused.</li>
+<li><strong>Tile wrapper:</strong> one uniform tile interface (four faces now, <code>faces</code> a parameter, six reserved) with data + flag per face, one config chain segment, and the clock. Style B cores get a small wrapper that turns a chain segment into their parallel config ports.</li>
+<li><strong>Program load by chain, PROPOSAL:</strong> every tile has a chain segment; the cells are set one after another in a fixed order. This matches Alan's 2 Nov 05:55 note (cells set one after another) and the three existing cell types. Cost to check: a core with a wide config (the sequencer's 128-bit <code>vals</code>) needs that many more flip-flops as a chain register.</li>
+<li><strong>Top generator:</strong> read an <code>icm-hexn-v2</code> file; instantiate tiles by (row, col) and the right core per record (<code>cross</code>, <code>corner</code>, <code>ram</code> relay and <code>route</code> records become routing-cell settings; work records pick the component); wire neighbours by face; stitch the chain; bind the pads named in <code>io</code> to ports; bridges (<code>io.bridges</code>) become the parallel/serial crossing ports.</li>
+<li><strong>Frame:</strong> the pattern's top carries <code>spi_bridge_v3</code> with the PATTERN_ID parameter from the pattern table (type K S NN, version), a chain loader that reads the program from scratch RAM and shifts it in, the general wipe, and the judges. Today's open tops (<code>hexn_open_top_v*</code>) are the model for this part.</li>
+<li><strong>Outputs:</strong> top <code>.v</code>, copied dependencies, yosys script (<code>synth_gowin -nowidelut</code>, JSON cell counting as measured earlier), <code>build.sh</code>, <code>.cst</code> from the MAN, <code>ASSEMBLY.json</code> with the pattern id and file hashes.</li>
+<li><strong>Cost feedback:</strong> the same tool, run per component on a target, writes a measured cost table. That replaces the estimates in <code>hexn_bases_v2</code> (routing cell 30, RAM routing cell 87, which are my own numbers) and feeds the pattern designer.</li>
+</ol>
+<h2>5. How we will know it is right (the check loop)</h2>
+<p>Same ICM file, two routes: (a) the serial VM; (b) assembler -&gt; Verilog -&gt; iverilog with a generated testbench that feeds the same inputs at the same ticks. Output words must be equal. Then place and route, then the board with the same inputs through SPI. The cores already have RTL-versus-twin tests; this adds a whole-grid test.</p>
+<h2>6. Order and size (relative sizes are my guess, not estimates in hours)</h2>
+<ol>
+<li>Tile wrapper + routing cell with flag lane, simulated alone (<strong>medium</strong>).</li>
+<li>Wrappers for the style B cores plus chain loader, simulated (<strong>medium</strong>).</li>
+<li>Top generator for one small pattern, simulated against the VM (<strong>large</strong>; the main piece).</li>
+<li>Frame (bridge v3, wipe, judges), place and route on the Tang, measured costs (<strong>medium</strong>).</li>
+<li>Board run (needs Alan).</li>
+<li>Kintex MAN file and target (<strong>small to medium</strong>, after the Tang works).</li>
+<li>The bridge to the UniCell parallel side (separate, later).</li>
+</ol>
+<h2>7. Open questions for Alan</h2>
+<ul>
+<li><strong>Flag lane:</strong> two wires per face (data + start) in the routing cells. Is that accepted, or should words be framed another way (a global word clock was used in the probes and cannot support self-timed cores)? My recommendation: data + flag.</li>
+<li><strong>Chain for everything:</strong> accept the shift chain for all tiles, including wrappers for the pin-style cores?</li>
+<li><strong>Four faces now:</strong> build the tile with <code>faces</code> as a parameter, default four. Confirmed by Alan 16:45.</li>
+<li><strong>Kintex MAN file:</strong> who writes it, and from which source?</li>
+</ul>
+<h2>8. Addendum, 2 Nov 17:53 (after Alan's reply): two corrections to the framing, and the flag lane measured</h2>
+<p><strong>Carrier, not fixed design.</strong> Alan: Flex and Sub never had a carrier system, only the VIX design did; they were fixed designs, you made the design and the assembler made the bitstream from it. Hex-N is closer to the VIX carrier: the bitstream is a fabric (a pattern) and the design arrives later as a program. So section 2 above is only half the template. The Flex-Sub assembler is the model for the MECHANICS (shape table, port checks, copied dependencies, yosys script, pin file), but the better model for the CONCEPT is the carrier path in <code>tools/project_assemble_v1.py</code> (<code>generate_top_vix</code>, <code>derive_vix_dependencies</code>: an array of programmable cells with cardinal wiring, the program loaded afterwards through the live programming channel). The Hex-N family should be built as a carrier-style assembler: the output is a pattern bitstream, and <code>icm-hexn-v2</code> files are loaded into it. This is a new concept at this level of the design (the pattern is the bitstream; the ICM file is the program).</p>
+<p><strong>Flag lane measured (Alan: "needs to be confirmed, and built").</strong> Built <code>sub/verilog/hexn_rcore_flag_v1.v</code> (routing cell with a data lane and a flag lane, FACES parameter 4 or 6, one select per output shared by both lanes, so the chain is no longer) with <code>tests/hexn_rcore_flag_tb.v</code> and <code>tests/vm/test_hexn_rcore_flag_v1.py</code> (2 tests pass in iverilog, 4 and 6 faces, 200 random chain loads x 3 inputs; a mutant giving the flag the next output's select is caught). Synthesis counts (yosys 0.69, <code>synth_gowin -nowidelut</code>, JSON cell count, one cell alone, no place and route):</p>
+<table>
+<thead>
+<tr>
+<th>Routing cell</th>
+<th>LUT</th>
+<th>Flip-flops</th>
+<th>of which chain</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4 faces, data only</td>
+<td>12</td>
+<td>16</td>
+<td>12</td>
+</tr>
+<tr>
+<td>4 faces, data + flag</td>
+<td>24</td>
+<td>20</td>
+<td>12</td>
+</tr>
+<tr>
+<td>6 faces, data only</td>
+<td>30</td>
+<td>24</td>
+<td>18</td>
+</tr>
+<tr>
+<td>6 faces, data + flag</td>
+<td>59</td>
+<td>30</td>
+<td>18</td>
+</tr>
+</tbody>
+</table>
+<p>Reading: the flag lane doubles the multiplexer logic and the output registers, not the chain. The planner's estimates (routing cell 30, 60 once a self-timed type is present) match the SIX-face numbers; for FOUR faces the measured cell is 12 and 24, about 40 percent of the estimate. Arithmetic only, not a measured design: a 9 by 9 base has 65 routing cells, 65 x 60 = 3,900 slots as estimated against 65 x 24 = 1,560 at four faces with the flag lane, about 2,300 fewer. Not included: work cores, RAM routing cells, pads, the chain loader, place and route.</p>
+<div class="partsub">The front end for the open unit<span class="partsrc">docs/hex-n/FRONT_END_UNIT_v1.md</span></div>
+<h1>Hex-N front end for the open unit, v1 (1 Nov 2026)</h1>
+<p>Alan, 21:02: 'now we need the front end to be caught up to match the new functions'. Chosen shape (21:04, from three options): <strong>one general ESP32 gateway sketch plus a PC module</strong>, with the intake and analysis engine getting a 'send to unit' step. Alan, 21:05: once that is stable, it may become <strong>hosted on the ESP32 itself</strong>, capturing data through the ESP32's own pins, the Tang's pins, or uploaded directly to the ESP32. The design keeps that path open (see the last section).</p>
+<h2>The three pieces</h2>
+<ol>
+<li><strong><code>tools/esp32/hexn_gateway/hexn_gateway.ino</code></strong> (ESP32). Only moves words: <code>ID</code>, <code>R reg</code>, <code>W reg value</code>, <code>WW addr w1 w2 ...</code> (up to 255 words), <code>RW addr n</code>, <code>SPD hz</code>; text lines, numbers in hex, 460800 baud, one reply line <code>OK ...</code> or <code>ERR ...</code>. Needs the open unit builds (v2 bridge). Close the Arduino Serial Monitor before running the PC tool (only one program can hold the port).</li>
+<li><strong><code>tools/hexn_open_host_v1.py</code></strong> (PC). Class <code>OpenUnit</code> over any link with <code>.cmd(line)</code>: <code>mode</code>, <code>preset</code>, <code>status</code> (mode, readiness flags, preset active, raw results, live level of the 16 pool pins by Tang pin number), <code>load_space</code> (reaction, Morse, decode, glyph, presets), <code>binning</code>, <code>set_inputs</code> / <code>set_outputs</code> / <code>pins_default</code> (by Tang pin number), <code>define_preset</code>, <code>restore</code>, <code>stream</code> (raw scorer words with one or two judges; long streams are cut into runs and the judge state is carried across runs), <code>load_judges</code>. <code>SerialLink</code> is the real link (needs <code>pyserial</code>).</li>
+<li><strong><code>tools/hexn_front_unit_v1.py</code></strong> (PC). From the same files and task as the intake engine (<code>--future</code>, <code>--rule</code>, <code>--label</code>; the intake file is unchanged and reused for loading and features): learns the table on the training part, <strong>fits it to the unit</strong> (the scorer has 8 detector slots, 12 bins, two classes, whole-number weights): detectors are ranked on the TRAINING part only, the best 8 are kept, weights are made whole numbers (scale 4), then the test rows are sent as raw words and <strong>every result is checked against the bit-exact reference</strong>. <code>--bias-b N</code> also loads judge B with the same weights and bias N, so each row gets two answers. <code>--out pkg.json</code> saves the package (chosen detectors with names and bin edges, the table words, the scale, the AUCs).</li>
+</ol>
+<h2>Checked so far (model only, no hardware)</h2>
+<p><code>tools/hexn_open_emu_v1.py</code> is a Python model of the unit behind the gateway's text protocol (registers, scratch RAM, table spaces, presets, raw stream with one or two judges, using the bit-exact scorer reference). It proves the PC side sends the right words in the right order; it does not model the games, display, pins or timing. The unit itself was proven by the Verilog simulations and the board runs.
+- <code>tests/vm/test_hexn_open_host_v1.py</code> (5 pass; shown to fail when the judge state is not carried between runs): the register encodings equal the ones the Verilog tests use; modes, presets, tables, pins, binning; a single-judge stream; two judges over a 900-result stream cut into runs; control words inside a stream.
+- <code>tests/vm/test_hexn_front_unit_v1.py</code> (passes): the four real River Exe files, task <code>--future flow --q 0.9 --hours 6</code>: 16 detectors available, 8 kept; whole-number table within 0.01 AUC of the same detectors in floating point; 0 result words wrong against the reference; judge B (bias -40) raises fewer false alarms than judge A.
+- The gateway sketch is compile-checked with a stub only.
+<strong>Honest number:</strong> fitting 16 detectors into the unit's 8 slots costs accuracy. On River Exe the 8-slot whole-number table gives AUC 0.9626 on the test part (24,504 rows, 603 positive), against 0.976 for the full 16-detector table in the intake engine. A unit with more detector slots (the scorer's NS) would close part of that gap; not built.
+Model run (not hardware), 1,000 evenly spaced test rows: judge A caught 26 of 26 positives with 216 false alarms; judge B (bias -40) caught 20 with 58 false alarms.</p>
+<h2>To try on the board</h2>
+<ol>
+<li>Load <code>fpga/build/hexn_open_unit_v5/unit_top.fs</code>, upload <code>tools/esp32/hexn_gateway/hexn_gateway.ino</code>, close the Serial Monitor.</li>
+<li><code>pip install pyserial</code> (and the packages the intake tool already needs: numpy, pandas, scikit-learn).</li>
+<li><code>python3 tools/hexn_front_unit_v1.py docs/hex-n/data/ea_exe/*.csv.gz --future flow --q 0.9 --hours 6 --port COM3 --bias-b -40</code> (use the ESP32's real port name). Expect: 'judge A result words wrong against the reference: 0'.
+Not yet run on hardware: the gateway, the serial link at 460800 baud, the PC module against the real unit.</li>
+</ol>
+<h2>Hosting it on the ESP32 later (Alan, 21:05)</h2>
+<p>The split is chosen for that. The gateway holds no logic; all the logic is in <code>hexn_open_host_v1.py</code> (plain steps over <code>.cmd(line)</code>) and the fitting in <code>hexn_front_unit_v1.py</code>. Moving it onto the ESP32 means (a) the same steps written in the ESP32's language, calling the SPI functions directly instead of the serial protocol, (b) a way to feed it data: the ESP32's own pins, the Tang's pin pool (levels are already readable in the status word, and the raw stream accepts words), or a file uploaded to the ESP32, (c) the learning step either done on the ESP32 (the counted-detector table refresh is a few tallies per row, so it is small) or done on the PC once and uploaded as a package. Nothing about this is built; the package file (detectors, bin edges, table words) is the interface between the two.</p>
+<h2>Version 2 of the link (1 Nov 2026, after the first real run)</h2>
+<p>The first real run (Alan, 21:35 to 21:38) found: the greeting was read as a reply (fixed); then 996 of 1,000 results wrong; then the diagnostic showed 1 and 10 words pass and 100 words get NO reply. Reading of the cause, from that pattern and not yet confirmed on the board: the ESP32's receive buffer is 256 bytes by default and the sketch read one character at a time, too slow for 921,600 baud, so long lines were cut (no newline, no reply) or damaged in the middle (a silently different word, which explains the wrong results). Changes:
+- Gateway v2: 8 KB receive buffer (<code>setRxBufferSize</code> before <code>begin</code>), one bulk read per pass, <strong>460,800 baud</strong>, and a checksum: every command ends with <code>#HHHH</code> (16-bit sum of the bytes before it), a wrong sum is refused with <code>ERR checksum</code>; every OK reply carries one too.
+- <code>SerialLink</code>: always sends the checksum, verifies every reply, and on a missing, refused or damaged exchange clears both sides and resends (up to 4 tries). A line damaged on the way can no longer change a word silently; <code>link.retries</code> counts how often it had to resend.
+- Test (<code>tests/vm/test_hexn_open_host_v1.py</code>, 8 pass in all): a flaky-line model damages every 7th command, drops the newline of every 11th and damages every 9th reply; a 150-row two-judge run still returns exactly the reference words after many resends. It fails if the reply check is switched off.
+<strong>You must upload the new <code>hexn_gateway.ino</code> to the ESP32</strong> (the old one speaks 921,600 baud without checksums).</p>
+<h2>The front end as a web page (1 Nov 2026) — <code>tools/hexn_front_web_v1.py</code></h2>
+<p>The command line stays; this adds a page in your browser that does the same thing with buttons. It only CALLS the proven code (<code>hexn_intake_v1</code>, <code>hexn_front_unit_v1</code>, <code>hexn_open_host_v1</code>); nothing there was changed.
+- <strong>Start it</strong> (on the PC that has the ESP32 plugged in): <code>python3 tools/hexn_front_web_v1.py</code>, then open <code>http://127.0.0.1:8765</code>. Stop with Ctrl+C. It listens on this computer only. Needs pyserial for the real unit (the model works without it).
+- <strong>The page</strong>: 1 pick data files (the River Exe files are listed; 'Choose Files' adds your own csv / csv.gz), press 'Read the chosen files'; 2 choose the task (a sensor will cross a line soon / an existing column / a rule you type); 3 choose where to run (software model, the real unit through the ESP32 and its serial port, or fit only), rows to send, optional judge B bias; press Run.
+- <strong>Shows</strong>: the task in words, training and test rows, AUC (whole-number table and float), the 8 detectors with their bin edges, and for a run on a unit the big line 'Every answer matches the reference' (green) or the count that differ (red), AUC from the unit's own answers, and the caught / missed / false alarms / correctly quiet counts for judge A and judge B.
+- <strong>Two safeguards</strong> (added after a first board run on the ocean file failed once and then passed twice, cause unknown): if answers differ from the reference the page lists the first five rows with what the unit gave, what the reference says and the bins sent; and a file with no header row (its first data row read as column names) gets a red warning when the files are read. Both come from <code>tools/hexn_front_unit_v2.py</code>, a thin clone of v1 (v1 untouched); test <code>tests/vm/test_hexn_front_unit_v2.py</code>.
+- <strong>Not in it yet</strong>: saving the package (use <code>--out</code> on the command line), the hardware clear button, live data from the ESP32's pins, hosting on the ESP32 itself.
+- Test: <code>tests/vm/test_hexn_front_web_v1.py</code> (starts the server, runs the River Exe files on the model with two judges, 0 wrong; refuses unlisted paths; clear errors for a missing task or port). The page was also driven in a real browser (Chromium). <strong>On the board</strong> (22:08 to 22:14, <code>/dev/ttyUSB3</code>): River Exe files 0 wrong, AUC 0.9711, judge A 26 / 216; the ocean file 0 wrong on the page and on the command line (AUC 0.7233, 370 / 381 / 27 / 222), after one earlier failed run (all 1000 differed, AUC 0.5000) that has not repeated and whose cause is not known (ledger, 1 Nov 11:25 to 11:45).</p>
+<h2>A different kind of data: hyperspectral pixels (DLR HySU, 1 Nov 2026)</h2>
+<p>Alan, 01:53: 'another sort of data, not sure if the system could handle it, but give it a shot' (the DLR HySU spectral-unmixing benchmark, supplied as a zip). <code>tools/hexn_hysu_to_csv_v1.py</code> turns the image into <code>docs/hex-n/data/hysu/hysu_pixels.csv.gz</code>: one row per pixel (10,518 of 10,578; 60 pixels that lie in two or more material ROIs are left out), 135 band columns (nm417 to nm903), and a <code>material</code> column (the five target materials or <code>background</code>). No position is written. Task as a rule, e.g. <code>--rule "material == 'redMetal'"</code>, or in the web page 'a rule I type'. No time column, so the front end splits the pixels at random 60 / 40.
+<strong>Model results</strong> (software model of the unit, ALL 4,208 test pixels sent, judge A 0 answers wrong against the reference every time; judge B bias -40 is the River Exe setting, NOT tuned here): AUC on the test part, whole-number table: red metal 0.9795 (10 positive test pixels), bitumen 0.9825 (13), blue fabric 0.9578 (15), red fabric 0.9361 (21), green fabric 0.9961 (3), any target 0.8565 (62). Detectors kept are neighbouring bands (for example 704 to 725 nm for red metal and red fabric, 541 to 559 nm for blue fabric).
+<strong>Read these with care</strong>: (1) very few positives in the test part (3 to 21 per material), so each AUC rests on a handful of pixels; (2) the split is random over pixels, and neighbouring pixels of the same target are alike, so training and test pixels of one target are neighbours: the numbers are probably optimistic compared with testing on a target the table never saw (not measured); (3) 'background' means 'not in a target ROI', which includes pixels next to a target that may hold some of it; (4) with one fixed bias, judge A and B behave very differently by material (bitumen: A raised 3,046 false alarms, B caught none), so the bias needs setting per task; (5) the benchmark's own job, estimating how much of each material is in a pixel (unmixing), is not something the two-class scorer does: this is detection only. NOT run on the board yet (Alan was away from the PC).</p>
+<h2>Games on the page: Connect Four with a 'where it is heading' overlay (1 Nov 2026) — second tab of <code>tools/hexn_front_web_v1.py</code></h2>
+<p>Alan, 02:08: 'add in the games, but when playing a human through the interface, highlight the probable moves the system is going towards, as an overlay'. Chosen from three questions (02:10): Connect Four first; the overlay shows the system's OWN likely next moves; the moves come from the Python layer 3 / 4 models on the PC (not the board).
+- <strong>Use</strong>: start the page as before, press the 'Play Connect Four' tab. The system plays red and moves FIRST (as in every test of the planner); you play yellow and click a column. 'New game' keeps what the system has learned about your moves; 'Forget what it learned' starts it fresh. The checkbox hides or shows the overlay.
+- <strong>The system</strong> is the planner already measured in the ledger (30 Oct): <code>hexn_connect4_cand_v1.py</code> P 'base' (layer 4 tree, depth 4, on the plain layer 3), via the new <code>tools/hexn_c4_play_v1.py</code>. It learns your moves as you play (layer 3) and keeps that between games.
+- <strong>The overlay</strong>: for each reply you might make, layer 3 gives a probability; the planner's own search says which column it would play next after that reply; the bars add these up, weighted by the reply probabilities: the chance, in the model's estimate, that it plays each column next. Dashed rings show where those counters would land. If a share of its guessed replies would win for you, that share is stated. It is an estimate by a model that only knows the moves it has seen, not a promise.
+- <strong>Tests</strong> (<code>tests/vm/test_hexn_c4_play_v1.py</code>, passes): the columns shown as best are exactly the columns the planner's own <code>pick()</code> can return; the reply probabilities come from the planner's own function; a full game is legal and the overlay adds up to 1; the system learns a human's habit (the chance it expects that habit rises over 12 games); 'forget' resets. The page was driven in Chromium (clicks, the overlay changes after each move, the winning four is highlighted, new game, phone width, no console errors).
+- <strong>Found while testing</strong>: layer 3's context is the last move of each side. When the system's own move leaves that context unchanged (for example it plays the same column again), learning that move dilutes layer 3's guess about your reply. So the reply numbers shown (the live model, after it learned its own move) can differ from the numbers the search used when it chose that move. The overlay shows the live model on purpose, because that is what the next decision will use. Not changed or tuned.
+- <strong>Not in it</strong>: you cannot play first (the planner is written as the first player); tic-tac-toe and draughts are not on the page; nothing here uses the board. The numbers come from a software model of layers 3 and 4, which exist only in Python so far.</p>
+<div class="partsub">Crib sheet<span class="partsrc">docs/hex-n/CRIB_SHEET.md</span></div>
+<h1>Hex-N crib sheet: commands for the Tang Nano 20K and the Kintex card</h1>
+<p>Written 29 Oct 2026 from Alan's own shell history and the repo scripts. Items marked (unconfirmed) have not been run in this form. Update by adding rows, not by silently changing old ones. Words used: "SD card" is the card in the Tang's slot; "Tang board" and "Kintex card" are the boards.</p>
+<h2>0. Always first: get the latest files</h2>
+<pre><code>git -C ~/hexn-wt pull origin Hex-N
+</code></pre>
+<p>(The sandbox pushes to the branch <code>Hex-N</code>; the OptiPlex has the checkout <code>~/hexn-wt</code>.)</p>
+<hr />
+<h2>1. TANG NANO 20K</h2>
+<p>Bitstreams (<code>.fs</code> files) are built in the sandbox by Claude and handed over; Alan loads them. The open flow (yosys, nextpnr-himbaechel, gowin_pack) needs nothing from Alan.</p>
+<h3>Load (SRAM only: gone at power-off, the flash is not touched)</h3>
+<pre><code>openFPGALoader -b tangnano20k FILE.fs
+</code></pre>
+<p>Write to flash instead (stays after power-off; this replaces what is on the flash, e.g. the LiteX image): add <code>-f</code>.
+Factory flash backup, read-only (not run yet): <code>openFPGALoader -b tangnano20k --dump-flash --file-size 1048576 backup.bin</code>
+(unconfirmed) <code>openFPGALoader -b tangnano20k -r</code> resets the board; whether it reloads LiteX from flash is not known.</p>
+<h3>Serial port (the test boards report here)</h3>
+<p>Port: <code>/dev/ttyUSB1</code>, 115200 8N1 (the second USB serial port of the BL616). Port numbers can change; <code>ls /dev/ttyUSB*</code>.</p>
+<h3>Card-log test v5 (the SD card tier test; SD card region test)</h3>
+<p>Bitstreams: <code>hexn_tang_cardtest_v5.fs</code> (read-only probe, refuses a non-empty region), <code>..._erase.fs</code> (opt-in: wipes its own region first), <code>..._stage1.fs</code> and <code>..._stage2.fs</code> (the two halves of the power-cut test).
+Run and judge one capture (about 5 s):
+    stty -F /dev/ttyUSB1 115200 raw
+    timeout 5 cat /dev/ttyUSB1 &gt; cap.txt
+    python3 tools/hexn_tang_cardtest_check_v5.py cap.txt          # stage 1 half or normal run
+    python3 tools/hexn_tang_cardtest_check_v5.py --stage 1 cap.txt   # for the second half (stage 2 bitstream)
+Verdicts: PASS, REFUSED (region not empty), CARD ERROR, FAIL, NO REPORT. Keep each raw capture (cap.txt, rename it) when something looks odd.
+Power-cut test: load stage 1, capture and check, cut power, load stage 2 with the SAME SD card, capture and check with <code>--stage 1</code>.
+Rule: an SD card may be reformatted at any time, but the region the test uses must be empty unless the erase build is used.</p>
+<h3>Core on the Tang (training scripts etc.)</h3>
+<pre><code>sudo sh tools/hexn_tang_run_v4.sh BITSTREAM.fs SCRIPT.txt /dev/ttyUSB1 --cells 7 --wires 18 --aw 7
+</code></pre>
+<p>Memory (save and recall) test: <code>sudo sh tools/hexn_tang_mem_run_v1.sh BITSTREAM.fs /dev/ttyUSB1</code>
+Bist: <code>sudo sh tools/hexn_tang_bist_run_v1.sh ...</code> (the script header lists its arguments).</p>
+<h3>Build (done in the sandbox by Claude; for reference)</h3>
+<ul>
+<li>Core v9: <code>sh tools/hexn_tang_build_v18.sh</code> (output <code>/tmp/hexn_tang/v18/hexn_tang18_core_v9.fs</code>)</li>
+<li>Card-log tier test: <code>sh tools/hexn_tang_cardtest_build_v5.sh</code> (options by environment: <code>ERASE=1</code>, <code>STAGE=1</code>, <code>FINAL_SAVE=1</code>, <code>SD_BASE=n</code>)</li>
+<li>Tier SDRAM test: <code>sh tools/hexn_tang_tiertest_build_v1.sh</code></li>
+<li>Measured size of the cardtest build: about 7.1k LUT4, 3.4k FF, clock 95 to 103 MHz against 27 MHz.</li>
+</ul>
+<hr />
+<h2>2. KINTEX CARD (YPCB-00338-1P1, XC7K480T), on the OptiPlex</h2>
+<h3>Every time, in this order (from <code>~/ypcb-00338-1p1</code>)</h3>
+<pre><code>cd ~/ypcb-00338-1p1
+git -C ~/hexn-wt pull origin Hex-N
+nix develop github:openxc7/toolchain-nix        # opens the toolchain shell (may download for a few minutes); the prompt changes
+export CHIPDB=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin
+</code></pre>
+<p>Do NOT use <code>sudo</code> for builds. The disk for builds must be mounted: <code>mountpoint /mnt/hdd</code> (if not: <code>sudo mount /dev/sda1 /mnt/hdd</code>).</p>
+<h3>One-time links for a design (example: hexn_tier)</h3>
+<pre><code>ln -sfn ~/hexn-wt/fpga/ypcb/hexn_tier designs/hexn_tier
+mkdir -p /mnt/hdd/hexn_builds/tier_hex7
+ln -sfn /mnt/hdd/hexn_builds/tier_hex7 designs/hexn_tier/build_tier_hex7
+</code></pre>
+<p>(Run the <code>mkdir</code> BEFORE the build, or the build stops with "File exists".)</p>
+<h3>Build lines (inside the toolchain shell)</h3>
+<p>Memory tier + Hex-N core (core v9 by default; add <code>HEXN_CORE=v2</code> in front for the older core):
+    HEXN_REPO=$HOME/hexn-wt HEXN_SHAPE=hex7 HEXN_NCELL=7 BUILD=build_tier_hex7 THREADS=4 FPGA_HOST=$(hostname -s) ./fpga build designs/hexn_tier ypcb_00338_1p1_ddr3 2&gt;&amp;1 | tee /mnt/hdd/hexn_builds/tier_hex7.log
+Tier sizes by environment (defaults 24 24 10 17 14 17): <code>TIER_KW TIER_VW TIER_FB TIER_BMB TIER_RAMB TIER_SB</code>.
+DDR3 probe + Hex-N (the joint design, line 668 of the history): same line with <code>BUILD=build_joint_hex7</code>, <code>designs/hexn_joint</code>, log <code>joint_hex7.log</code>.
+DDR3 latency probe only: <code>BUILD=build_lat THREADS=4 FPGA_HOST=$(hostname -s) ./fpga build designs/hexn_ram ypcb_00338_1p1_ddr3 2&gt;&amp;1 | tee /mnt/hdd/hexn_builds/ram_lat.log</code>
+Older Hex-N-only design: <code>designs/hexn_u2</code> (see history line 598).
+After a build: <code>grep -E "Max frequency|Device utilisation|SLICE_LUTX|FDRE|critical path" /mnt/hdd/hexn_builds/tier_hex7.log | tail</code> and <code>ls /mnt/hdd/hexn_builds/tier_hex7/*.bit</code>.</p>
+<h3>Load the bitstream (<code>.bit</code>)</h3>
+<pre><code>~/openFPGALoader/build/openFPGALoader -c digilent_hs2 designs/hexn_tier/build_tier_hex7/&lt;name&gt;.bit
+</code></pre>
+<p>(<code>ls</code> the build folder for the real name.) Load first, then test, in the order below.</p>
+<h3>Tests (each one in its own command; these use <code>nix shell nixpkgs#openocd</code>, not the toolchain shell)</h3>
+<p>JTAG chains: USER1 = ypcb DDR3 register, USER2 = Hex-N core (<code>HEXN_CHAIN=2</code>), USER3 = memory tier (<code>HEXN_CHAIN=3</code>, set by the script).
+1. Hex-N core BIST (right after a load): <code>nix shell nixpkgs#openocd --command env OPENOCD=openocd HEXN_CHAIN=2 python3 ~/hexn-wt/tools/hexn_card_bist_v1.py --cells 7 --wires 18 --aw 7</code>
+2. DDR3 calibration: <code>nix shell nixpkgs#openocd --command env OPENOCD=openocd python3 ~/hexn-wt/fpga/ypcb/hexn_ram/run_with_openocd.py designs/uberddr3/check.py</code>
+3. DDR3 latency (only for hexn_ram / hexn_joint builds): <code>... run_with_openocd.py ~/hexn-wt/fpga/ypcb/hexn_ram/memlat.py --len 10</code>
+4. Memory tier: <code>nix shell nixpkgs#openocd --command env OPENOCD=openocd python3 ~/hexn-wt/tools/hexn_tier7_card_v1.py --steps 2000 --dump tier_dump.json</code> (prints INFO, compares with the Python model, saves a dump of every level; <code>--info</code> only reads the sizes)
+5. Training scripts on the core: <code>... env OPENOCD=openocd HEXN_CHAIN=2 python3 ~/hexn-wt/tools/hexn_card_run_v3.py tools/&lt;test&gt;.py docs/hex-n/frontend/example_sensors_script_v1.txt ...</code></p>
+<h3>Rules and gotchas seen</h3>
+<ul>
+<li>Builds run in the toolchain shell with CHIPDB exported; tests run via <code>nix shell nixpkgs#openocd</code>. Mixing them gives "can't open file /share/nextpnr/..." (build outside the toolchain shell).</li>
+<li>The Kintex card is powered externally; PCIe is dead; JTAG is the only link. No SD socket.</li>
+<li>Only one program can use the JTAG cable at a time (OpenOCD stops other users).</li>
+<li>Everything in the combined design runs on the 83.33 MHz DDR3 controller clock; the flow's timing check only tests 50 MHz.</li>
+<li>Keep logs on <code>/mnt/hdd/hexn_builds/</code>.</li>
+</ul>
+<h3>hexn_tier2 (tier with CLEAR, 29 Oct 2026; not built yet when written)</h3>
+<p>One-time links, then build (about 45 min: synth 6 min, place and route 27 min), inside the toolchain shell with CHIPDB exported:
+    cd ~/hexn-wt &amp;&amp; git pull &amp;&amp; cd ~/ypcb-00338-1p1
+    ln -sfn ~/hexn-wt/fpga/ypcb/hexn_tier2 designs/hexn_tier2
+    mkdir -p /mnt/hdd/hexn_builds/tier2_hex7
+    ln -sfn /mnt/hdd/hexn_builds/tier2_hex7 designs/hexn_tier2/build_tier2_hex7
+    HEXN_REPO=$HOME/hexn-wt HEXN_SHAPE=hex7 HEXN_NCELL=7 BUILD=build_tier2_hex7 THREADS=4 FPGA_HOST=$(hostname -s) ./fpga build designs/hexn_tier2 ypcb_00338_1p1_ddr3 2&gt;&amp;1 | tee /mnt/hdd/hexn_builds/tier2_hex7.log
+Load: <code>~/openFPGALoader/build/openFPGALoader -c digilent_hs2 designs/hexn_tier2/build_tier2_hex7/ypcb_00338_1p1_ddr3.bit</code>
+Test (CLEAR is sent first by itself, no reload needed between runs): <code>nix shell nixpkgs#openocd --command env OPENOCD=openocd python3 ~/hexn-wt/tools/hexn_tier7_card_v2.py --steps 20000 --keys 100000</code></p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-run" href="../docs/hex-n/HEXN_DESIGN.md" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open docs/hex-n/HEXN_DESIGN.md — the Hex-N decision ledger</span></a><a class="ref ref-section" href="#sec-roadmap"><span class="ref-kind">§</span><span class="ref-text">Continue → Roadmap</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-hw">‹ Hardware</button><button class="pn pn-next" data-target="sec-roadmap">Roadmap ›</button></nav></section>
+<section class="panel" id="sec-roadmap" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§09 / 10</span></div><h1 class="ptitle">Roadmap &amp; The Project&#x27;s Own Record</h1><p class="intro">Where the project is heading, the active plan, and the full, honest, append-only decision log &mdash; every real design decision, bug found, and measurement taken, with its actual reasoning, not just a changelog line. <code>points.md</code> itself is genuinely huge (300+ numbered entries, one growing project-long log) &mdash; linked below rather than embedded inline, the same real reason the Session Logs section (next) links out instead of reprinting.</p><hr class="rule"><div class="doc"><h1>Imago UniCell — Active Plan</h1>
 <p><em>Single source of truth for what needs doing and why.</em></p>
 <blockquote>
 <p><strong>UPDATE (2026-10-08, ledger #1036 addenda 4-12): the small-unit tool and what is open on it.</strong> Done: SD + SPI-bridge unit around any flex design; CORDIC and an SD round trip verified on the real Tang Nano 20K with an ESP32; WiFi web sketch written; S1 reset; quickstart.py. OPEN, in order: (1) on hardware: load the rebuilt bitstream and try S1; run the WiFi sketch on a real ESP32; (2) build bitstreams for the reduction-tree and relay designs; (3) raw SD-block read register in the bridge; (4) host-side PC helper and an optional offline "local kit" served by the ESP32; (5) with a SPARE Tang Nano 20K (about 6 weeks): the ESP32 JTAG loader (schematic notes in docs/unit_bringup_guide.md); (6) the Wasserstein engine needs a bigger part. The statement further down that "no sub/flex design has run on the board" and the ESP32 link being unwired are out of date: both are now done (#896+, #1036).</p>
@@ -8628,8 +9633,8 @@ questions that produced real value today:
 received: a placement/usage rule for the compiler, a modeled behavior for the
 VM (per Stage 4's fidelity obligation above), or at minimum a proper name and
 an entry in <code>points.md</code> so it can't be silently rediscovered a third time by
-accident.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-run" href="../current/latest.md" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open current/latest.md — newest state first</span></a><a class="ref ref-run" href="../points.md" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open points.md — the full decision log</span></a><a class="ref ref-section" href="#sec-sessions"><span class="ref-kind">§</span><span class="ref-text">Continue → Sessions</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-hw">‹ Hardware</button><button class="pn pn-next" data-target="sec-sessions">Sessions ›</button></nav></section>
-<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§09 / 09</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index &mdash; open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>48 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here. Dated/archived logs live under <code>archeology/sessions/</code>; the current one lives in <code>current/latest.md</code>.</p><div class="sesslist"><a class="sess" href="../current/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">current/latest.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-09-02.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-09-02</span><span class="sess-file">archeology/sessions/archive-2026-09-02.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-17</span><span class="sess-file">archeology/sessions/archive-2026-08-17.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-16.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-16</span><span class="sess-file">archeology/sessions/archive-2026-08-16.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-15</span><span class="sess-file">archeology/sessions/archive-2026-08-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-13</span><span class="sess-file">archeology/sessions/archive-2026-08-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-09</span><span class="sess-file">archeology/sessions/archive-2026-08-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-08</span><span class="sess-file">archeology/sessions/archive-2026-08-08.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-04.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-04</span><span class="sess-file">archeology/sessions/archive-2026-08-04.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-07-31.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-07-31</span><span class="sess-file">archeology/sessions/archive-2026-07-31.md</span></a><a class="sess" href="../archeology/sessions/2026-06-22.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-22</span><span class="sess-file">archeology/sessions/2026-06-22.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-17</span><span class="sess-file">archeology/sessions/archive-2026-06-17.md</span></a><a class="sess" href="../archeology/sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">archeology/sessions/2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-15</span><span class="sess-file">archeology/sessions/archive-2026-06-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archeology/sessions/archive-2026-06-14.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archeology/sessions/archive-2026-06-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archeology/sessions/archive-2026-06-12.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archeology/sessions/archive-2026-06-11.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archeology/sessions/archive-2026-06-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archeology/sessions/archive-2026-06-08.md</span></a><a class="sess" href="../archeology/sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">archeology/sessions/2026-06-05.md</span></a><a class="sess" href="../archeology/sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">archeology/sessions/2026-06-04.md</span></a><a class="sess" href="../archeology/sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">archeology/sessions/2026-06-03.md</span></a><a class="sess" href="../archeology/sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">archeology/sessions/2026-06-01.md</span></a><a class="sess" href="../archeology/sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">archeology/sessions/2026-05-31.md</span></a><a class="sess" href="../archeology/sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">archeology/sessions/2026-05-30.md</span></a><a class="sess" href="../archeology/sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">archeology/sessions/2026-05-29.md</span></a><a class="sess" href="../archeology/sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">archeology/sessions/2026-05-28.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">archeology/sessions/2026-05-17-python-audit.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">archeology/sessions/2026-05-17.md</span></a><a class="sess" href="../archeology/sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">archeology/sessions/2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">archeology/sessions/session_2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">archeology/sessions/2026-05-15.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">archeology/sessions/session_2026-05-14.md</span></a><a class="sess" href="../archeology/sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">archeology/sessions/2026-05-12.md</span></a><a class="sess" href="../archeology/sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">archeology/sessions/2026-05-11.md</span></a><a class="sess" href="../archeology/sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">archeology/sessions/2026-05-10.md</span></a><a class="sess" href="../archeology/sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">archeology/sessions/2026-05-09.md</span></a><a class="sess" href="../archeology/sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">archeology/sessions/2026-05-08.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">archeology/sessions/2026-05-07-final.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">archeology/sessions/2026-05-07.md</span></a><a class="sess" href="../archeology/sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">archeology/sessions/2026-05-06.md</span></a><a class="sess" href="../archeology/sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">archeology/sessions/2026-05-05.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">archeology/sessions/2026-05-04-bringup.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">archeology/sessions/2026-05-04.md</span></a><a class="sess" href="../archeology/sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">archeology/sessions/2026-05-03.md</span></a><a class="sess" href="../archeology/sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">archeology/sessions/2026-05-02.md</span></a><a class="sess" href="../archeology/sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">archeology/sessions/2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
+accident.</p></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-run" href="../current/latest.md" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open current/latest.md — newest state first</span></a><a class="ref ref-run" href="../points.md" target="_blank" rel="noopener"><span class="ref-kind">▸ run</span><span class="ref-text">Open points.md — the full decision log</span></a><a class="ref ref-section" href="#sec-sessions"><span class="ref-kind">§</span><span class="ref-text">Continue → Sessions</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-hexn">‹ Hex-N</button><button class="pn pn-next" data-target="sec-sessions">Sessions ›</button></nav></section>
+<section class="panel" id="sec-sessions" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§10 / 10</span></div><h1 class="ptitle">Session Logs</h1><p class="intro">The repo is its own memory. Each working session is logged; rather than reprint them here, this is an index &mdash; open any log directly from your clone.</p><hr class="rule"><div class="doc"><p class="doc"><em>48 logs.</em> These open the raw markdown from your clone (or the hosted tree) — nothing is reprinted here. Dated/archived logs live under <code>archeology/sessions/</code>; the current one lives in <code>current/latest.md</code>.</p><div class="sesslist"><a class="sess" href="../current/latest.md" target="_blank" rel="noopener"><span class="sess-name">Latest session</span><span class="sess-file">current/latest.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-09-02.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-09-02</span><span class="sess-file">archeology/sessions/archive-2026-09-02.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-17</span><span class="sess-file">archeology/sessions/archive-2026-08-17.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-16.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-16</span><span class="sess-file">archeology/sessions/archive-2026-08-16.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-15</span><span class="sess-file">archeology/sessions/archive-2026-08-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-13</span><span class="sess-file">archeology/sessions/archive-2026-08-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-09</span><span class="sess-file">archeology/sessions/archive-2026-08-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-08</span><span class="sess-file">archeology/sessions/archive-2026-08-08.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-08-04.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-08-04</span><span class="sess-file">archeology/sessions/archive-2026-08-04.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-07-31.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-07-31</span><span class="sess-file">archeology/sessions/archive-2026-07-31.md</span></a><a class="sess" href="../archeology/sessions/2026-06-22.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-22</span><span class="sess-file">archeology/sessions/2026-06-22.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-17.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-17</span><span class="sess-file">archeology/sessions/archive-2026-06-17.md</span></a><a class="sess" href="../archeology/sessions/2026-06-15-arria10-bitstream.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-15-arria10-bitstream</span><span class="sess-file">archeology/sessions/2026-06-15-arria10-bitstream.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-15.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-15</span><span class="sess-file">archeology/sessions/archive-2026-06-15.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-14.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-14</span><span class="sess-file">archeology/sessions/archive-2026-06-14.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-13.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-13</span><span class="sess-file">archeology/sessions/archive-2026-06-13.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-12.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-12</span><span class="sess-file">archeology/sessions/archive-2026-06-12.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-11.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-11</span><span class="sess-file">archeology/sessions/archive-2026-06-11.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-09.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-09</span><span class="sess-file">archeology/sessions/archive-2026-06-09.md</span></a><a class="sess" href="../archeology/sessions/archive-2026-06-08.md" target="_blank" rel="noopener"><span class="sess-name">archive-2026-06-08</span><span class="sess-file">archeology/sessions/archive-2026-06-08.md</span></a><a class="sess" href="../archeology/sessions/2026-06-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-05</span><span class="sess-file">archeology/sessions/2026-06-05.md</span></a><a class="sess" href="../archeology/sessions/2026-06-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-04</span><span class="sess-file">archeology/sessions/2026-06-04.md</span></a><a class="sess" href="../archeology/sessions/2026-06-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-03</span><span class="sess-file">archeology/sessions/2026-06-03.md</span></a><a class="sess" href="../archeology/sessions/2026-06-01.md" target="_blank" rel="noopener"><span class="sess-name">2026-06-01</span><span class="sess-file">archeology/sessions/2026-06-01.md</span></a><a class="sess" href="../archeology/sessions/2026-05-31.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-31</span><span class="sess-file">archeology/sessions/2026-05-31.md</span></a><a class="sess" href="../archeology/sessions/2026-05-30.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-30</span><span class="sess-file">archeology/sessions/2026-05-30.md</span></a><a class="sess" href="../archeology/sessions/2026-05-29.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-29</span><span class="sess-file">archeology/sessions/2026-05-29.md</span></a><a class="sess" href="../archeology/sessions/2026-05-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-28</span><span class="sess-file">archeology/sessions/2026-05-28.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17-python-audit.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17-python-audit</span><span class="sess-file">archeology/sessions/2026-05-17-python-audit.md</span></a><a class="sess" href="../archeology/sessions/2026-05-17.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-17</span><span class="sess-file">archeology/sessions/2026-05-17.md</span></a><a class="sess" href="../archeology/sessions/2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-16</span><span class="sess-file">archeology/sessions/2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-16.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-16</span><span class="sess-file">archeology/sessions/session_2026-05-16.md</span></a><a class="sess" href="../archeology/sessions/2026-05-15.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-15</span><span class="sess-file">archeology/sessions/2026-05-15.md</span></a><a class="sess" href="../archeology/sessions/session_2026-05-14.md" target="_blank" rel="noopener"><span class="sess-name">session_2026-05-14</span><span class="sess-file">archeology/sessions/session_2026-05-14.md</span></a><a class="sess" href="../archeology/sessions/2026-05-12.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-12</span><span class="sess-file">archeology/sessions/2026-05-12.md</span></a><a class="sess" href="../archeology/sessions/2026-05-11.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-11</span><span class="sess-file">archeology/sessions/2026-05-11.md</span></a><a class="sess" href="../archeology/sessions/2026-05-10.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-10</span><span class="sess-file">archeology/sessions/2026-05-10.md</span></a><a class="sess" href="../archeology/sessions/2026-05-09.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-09</span><span class="sess-file">archeology/sessions/2026-05-09.md</span></a><a class="sess" href="../archeology/sessions/2026-05-08.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-08</span><span class="sess-file">archeology/sessions/2026-05-08.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07-final.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07-final</span><span class="sess-file">archeology/sessions/2026-05-07-final.md</span></a><a class="sess" href="../archeology/sessions/2026-05-07.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-07</span><span class="sess-file">archeology/sessions/2026-05-07.md</span></a><a class="sess" href="../archeology/sessions/2026-05-06.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-06</span><span class="sess-file">archeology/sessions/2026-05-06.md</span></a><a class="sess" href="../archeology/sessions/2026-05-05.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-05</span><span class="sess-file">archeology/sessions/2026-05-05.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04-bringup.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04-bringup</span><span class="sess-file">archeology/sessions/2026-05-04-bringup.md</span></a><a class="sess" href="../archeology/sessions/2026-05-04.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-04</span><span class="sess-file">archeology/sessions/2026-05-04.md</span></a><a class="sess" href="../archeology/sessions/2026-05-03.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-03</span><span class="sess-file">archeology/sessions/2026-05-03.md</span></a><a class="sess" href="../archeology/sessions/2026-05-02.md" target="_blank" rel="noopener"><span class="sess-name">2026-05-02</span><span class="sess-file">archeology/sessions/2026-05-02.md</span></a><a class="sess" href="../archeology/sessions/2026-04-28.md" target="_blank" rel="noopener"><span class="sess-name">2026-04-28</span><span class="sess-file">archeology/sessions/2026-04-28.md</span></a></div></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-idea"><span class="ref-kind">§</span><span class="ref-text">← Back to The Idea</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-roadmap">‹ Roadmap</button><span class="pn pn-empty"></span></nav></section>
     </div></div>
     <div class="rail" role="tablist" aria-label="Manual sections">
       <button class="tab active" data-target="sec-idea" role="tab" aria-selected="true"><span class="tab-num">01</span><span class="tab-label">The Idea</span></button>
@@ -8639,8 +9644,9 @@ accident.</p></div><aside class="tryit"><div class="tryit-label">Try it / Refere
 <button class="tab" data-target="sec-dsl" role="tab" aria-selected="false"><span class="tab-num">05</span><span class="tab-label">DSL</span></button>
 <button class="tab" data-target="sec-workbench" role="tab" aria-selected="false"><span class="tab-num">06</span><span class="tab-label">Workbench</span></button>
 <button class="tab" data-target="sec-hw" role="tab" aria-selected="false"><span class="tab-num">07</span><span class="tab-label">Hardware</span></button>
-<button class="tab" data-target="sec-roadmap" role="tab" aria-selected="false"><span class="tab-num">08</span><span class="tab-label">Roadmap</span></button>
-<button class="tab" data-target="sec-sessions" role="tab" aria-selected="false"><span class="tab-num">09</span><span class="tab-label">Sessions</span></button>
+<button class="tab" data-target="sec-hexn" role="tab" aria-selected="false"><span class="tab-num">08</span><span class="tab-label">Hex-N</span></button>
+<button class="tab" data-target="sec-roadmap" role="tab" aria-selected="false"><span class="tab-num">09</span><span class="tab-label">Roadmap</span></button>
+<button class="tab" data-target="sec-sessions" role="tab" aria-selected="false"><span class="tab-num">10</span><span class="tab-label">Sessions</span></button>
     </div>
   </div>
 <script>

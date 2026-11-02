@@ -51,6 +51,9 @@ DEFAULT_SOURCES = [
     "tools/README.md",
     "docs/stripped-cell/SUPER_CELL_INTERNALS.md",
     "docs/stripped-cell/UNICELL_S_DSL_MANUAL.md",
+    "docs/hex-n/README.md",                              # Hex-N tab of the front panel (2 Nov 2026)
+    "docs/hex-n/UCC_V2_SCOPING_v1.md",
+    "docs/hex-n/HEXN_ASSEMBLER_SCOPING_v1.md",
 ]
 
 

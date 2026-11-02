@@ -126,9 +126,31 @@ SECTIONS = [
               {"sub":"Tools: the assembler and measurement tools","md":"tools/README.md"},
               {"sub":"Arria 10 programming procedure","md":"hardware/Arria10_Programming_Procedure.md"},
               {"sub":"Real bring-up findings","md":"hardware/YPCB_00338_bringup_findings.md"}],
-     "links":[("Continue → Roadmap","#sec-roadmap","section")]},
+     "links":[("Continue → Hex-N","#sec-hexn","section")]},
 
-    {"id":"roadmap","num":"08","tab":"Roadmap","title":"Roadmap & The Project's Own Record",
+    {"id":"hexn","num":"08","tab":"Hex-N","title":"Hex-N: the Serial Cousin",
+     "intro":"Hex-N is a separate project on its own branch that shares lineage with Imago UniCell: "
+             "a serial, 32-bit, one-word-per-link version of the cell idea, with a judge system built in "
+             "as the base. A full Hex-N program is <strong>one loadable file</strong> (a header plus two parts: "
+             "the program and the judge weights), tied to a named bitstream pattern. The front end has a "
+             "<strong>Hex-N tab</strong> (unit file check, serial VM, demo programs and export, programmer plan, "
+             "assembler status). Run it with:<br><br><code>python3 nano/frontend_v2.py</code><br>"
+             "&rarr; <code>http://localhost:7421/hexn</code>. The assembler and the card-talking programmer are "
+             "scoped but not built; each page says so.",
+     "parts":[{"sub":"Hex-N: what it is","md":"docs/hex-n/README.md"},
+              {"sub":"Walkthrough","md":"docs/hex-n/walkthrough-v0.2.md"},
+              {"sub":"Cell internals","md":"docs/hex-n/cell-internals-v0.1.md"},
+              {"sub":"The unit and the open unit","md":"docs/hex-n/UNIT_v1.md"},
+              {"sub":"The open unit, stage by stage","md":"docs/hex-n/OPEN_UNIT_v1.md"},
+              {"sub":"Card and item formats","md":"docs/hex-n/CARD_FORMAT_v1.md"},
+              {"sub":"UCC v2 and the loadable unit file (scoping)","md":"docs/hex-n/UCC_V2_SCOPING_v1.md"},
+              {"sub":"The Hex-N assembler (scoping)","md":"docs/hex-n/HEXN_ASSEMBLER_SCOPING_v1.md"},
+              {"sub":"The front end for the open unit","md":"docs/hex-n/FRONT_END_UNIT_v1.md"},
+              {"sub":"Crib sheet","md":"docs/hex-n/CRIB_SHEET.md"}],
+     "links":[("Open docs/hex-n/HEXN_DESIGN.md — the Hex-N decision ledger","../docs/hex-n/HEXN_DESIGN.md","run"),
+              ("Continue → Roadmap","#sec-roadmap","section")]},
+
+    {"id":"roadmap","num":"09","tab":"Roadmap","title":"Roadmap & The Project's Own Record",
      "intro":"Where the project is heading, the active plan, and the full, honest, "
              "append-only decision log &mdash; every real design decision, bug found, "
              "and measurement taken, with its actual reasoning, not just a changelog "
@@ -143,7 +165,7 @@ SECTIONS = [
               ("Open points.md — the full decision log","../points.md","run"),
               ("Continue → Sessions","#sec-sessions","section")]},
 
-    {"id":"sessions","num":"09","tab":"Sessions","title":"Session Logs",
+    {"id":"sessions","num":"10","tab":"Sessions","title":"Session Logs",
      "intro":"The repo is its own memory. Each working session is logged; rather than "
              "reprint them here, this is an index &mdash; open any log directly from "
              "your clone.",

@@ -46,6 +46,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import man_generate_v1  # noqa: E402
 import man_generate_v2  # noqa: E402
+import hexn_tab_v1  # noqa: E402
 import project_assemble_v1  # noqa: E402
 import composer_page_v1  # noqa: E402
 import manual_generate_v1  # noqa: E402
@@ -733,6 +734,8 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
             self._html_response(page_walker())
         elif self.path == "/menu":
             self._html_response(page_menu())
+        elif self.path in HEXN_GET:
+            self._html_response(HEXN_GET[self.path]())
         elif self.path == "/composer":
             self._html_response(composer_page_v1.page_composer())
         elif self.path == "/composer/api/state":
@@ -771,7 +774,16 @@ class FrontendHandler(http.server.BaseHTTPRequestHandler):
                 self._json_response(res, status=404 if res.get("error", "").startswith("unknown action") else 200)
             return
         fields = self._read_form_body()
-        if self.path == "/man":
+        if self.path == "/hexn/unit":
+            h = self.hexn
+            self._html_response(hexn_tab_v1.page_hexn_unit(*((h.check_unit(fields), None) if fields.get("unit_path") else (None, h.check_reference(fields)))))
+        elif self.path == "/hexn/vm":
+            self._html_response(hexn_tab_v1.page_hexn_vm(self.hexn.run_vm(fields)))
+        elif self.path == "/hexn/export":
+            self._html_response(hexn_tab_v1.page_hexn_export(self.hexn.make_demo(fields)))
+        elif self.path == "/hexn/program":
+            self._html_response(hexn_tab_v1.page_hexn_program(self.hexn.plan(fields)))
+        elif self.path == "/man":
             result = self.controller.generate_man(fields)
             self._html_response(page_man(result))
         elif self.path == "/cells":
@@ -800,8 +812,13 @@ def _url_unquote(s: str) -> str:
     return "".join(out)
 
 
+HEXN_GET = {"/hexn": hexn_tab_v1.page_hexn_overview, "/hexn/unit": hexn_tab_v1.page_hexn_unit, "/hexn/vm": hexn_tab_v1.page_hexn_vm,
+            "/hexn/export": hexn_tab_v1.page_hexn_export, "/hexn/program": hexn_tab_v1.page_hexn_program, "/hexn/assembler": hexn_tab_v1.page_hexn_assembler}
+
+
 def serve(port: int = 7421, open_browser: bool = False) -> http.server.HTTPServer:
     FrontendHandler.controller = FrontendController()
+    FrontendHandler.hexn = hexn_tab_v1.HexnController()
     FrontendHandler.composer = composer_page_v1.ComposerController()
     server = http.server.HTTPServer(("localhost", port), FrontendHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

@@ -170,6 +170,7 @@ NAV_ITEMS = [
     ("walker", "3. Walker", "/walker", "frontpanel"),
     ("menu", "4. Other tools", "/menu", "frontpanel"),
     ("composer", "Composer", "/composer", "frontpanel"),
+    ("hexn", "Hex-N", "/hexn", "frontpanel"),
     (None, None, None, None),
     ("workbench", "Workbench", "/", "workbench"),
     ("manual", "Manual", "/manual", "frontpanel"),

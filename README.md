@@ -382,7 +382,7 @@ throughout the project's own documentation, never blurred.
 - **A step-by-step, tabbed browser front end** — the recommended
   starting point: MAN file generation (Intel or Xilinx; pick the card maker in the
   dropdown), Quartus project generation,
-  and the simulated Walker, each its own tab, walking through this
+  the simulated Walker, and a Hex-N tab (serial VM, unit files, programmer plan), each its own tab, walking through this
   project's own real build process in order. Every action-performing
   page also shows the exact equivalent CLI command. Run it with:
   ```bash

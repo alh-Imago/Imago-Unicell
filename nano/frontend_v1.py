@@ -714,6 +714,11 @@ def serve(port: int = 7421, open_browser: bool = False) -> http.server.HTTPServe
 
 
 if __name__ == "__main__":
+    # 2 Nov 2026 (Alan 18:24, 'yes a redirect'): the command line hands over to frontend_v2 (vendor-aware MAN page, Hex-N tab).
+    # This file's classes and pages are unchanged and still imported by tests; only the start-up line below was added.
+    import frontend_v2  # noqa: E402
+    print("frontend_v1 is the older Intel-only front panel; starting frontend_v2 instead.")
+    serve = frontend_v2.serve
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 7421
     server = serve(port, open_browser=True)
     print(f"Imago UniCell front end serving at http://localhost:{port}")
