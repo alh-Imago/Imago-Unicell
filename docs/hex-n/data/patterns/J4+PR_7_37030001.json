@@ -1,0 +1,79 @@
+{
+ "cols": 7,
+ "content_hash": "1fa54c67942a5afbd1379256cd718ad710680137344153ee7593693c19bcc048",
+ "counts": {
+  "ram": 0,
+  "routing": 40,
+  "work": 9
+ },
+ "faces": 4,
+ "format": "hexn-pattern-v2",
+ "judges": [
+  "judge_a",
+  "judge_b"
+ ],
+ "kind": "mixed",
+ "lead_k": 0,
+ "name": "J4+PR_7",
+ "pattern_id": 922943489,
+ "pattern_id_hex": "37030001",
+ "ram_cells": [],
+ "recipe": {
+  "counts": {
+   "JN": 4,
+   "PR": 1
+  },
+  "n": 7,
+  "ram": "none"
+ },
+ "rows": 7,
+ "slots_estimate": 2967,
+ "slots_note": "estimates from hexn_bases (routing cell 30, 60 with a self-timed type), NOT place and route; the measured four-face routing cell is 12 / 24 LUT (2 Nov 17:53 ledger row)",
+ "work_cells": [
+  {
+   "c": 1,
+   "r": 1,
+   "type": "AL"
+  },
+  {
+   "c": 3,
+   "r": 1,
+   "type": "JN"
+  },
+  {
+   "c": 5,
+   "r": 1,
+   "type": "PR"
+  },
+  {
+   "c": 1,
+   "r": 3,
+   "type": "AL"
+  },
+  {
+   "c": 3,
+   "r": 3,
+   "type": "JN"
+  },
+  {
+   "c": 5,
+   "r": 3,
+   "type": "AL"
+  },
+  {
+   "c": 1,
+   "r": 5,
+   "type": "JN"
+  },
+  {
+   "c": 3,
+   "r": 5,
+   "type": "AL"
+  },
+  {
+   "c": 5,
+   "r": 5,
+   "type": "JN"
+  }
+ ]
+}
