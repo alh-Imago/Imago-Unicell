@@ -1,0 +1,175 @@
+{
+ "format": "hexn-fit-runs-v1",
+ "date": "2026-11-03",
+ "card": "tang-nano-20k",
+ "capacity_slots": 20736,
+ "slot_definition": "LUT4 + ALU as reported by nextpnr (each ALU takes a LUT4 position; the 4 chained-unit figure 11,321 of an earlier row is the same sum)",
+ "placed_runs": [
+  {
+   "name": "open_unit_v13_alone",
+   "description": "existing Hex-N open unit v13 (SPI bridge, tables, 2 judges, raw engine, 4 gated units, pattern bank); from fpga/build/hexn_open_unit_v13 report",
+   "lut4": 9281,
+   "alu": 2040,
+   "slots": 11321,
+   "percent_of_20736": 54.6,
+   "fmax_mhz": 106.1,
+   "placed": true,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex7_mix17_frame_v1_array_only",
+   "description": "hex 7x7 offset 2, 17 work (UN2 AL3 JN4 BR1 MG1 PR4 + AL2), UART frame v1",
+   "lut4": 13141,
+   "alu": 1474,
+   "slots": 14615,
+   "percent_of_20736": 70.5,
+   "fmax_mhz": 79.1,
+   "placed": true,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex7_mix17_frame_v1_plus_open_NU4",
+   "description": "same + open unit NU=4",
+   "lut4": 21952,
+   "alu": 3556,
+   "slots": 25508,
+   "percent_of_20736": 123.0,
+   "fmax_mhz": null,
+   "placed": false,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex7_mix17_frame_v2_array_only",
+   "description": "same array, slim frame v2",
+   "lut4": 8170,
+   "alu": 1388,
+   "slots": 9558,
+   "percent_of_20736": 46.1,
+   "fmax_mhz": 107.9,
+   "placed": true,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex7_mix17_frame_v2_plus_open_NU4",
+   "description": "slim frame + open unit NU=4",
+   "lut4": 17836,
+   "alu": 3470,
+   "slots": 21306,
+   "percent_of_20736": 102.7,
+   "fmax_mhz": null,
+   "placed": false,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex7_mix17_frame_v2_plus_open_NU3",
+   "description": "slim frame + open unit NU=3",
+   "lut4": 17272,
+   "alu": 3350,
+   "slots": 20622,
+   "percent_of_20736": 99.5,
+   "fmax_mhz": null,
+   "placed": false,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex7_mix17_frame_v2_plus_open_NU2",
+   "description": "slim frame + open unit NU=2",
+   "lut4": 16682,
+   "alu": 3222,
+   "slots": 19904,
+   "percent_of_20736": 96.0,
+   "fmax_mhz": null,
+   "placed": false,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex6_off2_12work_frame_v2_plus_open_NU4",
+   "description": "hex 6x6 offset 2, 12 work (UN2 AL3 JN4 BR1 MG1 PR1), slim frame, open unit NU=4",
+   "lut4": 15318,
+   "alu": 2846,
+   "slots": 18164,
+   "percent_of_20736": 87.6,
+   "fmax_mhz": 106.7,
+   "placed": true,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex5_off2_7work_frame_v2_plus_open_NU4",
+   "description": "hex 5x5 offset 2, 7 work, slim frame, open unit NU=4",
+   "lut4": 13984,
+   "alu": 2694,
+   "slots": 16678,
+   "percent_of_20736": 80.4,
+   "fmax_mhz": 104.5,
+   "placed": true,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  },
+  {
+   "name": "hex7_nopr_17work_frame_v2_plus_open_NU4",
+   "description": "hex 7x7 offset 2, 17 work no priority tile (UN2 AL5 JN8 BR1 MG1), slim frame, open unit NU=4",
+   "lut4": 16440,
+   "alu": 2826,
+   "slots": 19266,
+   "percent_of_20736": 92.9,
+   "fmax_mhz": null,
+   "placed": false,
+   "tool": "nextpnr-himbaechel GW2AR-LV18QN88C8, 27 MHz target, seed 1"
+  }
+ ],
+ "synthesis_only_array_sizes": [
+  {
+   "name": "hex7_off2_mix17",
+   "work": 17,
+   "lut": 4989,
+   "alu": 873,
+   "slots": 5862
+  },
+  {
+   "name": "hex7_off2_nopr17",
+   "work": 17,
+   "lut": 3855,
+   "alu": 365,
+   "slots": 4220
+  },
+  {
+   "name": "hex5_off2_7work",
+   "work": 7,
+   "lut": 2012,
+   "alu": 282,
+   "slots": 2294
+  },
+  {
+   "name": "hex6_off1_12work",
+   "work": 12,
+   "lut": 2981,
+   "alu": 387,
+   "slots": 3368
+  },
+  {
+   "name": "hex6_off2_12work",
+   "work": 12,
+   "lut": 2964,
+   "alu": 387,
+   "slots": 3351
+  },
+  {
+   "name": "square7_9work",
+   "work": 9,
+   "lut": 2460,
+   "alu": 462,
+   "slots": 2922
+  },
+  {
+   "name": "square9_16work",
+   "work": 16,
+   "lut": 3613,
+   "alu": 549,
+   "slots": 4162
+  }
+ ],
+ "notes": [
+  "Highest design that placed: 87.6% (hex 6x6 + open unit NU=4). Lowest failures: 92.9% (hex 7x7 no PR + NU=4), 96.0% (NU=2 with the 7x7 mix) - 'Unable to find legal placement'.",
+  "Frame v1 + crossing measured flat as 6,076 slots, frame v2 as 1,131 (same stub array, yosys); the earlier per-module figure 4,850 was a non-flattened count and is withdrawn.",
+  "The array and the open unit are NOT linked in these builds: open unit over SPI, array over the UART frame."
+ ]
+}
