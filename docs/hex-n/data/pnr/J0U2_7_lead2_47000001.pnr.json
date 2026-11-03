@@ -1,0 +1,39 @@
+{
+ "caveats": "one run, no seed sweep; Fmax is nextpnr's estimator; wrapped with an LFSR; not a board run",
+ "content_hash": "527156703c0db2780d9d13977301698f34c0a40061e194059096b49552d38be7",
+ "date": "2026-11-03",
+ "deviation_pct": -2.95,
+ "deviation_synth_pct": -32.78,
+ "device": "GW2AR-LV18QN88C8/I7",
+ "family": "GW2A-18C",
+ "fmax_mhz": 233.81,
+ "format": "hexn-pnr-v1",
+ "freq_target_mhz": 27,
+ "packing_overhead_pct": 44.37,
+ "pattern_id": 1191182337,
+ "pattern_id_hex": "47000001",
+ "pattern_name": "J0U2_7_lead2",
+ "placed_pattern_slots": 3911,
+ "placed_with_wrapper": {
+  "alu": 268,
+  "dff": 2523,
+  "lut4": 3657,
+  "lut4_available": 20736,
+  "slots": 3925
+ },
+ "planner_estimate_slots": 4030,
+ "reasons": [],
+ "synth_alone": {
+  "alu": 230,
+  "dff": 1786,
+  "lut": 2479,
+  "mux2": 0,
+  "slots": 2709
+ },
+ "tools": {
+  "nextpnr": "unknown",
+  "yosys": "Yosys 0.69 (git sha1 9f75ca1f9, Release, Clang /workspace/YoWASP/yosys/wasi-sdk-33.0-x86_64-linux/share/cmake/../..//bin/clang++ 22.1.0)"
+ },
+ "verdict": "PASS",
+ "wrapper_synth_slots": 14
+}
