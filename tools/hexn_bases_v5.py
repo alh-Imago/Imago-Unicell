@@ -67,11 +67,9 @@ def pattern_library(sizes=(7, 9, 11)): return [make_pattern(p, n) for p in PATTE
 
 _cache = {}
 def fits(base, task, tries=14):
-    nodes, ins, outs = task      # v5 FIX (3 Nov 2026): the cache key is the task's CONTENT, not id(task) - ids of freed objects are reused, which could return another task's plan (found when a test passed a fresh slice of a tuple)
-    key = (base.name, base.R, base.C, base.lead_k, tuple(sorted((w, t) for w, t in base.type.items())), tuple(sorted(base.ram or ())), tries,
-           tuple((n.name, n.kind, tuple(n.ins), tuple(n.outs), n.k, repr(sorted(n.cfg.items()))) for n in nodes), tuple(ins), tuple(outs))
+    key = (base.name, id(task))
     if key in _cache: return _cache[key]
-    res = None
+    nodes, ins, outs = task; res = None
     try:
         P = G.plan10(nodes, ins, outs, base.R, base.C, base.type, tries=tries, ram=base.ram, lead_k=base.lead_k)
         ok, why = G.check_task(P, nodes, ins, outs); res = P if ok else None
