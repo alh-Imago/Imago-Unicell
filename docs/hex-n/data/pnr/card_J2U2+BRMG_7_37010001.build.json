@@ -1,0 +1,46 @@
+{
+ "bitstream_bytes": 4618782,
+ "bitstream_sha256": "296668a6ca0db0d591bf837bdf42bd4bd20a982cf4443c923423413ed3a61f9f",
+ "card": "sipeed-tang-nano-20k-01",
+ "caveats": "one run; Fmax is nextpnr's estimator; bitstream not committed",
+ "chain_bits": 764,
+ "content_hash": "d164fd1f2de6fc1c34ac1378170dd2fc83bce118c4600d146b9f8beae3066bd3",
+ "date": "2026-11-03",
+ "device": "GW2AR-LV18QN88C8/I7",
+ "family": "GW2A-18C",
+ "fmax_mhz_reported": [
+  123.14,
+  117.21
+ ],
+ "format": "hexn-card-build-v1",
+ "freq_target_mhz": 27,
+ "pattern": "J2U2+BRMG_7",
+ "pattern_id_hex": "37010001",
+ "placed": {
+  "ALU": [
+   590,
+   15552
+  ],
+  "BSRAM": [
+   0,
+   46
+  ],
+  "DFF": [
+   3626,
+   15552
+  ],
+  "IOB": [
+   9,
+   384
+  ],
+  "LUT4": [
+   7896,
+   20736
+  ],
+  "RAM16SDP4": [
+   20,
+   648
+  ]
+ },
+ "tool": "tools/hexn_assemble_v2.py build + build.sh"
+}
