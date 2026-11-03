@@ -1,0 +1,77 @@
+# Loading a design into the Tang Nano 20K's flash over SPI: what we have, what is missing, how to build it
+
+Scoping note v1, 3 Nov 2026. **Status: scoping only. Nothing for this has been built.** Every statement is tagged **[measured]** (a run on a real board or a tool run, with where), **[documented]** (read from a datasheet, guide or our own earlier note, not re-checked), **[arithmetic]** (worked out from measured figures) or **[unknown]**.
+
+Alan's aim (3 Nov 2026): a design is loaded by sending it over the SPI link into the board's flash memory, so a new bitstream can be put in without a PC and JTAG cable; the method must carry over to the UniCell, flex and sub design system (Alan, 18:47: "it was the bit that was missing"); and it needs its own write-up because other people are looking for exactly this.
+
+## 1. What we have
+
+| # | Item | State | Evidence |
+|---|---|---|---|
+| 1 | The board's flash is 64 Mbit (8 MiB), part marked XT25F64F (partly legible in a photo); it holds the configuration bitstream; wired to the FPGA's MSPI pins MCLK 59, MCS_N 60, MO 61, MI 62 | documented | `docs/man/tang-nano-20k.man.json` (board.spi_flash) |
+| 2 | The GW2AR-18 in the QN88 package boots only from JTAG or from this flash (MSPI); the slave, serial and CPU configuration modes are not available; the chip reads the flash from its start; no multi-image boot or fallback was found | documented | Gowin UG206 as read 28 Oct (`CARD_FORMAT_v1.md`, `FRONT_END_v1.md`) |
+| 3 | `gowin_pack` can release the configuration pins as ordinary I/O: `--mspi_as_gpio`, `--reconfign_as_gpio`, `--ready_as_gpio`, `--done_as_gpio` (also jtag, sspi, cpu, i2c) | **measured** (option list printed from the installed tool, 3 Nov) | `gowin_pack --help` |
+| 4 | RECONFIG_N is package pin 9 in the chip database; whether pin 9 is reachable on the board (header, button, BL616) is not in our board files | documented / **unknown** | `FRONT_END_v1.md` |
+| 5 | Erase, write and verify of the flash work from software on this board, away from the boot image: CRC32 of the first 1 MiB unchanged before and after; a 64 KB block at 0x700000 erased and written with a pattern, no error | **measured** (Alan's run, 28 Oct 18:23, LiteX SD image loaded volatile) | ledger 28 Oct 18:23 |
+| 6 | Not tested in that run: that the written data survives a power cycle, a write at offset 0, booting from a written image | **unknown** | same row |
+| 7 | `openFPGALoader -b tangnano20k FILE.fs` loads into SRAM (gone at power-off); adding `-f` writes the flash instead; used for every board run so far (SRAM load) | **measured** (SRAM load); `-f` documented, not run on these designs | `CRIB_SHEET.md` |
+| 8 | Decision: LiteX stays in the flash as the front end, tasks load volatile, **no writes at offset 0 on this board for now** (the board must keep working; a second board will be ordered) | decision (Alan, 28 Oct 18:26) | ledger |
+| 9 | The SPI link: the ESP32 is the master on package pins 73 CS_N, 74 SCLK, 75 MOSI, 76 MISO, 77 READY; bridge `spi_bridge_v2` (ID 0x57320002, 16-bit byte counter, config registers 16 to 31, a 1,024-word scratch RAM behind write-words and read-words); bridge limit about 1.69 MHz SCLK | **measured** (boards, 1 Nov) / documented (limit) | `OPEN_UNIT_v1.md`, `LINK_TEST_v1.md` |
+| 10 | Throughput of that link at 1 MHz: 30,019 to 30,553 words per second each way, 0 wrong in 64, 100 and 200-word transactions, i.e. about 120 KB/s | **measured** (Alan's capture, ledger 1 Nov 03:35) | ledger |
+| 11 | The SD card tier works on the board (raw card, read/write/verify of three regions, power-cut test passed) | **measured** (27 and 29 Oct) | ledger |
+| 12 | Image sizes, from the installed tools on 3 Nov: the `.fs` file is text, one character per bit; as binary (the bits packed, MSB first, starting with the 0xFF fill and the 0xA5C3 preamble) the open unit v13 image is **907,418 bytes** and the hex array + slim UART frame (no block RAM initialised) is **577,178 bytes**; the hex array + open unit images are 907,418 bytes as well | **measured** (file sizes and bit counts) | `/tmp/hexfit/*/hexn.fs`, `fpga/build/hexn_open_unit_v13` |
+| 13 | So an image is 6.9% to 10.8% of the flash; about eight fit | [arithmetic] | row 12 |
+| 14 | A message vocabulary for ESP32 to BL616 already names `BITSTREAM_SELECT` (slow: full reconfigure from the flash) and `PATTERN_PUSH` (fast: no reconfigure) | documented (proposal v0.1, nothing built) | `esp32-bl616-link-protocol-v0.1.md` |
+| 15 | The Hex-N load flow (decided): check the card, pull the bitstream, else build it with the assembler, else tell the user; wipe, program, weights, ready for data. Two speeds already exist: a PROGRAM (routing and cell settings, over the link, fast) and a BITSTREAM (changes the cell types: flash and reload, slow) | decision (Alan, 2 Nov) / **measured** for the program path in simulation | ledger 2 Nov |
+| 16 | The Hex-N assembler writes a complete build directory and the bitstream for a pattern (hex: `tools/hexn_assemble_hex_v1.py`); five bitstreams from it placed and routed on 3 Nov (not run on a board) | **measured** (tool runs) | `docs/hex-n/data/fit_runs_v1.json` |
+
+## 2. What is missing
+
+1. **A flash controller in our own fabric.** Only the LiteX build has driven this flash so far. A design of ours must release pins 59 to 62 (`--mspi_as_gpio`) and speak the flash's SPI commands (read ID, write enable, sector erase, page program, read, status poll). Not built, not simulated. The exact part number and its command set must be confirmed from the part, not from the photo.
+2. **A stream path from the SPI link into the flash.** The bridge's scratch RAM is 4 KB; an image is 0.6 to 0.9 MB, so the host must send it in pieces with flow control (READY already exists) and the fabric must program page by page. Not built.
+3. **RECONFIG_N reach.** Without it the new image only runs at the next power-up (or after a soft reset into a front-end mode that needs no pin). The pin may not be reachable on this board. **Unknown.**
+4. **Where the new image goes.** The chip reads offset 0. Writing there replaces LiteX and any running design that holds the writer. Alan's rule (28 Oct) is not to touch offset 0 on this board for now.
+5. **Integrity and recovery.** A power cut or a bad image while offset 0 is being rewritten leaves the board unbootable until the host re-flashes it over USB-JTAG (always possible; the BL616 is a separate chip and is not touched). No check exists yet on the chip side that an image is whole before it is used.
+6. **Timing figures.** Page-program time, sector-erase time, full-image write time and reconfiguration time are all **unknown** for this part and board (datasheet not read, nothing measured). The only arithmetic available: sending 907,418 bytes at 120 KB/s is about 7.6 seconds, and 577,178 bytes about 4.8 seconds, for the link alone.
+7. **Image format.** The tools produce text `.fs`; the flash needs the packed bits. The packing rule is simple (row 12) and `openFPGALoader -f` already does it from the host, but the on-board path must receive packed bytes. The host (ESP32 or PC) can pack; this is a few lines, not yet written.
+8. **Wear.** Each load is one erase cycle per sector; the vendor endurance of this part is not read.
+
+## 3. Routes compared
+
+| Route | What happens | Good | Not good / unknown |
+|---|---|---|---|
+| R0 Volatile JTAG load (today) | PC runs `openFPGALoader -b tangnano20k FILE.fs` through the BL616; SRAM only | works, measured on every board run, flash untouched | needs the PC and cable at every power-up; no unattended change |
+| R1 Writer inside the design | ESP32 sends the image over SPI; a flash-writer block in the running design stages it in the upper flash, checks it, then (later) copies it to offset 0 and reloads | unattended; reuses the proven SPI link and READY; same block can be put in every build ("front end inside every task", `FRONT_END_v1.md` option 1) | block not built; RECONFIG_N unknown; every build carries the writer (cost not measured; the 6x6 hex + open unit design leaves about 2,570 slots free, 12.4%, [arithmetic] from the 3 Nov fit runs) |
+| R2 Through the BL616 | ESP32 asks the BL616 (link protocol `BITSTREAM_SELECT`) to write and reload | no fabric cost | BL616 firmware is vendor code; we do not know it can do this; **unknown** |
+| R3 LiteX resident | host to LiteX serial; `flash_write` / `flash_erase_range` / `flash_from_sdcard` | already works at non-boot offsets (row 5) | `flash_from_sdcard` writes at offset 0, replacing LiteX; LiteX is not our design |
+| R4 SD card to flash | design reads a bitstream file from the SD card and writes it | no link needed, card tier proven | still needs the flash writer (missing item 1) |
+
+**Reading, not tested:** R1 is the route that matches Alan's wish (SPI in, flash out, unattended) and the one that carries over to other designs, because the writer is a small block with a plain byte interface. R3 is the quickest way to learn the part's behaviour (it already works), R0 stays as the always-available fallback.
+
+## 4. Proposed build order (each step simulated first, then run on the board by Alan)
+
+| Step | What | Passes when | Touches offset 0? |
+|---|---|---|---|
+| F1 | Flash model in the simulator and a flash-SPI master block (read ID, read, status, erase sector, program page) | the block reads, erases, programs and verifies against the model; every command's timing taken from the part's datasheet (to be read first) | no |
+| F2 | Read-only board probe: JEDEC ID and the first bytes of the flash, nothing written | ID equals the part's datasheet value; first bytes are the known preamble; board unchanged | no |
+| F3 | Guarded erase / program / verify in the upper flash (at or above 4 MiB; the controller refuses lower addresses unless an unlock input is set) | CRC of a written block equals the sent data; CRC of the first 1 MiB unchanged; survives a power cycle | no |
+| F4 | SPI stream: ESP32 sends an image in pieces, the fabric pages it into the upper flash, READY gives the flow control, a CRC and length check at the end; throughput measured | image in the upper flash equals the host's file; measured KB/s | no |
+| F5 | Staged-image header (magic, length, CRC32, pattern id, version) so an image is accepted only whole | a truncated or damaged image is refused by name | no |
+| F6 | Reload test: pulse RECONFIG_N (if reachable) or power-cycle, reloading the SAME image already at offset 0 (i.e. the current design written once by hand) | the design comes back and answers | only with the current image |
+| F7 | Copy the staged image to offset 0 and reload, with the BL616 JTAG recovery at hand (and, per Alan's rule, preferably on the second board) | new design answers after reload; a deliberate bad image is refused before the copy | **yes** |
+| F8 | Join the Hex-N load flow and put the same writer behind the UniCell, flex and sub load path | one writer block, one byte interface, used by both | n/a |
+
+## 5. How it carries to UniCell, flex and sub
+
+The writer needs nothing from Hex-N: it takes bytes in, programs and verifies them, and answers with a status. If its input is a plain byte stream with a start/length/CRC header (F5), then a Hex-N pattern bitstream, a flex or sub build from the Flex-Sub assembler, or any other design is the same payload to it; the only per-family part is who produces the image (assembler) and which pattern id or family tag goes in the header. That keeps the loading method outside the cell families, which is the point Alan made at 18:47.
+
+## 6. Open questions for Alan
+
+1. Is the second Tang board ordered or on hand? F7 (the first write at offset 0) is the only step that can leave a board needing JTAG recovery; on the existing board it conflicts with the 28 Oct rule not to touch offset 0.
+2. Can pin 9 (RECONFIG_N) be reached on the board (a header pin or a button), or should the plan assume a power cycle for the reload?
+3. Which flash part is it exactly? The photo is "partly legible"; a read from F2 settles it, but the datasheet is needed for F1.
+4. Is a few hundred slots for a resident writer acceptable in every build? (Not measured yet; it is part of F1's output.)
+
+## 7. Not claimed
+
+No flash writer exists; no step above has been run; no timing for erase, program or reload has been measured; RECONFIG_N reach, the BL616's ability to do this job and the part's endurance are unknown; the slot cost of the writer is not measured; nothing here has been tried on the second board because it does not exist yet.
