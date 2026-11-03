@@ -1,0 +1,62 @@
+{
+ "bitstream_bytes": 4618782,
+ "bitstream_sha256": "89121cb17d8ec85f7a72f3c063f431fdebb6981e34742ab6da087195dbcac513",
+ "build_seconds": 366,
+ "card": "sipeed-tang-nano-20k-01",
+ "caveats": "one run; Fmax is nextpnr's estimator; NOT loaded onto a board; the bitstream file is not committed (4.6 MB)",
+ "chain_bits": 856,
+ "content_hash": "9b6a8304d1d968f124f2f76d6bbbad3d1c7bbffb8fce441effcfb1bfba7289f1",
+ "date": "2026-11-03",
+ "device": "GW2AR-LV18QN88C8/I7",
+ "family": "GW2A-18C",
+ "fmax_mhz_reported": [
+  136.35,
+  119.13
+ ],
+ "format": "hexn-card-build-v1",
+ "frame_and_crossing_yosys_slots": 5629,
+ "freq_target_mhz": 27,
+ "pattern": "J0U1+SQPR_7",
+ "pattern_id_hex": "37020001",
+ "placed": {
+  "ALU": [
+   610,
+   15552
+  ],
+  "BSRAM": [
+   0,
+   46
+  ],
+  "DFF": [
+   3463,
+   15552
+  ],
+  "IOB": [
+   9,
+   384
+  ],
+  "LUT4": [
+   7674,
+   20736
+  ],
+  "RAM16SDP4": [
+   8,
+   648
+  ]
+ },
+ "tool": "tools/hexn_assemble_v2.py build + generated build.sh (yosys, yowasp-nextpnr-himbaechel-gowin, gowin_pack)",
+ "yosys_card_top": {
+  "alu": 496,
+  "dff": 3415,
+  "lut": 7005,
+  "mux2": 0,
+  "slots": 7501
+ },
+ "yosys_pattern_only": {
+  "alu": 190,
+  "dff": 1418,
+  "lut": 1682,
+  "mux2": 0,
+  "slots": 1872
+ }
+}
