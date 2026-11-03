@@ -26,3 +26,7 @@ def test_parsers():
     assert H.parse_log(bytes([0])) == []
     with pytest.raises(ValueError): H.parse_id(b"abc")
     with pytest.raises(ValueError): H.parse_log(bytes([1, 0]))
+
+
+def test_text_is_not_mistaken_for_a_card():
+    with pytest.raises(ValueError): H.parse_id(b"t da" + b"t")      # what a text console port sent back on the first board try

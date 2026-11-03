@@ -22,7 +22,9 @@ def cmd_log(): return b"L"
 
 def parse_id(b):
     if len(b) != 5: raise ValueError("identify reply has %d bytes, wanted 5" % len(b))
-    return dict(pattern_id=int.from_bytes(b[:4], "little"), rows=b[4])
+    r = dict(pattern_id=int.from_bytes(b[:4], "little"), rows=b[4])
+    if not 1 <= r["rows"] <= 16: raise ValueError("not a Hex-N card: reply %r is not a plausible identify (rows %d)" % (bytes(b), r["rows"]))
+    return r
 
 
 def parse_log(b):
