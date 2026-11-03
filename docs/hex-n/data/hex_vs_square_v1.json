@@ -1,0 +1,14 @@
+{
+ "note": "150 random designs (2-4 inputs, 3-5 nodes: add sub xor min max shl shr branch) on each grid; planned = the planner finds a plan whose simulation equals the word-level reference; hex = tools/hexn_wrgrid_hex_v1.py, square = tools/hexn_wrgrid_v21.py; same type mix proportions (UN 15, AL 20, JN 40, BR 12, MG 8 percent); not a hardware result",
+ "planned": {
+  "sq7": 83,
+  "hex7": 51,
+  "hex7b": 93,
+  "hex7c": 92,
+  "sq9": 140,
+  "hex9": 120,
+  "hex9b": 123,
+  "hex9c": 105,
+  "sq11": 148
+ }
+}
