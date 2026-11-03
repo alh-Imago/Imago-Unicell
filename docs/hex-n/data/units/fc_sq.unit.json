@@ -1,0 +1,644 @@
+{
+ "header": {
+  "base": "J0U1+SQPR_7",
+  "description": "face-choice test program for pattern J0U1+SQPR_7 (planner v21 chose operand/result faces for some cells); inputs x y z w",
+  "format": "hexn-unit-v1",
+  "load_order": [
+   "wipe",
+   "program",
+   "weights",
+   "data"
+  ],
+  "name": "facechoice/fc_sq",
+  "part_hash": {
+   "program": "357f10afd029640f9e93e8f8de4c2c82b7f10c6df6f49676c084433b4058cdf3",
+   "weights": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  "pattern": "J0U1+SQPR_7",
+  "pattern_id": 922877953
+ },
+ "program": {
+  "bitstream": "J0U1+SQPR_7",
+  "config_bits_estimate": null,
+  "faces": 4,
+  "format_version": "icm-hexn-v3",
+  "io": {
+   "bridges": [],
+   "inputs": {
+    "w": [
+     0,
+     0
+    ],
+    "x": [
+     4,
+     0
+    ],
+    "y": [
+     2,
+     0
+    ],
+    "z": [
+     6,
+     0
+    ]
+   },
+   "outputs": {
+    "n0": [
+     5,
+     6
+    ],
+    "n2": [
+     4,
+     6
+    ],
+    "n3": [
+     3,
+     6
+    ]
+   }
+  },
+  "name": "facechoice/fc_sq",
+  "record_hash": "c24cc15842919d40b63e0479b78b8b8a9d6ef3ed93e148500f2c27f1d966a95e",
+  "records": [
+   {
+    "cell_id": "r1c1",
+    "col": 1,
+    "core": "AL",
+    "core_config": {
+     "cfg": {},
+     "ins": [
+      "y",
+      "w"
+     ],
+     "k": 0,
+     "kind": "sub",
+     "mode": "aligned",
+     "outs": [
+      "n1"
+     ]
+    },
+    "icm_core": "adder",
+    "row": 1
+   },
+   {
+    "cell_id": "r3c1",
+    "col": 1,
+    "core": "AL",
+    "core_config": {
+     "cfg": {
+      "fi": {
+       "N": "S",
+       "W": "N"
+      },
+      "fo": {
+       "E": "E"
+      }
+     },
+     "ins": [
+      "n1",
+      "x"
+     ],
+     "k": 0,
+     "kind": "sub",
+     "mode": "aligned",
+     "outs": [
+      "n3"
+     ]
+    },
+    "icm_core": "adder",
+    "row": 3
+   },
+   {
+    "cell_id": "r5c1",
+    "col": 1,
+    "core": "UN",
+    "core_config": {
+     "cfg": {},
+     "ins": [
+      "x"
+     ],
+     "k": 3,
+     "kind": "shl",
+     "mode": "direct",
+     "outs": [
+      "n0"
+     ]
+    },
+    "icm_core": null,
+    "row": 5
+   },
+   {
+    "cell_id": "r5c3",
+    "col": 3,
+    "core": "AL",
+    "core_config": {
+     "cfg": {},
+     "ins": [
+      "x",
+      "z"
+     ],
+     "k": 0,
+     "kind": "xor",
+     "mode": "aligned",
+     "outs": [
+      "n2"
+     ]
+    },
+    "icm_core": null,
+    "row": 5
+   },
+   {
+    "cell_id": "r0c0",
+    "col": 0,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 0
+   },
+   {
+    "cell_id": "r0c1",
+    "col": 1,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 0
+   },
+   {
+    "cell_id": "r1c0",
+    "col": 0,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "S"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 1
+   },
+   {
+    "cell_id": "r1c2",
+    "col": 2,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 1
+   },
+   {
+    "cell_id": "r2c0",
+    "col": 0,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "N"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c1",
+    "col": 1,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "E"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c2",
+    "col": 2,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "E",
+      "W"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "N",
+      "S"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c3",
+    "col": 3,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c4",
+    "col": 4,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c5",
+    "col": 5,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c6",
+    "col": 6,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 2
+   },
+   {
+    "cell_id": "r3c0",
+    "col": 0,
+    "core": "ram",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "fixed_mode": 0,
+     "upstream_mask": [
+      "S"
+     ]
+    },
+    "icm_core": "ram",
+    "row": 3
+   },
+   {
+    "cell_id": "r3c2",
+    "col": 2,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "N"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 3
+   },
+   {
+    "cell_id": "r3c6",
+    "col": 6,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "N"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 3
+   },
+   {
+    "cell_id": "r4c0",
+    "col": 0,
+    "core": "route",
+    "core_config": {
+     "route": {
+      "E": "N",
+      "N": "W",
+      "S": "W"
+     }
+    },
+    "icm_core": null,
+    "row": 4
+   },
+   {
+    "cell_id": "r4c1",
+    "col": 1,
+    "core": "route",
+    "core_config": {
+     "route": {
+      "E": "W",
+      "N": "E"
+     }
+    },
+    "icm_core": null,
+    "row": 4
+   },
+   {
+    "cell_id": "r4c2",
+    "col": 2,
+    "core": "route",
+    "core_config": {
+     "route": {
+      "E": "S",
+      "S": "W",
+      "W": "W"
+     }
+    },
+    "icm_core": null,
+    "row": 4
+   },
+   {
+    "cell_id": "r4c3",
+    "col": 3,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 4
+   },
+   {
+    "cell_id": "r4c4",
+    "col": 4,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "S"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 4
+   },
+   {
+    "cell_id": "r4c5",
+    "col": 5,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 4
+   },
+   {
+    "cell_id": "r4c6",
+    "col": 6,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 4
+   },
+   {
+    "cell_id": "r5c0",
+    "col": 0,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "N"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 5
+   },
+   {
+    "cell_id": "r5c2",
+    "col": 2,
+    "core": "route",
+    "core_config": {
+     "route": {
+      "E": "N",
+      "N": "S",
+      "S": "W"
+     }
+    },
+    "icm_core": null,
+    "row": 5
+   },
+   {
+    "cell_id": "r5c4",
+    "col": 4,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "N"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 5
+   },
+   {
+    "cell_id": "r5c6",
+    "col": 6,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "S"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 5
+   },
+   {
+    "cell_id": "r6c0",
+    "col": 0,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 6
+   },
+   {
+    "cell_id": "r6c1",
+    "col": 1,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 6
+   },
+   {
+    "cell_id": "r6c2",
+    "col": 2,
+    "core": "route",
+    "core_config": {
+     "route": {
+      "E": "N",
+      "N": "W"
+     }
+    },
+    "icm_core": null,
+    "row": 6
+   },
+   {
+    "cell_id": "r6c3",
+    "col": 3,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 6
+   },
+   {
+    "cell_id": "r6c4",
+    "col": 4,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 6
+   },
+   {
+    "cell_id": "r6c5",
+    "col": 5,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 6
+   },
+   {
+    "cell_id": "r6c6",
+    "col": 6,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "N"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 6
+   }
+  ]
+ },
+ "weights": {}
+}
