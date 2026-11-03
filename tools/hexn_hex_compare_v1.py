@@ -1,5 +1,10 @@
 import sys, random, json, time; sys.path.insert(0,'/home/claude/hexn-wt/tools')
-import hexn_pattern_designer_v10 as D, hexn_wrgrid_v21 as GS, hexn_wrgrid_hex_v1 as GH, hexn_hexgeom_v1 as HX
+import os
+import hexn_pattern_designer_v10 as D, hexn_hexgeom_v1 as HX
+import importlib
+GH = importlib.import_module(os.environ.get('HEXPLAN', 'hexn_wrgrid_hex_v1'))
+GS = importlib.import_module(os.environ.get('SQPLAN', 'hexn_wrgrid_v21'))
+TRIES = int(os.environ.get('TRIES', '10'))
 from multiprocessing import Pool
 MIX={"sq7":{"UN":1,"AL":2,"JN":4,"BR":1,"MG":1},"hex7":{"UN":3,"AL":4,"JN":7,"BR":2,"MG":2},"hex7b":{"UN":2,"AL":3,"JN":6,"BR":2,"MG":1},"sq9":{"UN":2,"AL":3,"JN":6,"BR":3,"MG":2},"hex9":{"UN":4,"AL":5,"JN":11,"BR":4,"MG":3},"sq11":{"UN":4,"AL":5,"JN":10,"BR":3,"MG":3},"hex9b":{"UN":4,"AL":5,"JN":11,"BR":4,"MG":3},"hex9c":{"UN":4,"AL":5,"JN":11,"BR":4,"MG":3},"hex7c":{"UN":3,"AL":3,"JN":7,"BR":2,"MG":2}}
 SIZE={"hex9b":9,"hex9c":9,"hex7c":7,"sq7":7,"hex7":7,"hex7b":7,"sq9":9,"hex9":9,"sq11":11}
@@ -30,7 +35,7 @@ def one(args):
         seq=(seq+["AL"]*len(wc))[:len(wc)]; ct={w:t for w,t in zip(wc,seq)}; R=C=n
     t=mk(G.Node9,rnd)
     try:
-        P=G.plan10(t[0],t[1],t[2],R,C,ct,tries=10)
+        P=G.plan10(t[0],t[1],t[2],R,C,ct,tries=TRIES)
         ok,why=G.check_task(P,*t)
     except (RuntimeError, IndexError) as e: return (kind,seed,False,None)
     if not ok: return (kind,seed,False,None)
@@ -45,5 +50,5 @@ if __name__=="__main__":
     jobs=[(k,s) for s in range(N) for k in KINDS]
     t0=time.time()
     with Pool(8) as p: res=p.map(one,jobs,chunksize=2)
-    json.dump(res,open('/tmp/cmp_hex.json','w'))
+    json.dump(res,open(os.environ.get('OUT','/tmp/cmp_hex.json'),'w'))
     print("done",time.time()-t0)

@@ -1,0 +1,14 @@
+{
+ "note": "as hex_vs_square_v1.json but both planners TUNED (hexn_wrgrid_hex_v2 and hexn_wrgrid_v22): 150 random designs per grid, tries 10; not a hardware result",
+ "planned": {
+  "sq7": 80,
+  "hex7": 62,
+  "hex7b": 104,
+  "hex7c": 94,
+  "sq9": 143,
+  "hex9": 132,
+  "hex9b": 131,
+  "hex9c": 112,
+  "sq11": 148
+ }
+}
