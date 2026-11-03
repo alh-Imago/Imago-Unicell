@@ -1,0 +1,81 @@
+{
+ "format": "hexn-pattern-v2",
+ "name": "J0U2+BRLT_7",
+ "kind": "mixed",
+ "rows": 7,
+ "cols": 7,
+ "faces": 4,
+ "lead_k": 0,
+ "recipe": {
+  "counts": {
+   "AL": 5,
+   "BR": 1,
+   "LT": 1,
+   "UN": 2
+  },
+  "n": 7,
+  "ram": "none"
+ },
+ "work_cells": [
+  {
+   "r": 1,
+   "c": 1,
+   "type": "AL"
+  },
+  {
+   "r": 1,
+   "c": 3,
+   "type": "UN"
+  },
+  {
+   "r": 1,
+   "c": 5,
+   "type": "AL"
+  },
+  {
+   "r": 3,
+   "c": 1,
+   "type": "BR"
+  },
+  {
+   "r": 3,
+   "c": 3,
+   "type": "AL"
+  },
+  {
+   "r": 3,
+   "c": 5,
+   "type": "LT"
+  },
+  {
+   "r": 5,
+   "c": 1,
+   "type": "AL"
+  },
+  {
+   "r": 5,
+   "c": 3,
+   "type": "UN"
+  },
+  {
+   "r": 5,
+   "c": 5,
+   "type": "AL"
+  }
+ ],
+ "ram_cells": [],
+ "judges": [
+  "judge_a",
+  "judge_b"
+ ],
+ "counts": {
+  "work": 9,
+  "ram": 0,
+  "routing": 40
+ },
+ "slots_estimate": 1854,
+ "slots_note": "estimates from hexn_bases (routing cell 30, 60 with a self-timed type), NOT place and route; the measured four-face routing cell is 12 / 24 LUT (2 Nov 17:53 ledger row)",
+ "pattern_id": 923009025,
+ "pattern_id_hex": "37040001",
+ "content_hash": "ac43ed017fbf460244ba57add78ffd0aeb332e5bc610d8d93e9a789265abab51"
+}

@@ -1,0 +1,150 @@
+{
+ "bitstream_bytes": 4618782,
+ "bitstream_sha256": "274eddb16888a4d139b2cd34908e94e9dc2169479944ddec654e754b75584a28",
+ "card": "sipeed-tang-nano-20k-01",
+ "caveats": "one run; Fmax is nextpnr's estimator; bitstream not committed",
+ "chain_bits": 766,
+ "content_hash": "ac43ed017fbf460244ba57add78ffd0aeb332e5bc610d8d93e9a789265abab51",
+ "date": "2026-11-03",
+ "device": "GW2AR-LV18QN88C8/I7",
+ "family": "GW2A-18C",
+ "fmax_mhz_reported": [
+  160.51,
+  144.89
+ ],
+ "format": "hexn-card-build-v1",
+ "freq_target_mhz": 27,
+ "pattern": "J0U2+BRLT_7",
+ "pattern_id_hex": "37040001",
+ "placed": {
+  "ALU": [
+   458,
+   15552
+  ],
+  "ALU54D": [
+   0,
+   24
+  ],
+  "BSRAM": [
+   0,
+   46
+  ],
+  "BUFG": [
+   1,
+   24
+  ],
+  "CLKDIV": [
+   0,
+   8
+  ],
+  "CLKDIV2": [
+   0,
+   16
+  ],
+  "DCS": [
+   0,
+   8
+  ],
+  "DFF": [
+   3358,
+   15552
+  ],
+  "DHCEN": [
+   0,
+   24
+  ],
+  "DQCE": [
+   0,
+   24
+  ],
+  "GND": [
+   1,
+   1
+  ],
+  "GSR": [
+   1,
+   1
+  ],
+  "IOB": [
+   9,
+   384
+  ],
+  "IOLOGICI": [
+   0,
+   384
+  ],
+  "IOLOGICO": [
+   0,
+   384
+  ],
+  "LUT4": [
+   7324,
+   20736
+  ],
+  "MULT18X18": [
+   0,
+   48
+  ],
+  "MULT36X36": [
+   0,
+   12
+  ],
+  "MULT9X9": [
+   0,
+   96
+  ],
+  "MULTADDALU18X18": [
+   0,
+   24
+  ],
+  "MULTALU18X18": [
+   0,
+   24
+  ],
+  "MULTALU36X18": [
+   0,
+   24
+  ],
+  "MUX2_LUT5": [
+   0,
+   10368
+  ],
+  "MUX2_LUT6": [
+   0,
+   5184
+  ],
+  "MUX2_LUT7": [
+   0,
+   2592
+  ],
+  "MUX2_LUT8": [
+   0,
+   2592
+  ],
+  "OSC": [
+   0,
+   1
+  ],
+  "PADD18": [
+   0,
+   48
+  ],
+  "PADD9": [
+   0,
+   96
+  ],
+  "RAM16SDP4": [
+   4,
+   648
+  ],
+  "VCC": [
+   1,
+   1
+  ],
+  "rPLL": [
+   0,
+   2
+  ]
+ },
+ "tool": "tools/hexn_assemble_v2.py build + build.sh"
+}

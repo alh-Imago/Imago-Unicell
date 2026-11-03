@@ -1,0 +1,297 @@
+{
+ "header": {
+  "base": "J0U2+BRLT_7",
+  "description": "latch test program for pattern J0U2+BRLT_7; inputs x y",
+  "format": "hexn-unit-v1",
+  "load_order": [
+   "wipe",
+   "program",
+   "weights",
+   "data"
+  ],
+  "name": "latch/set_clear",
+  "part_hash": {
+   "program": "0b9da99a9507424aca07b5bf6a482713b6f53ac7e16dd3b8e94bc095999b4634",
+   "weights": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  "pattern": "J0U2+BRLT_7",
+  "pattern_id": 923009025
+ },
+ "program": {
+  "bitstream": "J0U2+BRLT_7",
+  "config_bits_estimate": null,
+  "faces": 4,
+  "format_version": "icm-hexn-v3",
+  "io": {
+   "bridges": [],
+   "inputs": {
+    "x": [
+     1,
+     0
+    ],
+    "y": [
+     3,
+     0
+    ]
+   },
+   "outputs": {
+    "r": [
+     3,
+     6
+    ]
+   }
+  },
+  "name": "latch/set_clear",
+  "record_hash": "86159570d47e794b910e2eb4507b64c55abc8e066fde3dbbab71eba00e42a30a",
+  "records": [
+   {
+    "cell_id": "r3c5",
+    "col": 5,
+    "core": "LT",
+    "core_config": {
+     "cfg": {},
+     "ins": [
+      "x",
+      "y"
+     ],
+     "k": 0,
+     "kind": "latch",
+     "mode": "self",
+     "outs": [
+      "r"
+     ]
+    },
+    "icm_core": "latch",
+    "row": 3
+   },
+   {
+    "cell_id": "r1c0",
+    "col": 0,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 1
+   },
+   {
+    "cell_id": "r2c0",
+    "col": 0,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "N"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c1",
+    "col": 1,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c2",
+    "col": 2,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c3",
+    "col": 3,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 2
+   },
+   {
+    "cell_id": "r2c4",
+    "col": 4,
+    "core": "route",
+    "core_config": {
+     "route": {
+      "E": "S",
+      "S": "W"
+     }
+    },
+    "icm_core": null,
+    "row": 2
+   },
+   {
+    "cell_id": "r2c5",
+    "col": 5,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 2
+   },
+   {
+    "cell_id": "r3c0",
+    "col": 0,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "S"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 3
+   },
+   {
+    "cell_id": "r3c4",
+    "col": 4,
+    "core": "route",
+    "core_config": {
+     "route": {
+      "E": "N",
+      "N": "S"
+     }
+    },
+    "icm_core": null,
+    "row": 3
+   },
+   {
+    "cell_id": "r3c6",
+    "col": 6,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 3
+   },
+   {
+    "cell_id": "r4c0",
+    "col": 0,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "turn": 0,
+     "upstream_mask": [
+      "N"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 4
+   },
+   {
+    "cell_id": "r4c1",
+    "col": 1,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 4
+   },
+   {
+    "cell_id": "r4c2",
+    "col": 2,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 4
+   },
+   {
+    "cell_id": "r4c3",
+    "col": 3,
+    "core": "cross",
+    "core_config": {
+     "downstream_mask": [
+      "E"
+     ],
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "cross",
+    "row": 4
+   },
+   {
+    "cell_id": "r4c4",
+    "col": 4,
+    "core": "corner",
+    "core_config": {
+     "downstream_mask": [
+      "N"
+     ],
+     "turn": 1,
+     "upstream_mask": [
+      "W"
+     ]
+    },
+    "icm_core": "corner",
+    "row": 4
+   }
+  ]
+ },
+ "weights": {}
+}
