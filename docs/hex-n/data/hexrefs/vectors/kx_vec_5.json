@@ -1,0 +1,35 @@
+{
+ "format": "hexn-card-selftest-v1",
+ "pattern": "hex5",
+ "pattern_id_hex": "3A7FD506",
+ "rows": 5,
+ "link": "byte-port",
+ "tests": [
+  {
+   "name": "addsub",
+   "chain_hex": "ffffffffff0f00f8ff7ffffffffffeff9f82010000000000f8ffffff17400c00c0fffffaff030000000800400c00c0fffffeffffff4d500600e0ffefffbf01460000fcffffffff3f00e0ffffffffff7f1f",
+   "inputs": [
+    [
+     2,
+     2675342405
+    ],
+    [
+     0,
+     3185950873
+    ],
+    [
+     4,
+     4051686260
+    ]
+   ],
+   "mask": 21,
+   "expected": [
+    [
+     1,
+     1809607018,
+     43
+    ]
+   ]
+  }
+ ]
+}

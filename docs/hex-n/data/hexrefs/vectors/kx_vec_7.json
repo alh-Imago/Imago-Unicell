@@ -1,0 +1,80 @@
+{
+ "format": "hexn-card-selftest-v1",
+ "pattern": "hex7_off2_mix",
+ "pattern_id_hex": "90894555",
+ "rows": 7,
+ "link": "byte-port",
+ "tests": [
+  {
+   "name": "prio4",
+   "chain_hex": "ffff00880100f0ffffff1f00310000f9fffbff4fc1000000000000fedfffff0b400c00c0dffb477ea502003879080080ffff01c40000fcffff3f3f80180080ffecffdfa760000000000000ffffffff0f200600e0fffbfff901c40000fcffff0f00f8ffffffffffe7a760000000000000ffefffff0d100300f0ffffffff000000000200100300f0fffeff3f00620000feff07100300f0ffffffffff0080ffffff7fffff6f",
+   "inputs": [
+    [
+     2,
+     2675342405
+    ],
+    [
+     6,
+     3185950873
+    ],
+    [
+     0,
+     4051686260
+    ],
+    [
+     4,
+     2787324501
+    ]
+   ],
+   "mask": 85,
+   "expected": [
+    [
+     6,
+     3185950873,
+     46
+    ],
+    [
+     6,
+     2675342405,
+     80
+    ],
+    [
+     6,
+     4051686260,
+     114
+    ],
+    [
+     6,
+     2787324501,
+     148
+    ]
+   ]
+  },
+  {
+   "name": "addsub",
+   "chain_hex": "ffff03880100f8ffffff7f00310000feffffff4dc1000000000000feffffff1f400c00c0ffffd7ff5330000000000080ffff01c40000fcffffff3f80180000feffffffa760000000000000feffffff4d300600c0ffdfeb7f00c40000fcfff50f00f8ffffffffff47a760000000000000e7dffbff0f100300f0ffffffff000000000200100300f0fffeffdc00290000feff07100300f0ffffffffff0080ffffff7fffff6f",
+   "inputs": [
+    [
+     2,
+     2675342405
+    ],
+    [
+     6,
+     3185950873
+    ],
+    [
+     0,
+     4051686260
+    ]
+   ],
+   "mask": 69,
+   "expected": [
+    [
+     2,
+     1809607018,
+     54
+    ]
+   ]
+  }
+ ]
+}
