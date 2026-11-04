@@ -26,6 +26,7 @@ done
 echo; echo "SUMMARY (from the logs; the clock is nextpnr's estimate, NOT a measurement on silicon)"
 for p in $PATS; do
   f=$OUT/arr_$p.log; echo "--- $p"
-  grep -E "Max frequency|Device utilisation|SLICE_LUTX|FDRE|critical path" $f | tail -8
+  grep -E "Max frequency" $f | tail -4
+  grep -E -A8 "Device utilisation" $OUT/arr_$p/hexn_arr.nextpnr.log | head -9
   ls $OUT/arr_$p/*.bit >/dev/null 2>&1 && echo "bitstream: yes" || echo "bitstream: NO (see $f)"
 done
