@@ -7,7 +7,7 @@ A two-image ring built by `tools/hexn_flashimg_v1.py` (byte 0x25 = 0xcc, jump to
 
 ## 2. What is NOT proven for the hex builds
 - A hex card build has never been run on a real board (H5/H6 not done). RTL simulation against the VM passes (tests `test_hexn_hexcard_v1.py`); the UART link to a PC over the BL616 has not been tried.
-- The size of a hex build's bitstream is unmeasured (fit runs report slot counts, not bytes). The only images measured: smoke_v2 577,178 B, unit_top 907,418 B; a 1 MiB slot has held both. Hex builds are expected to be in that range, not checked.
+- Bitstream sizes of the hex builds, measured from the 3 Nov fit-run outputs (.fs converted to bytes, 4 Nov 17:12): the array-only build with the slim frame v2 (/tmp/hexfit/v2run1) is 577,178 B; the array-only build with frame v1 (/tmp/hexfit/fitA) is 907,418 B. Both fit a 1 MiB slot. These are the same two sizes as smoke_v2 and unit_top; the size follows the number of frames in the header, not the design. Other builds not measured.
 - Whether the hex card builds survive `hexn_fs2bin_v2.py` (same GW2A-18 header layout expected; the header finder will say).
 
 ## 3. How we will see which pattern is running
