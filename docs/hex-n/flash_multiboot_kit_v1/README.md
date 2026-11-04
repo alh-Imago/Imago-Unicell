@@ -16,6 +16,7 @@ board; each claim says whether it was measured. Full evidence trail: `docs/hex-n
 | **A tap of RECONFIG_N loads the image at the header's jump address, if header byte 0x25 = 0xcc** | measured (flag 0xae did not jump) |
 | First-row CRC repair is correct (chip loaded a patched image) | measured |
 | Restore from backup, byte for byte | measured |
+| A two-image ring built by `hexn_flashimg_v1.py` (both slots 0xcc, each jumping to the other) swaps between the two designs on taps | measured (Alan's report, no frame counts; verification output not reported) |
 | Hop time: about 100-300 ms from lights-out to new pattern (median ~190 ms), includes the hand-held low time | measured, coarse (120 fps video) |
 | Which bit of byte 0x25 enables the jump (0xae vs 0xcc differ in three bits) | **not known** |
 | Rings of three or more images; hops started by the ESP32 or by logic inside a design | **not tested** |
