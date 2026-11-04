@@ -27,33 +27,33 @@ class Card:
     def read(s, n): d, s.out = s.out[:n], s.out[n:]; return d
 
 
-def run(card, clk, rounds=4, settle=0.5, vec=VEC, timeout=10):
-    lines = []; Hh.run_test = lambda s, t: t["expected"]
+def run(card, clk, mp, rounds=4, settle=0.5, vec=VEC, timeout=10):
+    lines = []; mp.setattr(Hh, "run_test", lambda s, t: t["expected"])
     res = R.cycle(card, vec, rounds, settle, timeout, card.hop, out=lines.append, sleep=clk.sleep, clock=clk.now)
     return res, lines
 
 
-def test_alternates_and_passes_when_the_card_is_slow_to_answer():
-    clk = Clock(); res, lines = run(Card(clk, quiet=1.0), clk)
+def test_alternates_and_passes_when_the_card_is_slow_to_answer(monkeypatch):
+    clk = Clock(); res, lines = run(Card(clk, quiet=1.0), clk, monkeypatch)
     assert [r[1] for r in res] == [A, B, A, B, A] and all(r[3] for r in res) and lines[-1].startswith("RING CYCLE PASS")
     assert all(0.9 < r[2] < 2.0 for r in res[1:])      # waited out the quiet time, not more than one retry beyond it
 
 
-def test_a_hop_that_changes_nothing_is_reported():
-    clk = Clock(); res, lines = run(Card(clk, hops_work=False), clk, rounds=2)
+def test_a_hop_that_changes_nothing_is_reported(monkeypatch):
+    clk = Clock(); res, lines = run(Card(clk, hops_work=False), clk, monkeypatch, rounds=2)
     assert not res[1][3] and "SAME CARD" in lines[1] and lines[-1].startswith("RING CYCLE FAIL")
 
 
-def test_unknown_id_and_silence_are_failures():
-    clk = Clock(); res, lines = run(Card(clk), clk, rounds=2, vec={A: VEC[A]})
+def test_unknown_id_and_silence_are_failures(monkeypatch):
+    clk = Clock(); res, lines = run(Card(clk), clk, monkeypatch, rounds=2, vec={A: VEC[A]})
     assert "UNKNOWN ID" in lines[1] and not res[1][3]
-    clk = Clock(); res, lines = run(Card(clk, quiet=99), clk, rounds=2, timeout=5)
+    clk = Clock(); res, lines = run(Card(clk, quiet=99), clk, monkeypatch, rounds=2, timeout=5)
     assert res[-1][1] is None and "NO ANSWER" in lines[-2]
 
 
-def test_a_card_that_dies_mid_selftest_is_a_failure_not_a_crash():
+def test_a_card_that_dies_mid_selftest_is_a_failure_not_a_crash(monkeypatch):
     clk = Clock(); card = Card(clk); lines = []
     def boom(s, t): raise SystemExit("timeout waiting for L count")
-    Hh.run_test = boom
+    monkeypatch.setattr(Hh, "run_test", boom)
     res = R.cycle(card, VEC, 1, 0.5, 5, card.hop, out=lines.append, sleep=clk.sleep, clock=clk.now)
     assert not res[0][3] and "SELFTEST FAIL" in lines[0]
