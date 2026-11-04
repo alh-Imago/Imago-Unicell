@@ -42,3 +42,13 @@ Each step is its own ledger row, with what was observed and what was not.
 1. Which serial port appears when the Tang is plugged in (name from `ls /dev/ttyACM* /dev/ttyUSB*`)?
 2. Happy to do P1/P2 over SRAM first, leaving the flash alone? (Recommended: it proves the hex card on a board before any flash work.)
 3. Which two patterns should be in the first ring?
+
+## 8. Doing it by program, not by hand (Alan, 16:38)
+**Writing the flash is already scriptable:** one `openFPGALoader -f` command over the USB programmer (the BL616). Build, convert, write, dump and compare can all be one script. No second board and no new BL616 firmware are involved.
+**Making the hop is the manual part (a hand tap on RECONFIG_N).** Three ways to replace it, none yet tried on our board:
+| Route | Needs | Status |
+|---|---|---|
+| a. PC over USB: `openFPGALoader -b tangnano20k -r` ("reset FPGA after operations" per its manual page) | nothing new | **Untested:** whether it reloads from flash at all, and whether it follows the jump address. One-minute test with the ring in flash. |
+| b. From inside the design: a UART command in the frame that drives pad 9 low (open-drain, like `reconfig_n <= '0' when reconfig = '1' else 'Z'` in hoglet67's Atom core, pin `IO_LOC "reconfig_n" 9`) | RTL change, new frame version | **Untested** with our toolchain; open question: does nextpnr-himbaechel/gowin_pack allow pin 9 as an output, and do the ring images still hop. |
+| c. ESP32 GPIO | a wire from an ESP32 pin to the RECFG_N pad | Not built; hardware change. |
+Preferred order: a (free test), then b (makes a pattern able to pass control on by itself, which is the useful case). The second board is wanted for risky flash writes, not for this.
