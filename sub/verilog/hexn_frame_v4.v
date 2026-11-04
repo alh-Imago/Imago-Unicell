@@ -21,13 +21,13 @@ module hexn_frame_v4 #(parameter ROWS = 7, parameter CHAIN_BITS = 8, parameter [
     // ---- output log
     reg [2:0] lrow [0:15]; reg [31:0] ldat [0:15]; reg [15:0] ltick [0:15]; reg [4:0] ln = 0; reg [15:0] tick = 0; reg trun = 0; integer r;
     reg [ROWS-1:0] pend = 0; reg [15:0] tsn [0:ROWS-1]; reg [2:0] psel; reg [31:0] odsel; integer q;
-    always_comb begin psel = 3'd0; for (q = ROWS - 1; q >= 0; q = q - 1) if (pend[q]) psel = q[2:0]; odsel = od[32 * psel +: 32]; end
+    always @* begin psel = 3'd0; for (q = ROWS - 1; q >= 0; q = q - 1) if (pend[q]) psel = q[2:0]; odsel = od[32 * psel +: 32]; end
     // ---- command state machine
     localparam IDLE = 0, CFGB = 1, CFGS = 2, WIPE = 3, DROW = 4, DBYT = 5, GMSK = 6, REPLY = 7, WAITTX = 8;
     reg [3:0] st = IDLE; reg [31:0] left = 0; reg [7:0] sh = 0; reg [3:0] nb = 0; reg [7:0] wcnt = 0; reg [2:0] drow = 0; reg [1:0] dn = 0;
     reg [1:0] rk = 0; reg [7:0] ri = 0; reg [3:0] re = 0; reg [2:0] rf = 0; reg [3:0] rpend = 0;       // reply kind: 0 K, 1 I, 2 L ; ri byte index ; re/rf = entry / field for L
     reg [3:0] rret = IDLE; reg [4:0] lcount = 0; reg [7:0] rbyte; reg rlast;
-    always_comb begin
+    always @* begin
         rbyte = 8'h4b; rlast = 1'b1;
         if (rk == 1) begin rlast = (ri == 4); rbyte = ri == 0 ? PATTERN_ID[7:0] : ri == 1 ? PATTERN_ID[15:8] : ri == 2 ? PATTERN_ID[23:16] : ri == 3 ? PATTERN_ID[31:24] : ROWS[7:0]; end
         else if (rk == 2) begin
