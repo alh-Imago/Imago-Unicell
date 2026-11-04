@@ -80,3 +80,10 @@ we did not find a licence file at the top of TangNano20KMultiboot (a quick look)
 ## Files
 `tools/hexn_fs2bin_v2.py`, `tools/hexn_flashimg_v1.py` (copies of the files in `tools/`, tested by `tests/vm/test_hexn_fs2bin_v2.py` and `test_hexn_flashimg_v1.py`),
 `scripts/flash_map.py`, `scripts/find_headers.py`, `scripts/verify_regions.py`, `scripts/led_video_trace.py`, `data/measured_headers.txt`.
+
+## Hopping from the PC, and checking a hex card (added 4 Nov 21:35)
+Measured on one board (ledger rows 20:03-21:30 of `HEXN_DESIGN.md`; plan results in `HEXN_PATTERN_RING_PLAN_v2.md`):
+- `openFPGALoader -b tangnano20k -r` hops the ring like the pin 9 tap (follows the jump), with no wire. Allow a short pause before talking to the card: about 0.2 s to the first serial answer here, so poll for it instead of asking once.
+- `tools/hexn_hexcard_host_v1.py` (`id`, `watch`, `selftest VECTOR.json`) reads the card's PATTERN_ID over the board's UART (`/dev/ttyUSB1` here) and checks results against the VM.
+- `tools/hexn_ring_cycle_v2.py VECTOR... --rounds 6 --settle 0` hops, waits, reads the id, runs that card's selftest, and repeats; exit 0 only if every round passes. It writes nothing to flash.
+Needs `pyserial`. Not shown: rings beyond three slots, long runs, or why one earlier ring (without LEDs) showed no hop.
