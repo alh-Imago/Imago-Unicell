@@ -19,7 +19,9 @@ for p in $PATS; do
   echo "=== $(date '+%F %T') start $name"
   HEXN_REPO=$HOME/hexn-wt HEXN_REF=$ref BUILD=build_$name THREADS=4 FPGA_HOST=$(hostname -s) \
     ./fpga build designs/hexn_arr hexn_arr > $OUT/$name.log 2>&1
-  echo "=== $(date '+%F %T') end   $name (exit $?)"
+  rc=$?
+  echo "=== $(date '+%F %T') end   $name (exit $rc)"
+  [ $rc -ne 0 ] && { echo "--- last lines of the log:"; tail -15 $OUT/$name.log; }
 done
 echo; echo "SUMMARY (from the logs; the clock is nextpnr's estimate, NOT a measurement on silicon)"
 for p in $PATS; do
