@@ -67,7 +67,7 @@ byte 0x25 is inside the CRC and the repair is needed. See `data/measured_headers
 - A charge-only USB cable: no device in `lsusb`. A wrong file path: "fail to open" from the loader.
 - apycula always writes byte 0x25 = 0xae (a constant in its chip database); with 0xae the tap reloads offset 0 and ignores the jump.
 - **Do not use `gowin_pack --reconfign_as_gpio`:** it frees the RECONFIG_N pin you need. (The other `--*_as_gpio` flags did not change byte 0x25 in the three we tried; the rest were not finished.)
-- The `.fs` size is not the image size: a short image just has fewer frames (header word at 0x3c-0x3f), it is not compressed.
+- The `.fs` size is not the image size: a short image just has fewer frames (header line `3b 80 xx xx` at 0x40-0x43), it is not compressed.
 - We first called a short image "compressed" and later withdrew it; the ledger keeps both rows.
 - Flash chips differ between boards; the loader prints "flash chip unknown" for ours and works anyway.
 
