@@ -6,6 +6,8 @@ Run from ~/ypcb-00338-1p1 (it finds board/ypcb-00338-1p1/openocd.cfg there) or s
 import argparse, json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 os.environ.setdefault("HEXN_CHAIN", "2")
+try: import serial          # the Tang host module imports it at the top but only its own main() uses it; the Kintex link needs no serial port
+except ImportError: import types; sys.modules["serial"] = types.ModuleType("serial")
 import hexn_hexcard_host_v1 as Hh, hexn_jtag_host_v1 as J
 
 
