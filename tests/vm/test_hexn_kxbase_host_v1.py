@@ -20,3 +20,10 @@ def test_framing():
     l = Link(b"K"); H.judge_word(l, H.LOAD(1, 10, 9)); assert l.sent == b"J" + (0xC10A0009).to_bytes(4, "little")
     l = Link(bytes([1, 0x14, 0, 9, 0, 0])); assert H.judge_result(l) == (1, 0x00090014, 0) and l.sent == b"R"
     l = Link(b"K"); H.mode(l, 3); assert l.sent == b"M\x03"
+
+
+def test_choice_framing():
+    l = Link(b"K"); H.set_choice(l, 0, 1); assert l.sent == b"C\x00\x01"
+    l = Link(b"K"); assert H.choose_and_load(l) is True and l.sent == b"Z"
+    l = Link(b"E"); assert H.choose_and_load(l) is False
+    l = Link(bytes([1, 2])); assert H.last_choice(l) == (1, 2) and l.sent == b"U"

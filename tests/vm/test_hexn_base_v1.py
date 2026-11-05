@@ -63,3 +63,23 @@ def test_two_arrays_one_design(two):
     assert r[0][4] == 2
     assert [(i["pattern_id"], i["rows"]) for i in ids] == [(0x3A7FD506, 5), (0x8F532C4A, 6)]
     assert [[list(e) for e in lg] for lg in logs] == [t5["expected"], t6["expected"]]
+
+
+def test_judge_chooses_the_program_slot(seven):
+    """BEFORE, slot side: the judge scores a context word; its pred picks the library slot (C table); Z loads that slot into the array; the array then runs THAT program. 7x7: slot 0 = prio4 chain, slot 1 = addsub chain (both from kx_vec_7.json)."""
+    v = json.load(open(os.path.join(RD, "vectors", "kx_vec_7.json")))["tests"]; tp, ta = v[0], v[1]; cp, ca = bytes.fromhex(tp["chain_hex"]), bytes.fromhex(ta["chain_hex"])
+    def run_inputs(t): return [("D", r, w) for r, w in t["inputs"]] + [("G", t["mask"]), ("wait", 2000), ("L",)]
+    setup = [("raw", b"A\x00", 1), ("raw", b"P\x00" + len(cp).to_bytes(2, "big") + cp, 1, 3000), ("raw", b"P\x01" + len(ca).to_bytes(2, "big") + ca, 1, 3000), ("raw", b"C\x00\x01", 1), ("raw", b"U", 2),
+             J(LOAD(1, 0, 10))]
+    cmds = setup + [("raw", b"Z", 1), J(0x00000001), ("W",), ("raw", b"Z", 1, 6000)] + run_inputs(tp) + [J(0x00000000), ("W",), ("raw", b"Z", 1, 6000)] + run_inputs(ta) + [("raw", b"U", 2)]
+    r = B.ByteSim(seven).run(cmds)
+    assert r[3] == b"K" and r[4] == bytes([0, 0])
+    assert r[6] == b"E"                                                                   # no result waiting yet: 'E'
+    logs = [x for x in r if isinstance(x, list)]
+    assert [list(e) for e in logs[0]] == tp["expected"] and [list(e) for e in logs[1]] == ta["expected"]
+    assert r[-1] == bytes([1, 2])                                                         # last choice slot 1, two choices
+
+
+@pytest.fixture(scope="module")
+def seven():
+    d = build(["hex7_off2_mix.json"]); yield os.path.join(d, "src"); shutil.rmtree(d, ignore_errors=True)

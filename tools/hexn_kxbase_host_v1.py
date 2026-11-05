@@ -2,6 +2,7 @@
 """Host for the Kintex BASE design (judge + arrays + program library; 5 Nov 2026). Same link as hexn_kxarr_host_v1.py (OpenOCD + the JTAG frame link on USER2). Commands of the base: sub/verilog/hexn_base_ctl_v1.v.
   nix shell nixpkgs#openocd --command env OPENOCD=openocd HEXN_CHAIN=2 python3 hexn_kxbase_host_v1.py info
   ... hexn_kxbase_host_v1.py selftest VECTOR.json [--array N] [--library]    run the first test of a vector on array N; --library writes the chain into library slot 0 and loads the array from there ('P' then 'Q')
+  ... hexn_kxbase_host_v1.py choose VECTOR.json --array N                   BEFORE, slot side: the judge scores a context word and its result picks the library slot (0 = first test's program, 1 = second's), which is loaded and run; needs a vector with two tests (kx_vec_7.json)
   ... hexn_kxbase_host_v1.py judge VECTOR.json [--array N]                  AFTER mode: weights loaded, the array's output word is scored by the judge on its own, then read back with 'R' (the 5x5 vector's word 0x6bdc696a gives result word 0x00090014 with the weights set here)
 Run from ~/ypcb-00338-1p1 (it finds the openocd.cfg there). Needs a card loaded with a base bitstream (HEXN_BASE=... build)."""
 import argparse, json, os, sys, time
@@ -41,6 +42,31 @@ def judge_result(link):
 def mode(link, m): link.write(b"M" + bytes([m])); Hh.k(link, "mode")
 
 
+def set_choice(link, a, b): link.write(b"C" + bytes([a, b])); Hh.k(link, "slot choice table")
+
+
+def choose_and_load(link):
+    """'Z': the judge's oldest result picks the slot (pred 0 -> first slot of the C table, pred 1 -> second) and that slot is loaded into the selected array. -> True if loaded, False if no result was waiting ('E')"""
+    link.write(b"Z"); b = Hh.rd(link, 1, "Z reply")
+    if b == b"E": return False
+    if b != b"K": raise SystemExit("Z: expected K or E, got %r" % b)
+    return True
+
+
+def last_choice(link): link.write(b"U"); b = Hh.rd(link, 2, "U"); return b[0], b[1]
+
+
+def run_inputs(link, t):
+    """the data part of a vector test (inputs, go, wait, log) on whatever program the array holds now"""
+    for row, word in t["inputs"]:
+        link.write(bytes([ord("D"), row]) + word.to_bytes(4, "little")); Hh.k(link, "D row %d" % row)
+    link.write(bytes([ord("G"), t["mask"]])); Hh.k(link, "G"); time.sleep(0.3)
+    link.write(b"L"); n = Hh.rd(link, 1, "L count")[0]; got = []
+    for _ in range(n):
+        e = Hh.rd(link, 7, "L entry"); got.append([e[0], int.from_bytes(e[1:5], "little"), int.from_bytes(e[5:7], "little")])
+    return got
+
+
 def run_vector_test(link, t, library):
     link.write(b"W"); Hh.k(link, "wipe")
     chain = bytes.fromhex(t["chain_hex"])
@@ -56,7 +82,7 @@ def run_vector_test(link, t, library):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["info", "selftest", "judge"]); ap.add_argument("vector", nargs="?")
+    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["info", "selftest", "judge", "choose"]); ap.add_argument("vector", nargs="?")
     ap.add_argument("--array", type=int, default=0); ap.add_argument("--library", action="store_true"); a = ap.parse_args()
     ex = J.OpenOCDExec(KA.find_cfg()); link = J.JtagLink(ex.scan, maxpoll=3000); ok = True
     try:
@@ -69,6 +95,16 @@ def main():
                 got = run_vector_test(link, t, a.library); good = got == t["expected"]; ok &= good
                 print("%-8s %s  words %s%s" % (t["name"], "PASS" if good else "FAIL", [hex(w) for _, w, _ in got], "  (chain from the library)" if a.library else ""))
                 if not good: print("   expected %s\n   got      %s" % (t["expected"], got))
+            elif a.cmd == "choose":
+                tests = v["tests"]
+                if len(tests) < 2: raise SystemExit("choose needs a vector with two tests (kx_vec_7.json: prio4 and addsub)")
+                for s, tt in enumerate(tests[:2]): library_write(link, s, bytes.fromhex(tt["chain_hex"]))
+                set_choice(link, 0, 1); judge_word(link, LOAD(1, 0, 10))
+                for ctx, want in ((1, 0), (0, 1)):                       # context word 1: sensor 0 in bin 1 -> pred 0 -> slot 0; context word 0: bin 0 carries weight 10 -> pred 1 -> slot 1
+                    judge_word(link, ctx); link.write(b"W"); Hh.k(link, "wipe")
+                    if not choose_and_load(link): print("no judge result waiting"); ok = False; break
+                    got = run_inputs(link, tests[want]); slot, n = last_choice(link); good = got == tests[want]["expected"] and slot == want; ok &= good
+                    print("context %d: judge chose slot %d (%d choice(s)); ran %-6s %s words %s" % (ctx, slot, n, tests[want]["name"], "PASS" if good else "FAIL", [hex(w) for _, w, _ in got]))
             else:
                 mode(link, 3); judge_word(link, LOAD(1, 10, 9)); judge_word(link, LOAD(0, 75, 20))
                 got = run_vector_test(link, t, False); time.sleep(0.1); n, res, lost = judge_result(link)
