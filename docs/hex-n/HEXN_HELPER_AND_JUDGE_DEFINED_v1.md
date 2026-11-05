@@ -10,6 +10,12 @@ Draft v1, 5 Nov 2026 (evening), written from Alan's account (20:50 to 20:59) and
 ```
 The file `docs/hex-n/LAYER_INTERFACES_v4.md` draws the layers as nested (each inside the one before, the helper as the heart); the batch scorer's header says it scores "layer-1 bin words", so it takes layer 1's output. [file]
 
+### 1a. Alan's two paths and the open position of the hex arrays (5 Nov 21:06) [Alan]
+- **Path 1:** layer 1 (the detector system) → the batch judge → its data goes into the RAM → that decides which program is used. In the base this is: results RAM records, and the decision bit choosing the library slot (`Z`) [file: base v1 to v3].
+- **Path 2:** layer 1 → the helper → the choice engine (layer 4), which steers the output of the system.
+- **The hex pattern arrays (tiles)** hold the patterns, as many as there are, and are programmed according to path 1. **Where they sit in the data flow is undecided.** Three candidates, none chosen: (a) before the choice engine, so after the helper; (b) after the choice engine, so connected there; (c) extra processing straight after layer 1. 
+- **What the files fix:** the arrays work on 32-bit words (one input word per row, output words with ticks); they do not care what the words mean [file: frame commands, test vectors prio4 and addsub]. In the Kintex base the arrays already sit as position (c): words in (host or data RAM), array output words into the batch judge (AFTER mode) and into the results RAM, and the judge's decision chooses the next program [file/card: base v1 to v3].
+
 ## 2. The batch judge (hexn_scorer_v3)
 | | |
 |---|---|
@@ -39,7 +45,7 @@ The file `docs/hex-n/LAYER_INTERFACES_v4.md` draws the layers as nested (each in
 3. **Whether both judges stay**, or the batch judge takes over part of the neural judge's job (Alan said 'replaced in part'; no row records the decision). [open]
 4. **Teacher source** for the neural judge on a run: a label stored with the data, the batch judge's own decision, or a rule. [open]
 5. **Which of the two judges the weight store and the job list should serve first.** The store serves the batch judge today; the neural judge needs a small read-out walker (8 words per set). [open]
-6. **How the hex arrays map onto the layer numbering.** [open]
+6. **How the hex arrays map onto the layer numbering, and which of the positions (a), (b), (c) in section 1a they take.** The base currently behaves as (c). [open]
 
 ## 5. Not claimed
 No hardware path exists between layer 1, the helper layers and the Kintex base. The batch judge's learning is on the host; the neural judge's learning has only been simulated. The 'replaced in part' statement and the 'combined and removed' statement for layers 2 to 4 are Alan's account; the files show the layers combined into a Python module and the neural side moved off the critical path, and no row records a removal or a replacement.
