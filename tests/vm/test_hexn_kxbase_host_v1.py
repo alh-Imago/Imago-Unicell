@@ -7,6 +7,7 @@ import hexn_kxbase_host_v1 as H
 
 class Link:
     def __init__(s, reply=b""): s.sent = bytearray(); s.out = bytearray(reply)
+    def reset_input_buffer(s): pass
     def write(s, b): s.sent += b
     def read(s, n): d = bytes(s.out[:n]); del s.out[:n]; return d
 

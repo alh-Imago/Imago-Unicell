@@ -16,6 +16,7 @@ BIAS = lambda b: (13 << 28) | (b & 0xffff)
 
 
 def info(link):
+    link.reset_input_buffer()          # first, so that the link learns the card's last frame number: a write as the very first act of a NEW session reuses the number the card already took and is dropped (bug of JtagLink found 5 Nov 2026; the older tools always began with a read)
     link.write(b"N"); b = Hh.rd(link, 6, "N info")
     return dict(id="%08X" % int.from_bytes(b[:4], "little"), arrays=b[4], library_slots=b[5])
 
