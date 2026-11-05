@@ -37,6 +37,14 @@ def top_text():
             "    assign led = {txseen, ~&cled[2:0], count[25]};\nendmodule\n")
 
 
+def no_ram(text):
+    """debug variant (HEXN_NORAM=1): the same RTL with every small memory made of plain flip-flops and the config shift chains kept as flip-flops, so the Kintex flow infers no RAM32M and no SRL16E (nextpnr-xilinx's support for those is suspected, 5 Nov 2026). The source files are NOT changed; this rewrites the text that goes into the build file."""
+    for a, b in (("reg [CW-1:0] cfg = 0;", '(* keep *) reg [CW-1:0] cfg = 0;'), ("reg mem [0:31];", '(* ram_style = "registers" *) reg mem [0:31];'),
+                 ("reg [2:0] lrow [0:15]; reg [31:0] ldat [0:15]; reg [15:0] ltick [0:15];", '(* ram_style = "registers" *) reg [2:0] lrow [0:15]; (* ram_style = "registers" *) reg [31:0] ldat [0:15]; (* ram_style = "registers" *) reg [15:0] ltick [0:15];')):
+        text = text.replace(a, b)
+    return text
+
+
 def sources(ref, with_bridge, frame=None):
     frame = frame or os.environ.get("HEXN_FRAME", "v4")      # v4 = proven in simulation; v5 = v4 + the S status command (debug build)
     fs = list(P.FILES) + frame_files(frame) + ([os.path.join(RV, "hexn_jtag_bridge_v1.v")] if with_bridge else [])
@@ -50,12 +58,14 @@ def main():
     if pr: raise SystemExit("reference refused: %s" % pr)
     if cmd == "sim":
         src = os.path.join(out, "src"); os.makedirs(src, exist_ok=True); fs, gen = sources(ref, False)
-        for f in fs: shutil.copy(f, src)
+        nr = os.environ.get("HEXN_NORAM") == "1"
+        for f in fs: open(os.path.join(src, os.path.basename(f)), "w").write(no_ram(open(f).read()) if nr else open(f).read())
         for n, t in gen: open(os.path.join(src, n), "w").write(t)
         print("sim sources in", src, "(%d files)" % (len(fs) + len(gen)))
     elif cmd == "build":
         os.makedirs(out, exist_ok=True); fs, gen = sources(ref, True); txt = []
-        for f in fs: txt.append("// ---- %s ----\n" % os.path.relpath(f, ROOT) + open(f).read() + "\n")
+        nr = os.environ.get("HEXN_NORAM") == "1"
+        for f in fs: txt.append("// ---- %s ----\n" % os.path.relpath(f, ROOT) + (no_ram(open(f).read()) if nr else open(f).read()) + "\n")
         for n, t in gen: txt.append("// ---- generated %s ----\n" % n + t + "\n")
         open(os.path.join(out, "gen_00_hexn_arr.v"), "w").write("".join(txt)); print("wrote", os.path.join(out, "gen_00_hexn_arr.v"), "pattern", ref["name"], ref["pattern_id_hex"])
     else: raise SystemExit(__doc__)

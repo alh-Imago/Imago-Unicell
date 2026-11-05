@@ -34,3 +34,9 @@ def test_host_probe_decodes_status(monkeypatch):
         def read(s, n): d = bytes(s.out[:n]); del s.out[:n]; return d
     lines = []; H.probe(L(), json.load(open(VEC)), lines.append)
     assert any("'cfg_bits': 645" in l for l in lines) and lines[-1] == "L count 0"
+
+
+def test_no_ram_rewrite_touches_only_the_memories_and_the_chain():
+    a = open(os.path.join(ROOT, "sub", "verilog", "hexn_join_core_v3.v")).read(); b = K.no_ram(a)
+    assert b != a and 'ram_style = "registers" *) reg mem [0:31]' in b and b.replace('(* ram_style = "registers" *) ', "") == a
+    c = open(os.path.join(ROOT, "sub", "verilog", "hexn_tile_v3.v")).read(); assert "(* keep *) reg [CW-1:0] cfg" in K.no_ram(c)
