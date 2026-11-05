@@ -99,3 +99,26 @@ Each step: new file versions, a test, a row in `HEXN_DESIGN.md`, a ledger row, c
 ## 7. Not claimed
 
 No part of 3.1 to 3.4 exists; no JTAG throughput has been measured; the per-scan-overhead explanation is a hypothesis; the TCK on Alan's runs is not known; the judge's ability to dump its weights is not checked; record formats, depths and opcodes in this note are proposals; the base has not yet been run with `choose` on the card (waiting on Alan's build).
+
+## 8. Update, 5 Nov 16:15: first JTAG measurement, and Alan's decisions
+
+**Alan's decisions (14:18):** the results RAM **stops and flags when full, and the input side stops too**, so nothing new flows in and is lost (the controller must stop feeding with a margin for words already in the array's pipeline; margin to be sized from the array latency, not yet measured). Weights from the judge should be saved; whether they travel with the data or attach to the program side depends on how they were made (proposal: a label on each saved set, "for this program" or "from this run"; Alan to decide). Data RAM target: block RAM first, DDR3 later (the card has two channels of 2 GiB each, per `docs/man/ypcb-00338-1p1.man.json`; not used for this yet).
+
+**Measured (Alan's run, 16:12, `tools/hexn_jtag_speed_v1.py`, base loaded, OpenOCD):**
+
+| TCK asked | OpenOCD reports | raw scans/s | wire time per scan [arithmetic] | time per scan [arithmetic] | overhead per scan [arithmetic] | `N` info: scans per info | infos/s | bytes/s (7 per info) |
+|---|---|---|---|---|---|---|---|---|
+| 2 MHz | 2000 kHz | 3,291 | 80.0 us | 304 us | 224 us | 4.03 | 778.9 | 5,452 |
+| 6 MHz | 6000 kHz | 5,558 | 26.7 us | 180 us | 153 us | 4.00 | 866.3 | 6,064 |
+| 10 MHz | 10000 kHz | 5,583 | 16.0 us | 179 us | 163 us | 4.00 | 910.3 | 6,372 |
+
+**What the numbers say (measured, then reading):**
+- Going from 6 to 10 MHz changes nothing (5,558 against 5,583 scans/s). So above about 6 MHz **the clock is not the limit**. This agrees with Alan's observation that uploads ask for 10 MHz and run at 6 MHz; whether the real TCK is 6 MHz or the scan rate simply stops depending on it is not separated by this test.
+- At 6 and 10 MHz a scan takes about 180 us, of which the wire is 27 and 16 us: **about 85 to 90% of each scan is overhead outside the wire** (OpenOCD, the Tcl socket, USB). This supports the earlier hypothesis (section 4) that the limit is the number of scans per second. It was a hypothesis before; this run measures it for this cable and OpenOCD setup.
+- The protocol-level rate is lower than the raw rate: an `N` info costs 4 scans in about 1.1 ms (roughly 3,600 protocol scans/s, against 5,583 raw). The `N` test moves only 7 bytes per 4 scans, so 6.4 KB/s is a **floor for this command**, not the link's capacity.
+- **Ceiling with the present 14-byte frame [arithmetic, not measured]:** 14 bytes per scan at 3,600 to 5,583 scans/s is about 50 to 78 KB/s each way, if the host keeps frames full. The core side takes a byte every 128 clocks (about 390 KB/s at 50 MHz), so it is not the limit at this size.
+- **With a longer frame [arithmetic, assumes per-scan overhead stays near 160 us regardless of length; untested]:** a frame of about 128 bytes (1,024 data bits) adds about 100 to 170 us of wire time at 10 to 6 MHz, so roughly 300 to 350 us per scan, about 400 KB/s, which would reach the core's 390 KB/s limit.
+
+**What this means for sizes [arithmetic]:** a full results RAM of 1,024 records x 12 bytes (12 KB) reads back in about 0.15 to 0.25 s at 50 to 78 KB/s, or about 2 s at the 6.4 KB/s floor; a 4 KB data RAM loads in under a second at either. A megabyte would take about 13 to 20 s at the present ceiling and about 3 s with long frames. **Conclusion, flagged as a reading:** at the sizes proposed for the first RAMs, the present bridge is good enough; the longer-frame bridge (B1) matters only if the stores grow towards megabytes. Build order stays as in section 5, with B1 moved after R1, R2 and D1.
+
+**Also: the hardware side.** Since clocks above 6 MHz buy nothing here, the cable's maximum speed is not what limits this link; the per-scan overhead is in the host software path. That part is ours to change (longer frames, fewer round trips), not only Alan's to solve.
