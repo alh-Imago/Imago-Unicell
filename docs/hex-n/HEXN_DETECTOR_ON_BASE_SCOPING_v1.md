@@ -27,3 +27,12 @@ Step one of the core line in `HEXN_DIRECTION_SCOPING_v1.md` (Alan 22:59: start a
 1. A first (quick, host-linked) or straight to B (on chip)?
 2. Eight banks or one time-shared bank?
 3. What feeds the sensors for now: recorded test vectors from the host?
+
+## 6. Decision (Alan, 5 Nov 23:01) and what the files show
+**Decided: option A, the host stays in the middle.** Reason [Alan]: all training has to be hosted anyway, so the host is already in the loop.
+What the files show [file], relevant to A:
+- The Kintex detector build that ran on the card (`fpga/ypcb/hexn`, USER1) uses `hexn_core_v2` (detector classes, no hold counter, no exact-match mode).
+- The newer layer 1 (hold counter, exact-match wiring, LOADDET, layer 2 store) is `hexn_core_v5` to `v9`; core v9 ran on the Tang (27 Oct). For the Kintex it appears only in the `hexn_tier` / `hexn_tier2` builds (core on USER2, memory tier on USER3, DDR3 plumbing), marked "not built on the card".
+- The base also uses USER2 (host `HEXN_CHAIN=2`), so a detector and the base on one chip would need one of them moved to another chain; as separate bitstreams loaded in turn there is no clash.
+- Under A with separate loads: phase 1 load the detector, run sensor vectors, save the classes; phase 2 load the base, pack the classes into judge words and run them. One bitstream with both is a later step.
+Open choice for Alan: start with the card-proven core v2 (simplest; the hold counter done on the host for now) or build the Kintex detector from the newest core v9 (hold and exact-match on chip, more to build and test).
