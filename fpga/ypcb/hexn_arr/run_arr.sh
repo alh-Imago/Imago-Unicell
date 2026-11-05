@@ -7,8 +7,8 @@
 # Builds go to $OUT (default /media/alan/InternalHDD/hexn_builds; override: OUT=/mnt/hdd/hexn_builds bash ...). Only builds; never touches a board.
 set -u
 PATS=${*:-hex7_off2_mix}
-[ -n "${HEXN_BASE:-}" ] && PATS=base      # BASE design: HEXN_BASE=hex7_off2_mix,hex6 bash run_arr.sh   (judge + those arrays + program library; folder arr_base...)
-SUF=${HEXN_FRAME:+_$HEXN_FRAME}$( case "${HEXN_NORAM:-}" in "") ;; 1) echo _noram;; *) echo _noram_$HEXN_NORAM;; esac )      # build folder suffix: arr_hex5_v5 for the debug frame, so the v4 builds are kept
+[ -n "${HEXN_BASE:-}" ] && PATS=base      # BASE design: HEXN_BASE=hex7_off2_mix,hex6 bash run_arr.sh   (judge + those arrays + program library; folder arr_base...; HEXN_BASE_VER=2 adds the results RAM, folder arr_base_b2...)
+SUF=${HEXN_BASE:+${HEXN_BASE_VER:+_b$HEXN_BASE_VER}}${HEXN_FRAME:+_$HEXN_FRAME}$( case "${HEXN_NORAM:-}" in "") ;; 1) echo _noram;; *) echo _noram_$HEXN_NORAM;; esac )      # build folder suffix: arr_hex5_v5 for the debug frame, so the v4 builds are kept
 : "${OUT:=/media/alan/InternalHDD/hexn_builds}"
 : "${CHIPDB:=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin}"; export CHIPDB
 [ -s "$CHIPDB" ] || { echo "CHIPDB file not found or empty: $CHIPDB"; exit 1; }
