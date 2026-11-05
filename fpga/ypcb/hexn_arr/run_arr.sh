@@ -3,11 +3,11 @@
 # Run from ~/ypcb-00338-1p1 inside the openXC7 nix shell, NO sudo, after:
 #   git -C ~/hexn-wt pull origin Hex-N
 #   ln -sfn ~/hexn-wt/fpga/ypcb/hexn_arr designs/hexn_arr
-# Usage: bash ~/hexn-wt/fpga/ypcb/hexn_arr/run_arr.sh [PATTERNS...]   (HEXN_FRAME=v5 in front: debug frame with the S status command; HEXN_NORAM=1: no RAM32M/SRL16E, plain flip-flops)     default: hex7_off2_mix   (others: hex6 hex5)
+# Usage: bash ~/hexn-wt/fpga/ypcb/hexn_arr/run_arr.sh [PATTERNS...]   (HEXN_FRAME=v5 in front: debug frame with the S status command; HEXN_NORAM=1: no RAM32M/SRL16E, plain flip-flops; =ram: only the memories; =srl: only the config chains)     default: hex7_off2_mix   (others: hex6 hex5)
 # Builds go to $OUT (default /media/alan/InternalHDD/hexn_builds; override: OUT=/mnt/hdd/hexn_builds bash ...). Only builds; never touches a board.
 set -u
 PATS=${*:-hex7_off2_mix}
-SUF=${HEXN_FRAME:+_$HEXN_FRAME}${HEXN_NORAM:+_noram}      # build folder suffix: arr_hex5_v5 for the debug frame, so the v4 builds are kept
+SUF=${HEXN_FRAME:+_$HEXN_FRAME}$( case "${HEXN_NORAM:-}" in "") ;; 1) echo _noram;; *) echo _noram_$HEXN_NORAM;; esac )      # build folder suffix: arr_hex5_v5 for the debug frame, so the v4 builds are kept
 : "${OUT:=/media/alan/InternalHDD/hexn_builds}"
 : "${CHIPDB:=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin}"; export CHIPDB
 [ -s "$CHIPDB" ] || { echo "CHIPDB file not found or empty: $CHIPDB"; exit 1; }

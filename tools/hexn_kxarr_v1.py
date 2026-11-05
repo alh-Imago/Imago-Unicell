@@ -37,11 +37,14 @@ def top_text():
             "    assign led = {txseen, ~&cled[2:0], count[25]};\nendmodule\n")
 
 
-def no_ram(text):
-    """debug variant (HEXN_NORAM=1): the same RTL with every small memory made of plain flip-flops and the config shift chains kept as flip-flops, so the Kintex flow infers no RAM32M and no SRL16E (nextpnr-xilinx's support for those is suspected, 5 Nov 2026). The source files are NOT changed; this rewrites the text that goes into the build file."""
-    for a, b in (("reg [CW-1:0] cfg = 0;", '(* keep *) reg [CW-1:0] cfg = 0;'), ("reg mem [0:31];", '(* ram_style = "registers" *) reg mem [0:31];'),
-                 ("reg [2:0] lrow [0:15]; reg [31:0] ldat [0:15]; reg [15:0] ltick [0:15];", '(* ram_style = "registers" *) reg [2:0] lrow [0:15]; (* ram_style = "registers" *) reg [31:0] ldat [0:15]; (* ram_style = "registers" *) reg [15:0] ltick [0:15];')):
-        text = text.replace(a, b)
+def no_ram(text, which="1"):
+    """debug variant (HEXN_NORAM): the same RTL with the small memories made of plain flip-flops (which = 'ram'), the config shift chains kept as flip-flops (which = 'srl'), or both ('1'), so the Kintex flow infers no RAM32M and/or no SRL16E (found 5 Nov 2026: with both removed the 5x5 works on the card, with them it does not). The source files are NOT changed; this rewrites the text that goes into the build file."""
+    pairs = []
+    if which in ("1", "srl"): pairs.append(("reg [CW-1:0] cfg = 0;", '(* keep *) reg [CW-1:0] cfg = 0;'))
+    if which in ("1", "ram"):
+        pairs += [("reg mem [0:31];", '(* ram_style = "registers" *) reg mem [0:31];'),
+                  ("reg [2:0] lrow [0:15]; reg [31:0] ldat [0:15]; reg [15:0] ltick [0:15];", '(* ram_style = "registers" *) reg [2:0] lrow [0:15]; (* ram_style = "registers" *) reg [31:0] ldat [0:15]; (* ram_style = "registers" *) reg [15:0] ltick [0:15];')]
+    for a, b in pairs: text = text.replace(a, b)
     return text
 
 
@@ -58,14 +61,14 @@ def main():
     if pr: raise SystemExit("reference refused: %s" % pr)
     if cmd == "sim":
         src = os.path.join(out, "src"); os.makedirs(src, exist_ok=True); fs, gen = sources(ref, False)
-        nr = os.environ.get("HEXN_NORAM") == "1"
-        for f in fs: open(os.path.join(src, os.path.basename(f)), "w").write(no_ram(open(f).read()) if nr else open(f).read())
+        nr = os.environ.get("HEXN_NORAM", "")
+        for f in fs: open(os.path.join(src, os.path.basename(f)), "w").write(no_ram(open(f).read(), nr) if nr else open(f).read())
         for n, t in gen: open(os.path.join(src, n), "w").write(t)
         print("sim sources in", src, "(%d files)" % (len(fs) + len(gen)))
     elif cmd == "build":
         os.makedirs(out, exist_ok=True); fs, gen = sources(ref, True); txt = []
-        nr = os.environ.get("HEXN_NORAM") == "1"
-        for f in fs: txt.append("// ---- %s ----\n" % os.path.relpath(f, ROOT) + (no_ram(open(f).read()) if nr else open(f).read()) + "\n")
+        nr = os.environ.get("HEXN_NORAM", "")
+        for f in fs: txt.append("// ---- %s ----\n" % os.path.relpath(f, ROOT) + (no_ram(open(f).read(), nr) if nr else open(f).read()) + "\n")
         for n, t in gen: txt.append("// ---- generated %s ----\n" % n + t + "\n")
         open(os.path.join(out, "gen_00_hexn_arr.v"), "w").write("".join(txt)); print("wrote", os.path.join(out, "gen_00_hexn_arr.v"), "pattern", ref["name"], ref["pattern_id_hex"])
     else: raise SystemExit(__doc__)
