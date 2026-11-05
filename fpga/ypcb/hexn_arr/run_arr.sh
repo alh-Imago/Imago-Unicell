@@ -7,6 +7,7 @@
 # Builds go to $OUT (default /media/alan/InternalHDD/hexn_builds; override: OUT=/mnt/hdd/hexn_builds bash ...). Only builds; never touches a board.
 set -u
 PATS=${*:-hex7_off2_mix}
+[ -n "${HEXN_BASE:-}" ] && PATS=base      # BASE design: HEXN_BASE=hex7_off2_mix,hex6 bash run_arr.sh   (judge + those arrays + program library; folder arr_base...)
 SUF=${HEXN_FRAME:+_$HEXN_FRAME}$( case "${HEXN_NORAM:-}" in "") ;; 1) echo _noram;; *) echo _noram_$HEXN_NORAM;; esac )      # build folder suffix: arr_hex5_v5 for the debug frame, so the v4 builds are kept
 : "${OUT:=/media/alan/InternalHDD/hexn_builds}"
 : "${CHIPDB:=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin}"; export CHIPDB
@@ -15,7 +16,7 @@ SUF=${HEXN_FRAME:+_$HEXN_FRAME}$( case "${HEXN_NORAM:-}" in "") ;; 1) echo _nora
 [ -d "$OUT" ] || { echo "$OUT is not there (disk not mounted?). Set OUT=<big disk folder>"; exit 1; }
 for p in $PATS; do
   name=arr_$p$SUF; ref=$HOME/hexn-wt/docs/hex-n/data/hexrefs/$p.json
-  [ -s "$ref" ] || { echo "no reference $ref"; continue; }
+  [ -n "${HEXN_BASE:-}" ] || [ -s "$ref" ] || { echo "no reference $ref"; continue; }
   mkdir -p $OUT/$name && ln -sfn $OUT/$name designs/hexn_arr/build_$name
   echo "=== $(date '+%F %T') start $name"
   HEXN_REPO=$HOME/hexn-wt HEXN_REF=$ref BUILD=build_$name THREADS=4 FPGA_HOST=$(hostname -s) \
