@@ -30,11 +30,38 @@ def selftest(link, v, out=print):
     out("SELFTEST " + ("PASS" if ok else "FAIL")); return ok
 
 
+STATUS_FIELDS = ["state|trun", "log_n", "tick_lo", "tick_hi", "cfg_lo", "cfg_hi", "ov_lo", "ov_hi", "ovmask", "ibusy_now", "ibusy_ever", "rx_lo", "rx_hi"]
+
+
+def status(link):
+    """frame v5 only: command S -> 13 bytes, decoded. state 7 = the status reply itself (the frame is sending it)"""
+    link.write(b"S"); b = Hh.rd(link, 13, "S status")
+    return dict(trun=(b[0] >> 4) & 1, state=b[0] & 15, log_n=b[1], tick=b[2] | b[3] << 8, cfg_bits=b[4] | b[5] << 8, ov_pulses=b[6] | b[7] << 8,
+                ovmask=b[8], ibusy_now=b[9], ibusy_ever=b[10], rx_bytes=b[11] | b[12] << 8)
+
+
+def probe(link, v, out=print):
+    """frame v5 only: the first test of the vector, with the status printed after every stage: shows how far the data gets on the card"""
+    t = v["tests"][0]; chain = bytes.fromhex(t["chain_hex"]); out("chain %d bytes = %d bits; test %s" % (len(chain), len(chain) * 8, t["name"]))
+    out("start       %s" % status(link))
+    link.write(b"W"); Hh.k(link, "wipe"); out("after W     %s" % status(link))
+    link.write(b"B" + chain); Hh.k(link, "chain"); out("after B     %s" % status(link))
+    for row, word in t["inputs"]:
+        link.write(bytes([ord("D"), row]) + word.to_bytes(4, "little")); Hh.k(link, "D")
+    out("after D     %s" % status(link))
+    link.write(bytes([ord("G"), t["mask"]])); Hh.k(link, "G")
+    for dl in (0.0, 0.3, 1.0):
+        time.sleep(dl); out("after G +%.1fs %s" % (dl, status(link)))
+    link.write(b"L"); n = Hh.rd(link, 1, "L count")[0]; out("L count %d" % n)
+
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["id", "selftest"]); ap.add_argument("vector", nargs="?"); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["id", "selftest", "status", "probe"]); ap.add_argument("vector", nargs="?"); a = ap.parse_args()
     ex = J.OpenOCDExec(find_cfg()); link = J.JtagLink(ex.scan, maxpoll=3000)
     try:
         if a.cmd == "id": pid, rows = Hh.ident(link); print("pattern id %08X rows %d" % (pid, rows)); ok = True
+        elif a.cmd == "status": print(status(link)); ok = True
+        elif a.cmd == "probe": probe(link, json.load(open(a.vector))); ok = True
         else: ok = selftest(link, json.load(open(a.vector)))
         print("frames: %d scans, %d bad captures (CRC), %d resent frames" % (link.scans, link.bad, link.resends))
     finally:

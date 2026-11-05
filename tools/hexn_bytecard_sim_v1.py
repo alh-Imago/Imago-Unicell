@@ -29,6 +29,7 @@ def encode(cmds):
             put(ord("D")); put(c[1])
             for i in range(4): put((c[2] >> (8 * i)) & 255)
             idle(1200); plan.append(("K", 1))
+        elif k == "S": put(ord("S")); idle(1200); plan.append(("S", 13))
         elif k == "G": put(ord("G")); put(c[1]); idle(1200); plan.append(("K", 1))
         elif k == "L": put(ord("L")); idle(113 * 40 + 3000); plan.append(("L", None))
         else: raise ValueError(k)
@@ -53,6 +54,7 @@ class ByteSim:
         res = []; p = 0
         for kind, n in plan:
             if kind == "K": res.append(bytes(by[p:p + 1])); p += 1
+            elif kind == "S": res.append(list(by[p:p + 13])); p += 13
             elif kind == "I": r = by[p:p + 5]; res.append(dict(pattern_id=int.from_bytes(bytes(r[:4]), "little"), rows=r[4])); p += 5
             else:
                 cnt = by[p]; p += 1; ents = []

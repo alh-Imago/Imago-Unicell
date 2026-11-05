@@ -3,17 +3,18 @@
 # Run from ~/ypcb-00338-1p1 inside the openXC7 nix shell, NO sudo, after:
 #   git -C ~/hexn-wt pull origin Hex-N
 #   ln -sfn ~/hexn-wt/fpga/ypcb/hexn_arr designs/hexn_arr
-# Usage: bash ~/hexn-wt/fpga/ypcb/hexn_arr/run_arr.sh [PATTERNS...]     default: hex7_off2_mix   (others: hex6 hex5)
+# Usage: bash ~/hexn-wt/fpga/ypcb/hexn_arr/run_arr.sh [PATTERNS...]   (HEXN_FRAME=v5 in front builds the debug frame with the S status command)     default: hex7_off2_mix   (others: hex6 hex5)
 # Builds go to $OUT (default /media/alan/InternalHDD/hexn_builds; override: OUT=/mnt/hdd/hexn_builds bash ...). Only builds; never touches a board.
 set -u
 PATS=${*:-hex7_off2_mix}
+SUF=${HEXN_FRAME:+_$HEXN_FRAME}      # build folder suffix: arr_hex5_v5 for the debug frame, so the v4 builds are kept
 : "${OUT:=/media/alan/InternalHDD/hexn_builds}"
 : "${CHIPDB:=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin}"; export CHIPDB
 [ -s "$CHIPDB" ] || { echo "CHIPDB file not found or empty: $CHIPDB"; exit 1; }
 [ -d designs/hexn_arr ] || { echo "run this from ~/ypcb-00338-1p1 after: ln -sfn ~/hexn-wt/fpga/ypcb/hexn_arr designs/hexn_arr"; exit 1; }
 [ -d "$OUT" ] || { echo "$OUT is not there (disk not mounted?). Set OUT=<big disk folder>"; exit 1; }
 for p in $PATS; do
-  name=arr_$p; ref=$HOME/hexn-wt/docs/hex-n/data/hexrefs/$p.json
+  name=arr_$p$SUF; ref=$HOME/hexn-wt/docs/hex-n/data/hexrefs/$p.json
   [ -s "$ref" ] || { echo "no reference $ref"; continue; }
   mkdir -p $OUT/$name && ln -sfn $OUT/$name designs/hexn_arr/build_$name
   echo "=== $(date '+%F %T') start $name"
@@ -25,8 +26,8 @@ for p in $PATS; do
 done
 echo; echo "SUMMARY (from the logs; the clock is nextpnr's estimate, NOT a measurement on silicon)"
 for p in $PATS; do
-  f=$OUT/arr_$p.log; echo "--- $p"
+  f=$OUT/arr_$p$SUF.log; echo "--- $p"
   grep -E "Max frequency" $f | tail -4
-  grep -E -A8 "Device utilisation" $OUT/arr_$p/hexn_arr.nextpnr.log | head -9
-  ls $OUT/arr_$p/*.bit >/dev/null 2>&1 && echo "bitstream: yes" || echo "bitstream: NO (see $f)"
+  grep -E -A8 "Device utilisation" $OUT/arr_$p$SUF/hexn_arr.nextpnr.log | head -9
+  ls $OUT/arr_$p$SUF/*.bit >/dev/null 2>&1 && echo "bitstream: yes" || echo "bitstream: NO (see $f)"
 done
