@@ -39,11 +39,14 @@ def expected_results(W, bias, classes_rows):
 
 
 # ---- detector side ----
-def detector_sim_link():
+SRCS_V9 = ["rtl/hexn_core_v9.v", "rtl/hexn_mem_v1.v", "rtl/gen/hexn_lattice_hex7_w18_v18.v", "rtl/hexn_bank_v19.v", "rtl/hexn_det_v3.v", "rtl/hexn_glue_v1.v", "rtl/hexn_cell_v5.v", "rtl/hexn_trainbank_v9.v", "rtl/hexn_cfgbank_v2.v", "rtl/hexn_sdiv_v1.v", "rtl/hexn_loader_v1.v", "rtl/hexn_hold_v1.v", "rtl/hexn_hold_v2.v", "rtl/hexn_store_v5.v"]
+
+
+def detector_sim_link(core="v2"):
     sys.path.insert(0, HERE); import hexn_jtag_host_v1 as J, hexn_jtag_check_v1 as C
-    d = tempfile.mkdtemp(prefix="kxl1_"); tb = open(os.path.join(ROOT, "rtl", "tb_hexn_jtag_v1.v")).read().replace("hexn_core_v1 core", "hexn_core_v2 core"); tbp = os.path.join(d, "tb_core_v2.v"); open(tbp, "w").write(tb)
+    d = tempfile.mkdtemp(prefix="kxl1_"); tb = open(os.path.join(ROOT, "rtl", "tb_hexn_jtag_v1.v")).read().replace("hexn_core_v1 core", "hexn_core_%s core" % core); tbp = os.path.join(d, "tb_core_v2.v"); open(tbp, "w").write(tb)
     out = os.path.join(d, "s.vvp")
-    cmd = ["iverilog", "-g2012", "-o", out, "-DFSP=128", "-DREALCORE", "-DLATMOD=hexn_lattice_hex7_v16", "-DNBW=%d" % NB, "-DAWB=%d" % AW, "-DNCLS=%d" % K, "-DNCELL=1", "-DACCMODE=0", tbp, os.path.join(ROOT, "rtl/hexn_jtag_bridge_v1.v"), os.path.join(ROOT, "rtl/sim/bscane2_model.v")] + [os.path.join(ROOT, f) for f in CORE_SRCS]
+    cmd = ["iverilog", "-g2012", "-o", out, "-DFSP=128", "-DREALCORE", "-DLATMOD=hexn_lattice_hex7_v%d" % (18 if core == "v9" else 16), "-DNBW=%d" % NB, "-DAWB=%d" % AW, "-DNCLS=%d" % K, "-DNCELL=1", "-DACCMODE=0", tbp, os.path.join(ROOT, "rtl/hexn_jtag_bridge_v1.v"), os.path.join(ROOT, "rtl/sim/bscane2_model.v")] + [os.path.join(ROOT, f) for f in (SRCS_V9 if core == "v9" else CORE_SRCS)]
     r = subprocess.run(cmd, capture_output=True, text=True); assert r.returncode == 0, r.stderr[:1500]
     ex = J.SimExec(out); return ex, J.JtagLink(ex.scan)
 
@@ -54,12 +57,24 @@ def detector_card_link():
     ex = J.OpenOCDExec(KA.find_cfg()); return ex, J.JtagLink(ex.scan, maxpoll=3000)
 
 
-def run_classes(link, m, samples):
-    """train the bank, run every sample; -> classes[nwords][NS], and the number of answers that differ from the model"""
-    import hexn_tang_host_v3 as H
-    b = H.Board(link, K, NB)
+def run_classes(link, m, samples, core="v2", hold=3):
+    """train the bank, run every sample; -> classes[nwords][NS], and the number of answers that differ from the model.
+    v2: the bank's class per sample (no class = -1). v9: one stream per sensor with the HOLD counter (n samples in a row before the class changes; SETHOLD resets it per sensor); the held class (15 = none, -1 here) and its change flag are checked against the hold reference."""
+    import hexn_tang_host_v3 as H, hexn_hold_card_v1 as HC
+    b = (HC.HB if core == "v9" else H.Board)(link, K, NB)
     if not b.sync(): raise SystemExit("the detector does not answer (is the detector build loaded, HEXN_CHAIN=1?)")
-    b.train(m); classes = []; bad = 0
+    b.train(m); bad = 0; nw = len(samples)
+    if core == "v9":
+        classes = [[-1] * NS for _ in range(nw)]
+        for s in range(NS):
+            b.sethold(hold); raws = []; got = []
+            for t in range(nw):
+                bits, y = samples[t][s]; hc, fl, raw = b.runhold(H.mask(bits)); got.append((hc, fl & 1, (fl >> 1) & 1))
+                rc = M.classify(m, [(bits, y)])[0][0]; raws.append(15 if rc < 0 else rc)
+            ref = HC.hold_ref(raws, hold); bad += sum(1 for g, (rc_, rch) in zip(got, ref) if g != (rc_, 1, rch))
+            for t in range(nw): classes[t][s] = got[t][0] if (got[t][1] and got[t][0] < 12) else -1
+        return classes, bad
+    classes = []
     for row in samples:
         got = []
         for bits, y in row:
@@ -109,16 +124,16 @@ def judge_card(W, bias, classes):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["classes", "judge", "sim"]); ap.add_argument("--seed", type=int, default=1); ap.add_argument("--words", type=int, default=40); ap.add_argument("--file", default="kxl1_classes.json")
+    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["classes", "judge", "sim"]); ap.add_argument("--seed", type=int, default=1); ap.add_argument("--words", type=int, default=40); ap.add_argument("--file", default="kxl1_classes.json"); ap.add_argument("--core", choices=["v2", "v9"], default="v2"); ap.add_argument("--hold", type=int, default=3)
     a = ap.parse_args(); m, samples, W, bias = make_data(a.seed, a.words)
     if a.cmd in ("classes", "sim"):
-        ex, link = detector_sim_link() if a.cmd == "sim" else detector_card_link()
-        try: classes, bad = run_classes(link, m, samples)
+        ex, link = detector_sim_link(a.core) if a.cmd == "sim" else detector_card_link()
+        try: classes, bad = run_classes(link, m, samples, a.core, a.hold)
         finally: ex.close()
         truth = [[y for _, y in row] for row in samples]; right = sum(c == t for cr, tr in zip(classes, truth) for c, t in zip(cr, tr)); tot = a.words * NS; none = sum(c < 0 for r in classes for c in r)
         print("detector: %d samples, %d differ from the model, %d match the true class (%.1f%%), %d with no class" % (tot, bad, right, 100.0 * right / tot, none))
         if a.cmd == "classes":
-            json.dump(dict(seed=a.seed, words=a.words, classes=classes), open(a.file, "w")); print("wrote %s" % a.file); sys.exit(0 if bad == 0 else 1)
+            json.dump(dict(seed=a.seed, words=a.words, core=a.core, hold=a.hold, classes=classes), open(a.file, "w")); print("wrote %s" % a.file); sys.exit(0 if bad == 0 else 1)
     else:
         d = json.load(open(a.file)); assert d["seed"] == a.seed and d["words"] == a.words, "the file was made with another --seed / --words"; classes = d["classes"]; bad = 0
     n, jb = judge_sim(W, bias, classes) if a.cmd == "sim" else judge_card(W, bias, classes)
