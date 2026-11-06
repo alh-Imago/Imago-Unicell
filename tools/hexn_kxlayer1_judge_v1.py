@@ -49,6 +49,7 @@ def detector_sim_link():
 
 
 def detector_card_link():
+    os.environ.setdefault("HEXN_CHAIN", "1")      # the detector build's bridge is on USER1; hexn_kxarr_host_v1 would otherwise default the chain to 2 (the base) when it is imported
     import hexn_jtag_host_v1 as J, hexn_kxarr_host_v1 as KA
     ex = J.OpenOCDExec(KA.find_cfg()); return ex, J.JtagLink(ex.scan, maxpoll=3000)
 
