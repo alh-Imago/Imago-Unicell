@@ -9,7 +9,7 @@ import hexn_kxlayer1_judge_v1 as L, hexn_scorer_ref_v1 as R
 def test_packing_none_rule_and_reference():
     row = [0, 3, -1, 6, 1, 2, 5, 4]; assert L.bins_of(row) == [0, 3, L.NONE_BIN, 6, 1, 2, 5, 4]
     w = R.w_score(L.bins_of(row)); assert [(w >> 4 * i) & 15 for i in range(8)] == L.bins_of(row) and w >> 28 < 12      # the top nibble is sensor 7's bin, a score word
-    m, samples, W, bias = L.make_data(1, 2); assert len(samples) == 2 and len(samples[0]) == 8 and W.shape == (2, 8, 16)
+    m, samples, W, bias = L.make_data(1, 2); assert len(samples) == 2 and len(samples[0]) == 8 and len(W) == 2 and len(W[0]) == 8 and len(W[0][0]) == 16
     e = L.expected_results(W, bias, [row]); assert e == [R.score(W, bias, L.bins_of(row))[0]]
 
 

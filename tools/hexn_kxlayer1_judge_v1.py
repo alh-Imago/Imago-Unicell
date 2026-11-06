@@ -8,7 +8,9 @@ One time-shared bank serves all eight sensors (same 7 classes on every sensor: a
 Reference: tools/hexn_scorer_ref_v1.py (the word formats), tools/hexn_bank_model_v2.py (the detector's rules)."""
 import argparse, json, os, random, shutil, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE); sys.path.insert(0, HERE)
-import numpy as np
+try: import numpy      # the scorer reference imports numpy for its random-vector maker only; the nix shell on the card machine has none, so a stand-in is enough here
+except ImportError:
+    import types; sys.modules["numpy"] = types.ModuleType("numpy")
 import hexn_bank_model_v2 as M, hexn_scorer_ref_v1 as R
 NS = 8; K = 7; NB = 18; AW = 7; NONE_BIN = 11
 CORE_SRCS = ["rtl/hexn_core_v2.v", "rtl/hexn_mem_v1.v", "rtl/gen/hexn_lattice_hex7_w18_v16.v", "rtl/hexn_bank_v17.v", "rtl/hexn_det_v3.v", "rtl/hexn_glue_v1.v", "rtl/hexn_cell_v5.v", "rtl/hexn_trainbank_v9.v", "rtl/hexn_cfgbank_v2.v", "rtl/hexn_sdiv_v1.v"]
@@ -25,7 +27,7 @@ def make_data(seed, nwords, noise=0.10):
         for s in range(NS):
             y = rnd.randrange(K); row.append((M.sample(rnd, m["tpl"][y], noise), y))
         samples.append(row)
-    rng = np.random.default_rng(seed); W = rng.integers(-127, 128, size=(2, NS, 16)); bias = int(rng.integers(-300, 300))
+    wr = random.Random(seed + 5); W = [[[wr.randint(-127, 127) for _ in range(16)] for _ in range(NS)] for _ in range(2)]; bias = wr.randint(-300, 299)
     return m, samples, W, bias
 
 
