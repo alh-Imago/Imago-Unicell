@@ -16,3 +16,8 @@ A record of a list of ideas, not a design. Source: Alan pasted a seven-step summ
 - Steps 1 to 3 are largely covered by what exists (detector, stores, weight store). Steps 4 and 5 exist as models and layer-2 hardware but not on the Kintex. Steps 6 and 7 are the least built.
 - The auto picker (the judge selecting a program from the data) is the first working piece of step 6, and stop-and-flag is a first piece of step 7.
 - No decision is recorded here. Next: Alan to say which steps matter first and whether the interrupt idea fits the no-interrupt principle.
+
+## Alan's rulings on this list (6 Nov, 09:49)
+- It is a forward list of ideas; the current v9 detector tests and the work built so far still stand and are not changed by it.
+- Much of it is close to what already exists and can be applied almost directly; it will expand when the neural cell design is reached.
+- The interrupt part of the focus system needs careful handling: Alan dislikes interrupts (consistent with UniCell's no-interrupt principle). Treat step 7 as a design to be reworked without true interrupts (flag and poll, or scheduled checks), not built as the idea is worded.
