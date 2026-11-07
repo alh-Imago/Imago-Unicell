@@ -57,3 +57,25 @@ def test_l2_next_learns_a_fixed_successor_and_experiment_runs_with_sequences():
     assert len(S.l2_inputs_of(det, "both")[0]) == 16 and len(S.l2_inputs_of(det, "replace")[0]) == 8
     r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, seq=0.9, l2_pred="both")
     assert len(r["B"]) == 1
+
+
+def test_majority_vote():
+    det = [[1] * 8, [1] * 8, [2] * 8, [1] * 8, [2] * 8, [2] * 8, [2] * 8]
+    v = S.majority(det, 3)
+    assert v[2] == [1] * 8 and v[3] == [1] * 8                  # a one-word glitch is outvoted
+    assert v[5] == [2] * 8 and v[6] == [2] * 8
+    assert S.majority(det, 1) == det
+    det2 = [[-1] * 8, [3] * 8, [-1] * 8]
+    assert S.majority(det2, 3)[2] == [3] * 8 and S.majority([[-1] * 8] * 3, 3)[2] == [-1] * 8   # no class abstains
+    r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, maj=3, maj_labels=True)
+    assert len(r["B"]) == 1
+
+
+def test_carry_forward_only_fills_no_class_words():
+    det = [[2] * 8, [-1] * 8, [-1] * 8, [-1] * 8, [5] * 8]
+    assert S.carry(det, 1)[1] == [2] * 8 and S.carry(det, 1)[2] == [-1] * 8
+    assert S.carry(det, 2)[2] == [2] * 8 and S.carry(det, 2)[3] == [-1] * 8
+    assert S.carry(det, 3)[4] == [5] * 8 and S.carry(det, 0) == det
+    assert S.majority(det, 2)[:3] == S.carry(det, 1)[:3]          # a window-2 vote is carry-forward by one word
+    r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, carry_k=2, carry_labels=True)
+    assert len(r["B"]) == 1

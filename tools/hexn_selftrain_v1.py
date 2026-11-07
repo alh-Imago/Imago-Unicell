@@ -36,6 +36,37 @@ def score(W, bias, bins):
 def clip(v, lo=-127, hi=127): return max(lo, min(hi, v))
 
 
+def majority(det, n):
+    """a vote over the last n detected words, per sensor. 'No class' (-1) abstains. The most frequent class wins; a tie goes to the class seen in the present word if it is among the leaders, else to the one seen most recently. An odd n cannot tie between two classes, which is why odd n is expected to work better (Alan, 7 Nov). n <= 1 leaves the stream alone."""
+    if n <= 1: return det
+    out = []
+    for t in range(len(det)):
+        row = []
+        for s in range(NS):
+            win = [det[k][s] for k in range(max(0, t - n + 1), t + 1)]; cnt = {}
+            for c in win:
+                if c >= 0: cnt[c] = cnt.get(c, 0) + 1
+            if not cnt: row.append(-1); continue
+            top = max(cnt.values()); lead = [c for c, v in cnt.items() if v == top]
+            row.append(det[t][s] if det[t][s] in lead else next(c for c in reversed(win) if c in lead))
+        out.append(row)
+    return out
+
+
+def carry(det, k):
+    """carry forward: where the detector says 'no class' (-1), use the last class seen for that sensor if it was at most k words ago, else stay -1. Only the 'no class' words change; a class the detector did give is never altered. k <= 0 leaves the stream alone. (A vote of window 2 does exactly this for k = 1.)"""
+    if k <= 0: return det
+    out = []; last = [(-1, -10 ** 9)] * NS
+    for t in range(len(det)):
+        row = []
+        for s in range(NS):
+            c = det[t][s]
+            if c >= 0: last[s] = (c, t); row.append(c)
+            else: row.append(last[s][0] if t - last[s][1] <= k else -1)
+        out.append(row)
+    return out
+
+
 def l2_next(det, minc=2):
     """a layer 2 stand-in that predicts: per sensor, from (current detected class, how many words it has lasted, capped) it learns online which class follows,
     and gives the predicted class for the NEXT word. No prediction yet (fewer than minc sightings) -> the current class. Learned only from the detected stream."""
@@ -63,7 +94,7 @@ def l2_inputs_of(det, mode):
     return [J.bins_of(p) for p in pr] if mode == "replace" else [J.bins_of(c) + J.bins_of(p) for c, p in zip(det, pr)]
 
 
-def stream(m, seed, nwords, noise, dwell, hold=0, l2_fill=False, seq=0.0, l2_pred=None):
+def stream(m, seed, nwords, noise, dwell, hold=0, l2_fill=False, seq=0.0, l2_pred=None, maj=0, carry_k=0):
     """-> (true classes[nwords][NS], detected classes[nwords][NS]); same templates (m), its own random stream."""
     rnd = random.Random(seed); cur = [0] * NS; left = [0] * NS; truth = []; samples = []
     for _ in range(nwords):
@@ -77,7 +108,7 @@ def stream(m, seed, nwords, noise, dwell, hold=0, l2_fill=False, seq=0.0, l2_pre
         truth.append(yrow); samples.append(row)
     flat = [x for row in samples for x in row]; got = [c for c, _ in M.classify(m, flat)]
     det = hold_det([got[i * NS:(i + 1) * NS] for i in range(nwords)], hold)
-    inp = l2_inputs_of(det, l2_pred) if l2_pred else None
+    inp = l2_inputs_of(det, l2_pred) if l2_pred else ([J.bins_of(r) for r in majority(carry(det, carry_k), maj)] if (maj > 1 or carry_k > 0) else None)   # maj: the vote cleans the judge's inputs; det itself stays raw
     return truth, (layer2(det, "fill") if l2_fill else det), inp
 
 
@@ -176,12 +207,12 @@ def live_run(W, bias, WA, biasA, live, step, ceil, held, every, from_zero=False,
 
 
 def experiment(seed=3, teacher_words=300, live_words=3000, held_words=600, teach_noise=(0.05, 0.10, 0.15), live_noise=0.20, dwell=6,
-               t_step=8, epochs=20, step=1, ceil=24, every=500, from_zero=False, conf_filter=False, vote=1, hold=0, hold_labels=0, l2_inputs=False, l2_labels=False, seq=0.0, l2_pred=None):
+               t_step=8, epochs=20, step=1, ceil=24, every=500, from_zero=False, conf_filter=False, vote=1, hold=0, hold_labels=0, l2_inputs=False, l2_labels=False, seq=0.0, l2_pred=None, maj=0, maj_labels=False, carry_k=0, carry_labels=False):
     m = M.make(seed, J.K, J.NB, J.AW, 16, 0.15); data = []
-    for i, nz in enumerate(teach_noise): data += [(b, yt) for b, yt, _ in pairs(*stream(m, seed * 1000 + i, teacher_words, nz, dwell, hold, l2_inputs, seq, l2_pred))]
+    for i, nz in enumerate(teach_noise): data += [(b, yt) for b, yt, _ in pairs(*stream(m, seed * 1000 + i, teacher_words, nz, dwell, hold, l2_inputs, seq, l2_pred, maj, carry_k))]
     WA, biasA = perceptron(*zero(2 * NS if l2_pred == 'both' else NS), data, epochs, t_step)
-    held = pairs(*stream(m, seed * 1000 + 50, held_words, live_noise, dwell, hold, l2_inputs, seq, l2_pred)); lt, ld, linp = stream(m, seed * 1000 + 60, live_words, live_noise, dwell, hold, False, seq, l2_pred); live = pairs(lt, layer2(ld, "fill") if l2_inputs else ld, linp)
-    ldl = layer2(ld, "mask") if l2_labels else hold_det(ld, hold_labels)                 # hold_labels: the hold counter applied to the labels only; the judge's inputs stay unheld
+    held = pairs(*stream(m, seed * 1000 + 50, held_words, live_noise, dwell, hold, l2_inputs, seq, l2_pred, maj, carry_k)); lt, ld, linp = stream(m, seed * 1000 + 60, live_words, live_noise, dwell, hold, False, seq, l2_pred, maj, carry_k); live = pairs(lt, layer2(ld, "fill") if l2_inputs else ld, linp)
+    ldl = layer2(ld, "mask") if l2_labels else majority(carry(ld, carry_k), maj) if (maj_labels or carry_labels) else hold_det(ld, hold_labels)                 # hold_labels: the hold counter applied to the labels only; the judge's inputs stay unheld
     live = [(b, yt, event(ldl[t + 1])) for t, (b, yt, _) in enumerate(live)]
     conf = [confident(ldl[t + 1]) for t in range(len(ldl) - 1)] if conf_filter else None
     accA, _ = evaluate(WA, biasA, held, WA, biasA)
@@ -197,9 +228,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--seed", type=int, default=3); ap.add_argument("--live-words", type=int, default=3000); ap.add_argument("--live-noise", type=float, default=0.20)
     ap.add_argument("--dwell", type=int, default=6); ap.add_argument("--step", type=int, default=1); ap.add_argument("--ceil", type=int, default=24)
-    ap.add_argument("--every", type=int, default=500); ap.add_argument("--from-zero", action="store_true"); ap.add_argument("--conf", action="store_true"); ap.add_argument("--vote", type=int, default=1); ap.add_argument("--hold", type=int, default=0); ap.add_argument("--hold-labels", type=int, default=0); ap.add_argument("--l2-inputs", action="store_true"); ap.add_argument("--seq", type=float, default=0.0); ap.add_argument("--l2-pred", choices=["replace", "both"]); ap.add_argument("--l2-labels", action="store_true")
+    ap.add_argument("--every", type=int, default=500); ap.add_argument("--from-zero", action="store_true"); ap.add_argument("--conf", action="store_true"); ap.add_argument("--vote", type=int, default=1); ap.add_argument("--hold", type=int, default=0); ap.add_argument("--hold-labels", type=int, default=0); ap.add_argument("--l2-inputs", action="store_true"); ap.add_argument("--seq", type=float, default=0.0); ap.add_argument("--maj", type=int, default=0); ap.add_argument("--maj-labels", action="store_true"); ap.add_argument("--carry", type=int, default=0); ap.add_argument("--carry-labels", action="store_true"); ap.add_argument("--l2-pred", choices=["replace", "both"]); ap.add_argument("--l2-labels", action="store_true")
     a = ap.parse_args()
-    r = experiment(a.seed, live_words=a.live_words, live_noise=a.live_noise, dwell=a.dwell, step=a.step, ceil=a.ceil, every=a.every, from_zero=a.from_zero, conf_filter=a.conf, vote=a.vote, hold=a.hold, hold_labels=a.hold_labels, l2_inputs=a.l2_inputs, l2_labels=a.l2_labels, seq=a.seq, l2_pred=a.l2_pred)
+    r = experiment(a.seed, live_words=a.live_words, live_noise=a.live_noise, dwell=a.dwell, step=a.step, ceil=a.ceil, every=a.every, from_zero=a.from_zero, conf_filter=a.conf, vote=a.vote, hold=a.hold, hold_labels=a.hold_labels, l2_inputs=a.l2_inputs, l2_labels=a.l2_labels, seq=a.seq, l2_pred=a.l2_pred, maj=a.maj, maj_labels=a.maj_labels, carry_k=a.carry, carry_labels=a.carry_labels)
     print("A (teacher only): held-out accuracy %.3f (training %.3f); event rate %.3f; self label right %.3f of the time" % (r["A_accuracy"], r["A_train_accuracy"], r["event_rate"], r["self_label_vs_truth"]))
     for name in ("B", "C"):
         if name in r:
