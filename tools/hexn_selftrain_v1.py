@@ -35,7 +35,7 @@ def score(W, bias, bins):
 def clip(v, lo=-127, hi=127): return max(lo, min(hi, v))
 
 
-def stream(m, seed, nwords, noise, dwell):
+def stream(m, seed, nwords, noise, dwell, hold=0):
     """-> (true classes[nwords][NS], detected classes[nwords][NS]); same templates (m), its own random stream."""
     rnd = random.Random(seed); cur = [0] * NS; left = [0] * NS; truth = []; samples = []
     for _ in range(nwords):
@@ -48,8 +48,17 @@ def stream(m, seed, nwords, noise, dwell):
             yrow.append(y); row.append((M.sample(rnd, m["tpl"][y], noise), y))
         truth.append(yrow); samples.append(row)
     flat = [x for row in samples for x in row]; got = [c for c, _ in M.classify(m, flat)]
-    det = [got[i * NS:(i + 1) * NS] for i in range(nwords)]
+    det = hold_det([got[i * NS:(i + 1) * NS] for i in range(nwords)], hold)
     return truth, det
+
+
+def hold_det(det, n):
+    """the layer 1 hold counter, as a filter on a detected stream: a sensor's class is passed on only after the same class was seen n words in a row; otherwise 'no class' (-1). n <= 1 leaves the stream alone."""
+    if n <= 1: return det
+    out = []
+    for t in range(len(det)):
+        out.append([det[t][s] if t >= n - 1 and det[t][s] >= 0 and all(det[t - k][s] == det[t][s] for k in range(n)) else -1 for s in range(NS)])
+    return out
 
 
 def pairs(truth, det):
@@ -91,41 +100,46 @@ def evaluate(W, bias, held, WA, biasA):
 def drift(W, WA): return max(abs(W[c][s][b] - WA[c][s][b]) for c in range(2) for s in range(NS) for b in range(16))
 
 
-def live_run(W, bias, WA, biasA, live, step, ceil, held, every, from_zero=False, conf=None, batch=1):
-    """the self-feedback loop. Prediction for word t is made before word t+1 is seen; the self label then decides the update."""
-    W = json.loads(json.dumps(W)); curve = []; hits = 0; pend = []
+def live_run(W, bias, WA, biasA, live, step, ceil, held, every, from_zero=False, conf=None, vote=1):
+    """the self-feedback loop. Prediction for word t is made before word t+1 is seen; the self label then decides the update.
+    vote > 1: every mismatch only adds one vote for each weight it concerns; a weight moves by STEP once it holds VOTE net votes the same way, so a stray wrong label is outvoted."""
+    W = json.loads(json.dumps(W)); curve = []; hits = 0; acc = {}
+
+    def nudge(c, s, b, sign):
+        k = (c, s, b); acc[k] = acc.get(k, 0) + sign
+        if abs(acc[k]) >= vote:
+            v = clip(W[c][s][b] + step * (1 if acc[k] > 0 else -1)); acc[k] = 0
+            if not from_zero: v = max(WA[c][s][b] - ceil, min(WA[c][s][b] + ceil, v))
+            W[c][s][b] = v
     for i, (bins, _, ys) in enumerate(live):
         p = score(W, bias, bins)[0]; hits += (p == ys)
         if p != ys and step and (conf is None or conf[i]):
-            d = step if ys == 1 else -step; pend.append((bins, d))
-            if len(pend) >= batch:                  # batch > 1: the pending corrections are summed and applied together, so a stray wrong label is outvoted
-                for bn, dd0 in pend:
-                    for s in range(NS):
-                        for c, dd in ((1, dd0), (0, -dd0)):
-                            v = clip(W[c][s][bn[s]] + dd)
-                            if not from_zero: v = max(WA[c][s][bn[s]] - ceil, min(WA[c][s][bn[s]] + ceil, v))
-                            W[c][s][bn[s]] = v
-                    bias = clip(bias - dd0, -300, 299)
-                    if not from_zero: bias = max(biasA - ceil, min(biasA + ceil, bias))
-                pend = []
+            d = 1 if ys == 1 else -1
+            for s in range(NS): nudge(1, s, bins[s], d); nudge(0, s, bins[s], -d)
+            k = ("bias",); acc[k] = acc.get(k, 0) - d
+            if abs(acc[k]) >= vote:
+                bias = clip(bias + step * (1 if acc[k] > 0 else -1), -300, 299); acc[k] = 0
+                if not from_zero: bias = max(biasA - ceil, min(biasA + ceil, bias))
         if (i + 1) % every == 0:
-            acc, agr = evaluate(W, bias, held, WA, biasA); curve.append((i + 1, acc, agr, drift(W, WA), hits / (i + 1)))
+            a_, g_ = evaluate(W, bias, held, WA, biasA); curve.append((i + 1, a_, g_, drift(W, WA), hits / (i + 1)))
     return W, bias, curve
 
 
 def experiment(seed=3, teacher_words=300, live_words=3000, held_words=600, teach_noise=(0.05, 0.10, 0.15), live_noise=0.20, dwell=6,
-               t_step=8, epochs=20, step=1, ceil=24, every=500, from_zero=False, conf_filter=False, batch=1):
+               t_step=8, epochs=20, step=1, ceil=24, every=500, from_zero=False, conf_filter=False, vote=1, hold=0, hold_labels=0):
     m = M.make(seed, J.K, J.NB, J.AW, 16, 0.15); data = []
-    for i, nz in enumerate(teach_noise): data += [(b, yt) for b, yt, _ in pairs(*stream(m, seed * 1000 + i, teacher_words, nz, dwell))]
+    for i, nz in enumerate(teach_noise): data += [(b, yt) for b, yt, _ in pairs(*stream(m, seed * 1000 + i, teacher_words, nz, dwell, hold))]
     WA, biasA = perceptron(*zero(), data, epochs, t_step)
-    held = pairs(*stream(m, seed * 1000 + 50, held_words, live_noise, dwell)); lt, ld = stream(m, seed * 1000 + 60, live_words, live_noise, dwell); live = pairs(lt, ld)
-    conf = [confident(ld[t + 1]) for t in range(len(ld) - 1)] if conf_filter else None
+    held = pairs(*stream(m, seed * 1000 + 50, held_words, live_noise, dwell, hold)); lt, ld = stream(m, seed * 1000 + 60, live_words, live_noise, dwell, hold); live = pairs(lt, ld)
+    ldl = hold_det(ld, hold_labels)                 # hold_labels: the hold counter applied to the labels only; the judge's inputs stay unheld
+    live = [(b, yt, event(ldl[t + 1])) for t, (b, yt, _) in enumerate(live)]
+    conf = [confident(ldl[t + 1]) for t in range(len(ldl) - 1)] if conf_filter else None
     accA, _ = evaluate(WA, biasA, held, WA, biasA)
     out = {"A_accuracy": accA, "A_train_accuracy": evaluate(WA, biasA, [(b, y, 0) for b, y in data], WA, biasA)[0],
            "self_label_vs_truth": sum(1 for _, a, b in live if a == b) / len(live), "event_rate": sum(y for _, y, _ in held) / len(held)}
-    WB, biasB, out["B"] = live_run(WA, biasA, WA, biasA, live, step, ceil, held, every, conf=conf, batch=batch)
+    WB, biasB, out["B"] = live_run(WA, biasA, WA, biasA, live, step, ceil, held, every, conf=conf, vote=vote)
     if from_zero:
-        W0, b0 = zero(); WC, biasC, out["C"] = live_run(W0, b0, WA, biasA, live, step, ceil, held, every, True, conf, batch)
+        W0, b0 = zero(); WC, biasC, out["C"] = live_run(W0, b0, WA, biasA, live, step, ceil, held, every, True, conf, vote)
     return out
 
 
@@ -133,9 +147,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--seed", type=int, default=3); ap.add_argument("--live-words", type=int, default=3000); ap.add_argument("--live-noise", type=float, default=0.20)
     ap.add_argument("--dwell", type=int, default=6); ap.add_argument("--step", type=int, default=1); ap.add_argument("--ceil", type=int, default=24)
-    ap.add_argument("--every", type=int, default=500); ap.add_argument("--from-zero", action="store_true"); ap.add_argument("--conf", action="store_true"); ap.add_argument("--batch", type=int, default=1)
+    ap.add_argument("--every", type=int, default=500); ap.add_argument("--from-zero", action="store_true"); ap.add_argument("--conf", action="store_true"); ap.add_argument("--vote", type=int, default=1); ap.add_argument("--hold", type=int, default=0); ap.add_argument("--hold-labels", type=int, default=0)
     a = ap.parse_args()
-    r = experiment(a.seed, live_words=a.live_words, live_noise=a.live_noise, dwell=a.dwell, step=a.step, ceil=a.ceil, every=a.every, from_zero=a.from_zero, conf_filter=a.conf, batch=a.batch)
+    r = experiment(a.seed, live_words=a.live_words, live_noise=a.live_noise, dwell=a.dwell, step=a.step, ceil=a.ceil, every=a.every, from_zero=a.from_zero, conf_filter=a.conf, vote=a.vote, hold=a.hold, hold_labels=a.hold_labels)
     print("A (teacher only): held-out accuracy %.3f (training %.3f); event rate %.3f; self label right %.3f of the time" % (r["A_accuracy"], r["A_train_accuracy"], r["event_rate"], r["self_label_vs_truth"]))
     for name in ("B", "C"):
         if name in r:

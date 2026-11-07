@@ -30,5 +30,12 @@ def test_confident_label_rule_and_filter_option():
     assert S.confident([5, 5, 5, 5, 0, 0, 0, 0])            # event sure
     assert S.confident([0, 0, 0, 0, 0, 0, 0, -1])           # non-event sure even if the unknown were high
     assert not S.confident([5, 5, 5, 0, -1, 0, 0, 0])       # would flip with the unknown
-    r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, batch=5)
+    r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, vote=3, hold=2)
     assert len(r["B"]) == 1                          # 199 pairs, one checkpoint at 100
+
+
+def test_hold_filter_and_vote_one_is_plain():
+    det = [[3] * 8, [3] * 8, [4] * 8, [4] * 8, [4] * 8]
+    h = S.hold_det(det, 2)
+    assert h[0] == [-1] * 8 and h[1] == [3] * 8 and h[2] == [-1] * 8 and h[4] == [4] * 8
+    assert S.hold_det(det, 1) == det
