@@ -72,3 +72,11 @@ Settled before the neural cell design so the training is not redone if the cell 
 - **Consistent with section 10:** the teacher sets the baseline; B changes a working copy, never the saved teacher set, so A stays as the yardstick.
 - **Possible data source [file]:** `make_data` in `tools/hexn_kxlayer1_judge_v1.py` makes words with known answers, with adjustable noise and dwell. Whether it is broad enough to be the teaching system is [open].
 - **[open] What "a similar point" means:** a measure is needed before the test (for example agreement of B's decisions with A's, and with the known answers, on data neither saw). Also open: how broad the teacher's data is, how much the system may move the weights, and how long B runs.
+
+## 12. Experiment design v0 (Alan, 7 Nov 21:54: "that's the start"; an experiment, to test and hone the real design)
+Claude's first answers, accepted as the starting point. All are expected to change after the first runs.
+1. **Closeness:** held-out words neither judge trained on. Score A (teacher only) and B (teacher start, then self-feedback) on: match to the known answer, agreement of B with A, and the two class scores word by word. "Similar" = B's accuracy within a margin of A's; margin chosen after seeing A's first result.
+2. **Teacher data:** the existing generator (`make_data`) at several noise and dwell settings. Real recorded data later.
+3. **Step limit:** B moves each weight one small step at a time with a ceiling on drift from the teacher value; both numbers set by early runs.
+4. **Run length:** fixed number of words, compared with A at regular points to show converge, stall or drift.
+Host side, simulation only; no card until the method shows something.
