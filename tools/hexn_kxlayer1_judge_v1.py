@@ -19,13 +19,18 @@ CORE_SRCS = ["rtl/hexn_core_v2.v", "rtl/hexn_mem_v1.v", "rtl/gen/hexn_lattice_he
 def mask(bits): return sum(1 << j for j, b in enumerate(bits) if b)
 
 
-def make_data(seed, nwords, noise=0.10):
-    """-> (model, samples[nwords][NS] = (bits, true class), weight table W[2][NS][16], bias)"""
-    m = M.make(seed, K, NB, AW, 16, 0.15); rnd = random.Random(seed + 77); samples = []
+def make_data(seed, nwords, noise=0.10, dwell=1):
+    """-> (model, samples[nwords][NS] = (bits, true class), weight table W[2][NS][16], bias).
+    dwell 1: a new random class for every sensor at every step (the v2 runs of 5 and 6 Nov, kept identical). dwell > 1: each sensor keeps its class for dwell to 2 x dwell steps, so a hold counter has something to hold."""
+    m = M.make(seed, K, NB, AW, 16, 0.15); rnd = random.Random(seed + 77); samples = []; cur = [None] * NS; left = [0] * NS
     for _ in range(nwords):
         row = []
         for s in range(NS):
-            y = rnd.randrange(K); row.append((M.sample(rnd, m["tpl"][y], noise), y))
+            if dwell <= 1: y = rnd.randrange(K)
+            else:
+                if left[s] <= 0: cur[s] = rnd.randrange(K); left[s] = rnd.randint(dwell, 2 * dwell)
+                left[s] -= 1; y = cur[s]
+            row.append((M.sample(rnd, m["tpl"][y], noise), y))
         samples.append(row)
     wr = random.Random(seed + 5); W = [[[wr.randint(-127, 127) for _ in range(16)] for _ in range(NS)] for _ in range(2)]; bias = wr.randint(-300, 299)
     return m, samples, W, bias
@@ -124,8 +129,8 @@ def judge_card(W, bias, classes):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["classes", "judge", "sim"]); ap.add_argument("--seed", type=int, default=1); ap.add_argument("--words", type=int, default=40); ap.add_argument("--file", default="kxl1_classes.json"); ap.add_argument("--core", choices=["v2", "v9"], default="v2"); ap.add_argument("--hold", type=int, default=3)
-    a = ap.parse_args(); m, samples, W, bias = make_data(a.seed, a.words)
+    ap = argparse.ArgumentParser(); ap.add_argument("cmd", choices=["classes", "judge", "sim"]); ap.add_argument("--seed", type=int, default=1); ap.add_argument("--words", type=int, default=40); ap.add_argument("--file", default="kxl1_classes.json"); ap.add_argument("--core", choices=["v2", "v9"], default="v2"); ap.add_argument("--hold", type=int, default=3); ap.add_argument("--dwell", type=int, default=None, help="steps each sensor keeps a class (default 1 for v2, 6 for v9)")
+    a = ap.parse_args(); dwell = a.dwell if a.dwell is not None else (6 if a.core == "v9" else 1); m, samples, W, bias = make_data(a.seed, a.words, dwell=dwell)
     if a.cmd in ("classes", "sim"):
         ex, link = detector_sim_link(a.core) if a.cmd == "sim" else detector_card_link()
         try: classes, bad = run_classes(link, m, samples, a.core, a.hold)
@@ -133,7 +138,7 @@ def main():
         truth = [[y for _, y in row] for row in samples]; right = sum(c == t for cr, tr in zip(classes, truth) for c, t in zip(cr, tr)); tot = a.words * NS; none = sum(c < 0 for r in classes for c in r)
         print("detector: %d samples, %d differ from the model, %d match the true class (%.1f%%), %d with no class" % (tot, bad, right, 100.0 * right / tot, none))
         if a.cmd == "classes":
-            json.dump(dict(seed=a.seed, words=a.words, core=a.core, hold=a.hold, classes=classes), open(a.file, "w")); print("wrote %s" % a.file); sys.exit(0 if bad == 0 else 1)
+            json.dump(dict(seed=a.seed, words=a.words, core=a.core, hold=a.hold, dwell=dwell, classes=classes), open(a.file, "w")); print("wrote %s" % a.file); sys.exit(0 if bad == 0 else 1)
     else:
         d = json.load(open(a.file)); assert d["seed"] == a.seed and d["words"] == a.words, "the file was made with another --seed / --words"; classes = d["classes"]; bad = 0
     n, jb = judge_sim(W, bias, classes) if a.cmd == "sim" else judge_card(W, bias, classes)
