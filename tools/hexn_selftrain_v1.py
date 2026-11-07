@@ -57,6 +57,12 @@ def pairs(truth, det):
     return [(J.bins_of(det[t]), event(truth[t + 1]), event(det[t + 1])) for t in range(len(truth) - 1)]
 
 
+def confident(det_row):
+    """is the self label certain? Sensors with no class are unknown: the label counts as certain only if it would be the same whether each unknown were high or low."""
+    hi = sum(1 for c in det_row if c >= HI); unk = sum(1 for c in det_row if c < 0)
+    return hi >= EV_MIN or hi + unk < EV_MIN
+
+
 def zero(): return [[[0] * 16 for _ in range(NS)] for _ in range(2)], 0
 
 
@@ -85,37 +91,41 @@ def evaluate(W, bias, held, WA, biasA):
 def drift(W, WA): return max(abs(W[c][s][b] - WA[c][s][b]) for c in range(2) for s in range(NS) for b in range(16))
 
 
-def live_run(W, bias, WA, biasA, live, step, ceil, held, every, from_zero=False):
+def live_run(W, bias, WA, biasA, live, step, ceil, held, every, from_zero=False, conf=None, batch=1):
     """the self-feedback loop. Prediction for word t is made before word t+1 is seen; the self label then decides the update."""
-    W = json.loads(json.dumps(W)); curve = []; hits = 0
+    W = json.loads(json.dumps(W)); curve = []; hits = 0; pend = []
     for i, (bins, _, ys) in enumerate(live):
         p = score(W, bias, bins)[0]; hits += (p == ys)
-        if p != ys and step:
-            d = step if ys == 1 else -step
-            for s in range(NS):
-                for c, dd in ((1, d), (0, -d)):
-                    v = clip(W[c][s][bins[s]] + dd)
-                    if not from_zero: v = max(WA[c][s][bins[s]] - ceil, min(WA[c][s][bins[s]] + ceil, v))
-                    W[c][s][bins[s]] = v
-            bias = clip(bias - d, -300, 299)
-            if not from_zero: bias = max(biasA - ceil, min(biasA + ceil, bias))
+        if p != ys and step and (conf is None or conf[i]):
+            d = step if ys == 1 else -step; pend.append((bins, d))
+            if len(pend) >= batch:                  # batch > 1: the pending corrections are summed and applied together, so a stray wrong label is outvoted
+                for bn, dd0 in pend:
+                    for s in range(NS):
+                        for c, dd in ((1, dd0), (0, -dd0)):
+                            v = clip(W[c][s][bn[s]] + dd)
+                            if not from_zero: v = max(WA[c][s][bn[s]] - ceil, min(WA[c][s][bn[s]] + ceil, v))
+                            W[c][s][bn[s]] = v
+                    bias = clip(bias - dd0, -300, 299)
+                    if not from_zero: bias = max(biasA - ceil, min(biasA + ceil, bias))
+                pend = []
         if (i + 1) % every == 0:
             acc, agr = evaluate(W, bias, held, WA, biasA); curve.append((i + 1, acc, agr, drift(W, WA), hits / (i + 1)))
     return W, bias, curve
 
 
 def experiment(seed=3, teacher_words=300, live_words=3000, held_words=600, teach_noise=(0.05, 0.10, 0.15), live_noise=0.20, dwell=6,
-               t_step=8, epochs=20, step=1, ceil=24, every=500, from_zero=False):
+               t_step=8, epochs=20, step=1, ceil=24, every=500, from_zero=False, conf_filter=False, batch=1):
     m = M.make(seed, J.K, J.NB, J.AW, 16, 0.15); data = []
     for i, nz in enumerate(teach_noise): data += [(b, yt) for b, yt, _ in pairs(*stream(m, seed * 1000 + i, teacher_words, nz, dwell))]
     WA, biasA = perceptron(*zero(), data, epochs, t_step)
-    held = pairs(*stream(m, seed * 1000 + 50, held_words, live_noise, dwell)); live = pairs(*stream(m, seed * 1000 + 60, live_words, live_noise, dwell))
+    held = pairs(*stream(m, seed * 1000 + 50, held_words, live_noise, dwell)); lt, ld = stream(m, seed * 1000 + 60, live_words, live_noise, dwell); live = pairs(lt, ld)
+    conf = [confident(ld[t + 1]) for t in range(len(ld) - 1)] if conf_filter else None
     accA, _ = evaluate(WA, biasA, held, WA, biasA)
     out = {"A_accuracy": accA, "A_train_accuracy": evaluate(WA, biasA, [(b, y, 0) for b, y in data], WA, biasA)[0],
            "self_label_vs_truth": sum(1 for _, a, b in live if a == b) / len(live), "event_rate": sum(y for _, y, _ in held) / len(held)}
-    WB, biasB, out["B"] = live_run(WA, biasA, WA, biasA, live, step, ceil, held, every)
+    WB, biasB, out["B"] = live_run(WA, biasA, WA, biasA, live, step, ceil, held, every, conf=conf, batch=batch)
     if from_zero:
-        W0, b0 = zero(); WC, biasC, out["C"] = live_run(W0, b0, WA, biasA, live, step, ceil, held, every, True)
+        W0, b0 = zero(); WC, biasC, out["C"] = live_run(W0, b0, WA, biasA, live, step, ceil, held, every, True, conf, batch)
     return out
 
 
@@ -123,9 +133,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--seed", type=int, default=3); ap.add_argument("--live-words", type=int, default=3000); ap.add_argument("--live-noise", type=float, default=0.20)
     ap.add_argument("--dwell", type=int, default=6); ap.add_argument("--step", type=int, default=1); ap.add_argument("--ceil", type=int, default=24)
-    ap.add_argument("--every", type=int, default=500); ap.add_argument("--from-zero", action="store_true")
+    ap.add_argument("--every", type=int, default=500); ap.add_argument("--from-zero", action="store_true"); ap.add_argument("--conf", action="store_true"); ap.add_argument("--batch", type=int, default=1)
     a = ap.parse_args()
-    r = experiment(a.seed, live_words=a.live_words, live_noise=a.live_noise, dwell=a.dwell, step=a.step, ceil=a.ceil, every=a.every, from_zero=a.from_zero)
+    r = experiment(a.seed, live_words=a.live_words, live_noise=a.live_noise, dwell=a.dwell, step=a.step, ceil=a.ceil, every=a.every, from_zero=a.from_zero, conf_filter=a.conf, batch=a.batch)
     print("A (teacher only): held-out accuracy %.3f (training %.3f); event rate %.3f; self label right %.3f of the time" % (r["A_accuracy"], r["A_train_accuracy"], r["event_rate"], r["self_label_vs_truth"]))
     for name in ("B", "C"):
         if name in r:

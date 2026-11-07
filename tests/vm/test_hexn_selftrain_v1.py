@@ -24,3 +24,11 @@ def test_deterministic_and_teacher_beats_majority_guess():
     b = S.experiment(seed=3, teacher_words=150, live_words=100, held_words=300, every=100)
     assert a == b
     assert a["A_accuracy"] > max(a["event_rate"], 1 - a["event_rate"])
+
+
+def test_confident_label_rule_and_filter_option():
+    assert S.confident([5, 5, 5, 5, 0, 0, 0, 0])            # event sure
+    assert S.confident([0, 0, 0, 0, 0, 0, 0, -1])           # non-event sure even if the unknown were high
+    assert not S.confident([5, 5, 5, 0, -1, 0, 0, 0])       # would flip with the unknown
+    r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, batch=5)
+    assert len(r["B"]) == 2
