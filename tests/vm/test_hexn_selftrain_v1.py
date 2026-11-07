@@ -48,3 +48,12 @@ def test_layer2_standin():
     assert k[0] == [-1] * 8 and k[3] == [2] * 8 and k[4] == [-1] * 8       # start unknown, ok kept, contradiction unknown
     r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, l2_inputs=True, l2_labels=True)
     assert len(r["B"]) == 1
+
+
+def test_l2_next_learns_a_fixed_successor_and_experiment_runs_with_sequences():
+    det = [[1] * 8 if (t // 3) % 2 == 0 else [2] * 8 for t in range(60)]       # class 1 for 3 words, then 2 for 3 words, repeating
+    p = S.l2_next(det)
+    assert p[50][0] == det[51][0] and p[53][0] == det[54][0]                    # after learning, the word after the change is predicted from (class, age)
+    assert len(S.l2_inputs_of(det, "both")[0]) == 16 and len(S.l2_inputs_of(det, "replace")[0]) == 8
+    r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, seq=0.9, l2_pred="both")
+    assert len(r["B"]) == 1
