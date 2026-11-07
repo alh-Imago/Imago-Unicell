@@ -39,3 +39,12 @@ def test_hold_filter_and_vote_one_is_plain():
     h = S.hold_det(det, 2)
     assert h[0] == [-1] * 8 and h[1] == [3] * 8 and h[2] == [-1] * 8 and h[4] == [4] * 8
     assert S.hold_det(det, 1) == det
+
+
+def test_layer2_standin():
+    det = [[2] * 8 for _ in range(6)]; det[4] = [5] * 8                      # a stable class with one contradicting word
+    f = S.layer2(det, "fill"); k = S.layer2(det, "mask")
+    assert f[4] == [2] * 8 and f[5] == [2] * 8                               # the contradiction is replaced by the history's prediction
+    assert k[0] == [-1] * 8 and k[3] == [2] * 8 and k[4] == [-1] * 8       # start unknown, ok kept, contradiction unknown
+    r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, l2_inputs=True, l2_labels=True)
+    assert len(r["B"]) == 1
