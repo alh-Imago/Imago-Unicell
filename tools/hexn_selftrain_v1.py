@@ -53,6 +53,17 @@ def majority(det, n):
     return out
 
 
+def hold_real(det, n):
+    """the layer 1 hold counter as built (`hold_ref` in tools/hexn_hold_card_v1.py, the reference the v9 core was checked against on the card):
+    the held class STAYS until a different value (a class, or 'no class' = 15) has been seen n words in a row; only then does it change.
+    So a short glitch, including a short run of 'no class', is ignored. This differs from `hold_det` above, which blanks a class until it has been seen n times in a row (section 15 tried that one by mistake). n <= 0 leaves the stream alone."""
+    if n <= 0: return det
+    import hexn_hold_card_v1 as HC
+    cols = [[(15 if det[t][s] < 0 else det[t][s]) for t in range(len(det))] for s in range(NS)]
+    held = [[c for c, _ in HC.hold_ref(col, n)] for col in cols]
+    return [[(-1 if held[s][t] == 15 else held[s][t]) for s in range(NS)] for t in range(len(det))]
+
+
 def carry(det, k):
     """carry forward: where the detector says 'no class' (-1), use the last class seen for that sensor if it was at most k words ago, else stay -1. Only the 'no class' words change; a class the detector did give is never altered. k <= 0 leaves the stream alone. (A vote of window 2 does exactly this for k = 1.)"""
     if k <= 0: return det
@@ -94,7 +105,7 @@ def l2_inputs_of(det, mode):
     return [J.bins_of(p) for p in pr] if mode == "replace" else [J.bins_of(c) + J.bins_of(p) for c, p in zip(det, pr)]
 
 
-def stream(m, seed, nwords, noise, dwell, hold=0, l2_fill=False, seq=0.0, l2_pred=None, maj=0, carry_k=0):
+def stream(m, seed, nwords, noise, dwell, hold=0, l2_fill=False, seq=0.0, l2_pred=None, maj=0, carry_k=0, holdr=0):
     """-> (true classes[nwords][NS], detected classes[nwords][NS]); same templates (m), its own random stream."""
     rnd = random.Random(seed); cur = [0] * NS; left = [0] * NS; truth = []; samples = []
     for _ in range(nwords):
@@ -108,7 +119,7 @@ def stream(m, seed, nwords, noise, dwell, hold=0, l2_fill=False, seq=0.0, l2_pre
         truth.append(yrow); samples.append(row)
     flat = [x for row in samples for x in row]; got = [c for c, _ in M.classify(m, flat)]
     det = hold_det([got[i * NS:(i + 1) * NS] for i in range(nwords)], hold)
-    inp = l2_inputs_of(det, l2_pred) if l2_pred else ([J.bins_of(r) for r in majority(carry(det, carry_k), maj)] if (maj > 1 or carry_k > 0) else None)   # maj: the vote cleans the judge's inputs; det itself stays raw
+    inp = l2_inputs_of(det, l2_pred) if l2_pred else ([J.bins_of(r) for r in majority(hold_real(carry(det, carry_k), holdr), maj)] if (maj > 1 or carry_k > 0 or holdr > 0) else None)   # maj: the vote cleans the judge's inputs; det itself stays raw
     return truth, (layer2(det, "fill") if l2_fill else det), inp
 
 
@@ -207,12 +218,12 @@ def live_run(W, bias, WA, biasA, live, step, ceil, held, every, from_zero=False,
 
 
 def experiment(seed=3, teacher_words=300, live_words=3000, held_words=600, teach_noise=(0.05, 0.10, 0.15), live_noise=0.20, dwell=6,
-               t_step=8, epochs=20, step=1, ceil=24, every=500, from_zero=False, conf_filter=False, vote=1, hold=0, hold_labels=0, l2_inputs=False, l2_labels=False, seq=0.0, l2_pred=None, maj=0, maj_labels=False, carry_k=0, carry_labels=False):
+               t_step=8, epochs=20, step=1, ceil=24, every=500, from_zero=False, conf_filter=False, vote=1, hold=0, hold_labels=0, l2_inputs=False, l2_labels=False, seq=0.0, l2_pred=None, maj=0, maj_labels=False, carry_k=0, carry_labels=False, holdr=0, holdr_labels=False):
     m = M.make(seed, J.K, J.NB, J.AW, 16, 0.15); data = []
-    for i, nz in enumerate(teach_noise): data += [(b, yt) for b, yt, _ in pairs(*stream(m, seed * 1000 + i, teacher_words, nz, dwell, hold, l2_inputs, seq, l2_pred, maj, carry_k))]
+    for i, nz in enumerate(teach_noise): data += [(b, yt) for b, yt, _ in pairs(*stream(m, seed * 1000 + i, teacher_words, nz, dwell, hold, l2_inputs, seq, l2_pred, maj, carry_k, holdr))]
     WA, biasA = perceptron(*zero(2 * NS if l2_pred == 'both' else NS), data, epochs, t_step)
-    held = pairs(*stream(m, seed * 1000 + 50, held_words, live_noise, dwell, hold, l2_inputs, seq, l2_pred, maj, carry_k)); lt, ld, linp = stream(m, seed * 1000 + 60, live_words, live_noise, dwell, hold, False, seq, l2_pred, maj, carry_k); live = pairs(lt, layer2(ld, "fill") if l2_inputs else ld, linp)
-    ldl = layer2(ld, "mask") if l2_labels else majority(carry(ld, carry_k), maj) if (maj_labels or carry_labels) else hold_det(ld, hold_labels)                 # hold_labels: the hold counter applied to the labels only; the judge's inputs stay unheld
+    held = pairs(*stream(m, seed * 1000 + 50, held_words, live_noise, dwell, hold, l2_inputs, seq, l2_pred, maj, carry_k, holdr)); lt, ld, linp = stream(m, seed * 1000 + 60, live_words, live_noise, dwell, hold, False, seq, l2_pred, maj, carry_k, holdr); live = pairs(lt, layer2(ld, "fill") if l2_inputs else ld, linp)
+    ldl = layer2(ld, "mask") if l2_labels else majority(hold_real(carry(ld, carry_k), holdr), maj) if (maj_labels or carry_labels or holdr_labels) else hold_det(ld, hold_labels)                 # hold_labels: the hold counter applied to the labels only; the judge's inputs stay unheld
     live = [(b, yt, event(ldl[t + 1])) for t, (b, yt, _) in enumerate(live)]
     conf = [confident(ldl[t + 1]) for t in range(len(ldl) - 1)] if conf_filter else None
     accA, _ = evaluate(WA, biasA, held, WA, biasA)
@@ -228,9 +239,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--seed", type=int, default=3); ap.add_argument("--live-words", type=int, default=3000); ap.add_argument("--live-noise", type=float, default=0.20)
     ap.add_argument("--dwell", type=int, default=6); ap.add_argument("--step", type=int, default=1); ap.add_argument("--ceil", type=int, default=24)
-    ap.add_argument("--every", type=int, default=500); ap.add_argument("--from-zero", action="store_true"); ap.add_argument("--conf", action="store_true"); ap.add_argument("--vote", type=int, default=1); ap.add_argument("--hold", type=int, default=0); ap.add_argument("--hold-labels", type=int, default=0); ap.add_argument("--l2-inputs", action="store_true"); ap.add_argument("--seq", type=float, default=0.0); ap.add_argument("--maj", type=int, default=0); ap.add_argument("--maj-labels", action="store_true"); ap.add_argument("--carry", type=int, default=0); ap.add_argument("--carry-labels", action="store_true"); ap.add_argument("--l2-pred", choices=["replace", "both"]); ap.add_argument("--l2-labels", action="store_true")
+    ap.add_argument("--every", type=int, default=500); ap.add_argument("--from-zero", action="store_true"); ap.add_argument("--conf", action="store_true"); ap.add_argument("--vote", type=int, default=1); ap.add_argument("--hold", type=int, default=0); ap.add_argument("--hold-labels", type=int, default=0); ap.add_argument("--l2-inputs", action="store_true"); ap.add_argument("--seq", type=float, default=0.0); ap.add_argument("--maj", type=int, default=0); ap.add_argument("--maj-labels", action="store_true"); ap.add_argument("--carry", type=int, default=0); ap.add_argument("--carry-labels", action="store_true"); ap.add_argument("--hold-real", type=int, default=0); ap.add_argument("--hold-real-labels", action="store_true"); ap.add_argument("--l2-pred", choices=["replace", "both"]); ap.add_argument("--l2-labels", action="store_true")
     a = ap.parse_args()
-    r = experiment(a.seed, live_words=a.live_words, live_noise=a.live_noise, dwell=a.dwell, step=a.step, ceil=a.ceil, every=a.every, from_zero=a.from_zero, conf_filter=a.conf, vote=a.vote, hold=a.hold, hold_labels=a.hold_labels, l2_inputs=a.l2_inputs, l2_labels=a.l2_labels, seq=a.seq, l2_pred=a.l2_pred, maj=a.maj, maj_labels=a.maj_labels, carry_k=a.carry, carry_labels=a.carry_labels)
+    r = experiment(a.seed, live_words=a.live_words, live_noise=a.live_noise, dwell=a.dwell, step=a.step, ceil=a.ceil, every=a.every, from_zero=a.from_zero, conf_filter=a.conf, vote=a.vote, hold=a.hold, hold_labels=a.hold_labels, l2_inputs=a.l2_inputs, l2_labels=a.l2_labels, seq=a.seq, l2_pred=a.l2_pred, maj=a.maj, maj_labels=a.maj_labels, carry_k=a.carry, carry_labels=a.carry_labels, holdr=a.hold_real, holdr_labels=a.hold_real_labels)
     print("A (teacher only): held-out accuracy %.3f (training %.3f); event rate %.3f; self label right %.3f of the time" % (r["A_accuracy"], r["A_train_accuracy"], r["event_rate"], r["self_label_vs_truth"]))
     for name in ("B", "C"):
         if name in r:

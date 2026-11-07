@@ -79,3 +79,15 @@ def test_carry_forward_only_fills_no_class_words():
     assert S.majority(det, 2)[:3] == S.carry(det, 1)[:3]          # a window-2 vote is carry-forward by one word
     r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, carry_k=2, carry_labels=True)
     assert len(r["B"]) == 1
+
+
+def test_hold_real_matches_the_hold_reference_and_ignores_short_glitches():
+    import hexn_hold_card_v1 as HC
+    det = [[3] * 8, [3] * 8, [-1] * 8, [3] * 8, [3] * 8, [4] * 8, [4] * 8, [4] * 8]
+    h = S.hold_real(det, 2)
+    assert h[2] == [3] * 8 and h[5] == [3] * 8 and h[6] == [4] * 8             # a one-word glitch is ignored; a change needs 2 in a row
+    col = [3, 3, 15, 3, 3, 4, 4, 4]
+    assert [c for c, _ in HC.hold_ref(col, 2)] == [h[t][0] for t in range(8)]
+    assert S.hold_real(det, 0) == det
+    r = S.experiment(seed=3, teacher_words=80, live_words=200, held_words=100, every=100, conf_filter=True, holdr=2, holdr_labels=True)
+    assert len(r["B"]) == 1
