@@ -544,3 +544,38 @@ So every lean-net figure in sections 33 to 37 (and the comparisons made with the
 
 **Cautions:** toy; target firing rates were chosen with the answer in view (section 39); 400 tests per cell gives about 2 to 3 points of noise, so the start 3 differences are not significant, the start 5 ones at 50 and 70% probably are; the lean net got the same epochs but its start threshold was not tuned per row; teacher targets disjoint; random wiring; no hardware cost counted.
 **Next if Alan wants:** find why the pruned net keeps heavy traffic (map sizes and fan-out after pruning) and whether pruning cells, not only connections, reduces it; repeat the feedback tests (sections 35 to 36) with the self-adjusting threshold; target rates not taken from the tuned net.
+
+## 41. Where the dropped packets come from, and what fixes them (8 Nov 2026)
+
+**Alan (20:42):** carry on; every step so far has improved the design. (Not every step: sections 32, 33 and 37 were negative or null results and are recorded as such. The improvements came after those showed what was wrong.)
+
+**Where the drops are** (`tools/hexn_busnet_traffic_diag_v1.py`, seed 1, start threshold 5, packets per run): the lean net fires 31 layer 1 cells, accepts 154 / 114 / 22 packets into the layer 1 / 2 / 3 buses and drops 5 / 0 / 0. The pruned dense net fires 60 layer 1 cells (twice as many), accepts 155 / 176 / 20 and drops 3 / **49** / 0. So the drops are at the **layer 2 buses**, caused by heavy layer 1 firing: each bus serves one packet per clock and its queue (depth 8) overflows in bursts.
+
+**Lever 1: lower the layer 1 target firing rate** (`hexn_busnet_traffic_v1.py`, `_thmax_v1.py`; pruned dense net with homeostasis, 5 seeds, start threshold 5; recall at 10 / 30 / 50 / 70% dropped; dropped packets per run):
+
+| layer 1 target rate, threshold cap | recall | dropped |
+|---|---|---|
+| 0.40, cap 9 (as before) | 95 / 90 / 75 / 44 | 58 |
+| 0.25, cap 9 | 95 / 87 / 72 / 39 | 53 |
+| 0.15, cap 9 | 98 / 91 / 76 / 40 | 56 |
+| 0.08, cap 9 | 96 / 87 / 72 / 33 | 51 |
+| 0.40, cap 16 | 96 / 88 / 62 / 34 | 34 |
+| 0.25, cap 16 | 95 / 85 / 56 / 22 | 28 |
+| 0.15, cap 16 | 95 / 84 / 51 / 20 | 25 |
+
+Lowering the target barely helps while the threshold cap of 9 binds (the layer 1 thresholds sat at 8.7 to 8.8). With the cap raised the drops fall to 25 to 34, but the recall with many spikes missing falls with it (50% dropped: 75 down to 51 to 62). **Fewer packets is bought with robustness, not free.**
+
+**Lever 2: deeper queues** (`hexn_busnet_traffic_queue_v1.py`; networks trained at the stated depth; target rate 0.40, cap 9):
+
+| queue depth | pruned dense with homeostasis: recall | dropped | lean: recall | dropped |
+|---|---|---|---|---|
+| 8 (as before) | 95 / 90 / 75 / 44 | 58 | 89 / 82 / 59 / 33 | 4 |
+| 32 | 95 / 92 / 74 / 39 | 9.5 | 91 / 81 / 59 / 32 | 0 |
+| 128 | 97 / 94 / 68 / 38 | 0 | 91 / 81 / 59 / 32 | 0 |
+
+A deeper queue removes the drops (depth 32 leaves under 10 per run; depth 128 none) and recall is about the same (95 / 92 / 74 / 39 against 95 / 90 / 75 / 44), slightly lower at 50 and 70% dropped at depth 128. So the dropped packets were mostly harmless to accuracy here; the cheaper remedy is queue depth, not weakening the firing.
+
+**Reading for the design:** the pruned dense net needs a queue of about 32 per bus (against 8 for the lean net) to avoid loss, at a cost of queue memory per bus. Not measured: the extra delay a deeper queue adds (a queued packet waits), the memory cost of depth 32 buses on the card, and whether adding more buses per layer (more service per clock) is cheaper than deeper queues.
+
+**Cautions:** toy; one set of runs per setting; the layer 1 and layer 2 target rates were chosen with the answer in view (section 39); the differences of a few points are within the noise of about 2 to 3 points.
+**Next if Alan wants:** measure delay against queue depth; try more buses per layer instead of deeper queues; repeat the feedback tests (sections 35 and 36) with the self-adjusting threshold; try target rates that are not taken from the tuned net.
