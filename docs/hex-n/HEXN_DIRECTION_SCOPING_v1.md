@@ -362,3 +362,34 @@ Section 25 suggested a new guard so the system would not pick a hold on a sensor
 - The first run used a mismatched "active inputs" list in the training step; this was corrected and the figures were identical, as expected, because only layers 2 and 3 are trained and their sources are cells, not inputs. No effect, but noted.
 - Not done: feedback links (runaway) with trained cells, whether the stabilised settings still recall, a self-fed target (certain-label rule instead of a teacher), training layer 1, and whether the ceiling of the saved weights holds up over long live use.
 **Next if Alan wants:** the same training with the feedback links switched on in the stabilised settings, and a version where the target map comes from the network's own earlier confident runs rather than a teacher.
+
+## 35. Stabilising the feedback, with training; and prior art (8 Nov 2026)
+
+**Alan (19:05):** stabilise the feedbacks; he is sure there is a path through, and equally sure the design is not novel, so there must be earlier work.
+
+**Run:** `tools/hexn_busnet_fb_v1.py` (+2 tests). Feedback links layer 3 to layer 1 (4 per layer 1 cell, weight +2). For each stabiliser, the net is measured untrained ("before") and after map-feedback training done *with the feedback links present* (40 epochs, ceiling 6, 5 wiring seeds). "Afterglow" = cells firing in clocks 60 to 100, after the input ended (about clock 40). Averages of 8 noisy runs per pattern.
+
+| setting | untrained afterglow (cells) | single recall before to after training | mixture exact after | dropped packets per run after |
+|---|---|---|---|---|
+| no feedback | 0.1 | 12% to 73% | 16% | 56 |
+| feedback +2, nothing added | **51** | 14% to 71% | 21% | 58 |
+| + leak every clock | 0 | 12% to **36%** | 8% | 3 |
+| + leak every clock, threshold 2 | 0 | 14% to 52% | 11% | 5 |
+| + 50% of feedback links inhibitory | 1.8 | 14% to **74%** | 22% | 50 |
+| + 50% inhibitory, refractory 6 | 0.6 | 17% to 75% | 21% | 35 |
+| leak every 2 clocks, refractory 8 | 0 | 12% to 68% | 16% | 5 |
+
+**Findings:**
+1. **There is a path.** Making about half the feedback links inhibitory removes the runaway (51 cells down to under 2) and keeps recall as good as no feedback (74%). Adding a longer refractory period lowers the dropped packets (50 to 35). Leak on every clock also stops it but starves the network (recall 36%): too blunt. Leak every 2 clocks with a refractory of 8 also works (68%) and drops very few packets.
+2. **Training itself damps the runaway.** After training, even plain +2 feedback shows no afterglow. The training step counts every cell that fires and is not in the target as an error, and the afterglow cells are such cells, so their weights are pushed down. This is a useful property but it is learned for these patterns; it is not a guarantee for inputs the network was never trained on, so the structural stabilisers (inhibitory share, refractory period) should stay as the safety net. Not tested on unseen patterns.
+3. **Feedback did not help recall in this test.** Single recall with feedback (68 to 75%) is the same as with none (73%); the mixture score moves between 8 and 22% with noise. So these feedback links cost wiring and traffic without a measured benefit here. They may matter for what Alan wants them for (sequences, holding a state, filling in a missing part of a map), none of which this test asks of them.
+4. **Dropped packets are high** (50 to 60 per run of 100 clocks) in the dense settings; queues of depth 8 overflow on noisy input. Settings with fewer firing cells drop almost none. Queue depth or sparser firing is an open sizing question.
+
+**Prior art (Alan's suspicion is right).** Nothing here is new as a family of ideas; what this project adds is the choice of parts and the supervised map training in this form.
+- Shared bus carrying a source id with the receiver filtering on it: *address-event representation* (AER), the standard communication scheme in neuromorphic chips since the 1990s. Leaky accumulate-and-fire cells with a refractory period: the leaky integrate-and-fire neuron. FPGA spiking networks on shared buses with queues are a well-published area (a web search returned FPGA SNN papers, e.g. [Spiking Neural Networks on FPGAs](https://ese.washu.edu/documents/Spiking-Neural-Networks-on-FPGAs.pdf) and [a SNN versus CNN FPGA comparison](https://arxiv.org/pdf/2306.12742), which I have not read in detail, so I cite them only as examples of the area, not for any specific result).
+- The pattern of activity as a recalled memory is close to *attractor networks* and *Hopfield-style associative memory*; reading out a trained pattern of activity from a fixed random network is *reservoir computing* (liquid state machines). Excitation balanced by inhibition to prevent runaway is the standard answer in cortical models. Training by comparing the network's activity with a target and adjusting the weights of the cells that were wrong is in the family of delta-rule and supervised spike-timing methods.
+- Inside this repository: `archeology/shared/docs/software/TYPED_NEURAL.md` (typed leaky integrate-and-fire neurons in series on the cell fabric) and `VISION.md` (neural ponds, Hebbian updating by an observing cluster) already hold neural ideas, and per the working rule they should be read before any of this becomes hardware.
+I have not done a literature review; the names above are from general knowledge plus the one search, and a proper check of what is published on, in particular, fuzzy matching of two stored activity maps is still to do.
+
+**Cautions:** one training setup, teacher targets disjoint, toy random wiring, simulation only.
+**Next if Alan wants:** read `TYPED_NEURAL.md` and `VISION.md` and compare with section 31 to 35; test the trained, stabilised network on patterns it was not trained on; try a task where feedback should matter (a pattern with a missing part, a sequence).
