@@ -146,3 +146,23 @@ All figures: final accuracy on unseen words. Baseline = certain labels alone: A 
 Both phases ran on the Kintex card. Phase 1 (core v2 detector, hex7, dwell 6, noise 0.10, 40 words x 8 sensors): 0 differ from the detector model, 290 of 320 right (90.6%), 25 with no class. Phase 2 (base `arr_base_b3_noram`, `--carry 3`): all 25 no-class slots filled, 315 of 320 right (98.4%), judge 40 words 0 differ from the reference, 681 scans, 0 bad captures. Both numbers equal what the model predicted before the run [card, equal to sim].
 Scope: the carry step is host-side; what the card shows is the real detector's classes and the real judge scoring the carried words correctly. The 7.8-point rise is on synthetic data where each class lasts 6 to 12 steps; whether real sensors persist like that is open. The self-teaching effect with carry-forward (section 18, +0.04 to +0.05) is simulation and has not been run on the card. The judge weights in this run are still the random test weights, not trained ones.
 Next in line: train real judge weights from the (carried) classes with the teacher data, then run the teacher-versus-self experiment's winning settings (certain labels plus carry-forward) as the agreed method.
+
+## 21. Carry-forward and the hold counter on the REAL recorded sensor data (Alan 8 Nov 01:09: "there was a record of real sensor data somewhere")
+Found: `docs/hex-n/data/esp_run_20261027_*` (ESP32 at 200 per second: light lamp-on / light-off / daylight, pot sweep, thermistor finger and run 2, IR remote), already run through layer 1 in `tools/hexn_replay_v1.py` (27 Oct). New: `tools/hexn_replay_carry_v1.py` (reuses that replay unchanged, adds carry-forward and the built hold counter on each sensor's class stream; 3 tests pass). Python model only; K and N are in samples. Held-out part, 'no class' counted as wrong:
+| stream | rule | right | no class | output changes (reference) | longest wrong run |
+|---|---|---|---|---|---|
+| light | none / carry 1 to 20 | 1.000 | 0% | 5 (5) | 0 |
+| light | hold 3 / 10 / 20 | 0.994 / 0.973 / 0.943 | 0% | 5 | 2 / 9 / 19 |
+| pot | none / carry 1 to 20 | 1.000 | 0% | 9 (9) | 0 |
+| pot | hold 3 / 10 / 20 | 0.996 / 0.981 / 0.960 | 0% | 9 | 2 / 9 / 19 |
+| thermistor raw | none / carry (any) | 0.954 | 0% | 186 (3) | 16 |
+| thermistor raw | hold 3 / 10 / 20 | 0.961 / 0.977 / 1.000 | 0% | 22 / 8 / 3 | 44 / 30 / 0 |
+| thermistor, 9-sample median | none / carry | 0.966 | 0% | 26 (3) | 42 |
+| thermistor, 9-sample median | hold 3 / 10 / 20 | 0.967 / 0.978 / 0.985 | 0% | 16 / 8 / 5 | 42 |
+Reading:
+1. **Carry-forward does nothing on these three sensors** because the banks never answered "no class" on this data (0%). Their errors are chatter between valid neighbouring classes at the thermistor's band edges, which carry-forward does not touch.
+2. **The built hold counter is the right tool for that**: on the thermistor it takes 186 output changes down to 3 (the real number) at N=20 (about 150 ms). On light and pot, which are already steady, it only adds delay and costs accuracy, so those two should use no hold (or 1 to 3). This matches the 27 Oct finding; here with the median-in-front shown worse than hold alone.
+3. **So the two cleaners fix different faults.** Carry-forward fills gaps ("no class"); the hold counter removes chatter between classes. My synthetic test data had mostly gaps (and a large share of wrong classes at higher noise), which is why carry-forward won there and the hold counter lost; real analog sensors here show the opposite pattern. Section 18's conclusion that the hold counter "hurts" holds for that synthetic data, not for these recordings.
+4. **Where "no class" does occur in the real recordings:** the IR remote with the exact-match bank (damaged frames answer "unknown"). The 27 Oct layer 2 row found "hold 1, ignoring unknown answers" the best there, which is carry-forward in effect. Not re-run here.
+Caveats: the thermistor 1.000 at N=20 is partly an artefact (the three real changes lie in the training half, so the held-out half contains none; noted on 27 Oct); sensors were recorded separately; the light files are three steady recordings joined end to end; the pot reference is its own bands; the card's detector gave 5.3% "no class" on the synthetic 6 Nov data, so how often a real bank returns no class on live sensors is still unknown.
+Consequence for the pipeline: do not apply one cleaner to all sensors. Per sensor: thermistor (slow continuous, band edges) gets hold about 20; light and pot get none; sensors whose bank can answer "no class" or "unknown" (IR exact-match; a noisy bank) get carry-forward. The `--carry` option of the judge tool is a per-run setting, not per sensor yet.
