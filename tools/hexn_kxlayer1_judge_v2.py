@@ -145,7 +145,10 @@ def main():
     if a.carry > 0:
         from hexn_selftrain_v1 import carry
         cc = carry(classes, a.carry); filled = sum(1 for r0, r1 in zip(classes, cc) for x, y in zip(r0, r1) if x < 0 <= y); left = sum(1 for r in cc for x in r if x < 0)
-        print("carry-forward %d: %d no-class slots filled, %d still no class" % (a.carry, filled, left)); classes = cc
+        truth = [[y for _, y in row] for row in samples]; tot = a.words * NS
+        r0 = sum(c == t for cr, tr in zip(classes, truth) for c, t in zip(cr, tr)); r1 = sum(c == t for cr, tr in zip(cc, truth) for c, t in zip(cr, tr))
+        print("carry-forward %d: %d no-class slots filled, %d still no class" % (a.carry, filled, left))
+        print("  classes matching the true class: %d of %d (%.1f%%) before carry, %d of %d (%.1f%%) after" % (r0, tot, 100.0 * r0 / tot, r1, tot, 100.0 * r1 / tot)); classes = cc
     n, jb = judge_sim(W, bias, classes) if a.cmd == "sim" else judge_card(W, bias, classes)
     print("judge: %d words scored, %d differ from the reference" % (n, jb))
     ok = bad == 0 and jb == 0; print("LAYER 1 -> JUDGE %s" % ("PASS" if ok else "FAIL")); sys.exit(0 if ok else 1)
