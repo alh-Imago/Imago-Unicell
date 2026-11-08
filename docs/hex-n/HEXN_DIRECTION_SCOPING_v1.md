@@ -419,3 +419,37 @@ I have not done a literature review; the names above are from general knowledge 
 
 **Cautions:** toy, random wiring, teacher targets disjoint, one training recipe.
 **Next if Alan wants:** train the feedback weights themselves toward the target map and repeat the completion test; or compare the cost of the shared-bus cell against the archive's cluster neuron in cells and clocks before going further.
+
+## 37. Training the feedback weights, and pruning like a growing child (8 Nov 2026)
+
+**Alan (19:47):** training the weights is good, and this is becoming what happens as a child grows: it starts with a very large number of connections and high plasticity; once paths for certain things are established they are pruned, keeping the most efficient shapes, weights and maps, the fully learned paths.
+
+**Built:** `tools/hexn_busnet_prune_v1.py` (+4 tests; earlier tools untouched). Training now covers layers 1, 2 and 3 including the feedback links into layer 1. The correct map = the teacher's 10 target cells in layers 2 and 3 plus the layer 1 cells that fire for the clean pattern (a clean teacher presentation). Pruning: a consolidation pass counts, for every connection, how often its source was active when its cell fired inside the correct map; each cell then keeps only its most-used connections (ties by larger weight) and the bus delivery tables are rebuilt. 5 wiring seeds, 400 tests per cell.
+
+**A. Training the feedback weights (lean net, 60 epochs):**
+
+| | spikes dropped 10% | 30% | 50% | 70% |
+|---|---|---|---|---|
+| feedback weights trained | 80% | 74% | 65% | 47% |
+| feedback weights frozen at the random start | 76% | 70% | 63% | 42% |
+| no feedback links (layers 1 to 3 trained) | 61% | 59% | 56% | 42% |
+
+Training the feedback weights is the best of the three at every drop level, by about 2 to 5 points over frozen, which is near the noise (about 2 to 3 points), so suggestive not proven. Against no feedback the gain is larger at low drop (80 vs 61) but that net also has 4 fewer connections per layer 1 cell, so it is not a clean comparison. Compared with section 36 (feedback fixed, layer 1 untrained: 77/66/58/36) the trained version is better, mostly at high drop (47 vs 36 at 70%), which also includes training layer 1, so I cannot say how much comes from the feedback weights alone.
+
+**B. Rich then prune, against lean from the start (same final connections per cell: 14 on layer 1 including feedback, 10 on layers 2 and 3; same total epochs):**
+
+| network | connections | 10% | 30% | 50% | 70% | dropped packets per run |
+|---|---|---|---|---|---|---|
+| rich (k=24 plus 8 feedback), trained, not pruned | 5120 | 48% | 42% | 44% | 31% | 283 |
+| rich, pruned in one step and retrained | 2176 | 41% | 39% | 35% | 27% | 207 |
+| lean from the start | 2176 | 75% | 69% | 64% | 42% | 75 |
+| (gradual, 2 stages, 60 epochs) rich pruned | 2176 | 43% | 44% | 37% | 28% | 211 |
+| (gradual) lean | 2176 | 80% | 74% | 65% | 47% | 69 |
+| (100 epochs first) rich pruned / lean | 2176 | 38% / 79% | 37% / 69% | 31% / 62% | 25% / 48% | 218 / 74 |
+
+**Result: in this toy the child-like route (many connections first, then prune) is clearly worse than starting lean, and pruning does not repair it.** Longer training and gradual pruning did not change that. A larger queue (depth 64) removed the lean net's dropped packets but left the rich net's recall about the same (46% unpruned, 39% pruned, 76% lean), so queue overflow is not the explanation. I do not know the cause. Candidates, none tested: with 24 sources per cell the first activity is so dense that the training signal (raise missed target cells, lower wrong firers) is swamped; the usefulness count taken from a poorly trained net picks the wrong connections to keep; the training rule has no mechanism that makes useful connections stand out before pruning.
+
+**What this does and does not say about Alan's picture.** It does not show pruning is a bad idea. It shows that this training rule, on this task, with random wiring, learns better on a small wiring than on a large one that is then cut down. The biological and machine-learning versions of the idea (weights that start large and get pruned; keeping a small subnetwork that trained well) work when the large network learns the task well first; here it learned worse. A fair test of the idea needs a rich network that learns at least as well as the lean one, for example a lower learning rate or a different rule for the dense start, and a pruning rule that uses something other than the correct-map count. Pruning also has a use that this test does not measure: removing cells and connections that never matter, for cost. From general knowledge, network pruning and the lottery-ticket idea are established areas in machine learning; I have not looked at them for this note.
+
+**Cautions:** toy, random wiring, teacher targets disjoint, one training recipe, simulation only.
+**Next if Alan wants:** find out why the rich net trains worse (map sizes during training, how many weights hit the bounds), try a gentler dense start (smaller weights, lower learning rate in the early phase), and try pruning by weight size rather than by use.
