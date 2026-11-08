@@ -579,3 +579,29 @@ A deeper queue removes the drops (depth 32 leaves under 10 per run; depth 128 no
 
 **Cautions:** toy; one set of runs per setting; the layer 1 and layer 2 target rates were chosen with the answer in view (section 39); the differences of a few points are within the noise of about 2 to 3 points.
 **Next if Alan wants:** measure delay against queue depth; try more buses per layer instead of deeper queues; repeat the feedback tests (sections 35 and 36) with the self-adjusting threshold; try target rates that are not taken from the tuned net.
+
+## 42. Delay against queue depth and number of buses (8 Nov 2026)
+
+**Alan (20:56):** apply and test (the open items of section 41: delay of deeper queues, and more buses per layer instead). Tool: `tools/hexn_busnet_shape_v1.py` (+2 tests; earlier tools untouched).
+
+**Setup.** Pruned dense net with the self-adjusting threshold (pipeline of section 40, start threshold 5, 5 wiring seeds). Each layer keeps 64 cells, split into 4, 8 or 16 buses; queue depth 4 to 32. Queue slots = 3 layers x buses x depth, a memory proxy only. Delay = clocks from the first input event to the first layer 3 fire, and to the clock by which 90% of the cells in the final layer 2 and 3 map have fired (8 patterns x 3 noisy runs). Recall with 10 / 30 / 50 / 70% of spikes dropped; dropped = packets lost per 100-clock run.
+
+| buses per layer x cells | queue depth | slots | recall | dropped | delay to first layer 3 fire | delay to 90% of map |
+|---|---|---|---|---|---|---|
+| 4 x 16 (as before) | 8 | 96 | 95 / 90 / 75 / 44 | 58 | 22.8 | 37.6 |
+| 4 x 16 | 32 | 384 | 95 / 92 / 74 / 39 | 9.5 | 29.2 | 52.1 |
+| 8 x 8 | 8 | 192 | 91 / 86 / 66 / 38 | 68 | 21.4 | 36.0 |
+| 8 x 8 | 16 | 384 | 96 / 93 / 75 / 36 | 39 | 27.6 | 42.1 |
+| 16 x 4 | 8 | 384 | 97 / 93 / 70 / 37 | 31 | 21.3 | 35.6 |
+| 16 x 4 | 4 | 192 | 96 / 90 / 67 / 36 | 81 | 22.4 | 32.4 |
+
+**Findings:**
+1. **Deeper queues cost delay.** Going from depth 8 to 32 on 4 buses cuts drops from 58 to 9.5 but adds about 6 clocks to the first layer 3 fire and about 14 clocks to the 90% point (37.6 to 52.1), because packets wait in line.
+2. **More buses cost no delay.** With 16 buses of 4 cells at depth 8 the delay stays at 21 and 36 clocks, and drops fall to 31 (from 58) at the same number of slots (384) as the depth-32 case (which has 9.5 drops). So at equal memory, many shallow buses give lower delay but more drops than few deep buses.
+3. **Accuracy hardly depends on any of this.** The low-drop columns stay at 91 to 97% in every row, and the high-drop columns move by a few points only (66 to 75% at 50% dropped), about the noise. The drops cost little accuracy here (consistent with section 41); the real differences are delay, memory and the number of buses.
+4. **Not measured:** the physical cost of more buses (each is a shared wire with its own id match at every cell on it, and each source now feeds more buses, which should raise total packets pushed; that count was not recorded here); the cost per queue slot on the card; how much delay the application can accept (a single judge pass versus a stream).
+
+**Choice depends on what the design needs.** If delay matters (a quick decision from a stream), many small buses with a shallow queue; if every packet must arrive and delay is acceptable, fewer buses with a deep queue. A middle option, 8 buses at depth 16, gave 96 / 93 / 75 / 36 with 39 drops and 28 / 42 clocks.
+
+**Cautions:** toy; one pipeline, same test noise, differences of a few points within noise; delay in simulated clocks only, not card time; target rates chosen with the answer in view (section 39).
+**Next if Alan wants:** count packets pushed per run for each shape; repeat the feedback tests with the self-adjusting threshold; try the same shapes on the lean net; a first cost estimate (cells, buses, queue memory) for the card from this configuration.
