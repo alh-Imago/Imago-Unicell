@@ -339,3 +339,26 @@ Section 25 suggested a new guard so the system would not pick a hold on a sensor
 
 **Map-feedback as a training step (design note, not built):** when the teacher (or the certain-label rule from section 14) says which result is right, the stored map for that result is the target. Compare the map the input just produced with the target: strengthen the weights from the packets that were seen into the target-map cells that failed to fire, weaken them into cells that fired but are not in the target. Small bounded steps within the drift ceiling of the saved weights, and the saved library entered through teacher mode only, exactly as agreed in sections 10 to 12. It fits the scheme already settled, so the weight training scheme does not have to be redone for the neural cell.
 **Next if Alan wants:** build that training step in the toy and repeat the single-recall, mixture and feedback tests over several wiring seeds.
+
+## 34. Map feedback built in the toy: it trains the cells (8 Nov 2026)
+
+**Alan (18:59):** start on building the map feedback. Built as `tools/hexn_busnet_train_v1.py` + 4 tests (`hexn_busnet_v1.py` untouched).
+
+**Method (as the design note in section 33):** teacher mode gives each of the 8 patterns a target map: 5 chosen cells in layer 2 and 5 in layer 3, different for every pattern (so the targets are separable by construction). Each training step runs one noisy example of a known pattern. A target cell that did not fire gets every weight from an active source raised by 1; a cell that fired but is not in the target gets those weights lowered by 1. Weights stay within a drift ceiling of the starting wiring (3, or 6 in two runs) and within plus or minus 4. Only existing connections change and only layers 2 and 3 are trained (layer 1 is not). Test noise differs from training noise. Five wiring seeds; 800 single tests and 500 mixture tests per row. Chance is 100 of 800 for single recall and about 18 of 500 for the mixture hit.
+
+| training (epochs of 8 patterns, ceiling) | single recall | mixture A+B exact |
+|---|---|---|
+| none | 93/800 (12%) | 22/500 (4%) |
+| 40, ceiling 3 | 463/800 (58%) | 73/500 (15%) |
+| 100, ceiling 3 | 575/800 (72%) | 100/500 (20%) |
+| 40, ceiling 6 | 582/800 (73%) | 82/500 (16%) |
+| 100, ceiling 6 | 597/800 (75%) | 90/500 (18%) |
+
+**Reading:** the map feedback does train the cells. Untrained, the map says nothing about the pattern (at chance); trained, recall of a single pattern from a noisy run rises to 58 to 75%. The two-map case improves from chance to about 4 to 5 times chance but stays poor (15 to 20% exact pairs). The mean overlap with the right target is still only about 0.2 in the first 40-epoch run, so the trained maps are not close to the target maps, just nearer to them than to the others.
+
+**Cautions:**
+- The targets were handed out disjoint by the teacher, which is the easy case; naturally formed maps overlap.
+- Only 4 variants were tried and all were scored on the same test noise, so the best row is slightly flattered.
+- The first run used a mismatched "active inputs" list in the training step; this was corrected and the figures were identical, as expected, because only layers 2 and 3 are trained and their sources are cells, not inputs. No effect, but noted.
+- Not done: feedback links (runaway) with trained cells, whether the stabilised settings still recall, a self-fed target (certain-label rule instead of a teacher), training layer 1, and whether the ceiling of the saved weights holds up over long live use.
+**Next if Alan wants:** the same training with the feedback links switched on in the stabilised settings, and a version where the target map comes from the network's own earlier confident runs rather than a teacher.
