@@ -7,6 +7,7 @@ Strategies, each gives one cleaner per sensor; the judge weights are then taught
   oracle        per sensor, the cleaner with the best single-sensor accuracy against the true classes (uses answers; the best possible per-sensor pick)
   blind cost    per sensor, from its raw stream alone: the cost c = 10 (hexn_trychatter_v1) among the cleaners the run-length guard allows (no labels, no judge)
   blind judge   per sensor in turn, the others held at their current pick: every cleaner is tried with its own taught weights and scored by agreement with a self label read from the RAW classes of the next word (certain words only; hexn_trycleaners_v1); one pass from all-none
+First version of this tool (committed, results discarded): scored every strategy on the SAME live stream on which 'blind judge' chose its cleaners and weights, and taught the judge on 400-word streams with only a few class changes. 'Blind judge' then came out 0.80 against 0.67 for no cleaning, which was selection on the test stream (its pick of weights used labels from that very stream, which are close to the truth when classes last long), not a better cleaner. Now: teacher streams 1500 words, and a separate held-out stream scores all strategies.
 Task and weights as in hexn_selftrain_v1 (event = at least 4 of 8 sensors in class >= 4 in the next word).
 Usage: python3 tools/hexn_mixedsensors_v1.py"""
 import sys, os, random
@@ -14,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hexn_selftrain_v1 as S, hexn_sensor_profiles_v1 as P, hexn_trychatter_v1 as T, hexn_bank_model_v2 as M, hexn_kxlayer1_judge_v1 as J
 
 CANDS = ("none", "carry3", "hold3", "hold10", "carry3+hold10")
-GAP, CHATTER = (0, 1, 2, 3), (4, 5, 6, 7)
+GAP, CHATTER = (0, 1, 2, 3), (4, 5, 6, 7); N_SEEDS = 5
 
 
 def chatter_col(truth_col, rnd, w=8, flip=0.01):
@@ -47,10 +48,11 @@ def judge_acc(W, bias, truth, det, specs):
 def col_acc(cl, tcol): return sum(a == b for a, b in zip(cl, tcol)) / len(cl)
 
 
-def run(seed, noise, nwords=2500, tw=400, teach_noise=(0.05, 0.10, 0.15)):
+def run(seed, noise, nwords=2500, tw=1500, teach_noise=(0.05, 0.10, 0.15), held_words=2500):
     m = M.make(seed, J.K, J.NB, J.AW, 16, 0.15)
     ts = [mixed_stream(m, seed * 1000 + i, tw, nz) for i, nz in enumerate(teach_noise)]
-    truth, det = mixed_stream(m, seed * 1000 + 60, nwords, noise); cols = [[r[s] for r in det] for s in range(S.NS)]; tcols = [[r[s] for r in truth] for s in range(S.NS)]
+    truth, det = mixed_stream(m, seed * 1000 + 60, nwords, noise); htruth, hdet = mixed_stream(m, seed * 1000 + 70, held_words, noise)   # the live stream is where the blind picks are made; a SEPARATE held-out stream scores them
+    cols = [[r[s] for r in det] for s in range(S.NS)]; tcols = [[r[s] for r in truth] for s in range(S.NS)]
     picks = {"none": ["none"] * 8, "carry3": ["carry3"] * 8, "hold10": ["hold10"] * 8}
     picks["oracle"] = [max(CANDS, key=lambda c: col_acc(P.clean_chain(cols[s], c), tcols[s])) for s in range(8)]
     picks["blind cost"] = [min([c for c in CANDS if T.allowed(cols[s], c)], key=lambda c: T.cost(P.clean_chain(cols[s], c), cols[s], 10)) for s in range(8)]
@@ -65,19 +67,19 @@ def run(seed, noise, nwords=2500, tw=400, teach_noise=(0.05, 0.10, 0.15)):
     picks["blind judge"] = cur
     res = {}
     for name, sp in picks.items():
-        W, bias = train(ts, sp); res[name] = judge_acc(W, bias, truth, det, sp)
+        W, bias = train(ts, sp); res[name] = judge_acc(W, bias, htruth, hdet, sp)
     return res, picks
 
 
 def main():
-    for nz in (0.10, 0.20):
+    for nz in ((float(sys.argv[1]),) if len(sys.argv) > 1 else (0.10, 0.20)):
         allr = []; allp = []
-        for sd in range(1, 7): r, p = run(sd, nz); allr.append(r); allp.append(p)
-        print("\nnoise %.2f, judge accuracy on unseen words, mean of 6 seeds (min / max):" % nz)
-        for name in allr[0]: v = [r[name] for r in allr]; print("  %-12s %.3f  (%.3f / %.3f)" % (name, sum(v) / 6, min(v), max(v)))
+        for sd in range(1, N_SEEDS + 1): r, p = run(sd, nz); allr.append(r); allp.append(p)
+        print("\nnoise %.2f, judge accuracy on a held-out stream, mean of %d seeds (min / max):" % (nz, N_SEEDS))
+        for name in allr[0]: v = [r[name] for r in allr]; print("  %-12s %.3f  (%.3f / %.3f)" % (name, sum(v) / N_SEEDS, min(v), max(v)))
         for name in ("oracle", "blind cost", "blind judge"):
             g = sum(1 for p in allp for s in GAP if "carry" in p[name][s] and "hold" not in p[name][s]); h = sum(1 for p in allp for s in CHATTER if "hold" in p[name][s])
-            print("  %-12s picks: gap sensors given carry3 only in %d of 24, chatter sensors given a hold in %d of 24" % (name, g, h))
+            print("  %-12s picks: gap sensors given carry3 only in %d of %d, chatter sensors given a hold in %d of %d" % (name, g, N_SEEDS * 4, h, N_SEEDS * 4))
 
 
 if __name__ == "__main__": main()
