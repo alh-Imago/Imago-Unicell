@@ -453,3 +453,41 @@ Training the feedback weights is the best of the three at every drop level, by a
 
 **Cautions:** toy, random wiring, teacher targets disjoint, one training recipe, simulation only.
 **Next if Alan wants:** find out why the rich net trains worse (map sizes during training, how many weights hit the bounds), try a gentler dense start (smaller weights, lower learning rate in the early phase), and try pruning by weight size rather than by use.
+
+## 38. Why the rich net trained worse; the threshold; pruning again (8 Nov 2026)
+
+**Alan (20:05):** yes to the next steps in section 37. Tool: `tools/hexn_busnet_prune2_v1.py` (+3 tests; earlier tools untouched).
+
+**Diagnosis (3 wiring seeds).** The rich net (24 sources per cell, threshold 3) starts with about 120 of 128 layer 2 and 3 cells firing, and 93% of the target cells are among them only because nearly everything fires. The training rule (raise missed target cells, lower every wrong firer) then sees about 110 wrong firers against about 10 missed, over-suppresses to maps of about 11 cells, and ends up hitting only 33% of the target cells. So the rich net did not fail to learn; the rule was dominated by its "lower" half because the start was far too active. Raising the starting threshold fixes the start: rich at threshold 5 starts at 80 cells and ends at 9 cells hitting 62% of target cells (lean at threshold 3: 7.5 cells, 35%).
+
+**A correction to how far the earlier numbers can be trusted.** The threshold of 3 was chosen in section 32 only to get activity flowing through all layers; it was never tuned for recall. Tuning the lean net's threshold (5 seeds, 50 epochs, same task):
+
+| lean net threshold | 10% dropped | 30% | 50% | 70% | dropped packets per run |
+|---|---|---|---|---|---|
+| 2 | 46% | 47% | 36% | 28% | 276 |
+| 3 (used in sections 32 to 37) | 75% | 69% | 64% | 42% | 75 |
+| 4 | **92%** | 87% | 73% | 50% | 14 |
+| 5 | 95% | 87% | 65% | 34% | 3 |
+
+So every lean-net figure in sections 33 to 37 (and the comparisons made with them) was taken at a poor setting, and the "lean beats rich" result of section 37 mostly measured the threshold, not the wiring size. Section 37's result stands as measured but should be read with this. The conclusions about stabilised feedback (section 35) and the feedback benefit (36, 37) were all at threshold 3 and are untested at 4.
+
+**Pruning again, with a fair start (5 seeds, 400 tests per cell, 50 epochs in all, same final connections 2176 vs rich 5120):**
+
+| network | 10% dropped | 30% | 50% | 70% | dropped packets |
+|---|---|---|---|---|---|
+| rich, threshold 5, trained, not pruned (5120 connections) | 92% | 87% | 81% | 61% | 144 |
+| rich threshold 5, pruned by USE, threshold back to 3 | 42% | 46% | 37% | 30% | 148 |
+| rich threshold 5, pruned by WEIGHT size, threshold back to 3 | 81% | 75% | 64% | 47% | 157 |
+| rich threshold 5, pruned by weight, threshold 4 | 89% | 84% | 79% | 51% | 113 |
+| rich threshold 5, pruned by weight, threshold kept at 5 | 93% | 87% | 78% | 50% | 85 |
+| lean, threshold 4, same epochs (2176 connections) | 92% | 87% | 73% | 50% | 14 |
+| rich threshold 7, pruned by weight, threshold 4 | 89% | 84% | 73% | 55% | 149 |
+
+**Findings:**
+1. **Pruning by use failed badly; pruning by weight size worked.** The use count (how often a connection's source was active when its cell fired in the correct map) is a poor guide in this setup, while the trained weight itself is a good one.
+2. **The child-like route works but is not better than starting lean at the same connection count.** Rich at threshold 5 pruned by weight to 2176 connections (threshold kept at 5): 93/87/78/50 against lean at threshold 4: 92/87/73/50. Equal within noise, perhaps 5 points better at 50% dropped.
+3. **The unpruned dense net is the best on heavy missing parts** (81% at 50% dropped and 61% at 70%, against 73% and 50%) but it uses 2.35 times the connections and drops about ten times as many packets (144 against 14 per run). Pruning gives up part of that robustness (61% down to 50% at 70% dropped) to cut connections and traffic. That fits Alan's picture as a trade-off between a plastic, robust phase and an efficient final shape.
+4. **The firing threshold is the most sensitive setting found so far**, more than wiring size, feedback or pruning. It must be treated as a trained or homeostatic quantity, not a constant (the biology analogue is a cell adjusting its own firing level to keep activity in a target range). The pruned net did best when the threshold stayed matched to its starting activity (5), which suggests it should adapt rather than be reset.
+
+**Cautions:** toy, random wiring, teacher targets disjoint, one training recipe; the choice of which variants to run was made with the earlier test numbers in view, and all are scored on the same test noise; dropped packets are still high for the dense nets.
+**Next if Alan wants:** an automatic threshold (each cell adjusts its own level to hold its firing rate near a target), then repeat the feedback tests of sections 35 to 37 at the corrected setting; try pruning in more stages with the threshold adapting between them.
