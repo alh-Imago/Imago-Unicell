@@ -491,3 +491,30 @@ So every lean-net figure in sections 33 to 37 (and the comparisons made with the
 
 **Cautions:** toy, random wiring, teacher targets disjoint, one training recipe; the choice of which variants to run was made with the earlier test numbers in view, and all are scored on the same test noise; dropped packets are still high for the dense nets.
 **Next if Alan wants:** an automatic threshold (each cell adjusts its own level to hold its firing rate near a target), then repeat the feedback tests of sections 35 to 37 at the corrected setting; try pruning in more stages with the threshold adapting between them.
+
+## 39. Cells that set their own firing level (8 Nov 2026)
+
+**Alan (20:17):** yes to the self-adjusting threshold. Tool: `tools/hexn_busnet_homeo_v1.py` (+4 tests; earlier tools untouched).
+
+**Method.** Each cell has its own threshold. After every training epoch the network is run on the patterns and each cell's firing rate (share of runs in which it fired) is compared with a target for its layer (layer 1: 0.40, layer 2: 0.08, layer 3: 0.05). A cell well above target raises its threshold by 1, a cell well below lowers it by 1 (limits 2 to 9). The target rates were set after measuring the tuned fixed-threshold network (average rates 0.39, 0.08 and 0.03), so they are not independent of the answer; the question tested is whether the result stops depending on the starting threshold. 50 epochs, 5 wiring seeds, 400 tests per cell, map feedback training of layers 1 to 3 as in section 37, 50% inhibitory feedback links, refractory 6.
+
+| net, start threshold | fixed: 10% / 30% / 50% / 70% dropped | homeostatic: 10% / 30% / 50% / 70% | mean final thresholds L1 / L2 / L3 (homeostatic) |
+|---|---|---|---|
+| lean, 2 | 43 / 38 / 31 / 27 | 76 / 69 / 60 / 35 | 7.5 / 4.8 / 2.6 |
+| lean, 3 | 77 / 72 / 64 / 42 | 91 / 86 / 66 / 38 | 5.8 / 5.1 / 2.7 |
+| lean, 5 | 95 / 89 / 67 / 33 | 89 / 82 / 59 / 33 | 4.0 / 4.7 / 2.7 |
+| lean, 7 | 82 / 68 / 44 / 21 | 77 / 68 / 52 / 36 | 3.1 / 3.6 / 2.5 |
+| rich, 3 | 53 / 53 / 44 / 32 | 89 / 85 / 75 / 58 | 7.3 / 5.3 / 3.8 |
+| rich, 5 | 90 / 87 / 78 / 58 | **96 / 95 / 83 / 57** | 7.2 / 5.6 / 4.1 |
+| rich, 7 | 91 / 88 / 80 / 57 | 93 / 91 / 82 / 56 | 7.9 / 5.6 / 4.2 |
+
+**Findings:**
+1. **The self-adjusting threshold removes most of the dependence on the starting threshold.** Spread of the 10% result across starting thresholds: lean, fixed 43 to 95, homeostatic 76 to 91; rich, fixed 53 to 91, homeostatic 89 to 96. A badly chosen start (threshold 2 for the lean net, 3 for the rich net) is rescued (43 to 76 and 53 to 89).
+2. **For the rich net the final thresholds converge to nearly the same values from every start** (layer 1 about 7.2 to 7.9, layer 2 5.3 to 5.6, layer 3 3.8 to 4.2). For the lean net they do not fully converge (layer 1 ends between 3.1 and 7.5): the rule moves a threshold by at most 1 per epoch and has not finished in 50 epochs from the far starts.
+3. **It does not beat the best hand-picked fixed value for the lean net** (fixed 5: 95 / 89 / 67 / 33 against homeostatic from 5: 89 / 82 / 59 / 33). For the rich net it does: the best single row so far is rich from 5 with homeostasis, 96 / 95 / 83 / 57, against the best fixed 91 / 88 / 80 / 57; the gain is within a few points of noise at 70% dropped and real-looking at 10 to 50%.
+4. **Dropped packets are unchanged for the rich net** (about 100 to 140 per run; lean net 4 to 70). That cost of the dense net remains.
+
+**What this means for the design.** The firing level can be a property each cell adjusts for itself with a simple rule, so it need not be tuned by hand, and a wrong initial value is largely corrected. It adds one stored number per cell (the threshold) and a rate counter per cell, plus a slow periodic update, which is a hardware cost not yet counted.
+
+**Cautions:** toy; the target rates were chosen with the answer in view; same test noise throughout; threshold update only during training here (not tested while running live); the feedback and pruning results of sections 35 to 38 have not been repeated with this rule; random wiring; teacher targets disjoint.
+**Next if Alan wants:** repeat the pruning test (section 38) and the feedback test (sections 35 to 36) with the homeostatic threshold; try target rates that are not taken from the tuned net; test a threshold that keeps adapting during live use.
