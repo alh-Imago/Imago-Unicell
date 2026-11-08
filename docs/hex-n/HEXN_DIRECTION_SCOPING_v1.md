@@ -393,3 +393,29 @@ I have not done a literature review; the names above are from general knowledge 
 
 **Cautions:** one training setup, teacher targets disjoint, toy random wiring, simulation only.
 **Next if Alan wants:** read `TYPED_NEURAL.md` and `VISION.md` and compare with section 31 to 35; test the trained, stabilised network on patterns it was not trained on; try a task where feedback should matter (a pattern with a missing part, a sequence).
+
+## 36. The archive read against this design; unseen inputs and missing parts (8 Nov 2026)
+
+**Alan (19:19):** yes to the next steps in section 35.
+
+**Archive read (`TYPED_NEURAL.md`, `VISION.md`, read in full or in the relevant parts).**
+- `TYPED_NEURAL.md`: one leaky integrate-and-fire neuron built from 5 to ~12 cells (membrane store, integrator, comparator, spike, refractory); weight, decay and threshold are preloaded values, and "training" is a configure transaction rewriting those values with no recompile. The spike travels on the cell fabric's bus, one neuron per cluster.
+- `VISION.md`: neural ponds sharing the tick cycle with OS ponds; a learning rule is "another cell cluster that observes spike activity and updates gate configurations" (Hebbian, STDP, neuromodulation named, none built there).
+- **What the archive does not have, and sections 27 to 35 add:** several cells sharing one bus with the receiver filtering on a source id (address-event style) so fan-out is cheap; layers made of small buses with queues; an activity map recalled by the judge; and a supervised map-feedback rule. What it already has that matches: the leaky accumulator and refractory period, and "training = rewrite preloaded weights without recompile", which is exactly how the bounded weight steps and the drift ceiling of sections 10 to 12 would be applied. So the new design reuses the archived neuron's behaviour but changes how cells are connected and who owns the weights. Per the working rule, that cluster neuron should be the starting point for the cell itself, and the shared-bus version should be compared against it for cost before anything is built.
+
+**Run:** `tools/hexn_busnet_gen_v1.py` (+2 tests). Three networks trained with the teacher-target map feedback (40 epochs, ceiling 6, 5 wiring seeds, 400 tests per cell): no feedback, plain +2 feedback, +2 feedback with 50% inhibitory links and refractory 6.
+
+| network (trained) | spikes dropped 10% (as trained) | 30% | 50% | 70% | jitter 8 clocks | afterglow, trained patterns | afterglow, 8 new patterns |
+|---|---|---|---|---|---|---|---|
+| no feedback | 73% | 62% | 51% | 37% | 69% | 0.0 | 0.0 |
+| feedback +2 plain | 77% | 65% | 51% | 39% | 70% | 0.0 | 0.0 |
+| feedback +2, 50% inhibitory, refr 6 | 77% | 66% | 58% | 36% | 68% | 0.0 | 0.0 |
+
+**Findings:**
+1. **No runaway on unseen patterns after training**, even with plain feedback. Not because the net went silent: a separate check (3 seeds) showed the mean map after training is 8 to 9 cells for both trained and new patterns, against 58 to 77 cells untrained. So training made the whole network sparse, not only for the patterns taught, and the runaway disappeared with it. This is the 3-seed check only and the new patterns get maps of the right size but they are not meaningful maps (no target exists for them).
+2. **Missing parts:** recall degrades gently as spikes are removed (73% at 10% dropped, 37% at 70% dropped, chance 12.5%), and heavy timing jitter costs only about 4 points. This is for patterns the network was trained on.
+3. **Feedback helped little:** +2 to +4 points at low drop, +7 points for the inhibitory version at 50% dropped; with 400 tests per cell the noise is about 2 to 3 points, so only the 50% result is plausibly real and I would not rely on it. No evidence yet that these feedback links fill in missing parts of a map.
+4. Untested: a feedback design aimed at completion (for example feedback weights trained to the target map instead of fixed random +2); a sequence task; different wiring sizes.
+
+**Cautions:** toy, random wiring, teacher targets disjoint, one training recipe.
+**Next if Alan wants:** train the feedback weights themselves toward the target map and repeat the completion test; or compare the cost of the shared-bus cell against the archive's cluster neuron in cells and clocks before going further.
