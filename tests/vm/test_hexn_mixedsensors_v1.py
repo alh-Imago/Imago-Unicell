@@ -14,3 +14,11 @@ def test_small_run_returns_every_strategy_with_one_cleaner_per_sensor():
     res, picks = X.run(1, 0.20, nwords=150, tw=60)
     assert set(res) == {"none", "carry3", "hold10", "oracle", "blind cost", "blind judge"} and all(0 <= v <= 1 for v in res.values())
     assert all(len(p) == 8 for p in picks.values())
+
+
+def test_guard_blocks_holds_on_gap_sensors_and_allows_them_on_chatter_sensors():
+    import hexn_trychatter_v1 as T, hexn_bank_model_v2 as M, hexn_kxlayer1_judge_v1 as J
+    m = M.make(1, J.K, J.NB, J.AW, 16, 0.15); truth, det = X.mixed_stream(m, 1060, 1200, 0.20)
+    for s in X.GAP:
+        col = [r[s] for r in det]; assert not T.allowed(col, "hold3") and not T.allowed(col, "hold10") and T.allowed(col, "carry3")
+    assert all(T.allowed([r[s] for r in det], "hold3") for s in X.CHATTER)
