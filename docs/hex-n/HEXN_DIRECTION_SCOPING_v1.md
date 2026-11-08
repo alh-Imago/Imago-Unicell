@@ -323,3 +323,19 @@ Section 25 suggested a new guard so the system would not pick a hold on a sensor
 
 **Honest limits:** one seed of the wiring; random wiring, not trained; no weights learned; the Jaccard score is simple; nothing here says how the hardware would behave, how many clocks or cells it costs, or that real sensor data would map the same way. It shows only that (a) small buses with queues carry the flow with no drops in this regime, (b) activity maps are repeatable enough to recognise a stored pattern much better than chance, (c) fuzzy two-map matching needs sparser maps, (d) feedback runs away at modest weight unless leak or inhibition is strong.
 **Next, if Alan wants:** sparser maps and re-test of the mixture case; check recall with the stabilised feedback on; repeat over several wiring seeds so the figures have a spread.
+
+## 33. Sparser maps, the two-map test again, and the map-feedback that trains the cells (8 Nov 2026)
+
+**Alan (18:55):** make the maps sparser and retest the two maps crossing; the runaway will be an issue; and he had forgotten the **feedback from a correct map, which is the part that used to train the cells themselves** (in the layer system: when the result is known to be right, the map that produced it is fed back to adjust the cells so that the same input gives the same map more reliably).
+
+**Run:** `tools/hexn_busnet_sparse_v1.py` (+ 3 tests; `hexn_busnet_v1.py` untouched). 4 network settings x 3 map kinds (all cells that fired in layers 2 and 3; only cells firing at least twice; only the first 12 to fire) x 2 scores (plain overlap; overlap that discounts cells shared by many stored maps). One wiring seed, 8 patterns, 160 single tests, 100 mixture tests per row.
+
+**Result:** sparsening alone does **not** fix the two-map case.
+- Mixture hits (exactly A and B are the two best maps), out of 100: dense default map 10; best row **27** (threshold 3, 40% inhibitory cells, first-12-to-fire map, plain overlap); most rows 2 to 17. Chance for picking the right pair among 8 is about 3.6 in 100, so the best rows are above chance but far from useful.
+- Single-pattern recall got worse as maps got smaller: 132/160 for the dense map down to 104 for the first-12 map at the default setting; 20 to 77/160 where inhibition or threshold left only 0 to 2 cells in a map (a map that is nearly empty cannot be matched). The discounting score was worse than plain overlap on single recall and only helped a little on mixtures.
+- Reading (not proven): the wiring is random, so a cell's firing says little about *which* input caused it; sparser maps just carry less of what little there is. Making the maps recognisable and separable is the job of Alan's map-feedback, i.e. training, which this toy has none of.
+
+**Runaway (section 32 result stands):** weight +2 and +3 feedback kept the network firing after the input stopped; leak on every clock or 50% inhibition stopped it. Still to check with training: that the stabilised setting passes a useful signal.
+
+**Map-feedback as a training step (design note, not built):** when the teacher (or the certain-label rule from section 14) says which result is right, the stored map for that result is the target. Compare the map the input just produced with the target: strengthen the weights from the packets that were seen into the target-map cells that failed to fire, weaken them into cells that fired but are not in the target. Small bounded steps within the drift ceiling of the saved weights, and the saved library entered through teacher mode only, exactly as agreed in sections 10 to 12. It fits the scheme already settled, so the weight training scheme does not have to be redone for the neural cell.
+**Next if Alan wants:** build that training step in the toy and repeat the single-recall, mixture and feedback tests over several wiring seeds.
