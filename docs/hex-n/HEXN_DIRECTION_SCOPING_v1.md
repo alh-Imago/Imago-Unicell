@@ -280,3 +280,19 @@ Section 25 suggested a new guard so the system would not pick a hold on a sensor
 - To tell M frequencies apart a receiver needs a window of at least about M clocks, which adds delay.
 **Link to biology (general knowledge, not checked against a source):** neurons do carry intensity as a firing rate, synaptic strength scales what arrives, and some neurons respond preferentially to input at certain rhythms (resonator, or resonate-and-fire, models are a known class). So frequency and level as two controls is not alien to the thing being copied.
 **Open:** is the second control wanted for selection (tuning), for carrying a second number, or both? Cheapest first test would be in simulation: one shared wire, a few senders at different pulse spacings and counts, receivers with a gain and a tuned band; measure how many senders can be told apart and what the receiver costs in logic. Not started; Alan to say whether to.
+
+## 30. The idea in logic terms: a cell id on a shared bus (Alan 8 Nov 18:35; IDEA, nothing built)
+**Alan's restatement [Alan]:** in logic terms the frequency idea is a cell id, but a shared one. A packet with an id runs down a single bus; each cell with the matching id picks it up and acts on it. Still digital, but shared. The receiving cell says "I have this data, I will only take in 50% of its value into the accumulator system".
+**Claude's reading [proposal, untested]:** this is the right digital form of section 29 and it keeps both of his controls:
+- **Level** = the value carried in the packet (instead of a pulse count).
+- **Frequency** = how often packets with that id are sent (the rate).
+- **Tuning** = the id match: a receiver takes only the ids it has an entry for.
+- **Gain** = the receiver's weight for that id, applied before the value goes into the accumulator ("50%" is a weight of 0.5, a shift by one bit; a weight of a power of two needs no multiplier; other weights need a multiplier or shift-and-add).
+**Known practice (general knowledge, not checked against a source here):** sending spikes as address packets over a shared bus is the standard way neuromorphic chips do it (address-event representation); two common layouts are broadcast-and-match (every cell sees every packet) and a routing table that looks up a sender and delivers to its list of receivers with their weights.
+**What it means for this design:**
+- It is the connection table of section 28 with a delivery mechanism: the table maps (sender id) to (weight) at the receiver, or (receiver, weight) at a router.
+- **Broadcast-and-match** is simple and local, but every cell checks every packet, so the cost is cells x packets; it suits a few hundred cells at a packet per clock, not thousands.
+- **A routing table** needs memory but scales better and fits the "weights live in memory" proposal and the weight library (sections 8 and 10).
+- **Limits:** one packet at a time on a bus, so a busy moment queues or drops packets (arbitration); timing is carried by arrival time instead of a pulse's place in the stream; the packet rate is a hard ceiling on events per second.
+- The training scheme is unchanged (a weight set is still a table of numbers per connection), and the existing byte-command base controller already works in this style on the host side.
+**Open:** broadcast-and-match or routing table? Is the weight allowed to be any number or only powers of two (cheap, and 1, 1/2, 1/4 is already close to the detector's +1, -1, off)? Signed (inhibitory) packets, or a sign in the weight? What happens when two packets arrive together? What is the id width, and how many ids per cell?
