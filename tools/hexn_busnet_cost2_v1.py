@@ -8,7 +8,7 @@ CHIP = dict(lut=597200, ff=597200, ramb36=955); BASE = dict(lut=19100, ff=14153,
 
 
 def synth(top, params):
-    with tempfile.TemporaryDirectory(dir=os.environ.get("HEXN_SYNTH_TMP", ".")) as d:
+    with tempfile.TemporaryDirectory(dir=os.environ.get("HEXN_SYNTH_TMP", tempfile.gettempdir())) as d:
         for f in FILES:
             t = open(os.path.join(VD, f)).read()
             if f.startswith(top):                       # the top module's own parameter defaults are replaced (chparam is not usable before elaboration here)

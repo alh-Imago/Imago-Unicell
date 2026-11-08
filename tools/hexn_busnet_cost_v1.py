@@ -15,7 +15,7 @@ def synth(per, nsrc, idw, ql, sync=1):
       hexn_bnet_bus_v1 #(.PER(%d), .NSRC(%d), .IDW(%d), .QL(%d), .REFR(3), .SYNC(%d)) u(.*);
     endmodule""" % (top, idw - 1, idw - 1, per * 4 - 1, cp - 1, cp - 1, per - 1, per, nsrc, idw, ql, sync)
     # yosys here is the YoWASP build: it can only see the directory it runs in, so everything is copied there and named relatively
-    with tempfile.TemporaryDirectory(dir=os.environ.get("HEXN_SYNTH_TMP", ".")) as d:
+    with tempfile.TemporaryDirectory(dir=os.environ.get("HEXN_SYNTH_TMP", tempfile.gettempdir())) as d:
         open(os.path.join(d, "w.v"), "w").write(wrapper); open(os.path.join(d, "bus.v"), "w").write(open(V).read())
         out = subprocess.run(["yosys", "-q", "-p", "read_verilog -sv bus.v w.v; synth_xilinx -flatten -top %s; tee -o stat.txt stat" % top], capture_output=True, text=True, cwd=d)
         if out.returncode: raise RuntimeError(out.stderr[-2000:])
