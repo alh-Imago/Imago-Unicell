@@ -518,3 +518,29 @@ So every lean-net figure in sections 33 to 37 (and the comparisons made with the
 
 **Cautions:** toy; the target rates were chosen with the answer in view; same test noise throughout; threshold update only during training here (not tested while running live); the feedback and pruning results of sections 35 to 38 have not been repeated with this rule; random wiring; teacher targets disjoint.
 **Next if Alan wants:** repeat the pruning test (section 38) and the feedback test (sections 35 to 36) with the homeostatic threshold; try target rates that are not taken from the tuned net; test a threshold that keeps adapting during live use.
+
+## 40. Pruning with the self-adjusting threshold (8 Nov 2026)
+
+**Alan (20:32):** the self-adjusting threshold looks good; the next step from section 39 was to repeat the pruning test with it. Tool: `tools/hexn_busnet_homeoprune_v1.py` (+1 test; earlier tools untouched).
+
+**Method.** Dense net (24 sources per cell plus 8 feedback links on layer 1), trained 40 epochs with the self-adjusting threshold, pruned by weight size to the lean connection count (14 / 10 / 10 per cell, 2176 in all), then retrained 10 epochs either with the threshold rule still running or with the thresholds frozen. Compared with the lean net trained 50 epochs with the same rule and the same start threshold. 5 wiring seeds, 400 tests per cell. Recall with 10 / 30 / 50 / 70% of spikes dropped.
+
+| start threshold | network | connections | 10% | 30% | 50% | 70% | dropped packets per run |
+|---|---|---|---|---|---|---|---|
+| 5 | dense, trained, not pruned | 5120 | 97 | 95 | 87 | 55 | 97 |
+| 5 | dense, pruned, retrained **with** homeostasis | 2176 | 95 | 90 | 75 | 44 | 58 |
+| 5 | dense, pruned, retrained thresholds frozen | 2176 | 89 | 82 | 68 | 37 | 60 |
+| 5 | lean, homeostatic | 2176 | 89 | 82 | 59 | 33 | 4 |
+| 3 | dense, trained, not pruned | 5120 | 90 | 87 | 77 | 56 | 137 |
+| 3 | dense, pruned, retrained with homeostasis | 2176 | 91 | 84 | 71 | 44 | 89 |
+| 3 | dense, pruned, retrained thresholds frozen | 2176 | 89 | 86 | 68 | 42 | 90 |
+| 3 | lean, homeostatic | 2176 | 91 | 86 | 66 | 38 | 18 |
+
+**Findings:**
+1. **Letting the threshold keep adapting after pruning matters.** From start 5: with the rule running 95 / 90 / 75 / 44, with thresholds frozen 89 / 82 / 68 / 37 (6 to 8 points better). From start 3 the difference is small (91 against 89 at 10%, mixed elsewhere).
+2. **With that, the child-like route (dense, then prune) beats the lean start at the same connection count in the start 5 runs** (95 / 90 / 75 / 44 against 89 / 82 / 59 / 33, 6 to 16 points), and is equal or slightly better in the start 3 runs (91 / 84 / 71 / 44 against 91 / 86 / 66 / 38). So the section 38 result "equal to lean" improves to "equal or better" once the thresholds adapt.
+3. **The unpruned dense net is still the most accurate** (97 / 95 / 87 / 55 at start 5), with 2.35 times the connections. Pruning keeps about 90% of its accuracy at low drop and about 80% at 70% dropped, for 42% of the connections and 60% of the dropped packets.
+4. **Dropped packets** remain much higher for the pruned dense net (58 to 89 per run) than for the lean net (4 to 18): pruning cut connections but the surviving traffic of the dense-trained net is still heavy. This is a queue sizing question for the design.
+
+**Cautions:** toy; target firing rates were chosen with the answer in view (section 39); 400 tests per cell gives about 2 to 3 points of noise, so the start 3 differences are not significant, the start 5 ones at 50 and 70% probably are; the lean net got the same epochs but its start threshold was not tuned per row; teacher targets disjoint; random wiring; no hardware cost counted.
+**Next if Alan wants:** find why the pruned net keeps heavy traffic (map sizes and fan-out after pruning) and whether pruning cells, not only connections, reduces it; repeat the feedback tests (sections 35 to 36) with the self-adjusting threshold; target rates not taken from the tuned net.
