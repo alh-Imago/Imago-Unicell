@@ -605,3 +605,47 @@ A deeper queue removes the drops (depth 32 leaves under 10 per run; depth 128 no
 
 **Cautions:** toy; one pipeline, same test noise, differences of a few points within noise; delay in simulated clocks only, not card time; target rates chosen with the answer in view (section 39).
 **Next if Alan wants:** count packets pushed per run for each shape; repeat the feedback tests with the self-adjusting threshold; try the same shapes on the lean net; a first cost estimate (cells, buses, queue memory) for the card from this configuration.
+
+## 43. First cost estimate for the Kintex card, and what it says about scale (8 Nov 2026)
+
+**Alan (21:32):** the cost estimate is the next step, and it would also give a sense of possible scale.
+
+**What was built.** `sub/verilog/hexn_bnet_bus_v1.v` is one shared bus as logic: a queue of source ids (a full queue drops and counts), a weight table with one row per source id (4-bit signed weight for each cell on the bus, 0 = no connection), and the leaky accumulating cells with their own thresholds, refractory period and an 8-bit fire counter for the host (the rate the self-adjusting threshold needs). **It is cross-checked against the Python model:** `tests/vm/test_hexn_bnet_bus_v1.py` runs the module in iverilog and the Python bus on the same stimulus (6 seeds, 160 clocks, dense runs included) and the fire pattern of every cell matches clock for clock; the test fails, not skips, without iverilog, and a deliberately wrong refractory period in the testbench makes it fail (checked). The first version of the test did not catch that (it never made a cell fire twice in a row); it was strengthened before I trusted it. Drops cannot be tested at module level (one push per clock never overflows the queue), so the drop counter is checked only by being equal to the model's (0).
+
+**Synthesis (yosys `synth_xilinx`, a synthesis count only: no placement, routing or timing), one bus:**
+
+| bus | LUT | flip-flops | RAMB36 | LUTRAM | CARRY4 |
+|---|---|---|---|---|---|
+| 16 cells, 128 table rows (layer 1), queue 8 | 604 | 379 | 1 | 2 | 119 |
+| 16 cells, 64 rows (layers 2, 3), queue 8 | 607 | 443 | 0 | 23 | 119 |
+| 16 cells, 64 rows, queue 32 | 609 | 449 | 0 | 23 | 122 |
+| 8 cells, 64 rows, queue 8 | 311 | 235 | 0 | 12 | 63 |
+| 4 cells, 64 rows, queue 8 | 161 | 131 | 0 | 7 | 35 |
+
+So a cell with its share of bus logic costs about 38 LUT sites and 24 to 28 flip-flops. The queue depth is almost free in logic (32 against 8: +2 LUT per bus), because it maps to small distributed memory; its price in the model is delay (section 42), not area. Small tables (64 rows) were put by yosys into distributed RAM, not block RAM.
+
+**The 3 x 64 cell network of sections 41 and 42, assembled from those buses:** 7,300 to 8,200 LUT sites (1.2 to 1.4% of the chip's 597,200), 5,000 to 6,300 flip-flops, 0 to 4 RAMB36 (of 955) depending on shape. Shape changes the total by under 15%: 4 buses of 16 cells is 7,272 LUT, 16 buses of 4 cells is 8,048. **So the area argument does not decide between few deep buses and many shallow ones; delay, drops and the merger problem below do.** About 70 copies of this size would fit by LUT alone.
+
+**Scale (dense tables, 16 cells per bus, one block RAM per 512 rows per bus):**
+
+| cells per layer | all cells | RAMB36 (of about 945 free) | LUT (share of free) |
+|---|---|---|---|
+| 64 | 192 | 12 (1%) | 7,248 (1%) |
+| 512 | 1,536 | 128 (14%) | 57,984 (10%) |
+| 1,024 | 3,072 | 448 (47%) | 115,968 (20%) |
+| 1,536 | 4,608 | 960 (102%) | 173,952 (30%) |
+| 2,048 | 6,144 | 1,664 (176%) | 231,936 (40%) |
+
+**With dense tables the limit is block RAM, at about 1,500 cells per layer (about 4,500 cells in three layers)**, while LUTs would allow roughly 2,500 per layer. The table is a full matrix (every source against every cell on the bus, 4 bits each) although each cell uses only 10 to 14 connections, so most of it is empty; storing only the used connections would extend the limit but needs a different read structure (a source may hit several cells) and was **not modelled**. This is a first-order sense of scale, not a design.
+
+**What is NOT in these numbers, and matters:**
+1. **The merger.** The module takes one push per clock per bus; the Python model delivers several. Measured on the trained nets (3 layers, 100 clocks, 24 runs): in the lean net 34% of busy bus-clocks receive more than one packet, at most 5; in the pruned dense net 45%, at most 9 (layer 2 buses). The hardware needs a merge stage (or per-source sub-queues with an arbiter) in front of every bus, which costs area and adds delay, and **its effect on accuracy was not simulated**. This is the largest open cost.
+2. The wiring between layers (every fired cell goes to every bus that listens; up to 16 buses in the many-bus shapes) and routing congestion.
+3. Loading and reading the tables, thresholds and fire counters over the JTAG link (the weights and the homeostat run on the host), and the clock: no timing was run, so no clock rate is claimed.
+4. With a registered table read (needed for block RAM) every bus adds one clock of delay per layer.
+5. The accumulator range: the Python model lets it fall without limit (seen down to -46 in the lean net and -86 in the dense net). The module saturates at -32. Testing a floor in the model (`tools/hexn_busnet_floor_v1.py`, pruned dense net with homeostasis, 5 seeds; recall at 10 / 30 / 50 / 70% dropped): floor -32 gives 95 / 90 / 75 / 44, identical to no floor; floor -8 gives 92 / 88 / 72 / 45; floor -4 gives 87 / 76 / 66 / 37. So 6 bits is safe, 5 bits (floor -16) is probably safe and untested, and 4 bits would cost accuracy.
+
+**Reading for the design.** The network we have been testing is small for this card (about 1% of the logic, under 1% of block RAM at the tested size); it will not be the limit. The limits will be the merge stage, the table storage at larger sizes and delay. The next thing to cost is the merger, and then a placed and routed build to get a clock rate.
+
+**Cautions:** synthesis counts only, from yosys not Vivado; the cell and bus follow the Python model, not a finished design; the merger, wiring and host path are missing; scale figures assume dense tables and a straight multiplication of one bus.
+**Next if Alan wants:** design and cost the merger and simulate its effect on accuracy and delay; a placed and routed build of one layer on the card toolchain for a clock estimate; a sparse table structure to see how far the scale limit moves.
