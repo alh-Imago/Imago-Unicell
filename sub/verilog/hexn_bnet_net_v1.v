@@ -9,7 +9,8 @@ module hexn_bnet_net_v1 #(parameter G = 4, parameter PER = 16, parameter NIN = 4
     input wire wr_en, input wire [1:0] wr_layer, input wire [$clog2(G)-1:0] wr_bus, input wire [$clog2(NIN + G*PER)-1:0] wr_addr, input wire [PER*4-1:0] wr_data,
     input wire thw_en, input wire [1:0] thw_layer, input wire [$clog2(G)-1:0] thw_bus, input wire [$clog2(PER)-1:0] thw_idx, input wire [3:0] thw_val,
     input wire rclr, input wire [1:0] rate_layer, input wire [$clog2(G)-1:0] rate_bus, input wire [$clog2(PER)-1:0] rate_idx, output wire [7:0] rate_q,
-    output wire [G*PER-1:0] fire1, output wire [G*PER-1:0] fire2, output wire [G*PER-1:0] fire3, output wire [31:0] lost);
+    output wire [G*PER-1:0] fire1, output wire [G*PER-1:0] fire2, output wire [G*PER-1:0] fire3,
+    output wire [16*(1+6*G)-1:0] lostv, input wire [$clog2(1+6*G)-1:0] lost_sel, output wire [15:0] lost_q);
     localparam IDW = $clog2(NIN + G*PER); localparam IW = $clog2(PER); localparam ROWS1 = NIN + (FB ? G*PER : 0); localparam ROWS2 = G*PER;
     localparam NS1 = 1 + (FB ? G : 0);
     // serialisers: input lines, then one per group of each layer
@@ -45,7 +46,11 @@ module hexn_bnet_net_v1 #(parameter G = 4, parameter PER = 16, parameter NIN = 4
             .thw_en(t3), .thw_idx(thw_idx), .thw_val(thw_val), .rclr(rclr), .rate_idx(rate_idx), .rate_q(rq3[b]), .fire(fire3[b*PER +: PER]), .dropped(d3[b]));
     end endgenerate
     assign rate_q = (rate_layer == 2'd0) ? rq1[rate_bus] : (rate_layer == 2'd1) ? rq2[rate_bus] : rq3[rate_bus];
-    integer q; reg [31:0] tot;
-    always @* begin tot = in_m; for (q = 0; q < G; q = q + 1) tot = tot + m1[16*q +: 16] + m2[16*q +: 16] + m3[16*q +: 16] + d1[q] + d2[q] + d3[q]; end
-    assign lost = tot;
+    // every loss counter (input merges, 3G serialiser merges, 3G sub-queue drops), 16 bits each, side by side; the host reads one at a time through lost_sel (no adder tree: a sum of this many counters was mapped to DSP blocks)
+    wire [16*3*G-1:0] dv;
+    generate for (b = 0; b < G; b = b + 1) begin : lv
+        assign dv[16*(3*b) +: 16] = d1[b]; assign dv[16*(3*b+1) +: 16] = d2[b]; assign dv[16*(3*b+2) +: 16] = d3[b];
+    end endgenerate
+    assign lostv = {dv, m3, m2, m1, in_m};
+    assign lost_q = lostv[16*lost_sel +: 16];
 endmodule

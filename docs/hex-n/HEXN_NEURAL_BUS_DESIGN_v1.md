@@ -36,7 +36,7 @@ Controller commands to add to the base controller (new opcodes, same byte protoc
 - **Results RAM:** a run's result (best map index, scores, lost-packet count) would be one record, like the judge's. [proposal]
 
 ## 6. Costs (synthesis counts, yosys, not placed or timed) and limits
-See direction doc section 44 for the table. Not counted anywhere: pipelining, routing, the host path, the controller above.
+[synth] Direction doc section 44 has the table: 4x16 depth 8 is 19.4K LUT (3.25%), 8x8 51K, map matcher under 1K; 16x4 synthesis crashed; DSP use unexplained. Not counted anywhere: pipelining, routing, the host path, the controller above.
 
 ## 7. What is decided, what is open
 Decided by tests [sim]/[rtl]: shared buses with one packet per clock; a serialiser plus per-source sub-queues plus round-robin arbiter works as well as the ideal many-writes model in the toy; cells set their own thresholds; train then prune by weight size; map feedback trains the cells.

@@ -649,3 +649,39 @@ So a cell with its share of bus logic costs about 38 LUT sites and 24 to 28 flip
 
 **Cautions:** synthesis counts only, from yosys not Vivado; the cell and bus follow the Python model, not a finished design; the merger, wiring and host path are missing; scale figures assume dense tables and a straight multiplication of one bus.
 **Next if Alan wants:** design and cost the merger and simulate its effect on accuracy and delay; a placed and routed build of one layer on the card toolchain for a clock estimate; a sparse table structure to see how far the scale limit moves.
+
+
+## 44. The merged design: serialiser, merger, buses, cells, feedback and map matcher as one netlist (8 Nov 2026)
+
+Alan 22:08: design the merger with the other parts in mind, all in one design. Written up in `HEXN_NEURAL_BUS_DESIGN_v1.md`. Simulation and synthesis only; nothing ran on the card.
+
+**What was built.** A source serialiser (a pending bit per source, a rotating pointer, merged events counted), per-(target bus, source group) sub-queues, a round-robin arbiter that lets one packet per bus per clock through, then the bus (table and cells) with feedback from layer 3 to layer 1. Python model `tools/hexn_busnet_hw_v1.py`; RTL `hexn_bnet_ser_v1.v`, `_tbus_v1.v`, `_net_v1.v`, `_bus_v2.v`, and a map recorder/matcher `hexn_bnet_map_v1.v`.
+
+**Check.** The whole network in iverilog matches the Python merger model clock for clock (small shape, 4 seeds, 240 clocks, fire vectors and lost counts); the test fails on a wrong queue depth and a wrong arbiter pointer (mutation-checked). The map matcher matches an independent exact-fraction top-2 check (8 seeds). The lost-packet counters are now kept side by side and read through a selector (the earlier adder-tree sum did not change the DSP count).
+
+**Accuracy and delay** (Python merger model, 5 seeds; recall at 10 / 30 / 50 / 70% of spikes dropped; sub-queue depth per source group):
+| shape | recall | sub-queue drops | delay (two points) |
+|---|---|---|---|
+| 4x16 ideal reference (no merger) | 95/90/75/44 | 58.4 | 22.8 / 37.6 |
+| 4x16 merger, ideal weights carried over, depth 8 | 96/92/74/42 | 8.0 | 24.5 / 41.9 |
+| 4x16 trained inside the merger, depth 8 | 98/94/77/44 | 9.9 | 26.4 / 45.2 |
+| depth 32 | 96/91/76/42 | 0.0 | 29.8 / 47.1 |
+| depth 4 | 95/93/77/45 | 34.7 | 21.7 / 40.6 |
+| 2 ports | 99/94/71/35 | 0.2 | 23.1 / 35.4 |
+| 8x8 depth 8 (ideal 91/86/66/38) | 97/91/72/38 | 0.6 (ideal 68.0) | 23.0 / 42.3 |
+| 16x4 depth 8 (ideal 97/93/70/37) | 97/91/72/38 | 0.0 (ideal 31.4) | 21.4 / 34.4 |
+Reading: one packet per bus per clock costs no accuracy in this toy and the sub-queues cut drops; delay rises about 4 to 9 clocks for 4x16; 16 shallow buses keep the delay near the ideal.
+
+**Whole-netlist synthesis** (yosys synth_xilinx, 3x64 cells, 48 inputs; % of 597,200 LUT):
+| shape | LUT | FF | LUTRAM | DSP |
+|---|---|---|---|---|
+| 4x16, depth 8, feedback | 19,398 (3.25%) | 8,154 | 352 | 52 |
+| 4x16, depth 32, feedback | 24,285 (4.07%) | 13,650 | 352 | 104 |
+| 4x16, depth 8, no feedback | 15,822 (2.65%) | 7,022 | 272 | 36 |
+| 8x8, depth 8, feedback | 51,002 (8.54%) | 14,318 | 352 | 200 |
+| 16x4 | not obtained: yosys (YoWASP) crashed on this shape; not retried | | | |
+| map matcher, 128-bit maps, 16 or 64 stored | 779 | 175-181 | 22-43 | 4 |
+No block RAM in any row (tables map to LUT memory at this size). Whole-network LUT is about 2.6 times the bus-only 7.3-8.2K of section 43: the merger and serialisers are most of the difference, and some may be coding style. Why 8x8 costs about 2.6 times 4x16 is not understood and not examined. The DSP use is unexplained (the loss-counter sum was removed and the count stayed at 52); it may come from the cell multiply or accumulate coding and has not been traced.
+
+**Cautions:** one combinational chain per hop, so no clock rate can be claimed and the real card needs pipelining, which adds delay the Python model does not yet include; synthesis counts only (not Vivado); accuracy numbers are the toy's; feedback still shows no measured benefit.
+**Next if Alan wants:** a placed-and-routed build of one layer on the card toolchain for a clock rate; pipeline the netlist and update the model for the extra clocks; find out why 8x8 and the DSP use are so large.
