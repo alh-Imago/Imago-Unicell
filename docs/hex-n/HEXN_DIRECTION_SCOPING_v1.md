@@ -755,3 +755,11 @@ Alan ran `run_bnet.sh 4:16:48:3 8:8:48:3` (50 MHz target, openXC7). Logic use is
 
 **Cautions:** nextpnr estimates, one run per shape, LFSR-driven test (size and clock only); the bitstreams have not been loaded on the card; no pipelining beyond the register after the serialisers; 8x8 failed by a small margin and a different seed or a small pipeline change could pass it.
 **Next if Alan wants:** replace the index multiplications with shifts and adders (a cheap test of the DSP guess); load the 4x16 bitstream on the card as a smoke test; the Kintex column for sections 44 and 46 can now use these numbers.
+
+
+## 48. The DSP blocks traced and removed (9 Nov 2026)
+
+**Cause.** Yosys names each DSP block after the expression it came from. All of them (52 in the 4x16 shape, 200 in 8x8, 28 in 2x8) come from line 30 of `hexn_bnet_tbus_v2.v`: in the arbiter, `cntv[jj*(SQL+1) ...]` and `srow[jj*IDW ...]` / `headv[jj*IDW ...]`, a variable position `jj` times a constant width, repeated once per unrolled search step. The guess of section 47b (index arithmetic in the merger) was right.
+**Change (clones, v2 untouched):** `hexn_bnet_tbus_v3.v` and `hexn_bnet_net_v3.v` write the slice as a compare against each constant position, so no multiplier is made. Same behaviour: `tests/vm/test_hexn_bnet_net_v3.py` (the section 46 cross-check against `HWNetP`, 4 seeds) passes.
+**Local synthesis, 4x16 (yosys, plain Verilog):** 0 DSP48E1 (v2: 52), 18,067 LUT (yosys LUT6 count), 8,916 FF, 2,114 CARRY4. The 8x8 number was not obtained here (run stopped).
+**Kintex effect not yet known:** the card flow has not built v3. The kit now defaults to v3 (`HEXN_NETV=v2` for the old one). The two things to learn from a rebuild are the logic use in nextpnr terms and whether the clock moves; 8x8 missed 50 MHz by 0.6 MHz with the DSP blocks in the path.
