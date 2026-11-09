@@ -32,6 +32,8 @@ Shapes are G:PER:NIN:SQL (buses per layer : cells per bus : input lines : sub-qu
 ## What to send back
 The SUMMARY the script prints at the end (or the `.log` files in `/mnt/hdd/hexn_builds/`). The numbers wanted: the nextpnr "Max frequency" lines, the LUT/FF/DSP use, and any error text.
 
+Netlist: `HEXN_NETV=v3` (default) is the arbiter without multipliers (no DSP blocks); `HEXN_NETV=v2` rebuilds the version of the first runs (52 / 200 DSP blocks for 4x16 / 8x8).
+
 ## Things that could go wrong (guesses, not seen)
 - First run (9 Nov, 14:53): the flow's yosys reads plain Verilog and stopped at `always_comb` (a SystemVerilog word). prebuild.py now rewrites it to `always @*` in the gathered file; the gathered file was checked to parse and synthesise with a plain-Verilog yosys here. The checked simulation RTL is unchanged.
 - The design uses about 50 DSP48 blocks in yosys (cause not traced). If the flow rejects them, send the log.
