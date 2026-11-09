@@ -1022,3 +1022,25 @@ More events help up to about 100; 96 lines at the same event count did worse tha
 - Not tested: graded margins (weights from margin size), a teacher other than the 5-cells-per-layer maps, more seeds, feedback on and off, 96 lines.
 **Cautions:** model only; 2 seeds; 300 test recordings; weak labels (the digit as the label of every window); my own front end; the net block kept the toy's settings (apart from the starting threshold of 3); the best row was picked from seven.
 **Where this leaves the join:** the detector bank works on speech (section 58) and makes the net block usable (this section), but the net block's map recall is the weak link, not the input. The question for Alan is what the net block is for in this chain: if it is to recognise, the detectors alone already do better; if it is to hold maps, history or paths over the detectors' outputs (layer 2 and 3 of the nested picture), that needs a test of that job, not of teacher-map recall.
+
+## 60. Sequence test: predict the next window's winner (9 Nov 2026, Alan 22:59)
+
+**Test** (`tools/hexn_det_net_seq_v1.py`, Python model only): the same 5 window detectors as section 59 (top 2 events per window). After the first p windows (p = 1 to 4) predict the winning digit of window p (the detector with the largest margin there). The bus network (teacher map per target digit, section 55 training, 40 epochs, 2 seeds) sees only the events of windows 0 to p-1. Reference predictors are count tables built on the same training half, as a layer 2 history store would: (U) most common winner at that position, no history; (R) repeat the last winner; (B) bigram, given position and last winner; (T) trigram, given position and the last two. 1,200 test items (the same 300 test recordings x 4 prefixes). Chance 10%.
+
+**Check before reading:** window 4 (the last fifth of the second) is nearly empty: 88% of recordings have no events in it (mean 0.6 events on, against 26 to 29 in windows 0 and 1), and its winner is digit 1 in 3,537 of 4,011 training recordings, which is a default, not a prediction. So p = 4 items are degenerate (U scores 85.3% there) and are left out of the main figures below. The cause (recordings end before about 0.8 s) was checked by counting events; it was not checked against the audio.
+
+| predictor | p = 1 | p = 2 | p = 3 | mean of p = 1 to 3 | all four positions (incl. degenerate p = 4) |
+|---|---|---|---|---|---|
+| U: position only, no history | 6.7 | 14.0 | 21.3 | 14.0 | 31.8 |
+| R: repeat the last winner | 39.0 | 32.7 | 22.7 | 31.5 | 28.1 |
+| B: bigram (position, last winner) | 34.3 | 32.7 | 35.7 | 34.2 | 48.1 |
+| T: trigram (position, last two) | 34.3 | 36.0 | 33.3 | 34.5 | 47.5 |
+| bus network, dense | 13.7 | 15.5 | 10.2 | 13.1 | 13.8 |
+| bus network, 14 per cell | 15.3 | 14.8 | 11.5 | 13.9 | 14.0 |
+
+**Reading.**
+- **History helps, and a count table gets it.** Bigram and trigram count tables predict the next window's winner at about 34% on the informative positions against 14% with no history, so the sequence carries information (a digit's early windows say something about its later ones).
+- **The bus network did not learn it:** 13 to 14% on the informative positions, the same as the no-history guess (14.0) and below repeat-last (31.5) and the count tables (34). With these settings the network's map does not hold the history that a layer 2 style count store holds.
+- The target labels are the detectors' own window winners, which are noisy (a window-winner vote is right on the digit 51 to 57% of the time, section 59), so a ceiling well below 100% applies to every row.
+**Cautions:** model only; 2 seeds; 300 test recordings; training prefixes per target digit very uneven (266 to 2,422); weak window labels; the bus network kept the toy's settings and the teacher-map readout; the network was not tuned for this job; one window layout (5 windows, top 2).
+**Where this leaves the layers:** on this data the working pieces are the detector bank (section 58) and a counting history store (this section), which matches the earlier nested picture (layer 1 detectors, layer 2 history and paths per sensor, layer 4 predictive work on top of that). The bus network's role in that chain is the part that has not shown a gain in sections 55 to 60. Open for Alan: stop testing the bus network on this data and build the chain from the detector and the count store, or test the network on a job that suits its parallel, event-driven form.
