@@ -978,3 +978,25 @@ More events help up to about 100; 96 lines at the same event count did worse tha
 - **No fix found in the net's own layer 1 within these tests.** A better-than-chance start exists (about 49%), but nothing tried carries it up to layers 2 and 3 or to the teacher-map recall.
 **Cautions:** model only; 1 to 2 seeds; the classifier here (nearest centroid on counts) is not the matcher the design uses (Jaccard against teacher maps); one front-end setting (48 lines, top 4 per step).
 **Decision (Alan 22:35):** option 1 first, then option 2 if no fix. No fix found, so next is option 2: the existing detector bank in front of the net block (counted detectors giving stable classes), scoped before building.
+
+## 58. The counted detector bank, widened, on the spoken digits (9 Nov 2026, Alan 22:44)
+
+**What was modelled** (`tools/hexn_det_shd_v1.py`, Python only, no RTL): the detector of `tools/hexn_det_v4_model_v1.py` and `hexn_ring_v1.py` in its own arithmetic: one detector per class (10 digits); lane weights +1 / -1 / 0 by the counted rule (lane on: own class +9, other classes -1, saturating at +-31; weight +1 at count >= T, -1 at <= -T, T = min(16, S/2)); total = 10 x (sum of weight x wire), signed; threshold per detector = midpoint of the mean own-class and other-class training totals; answer = largest margin. **Widened**: the built detector hears 12 to 20 wires; here a recording is the folded event matrix (lines x time steps) laid out as 480 to 1,920 wires, with an accumulator wide enough for it. All 1,079 English test recordings (870 from the two speakers never in training; 4,011 training). Chance 10%.
+
+| front end (lines x steps, top per step) | wires | detector, 16 training per digit: all / unheard | detector, all ~400 per digit: all / unheard | accumulator bits needed (with sign) | template reference |
+|---|---|---|---|---|---|
+| 48 x 20, top 4 | 960 | 68.7 / 71.3 | 76.5 / 79.3 | 11 | 78.0 |
+| 48 x 20, top 8 | 960 | 80.0 / 82.9 | 81.7 / 85.1 | 11 to 12 | 85.7 |
+| 48 x 40, top 4 | 1,920 | 68.6 / 71.1 | 77.6 / 80.2 | 11 | 77.0 |
+| 48 x 10, top 8 | 480 | 76.0 / 78.3 | 80.6 / 83.6 | 11 | 86.3 |
+| 96 x 20, top 8 | 1,920 | 67.0 / 68.6 | 79.3 / 81.1 | 11 | 77.7 |
+
+**Reading.**
+- **The detector, widened, recognises the digits at about template level** (77 to 82% with all the training, 79 to 85% on the unheard speakers) against 10 to 19% for the net block's teacher-map recall in sections 55 to 57. With only 16 training recordings per digit it still reaches 69 to 80%.
+- **What the widening needs:** 480 to 1,920 wires instead of 12 to 20, and an accumulator of 11 to 12 bits including the sign instead of 8 (the built v4 has AW 8; the range note in `hexn_det_v4.v` already says the total must fit). Nothing else in the rule changed.
+- **Bands change nothing in accuracy** (4 bands joined by adding margins gave exactly the single-bank answers, as the sum of per-band totals and per-band midpoint thresholds equals the whole-bank total and threshold; this is arithmetic, not a finding). Bands only cut the wires each detector hears (240 instead of 960).
+- 96 lines did better than 48 only when all the training was used (79.3 against 77.6 at equal wires), and worse with 16 per digit.
+- **Size, as extrapolation only:** the file's figure is 29 + 13 LUT4 per lane from synthesis at 12 to 20 lanes. At 960 lanes per detector and 10 detectors that is about 125,000 LUT4. This extends the figure about 50 times beyond where it was measured; it is NOT a synthesis result, and weights that are loaded at run time and lanes shared in time could change it. It would not fit the Tang (20,736 LUT4); the Kintex card has 597,200 sites.
+**Cautions:** model only; one training order; the front end (fold and top-N per step) is my own and not the real sensor path; the template reference uses the same events. This tests the detector on its own. The detector feeding the net block has NOT been tested.
+**What this does and does not show:** the existing detector design, widened, handles this data. It does not show that the net block adds anything on top of it; the next step is to decide what the net block takes from the detector (open question for Alan, below).
+**Open (Alan):** what the detector hands to the net block. Candidates: (a) the 10 margins per band as events on lines; (b) detectors on short time windows (local sub-patterns) as layer 1 of the net; (c) detector margins quantised to bins 0 to 11 into the batch judge, as in the existing picture.
