@@ -930,3 +930,22 @@ More events help up to about 100; 96 lines at the same event count did worse tha
 - 96 lines was NOT run through the network (the template result at equal event count was worse than 48), so the question of whether more input lines revives the deep layers is still open.
 **Cautions:** model only; 3 seeds; 300 test recordings; one front-end setting per row; network settings (epochs, teacher size, rate targets) are those of the toy and were not tuned for speech; the template baseline is a reference, not a design.
 **Next options:** make layer 1 selective first (more time structure: delays or per-line history; or a front end that gives onset events), test layer 1 alone against the template, then add layers; or place blocks side by side, each taking a band of lines, so that each block sees fewer lines and a cleaner pattern (Alan's block-next-to-block idea, tile spec parallel tiles).
+
+## 56. Blocks side by side on the spoken digits (9 Nov 2026, Alan 22:22)
+
+**Test** (`tools/hexn_busnet_shd_blocks_v1.py`): the 48 lines are cut into NB bands; each band has its own 3-layer network (4 buses x 16 cells, same training, homeostat and pruning as section 55; cells listen to k = min(24, lines in the block) sources while dense); each block makes its own map; the join adds the Jaccard overlaps of the blocks' maps with each digit's teacher map and takes the largest sum. Same 300 test recordings as section 55 (243 from the two unheard speakers), 2 seeds, 30 epochs, chance 10%. The template column is a plain classifier on the same lines and events, as a reference.
+
+| blocks x lines | top per step per block | events per recording | template | joined recall, dense | joined recall, 14 per cell | one block alone | layer 1 cells fired per block (of 64) |
+|---|---|---|---|---|---|---|---|
+| 1 x 48 | 4 | 45 | 77.0 % | 11.3 % | 10.8 % | 10.8 to 11.3 % | 49 to 51 |
+| 2 x 24 | 4 | 84 | 77.7 % | 10.0 % | 10.2 % | 10.4 to 10.6 % | 61 to 62 |
+| 2 x 24 | 2 | 47 | 69.7 % | 10.7 % | 10.7 % | 10.0 to 10.2 % | 61 |
+| 3 x 16 | 1 | 35 | 68.0 % | 10.0 % | 11.8 % | 11.2 to 11.4 % | 47 to 48 |
+| 4 x 12 | 1 | 45 | 75.0 % | 10.8 % | 10.3 % | 9.9 to 10.6 % | 44 to 45 |
+
+**Reading.**
+- **Side-by-side blocks did not change the result.** Every setting is at chance (10 to 12%), joined or alone, at every block count tried, while the template on the same events reaches 68 to 78%. Adding the join over several blocks added nothing because no single block carries anything to join.
+- Layer 1 stays saturated in every block (44 to 62 of 64 cells fire on every recording; 61 to 62 of 64 with the 24-line blocks). So the fault is upstream of the blocks: layer 1 is not selective on speech, and cutting its input into bands does not make it so. This agrees with section 55, where the cause was left as untested hypotheses.
+- Not tested here: 5 or more blocks, blocks of different depth, a join other than summed overlap, any change to layer 1, the teacher, the rate targets or the time structure of the input.
+**Cautions:** model only; 2 seeds; 300 test recordings; the networks use settings tuned on the toy patterns and not retuned per block; a null result at these settings does not show that blocks cannot help once layer 1 works.
+**Next:** make layer 1 selective on speech on its own (layer 1 alone against the template), then retry layers and blocks on top of it.
