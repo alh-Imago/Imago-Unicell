@@ -949,3 +949,32 @@ More events help up to about 100; 96 lines at the same event count did worse tha
 - Not tested here: 5 or more blocks, blocks of different depth, a join other than summed overlap, any change to layer 1, the teacher, the rate targets or the time structure of the input.
 **Cautions:** model only; 2 seeds; 300 test recordings; the networks use settings tuned on the toy patterns and not retuned per block; a null result at these settings does not show that blocks cannot help once layer 1 works.
 **Next:** make layer 1 selective on speech on its own (layer 1 alone against the template), then retry layers and blocks on top of it.
+
+## 57. Can layer 1 be fixed on its own? (9 Nov 2026, Alan 22:35, option 1)
+
+**Layer 1 alone** (`tools/hexn_busnet_shd_l1_v1.py`; one layer of 4x16 cells, no feedback, random wiring, NO training, fixed threshold; 45 events per recording; 400 training and 300 test recordings; nearest-centroid classifier on the vector of fire counts; 2 seeds; template on the raw events 77.0%, chance 10%). Cells fired per recording / accuracy %:
+
+| sources per cell K | TH 3 | TH 6 | TH 10 | TH 16 | TH 24 | TH 36 |
+|---|---|---|---|---|---|---|
+| 4 | 15.6 / 45.0 | 3.7 / 32.2 | 1.0 / 17.7 | 0.1 / 9.8 | 0 / 10.0 | 0 / 10.0 |
+| 8 | 28.3 / 48.0 | 8.6 / 38.2 | 2.1 / 25.2 | 0.3 / 12.5 | 0 / 10.0 | 0 / 10.0 |
+| 14 | 42.8 / 48.0 | 21.0 / 44.2 | 7.8 / 35.5 | 1.6 / 18.0 | 0.2 / 11.0 | 0 / 10.0 |
+| 24 | 55.8 / 49.2 | 41.5 / 48.7 | 24.9 / 45.8 | 9.1 / 35.7 | 1.7 / 23.2 | 0.1 / 10.3 |
+
+**Layer by layer in the full network** (1 seed, K=14 working point, 40 epochs; nearest-centroid on each layer's fire counts, 300 test recordings):
+
+| state | layer 1 | layer 2 | layer 3 |
+|---|---|---|---|
+| untrained | 49.0 % (41 cells fired) | 28.3 % (34) | 22.3 % (41) |
+| trained, dense | 49.3 % (48) | 28.7 % (6.5) | 22.0 % (3.3) |
+| trained, pruned to 14 | 50.7 % (48) | 22.0 % (4.4) | 17.7 % (2.1) |
+
+**Layer 1 rate target** (homeostat target 0.40 changed to 0.25 and 0.12; 2 seeds, 40 epochs): layer 1 still fires 47.6 to 48.2 cells; teacher-map recall 12.3 to 14.8 % (combined) against 10 % chance.
+
+**Reading.**
+- **Layer 1 is not empty.** With random wiring and no training its fire pattern alone separates the digits at 45 to 49% (chance 10%). Sparser settings lose accuracy (K=14: 48.0% at 43 cells fired, 35.5% at 8). So "make layer 1 sparse" is not free: in this toy sparsity costs information.
+- **The information thins on the way up.** About 49% in layer 1, 22 to 29% in layer 2, 18 to 22% in layer 3, before and after training. The teacher-map training makes layers 2 and 3 sparse (3 to 7 cells fired) but does not make them separate the digits better. Pruning to 14 lowered layers 2 and 3.
+- **The rate target did not move layer 1** (still 47 to 48 cells fired), so the homeostat is not what holds layer 1 down or up here; the cause was not found. Training of the layer 1 targets and the starting weights are untested suspects.
+- **No fix found in the net's own layer 1 within these tests.** A better-than-chance start exists (about 49%), but nothing tried carries it up to layers 2 and 3 or to the teacher-map recall.
+**Cautions:** model only; 1 to 2 seeds; the classifier here (nearest centroid on counts) is not the matcher the design uses (Jaccard against teacher maps); one front-end setting (48 lines, top 4 per step).
+**Decision (Alan 22:35):** option 1 first, then option 2 if no fix. No fix found, so next is option 2: the existing detector bank in front of the net block (counted detectors giving stable classes), scoped before building.
