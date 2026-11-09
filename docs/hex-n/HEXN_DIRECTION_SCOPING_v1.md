@@ -1070,3 +1070,32 @@ W = 10 windows (2 steps each), accuracy of D, P (context 0) and C (context 0) at
 - So on this data the history store is not needed to recognise a whole digit; where history helped was in predicting the next window (section 60, count tables 34% against 14% without history), which is the layer 4 job and is not tested here.
 **Cautions:** model only; one split of the training recordings into halves; one set of lambdas (grid of seven, chosen on validation); 300 test recordings; window classes are the detectors' own (noisy); the time axis is the fold's one second, with most of the word before 0.8 s; the decision rule is a plain argmax, not the designed layer 4 (look-ahead, goals).
 **Next (not started):** (a) test the layer 4 job on this chain: predict the next window's class from the store and the path of the digit hypothesis, and measure whether acting early on the prediction beats waiting; (b) put the chain's pieces in the Kintex base picture (detector bank, store v5, judge); (c) decide what the bus network is kept for (Alan's call).
+
+## 62. Layer 4 on the chain: predict, and decide early (10 Nov 2026, Alan 23:10)
+
+**Build** (`tools/hexn_layer4_v1.py`, Python model only; the chain of section 61 with 10 windows of 2 steps; same halves, same 300 test recordings). Layer 4 here = a posterior over the digits (softmax of the path score of the context 1 store + lambda x summed margins; lambda from the validation part, as in section 61) used for two jobs. (1) Predict the class of window p from windows 0 to p-1 as the class with the largest posterior-weighted probability, sum over digits of post(digit) x P(class | digit, position, previous class). (2) Decide early: stop at the first p where the best digit's posterior reaches TAU, against a layer 1 only rule that stops when the gap between the best and second summed margin reaches GAP.
+
+**(1) Prediction**, accuracy % over positions p = 1 to 9 (chance 10%). Window classes are the 10 detectors plus NONE (silence); "active" = the actual class is not NONE (silence is predicted trivially by any table):
+
+| predictor | all windows | active windows | active windows by position p = 1 / 2 / 3 / 4 / 5 / 6 / 7 / 8 / 9 |
+|---|---|---|---|
+| U: most common class at that position | 35.3 | 27.7 | 16 / 6 / 10 / 16 / 12 / 21 / 57 / 84 / 0 |
+| R: repeat the last class | 23.4 | 26.3 | 36 / 32 / 28 / 24 / 25 / 22 / 32 / 9 / 58 |
+| B: bigram (previous class), digits summed | 49.5 | 43.6 | 34 / 36 / 34 / 27 / 31 / 37 / 66 / 86 / 0 |
+| **layer 4: posterior-weighted** | **52.1** | **46.6** | 37 / 41 / 34 / 39 / 39 / 35 / 63 / 87 / 0 |
+| O: the true digit known (upper bound) | 54.1 | 49.1 | 49 / 46 / 38 / 42 / 37 / 33 / 63 / 85 / 0 |
+
+**(2) Deciding early** (mean windows used of 10 | accuracy %, all 300 test recordings). Detectors alone at a fixed p: p=1 50.7, 2 68.0, 3 79.7, 4 84.3, 5 88.0, 6 87.7, 7 85.7, 10 86.0.
+
+| rule | settings: windows used / accuracy |
+|---|---|
+| layer 4 posterior >= TAU | TAU 0.5: 1.2 / 58.3; 0.7: 2.4 / 78.0; 0.9: 3.9 / 85.7; 0.99: 6.3 / 84.7; 0.999: 7.6 / 84.7 |
+| layer 1 only, margin gap >= GAP | 100: 4.4 / 86.7; 200: 6.8 / 87.0; 300: 8.3 / 86.0; 500: 9.6 / 86.0 |
+
+**Reading.**
+- **Layer 4 does predict a little better than the count table alone:** 46.6% against 43.6% (bigram) on active windows, and the upper bound with the true digit known is 49.1%. So knowing the digit is worth at most about 5.5 points here, and the suspected digit recovers about half of that. These are small differences on 300 recordings and I did not test them for significance; the gain over the bigram is consistent across positions 1 to 5 (37 against 34, 41 against 36, 34 against 34, 39 against 27, 39 against 31) but not at 6 to 8.
+- **Next-window prediction stays hard:** even with the true digit the next active window's class is right 49% of the time, because the window classes are noisy detector outputs. The prediction mostly adds a few points to what the previous class already says.
+- **Layer 4 did not improve recognition or the decision time over the detectors:** deciding early works (about 4 windows of 10 give 85 to 87%, the same as using all ten), but the layer 1 margin-gap rule does it as well (GAP 100: 4.4 windows, 86.7%) as the layer 4 posterior (TAU 0.9: 3.9 windows, 85.7%). The posterior is over-confident at high TAU (84.7%, below the detectors' 86 to 87%).
+- Feeding the prediction back to bias layer 1 would add the same quantity as the combined decider of section 61, which already showed no gain; it was not run separately.
+**Cautions:** model only; one train/test split; 300 test recordings; the "layer 4" is a posterior-weighted table predictor, NOT the designed strategist (look-ahead search, goals, suggestion channel into layer 3); isolated digits have no actions or consequences, so a strategist has nothing to choose between. Earlier results (`LAYER_INTERFACES_v4.md` section 2) found the plain search better than the learned model in Connect Four and draughts.
+**What this says about layer 4:** on recognition data it earns a few points of prediction and no more; its job needs a task with choices and consequences. This does not show that layer 4 is useless, only that these digits give it nothing to decide.
