@@ -872,3 +872,28 @@ Layer 2 alone: 83 / 81 / 68 / 40 (K = 10), 91 / 81 / 76 / 45 (K = 14).
 - Recall improves at the 3-layer design by 4 to 12 points depending on drop level (the 70% drop figure goes 44 to 56) for 35% more connections (2,176 to 2,944). In the 5-layer net the gain is 3 to 8 points.
 **Cautions:** model only; toy patterns; 5 seeds; K = 14 was chosen after seeing the sweep of section 52, on the same patterns and seeds, so its advantage over K = 10 is partly selection; the 5-layer figures use guessed rate targets.
 **Working point:** 14 sources per cell (layer 1: 18) from here for new tests unless Alan decides otherwise; no earlier file was edited.
+
+
+## 54. What keeps the deep layers alive? Five variants at the new working point (9 Nov 2026)
+
+Alan 21:16 (driving; left to run). `tools/hexn_busnet_depthfix_v1.py VARIANT`: 5 layers of 4 buses x 16 cells, 14 sources per cell (section 53 working point), 4 seeds, 8 tests per pattern and drop level; one process per variant (the changes are module settings). Variants: **base** (nothing changed); **floor1** (threshold floor 1 instead of 2, all layers); **rates** (firing-rate targets of layers 3 to 5 raised from 0.05 to 0.08, the layer 2 value); **weights** (excitatory starting weights in layers 4 and 5 one higher); **all** (the three together). Layer 4 and 5 rate targets in the base were my guess (section 50).
+
+Cells fired per run, silent runs (% of runs with nothing fired in that layer) and recall of a matcher on that layer alone, at 10 / 50 / 70% of events dropped:
+
+| variant | cells fired L2 / L3 / L4 / L5 | silent L3 / L4 / L5 | recall L2 | recall L3 | recall L4 | recall L5 | all layers |
+|---|---|---|---|---|---|---|---|
+| base | 4.7 / 2.5 / 2.0 / 1.5 | 12 / 33 / 44 % | 91 / 78 / 46 | 63 / 51 / 27 | 51 / 41 / 21 | 38 / 28 / 20 | 87 / 73 / 44 |
+| floor1 | 4.6 / 2.3 / 2.3 / 1.5 | 16 / 23 / 45 % | 90 / 75 / 46 | 69 / 52 / 26 | 47 / 37 / 23 | 38 / 29 / 17 | 81 / 73 / 42 |
+| rates | 4.7 / 3.0 / 2.5 / 2.0 | 16 / 28 / 38 % | 89 / 81 / 44 | 73 / 61 / 32 | 64 / 51 / 26 | 52 / 43 / 23 | 87 / 76 / 44 |
+| weights | 5.1 / 2.6 / 2.5 / 1.8 | 14 / 23 / 36 % | 96 / 81 / 48 | 70 / 49 / 24 | 56 / 43 / 19 | 39 / 29 / 18 | 89 / 73 / 44 |
+| all | 4.7 / 3.2 / 3.0 / 2.8 | 9 / 12 / 23 % | 94 / 80 / 50 | 78 / 59 / 36 | 73 / 50 / 35 | 66 / 44 / 32 | 89 / 69 / 46 |
+
+Mean threshold of layers 4 and 5: 2.5 / 2.3 (base), 1.6 / 1.3 (floor1 and all).
+
+**Reading.**
+- The rate targets matter most on their own: raising them for layers 3 to 5 lifts the deep layers' firing (layer 5 1.5 to 2.0 cells) and each deep layer's recall (layer 4 51 to 64 at 10% drop, layer 5 38 to 52). The floor alone and the starting weights alone do little.
+- All three together keep the deep layers clearly more alive: layer 5 fires 2.8 cells (1.5 in the base), is silent in 23% of runs (44% in the base), and its matcher recalls 66 / 44 / 32 against 38 / 28 / 20. The deep layers still stay below layer 2 (94 / 80 / 50).
+- The matcher on all layers together does NOT improve (89 / 69 / 46 against 87 / 73 / 44): keeping the deep layers alive makes each of them more informative on its own but adds nothing on top of layer 2 in this toy.
+- The rate targets are the knob that decides how many cells fire per run (a target of 0.08 means about 5 cells in a 64-cell layer), so a part of this result is the setting working as set, not something the network found.
+**Cautions:** model only; toy patterns; 4 seeds with 8 tests per setting, so differences of a few points are noise (layer 2 moving between 89 and 96 across variants that should not touch it shows how much); the variants were chosen after the findings of sections 50 to 53 on the same patterns.
+**For the tile design:** a deep layer can be made to carry the pattern, but in this toy it does not add recall over layer 2, so the case for more layers has to come from a real task, not from this test.
