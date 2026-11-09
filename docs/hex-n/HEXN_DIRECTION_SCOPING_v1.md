@@ -701,3 +701,25 @@ Alan 23:18: "yes we can go for a build". The workspace has no Vivado and no Kint
 
 **Cautions:** one seed, one run per shape; target clocks only 27 and 100 MHz; different chip; no board test; the Kintex figure is still unknown and needs Vivado on Alan's side or on the card's toolchain.
 **Next if Alan wants:** read the critical path from the report and pipeline the stage that causes it, update the Python model for the extra clocks; package a Vivado kit (RTL, constraints, script) for a real Kintex number.
+
+
+## 46. The slow line, and the first pipeline stages (9 Nov 2026)
+
+Alan 00:05: test the slow line first, then add pipeline stages; the card build follows, and the detector layer, batch judge and neural block come before layers 2, 3 or 4. Same Tang Nano 20K yardstick as section 45 (shape: 3 layers of 2 buses of 8 cells, 16 input lines, sub-queue 4, feedback; one run per placer seed; the "Max frequency" lines are the optimiser's estimate then the routed figure, the routed figure is quoted).
+
+**The slow line (v1, 47.5 MHz, 21 ns: 13.2 logic, 7.9 routing).** Read from the place-and-route report: it runs from the input serialiser's rotating pointer, through the "first pending source at or after the pointer" search, through the sub-queue write, to the 16-bit loss counter (`dropped`). So the whole hop was one path, and the loss counter was its last link.
+
+**Changes (clones, v1 files untouched):** `hexn_bnet_net_v2.v` registers every serialiser output (valid, index) before the merger, so each hop takes one clock more; `hexn_bnet_ser_v2.v` and `hexn_bnet_tbus_v2.v` count lost packets through registers (the counters read four clocks late; only the host reads them). Python: `tools/hexn_busnet_hw_v2.py` (`HWNetP`, same CLI as v1). Test `tests/vm/test_hexn_bnet_net_v2.py` (+ testbench): clock-for-clock fire vectors and loss count (compared at the clock the counters have reached) against `HWNetP`, 4 seeds; run against the unpipelined v1 netlist it fails at clock 1, so the one-clock-per-hop change is checked.
+
+**Timing steps** (routed estimate, seed 1): v1 47.5 MHz; pipeline register after the serialisers only 79.7 MHz (then the loss counter became the slowest line); counter with one register 65 MHz (the counting of events itself became the slowest line); counter in three register stages **74-77 MHz** (seed 1 77.4, seed 2 74.4). Seed-to-seed variation was up to about 10 MHz on the same netlist, so treat these as +/-10 MHz. LUT4 use unchanged at about 12.4K (59%).
+**The slowest line now** is the serialiser's own pointer-to-pointer step (rotating search, then update of the pointer): it is the design itself, not a counter, and speeding it up means changing how the next source is chosen. Not done.
+
+**Accuracy and delay with the extra clock per hop** (`python3 tools/hexn_busnet_hw_v2.py 1 16 8 G PER`, 5 seeds, sub-queue 8, recall at 10/30/50/70% dropped, delay to first layer-3 fire / 90% of the map):
+| shape | unpipelined merger (section 44) | pipelined |
+|---|---|---|
+| 4 x 16 | 98/94/77/44, 26.4 / 45.2 | 98/94/74/45, 32.3 / 49.5 |
+| 16 x 4 | 97/91/72/38, 21.4 / 34.4 | 98/90/69/33, 25.5 / 39.0 |
+Recall holds at low drop rates and falls a few points at the heavy-drop end for 16 x 4; delay rises about 4 to 6 clocks. The ideal references are unchanged (4x16: 95/90/75/44; 16x4: 97/93/70/37).
+
+**Cautions:** Tang Nano 20K figures, not the Kintex card (no Vivado here); one netlist shape (the only one that fits); +/-10 MHz placer noise, two seeds; the pipeline is only after the serialisers (the table read and cell update are still in one clock and were not the limit in these runs); the model's accuracy numbers are the toy's.
+**Next:** the Kintex build, then the detector layer, the batch judge and the neural block on the base, then layers 2 and 3 (or 4) if needed (Alan's order); a faster next-source choice if the clock matters.
