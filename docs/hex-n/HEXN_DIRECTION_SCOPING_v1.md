@@ -1044,3 +1044,29 @@ More events help up to about 100; 96 lines at the same event count did worse tha
 - The target labels are the detectors' own window winners, which are noisy (a window-winner vote is right on the digit 51 to 57% of the time, section 59), so a ceiling well below 100% applies to every row.
 **Cautions:** model only; 2 seeds; 300 test recordings; training prefixes per target digit very uneven (266 to 2,422); weak window labels; the bus network kept the toy's settings and the teacher-map readout; the network was not tuned for this job; one window layout (5 windows, top 2).
 **Where this leaves the layers:** on this data the working pieces are the detector bank (section 58) and a counting history store (this section), which matches the earlier nested picture (layer 1 detectors, layer 2 history and paths per sensor, layer 4 predictive work on top of that). The bus network's role in that chain is the part that has not shown a gain in sections 55 to 60. Open for Alan: stop testing the bus network on this data and build the chain from the detector and the count store, or test the network on a job that suits its parallel, event-driven form.
+
+## 61. The chain: window detectors, a count store of each digit's path, a decision (10 Nov 2026, Alan 23:04)
+
+**Alan's decision (his statement, 23:04):** option 1, build the chain from the detector and the count store; his view is that the neural net side is the wrong model for a detector system and may have to be moved to another use. Nothing is removed (archive, never remove): the bus network files and sections 32 to 60 stay as they are.
+
+**Build** (`tools/hexn_chain_v1.py`, Python model only): layer 1 = W windows, each with 10 counted detectors (section 58 rule, trained on training half A); a window's class is the largest signed margin, or NONE when no margin is above zero (as the built layer 1 reports a class or NONE). Layer 2 = counts only, trained on half B with the digit as label: for each digit, position and (context 1) previous class, how often each of the 11 symbols followed, add-one smoothing; the path score of a digit is the sum of log probabilities of the windows heard. Layer 4 style decision after p windows: (D) detectors alone = summed margins; (P) path score alone; (C) path score + lambda x summed margins, lambda chosen on a validation part of half B, never on the test set. Same 300 test recordings (243 from unheard speakers); chance 10%. Accuracy % after hearing p windows, all 300 | unheard speakers:
+
+W = 5 windows (4 steps each):
+
+| decider | p = 1 | p = 2 | p = 3 | p = 4 | p = 5 |
+|---|---|---|---|---|---|
+| D detectors alone | 68.0 / 71.2 | 84.3 / 88.9 | 87.7 / 91.4 | 85.0 / 88.9 | 85.7 / 89.3 |
+| P path store alone, context 0 | 68.0 / 71.2 | 74.0 / 76.5 | 77.3 / 79.0 | 77.0 / 79.0 | 76.3 / 78.2 |
+| P path store alone, context 1 | 68.0 / 71.2 | 74.3 / 76.1 | 79.3 / 81.1 | 77.0 / 78.6 | 78.0 / 79.8 |
+| C store + detectors, context 0 | 68.0 / 71.2 | 85.7 / 89.3 | 87.0 / 90.5 | 85.7 / 89.3 | 86.0 / 89.7 |
+| C store + detectors, context 1 | 68.0 / 71.2 | 85.7 / 89.7 | 87.7 / 89.3 | 86.7 / 87.7 | 85.7 / 86.8 |
+
+W = 10 windows (2 steps each), accuracy of D, P (context 0) and C (context 0) at p = 1 / 3 / 5 / 7 / 10: D 50.7 / 79.7 / 88.0 / 85.7 / 86.0; P 48.3 / 73.7 / 83.7 / 77.7 / 76.7; C 50.7 / 79.3 / 87.7 / 83.7 / 82.7 (context 1 rows in the run output are of the same size). The store holds 426 of 550 (context 0) and 1,387 of 6,050 (context 1) count cells above the smoothing floor at W = 5; 841 of 1,100 and 3,269 of 12,100 at W = 10.
+
+**Reading.**
+- **The detector chain recognises the digits and decides early.** After two of five windows (the first 40% of the one second laid out in the fold) the detectors alone are at 84 to 89%, within a few points of the final 86 to 89%; with ten windows, after five windows (half the second) 88%. Most recordings are silent by about 0.8 s (section 60), so the first windows carry the word.
+- **The count store alone reaches 76 to 81%**, well above chance and below the detectors, from counts only (no multipliers, no search).
+- **The store adds nothing to the detectors for recognition:** the combined rows (85.7 to 87.7 at W = 5) differ from the detectors alone (84.3 to 87.7) by amounts inside the noise of 300 test recordings (one standard error is about 2 points). Context 1 (bigram) was no better than context 0.
+- So on this data the history store is not needed to recognise a whole digit; where history helped was in predicting the next window (section 60, count tables 34% against 14% without history), which is the layer 4 job and is not tested here.
+**Cautions:** model only; one split of the training recordings into halves; one set of lambdas (grid of seven, chosen on validation); 300 test recordings; window classes are the detectors' own (noisy); the time axis is the fold's one second, with most of the word before 0.8 s; the decision rule is a plain argmax, not the designed layer 4 (look-ahead, goals).
+**Next (not started):** (a) test the layer 4 job on this chain: predict the next window's class from the store and the path of the digit hypothesis, and measure whether acting early on the prediction beats waiting; (b) put the chain's pieces in the Kintex base picture (detector bank, store v5, judge); (c) decide what the bus network is kept for (Alan's call).
