@@ -4,7 +4,7 @@ Settings (environment): HEXN_REPO = the Imago-Unicell checkout, branch Hex-N (de
 import os, re, sys
 repo = os.path.expanduser(os.environ.get("HEXN_REPO", "~/Imago-Unicell"))
 par = dict(G=int(os.environ.get("HEXN_G", "4")), PER=int(os.environ.get("HEXN_PER", "16")), NIN=int(os.environ.get("HEXN_NIN", "48")), SQL=int(os.environ.get("HEXN_SQL", "3")), FB=int(os.environ.get("HEXN_FB", "1")))
-nv = os.environ.get("HEXN_NETV", "v3"); assert nv in ("v2", "v3"), "HEXN_NETV must be v2 or v3"      # v3 = the arbiter without multipliers (no DSP blocks); v2 = the first Kintex builds
+nv = os.environ.get("HEXN_NETV", "v4"); assert nv in ("v2", "v3", "v4"), "HEXN_NETV must be v2, v3 or v4"      # v3 = the arbiter without multipliers (no DSP blocks); v2 = the first Kintex builds
 files = ["sub/verilog/hexn_bnet_bus_v2.v", "sub/verilog/hexn_bnet_ser_v2.v", "sub/verilog/hexn_bnet_tbus_%s.v" % nv, "sub/verilog/hexn_bnet_net_%s.v" % nv, "sub/verilog/hexn_bnet_pnr_top_v1.v"]
 out = []
 for f in files:
@@ -16,4 +16,4 @@ for f in files:
         for k, v in par.items(): t = re.sub(r"parameter %s = \d+" % k, "parameter %s = %d" % (k, v), t, count=1)
     out.append("// ---- %s ----\n" % f + t + "\n")
 open(os.path.join(sys.argv[1], "gen_00_bnet.v"), "w").write("".join(out))
-print("prebuild: merged bus network v2, %s, %d files from %s" % (par, len(files), repo))
+print("prebuild: merged bus network %s, %s, %d files from %s" % (nv, par, len(files), repo))
