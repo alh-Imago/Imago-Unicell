@@ -846,3 +846,29 @@ Alan 17:15. `tools/hexn_busnet_prunelevel_v1.py` (python3 tools/hexn_busnet_prun
 - The thin firing is mostly NOT the pruning: the unpruned net fires only 5.2 cells in layer 2 and 3.0 in layer 3 per run. That is the training target and the homeostat rate targets (5 target cells per layer per pattern; rate targets 0.08 and 0.05), not the loss of connections. Pruning to 10 takes layer 2 from 5.2 to 3.7.
 **Cautions:** model only; toy patterns; 5 seeds, so differences of a point or two are noise; one dense network per seed, so the levels are not independent trainings.
 **Not yet answered:** whether the later layers need to be as large. Layers of unequal size need a model change (the model uses the same buses and cells in every layer). The layer must hold enough distinct target cells for the stored patterns (8 patterns x 5 cells = 40 of 64 now), so shrinking below that needs fewer cells per pattern or fewer patterns; this is a separate test.
+
+
+## 53. Moving the working point from 10 to 14 sources per cell: does the layered firing change? (9 Nov 2026)
+
+Alan 20:21: move the working point first and see if the layered fire rate changes. `tools/hexn_busnet_workpoint_v1.py LAYERS` (3 and 5 run, 5 seeds each; 5 layers patched as in section 50, deep-layer rate targets guessed): the same dense start, training, pruning and retraining as section 52; only the kept sources differ, K = 10 (layer 1: 14, the working point of sections 37 to 52) against K = 14 (layer 1: 18). The earlier tools are unchanged; the working point is chosen in this tool's call, not by editing `LEAN_KEEP`.
+
+**3 layers (the design).** Recall at 10 / 30 / 50 / 70% dropped, combined map:
+| | connections | recall | cells fired L1 / L2 / L3 | silent runs L2 / L3 | mean threshold L1 / L2 / L3 |
+|---|---|---|---|---|---|
+| K = 10 | 2,176 | 95 / 90 / 75 / 44 | 37.0 / 4.0 / 2.2 | 1% / 16% | 7.2 / 4.8 / 3.5 |
+| K = 14 | 2,944 | 99 / 94 / 83 / 56 | 37.2 / 4.9 / 3.0 | 0% / 6% | 7.2 / 5.4 / 3.9 |
+Layer 2 alone: 97 / 92 / 76 / 46 (K = 10), 99 / 96 / 85 / 57 (K = 14).
+
+**5 layers (stretch, untuned for depth).**
+| | connections | recall (combined) | cells fired L1 to L5 | silent runs L2 to L5 |
+|---|---|---|---|---|
+| K = 10 | 3,456 | 79 / 76 / 64 / 39 | 43.7 / 3.7 / 2.3 / 2.0 / 1.2 | 4 / 20 / 29 / 52 % |
+| K = 14 | 4,736 | 87 / 78 / 72 / 42 | 43.9 / 4.8 / 2.7 / 2.0 / 1.5 | 0 / 12 / 29 / 44 % |
+Layer 2 alone: 83 / 81 / 68 / 40 (K = 10), 91 / 81 / 76 / 45 (K = 14).
+
+**Reading.**
+- The layered fire rate does change, modestly, in the early layers: layer 2 fires about 0.9 more cells per run, layer 3 about 0.5 to 0.8 more, and the silent share in layer 3 falls (16 to 6% in the 3-layer net, 20 to 12% in the 5-layer net). Layer 1 is unchanged.
+- It does not change the picture at depth: layer 4 stays at 2.0 cells and 29% silent, layer 5 goes from 1.2 to 1.5 cells and 52 to 44% silent, thresholds there stay near the floor (2.4 to 2.6, and 2.2 to 2.3). So 14 helps the layers near the input and does not fix the thinning at depth.
+- Recall improves at the 3-layer design by 4 to 12 points depending on drop level (the 70% drop figure goes 44 to 56) for 35% more connections (2,176 to 2,944). In the 5-layer net the gain is 3 to 8 points.
+**Cautions:** model only; toy patterns; 5 seeds; K = 14 was chosen after seeing the sweep of section 52, on the same patterns and seeds, so its advantage over K = 10 is partly selection; the 5-layer figures use guessed rate targets.
+**Working point:** 14 sources per cell (layer 1: 18) from here for new tests unless Alan decides otherwise; no earlier file was edited.
