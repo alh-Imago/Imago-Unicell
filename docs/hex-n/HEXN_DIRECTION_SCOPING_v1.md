@@ -723,3 +723,12 @@ Recall holds at low drop rates and falls a few points at the heavy-drop end for 
 
 **Cautions:** Tang Nano 20K figures, not the Kintex card (no Vivado here); one netlist shape (the only one that fits); +/-10 MHz placer noise, two seeds; the pipeline is only after the serialisers (the table read and cell update are still in one clock and were not the limit in these runs); the model's accuracy numbers are the toy's.
 **Next:** the Kintex build, then the detector layer, the batch judge and the neural block on the base, then layers 2 and 3 (or 4) if needed (Alan's order); a faster next-source choice if the clock matters.
+
+
+## 47. First Kintex build of the merged network (openXC7 flow, 9 Nov 2026)
+
+Alan ran `fpga/ypcb/hexn_bnet/run_bnet.sh 2:8:16:2` on his OptiPlex (YPCB-00338-1P1, XC7K480T, 50 MHz target, openXC7 yosys and nextpnr-xilinx). Shape: 3 layers of 2 buses of 8 cells, 16 input lines, sub-queue 4, feedback, the pipelined netlist (`_v2`). First attempt stopped in one second at `always_comb` (the flow reads plain Verilog); `prebuild.py` now rewrites it for the card build only (ledger row 9 Nov 15:10). Second attempt: exit 0, bitstream produced, run time about 2.5 minutes (14:55:17 to 14:57:48).
+
+**Result (nextpnr estimate, not silicon):** max clock 72.54 MHz after placement and 84.25 MHz after routing (the two lines the tool prints; I take the second as the routed figure, as on the Tang runs), passing the 50 MHz target. For comparison the Tang Nano 20K figure for the same shape was about 75 MHz plus or minus 10 (section 46), so the card is in the same range for this shape.
+
+**Not yet known:** the logic, flip-flop and DSP use on the card (the summary's grep did not match the openXC7 log wording; the lines can be read from `/mnt/hdd/hexn_builds/bnet_2x8_n16_q2.log`), and the two larger shapes (4:16:48:3 and 8:8:48:3), which are the ones the design point of section 44 is about. This build is driven by an LFSR and checks size and clock only; function is covered by the iverilog cross-check. One run, one seed; the clock on silicon has not been measured.
