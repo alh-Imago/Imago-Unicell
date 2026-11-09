@@ -763,3 +763,19 @@ Alan ran `run_bnet.sh 4:16:48:3 8:8:48:3` (50 MHz target, openXC7). Logic use is
 **Change (clones, v2 untouched):** `hexn_bnet_tbus_v3.v` and `hexn_bnet_net_v3.v` write the slice as a compare against each constant position, so no multiplier is made. Same behaviour: `tests/vm/test_hexn_bnet_net_v3.py` (the section 46 cross-check against `HWNetP`, 4 seeds) passes.
 **Local synthesis, 4x16 (yosys, plain Verilog):** 0 DSP48E1 (v2: 52), 18,067 LUT (yosys LUT6 count), 8,916 FF, 2,114 CARRY4. The 8x8 number was not obtained here (run stopped).
 **Kintex effect not yet known:** the card flow has not built v3. The kit now defaults to v3 (`HEXN_NETV=v2` for the old one). The two things to learn from a rebuild are the logic use in nextpnr terms and whether the clock moves; 8x8 missed 50 MHz by 0.6 MHz with the DSP blocks in the path.
+
+
+## 49. Matching per layer against the combined map (9 Nov 2026)
+
+Alan 16:52: the matcher per layer. `tools/hexn_busnet_layermatch_v1.py` (python3 tools/hexn_busnet_layermatch_v1.py 4 16): the pruned dense network with homeostasis (as the ideal model of section 44), 4 buses x 16 cells, 5 seeds, the same noisy test patterns as before (10 per pattern); the live map is compared with the stored maps in five ways. Recall at 10 / 30 / 50 / 70% of events dropped:
+
+| matcher | recall |
+|---|---|
+| combined layer 2 + 3 map (every earlier section) | 95 / 90 / 75 / 44 |
+| layer 2 map only | 97 / 92 / 76 / 46 |
+| layer 3 map only | 78 / 65 / 50 / 25 |
+| two per-layer matchers, scores added | 93 / 88 / 74 / 43 |
+| two per-layer matchers must agree | 77 / 64 / 46 / 21 |
+
+**Reading.** In this toy the layer 2 map carries the pattern and matches as well as the combined map (slightly better, 1 to 2 points, within what 5 seeds can show); layer 3 alone is clearly worse, and adding or requiring agreement does not help. So a matcher per layer gives no accuracy gain here; what it gives is information about each layer (layer 3 is the weaker one in this network), and a layer tile can still carry its own small matcher for the stacking design of the tile spec section 8. Why layer 3 is worse was not examined (the target maps, the feedback loop and the afterglow are all candidates).
+**Cautions:** toy patterns; target maps chosen by me (5 cells per layer per pattern); 5 seeds, 10 tests each; the first row reproduces the earlier reference figures (95/90/75/44), so the run matches the earlier tools.
