@@ -1000,3 +1000,25 @@ More events help up to about 100; 96 lines at the same event count did worse tha
 **Cautions:** model only; one training order; the front end (fold and top-N per step) is my own and not the real sensor path; the template reference uses the same events. This tests the detector on its own. The detector feeding the net block has NOT been tested.
 **What this does and does not show:** the existing detector design, widened, handles this data. It does not show that the net block adds anything on top of it; the next step is to decide what the net block takes from the detector (open question for Alan, below).
 **Open (Alan):** what the detector hands to the net block. Candidates: (a) the 10 margins per band as events on lines; (b) detectors on short time windows (local sub-patterns) as layer 1 of the net; (c) detector margins quantised to bins 0 to 11 into the batch judge, as in the existing picture.
+
+## 59. Short-window detectors as layer 1 of the net block (9 Nov 2026, Alan 22:50, option 2)
+
+**Build** (`tools/hexn_det_net_v1.py`, Python model only): the folded recording (48 lines x 20 steps, top 8 per step) is cut into W windows; each window has its own detector bank (10 detectors, counted rule, section 58) hearing that window's wires, trained with the recording's digit as the label of every window. A window sends an event for each of its TOP best detectors with a margin above zero (input line = window x 10 + digit, at the window's clock). The bus network (3 layers of 4x16, section 53 training and pruning) takes these W x 10 lines. Detectors trained on one half of the training recordings, the network on the other half. Same 300 test recordings as before (243 from unheard speakers), 2 seeds, 40 epochs, cells start at threshold 3.
+
+| windows x steps | top per window | events per recording | detectors summed | window-winner vote | net recall, dense (combined / layer 2) | net recall, 14 per cell (combined / layer 2) | cells fired L1 / L2 / L3 (14 per cell) | packets dropped (14 per cell) |
+|---|---|---|---|---|---|---|---|---|
+| 5 x 4 | 2 | 9.4 | 85.7 | 57.0 | 32.0 / 34.3 | **35.2 / 38.5** | 18.7 / 3.9 / 2.3 | 0.8 % |
+| 4 x 5 | 3 | 10.3 | 85.7 | 55.0 | 28.3 / 28.5 | 34.5 / 35.0 | 29.5 / 4.4 / 2.6 | 11.1 % |
+| 5 x 4 | 3 | 12.8 | 85.7 | 57.0 | 27.0 / 29.5 | 27.5 / 28.7 | 26.6 / 4.7 / 1.8 | 4.3 % |
+| 5 x 4 | 5 | 15.7 | 85.7 | 57.0 | 22.7 / 23.5 | 29.3 / 29.2 | 30.8 / 4.8 / 2.4 | 12.1 % |
+| 10 x 2 | 3 | 24.3 | 86.0 | 51.0 | 21.0 / 22.0 | 27.8 / 27.3 | 26.0 / 5.5 / 2.7 | 0.4 % |
+| 10 x 2 | 5 | 30.9 | 86.0 | 51.0 | 21.0 / 23.3 | 23.2 / 24.3 | 28.1 / 5.0 / 3.2 | 1.2 % |
+| 10 x 2 | 1 | 9.0 | 86.0 | 51.0 | 10.2 / 10.2 | 10.0 / 10.0 | 0 / 0 / 0 | 0 % |
+
+**Reading.**
+- **The detector in front helps the net block a lot:** teacher-map recall rises from 10 to 19% (sections 55 to 57, raw folded input) to 28 to 38% at the best settings (chance 10%). Layer 1 is no longer saturated at 41 to 50 of 64 cells (19 to 31 cells fired) and packet loss at the best setting falls from 28 to 56% to 0.8%.
+- **The net block still does far worse than the detectors it sits on:** 35 to 38% against 86% for the same windows summed, and 51 to 57% for a plain vote of the windows' winners. The sequence of winner events carries less than the margins do, and the teacher-map recall loses more still. Nothing here shows that the net block adds recognition on top of the detector; in this test it removes much of it.
+- **More events did not help** (recall falls from 35 to 23 as top 2 goes to top 5 at 5 windows; the dropped-packet share rises to 12 to 19% in some rows). The one row with 9 events on 100 lines (10 windows, top 1) starved the network: no cell fired at the starting threshold of 3.
+- Not tested: graded margins (weights from margin size), a teacher other than the 5-cells-per-layer maps, more seeds, feedback on and off, 96 lines.
+**Cautions:** model only; 2 seeds; 300 test recordings; weak labels (the digit as the label of every window); my own front end; the net block kept the toy's settings (apart from the starting threshold of 3); the best row was picked from seven.
+**Where this leaves the join:** the detector bank works on speech (section 58) and makes the net block usable (this section), but the net block's map recall is the weak link, not the input. The question for Alan is what the net block is for in this chain: if it is to recognise, the detectors alone already do better; if it is to hold maps, history or paths over the detectors' outputs (layer 2 and 3 of the nested picture), that needs a test of that job, not of teacher-map recall.
