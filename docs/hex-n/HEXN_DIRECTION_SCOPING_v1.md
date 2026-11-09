@@ -800,3 +800,28 @@ Cells fired per run by layer (average of 5 seeds, 8 patterns): layer 1 43, layer
 **Reading.** The rule is neither "only the middle" nor "every second layer". Recall falls steadily with depth: layer 2, the first layer after the input, is best, and each later layer is worse. Combining layers does not beat layer 2 alone (every second layer, 2 + 4, ties it). The reason shown by the fire counts is that the signal thins out with depth: layer 2 fires about 4 cells per run, layer 5 about 1, against 5 target cells per layer per pattern, so a deep layer gives the matcher little to match.
 **Caution, important:** this is the model as it stands, not tuned for depth. The homeostat targets for layers 4 and 5 are my guess, the sources per cell were pruned to 10 as for the early layers, and nothing was adjusted to keep activity alive at depth. So it shows that stacking layers as they are fades the signal; it does NOT show that deeper layers cannot be made useful. Overall recall also falls from the 3-layer figures (layer 2: 97 / 92 / 76 / 46 in section 49), another sign of the untuned setup. One run per setting, toy patterns.
 **For the stacking idea:** the tile only helps if a deeper tile keeps the signal. The first thing to test is what keeps activity alive across layers (more sources per cell, higher starting weights, or a lower threshold in deep layers) before building more layers in hardware.
+
+
+## 51. How small the firing becomes with depth, with the feedback on and off (9 Nov 2026)
+
+Alan 17:07: look first at how small the firing becomes, and whether the feedback affects keeping signals alive. `tools/hexn_busnet_depth_diag_v1.py` (python3 tools/hexn_busnet_depth_diag_v1.py 5): 5 layers of 4 buses x 16 cells (64 per layer), 3 seeds, clean runs of the 8 patterns, measurement only. Feedback ON is last layer to layer 1, half inhibitory, as in earlier sections; OFF has no feedback links. Cells fired per run (silent runs in brackets, as % of runs with no cell fired in that layer):
+
+| feedback | stage | layer 1 | layer 2 | layer 3 | layer 4 | layer 5 |
+|---|---|---|---|---|---|---|
+| ON | untrained | 47.1 | 44.6 | 47.3 | 49.4 | 50.8 |
+| ON | trained dense | 43.4 | 5.8 (4%) | 3.0 (21%) | 2.5 (27%) | 1.6 (50%) |
+| ON | pruned, retrained | 43.2 | 3.9 (4%) | 2.3 (17%) | 2.1 (21%) | 1.5 (44%) |
+| OFF | untrained | 50.3 | 46.0 | 48.3 | 51.4 | 49.5 |
+| OFF | trained dense | 47.0 | 5.2 (0%) | 3.1 (8%) | 2.4 (27%) | 2.0 (40%) |
+| OFF | pruned, retrained | 47.0 | 3.8 (2%) | 2.4 (15%) | 1.9 (35%) | 1.3 (56%) |
+
+Mean threshold per layer after pruning and retraining (ON; OFF is within 0.4): 7.9, 4.8, 3.2, 2.4, 2.2 for layers 1 to 5. The floor is 2 (TH_MIN).
+
+**Reading.**
+- Untrained, the network is flooded: about 45 to 51 of the 64 cells fire in every layer. Training removes that, and the cut is very large (layer 2 from about 45 to about 4 to 6 cells). Deeper layers end at 1.3 to 3 cells per run, and by layer 5 between 40% and 56% of the runs have no firing in that layer at all.
+- Pruning reduces the firing again: layer 2 falls about a third (5.8 to 3.9, ON), the deeper layers less. The silent share in layer 5 went 50 to 44% (ON) but 40 to 56% (OFF), so there is no consistent pruning effect on silence in 3 seeds.
+- Feedback ON against OFF: no clear difference in the deeper layers at this size (layer 5: 1.5 against 1.3 cells, 44% against 56% silent, but the order flips between stages). The feedback does not appear to be what starves the deep layers. It does hold layer 1 slightly lower (43 against 47 cells). Three seeds, so differences of this size are not established.
+- The thresholds in layers 4 and 5 are already at the floor (about 2.1 to 2.4 against a limit of 2), so the homeostat has no more room to raise their firing by lowering thresholds. The shortage is in how much input reaches the deep layers.
+- Part of this is by my choice: the firing-rate targets (0.08 for layer 2, 0.05 for later layers) mean about 5 and 3 cells per run in a 64-cell layer, and the deep-layer values were a guess in section 50.
+**Cautions:** model only; 3 seeds; untuned for depth; the loss of firing is the toy network under my training rules (target maps of 5 cells per layer), not a general fact about layered networks.
+**Candidates to keep activity alive (not tried):** a lower threshold floor in deep layers; higher firing-rate targets for deep layers; more sources per cell or stronger starting weights in layers 4 and 5; a separate feedback test on those fixes.
