@@ -779,3 +779,24 @@ Alan 16:52: the matcher per layer. `tools/hexn_busnet_layermatch_v1.py` (python3
 
 **Reading.** In this toy the layer 2 map carries the pattern and matches as well as the combined map (slightly better, 1 to 2 points, within what 5 seeds can show); layer 3 alone is clearly worse, and adding or requiring agreement does not help. So a matcher per layer gives no accuracy gain here; what it gives is information about each layer (layer 3 is the weaker one in this network), and a layer tile can still carry its own small matcher for the stacking design of the tile spec section 8. Why layer 3 is worse was not examined (the target maps, the feedback loop and the afterglow are all candidates).
 **Cautions:** toy patterns; target maps chosen by me (5 cells per layer per pattern); 5 seeds, 10 tests each; the first row reproduces the earlier reference figures (95/90/75/44), so the run matches the earlier tools.
+
+
+## 50. Matching per layer on a 5-layer network (9 Nov 2026)
+
+Alan 16:59: does "layer 2 alone does best" follow if the model has 5 layers: only the middle, or every second layer? `tools/hexn_busnet_layers5_v1.py` (python3 tools/hexn_busnet_layers5_v1.py 5 4 16): 5 layers of 4 buses x 16 cells, same training as section 49 (dense start, homeostat, prune to 10 sources per cell, retrain), 5 seeds, 10 tests per pattern. The earlier model code assumed 3 layers in a few places; the tool patches those at run time (target maps in layers 2 to 5, 200-clock runs, firing-rate targets of 0.05 for layers 4 and 5, which is a GUESS and not tuned). Recall at 10 / 30 / 50 / 70% of events dropped:
+
+| matcher | recall |
+|---|---|
+| layer 2 | 83 / 81 / 68 / 40 |
+| layer 3 | 63 / 58 / 45 / 27 |
+| layer 4 | 46 / 44 / 34 / 20 |
+| layer 5 | 42 / 35 / 26 / 19 |
+| all layers together | 79 / 76 / 64 / 39 |
+| layers 2 + 4 | 80 / 79 / 66 / 40 |
+| layers 3 + 5 | 61 / 57 / 43 / 27 |
+
+Cells fired per run by layer (average of 5 seeds, 8 patterns): layer 1 43, layer 2 4, layer 3 2, layer 4 2, layer 5 1.
+
+**Reading.** The rule is neither "only the middle" nor "every second layer". Recall falls steadily with depth: layer 2, the first layer after the input, is best, and each later layer is worse. Combining layers does not beat layer 2 alone (every second layer, 2 + 4, ties it). The reason shown by the fire counts is that the signal thins out with depth: layer 2 fires about 4 cells per run, layer 5 about 1, against 5 target cells per layer per pattern, so a deep layer gives the matcher little to match.
+**Caution, important:** this is the model as it stands, not tuned for depth. The homeostat targets for layers 4 and 5 are my guess, the sources per cell were pruned to 10 as for the early layers, and nothing was adjusted to keep activity alive at depth. So it shows that stacking layers as they are fades the signal; it does NOT show that deeper layers cannot be made useful. Overall recall also falls from the 3-layer figures (layer 2: 97 / 92 / 76 / 46 in section 49), another sign of the untuned setup. One run per setting, toy patterns.
+**For the stacking idea:** the tile only helps if a deeper tile keeps the signal. The first thing to test is what keeps activity alive across layers (more sources per cell, higher starting weights, or a lower threshold in deep layers) before building more layers in hardware.
