@@ -737,3 +737,21 @@ Alan ran `fpga/ypcb/hexn_bnet/run_bnet.sh 2:8:16:2` on his OptiPlex (YPCB-00338-
 ### 47a. Logic use of the first Kintex build (read from the build logs, 9 Nov 2026 15:05)
 
 Shape 2:8:16:2 (48 cells in all), nextpnr-xilinx on the XC7K480T: **7,313 LUT sites of 597,200 (1%)**, 2,071 flip-flops (0%), 479 CARRY4, **28 DSP48E1** of 1,920 (1%), 0 block RAM (RAMB18, RAMB36). The yosys cell counts agree: 1,169 LUT2, 877 LUT3, 447 LUT4, 812 LUT5, 456 LUT6, 1,975 FDRE, 96 FDSE, 474 CARRY4, 28 DSP48E1. The tables map to LUT memory, as in the section 44 synthesis. The DSP blocks are still unexplained (28 for 48 cells here; 52 in the section 44 4x16 count); not traced. Cause of the 7.3K here against the Tang's 12.4K LUT4 for the same shape is the different cell types (LUT6 against LUT4), not a design difference. The 4:16:48:3 and 8:8:48:3 shapes are still to be built. `run_bnet.sh` was changed to print these lines from the build's own nextpnr and yosys logs.
+
+
+### 47b. The two larger Kintex builds, and a correction to the percentages of section 44 (9 Nov 2026 16:05)
+
+Alan ran `run_bnet.sh 4:16:48:3 8:8:48:3` (50 MHz target, openXC7). Logic use is from the build's nextpnr log (Alan pasted it); clocks are the two "Max frequency" lines the summary printed (after placement, after routing; nextpnr estimates, not silicon).
+
+| shape (3 layers) | build time | LUT sites (of 597,200) | FF | CARRY4 | DSP48E1 | block RAM | clock |
+|---|---|---|---|---|---|---|---|
+| 2 buses x 8 cells (48 cells), 16 lines | 2.5 min | 7,313 (1.2%) | 2,071 | 479 | 28 | 0 | 72.5 / 84.3 MHz, passes 50 |
+| 4 buses x 16 cells (192 cells), 48 lines | 20 min | 34,777 (5.8%) | 9,081 | 2,027 | 52 | 0 | 54.6 / 58.1 MHz, passes 50 |
+| 8 buses x 8 cells (192 cells), 48 lines | 32 min | 70,994 (11.9%) | 15,419 | 2,843 | 200 | 0 | 49.4 MHz, FAILS 50 by 0.6 MHz; no bitstream |
+
+**Correction to section 44.** There the 4x16 cost was given as 19.4K LUT (3.25% of 597,200). That divided a yosys LUT6 count by the nextpnr site count, two different measures (the card notes already say to use the nextpnr figure). On the card the same 4x16 design takes **34,777 sites, 5.8%**, about 1.8 times the figure written in section 44. The 8x8 shape takes 71.0K (11.9%), not 8.5%. The ranking stands: 8x8 costs about twice 4x16. The DSP counts match the yosys counts (52 and 200), so those were right.
+
+**Reading.** All three shapes fit easily; none uses block RAM. The 4x16 shape (the design point of section 44) passes 50 MHz with about 8 MHz to spare on the estimate, and 58 MHz is lower than the 84 MHz of the small shape, so clock falls as the network grows. 8x8 misses 50 MHz narrowly. DSP use grows about 3.8 times from 4x16 to 8x8 with the same number of cells, so it scales with the number of buses, not cells. A guess, not tested: the index arithmetic of the merger (position times width) is being mapped to multipliers.
+
+**Cautions:** nextpnr estimates, one run per shape, LFSR-driven test (size and clock only); the bitstreams have not been loaded on the card; no pipelining beyond the register after the serialisers; 8x8 failed by a small margin and a different seed or a small pipeline change could pass it.
+**Next if Alan wants:** replace the index multiplications with shifts and adders (a cheap test of the DSP guess); load the 4x16 bitstream on the card as a smoke test; the Kintex column for sections 44 and 46 can now use these numbers.
