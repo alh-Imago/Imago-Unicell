@@ -825,3 +825,24 @@ Mean threshold per layer after pruning and retraining (ON; OFF is within 0.4): 7
 - Part of this is by my choice: the firing-rate targets (0.08 for layer 2, 0.05 for later layers) mean about 5 and 3 cells per run in a 64-cell layer, and the deep-layer values were a guess in section 50.
 **Cautions:** model only; 3 seeds; untuned for depth; the loss of firing is the toy network under my training rules (target maps of 5 cells per layer), not a general fact about layered networks.
 **Candidates to keep activity alive (not tried):** a lower threshold floor in deep layers; higher firing-rate targets for deep layers; more sources per cell or stronger starting weights in layers 4 and 5; a separate feedback test on those fixes.
+
+
+## 52. Is the pruning too harsh? A sweep of the kept sources per cell (9 Nov 2026)
+
+Alan 17:15. `tools/hexn_busnet_prunelevel_v1.py` (python3 tools/hexn_busnet_prunelevel_v1.py): 3 layers of 4 buses x 16 cells, 5 seeds, 10 tests per pattern per drop level. One dense network per seed (24 sources per cell, 8 feedback links), trained 40 epochs with the homeostat; each level is pruned by weight size from a copy of it and retrained 10 epochs. Layer 1 keeps 4 more than the others (the feedback links), as the lean net did. Recall at 10 / 30 / 50 / 70% of events dropped:
+
+| sources per cell | connections | combined layer 2 + 3 | layer 2 only | cells fired, layer 2 / 3 |
+|---|---|---|---|---|
+| unpruned | 5,120 | 97 / 95 / 87 / 55 | 98 / 96 / 90 / 58 | 5.2 / 3.0 |
+| 20 (layer 1: 24) | 4,096 | 97 / 94 / 89 / 54 | 98 / 96 / 90 / 54 | 4.9 / 2.9 |
+| 14 (layer 1: 18) | 2,944 | 99 / 94 / 83 / 56 | 99 / 96 / 85 / 57 | 4.7 / 2.5 |
+| **10 (layer 1: 14), used since section 37** | 2,176 | 95 / 90 / 75 / 44 | 97 / 92 / 76 / 46 | 3.7 / 2.0 |
+| 6 (layer 1: 10) | 1,408 | 81 / 67 / 50 / 28 | 83 / 70 / 52 / 28 | 3.5 / 2.1 |
+| 4 (layer 1: 8) | 1,024 | 67 / 55 / 36 / 24 | 64 / 52 / 37 / 25 | 2.5 / 1.9 |
+
+**Reading.**
+- Pruning to 10 sources per cell is on the harsh side. Keeping 14 holds recall close to the unpruned net (combined 99 / 94 / 83 / 56 against 97 / 95 / 87 / 55) with 57% of its connections; 10 gives up 8 points at 50% drop and 12 at 70% (75 and 44 against 83 and 56). Going lower than 10 falls away fast (6: 50 and 28 at 50 and 70% drop).
+- The knee for this network is between 10 and 14 sources per cell. The earlier choice of 10 was made for a small connection count, with the comparison against the unpruned net showing little loss at the gentler drop levels; at heavy drop it costs more than I wrote then.
+- The thin firing is mostly NOT the pruning: the unpruned net fires only 5.2 cells in layer 2 and 3.0 in layer 3 per run. That is the training target and the homeostat rate targets (5 target cells per layer per pattern; rate targets 0.08 and 0.05), not the loss of connections. Pruning to 10 takes layer 2 from 5.2 to 3.7.
+**Cautions:** model only; toy patterns; 5 seeds, so differences of a point or two are noise; one dense network per seed, so the levels are not independent trainings.
+**Not yet answered:** whether the later layers need to be as large. Layers of unequal size need a model change (the model uses the same buses and cells in every layer). The layer must hold enough distinct target cells for the stored patterns (8 patterns x 5 cells = 40 of 64 now), so shrinking below that needs fewer cells per pattern or fewer patterns; this is a separate test.
