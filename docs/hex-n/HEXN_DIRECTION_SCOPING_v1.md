@@ -685,3 +685,19 @@ No block RAM in any row (tables map to LUT memory at this size). Whole-network L
 
 **Cautions:** one combinational chain per hop, so no clock rate can be claimed and the real card needs pipelining, which adds delay the Python model does not yet include; synthesis counts only (not Vivado); accuracy numbers are the toy's; feedback still shows no measured benefit.
 **Next if Alan wants:** a placed-and-routed build of one layer on the card toolchain for a clock rate; pipeline the netlist and update the model for the extra clocks; find out why 8x8 and the DSP use are so large.
+
+
+## 45. First placed-and-routed build of the merged network (Tang Nano 20K, 9 Nov 2026)
+
+Alan 23:18: "yes we can go for a build". The workspace has no Vivado and no Kintex place-and-route, so the Kintex clock rate was NOT obtained. The only place-and-route available is the Gowin flow for the Tang Nano 20K (GW2AR-18, 20,736 LUT4), a different and smaller chip, so this is a yardstick, not the card's speed. Tools: `sub/verilog/hexn_bnet_pnr_v1.v` (wrapper: all inputs from one shift register, all outputs folded to one bit, so the timing is the network's own path) and `tools/hexn_bnet_pnr_v1.sh G PER NIN FB SQL [MHz]`. Native yosys synth_gowin, YoWASP nextpnr-himbaechel, seed 1, one run per shape.
+
+| shape (3 layers) | result |
+|---|---|
+| 2 buses of 8 cells (24 cells), 16 input lines, sub-queue 4, feedback | fits: 12,376 LUT4 (59%), 2,225 FF (14%), 64 of 648 RAM16SDP4; max clock 47.5 MHz after the optimiser (43.4 MHz on the first pass); misses a 100 MHz target, passes 27 MHz |
+| 2 buses of 16 cells (48 cells), 32 input lines | does NOT fit: 27,750 LUT4 (133%) at synthesis |
+| 4 buses of 8 cells (same 48 cells) | not run: same cell count, expected not to fit |
+
+**Reading.** The single-clock-per-hop netlist reaches about 47 MHz on this chip, which is the long combinational chain showing. The model's delays are in clocks, so a slow clock is not wrong for the toy, but it needs pipelining before any claim about speed or real-time use. On the Gowin each cell costs about 500 LUT4 (12.4K / 24), far more than the roughly 38 per cell of the bus-only count (section 43) or the 19.4K LUT for 192 cells of section 44; the Gowin has no LUT6 and the tables here use distributed RAM, so the Gowin number is not comparable with the Xilinx synthesis counts. Where the long path runs (serialiser, merger, table read or cell) was not looked at.
+
+**Cautions:** one seed, one run per shape; target clocks only 27 and 100 MHz; different chip; no board test; the Kintex figure is still unknown and needs Vivado on Alan's side or on the card's toolchain.
+**Next if Alan wants:** read the critical path from the report and pipeline the stage that causes it, update the Python model for the extra clocks; package a Vivado kit (RTL, constraints, script) for a real Kintex number.
