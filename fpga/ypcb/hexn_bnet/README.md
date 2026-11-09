@@ -33,6 +33,6 @@ Shapes are G:PER:NIN:SQL (buses per layer : cells per bus : input lines : sub-qu
 The SUMMARY the script prints at the end (or the `.log` files in `/mnt/hdd/hexn_builds/`). The numbers wanted: the nextpnr "Max frequency" lines, the LUT/FF/DSP use, and any error text.
 
 ## Things that could go wrong (guesses, not seen)
-- The RTL uses SystemVerilog `always_comb` and `$clog2`. The Gowin and plain yosys runs here accept it; whether the flow's yosys call is in SystemVerilog mode is not known. If the first build stops at a syntax error on `always_comb`, send the first lines of the log.
+- First run (9 Nov, 14:53): the flow's yosys reads plain Verilog and stopped at `always_comb` (a SystemVerilog word). prebuild.py now rewrites it to `always @*` in the gathered file; the gathered file was checked to parse and synthesise with a plain-Verilog yosys here. The checked simulation RTL is unchanged.
 - The design uses about 50 DSP48 blocks in yosys (cause not traced). If the flow rejects them, send the log.
 - 50 MHz is the target. The Tang Nano 20K figure (about 75 MHz after pipelining, plus or minus 10) is a different chip and not a prediction for this one.

@@ -9,7 +9,7 @@ out = []
 for f in files:
     p = os.path.join(repo, f)
     if not os.path.exists(p): sys.exit("prebuild: %s not found (set HEXN_REPO to the Imago-Unicell checkout, branch Hex-N, git pull)" % p)
-    t = open(p).read()
+    t = open(p).read().replace("always_comb", "always @*")      # the card flow reads plain Verilog (no -sv): always_comb is a SystemVerilog word. The simulation uses always_comb (always @* raced at time 0 in iverilog); in synthesis the two mean the same.
     if f.endswith("pnr_top_v1.v"):
         t = t.replace("hexn_bnet_net_v1 #", "hexn_bnet_net_v2 #")                      # the wrapper was written for v1: point it at the pipelined netlist
         for k, v in par.items(): t = re.sub(r"parameter %s = \d+" % k, "parameter %s = %d" % (k, v), t, count=1)
