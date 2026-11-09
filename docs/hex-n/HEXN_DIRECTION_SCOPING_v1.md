@@ -897,3 +897,36 @@ Mean threshold of layers 4 and 5: 2.5 / 2.3 (base), 1.6 / 1.3 (floor1 and all).
 - The rate targets are the knob that decides how many cells fire per run (a target of 0.08 means about 5 cells in a 64-cell layer), so a part of this result is the setting working as set, not something the network found.
 **Cautions:** model only; toy patterns; 4 seeds with 8 tests per setting, so differences of a few points are noise (layer 2 moving between 89 and 96 across variants that should not touch it shows how much); the variants were chosen after the findings of sections 50 to 53 on the same patterns.
 **For the tile design:** a deep layer can be made to carry the pattern, but in this toy it does not add recall over layer 2, so the case for more layers has to come from a real task, not from this test.
+
+## 55. First real data: the Heidelberg spoken digits (9 Nov 2026, Alan 22:07)
+
+**Data.** SHD from zenkelab.org (train 8,156, test 2,264 recordings; 20 classes; 700 channels; spike times to about 1.1 s). Both files matched the published md5 sums. Used: the 10 English digits, 4,011 training and 1,079 test recordings. The test file holds speakers 4 and 5, who are never in training; they make up 870 of the 1,079 English test recordings, so the test is mostly unheard voices. The page states no licence or citation text; citation to be checked before any publication.
+
+**Front end** (`tools/hexn_shd_frontend_v1.py`): 700 channels folded to NIN lines (neighbouring channels share a line); 1 s cut into time steps; in each step only the TOPN busiest lines (count divided by the line's average) send one event. A plain template classifier on the same folded data gives the ceiling the front end allows (chance 10%):
+
+| lines | steps | top per step | events per recording | template accuracy |
+|---|---|---|---|---|
+| 48 | 40 | 1 / 2 / 4 | 20 / 36 / 68 | 58.7 / 65.2 / 77.0 % |
+| 48 | 40 | 6 / 8 | 100 / 133 | 84.7 / 84.0 % |
+| 48 | 20 | 8 | 82 | 85.7 % |
+| 96 | 40 | 1 / 2 / 4 | 13 / 24 / 48 | 42.4 / 50.1 / 62.0 % |
+| 24 | 40 | 4 | 82 | 84.0 % |
+
+More events help up to about 100; 96 lines at the same event count did worse than 48 (events spread thinner).
+
+**Network** (`tools/hexn_busnet_shd_v1.py`): the section 53 network (3 layers of 4x16, dense start then 14 sources per cell, homeostat), 20 steps of 2 clocks (the 40-clock window of the toy), teacher maps of 5 cells per layer per digit, 40 epochs of 2 training recordings per digit, 3 seeds, 300 test recordings (30 per digit):
+
+| events per recording | template (same test set) | network combined map, dense | network combined map, 14 per cell | layer 1 cells fired (of 64) | packets dropped |
+|---|---|---|---|---|---|
+| 25 (top 2) | 68.7 % | 12.6 % | 16.0 % | 41 to 44 | 28 to 32 % |
+| 45 (top 4) | 77.0 % | 13.3 % | 14.3 % | 49 | 42 to 45 % |
+| 45, threshold cap 9 -> 30 | 77.0 % | 13.0 % | 19.0 % | 41 to 48 | 29 to 34 % |
+| 82 (top 8), 30 epochs | 86.3 % | 10.4 % | 12.2 % | 49 to 50 | 55 to 56 % |
+
+**Reading.**
+- **The network as built does not recognise these recordings yet.** Recall is 10 to 19% against 10% chance, while a template on the same folded data reaches 69 to 86%. So the information is in the events and the network is not using it; this is a failure of the network setup, not of the data.
+- Layer 1 is saturated on real input (41 to 50 of 64 cells fire on every recording, target about 26), and 28 to 56% of packets are dropped. Layer 1 therefore does not separate the digits. Raising the homeostat's threshold limit did not fix it.
+- **Not verified, only hypotheses:** (a) the toy patterns were 12 fixed lines repeated, so a random sparse layer 1 could pick them out; speech spreads events over all lines and over time, and a random layer 1 with a leaky accumulator has nothing to lock onto; (b) the one-packet-per-bus-per-clock limit is overloaded at these event counts; (c) the layer 1 teacher (cells that fire for half of a digit's recordings) is weak because layer 1 fires for everything. None of these was tested.
+- 96 lines was NOT run through the network (the template result at equal event count was worse than 48), so the question of whether more input lines revives the deep layers is still open.
+**Cautions:** model only; 3 seeds; 300 test recordings; one front-end setting per row; network settings (epochs, teacher size, rate targets) are those of the toy and were not tuned for speech; the template baseline is a reference, not a design.
+**Next options:** make layer 1 selective first (more time structure: delays or per-line history; or a front end that gives onset events), test layer 1 alone against the template, then add layers; or place blocks side by side, each taking a band of lines, so that each block sees fewer lines and a cleaner pattern (Alan's block-next-to-block idea, tile spec parallel tiles).
