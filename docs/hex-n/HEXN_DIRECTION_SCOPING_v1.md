@@ -1099,3 +1099,22 @@ W = 10 windows (2 steps each), accuracy of D, P (context 0) and C (context 0) at
 - Feeding the prediction back to bias layer 1 would add the same quantity as the combined decider of section 61, which already showed no gain; it was not run separately.
 **Cautions:** model only; one train/test split; 300 test recordings; the "layer 4" is a posterior-weighted table predictor, NOT the designed strategist (look-ahead search, goals, suggestion channel into layer 3); isolated digits have no actions or consequences, so a strategist has nothing to choose between. Earlier results (`LAYER_INTERFACES_v4.md` section 2) found the plain search better than the learned model in Connect Four and draughts.
 **What this says about layer 4:** on recognition data it earns a few points of prediction and no more; its job needs a task with choices and consequences. This does not show that layer 4 is useless, only that these digits give it nothing to decide.
+
+## 63. The speech chain placed on the Kintex (10 Nov 2026, Alan 23:14)
+
+**Decision (Alan 23:14):** place the full path (detector bank, count store, decision) into the Kintex, run tests, then find a use for the neural net, "maybe not in the detector system directly, as the detector system seems to do most of the heavy lifting".
+
+**Built** (details and numbers: `HEXN_SPEECH_CHAIN_KINTEX_v1.md`): an event-driven, widened detector bank (one weight word read per event, 10 accumulators), a log-probability store, and a decision with an early-stop gap, as `rtl/hexn_speech_chain_v1.v`; its exact-arithmetic Python model `tools/hexn_chain_hw_v1.py`; a Kintex kit `fpga/ypcb/hexn_speech/` that replays the 300 test recordings and lights a PASS led (data from `tools/hexn_chain_kitdata_v1.py`); tests `tests/vm/test_hexn_speech_chain_v1.py` and `test_hexn_speech_kit_v1.py`.
+
+**Results (simulation):**
+- The RTL equals the model in every window, for random parameters in both load modes (with a mutation check), and for all 1,500 windows of the 300 real recordings.
+- Accuracy of the hardware-arithmetic chain on the real recordings: 68.7 / 85.0 / 87.3 / 87.0 / 85.3 % after 1 to 5 windows (unheard speakers 72.0 / 89.3 / 88.9 / 88.9 / 87.2 %), the same as the floating-point chain of section 61. Early stop at gap >= 10: 2.40 windows, 86.3 %.
+- The kit top replays the 300 recordings in 68,357 clocks and gets 262 right (87.3 %), PASS on.
+- Dropping events at random: 87.3 % at 0 and 10 %, 80.7 % at 30 %, 68.7 % at 50 %, 44.0 % at 70 % (chance 10 %).
+- Size by yosys only: chain alone about 2,240 LUTs, 889 flip-flops, 6 block RAMs, 0 DSP on 7-series; about 4,700 LUT4 and 7 BSRAM on Gowin (the Tang has 20,736 LUT4). The kit as a whole about 1,740 LUTs and 15 RAMB36. These are not nextpnr site counts.
+
+**Not done:** nextpnr place and route, any bitstream, any card run, the JTAG commands that would join the chain to the base controller and results RAM (proposal in the placement note), the front end in hardware.
+
+**Next for Alan:** pull and run `run_speech.sh` in the openXC7 shell (commands in the kit README). When the summary and the LEDs come back, the card section goes into this document.
+
+**Neural net, open:** the bus network gave no gain on this data (sections 55 to 60). Candidate uses for later tests, none run: (1) novelty or reject: the chain always answers with a digit; the German digits (labels 10 to 19, in the files, never used in training) are unknown words for the English-trained chain, so a test is whether taught maps with a Jaccard match reject them better than the detector's own margin; (2) associative recall of a stored pattern from a damaged cue (the toy's original strength: 56 % at 70 % of events dropped, section 52); (3) coincidence across several detector banks (layer 3 across sensors) with a task that needs it; (4) as an event router between banks and tiles (the merged serialiser design is an address-event fabric). Priority and choice: Alan.
