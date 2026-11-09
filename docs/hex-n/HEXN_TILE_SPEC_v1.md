@@ -50,3 +50,15 @@ v3 (no multipliers) is not yet built on the card; locally it has 0 DSP blocks ag
 2. If a tile closes timing, freeze the edge of section 2 (add `run`/`done` and wire the map recorder) as `hexn_bnet_tile_v1`, with a cross-check against the Python model.
 3. Write the pooling rule and test two tiles in the Python model on the toy patterns before any hardware is built for chaining.
 4. Test feedback across depth in the model on real sensor data, not the toy.
+
+## 8. The layer as the tile (Alan's proposal, 9 Nov 16:47) [proposal]
+Instead of one tile for the whole network, one tile per layer, stacked. Six ports:
+1. **Events in:** G parallel streams, each {valid, source number}, from the layer below (layer 1: the external input lines through its own serialiser).
+2. **Events out:** G parallel streams, one per bus, from this layer's serialisers. One stream per layer would cap it at one event per clock and give up the parallel buses.
+3. **Map out:** the fire vector of this layer (G x PER bits). [rtl] exists now.
+4. **Feedback out:** the same event streams as port 2, sent to a second destination (an earlier layer). No new data, a second destination.
+5. **Feedback in:** events from a later layer, entering as extra source groups at this layer's mergers. [rtl] layer 1 already has this from layer 3 (FB=1).
+6. **Command and programming:** the existing broadcast write bus; the tile answers when `wr_layer` equals its layer number [rtl: the match exists]. It also carries the readbacks (fire counters, lost counters), so it is a two-way port. Clock and the shared leak tick are global.
+The layer number is a parameter. What changes from the present netlist: source numbers become local (source group, position in the group) instead of one global numbering (`NIN + ...`), so a tile does not need to know what is above or below it. Serialiser, merger and bus modules are reused as they are; the layer module and the local numbering are new and would need the same clock-for-clock cross-check against the Python model. The register after each serialiser is already the boundary between layers.
+
+**Matcher per layer (Alan's question, same message):** the matcher takes any map width (`NB`) and number of stored maps, so each layer tile can carry its own recorder and matcher over G x PER bits (64 for 4 x 16), under 1K LUT in the 128-bit synthesis. What it would give: an answer at each layer (layer 2's map and layer 3's map each vote), a place to see where a pattern stops matching, and a confidence signal that could drive feedback. Not known: whether matching per layer recalls better than the combined layer 2 + 3 map used so far. That is a quick test in the Python model (recall by layer against combined) and has not been run. [unknown]
