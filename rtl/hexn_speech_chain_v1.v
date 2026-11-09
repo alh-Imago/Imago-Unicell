@@ -9,7 +9,7 @@
 //   CFG   : word w (0..NWIN-1) = shift code of window w in [3:0]; word NWIN = the stop gap (signed 16 bits)
 // Per window end (win_end pulse; the host leaves >= 2 idle clocks after the last event of the window): margin = acc - thr; class = largest margin (lowest index on a tie) if > 0 else NONE (10);
 // msum += margin; pathq[d] += LP[d][win][prev][cls]; score[d] = pathq[d] + SH(msum[d], code); pred = argmax score (lowest on a tie); gap = best msum - second best msum; stop = gap >= CFG gap.
-// SH: code 0 = 0, 1 = arithmetic right shift 1, k >= 2 = left shift k-2 (shifts only, no multiplier). Output (out_valid pulse) 6 clocks after win_end.
+// SH: code 0 = 0, 1 = arithmetic right shift 1, k >= 2 = left shift k-2 (shifts only, no multiplier). Output (out_valid pulse) about 40 clocks after win_end (the argmax and top-2 are scans of one candidate per clock, for timing).
 // Config can be preloaded from files (parameters, for simulation and for a fit/timing build) or written at run time through the cfg_ port (cfg_sel: 0 WROM, 1 THR, 2 LP, 3 CFG).
 module hexn_speech_chain_v1 #(
     parameter NWIN = 5, parameter STEPS = 4, parameter NLINES = 48,
@@ -57,7 +57,7 @@ module hexn_speech_chain_v1 #(
     reg [12:0] wbase;
     reg [6:0]  win11;
     reg [3:0]  prev;
-    reg [3:0]  st;
+    reg [4:0]  st;
     reg signed [7:0]  acc   [0:NC-1];
     reg signed [8:0]  mg    [0:NC-1];
     reg signed [15:0] msum  [0:NC-1];
@@ -70,18 +70,17 @@ module hexn_speech_chain_v1 #(
     reg signed [16:0] gap_r;
     reg [79:0] lp_rd;
 
-    // blocking temporaries used inside the clocked block
-    integer c;
-    reg [3:0]  am;
+    // v1 timing fix (10 Nov 2026, after the first card build reached only 32.4 MHz): every 10-way argmax / top-2 is a SCAN of one candidate per clock, the shift and the add of the score are separate clocks,
+    // and the store address and read are separate clocks. Results are unchanged (same tie rules); the latency from win_end to out_valid is about 40 clocks.
+    reg [3:0]  am, sam, ci;
     reg signed [8:0]  mbest;
     reg signed [15:0] b1, b2;
-    reg signed [23:0] sbest, sh;
-    reg [3:0]  clsc;
+    reg signed [23:0] sbest;
+    reg signed [23:0] shv [0:NC-1];
     reg [6:0]  t7;
-    reg [11:0] ad11;
-    reg [11:0] lpad;
+    reg [11:0] ad11, lpad;
     reg [3:0]  cd;
-    reg signed [15:0] gapcfg;
+    integer c;
 
     wire [12:0] waddr = wbase + {5'd0, ev_idx};
 
@@ -90,10 +89,10 @@ module hexn_speech_chain_v1 #(
         wword <= wrom[waddr];
         v1    <= ev_valid;
         if (rst) begin
-            st <= 4'd0; v1 <= 1'b0;
+            st <= 5'd0; v1 <= 1'b0;
         end
         if (start) begin
-            win <= 3'd0; wbase <= 13'd0; win11 <= 7'd0; prev <= 4'd10; st <= 4'd0;
+            win <= 3'd0; wbase <= 13'd0; win11 <= 7'd0; prev <= 4'd10; st <= 5'd0;
             for (c = 0; c < NC; c = c + 1) begin acc[c] <= 8'sd0; msum[c] <= 16'sd0; pathq[c] <= 16'sd0; end
         end else begin
             if (v1) begin
@@ -101,56 +100,57 @@ module hexn_speech_chain_v1 #(
                     acc[c] <= acc[c] + ((wword[2*c +: 2] == 2'b01) ? 8'sd1 : (wword[2*c +: 2] == 2'b11) ? -8'sd1 : 8'sd0);
             end
             case (st)
-                4'd0: if (win_end) begin thrw <= thr[win]; st <= 4'd1; end
-                4'd1: begin
+                5'd0: if (win_end) begin thrw <= thr[win]; st <= 5'd1; end
+                5'd1: begin
                     for (c = 0; c < NC; c = c + 1) mg[c] <= $signed({acc[c][7], acc[c]}) - $signed({thrw[8*c+7], thrw[8*c +: 8]});
-                    st <= 4'd2;
+                    st <= 5'd2;
                 end
-                4'd2: begin
-                    am = 4'd0; mbest = mg[0];
-                    for (c = 1; c < NC; c = c + 1) if (mg[c] > mbest) begin mbest = mg[c]; am = c[3:0]; end
-                    clsc = (mbest > 9'sd0) ? am : 4'd10;
-                    cls_r <= clsc;
-                    t7 = win11 + {3'd0, prev};                       // win*11 + prev
-                    ad11 = ({5'd0, t7} << 3) + ({5'd0, t7} << 1) + {5'd0, t7};   // x 11
-                    lpad = ad11 + {8'd0, clsc};
-                    lp_rd = lp[lpad];
-                    st <= 4'd3;
+                5'd2: begin am <= 4'd0; mbest <= mg[0]; ci <= 4'd1; st <= 5'd3; end
+                5'd3: begin                                                    // scan the margins, lowest index wins a tie
+                    if (mg[ci] > mbest) begin mbest <= mg[ci]; am <= ci; end
+                    if (ci == 4'd9) st <= 5'd4; else ci <= ci + 4'd1;
                 end
-                4'd3: begin
+                5'd4: begin cls_r <= (mbest > 9'sd0) ? am : 4'd10; st <= 5'd5; end
+                5'd5: begin t7 <= win11 + {3'd0, prev}; st <= 5'd6; end                                    // win*11 + prev
+                5'd6: begin ad11 <= ({5'd0, t7} << 3) + ({5'd0, t7} << 1) + {5'd0, t7}; st <= 5'd7; end    // x 11
+                5'd7: begin lpad <= ad11 + {8'd0, cls_r}; st <= 5'd8; end
+                5'd8: begin lp_rd <= lp[lpad]; st <= 5'd9; end
+                5'd9: begin
                     for (c = 0; c < NC; c = c + 1) begin
                         pathq[c] <= pathq[c] + $signed({{8{lp_rd[8*c+7]}}, lp_rd[8*c +: 8]});
                         msum[c]  <= msum[c] + $signed({{7{mg[c][8]}}, mg[c]});
                         acc[c]   <= 8'sd0;
                     end
-                    st <= 4'd4;
+                    st <= 5'd10;
                 end
-                4'd4: begin
-                    cd = cfgm[win][3:0]; gapcfg = cfgm[NWIN];
+                5'd10: begin
+                    cd = cfgm[win][3:0];
                     for (c = 0; c < NC; c = c + 1) begin
-                        if (cd == 4'd0) sh = 24'sd0;
-                        else if (cd == 4'd1) sh = $signed({{8{msum[c][15]}}, msum[c]}) >>> 1;
-                        else sh = $signed({{8{msum[c][15]}}, msum[c]}) <<< (cd - 4'd2);
-                        sc[c] <= $signed({{8{pathq[c][15]}}, pathq[c]}) + sh;
+                        if (cd == 4'd0) shv[c] <= 24'sd0;
+                        else if (cd == 4'd1) shv[c] <= $signed({{8{msum[c][15]}}, msum[c]}) >>> 1;
+                        else shv[c] <= $signed({{8{msum[c][15]}}, msum[c]}) <<< (cd - 4'd2);
                     end
-                    b1 = msum[0]; b2 = -16'sd32768;                  // best and second best msum
-                    for (c = 1; c < NC; c = c + 1) begin
-                        if (msum[c] > b1) begin b2 = b1; b1 = msum[c]; end
-                        else if (msum[c] > b2) b2 = msum[c];
-                    end
-                    gap_r <= $signed({b1[15], b1}) - $signed({b2[15], b2});
-                    st <= 4'd5;
+                    st <= 5'd11;
                 end
-                4'd5: begin
-                    am = 4'd0; sbest = sc[0];
-                    for (c = 1; c < NC; c = c + 1) if (sc[c] > sbest) begin sbest = sc[c]; am = c[3:0]; end
-                    gapcfg = cfgm[NWIN];
-                    out_valid <= 1'b1; out_win <= win; out_cls <= cls_r; out_pred <= am; out_gap <= gap_r;
-                    out_stop <= (gap_r >= $signed({gapcfg[15], gapcfg}));
+                5'd11: begin
+                    for (c = 0; c < NC; c = c + 1) sc[c] <= $signed({{8{pathq[c][15]}}, pathq[c]}) + shv[c];
+                    st <= 5'd12;
+                end
+                5'd12: begin sam <= 4'd0; sbest <= sc[0]; b1 <= msum[0]; b2 <= -16'sd32768; ci <= 4'd1; st <= 5'd13; end
+                5'd13: begin                                                   // scan the scores (lowest index wins a tie) and the two best margin sums
+                    if (sc[ci] > sbest) begin sbest <= sc[ci]; sam <= ci; end
+                    if (msum[ci] > b1) begin b2 <= b1; b1 <= msum[ci]; end
+                    else if (msum[ci] > b2) b2 <= msum[ci];
+                    if (ci == 4'd9) st <= 5'd14; else ci <= ci + 4'd1;
+                end
+                5'd14: begin gap_r <= $signed({b1[15], b1}) - $signed({b2[15], b2}); st <= 5'd15; end
+                5'd15: begin
+                    out_valid <= 1'b1; out_win <= win; out_cls <= cls_r; out_pred <= sam; out_gap <= gap_r;
+                    out_stop <= (gap_r >= $signed({cfgm[NWIN][15], cfgm[NWIN]}));
                     prev <= cls_r; win <= win + 3'd1; wbase <= wbase + WSZ; win11 <= win11 + 7'd11;
-                    st <= 4'd0;
+                    st <= 5'd0;
                 end
-                default: st <= 4'd0;
+                default: st <= 5'd0;
             endcase
         end
     end

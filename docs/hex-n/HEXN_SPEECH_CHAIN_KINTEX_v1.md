@@ -30,7 +30,7 @@ Everything is shifts, adds, compares and block RAM. **No multiplier, no DSP [yos
 | RTL against the exact-arithmetic Python model, random weights, thresholds, store and event streams (40 recordings x 5 windows), config preloaded and config written through the port | identical in every window (class, predicted digit, gap, stop) in both modes; a mutated model disagrees (`tests/vm/test_hexn_speech_chain_v1.py`) |
 | The 300 real test recordings through the simulated RTL | 1,500 of 1,500 windows identical to the model; accuracy after 1 / 2 / 3 / 4 / 5 windows 68.7 / 85.0 / 87.3 / 87.0 / 85.3 % (unheard speakers 72.0 / 89.3 / 88.9 / 88.9 / 87.2 %) |
 | Early stop on the RTL's gap output | gap >= 10: 2.40 windows used, 86.3 %; gap >= 20: 3.49 windows, 86.0 % |
-| Kit top (replay of the 300 recordings, compare after window 3), `tests/vm/test_hexn_speech_kit_v1.py` | 262 of 300 right, PASS led on, 68,357 clocks (about 1.4 ms at 50 MHz) |
+| Kit top (replay of the 300 recordings, compare after window 3), `tests/vm/test_hexn_speech_kit_v1.py` | 262 of 300 right, PASS led on, 68,357 clocks (about 1.4 ms at 50 MHz; 107,357 after the timing fix, section 64) |
 | Robustness: events dropped at random from the 300 real recordings (model arithmetic), accuracy after 3 windows | 0 %: 87.3; 10 %: 87.3; 30 %: 80.7; 50 %: 68.7; 70 %: 44.0 (chance 10 %) |
 
 ## 4. Size [yosys, not nextpnr]

@@ -34,7 +34,7 @@ module tb #(parameter LOAD = 0);
             else if (prog[k][15]) begin
                 repeat (3) @(posedge clk);
                 win_end <= 1; @(posedge clk); win_end <= 0;
-                wait_n = 0; while (!out_valid && wait_n < 30) begin @(posedge clk); wait_n = wait_n + 1; end
+                wait_n = 0; while (!out_valid && wait_n < 200) begin @(posedge clk); wait_n = wait_n + 1; end
                 $display("R %0d %0d %0d %0d %0d", out_win, out_cls, out_pred, out_gap, out_stop);
                 repeat (2) @(posedge clk);
             end else begin ev_valid <= 1; ev_idx <= prog[k][7:0]; @(posedge clk); ev_valid <= 0; end
