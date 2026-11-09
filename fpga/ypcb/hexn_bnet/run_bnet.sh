@@ -29,6 +29,8 @@ done
 echo; echo "SUMMARY (lines copied from the logs; the clock is what nextpnr reports at a 50 MHz target, NOT a measurement on silicon)"
 for s in $SHAPES; do
   IFS=: read G PER NIN SQL <<< "$s"; name=bnet_${G}x${PER}_n${NIN}_q${SQL}; f=$OUT/$name.log; echo "--- $name"
-  grep -E "Max frequency|Device utilisation|SLICE_LUTX|FDRE|DSP48|RAMB|critical path|rror" $f | tail -10
+  grep -E "Max frequency|rror" $f | tail -6
+  grep -E "SLICE_LUTX|SLICE_FFX|DSP48|RAMB|CARRY4" $OUT/$name/hexn_bnet.nextpnr.log 2>/dev/null | head -12      # use of the chip, from nextpnr
+  grep -E "^\s+[0-9]+\s+(LUT[1-6]|FDRE|FDCE|FDPE|FDSE|DSP48E1|CARRY4|RAMB)" $OUT/$name/hexn_bnet.yosys.log 2>/dev/null | tail -20      # cell counts, from yosys
   ls $OUT/$name/*.bit >/dev/null 2>&1 && echo "bitstream: yes" || echo "bitstream: NO (build failed; see $f)"
 done
