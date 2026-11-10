@@ -54,3 +54,6 @@ No nextpnr place and route of the chain or the kit; no bitstream; no run on the 
 
 ## 7. Update 10 Nov 2026 01:30: card build result
 After the timing fix the kit built on Alan's card flow in 5 min 17 s: 185.56 MHz after routing (PASS at 50), 2,861 LUT sites, 1,213 flip-flops, 236 CARRY4, 0 DSP, 15 RAMB36, bitstream produced (nextpnr estimates). Section 6 above is out of date on "no place and route" and "no bitstream"; still true: not run on the card, no JTAG command set, not joined to the base. Direction doc section 70.
+
+## 8. Update 10 Nov 2026 01:37: run on the card
+Loaded on the Kintex card: finished and PASS LEDs on (at least 5/6 of the 300 recordings right; model 262/300), heartbeat blinking, after a second load (the first did not start the design). Section 6's "no run on the card" is now out of date. Still not done: exact count readout, JTAG command set, join to the base. Direction doc section 71.
