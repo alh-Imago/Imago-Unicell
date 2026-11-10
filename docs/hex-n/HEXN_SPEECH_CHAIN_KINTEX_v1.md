@@ -51,3 +51,6 @@ The Kintex base (controller v1 to v4, results RAM, batch judge) has no detector.
 
 ## 6. Not done
 No nextpnr place and route of the chain or the kit; no bitstream; no run on the card; no JTAG command set; the weights were trained on the host from the SHD recordings (not in the repo); one train and test split; 300 test recordings; the front end is my own fold, not the real sensor path.
+
+## 7. Update 10 Nov 2026 01:30: card build result
+After the timing fix the kit built on Alan's card flow in 5 min 17 s: 185.56 MHz after routing (PASS at 50), 2,861 LUT sites, 1,213 flip-flops, 236 CARRY4, 0 DSP, 15 RAMB36, bitstream produced (nextpnr estimates). Section 6 above is out of date on "no place and route" and "no bitstream"; still true: not run on the card, no JTAG command set, not joined to the base. Direction doc section 70.

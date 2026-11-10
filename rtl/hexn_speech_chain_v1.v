@@ -1,6 +1,6 @@
 `default_nettype none
 // hexn_speech_chain_v1.v -- the speech chain in one block: window detectors (event-driven, widened), count/log-probability store, decision and early-stop flag.
-// 10 Nov 2026. Reference model: tools/hexn_chain_hw_v1.py (bit-exact cross-check: tests/vm/test_hexn_speech_chain_v1.py). Direction doc section 63. NOT built on a card yet.
+// 10 Nov 2026. Reference model: tools/hexn_chain_hw_v1.py (bit-exact cross-check: tests/vm/test_hexn_speech_chain_v1.py). Direction doc section 63. Built on the card flow (sections 64 and 70): 185.56 MHz estimate after the timing fix; not yet loaded on the card.
 // Clone-in-spirit of the counted detector (rtl/hexn_det_v4.v, left untouched): same ternary lanes (+1 / -1 / 0) and signed margin, but WIDENED: instead of 12 to 20 wires held in parallel, a window of
 // STEPS time steps x NLINES lines is delivered as EVENTS. One event = one address (step-in-window * NLINES + line); the block reads ONE word of ternary weights for all 10 detectors and adds it to 10 accumulators.
 //   WROM  : NWIN * STEPS * NLINES words of 20 bits, detector c in bits [2c+1:2c]: 00 = 0, 01 = +1, 11 = -1

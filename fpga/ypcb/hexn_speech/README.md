@@ -19,3 +19,6 @@ Caveats: yosys (not nextpnr) estimate for the kit design is about 1,740 LUTs, 88
 
 ## First card build (Alan, 9 Nov 2026 23:33 to 23:39)
 Built in 6 minutes. nextpnr: 3,175 LUT sites (0.5%), 891 flip-flops, 264 CARRY4, 0 DSP, 15 RAMB36. **Timing FAILED: 32.37 MHz against the 50 MHz target, so the flow made no bitstream.** The critical path ran through a chain of 24-bit compares in the decision step (the argmax over ten scores in one clock). Fix in `rtl/hexn_speech_chain_v1.v` (10 Nov): every ten-way compare is now a scan of one candidate per clock, and the shift, the add, the store address and the store read are separate clocks. Results are unchanged (the RTL still equals the model bit for bit). The new clock has NOT been measured yet; please rebuild.
+
+## Second card build, after the timing fix (Alan, 10 Nov 2026 01:24 to 01:29)
+Built in 5 min 17 s, exit 0, **bitstream: yes**. nextpnr: **182.62 MHz after placement, 185.56 MHz after routing, PASS at the 50 MHz target** (estimates, not silicon). 2,861 LUT sites (0.5%; was 3,175), 1,213 flip-flops (was 891: the scan and pipeline registers), 236 CARRY4, 0 DSP, 15 RAMB36. Yosys cells: 694 LUT2, 196 LUT3, 152 LUT4, 337 LUT5, 276 LUT6, 1,207 FDRE, 6 FDSE. Not yet loaded on the card: the self-check LEDs (done, pass) have not been seen.
