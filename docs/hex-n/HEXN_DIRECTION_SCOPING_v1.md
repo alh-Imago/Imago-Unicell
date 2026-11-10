@@ -1152,3 +1152,15 @@ W = 10 windows (2 steps each), accuracy of D, P (context 0) and C (context 0) at
 **Alan (00:10):** outside the scope of the current work. The network works, but not properly on signal-like data. Idea: alternate layers of DATA and NEURAL cells (data, neural, data, neural, ...) as a mesh used as a fuzzy search engine; he thinks it may work better there.
 **Decision:** parked, not built. Nothing was tested for this idea.
 **Notes (my reading, not measured):** the neural layer would act as a content-addressed matcher (a partial or damaged key lights the stored record it most resembles); the next data layer returns what is attached to that record, and a second pair would allow a two-step association. This is the family of associative memories and content-addressable memory; prior art should be checked in the archive (Onion) before any build, per the working rule. Open questions for whenever it is taken up: does the network beat a plain overlap-count lookup on the same records (section 66 left this untested even on the synthetic patterns), how many records a layer of 64 cells can separate (the teacher maps use 5 cells per class, so about 12 per layer before overlap), and whether the compare-all-at-once hardware gives a speed or size gain over a table scan.
+
+## 68. First card build of the 8x8 shape with the v4 arbiter (10 Nov 2026)
+
+**Alan ran** `run_bnet.sh 8:8:48:3` (openXC7, OptiPlex, 50 MHz target): start 00:00:15, end 01:04:58 (65 min), exit 1. The log line `prebuild: merged bus network v4` confirms the netlist; `== synth (535 s)`. The v3 build that never finished (section 65) is therefore fixed on his machine too: yosys 9 min, then placement and routing completed.
+**Result (nextpnr estimates, not silicon):** 44,334 LUT sites of 597,200 (7%), 15,419 flip-flops, 2,794 CARRY4, 0 DSP48E1, 0 block RAM. **Max clock 39.16 MHz, FAIL at 50 MHz; no bitstream.** Both "Max frequency" lines in the summary read 39.16.
+| 8 buses x 8 cells | LUT sites | FF | CARRY4 | DSP | clock | build time |
+|---|---|---|---|---|---|---|
+| v2 (section 47) | 70,994 | 15,419 | 2,843 | 200 | 49.4 MHz (fail) | 32 min |
+| v4 (this run) | 44,334 | 15,419 | 2,794 | 0 | 39.16 MHz (fail) | 65 min |
+**Reading:** dropping the multipliers cut the logic by about 37% (26,660 sites) and the DSP blocks to zero, as intended; the flip-flop count is identical, so the registers did not change. The clock got WORSE, 49.4 to 39.2 MHz, so the multiplier-free arbiter has a longer path than the DSP version had. The one critical-path sink in the summary is an adder carry chain (`alumacc replace_alu`, a source-to-sink delay of about 7.2 ns shown for one hop); the full path was not pasted, so WHICH adder and which module is not known. The same v4 text at 4x16 has not been built.
+**Cautions:** one run, one seed; the clock is nextpnr's estimate; the longer build time (65 against 32 min) is plausibly the harder timing target, not measured.
+**Next:** read the critical path from `hexn_bnet.nextpnr.log` (`grep -n "Critical path" -A40`), then pipeline the named adder in a cloned v5.
