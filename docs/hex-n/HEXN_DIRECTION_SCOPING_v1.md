@@ -1548,3 +1548,19 @@ At N = 5 with nothing laid over: 0.4 promoted, 0.1 confirmed per stream (v2: 5.5
 - **Anomaly store (89, 90, 91):** a weak hidden pattern is found in the noise by counting what comes back; a compare step files faint copies of known patterns in a separate weak table and notes the rest as new; chance false notes fixed.
 **Open when it is taken up again:** the wrong "new" notes when two things are laid over (not examined); confidence relative to the other blocks (all blocks damaged alike); novelty check at the pool; retraining the cells on a promoted pattern; the comparison with one large network; more blocks; fading hit counts; and above all real data: on real speech the network's maps carried no class information (sections 55, 66), so none of this is shown outside the toy.
 **Also parked today:** the weak digits of the speech chain ("one" 68/108, "three" 76/102; Alan is thinking about it); a faster clock for the chain; a real data port; the video question (section 78).
+
+## 93. Where the speech chain's errors go (11 Nov 2026)
+
+**Alan (19:07):** they (the weak digits, the faster clock) can be tested; the only other direction is a real neural net built from the current designs. First the cheap test, in Python: `tools/hexn_chain_confusion_v1.py DIR` (same data build and training as the kit; the card gives the same answers, section 85). Decision after window 3.
+**Test set (1,079): 936 right, 143 wrong.**
+- **"One" is heard as "nine": 36 of its 40 errors.** Nothing else comes close as a single confusion. "Nine" is the digit most often answered wrongly (43 times), and in the training recordings the two are confused both ways (nine as one 109 times, one as nine 37).
+- "Three" (26 errors) is spread: as two 7, one 6, nine 5, zero 2, five 2, eight 2. "Four" as zero 11.
+- **In 94 of the 143 wrong answers (66%) the right digit was second best** in the final score.
+- By window: most digits gain from window 1 to 3 ("seven" 39% to 94%, "six" 53% to 96%), but "one" gets WORSE with more windows (71% after window 1, 63% after window 3) and "three", "four", "five" peak at window 2.
+- Speakers: 88.7% right on the speakers never heard in training (772 of 870), 78.5% on recordings of speakers who were also in training (164 of 209).
+**Training set (4,011 recordings, the ones the chain was built from): 3,129 right = 78.0%**, lower than the test set. "Four" 56%, "nine" 64%, "five" 70% there.
+**Reading.**
+1. The chain is not over-fitted; it is the opposite. It gets fewer of its own training recordings right than of the test set, so its limit is what one ternary template per digit and window, plus the count tables, can hold. More of the same training will not lift it much. Why the test set is easier than the training set (and the unheard speakers easier than the heard ones) was not examined; it is a property of this dataset split that I only report.
+2. The largest single gain on the test set is one decision: "one" against "nine". A second look that is run only when these two are the top two (a small detector trained on just that pair) could recover up to 36 errors; the 66% "right digit was second best" figure says a second look between the top two is worth trying in general. Not built, not tested.
+3. Deciding at a fixed window is not best for every digit ("one" is best after window 1). The chain already has the early-stop flag; its use was not part of the card runs.
+4. This is the evidence for Alan's other direction: if one template per digit is the ceiling, the way up is more detectors per digit feeding a second stage, which is a real (small) trained network made of the blocks that already exist.
