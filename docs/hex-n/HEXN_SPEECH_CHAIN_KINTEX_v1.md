@@ -65,3 +65,7 @@ Section 5's proposal is now built as `sub/verilog/hexn_base_ctl_v5.v` (clone of 
 ## 10. Update 11 Nov 2026 12:36: the joined design on the card
 
 Built on the card flow (two arrays + batch judge + chain: 22,758 LUT sites, 15,975 flip-flops, 0 DSP; nextpnr estimate 79.47 / 91.22 MHz, PASS at 50) and run by Alan: the trained chain and the 300 recordings sent from the host over JTAG give **262 of 300, PASS**, in 2.1 s for the settings and 4.0 s for the recordings (74 recordings per second; 0 bad captures). (Section 9 above was written at 12:02, not 12:20.) Details: direction doc sections 76 and 81.
+
+## 11. Update 11 Nov 2026 13:18: on-chip event RAM, on the card
+
+Controller v6 (`sub/verilog/hexn_base_ctl_v6.v`, clone of v5): an event RAM (32,768 bytes) filled once over JTAG and replayed into the chain at one event per clock, and a result RAM (2,048 words); commands `w` `g` `v`; host tool `tools/hexn_chain_host_v2.py kitram`. On the card (Alan): the 300 kit recordings replayed three times, each **262 of 300 in 86,079 clocks counted on the chip**, the same count as the simulation; at the nominal 50 MHz that is about 174,000 recordings per second (computed from the count). Build: 23,346 LUT sites, 16,187 flip-flops, estimate 79.77 / 90.68 MHz. Details: direction doc sections 82 and 83.
