@@ -1519,3 +1519,5 @@ Runs needed (median, 6 lines x 2, 10% dropped, always passed on, N = 8): 26 runs
 3. **The weak point is false "new" notes.** Even with nothing laid over, 1.3 slots per stream are promoted at N = 8 (5.5 at N = 5). Probation removes about half to four fifths of them (0.2 to 1.2 confirmed at N = 8), not all. What these templates are (mixtures of two known patterns' leftovers is my guess) was NOT examined. Until that is understood, "new" from this store means "candidate".
 4. Promotion here stores a line mask and a note; the cells are not retrained, so the main block is still disturbed by the new pattern's events (recall 95.1% in the "new" streams against 95.8% with nothing laid over, at 10% dropped). Teaching the cells the new pattern is a further step, not done.
 **Cautions.** Toy patterns; one block; thresholds (70%, half the lines, 5 of 100, N) are my choice, not tuned; 5 streams per cell.
+
+**Correction to section 90 (mine):** after promotion the new pattern is seen in 59 to 74% of the runs that hold it (not 61 to 74%).
