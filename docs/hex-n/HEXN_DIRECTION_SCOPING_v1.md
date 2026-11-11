@@ -1590,3 +1590,27 @@ Tiles would not be wired to each other directly: they meet only in the shared po
 - **"Red ball" is the tile's large map.** One block per ASPECT (colour, shape, kind of object), each recalling its own part, and the pool storing the combination as three short codes. The model of section 80 already had parts shared between wholes (every local pattern belonged to two large maps, as "red" belongs to the red ball and the red car), and the filling-in is the same thing: "red" and "round" given, the pool supplies "ball". What Alan's example adds is how to cut the input: by KIND of feature, not only by position or time.
 - **Storing the whole as a few codes is itself the economical path:** the pool does not keep the picture, only which known parts were present.
 - **A known difficulty (not solved here):** two things at once. A red ball beside a blue cube gives the colour block two answers and the shape block two answers, and a pool with one code per block cannot say which colour goes with which shape. Handling one thing at a time (attention), or passing the second to the anomaly path, are the obvious ways out; neither was modelled.
+
+## 96. Competition between cells: it does not help here (11 Nov 2026)
+
+**Alan (19:25):** explore inter-cell competition first. `tools/hexn_busnet_compete_v1.py` (about 7 minutes), the network and test of section 49 (3 layers, 4 buses x 16 cells, trained, pruned; 8 patterns, 5 seeds), toy patterns only.
+**The rule added:** when a cell of layer 2 or 3 fires, the cells in its scope that did not fire in that clock are held down. Scope: the 16 cells of its bus, or the whole layer of 64. Form: soft (their accumulators lose 1 or 2), hard (cleared: first to fire wins), quiet (cleared and made refractory). Used two ways: added to a network trained without it (test only), or present during training too.
+Recall at 10 / 30 / 50 / 70% dropped; cells fired and stray cells (fired but not in the pattern's target map) per run at 10% dropped:
+
+| competition | layer 2 map | layer 3 map | fired L2 / L3 | stray L2 / L3 |
+|---|---|---|---|---|
+| none | 97 / 92 / 76 / 46 | 79 / 66 / 50 / 25 | 4.1 / 2.4 | 0.8 / 0.5 |
+| bus, soft 1, test only | 97 / 92 / 76 / 46 | 76 / 64 / 48 / 25 | 3.9 / 2.2 | 0.7 / 0.4 |
+| bus, soft 2, test only | 97 / 92 / 76 / 46 | 75 / 62 / 48 / 25 | 3.8 / 2.0 | 0.7 / 0.4 |
+| bus, hard, test only | 95 / 90 / 75 / 44 | 71 / 59 / 46 / 25 | 4.2 / 2.1 | 1.2 / 0.6 |
+| bus, quiet, test only | 94 / 89 / 74 / 44 | 67 / 54 / 43 / 22 | 3.8 / 1.9 | 1.1 / 0.6 |
+| layer, soft 1, test only | 96 / 90 / 75 / 44 | 68 / 56 / 44 / 25 | 3.5 / 1.6 | 0.6 / 0.4 |
+| layer, hard, test only | 78 / 71 / 62 / 38 | 46 / 41 / 34 / 21 | 4.1 / 1.8 | 2.0 / 0.9 |
+| bus, soft 1, trained with it | 88 / 84 / 68 / 37 | 64 / 54 / 42 / 25 | 4.1 / 2.5 | 1.3 / 0.9 |
+| bus, hard, trained with it | 80 / 76 / 63 / 38 | 57 / 48 / 41 / 25 | 4.6 / 3.0 | 2.1 / 1.6 |
+| layer, hard, trained with it | 55 / 51 / 47 / 32 | 29 / 29 / 27 / 18 | 3.9 / 2.1 | 2.4 / 1.5 |
+
+(The other three trained-with-it variants lie between these: bus soft 2 90/83/68/40, bus quiet 74/70/59/40, layer soft 1 83/80/64/39 on the layer 2 map.)
+**Reading. A negative result, stated plainly:** no form of cell-to-cell competition improved recall. The mildest form (soft, within a bus, added after training) leaves layer 2 unchanged and costs layer 3 a few points; every stronger form, and every form present during training, makes it worse, down to 55% from 97% for first-to-fire across a whole layer.
+**Why, as far as the figures show:** a pattern here is a SET of cells (5 per layer) that must fire together, and competition makes the members of that set hold each other down; the last column shows it does not even remove stray cells (0.8 without, 0.6 to 2.4 with), because the trained cells with their self-set thresholds were already selective (about 4 cells firing, under 1 stray). Training with competition is worse because the teacher keeps asking for 5 cells while the competition keeps silencing some of them.
+**What this says about the thought direction of sections 94 and 95:** "first to fire wins" suits a code where ONE cell stands for the answer. This design's code is a map of several cells, and the place where one answer wins is between MAPS, at the matcher and the pool, where it already is. Competition between cells is not the missing mechanism for this design. **Not tested:** competition in an untrained or dense layer (layer 1 fires about 43 cells per run), where there would be something to thin out; competition between whole blocks.
