@@ -6,7 +6,7 @@
 # Usage:  bash ~/hexn-wt/fpga/ypcb/hexn_speech2/run_speech2.sh
 # Logs and the build folder go to /mnt/hdd/hexn_builds/speech2/ and speech2.log. The expected result on the card: led[1] on (finished), led[2] on (PASS); the model says 262 of 300 right.
 set -u
-OUT=${HEXN_OUT:-/mnt/hdd/hexn_builds}      # set HEXN_OUT=<folder> if the big disk is mounted somewhere else (for example /media/alan/InternalHDD/hexn_builds); name=speech2
+OUT=${HEXN_OUT:-/mnt/hdd/hexn_builds}; name=speech2      # HEXN_OUT=<folder> overrides the output folder (big disk mounted elsewhere, for example /media/alan/InternalHDD/hexn_builds)
 : "${CHIPDB:=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin}"; export CHIPDB
 [ -s "$CHIPDB" ] || { echo "CHIPDB file not found or empty: $CHIPDB (export CHIPDB=<path to xc7k480tffg1156.bin>)"; exit 1; }
 [ -d designs/hexn_speech2 ] || { echo "run this from ~/ypcb-00338-1p1 after: ln -sfn ~/hexn-wt/fpga/ypcb/hexn_speech2 designs/hexn_speech2"; exit 1; }

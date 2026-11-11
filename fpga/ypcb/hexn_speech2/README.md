@@ -13,7 +13,7 @@ git -C ~/hexn-wt pull origin Hex-N
 cd ~/ypcb-00338-1p1 && ln -sfn ~/hexn-wt/fpga/ypcb/hexn_speech2 designs/hexn_speech2
 bash ~/hexn-wt/fpga/ypcb/hexn_speech2/run_speech2.sh
 ```
-## Load and read (ordinary terminal; load again if the printout does not end with done 1)
+## Load and read (ordinary terminal; load again if the printout does not end with done 1; if the big disk is not at /mnt/hdd, set HEXN_OUT=<folder> for the build and use that folder in the .bit path)
 ```
 ~/openFPGALoader/build/openFPGALoader -c digilent_hs2 /mnt/hdd/hexn_builds/speech2/hexn_speech2.bit
 cd ~/ypcb-00338-1p1 && nix shell nixpkgs#openocd --command env OPENOCD=openocd HEXN_REPO=$HOME/hexn-wt python3 ~/hexn-wt/fpga/ypcb/hexn_speech2/check.py
