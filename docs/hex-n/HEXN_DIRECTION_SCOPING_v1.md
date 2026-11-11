@@ -1494,3 +1494,28 @@ Runs needed (median, 6 lines x 2, 10% dropped, always passed on, N = 8): 26 runs
 3. There is a plain trade between finding and false alarms, set by N and by the guard. The false reports with no hidden pattern are mostly the block's own leftovers: when the recall is wrong, the true pattern's lines are the residue, and they repeat. Passing residues on only when the recall is clear removes nearly all of them (0.0 to 0.2 at N = 8) but also loses sightings, so weak or rare patterns are missed more often within 200 runs. A longer stream would find them; not run.
 4. The weakest pattern (3 lines, 1 event each) is at the limit: a residue needs at least 3 lines to be considered, so one lost event hides it.
 **Cautions.** Toy patterns; one block, not the full tile (the pool-level anomaly, an unknown combination, is not in this test); thresholds (0.3 overlap, 3 lines minimum, half-of-hits template, 16 slots) are my choice, not tuned; the hit counts do not fade here (200 runs only); a found pattern is only reported, not promoted to a stored pattern; "found" for lines means the reported slot is mostly the hidden pattern's lines and covers at least half of them.
+
+## 90. Compare, weak table and promotion in the anomaly store (11 Nov 2026)
+
+**Alan (16:38):** promote to the storage, and add a twist, a compare system: if the pattern is found by the main system, add a score for the weaker signal in a separate table; if it is new, note it as new. `tools/hexn_anomaly_tile_v2.py` (v1 untouched; about 4 minutes), 5 seeds, toy patterns, streams of 400 runs, residue = input lines (section 89), every residue passed on (no guard).
+**My reading of the compare system, as built:** when a slot of the anomaly store reaches N hits, its template (the lines present in at least half of its hits) is compared with the main system's stored patterns (their line masks). **Known, weak:** at least 70% of the template's lines belong to one stored pattern j: nothing new is stored; a separate WEAK TABLE gets the slot's hits under j, and 1 more for every later hit. **New:** otherwise the template is promoted: stored as a new pattern (number 8, 9, ...) with the note "new", and from then on looked for in every run (seen = at least half of its lines among the run's residue). **Probation (my addition after the first run):** a promoted pattern counts as CONFIRMED only when it is seen in at least 5 of the 100 runs after its promotion.
+**What was laid over the input (each in 20% of the runs):** a NEW pattern (6 lines x 2 events, never trained or stored); a WEAK KNOWN one (a faint copy of known pattern 3: 5 of its lines, 2 events each, riding on another pattern); both; none.
+
+| laid over | N | new pattern found and confirmed (streams of 5; median run of promotion) | weak table: score on pattern 3 / on the other 7, per stream | WRONG "new" notes per stream: promoted / confirmed |
+|---|---|---|---|---|
+| new | 5 | 5 and 5 of 10 (run 60 to 63) | 3 / 39 | 3.6 / 1.5 |
+| new | 8 | 5 and 5 of 10 (run 87 to 106) | 3 / 26 | 1.3 / 0.6 |
+| weak known | 5 | none (right) | 67 / 27 | 4.9 / 2.6 |
+| weak known | 8 | none (right) | 66 / 21 | 1.7 / 1.0 |
+| both | 5 | 5 and 4 of 10 (run 53 to 82) | 48 / 39 | 4.9 / 2.7 |
+| both | 8 | 5 and 5 of 10 (run 93 to 120) | 53 / 25 | 2.1 / 1.2 |
+| none | 5 | none (right) | 3 / 33 | 5.5 / 1.2 |
+| none | 8 | none (right) | 3 / 17 | 1.3 / 0.2 |
+
+(Each cell joins the streams at 10% and 30% of events dropped; "5 and 5 of 10" = found in 5 of 5 streams at each level. After promotion the new pattern is seen in 61 to 74% of the runs that hold it and in 1 to 5% of the runs that do not.)
+**Reading.**
+1. The two real cases are sorted correctly. The new pattern is found, noted as new and confirmed in 39 of 40 streams. The faint copy of a known pattern is never noted as new; it lands in the weak table under the right pattern (about 66 per stream against 3 when it is absent). So the separate table does what Alan asked: it records that a known pattern was present as a weaker signal, without storing anything twice.
+2. The weak table also catches the block's own leftovers: its score on the other seven patterns (17 to 39 per stream) is there even when nothing is laid over. Those are wrong recalls, whose leftover is the true pattern's lines. That is useful by itself: it is a count of how often each known pattern was present but not recalled.
+3. **The weak point is false "new" notes.** Even with nothing laid over, 1.3 slots per stream are promoted at N = 8 (5.5 at N = 5). Probation removes about half to four fifths of them (0.2 to 1.2 confirmed at N = 8), not all. What these templates are (mixtures of two known patterns' leftovers is my guess) was NOT examined. Until that is understood, "new" from this store means "candidate".
+4. Promotion here stores a line mask and a note; the cells are not retrained, so the main block is still disturbed by the new pattern's events (recall 95.1% in the "new" streams against 95.8% with nothing laid over, at 10% dropped). Teaching the cells the new pattern is a further step, not done.
+**Cautions.** Toy patterns; one block; thresholds (70%, half the lines, 5 of 100, N) are my choice, not tuned; 5 streams per cell.
