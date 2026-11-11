@@ -61,3 +61,7 @@ Loaded on the Kintex card: finished and PASS LEDs on (at least 5/6 of the 300 re
 ## 9. Update 11 Nov 2026 12:20: joined to the base controller (simulation only)
 
 Section 5's proposal is now built as `sub/verilog/hexn_base_ctl_v5.v` (clone of v4, chain module unchanged): commands `k` (settings word or start of a recording), `e` (events, byte 255 = window end), `u` (next result). Generator `tools/hexn_kxbase_v5.py` (`HEXN_BASE_VER=5`), host tool `tools/hexn_chain_host_v1.py kit DIR`. In iverilog through the byte port the kit's trained chain and 300 recordings, sent from the host side, give 262 of 300, as on the card with the data baked in. Not built on the card flow and not on the card; size by yosys 8,162 cells with the batch judge, no arrays. Commands for the card build and run: direction doc section 76. Speed over JTAG and the on-chip event RAM proposal: section 78.
+
+## 10. Update 11 Nov 2026 12:36: the joined design on the card
+
+Built on the card flow (two arrays + batch judge + chain: 22,758 LUT sites, 15,975 flip-flops, 0 DSP; nextpnr estimate 79.47 / 91.22 MHz, PASS at 50) and run by Alan: the trained chain and the 300 recordings sent from the host over JTAG give **262 of 300, PASS**, in 2.1 s for the settings and 4.0 s for the recordings (74 recordings per second; 0 bad captures). (Section 9 above was written at 12:02, not 12:20.) Details: direction doc sections 76 and 81.
