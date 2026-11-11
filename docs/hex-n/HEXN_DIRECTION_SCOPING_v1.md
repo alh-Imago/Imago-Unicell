@@ -1380,3 +1380,18 @@ Expected: each replay line says `86079 clocks counted on the chip` (if the chip 
 **Link figures [measured], for the record:** settings 22,064 bytes in 0.7 s here against 2.1 s in the run of section 81 (same bytes; cause of the difference not examined); event RAM fill 26,677 bytes in 0.9 s, about 30,000 bytes per second. My estimate in section 82 ("about 3 s" to fill) was too slow by about 3 times. Feeding the same recordings command by command took 4.0 s (section 81): the fill is faster because one `w` command carries 1,024 bytes with one reply.
 **Not shown:** the chain's real clock limit (still the 50 MHz board clock); the v4/v5 commands on this bitstream (simulation only for the array, judge and store commands; the `k` command was used here); recordings beyond the kit's 300; a fast input path (the fill is still JTAG).
 **Next if Alan wants:** the full test set (2,264 recordings) through the event RAM in batches, now that the dataset is here again; a clock multiplier to find where the chain really fails; a real data port.
+
+## 84. The whole test set for the card, in batches through the event RAM (11 Nov 2026)
+
+**Alan (13:19):** run the full test on the card first. **Correction of what I said at 13:17:** I called the full test set "2,264 recordings". The file holds 2,264, but the chain is trained on the ten English digits only, and its test set is the **1,079** recordings of those digits (the other 1,185 are the German digits, classes the chain has no detector for). The kit's 300 are a sample of these 1,079 (30 per digit).
+**Prepared (no rebuild; the v6 bitstream on the card is used as it is):**
+- `tools/hexn_chain_fulldata_v1.py`: builds the data as the kit tool does, trains the chain and first checks that it is **word for word the kit's settings files** (it is), then writes `fpga/ypcb/hexn_speech/data_full/`: `events.bin` (95,402 bytes: 1,079 recordings, 88,928 events, at most 128 events in one recording), `lab.hex`, `EXPECTED.txt`.
+- **Python reference for the 1,079 [model, not the card]: 936 right after window 3 = 86.7%** (the kit's 300: 87.3%). Per digit: 0: 98/103, 1: 68/108, 2: 96/105, 3: 76/102, 4: 96/116, 5: 91/110, 6: 105/109, 7: 102/109, 8: 111/114, 9: 93/103. Digits 1 and 3 are the weak ones (63% and 75%).
+- `tools/hexn_chain_host_v3.py full DIR` (v1 and v2 untouched): three batches (368, 370 and 341 recordings; each fits the 32,768-byte event RAM and the 2,048-result RAM), fill, replay, read, score, per-digit table, compared with the reference. Test `tests/vm/test_hexn_chain_host_v3.py` (batching, no hardware): batches cover every recording once and fit; the kit's 300 recordings are found byte for byte among the 1,079.
+**Not simulated:** the 1,079 recordings were not run through iverilog (the replay path itself is tested in section 82 and ran on the card in section 83; the new part is host-side batching).
+**For Alan (ordinary terminal, card on, v6 bitstream loaded as in section 83):**
+```
+git -C ~/hexn-wt pull origin Hex-N
+cd ~/ypcb-00338-1p1 && nix shell nixpkgs#openocd --command env OPENOCD=openocd HEXN_CHAIN=2 python3 ~/hexn-wt/tools/hexn_chain_host_v3.py full ~/hexn-wt/fpga/ypcb/hexn_speech/data_full
+```
+Expected: `right 936 (86.7%)`, `expected 936 (Python reference): PASS; per digit: all equal`.
