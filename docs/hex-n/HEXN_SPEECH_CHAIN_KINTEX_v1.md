@@ -69,3 +69,7 @@ Built on the card flow (two arrays + batch judge + chain: 22,758 LUT sites, 15,9
 ## 11. Update 11 Nov 2026 13:18: on-chip event RAM, on the card
 
 Controller v6 (`sub/verilog/hexn_base_ctl_v6.v`, clone of v5): an event RAM (32,768 bytes) filled once over JTAG and replayed into the chain at one event per clock, and a result RAM (2,048 words); commands `w` `g` `v`; host tool `tools/hexn_chain_host_v2.py kitram`. On the card (Alan): the 300 kit recordings replayed three times, each **262 of 300 in 86,079 clocks counted on the chip**, the same count as the simulation; at the nominal 50 MHz that is about 174,000 recordings per second (computed from the count). Build: 23,346 LUT sites, 16,187 flip-flops, estimate 79.77 / 90.68 MHz. Details: direction doc sections 82 and 83.
+
+## 12. Update 11 Nov 2026 13:25: the whole test set on the card
+
+All 1,079 test recordings of the ten digits, in three batches through the event RAM (`tools/hexn_chain_host_v3.py full`, data in `fpga/ypcb/hexn_speech/data_full/`): **936 right (86.7 percent), every digit's count equal to the Python reference**, 309,050 clocks counted on the chip. Details: direction doc sections 84 and 85.

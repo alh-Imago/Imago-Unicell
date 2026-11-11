@@ -1395,3 +1395,11 @@ git -C ~/hexn-wt pull origin Hex-N
 cd ~/ypcb-00338-1p1 && nix shell nixpkgs#openocd --command env OPENOCD=openocd HEXN_CHAIN=2 python3 ~/hexn-wt/tools/hexn_chain_host_v3.py full ~/hexn-wt/fpga/ypcb/hexn_speech/data_full
 ```
 Expected: `right 936 (86.7%)`, `expected 936 (Python reference): PASS; per digit: all equal`.
+
+## 85. The whole test set ON THE CARD: 936 of 1,079, every digit equal to the reference (11 Nov 2026)
+
+**Alan ran** `hexn_chain_host_v3.py full` on the v6 bitstream (about 13:24). Printout: settings 1,576 words in 0.8 s; `1079 recordings, 95402 bytes, in 3 batches`; batch 1: 368 recordings, 105,530 clocks on the chip, right 321; batch 2: 370, 105,980 clocks, right 322; batch 3: 341, 97,540 clocks, right 293; **`recordings 1079, right 936 (86.7%); 309050 clocks counted on the chip`**; per digit 0: 98/103, 1: 68/108, 2: 96/105, 3: 76/102, 4: 96/116, 5: 91/110, 6: 105/109, 7: 102/109, 8: 111/114, 9: 93/103; **`expected 936 (Python reference): PASS; per digit: all equal`**; host time for all batches 4.0 s; `link: 20070 scans, 0 bad captures, 0 resends`.
+**What this shows [measured on the card]:** the chain on silicon gives the reference result on the whole test set of the ten digits, in total and digit by digit, not only on the 300 recordings the kit was built around. 779 of these recordings had never been on the card before.
+**Computed from the chip's clock count (not separately timed):** 309,050 clocks = 6.18 ms at the nominal 50 MHz, 286.4 clocks per recording, about 174,600 recordings per second. From the host's side the whole set, with filling and reading over JTAG, took 4.0 s.
+**What the figure itself says:** 86.7% after the third window. The errors are not spread evenly: "one" 63% and "three" 75% carry 60 of the 143 errors. That is a property of the trained chain (the same in the Python reference), not of the hardware.
+**Not shown:** the chain's real clock limit; speakers or words outside this dataset; live sound (the front end that turns sound into events runs on the host, before the card); the German digits (no detectors).
