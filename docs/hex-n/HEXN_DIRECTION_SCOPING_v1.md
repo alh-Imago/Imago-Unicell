@@ -1469,3 +1469,28 @@ The input count follows the damage closely and is never fooled at 90%; the match
 **What the second tile would do:** store the leftovers as maps of its own and count how often each comes back (the frequency part of the rank, section 77). Real noise does not repeat; a hidden pattern does. A leftover that keeps recurring is a candidate for a new stored pattern. That would also be the system's way of learning something new without disturbing what it knows, which the model has no route for today.
 **Open points:** the residue is easy to define on cells (fired but not in the recalled map) and harder on raw input (the block would have to store which input lines each pattern normally uses); how many recurrences make a pattern rather than chance; whether a found pattern is promoted into the main tile or stays in the second.
 **Next if Alan wants:** a model: a weak second pattern hidden in the noise of the main patterns; does the second tile find it, how many repeats does it need, and how often does it "find" patterns in pure noise.
+
+## 89. A hidden weak pattern in the noise: the anomaly store finds it (11 Nov 2026)
+
+**Alan (16:30):** apply the weak pattern tests (idea of section 88). `tools/hexn_anomaly_tile_v1.py` (`python3 tools/hexn_anomaly_tile_v1.py`, under 3 minutes), 5 seeds, toy patterns only.
+**Model.** One block of the main tile (3-layer network + map blocks, unchanged by anything here) sees 200 runs of its 8 known patterns, noisy (10% or 30% of events dropped, plus the usual 6 random events per run). In a share of the runs (50%, 20%, 10% or never) a weak HIDDEN pattern that was never trained or stored is laid over the input: 6 lines x 2 events, 4 lines x 2, or 3 lines x 1 (the known patterns have 12 lines x 3 events), with its own jitter and 10% loss. The block recalls as always. The RESIDUE is what the recall does not explain, taken two ways: **lines** (input lines active that the recalled pattern does not normally use; the block keeps a 48-bit mask per stored pattern) or **cells** (layer 1 cells that fired but do not normally fire for that pattern).
+**The anomaly store** (the simplest form of the second tile): 16 slots; a slot counts how often each line (or cell) appeared in the residues it took, and its hits. A new residue goes to the slot it overlaps best (at least 0.3) or opens a new slot (replacing the one with fewest hits). Noise should scatter over slots; a hidden pattern should keep landing in the same one. A slot with N hits is REPORTED as a pattern. Nothing goes back to the main tile.
+
+**Result, residue = lines.** Streams (of 5 per cell; 6 cells per row: 2 damage levels x 3 presence rates) in which the hidden pattern was reported within 200 runs, and FALSE reports per 200 runs when there is no hidden pattern at all (at 10% / 30% dropped):
+
+| rule | 6 lines x 2 | 4 lines x 2 | 3 lines x 1 | false reports, no hidden pattern |
+|---|---|---|---|---|
+| always passed on, N = 5 | 30 of 30 | 28 of 30 | 23 of 30 | 2.8 / 3.0 |
+| always passed on, N = 8 | 30 of 30 | 26 of 30 | 18 of 30 | 0.4 / 0.8 |
+| only when the recall is clear, N = 5 | 25 of 30 | 25 of 30 | 19 of 30 | 0.8 / 0.6 |
+| only when the recall is clear, N = 8 | 20 of 30 | 15 of 30 | 10 of 30 | 0.0 / 0.2 |
+
+Runs needed (median, 6 lines x 2, 10% dropped, always passed on, N = 8): 26 runs when the pattern is in half the runs, 74 at one in five, 154 at one in ten: about 13 to 15 sightings.
+**Result, residue = cells:** much weaker. Even at N = 3 the 6-line pattern is found in 24 of 30 streams, the 4-line in 20 of 30, the 3-line x 1 in 3 of 30; at N = 8 almost never. The cells were trained for the known patterns and a weak foreign pattern barely moves them.
+**The main block is not untouched by the hidden pattern itself:** its recall is 96.4% right without it and 91.7% in runs that hold it (10% dropped; 92.5% and 84.9% at 30%). The second store does not disturb the block (nothing is fed back), but the extra events do.
+**Reading.**
+1. Alan's idea works in this toy: a pattern much weaker than the known ones, present in as few as one run in ten, is pulled out of the noise by counting what comes back, without touching the main system. Real noise almost never reaches 8 hits.
+2. The residue must be taken at the INPUT (lines), not after the cells. The cells generalise toward what they know, which is exactly what hides a foreign pattern.
+3. There is a plain trade between finding and false alarms, set by N and by the guard. The false reports with no hidden pattern are mostly the block's own leftovers: when the recall is wrong, the true pattern's lines are the residue, and they repeat. Passing residues on only when the recall is clear removes nearly all of them (0.0 to 0.2 at N = 8) but also loses sightings, so weak or rare patterns are missed more often within 200 runs. A longer stream would find them; not run.
+4. The weakest pattern (3 lines, 1 event each) is at the limit: a residue needs at least 3 lines to be considered, so one lost event hides it.
+**Cautions.** Toy patterns; one block, not the full tile (the pool-level anomaly, an unknown combination, is not in this test); thresholds (0.3 overlap, 3 lines minimum, half-of-hits template, 16 slots) are my choice, not tuned; the hit counts do not fade here (200 runs only); a found pattern is only reported, not promoted to a stored pattern; "found" for lines means the reported slot is mostly the hidden pattern's lines and covers at least half of them.
