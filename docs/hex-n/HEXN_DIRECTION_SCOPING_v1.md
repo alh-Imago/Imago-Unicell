@@ -1312,3 +1312,27 @@ Expected last lines if it works: `right 262 (87.3%)` and `expected 262 (Python r
 **What supports it (toy patterns only):** section 77 part 1: a recalled map passed on is cleaner than what the next layer of cells produces (87/82/69/40 against 70/61/45/22), so signal does not thin out between blocks the way it does between layers (sections 49, 50). The codes are small (8 blocks = 3 bits per block), so the pool is cheap in block RAM.
 **Risks seen already:** (1) a wrong local recall goes into the pool as if it were right; errors can compound. (2) Hints cause false memory (section 77 part 2); with hints going both ways a block and the pool could confirm each other in a loop, so a hint must not be allowed to count as evidence for itself. (3) Blocks must see DIFFERENT parts of the input (different lines or different times), or they only repeat each other. (4) On real speech the block's maps carried no class information (sections 55, 66), so the foundation is proven on toy patterns only. Related: the parked search mesh of section 67 (data, neural, data, neural).
 **Next if Alan wants:** a Python model: 4 blocks each seeing a quarter of a larger pattern, a centre pool of large maps, with and without hints back down; compared with one large 3-layer network of the same cell count.
+
+## 80. Four neural blocks around a centre pool, with a monitor: modelled (11 Nov 2026)
+
+**Alan (12:15):** try the 4 block first; it will need an overarching monitor that works with the map of maps to provide the feedback. `tools/hexn_recall_pool_v1.py` (`python3 tools/hexn_recall_pool_v1.py`, about 8.5 minutes), 5 seeds, toy patterns only.
+**Model.** 4 blocks, each the 3-layer network of section 49 with its own 48 inputs, its own 8 local patterns and its own map blocks (section 77). 16 large patterns, each = one local pattern per block; every local pattern belongs to exactly 2 large patterns, so one block alone cannot name the large pattern. The centre pool holds the 16 large maps as 4 codes of 3 bits each (12 bits per large map). The large pattern is named three ways: **votes** (each block reports its best local block; most agreeing blocks wins), **scores** (each block reports its overlap score for all 8 of its blocks; the pool adds them), **monitor** (votes, one round of feedback, votes again).
+**The monitor's rule.** For block i it looks only at the OTHER three blocks, so a block's own answer is never evidence for its own hint. If all three point to the same large map(s) the hint is strong (bonus 8 on an overlap scale of 0 to 32), if two of three, weak (4), otherwise no hint. The bonus is added to block i's score for the local block the large map expects, and block i ranks again. One round, computed from the first answers only; nothing loops. (The hint acts on the block's recall ranking; priming the cells themselves, section 77 part 2, is not in this model.)
+
+| case | large map right: votes / scores / monitor | local answers right: before / after monitor | block 0 right: before / after | block answers hinted / repaired / spoiled |
+|---|---|---|---|---|
+| all blocks 10% dropped | 98.3 / 99.9 / 99.8 | 94.5 / 99.3 | 92.4 / 98.8 | 99.6 / 4.8 / 0.0 |
+| all blocks 30% dropped | 96.7 / 98.8 / 98.4 | 88.3 / 97.5 | 85.2 / 96.1 | 98.0 / 9.3 / 0.0 |
+| all blocks 50% dropped | 83.4 / 92.3 / 88.4 | 72.5 / 86.2 | 73.1 / 87.1 | 91.0 / 14.3 / 0.5 |
+| all blocks 70% dropped | 40.2 / 51.9 / 44.2 | 38.8 / 49.0 | 37.6 / 47.1 | 67.5 / 12.1 / 1.8 |
+| block 0 at 90% dropped, others 10% | 91.1 / 98.3 / 97.3 | 75.1 / 95.3 | 14.6 / 86.9 | 97.0 / 20.2 / 0.0 |
+| block 0 at 90% dropped, others 30% | 81.2 / 95.8 / 92.7 | 69.6 / 90.6 | 14.2 / 80.9 | 93.5 / 21.2 / 0.2 |
+| NOVEL combination (not in the pool), 30% dropped | not a stored map | 86.5 / 85.2 | 83.6 / 80.6 | 56.9 / 0.3 / 1.6 |
+
+**Reading.**
+1. The large-scale map works in this toy: a block that is nearly blind (14.6% right at 90% dropped, chance is 12.5%) is brought to 86.9% by the other three through the pool. That is recall at the larger scale: the whole fills in the missing part.
+2. The monitor repairs local answers at every damage level (+5 to +14 points) and spoils almost none while the large pattern is a stored one (0 to 1.8%).
+3. For NAMING the large pattern, the pool reading full scores is the best of the three everywhere; the monitor comes second, votes last. So the monitor's value is not the name, it is the feedback: correcting the blocks. A design could use both: scores into the pool, monitor hints back down.
+4. The cost shows on novel combinations, where a hint can only do harm: 56.9% of block answers still got a hint, 1.6% of answers were spoiled against 0.3% repaired, a net loss of 1.3 points (86.5 to 85.2). Small here, but it is the false-memory effect at the larger scale: the system leans toward what it has stored.
+5. Leaving a block's own answer out of its own hint kept this to one clean round; whether repeated rounds help or run away was not tested.
+**Cautions.** Toy patterns; each block sees its own separate inputs and the tests are almost all stored large maps (the closed world favours the monitor); bonus sizes 8 and 4 are my choice, not tuned; 16 large maps, 4 blocks. **Not done:** the comparison with ONE large 3-layer network of the same cell count (Alan asked for the 4 block first; the big network needs changes to the training tools); more blocks, more large maps, a pool of pools; priming of cells from the monitor; real data.
