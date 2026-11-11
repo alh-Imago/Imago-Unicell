@@ -1421,3 +1421,43 @@ Expected: `right 936 (86.7%)`, `expected 936 (Python reference): PASS; per digit
 (With the good blocks at 30% dropped instead of 10% the picture is the same, a few points lower: damaged blocks after the monitor 80.6 / 61.0 / 33.3 for 1 / 2 / 3 damaged. Chance is 12.5% for a local answer and 6.25% for the large map.)
 **Reading.** The compensation degrades step by step, not suddenly: one nearly blind block of four is almost fully carried (86%), two are carried about two thirds of the time, three only a third, and with all four damaged nothing is left to lean on. The reason is in the pool's structure: every local pattern belongs to 2 of the 16 large maps, so one good block narrows the choice to 2 large maps, two good blocks usually to 1. With three blocks damaged the single good block cannot pick between its two candidates, and the monitor starts to spoil good answers (1.7%) because the damaged majority out-votes the good block. The pool reading full scores stays ahead of votes and of the monitor for naming the large map at every level (51% against 28% and 34% with three damaged), because even a 90%-damaged block's scores carry a little information that its single best guess throws away.
 **Design consequence (reasoned from the above, not tested):** how much damage a bank can carry depends on how many large maps share each local pattern (here 2) and on how many blocks there are; more blocks or less sharing should carry more. The monitor should weigh a block's vote by its confidence, so that a blind block does not out-vote a clear one; here every vote counts the same.
+
+## 87. Confidence-weighted monitor and an input check (11 Nov 2026)
+
+**Alan (14:00):** apply the confidence weighting first; is there a way to test the inputs, to see if they are in bounds or how much damage they have? That would help the confidence levels. `tools/hexn_recall_pool_v3.py` (v1, v2 untouched), same 4-block model, 5 seeds, toy patterns, all rules run on the same runs.
+**Two tests that give a block a weight 0, 1 or 2 without knowing the right answer:**
+- **match** (after the cells): from the block's own recall: 2 if the best overlap is at least 16 of 32 and beats the second best by 4; 1 if the best is at least 8; else 0.
+- **input** (before any cell fires): count the events that arrive in the run and compare with the block's normal count (the mean over the runs its map blocks were made from): 2 if at least 3/4 of normal, 1 if at least 1/2, else 0. In hardware: one counter and two comparisons.
+**How well the tests see the damage [measured in the model]:**
+
+| block's input really dropped | match weight (mean, 0 to 2) | weight 2 but answer WRONG | input weight (mean) |
+|---|---|---|---|
+| 10% | 1.62 | 0.1% | 2.00 |
+| 30% | 1.40 | 0.3% | 1.83 |
+| 50% | 1.09 | 1.6% | 1.00 |
+| 70% | 0.61 | 3.7% | 0.14 |
+| 90% | 0.21 | 3.3% | 0.00 |
+
+The input count follows the damage closely and is never fooled at 90%; the match test follows it loosely and is sometimes sure and wrong (about 3% of badly damaged blocks).
+**Weighted monitor:** votes count their weight; for block i the other blocks' weights are added per large map; below 2 no hint, below 4 bonus 4, else 8; the receiver's own weight scales the bonus (weight 0 doubles it: a block that knows it is blind listens; weight 2 halves it: a block that is sure resists). Percent right; columns: no feedback / plain monitor (section 80) / weighted by match / by input / by both (the smaller weight):
+
+| case | measure | none | plain | match | input | both |
+|---|---|---|---|---|---|---|
+| 1 of 4 blocks at 90% | damaged block right | 14.6 | 87.6 | 89.1 | 94.7 | 94.9 |
+| 2 of 4 at 90% | damaged blocks right | 14.7 | 67.3 | 76.0 | **86.5** | 79.9 |
+| 3 of 4 at 90% | damaged blocks right | 16.8 | 35.1 | 41.7 | **49.2** | 41.0 |
+| 2 of 4 at 90% | large map right (pool on full scores, no feedback: 89.3) | 68.1 | 82.1 | 85.3 | 90.1 | 87.4 |
+| 3 of 4 at 90% | large map right (full scores: 51.4) | 30.3 | 35.6 | 42.8 | 49.5 | 44.4 |
+| 3 of 4 at 90% | right answers spoiled | - | 1.8 | 0.7 | 0.6 | 0.0 |
+| all blocks 50% | all local answers right | 72.5 | 86.2 | 87.3 | 84.0 | 84.8 |
+| all blocks 70% | all local answers right | 38.8 | 49.0 | 47.9 | **39.6** | 39.2 |
+| NOVEL combination, 30% | all local answers right | 86.0 | 85.0 | **81.1** | 84.2 | 81.1 |
+| NOVEL combination, 30% | right answers spoiled | - | 1.6 | **6.0** | 2.8 | 5.8 |
+
+(The other rows of the run: with all blocks at 10% or 30% every rule is within 1.5 points of the plain monitor.)
+**Reading.**
+1. Alan's point holds: testing the INPUT is the best source of confidence when some blocks are damaged and others are not. With two of four blocks nearly blind, the damaged blocks go from 67% (plain) to 86.5% right, and with three from 35% to 49%; the blind majority no longer out-votes the clear block (spoiled 1.8% down to 0.6%).
+2. It has a blind spot of its own: when EVERY block is damaged alike (70%), the input test gives everyone weight 0, nobody is allowed to hint, and the monitor does nothing (39.6% against 49.0% for the plain rule). A weak hint from weak blocks was still worth having. The weights should be relative to the other blocks, not absolute; not tested.
+3. Neither test sees NOVELTY. A never-stored combination has perfectly normal inputs and confident local recalls, so the weighted monitor pushes it harder toward a stored large map than the plain one did (spoiled 6.0% with the match weight, 2.8% with the input weight, against 1.6%). That needs a third check, at the pool: how well the best large map fits ALL the blocks' answers; if the fit is poor, treat it as new and give no hints. Not built.
+4. Combining the two tests by taking the smaller weight is not better than the input test alone here.
+**Cautions.** Toy patterns, where damage means missing events; the thresholds (16, 4, 8; 3/4, 1/2) and bonus sizes are my choice, not tuned; other kinds of damage (too many events, events on the wrong lines, wrong timing) would need other input tests (an upper bound on the count is the obvious first one) and were not modelled.
