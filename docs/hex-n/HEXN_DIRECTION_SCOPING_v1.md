@@ -1521,3 +1521,21 @@ Runs needed (median, 6 lines x 2, 10% dropped, always passed on, N = 8): 26 runs
 **Cautions.** Toy patterns; one block; thresholds (70%, half the lines, 5 of 100, N) are my choice, not tuned; 5 streams per cell.
 
 **Correction to section 90 (mine):** after promotion the new pattern is seen in 59 to 74% of the runs that hold it (not 61 to 74%).
+
+## 91. What the false "new" notes were, and a fix (11 Nov 2026)
+
+**Alan (16:55):** yes, look inside the false "new" notes. `tools/hexn_anomaly_diag_v1.py`: streams with NOTHING laid over (every "new" note is false), 5 seeds, 10 streams of 400 runs.
+**Found [measured in the model]:** 17 false notes at N = 8 (1.7 per stream), 56 at N = 5. Their templates are tiny: 2 to 4 lines, 12 of the 17 exactly 3 lines. **0% of the runs that fed them were wrong recalls** (1% at N = 5). Of a template's 3 lines only 1.5 on average belong to any one stored pattern. For scale: the residue after a RIGHT recall is 3.9 lines on average (the random noise events of that run), after a wrong recall 10.4 lines.
+**So my guess in section 90 was wrong.** They are not mixtures of known patterns' leftovers. They are chance: a slot starts from one run's random noise lines; its template shrinks to the 2 or 3 lines that happened to repeat; after that any run whose noise contains 2 of those lines counts as a hit, because 2 shared lines out of a 3-line template and a 4-line residue already pass the 0.3 overlap rule. With 400 runs and 16 slots that happens often enough to reach 8 hits. The fault was in my matching rule, not in the idea.
+**Fix** (`tools/hexn_anomaly_tile_v3.py`, clone of v2): a residue hits a slot only if it shares at least 3 lines with the template (as well as the 0.3 overlap), and a slot is compared and promoted only when its template has at least 4 lines. Same streams as section 90, N = 8 (in brackets: v2):
+
+| laid over | new pattern found (of 10 streams) | wrong "new" notes per stream: promoted / confirmed | weak table: pattern 3 / the other seven |
+|---|---|---|---|
+| nothing | none, correctly | **0.0 / 0.0** (1.3 / 0.2) | 2 / 13 |
+| new | 9 (10) | 0.4 / 0.2 (1.3 / 0.6) | 3 / 25 |
+| weak known | none, correctly | 0.5 / 0.4 (1.7 / 1.0) | 58 / 19 |
+| both | 9 (10) | 1.7 / 1.2 (2.1 / 1.2) | 52 / 28 |
+
+At N = 5 with nothing laid over: 0.4 promoted, 0.1 confirmed per stream (v2: 5.5 and 1.2).
+**Reading.** The chance notes are gone: with nothing laid over, no false "new" at N = 8 in 10 streams. The price is small: the new pattern is found in 9 of 10 streams instead of 10, and a hidden pattern of fewer than 4 visible lines can no longer be reported at all; that is a floor on how weak a pattern this store can find, set by how many random lines a run carries (about 4 here). The wrong notes that remain appear only when something really is laid over, most when two things are (1.7 per stream). What those are was NOT examined; partial or mixed templates of the laid-over things themselves is a possibility, and after the wrong guess above I do not state it as more than that.
+**Cautions.** Toy patterns; 5 seeds; the two new thresholds (3 shared lines, 4-line template) are tied to this toy's noise level (6 random events per run) and would have to follow the noise level of real data.
