@@ -1232,3 +1232,75 @@ W = 10 windows (2 steps each), accuracy of D, P (context 0) and C (context 0) at
 **What this shows:** on the real chip the speech chain (window detectors, count store, decision) classified the 300 recordings with exactly the model's result, 87.3% after the third window, not just "at least 5/6" (section 71). So the hardware arithmetic matches the Python reference and the iverilog simulation on silicon for this data.
 **What it does not show:** the real chip clock (it ran at the 50 MHz board clock; 200 MHz is an estimate); behaviour on recordings other than these 300, which are replayed from a ROM (no live input); the chain joined to the base controller.
 **Next if Alan wants:** join the chain to the base controller so events come over JTAG commands instead of a ROM; or run the chain faster (a clock multiplier) to see where it really fails.
+
+## 76. The speech chain joined to the base controller (11 Nov 2026)
+
+**Alan (11:25):** join the chain to the base controller, so it can be fed actual data.
+**Built (simulation only; not built on the card flow, not on the card):** `sub/verilog/hexn_base_ctl_v5.v`, a clone of controller v4 (v4 untouched) with the speech chain (`rtl/hexn_speech_chain_v1.v`, unchanged, the block that scored 262 of 300 on the card) as one more target behind the JTAG byte port. Three new commands; every v4 command is unchanged:
+- `k` sel address word: write one settings word of the chain (weights, thresholds, count tables, shift codes and stop gap: 1,576 words in all). `k` with sel 7 starts a new recording.
+- `e` count bytes: a stream of events for the chain; byte 255 closes a window.
+- `u`: the next window result (window number, class, prediction, gap, stop flag), oldest first, from a queue of 8; a counter says if any were lost.
+Generator `tools/hexn_kxbase_v5.py` (clone of v4), built with `HEXN_BASE_VER=5`. Host tool `tools/hexn_chain_host_v1.py kit DIR`: sends the trained chain and the 300 test recordings from the kit's data files and counts the right answers. So the data now lives on the HOST: nothing about the speech task is baked into the bitstream, and other recordings or another trained chain can be sent without a rebuild.
+**Tests [iverilog, through the byte port, bytes made by the host tool]** `tests/vm/test_hexn_base_v5_chain_v1.py`:
+1. Random chain settings and 5 random recordings: every window result equals the exact Python model (`hexn_chain_hw_v1.py`); an empty queue answers zeros; the v4 command `N` answers as before. A first version of this test with EVERY byte at the bridge's real spacing (128 clocks) also passed (11 min 47 s of simulation).
+2. The kit's real data sent from the host side: the trained chain (1,576 words) and all 300 recordings, decision after window 3: **262 of 300 right**, the same figure as the Python reference, iverilog with the data baked in, and the card (section 75). Both tests: 5 min 48 s.
+**Size [yosys synth_xilinx, controller + batch judge + chain, no arrays; not nextpnr]:** v4 3,425 cells (1,027 flip-flops, 6 block RAMs); v5 with the chain 8,162 cells (2,651 flip-flops, 12 block RAMs). The chain is most of the growth (3,695 cells), as in the kit.
+**Mistake found on the way (mine):** the first run of test 1 failed because the test counted a `k` command as 13 bytes (it is 14 with the opcode byte); the controller was right. Found by sending 60 words and reading the reply spacing (1,792 clocks = 14 x 128).
+**Limits, stated plainly:** (1) simulation only; a card build is the next step and its size, clock and behaviour are unknown until then. (2) The host must not send bytes closer than 64 clocks (the bridge sends them 128 apart), and reads results 3 at a time, because the bridge's output queue holds 28 bytes. (3) Speed: see section 78; over JTAG the chain is fed far below what it can take. (4) The front end (sound to 48 lines to events) still runs on the host; the kit's recordings are already events.
+**For Alan, when ready (openXC7 shell for the build; the same two arrays as the v4 base so the earlier tests still apply):**
+```
+git -C ~/hexn-wt pull origin Hex-N
+cd ~/ypcb-00338-1p1 && HEXN_BASE=hex7_off2_mix,hex6 HEXN_BASE_VER=5 HEXN_NORAM=1 bash ~/hexn-wt/fpga/ypcb/hexn_arr/run_arr.sh
+~/openFPGALoader/build/openFPGALoader -c digilent_hs2 /media/alan/InternalHDD/hexn_builds/arr_base_b5_noram/hexn_arr.bit
+cd ~/ypcb-00338-1p1 && nix shell nixpkgs#openocd --command env OPENOCD=openocd HEXN_CHAIN=2 python3 ~/hexn-wt/tools/hexn_chain_host_v1.py kit ~/hexn-wt/fpga/ypcb/hexn_speech/data
+```
+Expected last lines if it works: `right 262 (87.3%)` and `expected 262 (Python reference): PASS`. The tool also prints how long the settings and the 300 recordings took, which is the first real measurement of the feed speed over JTAG.
+
+## 77. Map blocks beside the cells: recall, replay, hint and rank, modelled (11 Nov 2026)
+
+**Alan (11:25):** the recall idea (section 74) needs to be modelled. `tools/hexn_recall_blocks_v1.py` (`python3 tools/hexn_recall_blocks_v1.py`, about 2.5 minutes): the toy network of section 49 (3 layers, 4 buses x 16 cells, trained, pruned), 8 patterns, 5 seeds, 10 noisy tests per pattern. Toy patterns only; every figure is a property of this toy.
+**A block** is made from what the cells themselves produced, no teacher map: for each pattern 5 noisy runs; key = the layer 2 cells that fired in at least 3 of the 5 (4.0 cells on average), payload = the same for layer 3 (2.3 cells; **6 of 40 blocks have an EMPTY payload**, layer 3 did not fire reliably for those patterns). Blocks are never changed after that.
+
+**Part 1. What does the next layer (layer 3) report?** Percent right at 10 / 30 / 50 / 70% of events dropped:
+
+| route | right |
+|---|---|
+| cells alone (layer 2 feeds layer 3 as built) | 70 / 61 / 45 / 22 |
+| recall the block, replay its stored layer 2 map into layer 3 | 87 / 82 / 69 / 40 |
+| recall the block, read its layer 3 payload directly | 98 / 92 / 78 / 46 |
+| (the recall itself: live layer 2 map against the keys) | 98 / 92 / 78 / 46 |
+
+**Reading.** Replay helps the next layer by 17 to 24 points: layer 3 gets the clean stored map instead of the damaged live one. It still loses 6 to 11 points against the recall itself, because layer 3 does not always turn even a clean layer 2 map into its own map (the empty payloads). Reading the payload from the block needs no cells after the recall and is as good as the recall. So in this toy the separate recall system does the work better than the deeper layer, which agrees with Alan's picture of the recall doing the background work and with sections 49 and 50 (depth loses signal).
+
+**Part 2. The hint (confidence-scaled).** Second pass over the same input with the recalled block's cells primed: firing threshold lowered by p for that run (a persistent form of priming; adding charge once was not modelled). Fixed p = 1 or 2 whatever the match; scaled p = 0 below overlap 1/4, 1 below 1/2, 2 from 1/2.
+
+| priming | pattern right % | overlap with the right block when the recall was right | recall WRONG: overlap with the true block, with the wrong block (at 50% dropped; at 70%) | false cells on novel input |
+|---|---|---|---|---|
+| none | 97 / 90 / 78 / 44 | 0.56 / 0.51 / 0.41 / 0.30 | 0.09, 0.19; 0.02, 0.11 | 0.00 |
+| fixed 1 | 98 / 92 / 80 / 45 | 0.66 / 0.62 / 0.53 / 0.41 | 0.10, 0.25; 0.03, 0.16 | 0.69 |
+| fixed 2 | 98 / 92 / 80 / 45 | 0.68 / 0.67 / 0.61 / 0.50 | 0.10, 0.27; 0.03, 0.19 | 1.18 |
+| scaled | 98 / 92 / 80 / 45 | 0.66 / 0.63 / 0.53 / 0.41 | 0.09, 0.22; 0.02, 0.13 | 0.43 |
+
+("False cells" = cells of the best-matching block made to fire on a pattern that was never stored, per run, that did not fire by themselves; 400 novel runs, mean overlap of their best block 0.26.)
+**Reading.** The hint does what Alan described: it completes the shape (overlap with the right block up by about 0.10 to 0.20) while the answer itself barely moves (1 to 2 points, within what 5 seeds show). Its cost is false memory: a wrong recall is pushed further toward the wrong block, and a never-seen input gets block cells switched on. Scaling by confidence cuts that cost (false cells 0.43 against 0.69 and 1.18; wrong recalls reinforced less) and keeps the completion of fixed 1; fixed 2 completes more and costs most. The scale thresholds (1/4, 1/2) are my choice and were not tuned.
+
+**Part 3. Rank (recency, accuracy, frequency; blocks never erased).** A stream of 400 recalls; score = accuracy (overlap as an integer 0 to 32) + frequency bonus (0 to 3, from a hit count that halves every 64 recalls) + recency bonus (2 if used in the last 4 recalls, 1 in the last 16). Percent right at 50% / 70% dropped; in brackets the 4 least used patterns only:
+
+| stream | accuracy only | + frequency | + recency | + both | + both, self-confirmed | both, ties only |
+|---|---|---|---|---|---|---|
+| uneven use, bursts | 70.3 (71.7) / 36.0 (42.3) | 72.3 (69.1) / 43.4 (35.1) | 77.0 (71.9) / 46.4 (45.7) | 78.1 (70.0) / 46.9 (37.0) | 76.5 (70.2) / 42.5 (43.3) | 75.8 (70.4) / 46.4 (41.0) |
+| uneven use, no bursts | 71.8 (67.2) / 37.9 (38.8) | 72.5 (63.5) / 40.7 (33.6) | 73.6 (63.5) / 42.0 (37.0) | 74.3 (61.0) / 44.7 (31.3) | 74.0 (62.2) / 41.0 (35.9) | 73.4 (64.1) / 43.0 (34.9) |
+| even use, bursts | 72.5 (72.9) / 40.5 (42.1) | 72.3 (72.0) / 40.2 (40.8) | 75.8 (73.1) / 46.2 (46.6) | 75.5 (73.0) / 44.5 (44.5) | 74.4 (72.1) / 42.5 (44.1) | 75.2 (73.5) / 44.4 (45.1) |
+| even use, no bursts | 74.2 (72.6) / 42.6 (42.4) | 74.3 (71.8) / 40.4 (39.0) | 72.8 (69.9) / 39.6 (39.5) | 72.8 (69.6) / 38.3 (38.5) | 72.9 (69.6) / 38.2 (40.3) | 73.0 (70.5) / 39.2 (39.6) |
+
+("Uneven use": one pattern is used most, the next half as often, and so on; which pattern is which is drawn at random. "Bursts": half the time the same pattern comes again. "+ both" is confirmed by a teacher who knows the truth; "self-confirmed" counts a recall as confirmed when its accuracy beats the second best by 3 or more.)
+**Reading.** Rank helps when the world has the structure the rank assumes, and costs when it does not: with uneven use and bursts, 8 to 11 points; with even use and no bursts, 1 to 4 points WORSE. The gain is paid by the rarely used patterns (down by up to 7.5 points when frequency is in the score), which is the "early winner stays on top" risk in a mild form; recency alone does not do that. Self-confirmation gives most of the gain at 50% dropped and less at 70%, where the confirmations themselves are often wrong. The matcher is coarse here (keys of about 4 cells give few distinct overlap values), so the bonus often decides; with larger maps it would decide less. Bonus sizes are my choice, not tuned.
+**Mistake found on the way (mine):** the first run of part 3 showed the rank making things worse everywhere. Cause: ties in the plain matcher went to the lowest pattern number and my stream made the lowest numbers the most used, so "accuracy only" had the frequency rule built in by accident. Fixed by drawing at random which pattern is used most; the table above is after the fix.
+**Not modelled:** more than 8 blocks (a region of many blocks searched in parallel), blocks learned while running (here they are made once), a hint that arrives during the first pass instead of a second pass, real data (on real speech the net's maps carried no class information, sections 55 and 66, so nothing here says the recall would work on speech).
+
+## 78. Video (RViDeNet) and the speed question (11 Nov 2026)
+
+**Alan (11:25):** other tests to look at: video, https://github.com/cao-cong/RViDeNet, unless it is a real stretch for the detector system; then look at speed, which may matter more for video than anything else.
+**My judgement (from what I know of that work, not re-read today; no test run):** RViDeNet is a raw-video DENOISER: it takes several noisy sensor frames and produces a clean picture, with a deep network of full-precision multiply-adds per pixel (alignment of frames, attention, an image pipeline). Our chain does a different job: it counts events against ternary weights and names one of 10 classes per window. It cannot produce pixels, so rebuilding that network on the detector system is a real stretch and I would not try it. What could be borrowed is its DATA (the CRVD set: noisy and clean raw frames of the same scenes): a detection task such as "is this change between frames real movement or sensor noise" fits the chain's shape (events in, class out). That is a suggestion; nothing was downloaded or tried.
+**Speed, computed from figures already measured or estimated (not a new measurement):** the chain takes one event per clock, and a window end costs about 40 clocks. A kit recording has 83 events on average (24,877 events in 300 recordings) and 5 windows, about 300 clocks: about 6 millionths of a second at the 50 MHz board clock, on the order of 160,000 recordings per second if the events were already on the chip. The link is the limit: the bridge hands the controller one byte every 128 clocks (about 390,000 bytes per second at most), and the JTAG path measured earlier moved about 20 KB in 2.0 s (about 10,000 bytes per second). So over JTAG the chain is fed thousands of times slower than it can run. For video the gap decides everything: one frame of events can be hundreds of thousands of bytes.
+**What follows for the design (proposal, not built):** keep JTAG for settings and results, and put the data next to the chain: (a) an event RAM on the chip that the host fills once and the controller replays into the chain at full clock speed (the base already has a data RAM and a run-from-RAM command for the arrays; the same idea for chain events), which also gives the first honest measurement of the chain's own speed; (b) later a real data port (a camera or network interface on the card) feeding events straight in. (a) is small and is the next speed step I would take.
