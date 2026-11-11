@@ -6,11 +6,11 @@
 # Usage:  bash ~/hexn-wt/fpga/ypcb/hexn_speech2/run_speech2.sh
 # Logs and the build folder go to /mnt/hdd/hexn_builds/speech2/ and speech2.log. The expected result on the card: led[1] on (finished), led[2] on (PASS); the model says 262 of 300 right.
 set -u
-OUT=/mnt/hdd/hexn_builds; name=speech2
+OUT=${HEXN_OUT:-/mnt/hdd/hexn_builds}      # set HEXN_OUT=<folder> if the big disk is mounted somewhere else (for example /media/alan/InternalHDD/hexn_builds); name=speech2
 : "${CHIPDB:=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin}"; export CHIPDB
 [ -s "$CHIPDB" ] || { echo "CHIPDB file not found or empty: $CHIPDB (export CHIPDB=<path to xc7k480tffg1156.bin>)"; exit 1; }
 [ -d designs/hexn_speech2 ] || { echo "run this from ~/ypcb-00338-1p1 after: ln -sfn ~/hexn-wt/fpga/ypcb/hexn_speech2 designs/hexn_speech2"; exit 1; }
-mountpoint -q /mnt/hdd || { echo "/mnt/hdd is not mounted: sudo mount /dev/sda1 /mnt/hdd"; exit 1; }
+[ -n "${HEXN_OUT:-}" ] || mountpoint -q /mnt/hdd || { echo "/mnt/hdd is not mounted: sudo mount /dev/sda1 /mnt/hdd"; exit 1; }
 mkdir -p $OUT/$name && ln -sfn $OUT/$name designs/hexn_speech2/build_$name
 echo "=== $(date '+%F %T') start $name"
 HEXN_REPO=$HOME/hexn-wt BUILD=build_$name THREADS=4 FPGA_HOST=$(hostname -s) ./fpga build designs/hexn_speech2 hexn_speech2 > $OUT/$name.log 2>&1

@@ -10,12 +10,12 @@
 # A failed shape does not stop the others. Logs and build folders go to /mnt/hdd/hexn_builds/bnet_<shape>/ and bnet_<shape>.log
 set -u
 SHAPES=${*:-2:8:16:2 4:16:48:3 8:8:48:3}
-OUT=/mnt/hdd/hexn_builds
+OUT=${HEXN_OUT:-/mnt/hdd/hexn_builds}      # set HEXN_OUT=<folder> if the big disk is mounted somewhere else (for example /media/alan/InternalHDD/hexn_builds)
 : "${CHIPDB:=/home/alan/openFPGALoader/build/demo-projects/chipdb/xc7k480tffg1156.bin}"; export CHIPDB
 [ -s "$CHIPDB" ] || { echo "CHIPDB file not found or empty: $CHIPDB (export CHIPDB=<path to xc7k480tffg1156.bin>)"; exit 1; }
 echo "CHIPDB = $CHIPDB ($(du -h "$CHIPDB" | cut -f1))"
 [ -d designs/hexn_bnet ] || { echo "run this from ~/ypcb-00338-1p1 after: ln -sfn ~/hexn-wt/fpga/ypcb/hexn_bnet designs/hexn_bnet"; exit 1; }
-mountpoint -q /mnt/hdd || { echo "/mnt/hdd is not mounted: sudo mount /dev/sda1 /mnt/hdd"; exit 1; }
+[ -n "${HEXN_OUT:-}" ] || mountpoint -q /mnt/hdd || { echo "/mnt/hdd is not mounted: sudo mount /dev/sda1 /mnt/hdd"; exit 1; }
 for s in $SHAPES; do
   IFS=: read G PER NIN SQL <<< "$s"
   name=bnet_${G}x${PER}_n${NIN}_q${SQL}
