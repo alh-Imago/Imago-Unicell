@@ -1346,3 +1346,27 @@ Expected last lines if it works: `right 262 (87.3%)` and `expected 262 (Python r
 **Speed [measured]:** settings 22,064 bytes in 2.1 s (about 10,500 bytes per second). The 300 recordings: 36,577 bytes sent (24,877 events, 1,500 window ends, start and command bytes, 1,500 result requests) in 4.0 s, about 9,100 bytes per second, 74 recordings per second. Section 78 computed that the chain could take on the order of 160,000 such recordings per second at 50 MHz if the events were already on the chip: the link is about 2,000 times slower than the chain (the first figure is measured, the second computed).
 **What it does not show:** the v4 commands on this bitstream (arrays, judge, stores: tested in simulation only for v5); recordings other than these 300; the early-stop mode (`--stop`) on the card; the chain's real clock limit.
 **Next if Alan wants:** the on-chip event RAM (section 78 a) so the chain is fed at its own speed; other data through the same commands (needs the front end run on the host to make events); `--stop` on the card.
+
+## 82. On-chip event RAM: the chain fed at its own speed (11 Nov 2026)
+
+**Alan (12:36):** start with the on-chip memory first. **Built (simulation only; not built on the card flow, not on the card):** `sub/verilog/hexn_base_ctl_v6.v`, a clone of controller v5 (v5 untouched, every v5 command unchanged) with:
+- an EVENT RAM of 32,768 bytes (block RAM). A byte is an event, or 254 = start of a recording, or 255 = window end. The kit's 300 recordings are 26,677 bytes, so they all fit;
+- a CHAIN RESULT RAM of 2,048 words, which takes every window result of a replay;
+- commands `w` (store bytes in the event RAM), `g` (replay a stretch of it into the chain and report status, the clocks it took as counted on the chip, and the number of results), `v` (read result words).
+During a replay an event takes one clock; a window end costs 3 idle clocks, the chain's own decision time and 3 clocks after it; a start costs 4. Generator `tools/hexn_kxbase_v6.py` (`HEXN_BASE_VER=6`), host tool `tools/hexn_chain_host_v2.py kitram DIR [--repeat N]` (v1 untouched).
+**Tests [iverilog, through the byte port, bytes made by the host tool]** `tests/vm/test_hexn_base_v6_evram_v1.py`, both passed at the first run (3 min 13 s):
+1. Random settings, 6 random recordings from the event RAM: every result equals the Python model; the `u` queue stays empty during a replay; a second replay of part of the RAM restarts the result RAM; the same recordings fed the v5 way give the same results.
+2. The kit's real data: all 300 recordings in the event RAM, one replay: 1,500 results, **262 of 300 right**. **The replay took 86,079 clocks [counted in simulation]** for 24,877 events: 287 clocks per recording, of which 83 are events and about 200 are the five window decisions.
+**What that means, computed (not measured on the card):** 86,079 clocks at the 50 MHz board clock = 1.72 thousandths of a second for the 300 recordings = about 174,000 recordings per second, against 74 per second measured over JTAG (section 81): about 2,350 times faster. Section 78's rough figure was 160,000. Most of the time is now the chain's decision at each window end (about 40 clocks of scanning), not the events.
+**Size [yosys, controller + batch judge + chain, no arrays]:** 8,737 cells and 22 block RAMs, against 8,162 and 12 for v5: the two new memories are 10 block RAMs, the logic about 575 cells.
+**Limits:** simulation only. The event RAM must still be FILLED over JTAG (26,677 bytes, about 3 s at the measured link rate), so this shows the chain's speed, not a fast input path; a real data port is still the answer for live video. The result RAM holds 2,048 results; a replay that makes more counts them but stores only the first 2,048. No early stop inside a replay (every window of every recording is run).
+**For Alan, when ready (build in the openXC7 shell, one line at a time):**
+```
+git -C ~/hexn-wt pull origin Hex-N
+cd ~/ypcb-00338-1p1
+HEXN_BASE=hex7_off2_mix,hex6 HEXN_BASE_VER=6 HEXN_NORAM=1 bash ~/hexn-wt/fpga/ypcb/hexn_arr/run_arr.sh
+~/openFPGALoader/build/openFPGALoader -c digilent_hs2 /media/alan/InternalHDD/hexn_builds/arr_base_b6_noram/hexn_arr.bit
+cd ~/ypcb-00338-1p1 && nix shell nixpkgs#openocd --command env OPENOCD=openocd HEXN_CHAIN=2 python3 ~/hexn-wt/tools/hexn_chain_host_v2.py kitram ~/hexn-wt/fpga/ypcb/hexn_speech/data --repeat 3
+```
+Expected: each replay line says `86079 clocks counted on the chip` (if the chip counts differently from the simulation, that is a finding) and `right 262 of 300`, then `PASS`.
+**Data:** Alan uploaded the speech dataset again at 12:39 (`shd_train.h5` 8,156 recordings, `shd_test.h5` 2,264; both open correctly), so tests on recordings beyond the kit's 300 are possible again.
