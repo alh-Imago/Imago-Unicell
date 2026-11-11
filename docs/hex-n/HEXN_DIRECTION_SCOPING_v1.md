@@ -1403,3 +1403,21 @@ Expected: `right 936 (86.7%)`, `expected 936 (Python reference): PASS; per digit
 **Computed from the chip's clock count (not separately timed):** 309,050 clocks = 6.18 ms at the nominal 50 MHz, 286.4 clocks per recording, about 174,600 recordings per second. From the host's side the whole set, with filling and reading over JTAG, took 4.0 s.
 **What the figure itself says:** 86.7% after the third window. The errors are not spread evenly: "one" 63% and "three" 75% carry 60 of the 143 errors. That is a property of the trained chain (the same in the Python reference), not of the hardware.
 **Not shown:** the chain's real clock limit; speakers or words outside this dataset; live sound (the front end that turns sound into events runs on the host, before the card); the German digits (no detectors).
+
+**Correction to section 85 (11 Nov, mine):** "one" and "three" carry 66 of the 143 errors (40 + 26), not 60 as written above.
+
+## 86. How many damaged blocks can the pool carry? (11 Nov 2026)
+
+**Alan (13:47):** back to the neural side; so the combined bank allowed a high drop rate on one bank, the others compensating for the missed information. Yes (section 80). To see how far that goes: `tools/hexn_recall_pool_v2.py` (clone of v1, same model and monitor rule, new cases), 5 seeds, toy patterns: 0 to 4 of the 4 blocks at 90% of events dropped, the others at 10%.
+
+| blocks at 90% dropped | large map right: votes / scores / monitor | DAMAGED blocks right: before / after monitor | good blocks right: before / after | answers repaired / spoiled |
+|---|---|---|---|---|
+| 0 | 98.3 / 99.9 / 99.8 | - | 94.5 / 99.3 | 4.8 / 0.0 |
+| 1 | 90.2 / 98.3 / 97.0 | 15.4 / 85.9 | 95.5 / 98.0 | 19.6 / 0.1 |
+| 2 | 69.3 / 89.1 / 82.1 | 15.6 / 67.0 | 94.6 / 95.1 | 26.5 / 0.6 |
+| 3 | 28.4 / 51.1 / 33.6 | 15.3 / 32.8 | 93.6 / 92.8 | 14.6 / 1.7 |
+| 4 | 9.6 / 11.9 / 10.7 | 16.0 / 17.6 | - | 4.7 / 3.1 |
+
+(With the good blocks at 30% dropped instead of 10% the picture is the same, a few points lower: damaged blocks after the monitor 80.6 / 61.0 / 33.3 for 1 / 2 / 3 damaged. Chance is 12.5% for a local answer and 6.25% for the large map.)
+**Reading.** The compensation degrades step by step, not suddenly: one nearly blind block of four is almost fully carried (86%), two are carried about two thirds of the time, three only a third, and with all four damaged nothing is left to lean on. The reason is in the pool's structure: every local pattern belongs to 2 of the 16 large maps, so one good block narrows the choice to 2 large maps, two good blocks usually to 1. With three blocks damaged the single good block cannot pick between its two candidates, and the monitor starts to spoil good answers (1.7%) because the damaged majority out-votes the good block. The pool reading full scores stays ahead of votes and of the monitor for naming the large map at every level (51% against 28% and 34% with three damaged), because even a 90%-damaged block's scores carry a little information that its single best guess throws away.
+**Design consequence (reasoned from the above, not tested):** how much damage a bank can carry depends on how many large maps share each local pattern (here 2) and on how many blocks there are; more blocks or less sharing should carry more. The monitor should weigh a block's vote by its confidence, so that a blind block does not out-vote a clear one; here every vote counts the same.
