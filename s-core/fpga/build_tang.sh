@@ -16,7 +16,11 @@ $YS -q -l synth.log -p "read_verilog -sv $HERE/../uc_core_fp.v $HERE/../sc_sys_v
 grep -A40 "Number of cells" synth.log | tail -45 | head -40 || true
 echo "== 2/3 nextpnr-himbaechel-gowin place and route =="
 cp "$HERE/sc_top_tang.cst" "$TOP.cst"
-yowasp-nextpnr-himbaechel-gowin --device "$DEVICE" --vopt family=GW2A-18C --vopt cst="$TOP.cst" \
+PNR=$(command -v nextpnr-himbaechel || command -v nextpnr-himbaechel-gowin || command -v yowasp-nextpnr-himbaechel-gowin || true)
+[ -n "$PNR" ] || { echo "No nextpnr found. Install one:  pip install yowasp-nextpnr-himbaechel-gowin apycula   (or a native nextpnr-himbaechel)"; exit 1; }
+command -v gowin_pack >/dev/null || { echo "gowin_pack not found. Install:  pip install apycula"; exit 1; }
+echo "using $PNR"
+$PNR --device "$DEVICE" --vopt family=GW2A-18C --vopt cst="$TOP.cst" \
   --seed $SEED --json "$TOP.json" --write "${TOP}_routed.json" --report "${TOP}_report.json" --freq 27 2>&1 | tail -25
 echo "== 3/3 gowin_pack =="
 gowin_pack -d "$DEVICE" -o "$TOP.fs" -s "$TOP.cst" "${TOP}_routed.json"
