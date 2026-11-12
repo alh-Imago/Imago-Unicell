@@ -20,7 +20,7 @@ pip install yowasp-nextpnr-himbaechel-gowin apycula pyserial     # once; you als
 cd s-core/fpga
 ./build_tang.sh build 1 128 16 16          # outdir, S (slices), IMEM_WORDS, DMW, QD  -> build/sc_top_tang.fs
 openFPGALoader -b tangnano20k build/sc_top_tang.fs                   # loads to SRAM (lost at power-off)
-python3 ../run_board.py /dev/ttyUSB0       # Windows: COMx.  The BL616 offers two serial ports; try the second one.
+python3 ../run_board.py /dev/ttyUSB0       # Windows: COMx.  The BL616 offers two serial ports; use the SECOND one (/dev/ttyUSB1): the first is the JTAG channel and returns only two stray bytes.
 # two-slice build:  ./build_tang.sh build2 2 64 16 16   then   python3 ../run_board.py <port> --lw 0
 ```
 Use the native `yosys` (the repo's other builds do). The YoWASP yosys runs out of stack on this design.
@@ -67,7 +67,8 @@ So this model cannot be replicated 8, 16 or 32 times on this chip. What the buil
 silicon (table, queues, profile, UART). The 32-slice array needs the real fusable 1-bit slice with a fusion network,
 or at least the narrow-datapath cores, instead of one masked 32-bit core per slice.
 
+## First run on the board (2026-11-12, Alan)
+S=1 bitstream loaded to SRAM on a Tang Nano 20K; `run_board.py /dev/ttyUSB1` passed: 12 of 12 tasks `ok`, launch_err 0. Task durations equal the simulation's (e.g. sort 74195 clocks, sum 24165-24166), so pins, UART and clock are confirmed on silicon.
+
 ## Not verified
-Pins are from the MAN file (checked against the chip database, not the schematic). No bitstream has been loaded on
-a board. `run_board.py` and the `Board` class are untested against real serial hardware; their byte formats are tested
-by the simulation above. The 54.6 MHz figure is the placer's estimate, not a measurement on silicon.
+Pins are from the MAN file (checked against the chip database, not the schematic). The S=2 build has not yet been run on the board. The 54.6 MHz figure is the placer's estimate, not a measurement on silicon (the design ran correctly at 27 MHz).
