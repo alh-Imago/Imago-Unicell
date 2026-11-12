@@ -1,8 +1,8 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
-## v4: FPGA build for the Tang Nano 20K (S=1 confirmed on the board 2026-11-12; S=2 not yet run)
+## v4: FPGA build for the Tang Nano 20K (S=1 and S=2 confirmed on the board 2026-11-12)
 
-**Board result (Alan, 2026-11-12):** S=1 bitstream, `run_board.py /dev/ttyUSB1`: `RESULT PASS`, 12/12 tasks ok, launch_err 0; durations match the simulation (sort 74195 clocks). The first serial port (ttyUSB0) is the JTAG channel and returns 2 stray bytes: use ttyUSB1.
+**Board result (Alan, 2026-11-12):** S=1 bitstream, `run_board.py /dev/ttyUSB1`: `RESULT PASS`, 12/12 tasks ok, launch_err 0; durations match the simulation (sort 74195 clocks). **S=2** (`--lw 0`): 10/10 ok, launch_err 0, tasks ran on both slots side by side; waste_tail 99,567 (cold profile, uneven batch end). The first serial port (ttyUSB0) is the JTAG channel and returns 2 stray bytes: use ttyUSB1.
 
 Files: `sc_sys_v4.v`, `uc_core_fp.v`, `tb_sys4.v`, `fpga/` (UART, host bridge, top, pins, build script, README), `host_sc.py`, `run_board.py`, `test_board_sim.py`, `v4_regress.txt`. Read `fpga/README.md` first.
 
@@ -16,7 +16,7 @@ Files: `sc_sys_v4.v`, `uc_core_fp.v`, `tb_sys4.v`, `fpga/` (UART, host bridge, t
 
 **What it means:** `uc_core_rw` is a simulation model (32-bit masked buses). It cannot be replicated 8-32 times on the Tang; at most two slices fit. This build proves the scheduler, queues, profile and host path on a real chip, not the 32-slice array. The array needs the real fusable 1-bit slice, or narrow cores, in place of one masked 32-bit core per slice. The Kintex-7 480T has roughly 15x the logic, so the same model might reach a few tens of slices there; that is an extrapolation, not a measurement.
 
-**Not verified:** the S=2 bitstream has not been run on the board; pins are from the MAN file (chip-database checked, not schematic) but worked in the S=1 run. The YoWASP yosys 0.69 crashes (stack exhausted) on this design in the abc9 step; the native yosys is used.
+**Not verified:** pins are from the MAN file (chip-database checked, not schematic) but worked in the S=1 run. The YoWASP yosys 0.69 crashes (stack exhausted) on this design in the abc9 step; the native yosys is used.
 
 
 ## v3b: duration-profile store, longest-first bulk queue (simulation)

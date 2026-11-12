@@ -70,5 +70,7 @@ or at least the narrow-datapath cores, instead of one masked 32-bit core per sli
 ## First run on the board (2026-11-12, Alan)
 S=1 bitstream loaded to SRAM on a Tang Nano 20K; `run_board.py /dev/ttyUSB1` passed: 12 of 12 tasks `ok`, launch_err 0. Task durations equal the simulation's (e.g. sort 74195 clocks, sum 24165-24166), so pins, UART and clock are confirmed on silicon.
 
+S=2 bitstream (`run_board.py /dev/ttyUSB1 --lw 0`, 64 code words): 10 of 10 tasks `ok`, launch_err 0, tasks placed on slot 0 and slot 1 (two cores running side by side on silicon). waste_tail 99,567 slice-cycles: one slot idle at the end of the batch (profile was empty on that run).
+
 ## Not verified
-Pins are from the MAN file (checked against the chip database, not the schematic). The S=2 build has not yet been run on the board. The 54.6 MHz figure is the placer's estimate, not a measurement on silicon (the design ran correctly at 27 MHz).
+Pins are from the MAN file (checked against the chip database, not the schematic). The 54.6 MHz figure is the placer's estimate, not a measurement on silicon (the design ran correctly at 27 MHz).
