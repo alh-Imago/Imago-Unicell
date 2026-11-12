@@ -1,5 +1,21 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## v3: request table, task table, priority dispatcher (simulation, Verilator)
+
+Files: `sc_sys_v3.v`, `tb_sys3.v`, `sched_tests_v3.py`, `matrix_v3.txt`.
+
+**Built:** a 16x16 request table (set-only producers, clear-only watcher, set wins a same-cycle clear). Lines 0-63 mean "core with leader slice n finished"; lines 64-255 are peripheral lines whose payload is written first and logged once. A task table stores arrival, start, end, a0, trap, state and the slice the task ran on. There are two queues (critical, bulk), a wake-on-event dispatcher (no idle polling), best-fit placement, a GUARD/MAXPASS starvation guard, and waste counters.
+
+**Measured:**
+- Gate: all tasks complete, none trap, every a0 matches the ISS, `launch_err` = 0. Events logged exactly once with the right payload, served within 8 cycles (4 configs x 4 seeds, 40 events each).
+- Regression: with PRIO=0, BESTFIT=0 it matches the v2 strict FIFO within 0.04%.
+- Priority: critical-task latency falls by about 2x to 2.4x (batch) and 1.1x to 1.6x (staggered), at the cost of makespan, +4% to +9% in batch runs (full table in `matrix_v3.txt`).
+- Best-fit: no effect when widths are uniform (aligned groups cannot fragment). With mixed widths 1..16 it changed 10-11 of 48 placements on 2 of 3 seeds, and cut makespan by up to 2.1% (batch) and 10.8% (staggered, seed 3). On one batch seed (7, PRIO=0) it was worse: worst wait 34023 -> 42137. So it is not a guaranteed win.
+- Earlier worry (identical results with BESTFIT 0/1) was checked: uniform widths give identical placements; mixed widths do not. The code path is live.
+
+**Not measured / caveats:** 3 seeds only, so the best-fit gain is indicative. Waste breakdown counters exist but are not tabulated here. Not synthesised for area. The 16x16 table is not yet attached to real I/O cores.
+
+
 ## Read this first (most recent)
 
 **Dispatcher policies (12 Nov) -- overtaking and a reserved region give small gains; priority-aware dispatch is the missing lever.**

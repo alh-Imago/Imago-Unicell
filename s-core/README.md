@@ -53,3 +53,6 @@ Tang Nano 20K (Sipeed) and a Kintex-7 XC7K480T card. The Kintex card has no PCIe
 ## Limits (be aware)
 
 Word loads and stores only (no `lb`/`lh`/`sb`/`sh`), aligned only; `ebreak`/`ecall` halt; anything else illegal traps. Instruction fetch is one 32-bit read. No fetch/execute overlap. Area figures exclude the register file and memories.
+
+## Priority dispatcher v3
+`sc_sys_v3.v` adds the request table, task table (start/end/slot), priority queues and best-fit placement; see `latest.md` and `matrix_v3.txt`. Run with `python3 sched_tests_v3.py` (needs Verilator).
