@@ -311,12 +311,12 @@ def gen_random(seed, n=150):
     return w
 
 # ----------------------------------------------------------------- runner
-def run_hw(W, words, tag, workdir):
+def run_hw(W, words, tag, workdir, core='uc_core'):
     hexf = os.path.join(workdir, tag + '.hex')
-    outf = os.path.join(workdir, '%s_W%d.out' % (tag, W))
+    outf = os.path.join(workdir, '%s_%s_W%d.out' % (core, tag, W))
     with open(hexf, 'w') as f:
         f.write('\n'.join('%08x' % x for x in words) + '\n')
-    subprocess.run(['vvp', '-n', os.path.join(workdir, 'sim_%d' % W), '+prog=' + hexf, '+out=' + outf],
+    subprocess.run(['vvp', '-n', os.path.join(workdir, 'sim_%s_%d' % (core, W)), '+prog=' + hexf, '+out=' + outf],
                    check=True, capture_output=True)
     res = dict(x=[0] * 32, dm=[0] * DM_WORDS)
     for line in open(outf):
@@ -343,12 +343,14 @@ def main():
     ap.add_argument('--widths', type=int, nargs='*', default=[1, 2, 4, 8, 16, 32])
     ap.add_argument('--random', type=int, default=30)
     ap.add_argument('--dir', default='.')
+    ap.add_argument('--core', default='uc_core', help='module and file name (without .v)')
     args = ap.parse_args()
     wd = args.dir
 
     for W in args.widths:
-        r = subprocess.run(['iverilog', '-g2012', '-P', 'tb.W=%d' % W, '-o', os.path.join(wd, 'sim_%d' % W),
-                            os.path.join(wd, 'tb.v'), os.path.join(wd, 'uc_core.v')], capture_output=True, text=True)
+        r = subprocess.run(['iverilog', '-g2012', '-DCORE=' + args.core, '-P', 'tb.W=%d' % W,
+                            '-o', os.path.join(wd, 'sim_%s_%d' % (args.core, W)),
+                            os.path.join(wd, 'tb.v'), os.path.join(wd, args.core + '.v')], capture_output=True, text=True)
         if r.returncode: print(r.stderr); sys.exit(1)
 
     progs = [(n, assemble(t)) for n, t in PROGRAMS.items()]
@@ -358,7 +360,7 @@ def main():
     for name, words in progs:
         ref = iss(words)
         for W in args.widths:
-            hw = run_hw(W, words, name, wd)
+            hw = run_hw(W, words, name, wd, args.core)
             errs = compare(ref, hw)
             if errs:
                 fails += 1

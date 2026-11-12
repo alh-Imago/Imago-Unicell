@@ -1,4 +1,7 @@
 `timescale 1ns/1ps
+`ifndef CORE
+`define CORE uc_core
+`endif
 // Testbench: RAM models + dump.  Run:  vvp sim +prog=prog.hex +out=out.txt
 module tb;
     parameter W  = 4;
@@ -29,7 +32,7 @@ module tb;
     assign d_rdata = dm[d_addr[KW+9:0]];
     always @(posedge clk) if (d_we) dm[d_addr[KW+9:0]] <= d_wdata;
 
-    uc_core #(.W(W)) dut (
+    `CORE #(.W(W)) dut (
         .clk(clk), .rst(rst), .halted(halted), .trap(trap),
         .imem_addr(imem_addr), .imem_data(imem_data),
         .ra_addr(ra_addr), .ra_data(ra_data),
@@ -38,7 +41,7 @@ module tb;
         .d_addr(d_addr), .d_we(d_we), .d_wdata(d_wdata), .d_rdata(d_rdata));
 
     integer cycles = 0, instret = 0, i, d, fd;
-    reg [255:0] progname, outname;
+    reg [1023:0] progname, outname;
     reg [31:0] v;
 
     always @(posedge clk) if (!rst) begin

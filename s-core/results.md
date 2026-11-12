@@ -33,3 +33,23 @@ Model: ALU/branch = 2N+2 cycles, load/store = 3N+2, shifts add a few, N = 32/W.
 - Word loads/stores only (no LB/LH/SB/SH), aligned only. EBREAK/ECALL halt.
 - pc, ir and the address register are 32-bit flops read/written through variable-index muxes.
 - No overlap of fetch / pc update with execute.
+
+## v2: pc, immediate and address as digit shift registers (`uc_core_v2.v`)
+Same behaviour and cycle counts as v1 (276/276 runs match the reference). Core logic only, RAMs excluded.
+
+| W  | iCE40 LUT4 v1 -> v2 | Xilinx LUT6 v1 -> v2 | flops v1 -> v2 |
+|----|---------------------|----------------------|----------------|
+| 1  | 469 -> 326 (-30%)   | 342 -> 239 (-30%)    | 122 -> 154 |
+| 4  | 478 -> 383 (-20%)   | 488 -> 329 (-33%)    | 120 -> 152 |
+| 8  | 547 -> 484 (-12%)   | 608 -> 405 (-33%)    | 119 -> 151 |
+| 16 | 740 -> 677 (-9%)    | 977 -> 668 (-32%)    | 118 -> 150 |
+| 32 | 1258 -> 1108 (-12%) | 1616 -> 890 (-45%)   | 118 -> 150 |
+
+Ablation on v1 (W=1, knocking out one block at a time, iCE40 LUT4): pc write path ~91, address register
+write path ~75, immediate digit read ~46, pc digit read ~34, immediate decode ~27; together ~270 of 469.
+The imm shift register was not measured separately from the pc and address changes.
+
+Not reported: Gowin (Tang Nano) LUT counts. yosys 0.33's Gowin mapper gave inflated, unreliable numbers
+(hundreds of LUT1 and mux cells); use the Gowin tool for those.
+
+Tools: `synth_all.sh file module W` prints the iCE40 / Xilinx counts. `runtests.py --core uc_core_v2` tests v2.

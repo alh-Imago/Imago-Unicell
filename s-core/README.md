@@ -15,9 +15,11 @@ This is separate from the UniCell cell grid. The aim is to see whether a sea of 
 
 | file | what it is |
 |---|---|
-| `uc_core.v` | the core (parameter `W`), no RAM inside |
+| `uc_core.v` | the core, v1 (parameter `W`), no RAM inside |
+| `uc_core_v2.v` | v2: pc / immediate / address as digit shift registers, smaller, same behaviour |
 | `tb.v` | testbench: RAM models, runs a hex program, dumps registers, memory, cycles |
 | `runtests.py` | mini assembler, independent RV32I reference simulator, random program generator, runner |
+| `synth_all.sh` | area script (iCE40 and Xilinx counts via yosys) |
 | `results.md` | measured cycles per instruction and iCE40 area per width |
 | `latest.md` | current state of this line |
 
@@ -27,12 +29,16 @@ Needs `iverilog` (and `yosys` for area):
 
 ```
 cd s-core
-python3 -I runtests.py                       # all programs, all widths
+python3 -I runtests.py                       # all programs, all widths (v1)
+python3 -I runtests.py --core uc_core_v2     # same tests on v2
 python3 -I runtests.py --widths 4 32 --random 10
 yosys -p "read_verilog -sv uc_core.v; chparam -set W 4 uc_core; hierarchy -top uc_core; synth_ice40 -top uc_core; stat"
 ```
 
 The runner compiles one simulator per width, runs every program on the hardware model and on the reference simulator, and compares final registers, data memory, pc and instruction count.
+
+## Targets
+Tang Nano 20K (Sipeed) and a Kintex-7 XC7K480T card. The Kintex card has no PCIe side, so JTAG is the only way in: programs and results would go through the Xilinx JTAG user register. On the Tang Nano the onboard USB bridge (UART) is the natural route. Neither loader exists yet.
 
 ## Limits (be aware)
 
