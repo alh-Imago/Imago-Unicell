@@ -1,0 +1,14 @@
+arrival  widths seed      FIFO     cold     warm   warm_vs_FIFO
+batch    uni    s1     44491    44491    42936   -3.5%
+batch    uni    s3     43039    43039    39996   -7.1%
+batch    uni    s7     50057    50057    44300   -11.5%
+batch    mixed  s1     64220    64220    57656   -10.2%
+batch    mixed  s3     82641    82641    57318   -30.6%
+batch    mixed  s7     62301    62301    48891   -21.5%
+stagger  uni    s1     46165    43307    43556   -5.7%
+stagger  uni    s3     44230    41367    41027   -7.2%
+stagger  uni    s7     51686    48268    47896   -7.3%
+stagger  mixed  s1     67740    66769    61456   -9.3%
+stagger  mixed  s3     94982    80690    65298   -31.3%
+stagger  mixed  s7     63553    73874    56155   -11.6%
+warm better than FIFO in 12 of 12

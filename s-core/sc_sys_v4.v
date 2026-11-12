@@ -320,6 +320,7 @@ module sc_sys_v4 #(
     reg [2:0]   pb;
     reg [8:0]   pk;
     reg [23:0]  dur;
+    reg [24:0]  davg;                    // average of old and new sample (v4.1: kept apart so the known bit is not truncated away)
     integer     pcnt, pi, fi;
     reg         first_crit, second_crit, second_avail, second_ok;
 
@@ -444,7 +445,8 @@ module sc_sys_v4 #(
                     pk  = pkey(t_prog[own_tid[wb]], t_lw[own_tid[wb]]);
                     dur = cyc[23:0] - t_start[own_tid[wb]][23:0];
                     // first sample is stored as is; later ones are averaged with the old value
-                    prof[pk] <= prof[pk][24] ? {1'b1, ({1'b0, prof[pk][23:0]} + {1'b0, dur}) >> 1} : {1'b1, dur};
+                    davg = ({1'b0, prof[pk][23:0]} + {1'b0, dur}) >> 1;
+                    prof[pk] <= prof[pk][24] ? {1'b1, davg[23:0]} : {1'b1, dur};   // v4.1 fix: the old form lost the known bit on every 2nd sample
                     done_count <= done_count + 1;
                     rs = 1'b1;                   // capacity changed: wake the dispatcher
                 end else begin
