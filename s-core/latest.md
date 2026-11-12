@@ -7,7 +7,7 @@ Files: `sc_sys_v3.v` (parameter `LONGEST`, `PROF`), `tb_sys3.v`, `sched_tests_v3
 **Built:** a dedicated profile RAM (512 x 25 bits: 64 program classes x 8 widths). The submitter gives a program-class id (`h_prog`); at completion the dispatcher writes the measured duration (end minus start from the task table) into the profile, averaging with the old value. At submit, the predicted duration picks one of 8 bulk buckets (about log2 of cycles; unknown goes to the top bucket so it is run and learned first). The dispatcher takes the highest non-empty bucket: no queue scan and no sorting. Critical tasks stay FIFO. LONGEST=0 is the old behaviour.
 
 **Measured (12 cases: batch/staggered x uniform/mixed widths x 3 seeds; profile learned on a different workload):**
-- Makespan vs FIFO bulk: better in 10 of 12 cases, worse in 2 (batch mixed seed 7: +12.7%; stagger uni seed 1 ~ -2%, see file for each row). Per-row numbers in `matrix_v3_longest.txt`.
+- Makespan vs FIFO bulk: better in 11 of 12 cases, worse in 1 (batch, mixed widths, seed 7: +12.7%). Mean change -6.0% for batch and -4.9% for staggered; best single case -19.3%. Per-row numbers in `matrix_v3_longest.txt`.
 - Critical latency: unchanged within noise (critical class is untouched).
 - Cold start (empty profile): identical to FIFO in a batch, since every task is submitted before any has finished; staggered arrivals learn online and gain a little.
 - Prediction error is large (15% to 75% mean) because task size varies 2-5x inside one program class. A size hint from the submitter would be the next step.
