@@ -2,6 +2,14 @@
 
 ## Read this first (most recent)
 
+**Dispatcher policies (12 Nov) -- overtaking and a reserved region give small gains; priority-aware dispatch is the missing lever.**
+- `sc_sys_v2.v` (old `sc_sys.v` untouched): look-ahead overtaking (`LA`, with a `MAXPASS` anti-starvation limit), a reserved region for critical tasks (`RESERVE`), a critical flag per task. With `LA=1`, `RESERVE=0` it reproduces the earlier makespans exactly.
+- Mean of 5 workloads of 48 tasks, every run through the correctness gate. Critical 8 / bulk 4 wide, strict FIFO versus reserve 8 + overtake 16: critical latency 22809 -> 21264 (batch, -7%) and 14978 -> 12593 (staggered, -16%), makespan unchanged.
+- Reserving 16 of 32 slices hurt badly (makespan +25-30%, utilisation 63-66%). Reserve without overtaking also hurt slightly.
+- Biggest effect was rescuing a bad width choice (critical 32 wide / bulk 1): 382901 -> 208775 cycles, still 21% utilisation. The anti-starvation limit kept worst-case waits within a few percent of strict FIFO.
+- Submitting critical tasks first (host side, last entry) beat every dispatcher setting here for critical latency (about 6500 versus 12000-23000, different workload set, batch only). Next candidate: priority-aware dispatch (two queues, critical served first), which also covers staggered arrivals.
+- Not the 16x16 request table: the queue here is for task submission by the host. The event table with its watcher core (hardware events, I/O cores) is still design-only.
+
 **Array + dispatcher (12 Nov) -- width chosen per task works; critical tasks get ~3.7x lower latency at about the same total time.**
 - `uc_core_rw.v`: width chosen at task start. 276/276 regression runs match the reference; cycles equal v2 (+1 start cycle).
 - `sc_sys.v`: 32 slices, a core instance per slice, private regfile and data memory per instance, shared code image, submission and completion queues, and a dedicated dispatcher FSM (one-cycle aligned-group search, launches 3 cycles apart, strict FIFO). No interrupts; the host polls the completion queue.
@@ -45,5 +53,5 @@
 
 ## Next (options, not started)
 1. Overlap the pc update with execute (needs a small second adder or serial incrementer); break down the remaining ~326-LUT floor.
-2. (done in simulation, see top entry) Task descriptor and width allocator. Next: backfill or reserved regions instead of strict FIFO; software scheduler variant.
+2. (done in simulation, see top entry) Task descriptor and width allocator. Backfill and reserved regions tried (top entry); next: priority-aware dispatch, software scheduler variant.
 3. Event table (16x16) plus dedicated I/O cores, with the set/clear race handled (clear before reading the payload, or a per-source FIFO).

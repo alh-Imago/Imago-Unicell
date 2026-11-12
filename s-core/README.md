@@ -23,6 +23,8 @@ This is separate from the UniCell cell grid. The aim is to see whether a sea of 
 | `uc_core_rw.v`, `tb_rw.v` | runtime-width core (width given at task start) and its testbench |
 | `sc_sys.v`, `tb_sys.v` | the array: 32 slices, queues and the dedicated dispatcher; system testbench |
 | `sched_tests.py` | task kernels, correctness gate and the scheduling experiments |
+| `sc_sys_v2.v`, `tb_sys_v2.v`, `sched_tests_v2.py` | v2 of the array: look-ahead overtaking, reserved region, critical flag (v1 files kept) |
+| `dispatch_tests.py` | dispatcher policy matrix (strict FIFO, overtaking, reserved region) |
 | `results.md` | measured cycles per instruction and iCE40 area per width |
 | `latest.md` | current state of this line |
 

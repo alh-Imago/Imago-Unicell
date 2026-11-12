@@ -92,3 +92,30 @@ What it shows (this workload family only, one dispatcher policy):
 - Longest-first with a fixed narrow width gave the best makespan (about 15% better than fixed W=8 natural order).
 
 Tools: `sched_tests.py` (needs Verilator; about 100x faster than iverilog for the 32-core system).
+
+## Dispatcher policies: overtaking and a reserved region (`sc_sys_v2.v`, `dispatch_tests.py`)
+`sc_sys.v` is left as it was; v2 adds three parameters and a critical flag per task:
+- `LA` look-ahead window. 1 = strict FIFO (identical to before: the old seed-7 makespans 46217, 96378, 74685, 468662 are reproduced exactly). Above 1, later tasks may overtake a head that does not fit.
+- `MAXPASS` after this many overtakes the head blocks the queue again, so it cannot starve.
+- `RESERVE` slices kept for critical tasks (top of the pool). Bulk tasks cannot use them; critical tasks take the highest free group so they fill the reserved region first. A bulk task too wide for the rest is allowed anywhere (otherwise it would never run).
+
+Tasks are submitted in natural order (no host reordering). Mean of 5 workloads of 48 tasks, S=32. Every run passed the
+correctness gate (all tasks complete, none trap, every a0 equals the reference).
+
+Critical 8 wide / bulk 4 wide (cycles):
+
+| dispatcher                  | batch makespan | batch crit lat | batch bulk lat | staggered crit lat | staggered bulk lat |
+|-----------------------------|----------------|----------------|----------------|--------------------|--------------------|
+| strict FIFO                 | 45989          | 22809          | 23802          | 14978              | 16641              |
+| overtake 4                  | 45712          | 23185          | 22955          | 15584              | 15888              |
+| overtake 16                 | 46344          | 27160          | 21859          | 17553              | 14058              |
+| reserve 8, strict           | 48066          | 23440          | 25174          | 15667              | 18171              |
+| reserve 8 + overtake 16     | 45433          | 21264          | 23196          | 12593              | 16265              |
+| reserve 16 + overtake 16    | 58130          | 22760          | 30985          | 14401              | 24085              |
+
+Findings (this workload family):
+- For sensible widths the gains are small. Best case is reserve 8 + overtake 16: critical latency 7% lower in batch and 16% lower with staggered arrivals, makespan unchanged.
+- Reserving too much hurts: 16 of 32 slices gave 25-30% longer makespan and 63-66% utilisation. Reserving without overtaking also hurts a little (makespan +4 to 11%), because a blocked bulk head leaves the reserved slices idle.
+- The one big win is rescuing a bad width choice: critical 32 wide / bulk 1 wide went from 382901 to 208775 cycles with overtaking 16 (-45%), but utilisation is still only 21%. A 32-wide task needs the whole array empty, which is the real problem.
+- The anti-starvation limit worked: worst-case wait with overtaking stayed within a few percent of strict FIFO.
+- Blind overtaking is not priority-aware. Submitting critical tasks first (host ordering, last section, batch only, a different set of five workloads) gave critical latency about 6500 at about the same makespan, far better than any dispatcher setting here. The missing piece is priority-aware dispatch (critical tasks served first), for example two queues.
