@@ -1,0 +1,39 @@
+# S-Core
+
+A prototype of a **modular, interrupt-free RISC core whose datapath width is a dial.** One RV32I binary runs unchanged at 1, 2, 4, 8, 16 or 32 bits per cycle: "fusing slices" changes the speed, never the result.
+
+This is separate from the UniCell cell grid. The aim is to see whether a sea of identical narrow slices can be fused into wider cores (or split into many narrow ones) while still running ordinary compiled software. Branch: `S-Core_go`. Status and numbers are in [`latest.md`](latest.md).
+
+## The idea
+
+- **One ISA at every width.** The datapath width W and the instruction width (32) are separate things. A 1-bit core takes 32 cycles on a 32-bit add; a 32-bit core takes 1. The compiler sees RV32I either way.
+- **Everything is streamed one W-bit digit per cycle**, least significant first (shift-left runs most significant first so it can work in place). The register file and data memory are W-wide RAMs addressed `{register, digit}`. There is one W-bit adder with a carry flop; the pc goes through it too.
+- **No interrupts.** The core only runs its own instruction stream. (The event table, dedicated I/O cores and task queue are design ideas, not built yet.)
+- **Width is chosen at task start, not mid-task.** Changing width mid-task would mean re-slicing register state spread across slices, so the plan is to allocate a width per task from a descriptor.
+
+## Files
+
+| file | what it is |
+|---|---|
+| `uc_core.v` | the core (parameter `W`), no RAM inside |
+| `tb.v` | testbench: RAM models, runs a hex program, dumps registers, memory, cycles |
+| `runtests.py` | mini assembler, independent RV32I reference simulator, random program generator, runner |
+| `results.md` | measured cycles per instruction and iCE40 area per width |
+| `latest.md` | current state of this line |
+
+## Run it
+
+Needs `iverilog` (and `yosys` for area):
+
+```
+cd s-core
+python3 -I runtests.py                       # all programs, all widths
+python3 -I runtests.py --widths 4 32 --random 10
+yosys -p "read_verilog -sv uc_core.v; chparam -set W 4 uc_core; hierarchy -top uc_core; synth_ice40 -top uc_core; stat"
+```
+
+The runner compiles one simulator per width, runs every program on the hardware model and on the reference simulator, and compares final registers, data memory, pc and instruction count.
+
+## Limits (be aware)
+
+Word loads and stores only (no `lb`/`lh`/`sb`/`sh`), aligned only; `ebreak`/`ecall` halt; anything else illegal traps. Instruction fetch is one 32-bit read. No fetch/execute overlap. Area figures exclude the register file and memories.
