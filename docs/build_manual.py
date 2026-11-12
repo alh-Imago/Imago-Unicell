@@ -133,8 +133,8 @@ SECTIONS = [
              "a serial, 32-bit, one-word-per-link version of the cell idea, with a judge system built in "
              "as the base. A full Hex-N program is <strong>one loadable file</strong> (a header plus two parts: "
              "the program and the judge weights), tied to a named bitstream pattern. The front end has a "
-             "<strong>Hex-N tab</strong> (see your program, unit file check, serial VM, demo programs and export, programmer plan, "
-             "assembler status). <em>See your program</em> shows a program the way the UniCell side sees it, with a switch to the Hex-N view (tiles, routing, holds, pads). Run it with:<br><br><code>python3 nano/frontend_v3.py</code><br>"
+             "<strong>Hex-N tab</strong> (the four models: pick, build sheet, run the Python models; see your program, unit file check, serial VM, demo programs and export, programmer plan, "
+             "assembler status). <em>See your program</em> shows a program the way the UniCell side sees it, with a switch to the Hex-N view (tiles, routing, holds, pads). Run it with:<br><br><code>python3 nano/frontend_v4.py</code><br>"
              "&rarr; <code>http://localhost:7421/hexn</code>. The assembler is built and has been run end to end in simulation, "
              "but not yet built into a bitstream or run on a board; the card-talking programmer is not built. Each page says so.",
      "parts":[{"sub":"Hex-N: what it is","md":"docs/hex-n/README.md"},

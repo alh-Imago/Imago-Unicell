@@ -45,6 +45,16 @@ A real data port (PCIe) waits for another card and PC.
 
 ## Running things
 
+**From the front panel (the easiest way in):**
+
+```
+python3 nano/frontend_v4.py        # then open http://localhost:7421/hexn/models
+```
+
+The page "The four models" lists what can be built or run from each model. Tick what you want and it writes the build sheet: the exact commands in order, with the result on record for that choice. The Python models can be run from the page. Card builds are never started from the page and nothing is sent to a card.
+
+**From the command line:**
+
 Simulation and models (needs Python 3, numpy, and `iverilog` for the logic tests; without `iverilog` the logic tests fail and do not skip):
 
 ```
