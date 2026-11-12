@@ -1,0 +1,17 @@
+v4 (2-clock step, packed memories, DMW=64) vs v3: gate + makespan ratio
+seed 1 cfg (0, 0, 0)  v3 gate ok  v4 gate ok  makespan v3 86377 v4 172718 ratio 2.000  launch_err 0
+seed 1 cfg (1, 0, 0)  v3 gate ok  v4 gate ok  makespan v3 93864 v4 187670 ratio 1.999  launch_err 0
+seed 1 cfg (1, 1, 0)  v3 gate ok  v4 gate ok  makespan v3 93864 v4 187670 ratio 1.999  launch_err 0
+seed 1 cfg (1, 1, 1)  v3 gate ok  v4 gate ok  makespan v3 93864 v4 187670 ratio 1.999  launch_err 0
+seed 3 cfg (0, 0, 0)  v3 gate ok  v4 gate ok  makespan v3 53286 v4 106504 ratio 1.999  launch_err 0
+seed 3 cfg (1, 0, 0)  v3 gate ok  v4 gate ok  makespan v3 59971 v4 119850 ratio 1.998  launch_err 0
+seed 3 cfg (1, 1, 0)  v3 gate ok  v4 gate ok  makespan v3 59971 v4 119850 ratio 1.998  launch_err 0
+seed 3 cfg (1, 1, 1)  v3 gate ok  v4 gate ok  makespan v3 59971 v4 119850 ratio 1.998  launch_err 0
+seed 7 cfg (0, 0, 0)  v3 gate ok  v4 gate ok  makespan v3 92900 v4 185748 ratio 1.999  launch_err 0
+seed 7 cfg (1, 0, 0)  v3 gate ok  v4 gate ok  makespan v3 98852 v4 197676 ratio 2.000  launch_err 0
+seed 7 cfg (1, 1, 0)  v3 gate ok  v4 gate ok  makespan v3 98852 v4 197676 ratio 2.000  launch_err 0
+seed 7 cfg (1, 1, 1)  v3 gate ok  v4 gate ok  makespan v3 98852 v4 197676 ratio 2.000  launch_err 0
+DMW=8: gate FAIL
+DMW=16: gate ok
+DMW=32: gate ok
+failures 0

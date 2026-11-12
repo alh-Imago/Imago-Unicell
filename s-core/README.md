@@ -58,3 +58,6 @@ Word loads and stores only (no `lb`/`lh`/`sb`/`sh`), aligned only; `ebreak`/`eca
 `sc_sys_v3.v` adds the request table, task table (start/end/slot), priority queues and best-fit placement; see `latest.md` and `matrix_v3.txt`. Run with `python3 sched_tests_v3.py` (needs Verilator).
 
 `LONGEST=1` adds the duration-profile store and longest-first bulk buckets (see `latest.md`, `matrix_v3_longest.txt`).
+
+## FPGA build (v4)
+`sc_sys_v4.v` plus `fpga/` is the single-set Tang Nano 20K build (UART host path, pins, build script). See `fpga/README.md` and `latest.md`.

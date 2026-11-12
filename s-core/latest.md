@@ -1,5 +1,22 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## v4: FPGA build for the Tang Nano 20K (simulation + place-and-route; not yet on a board)
+
+Files: `sc_sys_v4.v`, `uc_core_fp.v`, `tb_sys4.v`, `fpga/` (UART, host bridge, top, pins, build script, README), `host_sc.py`, `run_board.py`, `test_board_sim.py`, `v4_regress.txt`. Read `fpga/README.md` first.
+
+**Built:** v3's scheduler with a clock-enabled core (one core step = 2 clocks, so every memory read is synchronous), bit-packed register file and data memory (1 Kbit register file per slice instead of 1024 x 32), a private instruction memory per slice loaded through one broadcast port, a UART byte protocol (link check, load code, submit, task-table read, counters, reset) and a Tang Nano 20K top level using the pins in `docs/man/tang-nano-20k.cst`.
+
+**Measured:**
+- Simulation: v4 passes the v3 gate in 12 policy/seed combinations; makespan = 2.00 x v3 (1.998 to 2.000), as expected for the 2-clock step. Whole-board test through the UART pins passes for S=1 (1 bit/cycle), S=2 (both widths, two tasks side by side) and S=8, at a fast and at the real 115200-baud divider. 16 data words per slice are enough for the test kernels, 8 are not.
+- Place-and-route (native yosys 0.33 `synth_gowin -nowidelut` + nextpnr-himbaechel, GW2AR-LV18QN88C8/I7, seed 1, 27 MHz): **S=1** 11,755/20,736 LUT4 (57%), 344/648 LUT-RAM, **54.6 MHz** routed. **S=2** (64 code words) 17,575 LUT4 (85%), 505/648 LUT-RAM (78%), **57.0 MHz** routed. S=2 with 128 code words does not place. The committed `build_tang.sh` was run from a clean copy and reproduced the S=1 result.
+- A timing bug was found and fixed on the way: the watcher's 256-line priority encoder synthesised as a ~20-LUT chain (13 MHz). Rewritten as a tree (same choice, identical makespan 105372 and all events logged): 54-57 MHz.
+- Cost split: the runtime-width core alone is about 2,800 LUT4; each extra slice about 4,100 LUT4 with its memories; scheduler plus host bridge about 3,300 LUT4.
+
+**What it means:** `uc_core_rw` is a simulation model (32-bit masked buses). It cannot be replicated 8-32 times on the Tang; at most two slices fit. This build proves the scheduler, queues, profile and host path on a real chip, not the 32-slice array. The array needs the real fusable 1-bit slice, or narrow cores, in place of one masked 32-bit core per slice. The Kintex-7 480T has roughly 15x the logic, so the same model might reach a few tens of slices there; that is an extrapolation, not a measurement.
+
+**Not verified:** no bitstream has been loaded on a board; pins are from the MAN file (chip-database checked, not schematic); `run_board.py` is untested against real serial hardware (its byte formats are covered by the simulation). The YoWASP yosys 0.69 crashes (stack exhausted) on this design in the abc9 step; the native yosys is used.
+
+
 ## v3b: duration-profile store, longest-first bulk queue (simulation)
 
 Files: `sc_sys_v3.v` (parameter `LONGEST`, `PROF`), `tb_sys3.v`, `sched_tests_v3.py`, `matrix_v3_longest.txt`.
