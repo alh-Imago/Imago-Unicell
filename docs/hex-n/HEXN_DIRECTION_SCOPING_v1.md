@@ -1648,3 +1648,26 @@ Recall at 10 / 30 / 50 / 70% dropped; cells fired and stray cells (fired but not
 **Outline as discussed (thinking only; nothing built):** detectors at the bottom (the only part proven on real data and on the card), each giving "which known pattern, and how sure"; above them the shared memory tying the answers together by parts (name, shortlist, or description by parts: section 97); beside it the monitor with the input check (section 87); to one side the anomaly store with its compare step and weak table (sections 89 to 91).
 **What stands between the outline and a system:** only the bottom layer is in hardware; the layers have never been run together; nothing retrains the detectors (new patterns can be noticed and stored, not learnt); only the speech chain has met real data.
 **Suggested first step when picked up (not started):** put the shared memory and the monitor on top of the speech chain's own per-window outputs, on the real speech data, and see whether tying the windows together by parts moves the 86.7% (936 of 1,079). Uses only pieces that exist and gives a real number. Section 93 (where the errors go: "one" heard as "nine") is the starting evidence.
+
+## 99. First step toward the whole, on real speech: a memory of wholes on top of the chain does NOT beat the chain (12 Nov 2026)
+
+**Alan (08:30):** good morning; we tried mixing some of the parts together last time, so hopefully this goes a bit better. The step suggested in section 98, done in Python on the real data: `tools/hexn_chain_parts_v1.py DIR [B]` (16 seconds). The chain is the one on the card (reference 936 of 1,079 after window 3).
+**Model.** The parts are the 5 time windows. Per window the chain's detectors give 10 margins and a code (the best detector if its margin is above 0, else NONE). Every training recording is stored as a known thing: its 5 codes and its digit (4,011 things; 1,618 different code tuples). A test recording is identified by the stored things that fit its parts best: by **votes** (windows whose code agrees), by **scores** (per window, the margin of the detector the stored thing expects; section 80's "full scores"), and scores with each window **weighted by the input check** (events in the window against normal, section 87). Also a **second look**: when the chain's top two digits are close, the memory decides between those two (section 93's suggestion).
+
+| method | windows 1 to 3 | all 5 windows |
+|---|---|---|
+| the chain itself (count tables across windows) | **936 (86.7%)** | 922 (85.4%) |
+| plain sum of margins | 923 (85.5%) | 908 (84.2%) |
+| memory of wholes, votes | 855 (79.2%) | 859 (79.6%) |
+| memory of wholes, scores | 873 (80.9%) | 868 (80.4%) |
+| memory of wholes, scores, input-weighted | 875 (81.1%) | 874 (81.0%) |
+| chain + second look by the memory | 933 (86.5%) | 919 (85.2%) |
+
+Second look (3 windows): used on 119 recordings, 18 wrong answers put right, 21 right answers spoiled. Chain against memory (scores, 3 windows): both right 847, only the chain 89, only the memory 26, **both wrong 117**.
+**Check for an unfair handicap:** half of the training recordings were used to fit the detectors, so their codes look better than a new recording's. Storing only the other half (option `B`, 2,008 things, the half the chain's own count tables use) gives the same picture: votes 850, scores 875, input-weighted 880, second look 926.
+**Reading. A negative result, stated plainly:** on real speech the memory of wholes is 5 to 8 points BELOW the chain, the input weighting adds almost nothing (2 to 5 recordings), and the second look spoils as many answers as it repairs. It did not go better than last time.
+**Why, as far as the figures show:**
+1. The chain already does this job. Its count tables are a compact memory of how the window codes go together for each digit, and they use the codes better than a list of 4,011 remembered examples does.
+2. The parts are too poor. In the toy models every bank named its part correctly most of the time (94% at 10% dropped) and the memory's job was to combine good parts. Here a part is "which of 10 single templates fits this window best", and that is often wrong or NONE. In 117 of the 143 chain errors the memory is wrong as well: the information is not in the codes for any way of combining them to find.
+3. "One" against "nine" is not rescued: the memory gets "one" right 53 times (chain 68).
+**What this says about the cohesive whole (section 98):** the upper layers (shared memory, monitor, input check) cannot make up for a weak bottom layer; in the toy they looked strong because the banks were strong. On real speech the place to work is the detectors themselves: more than one template per digit and window (section 93), so that the parts carry more. Not started.
