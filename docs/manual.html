@@ -7032,50 +7032,879 @@ cd Imago-Unicell
 </ul></div><aside class="tryit"><div class="tryit-label">Try it / Reference</div><a class="ref ref-section" href="#sec-hexn"><span class="ref-kind">§</span><span class="ref-text">Continue → Hex-N</span></a></aside><nav class="pagenav"><button class="pn pn-prev" data-target="sec-workbench">‹ Workbench</button><button class="pn pn-next" data-target="sec-hexn">Hex-N ›</button></nav></section>
 <section class="panel" id="sec-hexn" role="tabpanel"><div class="eyebrow">Imago UniCell · Field Manual<span class="sectno">§08 / 10</span></div><h1 class="ptitle">Hex-N: the Serial Cousin</h1><p class="intro">Hex-N is a separate project on its own branch that shares lineage with Imago UniCell: a serial, 32-bit, one-word-per-link version of the cell idea, with a judge system built in as the base. A full Hex-N program is <strong>one loadable file</strong> (a header plus two parts: the program and the judge weights), tied to a named bitstream pattern. The front end has a <strong>Hex-N tab</strong> (see your program, unit file check, serial VM, demo programs and export, programmer plan, assembler status). <em>See your program</em> shows a program the way the UniCell side sees it, with a switch to the Hex-N view (tiles, routing, holds, pads). Run it with:<br><br><code>python3 nano/frontend_v3.py</code><br>&rarr; <code>http://localhost:7421/hexn</code>. The assembler is built and has been run end to end in simulation, but not yet built into a bitstream or run on a board; the card-talking programmer is not built. Each page says so.</p><hr class="rule"><div class="doc"><div class="partsub">Hex-N: what it is<span class="partsrc">docs/hex-n/README.md</span></div>
 <h1>Hex-N</h1>
-<p><strong>This branch is not intended to be merged into <code>main</code>.</strong></p>
-<p>Hex-N is a separate project that shares lineage and some core concepts with
-Imago UniCell, but is a distinct architecture with its own direction. It lives
-on this branch for convenience (shared history, shared repo access) rather
-than as a feature under development for UniCell itself. If GitHub prompts you
-to open a pull request comparing this branch to <code>main</code>, that prompt can be
-ignored — there is no plan to reconcile the two.</p>
-<h2>What it is</h2>
-<p>A hex-cell neuron design: a 6-face cell, 16 individually-configurable
-in/out lines per face (96 lines total), each line gated through one of four
-selectable logic functions (AND / OR / XOR / NOT). Lines pair directionally
-between neighbouring cells (an <code>out</code> on one cell wired to a matching <code>in</code> on
-the next) rather than sharing a physical bidirectional wire, avoiding the bus
-contention problems the original UniCell "full fat" cell design hit.</p>
-<p>Each face accumulates its active input lines over a timer-gated window and
-compares the result against a threshold to decide whether to fire — a trained,
-frozen threshold rather than one that keeps adapting after deployment.
-Feedback lines currently share the same accumulator as forward input
-(simplest version, not separately weighted).</p>
-<h2>Relationship to Imago UniCell</h2>
+<p><strong>This branch is not intended to be merged into <code>main</code>.</strong> Hex-N is a separate project that shares lineage and some ideas with Imago UniCell, but it is its own architecture with its own direction. It lives on this branch for convenience. If GitHub offers a pull request against <code>main</code>, ignore it.</p>
+<p>Rewritten 12 Nov 2026. The earlier README is kept as <code>README_OLD_v1.md</code>.</p>
+<h2>What Hex-N is</h2>
+<p>A set of small hardware designs for recognising patterns in streams of events, built from counting and adding only (no multipliers), taught on the PC and run on an FPGA. It began in October 2026 as a hex-cell neuron idea on a Tang Nano 20K and now runs on a Kintex-7 card. Alan Hill designs it; the logic, models and records are written with Claude.</p>
+<p>Four models have come out of the work. Each has its own base document.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>What it is</th>
+<th>Where it stands</th>
+<th>Base document</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1. The layered model</strong></td>
+<td>Nested layers: detectors outside, history and prediction inside, a strategist that looks ahead, a helper network and a batch judge. Played Connect Four and draughts</td>
+<td>Layers 1 and 2, the batch judge and the memory tier are built and ran on boards. Layers 3, 4 and the helper are Python models</td>
+<td><a href="../MODEL_1_LAYERED_v1.md"><code>MODEL_1_LAYERED_v1.md</code></a></td>
+</tr>
+<tr>
+<td><strong>2. The detector system and the speech chain</strong></td>
+<td>Detectors with three-valued weights, taught by counting; widened into a chain that recognises spoken digits</td>
+<td><strong>On the Kintex card, on real data: 936 of 1,079 test recordings right (86.7%), every digit equal to the Python reference</strong></td>
+<td><a href="../MODEL_2_DETECTOR_v1.md"><code>MODEL_2_DETECTOR_v1.md</code></a></td>
+</tr>
+<tr>
+<td><strong>3. The neural bus network</strong></td>
+<td>Neuron-like cells on small shared buses; the answer is a map of which cells fired</td>
+<td>Works on made-up test patterns; built as logic and loaded on the card; at chance on real speech</td>
+<td><a href="../MODEL_3_NEURAL_BUS_v1.md"><code>MODEL_3_NEURAL_BUS_v1.md</code></a></td>
+</tr>
+<tr>
+<td><strong>4. The upper logic</strong></td>
+<td>Stored maps beside the cells, four banks around a shared memory (the tile), a monitor, an input check, a store for anomalies, identification by parts</td>
+<td>Python models on test patterns only. Does well what the recognisers cannot (missing parts, confidence, novelty); did not improve the speech chain</td>
+<td><a href="../MODEL_4_UPPER_LOGIC_v1.md"><code>MODEL_4_UPPER_LOGIC_v1.md</code></a></td>
+</tr>
+</tbody>
+</table>
+<h2>The short version of what has been shown</h2>
 <ul>
-<li>Concept-linked: same "topology is computation" thinking, same style of
-  cardinal/point-to-point wiring, same instinct to compose from small proven
-  pieces before adding new hardware.</li>
-<li>Architecturally separate: different cell design, different resource profile
-  (this is a heavier per-cell cost — closer to a small ALU than a pure logic
-  mesh), different training method (discrete parameters — lane active/inactive,
-  gate-per-lane, threshold — so evolutionary/genetic search or simulated
-  annealing rather than backprop).</li>
-<li>Separate hardware target in mind: Tang Nano 20K (Gowin GW2AR-18), with a
-  BL616-based link out to a front-end (originally scoped as an ESP32) over a
-  direct GPIO link — see <code>esp32-bl616-link-protocol-v0.1.md</code> for that protocol
-  draft.</li>
+<li><strong>Detection works on real data and on real hardware.</strong> The speech chain on the card gives exactly the reference result, and from on-chip memory it takes 286 clocks per recording (counted on the chip, equal to the simulation to the clock). At the board's nominal 50 MHz that is about 174,000 recordings per second, a computed figure; over JTAG it is fed at 74 per second, so the input path is the limit.</li>
+<li><strong>The detector's ceiling on this task is known.</strong> "One" is heard as "nine" in 36 of its 40 errors. A memory on top of the chain, a second look, and several templates per digit were each tried and none lifted the 86.7%.</li>
+<li><strong>The cell network recognises damaged versions of patterns it was taught</strong> (95 / 90 / 75 / 44% right with 10 / 30 / 50 / 70% of the input dropped) but adds nothing with depth, and its maps carried no usable information on real speech.</li>
+<li><strong>The upper logic fills in what is missing.</strong> In the models a bank that is nearly blind goes from 15% to 87% right with the help of the other three, and to 95% when each bank's vote is weighted by a simple check of its own input; a hidden weak pattern is found in the noise by counting what comes back; a thing is named from its parts (99.9%), also with one part missing (98.6%), and a changed or unknown part is reported as such.</li>
+<li><strong>What is not shown:</strong> the upper logic on real data or in hardware; the layers run together as one system; any learning on the chip; live input (the front end that turns sound into events runs on the PC).</li>
 </ul>
-<h2>Start here</h2>
-<p><strong><code>HEXN_DESIGN.md</code> is the current design document</strong> (what the cell is, how it learns, what has been measured, open questions). The notes below are older and are kept as written; where they differ, the design document is newer.</p>
-<p><strong>The open unit and its front end (1 Nov 2026).</strong> One Tang Nano 20K build whose personality is chosen by data from an ESP32: <code>OPEN_UNIT_v1.md</code> (the unit, stage by stage, all confirmed on the board) and <code>FRONT_END_UNIT_v1.md</code> (the ESP32 gateway, the command line and the web page: <code>python3 tools/hexn_front_web_v1.py</code>).</p>
-<h2>Status (older text)</h2>
-<p><em>Update 22 Oct 2026: past the scoping stage. A bank of counted detectors on a 12-wire hex lattice has been built, trained serially and loaded onto the Tang Nano 20K, where it answers over the serial link; on the 7-detector bank the board now matches the simulation exactly (5,250 of 5,250 test samples) when built without the chip's carry-chain arithmetic cells; see <code>HEXN_DESIGN.md</code> section 4a. A browser front end (<code>frontend/hexn_explorer_v1.html</code>) now trains the same counted bank, tests it against noise, and exports a training script that <code>tools/hexn_tang_script_v1.py</code> runs on the board (7 machine states, 140 of 140 test samples identical to the rules on the 18-wire hex7 build). The text below is as first written.</em></p>
-<p>Scoping stage, with a first behavioural prototype. The Tang Nano 20K has arrived and
-the UniCell small unit (SD card + SPI bridge + ESP32) runs on it, which changes the
-pin budget and the ESP32 link: see <code>walkthrough-v0.2.md</code> (review, open questions,
-measured cost). <code>rtl/hexn_cell_v0.v</code> + <code>tests/test_hexn_cell_v0.py</code> are scoping
-prototypes that pin down assumptions, not decisions.</p>
+<h2>Hardware</h2>
+<table>
+<thead>
+<tr>
+<th>Board</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tang Nano 20K (Gowin GW2AR-18) with an ESP32 front end</td>
+<td>The first detectors, the batch judge and the open unit, confirmed on the board stage by stage (<code>OPEN_UNIT_v1.md</code>, <code>FRONT_END_UNIT_v1.md</code>)</td>
+</tr>
+<tr>
+<td>Kintex-7 card YPCB-00338-1P1 (XC7K480T), open tools (openXC7), JTAG</td>
+<td>The base: two pattern arrays, the batch judge, stores and, since 11 Nov 2026, the speech chain and its event memory (<code>HEXN_KINTEX_BASE_PICTURE_v1.md</code>, <code>HEXN_SPEECH_CHAIN_KINTEX_v1.md</code>); the bus network as a stand-alone build</td>
+</tr>
+</tbody>
+</table>
+<p>A real data port (PCIe) waits for another card and PC.</p>
+<h2>Where the records are</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HEXN_DESIGN.md</code></td>
+<td>The ledger: every decision, measurement and correction, dated, append-only</td>
+</tr>
+<tr>
+<td><code>HEXN_DIRECTION_SCOPING_v1.md</code></td>
+<td>The direction document: numbered sections (100 so far) with each idea, test, result and reading, including the ones that failed</td>
+</tr>
+<tr>
+<td>The four <code>MODEL_*_v1.md</code> files</td>
+<td>The base documents: how each model is built, how it works, its figures, its limits</td>
+</tr>
+<tr>
+<td><code>LAYER_INTERFACES_v4.md</code>, <code>HEXN_NEURAL_BUS_DESIGN_v1.md</code>, <code>HEXN_TILE_SPEC_v1.md</code>, <code>CRIB_SHEET.md</code></td>
+<td>Design notes behind the models</td>
+</tr>
+</tbody>
+</table>
+<h2>Running things</h2>
+<p>Simulation and models (needs Python 3, numpy, and <code>iverilog</code> for the logic tests; without <code>iverilog</code> the logic tests fail and do not skip):</p>
+<pre><code>python3 -m pytest tests/vm/test_hexn_speech_chain_v1.py tests/vm/test_hexn_base_v6_evram_v1.py -q    # the speech chain and the base, in simulation
+python3 tools/hexn_recall_pool_v3.py                                                                  # the tile with the monitor and the input check
+python3 tools/hexn_parts_v2.py                                                                        # identification by parts
+</code></pre>
+<p>On the Kintex card (the speech chain behind the base controller; build in the openXC7 shell, load and run from an ordinary terminal; details in direction doc sections 76, 82 and 84):</p>
+<pre><code>cd ~/ypcb-00338-1p1
+HEXN_BASE=hex7_off2_mix,hex6 HEXN_BASE_VER=6 HEXN_NORAM=1 bash ~/hexn-wt/fpga/ypcb/hexn_arr/run_arr.sh
+~/openFPGALoader/build/openFPGALoader -c digilent_hs2 /media/alan/InternalHDD/hexn_builds/arr_base_b6_noram/hexn_arr.bit
+nix shell nixpkgs#openocd --command env OPENOCD=openocd HEXN_CHAIN=2 python3 ~/hexn-wt/tools/hexn_chain_host_v3.py full ~/hexn-wt/fpga/ypcb/hexn_speech/data_full
+</code></pre>
+<p>Expected last lines: <code>right 936 (86.7%)</code> and <code>expected 936 (Python reference): PASS; per digit: all equal</code>.</p>
+<h2>How the work is recorded</h2>
+<ul>
+<li>Logic and measurements are the ground truth. A figure is tagged as measured on the card, simulated, modelled in Python, or a tool's estimate; clock figures from place and route are estimates, never silicon timing.</li>
+<li>Proven files are cloned and given a new version, never edited in place. Corrections are new rows that point at what they correct.</li>
+<li>Wrong guesses and failed tests are written down as plainly as the successes.</li>
+</ul>
+<div class="partsub">Model 1: the layered model<span class="partsrc">docs/hex-n/MODEL_1_LAYERED_v1.md</span></div>
+<h1>Model 1: the layered model (layers 1 to 4, the helper and the batch judge)</h1>
+<p>Base document, written 12 Nov 2026 for Alan. It gathers what is already recorded; nothing was re-measured for it. Every figure is copied from the source named beside it. Status words: <strong>BUILT</strong> = logic that passes in simulation (where it also ran on a board, that is said); <strong>MODEL</strong> = Python only; <strong>IDEA</strong> = written down only.</p>
+<h2>1. What it is</h2>
+<p>The first Hex-N model: one unit made of layers nested inside each other. The outside layer meets the sensor wires; each layer hands a cleaner, smaller answer inward; the innermost parts look ahead and judge. It is the model that played Connect Four and draughts, and its layer 4 is the part that does inference: imagining what may happen next and choosing.</p>
+<pre><code> world --&gt; [ layer 1: counted detectors, one bank per sensor ]
+              [ layer 2: history and paths, per sensor ]
+                 [ layer 3: the same, across several sensors ]
+                    [ layer 4: looks ahead, sets goals ]
+                       [ helper: a small network that judges positions ]
+   beside them: the batch judge (scores layer 1's output with weights worked out on the PC)
+   through them: the memory tier (shared key/value storage)
+</code></pre>
+<p>Source for the picture and the table below: <code>LAYER_INTERFACES_v4.md</code> (30 Oct 2026), which copies each figure from a dated row of the ledger <code>HEXN_DESIGN.md</code>.</p>
+<h2>2. The layers: what each does, how it is built, where it stands</h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>What it does</th>
+<th>How it is built</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1 Detectors</strong></td>
+<td>Turns coded sensor wires (12 to 20 per bank) into a class number or "no class", held steady by a hold counter</td>
+<td>The counted detector: each wire's weight is counted in one pass over examples (+1, 0 or -1), a threshold is counted, no search</td>
+<td><strong>BUILT</strong>, run on the Tang Nano 20K and the Kintex card. See Model 2</td>
+</tr>
+<tr>
+<td><strong>2 History, per sensor</strong></td>
+<td>Remembers what followed what for one sensor; predicts the next event; says ok, contradiction, novel or start</td>
+<td>A store of event histories with counts (store v5: address index plus dense heap, 4-bit events)</td>
+<td><strong>BUILT</strong>. Core v9 with store v5 ran on the Tang and passed (285 frames, 61 answers checked, 15 rewards, 27 Oct). 12,828 of 20,736 LUT4 (62%), 14 of 46 block RAMs</td>
+</tr>
+<tr>
+<td><strong>3 History, across sensors</strong></td>
+<td>The same, keyed by the classes of several sensors at one moment; gives ranked possible next moments with weights</td>
+<td>The same store idea with a tuple of classes as the key</td>
+<td><strong>MODEL</strong> (<code>tools/hexn_layer3_v1.py</code>); hardware plan in <code>LAYER3_HW_v1.md</code>, no logic written</td>
+</tr>
+<tr>
+<td><strong>4 Strategist</strong></td>
+<td>Grows a tree of imagined futures from layer 3's predictions, prunes unlikely paths, suggests a move</td>
+<td>Expectimax search with a path-probability cutoff; blends its learned model with worst-case play by confidence</td>
+<td><strong>MODEL</strong> (Connect Four, draughts)</td>
+</tr>
+<tr>
+<td><strong>Helper</strong></td>
+<td>Judges a position when the search has to stop</td>
+<td>A small network: 127 inputs, 64 hidden units, about 8,000 weights</td>
+<td>Judge: <strong>MODEL</strong>. Other roles (key maker, fallback): <strong>IDEA</strong></td>
+</tr>
+<tr>
+<td><strong>Batch judge</strong></td>
+<td>Scores 8 sensor readings (bins 0 to 11) with two tables of 128 weights and a bias; gives a prediction bit and two scores</td>
+<td><code>fpga/verilog/hexn_scorer_v3.v</code>; weights worked out on the PC and loaded</td>
+<td><strong>BUILT</strong>, runs on the Tang and in the Kintex base</td>
+</tr>
+<tr>
+<td><strong>Memory tier</strong></td>
+<td>Shared key/value storage on three levels</td>
+<td>PUT / GET / FLUSH commands</td>
+<td><strong>BUILT</strong>, proven on the Kintex card against the reference model: 2,000,000 steps, 0 wrong (30 Oct). Not joined to the layers</td>
+</tr>
+</tbody>
+</table>
+<h2>3. How it works, in plain terms</h2>
+<ol>
+<li>A sensor reading is coded onto a handful of wires. Layer 1's detectors each hold a pattern of "this wire should be on, this one off, this one does not matter"; the detector whose pattern fits best names the class.</li>
+<li>Layer 2 keeps count of which class followed which, for each sensor, so it can say what usually comes next and notice when something does not fit.</li>
+<li>Layer 3 does the same for several sensors taken together (a "moment").</li>
+<li>Layer 4 uses those counts as a model of the world: it imagines several steps ahead, weighs each path by how likely layer 3 says it is, and picks a move. When it is unsure of its model it falls back to assuming the worst case.</li>
+<li>The helper is a small trained network that says how good a position looks, so the search can stop earlier.</li>
+</ol>
+<h2>4. Results</h2>
+<p><strong>Games (all Python models; the game is the test bed, nothing ran on a board).</strong></p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Result</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Connect Four, Hex-N search against a plain search of the same style</td>
+<td>The plain search was better</td>
+<td>ledger 30 Oct 21:20; <code>LAYER_INTERFACES_v4.md</code></td>
+</tr>
+<tr>
+<td>Draughts, first result</td>
+<td>The plain search was better</td>
+<td>ledger 30 Oct 22:50</td>
+</tr>
+<tr>
+<td>Draughts, confidence weighted by layer 3's hit rate</td>
+<td>The Hex-N search EQUALS the plain search at depth 3 and 4 (.47 against .48, .72 against .70). No gain from learning shown, as positions seldom recur. About 5 times the time per move in Python</td>
+<td>ledger 31 Oct 09:40</td>
+</tr>
+<tr>
+<td>Connect Four against opponents with habits</td>
+<td>The learned model predicts about 60% of replies and still LOWERS the score by 0.04 to 0.18 against worst-case play: acting on a prediction that is wrong 40% of the time costs more than it earns</td>
+<td>ledger 31 Oct 10:30</td>
+</tr>
+<tr>
+<td>Helper as position judge, Connect Four</td>
+<td>With the judge, depth 3 matched or beat the hand score at depth 4 with about a sixth of the positions (depth 3: 0.77 / 0.83 against 0.73 / 0.71)</td>
+<td>ledger 30 Oct 17:45</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Against simple designs</strong> (Alan's rule: equal is the lower limit). Cheap filter on one steady sensor: Hex-N not better. Plain minimax in Connect Four: plain search better. Plain alpha-beta in draughts: equal at depth 3 and 4 with the hit-rate blend. (<code>LAYER_INTERFACES_v4.md</code> section 5 and the 31 Oct rows.)</p>
+<p><strong>Layer 4 on real speech (10 Nov, direction doc section 62).</strong> Used to predict the next window of a spoken digit and to decide early: prediction 46.6% against 43.6% for the count table alone (upper bound with the true digit known 49.1%); deciding early worked but no better than layer 1's own margin rule. Isolated digits give a strategist nothing to choose between.</p>
+<h2>5. Limits and open points</h2>
+<ul>
+<li>Layers 3 and 4 and the helper have no hardware, so there is no size or speed figure for the whole unit.</li>
+<li>Learning is on the PC. Nothing changes its own weights on the chip (the layer 1 local rule and the neural judge <code>rtl/hexn_neural_v1.v</code> are simulated only).</li>
+<li>The games showed the cost of trusting a learned model that is often wrong; the hit-rate blend makes the model safe, not better.</li>
+<li>The direction decided on 30 Oct 2026: Hex-N is a sensor-control device; the neural side came off the critical path; games stay as the test bed.</li>
+</ul>
+<h2>6. Where the detail is</h2>
+<p><code>LAYER_INTERFACES_v4.md</code> (the nested unit), <code>HEXN_HELPER_AND_JUDGE_DEFINED_v1.md</code> (helper and judge), <code>LAYER3_HW_v1.md</code> (layer 3 hardware plan), <code>SCORER_v1.md</code> (batch judge), <code>HEXN_DESIGN.md</code> rows of 29 to 31 Oct 2026 (games), direction doc sections 8 to 26 (teaching the batch judge, cleaning the class streams) and 60 to 62 (layer 4 on speech).</p>
+<div class="partsub">Model 2: the detector system and the speech chain<span class="partsrc">docs/hex-n/MODEL_2_DETECTOR_v1.md</span></div>
+<h1>Model 2: the detector system and the speech chain</h1>
+<p>Base document, written 12 Nov 2026 for Alan. It gathers what is already recorded; nothing was re-measured for it. Every figure is copied from the source named beside it. Tags: <strong>[card]</strong> measured on a board with Alan's run; <strong>[sim]</strong> simulation; <strong>[model]</strong> Python only; <strong>[estimate]</strong> a tool's estimate (place-and-route clock and size figures are estimates, never silicon timing).</p>
+<h2>1. What it is</h2>
+<p>The part of Hex-N that is proven on real data and on real hardware. A detector counts how well what arrives fits a taught pattern and names the best-fitting class. It started as layer 1 of the layered model (Model 1) on a handful of sensor wires, and was widened in November 2026 into the <strong>speech chain</strong>, which recognises spoken digits on the Kintex card.</p>
+<h2>2. The counted detector: how it is built and how it works</h2>
+<ul>
+<li><strong>A detector</strong> has one weight per input wire: +1 (should be on), -1 (should be off) or 0 (does not matter). It adds the weights of the wires that are on and compares the total with a threshold. A bank holds one detector per class; the largest total above its threshold wins, otherwise the answer is "no class".</li>
+<li><strong>Teaching is counting, not searching.</strong> One pass over labelled examples: for each wire that is on, the count for the example's own class goes up and the counts for the other classes go down a little; the counts are clipped; a count above a level becomes +1, below the negative level -1, between them 0. The threshold is the midpoint between the detector's average total on its own class and on the others. (<code>tools/hexn_det_shd_v1.py</code>, direction doc section 58.)</li>
+<li><strong>No multipliers.</strong> Weights are three-valued, so the hardware only adds and subtracts.</li>
+</ul>
+<p><strong>On the Tang Nano 20K (the original, 12 to 20 wires per bank):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>Figure</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Minimal detector size</td>
+<td>150 / 224 / 268 LUT4 at 12 / 18 / 20 wires</td>
+<td><code>LAYER_INTERFACES_v4.md</code> (21 Oct)</td>
+</tr>
+<tr>
+<td>Held-out accuracy, 8 classes</td>
+<td>82 to 86% of the template-rule ceiling</td>
+<td>same</td>
+</tr>
+<tr>
+<td>Recorded light and potentiometer data</td>
+<td>1.000</td>
+<td>same (27 Oct)</td>
+</tr>
+<tr>
+<td>7-detector bank, board against simulation</td>
+<td>5,250 of 5,250 test samples equal [card]</td>
+<td><code>README_OLD_v1.md</code>, <code>HEXN_DESIGN.md</code> section 4a</td>
+</tr>
+<tr>
+<td>19 detectors at 18 wires on the Tang</td>
+<td>15,730 of 20,736 LUT4 (75.9%)</td>
+<td><code>LAYER_INTERFACES_v4.md</code> (22 Oct)</td>
+</tr>
+</tbody>
+</table>
+<p>The detectors, the batch judge and an ESP32 front end make up the <strong>open unit</strong> on the Tang, confirmed on the board stage by stage (<code>OPEN_UNIT_v1.md</code>, <code>FRONT_END_UNIT_v1.md</code>).</p>
+<p><strong>Cleaning the class stream</strong> (direction doc sections 18 to 26, models and recorded sensor data): carry-forward fills short "no class" gaps; a hold counter steadies a chattering sensor; which one is right belongs to the sensor type, and a try-both method lets the system pick on unlabelled data.</p>
+<h2>3. The speech chain: how it is built</h2>
+<p><strong>Data.</strong> The Heidelberg spoken digits (SHD): the ten English digits, 4,011 training and 1,079 test recordings; 870 of the test recordings are from two speakers never heard in training (section 55).</p>
+<p><strong>Front end (on the PC, <code>tools/hexn_shd_frontend_v1.py</code>).</strong> The recording's 700 channels are folded onto 48 lines; one second is cut into 20 time steps; in each step the 8 busiest lines send one event. A recording becomes about 83 events.</p>
+<p><strong>The chain (<code>rtl/hexn_speech_chain_v1.v</code>, model <code>tools/hexn_chain_hw_v1.py</code>):</strong>
+1. <strong>Window detectors.</strong> The 20 steps are cut into 5 windows of 4 steps. Each window has 10 detectors, one per digit, over 192 wires (4 steps x 48 lines). The detectors are event-driven: each event reads one word of weights for all ten detectors and adds it to ten accumulators (960 weight words in all).
+2. <strong>Count tables.</strong> At the end of a window the best detector gives the window's class (or none). Tables of counts, made from training recordings, say how likely each class is at that position after the previous class, for each digit (605 words).
+3. <strong>Decision.</strong> Each digit's score = its path through the tables + its summed detector margins (shifted, no multiplier). The best score is the answer; an early-stop flag is raised when the best digit leads the second by a set gap.</p>
+<p><strong>Behind the base controller on the Kintex card</strong> (<code>sub/verilog/hexn_base_ctl_v6.v</code>, generator <code>tools/hexn_kxbase_v6.py</code>): the chain sits beside the two pattern arrays, the batch judge and the stores, reached over JTAG. Commands <code>k</code> (write one setting), <code>e</code> (send events), <code>u</code> (read a result), and for the on-chip event memory <code>w</code> (fill), <code>g</code> (replay at the chain's own speed), <code>v</code> (read results). Nothing about the speech task is in the bitstream: settings and recordings come from the PC (<code>tools/hexn_chain_host_v1.py</code>, <code>_v2.py</code>, <code>_v3.py</code>).</p>
+<h2>4. Results</h2>
+<p><strong>On the card [card] (11 Nov 2026, direction doc sections 71 to 85):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kit with 300 recordings baked in, exact count read over JTAG</td>
+<td>262 of 300 (87.3%), equal to the Python reference and the simulation</td>
+</tr>
+<tr>
+<td>The same 300 with settings and events sent from the PC, command by command</td>
+<td>262 of 300; 4.0 s; 74 recordings per second over JTAG</td>
+</tr>
+<tr>
+<td>The same 300 replayed from the on-chip event memory, three times</td>
+<td>262 of 300 each time; <strong>86,079 clocks counted on the chip, equal to the simulation to the clock</strong></td>
+</tr>
+<tr>
+<td>The whole test set, 1,079 recordings, three batches</td>
+<td><strong>936 right (86.7%)</strong>; every digit's count equal to the reference; 309,050 clocks (286 per recording)</td>
+</tr>
+<tr>
+<td>Link</td>
+<td>0 bad captures and 0 resends in every run</td>
+</tr>
+</tbody>
+</table>
+<p>Computed from the clock count at the board's nominal 50 MHz (not separately timed): about 174,000 recordings per second, against 74 per second over JTAG.</p>
+<p><strong>Sizes and clock [estimate, nextpnr on the XC7K480T of 597,200 sites]:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Design</th>
+<th>LUT sites</th>
+<th>Flip-flops</th>
+<th>Clock estimate after routing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speech kit alone</td>
+<td>2,861 (0.5%)</td>
+<td>1,213</td>
+<td>185.56 MHz</td>
+</tr>
+<tr>
+<td>Base v6: two pattern arrays, batch judge, stores, chain, event memory</td>
+<td>23,346 (3.9%)</td>
+<td>16,187</td>
+<td>90.68 MHz</td>
+</tr>
+</tbody>
+</table>
+<p>All ran at the 50 MHz board clock. The chain's real clock limit has not been measured.</p>
+<p><strong>How good the answers are [model, equal to the card]:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>Figure</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Right after window 1 / 2 / 3 / 4 / 5 (300 recordings)</td>
+<td>68.7 / 85.0 / 87.3 / 87.0 / 85.3%</td>
+<td>section 63</td>
+</tr>
+<tr>
+<td>With events dropped at random: 0 and 10% / 30% / 50% / 70%</td>
+<td>87.3 / 80.7 / 68.7 / 44.0%</td>
+<td>section 63</td>
+</tr>
+<tr>
+<td>Per digit, whole test set</td>
+<td>0: 98/103, 1: 68/108, 2: 96/105, 3: 76/102, 4: 96/116, 5: 91/110, 6: 105/109, 7: 102/109, 8: 111/114, 9: 93/103</td>
+<td>section 85</td>
+</tr>
+<tr>
+<td>The largest single confusion</td>
+<td>"one" answered as "nine": 36 of its 40 errors</td>
+<td>section 93</td>
+</tr>
+<tr>
+<td>Wrong answers where the right digit was second best</td>
+<td>94 of 143 (66%)</td>
+<td>section 93</td>
+</tr>
+<tr>
+<td>On its own training recordings</td>
+<td>3,129 of 4,011 (78.0%)</td>
+<td>section 93</td>
+</tr>
+</tbody>
+</table>
+<h2>5. What was tried to lift it, and did not work</h2>
+<table>
+<thead>
+<tr>
+<th>Attempt</th>
+<th>Result</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A memory of whole recordings (window codes) on top of the chain</td>
+<td>79 to 81% against the chain's 86.7%; both wrong on 117 of the 143 errors</td>
+<td>section 99</td>
+</tr>
+<tr>
+<td>A second look between the top two digits</td>
+<td>repaired 18, spoiled 21</td>
+<td>section 99</td>
+</tr>
+<tr>
+<td>Several templates per digit and window (2 to 6)</td>
+<td>training set up to 85.8%, test set DOWN to 76.6 to 83.5%</td>
+<td>section 100</td>
+</tr>
+<tr>
+<td>The neural bus network on the same data</td>
+<td>10 to 19% against 10% chance</td>
+<td>section 55</td>
+</tr>
+</tbody>
+</table>
+<p>Reading (Alan, 12 Nov): the detector does not only clean the data, it processes it, so the work is done before anything above it sees it. The untested candidates for a higher score are the front end (how sound becomes events) and the way templates are made.</p>
+<h2>6. Limits</h2>
+<ul>
+<li>The front end runs on the PC; there is no live sound path into the card. Input is JTAG only; a real data port needs another card and PC (ledger, 11 Nov 19:04).</li>
+<li>One dataset, one front-end setting, one split of the training data.</li>
+<li>German digits in the same files have no detectors.</li>
+</ul>
+<h2>7. Where the detail is</h2>
+<p><code>HEXN_SPEECH_CHAIN_KINTEX_v1.md</code> (placement note with every update), <code>HEXN_KINTEX_BASE_PICTURE_v1.md</code> (the base), kits <code>fpga/ypcb/hexn_speech/</code>, <code>hexn_speech2/</code>, <code>hexn_arr/</code>; direction doc sections 55 to 63, 70 to 76, 81 to 85, 93, 99, 100; tests <code>tests/vm/test_hexn_speech_chain_v1.py</code>, <code>test_hexn_base_v5_chain_v1.py</code>, <code>test_hexn_base_v6_evram_v1.py</code>, <code>test_hexn_chain_host_v3.py</code>.</p>
+<div class="partsub">Model 3: the neural bus network<span class="partsrc">docs/hex-n/MODEL_3_NEURAL_BUS_v1.md</span></div>
+<h1>Model 3: the neural bus network (cells on shared buses)</h1>
+<p>Base document, written 12 Nov 2026 for Alan. It gathers what is already recorded; nothing was re-measured for it. Every figure is copied from the source named beside it (section numbers are sections of <code>HEXN_DIRECTION_SCOPING_v1.md</code>). Tags: <strong>[sim]</strong> Python model; <strong>[rtl]</strong> logic checked against the Python model in simulation; <strong>[estimate]</strong> a tool's place-and-route figure, never silicon timing; <strong>[card]</strong> done on the board with Alan's run.</p>
+<h2>1. What it is</h2>
+<p>Alan's neuron-like cell (sections 27 to 31, 8 Nov 2026): a cell gathers small signed pushes from the cells it listens to, leaks a little all the time, fires when it passes its own level, then rests. The cells sit in layers on small shared buses. What the network produces is not a single answer wire but a <strong>map</strong>: the set of cells that fired during a run. A matcher compares the live map with stored maps and names the nearest one, or the nearest two.</p>
+<p>It works well on made-up test patterns and has been built and loaded on the Kintex card as logic. On real speech its maps carried no usable information (section 6).</p>
+<h2>2. How it is built</h2>
+<p><strong>The cell (hardware form, <code>sub/verilog/hexn_bnet_bus_v2.v</code>):</strong> a 6-bit signed accumulator; a 4-bit signed weight for each source it listens to, read from the bus's shared table; its own 4-bit threshold; a rest (refractory) counter; a leak of 1 on a shared tick while the accumulator is positive; an 8-bit fire counter. No multipliers.</p>
+<p><strong>The bus.</strong> A bus carries ONE packet per clock: the number of a source that fired. Every cell on the bus looks that number up in the table and adds its weight for it. A layer is a few buses (4 buses of 16 cells, or 8 of 8); the model has 3 layers, 64 cells each, 192 cells, fed by 48 input lines.</p>
+<p><strong>Between layers (<code>hexn_bnet_ser_v1</code>, <code>hexn_bnet_tbus_v5</code>):</strong> a serialiser per group of sources sends one waiting source per clock in rotation; in front of each bus a merger holds a small queue per feeding group and a round-robin arbiter passes one packet per clock. A full queue drops the packet and counts it. Layer 3 also feeds back into layer 1.</p>
+<p><strong>The map and the matcher (<code>hexn_bnet_map_v1</code>):</strong> records which layer 2 and 3 cells fired; compares with each stored map, one per clock, by overlap (shared cells over all cells, done without division) and keeps the best two.</p>
+<p><strong>Training is on the PC; the chip only holds numbers and counts fires.</strong> The steps, each of which was tested (sections 34 to 40):</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Evidence [sim]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Map feedback (teacher)</td>
+<td>Each pattern is given a target map (5 cells per layer). A target cell that did not fire has its weights from active sources raised by 1; a cell that fired outside the target has them lowered. Weights stay within a ceiling of the starting wiring</td>
+<td>Untrained recall 12% (chance); trained 58 to 75% (section 34)</td>
+</tr>
+<tr>
+<td>Self-set threshold</td>
+<td>After each round, a cell firing more often than its layer's target rate raises its threshold by 1, less often lowers it</td>
+<td>Removes most of the dependence on the starting threshold: recall at 10% dropped ranged 43 to 95% with fixed thresholds across starts, 76 to 91% self-set (lean net); best row 96 / 95 / 83 / 57 (section 39)</td>
+</tr>
+<tr>
+<td>Start dense, then prune</td>
+<td>Train with 24 sources per cell, keep the largest weights down to 14 / 10 / 10 per cell (2,176 connections), retrain with the thresholds still adapting</td>
+<td>Pruned: 95 / 90 / 75 / 44 with 42% of the connections; unpruned dense: 97 / 95 / 87 / 55; lean from the start: 89 / 82 / 59 / 33 (section 40)</td>
+</tr>
+</tbody>
+</table>
+<p>(Recall figures are percent right with 10 / 30 / 50 / 70% of the input events dropped; 8 patterns; chance 12.5%.)</p>
+<h2>3. How it works, in plain terms</h2>
+<ol>
+<li>An input event on one of the 48 lines is sent as a packet on the layer 1 buses.</li>
+<li>Every cell that listens to that line gets a small push up or down. Pushes that arrive close together add up; a slow trickle leaks away.</li>
+<li>A cell that passes its own level fires: its number goes out as a packet to the next layer, and it rests for a few clocks.</li>
+<li>After the run, the cells that fired in layers 2 and 3 are the map. The matcher says which stored map it is nearest to.</li>
+</ol>
+<h2>4. Results on the test patterns [sim]</h2>
+<table>
+<thead>
+<tr>
+<th>Fact</th>
+<th>Figure</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Recall of the stored pattern, working design (pruned, self-set thresholds), combined layer 2 + 3 map</td>
+<td>95 / 90 / 75 / 44</td>
+<td>sections 40, 49</td>
+</tr>
+<tr>
+<td>Layer 2 map alone / layer 3 map alone</td>
+<td>97 / 92 / 76 / 46 and 78 / 65 / 50 / 25</td>
+<td>section 49</td>
+</tr>
+<tr>
+<td>Five layers: layer 2 / 3 / 4 / 5</td>
+<td>83/81/68/40, 63/58/45/27, 46/44/34/20, 42/35/26/19</td>
+<td>section 50</td>
+</tr>
+<tr>
+<td>Cells firing per run by layer, 5-layer net</td>
+<td>43, 4, 2, 2, 1</td>
+<td>section 50</td>
+</tr>
+<tr>
+<td>Mixture of two patterns: the two best maps are exactly the two</td>
+<td>10 of 100 untrained (dense maps); 15 to 20% after training</td>
+<td>sections 32, 34</td>
+</tr>
+<tr>
+<td>Feedback (layer 3 to layer 1)</td>
+<td>Runs away at weight +2 or more unless half the links are inhibitory or the leak is every clock; no measured benefit to recall</td>
+<td>sections 32, 35</td>
+</tr>
+<tr>
+<td>Competition between cells (a firing cell holds its neighbours down)</td>
+<td>Never better: mildest form unchanged on layer 2; first-to-fire across a layer 78 / 71 / 62 / 38; trained with it 55 / 51 / 47 / 32</td>
+<td>section 96</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What the results say.</strong> Depth does not help: the first layer after the input carries the pattern and each deeper layer is worse, because fewer and fewer cells fire. A pattern is a set of cells that must fire together, so making cells compete hurts. The map is good at one thing: recognising a known pattern from a damaged version of it.</p>
+<h2>5. In hardware</h2>
+<table>
+<thead>
+<tr>
+<th>Build</th>
+<th>LUT sites (of 597,200)</th>
+<th>Flip-flops</th>
+<th>Clock after routing</th>
+<th>State</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tang Nano 20K, 24 cells</td>
+<td>12,376 LUT4 of 20,736 (59%)</td>
+<td>2,225</td>
+<td>47.5 MHz</td>
+<td>[estimate]; 48 cells do not fit</td>
+<td>section 45</td>
+</tr>
+<tr>
+<td>Kintex, 2 buses x 8 cells (48 cells), v2</td>
+<td>7,313 (1.2%)</td>
+<td>2,071</td>
+<td>84.3 MHz</td>
+<td>[estimate]</td>
+<td>section 47</td>
+</tr>
+<tr>
+<td>Kintex, 4 buses x 16 cells (192 cells), v2</td>
+<td>34,777 (5.8%)</td>
+<td>9,081</td>
+<td>58.1 MHz</td>
+<td>[estimate]; <strong>loaded on the card, runs</strong> [card]</td>
+<td>sections 47b, 71</td>
+</tr>
+<tr>
+<td>Kintex, 8 buses x 8 cells (192 cells), v2</td>
+<td>70,994 (11.9%), 200 multiplier blocks</td>
+<td>15,419</td>
+<td>49.4 MHz, fails 50</td>
+<td>[estimate]</td>
+<td>section 47b</td>
+</tr>
+<tr>
+<td>Kintex, 8 x 8, v5 (no multipliers, register after the arbiter)</td>
+<td>43,741 (7.3%)</td>
+<td>15,595</td>
+<td><strong>65.6 MHz, passes 50</strong></td>
+<td>[estimate]; <strong>loaded on the card, runs</strong> [card]</td>
+<td>section 72</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>The logic is checked clock for clock against the Python model in simulation (<code>tests/vm/test_hexn_bnet_net_v3.py</code>, <code>_v4.py</code>, <code>_v5.py</code>) [rtl].</li>
+<li>"Loaded, runs" means the design configured and its heartbeat counter ran at the 50 MHz board clock. The test wrapper drives the network from a random source and folds its outputs to one light, so the card runs say nothing about whether the network computed correctly.</li>
+<li>v5 adds one clock of delay per hop; the recall results above were not re-run with that extra clock (section 72).</li>
+<li>No controller commands exist for the network, and no PC program to load weights into it: it is not joined to the base (<code>HEXN_NEURAL_BUS_DESIGN_v1.md</code> section 4, proposal).</li>
+<li>One tile of four such blocks would be about 175,000 sites, 29% of the chip, by multiplying the 8 x 8 v5 build by four; not built (Alan's question of 12 Nov 08:45).</li>
+</ul>
+<h2>6. On real data [sim]</h2>
+<p>Spoken digits (section 55; same data and front end as Model 2): <strong>recall 10 to 19% against 10% chance</strong>, while a plain template on the same events reaches 69 to 86%. Layer 1 fires 41 to 50 of its 64 cells on every recording and 28 to 56% of packets are dropped, so layer 1 does not separate the digits. What was tried after that:</p>
+<table>
+<thead>
+<tr>
+<th>Attempt</th>
+<th>Result</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Blocks side by side, each on a band of lines</td>
+<td>Every setting at chance (10 to 12%)</td>
+<td>section 56</td>
+</tr>
+<tr>
+<td>Layer 1 looked at alone</td>
+<td>Untrained layer 1 separates the digits at 45 to 49%, but the information thins on the way up: 22 to 29% in layer 2, 18 to 22% in layer 3</td>
+<td>section 57</td>
+</tr>
+<tr>
+<td>Detectors in front as layer 1</td>
+<td>Recall rises to 28 to 38%, still far below the detectors it sits on (86%)</td>
+<td>section 59</td>
+</tr>
+</tbody>
+</table>
+<p>As a novelty detector and on damaged recordings it was also at chance on this data (section 66: 0.505 where 0.5 is chance; detectors 0.723).</p>
+<p>The reasons were not established. Three guesses are recorded in section 55 and none was tested: the test patterns were a few fixed lines, which random wiring can pick out, where speech spreads over all lines and over time; one packet per bus per clock is overloaded at speech event rates; the layer 1 teacher is weak because layer 1 fires for everything.</p>
+<h2>7. Limits and open points</h2>
+<ul>
+<li>Proven only on made-up patterns with target maps handed out by a teacher (the easy case: targets do not overlap).</li>
+<li>No learning on the chip.</li>
+<li>Not compared against a plain lookup of the same test patterns (section 66 says so), so "better than a table" is not shown.</li>
+<li>Parked by Alan on 11 Nov 2026 unless a new application turns up (section 92). The parts that grew out of it, the stored maps beside the cells and everything above them, are Model 4.</li>
+</ul>
+<h2>8. Where the detail is</h2>
+<p><code>HEXN_NEURAL_BUS_DESIGN_v1.md</code> (the merged design, part by part), <code>HEXN_TILE_SPEC_v1.md</code>, direction doc sections 27 to 57, 65 to 69, 72, 96; tools <code>tools/hexn_busnet_v1.py</code>, <code>hexn_busnet_train_v1.py</code>, <code>hexn_busnet_homeo_v1.py</code>, <code>hexn_busnet_prune_v1.py</code>, <code>hexn_busnet_hw_v3.py</code>, <code>hexn_busnet_compete_v1.py</code>; logic <code>sub/verilog/hexn_bnet_*.v</code>; card kit <code>fpga/ypcb/hexn_bnet/</code>.</p>
+<div class="partsub">Model 4: the upper logic<span class="partsrc">docs/hex-n/MODEL_4_UPPER_LOGIC_v1.md</span></div>
+<h1>Model 4: the upper logic (stored maps, the tile, the monitor, the anomaly store, parts)</h1>
+<p>Base document, written 12 Nov 2026 for Alan. It gathers what is already recorded; nothing was re-measured for it. Every figure is copied from the source named beside it (section numbers are sections of <code>HEXN_DIRECTION_SCOPING_v1.md</code>). <strong>Everything in this document is a Python model on made-up test patterns, 5 seeds, built on 11 and 12 Nov 2026. None of it is in hardware, and the one test on real data (section 7) did not succeed.</strong></p>
+<h2>1. What it is</h2>
+<p>The layer above whatever recognises the raw input. Alan's ideas of 11 Nov 2026 (sections 74, 79, 88, 95): a memory is a map that is rebuilt, kept apart from the cells that made it; several recognisers share a central memory of how their answers go together; what fits nothing is not thrown away but passed on and searched; a thing is known by its parts.</p>
+<pre><code>   bank 1    bank 2    bank 3    bank 4        each bank: a recogniser + its own stored maps
+      \         |         |        /            up:   &quot;which of my maps, and how sure&quot;
+       +----- shared memory ------+             down: a hint, scaled by confidence
+                   |                            the monitor works out the hints
+             anomaly store                      sideways: whatever nothing explained
+</code></pre>
+<p>One group of four banks around a shared memory is a <strong>tile</strong>. In the models a bank is the 3-layer cell network of Model 3 (192 cells, 48 input lines) with 8 known patterns.</p>
+<h2>2. The parts: how each is built and how it works</h2>
+<p><strong>Map blocks (sections 74, 77).</strong> A map is an output of the cells, so it can be kept outside them. For each known pattern the bank stores the layer 2 cells that fired in at least 3 of 5 runs (about 4 cells) as the key, and the same for layer 3 as the payload. Recall = the stored key with the most overlap with the live map. Stored maps are never erased; only their rank moves, by how recently and how often they were recalled.</p>
+<p><strong>The shared memory, or pool (sections 79, 80).</strong> It holds the known wholes as short codes: 16 large maps, each one code of 3 bits per bank (12 bits). Each bank reports either its single best map (votes) or its score for every one of its maps (full scores); the pool names the whole that fits best.</p>
+<p><strong>The monitor (sections 80, 87).</strong> It sends a hint back down to each bank. The rule that keeps it honest: the hint for a bank is worked out from the OTHER banks only, so a bank's own answer is never evidence for its own hint. If all the others point to the same whole the hint is strong, if most do it is weak, otherwise none. One round; nothing loops. The hint is added to the bank's score for the map the whole expects, and the bank ranks again.</p>
+<p><strong>The input check (Alan, section 87).</strong> Before any cell fires, count the events that arrive at a bank and compare with that bank's normal count: full confidence at three quarters of normal or more, half at one half or more, none below. One counter and two comparisons. Each bank's vote is weighted by it.</p>
+<p><strong>The line check (sections 89, 97).</strong> Each bank keeps, for each of its patterns, the input lines that pattern normally uses (a 48-bit mask). The share of a run's active lines that fall in the best mask says whether the input is one of the bank's patterns at all. This is matching at the input, before the cells: a detector.</p>
+<p><strong>The anomaly store (Alan, sections 88 to 91).</strong> What a recall does not explain is the residue: the active input lines the recalled pattern does not normally use. Residues go to 16 counting slots. A residue joins the slot it resembles (at least 3 lines in common) or opens a new one. Real noise does not repeat; a hidden pattern keeps landing in the same slot. A slot with enough hits (8) and at least 4 lines is compared with what the main system knows: if 70% of its lines belong to one known pattern it is <strong>known but weak</strong> and scores in a separate weak table; otherwise it is <strong>new</strong> and stored as a new pattern, confirmed after 5 further sightings. Nothing is fed back to the main system.</p>
+<p><strong>Identification by parts (Alan, sections 95, 97).</strong> One bank per aspect (think colour, shape, size, kind), 8 values each; the shared memory holds 16 known things as combinations. A bank is clear (saw its part well and knows it), reports an unknown part (saw something well that fits none of its values), or is unsure. From the clear banks the answer is: <strong>known</strong> (one thing fits), a <strong>shortlist</strong>, a <strong>new combination</strong> ("new, made of these parts", plus the nearest known thing), an <strong>unknown part</strong> (and which aspect), or <strong>unsure</strong> (the three best guesses).</p>
+<h2>3. Results [all Python models, test patterns, 5 seeds]</h2>
+<p>Recall figures are percent right at 10 / 30 / 50 / 70% of input events dropped unless said otherwise.</p>
+<p><strong>Stored maps beside the cells (section 77)</strong></p>
+<table>
+<thead>
+<tr>
+<th>What the next layer reports</th>
+<th>Right</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cells alone (layer 2 feeds layer 3)</td>
+<td>70 / 61 / 45 / 22</td>
+</tr>
+<tr>
+<td>Recall the block, replay its stored map into layer 3</td>
+<td>87 / 82 / 69 / 40</td>
+</tr>
+<tr>
+<td>Recall the block, read its stored answer directly</td>
+<td>98 / 92 / 78 / 46</td>
+</tr>
+</tbody>
+</table>
+<p>A hint that primes the recalled map's cells completes the map (overlap with the right block up by 0.10 to 0.20) while the answer barely moves; scaled by confidence it causes fewer false cells on never-seen input (0.43 per run against 0.69 and 1.18 for fixed hints). Rank by recency and frequency gains 8 to 11 points when use is uneven and comes in bursts, loses 1 to 4 when use is even, and costs the rarely used patterns up to 7.5 points.</p>
+<p><strong>The tile: four banks, pool and monitor (sections 80, 86, 87)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Whole named right, all banks alike: votes / full scores / monitor</td>
+<td>98.3 / 99.9 / 99.8 at 10%; 83.4 / 92.3 / 88.4 at 50%; 40.2 / 51.9 / 44.2 at 70%</td>
+</tr>
+<tr>
+<td>Local answers right, before / after the monitor</td>
+<td>94.5 / 99.3 at 10%; 72.5 / 86.2 at 50%</td>
+</tr>
+<tr>
+<td>One bank nearly blind (90% dropped), others at 10%</td>
+<td>that bank 14.6% right alone, 86.9% with the plain monitor, 94.7% with input-weighted votes</td>
+</tr>
+<tr>
+<td>Two of four banks nearly blind</td>
+<td>damaged banks 67.3% (plain monitor), 76.0% (weighted by recall clarity), 86.5% (weighted by the input check)</td>
+</tr>
+<tr>
+<td>Three of four nearly blind</td>
+<td>35.1 / 41.7 / 49.2%</td>
+</tr>
+<tr>
+<td>A combination the pool never stored</td>
+<td>1.6% of right local answers spoiled, 0.3% repaired (plain); 2.8 to 6.0% spoiled with weighted votes</td>
+</tr>
+<tr>
+<td>All banks at 70%, input-weighted</td>
+<td>39.6% of local answers right against 49.0% plain: with every bank's weight at zero, nobody may hint</td>
+</tr>
+</tbody>
+</table>
+<p>For naming the whole, the pool reading full scores is best everywhere; the monitor's value is repairing the banks. The input check tracks the damage (mean weight 2.00 / 1.83 / 1.00 / 0.14 / 0.00 at 10 / 30 / 50 / 70 / 90% dropped); recall clarity is looser and about 3% of badly damaged banks are sure and wrong.</p>
+<p><strong>The anomaly store (sections 89 to 91)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A hidden pattern, never taught, of 6 lines x 2 events (the known ones are 12 x 3), found within 200 runs</td>
+<td>30 of 30 streams (report at 8 hits); about 13 to 15 sightings needed</td>
+</tr>
+<tr>
+<td>Weaker: 4 lines x 2 events / 3 lines x 1 event</td>
+<td>26 of 30 / 18 of 30</td>
+</tr>
+<tr>
+<td>Residue taken after the cells instead of at the input</td>
+<td>much weaker: 24 of 30 even at 3 hits</td>
+</tr>
+<tr>
+<td>With the compare step: a new pattern found and confirmed</td>
+<td>9 of 10 streams</td>
+</tr>
+<tr>
+<td>A faint copy of a known pattern</td>
+<td>never called new; weak table about 58 on the right pattern against 2 to 3 when absent</td>
+</tr>
+<tr>
+<td>False "new" notes with nothing hidden</td>
+<td>0.0 per stream after the fix (1.3 before: chance templates of 2 to 4 noise lines)</td>
+</tr>
+<tr>
+<td>Wrong "new" notes when two things are hidden at once</td>
+<td>1.7 per stream; not examined</td>
+</tr>
+</tbody>
+</table>
+<p>The hidden pattern itself lowers the main bank's recall a little (96.4% to 91.7%); the store does not, since nothing is fed back.</p>
+<p><strong>Identification by parts (section 97)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Banks judged by cells only</th>
+<th>With the line check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All parts present, 10% dropped: named right</td>
+<td>68.8% (23.8% wrongly called unknown part)</td>
+<td>99.9%</td>
+</tr>
+<tr>
+<td>30% dropped: named right</td>
+<td>46.3%</td>
+<td>94.6%</td>
+</tr>
+<tr>
+<td>One aspect missing altogether</td>
+<td>63.9%</td>
+<td>98.6%</td>
+</tr>
+<tr>
+<td>One part swapped for another known value: called new</td>
+<td>53.6%</td>
+<td>99.6%, all four parts named correctly</td>
+</tr>
+<tr>
+<td>One part never seen: called unknown part</td>
+<td>55.5%</td>
+<td>94.3%, the right aspect every time</td>
+</tr>
+</tbody>
+</table>
+<p>At 50% dropped it stops naming and answers "unsure", with the right thing among its three best in about 8 of 10 tests.</p>
+<h2>4. What was tried and found wanting</h2>
+<table>
+<thead>
+<tr>
+<th>Idea</th>
+<th>Result</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>First past the post: a firing cell holds the others down</td>
+<td>Never better, usually worse (see Model 3)</td>
+<td>section 96</td>
+</tr>
+<tr>
+<td>Adding a deeper layer of cells</td>
+<td>Each deeper layer is worse; a recalled map passed on beats it</td>
+<td>sections 49, 50, 77</td>
+</tr>
+<tr>
+<td>Judging "do I know this?" from the cells alone</td>
+<td>Cannot tell an unknown part from a known part whose cells did not respond</td>
+<td>section 97</td>
+</tr>
+</tbody>
+</table>
+<h2>5. What the results say</h2>
+<ul>
+<li>The upper logic does jobs the recogniser underneath cannot: filling in a damaged or missing part from the others, saying how sure it is, naming a thing from its parts, and setting aside and sorting what fits nothing.</li>
+<li>It needs the banks underneath to be right most of the time. In these models they were (94% at 10% dropped).</li>
+<li>Wherever it improved, the gain came from confidence measured at the input (the event count, the line check) and from the shared memory, not from more cells. Nothing in the pool, monitor or anomaly store depends on the bank being a cell network: a bank only has to give a code and a confidence (section 94).</li>
+<li>Its standing weakness is a lean toward what is stored: wrong recalls get reinforced, and something new is pulled toward something known unless a check at the input says otherwise.</li>
+</ul>
+<h2>6. Size</h2>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Size</th>
+<th>Basis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A tile's cells</td>
+<td>768 (4 banks of 192), 192 input lines, about 8,700 weights of 4 bits</td>
+<td>the model</td>
+</tr>
+<tr>
+<td>A tile's stored maps</td>
+<td>32 maps over 64 cells each, plus 16 large maps of 12 bits</td>
+<td>the model</td>
+</tr>
+<tr>
+<td>A tile in logic, if the banks are Model 3 cell networks</td>
+<td>about 175,000 LUT sites, 29% of the Kintex chip</td>
+<td>ESTIMATE: the one measured 192-cell build (43,741 sites, Model 3) times four; the pool, monitor and stores are not included and have never been built</td>
+</tr>
+</tbody>
+</table>
+<h2>7. The one test on real data: it did not beat the chain (section 99)</h2>
+<p>The 5 time windows of a spoken digit were treated as parts, and the training recordings stored as known wholes (their five window answers). On the 1,079 test recordings: the speech chain 936 right (86.7%); the memory of wholes 855 to 880 (79 to 82%) by votes, full scores or input-weighted scores; a second look between the chain's top two digits repaired 18 and spoiled 21. In 117 of the chain's 143 errors the memory was wrong as well.</p>
+<p>Why (Alan, 12 Nov): the detector does not only clean the data, it processes it, so the work is done before the upper logic sees it; and the chain already has its own way of tying its windows together. The upper logic has something of its own to add where there are several sources that fail independently and none has already decided for the others. No real data of that kind is in hand.</p>
+<h2>8. Limits and open points</h2>
+<ul>
+<li>Python only; test patterns only; thresholds and hint sizes chosen by hand and not tuned (the unknown-part threshold was set after looking at 2 seeds).</li>
+<li>Not modelled: more than one tile (tiles of tiles, section 94); two things present at once (which colour goes with which shape, section 95); repeated rounds of hints; confidence relative to the other banks, for when all are damaged alike; a novelty check at the pool; retraining the cells on a newly stored pattern; fading of the hit counts.</li>
+<li>Not compared with one large network of the same cell count.</li>
+<li>Parked by Alan on 11 Nov 2026 as proving the idea to a point (section 92); picked up as a thought direction on 12 Nov (section 98).</li>
+</ul>
+<h2>9. Where the detail is</h2>
+<p>Direction doc sections 74, 77, 79, 80, 86 to 99; tools <code>tools/hexn_recall_blocks_v1.py</code> (stored maps, hint, rank), <code>hexn_recall_pool_v1.py</code>, <code>_v2.py</code>, <code>_v3.py</code> (tile, monitor, damaged banks, input check), <code>hexn_anomaly_tile_v1.py</code>, <code>_v2.py</code>, <code>_v3.py</code>, <code>hexn_anomaly_diag_v1.py</code> (anomaly store), <code>hexn_parts_v1.py</code>, <code>_v2.py</code> (parts), <code>hexn_chain_parts_v1.py</code> (real speech). Each prints its own table; run times are from a few seconds to about 9 minutes.</p>
 <div class="partsub">Walkthrough<span class="partsrc">docs/hex-n/walkthrough-v0.2.md</span></div>
 <h1>Hex-N walkthrough, v0.2 (9 Oct 2026)</h1>
 <p>Status: review of the v0.1 notes against what the UniCell side has since built (the small unit: SD card + SPI bridge + ESP32 web control, running on the real Tang Nano 20K), plus a first behavioural RTL (<code>rtl/hexn_cell_v0.v</code>) and an independent Python model (<code>tests/test_hexn_cell_v0.py</code>, passes on 300 random configurations). <strong>Nothing here is a decision</strong>: it lists what the notes contradict or leave open, and what changes because the unit exists.</p>

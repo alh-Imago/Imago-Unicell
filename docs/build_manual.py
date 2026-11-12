@@ -138,6 +138,10 @@ SECTIONS = [
              "&rarr; <code>http://localhost:7421/hexn</code>. The assembler is built and has been run end to end in simulation, "
              "but not yet built into a bitstream or run on a board; the card-talking programmer is not built. Each page says so.",
      "parts":[{"sub":"Hex-N: what it is","md":"docs/hex-n/README.md"},
+              {"sub":"Model 1: the layered model","md":"docs/hex-n/MODEL_1_LAYERED_v1.md"},
+              {"sub":"Model 2: the detector system and the speech chain","md":"docs/hex-n/MODEL_2_DETECTOR_v1.md"},
+              {"sub":"Model 3: the neural bus network","md":"docs/hex-n/MODEL_3_NEURAL_BUS_v1.md"},
+              {"sub":"Model 4: the upper logic","md":"docs/hex-n/MODEL_4_UPPER_LOGIC_v1.md"},
               {"sub":"Walkthrough","md":"docs/hex-n/walkthrough-v0.2.md"},
               {"sub":"Cell internals","md":"docs/hex-n/cell-internals-v0.1.md"},
               {"sub":"The unit and the open unit","md":"docs/hex-n/UNIT_v1.md"},

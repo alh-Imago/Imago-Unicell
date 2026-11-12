@@ -1,0 +1,56 @@
+# Hex-N
+
+**This branch is not intended to be merged into `main`.**
+
+Hex-N is a separate project that shares lineage and some core concepts with
+Imago UniCell, but is a distinct architecture with its own direction. It lives
+on this branch for convenience (shared history, shared repo access) rather
+than as a feature under development for UniCell itself. If GitHub prompts you
+to open a pull request comparing this branch to `main`, that prompt can be
+ignored — there is no plan to reconcile the two.
+
+## What it is
+
+A hex-cell neuron design: a 6-face cell, 16 individually-configurable
+in/out lines per face (96 lines total), each line gated through one of four
+selectable logic functions (AND / OR / XOR / NOT). Lines pair directionally
+between neighbouring cells (an `out` on one cell wired to a matching `in` on
+the next) rather than sharing a physical bidirectional wire, avoiding the bus
+contention problems the original UniCell "full fat" cell design hit.
+
+Each face accumulates its active input lines over a timer-gated window and
+compares the result against a threshold to decide whether to fire — a trained,
+frozen threshold rather than one that keeps adapting after deployment.
+Feedback lines currently share the same accumulator as forward input
+(simplest version, not separately weighted).
+
+## Relationship to Imago UniCell
+
+- Concept-linked: same "topology is computation" thinking, same style of
+  cardinal/point-to-point wiring, same instinct to compose from small proven
+  pieces before adding new hardware.
+- Architecturally separate: different cell design, different resource profile
+  (this is a heavier per-cell cost — closer to a small ALU than a pure logic
+  mesh), different training method (discrete parameters — lane active/inactive,
+  gate-per-lane, threshold — so evolutionary/genetic search or simulated
+  annealing rather than backprop).
+- Separate hardware target in mind: Tang Nano 20K (Gowin GW2AR-18), with a
+  BL616-based link out to a front-end (originally scoped as an ESP32) over a
+  direct GPIO link — see `esp32-bl616-link-protocol-v0.1.md` for that protocol
+  draft.
+
+## Start here
+
+**`HEXN_DESIGN.md` is the current design document** (what the cell is, how it learns, what has been measured, open questions). The notes below are older and are kept as written; where they differ, the design document is newer.
+
+**The open unit and its front end (1 Nov 2026).** One Tang Nano 20K build whose personality is chosen by data from an ESP32: `OPEN_UNIT_v1.md` (the unit, stage by stage, all confirmed on the board) and `FRONT_END_UNIT_v1.md` (the ESP32 gateway, the command line and the web page: `python3 tools/hexn_front_web_v1.py`).
+
+## Status (older text)
+
+*Update 22 Oct 2026: past the scoping stage. A bank of counted detectors on a 12-wire hex lattice has been built, trained serially and loaded onto the Tang Nano 20K, where it answers over the serial link; on the 7-detector bank the board now matches the simulation exactly (5,250 of 5,250 test samples) when built without the chip's carry-chain arithmetic cells; see `HEXN_DESIGN.md` section 4a. A browser front end (`frontend/hexn_explorer_v1.html`) now trains the same counted bank, tests it against noise, and exports a training script that `tools/hexn_tang_script_v1.py` runs on the board (7 machine states, 140 of 140 test samples identical to the rules on the 18-wire hex7 build). The text below is as first written.*
+
+Scoping stage, with a first behavioural prototype. The Tang Nano 20K has arrived and
+the UniCell small unit (SD card + SPI bridge + ESP32) runs on it, which changes the
+pin budget and the ESP32 link: see `walkthrough-v0.2.md` (review, open questions,
+measured cost). `rtl/hexn_cell_v0.v` + `tests/test_hexn_cell_v0.py` are scoping
+prototypes that pin down assumptions, not decisions.
