@@ -42,6 +42,10 @@ def main():
         t = b.task(tid); ok = (t['state'] == 3 and not t['trap'] and t['a0'] == exp[k]); bad += not ok
         print('task %2d %-4s slot %d  %8d clocks (%.2f ms)  a0 %08x expect %08x  %s' %
               (tid, k, t['slot'], t['end'] - t['start'], (t['end'] - t['start']) / a.clk * 1e3, t['a0'], exp[k], 'ok' if ok else 'FAIL'))
+    ends = [b.task(t) for t in range(len(kinds))]
+    mk = max(t['end'] for t in ends) - min(t['start'] for t in ends)
+    known = sum(t['pred_known'] for t in ends)
+    print('SUMMARY batch %d clocks (%.2f ms) | waste_tail %d | waste_blocked %d | tasks with a duration prediction: %d of %d' % (mk, mk / a.clk * 1e3, c['waste_tail'], c['waste_blocked'], known, len(kinds)))
     print('RESULT', 'PASS' if (not bad and c['done'] == len(kinds) and c['launch_err'] == 0) else 'FAIL')
 
 if __name__ == '__main__': main()
