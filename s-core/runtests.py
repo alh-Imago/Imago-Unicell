@@ -348,9 +348,10 @@ def main():
     wd = args.dir
 
     for W in args.widths:
+        tbf = 'tb_rw.v' if args.core.endswith('_rw') else 'tb.v'
         r = subprocess.run(['iverilog', '-g2012', '-DCORE=' + args.core, '-P', 'tb.W=%d' % W,
                             '-o', os.path.join(wd, 'sim_%s_%d' % (args.core, W)),
-                            os.path.join(wd, 'tb.v'), os.path.join(wd, args.core + '.v')], capture_output=True, text=True)
+                            os.path.join(wd, tbf), os.path.join(wd, args.core + '.v')], capture_output=True, text=True)
         if r.returncode: print(r.stderr); sys.exit(1)
 
     progs = [(n, assemble(t)) for n, t in PROGRAMS.items()]

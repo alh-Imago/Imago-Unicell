@@ -1,6 +1,17 @@
-# S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1 and v2 working in simulation; not yet on a board. Newest first.
+# S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
 ## Read this first (most recent)
+
+**Array + dispatcher (12 Nov) -- width chosen per task works; critical tasks get ~3.7x lower latency at about the same total time.**
+- `uc_core_rw.v`: width chosen at task start. 276/276 regression runs match the reference; cycles equal v2 (+1 start cycle).
+- `sc_sys.v`: 32 slices, a core instance per slice, private regfile and data memory per instance, shared code image, submission and completion queues, and a dedicated dispatcher FSM (one-cycle aligned-group search, launches 3 cycles apart, strict FIFO). No interrupts; the host polls the completion queue.
+- Correctness gate: every task completed, none trapped, every a0 equal to the reference simulator's. Passed in every run (random widths and arrival times, and all policy runs).
+- Mean of 5 workloads of 48 tasks (makespan / critical latency / bulk latency, cycles): fixed W=32 66441 / 38259 / 33783; fixed W=8 43844 / 24078 / 21757; fixed W=4 longest-first 37306 / 29868 / 28039; critical W=8 + bulk W=4, critical first 44378 / 6496 / 26001.
+- Reading: fixed wide is the worst for throughput; width-per-task buys low latency for the critical class at ~1% makespan and ~19% worse bulk latency; best raw makespan came from a fixed narrow width with long tasks first. One workload family, one dispatcher policy.
+- Strict FIFO is fragile: a wide task among narrow ones can leave the pool mostly idle (9% utilisation seen). Backfill or reserved regions are the obvious next policies.
+- Note: at W=32 a core costs 128 slice-cycles per instruction versus 66 at W=1 (fixed fetch/setup passes), so per-slice throughput is better narrow.
+- Verilator is needed for the array runs (about 100x faster than iverilog here: 0.4 s versus 88 s for the same workload).
+- Not built: loader/readout over JTAG or UART, real memory banking, any area figure for the array.
 
 **v2 (12 Nov) -- pc, immediate and address register held as digit shift registers: 9-45% fewer LUTs, identical behaviour.**
 - Measured first: knocking out blocks of v1 at W=1 showed the indexed 32-bit register access cost ~270 of 469 LUT4 (pc write ~91, address write ~75, imm read ~46, pc read ~34, imm decode ~27).
@@ -29,9 +40,10 @@
 ## Decisions so far
 - One ISA (RV32I) at every width; width is a datapath property, not an ISA property.
 - Width is allocated at task start, not changed mid-task (re-slicing live state is disruptive).
-- No interrupts. Events, I/O cores and the task queue are designed on paper only.
+- No interrupts. Task queue and dispatcher are built (simulation); the 16x16 event table and I/O cores are designed on paper only.
+- Scheduling is done by a dedicated hardware dispatcher, not by a compute core, so no task ever runs scheduling code.
 
 ## Next (options, not started)
 1. Overlap the pc update with execute (needs a small second adder or serial incrementer); break down the remaining ~326-LUT floor.
-2. Task descriptor and width allocator (carve a core at task start, release at end).
+2. (done in simulation, see top entry) Task descriptor and width allocator. Next: backfill or reserved regions instead of strict FIFO; software scheduler variant.
 3. Event table (16x16) plus dedicated I/O cores, with the set/clear race handled (clear before reading the payload, or a per-source FIFO).

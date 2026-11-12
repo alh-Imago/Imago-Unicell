@@ -53,3 +53,42 @@ Not reported: Gowin (Tang Nano) LUT counts. yosys 0.33's Gowin mapper gave infla
 (hundreds of LUT1 and mux cells); use the Gowin tool for those.
 
 Tools: `synth_all.sh file module W` prints the iCE40 / Xilinx counts. `runtests.py --core uc_core_v2` tests v2.
+
+## Runtime-width core and the array (`uc_core_rw.v`, `sc_sys.v`)
+`uc_core_rw.v` chooses its width when a task starts (`lw_in` = log2 bits per cycle). Same 276-run regression
+as v1/v2: 276/276 match the reference, cycle counts equal v2's plus 1 cycle for the start handshake.
+It is a behavioural simulation model (32-bit buses masked to the current width), not an area-optimised design.
+
+`sc_sys.v`: 32 slices, a core instance per slice (startable at widths that divide its slice number), private
+register file and data memory per instance, shared read-only code image, submission queue, completion queue,
+and a dedicated dispatcher (hardware FSM). No interrupts: a core runs to EBREAK and goes idle; the host polls
+the completion queue (task id, a0, start/end cycle, width, trap flag).
+
+Dispatcher: pops a descriptor, finds the lowest aligned free group in one cycle, marks it busy, pulses start.
+Back-to-back launches are 3 cycles apart (measured). Strict FIFO: a head task that does not fit waits.
+
+Correctness gate: a run passes only if every task completed, none trapped, and every task's a0 equals the
+reference simulator's. All runs below passed it.
+
+### Scheduling experiment (S=32, 48 tasks, mean of 5 workloads, everything submitted at t=0)
+Tasks: sum, fib, crc, gcd, multiply, bubble-sort kernels (30 to 1500+ instructions); 25% flagged critical.
+
+| policy                         | makespan (cycles) | slice utilisation | critical latency | bulk latency |
+|--------------------------------|-------------------|-------------------|------------------|--------------|
+| all W=32, natural order        | 66441             | 100%              | 38259            | 33783        |
+| all W=8, natural order         | 43844             | 94%               | 24078            | 21757        |
+| all W=4, longest first         | 37306             | 99%               | 29868            | 28039        |
+| critical W=8 / bulk W=4, critical first | 44378    | 86%               | 6496             | 26001        |
+| critical W=16 / bulk W=4, critical first | 46353   | 86%               | 7631             | 28042        |
+
+What it shows (this workload family only, one dispatcher policy):
+- A narrower core costs more cycles per instruction but many more run at once: a fixed 32-wide core is the
+  slowest overall (4 cycles/instr but one task at a time; also the fixed fetch/setup cycles are 128 slice-cycles
+  per instruction at W=32 versus 66 at W=1).
+- Giving critical tasks W=8 and bulk tasks W=4 with critical tasks submitted first gives about 3.7x lower
+  critical latency than fixed W=8 for about the same makespan (+1%), at the price of about 19% higher bulk latency.
+- With strict FIFO, submission order matters a lot. Wide tasks submitted among narrow ones make the queue head
+  wait for a big free group: critical 32 / bulk 1 in natural order had 9% utilisation and a 468k-cycle makespan.
+- Longest-first with a fixed narrow width gave the best makespan (about 15% better than fixed W=8 natural order).
+
+Tools: `sched_tests.py` (needs Verilator; about 100x faster than iverilog for the 32-core system).

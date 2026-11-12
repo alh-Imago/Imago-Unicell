@@ -20,18 +20,26 @@ This is separate from the UniCell cell grid. The aim is to see whether a sea of 
 | `tb.v` | testbench: RAM models, runs a hex program, dumps registers, memory, cycles |
 | `runtests.py` | mini assembler, independent RV32I reference simulator, random program generator, runner |
 | `synth_all.sh` | area script (iCE40 and Xilinx counts via yosys) |
+| `uc_core_rw.v`, `tb_rw.v` | runtime-width core (width given at task start) and its testbench |
+| `sc_sys.v`, `tb_sys.v` | the array: 32 slices, queues and the dedicated dispatcher; system testbench |
+| `sched_tests.py` | task kernels, correctness gate and the scheduling experiments |
 | `results.md` | measured cycles per instruction and iCE40 area per width |
 | `latest.md` | current state of this line |
 
+## The array and the dispatcher
+
+`sc_sys.v` holds 32 slices. A task asks for a width (1, 2, 4, 8, 16 or 32 slices); a **dedicated dispatcher** (a small hardware state machine, so no compute core ever runs scheduling code) finds an aligned free group, starts a core of that width, and frees the slices when the task ends. Tasks wait in a submission queue; finished tasks are reported in a completion queue that the host polls. No interrupts, no preemption: a task runs to completion.
+
 ## Run it
 
-Needs `iverilog` (and `yosys` for area):
+Needs `iverilog` (and `yosys` for area, `verilator` for the array experiments):
 
 ```
 cd s-core
 python3 -I runtests.py                       # all programs, all widths (v1)
 python3 -I runtests.py --core uc_core_v2     # same tests on v2
 python3 -I runtests.py --widths 4 32 --random 10
+python3 sched_tests.py                       # array: correctness gate + scheduling experiments
 yosys -p "read_verilog -sv uc_core.v; chparam -set W 4 uc_core; hierarchy -top uc_core; synth_ice40 -top uc_core; stat"
 ```
 
