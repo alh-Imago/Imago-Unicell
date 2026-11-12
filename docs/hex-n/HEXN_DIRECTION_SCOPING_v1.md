@@ -1671,3 +1671,25 @@ Second look (3 windows): used on 119 recordings, 18 wrong answers put right, 21 
 2. The parts are too poor. In the toy models every bank named its part correctly most of the time (94% at 10% dropped) and the memory's job was to combine good parts. Here a part is "which of 10 single templates fits this window best", and that is often wrong or NONE. In 117 of the 143 chain errors the memory is wrong as well: the information is not in the codes for any way of combining them to find.
 3. "One" against "nine" is not rescued: the memory gets "one" right 53 times (chain 68).
 **What this says about the cohesive whole (section 98):** the upper layers (shared memory, monitor, input check) cannot make up for a weak bottom layer; in the toy they looked strong because the banks were strong. On real speech the place to work is the detectors themselves: more than one template per digit and window (section 93), so that the parts carry more. Not started.
+
+## 100. Several templates per digit and window: fits the training recordings better, the test set worse (12 Nov 2026)
+
+**Alan (08:37):** yes; the lower layers in their current state seem to have reached the limit of their capabilities, and maybe the upper layers we designed are suited more to the neural net side, even though they are very good at sorting out missing data or inference. The test proposed in section 99, in Python: `tools/hexn_chain_multi_v1.py DIR` (12 seconds).
+**Method.** The chain's own training and decision written again in a general form so the number of detectors can change; **with 1 template per digit it reproduces the kit's 936 of 1,079 exactly** (checked at the start of every run). New: K templates per digit and window. The recordings of a digit are split into K groups by how that window looks (k-means, fixed seed) and each group gets its own template ("one" said K ways); a digit's margin = the best of its K. The window code for the count tables is either the digit of the best template (tables as today) or the best template itself (the tables also see which way it was said).
+
+| templates per digit, code | test set, window 3 | training set, window 3 | "one" of 108 | "three" of 102 |
+|---|---|---|---|---|
+| 1 (the chain on the card) | **936 (86.7%)** | 3,129 (78.0%) | 68 | 76 |
+| 2, digit code | 882 (81.7%) | 3,218 (80.2%) | 81 | 57 |
+| 2, group code | 869 (80.5%) | 3,300 (82.3%) | 78 | 62 |
+| 3, digit code | 894 (82.9%) | 3,323 (82.8%) | 75 | 51 |
+| 3, group code | 893 (82.8%) | 3,397 (84.7%) | 78 | 52 |
+| 4, digit code | 871 (80.7%) | 3,249 (81.0%) | 77 | 46 |
+| 4, group code | 901 (83.5%) | **3,443 (85.8%)** | **89** | 53 |
+| 6, digit code | 827 (76.6%) | 3,145 (78.4%) | 79 | 42 |
+| 6, group code | 863 (80.0%) | 3,406 (84.9%) | 80 | 44 |
+
+**Reading. My proposal did not work, stated plainly:** more templates fit the recordings the chain was built from better (78.0% up to 85.8%) and the test set WORSE (86.7% down to between 76.6% and 83.5%). "One" does improve (68 up to 89 of 108, so its confusion with "nine" can be reduced this way), but "three" collapses (76 down to between 42 and 62) and the total falls.
+**What this corrects:** section 93 said the chain is under-fitted and that more detectors per digit were the way up. The first half holds (one template cannot hold the training set); the second does not follow as simply as I wrote it. Splitting a digit's recordings into groups leaves each template fewer examples to be counted from (about 200 recordings per digit in the half used for templates, so 50 per template at K = 4), and the extra templates learn the particular recordings rather than the digit. With this way of making templates (counting, three-valued weights) and this amount of data, added capacity turns into worse carry-over.
+**Where that leaves the limit (reasoned, not measured):** not in the tying of windows (section 99), and not lifted by more templates of the same kind. What remains untested is further back: how sound is turned into the 48 lines and 20 steps the detectors see (the front end), and the way templates are made (each template counted separately against all others, never trained on its mistakes). I cannot say from these figures which of the two it is.
+**On Alan's remark about the upper layers:** the figures agree in part. The upper layers (shared memory, monitor, input check, anomaly store) did well wherever the parts below them were good, and that was only in the toy, where the banks named their parts right most of the time. They are not tied to the neural network as such (in section 97 the gain came from input matching, a detector), but they need a bottom layer that is right most of the time, and on real speech neither the cell network (no class information, sections 55, 66) nor single templates per window give that yet.
