@@ -7,19 +7,21 @@ module tb_sys3;
     parameter BESTFIT = 1;
     parameter GUARD = 8;
     parameter MAXPASS = 8;
+    parameter LONGEST = 0;
     reg clk = 0, rst = 1;
     always #5 clk = ~clk;
 
     reg        h_push = 0;
     reg [15:0] h_tid = 0, h_code = 0;
+    reg [5:0]  h_prog = 0;
     reg [2:0]  h_lw = 0;
     reg        h_crit = 0;
     reg        ev_pl_we = 0, ev_set = 0;
     reg [7:0]  ev_pl_id = 0, ev_set_id = 0;
     reg [31:0] ev_pl_data = 0;
 
-    sc_sys_v3 #(.S(S), .PRIO(PRIO), .BESTFIT(BESTFIT), .GUARD(GUARD), .MAXPASS(MAXPASS)) dut (
-        .clk(clk), .rst(rst), .h_push(h_push), .h_tid(h_tid), .h_code(h_code), .h_lw(h_lw), .h_crit(h_crit),
+    sc_sys_v3 #(.S(S), .PRIO(PRIO), .BESTFIT(BESTFIT), .GUARD(GUARD), .MAXPASS(MAXPASS), .LONGEST(LONGEST)) dut (
+        .clk(clk), .rst(rst), .h_push(h_push), .h_tid(h_tid), .h_code(h_code), .h_prog(h_prog), .h_lw(h_lw), .h_crit(h_crit),
         .ev_pl_we(ev_pl_we), .ev_pl_id(ev_pl_id), .ev_pl_data(ev_pl_data),
         .ev_set(ev_set), .ev_set_id(ev_set_id));
 
@@ -30,7 +32,7 @@ module tb_sys3;
     always @(posedge clk) if (!rst) begin
         h_push <= 0;
         if (nxt < NT && tl[3*nxt] <= dut.cyc) begin
-            h_push <= 1; h_tid <= nxt; h_code <= tl[3*nxt+1]; h_lw <= tl[3*nxt+2][2:0]; h_crit <= tl[3*nxt+2][8];
+            h_push <= 1; h_tid <= nxt; h_code <= tl[3*nxt+1]; h_lw <= tl[3*nxt+2][2:0]; h_crit <= tl[3*nxt+2][8]; h_prog <= tl[3*nxt+2][14:9];
             nxt <= nxt + 1;
         end
     end
@@ -51,6 +53,8 @@ module tb_sys3;
         end
     end
 
+    reg [1023:0] profname;
+    reg [24:0] proftmp [0:511];
     initial begin
         nxt = 0; en = 0; epend = 0; ecur = 0; NE = 0;
         if (!$value$plusargs("prog=%s", progname))   begin $display("need +prog");   $finish; end
@@ -68,6 +72,11 @@ module tb_sys3;
         $readmemh(taskname, tl);
         repeat (4) @(posedge clk);
         rst <= 0;
+        if ($value$plusargs("profin=%s", profname)) begin
+            @(negedge clk);
+            $readmemh(profname, proftmp);
+            for (i = 0; i < dut.PROF; i = i + 1) dut.prof[i] = proftmp[i];
+        end
         while ((dut.done_count < NT || dut.ev_cnt < NE) && dut.cyc < 50000000) @(posedge clk);
         repeat (2) @(posedge clk);
         fd = $fopen(outname, "w");
@@ -82,12 +91,13 @@ module tb_sys3;
         $fdisplay(fd, "completed %0d", dut.done_count);
         $fdisplay(fd, "events %0d", dut.ev_cnt);
         for (i = 0; i < NT; i = i + 1)
-            $fdisplay(fd, "c %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d", i, dut.t_lw[i], dut.t_crit[i], dut.t_arr[i],
-                      dut.t_start[i], dut.t_end[i], dut.t_a0[i], dut.t_trap[i], dut.t_state[i], dut.t_slot[i]);
+            $fdisplay(fd, "c %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d", i, dut.t_lw[i], dut.t_crit[i], dut.t_arr[i],
+                      dut.t_start[i], dut.t_end[i], dut.t_a0[i], dut.t_trap[i], dut.t_state[i], dut.t_slot[i], dut.t_pred[i]);
         for (i = 0; i < dut.ev_cnt; i = i + 1)
             $fdisplay(fd, "e %0d %0d %0d", dut.ev_id[i], dut.ev_data[i], dut.ev_cyc[i]);
         for (i = 0; i < NE; i = i + 1)
             $fdisplay(fd, "x %0d %0d %0d", evt_line[i], evt_data[i], evt_setcyc[i]);
+        for (i = 0; i < dut.PROF; i = i + 1) $fdisplay(fd, "p %0d %0d", i, dut.prof[i]);
         $fclose(fd);
         $finish;
     end

@@ -1,5 +1,22 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## v3b: duration-profile store, longest-first bulk queue (simulation)
+
+Files: `sc_sys_v3.v` (parameter `LONGEST`, `PROF`), `tb_sys3.v`, `sched_tests_v3.py`, `matrix_v3_longest.txt`.
+
+**Built:** a dedicated profile RAM (512 x 25 bits: 64 program classes x 8 widths). The submitter gives a program-class id (`h_prog`); at completion the dispatcher writes the measured duration (end minus start from the task table) into the profile, averaging with the old value. At submit, the predicted duration picks one of 8 bulk buckets (about log2 of cycles; unknown goes to the top bucket so it is run and learned first). The dispatcher takes the highest non-empty bucket: no queue scan and no sorting. Critical tasks stay FIFO. LONGEST=0 is the old behaviour.
+
+**Measured (12 cases: batch/staggered x uniform/mixed widths x 3 seeds; profile learned on a different workload):**
+- Makespan vs FIFO bulk: better in 10 of 12 cases, worse in 2 (batch mixed seed 7: +12.7%; stagger uni seed 1 ~ -2%, see file for each row). Per-row numbers in `matrix_v3_longest.txt`.
+- Critical latency: unchanged within noise (critical class is untouched).
+- Cold start (empty profile): identical to FIFO in a batch, since every task is submitted before any has finished; staggered arrivals learn online and gain a little.
+- Prediction error is large (15% to 75% mean) because task size varies 2-5x inside one program class. A size hint from the submitter would be the next step.
+
+**An earlier version keyed the profile on the code address; that was wrong (each task has its own address, so it only worked as a per-task memory and collided). Replaced by the class id.**
+
+**Caveats:** 3 seeds; bucket resolution is a factor of 2; the prof RAM is cleared at reset only in simulation; not synthesised.
+
+
 ## v3: request table, task table, priority dispatcher (simulation, Verilator)
 
 Files: `sc_sys_v3.v`, `tb_sys3.v`, `sched_tests_v3.py`, `matrix_v3.txt`.

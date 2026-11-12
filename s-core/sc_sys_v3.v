@@ -35,7 +35,9 @@ module sc_sys_v3 #(
     parameter PRIO       = 1,
     parameter BESTFIT    = 1,
     parameter GUARD      = 8,
-    parameter MAXPASS    = 8
+    parameter MAXPASS    = 8,
+    parameter LONGEST    = 0,     // 1: bulk queue is 8 duration buckets, longest predicted first
+    parameter PROF       = 512    // duration-profile store: 64 program classes x 8 widths
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -47,6 +49,7 @@ module sc_sys_v3 #(
     input  wire        h_crit,
     // peripheral request lines
     input  wire        ev_pl_we,
+    input  wire [5:0]  h_prog,        // program-class id given by the submitter (profile key)
     input  wire [7:0]  ev_pl_id,
     input  wire [31:0] ev_pl_data,
     input  wire        ev_set,
@@ -65,12 +68,37 @@ module sc_sys_v3 #(
     reg        t_trap  [0:QD-1];
     reg [1:0]  t_state [0:QD-1];       // 0 empty, 1 waiting, 2 running, 3 done
     reg [5:0]  t_slot  [0:QD-1];       // leader slice the task ran on
+    reg [5:0]  t_prog  [0:QD-1];
+    reg [24:0] t_pred  [0:QD-1];       // {known, predicted duration} captured at submit
     reg [31:0] done_count;
 
     // ------------------------------------------------------------ queues (task ids)
     reg [15:0] qc [0:QD-1];
-    reg [15:0] qb [0:QD-1];
-    reg [31:0] qc_wr, qc_rd, qb_wr, qb_rd;
+    // bulk class = NB duration buckets, each its own FIFO of task ids (bucket 0 only when LONGEST=0)
+    localparam NB = 8;
+    reg [15:0] qk [0:NB*QD-1];
+    reg [31:0] kwr [0:NB-1];
+    reg [31:0] krd [0:NB-1];
+    reg [31:0] qc_wr, qc_rd;
+
+    // ------------------------------------------------------------ duration-profile store (dedicated RAM)
+    // key = {program class, width}; value = {known, running average of measured durations (cycles)}
+    reg [24:0] prof [0:PROF-1];
+    function [8:0] pkey(input [5:0] prog, input [2:0] lw);
+        pkey = {prog, lw};
+    endfunction
+    // bucket from predicted duration: unknown -> 7 (run first, to learn), else clamp(log2(d)-8, 0, 6)
+    function [2:0] bucket_of(input [24:0] p);
+        reg [23:0] d; integer k; reg [3:0] lg;
+        begin
+            d = p[23:0]; lg = 0;
+            for (k = 0; k < 24; k = k + 1) if (d[k]) lg = k;
+            if (!p[24])        bucket_of = 3'd7;
+            else if (lg < 8)   bucket_of = 3'd0;
+            else if (lg > 14)  bucket_of = 3'd6;
+            else               bucket_of = lg - 8;
+        end
+    endfunction
 
     // ------------------------------------------------------------ request table, payloads, event log
     reg [255:0] req_tab;
@@ -159,7 +187,16 @@ module sc_sys_v3 #(
     reg [31:0] crit_streak, bulk_pass;
 
     wire pend_c = (qc_wr != qc_rd);
-    wire pend_b = (qb_wr != qb_rd);
+    reg        pend_b;
+    reg [2:0]  hb;                    // highest non-empty bulk bucket
+    integer    hi_;
+    always @* begin
+        pend_b = 1'b0; hb = 3'd0;
+        for (hi_ = 0; hi_ < NB; hi_ = hi_ + 1)
+            if (kwr[hi_] != krd[hi_]) begin pend_b = 1'b1; hb = hi_[2:0]; end
+    end
+    wire [15:0] bhead = qk[hb*QD + (krd[hb] % QD)];
+    reg  [2:0]  cur_bk;
     wire [5:0]  cur_w  = 6'd1 << cur_lw;
     wire [63:0] cur_gm = (64'd1 << cur_w) - 64'd1;
 
@@ -210,20 +247,25 @@ module sc_sys_v3 #(
     reg         rs;
     reg [5:0]   wfree;
     reg [5:0]   wb;
+    reg [2:0]   pb;
+    reg [8:0]   pk;
+    reg [23:0]  dur;
     integer     pcnt, pi, fi;
     reg         first_crit, second_crit, second_avail, second_ok;
 
     always @(posedge clk) begin
         if (rst) begin
             slice_busy <= 64'd0; busy_l <= {S{1'b0}}; req_tab <= 256'd0; fin_sent <= {S{1'b0}};
-            qc_wr <= 0; qc_rd <= 0; qb_wr <= 0; qb_rd <= 0; done_count <= 0; ev_cnt <= 0;
+            qc_wr <= 0; qc_rd <= 0; done_count <= 0; ev_cnt <= 0;
             cyc <= 0; busy_slice_cycles <= 0; waste_blocked <= 0; waste_tail <= 0; search_cycles <= 0;
             launch_err <= 0; dispatches <= 0;
             dstate <= D_SLEEP; rescan <= 1'b0; ph <= 1'b0; cand <= 0;
             start_v <= {S{1'b0}}; halted_q <= {S{1'b1}};
             launch_entry <= 0; launch_lw <= 0;
             cur_is_crit <= 0; cur_tid <= 0; cur_code <= 0; cur_lw <= 0;
-            crit_streak <= 0; bulk_pass <= 0;
+            crit_streak <= 0; bulk_pass <= 0; cur_bk <= 0;
+            for (fi = 0; fi < NB; fi = fi + 1) begin kwr[fi] <= 0; krd[fi] <= 0; end
+            for (fi = 0; fi < PROF; fi = fi + 1) prof[fi] = 25'd0;   // simulation init (a real RAM keeps its contents across a reset)
         end else begin
             cyc      <= cyc + 1;
             halted_q <= halted_v;
@@ -246,9 +288,10 @@ module sc_sys_v3 #(
                 D_SLEEP: if (rs && (pend_c || pend_b)) begin
                     rs = 1'b0;
                     cur_is_crit <= first_crit;
-                    cur_tid     <= first_crit ? qc[qc_rd % QD] : qb[qb_rd % QD];
-                    cur_code    <= t_code[first_crit ? qc[qc_rd % QD] : qb[qb_rd % QD]];
-                    cur_lw      <= t_lw  [first_crit ? qc[qc_rd % QD] : qb[qb_rd % QD]];
+                    cur_tid     <= first_crit ? qc[qc_rd % QD] : bhead;
+                    cur_code    <= t_code[first_crit ? qc[qc_rd % QD] : bhead];
+                    cur_lw      <= t_lw  [first_crit ? qc[qc_rd % QD] : bhead];
+                    cur_bk      <= hb;
                     ph          <= 1'b0;
                     dstate      <= D_FIND;
                 end
@@ -261,9 +304,10 @@ module sc_sys_v3 #(
                         second_ok    = second_crit ? 1'b1 : (bulk_pass < MAXPASS);
                         if (!ph && second_avail && second_ok) begin
                             cur_is_crit <= second_crit;
-                            cur_tid     <= second_crit ? qc[qc_rd % QD] : qb[qb_rd % QD];
-                            cur_code    <= t_code[second_crit ? qc[qc_rd % QD] : qb[qb_rd % QD]];
-                            cur_lw      <= t_lw  [second_crit ? qc[qc_rd % QD] : qb[qb_rd % QD]];
+                            cur_tid     <= second_crit ? qc[qc_rd % QD] : bhead;
+                            cur_code    <= t_code[second_crit ? qc[qc_rd % QD] : bhead];
+                            cur_lw      <= t_lw  [second_crit ? qc[qc_rd % QD] : bhead];
+                            cur_bk      <= hb;
                             ph          <= 1'b1;
                         end else dstate <= D_SLEEP;
                     end
@@ -286,7 +330,7 @@ module sc_sys_v3 #(
                         crit_streak <= pend_b ? crit_streak + 1 : 0;
                         bulk_pass   <= 0;
                     end else begin
-                        qb_rd       <= qb_rd + 1;
+                        krd[cur_bk] <= krd[cur_bk] + 1;
                         crit_streak <= 0;
                         bulk_pass   <= pend_c ? bulk_pass + 1 : 0;
                     end
@@ -299,14 +343,18 @@ module sc_sys_v3 #(
 
             // ---- host push: task table entry, then the right queue
             if (h_push) begin
+                pb = LONGEST ? bucket_of(prof[pkey(h_prog, h_lw)]) : 3'd0;
                 t_code [h_tid] <= h_code;
                 t_lw   [h_tid] <= h_lw;
                 t_crit [h_tid] <= h_crit;
                 t_arr  [h_tid] <= cyc;
                 t_state[h_tid] <= 2'd1;
                 if (PRIO && h_crit) begin qc[qc_wr % QD] <= h_tid; qc_wr <= qc_wr + 1; end
-                else                begin qb[qb_wr % QD] <= h_tid; qb_wr <= qb_wr + 1; end
-                rs = 1'b1;
+                else begin
+                    qk[pb*QD + (kwr[pb] % QD)] <= h_tid; kwr[pb] <= kwr[pb] + 1;
+                end
+                t_pred[h_tid] <= prof[pkey(h_prog, h_lw)];
+                t_prog[h_tid] <= h_prog;                rs = 1'b1;
             end
 
             // ---- watcher: service one request per cycle (clear first, then apply new sets)
@@ -322,6 +370,10 @@ module sc_sys_v3 #(
                     t_a0   [own_tid[wb]] <= a0_v[wb*32 +: 32];
                     t_trap [own_tid[wb]] <= trap_v[wb];
                     t_state[own_tid[wb]] <= 2'd3;
+                    pk  = pkey(t_prog[own_tid[wb]], t_lw[own_tid[wb]]);
+                    dur = cyc[23:0] - t_start[own_tid[wb]][23:0];
+                    // first sample is stored as is; later ones are averaged with the old value
+                    prof[pk] <= prof[pk][24] ? {1'b1, ({1'b0, prof[pk][23:0]} + {1'b0, dur}) >> 1} : {1'b1, dur};
                     done_count <= done_count + 1;
                     rs = 1'b1;                   // capacity changed: wake the dispatcher
                 end else begin

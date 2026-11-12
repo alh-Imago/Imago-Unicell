@@ -11,15 +11,16 @@ import sched_tests as st          # kernels, workloads, reference results
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S = 32
+KINDS = ['sum', 'fib', 'crc', 'gcd', 'mul', 'sort']   # program-class id given at submit
 _built = {}
 
-def build(S_, prio, bestfit, guard=8, maxpass=8):
-    key = (S_, prio, bestfit, guard, maxpass)
+def build(S_, prio, bestfit, longest=0, guard=8, maxpass=8):
+    key = (S_, prio, bestfit, longest, guard, maxpass)
     if key not in _built:
-        d = os.path.join(HERE, 'vl3_S%d_P%d_B%d_G%d_M%d' % key)
+        d = os.path.join(HERE, 'vl3_S%d_P%d_B%d_L%d_G%d_M%d' % key)
         r = subprocess.run(['verilator', '--binary', '--timing', '-Wno-fatal', '-Wno-lint', '-Wno-WIDTH', '-Wno-UNOPTFLAT',
                             '-Wno-INITIALDLY', '-Wno-BLKSEQ', '-Wno-CASEINCOMPLETE', '-Wno-MULTIDRIVEN', '-Wno-BLKANDNBLK',
-                            '--top-module', 'tb_sys3', '-GS=%d' % S_, '-GPRIO=%d' % prio, '-GBESTFIT=%d' % bestfit,
+                            '--top-module', 'tb_sys3', '-GS=%d' % S_, '-GPRIO=%d' % prio, '-GBESTFIT=%d' % bestfit, '-GLONGEST=%d' % longest,
                             '-GGUARD=%d' % guard, '-GMAXPASS=%d' % maxpass, '-O2', '--Mdir', d, '-o', 'simv',
                             os.path.join(HERE, 'tb_sys3.v'), os.path.join(HERE, 'sc_sys_v3.v'),
                             os.path.join(HERE, 'uc_core_rw.v')], capture_output=True, text=True)
@@ -27,24 +28,28 @@ def build(S_, prio, bestfit, guard=8, maxpass=8):
         _built[key] = os.path.join(d, 'simv')
     return _built[key]
 
-def run3(tasks, lws, arrivals, cfg, nevents=0, tag='v3'):
+def run3(tasks, lws, arrivals, cfg, nevents=0, tag='v3', profile=None):
     exe = build(S, *cfg)
     image, bases = [], []
     for t in tasks:
         bases.append(len(image)); image += t['words']
     hexf, tskf, outf = [os.path.join(HERE, '%s.%s' % (tag, e)) for e in ('img', 'tsk', 'out')]
     open(hexf, 'w').write('\n'.join('%08x' % w for w in image) + '\n')
-    open(tskf, 'w').write('\n'.join('%08x\n%08x\n%08x' % (arrivals[i], bases[i], lws[i] | (int(tasks[i]['critical']) << 8))
+    open(tskf, 'w').write('\n'.join('%08x\n%08x\n%08x' % (arrivals[i], bases[i], lws[i] | (int(tasks[i]['critical']) << 8) | (KINDS.index(tasks[i]['kind']) << 9))
                                     for i in range(len(tasks))) + '\n')
-    subprocess.run([exe, '+prog=' + hexf, '+tasks=' + tskf, '+ntasks=%d' % len(tasks), '+nevents=%d' % nevents, '+out=' + outf],
+    extra = []
+    if profile is not None:
+        pf = os.path.join(HERE, tag + '.prof'); open(pf, 'w').write('\n'.join('%07x' % v for v in profile) + '\n'); extra = ['+profin=' + pf]
+    subprocess.run([exe] + extra + ['+prog=' + hexf, '+tasks=' + tskf, '+ntasks=%d' % len(tasks), '+nevents=%d' % nevents, '+out=' + outf],
                    check=True, capture_output=True)
-    res = dict(c={}, e=[], x=[])
+    res = dict(c={}, e=[], x=[], p=[])
     for line in open(outf):
         p = line.split()
         if p[0] == 'c':
-            tid, lw, crit, arr, stt_, en, a0, trap, state, slot = map(int, p[1:])
-            res['c'][tid] = dict(lw=lw, crit=crit, arrival=arr, start=stt_, end=en, a0=a0, trap=trap, state=state, slot=slot)
+            tid, lw, crit, arr, stt_, en, a0, trap, state, slot, pred = map(int, p[1:])
+            res['c'][tid] = dict(lw=lw, crit=crit, arrival=arr, start=stt_, end=en, a0=a0, trap=trap, state=state, slot=slot, pred=pred)
         elif p[0] == 'e': res['e'].append(tuple(map(int, p[1:])))
+        elif p[0] == 'p': res['p'].append(int(p[2]))
         elif p[0] == 'x': res['x'].append(tuple(map(int, p[1:])))
         else: res[p[0]] = int(p[1])
     return res

@@ -1,0 +1,15 @@
+Duration profile keyed by program class + width. PRIO=1 BESTFIT=1.
+FIFO = bulk in arrival order. cold = LONGEST, empty profile. warm = LONGEST, profile learned on a DIFFERENT workload (seed+100).
+arrival  widths seed       FIFO      cold      warm | critLat F/W | bulkLat F/W | blocked% F/W | predErr
+batch    uni   s1        43502     43502     42470 |  11330/11330  |  24521/23796  |  0.1/0.1  | 74.6%
+batch    uni   s3        44327     44327     42898 |   7202/7202   |  24175/26015  |  0.1/0.1  | 14.6%
+batch    uni   s7        52714     52714     44704 |   7177/7177   |  25016/22681  |  0.1/0.1  | 49.5%
+batch    mixed s1        93864     93864     85741 |   8013/7705   |  34041/33923  |  7.4/6.7  | 39.0%
+batch    mixed s3        59971     59971     48420 |   7202/7202   |  30152/25917  | 12.4/9.3  | 73.3%
+batch    mixed s7        98852     98852    111450 |   7467/7577   |  31117/35222  |  1.1/4.3  | 73.6%
+stagger  uni   s1        47828     45973     46710 |  14205/14177  |   8419/8915   |  4.8/3.7  | 68.7%
+stagger  uni   s3        45693     44649     42606 |   7609/7899   |   8316/9698   |  3.4/2.8  | 23.8%
+stagger  uni   s7        51126     50790     50613 |   7444/7416   |   8032/9637   |  2.4/1.3  | 66.9%
+stagger  mixed s1        91110     91042     86276 |   5229/5238   |  15768/16452  |  2.4/3.4  | 39.9%
+stagger  mixed s3        60272     56513     52475 |   4047/3921   |  15222/15948  |  7.9/19.6 | 45.1%
+stagger  mixed s7       108973    108979    107681 |   7538/7538   |  26028/21784  | 15.4/13.5 | 70.2%
