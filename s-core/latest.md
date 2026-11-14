@@ -1,5 +1,16 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## v8: one shared code store for all slices (2026-11-14; simulation + place-and-route; not yet on the board)
+
+**Idea (Alan):** code that is the same for every core should exist once. v7 held a private copy of the code in every slice (64 words x 32 bits in LUT-RAM each); v8 holds ONE copy and a small fetch register per slice.
+**How:** `sc_sys_v8.v` (clone of v7) + `uc_core_v2t.v` (clone of uc_core_v2s with one extra output, `fetching` = state is FETCH; logic unchanged). The shared store is LUT-RAM with asynchronous read, so a slot is ONE clock: a free-running slot counter lets slice 0, 1, ... S-1 load its 32-bit fetch register `fw` in turn (no arbitration, wait at most S-1 clocks). While a core runs, its slice fetches the NEXT sequential word (`cur_a + 1`; `cur_a` is latched at FETCH because the core's pc rotates mid-instruction), so straight-line code finds its word already there. A branch or jump changes the address, so the core is stalled through its own `ce` input until its slot comes. A host code write invalidates every fetch register. The host still loads the code with the same `W` command (now one copy, not S).
+**Results:** gate v7 vs v8 (3 workloads x 24 tasks, S=32 in the harness): all 72 tasks correct; durations are NOT identical any more (by design): +1% to +7% at S=32, because every taken branch can wait up to S-1 clocks for its slot. Measured on one sum task: extra clocks vs v7 = 0 at S=1 and S=2, 240 at S=8 (60 loop iterations x 4 clocks, 0.96%), 256 at S=16. Whole-board simulation `POOL=4 python3 test_board_sim.py --S 8 --imw 64 --dmw 16 --lw 0 --hold`: 10 of 10 ok (e.g. sum 24403 vs 24165 clocks in v7). Place-and-route (64 code words, 16 data words), nextpnr, no hold violations:
+| S | LUT4 | ALU | DFF | LUT-RAM blocks | BSRAM | Fmax |
+| 8 (v7) | 13,706 | 2,876 | 4,970 | 377 | 24 | 54.5 |
+| 8 (v8) | 12,887 | 2,950 | 5,077 | 153 | 24 | 54.3 |
+| 10 (v8) | 14,921 | 3,376 | 5,903 | 153 | 30 | 53.8 |
+S=10 places and routes with v8 (it did not with v6/v7). **S=12 fails ("Unable to find legal placement ... utilisation limit"); S=16 fails earlier: no block-RAM site left for the register file ("no BELs remaining ... SP"; 3 blocks per slice x 16 = 48 > 46).** The logic (LUT4 + ALU cells) is now the limit at about 11 slices; block RAM would be the limit at 15. LUT-RAM no longer grows with the slice count. Per-slice LUT4 is unchanged: the saving is the code memory. **Not yet run on the board.** Open: the measured wait is for 64 shared words; a bigger store (256+ words) would be block RAM (32-bit-wide shape only) or more LUT-RAM; prefetch beyond one word, and base/limit protection, are not done.
+
 ## v7: hold/go, so all tasks can be loaded first and released together (2026-11-14; simulation + place-and-route; not yet on the board)
 
 **Why:** the UART delivers tasks slowly, so on the board each task finished before the next arrived and only slots 0 and 1 ever ran (v6 board result: 10 of 10 ok, but 2 of 8 slices exercised). Hold/go loads the whole batch, then starts it at once, so every slice runs and the dispatcher's ordering (critical first, longest-first buckets) becomes visible.

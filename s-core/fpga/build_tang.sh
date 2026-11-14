@@ -2,7 +2,7 @@
 # build_tang.sh - synthesise, place-and-route and pack the S-Core single-set design for the Tang Nano 20K,
 # with the same open flow as tools/gowin_sizing/build_smoke_bitstream.sh (yosys synth_gowin -nowidelut ->
 # nextpnr-himbaechel-gowin -> gowin_pack).  Needs: pip install yowasp-yosys yowasp-nextpnr-himbaechel-gowin apycula
-# Env: POOL=1 builds the v5 pool of 1-bit cores; POOL=2 the v6 pool (32-bit-wide block-RAM memories, the one that works on the board); POOL=3 v7 = v6 plus hold/go (host commands H and G); NOBRAM=1 keeps every memory in LUT-RAM (no block RAM), for isolating block-RAM problems.
+# Env: POOL=1 builds the v5 pool of 1-bit cores; POOL=2 the v6 pool (32-bit-wide block-RAM memories, the one that works on the board); POOL=3 v7 = v6 plus hold/go (host commands H and G); POOL=4 v8 = v7 with one shared code store; NOBRAM=1 keeps every memory in LUT-RAM (no block RAM), for isolating block-RAM problems.
 # Usage: ./build_tang.sh [outdir] [S] [IMEM_WORDS] [DMW] [QD] [FINE]      defaults: build 1 128 16 16 0   (FINE=1: half-octave duration buckets)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -12,6 +12,7 @@ SRCS="$HERE/../uc_core_fp.v $HERE/../sc_sys_v4.v"; BRIDGE="$HERE/host_bridge.v"
 if [ "${POOL:-0}" = 1 ]; then TOP=sc_top_pool; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v5.v"; fi   # POOL=1: pool of fixed 1-bit cores (v5)
 if [ "${POOL:-0}" = 2 ]; then TOP=sc_top_pool6; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v6.v"; fi   # POOL=2: v6, memories in 32-bit-wide block RAM
 if [ "${POOL:-0}" = 3 ]; then TOP=sc_top_pool7; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v7.v"; BRIDGE="$HERE/host_bridge_v2.v"; fi   # POOL=3: v7 = v6 plus hold/go
+if [ "${POOL:-0}" = 4 ]; then TOP=sc_top_pool8; SRCS="$HERE/../uc_core_v2t.v $HERE/../sc_sys_v8.v"; BRIDGE="$HERE/host_bridge_v2.v"; fi   # POOL=4: v8 = v7 plus ONE shared code store for all slices
 mkdir -p "$OUT"; cd "$OUT"
 if [ -n "${NOBRAM:-}" ] && [ "${POOL:-0}" = 1 ]; then   # force LUT-RAM (distributed) instead of block RAM: NOBRAM=1 all pool memories, =rf the register file only, =dm the data memory only
   case "$NOBRAM" in

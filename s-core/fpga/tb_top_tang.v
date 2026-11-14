@@ -7,7 +7,7 @@ module tb_top_tang;
     reg clk = 0; always #5 clk = ~clk;
     reg rx = 1'b1;
     wire tx; wire [5:0] led_n;
-    `ifdef POOL7TOP sc_top_pool7 `elsif POOL6TOP sc_top_pool6 `elsif POOLTOP sc_top_pool `else sc_top_tang `endif #(.S(S), .QD(QD), .IMEM_WORDS(IMW), .DMW(DMW), .PROF(PROF), .BAUD_DIV(DIV), .LONGEST(LONGEST), .FINE(FINE)) dut (
+    `ifdef POOL8TOP sc_top_pool8 `elsif POOL7TOP sc_top_pool7 `elsif POOL6TOP sc_top_pool6 `elsif POOLTOP sc_top_pool `else sc_top_tang `endif #(.S(S), .QD(QD), .IMEM_WORDS(IMW), .DMW(DMW), .PROF(PROF), .BAUD_DIV(DIV), .LONGEST(LONGEST), .FINE(FINE)) dut (
         .clk(clk), .uart_rx(rx), .uart_tx(tx), .led_n(led_n));
 
     task send_byte(input [7:0] b);
