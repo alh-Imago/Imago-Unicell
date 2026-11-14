@@ -51,11 +51,14 @@ def main():
             raw = s.readline()
             t = raw.decode('ascii', 'ignore').strip()
             seen.append(raw)
-            if t.startswith('P') and len(t) == 189: line = t; break
+            if t.startswith('P') and len(t) == 153:
+                sys.exit('This is the OLD probe (first version, report starts with P, 153 characters): the board is still running the old bitstream.\n'
+                         'Unplug the Tang USB lead for 5 seconds, plug it back, then:  openFPGALoader -b tangnano20k build_probe/bram_probe_top.fs  and run this again.')
+            if t.startswith('Q') and len(t) == 189: line = t; break
         if not line:
             print('no complete report line received. What arrived (%d reads):' % len(seen))
             for r in seen[:6]: print('  %3d bytes: %r' % (len(r), r[:90]))
-            sys.exit('(a good report is 189 characters starting with P; empty reads mean nothing is being sent)')
+            sys.exit('(a good report is 189 characters starting with Q; empty reads mean nothing is being sent)')
     h = line.strip()[1:]
     assert len(h) == 188, 'expected 188 hex digits, got %d' % len(h)
     steps = int(h[:8], 16); recs = [fields(h[8 + 36 * i: 8 + 36 * (i + 1)]) for i in range(5)]
