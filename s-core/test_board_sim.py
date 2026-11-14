@@ -5,18 +5,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'fpga'))
 import sched_tests as st, host_sc as hs
 rt = st.rt
+POOL = os.environ.get('POOL') == '1'      # POOL=1: simulate the v5 pool top (sc_top_pool) instead of sc_top_tang
 
 PROGS = [('sum', st.k_sum(60)), ('fib', st.k_fib(40)), ('crc', st.k_crc(0x1234567, 2)),
          ('gcd', st.k_gcd(1071, 462)), ('mul', st.k_mul(4321, 8765)), ('sort', st.k_sort(8, 99999))]
 
 def build(S=8, QD=16, IMW=256, DMW=64, PROF=64, DIV=8, LONGEST=1, FINE=0, tag='board'):
-    d = os.path.join(HERE, 'vl_%s_S%d_D%d' % (tag, S, DMW))
+    d = os.path.join(HERE, 'vl_%s%s_S%d_D%d' % (tag, 'P' if POOL else '', S, DMW))
     f = os.path.join(HERE, 'fpga')
     r = subprocess.run(['verilator', '--binary', '--timing', '-Wno-fatal', '-Wno-lint', '-Wno-WIDTH', '-Wno-UNOPTFLAT', '-Wno-INITIALDLY',
-        '-Wno-BLKSEQ', '-Wno-CASEINCOMPLETE', '-Wno-MULTIDRIVEN', '-Wno-BLKANDNBLK', '--top-module', 'tb_top_tang',
+        '-Wno-BLKSEQ', '-Wno-CASEINCOMPLETE', '-Wno-MULTIDRIVEN', '-Wno-BLKANDNBLK', '--top-module', 'tb_top_tang', *(['-DPOOLTOP'] if POOL else []),
         '-GS=%d' % S, '-GQD=%d' % QD, '-GIMW=%d' % IMW, '-GDMW=%d' % DMW, '-GPROF=%d' % PROF, '-GDIV=%d' % DIV, '-GLONGEST=%d' % LONGEST, '-GFINE=%d' % FINE,
-        '-O2', '--Mdir', d, '-o', 'simv', f + '/tb_top_tang.v', f + '/sc_top_tang.v', f + '/host_bridge.v', f + '/uart.v',
-        os.path.join(HERE, 'sc_sys_v4.v'), os.path.join(HERE, 'uc_core_fp.v')], capture_output=True, text=True)
+        '-O2', '--Mdir', d, '-o', 'simv', f + '/tb_top_tang.v', f + ('/sc_top_pool.v' if POOL else '/sc_top_tang.v'), f + '/host_bridge.v', f + '/uart.v',
+        os.path.join(HERE, 'sc_sys_v5.v' if POOL else 'sc_sys_v4.v'), os.path.join(HERE, 'uc_core_v2s.v' if POOL else 'uc_core_fp.v')], capture_output=True, text=True)
     if r.returncode: print(r.stdout[-1500:], r.stderr[-1500:]); sys.exit(1)
     return os.path.join(d, 'simv')
 
