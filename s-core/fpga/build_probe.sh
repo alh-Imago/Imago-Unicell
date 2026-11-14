@@ -1,10 +1,10 @@
 #!/bin/bash
 # build_probe.sh - build the block-RAM probe (bram_probe_top) for the Tang Nano 20K.
 # Same open flow as build_tang.sh.  Usage: ./build_probe.sh [outdir]      (default: fpga/build_probe)
-# Then:  openFPGALoader -b tangnano20k <outdir>/bram_probe_top.fs   and   python3 read_probe.py /dev/ttyUSB1
+# TOP=bram_char_top ./build_probe.sh builds the characterisation design instead (output fpga/build_char_top).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-OUT=${1:-$HERE/build_probe}; DEVICE="GW2AR-LV18QN88C8/I7"; TOP=bram_probe_top; SEED=${SEED:-1}
+TOP=${TOP:-bram_probe_top}; OUT=${1:-$HERE/build_${TOP#bram_}}; DEVICE="GW2AR-LV18QN88C8/I7"; SEED=${SEED:-1}
 mkdir -p "$OUT"; cd "$OUT"
 YS=$(command -v yosys || command -v yowasp-yosys)
 echo "== 1/3 yosys synth_gowin -nowidelut =="
