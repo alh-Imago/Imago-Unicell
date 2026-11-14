@@ -1,5 +1,13 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## v5: pool of fixed 1-bit cores (2026-11-14, simulation + place-and-route; not yet on the board)
+
+Files: `uc_core_v2s.v` (uc_core_v2 + start/entry/ce, idle in HALT), `sc_sys_v5.v` (v4 scheduler with W=1 cores and plain 1-bit register file / data memory in block RAM), `tb_sys5.v`, `fpga/sc_top_pool.v`, `build_tang.sh` (`POOL=1 ./build_tang.sh out S IMEM DMW QD`), harness flag `v5=True`. v4 files untouched. Every task runs at 1 bit per cycle whatever its lw (no fusion in v5).
+**Correctness:** same reference gate as v4, 3 workloads x 24 tasks, lw=0: all ok; every task has exactly the same duration in clocks as under v4 (makespans identical).
+**Size (native yosys + nextpnr, GW2AR-LV18, 27 MHz target):** S=8 pool, 32 code words, 16 data words: **10,637 of 20,736 LUT4, 24 of 46 block RAM, 249 of 648 LUT-RAM, Fmax 54.6 MHz.** For comparison v4 S=2 needed 17,575 LUT4. Synthesis-only estimates (LUT sites incl. carry cells, memories in block RAM): S=1 5,182, S=2 6,178, S=4 7,760, S=8 10,881; per extra slice about 800 LUT sites and 3 block RAMs (register file x2 and data memory; code memory goes to LUT-RAM at 32 words).
+**Found on the way:** yosys maps a 1-bit-wide memory to the dual-port block-RAM type, which this nextpnr rejects ("Unsupported BSRAM type DP"); the register file is therefore two single-port blocks (read in clock 0 of a step, write in clock 1; a step is 2 clocks). A 1-bit memory left alone goes to LUT-RAM (4x wasteful: 441 blocks at S=2); forced with `(* ram_style = "block" *)`.
+**Board batch, FINE=1 (Alan, 2026-11-14):** second run 10 of 10 predictions, identical schedule and waste_tail 99,567. Not a fault: the UART delivers one task about every 19k clocks, and the tasks run 6k-48k clocks, so the queue never holds more than one task (search_cycles 20 for 10 dispatches) and there is nothing to reorder. A hold/go command to load the queue first is needed to test ordering on the board.
+
 ## Finer duration buckets (FINE=1), 2026-11-14 (simulation only; not yet on the board)
 
 New parameter `FINE` (default 0 = old behaviour) in `sc_sys_v3.v` / `sc_sys_v4.v`, passed through the testbenches, `sc_top_tang.v` and `build_tang.sh` (6th argument). FINE=1: 15 half-octave buckets (2*(log2 d - 8) + next lower bit) plus unknown, instead of 7 whole-octave ones plus unknown, so sum (24k), fib (32k) and crc (48k) no longer share a bucket.
