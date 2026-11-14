@@ -2,7 +2,7 @@
 # build_tang.sh - synthesise, place-and-route and pack the S-Core single-set design for the Tang Nano 20K,
 # with the same open flow as tools/gowin_sizing/build_smoke_bitstream.sh (yosys synth_gowin -nowidelut ->
 # nextpnr-himbaechel-gowin -> gowin_pack).  Needs: pip install yowasp-yosys yowasp-nextpnr-himbaechel-gowin apycula
-# Env: POOL=1 builds the v5 pool of 1-bit cores; NOBRAM=1 keeps every memory in LUT-RAM (no block RAM), for isolating block-RAM problems.
+# Env: POOL=1 builds the v5 pool of 1-bit cores; POOL=2 the v6 pool (32-bit-wide block-RAM memories, the one that works on the board); NOBRAM=1 keeps every memory in LUT-RAM (no block RAM), for isolating block-RAM problems.
 # Usage: ./build_tang.sh [outdir] [S] [IMEM_WORDS] [DMW] [QD] [FINE]      defaults: build 1 128 16 16 0   (FINE=1: half-octave duration buckets)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -10,6 +10,7 @@ OUT=${1:-$HERE/build}; S=${2:-1}; IMW=${3:-128}; DMW=${4:-16}; QD=${5:-16}; FINE
 DEVICE="GW2AR-LV18QN88C8/I7"; TOP=sc_top_tang; SEED=${SEED:-1}
 SRCS="$HERE/../uc_core_fp.v $HERE/../sc_sys_v4.v"
 if [ "${POOL:-0}" = 1 ]; then TOP=sc_top_pool; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v5.v"; fi   # POOL=1: pool of fixed 1-bit cores (v5)
+if [ "${POOL:-0}" = 2 ]; then TOP=sc_top_pool6; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v6.v"; fi   # POOL=2: v6, memories in 32-bit-wide block RAM
 mkdir -p "$OUT"; cd "$OUT"
 if [ -n "${NOBRAM:-}" ] && [ "${POOL:-0}" = 1 ]; then   # force LUT-RAM (distributed) instead of block RAM: NOBRAM=1 all pool memories, =rf the register file only, =dm the data memory only
   case "$NOBRAM" in
@@ -33,7 +34,7 @@ PNR=$(command -v nextpnr-himbaechel || command -v nextpnr-himbaechel-gowin || co
 command -v gowin_pack >/dev/null || { echo "gowin_pack not found. Install:  pip install apycula"; exit 1; }
 echo "using $PNR"
 $PNR --device "$DEVICE" --vopt family=GW2A-18C --vopt cst="$TOP.cst" \
-  --seed $SEED --json "$TOP.json" --write "${TOP}_routed.json" --report "${TOP}_report.json" --freq 27 2>&1 | tail -25
+  --seed $SEED --json "$TOP.json" --write "${TOP}_routed.json" --report "${TOP}_report.json" --freq 27 2>&1 | tee pnr.log | tail -25
 echo "== 3/3 gowin_pack =="
 gowin_pack -d "$DEVICE" -o "$TOP.fs" -s "$TOP.cst" "${TOP}_routed.json"
 python3 - "$TOP" << 'PYEOF'
