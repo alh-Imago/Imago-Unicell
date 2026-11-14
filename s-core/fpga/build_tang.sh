@@ -11,6 +11,10 @@ DEVICE="GW2AR-LV18QN88C8/I7"; TOP=sc_top_tang; SEED=${SEED:-1}
 SRCS="$HERE/../uc_core_fp.v $HERE/../sc_sys_v4.v"
 if [ "${POOL:-0}" = 1 ]; then TOP=sc_top_pool; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v5.v"; fi   # POOL=1: pool of fixed 1-bit cores (v5)
 mkdir -p "$OUT"; cd "$OUT"
+if [ -n "${NOBRAM:-}" ] && [ "${POOL:-0}" = 1 ]; then   # strip the block-RAM attribute so every memory stays in LUT-RAM
+  sed 's/(\* ram_style = "block" \*) //g' "$HERE/../sc_sys_v5.v" > sc_sys_v5_nobram.v
+  SRCS="$HERE/../uc_core_v2s.v $(pwd)/sc_sys_v5_nobram.v"
+fi
 YS=$(command -v yosys || command -v yowasp-yosys)   # native yosys first: the YoWASP build runs out of stack on this design
 echo "== 1/3 yosys synth_gowin -nowidelut  (S=$S IMEM_WORDS=$IMW DMW=$DMW QD=$QD) =="
 $YS -q -l synth.log -p "read_verilog -sv $SRCS $HERE/uart.v $HERE/host_bridge.v $HERE/$TOP.v ; \
