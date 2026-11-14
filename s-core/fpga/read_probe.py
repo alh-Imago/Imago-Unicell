@@ -47,17 +47,19 @@ def main():
         s = serial.Serial(port, 115200, timeout=2)
         s.reset_input_buffer()
         line = ''; seen = []
-        for _ in range(12):
+        import time; t_end = time.time() + 20
+        while time.time() < t_end:
             raw = s.readline()
             t = raw.decode('ascii', 'ignore').strip()
             seen.append(raw)
+            if len(seen) > 40: seen.pop(0)
             if t.startswith('P') and len(t) == 153:
                 sys.exit('This is the OLD probe (first version, report starts with P, 153 characters): the board is still running the old bitstream.\n'
                          'Unplug the Tang USB lead for 5 seconds, plug it back, then:  openFPGALoader -b tangnano20k build_probe/bram_probe_top.fs  and run this again.')
             if t.startswith('Q') and len(t) == 189: line = t; break
         if not line:
-            print('no complete report line received. What arrived (%d reads):' % len(seen))
-            for r in seen[:6]: print('  %3d bytes: %r' % (len(r), r[:90]))
+            print('no complete report line received. What arrived (last lines of %d reads; factory-demo text such as Memtest means our design is not running):' % len(seen))
+            for r in seen[-6:]: print('  %3d bytes: %r' % (len(r), r[:90]))
             sys.exit('(a good report is 189 characters starting with Q; empty reads mean nothing is being sent)')
     h = line.strip()[1:]
     assert len(h) == 188, 'expected 188 hex digits, got %d' % len(h)
