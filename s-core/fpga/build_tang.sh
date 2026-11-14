@@ -11,13 +11,13 @@ DEVICE="GW2AR-LV18QN88C8/I7"; TOP=sc_top_tang; SEED=${SEED:-1}
 SRCS="$HERE/../uc_core_fp.v $HERE/../sc_sys_v4.v"
 if [ "${POOL:-0}" = 1 ]; then TOP=sc_top_pool; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v5.v"; fi   # POOL=1: pool of fixed 1-bit cores (v5)
 mkdir -p "$OUT"; cd "$OUT"
-if [ -n "${NOBRAM:-}" ] && [ "${POOL:-0}" = 1 ]; then   # strip the block-RAM attribute: NOBRAM=1 all pool memories, =rf the register file only, =dm the data memory only
+if [ -n "${NOBRAM:-}" ] && [ "${POOL:-0}" = 1 ]; then   # force LUT-RAM (distributed) instead of block RAM: NOBRAM=1 all pool memories, =rf the register file only, =dm the data memory only
   case "$NOBRAM" in
     rf) PAT='/reg rf_a/' ;;
     dm) PAT='/reg dm/' ;;
     *)  PAT='/ram_style/' ;;
   esac
-  sed "$PAT"' s/(\* ram_style = "block" \*) //g' "$HERE/../sc_sys_v5.v" > sc_sys_v5_nobram.v
+  sed "$PAT"' s/ram_style = "block"/ram_style = "distributed"/g' "$HERE/../sc_sys_v5.v" > sc_sys_v5_nobram.v
   SRCS="$HERE/../uc_core_v2s.v $(pwd)/sc_sys_v5_nobram.v"
 fi
 YS=$(command -v yosys || command -v yowasp-yosys)   # native yosys first: the YoWASP build runs out of stack on this design
