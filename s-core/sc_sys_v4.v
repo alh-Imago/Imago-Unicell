@@ -46,6 +46,7 @@ module sc_sys_v4 #(
     parameter GUARD      = 8,
     parameter MAXPASS    = 8,
     parameter LONGEST    = 0,     // 1: bulk queue is 8 duration buckets, longest predicted first
+    parameter FINE       = 0,     // 1: 15 half-octave duration buckets (+unknown) instead of 7 whole-octave ones
     parameter PROF       = 512,   // duration-profile store: 64 program classes x 8 widths
     parameter DMW        = 1024,  // data words (32-bit) per slice, power of 2
     parameter EVB        = 8      // event payload index bits (lines 64.. use ev_pl[id mod 2^EVB])
@@ -102,7 +103,7 @@ module sc_sys_v4 #(
     // ------------------------------------------------------------ queues (task ids)
     reg [15:0] qc [0:QD-1];
     // bulk class = NB duration buckets, each its own FIFO of task ids (bucket 0 only when LONGEST=0)
-    localparam NB = 8;
+    localparam NB = FINE ? 16 : 8;
     reg [15:0] qk [0:NB*QD-1];
     reg [31:0] kwr [0:NB-1];
     reg [31:0] krd [0:NB-1];
@@ -117,15 +118,21 @@ module sc_sys_v4 #(
         pkey = {prog, lw} % PROF;      // PROF=64 on the FPGA: program classes 0..7 only
     endfunction
     // bucket from predicted duration: unknown -> 7 (run first, to learn), else clamp(log2(d)-8, 0, 6)
-    function [2:0] bucket_of(input [24:0] p);
-        reg [23:0] d; integer k; reg [3:0] lg;
+    function [3:0] bucket_of(input [24:0] p);
+        reg [23:0] d; integer k; reg [4:0] lg; reg [5:0] ix;      // lg is 5 bits: it was 4 and wrapped for durations >= 65536 (fixed with FINE)
         begin
             d = p[23:0]; lg = 0;
             for (k = 0; k < 24; k = k + 1) if (d[k]) lg = k;
-            if (!p[24])        bucket_of = 3'd7;
-            else if (lg < 8)   bucket_of = 3'd0;
-            else if (lg > 14)  bucket_of = 3'd6;
-            else               bucket_of = lg - 8;
+            if (FINE) begin   // half-octave steps: bucket = 2*(log2(d)-8) + next lower bit, 0..14; unknown -> 15
+                if (!p[24])        bucket_of = 4'd15;
+                else if (lg < 8)   bucket_of = 4'd0;
+                else begin ix = 2 * (lg - 8) + d[lg - 1]; bucket_of = (ix > 14) ? 4'd14 : ix[3:0]; end
+            end else begin    // whole-octave steps, 0..6; unknown -> 7
+                if (!p[24])        bucket_of = 4'd7;
+                else if (lg < 8)   bucket_of = 4'd0;
+                else if (lg > 14)  bucket_of = 4'd6;
+                else               bucket_of = lg - 8;
+            end
         end
     endfunction
 
@@ -244,15 +251,15 @@ module sc_sys_v4 #(
 
     wire pend_c = (qc_wr != qc_rd);
     reg        pend_b;
-    reg [2:0]  hb;                    // highest non-empty bulk bucket
+    reg [3:0]  hb;                    // highest non-empty bulk bucket
     integer    hi_;
     always @* begin
         pend_b = 1'b0; hb = 3'd0;
         for (hi_ = 0; hi_ < NB; hi_ = hi_ + 1)
-            if (kwr[hi_] != krd[hi_]) begin pend_b = 1'b1; hb = hi_[2:0]; end
+            if (kwr[hi_] != krd[hi_]) begin pend_b = 1'b1; hb = hi_[3:0]; end
     end
     wire [15:0] bhead = qk[hb*QD + (krd[hb] % QD)];
-    reg  [2:0]  cur_bk;
+    reg  [3:0]  cur_bk;
     wire [5:0]  cur_w  = 6'd1 << cur_lw;
     wire [63:0] cur_gm = (64'd1 << cur_w) - 64'd1;
 
@@ -317,7 +324,7 @@ module sc_sys_v4 #(
     reg         rs;
     reg [5:0]   wfree;
     reg [5:0]   wb;
-    reg [2:0]   pb;
+    reg [3:0]   pb;
     reg [8:0]   pk;
     reg [23:0]  dur;
     reg [24:0]  davg;                    // average of old and new sample (v4.1: kept apart so the known bit is not truncated away)
@@ -415,7 +422,7 @@ module sc_sys_v4 #(
 
             // ---- host push: task table entry, then the right queue
             if (h_push) begin
-                pb = LONGEST ? bucket_of(prof[pkey(h_prog, h_lw)]) : 3'd0;
+                pb = LONGEST ? bucket_of(prof[pkey(h_prog, h_lw)]) : 4'd0;
                 t_code [h_tid] <= h_code;
                 t_lw   [h_tid] <= h_lw;
                 t_crit [h_tid] <= h_crit;

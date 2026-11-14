@@ -2,16 +2,16 @@
 # build_tang.sh - synthesise, place-and-route and pack the S-Core single-set design for the Tang Nano 20K,
 # with the same open flow as tools/gowin_sizing/build_smoke_bitstream.sh (yosys synth_gowin -nowidelut ->
 # nextpnr-himbaechel-gowin -> gowin_pack).  Needs: pip install yowasp-yosys yowasp-nextpnr-himbaechel-gowin apycula
-# Usage: ./build_tang.sh [outdir] [S] [IMEM_WORDS] [DMW] [QD]      defaults: build 1 128 16 16
+# Usage: ./build_tang.sh [outdir] [S] [IMEM_WORDS] [DMW] [QD] [FINE]      defaults: build 1 128 16 16 0   (FINE=1: half-octave duration buckets)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-OUT=${1:-$HERE/build}; S=${2:-1}; IMW=${3:-128}; DMW=${4:-16}; QD=${5:-16}
+OUT=${1:-$HERE/build}; S=${2:-1}; IMW=${3:-128}; DMW=${4:-16}; QD=${5:-16}; FINE=${6:-0}
 DEVICE="GW2AR-LV18QN88C8/I7"; TOP=sc_top_tang; SEED=${SEED:-1}
 mkdir -p "$OUT"; cd "$OUT"
 YS=$(command -v yosys || command -v yowasp-yosys)   # native yosys first: the YoWASP build runs out of stack on this design
 echo "== 1/3 yosys synth_gowin -nowidelut  (S=$S IMEM_WORDS=$IMW DMW=$DMW QD=$QD) =="
 $YS -q -l synth.log -p "read_verilog -sv $HERE/../uc_core_fp.v $HERE/../sc_sys_v4.v $HERE/uart.v $HERE/host_bridge.v $HERE/sc_top_tang.v ; \
-  chparam -set S $S -set IMEM_WORDS $IMW -set DMW $DMW -set QD $QD $TOP ; hierarchy -top $TOP ; \
+  chparam -set S $S -set IMEM_WORDS $IMW -set DMW $DMW -set QD $QD -set FINE $FINE $TOP ; hierarchy -top $TOP ; \
   synth_gowin -nowidelut -top $TOP -json $TOP.json" 
 grep -A40 "Number of cells" synth.log | tail -45 | head -40 || true
 echo "== 2/3 nextpnr-himbaechel-gowin place and route =="

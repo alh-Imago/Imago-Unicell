@@ -1,5 +1,12 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## Finer duration buckets (FINE=1), 2026-11-14 (simulation only; not yet on the board)
+
+New parameter `FINE` (default 0 = old behaviour) in `sc_sys_v3.v` / `sc_sys_v4.v`, passed through the testbenches, `sc_top_tang.v` and `build_tang.sh` (6th argument). FINE=1: 15 half-octave buckets (2*(log2 d - 8) + next lower bit) plus unknown, instead of 7 whole-octave ones plus unknown, so sum (24k), fib (32k) and crc (48k) no longer share a bucket.
+**Second bug found and fixed alongside:** `bucket_of` kept log2 in 4 bits, so a predicted duration of 65536 clocks or more wrapped to a small number and was ranked among the shortest (the board's `sort` kernel runs 74,195 clocks). Now 5 bits; applies to both modes.
+**Measured, v3 simulator, 12 cases (`profile_matrix_v3c.py`; FINE=0 reproduces the earlier warm column exactly):** warm FINE beats FIFO in 12 of 12; beats warm coarse in 4 of 12 (best -4.7%), ties in 5, loses in 3 (worst +0.8%). Small effect in general, as the earlier workloads are mostly spread out.
+**Measured, whole board in simulation, S=2, the board's batch run twice with `R` between (`test_board_profile.py 0|1`):** second-batch waste_tail 19,765 (coarse) vs 1,277 (fine). That run submits all tasks at once; the real board submits one task about every 19k clocks over the UART, so the gain there is expected to be smaller. Needs a board run.
+
 ## Correction 2026-11-12 (late): duration-profile "known" bit was lost in v3 and v4 (found on the real board)
 
 **Bug:** the profile word is {known, 24-bit running average}. Averaging a second sample was written as `{1'b1, (a + b) >> 1}`, which is 26 bits wide inside a 25-bit assignment, so the leading 1 (the known flag) was cut off. Every 2nd sample of a program class therefore turned that class back to "unknown". The first-sample path was fine, so a class sampled an odd number of times stayed known, an even number did not.

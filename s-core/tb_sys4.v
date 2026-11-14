@@ -8,6 +8,7 @@ module tb_sys4;
     parameter GUARD = 8;
     parameter MAXPASS = 8;
     parameter LONGEST = 0;
+    parameter FINE = 0;
     parameter DMW = 1024;
     parameter IMW = 8192;
     reg clk = 0, rst = 1;
@@ -22,7 +23,7 @@ module tb_sys4;
     reg [7:0]  ev_pl_id = 0, ev_set_id = 0;
     reg [31:0] ev_pl_data = 0;
 
-    sc_sys_v4 #(.S(S), .DMW(DMW), .IMEM_WORDS(IMW), .PRIO(PRIO), .BESTFIT(BESTFIT), .GUARD(GUARD), .MAXPASS(MAXPASS), .LONGEST(LONGEST)) dut (
+    sc_sys_v4 #(.S(S), .DMW(DMW), .IMEM_WORDS(IMW), .PRIO(PRIO), .BESTFIT(BESTFIT), .GUARD(GUARD), .MAXPASS(MAXPASS), .LONGEST(LONGEST), .FINE(FINE)) dut (
         .clk(clk), .rst(rst), .h_push(h_push), .h_tid(h_tid), .h_code(h_code), .h_prog(h_prog), .h_lw(h_lw), .h_crit(h_crit),
         .imem_we(imem_we), .imem_wa(imem_wa), .imem_wd(imem_wd), .q_tid(16'd0),
         .ev_pl_we(ev_pl_we), .ev_pl_id(ev_pl_id), .ev_pl_data(ev_pl_data),

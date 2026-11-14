@@ -3,11 +3,11 @@
 //   +cmds=<file>: lines "B xx" (send one byte, hex) and "D n" (idle n clocks).  +out=<file>: received bytes, hex per line.
 //   +maxcyc=<n>: stop after n clocks.
 module tb_top_tang;
-    parameter S = 8, QD = 16, IMW = 256, DMW = 64, PROF = 64, DIV = 8, LONGEST = 1;
+    parameter S = 8, QD = 16, IMW = 256, DMW = 64, PROF = 64, DIV = 8, LONGEST = 1, FINE = 0;
     reg clk = 0; always #5 clk = ~clk;
     reg rx = 1'b1;
     wire tx; wire [5:0] led_n;
-    sc_top_tang #(.S(S), .QD(QD), .IMEM_WORDS(IMW), .DMW(DMW), .PROF(PROF), .BAUD_DIV(DIV), .LONGEST(LONGEST)) dut (
+    sc_top_tang #(.S(S), .QD(QD), .IMEM_WORDS(IMW), .DMW(DMW), .PROF(PROF), .BAUD_DIV(DIV), .LONGEST(LONGEST), .FINE(FINE)) dut (
         .clk(clk), .uart_rx(rx), .uart_tx(tx), .led_n(led_n));
 
     task send_byte(input [7:0] b);

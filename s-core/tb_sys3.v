@@ -8,6 +8,7 @@ module tb_sys3;
     parameter GUARD = 8;
     parameter MAXPASS = 8;
     parameter LONGEST = 0;
+    parameter FINE = 0;
     reg clk = 0, rst = 1;
     always #5 clk = ~clk;
 
@@ -20,7 +21,7 @@ module tb_sys3;
     reg [7:0]  ev_pl_id = 0, ev_set_id = 0;
     reg [31:0] ev_pl_data = 0;
 
-    sc_sys_v3 #(.S(S), .PRIO(PRIO), .BESTFIT(BESTFIT), .GUARD(GUARD), .MAXPASS(MAXPASS), .LONGEST(LONGEST)) dut (
+    sc_sys_v3 #(.S(S), .PRIO(PRIO), .BESTFIT(BESTFIT), .GUARD(GUARD), .MAXPASS(MAXPASS), .LONGEST(LONGEST), .FINE(FINE)) dut (
         .clk(clk), .rst(rst), .h_push(h_push), .h_tid(h_tid), .h_code(h_code), .h_prog(h_prog), .h_lw(h_lw), .h_crit(h_crit),
         .ev_pl_we(ev_pl_we), .ev_pl_id(ev_pl_id), .ev_pl_data(ev_pl_data),
         .ev_set(ev_set), .ev_set_id(ev_set_id));

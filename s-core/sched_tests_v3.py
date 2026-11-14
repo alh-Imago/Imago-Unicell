@@ -14,13 +14,13 @@ S = 32
 KINDS = ['sum', 'fib', 'crc', 'gcd', 'mul', 'sort']   # program-class id given at submit
 _built = {}
 
-def build(S_, prio, bestfit, longest=0, guard=8, maxpass=8, v4=False, dmw=1024):
-    key = (S_, prio, bestfit, longest, guard, maxpass, v4, dmw)
+def build(S_, prio, bestfit, longest=0, guard=8, maxpass=8, v4=False, dmw=1024, fine=0):
+    key = (S_, prio, bestfit, longest, guard, maxpass, v4, dmw, fine)
     if key not in _built:
-        d = os.path.join(HERE, 'vl%s_S%d_P%d_B%d_L%d_G%d_M%d' % ((('4' if v4 else '3'),) + key[:6]) + ('_D%d' % dmw))
+        d = os.path.join(HERE, 'vl%s_S%d_P%d_B%d_L%d_G%d_M%d' % ((('4' if v4 else '3'),) + key[:6]) + ('_D%d' % dmw) + ('_F' if fine else ''))
         r = subprocess.run(['verilator', '--binary', '--timing', '-Wno-fatal', '-Wno-lint', '-Wno-WIDTH', '-Wno-UNOPTFLAT',
                             '-Wno-INITIALDLY', '-Wno-BLKSEQ', '-Wno-CASEINCOMPLETE', '-Wno-MULTIDRIVEN', '-Wno-BLKANDNBLK',
-                            '--top-module', 'tb_sys4' if v4 else 'tb_sys3', '-GS=%d' % S_, '-GPRIO=%d' % prio, '-GBESTFIT=%d' % bestfit, '-GLONGEST=%d' % longest,
+                            '--top-module', 'tb_sys4' if v4 else 'tb_sys3', '-GS=%d' % S_, '-GPRIO=%d' % prio, '-GBESTFIT=%d' % bestfit, '-GLONGEST=%d' % longest, '-GFINE=%d' % fine,
                             '-GDMW=%d' % dmw if v4 else '-GGUARD=%d' % guard, '-GGUARD=%d' % guard, '-GMAXPASS=%d' % maxpass, '-O2', '--Mdir', d, '-o', 'simv',
                             os.path.join(HERE, 'tb_sys4.v' if v4 else 'tb_sys3.v'), os.path.join(HERE, 'sc_sys_v4.v' if v4 else 'sc_sys_v3.v'),
                             os.path.join(HERE, 'uc_core_fp.v' if v4 else 'uc_core_rw.v')], capture_output=True, text=True)
@@ -28,8 +28,8 @@ def build(S_, prio, bestfit, longest=0, guard=8, maxpass=8, v4=False, dmw=1024):
         _built[key] = os.path.join(d, 'simv')
     return _built[key]
 
-def run3(tasks, lws, arrivals, cfg, nevents=0, tag='v3', profile=None, v4=False, dmw=1024):
-    exe = build(S, *cfg, v4=v4, dmw=dmw) if v4 else build(S, *cfg)
+def run3(tasks, lws, arrivals, cfg, nevents=0, tag='v3', profile=None, v4=False, dmw=1024, fine=0):
+    exe = build(S, *cfg, v4=v4, dmw=dmw, fine=fine) if v4 else build(S, *cfg, fine=fine)
     image, bases = [], []
     for t in tasks:
         bases.append(len(image)); image += t['words']

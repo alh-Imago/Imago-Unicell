@@ -5,7 +5,7 @@
 // Power-on reset only (the S1/S2 buttons are the chip's MODE pins: not used).
 module sc_top_tang #(
     parameter S = 1, parameter QD = 16, parameter IMEM_WORDS = 128, parameter DMW = 16,
-    parameter PROF = 64, parameter BAUD_DIV = 234, parameter LONGEST = 1
+    parameter PROF = 64, parameter BAUD_DIV = 234, parameter LONGEST = 1, parameter FINE = 0
 ) (
     input  wire       clk,
     input  wire       uart_rx,
@@ -39,7 +39,7 @@ module sc_top_tang #(
         .act_rx(act_rx), .act_tx(act_tx));
 
     sc_sys_v4 #(.S(S), .QD(QD), .IMEM_WORDS(IMEM_WORDS), .DMW(DMW), .PROF(PROF), .EVB(3),
-                .PRIO(1), .BESTFIT(1), .LONGEST(LONGEST)) sys (
+                .PRIO(1), .BESTFIT(1), .LONGEST(LONGEST), .FINE(FINE)) sys (
         .clk(clk), .rst(rst),
         .h_push(h_push), .h_tid(h_tid), .h_code(h_code), .h_lw(h_lw), .h_crit(h_crit), .h_prog(h_prog),
         .imem_we(imem_we), .imem_wa(imem_wa), .imem_wd(imem_wd),
