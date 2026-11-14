@@ -6,7 +6,7 @@ Usage:   python3 read_probe.py [serial-port]        (default /dev/ttyUSB1, 11520
 """
 import sys
 
-NAMES = ['V0 read-before-write (as in sc_sys_v5)', 'V1 write-through', 'V2 no-change on write']
+NAMES = ['V0 as in sc_sys_v5 (inputs straight from the core)', 'V1 same, inputs re-registered on the FALLING clock edge', 'V2 no-change mode, inputs re-registered on the falling edge']
 
 def fields(h):
     pos = [0]
@@ -49,19 +49,22 @@ def main():
         line = ''
         for _ in range(8):
             t = s.readline().decode('ascii', 'ignore').strip()
-            if t.startswith('P') and len(t) == 153: line = t; break
+            if t.startswith('P') and len(t) == 189: line = t; break
         if not line: sys.exit('no complete report line received (is bram_probe_top loaded? right port?)')
     h = line.strip()[1:]
-    assert len(h) == 152, 'expected 152 hex digits, got %d' % len(h)
-    steps = int(h[:8], 16); recs = [fields(h[8 + 36 * i: 8 + 36 * (i + 1)]) for i in range(4)]
+    assert len(h) == 188, 'expected 188 hex digits, got %d' % len(h)
+    steps = int(h[:8], 16); recs = [fields(h[8 + 36 * i: 8 + 36 * (i + 1)]) for i in range(5)]
     print('core steps so far: %d   (about %.1f instructions)' % (steps, steps / 66.0))
     print('Register file in block RAM, three codings, compared with the LUT-RAM copy the core actually uses:')
     ok = [explain(NAMES[i], recs[i], steps) for i in range(3)]
-    print('Data memory in block RAM (as in sc_sys_v5):')
-    okd = explain('D  data memory', recs[3], steps, is_dm=True)
+    print('Data memory in block RAM:')
+    okd = explain('D  as in sc_sys_v5', recs[3], steps, is_dm=True)
+    okn = explain('N  inputs re-registered on the falling edge', recs[4], steps, is_dm=True)
     print()
-    if all(ok) and okd: print('VERDICT: all codings read correctly here -> the fault is NOT the block-RAM mechanics; look at the full system around it.')
+    if all(ok) and okd and okn: print('VERDICT: all codings read correctly here -> the fault is NOT the block-RAM mechanics; look at the full system around it.')
     elif not any(ok): print('VERDICT: every register-file coding fails -> see the failing-address pattern above.')
-    else: print('VERDICT: these codings read correctly: ' + ', '.join(NAMES[i].split()[0] for i in range(3) if ok[i]))
+    else:
+        print('VERDICT: these register-file variants read correctly: ' + (', '.join(NAMES[i].split()[0] for i in range(3) if ok[i]) or 'none'))
+        if not ok[0] and (ok[1] or ok[2]): print('         -> the failure is a hold-time race at the block-RAM inputs; falling-edge input registers fix it.')
 
 main()

@@ -1,5 +1,11 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## Block-RAM probe, board result 1 (Alan, 2026-11-14): every coding fails
+
+Board run of `bram_probe_top` (first version): **all three register-file codings (read-before-write, write-through, no-change) read wrong, and so does the data-memory twin.** Port A and B wrong-read counters saturated at 65,535 of 4,194,304 core steps; first wrong read at step 70 (x1 bit 1) for V0, step 81 for V1/V2, step 6,998 for the data memory (word 0 bit 21); the failing addresses cover all address bits (no common bit), so it is not a missing address bit (address bit 9 hypothesis ruled out). So the write mode is not the cause, and "data memory works" (test C) was only because it is used rarely and its address does not switch each clock. Netlist checked: CE tied to VCC, OCE and RESET to GND, so the pin wiring is right.
+**Working hypothesis (not proven):** hold-time race at the block-RAM inputs. Address, write enable and data come straight from flops that change on the same clock edge the block RAM samples; nextpnr checks setup only. The register file's address mux flips with `cph` right after every edge, so it is the worst case; the data memory only has `dwe & cph` flipping.
+**Next probe (this commit):** adds V1 = V0 with address, write enable and data re-registered on the FALLING clock edge, V2 = no-change mode with the same, and a second data-memory twin with falling-edge inputs. Routed: 3,609 LUT4, 8 block RAM, Fmax 89 MHz. If V1/V2/N read clean on the board the hypothesis holds and the fix for sc_sys_v5 is the same falling-edge input registers.
+
 ## Block-RAM probe: built, simulated and routed; waiting for the board (2026-11-14)
 
 Purpose: find why the single-port block-RAM register file fails on silicon (tests B and D) while the data memory in the same cell type works. yosys maps the register file and the data memory to identical SP cells (READ_MODE 0, WRITE_MODE 2, BIT_WIDTH 1, same CE/CLK/RESET wiring; checked in the netlist), so the difference is behaviour or timing, not mapping. One thing only the register file does that the data memory never does: it uses 10 address bits (1,024 entries) while the data memory at DMW=16 uses 9.

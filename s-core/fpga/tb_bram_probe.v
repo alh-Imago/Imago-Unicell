@@ -5,7 +5,7 @@ module tb_bram_probe;
     wire tx; wire [5:0] led_n;
     bram_probe_top #(.BAUD_DIV(8), .GAPBIT(12)) dut (.clk(clk), .uart_rx(1'b1), .uart_tx(tx), .led_n(led_n));
     // behavioural receiver: 8 clocks per bit
-    reg [7:0] ch; integer n = 0, lines = 0; reg [8*160-1:0] line;
+    reg [7:0] ch; integer n = 0, lines = 0; reg [8*200-1:0] line;
     always begin
         @(negedge tx);
         repeat (12) @(posedge clk);                     // to the middle of bit 0
@@ -16,7 +16,7 @@ module tb_bram_probe;
                 lines = lines + 1;
                 if (lines == `LINES) begin $display("LINE %0s", line); $finish; end
                 n = 0;
-            end else if (b != 8'h0D) begin line = {line[8*159-1:0], b}; n = n + 1; end
+            end else if (b != 8'h0D) begin line = {line[8*199-1:0], b}; n = n + 1; end
         end
     end
     initial begin #400000000; $display("TIMEOUT"); $finish; end

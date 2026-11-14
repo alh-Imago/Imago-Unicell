@@ -8,10 +8,10 @@
 // recorded with its address, so the board tells us WHICH accesses go wrong and WHICH coding is fine.
 // The data memory is checked the same way (block RAM as in sc_sys_v5 vs LUT-RAM).
 //
-// Report: one line over the UART (115200 8N1) about 4 times a second:  P + 152 hex digits + CR LF.
+// Report: one line over the UART (115200 8N1) about 4 times a second:  P + 188 hex digits + CR LF.
 // Decode it with  python3 read_probe.py [port].   LEDs (active low): 0 heartbeat, 1 core running,
-// 2 any V0 mismatch, 3 any V1 mismatch, 4 any V2 mismatch, 5 any data-memory mismatch.
-module bp_rport #(parameter V = 0, parameter BLK = 1) (
+// 2 any V0 mismatch, 3 any V1 mismatch, 4 any V2 mismatch, 5 any mismatch of the falling-edge data memory.
+module bp_rport #(parameter V = 0, parameter BLK = 1, parameter NEG = 0) (
     input  wire       clk,
     input  wire       sel,        // 1 = write address phase (cph), 0 = read address phase
     input  wire       we,         // write enable (already gated with cph)
@@ -20,7 +20,14 @@ module bp_rport #(parameter V = 0, parameter BLK = 1) (
     input  wire       wd,
     output reg        q
 );
-    wire [9:0] a = sel ? wr_addr : rd_addr;
+    wire [9:0] a0 = sel ? wr_addr : rd_addr;
+    // NEG=1: address, write enable and data are re-registered on the FALLING edge, so the block RAM sees inputs that
+    // have been stable for half a cycle before the rising edge that samples them (hold-time test)
+    reg [9:0] a_n = 10'd0; reg we_n = 1'b0, wd_n = 1'b0;
+    always @(negedge clk) begin a_n <= a0; we_n <= we; wd_n <= wd; end
+    wire [9:0] a  = NEG ? a_n  : a0;
+    wire       wen = NEG ? we_n : we;
+    wire       wdi = NEG ? wd_n : wd;
     integer zi;
     generate if (BLK) begin : g_blk
         (* ram_style = "block" *) reg m [0:1023];
@@ -28,18 +35,18 @@ module bp_rport #(parameter V = 0, parameter BLK = 1) (
         initial for (zi = 0; zi < 1024; zi = zi + 1) m[zi] = 1'b0;
 `endif
         if (V == 0) begin : v0                        // read-before-write, exactly as sc_sys_v5
-            always @(posedge clk) begin if (we) m[a] <= wd; q <= m[a]; end
+            always @(posedge clk) begin if (wen) m[a] <= wdi; q <= m[a]; end
         end else if (V == 1) begin : v1               // write-through
-            always @(posedge clk) begin if (we) begin m[a] <= wd; q <= wd; end else q <= m[a]; end
+            always @(posedge clk) begin if (wen) begin m[a] <= wdi; q <= wdi; end else q <= m[a]; end
         end else begin : v2                           // no-change on write
-            always @(posedge clk) begin if (we) m[a] <= wd; else q <= m[a]; end
+            always @(posedge clk) begin if (wen) m[a] <= wdi; else q <= m[a]; end
         end
     end else begin : g_dist
         (* ram_style = "distributed" *) reg m [0:1023];
 `ifndef SYNTHESIS
         initial for (zi = 0; zi < 1024; zi = zi + 1) m[zi] = 1'b0;
 `endif
-        always @(posedge clk) begin if (we) m[a] <= wd; q <= m[a]; end
+        always @(posedge clk) begin if (wen) m[a] <= wdi; q <= m[a]; end
     end endgenerate
 endmodule
 
@@ -148,21 +155,34 @@ module bram_probe_top #(parameter BAUD_DIV = 234, parameter GAPBIT = 23) (
         dq_blk <= dm_blk[dadr];
     end
     assign drd_ref = dq_ref;
+    // data memory, block RAM, inputs re-registered on the falling edge
+    reg [8:0] dadr_n = 9'd0; reg dwe_n = 1'b0, dwd_n = 1'b0;
+    always @(negedge clk) begin dadr_n <= dadr; dwe_n <= dwe & cph; dwd_n <= dwd; end
+    (* ram_style = "block" *) reg dm_neg [0:511];
+    reg dq_neg;
+    integer zn;
+`ifndef SYNTHESIS
+    initial for (zn = 0; zn < 512; zn = zn + 1) dm_neg[zn] = 1'b0;
+`endif
+    always @(posedge clk) begin
+        if (dwe_n) dm_neg[dadr_n] <= dwd_n;
+        dq_neg <= dm_neg[dadr_n];
+    end
 
-    // ---- block-RAM candidates V0..V2 (shadows: same inputs, outputs only compared)
+    // ---- block-RAM candidates (shadows: same inputs, outputs only compared): V0 as sc_sys_v5, V1 = V0 + falling-edge input registers, V2 = no-change mode + falling-edge input registers
     wire v0a, v0b, v1a, v1b, v2a, v2b;
     bp_rport #(.V(0), .BLK(1)) r0a (.clk(clk), .sel(cph), .we(we), .rd_addr(ra), .wr_addr(rwa), .wd(rwd), .q(v0a));
     bp_rport #(.V(0), .BLK(1)) r0b (.clk(clk), .sel(cph), .we(we), .rd_addr(rb), .wr_addr(rwa), .wd(rwd), .q(v0b));
-    bp_rport #(.V(1), .BLK(1)) r1a (.clk(clk), .sel(cph), .we(we), .rd_addr(ra), .wr_addr(rwa), .wd(rwd), .q(v1a));
-    bp_rport #(.V(1), .BLK(1)) r1b (.clk(clk), .sel(cph), .we(we), .rd_addr(rb), .wr_addr(rwa), .wd(rwd), .q(v1b));
-    bp_rport #(.V(2), .BLK(1)) r2a (.clk(clk), .sel(cph), .we(we), .rd_addr(ra), .wr_addr(rwa), .wd(rwd), .q(v2a));
-    bp_rport #(.V(2), .BLK(1)) r2b (.clk(clk), .sel(cph), .we(we), .rd_addr(rb), .wr_addr(rwa), .wd(rwd), .q(v2b));
+    bp_rport #(.V(0), .BLK(1), .NEG(1)) r1a (.clk(clk), .sel(cph), .we(we), .rd_addr(ra), .wr_addr(rwa), .wd(rwd), .q(v1a));
+    bp_rport #(.V(0), .BLK(1), .NEG(1)) r1b (.clk(clk), .sel(cph), .we(we), .rd_addr(rb), .wr_addr(rwa), .wd(rwd), .q(v1b));
+    bp_rport #(.V(2), .BLK(1), .NEG(1)) r2a (.clk(clk), .sel(cph), .we(we), .rd_addr(ra), .wr_addr(rwa), .wd(rwd), .q(v2a));
+    bp_rport #(.V(2), .BLK(1), .NEG(1)) r2b (.clk(clk), .sel(cph), .we(we), .rd_addr(rb), .wr_addr(rwa), .wd(rwd), .q(v2b));
 
     // ---- step counter and checkers
     reg [31:0] step = 0;
     always @(posedge clk) if (!rst && cph) step <= step + 1'b1;
-    wire [143:0] rec0, rec1, rec2, recd;
-    wire any0, any1, any2, anyd;
+    wire [143:0] rec0, rec1, rec2, recd, recn;
+    wire any0, any1, any2, anyd, anyn;
     bp_chk c0 (.clk(clk), .run(!rst), .cph(cph), .step(step), .wr(rwe), .wa(rwa), .ra(ra), .rb(rb),
                .ea(ref_a), .aa(v0a), .eb(ref_b), .ab(v0b), .rec(rec0), .any(any0));
 `ifdef INJECT_V1
@@ -178,10 +198,13 @@ module bram_probe_top #(parameter BAUD_DIV = 234, parameter GAPBIT = 23) (
     bp_chk cd (.clk(clk), .run(!rst), .cph(cph), .step(step), .wr(dwe), .wa({1'b0, dadr}), .ra({1'b0, dadr}), .rb(10'd0),
                .ea(dq_ref), .aa(dq_blk), .eb(1'b0), .ab(1'b0), .rec(recd), .any(anyd));
 
-    // ---- UART report: 'P', 152 hex digits (step counter, V0, V1, V2, D records), CR, LF, then a pause
-    localparam NIB = 152;
-    wire [607:0] live = {step, rec0, rec1, rec2, recd};
-    reg  [607:0] snap;
+    bp_chk cn (.clk(clk), .run(!rst), .cph(cph), .step(step), .wr(dwe), .wa({1'b0, dadr}), .ra({1'b0, dadr}), .rb(10'd0),
+               .ea(dq_ref), .aa(dq_neg), .eb(1'b0), .ab(1'b0), .rec(recn), .any(anyn));
+
+    // ---- UART report: 'P', 188 hex digits (step counter, V0, V1, V2, D, N records), CR, LF, then a pause
+    localparam NIB = 188;
+    wire [751:0] live = {step, rec0, rec1, rec2, recd, recn};
+    reg  [751:0] snap;
     reg  [8:0]   idx = 9'd0;                      // 0 = 'P', 1..NIB = digits, NIB+1 = CR, NIB+2 = LF, NIB+3 = pause
     reg  [23:0]  gap = 24'd0;
     reg  [7:0]   data = 8'h50;
@@ -207,5 +230,5 @@ module bram_probe_top #(parameter BAUD_DIV = 234, parameter GAPBIT = 23) (
 
     reg [24:0] hb = 0;
     always @(posedge clk) hb <= hb + 1'b1;
-    assign led_n = ~{anyd, any2, any1, any0, !halted & !rst, hb[24]};
+    assign led_n = ~{anyn, any2, any1, any0, !halted & !rst, hb[24]};
 endmodule
