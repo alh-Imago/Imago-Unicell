@@ -34,7 +34,7 @@ def main():
             if len(seen) > 40: seen.pop(0)
             if t.startswith('C') and len(t) == 317: line = t; break
             if t.startswith('Q') or (t.startswith('P') and len(t) == 153):
-                sys.exit('The board is running the earlier bram_probe design, not bram_char_top. Load build_char/bram_char_top.fs.')
+                sys.exit('The board is running the earlier bram_probe design, not bram_char_top. Unplug the Tang USB lead for 5 s, plug it back in, then load build_char_top/bram_char_top.fs again (a new design does not always replace one that is already running).')
         if not line:
             print('no complete report line received. Last lines (factory-demo text means our design is not running):')
             for r in seen[-6:]: print('  %3d bytes: %r' % (len(r), r[:90]))
