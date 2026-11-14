@@ -1,5 +1,18 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## v5 on the real board: block-RAM register file FAILS (2026-11-14)
+
+First load of the 8-slice pool (all three per-slice memories in single-port block RAM) failed on the Tang: wrong results (e.g. sum a0 ffffffff after ~1,200 clocks), negative durations, timeout. The same design passes the reference gate and the whole-board simulation. Four 2-slice builds, same code, run on the board (`run_board.py --lw 0`):
+| test | register file | data memory | result |
+|---|---|---|---|
+| A (`NOBRAM=1`) | LUT-RAM | LUT-RAM | PASS, durations identical to v4 (batch 179,769 clocks) |
+| B | block RAM | block RAM | FAIL |
+| C (`NOBRAM=rf`) | LUT-RAM | block RAM | PASS (batch 179,768) |
+| D (`NOBRAM=dm`) | block RAM | LUT-RAM | FAIL |
+So the 1-bit core (`uc_core_v2s`) and the data memory in block RAM are fine on silicon; **the register file in single-port block RAM is not**. Cause not known. What the register file does that the data memory does not: one RAM per read port, address time-shared between write (`rwa`, clock 1 of a step) and read (`ra`/`rb`, clock 0) through `cph ? rwa : ra`, 1,024 entries. yosys gives both the same cell (SP, BIT_WIDTH 1, READ_MODE 0, WRITE_MODE 2 read-before-write, same with yowasp-yosys 0.69). A netlist-level simulation with yosys's own Gowin models was tried and abandoned: it fails identically for the proven v4 design, so it cannot discriminate.
+**Default now:** register file `(* ram_style = "distributed" *)`, data memory `"block"`, code memory left to the tool (= test C). Forcing the code memory into block RAM fails to place beyond 2 slices: nextpnr reports "no BELs remaining ... SDPX9" at the 3rd slice (tried S=3 and S=4). Same reference gate result as before (durations identical to v4). Size by synthesis: S=2 377 LUT-RAM blocks, S=4 633 of 648, S=5 761 (does not fit); **with the register file in LUT-RAM the limit is about 3 slices** (121 base + 128 register file + 32 code per slice = 601 of 648 at S=3), because a 1-bit-wide memory wastes 3 of the 4 bits of each LUT-RAM cell.
+**Next options for more slices:** (1) find why the SP register file fails (needs more board tests); (2) a word-based register file in the proven wide block RAM (read the 32-bit register once per instruction, write it back once), which would also use the Tang's natural 18/36-bit width; larger change to the core wrapper, hazards to check (read after write of the same register inside one instruction).
+
 ## v5: pool of fixed 1-bit cores (2026-11-14, simulation + place-and-route; not yet on the board)
 
 Files: `uc_core_v2s.v` (uc_core_v2 + start/entry/ce, idle in HALT), `sc_sys_v5.v` (v4 scheduler with W=1 cores and plain 1-bit register file / data memory in block RAM), `tb_sys5.v`, `fpga/sc_top_pool.v`, `build_tang.sh` (`POOL=1 ./build_tang.sh out S IMEM DMW QD`), harness flag `v5=True`. v4 files untouched. Every task runs at 1 bit per cycle whatever its lw (no fusion in v5).

@@ -169,7 +169,7 @@ module sc_sys_v5 #(
         wire        dwd, drd;
 
         // ---- private instruction memory (synchronous read)
-        reg [31:0] imem_s [0:IMEM_WORDS-1];
+        reg [31:0] imem_s [0:IMEM_WORDS-1];     // left to the tool: forcing block RAM fails to place beyond 2 slices (only 2 SDPX9 sites usable)
         reg [31:0] id_q;
         integer q;
 `ifndef SYNTHESIS
@@ -185,7 +185,10 @@ module sc_sys_v5 #(
         //      digit k of width w lives at bits [k*w +: w].
         // ---- 1-bit register file (two read ports) and data memory, address {word, bit}; synchronous read.
         //      v5 pool: every core is the fixed 1-bit core, so no lanes, masks or shifters.
-        (* ram_style = "block" *) reg rf_a [0:1023]; (* ram_style = "block" *) reg rf_b [0:1023]; reg rqa_b, rqb_b;
+        // BOARD FINDING (2026-11-14, Tang Nano 20K): the register file in single-port block RAM FAILS on the real chip
+        // (tests B and D) although it passes every simulation; the same register file in LUT-RAM (tests A and C) and the
+        // data memory in single-port block RAM (test C) both pass.  So: register file = distributed, data memory = block.
+        (* ram_style = "distributed" *) reg rf_a [0:1023]; (* ram_style = "distributed" *) reg rf_b [0:1023]; reg rqa_b, rqb_b;
         (* ram_style = "block" *) reg dm [0:DMW*32-1]; reg dq_b;
         wire [9:0] rf_aa = cph ? rwa : ra;
         wire [9:0] rf_ba = cph ? rwa : rb;
