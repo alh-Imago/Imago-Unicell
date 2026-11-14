@@ -44,13 +44,18 @@ def main():
     else:
         import serial
         port = sys.argv[1] if len(sys.argv) > 1 else '/dev/ttyUSB1'
-        s = serial.Serial(port, 115200, timeout=3)
+        s = serial.Serial(port, 115200, timeout=2)
         s.reset_input_buffer()
-        line = ''
-        for _ in range(8):
-            t = s.readline().decode('ascii', 'ignore').strip()
+        line = ''; seen = []
+        for _ in range(12):
+            raw = s.readline()
+            t = raw.decode('ascii', 'ignore').strip()
+            seen.append(raw)
             if t.startswith('P') and len(t) == 189: line = t; break
-        if not line: sys.exit('no complete report line received (is bram_probe_top loaded? right port?)')
+        if not line:
+            print('no complete report line received. What arrived (%d reads):' % len(seen))
+            for r in seen[:6]: print('  %3d bytes: %r' % (len(r), r[:90]))
+            sys.exit('(a good report is 189 characters starting with P; empty reads mean nothing is being sent)')
     h = line.strip()[1:]
     assert len(h) == 188, 'expected 188 hex digits, got %d' % len(h)
     steps = int(h[:8], 16); recs = [fields(h[8 + 36 * i: 8 + 36 * (i + 1)]) for i in range(5)]
