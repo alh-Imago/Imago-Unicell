@@ -1,5 +1,11 @@
 # S-Core: current state (as of 2026-11-12). Width-selectable digit-serial RV32I core: v1, v2, a runtime-width core and a 32-slice array with a dispatcher working in simulation; not yet on a board. Newest first.
 
+## Block-RAM probe: built, simulated and routed; waiting for the board (2026-11-14)
+
+Purpose: find why the single-port block-RAM register file fails on silicon (tests B and D) while the data memory in the same cell type works. yosys maps the register file and the data memory to identical SP cells (READ_MODE 0, WRITE_MODE 2, BIT_WIDTH 1, same CE/CLK/RESET wiring; checked in the netlist), so the difference is behaviour or timing, not mapping. One thing only the register file does that the data memory never does: it uses 10 address bits (1,024 entries) while the data memory at DMW=16 uses 9.
+`fpga/bram_probe_top.v`: one real 1-bit core runs a stress program (`make_probe_rom.py`, 234 words, touches x1..x31, add/xor/sub/shifts, sw/lw, loops forever), fed from a LUT-RAM register file (the configuration that passes). Three block-RAM register files receive the same addresses, write enables and data, coded as V0 read-before-write (as sc_sys_v5, WRITE_MODE 2), V1 write-through (1) and V2 no-change (0); the data memory has a block-RAM twin too. At every core step (cph=1) each block output is compared with the LUT-RAM output; the first mismatch, counts, and which address bits the failing addresses share are kept and sent as one text line about 4 times a second. `read_probe.py` decodes it and prints a verdict. Simulation: zero mismatches, and an injected fault in V1 is caught and reported. Place-and-route (yowasp nextpnr 0.11): 3,364 LUT4, 160 LUT-RAM blocks, 7 block RAM, Fmax 102 MHz at 27 MHz target; build `./build_probe.sh`, about 80 s.
+Not yet known: the board result. If every coding reads correctly, the fault is not the block-RAM mechanics and the next probe must put the block-RAM register file inside the full sc_sys_v5.
+
 ## v5 on the real board: block-RAM register file FAILS (2026-11-14)
 
 First load of the 8-slice pool (all three per-slice memories in single-port block RAM) failed on the Tang: wrong results (e.g. sum a0 ffffffff after ~1,200 clocks), negative durations, timeout. The same design passes the reference gate and the whole-board simulation. Four 2-slice builds, same code, run on the board (`run_board.py --lw 0`):
