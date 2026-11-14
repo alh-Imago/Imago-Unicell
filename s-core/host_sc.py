@@ -11,6 +11,8 @@ LEN = {'V': 8, 'C': 56, 'Q': 22}
 def cmd_V():                 return b'V'
 def cmd_C():                 return b'C'
 def cmd_R():                 return b'R'
+def cmd_H():                 return b'H'      # hold: queue tasks but start none (board version >= 5)
+def cmd_G():                 return b'G'      # go: release the hold
 def cmd_W(addr, word):       return b'W' + struct.pack('<HI', addr, word & 0xFFFFFFFF)
 def cmd_P(tid, code, lw, crit=0, prog=0): return b'P' + struct.pack('<HHBBB', tid, code, lw, crit, prog)
 def cmd_Q(tid):              return b'Q' + struct.pack('<H', tid)
@@ -47,6 +49,7 @@ class Board:
     def __init__(self, port, baud=115200):
         import serial
         self.s = serial.Serial(port, baud, timeout=2)
+        self.flush_input()
     def _rd(self, n):
         b = self.s.read(n)
         if len(b) != n: raise IOError('board did not answer (%d of %d bytes). Is the bitstream loaded and the port right?' % (len(b), n))
@@ -55,6 +58,11 @@ class Board:
     def counters(self): self.s.write(cmd_C()); return dec_C(self._rd(56))
     def task(self, tid): self.s.write(cmd_Q(tid)); return dec_Q(self._rd(22))
     def reset(self):    self.s.write(cmd_R()); time.sleep(0.05)
+    def hold(self):     self.s.write(cmd_H()); self.s.flush()
+    def go(self):       self.s.write(cmd_G()); self.s.flush()
+    def flush_input(self):
+        """throw away anything waiting on the port (the Tang's factory demo prints text at power-up)"""
+        time.sleep(0.2); self.s.reset_input_buffer()
     def load(self, base, words):
         for i, w in enumerate(words): self.s.write(cmd_W(base + i, w))
         self.s.flush()

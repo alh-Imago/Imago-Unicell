@@ -20,6 +20,7 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument('port'); ap.add_argument('--baud', type=int, default=115200)
     ap.add_argument('--clk', type=float, default=27e6)
     ap.add_argument('--lw', type=int, default=None, help='log2 of bits per cycle per task (0 = narrowest, lets S tasks run side by side)')
+    ap.add_argument('--nohold', action='store_true', help='do not use hold/go even if the board supports it (tasks then start as they arrive)')
     a = ap.parse_args()
     b = hs.Board(a.port, a.baud)
     v = b.version(); print('board:', v)
@@ -32,9 +33,12 @@ def main():
     print('kernels loaded (%d words):' % len(words), ', '.join(names))
     b.reset(); b.load(0, words)
     kinds = names * 2
+    use_hold = v['version'] >= 5 and not a.nohold      # board version 5 = hold/go: load all tasks first, then release them together
+    if use_hold: b.hold()
     for tid, k in enumerate(kinds):
         b.submit(tid, base[k], lw, crit=int(tid in (4, 9)), prog=names.index(k))
-    print('submitted %d tasks at width %d bit(s) per cycle; waiting...' % (len(kinds), 1 << lw))
+    if use_hold: b.go()
+    print('submitted %d tasks at width %d bit(s) per cycle%s; waiting...' % (len(kinds), 1 << lw, ', released together with go' if use_hold else ''))
     if not b.wait_done(len(kinds), timeout=120): print('TIMEOUT: not all tasks finished')
     c = b.counters(); print('counters:', c)
     bad = 0
@@ -45,6 +49,8 @@ def main():
     ends = [b.task(t) for t in range(len(kinds))]
     mk = max(t['end'] for t in ends) - min(t['start'] for t in ends)
     known = sum(t['pred_known'] for t in ends)
+    starts = sorted(t['start'] for t in ends)
+    print('start spread: first %d, last %d (%d clocks apart); slots used: %s' % (starts[0], starts[-1], starts[-1] - starts[0], sorted(set(t['slot'] for t in ends))))
     print('SUMMARY batch %d clocks (%.2f ms) | waste_tail %d | waste_blocked %d | tasks with a duration prediction: %d of %d' % (mk, mk / a.clk * 1e3, c['waste_tail'], c['waste_blocked'], known, len(kinds)))
     print('RESULT', 'PASS' if (not bad and c['done'] == len(kinds) and c['launch_err'] == 0) else 'FAIL')
 
