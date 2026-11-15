@@ -6,7 +6,7 @@ Library part: encode commands, decode replies.  Two uses:
 """
 import struct, time
 
-LEN = {'V': 8, 'C': 56, 'Q': 22}
+LEN = {'V': 8, 'C': 56, 'Q': 22, 'L': 4, 'Z': 4}
 
 def cmd_V():                 return b'V'
 def cmd_C():                 return b'C'
@@ -17,6 +17,15 @@ def cmd_G():                 return b'G'      # go: release the hold
 def cmd_W(addr, word):       return b'W' + struct.pack('<HI', addr, word & 0xFFFFFFFF)
 def cmd_P(tid, code, lw, crit=0, prog=0): return b'P' + struct.pack('<HHBBB', tid, code, lw, crit, prog)
 def cmd_Q(tid):              return b'Q' + struct.pack('<H', tid)
+
+def cmd_M(addr, word):       return b'M' + struct.pack('<HI', addr, word & 0xFFFFFFFF)   # write a word of the shared data RAM (board version >= 7)
+def cmd_L(addr):             return b'L' + struct.pack('<H', addr)                      # read a word of the shared data RAM -> 4 bytes
+def cmd_X(prog, base, length): return b'X' + struct.pack('<BHH', prog, base, length)    # shared window of a program class: words [base, base+length)
+def cmd_Y(base, length):     return b'Y' + struct.pack('<HH', base, length)             # shared code library window: every program class may execute these code words (board version >= 8)
+def cmd_Z():                 return b'Z'                                               # -> DSH(2) SHL(1) log2(DSH)(1)
+
+def dec_L(b): return struct.unpack('<I', b[:4])[0]
+def dec_Z(b): return dict(shared_words=struct.unpack('<H', b[0:2])[0], window_log2=b[2], addr_bits=b[3])
 
 def dec_V(b):
     assert b[0:2] == b'SC', 'not an S-Core build: %r' % b
@@ -34,7 +43,7 @@ def dec_C(b):
     return dict(cyc=cyc, done=done, launch_err=lerr, dispatches=disp, busy_slice_cycles=busy,
                 waste_blocked=blocked, waste_tail=tail, search_cycles=search, busy_leaders=busy_l)
 
-DEC = {'V': dec_V, 'Q': dec_Q, 'C': dec_C}
+DEC = {'V': dec_V, 'Q': dec_Q, 'C': dec_C, 'L': dec_L, 'Z': dec_Z}
 
 def split_replies(stream, order):
     """stream: bytes received; order: list of reply letters in the order they were requested."""
@@ -88,6 +97,19 @@ class Board:
     def hold(self):     self.s.write(cmd_H()); self.s.flush()
     def region(self, prog, cbase, clen, dlen): self.s.write(cmd_B(prog, cbase, clen, dlen)); self.s.flush()
     def go(self):       self.s.write(cmd_G()); self.s.flush()
+    def shared_info(self):  self.s.write(cmd_Z()); return dec_Z(self._rd(4))
+    def shared_region(self, prog, base, length): self.s.write(cmd_X(prog, base, length)); self.s.flush()
+    def shared_write(self, base, words):
+        for i, w in enumerate(words): self.s.write(cmd_M(base + i, w))
+        self.s.flush()
+    def shared_write_map(self, m):
+        for a, w in sorted(m.items()): self.s.write(cmd_M(a, w))
+        self.s.flush()
+    def library(self, base, length): self.s.write(cmd_Y(base, length)); self.s.flush()
+    def shared_read(self, base, n):
+        out = []
+        for i in range(n): self.s.write(cmd_L(base + i)); out.append(dec_L(self._rd(4)))
+        return out
     def flush_input(self):
         """throw away anything waiting on the port (the Tang's factory demo prints text at power-up)"""
         time.sleep(0.2); self.s.reset_input_buffer()

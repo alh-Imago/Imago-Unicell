@@ -7,7 +7,7 @@ has a region (host command B) except the last, which has none and must get the w
   * a wild store must NOT land (a later program reads the word it would have aliased to);
   * after the aborted tasks, normal tasks on the same slice still compute the right answers (write counters are cleared at start)."""
 import os, sys
-os.environ['POOL'] = '5'
+os.environ.setdefault('POOL', '5')
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'fpga'))
 import test_board_sim as tbs, host_sc as hs
@@ -40,6 +40,6 @@ def main():
         ok = (t['state'] == 3) and (bool(t['trap']) == trap) and (exp is None or t['a0'] == exp)
         bad += not ok
         print('%-22s state %d trap %d a0 %08x expect %s trap %d  %s' % (name, t['state'], t['trap'], t['a0'], ('%08x' % exp) if exp is not None else '--------', trap, 'ok' if ok else 'FAIL'))
-    print('RESULT', 'PASS' if (not bad and ver['version'] == 6 and cnt['done'] == len(K)) else 'FAIL')
+    print('RESULT', 'PASS' if (not bad and ver['version'] >= 6 and cnt['done'] == len(K)) else 'FAIL')
 
 if __name__ == '__main__': main()

@@ -11,7 +11,9 @@ This folder is the path from the simulated S-Core scheduler to real hardware. **
 
 Place-and-route (nextpnr, 8 slices): v7 13,706 LUT4 / 377 LUT-RAM blocks; v8 12,887 LUT4 / 153 LUT-RAM blocks, 54.3 MHz. v8 with 10 slices (14,921 LUT4) places and routes but has not been run on the board; 12 slices do not place (logic), 16 do not (block RAM: 3 blocks per slice). Code store size at 8 slices (all route and close timing; 64 and 256 words have run on the board, 512 has not): 64 words 12,887 LUT4 / 153 LUT-RAM blocks / 54.3 MHz; 256 words 13,928 / 249 / 53.9 MHz; 512 words 14,466 / 377 / 51.6 MHz. The 256-word build ran on the board with the programs at address 192: 10 of 10 ok on both runs (batch 55,594 then 49,129 clocks), same durations as the 64-word build. The cost is LUT-RAM (about 0.5 block per word) plus a wider read multiplexer, and it is paid once, not per slice.
 
-| 5 | `sc_top_pool9.v` | v9: + regions (host `B`, version 6): code base/limit and data limit per program class | simulation + place-and-route only so far |
+| 5 | `sc_top_pool9.v` | v9: + regions (host `B`, version 6): code base/limit and data limit per program class | 8 slices: 10/10, identical timing; one slice: regions test 12/12 (traps, wild store blocked, recovery) |
+| 6 | `sc_top_pool10.v` | v10: + a SHARED DATA RAM, one block RAM for all slices (`--shared N` words, power of 2, default 256), per-class windows (host `X`), host access (`M` write, `L` read, `Z` size); version 7 | simulation + place-and-route; `run_shared_board.py` ready, not yet run on the board |
+| 7 | `sc_top_pool11.v` | v11: + a code LIBRARY window every class may execute (host `Y`); version 8; use `../sclink.py` to build library + classes + stacks | simulation + place-and-route; `run_link_board.py` ready, not yet run on the board |
 
 Build (named options; the old positional form still works) and run:
 ```
@@ -20,6 +22,15 @@ cd s-core/fpga && source ~/gowin-env/bin/activate
 # unplug and replug the board (about 5 s), then
 openFPGALoader -b tangnano20k pool8_8/sc_top_pool8.fs
 cd .. && python3 run_board.py /dev/ttyUSB1 --lw 0       # --nohold: do not use hold/go; --base N: load the programs at code address N
+```
+The shared data RAM (v10) and library (v11) tests, builds and scripts:
+```
+./build_tang.sh --pool 6 --slices 8 --code 128 --shared 256 --out pool10_8     # v10
+openFPGALoader -b tangnano20k pool10_8/sc_top_pool10.fs
+cd .. && python3 run_shared_board.py /dev/ttyUSB1                              # expects version 7; 15 tasks + 81 words checked
+cd fpga && ./build_tang.sh --pool 7 --slices 8 --code 128 --shared 256 --out pool11_8     # v11
+openFPGALoader -b tangnano20k pool11_8/sc_top_pool11.fs
+cd .. && python3 run_link_board.py /dev/ttyUSB1                                # expects version 8; library + stacks, 13 tasks
 ```
 `run_board.py --expect version=6,S=8,imem_words=64` (any subset of version, S, imem_words, dmem_words) stops early with a plain "WRONG DESIGN" message if the board is not running that design, which is how a load that did not take shows up; `--regions` and `run_regions_board.py` check the design version automatically. Run `run_board.py` twice without reloading: the second run has a duration prediction for every task, and the ordered batch is shorter. `run_board.py` flushes the serial port when it opens it (the board's factory demo prints text at power-up). If it prints `not an S-Core build`, rerun it once.
 
@@ -61,6 +72,7 @@ If nothing blinks, the bitstream did not load. If LED0 blinks but `run_board.py`
 `V` link check (8 bytes back) · `W addr(2) word(4)` write code · `P tid(2) code(2) lw(1) crit(1) prog(1)` submit ·
 `Q tid(2)` task table (22 bytes) · `C` counters (56 bytes; read after the run) · `R` reset the array (profile kept) ·
 `H` hold: accept and queue tasks but start none · `G` go: release the hold (both need a board that reports version 5 in the `V` reply; `host_bridge_v2.v`) ·
+`M addr(2) word(4)` write a word of the shared data RAM · `L addr(2)` read one (4 bytes back) · `X prog(1) base(2) len(2)` shared window of class prog: words [base, base+len) of the shared RAM (seen by the program as data word index 2^14 + 0.., byte address 0x10000 +) · `Z` -> DSH(2) window_log2(1) addr_bits(1) (all version 7, `host_bridge_v4.v`; `X` is cleared by `R`, the RAM itself is not) · `Y base(2) len(2)` code library window (version 8, `host_bridge_v5.v`; cleared by `R`) ·
 `B prog(1) cbase(2) clen(2) dlen(2)` set the region of program class prog: code words [cbase, cbase+clen) of the shared store, data words [0, dlen) (version 6, `host_bridge_v3.v`; entries are cleared by `R`, so send them after the reset and before the tasks).
 Details are in the header of `host_bridge.v`.
 
