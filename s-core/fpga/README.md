@@ -11,6 +11,8 @@ This folder is the path from the simulated S-Core scheduler to real hardware. **
 
 Place-and-route (nextpnr, 8 slices): v7 13,706 LUT4 / 377 LUT-RAM blocks; v8 12,887 LUT4 / 153 LUT-RAM blocks, 54.3 MHz. v8 with 10 slices (14,921 LUT4) places and routes but has not been run on the board; 12 slices do not place (logic), 16 do not (block RAM: 3 blocks per slice). Code store size at 8 slices (all route and close timing; 64 and 256 words have run on the board, 512 has not): 64 words 12,887 LUT4 / 153 LUT-RAM blocks / 54.3 MHz; 256 words 13,928 / 249 / 53.9 MHz; 512 words 14,466 / 377 / 51.6 MHz. The 256-word build ran on the board with the programs at address 192: 10 of 10 ok on both runs (batch 55,594 then 49,129 clocks), same durations as the 64-word build. The cost is LUT-RAM (about 0.5 block per word) plus a wider read multiplexer, and it is paid once, not per slice.
 
+| 5 | `sc_top_pool9.v` | v9: + regions (host `B`, version 6): code base/limit and data limit per program class | simulation + place-and-route only so far |
+
 Build (named options; the old positional form still works) and run:
 ```
 cd s-core/fpga && source ~/gowin-env/bin/activate
@@ -58,7 +60,8 @@ If nothing blinks, the bitstream did not load. If LED0 blinks but `run_board.py`
 ## Protocol (all little-endian; one command at a time, wait for the reply before the next command)
 `V` link check (8 bytes back) · `W addr(2) word(4)` write code · `P tid(2) code(2) lw(1) crit(1) prog(1)` submit ·
 `Q tid(2)` task table (22 bytes) · `C` counters (56 bytes; read after the run) · `R` reset the array (profile kept) ·
-`H` hold: accept and queue tasks but start none · `G` go: release the hold (both need a board that reports version 5 in the `V` reply; `host_bridge_v2.v`).
+`H` hold: accept and queue tasks but start none · `G` go: release the hold (both need a board that reports version 5 in the `V` reply; `host_bridge_v2.v`) ·
+`B prog(1) cbase(2) clen(2) dlen(2)` set the region of program class prog: code words [cbase, cbase+clen) of the shared store, data words [0, dlen) (version 6, `host_bridge_v3.v`; entries are cleared by `R`, so send them after the reset and before the tasks).
 Details are in the header of `host_bridge.v`.
 
 ## What was measured (not guessed)

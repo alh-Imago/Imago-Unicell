@@ -2,13 +2,13 @@
 # build_tang.sh - synthesise, place-and-route and pack the S-Core single-set design for the Tang Nano 20K,
 # with the same open flow as tools/gowin_sizing/build_smoke_bitstream.sh (yosys synth_gowin -nowidelut ->
 # nextpnr-himbaechel-gowin -> gowin_pack).  Needs: pip install yowasp-yosys yowasp-nextpnr-himbaechel-gowin apycula
-# Env: POOL=1 builds the v5 pool of 1-bit cores; POOL=2 the v6 pool (32-bit-wide block-RAM memories, the one that works on the board); POOL=3 v7 = v6 plus hold/go (host commands H and G); POOL=4 v8 = v7 with one shared code store; NOBRAM=1 keeps every memory in LUT-RAM (no block RAM), for isolating block-RAM problems.
+# Env: POOL=1 builds the v5 pool of 1-bit cores; POOL=2 the v6 pool (32-bit-wide block-RAM memories, the one that works on the board); POOL=3 v7 = v6 plus hold/go (host commands H and G); POOL=4 v8 = v7 with one shared code store; POOL=5 v9 = v8 plus regions (base/limit checks); NOBRAM=1 keeps every memory in LUT-RAM (no block RAM), for isolating block-RAM problems.
 # Usage: ./build_tang.sh [outdir] [S] [IMEM_WORDS] [DMW] [QD] [FINE]      defaults: build 1 128 16 16 0   (FINE=1: half-octave duration buckets)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 # Settings, either as named options in any order, or the old positional form (outdir S IMEM_WORDS DMW QD FINE).
 #   --out DIR      output folder                      (default build)
-#   --pool N       design: 1 v5, 2 v6, 3 v7 (hold/go), 4 v8 (shared code store)   (default: env POOL, else 4)
+#   --pool N       design: 1 v5, 2 v6, 3 v7 (hold/go), 4 v8 (shared code store), 5 v9 (regions)   (default: env POOL, else 5)
 #   --slices N     number of 1-bit cores (slices)     (default 1)
 #   --code N       shared code store, 32-bit words, power of 2   (default 128)
 #   --data N       data words per slice               (default 16)
@@ -27,7 +27,7 @@ if [[ "${1:-}" == --* ]]; then
     [ $# -ge 2 ] || { echo "option $1 needs a value"; exit 1; }
     shift 2
   done
-  OUT=${OUT:-$HERE/build}; [ -n "$POOLSET" ] || POOL=4
+  OUT=${OUT:-$HERE/build}; [ -n "$POOLSET" ] || POOL=5
 else
   OUT=${1:-$HERE/build}; S=${2:-1}; IMW=${3:-128}; DMW=${4:-16}; QD=${5:-16}; FINE=${6:-0}
 fi
@@ -40,6 +40,7 @@ if [ "${POOL:-0}" = 1 ]; then TOP=sc_top_pool; SRCS="$HERE/../uc_core_v2s.v $HER
 if [ "${POOL:-0}" = 2 ]; then TOP=sc_top_pool6; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v6.v"; fi   # POOL=2: v6, memories in 32-bit-wide block RAM
 if [ "${POOL:-0}" = 3 ]; then TOP=sc_top_pool7; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v7.v"; BRIDGE="$HERE/host_bridge_v2.v"; fi   # POOL=3: v7 = v6 plus hold/go
 if [ "${POOL:-0}" = 4 ]; then TOP=sc_top_pool8; SRCS="$HERE/../uc_core_v2t.v $HERE/../sc_sys_v8.v"; BRIDGE="$HERE/host_bridge_v2.v"; fi   # POOL=4: v8 = v7 plus ONE shared code store for all slices
+if [ "${POOL:-0}" = 5 ]; then TOP=sc_top_pool9; SRCS="$HERE/../uc_core_v2u.v $HERE/../sc_sys_v9.v"; BRIDGE="$HERE/host_bridge_v3.v"; fi   # POOL=5: v9 = v8 plus regions (code base/limit, data limit; host command B)
 mkdir -p "$OUT"; cd "$OUT"
 printf "pool=%s slices=%s code_words=%s data_words=%s queue=%s fine=%s seed=%s built=%s\n" "$POOL" "$S" "$IMW" "$DMW" "$QD" "$FINE" "$SEED" "$(date -u +%FT%TZ)" | tee build_info.txt
 if [ -n "${NOBRAM:-}" ] && [ "${POOL:-0}" = 1 ]; then   # force LUT-RAM (distributed) instead of block RAM: NOBRAM=1 all pool memories, =rf the register file only, =dm the data memory only

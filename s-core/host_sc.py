@@ -12,6 +12,7 @@ def cmd_V():                 return b'V'
 def cmd_C():                 return b'C'
 def cmd_R():                 return b'R'
 def cmd_H():                 return b'H'      # hold: queue tasks but start none (board version >= 5)
+def cmd_B(prog, cbase, clen, dlen): return b'B' + struct.pack('<BHHH', prog, cbase, clen, dlen)   # region of a program class (board version >= 6)
 def cmd_G():                 return b'G'      # go: release the hold
 def cmd_W(addr, word):       return b'W' + struct.pack('<HI', addr, word & 0xFFFFFFFF)
 def cmd_P(tid, code, lw, crit=0, prog=0): return b'P' + struct.pack('<HHBBB', tid, code, lw, crit, prog)
@@ -59,6 +60,7 @@ class Board:
     def task(self, tid): self.s.write(cmd_Q(tid)); return dec_Q(self._rd(22))
     def reset(self):    self.s.write(cmd_R()); time.sleep(0.05)
     def hold(self):     self.s.write(cmd_H()); self.s.flush()
+    def region(self, prog, cbase, clen, dlen): self.s.write(cmd_B(prog, cbase, clen, dlen)); self.s.flush()
     def go(self):       self.s.write(cmd_G()); self.s.flush()
     def flush_input(self):
         """throw away anything waiting on the port (the Tang's factory demo prints text at power-up)"""

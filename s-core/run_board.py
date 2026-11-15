@@ -21,6 +21,7 @@ def main():
     ap.add_argument('--clk', type=float, default=27e6)
     ap.add_argument('--lw', type=int, default=None, help='log2 of bits per cycle per task (0 = narrowest, lets S tasks run side by side)')
     ap.add_argument('--base', type=int, default=0, help='code word address where the kernels are loaded (use a high value to test the upper part of a big shared code store)')
+    ap.add_argument('--regions', action='store_true', help='give every program an exact region (needs a --pool 5 build): the run must give the same answers and durations as without')
     ap.add_argument('--nohold', action='store_true', help='do not use hold/go even if the board supports it (tasks then start as they arrive)')
     a = ap.parse_args()
     b = hs.Board(a.port, a.baud)
@@ -33,6 +34,9 @@ def main():
             base[name] = a.base + len(words); words += w; exp[name] = rt.iss(w)['x'][10]; names.append(name)
     print('kernels loaded (%d words):' % len(words), ', '.join(names))
     b.reset(); b.load(a.base, words)
+    if a.regions:
+        if v['version'] < 6: sys.exit('--regions needs a build with regions (--pool 5, version 6)')
+        for p, nm in enumerate(names): b.region(p, base[nm], len(rt.assemble(dict(PROGS)[nm])), v['dmem_words'])
     kinds = names * 2
     use_hold = v['version'] >= 5 and not a.nohold      # board version 5 = hold/go: load all tasks first, then release them together
     if use_hold: b.hold()

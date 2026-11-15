@@ -10,8 +10,9 @@ A prototype of a **modular, interrupt-free RISC core whose datapath width is a d
 | v6 | `sc_sys_v6.v` | register file and data memory in 32-bit-wide block RAM (the only block-RAM shape that works on this board), falling-edge RAM inputs | 10/10 tasks ok |
 | v7 | `sc_sys_v7.v` | HOLD input: tasks are queued, then released together (host commands `H` / `G`) | 10/10 ok, all 8 slices used |
 | v8 | `sc_sys_v8.v`, `uc_core_v2t.v` | ONE shared code store for all slices: turn-taking port, next-instruction fetch-ahead, core stalled via `ce` | 10/10 ok, about 1% slower, smaller |
+| v9 | `sc_sys_v9.v`, `uc_core_v2u.v` | REGIONS: per program class a code region (base, length in words of the shared store) and a data limit; a fetch outside the region or a load/store beyond the limit ends the task as a trap and a wild store does not land (host command `B`) | simulation; build sizes in `latest.md`; not yet on the board |
 
-How a v8 slice gets its instructions: a free-running slot counter lets slice 0, 1, ... S-1 load its 32-bit fetch register from the shared store in turn (one clock per slot, no arbitration). While a core runs, its slice fetches the next sequential word, so straight-line code never waits; a taken branch waits at most S-1 clocks. The shared store is read-only to the cores (they cannot load from or store to code), and nothing yet stops a task from jumping outside its own program (base/limit registers are the planned next layer).
+How a v8 slice gets its instructions: a free-running slot counter lets slice 0, 1, ... S-1 load its 32-bit fetch register from the shared store in turn (one clock per slot, no arbitration). While a core runs, its slice fetches the next sequential word, so straight-line code never waits; a taken branch waits at most S-1 clocks. The shared store is read-only to the cores (they cannot load from or store to code), and from v9 on, a task cannot run outside the code region the host gave its program class, nor touch data beyond its data limit (details in `latest.md`); classes with no region get the whole store and all physical data words.
 
 This is separate from the UniCell cell grid. The aim is to see whether a sea of identical narrow slices can be fused into wider cores (or split into many narrow ones) while still running ordinary compiled software. Branch: `S-Core_go`. Status and numbers are in [`latest.md`](latest.md).
 
@@ -40,7 +41,8 @@ This is separate from the UniCell cell grid. The aim is to see whether a sea of 
 | `latest.md` | current state of this line |
 | `sc_sys_v5.v` .. `sc_sys_v8.v`, `uc_core_v2s.v`, `uc_core_v2t.v` | the pool designs described above (clone-and-increment: each version is a new file, older ones are kept as proven) |
 | `tb_sys5.v` .. `tb_sys8.v`, `sched_tests_v3.py` | system testbenches and the scheduler gate (`v5`..`v8` flags in `build`/`run3`) |
-| `host_sc.py`, `run_board.py` | PC side for the real board: protocol codec (`V W P Q C R H G`) and the board test script |
+| `host_sc.py`, `run_board.py`, `run_regions_board.py` | PC side for the real board: protocol codec (`V W P Q C R H G B`), the board test script (`--regions` gives every program an exact region), and the regions test (traps, wild store, recovery) |
+| `region_cases.py`, `test_regions_sim.py` | the twelve region test programs and their whole-board simulation test (`python3 test_regions_sim.py`; `NOREGION=1` is the negative control) |
 | `fpga/` | Tang Nano 20K build: top levels `sc_top_pool*.v`, UART host bridge, `build_tang.sh`, block-RAM probe designs; see `fpga/README.md` |
 
 ## The array and the dispatcher
