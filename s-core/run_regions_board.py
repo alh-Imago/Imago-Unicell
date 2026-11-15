@@ -16,13 +16,13 @@ from region_cases import K, DL, layout
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('port'); ap.add_argument('--baud', type=int, default=115200)
+    ap.add_argument('--expect', default='version=6,S=1', help='design the board must be running (default version=6,S=1: a one-slice build with regions)')
     a = ap.parse_args()
     b = hs.Board(a.port, a.baud)
     v = b.version(); print('board:', v)
-    if v['version'] < 6: sys.exit('this build has no regions (version %d); build with --pool 5' % v['version'])
+    hs.check_design(v, hs.parse_expect(a.expect), 6, 'regions (a --pool 5 build)')
     words, ents = layout()
     if len(words) > v['imem_words']: sys.exit('the test programs need %d code words, the build has %d' % (len(words), v['imem_words']))
-    if v['S'] != 1: print('note: S=%d; for the strict checks build with --slices 1' % v['S'])
     b.reset(); b.load(0, words)
     for p, (name, src, exp, trap, trim) in enumerate(K):
         if trim is None: continue

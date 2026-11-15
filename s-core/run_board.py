@@ -22,10 +22,12 @@ def main():
     ap.add_argument('--lw', type=int, default=None, help='log2 of bits per cycle per task (0 = narrowest, lets S tasks run side by side)')
     ap.add_argument('--base', type=int, default=0, help='code word address where the kernels are loaded (use a high value to test the upper part of a big shared code store)')
     ap.add_argument('--regions', action='store_true', help='give every program an exact region (needs a --pool 5 build): the run must give the same answers and durations as without')
+    ap.add_argument('--expect', default='', help='design the board must be running, e.g. version=6,S=8,imem_words=64; the run stops early with a plain message if it is not')
     ap.add_argument('--nohold', action='store_true', help='do not use hold/go even if the board supports it (tasks then start as they arrive)')
     a = ap.parse_args()
     b = hs.Board(a.port, a.baud)
     v = b.version(); print('board:', v)
+    hs.check_design(v, hs.parse_expect(a.expect), 6 if a.regions else 0, 'regions (--regions)')
     lw = a.lw if a.lw is not None else min(2, int(math.log2(v['S'])))   # default: widest group that fits, up to 4 bits/cycle
     words, base, exp, names = [], {}, {}, []
     for name, src in PROGS:                            # as many kernels as fit the instruction memory, in order

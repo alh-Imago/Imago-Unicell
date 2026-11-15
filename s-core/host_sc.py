@@ -45,6 +45,32 @@ def split_replies(stream, order):
         out.append(DEC[c](stream[pos:pos + n])); pos += n
     return out
 
+def parse_expect(text):
+    """'version=6,S=8,imem_words=64' -> dict of ints (keys as in the V reply: version, S, imem_words, dmem_words)"""
+    out = {}
+    for part in (text or '').split(','):
+        if not part.strip(): continue
+        k, _, val = part.partition('=')
+        k = k.strip()
+        if k not in ('version', 'S', 'imem_words', 'dmem_words') or not val.strip().lstrip('-').isdigit():
+            raise SystemExit("--expect: use e.g. version=6,S=8,imem_words=64 (keys: version, S, imem_words, dmem_words); got %r" % part)
+        out[k] = int(val)
+    return out
+
+def check_design(v, expect=None, need_version=0, need_what=''):
+    """Stop with a plain message when the board is not running the design this test needs.
+    v = the V reply.  expect = exact values wanted (see parse_expect).  need_version = lowest design version that has the feature."""
+    problems = []
+    if v['version'] < need_version:
+        problems.append('this test needs %s (board design version %d or newer); the board reports version %d' % (need_what or 'a newer design', need_version, v['version']))
+    for k, want in (expect or {}).items():
+        if v[k] != want: problems.append('%s: the test expects %d, the board reports %d' % (k, want, v[k]))
+    if problems:
+        print('WRONG DESIGN on the board: ' + 'board reports version %d, S %d, imem_words %d, dmem_words %d' % (v['version'], v['S'], v['imem_words'], v['dmem_words']))
+        for p in problems: print('  - ' + p)
+        print('Most likely the Tang is still running the PREVIOUS design (a new load sometimes does not take). Unplug it for about 5 seconds, plug it in, load the right .fs file again, wait 5 seconds and rerun. If it is still wrong, the .fs file you loaded was built with different settings.')
+        raise SystemExit(2)
+
 class Board:
     """Real board over a serial port.  115200 8N1 by default (must equal BAUD_DIV in the build)."""
     def __init__(self, port, baud=115200):

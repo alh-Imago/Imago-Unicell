@@ -21,7 +21,7 @@ cd s-core/fpga && source ~/gowin-env/bin/activate
 openFPGALoader -b tangnano20k pool8_8/sc_top_pool8.fs
 cd .. && python3 run_board.py /dev/ttyUSB1 --lw 0       # --nohold: do not use hold/go; --base N: load the programs at code address N
 ```
-Run `run_board.py` twice without reloading: the second run has a duration prediction for every task, and the ordered batch is shorter. `run_board.py` flushes the serial port when it opens it (the board's factory demo prints text at power-up). If it prints `not an S-Core build`, rerun it once.
+`run_board.py --expect version=6,S=8,imem_words=64` (any subset of version, S, imem_words, dmem_words) stops early with a plain "WRONG DESIGN" message if the board is not running that design, which is how a load that did not take shows up; `--regions` and `run_regions_board.py` check the design version automatically. Run `run_board.py` twice without reloading: the second run has a duration prediction for every task, and the ordered batch is shorter. `run_board.py` flushes the serial port when it opens it (the board's factory demo prints text at power-up). If it prints `not an S-Core build`, rerun it once.
 
 Rules learned on this board: power-cycle before loading a different design (it sometimes keeps running the previous one); only the 32-bit-wide single-port block RAM works (narrower shapes return wrong data on silicon even with no core); nextpnr does check hold time, so block-RAM inputs are re-registered on the falling clock edge; `gowin_pack -s` rewrites the `.cst`, so do not reuse that file for nextpnr.
 
