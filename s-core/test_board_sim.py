@@ -32,16 +32,16 @@ def fit_progs(imem_words):
         if used + n <= imem_words: out.append(name); used += n
     return out
 
-def script(tids_kinds, lw, crit_set, wait_clocks, imem_words=256, div=8, hold=False):
+def script(tids_kinds, lw, crit_set, wait_clocks, imem_words=256, div=8, hold=False, base=0):
     """returns (bytes_to_send_with_waits, reply_order, expected a0 per tid)"""
     seq, bases, words_all, exp = [], {}, [], {}
     for name, src in PROGS:
-        if name not in fit_progs(imem_words): continue
-        w = rt.assemble(src); bases[name] = len(words_all); words_all += w; exp[name] = rt.iss(w)['x'][10]
-    assert len(words_all) <= imem_words, 'programs do not fit the instruction memory'
+        if name not in fit_progs(imem_words - base): continue
+        w = rt.assemble(src); bases[name] = base + len(words_all); words_all += w; exp[name] = rt.iss(w)['x'][10]
+    assert base + len(words_all) <= imem_words, 'programs do not fit the instruction memory'
     rep_wait = lambda n: ('D', n * 10 * div + 4 * div * 10)   # reply bytes x bit-times, plus slack
     seq.append(('B', hs.cmd_V())); order = ['V']; seq.append(rep_wait(8))
-    for i, w in enumerate(words_all): seq.append(('B', hs.cmd_W(i, w)))
+    for i, w in enumerate(words_all): seq.append(('B', hs.cmd_W(base + i, w)))
     if hold: seq.append(('B', hs.cmd_H()))
     for tid, kind in enumerate(tids_kinds):
         seq.append(('B', hs.cmd_P(tid, bases[kind], lw, int(tid in crit_set), [n for n, _ in PROGS].index(kind))))
@@ -67,11 +67,12 @@ if __name__ == '__main__':
     ap.add_argument('--S', type=int, default=1); ap.add_argument('--imw', type=int, default=128)
     ap.add_argument('--dmw', type=int, default=16); ap.add_argument('--lw', type=int, default=0)
     ap.add_argument('--wait', type=int, default=1200000); ap.add_argument('--div', type=int, default=8)
+    ap.add_argument('--base', type=int, default=0, help='load the kernels at this code word address (tests high addresses of a big code store)')
     ap.add_argument('--hold', action='store_true', help='send H before the submissions and G after them (needs POOL=3)')
     a = ap.parse_args()
     exe = build(S=a.S, IMW=a.imw, DMW=a.dmw, DIV=a.div, tag='board%d' % a.div)
-    kinds = fit_progs(a.imw) * 2
-    seq, order, exp = script(kinds, lw=a.lw, crit_set={4, 9}, wait_clocks=a.wait, imem_words=a.imw, div=a.div, hold=a.hold)
+    kinds = fit_progs(a.imw - a.base) * 2
+    seq, order, exp = script(kinds, lw=a.lw, crit_set={4, 9}, wait_clocks=a.wait, imem_words=a.imw, div=a.div, hold=a.hold, base=a.base)
     rx = run(exe, seq, tag='board%d' % a.div)
     rep = hs.split_replies(rx, order)
     ver, cnt, tasks = rep[0], rep[1], rep[2:]

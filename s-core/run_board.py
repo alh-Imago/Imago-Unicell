@@ -20,6 +20,7 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument('port'); ap.add_argument('--baud', type=int, default=115200)
     ap.add_argument('--clk', type=float, default=27e6)
     ap.add_argument('--lw', type=int, default=None, help='log2 of bits per cycle per task (0 = narrowest, lets S tasks run side by side)')
+    ap.add_argument('--base', type=int, default=0, help='code word address where the kernels are loaded (use a high value to test the upper part of a big shared code store)')
     ap.add_argument('--nohold', action='store_true', help='do not use hold/go even if the board supports it (tasks then start as they arrive)')
     a = ap.parse_args()
     b = hs.Board(a.port, a.baud)
@@ -28,10 +29,10 @@ def main():
     words, base, exp, names = [], {}, {}, []
     for name, src in PROGS:                            # as many kernels as fit the instruction memory, in order
         w = rt.assemble(src)
-        if len(words) + len(w) <= v['imem_words']:
-            base[name] = len(words); words += w; exp[name] = rt.iss(w)['x'][10]; names.append(name)
+        if a.base + len(words) + len(w) <= v['imem_words']:
+            base[name] = a.base + len(words); words += w; exp[name] = rt.iss(w)['x'][10]; names.append(name)
     print('kernels loaded (%d words):' % len(words), ', '.join(names))
-    b.reset(); b.load(0, words)
+    b.reset(); b.load(a.base, words)
     kinds = names * 2
     use_hold = v['version'] >= 5 and not a.nohold      # board version 5 = hold/go: load all tasks first, then release them together
     if use_hold: b.hold()

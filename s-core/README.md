@@ -2,6 +2,17 @@
 
 A prototype of a **modular, interrupt-free RISC core whose datapath width is a dial.** One RV32I binary runs unchanged at 1, 2, 4, 8, 16 or 32 bits per cycle: "fusing slices" changes the speed, never the result.
 
+**Current line (2026-11-15): a pool of 1-bit RV32I cores with one shared code store, running on a Tang Nano 20K.** The runtime-width array described further down (`sc_sys.v` ... `sc_sys_v4.v`) is the simulation history; the hardware path is `sc_sys_v5`..`v8` with `uc_core_v2s` / `uc_core_v2t` (fixed 1-bit cores, `W=1`). Live numbers are always in [`latest.md`](latest.md).
+
+| version | file | what it adds | board |
+|---|---|---|---|
+| v5 | `sc_sys_v5.v` | pool of fixed 1-bit cores (`uc_core_v2s`), v4 scheduler | block-RAM memories failed on silicon (see v6) |
+| v6 | `sc_sys_v6.v` | register file and data memory in 32-bit-wide block RAM (the only block-RAM shape that works on this board), falling-edge RAM inputs | 10/10 tasks ok |
+| v7 | `sc_sys_v7.v` | HOLD input: tasks are queued, then released together (host commands `H` / `G`) | 10/10 ok, all 8 slices used |
+| v8 | `sc_sys_v8.v`, `uc_core_v2t.v` | ONE shared code store for all slices: turn-taking port, next-instruction fetch-ahead, core stalled via `ce` | 10/10 ok, about 1% slower, smaller |
+
+How a v8 slice gets its instructions: a free-running slot counter lets slice 0, 1, ... S-1 load its 32-bit fetch register from the shared store in turn (one clock per slot, no arbitration). While a core runs, its slice fetches the next sequential word, so straight-line code never waits; a taken branch waits at most S-1 clocks. The shared store is read-only to the cores (they cannot load from or store to code), and nothing yet stops a task from jumping outside its own program (base/limit registers are the planned next layer).
+
 This is separate from the UniCell cell grid. The aim is to see whether a sea of identical narrow slices can be fused into wider cores (or split into many narrow ones) while still running ordinary compiled software. Branch: `S-Core_go`. Status and numbers are in [`latest.md`](latest.md).
 
 ## The idea
@@ -27,12 +38,28 @@ This is separate from the UniCell cell grid. The aim is to see whether a sea of 
 | `dispatch_tests.py` | dispatcher policy matrix (strict FIFO, overtaking, reserved region) |
 | `results.md` | measured cycles per instruction and iCE40 area per width |
 | `latest.md` | current state of this line |
+| `sc_sys_v5.v` .. `sc_sys_v8.v`, `uc_core_v2s.v`, `uc_core_v2t.v` | the pool designs described above (clone-and-increment: each version is a new file, older ones are kept as proven) |
+| `tb_sys5.v` .. `tb_sys8.v`, `sched_tests_v3.py` | system testbenches and the scheduler gate (`v5`..`v8` flags in `build`/`run3`) |
+| `host_sc.py`, `run_board.py` | PC side for the real board: protocol codec (`V W P Q C R H G`) and the board test script |
+| `fpga/` | Tang Nano 20K build: top levels `sc_top_pool*.v`, UART host bridge, `build_tang.sh`, block-RAM probe designs; see `fpga/README.md` |
 
 ## The array and the dispatcher
 
 `sc_sys.v` holds 32 slices. A task asks for a width (1, 2, 4, 8, 16 or 32 slices); a **dedicated dispatcher** (a small hardware state machine, so no compute core ever runs scheduling code) finds an aligned free group, starts a core of that width, and frees the slices when the task ends. Tasks wait in a submission queue; finished tasks are reported in a completion queue that the host polls. No interrupts, no preemption: a task runs to completion.
 
-## Run it
+## Build and run on the Tang Nano 20K (current design, v8)
+```
+cd s-core/fpga
+source ~/gowin-env/bin/activate            # open flow: yosys, nextpnr-himbaechel, gowin_pack, openFPGALoader
+./build_tang.sh --out pool8_8 --slices 8 --code 64 --data 16 --queue 16     # named options, any order; --help lists them
+# (old positional form still works:  POOL=4 ./build_tang.sh pool8_8 8 64 16 16)
+# unplug and replug the Tang (about 5 s), then load:
+openFPGALoader -b tangnano20k pool8_8/sc_top_pool8.fs
+cd .. && python3 run_board.py /dev/ttyUSB1 --lw 0        # run twice: the second run uses the learned duration profile
+```
+Build settings (`--slices`, `--code`, `--data`, `--queue`, `--fine`, `--pool`, `--seed`) are fixed when the bitstream is built and are saved in `build_info.txt` next to it; the board reports slices, code words and data words to the host (`V` command), and `run_board.py` adapts. `run_board.py --base N` loads the test programs at code address N (use a high value to test the upper part of a big code store). Power-cycle the board before loading a different design: it sometimes keeps running the previous one.
+
+## Run it (simulation)
 
 Needs `iverilog` (and `yosys` for area, `verilator` for the array experiments):
 
@@ -52,7 +79,7 @@ Tang Nano 20K (Sipeed) and a Kintex-7 XC7K480T card. The Kintex card has no PCIe
 
 ## Limits (be aware)
 
-Word loads and stores only (no `lb`/`lh`/`sb`/`sh`), aligned only; `ebreak`/`ecall` halt; anything else illegal traps. Instruction fetch is one 32-bit read. No fetch/execute overlap. Area figures exclude the register file and memories.
+Word loads and stores only (no `lb`/`lh`/`sb`/`sh`), aligned only; `ebreak`/`ecall` halt; anything else illegal traps. No multiply, no CSRs, no interrupts. Loads and stores reach only each core's own small private data memory, not the code store. No protection between tasks yet. Area figures for v1/v2 exclude the register file and memories. Block RAM: only the 32-bit-wide single-port shape works on this board (see `latest.md`, v6).
 
 ## Priority dispatcher v3
 `sc_sys_v3.v` adds the request table, task table (start/end/slot), priority queues and best-fit placement; see `latest.md` and `matrix_v3.txt`. Run with `python3 sched_tests_v3.py` (needs Verilator).

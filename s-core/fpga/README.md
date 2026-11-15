@@ -1,7 +1,27 @@
-# S-Core on the Tang Nano 20K (single set, v4)
+# S-Core on the Tang Nano 20K
 
-This folder is the first path from the simulated S-Core scheduler to real hardware. Everything here is tested in
-simulation and through the open-source place-and-route tools; **nothing has been run on a board yet.**
+This folder is the path from the simulated S-Core scheduler to real hardware. **Current design: v8 (pool of 1-bit cores, one shared code store), run on a real Tang Nano 20K on 2026-11-15.** The sections from "What is here" down describe the first single-set build (v4) and are kept as history; the section below is the current state. Live numbers: [`../latest.md`](../latest.md).
+
+## Current designs (v6 - v8), at a glance
+| `--pool` | top level | design | board result (8 slices, 64 code words, 16 data words) |
+|---|---|---|---|
+| 2 | `sc_top_pool6.v` | v6: block-RAM memories in the 32-bit-wide shape | 10/10 ok; only slots 0 and 1 used (tasks trickle in over the UART) |
+| 3 | `sc_top_pool7.v` | v7: + HOLD (host `H` / `G`) | 10/10 ok, all 8 slots used; second run with the learned profile: batch 54,945 -> 48,602 clocks |
+| 4 | `sc_top_pool8.v` | v8: + one shared code store | 10/10 ok, all 8 slots used; about 1% slower than v7; second run batch 55,592 -> 49,122 clocks |
+
+Place-and-route (nextpnr, 8 slices): v7 13,706 LUT4 / 377 LUT-RAM blocks; v8 12,887 LUT4 / 153 LUT-RAM blocks, 54.3 MHz. v8 with 10 slices (14,921 LUT4) places and routes but has not been run on the board; 12 slices do not place (logic), 16 do not (block RAM: 3 blocks per slice). Code store size at 8 slices (all route and close timing; none run on the board yet): 64 words 12,887 LUT4 / 153 LUT-RAM blocks / 54.3 MHz; 256 words 13,928 / 249 / 53.9 MHz; 512 words 14,466 / 377 / 51.6 MHz. The cost is LUT-RAM (about 0.5 block per word) plus a wider read multiplexer, and it is paid once, not per slice.
+
+Build (named options; the old positional form still works) and run:
+```
+cd s-core/fpga && source ~/gowin-env/bin/activate
+./build_tang.sh --out pool8_8 --slices 8 --code 64 --data 16 --queue 16        # ./build_tang.sh --help lists the options
+# unplug and replug the board (about 5 s), then
+openFPGALoader -b tangnano20k pool8_8/sc_top_pool8.fs
+cd .. && python3 run_board.py /dev/ttyUSB1 --lw 0       # --nohold: do not use hold/go; --base N: load the programs at code address N
+```
+Run `run_board.py` twice without reloading: the second run has a duration prediction for every task, and the ordered batch is shorter. `run_board.py` flushes the serial port when it opens it (the board's factory demo prints text at power-up). If it prints `not an S-Core build`, rerun it once.
+
+Rules learned on this board: power-cycle before loading a different design (it sometimes keeps running the previous one); only the 32-bit-wide single-port block RAM works (narrower shapes return wrong data on silicon even with no core); nextpnr does check hold time, so block-RAM inputs are re-registered on the falling clock edge; `gowin_pack -s` rewrites the `.cst`, so do not reuse that file for nextpnr.
 
 ## What is here
 | File | What it is |
@@ -37,7 +57,8 @@ If nothing blinks, the bitstream did not load. If LED0 blinks but `run_board.py`
 
 ## Protocol (all little-endian; one command at a time, wait for the reply before the next command)
 `V` link check (8 bytes back) · `W addr(2) word(4)` write code · `P tid(2) code(2) lw(1) crit(1) prog(1)` submit ·
-`Q tid(2)` task table (22 bytes) · `C` counters (56 bytes; read after the run) · `R` reset the array (profile kept).
+`Q tid(2)` task table (22 bytes) · `C` counters (56 bytes; read after the run) · `R` reset the array (profile kept) ·
+`H` hold: accept and queue tasks but start none · `G` go: release the hold (both need a board that reports version 5 in the `V` reply; `host_bridge_v2.v`).
 Details are in the header of `host_bridge.v`.
 
 ## What was measured (not guessed)
@@ -59,7 +80,7 @@ hold five of the six test kernels (60 words; `sort` needs 36 more). `run_board.p
 separate 1-bit cores side by side; the default `--lw` uses both as one 2-bit core.
 S=3 and above were not tried; by the per-slice cost below they will not fit.
 
-## What this says about the design (important)
+## What this said about the design (v4 - history; resolved by the pool of 1-bit cores in v5-v8)
 `uc_core_rw` is a *simulation model*: it works on 32-bit buses and masks them to the chosen width. As hardware it costs
 about 2,800 LUT4 per core, and each extra slice about 4,100 LUT4 once its memories and shifters are included, against
 about 470 LUT4 for the fixed 1-bit core measured earlier. The scheduler and host bridge are about 3,300 LUT4 on top.
@@ -67,7 +88,7 @@ So this model cannot be replicated 8, 16 or 32 times on this chip. What the buil
 silicon (table, queues, profile, UART). The 32-slice array needs the real fusable 1-bit slice with a fusion network,
 or at least the narrow-datapath cores, instead of one masked 32-bit core per slice.
 
-## First run on the board (2026-11-12, Alan)
+## First run on the board (2026-11-12, Alan) - v4, history
 S=1 bitstream loaded to SRAM on a Tang Nano 20K; `run_board.py /dev/ttyUSB1` passed: 12 of 12 tasks `ok`, launch_err 0. Task durations equal the simulation's (e.g. sort 74195 clocks, sum 24165-24166), so pins, UART and clock are confirmed on silicon.
 
 S=2 bitstream (`run_board.py /dev/ttyUSB1 --lw 0`, 64 code words): 10 of 10 tasks `ok`, launch_err 0, tasks placed on slot 0 and slot 1 (two cores running side by side on silicon). waste_tail 99,567 slice-cycles: one slot idle at the end of the batch (profile was empty on that run).

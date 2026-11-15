@@ -6,7 +6,34 @@
 # Usage: ./build_tang.sh [outdir] [S] [IMEM_WORDS] [DMW] [QD] [FINE]      defaults: build 1 128 16 16 0   (FINE=1: half-octave duration buckets)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-OUT=${1:-$HERE/build}; S=${2:-1}; IMW=${3:-128}; DMW=${4:-16}; QD=${5:-16}; FINE=${6:-0}
+# Settings, either as named options in any order, or the old positional form (outdir S IMEM_WORDS DMW QD FINE).
+#   --out DIR      output folder                      (default build)
+#   --pool N       design: 1 v5, 2 v6, 3 v7 (hold/go), 4 v8 (shared code store)   (default: env POOL, else 4)
+#   --slices N     number of 1-bit cores (slices)     (default 1)
+#   --code N       shared code store, 32-bit words, power of 2   (default 128)
+#   --data N       data words per slice               (default 16)
+#   --queue N      task-table / queue depth           (default 16)
+#   --fine 0|1     half-octave duration buckets       (default 0)
+#   --seed N       place-and-route seed               (default 1)
+# Every value is fixed when the bitstream is built; the board reports slices, code words and data words to the host (V command).
+OUT=""; S=1; IMW=128; DMW=16; QD=16; FINE=0; POOLSET=${POOL:-}; POOL=${POOL:-0}   # (positional form keeps the old default: POOL unset = the v4 single-set design)
+if [[ "${1:-}" == --* ]]; then
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --out) OUT=$2;; --pool) POOL=$2; POOLSET=$2;; --slices) S=$2;; --code) IMW=$2;; --data) DMW=$2;; --queue) QD=$2;; --fine) FINE=$2;; --seed) SEED=$2;;
+      -h|--help) sed -n '/^# Settings/,/^# Every value/p' "$0"; exit 0;;
+      *) echo "unknown option $1 (try --help)"; exit 1;;
+    esac
+    [ $# -ge 2 ] || { echo "option $1 needs a value"; exit 1; }
+    shift 2
+  done
+  OUT=${OUT:-$HERE/build}; [ -n "$POOLSET" ] || POOL=4
+else
+  OUT=${1:-$HERE/build}; S=${2:-1}; IMW=${3:-128}; DMW=${4:-16}; QD=${5:-16}; FINE=${6:-0}
+fi
+[ $((IMW & (IMW - 1))) -eq 0 ] || { echo "--code must be a power of 2 (got $IMW)"; exit 1; }
+[ $((DMW & (DMW - 1))) -eq 0 ] || { echo "--data must be a power of 2 (got $DMW)"; exit 1; }
+export POOL
 DEVICE="GW2AR-LV18QN88C8/I7"; TOP=sc_top_tang; SEED=${SEED:-1}
 SRCS="$HERE/../uc_core_fp.v $HERE/../sc_sys_v4.v"; BRIDGE="$HERE/host_bridge.v"
 if [ "${POOL:-0}" = 1 ]; then TOP=sc_top_pool; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v5.v"; fi   # POOL=1: pool of fixed 1-bit cores (v5)
@@ -14,6 +41,7 @@ if [ "${POOL:-0}" = 2 ]; then TOP=sc_top_pool6; SRCS="$HERE/../uc_core_v2s.v $HE
 if [ "${POOL:-0}" = 3 ]; then TOP=sc_top_pool7; SRCS="$HERE/../uc_core_v2s.v $HERE/../sc_sys_v7.v"; BRIDGE="$HERE/host_bridge_v2.v"; fi   # POOL=3: v7 = v6 plus hold/go
 if [ "${POOL:-0}" = 4 ]; then TOP=sc_top_pool8; SRCS="$HERE/../uc_core_v2t.v $HERE/../sc_sys_v8.v"; BRIDGE="$HERE/host_bridge_v2.v"; fi   # POOL=4: v8 = v7 plus ONE shared code store for all slices
 mkdir -p "$OUT"; cd "$OUT"
+printf "pool=%s slices=%s code_words=%s data_words=%s queue=%s fine=%s seed=%s built=%s\n" "$POOL" "$S" "$IMW" "$DMW" "$QD" "$FINE" "$SEED" "$(date -u +%FT%TZ)" | tee build_info.txt
 if [ -n "${NOBRAM:-}" ] && [ "${POOL:-0}" = 1 ]; then   # force LUT-RAM (distributed) instead of block RAM: NOBRAM=1 all pool memories, =rf the register file only, =dm the data memory only
   case "$NOBRAM" in
     rf) PAT='/reg rf_a/' ;;
