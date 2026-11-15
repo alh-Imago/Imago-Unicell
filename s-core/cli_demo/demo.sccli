@@ -1,0 +1,13 @@
+load cli_demo/demo.scs
+send
+hold
+run spin 3
+run fib
+run fib2
+run bad
+run sum 2
+go
+wait
+jobs
+peek 0 8
+counters
