@@ -39,6 +39,7 @@ def main():
     if a.regions:
         if v['version'] < 6: sys.exit('--regions needs a build with regions (--pool 5, version 6)')
         for p, nm in enumerate(names): b.region(p, base[nm], len(rt.assemble(dict(PROGS)[nm])), v['dmem_words'])
+        print('regions set: %d program classes, each limited to its own code words and %d data words' % (len(names), v['dmem_words']))
     kinds = names * 2
     use_hold = v['version'] >= 5 and not a.nohold      # board version 5 = hold/go: load all tasks first, then release them together
     if use_hold: b.hold()
