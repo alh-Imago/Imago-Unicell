@@ -89,8 +89,8 @@ def run(port, tasks, host=False, io=None, out=None, imem=None, dsh=None, poll_ti
     say('chain finished: %d steps in %.2f s (%s)' % (steps, t_run, 'host walking the scripts' if host else 'hardware sequencer'))
     if not host and 'clk' in a:
         c = a['clk']; other = c - a['clk_copy'] - a['clk_wait']
-        say('board time: %d clocks = %.2f ms (27 MHz): %.1f%% copying, %.1f%% waiting for jobs, %.1f%% fetching/decoding steps; %.1f clocks per step' % (
-            c, 1000.0 * c / clk_hz, 100.0 * a['clk_copy'] / c, 100.0 * a['clk_wait'] / c, 100.0 * other / c, c / max(1, steps)))
+        say('board time: %d clocks = %.2f ms (%.0f MHz): %.1f%% copying, %.1f%% waiting for jobs, %.1f%% fetching/decoding steps; %.1f clocks per step' % (
+            c, 1000.0 * c / clk_hz, clk_hz / 1e6, 100.0 * a['clk_copy'] / c, 100.0 * a['clk_wait'] / c, 100.0 * other / c, c / max(1, steps)))
         say('  %d jobs in %.2f ms of board time = %.0f jobs per second through the chain' % (len(tasks), 1000.0 * c / clk_hz, len(tasks) * clk_hz / c))
     elif not host: say('(this board version has no clock counters; load a --pool 11 build for the timing report)')
     bad = plan.verify(far_r)
