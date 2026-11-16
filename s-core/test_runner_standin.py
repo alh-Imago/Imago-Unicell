@@ -75,12 +75,67 @@ class BatchFake(JobFake):
             s.nsub += 1
         super().h(c)
 
+class SeqBatchFake(BatchFake):
+    def __init__(s): super().__init__(); s.sa = (0, 0, 0, 0); s.ver = 11
+    def version(s): return dict(version=11, S=4, imem_words=128, dmem_words=16)
+    def h(s, c):
+        k = chr(c[0])
+        if k == 'J':
+            import batch as B
+            s.sa = (1,) + B.LiveExec(s).run(int.from_bytes(c[1:4], 'little'))
+        elif k == 'A': s.buf += bytes([2, s.sa[1], s.sa[3] & 255, s.sa[3] >> 8]) + (s.sa[2] or 0).to_bytes(4, 'little')
+        else: super().h(c)
+
+def seq_main():
+    import run_seq_board as RS
+    return RS.main('x', io=SeqBatchFake(), timeout_case=False)
+
 def batch_main():
     import run_batch_board as RB
     return RB.main('x', io=BatchFake())
+
+# ---- stand-in for scbatch.py: the sequencer is emulated by the host executor running inside the fake; kinds per class come from the compiled plan ----
+class SeqFake(JobFake):
+    def __init__(s, tasks, ver=11):
+        import jobcomp as C
+        super().__init__(); s.plan = C.compile(tasks, imem=128, dsh=256, wait_k=0xFFFF); s.ver = ver; s.nsub = 0; s.sa = (0, 0, 0, 0); s.bad_code = False; s.regs = {}
+    def version(s): return dict(version=s.ver, S=5, imem_words=128, dmem_words=16)
+    def counters(s): return dict(done=s.nsub)
+    def task(s, t): return dict(state=3, trap=0, a0=0, start=10, end=1010)
+    def h(s, c):
+        k = chr(c[0])
+        if k == 'P':
+            entry = struct.unpack('<H', c[3:5])[0]; s.kind = {}
+            for lk, kinds in zip(s.plan.links, s.plan.class_kinds):
+                kc = lk.classes.get(c[7])
+                if kc and s.regs.get(c[7]) == (kc['cbase'], kc['clen']) and [s.code.get(i, 0) for i in range(len(lk.words))] == list(lk.words):
+                    s.kind = {c[7]: next(kinds[cid] for cid, k in lk.classes.items() if k['entry'] == entry and cid in kinds)}; break
+            else: s.bad_code = True
+            s.nsub += 1
+        elif k == 'B': s.regs[c[1]] = struct.unpack('<HH', c[2:6])
+        elif k == 'J':
+            import batch as B
+            s.sa = (1,) + B.LiveExec(s).run(int.from_bytes(c[1:4], 'little'))
+        elif k == 'A': s.buf += bytes([2, s.sa[1], s.sa[3] & 255, s.sa[3] >> 8]) + (s.plan.tag if s.sa[1] == 0 else 0).to_bytes(4, 'little')
+        super().h(c)
+
+def scbatch_main():
+    import scbatch as SB
+    rc = 0
+    for host, ver in ((False, 11), (True, 10)):
+        tasks = SB.demo_jobs(40); f = SeqFake(tasks, ver)
+        print('--- scbatch, 40 jobs, %s' % ('host walks the scripts' if host else 'hardware sequencer (emulated)'))
+        rc |= SB.run('x', tasks, host=host, io=f)
+        if f.bad_code: print('FAIL: a job started with a code store that matches no compiled link'); rc |= 1
+    f = SeqFake(SB.demo_jobs(5), 10)
+    print('--- scbatch on a board without the sequencer must say so')
+    rc |= (SB.run('x', SB.demo_jobs(5), host=False, io=f) != 2)
+    return rc
 
 if __name__ == '__main__':
     rc = R.main('x', io=Fake()); print()
     rc |= jobio_main()
     rc |= batch_main()
+    rc |= seq_main()
+    rc |= scbatch_main()
     sys.exit(rc)

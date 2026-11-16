@@ -17,6 +17,7 @@ Place-and-route (nextpnr, 8 slices): v7 13,706 LUT4 / 377 LUT-RAM blocks; v8 12,
 | 8 | `sc_top_pool12.v` | v12: + status `T`, per-core usage `U`, trap cause `E`; version 9; `--pool 8` | simulation: `test_status_sim.py`; board: `run_status_board.py` (not run yet) |
 | 9 | `sc_top_sdt.v` | stage 1 of the onboard 8 MB SDRAM: controller + on-chip memory test + UART commands (`build_sdt.sh`); not the pool | simulation `test_sdram_sim.py` PASS; places at 27 MHz (2,391 LUT4); 8 MB passes on the card (8.9 MB/s) |
 | 10 | `sc_top_pool13.v` | v12 cores + FAR RAM: onboard 8 MB SDRAM, copy engine `far_copy.v` (shared RAM / code store <-> far RAM), `host_bridge_v7` (version 10); `--pool 9` | simulation `test_farram_sim.py` PASS; places at S=5 code128 (14,790 LUT4, 53.7 MHz), S=6 does not; not yet on the card |
+| 11 | `sc_top_pool14.v` | pool13 + the batch sequencer `batch_seq.v` and `host_bridge_v8` (version 11, commands J / A); `--pool 10` | simulation `test_seq_sim.py` PASS; S=5 does NOT place (17,714 LUT4 = 85%, two seeds); S=4 places: 16,042 LUT4 (77%), 48.0 MHz; not yet on the card. (Pool 9 at S=5 measures 17,056 LUT4 = 82% on the same line today; the 14,790 above could not be reproduced.) |
 
 Build (named options; the old positional form still works) and run:
 ```

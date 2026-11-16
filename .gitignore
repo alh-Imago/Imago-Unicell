@@ -21,3 +21,4 @@ dist/
 s-core/fpga/sdt/
 *.vvp
 s-core/fpga/pool13_*/
+s-core/pool*_*/
