@@ -70,7 +70,9 @@ def main(port, S_expect=None, io=None, kset=None):
     put(hs.cmd_P(0, 0, 0, 0, 0)); q0 = wait_task(0)
     check('the program loaded from far RAM runs, result right', not q0['trap'] and q0['a0'] == want, 'a0 %d expect %d' % (q0['a0'], want))
     put(hs.cmd_P(1, 0, 0, 0, 0)); time.sleep(0.003)
-    n = copy(0, 0, 0x1300, 256); during = b.task(1)['state'] != 3        # was the job still running when the copy finished?; q1 = wait_task(1)
+    n = copy(0, 0, 0x1300, 256)
+    during = b.task(1)['state'] != 3                              # was the job still running when the copy finished?
+    q1 = wait_task(1)
     check('a copy during a running job completes (job still running at that moment)', n['err'] == 0 and n['moved'] == 256 and during, '' if during else 'job had already finished: no real overlap, lengthen LOOP')
     d0, d1 = q0['end'] - q0['start'], q1['end'] - q1['start']
     check('the copy did not slow the job: same clocks with and without it', d0 == d1 and q1['a0'] == want, 'idle %d, with a copy %d clocks' % (d0, d1))
