@@ -1,5 +1,12 @@
 # S-Core: current state (as of 2026-11-16). v12 status / usage / trap-cause read-out is on the board; stage 1 of the onboard 8 MB SDRAM (controller + memory test) is proven on the card; stage 2 (copy engine between the cores' RAM and the SDRAM) is built and passes in simulation, not yet on the card. Pool of 1-bit RV32I cores with hold/go, one shared code store (v8) and regions (v9), both on the board; plus a shared data RAM (v10) and a code library window with a small linker (v11), both also on the board. Newest first.
 
+## Stage 3 plan: what to include (agreed with Alan 2026-11-16, not built)
+
+1. Task input/result convention: a job gets its inputs through a descriptor in the shared RAM and returns results there; per-core output windows planned to follow each other so the pieces are already in order.
+2. Code-store protection: do not overwrite code words that a queued or running job still needs (today nothing checks; the host must wait for those jobs). Applies to program loading from far RAM (dir 2 of the copy engine) as much as to the W command.
+3. Blocks of 8: today ONE code store is shared by all slices of the build (sc_sys_v8 onward). For a bigger chip the question is whether each block of 8 gets its own store; open design decision, to be settled before the Kintex growth.
+4. Fused widths: the hardware pool path (v5 to v12) runs every task at 1 bit per clock ("h_lw should be 0: no fusion", sc_sys_v12.v line 48). The 2/4/8/16/32-slice fused cores exist only in the earlier simulated array (`sc_sys.v` to `sc_sys_v4.v`, `uc_core_rw.v`). Bringing fusion onto the board path is not planned yet.
+
 ## Far RAM, stage 2: copy engine between the cores' RAM and the SDRAM (2026-11-16; simulation + place-and-route; NOT yet on the card)
 
 The cores still see only block RAM. `fpga/far_copy.v` is a separate engine that moves blocks between the SDRAM ("far RAM", 2M words) and (dir 0) the shared data RAM to far, (dir 1) far to the shared data RAM, (dir 2) far to the shared CODE store, so programs can be kept in far RAM and loaded on command. It uses only the host port of the shared RAM, which already yields to the cores, and the host's code-store write port, so `sc_sys_v12` and the cores are unchanged. New files: `fpga/far_copy.v`, `fpga/host_bridge_v7.v` (clone of v6 plus commands, V reply version 10), `fpga/sc_top_pool13.v` (pool12 + `sdram_ctl` + engine; `build_tang.sh --pool 9`), `fpga/tb_top_far.v`, `test_farram_sim.py`, `run_farram_board.py`, helpers in `sdt_host.py`.
