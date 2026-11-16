@@ -96,8 +96,9 @@ module host_bridge_v7 #(parameter DIV = 234, parameter S = 8, parameter IMEM_WOR
     input  wire        f_busy, f_done, f_ign, f_init,
     input  wire [2:0]  f_err,
     input  wire [31:0] f_moved, f_clocks,
-    output reg  [1:0]  f_cl, f_dly,
-    output reg         f_inv, f_reinit,
+    output wire [1:0]  f_cl, f_dly,
+    output wire        f_inv,
+    output reg         f_reinit,
     output reg         fh_v, fh_we,
     output reg  [20:0] fh_a,
     output reg  [31:0] fh_wd,
@@ -117,6 +118,10 @@ module host_bridge_v7 #(parameter DIV = 234, parameter S = 8, parameter IMEM_WOR
     reg [3:0]  need = 0, got = 0;
     reg [7:0]  a [0:15];
     reg [31:0] fsave = 0;
+    // The far RAM settings are stored XOR their defaults (2, 1, 0): a register that powers up as zero then means the defaults.  (Non-zero initial values
+    // are not applied on the real chip - found on the card 2026-11-16, the settings came up 0/0/0.)
+    reg [1:0]  cfg_cl_x = 0, cfg_dly_x = 0; reg cfg_inv_x = 0;
+    assign f_cl = cfg_cl_x ^ 2'd2; assign f_dly = cfg_dly_x ^ 2'd1; assign f_inv = cfg_inv_x;
     reg [9:0]  rlen = 0, ridx = 0;
     reg [39:0] cur_bs = 0;
     reg [15:0] snap_qc = 0, snap_qb = 0;
@@ -254,7 +259,7 @@ module host_bridge_v7 #(parameter DIV = 234, parameter S = 8, parameter IMEM_WOR
                     "L": if (!dh_busy) begin dh_rd <= 1'b1; dh_a <= {a[1], a[0]}; st <= WAITD; end
                     "F": begin f_start <= 1'b1; f_dir <= a[0][1:0]; f_near <= {a[2], a[1]}; f_far <= {a[5][4:0], a[4], a[3]}; f_cnt <= {a[7], a[6]}; st <= IDLE; end
                     "D": begin f_lbase <= {a[2][4:0], a[1], a[0]}; f_llen <= {a[5][5:0], a[4], a[3]}; st <= IDLE; end
-                    "K": begin f_cl <= a[0][1:0]; f_dly <= a[1][1:0]; f_inv <= a[2][0]; f_reinit <= 1'b1; st <= IDLE; end
+                    "K": begin cfg_cl_x <= a[0][1:0] ^ 2'd2; cfg_dly_x <= a[1][1:0] ^ 2'd1; cfg_inv_x <= a[2][0]; f_reinit <= 1'b1; st <= IDLE; end
                     "w": if (f_busy || !f_init) st <= IDLE; else begin fh_v <= 1'b1; fh_we <= 1'b1; fh_a <= {a[2][4:0], a[1], a[0]}; fh_wd <= {a[6], a[5], a[4], a[3]}; st <= FACC; end
                     "r": if (f_busy || !f_init) begin fsave <= 32'hDEADBEEF; rlen <= 4; ridx <= 0; st <= REPLY; end
                          else begin fh_v <= 1'b1; fh_we <= 1'b0; fh_a <= {a[2][4:0], a[1], a[0]}; st <= FACC; end
@@ -275,5 +280,5 @@ module host_bridge_v7 #(parameter DIV = 234, parameter S = 8, parameter IMEM_WOR
             end
         endcase
     end
-    initial begin f_start = 0; f_dir = 0; f_near = 0; f_far = 0; f_cnt = 0; f_lbase = 0; f_llen = 0; f_cl = 2; f_dly = 1; f_inv = 0; f_reinit = 0; fh_v = 0; fh_we = 0; fh_a = 0; fh_wd = 0; lb_we = 0; lb_base = 0; lb_len = 0; rs_we = 0; dh_we = 0; dh_rd = 0; dh_a = 0; dh_wd = 0; rs_prog = 0; rs_base = 0; rs_len = 0; rg_we = 0; hold = 0; h_push = 0; imem_we = 0; soft_rst = 0; q_tid = 0; end
+    initial begin f_start = 0; f_dir = 0; f_near = 0; f_far = 0; f_cnt = 0; f_lbase = 0; f_llen = 0; f_reinit = 0; fh_v = 0; fh_we = 0; fh_a = 0; fh_wd = 0; lb_we = 0; lb_base = 0; lb_len = 0; rs_we = 0; dh_we = 0; dh_rd = 0; dh_a = 0; dh_wd = 0; rs_prog = 0; rs_base = 0; rs_len = 0; rg_we = 0; hold = 0; h_push = 0; imem_we = 0; soft_rst = 0; q_tid = 0; end
 endmodule

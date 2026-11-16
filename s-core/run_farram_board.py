@@ -9,7 +9,7 @@ import sdt_host as H, host_sc as hs, sched_tests as st
 rt = st.rt
 LOOP = 2000          # the job must run for tens of milliseconds so that the copy really overlaps it (60 iterations end within one millisecond)
 
-def main(port, S_expect=None, io=None):
+def main(port, S_expect=None, io=None, kset=None):
     b = io if io is not None else hs.Board(port)
     bad = 0
     def check(name, cond, extra=''):
@@ -40,6 +40,8 @@ def main(port, S_expect=None, io=None):
     print('board version %d, %d slices' % (v['version'], v['S']))
     if v['version'] < 10:
         print('This is not the far-RAM design (version %d, need 10). Build and load: fpga/build_tang.sh --pool 9 --slices 5 --code 128 --out pool13_5' % v['version']); return 2
+    if kset:                                                      # workaround for a build whose far RAM settings did not come up as the defaults
+        put(H.c_K(*kset)); time.sleep(0.2); print('sent K %d %d %d (settings set by the runner)' % kset)
     put(H.c_I()); i = H.dec_I(b._rd(4)); check('far RAM initialised, settings cl/dly/inv = 2/1/0', i['init_done'] == 1 and (i['cl'], i['dly'], i['inv']) == (2, 1, 0), str(i))
     put(b'R'); time.sleep(0.2)                                    # a clean start for the cores (the far RAM is not touched by it)
     n = copy(0, 0, 0x100, 1); check('default window refuses a copy (err 1)', n['err'] == 1 and n['moved'] == 0, str(n))
@@ -75,4 +77,9 @@ def main(port, S_expect=None, io=None):
     print('\nRESULT:', 'PASS' if not bad else 'FAIL (%d)' % bad)
     return 1 if bad else 0
 
-if __name__ == '__main__': sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else '/dev/ttyUSB1'))
+if __name__ == '__main__':
+    import argparse
+    ap = argparse.ArgumentParser(); ap.add_argument('port', nargs='?', default='/dev/ttyUSB1')
+    ap.add_argument('--k', default='', help='send the far RAM settings first, as cl,dly,inv (e.g. 2,1,0)')
+    a = ap.parse_args()
+    sys.exit(main(a.port, kset=tuple(int(x) for x in a.k.split(',')) if a.k else None))
