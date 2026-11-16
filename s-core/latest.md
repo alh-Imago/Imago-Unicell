@@ -1,5 +1,9 @@
 # S-Core: current state (as of 2026-11-16). v12 adds a status / usage / trap-cause read-out (simulation). Pool of 1-bit RV32I cores with hold/go, one shared code store (v8) and regions (v9), both on the board; plus a shared data RAM (v10) and a code library window with a small linker (v11), both also on the board. Newest first.
 
+## Window: compact core view for big boards (2026-11-16)
+
+The Cores panel has a view selector: `cards` (one card per core with program, job and load bar; the default up to 16 cores), `blocks of 8` (one colour-coded square per core, green running / amber part of a wide job / grey idle, grouped in blocks of 8 with a busy count and load per block, hover for the details; automatic above 16 cores) or `auto`. `http://localhost:8765/?demo=300` previews the display with made-up cores (checked in headless Chrome at 6 and 300 cores). Limit to remember for the Kintex: the `T` and `U` replies are 8+4*S and 8+8*S bytes and the bridge's reply counter is 10 bits, so the live view works up to about 120 slices; beyond that the counter must be widened (and the replies take 0.1 to 0.2 s at 300 slices over 115200 baud).
+
 ## The window `scwin.py` (2026-11-16; tested against the simulated board, not yet used on the real one)
 
 A page served on the PC itself (`python3 scwin.py /dev/ttyUSB1`, then http://localhost:8765; standard library only, no tkinter needed). Commands box (the `sccli` commands), data box (shared RAM words, written right after `send`), read-back range, Run. Live panel from the v12 `T`/`U` reads about once a second (twice a second while running): per core idle / running + program + job + load (now and total), queue lengths, hold flag; job table with answer, core, clocks, trap reason; log. Needs version 9 for the core panel; on a version 8 board everything else still works.

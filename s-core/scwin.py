@@ -140,8 +140,10 @@ textarea{width:100%;box-sizing:border-box;font:13px ui-monospace,Menlo,Consolas,
 button{font:inherit;padding:8px 22px;border-radius:6px;border:0;background:#1f6feb;color:#fff;cursor:pointer}
 button:disabled{background:#9aa7bd;cursor:wait}
 .row{display:flex;gap:10px;align-items:center;margin:8px 0} input{font:inherit;width:90px;padding:4px 6px;border:1px solid #c5ccd8;border-radius:6px}
-#cores{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
 .core{border:1px solid #c5ccd8;border-radius:8px;padding:8px;background:#f7f8fa}
+.blocks{display:flex;flex-wrap:wrap;gap:10px}.blk{border:1px solid #c5ccd8;border-radius:8px;padding:6px 8px;background:#f7f8fa}.bh{font-size:11px;color:#51607a;margin-bottom:4px;white-space:nowrap}
+.sq{display:grid;grid-template-columns:repeat(4,18px);gap:3px}.sq i{display:block;width:18px;height:18px;border-radius:3px;background:#dfe4ec}.sq i.running{background:#38a169}.sq i.part{background:#d69e2e}
+.legend{font-size:12px;color:#51607a;margin-top:6px}.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;vertical-align:-1px;margin:0 3px 0 10px}
 .core.running{background:#e6f6ea;border-color:#38a169}.core.part{background:#fff6dd;border-color:#d69e2e}
 .core b{display:block;margin-bottom:2px}.bar{height:6px;background:#dfe4ec;border-radius:3px;margin-top:6px}.bar i{display:block;height:6px;background:#1f6feb;border-radius:3px}
 table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:3px 6px;border-bottom:1px solid #edf0f5}
@@ -160,7 +162,7 @@ pre{margin:0;max-height:180px;overflow:auto;font:12px ui-monospace,Menlo,Consola
 <div class="err" id="err"></div><div id="ram"></div></section>
 </div>
 <div>
-<section><h2>Cores</h2><div class="q" id="queue"></div><div id="cores"></div><div class="q" id="note"></div></section>
+<section><h2>Cores <select id="view" style="float:right;font:inherit;font-size:12px"><option value="auto">view: auto</option><option value="cards">view: cards</option><option value="grid">view: blocks of 8</option></select></h2><div class="q" id="queue"></div><div id="cores"></div><div class="q" id="note"></div></section>
 <section style="margin-top:14px"><h2>Jobs</h2><table id="jobs"></table></section>
 <section style="margin-top:14px"><h2>Log</h2><pre id="log"></pre></section>
 </div></main>
@@ -172,20 +174,43 @@ async function poll(){
   try{ const s=await (await fetch('/api/state')).json(); draw(s);}catch(e){ $('board').textContent='no connection to scwin.py'; }
   setTimeout(poll, busy?400:1000);
 }
+function drawCores(c){
+  const mode=$('view').value, grid=mode=='grid'||(mode=='auto'&&c.length>16);
+  const pct=x=>(x.recent!=null?x.recent:x.total);
+  if(!grid){
+    $('cores').className='';
+    $('cores').innerHTML='<div id="cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">'+c.map(x=>'<div class="core '+x.state+'"><b>core '+x.slice+'</b>'+(x.state=='running'?x.prog+(x.job?' · job '+x.job:''):x.state=='part'?'part of a wide job':'idle')+
+     '<div class="bar"><i style="width:'+pct(x).toFixed(0)+'%"></i></div><small>load '+(x.recent!=null?x.recent.toFixed(0)+'% now · ':'')+x.total.toFixed(0)+'% total</small></div>').join('')+'</div>';
+    return;
+  }
+  let h='<div class="blocks">';
+  for(let b=0;b<c.length;b+=8){
+    const g=c.slice(b,b+8), run=g.filter(x=>x.state!='idle').length, ld=g.reduce((a,x)=>a+pct(x),0)/g.length;
+    h+='<div class="blk"><div class="bh">block '+(b/8)+' · '+run+'/'+g.length+' busy · '+ld.toFixed(0)+'%</div><div class="sq">'+
+       g.map(x=>'<i class="'+x.state+'" title="core '+x.slice+' · '+(x.state=='running'?x.prog+(x.job?' · job '+x.job:''):x.state=='part'?'part of a wide job':'idle')+' · load '+pct(x).toFixed(0)+'%"></i>').join('')+'</div></div>';
+  }
+  const nrun=c.filter(x=>x.state=='running').length, tl=c.length?c.reduce((a,x)=>a+x.total,0)/c.length:0;
+  $('cores').innerHTML=h+'</div><div class="legend"><i style="background:#38a169"></i>running<i style="background:#d69e2e"></i>part of a wide job<i style="background:#dfe4ec"></i>idle &nbsp;·&nbsp; '+c.length+' cores, '+nrun+' running, overall load '+tl.toFixed(0)+'% (hover a square for details)</div>';
+}
+let lastState=null;
 function draw(s){
+  lastState=s;
   busy=s.running; $('run').disabled=s.running; $('run').textContent=s.running?'Running…':'Run';
   if(s.board) $('board').textContent=s.board.S+' cores · '+s.board.code+' code words · '+s.board.shared+' shared RAM words · board version '+s.board.version;
   $('err').textContent=s.error||''; $('note').textContent=s.note||'';
   const q=s.queue; $('queue').textContent=q?(q.running+' running · waiting: '+q.critical+' critical, '+q.bulk+' bulk'+(q.hold?' · ON HOLD':'')):'';
-  $('cores').innerHTML=(s.cores||[]).map(c=>'<div class="core '+c.state+'"><b>core '+c.slice+'</b>'+(c.state=='running'?c.prog+(c.job?' · job '+c.job:''):c.state=='part'?'part of a wide job':'idle')+
-     '<div class="bar"><i style="width:'+(c.recent!=null?c.recent:c.total).toFixed(0)+'%"></i></div><small>load '+(c.recent!=null?c.recent.toFixed(0)+'% now · ':'')+c.total.toFixed(0)+'% total</small></div>').join('');
+  drawCores(s.cores||[]);
   $('jobs').innerHTML='<tr><th>job</th><th>program</th><th>state</th><th>result (a0)</th><th>core</th><th>clocks</th></tr>'+s.jobs.map(j=>'<tr><td>'+j.job+'</td><td>'+j.name+'</td><td class="'+(j.state=='trap'?'trap':j.state=='done'?'done':'')+'">'+j.state+(j.why?' – '+j.why:'')+'</td><td>'+(j.a0!=null?j.a0+' (0x'+j.a0.toString(16)+')':'')+'</td><td>'+(j.slice!=null?j.slice:'')+'</td><td>'+(j.clocks!=null?j.clocks:'')+'</td></tr>').join('');
   $('log').textContent=s.log.join('\n'); $('log').scrollTop=1e9;
   const w=s.ram.words; $('ram').innerHTML=w.length?('<table><tr><th>word</th><th>value</th><th>hex</th></tr>'+w.map((v,i)=>'<tr><td>'+(s.ram.addr+i)+'</td><td>'+v+'</td><td>0x'+v.toString(16).padStart(8,'0')+'</td></tr>').join('')+'</table>'):'';
 }
 $('run').onclick=async()=>{ busy=true; $('run').disabled=true;
   await fetch('/api/run',{method:'POST',body:JSON.stringify({commands:$('cmds').value,data:$('data').value,read_addr:$('ra').value,read_n:$('rn').value})}); };
-poll();
+$('view').onchange=()=>{ if(lastState) drawCores(lastState.cores||[]); };
+const demo=new URLSearchParams(location.search).get('demo');       // ?demo=300 previews the display for a bigger board
+if(demo){ const n=+demo; const fake=()=>({running:false,error:'',log:['demo view: these cores are made up'],ram:{addr:0,words:[]},jobs:[],note:'',board:{S:n,version:9,code:0,shared:0},queue:{running:0,critical:0,bulk:0,hold:false},
+  cores:Array.from({length:n},(_,i)=>{const r=Math.random(), st=r<0.6?'running':r<0.65?'part':'idle'; return {slice:i,state:st,prog:['spin','fib','sum'][i%3],job:st=='running'?i+1:null,total:Math.random()*100,recent:st=='idle'?0:40+Math.random()*60};})});
+  setInterval(()=>draw(fake()),1000); draw(fake()); } else poll();
 </script></body></html>"""
 
 def make_handler(app):
