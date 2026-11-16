@@ -60,7 +60,27 @@ def jobio_main():
     import run_jobio_board as RJ
     return RJ.main('x', io=JobFake())
 
+# ---- stand-in for run_batch_board.py: knows which program is in the code store (compares with the two demo links) and which class kinds each phase has ----
+class BatchFake(JobFake):
+    def __init__(s):
+        import batch_demo as D
+        super().__init__(); s.d = D.build(); s.nsub = 0
+    def counters(s): return dict(done=s.nsub)
+    def task(s, t): return dict(state=3, trap=0, a0=0, start=10, end=1010)
+    def h(s, c):
+        if chr(c[0]) == 'P':
+            for ph, lk in enumerate(s.d['links']):
+                if [s.code.get(i, 0) for i in range(len(lk.words))] == list(lk.words): s.kind = {j.cid: j.kind for j in s.d['jobs'][2 * ph:2 * ph + 2]}; break
+            else: s.kind = {}
+            s.nsub += 1
+        super().h(c)
+
+def batch_main():
+    import run_batch_board as RB
+    return RB.main('x', io=BatchFake())
+
 if __name__ == '__main__':
     rc = R.main('x', io=Fake()); print()
     rc |= jobio_main()
+    rc |= batch_main()
     sys.exit(rc)

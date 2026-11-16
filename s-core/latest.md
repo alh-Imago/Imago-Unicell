@@ -1,4 +1,16 @@
-# S-Core: current state (as of 2026-11-16). v12 status / usage / trap-cause read-out is on the board; stage 1 of the onboard 8 MB SDRAM (controller + memory test) is proven on the card; stage 2 (copy engine between the cores' RAM and the SDRAM) is built and passes in simulation, not yet on the card. Pool of 1-bit RV32I cores with hold/go, one shared code store (v8) and regions (v9), both on the board; plus a shared data RAM (v10) and a code library window with a small linker (v11), both also on the board. Newest first.
+# S-Core: current state (as of 2026-11-16). v12 status / usage / trap-cause read-out is on the board; stage 1 of the onboard 8 MB SDRAM (controller + memory test) is proven on the card; stage 2 (copy engine between the cores' RAM and the SDRAM) and stage 3 step 1 (job I/O convention) are proven on the card; stage 3 step 2 (batch script handler, host software) passes in simulation, not yet run on the card. Pool of 1-bit RV32I cores with hold/go, one shared code store (v8) and regions (v9), both on the board; plus a shared data RAM (v10) and a code library window with a small linker (v11), both also on the board. Newest first.
+
+## Stage 3, step 2: batch script handler (2026-11-16; simulation; board runner written, NOT yet run on the card)
+
+A batch is a script of fixed 4-word steps held in far RAM (opcode + 3 arguments): END, LOAD_CODE (far to code store), LOAD_DATA (far to shared RAM), SAVE (shared RAM to far), SUBMIT, WAIT, JUMP (chain to the next script), REGION, WINDOW, LIBRARY. Format and rules are in the header of `batch.py`. The host still does the splitting and compiling (it builds the scripts, code images and window images and writes them into far RAM, then opens the copy window); from there the handler walks the scripts by itself using the same host commands as before, so the dispatcher is not touched. WAIT compares the board's done counter with the number of jobs submitted since the last WAIT (checked in `sc_sys_v12.v`: the counter is incremented in the same place that stores the trap flag, so a job that traps still counts as finished). Rules enforced in the handler: LOAD_CODE / REGION / WINDOW / LIBRARY with jobs still in flight is refused (error 7), so code is never replaced under a running job (this settles the overwrite problem for chained batches only; a host that bypasses the handler is still unchecked); a copy the card refuses stops the batch with the copy engine's error code.
+
+Files: `batch.py` (steps, Script builder, Layout for far-RAM addresses, two executors with identical rules: PlanExec emits the commands for the whole-board simulation, LiveExec reads each step back out of far RAM on the real board), `batch_demo.py` (two-phase chain: phase 1 vsum + vscale, phase 2 REPLACES the code store and the class regions with vstress + vscale on other class numbers, window sizes and addresses; all four results gathered into one far-RAM block), `test_batch_sim.py`, `run_batch_board.py`, stand-in check added to `test_runner_standin.py`.
+
+Simulation (`test_batch_sim.py`, S=2, PASS, about 1 minute): step encode/decode, the in-flight refusal, JUMP and the runaway limit in plain Python; then the chain on the simulated board: both phases finish with no trap, the 20 gathered result words equal the Python answer (phase 2's words are right, so the new code was really loaded), the word past the block is untouched, no SDRAM model timing violations. Stand-in board check passes (logic of the runner only, not the hardware).
+
+On the card (no new bitstream needed; pool13_5 as loaded): `python3 run_batch_board.py /dev/ttyUSB1`. It also runs two negative controls: code load with a job in flight (error 7) and a copy outside the window (error 1, refused by the card).
+
+What this is NOT: the sequencer is still host software (the host executes the steps), so the host must stay connected during a chain. The hardware state machine that reads the same format is the next step; its Tang cost is not estimated (the chip is nearly full at 5 slices). Each WAIT and each copy costs a few serial round trips; timing of the whole chain on the card is not yet measured.
 
 ## Stage 3, step 1: job input / result convention and gathering results (2026-11-16; simulation AND ON THE CARD)
 
@@ -10,7 +22,7 @@ Simulation (`test_jobio_sim.py`, S=2 with the far RAM and SDRAM model, PASS): vs
 
 On the card: `python3 run_jobio_board.py /dev/ttyUSB1` with the pool13_5 design loaded (stress job repeats raised to 400 so that the copy overlaps it for real; timing allows 4 clocks of launch jitter as seen before). The runner's logic was exercised only against a stand-in board (`test_runner_standin.py`), not the hardware.
 
-Not done in this step: nothing yet chains batches by itself (the batch sequencer, item 5 of the stage 3 plan), and the code-store overwrite check (item 2) is not built.
+Not done in this step: nothing yet chains batches by itself (done in step 2 as host software), and the code-store overwrite check (item 2) is not built in hardware.
 
 ## Stage 3 plan: what to include (agreed with Alan 2026-11-16, not built)
 
