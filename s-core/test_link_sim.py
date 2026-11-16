@@ -3,7 +3,7 @@ Library functions (sum, fill, recursive fib) are called by several classes at on
 a stack that overruns its memory, a jump into another class's code and a library function reaching past the caller's window all trap.
 Usage: python3 test_link_sim.py [S]"""
 import os, sys
-os.environ['POOL'] = '7'
+os.environ.setdefault('POOL', '7')
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'fpga'))
 import test_board_sim as tbs, host_sc as hs
@@ -33,7 +33,7 @@ def main(S=4, div=8):
         ok = r['state'] == 3 and bool(r['trap']) == trap and (exp is None or r['a0'] == exp)
         bad += not ok
         print('task %2d class %d  state %d trap %d a0 %-9d expect %-9s trap %d  %s' % (t, c, r['state'], r['trap'], r['a0'], exp if exp is not None else '-', trap, 'ok' if ok else 'FAIL'))
-    good = not bad and ver['version'] == 8 and cnt['done'] == len(tasks)
+    good = not bad and ver['version'] >= 8 and cnt['done'] == len(tasks)
     print('RESULT', 'PASS' if good else 'FAIL'); return good
 
 if __name__ == '__main__': sys.exit(0 if main(int(sys.argv[1]) if len(sys.argv) > 1 else 4) else 1)

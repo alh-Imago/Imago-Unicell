@@ -24,6 +24,28 @@ def cmd_X(prog, base, length): return b'X' + struct.pack('<BHH', prog, base, len
 def cmd_Y(base, length):     return b'Y' + struct.pack('<HH', base, length)             # shared code library window: every program class may execute these code words (board version >= 8)
 def cmd_Z():                 return b'Z'                                               # -> DSH(2) SHL(1) log2(DSH)(1)
 
+def cmd_T():                 return b'T'      # status snapshot (board version >= 9) -> 8+4*S bytes
+def cmd_U():                 return b'U'      # per-slice usage snapshot (board version >= 9) -> 8+8*S bytes
+def cmd_E(tid):              return b'E' + struct.pack('<H', tid)   # trap cause and address of a task (board version >= 9) -> 5 bytes
+
+CAUSES = {0: 'none', 1: 'code region (fetch outside the class code window)', 2: 'private data limit', 3: 'shared window (access past its end)',
+          4: 'shared access with no window', 5: 'other core trap'}
+
+def dec_T(b, S):
+    qc, qb, nb, nl, hold = struct.unpack('<HHBBB', b[:7])
+    sl = []
+    for i in range(S):
+        fl, cls, tid = struct.unpack('<BBH', b[8 + 4 * i: 12 + 4 * i])
+        sl.append(dict(slice=i, allocated=bool(fl & 1), leader=bool(fl & 2), cls=cls if fl & 2 else None, tid=tid if fl & 2 else None))
+    return dict(waiting_critical=qc, waiting_bulk=qb, allocated=nb, running=nl, hold=bool(hold), slices=sl)
+
+def dec_U(b, S):
+    cyc = struct.unpack('<I', b[:4])[0]
+    return dict(cyc=cyc, busy=[int.from_bytes(b[8 + 8 * i: 13 + 8 * i], 'little') for i in range(S)])
+
+def dec_E(b):
+    return dict(cause=b[0], why=CAUSES.get(b[0], '?'), addr=struct.unpack('<I', b[1:5])[0])
+
 def dec_L(b): return struct.unpack('<I', b[:4])[0]
 def dec_Z(b): return dict(shared_words=struct.unpack('<H', b[0:2])[0], window_log2=b[2], addr_bits=b[3])
 
@@ -97,6 +119,14 @@ class Board:
     def hold(self):     self.s.write(cmd_H()); self.s.flush()
     def region(self, prog, cbase, clen, dlen): self.s.write(cmd_B(prog, cbase, clen, dlen)); self.s.flush()
     def go(self):       self.s.write(cmd_G()); self.s.flush()
+    def slices(self):
+        if getattr(self, '_S', None) is None: self._S = self.version()['S']
+        return self._S
+    def status(self):
+        S = self.slices(); self.s.write(cmd_T()); return dec_T(self._rd(8 + 4 * S), S)
+    def usage(self):
+        S = self.slices(); self.s.write(cmd_U()); return dec_U(self._rd(8 + 8 * S), S)
+    def trap_info(self, tid): self.s.write(cmd_E(tid)); return dec_E(self._rd(5))
     def shared_info(self):  self.s.write(cmd_Z()); return dec_Z(self._rd(4))
     def shared_region(self, prog, base, length): self.s.write(cmd_X(prog, base, length)); self.s.flush()
     def shared_write(self, base, words):

@@ -76,6 +76,7 @@ class Session:
         self.v = self.info = None
         self.link = None; self.names = {}; self.sent = False
         self.jobs = {}; self.next_job = 1; self.free = list(range(queue)); self.held = False
+        self.last_usage = None
 
     # ---- board
     def connect(self):
@@ -83,6 +84,10 @@ class Session:
         hs.check_design(self.v, None, 8, 'the library window (a --pool 7 build)')
         self.info = self.b.shared_info()
         self.out('board: %d slices, %d code words, %d private data words, %d shared words' % (self.v['S'], self.v['imem_words'], self.v['dmem_words'], self.info['shared_words']))
+
+    def need_v9(self, what):
+        self.need_board()
+        if self.v['version'] < 9: raise CliError('%s needs a --pool 8 build (board version 9); this board is version %d' % (what, self.v['version']))
 
     def need_board(self):
         if self.v is None: raise CliError('not connected')
@@ -135,7 +140,9 @@ class Session:
             if r['state'] in ('done', 'trap'): continue
             q = self.b.task(r['tid'])
             if q['state'] == 3:
-                r['q'] = q; r['state'] = 'trap' if q['trap'] else 'done'; self.free.append(r['tid'])
+                r['q'] = q; r['state'] = 'trap' if q['trap'] else 'done'
+                if q['trap'] and self.v['version'] >= 9: r['why'] = self.b.trap_info(r['tid'])
+                self.free.append(r['tid'])
             elif q['state'] == 2: r['state'] = 'running'
             else: r['state'] = 'queued'
 
@@ -152,7 +159,8 @@ class Session:
     def line(j, r):
         q = r['q']
         if q is None: return 'job %3d  %-10s tid %2d  %s' % (j, r['name'], r['tid'], r['state'])
-        res = 'stopped by a protection check' if r['state'] == 'trap' else 'a0=%d (0x%08x)' % (q['a0'], q['a0'])
+        w = r.get('why')
+        res = ('stopped: %s, word 0x%x' % (w['why'], w['addr']) if w else 'stopped by a protection check') if r['state'] == 'trap' else 'a0=%d (0x%08x)' % (q['a0'], q['a0'])
         return 'job %3d  %-10s tid %2d  %-5s %s  slice %d  %d clocks%s' % (j, r['name'], r['tid'], r['state'].upper() if r['state'] == 'trap' else r['state'],
             res, q['slot'], (q['end'] - q['start']) & 0xFFFFFFFF, '' if not r['crit'] else '  critical')
 
@@ -169,6 +177,36 @@ class Session:
         self.poll()
         if j not in self.jobs: raise CliError('no job %d' % j)
         r = self.jobs[j]; self.out(self.line(j, r))
+
+    # ---- live status (board version 9)
+    def name_of(self, cid):
+        for n, c in self.names.items():
+            if c == cid: return n
+        return 'class %d' % cid
+
+    def status(self):
+        """what every core is doing right now, and how many jobs wait"""
+        self.need_v9('status'); st = self.b.status()
+        self.out('%d of %d slices busy, %d jobs running; waiting: %d critical, %d bulk%s' % (st['allocated'], len(st['slices']), st['running'], st['waiting_critical'], st['waiting_bulk'], '; ON HOLD' if st['hold'] else ''))
+        bytid = {r['tid']: j for j, r in self.jobs.items() if r['state'] in ('queued', 'running')}
+        for x in st['slices']:
+            if x['leader']:
+                j = bytid.get(x['tid']); self.out('  slice %2d  running  %s%s  tid %d' % (x['slice'], self.name_of(x['cls']), ' (job %d)' % j if j else '', x['tid']))
+            elif x['allocated']: self.out('  slice %2d  busy, part of a wider job' % x['slice'])
+            else: self.out('  slice %2d  idle' % x['slice'])
+        return st
+
+    def usage(self):
+        """per core load: since the board started (or was reset) and, from the second call on, since the last call"""
+        self.need_v9('usage'); u = self.b.usage(); last = self.last_usage; self.last_usage = u
+        self.out('load per slice (share of clocks allocated to a job):')
+        for i, b in enumerate(u['busy']):
+            tot = 100.0 * b / u['cyc'] if u['cyc'] else 0.0
+            if last and u['cyc'] > last['cyc']:
+                rec = 100.0 * (b - last['busy'][i]) / (u['cyc'] - last['cyc'])
+                self.out('  slice %2d  total %5.1f%%   since last call %5.1f%%' % (i, tot, rec))
+            else: self.out('  slice %2d  total %5.1f%%' % (i, tot))
+        n = len(u['busy']); self.out('  all slices  total %.1f%%' % (100.0 * sum(u['busy']) / (n * u['cyc']) if u['cyc'] else 0.0))
 
     # ---- shared RAM and counters
     def peek(self, addr, n=1):
@@ -254,6 +292,13 @@ class Shell(cmd.Cmd):
         a = self.args(line)
         if len(a) < 2: raise CliError('usage: poke ADDR VALUE [VALUE ...]')
         self.S.poke(num(a[0]), [num(x) & 0xFFFFFFFF for x in a[1:]])
+    def do_status(self, line):
+        """status   what each core is doing right now (job, program) and how many jobs wait"""
+        self.S.status()
+    do_top = do_status
+    def do_usage(self, line):
+        """usage   load of each core: total, and since the last `usage` call"""
+        self.S.usage()
     def do_counters(self, line):
         """counters   the board's performance counters"""
         self.S.counters()

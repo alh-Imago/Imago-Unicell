@@ -36,6 +36,7 @@ def main(S=4):
     script = open(os.path.join(HERE, 'cli_demo', 'demo.sccli')).read().splitlines()
     sess.connect()
     os.chdir(HERE)
+    if sess.v['version'] < 9: script = [l for l in script if l not in ('status', 'usage')]     # those need a v12 (--pool 8) board
     sccli.run_lines(sh, script)
     text = '\n'.join(lines); print(text); print('(%d simulation runs)' % ser.runs)
     jobs = sess.jobs; bad = []
@@ -49,6 +50,11 @@ def main(S=4):
         if want[1] is not None and r['q']: chk(r['q']['a0'] == want[1], 'job %d %s a0 %s, expected %d' % (j, r['name'], r['q']['a0'] if r['q'] else None, want[1]))
     chk('0: 00000001 00000002 00000003 00000004' in text, 'shared RAM words 0..3 not as preloaded')
     chk(any('slice utilisation' in l for l in lines), 'counters not shown')
+    if sess.v['version'] >= 9:
+        chk(any('slices busy' in l and 'waiting' in l for l in lines), 'status not shown')
+        chk(any(l.startswith('  slice') and 'running' in l for l in lines), 'status shows no running slice')
+        chk(any('load per slice' in l for l in lines), 'usage not shown')
+        chk(any('shared window' in l and 'word 0x4010' in l for l in lines), 'trap cause not shown for the bad job')
     # error handling: unknown program, run before send is checked on a fresh session
     s2 = sccli.Session(hs.Board.__new__(hs.Board), out=lambda t: None); s2.b.s = ser
     try: s2.run('x'); bad.append('run without connection should fail')

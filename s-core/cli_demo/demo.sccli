@@ -7,7 +7,9 @@ run fib2
 run bad
 run sum 2
 go
+status
 wait
 jobs
+usage
 peek 0 8
 counters

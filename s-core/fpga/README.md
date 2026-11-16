@@ -14,6 +14,7 @@ Place-and-route (nextpnr, 8 slices): v7 13,706 LUT4 / 377 LUT-RAM blocks; v8 12,
 | 5 | `sc_top_pool9.v` | v9: + regions (host `B`, version 6): code base/limit and data limit per program class | 8 slices: 10/10, identical timing; one slice: regions test 12/12 (traps, wild store blocked, recovery) |
 | 6 | `sc_top_pool10.v` | v10: + a SHARED DATA RAM, one block RAM for all slices (`--shared N` words, power of 2, default 256), per-class windows (host `X`), host access (`M` write, `L` read, `Z` size); version 7 | board: `run_shared_board.py` 15/15 tasks, 81/81 words (6 slices) |
 | 7 | `sc_top_pool11.v` | v11: + a code LIBRARY window every class may execute (host `Y`); version 8; use `../sclink.py` to build library + classes + stacks | board: `run_link_board.py` 13/13 tasks (6 slices) |
+| 8 | `sc_top_pool12.v` | v12: + status `T`, per-core usage `U`, trap cause `E`; version 9; `--pool 8` | simulation: `test_status_sim.py`; board: `run_status_board.py` (not run yet) |
 
 Build (named options; the old positional form still works) and run:
 ```
