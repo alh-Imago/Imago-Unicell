@@ -31,7 +31,7 @@ def main(port, words=2048, io=None, say=print):
         nonlocal total_bad
         bad = [(a, want[a], got[a]) for a in addrs if got[a] != want[a]]
         total_bad += len(bad)
-        if not bad: say('%-46s ok (%d words)' % (name, len(addrs))); return
+        if not bad: say('%-46s ok (%d words)' % (name, len(addrs))); return []
         bylb, bybit = {}, [0] * 32
         for a, w, g in bad:
             x = w ^ g
@@ -43,6 +43,11 @@ def main(port, words=2048, io=None, say=print):
         say('   line bytes with errors (byte: count): ' + ', '.join('%d: %d' % (k, bylb[k]) for k in sorted(bylb)))
         say('   word bits with errors (bit: count): ' + ', '.join('%d: %d' % (k, bybit[k]) for k in range(32) if bybit[k]))
         for a, w, g in bad[:6]: say('   word %#x wrote %08x read %08x xor %08x' % (a, w, g, w ^ g))
+        # where the wrong words sit: lost whole groups point to the write path, scattered bits to a lane
+        say('   wrong words in aligned groups of 4 (word address / 4): ' + ', '.join('%#x' % k for k in sorted({a // 4 for a, _, _ in bad})[:16]))
+        if name.endswith('complement of A'):
+            say('   wrong word equals pattern A (the old value, so the new write never showed): %d of %d' % (sum(1 for a, w, g in bad if g == pattern(a, 0)), len(bad)))
+        return [a for a, _, _ in bad]
 
     addrs = list(range(words))
     t0 = time.time()
@@ -50,7 +55,17 @@ def main(port, words=2048, io=None, say=print):
         wr(addrs, lambda a, w=which: pattern(a, w))
         want = {a: pattern(a, which) for a in addrs}
         got = {a: rd(a) for a in addrs}
-        report('write + read: ' + label, got, want, addrs)
+        bad_a = report('write + read: ' + label, got, want, addrs)
+        if bad_a:
+            # follow-up: read the wrong words again (a read fault changes, a lost write does not), then write each one alone and read it back
+            again = {a: rd(a) for a in bad_a}
+            fixed = [a for a in bad_a if again[a] == want[a]]
+            say('   read again: %d of %d now right  (right = the first read was wrong, the write had landed; still wrong = the write was lost)' % (len(fixed), len(bad_a)))
+            alone = 0
+            for a in bad_a:
+                wr([a], lambda x, w=which: pattern(x, w))
+                if rd(a) == want[a]: alone += 1
+            say('   written one at a time, then read: %d of %d right  (right = the fault depends on write speed or order, not on the address)' % (alone, len(bad_a)))
         if which == 0 and label == 'pattern A again':
             got2 = {a: rd(a) for a in addrs}
             changed = [a for a in addrs if got2[a] != got[a]]
