@@ -16,3 +16,7 @@ imago_vm.egg-info/
 # private environment made by quickstart.py --install, and built packages
 .venv/
 dist/
+
+# SDRAM test build output
+s-core/fpga/sdt/
+*.vvp
