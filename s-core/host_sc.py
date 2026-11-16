@@ -105,8 +105,12 @@ def check_design(v, expect=None, need_version=0, need_what=''):
 class Board:
     """Real board over a serial port.  115200 8N1 by default (must equal BAUD_DIV in the build)."""
     def __init__(self, port, baud=115200):
-        import serial
-        self.s = serial.Serial(port, baud, timeout=2)
+        if str(port).startswith('jtag'):          # the Kintex card: bytes over the JTAG user register (jtagport.py), no serial port
+            import jtagport
+            self.s = jtagport.JtagSerial(port, timeout=2)
+        else:
+            import serial
+            self.s = serial.Serial(port, baud, timeout=2)
         self.flush_input()
     def _rd(self, n):
         b = self.s.read(n)

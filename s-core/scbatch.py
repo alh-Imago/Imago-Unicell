@@ -54,6 +54,7 @@ def demo_jobs(n, seed=1):
 
 def run(port, tasks, host=False, io=None, out=None, imem=None, dsh=None, poll_timeout=600.0, say=print):
     b = io if io is not None else hs.Board(port)
+    clk_hz = 50_000_000 if str(port).startswith('jtag') else CLK_HZ      # the Kintex card runs at 50 MHz, the Tang at 27 MHz
     v = b.version(); say('board version %d, %d slices, %d code words' % (v['version'], v['S'], v['imem_words']))
     if v['version'] < 10: say('Not a far-RAM board (need version 10 or 11).'); return 2
     if not host and v['version'] < 11: say('This board has no hardware sequencer (version %d). Use --host, or load a --pool 10 build.' % v['version']); return 2
@@ -78,7 +79,7 @@ def run(port, tasks, host=False, io=None, out=None, imem=None, dsh=None, poll_ti
             if time.time() - t0 > poll_timeout: say('sequencer did not finish in %.0f s' % poll_timeout); return 1
             if 'pc' in a and (a['steps'] != last and time.time() - shown > 0.5 or time.time() - shown > 2.0):
                 k = max([i for i, ad in enumerate(starts) if ad <= a['pc']] or [0])
-                say('  running: batch %d of %d, step %d of %d (%s), %.2f s of board time so far' % (k + 1, len(plan.batches), a['steps'], plan.steps, B.NAMES[a['op']] if a['op'] < len(B.NAMES) else '?', a['clk'] / CLK_HZ))
+                say('  running: batch %d of %d, step %d of %d (%s), %.2f s of board time so far' % (k + 1, len(plan.batches), a['steps'], plan.steps, B.NAMES[a['op']] if a['op'] < len(B.NAMES) else '?', a['clk'] / clk_hz))
                 last = a['steps']; shown = time.time()
             time.sleep(0.05)
         err, tag, steps = a['err'], a['tag'], a['steps']
@@ -89,8 +90,8 @@ def run(port, tasks, host=False, io=None, out=None, imem=None, dsh=None, poll_ti
     if not host and 'clk' in a:
         c = a['clk']; other = c - a['clk_copy'] - a['clk_wait']
         say('board time: %d clocks = %.2f ms (27 MHz): %.1f%% copying, %.1f%% waiting for jobs, %.1f%% fetching/decoding steps; %.1f clocks per step' % (
-            c, 1000.0 * c / CLK_HZ, 100.0 * a['clk_copy'] / c, 100.0 * a['clk_wait'] / c, 100.0 * other / c, c / max(1, steps)))
-        say('  %d jobs in %.2f ms of board time = %.0f jobs per second through the chain' % (len(tasks), 1000.0 * c / CLK_HZ, len(tasks) * CLK_HZ / c))
+            c, 1000.0 * c / clk_hz, 100.0 * a['clk_copy'] / c, 100.0 * a['clk_wait'] / c, 100.0 * other / c, c / max(1, steps)))
+        say('  %d jobs in %.2f ms of board time = %.0f jobs per second through the chain' % (len(tasks), 1000.0 * c / clk_hz, len(tasks) * clk_hz / c))
     elif not host: say('(this board version has no clock counters; load a --pool 11 build for the timing report)')
     bad = plan.verify(far_r)
     for i, kind, why in bad: say('  job %d (%s): %s' % (i, kind, why))
