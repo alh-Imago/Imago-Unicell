@@ -5,12 +5,15 @@ Tests, each over the same words: 1 a pseudo-random pattern, 2 its complement (a 
 that changes between two reads is a timing fault, not a write fault), 4 words at addresses 2**k (a wrong address bit shows as an alias).
 Errors are reported per byte of the 64-byte line (word a is slot a % 16 of line a // 16, byte b of the word is line byte 4 * slot + b) and per bit.
 Exit code 0 = no error at all.  Uses the host commands 'w' and 'r' of the bridge (board version 10 and up); io= lets tests pass a model board."""
-import sys, time
+import sys, time, random
 import host_sc as hs, sdt_host as H
 
 
+SALT = random.getrandbits(32)      # new data every run, so a write that is lost cannot hide behind the same pattern left by the last run
+
+
 def pattern(a, which):
-    x = (a * 0x9E3779B1 + 0x7F4A7C15) & 0xFFFFFFFF
+    x = (a * 0x9E3779B1 + 0x7F4A7C15 + SALT) & 0xFFFFFFFF
     x ^= x >> 15; x = (x * 0x2C1B3C6D) & 0xFFFFFFFF; x ^= x >> 12
     return x if which == 0 else (~x & 0xFFFFFFFF)
 
