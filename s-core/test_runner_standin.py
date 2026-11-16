@@ -41,7 +41,7 @@ class JobFake(Fake):
     def __init__(s): super().__init__(); s.cwin = {}; s.kind = {0: 'vsum', 1: 'vscale', 2: 'vstress', 3: 'vscale', 4: 'vsum'}
     def task(s, t):
         s.polls[t] = s.polls.get(t, 0) + 1
-        return dict(state=2 if s.polls[t] == 1 and t >= 10 else 3, trap=0, a0=0, start=10, end=1010)
+        return dict(state=2 if s.polls[t] == 1 and t >= 4 else 3, trap=0, a0=0, start=10, end=1010)
     def h(s, c):
         k = chr(c[0])
         if k == 'X': s.cwin[c[1]] = (struct.unpack('<H', c[2:4])[0], struct.unpack('<H', c[4:6])[0])

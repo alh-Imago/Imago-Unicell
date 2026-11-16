@@ -77,10 +77,10 @@ def main(port, S_expect=None, io=None, kset=None):
     q1 = wait_task(1)
     check('a copy during a running job completes (job still running at that moment)', n['err'] == 0 and n['moved'] == 256 and during, '' if during else 'job had already finished: no real overlap, lengthen LOOP')
     d0, d2, d1 = q0['end'] - q0['start'], q2['end'] - q2['start'], q1['end'] - q1['start']
-    # A few clocks of difference come from which core and which moment of the core's turn cycle a job starts on (seen on the card: 1 clock in 800,000);
+    # (16 clocks: identical runs differ by up to about 6 on the card, and a copy that stole turns would add tens to hundreds.)  A few clocks of difference come from which core and which moment of the core's turn cycle a job starts on (seen on the card: 1 clock in 800,000);
     # a copy that really stole turns from a core would add hundreds.  NOTE: this job never touches the shared RAM, so this shows the copy does not
     # disturb fetching and computing; it does not yet cover the core's own shared-RAM accesses.
-    check('the copy did not slow the job (within 4 clocks of the idle runs)', abs(d1 - d0) <= 4 and q1['a0'] == want, 'idle %d and %d, with a copy %d clocks' % (d0, d2, d1))
+    check('the copy did not slow the job (within 16 clocks of the idle runs)', abs(d1 - d0) <= 16 and q1['a0'] == want, 'idle %d and %d, with a copy %d clocks' % (d0, d2, d1))
     print('\nRESULT:', 'PASS' if not bad else 'FAIL (%d)' % bad)
     return 1 if bad else 0
 

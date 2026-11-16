@@ -64,16 +64,25 @@ def main(port, io=None):
     want = A.expected() + B.expected() + C.expected()
     check('stitched block in far RAM = %d words, one after another, equal to the Python answer' % total, block == want, ' '.join('%x' % x for x in block[:4]) + ' ...')
     sb = J.window_base(lk, S)
-    put(hs.cmd_P(10, lk.classes[2]['entry'], 0, 0, 2)); q10 = wait_task(10)
-    o10 = sh_r(sb + S.out_off)
-    check('stress job alone: result right', not q10['trap'] and o10 == S.expected()[0], 'out %d expect %d, %d clocks' % (o10, S.expected()[0], q10['end'] - q10['start']))
-    put(hs.cmd_M(sb + S.out_off, 0)); put(hs.cmd_P(11, lk.classes[2]['entry'], 0, 0, 2)); time.sleep(0.003)
-    n = copy(0, 0, FAR + 0x40, 256); still = b.task(11)['state'] != 3
-    q11 = wait_task(11); o11 = sh_r(sb + S.out_off)
-    check('a 256-word copy completed while the stress job was still running', n['err'] == 0 and n['moved'] == 256 and still, '' if still else 'job had already finished: raise STRESS_REPEATS')
-    check('stress job with the copy running: result right', not q11['trap'] and o11 == S.expected()[0], 'out %d' % o11)
-    d10, d11 = q10['end'] - q10['start'], q11['end'] - q11['start']
-    check('the copy did not slow a job that uses the shared RAM (within 4 clocks)', abs(d10 - d11) <= 4, 'alone %d clocks, with a copy %d clocks' % (d10, d11))
+    # Identical runs differ by a few clocks on the card (up to 6 in 3.7 million seen), because a job starts a few clocks out of step depending on its core.
+    # So: three runs alone, three runs with a 256-word copy running, and compare the averages.  A copy that took a core's shared-RAM turns would add at
+    # least a clock per stolen turn (tens to hundreds); the bound of 16 clocks is about twice the noise seen and far below that.
+    def stress_run(tid, with_copy):
+        put(hs.cmd_M(sb + S.out_off, 0)); put(hs.cmd_P(tid, lk.classes[2]['entry'], 0, 0, 2))
+        n = still = None
+        if with_copy:
+            time.sleep(0.003); n = copy(0, 0, FAR + 0x40, 256); still = b.task(tid)['state'] != 3
+        q = wait_task(tid); return q, sh_r(sb + S.out_off), n, still
+    alone = [stress_run(t, False) for t in (4, 5, 6)]
+    withc = [stress_run(t, True) for t in (7, 8, 9)]
+    want_out = S.expected()[0]
+    check('stress job alone, 3 runs: result right', all(not q['trap'] and o == want_out for q, o, _, _ in alone), 'out %d expect %d' % (alone[0][1], want_out))
+    check('3 copies of 256 words completed while the stress job was still running', all(n['err'] == 0 and n['moved'] == 256 and still for _, _, n, still in withc),
+          '' if all(still for *_, still in withc) else 'a job had already finished: raise STRESS_REPEATS')
+    check('stress job with a copy running, 3 runs: result right', all(not q['trap'] and o == want_out for q, o, _, _ in withc))
+    da = [q['end'] - q['start'] for q, *_ in alone]; dc = [q['end'] - q['start'] for q, *_ in withc]
+    ma, mc = sum(da) / 3, sum(dc) / 3
+    check('the copy did not slow a job that uses the shared RAM (averages within 16 clocks)', abs(mc - ma) <= 16, 'alone %s (avg %.1f), with a copy %s (avg %.1f)' % (da, ma, dc, mc))
     print('\nRESULT:', 'PASS' if not bad else 'FAIL (%d)' % bad)
     return 1 if bad else 0
 
