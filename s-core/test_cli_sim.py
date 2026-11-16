@@ -69,7 +69,8 @@ def queue_test(S=2, queue=4):
     """more jobs than task slots: run must wait for slots to free up, and report a full queue while on hold"""
     sess, ser, lines = make(S, queue); os.chdir(HERE); bad = []
     sh = sccli.Shell(sess, keep_going=True)
-    sess.connect(); sccli.run_lines(sh, ['load cli_demo/demo.scs', 'send', 'run spin 10', 'wait', 'jobs'])
+    sess.connect(); sess.b.hold()      # the board is left on hold by an earlier run: `send` must release it
+    sccli.run_lines(sh, ['load cli_demo/demo.scs', 'send', 'run spin 10', 'wait', 'jobs'])
     done = [r for r in sess.jobs.values() if r['state'] == 'done' and r['q'] and r['q']['a0'] == 200]
     if len(done) != 10: bad.append('10 jobs through a %d-slot table: %d finished right' % (queue, len(done)))
     if sh.failed: bad.append('errors: ' + '; '.join(l for l in lines if l.startswith('error')))

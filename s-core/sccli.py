@@ -104,7 +104,8 @@ class Session:
         """reset the board (this forgets every job) and download code, regions, windows and shared preloads"""
         self.need_board()
         if self.link is None: raise CliError('nothing loaded: use `load FILE.scs` first')
-        self.b.reset(); self.jobs.clear(); self.free = list(range(self.QD)); self.held = False
+        self.b.reset(); self.b.go()                  # a reset does not clear the board's hold flag: release it so jobs start
+        self.jobs.clear(); self.free = list(range(self.QD)); self.held = False
         self.link.apply(self.b); self.sent = True
         self.out('sent %d code words, %d classes' % (len(self.link.words), len(self.link.classes)))
 
