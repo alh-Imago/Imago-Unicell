@@ -13,7 +13,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 build() {
   s=$1; d="$here/../sc_k7_ddr3_seed$s"
   mkdir -p "$d" && cp -r "$here"/Makefile "$here"/*.v "$here"/*.xdc "$here"/mod "$here"/upstream "$here"/rtl "$d"/ || { echo "seed $s: copy failed"; return; }
-  ( cd "$d" && make PNR_ARGS="--freq 50 --seed $s" > build.log 2>&1 )
+  ( cd "$d" && make PNR_ARGS="--freq 50 --seed $s --write placed.json" > build.log 2>&1 )
   if [ -f "$d/sc_k7_ddr3_v1.bit" ]; then echo "seed $s: bitstream built"; else echo "seed $s: NO bitstream (see $d/build.log)"; fi
 }
 n=0
