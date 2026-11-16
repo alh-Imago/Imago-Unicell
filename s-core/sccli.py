@@ -339,7 +339,9 @@ def main():
     S = Session(hs.Board(a.port, a.baud), queue=a.queue)
     sh = Shell(S, keep_going=a.k)
     try: S.connect()
-    except Exception as e: sys.exit('cannot talk to the board: %s' % e)
+    except Exception as e:                       # the first try can meet leftover bytes from an earlier program: clear them and ask once more
+        try: S.b.flush_input(); S.b.s.reset_output_buffer(); S.connect()
+        except Exception as e2: sys.exit('cannot talk to the board: %s' % e2)
     ok = True
     if a.script: ok = run_lines(sh, open(a.script).read().splitlines()) and ok
     if a.cmds and ok: ok = run_lines(sh, [a.cmds])

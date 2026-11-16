@@ -18,7 +18,7 @@ from shared_cases import *
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('port'); ap.add_argument('--baud', type=int, default=115200)
-    ap.add_argument('--expect', default='version=7', help='design the board must be running (default version=7)')
+    ap.add_argument('--expect', default='', help='exact design wanted, e.g. version=9,S=6 (default: any design new enough)')
     a = ap.parse_args()
     b = hs.Board(a.port, a.baud)
     v = b.version(); print('board:', v)

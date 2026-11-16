@@ -215,7 +215,9 @@ def main():
     S = sccli.Session(hs.Board(a.port, a.baud), queue=a.queue)
     app = App(S, HERE)
     try: S.connect()
-    except Exception as e: sys.exit('cannot talk to the board: %s' % e)
+    except Exception as e:                       # the first try can meet leftover bytes from an earlier program: clear them and ask once more
+        try: S.b.flush_input(); S.b.s.reset_output_buffer(); S.connect()
+        except Exception as e2: sys.exit('cannot talk to the board: %s' % e2)
     srv = serve(app, a.http); url = 'http://localhost:%d' % a.http
     print('S-Core window at', url, ' (Ctrl-C to stop)')
     if not a.no_browser:
