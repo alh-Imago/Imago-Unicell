@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ddr3test.py - read and write test of the far RAM from the host, to tell a marginal DDR3 lane or a wrapper bug from a pool bug.
-  python3 ddr3test.py jtag [words]          (words: how many words from address 0, default 2048 = 128 lines of 16 words; the far RAM window is 2M words)
+  python3 ddr3test.py jtag [words] [stride]          (words: how many words from address 0, default 2048 = 128 lines of 16 words; the far RAM window is 2M words)
 Tests, each over the same words: 1 a pseudo-random pattern, 2 its complement (a stuck bit shows here), 3 the first pattern again, then read twice (a read
 that changes between two reads is a timing fault, not a write fault), 4 words at addresses 2**k (a wrong address bit shows as an alias).
 Errors are reported per byte of the 64-byte line (word a is slot a % 16 of line a // 16, byte b of the word is line byte 4 * slot + b) and per bit.
@@ -18,7 +18,7 @@ def pattern(a, which):
     return x if which == 0 else (~x & 0xFFFFFFFF)
 
 
-def main(port, words=2048, io=None, say=print):
+def main(port, words=2048, io=None, say=print, stride=False):
     b = io if io is not None else hs.Board(port)
     v = b.version(); say('board version %d' % v['version'])
     if v['version'] < 10: say('not a far-RAM board'); return 2
@@ -52,23 +52,17 @@ def main(port, words=2048, io=None, say=print):
             say('   wrong word equals pattern A (the old value, so the new write never showed): %d of %d' % (sum(1 for a, w, g in bad if g == pattern(a, 0)), len(bad)))
         return [a for a, _, _ in bad]
 
+    later = []
     addrs = list(range(words))
+    if stride:      # visit the lines round-robin so that every access is a different line from the last (no cache hit, a fill and a write each time)
+        nl = words // 16; addrs = [l * 16 + sl for sl in range(16) for l in range(nl)]
     t0 = time.time()
     for which, label in ((0, 'pattern A'), (1, 'complement of A'), (0, 'pattern A again')):
         wr(addrs, lambda a, w=which: pattern(a, w))
         want = {a: pattern(a, which) for a in addrs}
         got = {a: rd(a) for a in addrs}
         bad_a = report('write + read: ' + label, got, want, addrs)
-        if bad_a:
-            # follow-up: read the wrong words again (a read fault changes, a lost write does not), then write each one alone and read it back
-            again = {a: rd(a) for a in bad_a}
-            fixed = [a for a in bad_a if again[a] == want[a]]
-            say('   read again: %d of %d now right  (right = the first read was wrong, the write had landed; still wrong = the write was lost)' % (len(fixed), len(bad_a)))
-            alone = 0
-            for a in bad_a:
-                wr([a], lambda x, w=which: pattern(x, w))
-                if rd(a) == want[a]: alone += 1
-            say('   written one at a time, then read: %d of %d right  (right = the fault depends on write speed or order, not on the address)' % (alone, len(bad_a)))
+        if bad_a: later.append((label, which, bad_a, want))
         if which == 0 and label == 'pattern A again':
             got2 = {a: rd(a) for a in addrs}
             changed = [a for a in addrs if got2[a] != got[a]]
@@ -78,10 +72,20 @@ def main(port, words=2048, io=None, say=print):
     wr(ks, lambda a: 0xA5000000 ^ (a * 0x01010101 & 0x00FFFFFF) ^ 0x1234)
     want = {a: 0xA5000000 ^ (a * 0x01010101 & 0x00FFFFFF) ^ 0x1234 for a in ks}
     report('addresses 0 and 2**k (alias check)', {a: rd(a) for a in ks}, want, ks)
+    for label, which, bad_a, want in later:
+        say('follow-up on the wrong words of: ' + label)
+        again = {a: rd(a) for a in bad_a}
+        fixed = [a for a in bad_a if again[a] == want[a]]
+        say('   read again: %d of %d now right  (right = the first read was wrong, the write had landed; still wrong = the write was lost)' % (len(fixed), len(bad_a)))
+        alone = 0
+        for a in bad_a:
+            wr([a], lambda x, w=which: pattern(x, w))
+            if rd(a) == want[a]: alone += 1
+        say('   written one at a time, then read: %d of %d right  (right = not tied to the address, only to how fast the writes come)' % (alone, len(bad_a)))
     say('%s in %.1f s' % ('ALL OK' if not total_bad else '%d wrong words in all' % total_bad, time.time() - t0))
     return 0 if not total_bad else 1
 
 
 if __name__ == '__main__':
     p = sys.argv[1] if len(sys.argv) > 1 else 'jtag'
-    sys.exit(main(p, int(sys.argv[2]) if len(sys.argv) > 2 else 2048))
+    sys.exit(main(p, int(sys.argv[2]) if len(sys.argv) > 2 else 2048, stride=(len(sys.argv) > 3 and sys.argv[3] == 'stride')))
