@@ -69,7 +69,9 @@ class App:
                     for part in [p.strip() for p in l.split(';') if p.strip()]:
                         self.log.append('> ' + part)
                         if self.shell.onecmd(part): raise sccli.CliError('stopped at: ' + part)
-                        if self.shell.failed: raise sccli.CliError('error in: ' + part)
+                        if self.shell.failed:
+                            why = [l for l in self.log if l.startswith('error:') or l.startswith('board error:')]
+                            raise sccli.CliError((why[-1] if why else 'error') + '   (at: ' + part + ')')
                         if part.split()[0] == 'send' and not wrote:
                             self._write_data(data); wrote = True
                 if not wrote and data: self._write_data(data)
