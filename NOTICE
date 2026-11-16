@@ -74,3 +74,14 @@ important for your use — for example commercial manufacture at scale —
 review the CERN-OHL-P terms and consider seeking your own legal advice.
 The Imago UniCell Project makes the design available in good faith for
 open use, study, and development.
+
+---
+
+## Third-party code under GPL-3.0 (separate, optional)
+
+`s-core/k7/ddr3_gpl3/upstream/` holds the UberDDR3 DDR3 memory controller
+by Angelo Jacobo (https://github.com/AngeloJacobo/UberDDR3, commit 79d8fd3),
+copied unchanged and licensed **GNU GPL version 3** (see the LICENSE file in
+that folder). It is NOT covered by the MIT or CERN OHL statements above.
+It is kept in that one folder, and only builds that name it (the `*_ddr3`
+Kintex-7 builds) contain it. See `s-core/k7/ddr3_gpl3/README.md`.
