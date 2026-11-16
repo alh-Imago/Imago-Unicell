@@ -20,3 +20,4 @@ dist/
 # SDRAM test build output
 s-core/fpga/sdt/
 *.vvp
+s-core/fpga/pool13_*/

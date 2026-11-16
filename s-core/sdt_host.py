@@ -60,3 +60,12 @@ class SdtBoard:
             if q['done'] and not q['running']: return q
             time.sleep(0.05)
         raise IOError('memory test did not finish in %.0f s' % timeout)
+
+# ---- far RAM commands of the pool build (fpga/sc_top_pool13.v, host_bridge_v7, board version 10) ----
+FAR_ERR = {0: 'none', 1: 'far range outside the allowed window', 2: 'near range past the end of the shared RAM / code store', 3: 'far RAM not ready', 4: 'bad direction', 5: 'timeout'}
+def c_F(dir_, near, far, count): return b'F' + bytes([dir_]) + struct.pack('<H', near) + struct.pack('<I', far)[:3] + struct.pack('<H', count)
+def c_N(): return b'N'
+def c_D(base, length): return b'D' + struct.pack('<I', base)[:3] + struct.pack('<I', length)[:3]
+def dec_N(b):
+    fl, err, init, _, moved, clocks = struct.unpack('<BBBBII', bytes(b))
+    return dict(busy=fl & 1, done=(fl >> 1) & 1, ignored=(fl >> 2) & 1, err=err, init_done=init, moved=moved, clocks=clocks)

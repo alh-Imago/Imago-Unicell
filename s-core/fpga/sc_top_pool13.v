@@ -1,0 +1,117 @@
+// sc_top_pool13.v - sc_top_pool12 plus the FAR RAM: the onboard 8 MB SDRAM (sdram_ctl), a copy engine (far_copy) and the far RAM commands of
+// host_bridge_v7.  The cores and sc_sys_v12 are unchanged: the engine only uses the host port of the shared RAM (which yields to the cores) and the
+// host's code-store write port.  The SDRAM controller is reset by the power-on reset only, so far RAM contents and settings survive a core reset (R).
+// sc_top_pool12.v - sc_top_pool11 with the status / usage / trap-cause read-out (sc_sys_v12 + host_bridge_v7).
+// sc_top_pool11.v - sc_top_pool10 with the shared code library window (sc_sys_v12 + host_bridge_v7).
+// sc_top_pool11.v - sc_top_pool9 with the shared data RAM (sc_sys_v12 + host_bridge_v7).
+// sc_top_pool11.v - sc_top_pool8 with regions (sc_sys_v12 + host_bridge_v7).
+// sc_top_pool11.v - sc_top_pool6 with hold/go (sc_sys_v12 + host_bridge_v7). LED 5 (heartbeat) is unchanged.
+// sc_top_tang.v - S-Core single-set build for the Sipeed Tang Nano 20K.
+// 27 MHz board clock, UART to the PC through the on-board BL616, six LEDs (active low).
+//   led_n[0] heartbeat   led_n[1] some core is running   led_n[2] UART rx activity
+//   led_n[3] UART tx activity   led_n[4] launch error (should never light)   led_n[5] at least one task finished
+// Power-on reset only (the S1/S2 buttons are the chip's MODE pins: not used).
+module sc_top_pool13 #(
+    parameter S = 1, parameter QD = 16, parameter IMEM_WORDS = 128, parameter DMW = 16, parameter DSH = 256, parameter SHL = 14,
+    parameter PROF = 64, parameter BAUD_DIV = 234, parameter LONGEST = 1, parameter FINE = 0
+) (
+    input  wire       clk,
+    input  wire       uart_rx,
+    output wire       uart_tx,
+    output wire [5:0] led_n,
+    output wire       O_sdram_clk, O_sdram_cke, O_sdram_cs_n, O_sdram_ras_n, O_sdram_cas_n, O_sdram_wen_n,
+    output wire [3:0] O_sdram_dqm,
+    output wire [10:0] O_sdram_addr,
+    output wire [1:0] O_sdram_ba,
+    inout  wire [31:0] IO_sdram_dq
+);
+    reg [7:0] por = 8'd0;
+    wire por_done = (por == 8'hFF);
+    always @(posedge clk) if (!por_done) por <= por + 1'b1;
+    wire lb_we; wire [15:0] lb_base, lb_len;
+    wire soft_rst, hold, rg_we, rs_we, dh_we, dh_rd, dh_qv, dh_busy;
+    wire b_dh_we, b_dh_rd, b_imem_we; wire [15:0] b_dh_a, b_imem_wa; wire [31:0] b_dh_wd, b_imem_wd;
+    wire [5:0] rs_prog;
+    wire [15:0] rs_base, rs_len, dh_a;
+    wire [31:0] dh_wd, dh_q;
+    wire [5:0] rg_prog;
+    wire [15:0] rg_cbase, rg_clen, rg_dlen;
+    wire rst = !por_done | soft_rst;
+
+    wire        h_push, h_crit, imem_we, act_rx, act_tx, q_trap;
+    wire [15:0] h_tid, h_code, imem_wa, q_tid;
+    wire [2:0]  h_lw;
+    wire [5:0]  h_prog, q_slot;
+    wire [31:0] imem_wd, q_start, q_end, q_a0, q_arr, o_cyc, o_done, o_lerr, o_disp;
+    wire [1:0]  q_state;
+    wire [24:0] q_pred;
+    wire [63:0] o_busy, o_blocked, o_tail, o_search;
+    wire [S-1:0] o_busy_l;
+    wire [32*S-1:0] st_sl; wire [15:0] st_qc, st_qb; wire [40*S-1:0] st_bs; wire [2:0] q_cause; wire [15:0] q_taddr;
+
+    host_bridge_v7 #(.DIV(BAUD_DIV), .S(S), .IMEM_WORDS(IMEM_WORDS), .DMW(DMW), .DSH(DSH), .SHL(SHL)) br (
+        .clk(clk), .rx(uart_rx), .tx(uart_tx),
+        .h_push(h_push), .h_tid(h_tid), .h_code(h_code), .h_lw(h_lw), .h_crit(h_crit), .h_prog(h_prog),
+        .imem_we(b_imem_we), .imem_wa(b_imem_wa), .imem_wd(b_imem_wd), .q_tid(q_tid), .soft_rst(soft_rst), .hold(hold), .rg_we(rg_we), .rg_prog(rg_prog), .rg_cbase(rg_cbase), .rg_clen(rg_clen), .rg_dlen(rg_dlen),
+        .lb_we(lb_we), .lb_base(lb_base), .lb_len(lb_len), .rs_we(rs_we), .rs_prog(rs_prog), .rs_base(rs_base), .rs_len(rs_len), .dh_we(b_dh_we), .dh_rd(b_dh_rd), .dh_a(b_dh_a), .dh_wd(b_dh_wd), .dh_q(dh_q), .dh_qv(dh_qv), .dh_busy(dh_busy | f_busy),
+        .q_start(q_start), .q_end(q_end), .q_a0(q_a0), .q_arr(q_arr), .q_trap(q_trap), .q_state(q_state),
+        .q_slot(q_slot), .q_pred(q_pred),
+        .o_cyc(o_cyc), .o_done(o_done), .o_lerr(o_lerr), .o_disp(o_disp),
+        .o_busy(o_busy), .o_blocked(o_blocked), .o_tail(o_tail), .o_search(o_search), .o_busy_l(o_busy_l), .st_sl(st_sl), .st_qc(st_qc), .st_qb(st_qb), .st_bs(st_bs), .q_cause(q_cause), .q_taddr(q_taddr),
+        .f_start(f_start), .f_dir(f_dir), .f_near(f_near), .f_far(f_far), .f_cnt(f_cnt), .f_lbase(f_lbase), .f_llen(f_llen),
+        .f_busy(f_busy), .f_done(f_done), .f_ign(f_ign), .f_init(init_done), .f_err(f_err), .f_moved(f_moved), .f_clocks(f_clocks),
+        .f_cl(cfg_cl), .f_dly(cfg_dly), .f_inv(cfg_inv), .f_reinit(reinit),
+        .fh_v(fh_v), .fh_we(fh_we), .fh_a(fh_a), .fh_wd(fh_wd), .fh_acc(fh_acc), .fh_ackv(ack_v), .fh_ackd(ack_d),
+        .act_rx(act_rx), .act_tx(act_tx));
+
+    // ---- far RAM: SDRAM controller, copy engine, and who may use what
+    wire        f_start, f_busy, f_done, f_ign, init_done, reinit, cfg_inv, ctl_busy;
+    wire [1:0]  f_dir, cfg_cl, cfg_dly; wire [2:0] f_err;
+    wire [15:0] f_near, f_cnt; wire [20:0] f_far, f_lbase; wire [21:0] f_llen; wire [31:0] f_moved, f_clocks;
+    wire        e_dh_we, e_dh_rd, e_imem_we, e_rv, e_rwe; wire [15:0] e_dh_a, e_imem_wa; wire [31:0] e_dh_wd, e_imem_wd, e_rwd; wire [20:0] e_ra;
+    wire        fh_v, fh_we; wire [20:0] fh_a; wire [31:0] fh_wd;
+    wire        req_rdy, ack_v; wire [31:0] ack_d;
+    wire        req_v  = f_busy ? e_rv  : fh_v;                // while a copy runs it owns the far RAM
+    wire        req_we = f_busy ? e_rwe : fh_we;
+    wire [20:0] req_a  = f_busy ? e_ra  : fh_a;
+    wire [31:0] req_wd = f_busy ? e_rwd : fh_wd;
+    wire        fh_acc = fh_v && req_rdy && !f_busy;
+    // the engine owns the shared RAM host port and the code-store write port while it runs; the bridge's M / L wait (dh_busy | f_busy)
+    assign dh_we  = f_busy ? e_dh_we : b_dh_we;
+    assign dh_rd  = f_busy ? e_dh_rd : b_dh_rd;
+    assign dh_a   = f_busy ? e_dh_a  : b_dh_a;
+    assign dh_wd  = f_busy ? e_dh_wd : b_dh_wd;
+    assign imem_we = b_imem_we | e_imem_we;
+    assign imem_wa = e_imem_we ? e_imem_wa : b_imem_wa;
+    assign imem_wd = e_imem_we ? e_imem_wd : b_imem_wd;
+
+    sdram_ctl ctl (
+        .clk(clk), .rst(!por_done), .cfg_cl(cfg_cl), .cfg_dly(cfg_dly), .cfg_inv(cfg_inv), .reinit(reinit),
+        .req_v(req_v), .req_we(req_we), .req_a(req_a), .req_wd(req_wd), .req_rdy(req_rdy), .ack_v(ack_v), .ack_d(ack_d),
+        .init_done(init_done), .busy(ctl_busy),
+        .O_sdram_clk(O_sdram_clk), .O_sdram_cke(O_sdram_cke), .O_sdram_cs_n(O_sdram_cs_n), .O_sdram_ras_n(O_sdram_ras_n), .O_sdram_cas_n(O_sdram_cas_n), .O_sdram_wen_n(O_sdram_wen_n),
+        .O_sdram_dqm(O_sdram_dqm), .O_sdram_addr(O_sdram_addr), .O_sdram_ba(O_sdram_ba), .IO_sdram_dq(IO_sdram_dq));
+
+    far_copy #(.DSH(DSH), .IMW(IMEM_WORDS)) fc (
+        .clk(clk), .rst(rst), .start(f_start), .dir(f_dir), .sh_a(f_near), .far_a(f_far), .count(f_cnt), .lim_base(f_lbase), .lim_len(f_llen), .init_done(init_done),
+        .busy(f_busy), .done(f_done), .ignored(f_ign), .err(f_err), .moved(f_moved), .clocks(f_clocks),
+        .dh_we(e_dh_we), .dh_rd(e_dh_rd), .dh_a(e_dh_a), .dh_wd(e_dh_wd), .dh_q(dh_q), .dh_qv(dh_qv), .dh_busy(dh_busy),
+        .ie_we(e_imem_we), .ie_wa(e_imem_wa), .ie_wd(e_imem_wd),
+        .req_v(e_rv), .req_we(e_rwe), .req_a(e_ra), .req_wd(e_rwd), .req_rdy(req_rdy), .ack_v(ack_v), .ack_d(ack_d));
+
+    sc_sys_v12 #(.S(S), .QD(QD), .IMEM_WORDS(IMEM_WORDS), .DMW(DMW), .DSH(DSH), .SHL(SHL), .PROF(PROF), .EVB(3),
+                .PRIO(1), .BESTFIT(1), .LONGEST(LONGEST), .FINE(FINE)) sys (
+        .clk(clk), .rst(rst), .hold(hold), .rg_we(rg_we), .rg_prog(rg_prog), .rg_cbase(rg_cbase), .rg_clen(rg_clen), .rg_dlen(rg_dlen),
+        .lb_we(lb_we), .lb_base(lb_base), .lb_len(lb_len), .rs_we(rs_we), .rs_prog(rs_prog), .rs_base(rs_base), .rs_len(rs_len), .dh_we(dh_we), .dh_rd(dh_rd), .dh_a(dh_a), .dh_wd(dh_wd), .dh_q(dh_q), .dh_qv(dh_qv), .dh_busy(dh_busy),
+        .h_push(h_push), .h_tid(h_tid), .h_code(h_code), .h_lw(h_lw), .h_crit(h_crit), .h_prog(h_prog),
+        .imem_we(imem_we), .imem_wa(imem_wa), .imem_wd(imem_wd),
+        .q_tid(q_tid), .q_start(q_start), .q_end(q_end), .q_a0(q_a0), .q_arr(q_arr), .q_trap(q_trap),
+        .q_state(q_state), .q_slot(q_slot), .q_pred(q_pred),
+        .o_cyc(o_cyc), .o_done(o_done), .o_lerr(o_lerr), .o_disp(o_disp),
+        .o_busy(o_busy), .o_blocked(o_blocked), .o_tail(o_tail), .o_search(o_search), .o_busy_l(o_busy_l), .st_sl(st_sl), .st_qc(st_qc), .st_qb(st_qb), .st_bs(st_bs), .q_cause(q_cause), .q_taddr(q_taddr),
+        .ev_pl_we(1'b0), .ev_pl_id(8'd0), .ev_pl_data(32'd0), .ev_set(1'b0), .ev_set_id(8'd0));
+
+    reg [24:0] hb = 0;
+    always @(posedge clk) hb <= hb + 1'b1;
+    assign led_n = ~{|o_done, |o_lerr, act_tx, act_rx, |o_busy_l, hb[24]};
+endmodule

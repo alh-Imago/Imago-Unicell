@@ -8,7 +8,7 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 # Settings, either as named options in any order, or the old positional form (outdir S IMEM_WORDS DMW QD FINE).
 #   --out DIR      output folder                      (default build)
-#   --pool N       design: 1 v5, 2 v6, 3 v7 (hold/go), 4 v8 (shared code store), 5 v9 (regions), 6 v10 (shared data RAM), 7 v11 (+ code library window), 8 v12 (+ status / usage / trap cause)   (default: env POOL, else 7)
+#   --pool N       design: 1 v5, 2 v6, 3 v7 (hold/go), 4 v8 (shared code store), 5 v9 (regions), 6 v10 (shared data RAM), 7 v11 (+ code library window), 8 v12 (+ status / usage / trap cause), 9 v12 + far RAM (SDRAM copy engine; use --slices 5)   (default: env POOL, else 7)
 #   --slices N     number of 1-bit cores (slices)     (default 1)
 #   --code N       shared code store, 32-bit words, power of 2   (default 128)
 #   --data N       data words per slice               (default 16)
@@ -46,6 +46,7 @@ if [ "${POOL:-0}" = 5 ]; then TOP=sc_top_pool9; SRCS="$HERE/../uc_core_v2u.v $HE
 if [ "${POOL:-0}" = 6 ]; then TOP=sc_top_pool10; SRCS="$HERE/../uc_core_v2v.v $HERE/../sc_sys_v10.v"; BRIDGE="$HERE/host_bridge_v4.v"; fi   # POOL=6: v10 = v9 plus the shared data RAM (host commands M, L, X, Z)
 if [ "${POOL:-0}" = 7 ]; then TOP=sc_top_pool11; SRCS="$HERE/../uc_core_v2v.v $HERE/../sc_sys_v11.v"; BRIDGE="$HERE/host_bridge_v5.v"; fi   # POOL=7: v11 = v10 plus the shared code library window (host command Y)
 if [ "${POOL:-0}" = 8 ]; then TOP=sc_top_pool12; SRCS="$HERE/../uc_core_v2v.v $HERE/../sc_sys_v12.v"; BRIDGE="$HERE/host_bridge_v6.v"; fi   # POOL=8: v12 = v11 plus status (T), per-slice usage (U) and trap cause (E)
+if [ "${POOL:-0}" = 9 ]; then TOP=sc_top_pool13; SRCS="$HERE/../uc_core_v2v.v $HERE/../sc_sys_v12.v"; BRIDGE="$HERE/host_bridge_v7.v $HERE/far_copy.v $HERE/sdram_ctl.v"; fi   # POOL=9: v12 cores + the FAR RAM (onboard SDRAM, copy engine, host_bridge_v7)
 EXTRA=""; [ "${POOL:-0}" -ge 6 ] && EXTRA="-set DSH $DSH"
 mkdir -p "$OUT"; cd "$OUT"
 printf "pool=%s slices=%s code_words=%s data_words=%s shared_words=%s queue=%s fine=%s seed=%s built=%s\n" "$POOL" "$S" "$IMW" "$DMW" "$([ "$POOL" -ge 6 ] && echo $DSH || echo 0)" "$QD" "$FINE" "$SEED" "$(date -u +%FT%TZ)" | tee build_info.txt
