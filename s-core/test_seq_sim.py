@@ -11,7 +11,10 @@ import host_sc as hs, sdt_host as H, batch as B, batch_demo as D
 import test_farram_sim as F
 
 def jcmd(a): return b'J' + a.to_bytes(3, 'little')
-def dec_A(b): return dict(busy=b[0] & 1, done=(b[0] >> 1) & 1, err=b[1], steps=b[2] | b[3] << 8, tag=int.from_bytes(bytes(b[4:8]), 'little'))
+from scbatch import dec_A
+
+ALEN = 24 if '--v1' not in sys.argv else 8
+V2 = '--v1' not in sys.argv          # default: the pool15 design (sequencer v2: clock counters); --v1 runs the pool14 design
 
 def main():
     bad = 0
@@ -24,7 +27,7 @@ def main():
            0x3440: B.Script().submit(5, ent, 0).load_code(0, 0x2200, 10).end(2),
            0x3480: B.Script().load_code(0, 0x100, 10).end(3),
            0x34C0: None}
-    exe = F.build('seq', seq=True)
+    exe = F.build('seq', seq=2 if V2 else 1)
     s = F.Script(); s.wait(0x3000)
     s.send(hs.cmd_V(), 8, 'V')
     s.send(H.c_D(*D.COPY_WINDOW))
@@ -33,12 +36,12 @@ def main():
         words = sc.words() if sc else [0xF, 0, 0, 0]
         for i, w in enumerate(words): s.send(H.c_w(at + i, w), extra=0x40)
     s.send(jcmd(d['entry']))
-    s.wait(1_000_000); s.send(b'A', 8, 'A'); s.wait(1_500_000); s.send(b'A', 8, 'A')
+    s.wait(1_000_000); s.send(b'A', ALEN, 'A'); s.wait(1_500_000); s.send(b'A', ALEN, 'A')
     n = len(d['expected'])
     for tid in range(4): s.send(hs.cmd_Q(tid), 22, 'Q')
     for k in range(n + 1): s.send(H.c_r(d['results'] + k), 4, 'r')
     for at in sorted(neg):
-        s.send(jcmd(at)); s.wait(400_000); s.send(b'A', 8, 'A')
+        s.send(jcmd(at)); s.wait(400_000); s.send(b'A', ALEN, 'A')
     s.wait(500_000)
     for tid in (4, 5): s.send(hs.cmd_Q(tid), 22, 'Q')
     rx, errs = F.run(exe, s, tag='seq', maxcyc=200_000_000)
@@ -48,9 +51,15 @@ def main():
     def nxt(k):
         kk, b = next(it); assert kk == k, (kk, k); return b
     v = hs.dec_V(nxt('V'))
-    check('board version 11 (batch sequencer)', v['version'] == 11, str(v['version']))
+    check('board version %d' % (12 if V2 else 11), v['version'] == (12 if V2 else 11), str(v['version']))
     a1, a2 = dec_A(nxt('A')), dec_A(nxt('A'))
     check('chain finished by itself: done, not busy, error 0, tag 0x600d, 28 steps', a2['done'] and not a2['busy'] and a2['err'] == 0 and a2['tag'] == D.TAG and a2['steps'] == 28, str(a2))
+    if V2:
+        nwords = sum(st[3] for sc in d['scripts'] for st in sc.steps if st[0] in (B.LOAD_CODE, B.LOAD_DATA, B.SAVE))
+        c = a2['clk']
+        check('clock counters: total %d, copying %d, waiting %d, rest %d' % (c, a2['clk_copy'], a2['clk_wait'], c - a2['clk_copy'] - a2['clk_wait']), c > 0 and a2['clk_copy'] > 0 and a2['clk_wait'] > 0 and a2['clk_copy'] + a2['clk_wait'] < c)
+        check('the copies cost at least 12 clocks per word (%d words in the chain)' % nwords, a2['clk_copy'] >= 12 * nwords, '%.1f clocks per word' % (a2['clk_copy'] / nwords))
+        check('last step shown is the END step of the second script', a2['op'] == 0 and a2['pc'] == D.SCRIPT2 + 4 * 14, 'pc %#x op %d' % (a2['pc'], a2['op']))
     qs = [hs.dec_Q(nxt('Q')) for _ in range(4)]
     check('all four jobs finished, none trapped', all(q['state'] == 3 and not q['trap'] for q in qs), ' '.join('%d/%d' % (q['state'], q['trap']) for q in qs))
     block = [H.dec_r(nxt('r')) for _ in range(n)]; after = H.dec_r(nxt('r'))

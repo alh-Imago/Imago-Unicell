@@ -76,19 +76,21 @@ class BatchFake(JobFake):
         super().h(c)
 
 class SeqBatchFake(BatchFake):
-    def __init__(s): super().__init__(); s.sa = (0, 0, 0, 0); s.ver = 11
-    def version(s): return dict(version=11, S=4, imem_words=128, dmem_words=16)
+    def __init__(s, ver=11): super().__init__(); s.sa = (0, 0, 0, 0); s.ver = ver
+    def version(s): return dict(version=s.ver, S=4, imem_words=128, dmem_words=16)
     def h(s, c):
         k = chr(c[0])
         if k == 'J':
             import batch as B
             s.sa = (1,) + B.LiveExec(s).run(int.from_bytes(c[1:4], 'little'))
-        elif k == 'A': s.buf += bytes([2, s.sa[1], s.sa[3] & 255, s.sa[3] >> 8]) + (s.sa[2] or 0).to_bytes(4, 'little')
+        elif k == 'A':
+            s.buf += bytes([2, s.sa[1], s.sa[3] & 255, s.sa[3] >> 8]) + (s.sa[2] or 0).to_bytes(4, 'little')
+            if s.ver >= 12: s.buf += (200000).to_bytes(4, 'little') + (30000).to_bytes(4, 'little') + (120000).to_bytes(4, 'little') + (0x2400).to_bytes(3, 'little') + bytes([0])
         else: super().h(c)
 
 def seq_main():
     import run_seq_board as RS
-    return RS.main('x', io=SeqBatchFake(), timeout_case=False)
+    return RS.main('x', io=SeqBatchFake(), timeout_case=False) | RS.main('x', io=SeqBatchFake(12), timeout_case=False)
 
 def batch_main():
     import run_batch_board as RB
@@ -116,13 +118,15 @@ class SeqFake(JobFake):
         elif k == 'J':
             import batch as B
             s.sa = (1,) + B.LiveExec(s).run(int.from_bytes(c[1:4], 'little'))
-        elif k == 'A': s.buf += bytes([2, s.sa[1], s.sa[3] & 255, s.sa[3] >> 8]) + (s.plan.tag if s.sa[1] == 0 else 0).to_bytes(4, 'little')
+        elif k == 'A':
+            s.buf += bytes([2, s.sa[1], s.sa[3] & 255, s.sa[3] >> 8]) + (s.plan.tag if s.sa[1] == 0 else 0).to_bytes(4, 'little')
+            if s.ver >= 12: s.buf += (3_000_000).to_bytes(4, 'little') + (200000).to_bytes(4, 'little') + (2_500_000).to_bytes(4, 'little') + (s.plan.entry).to_bytes(3, 'little') + bytes([0])
         super().h(c)
 
 def scbatch_main():
     import scbatch as SB
     rc = 0
-    for host, ver in ((False, 11), (True, 10)):
+    for host, ver in ((False, 11), (False, 12), (True, 10)):
         tasks = SB.demo_jobs(40); f = SeqFake(tasks, ver)
         print('--- scbatch, 40 jobs, %s' % ('host walks the scripts' if host else 'hardware sequencer (emulated)'))
         rc |= SB.run('x', tasks, host=host, io=f)

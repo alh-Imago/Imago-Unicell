@@ -7,7 +7,7 @@ Python answer; then four scripts that must be refused: a WAIT that times out (6)
 opcode (8).  Exit code 0 = all passed."""
 import sys, time
 import board_diag, sdt_host as H, host_sc as hs, batch as B, batch_demo as D
-from scbatch import c_J, dec_A, SEQ_ERR
+from scbatch import c_J, dec_A, a_len, SEQ_ERR, CLK_HZ
 
 def main(port, io=None, timeout_case=True):
     b = io if io is not None else hs.Board(port)
@@ -17,10 +17,11 @@ def main(port, io=None, timeout_case=True):
         print('%-88s %s %s' % (name, 'ok' if cond else 'FAIL', extra)); bad += (not cond)
     def put(cmd): b.s.write(cmd); b.s.flush()
     def far_r(a): put(H.c_r(a)); return H.dec_r(b._rd(4))
+    v = b.version()
     def poll(limit=30.0):
         t0 = time.time(); time.sleep(0.02)
         while True:
-            put(b'A'); a = dec_A(b._rd(8))
+            put(b'A'); a = dec_A(b._rd(a_len(v['version'])))
             if a['done'] and not a['busy']: a['secs'] = time.time() - t0; return a
             if time.time() - t0 > limit: a['secs'] = limit; a['timeout'] = True; return a
             time.sleep(0.02)
@@ -31,7 +32,7 @@ def main(port, io=None, timeout_case=True):
             if q['state'] == 3: return q
             time.sleep(0.02)
         board_diag.diagnose(b, tid); raise IOError('task %d did not finish' % tid)
-    v = b.version(); print('board version %d, %d slices' % (v['version'], v['S']))
+    print('board version %d, %d slices' % (v['version'], v['S']))
     if v['version'] < 11: print('Not the batch-sequencer design (need version 11): fpga/build_tang.sh --pool 10 --slices 4 --code 128 --out pool14_4'); return 2
     d = D.build(); img = d['layout'].image
     ent = d['links'][1].classes[0]['entry']
@@ -48,6 +49,13 @@ def main(port, io=None, timeout_case=True):
     check('far RAM holds the first script (read back)', [far_r(D.SCRIPT1 + i) for i in range(4)] == list(d['scripts'][0].words()[:4]))
     put(c_J(d['entry'])); a = poll()
     check('chain finished by itself: error 0, tag %x, 28 steps, %.2f s (host only polled)' % (D.TAG, a['secs']), not a.get('timeout') and a['err'] == 0 and a['tag'] == D.TAG and a['steps'] == 28, str({k: a[k] for k in ('err', 'tag', 'steps')}))
+    if 'clk' in a:
+        c = a['clk']; sec = c / CLK_HZ
+        check('clock counters: total %d clocks = %.3f ms; copying %d, waiting %d, rest %d' % (c, 1000 * sec, a['clk_copy'], a['clk_wait'], c - a['clk_copy'] - a['clk_wait']),
+              c > 0 and a['clk_copy'] > 0 and a['clk_wait'] > 0 and a['clk_copy'] + a['clk_wait'] <= c)
+        check('the board time is not longer than the time the host measured (%.3f s)' % a['secs'], sec <= a['secs'] + 0.05, '%.3f s on the board' % sec)
+        put(b'A'); a2 = dec_A(b._rd(a_len(v['version'])))
+        check('counters hold their values after the run ends', a2['clk'] == c and a2['steps'] == a['steps'])
     qs = [b.task(t) for t in range(4)]
     check('all four jobs finished, none trapped', all(q['state'] == 3 and not q['trap'] for q in qs), ' '.join('%d/%d' % (q['state'], q['trap']) for q in qs))
     n = len(d['expected']); block = [far_r(D.RESULTS + k) for k in range(n)]

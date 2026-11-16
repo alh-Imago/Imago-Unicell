@@ -14,7 +14,7 @@ FPGA = os.path.join(HERE, 'fpga')
 def build(tag='far', seq=False):
     if not shutil.which('iverilog'): print('SKIP: iverilog not installed'); sys.exit(1)
     exe = os.path.join(HERE, tag + '.vvp')
-    files = ('tb_top_seq.v', 'sc_top_pool14.v', 'host_bridge_v8.v', 'batch_seq.v', 'far_copy.v', 'sdram_ctl.v', 'sdram_model.v', 'uart.v') if seq else ('tb_top_far.v', 'sc_top_pool13.v', 'host_bridge_v7.v', 'far_copy.v', 'sdram_ctl.v', 'sdram_model.v', 'uart.v')
+    files = ('tb_top_seq2.v', 'sc_top_pool15.v', 'host_bridge_v9.v', 'batch_seq_v2.v', 'far_copy.v', 'sdram_ctl.v', 'sdram_model.v', 'uart.v') if seq == 2 else ('tb_top_seq.v', 'sc_top_pool14.v', 'host_bridge_v8.v', 'batch_seq.v', 'far_copy.v', 'sdram_ctl.v', 'sdram_model.v', 'uart.v') if seq else ('tb_top_far.v', 'sc_top_pool13.v', 'host_bridge_v7.v', 'far_copy.v', 'sdram_ctl.v', 'sdram_model.v', 'uart.v')
     srcs = [os.path.join(FPGA, f) for f in files] + [os.path.join(HERE, 'sc_sys_v12.v'), os.path.join(HERE, 'uc_core_v2v.v')]
     subprocess.run(['iverilog', '-g2012', '-o', exe] + srcs, check=True)
     return exe

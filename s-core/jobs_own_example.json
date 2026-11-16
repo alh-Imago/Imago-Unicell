@@ -1,0 +1,10 @@
+{"programs": [
+   {"name": "vmax",    "source": "programs/vmax.s",    "expect": "programs.examples:vmax_ref",    "out": 1},
+   {"name": "vprefix", "source": "programs/vprefix.s", "expect": "programs.examples:vprefix_ref", "out": "same"},
+   {"name": "copy",    "source": "programs/template.s", "expect": "iss", "out": "same"} ],
+ "jobs": [
+   {"kind": "vmax",    "inputs": {"seq": [7, 20, 13]}},
+   {"kind": "vprefix", "inputs": {"seq": [1, 12, 1]}},
+   {"kind": "copy",    "inputs": [10, 20, 30, 40]},
+   {"kind": "vsum",    "inputs": {"seq": [1, 10, 1]}},
+   {"kind": "vmax",    "inputs": [4294967295, 3, 7]} ]}

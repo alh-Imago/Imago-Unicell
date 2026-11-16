@@ -14,21 +14,24 @@ What it decides (the board only does what the script says):
   * far RAM layout: scripts first (read by the sequencer directly), then code and window images, then a status block (status, n_out of every task: 2 words)
     and the results block (every task's output words, in the ORDER OF THE TASKS, whichever batch ran them);
   * every job's status and n_out are saved too, so a job that refused or trapped shows up in verify() instead of silently giving zeros.
-Programs come from jobio.KINDS (assembly with the job I/O convention of jobio.py)."""
-import jobio as J, batch as B
+Programs: the three built-in ones of jobio.py, and any registered with progs.register() (assembly following the job I/O convention; programs/template.s)."""
+import jobio as J, batch as B, progs
 
 TAG = 0x600D
 class JobCompError(Exception): pass
 
 class Task:
     def __init__(self, kind, inputs, out_len=None, arg=0):
-        if kind not in J.KINDS: raise JobCompError('unknown job kind %r (known: %s)' % (kind, ', '.join(sorted(J.KINDS))))
+        if not progs.known(kind): raise JobCompError('unknown job kind %r (known: %s)' % (kind, ', '.join(progs.kinds())))
         self.kind, self.inputs, self.arg = kind, [w & J.M32 for w in inputs], arg
-        self.out_len = out_len if out_len is not None else (len(inputs) if kind == 'vscale' else 1)
+        self.out_len = out_len if out_len is not None else progs.default_out_len(kind, len(inputs))
         if self.out_len < 1: raise JobCompError('a job needs at least one output word')
+        self._exp = None
     @property
     def window_words(self): return J.HDR + len(self.inputs) + self.out_len
-    def expected(self): return J.Job(0, self.kind, self.inputs, self.out_len, self.arg).expected()
+    def expected(self):
+        if self._exp is None: self._exp = progs.expected(self.kind, self.inputs, self.out_len, self.arg)
+        return self._exp
 
 class PJob(J.Job):
     """a Job whose window is padded to pad words, so that it can be a clone of a bigger one"""
@@ -126,7 +129,7 @@ def compile(tasks, imem=128, dsh=256, max_jobs=16, far_base=0x2000, wait_k=0xFFF
     p.status_at = {i: st_base + 2 * i for i in range(len(tasks))}
     p.results = {i: (st_base + 2 * i, res_at[i], exp_len[i]) for i in range(len(tasks))}
     p.expected = [t.expected() for t in tasks]
-    p.steps = sum(len(s.steps) for s in scripts)
+    p.steps = sum(len(s.steps) for s in scripts); p.script_addrs = addrs
     def verify(read_word):
         bad = []
         for i, (sa, ra, n) in p.results.items():

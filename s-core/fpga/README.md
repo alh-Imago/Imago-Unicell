@@ -18,6 +18,7 @@ Place-and-route (nextpnr, 8 slices): v7 13,706 LUT4 / 377 LUT-RAM blocks; v8 12,
 | 9 | `sc_top_sdt.v` | stage 1 of the onboard 8 MB SDRAM: controller + on-chip memory test + UART commands (`build_sdt.sh`); not the pool | simulation `test_sdram_sim.py` PASS; places at 27 MHz (2,391 LUT4); 8 MB passes on the card (8.9 MB/s) |
 | 10 | `sc_top_pool13.v` | v12 cores + FAR RAM: onboard 8 MB SDRAM, copy engine `far_copy.v` (shared RAM / code store <-> far RAM), `host_bridge_v7` (version 10); `--pool 9` | simulation `test_farram_sim.py` PASS; places at S=5 code128 (14,790 LUT4, 53.7 MHz), S=6 does not; not yet on the card |
 | 11 | `sc_top_pool14.v` | pool13 + the batch sequencer `batch_seq.v` and `host_bridge_v8` (version 11, commands J / A); `--pool 10` | simulation `test_seq_sim.py` PASS; S=5 does NOT place (17,714 LUT4 = 85% on nextpnr's pre-placement line, two seeds); S=4 places: 16,042 pre-placement (77%) = 14,131 after packing (68%), 48.0 MHz; ON THE CARD (run_seq_board.py PASS). The 14,790 above is a post-pack figure; the pre-placement figure for pool 9 at S=5 is 17,056 (82%). |
+| 12 | `sc_top_pool15.v` | pool14 + `batch_seq_v2` (clock counters, live step) and `host_bridge_v9` (A = 24 bytes, version 12); `--pool 11` | simulation `test_seq_sim.py` PASS; S=4: 14,268 LUT4 after packing (68.8%), 51.0 MHz; not yet on the card |
 
 Build (named options; the old positional form still works) and run:
 ```
