@@ -10,7 +10,7 @@ Each exchange is one scan of USER1 (IR 0x02) of W = 16 + 8*K bits: see the heade
     its payload is ignored here;
   * bytes are only sent while the design's last response said ready;
   * every response must carry the marker 4'h5 in bits 15:12, otherwise the link is not what we think it is and an error is raised."""
-import os, socket, subprocess, time, shutil, tempfile
+import os, socket, subprocess, time, shutil, tempfile, atexit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 K = 32
@@ -39,6 +39,7 @@ class OpenOcdScanner:
             self.log = tempfile.NamedTemporaryFile('w+', suffix='.openocd.log', delete=False)
             self.proc = subprocess.Popen([exe, '-f', cfg, '-c', 'tcl_port %d' % tcl, '-c', 'telnet_port disabled', '-c', 'gdb_port disabled', '-c', 'init'],
                                          stdout=self.log, stderr=subprocess.STDOUT)
+            atexit.register(self.close)      # scbatch never closes the board: without this the OpenOCD child outlives Python and keeps the cable busy (2026-11-16)
         t0 = time.time()
         while True:
             try:
