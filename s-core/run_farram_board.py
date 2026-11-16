@@ -5,7 +5,7 @@ Checks (the same as test_farram_sim.py): shared RAM -> far -> shared round trip 
 window, past the end) move nothing; far RAM survives a core reset; a program stored in far RAM is copied into the code store and runs; a copy
 during a running job does not change the job's clock count.  Exit code 0 = all passed."""
 import sys, time, random
-import sdt_host as H, host_sc as hs, sched_tests as st
+import board_diag, sdt_host as H, host_sc as hs, sched_tests as st
 rt = st.rt
 LOOP = 2000          # the job must run for tens of milliseconds so that the copy really overlaps it (60 iterations end within one millisecond)
 
@@ -34,6 +34,7 @@ def main(port, S_expect=None, io=None, kset=None):
             q = b.task(tid)
             if q['state'] == 3: return q
             time.sleep(0.05)
+        board_diag.diagnose(b, tid)
         raise IOError('task %d did not finish' % tid)
 
     v = b.version()
@@ -43,7 +44,7 @@ def main(port, S_expect=None, io=None, kset=None):
     if kset:                                                      # workaround for a build whose far RAM settings did not come up as the defaults
         put(H.c_K(*kset)); time.sleep(0.2); print('sent K %d %d %d (settings set by the runner)' % kset)
     put(H.c_I()); i = H.dec_I(b._rd(4)); check('far RAM initialised, settings cl/dly/inv = 2/1/0', i['init_done'] == 1 and (i['cl'], i['dly'], i['inv']) == (2, 1, 0), str(i))
-    put(b'R'); time.sleep(0.2)                                    # a clean start for the cores (the far RAM is not touched by it)
+    put(b'R'); time.sleep(0.2); put(hs.cmd_G())                  # R does not clear the scheduler's hold flag: release it so a hold left by an earlier session cannot stop the jobs                                    # a clean start for the cores (the far RAM is not touched by it)
     n = copy(0, 0, 0x100, 1); check('default window refuses a copy (err 1)', n['err'] == 1 and n['moved'] == 0, str(n))
     put(H.c_D(0x1000, 0x1000))                                    # copies may touch far words 0x1000 .. 0x1FFF
     rnd = random.Random(2026); DSH = 256

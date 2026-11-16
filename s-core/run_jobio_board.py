@@ -5,7 +5,7 @@ Four jobs get headers and inputs from the host, run, and are checked (one is tol
 one contiguous block of far RAM and compared with the Python answer; a shared-RAM stress job runs alone and then with a 256-word copy running.  Same
 checks as test_jobio_sim.py.  Exit code 0 = all passed."""
 import sys, time
-import sdt_host as H, host_sc as hs, jobio as J
+import board_diag, sdt_host as H, host_sc as hs, jobio as J
 
 STRESS_REPEATS = 400          # about 0.14 s of shared-RAM traffic on the board, so that the copy really overlaps it
 
@@ -31,6 +31,7 @@ def main(port, io=None):
             q = b.task(tid)
             if q['state'] == 3: return q
             time.sleep(0.02)
+        board_diag.diagnose(b, tid)
         raise IOError('task %d did not finish' % tid)
     A = J.Job(0, 'vsum', [3 * i + 1 for i in range(12)], 1)
     B = J.Job(1, 'vscale', [100 + 7 * i for i in range(10)], 10)
@@ -41,7 +42,7 @@ def main(port, io=None):
     lk = J.build_link([A, B, S, C, D])
     v = b.version(); print('board version %d, %d slices; linked program: %d code words' % (v['version'], v['S'], len(lk.words)))
     if v['version'] < 10: print('Not the far-RAM design (need version 10): fpga/build_tang.sh --pool 9 --slices 5 --code 128 --out pool13_5'); return 2
-    put(b'R'); time.sleep(0.2)
+    put(b'R'); time.sleep(0.2); put(hs.cmd_G())                  # R does not clear the scheduler's hold flag: release it so a hold left by an earlier session cannot stop the jobs
     for c in lk.commands(): b.s.write(c)
     for j in jobs + [S]:
         for c in J.prepare_cmds(lk, j): b.s.write(c)
