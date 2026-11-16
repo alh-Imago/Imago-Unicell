@@ -1,5 +1,6 @@
 // tb_farram_ddr3.v - testbench for farram_ddr3_v1 against a behavioural model of UberDDR3's Wishbone port (576-bit line, byte strobe, random stall, random
 // ack latency), with the two clocks asynchronous (20 ns and 12 ns period, offset).  GPL-3.0 build only (see README.md).
+// Like the card (no data-mask pins) the model IGNORES the byte strobe: every write replaces the whole 576-bit line.  It also counts transfers.
 `timescale 1ns/1ps
 module tb_farram_ddr3;
     localparam LANES = 9, WBA = 25, DW = LANES*64, NL = 256;
@@ -22,7 +23,7 @@ module tb_farram_ddr3;
 
     // ---- Wishbone slave model (one transaction at a time is enough for this master, but the model accepts a new one only when idle)
     reg [DW-1:0] mem [0:NL-1];
-    integer k, viol = 0, accepted = 0;
+    integer k, viol = 0, accepted = 0, nreads = 0, nwrites = 0;
     reg [15:0] lf = 16'hACE1;
     reg        busym = 0; reg [3:0] lat = 0; reg m_we = 0; reg [WBA-1:0] m_a = 0;
     reg [DW-1:0] m_d = 0; reg [LANES*8-1:0] m_s = 0;
@@ -35,12 +36,13 @@ module tb_farram_ddr3;
             accepted = accepted + 1;
             busym <= 1'b1; lat <= 4'd4 + lf[3:0] % 8; m_we <= wb_we; m_a <= wb_addr; m_d <= wb_data; m_s <= wb_sel;
             if (wb_addr >= NL) viol = viol + 1;
-            if (wb_sel[LANES*8-1:64] != 0) viol = viol + 1;      // the 9th lane's bytes must never be enabled
+            if (wb_we && wb_sel != {(LANES*8){1'b1}}) viol = viol + 1;   // a write must cover the whole line: the card cannot mask bytes
+            if (wb_we) nwrites = nwrites + 1; else nreads = nreads + 1;
         end
         if (busym) begin
             if (lat == 0) begin
                 busym <= 1'b0; wb_ack <= 1'b1;
-                if (m_we) begin for (k = 0; k < LANES*8; k = k + 1) if (m_s[k]) mem[m_a][8*k +: 8] <= m_d[8*k +: 8]; wb_rdata <= 0; end
+                if (m_we) begin mem[m_a] <= m_d; wb_rdata <= 0; end      // the strobe m_s is ignored, as on the card
                 else wb_rdata <= mem[m_a];
             end else lat <= lat - 1'b1;
         end
@@ -89,8 +91,8 @@ module tb_farram_ddr3;
         end
         // 4) read everything back
         for (i = 0; i < NL*16; i = i + 1) rd(i);
-        if (viol != 0) begin errs = errs + viol; $display("FAIL: %0d protocol violations (address out of range or ECC lane enabled)", viol); end
-        if (errs == 0) $display("PASS: %0d pool operations, %0d Wishbone transfers, 0 errors", ops, accepted);
+        if (viol != 0) begin errs = errs + viol; $display("FAIL: %0d protocol violations (address out of range or a masked write)", viol); end
+        if (errs == 0) $display("PASS: %0d pool operations, %0d Wishbone transfers (%0d reads, %0d writes), 0 errors", ops, accepted, nreads, nwrites);
         else $display("FAIL: %0d errors", errs);
         $finish;
     end

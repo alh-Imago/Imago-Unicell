@@ -44,7 +44,7 @@ but as clearly marked MODIFIED copies in `mod/` (GPL-3.0, header naming the chan
 |---|---|---|
 | `make_mod.py` -> `mod/ddr3_phy_ypcb_v1.v`, `mod/ddr3_top_ypcb_v1.v` | modified copies of upstream PHY and top (used INSTEAD of the upstream ones) | GPL-3.0 |
 | `clk_ypcb_v1.v` | the PLL: 83.33 MHz controller, 333.33 MHz DDR3 (0, 90 and 60 degrees), 200 MHz reference, 50 MHz pool clock; from upstream's example clk_wiz | GPL-3.0 |
-| `farram_ddr3_v1.v` | far-RAM wrapper: pool request/acknowledge <-> Wishbone, clock crossing, 32-bit word in a 576-bit line (word a: line a[20:4], slot a[3:0]) | GPL-3.0 (kept here by rule) |
+| `farram_ddr3_v1.v` | far-RAM wrapper: pool request/acknowledge <-> Wishbone, clock crossing, 32-bit word in a 576-bit line (word a: line a[20:4], slot a[3:0]); writes are read-modify-write with a one-line cache (v1 first run on the card: the byte strobe is not honoured, see below) | GPL-3.0 (kept here by rule) |
 | `sc_k7_ddr3_v1.v` | top (`module top`): PLL, IDELAYCTRL, ddr3_top, wrapper, pool | GPL-3.0 as a combined build |
 | `make_xdc.py` -> `sc_k7_ddr3_v1.xdc` | pin file for DDR3 channel 0 (vendor MEMORY_CH0.ucf; I/O properties from upstream's example) and our clock and LEDs | GPL-3.0 |
 | `Makefile`, `stage.sh` | build (copy this folder into demo-projects as `sc_k7_ddr3`, see the Makefile header) | GPL-3.0 |
@@ -59,3 +59,11 @@ therefore: build, load, and look at the LEDs (yellow steady = calibrated and the
 Known risks: an unpatched nextpnr (sirmick's patches 0001-0003; 0003, OLOGIC T1, is the one DDR3 I/O is known to need); about one placement in four fails one lane in sirmick's builds (rebuild with another seed);
 the controller's built-in memory test (BIST_MODE 1) runs through the address space before the ready state 23 and may take seconds; only 17 of the 25 line-address bits are used (8 MB window).
 Sirmick records that LiteDRAM (the LiteX memory controller) never calibrated on this card under the open toolchain, which is why UberDDR3 is used first.
+
+## First run on the card (2026-11-16) and what it showed
+Bitstream built (nix nextpnr, no patches; cclk 133 MHz, pool_clk 66.8 MHz, ref_clk 522 MHz in nextpnr's estimate) and loaded: green blinking, yellow steady, red off, i.e. the DDR3 calibrated and
+the controller's built-in test finished. `scbatch` then stopped at the first script step (error 8, bad opcode), and `ddr3test.py` showed why: in every 16-word line all words read back the value of the
+LAST word written to the line (a complement pattern gave the complement), reads were stable, addresses did not alias. Cause: the card has no data-mask pins (none among the 117 pins per channel), so a
+write always replaces the whole 64-byte line; my wrapper had relied on the byte strobe to write a single 32-bit word. My first simulation model honoured the strobe and could not show it. Fix:
+writes are read-modify-write with a one-line cache, and the model now ignores the strobe like the card and requires every write to be a full-line write.
+Open: in that run the last four line bytes (a single slot) showed 2-3 wrong words in the complement pass only; unexplained, to be re-measured with the fixed wrapper.
