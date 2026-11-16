@@ -69,13 +69,17 @@ def main(port, S_expect=None, io=None, kset=None):
     n = copy(2, 0, 0x1200, len(prog)); check('program image far RAM -> code store (%d words)' % len(prog), n['err'] == 0 and n['moved'] == len(prog))
     put(hs.cmd_P(0, 0, 0, 0, 0)); q0 = wait_task(0)
     check('the program loaded from far RAM runs, result right', not q0['trap'] and q0['a0'] == want, 'a0 %d expect %d' % (q0['a0'], want))
+    put(hs.cmd_P(2, 0, 0, 0, 0)); q2 = wait_task(2)                  # the same job once more on the idle board: how much do two identical idle runs differ?
     put(hs.cmd_P(1, 0, 0, 0, 0)); time.sleep(0.003)
     n = copy(0, 0, 0x1300, 256)
     during = b.task(1)['state'] != 3                              # was the job still running when the copy finished?
     q1 = wait_task(1)
     check('a copy during a running job completes (job still running at that moment)', n['err'] == 0 and n['moved'] == 256 and during, '' if during else 'job had already finished: no real overlap, lengthen LOOP')
-    d0, d1 = q0['end'] - q0['start'], q1['end'] - q1['start']
-    check('the copy did not slow the job: same clocks with and without it', d0 == d1 and q1['a0'] == want, 'idle %d, with a copy %d clocks' % (d0, d1))
+    d0, d2, d1 = q0['end'] - q0['start'], q2['end'] - q2['start'], q1['end'] - q1['start']
+    # A few clocks of difference come from which core and which moment of the core's turn cycle a job starts on (seen on the card: 1 clock in 800,000);
+    # a copy that really stole turns from a core would add hundreds.  NOTE: this job never touches the shared RAM, so this shows the copy does not
+    # disturb fetching and computing; it does not yet cover the core's own shared-RAM accesses.
+    check('the copy did not slow the job (within 4 clocks of the idle runs)', abs(d1 - d0) <= 4 and q1['a0'] == want, 'idle %d and %d, with a copy %d clocks' % (d0, d2, d1))
     print('\nRESULT:', 'PASS' if not bad else 'FAIL (%d)' % bad)
     return 1 if bad else 0
 
