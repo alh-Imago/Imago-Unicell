@@ -35,4 +35,32 @@ class Fake:
         elif k == 'P':
             w = [s.code.get(i, 0) for i in range(7)]
             s.tasks[struct.unpack('<H', c[1:3])[0]] = rt.iss(w)['x'][10] if w == rt.assemble(st.k_sum(R.LOOP)) else 0
-if __name__ == '__main__': sys.exit(R.main('x', io=Fake()))
+
+# ---- stand-in that also obeys the job I/O protocol, for run_jobio_board.py (computes each job's answer in Python from the header in the shared RAM) ----
+class JobFake(Fake):
+    def __init__(s): super().__init__(); s.cwin = {}; s.kind = {0: 'vsum', 1: 'vscale', 2: 'vstress', 3: 'vscale', 4: 'vsum'}
+    def task(s, t):
+        s.polls[t] = s.polls.get(t, 0) + 1
+        return dict(state=2 if s.polls[t] == 1 and t >= 10 else 3, trap=0, a0=0, start=10, end=1010)
+    def h(s, c):
+        k = chr(c[0])
+        if k == 'X': s.cwin[c[1]] = (struct.unpack('<H', c[2:4])[0], struct.unpack('<H', c[4:6])[0])
+        elif k == 'P':
+            cid = c[7]; base, n = s.cwin[cid]; g = lambda o: s.sh.get(base + o, 0)
+            in_off, in_len, out_off, out_len, arg = g(0), g(1), g(2), g(3), g(6); ins = [g(in_off + i) for i in range(in_len)]; M = 0xFFFFFFFF
+            kind = s.kind[cid]
+            out = [sum(ins) & M] if kind == 'vsum' else [(2 * x + 1) & M for x in ins] if kind == 'vscale' else [(arg * sum(ins)) & M]
+            if out_len < len(out): s.sh[base + 4] = 2; s.sh[base + 5] = 0
+            else:
+                for i, w in enumerate(out): s.sh[base + out_off + i] = w
+                s.sh[base + 4] = 1; s.sh[base + 5] = len(out)
+        else: super().h(c)
+
+def jobio_main():
+    import run_jobio_board as RJ
+    return RJ.main('x', io=JobFake())
+
+if __name__ == '__main__':
+    rc = R.main('x', io=Fake()); print()
+    rc |= jobio_main()
+    sys.exit(rc)
