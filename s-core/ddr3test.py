@@ -47,7 +47,10 @@ def main(port, words=2048, io=None, say=print, stride=False):
         say('   word bits with errors (bit: count): ' + ', '.join('%d: %d' % (k, bybit[k]) for k in range(32) if bybit[k]))
         for a, w, g in bad[:6]: say('   word %#x wrote %08x read %08x xor %08x' % (a, w, g, w ^ g))
         # where the wrong words sit: lost whole groups point to the write path, scattered bits to a lane
-        say('   wrong words in aligned groups of 4 (word address / 4): ' + ', '.join('%#x' % k for k in sorted({a // 4 for a, _, _ in bad})[:16]))
+        gl = sorted({(a // 16, (a % 16) // 4) for a, _, _ in bad})
+        say('   wrong groups of 4 words, as line.group (line = word // 16, group 0..3 = slots 0-3, 4-7, 8-11, 12-15): %d groups' % len(gl))
+        say('   ' + ' '.join('%d.%d' % g for g in gl[:40]) + (' ...' if len(gl) > 40 else ''))
+        say('   lines hit: %d different, group numbers: %s' % (len({g[0] for g in gl}), {k: sum(1 for g in gl if g[1] == k) for k in range(4)}))
         if name.endswith('complement of A'):
             say('   wrong word equals pattern A (the old value, so the new write never showed): %d of %d' % (sum(1 for a, w, g in bad if g == pattern(a, 0)), len(bad)))
         return [a for a, _, _ in bad]
